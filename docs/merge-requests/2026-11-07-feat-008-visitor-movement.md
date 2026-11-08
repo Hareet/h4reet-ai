@@ -1,15 +1,56 @@
 # feat/008-visitor-movement
 
-Spec: [specs/008-visitor-movement/](../../specs/008-visitor-movement/) (Phase 1, User Story 1 with User Story 6's checks for targeting and, since its review, User Story 5's 2D highlight: T001 to T020 and T064 to T066, the agents' part) · Intent: [specs/008-visitor-movement/intent.md](../../specs/008-visitor-movement/intent.md), a draft · Written by: implementer agent (Claude Opus 5.5), from the branch's commits and the runs below · Date: 2026-11-07, updated 2026-11-08 for Phase 1's review
-Session: an implementer subagent, for the main session, in its own worktree, `/tmp/claude-1000/wt-feat008`, made with `git worktree add -b feat/008-visitor-movement /tmp/claude-1000/wt-feat008 refs/heads/spec/008-visitor-movement` at b95fd761, then `npm ci --ignore-scripts --cache "$TMPDIR/npm-cache-feat008"`. The Author's checkout wasn't touched. Repo hooks active: yes. Each commit ran gitleaks ("no leaks found") and the arrival check ("arrival-check: 0 findings in …"). The bash gate refused the first try at the RED commit, "changing main (HEAD is main)": the Author's checkout was on `main` while he merged line R and the two spec branches. Nothing was respelled; the work went on uncommitted in the worktree until he parked his checkout on `wip-park/11-7-2026` at 23:15, and the commits were then made in the order below, the RED commit holding the test files exactly as the RED run had them. Auto mode refused one command of mine, an `rm -rf` of a variable path, which the main session's brief forbids, for a folder that didn't exist yet; it was rewritten with literal paths and no `rm`. Deleting the rehearsal's branch warned "could not lock config file .git/config" (For the Author, below). The review's fixes were made in the same worktree on 2026-11-08, the Author's checkout parked on `wip-park/11-7-2026` throughout; no command was refused.
-Authorized by: tasks.md T001 to T020 and plan.md, under the relaxed lifecycle for the Author's absences, and, for the review's fixes, the main session's brief of 2026-11-08 relaying the review. The Author's approval is still his to confirm (below), and nothing merges before it (T000).
+Spec: [specs/008-visitor-movement/](../../specs/008-visitor-movement/) (Phase 1, User Story 1 with User Story 6's checks for targeting and, since its review, User Story 5's 2D highlight: T001 to T020 and T064 to T066, the agents' part) · Intent: [specs/008-visitor-movement/intent.md](../../specs/008-visitor-movement/intent.md), a draft · Written by: implementer agent (Claude Opus 5.5), from the branch's commits and the runs below · Date: 2026-11-07, updated 2026-11-08 for Phase 1's review and for its move to group A's top
+Session: an implementer subagent, for the main session, in its own worktree, `/tmp/claude-1000/wt-feat008`, made with `git worktree add -b feat/008-visitor-movement /tmp/claude-1000/wt-feat008 refs/heads/spec/008-visitor-movement` at b95fd761, then `npm ci --ignore-scripts --cache "$TMPDIR/npm-cache-feat008"`. The Author's checkout wasn't touched. Repo hooks active: yes. Each commit ran gitleaks ("no leaks found") and the arrival check ("arrival-check: 0 findings in …"). The bash gate refused the first try at the RED commit, "changing main (HEAD is main)": the Author's checkout was on `main` while he merged line R and the two spec branches. Nothing was respelled; the work went on uncommitted in the worktree until he parked his checkout on `wip-park/11-7-2026` at 23:15, and the commits were then made in the order below, the RED commit holding the test files exactly as the RED run had them. Auto mode refused one command of mine, an `rm -rf` of a variable path, which the main session's brief forbids, for a folder that didn't exist yet; it was rewritten with literal paths and no `rm`. Deleting the rehearsal's branch warned "could not lock config file .git/config" (For the Author, below). The review's fixes were made in the same worktree on 2026-11-08, the Author's checkout parked on `wip-park/11-7-2026` throughout; no command was refused. So was the move to group A's top, `git rebase --onto refs/heads/fix/000-open-items refs/heads/spec/008-visitor-movement`, with no conflict (The move to group A, below).
+Authorized by: tasks.md T001 to T020 and plan.md, under the relaxed lifecycle for the Author's absences, and, for the review's fixes, the main session's brief of 2026-11-08 relaying the review. The move to group A's top is the main session's brief of 2026-11-08 too. The Author's approval is still his to confirm (below), and nothing merges before it (T000).
 
 ## Status: built, its review's findings fixed, not merged; the spec's approval for the Author to confirm
 
 - **The spec's approval, as it stands.** T000 is open as tasks.md words its check: "the intent's Status line reads accepted, and the Author's answers are recorded in the spec's Clarifications in his words". At 23:15 on 2026-11-07 the Author gated and merged `spec/008-visitor-movement` into `main` (a893f267, the gate's summary "19 PASS, 3 SKIP, 2 WARN, 0 PLANNED, 0 PENDING, 0 FAIL"), its documents unchanged. The status page he read that night said "Merging them is your approval of each spec and plan", and he merged spec 008 without overturning an answer. The intent's Status line still reads "draft", and T000 stays unticked: he confirms it in the morning.
 - **Every clarification is provisional and his to overturn.** The spec was written on the night of 2026-11-07 while he was away, each of its five questions (Q1 to Q5) and eight defaults (D1 to D8) taken as the recommended answer; a no to any of them changes the requirements it names, and this branch with them. Phase 1 rests on two: Q4 (a piece is targeted by hover, press, and list focus; reach comes with walking) and Q5 (a yellow band framed in the look's ink). Phase 1's review adds four proposed amendments for T000, in spec.md under FR-008 (b), FR-012, FR-015, and FR-016 (Review, below).
 - **Phase 1, after its review.** The first review (T021) came back "not ready": four Important findings and four nits, each fixed here test-first (Review, below). The reviewer's re-read of the fixes is to come. Phase 2 (walking) is parked on `feat/008-walking`, its RED commit on Phase 1's first tip; it is rebased onto this tip next, and nothing of it is here.
-- **Stacking.** The branch was cut from `spec/008-visitor-movement`'s tip, b95fd761, which stacks on `spec/007-twin-conversation` (aa22a3b2) on line R's final tip, `feat/004-us9-neon-sign` (848a94d6). All three are on `main` now: User Story 9 at cca02bfc, spec 007 at c45f54fa, and spec 008 at a893f267, whose tree is b95fd761's. Since then, at 23:28, `main` has taken a commit of the Author's own, a33b4833 ("policy: the chalkboard's approval at 1.49", `assets/policy/approvals.json`), which this branch doesn't hold. The main session restacks this branch, and `feat/008-walking` after it, onto `main`'s tip in the morning (For the Author, below). `git merge-tree` already merges this branch's tip into a33b4833 cleanly, the result differing from the tip by that one file.
+- **Group A's top.** The branch was cut from `spec/008-visitor-movement`'s tip, b95fd761, which `main` holds since the Author merged it (a893f267). On 2026-11-08 it moved onto group A: `fix/000-open-items` at a50c6163, on `feat/004-chalkboard-model` at 495263d2, on `main` a33b4833, the Author's chalkboard approval. It merges as group A's top, one gate and one merge carrying the chalkboard and the open items with it (For the Author). Every SHA this note gives before the move is the old one; the map in The move to group A gives each commit's new one.
+
+## The move to group A
+
+By the main session's brief of 2026-11-08, from the worktree, on the branch at 3f1f1dae:
+
+```text
+git rebase --onto refs/heads/fix/000-open-items refs/heads/spec/008-visitor-movement
+```
+
+All 26 commits applied with no conflict: none of group A's 26 files is one of this branch's 47. Phase 1's patch is what it was, byte for byte, `git diff b95fd761 3f1f1dae` against `git diff a50c6163 6ae7d11c` with their `index` lines left out; the web suite on the moved branch, 84 files and 2366 tests, passes as before (Verification). Group A's range brings in the chalkboard at 1.49 (`assets/room/chalkboard.glb`, its records, `assets/CREDITS.md`, and its catalog entries), the open items' `apps/web/nginx.conf`, gateway tests, and edge tests, and their documents, each reviewed on its own branch, with its own note.
+
+Each commit's SHA, before the move and after it:
+
+| Old (on b95fd761) | New (on a50c6163) | Commit |
+| --- | --- | --- |
+| 88504be0 | 51d244b5 | test(008): the target and its highlight on today's camera, RED (T003 … |
+| 07671b60 | b221a5c9 | test(008): two of Phase 1's new tests corrected before their code, bo… |
+| 35838c7f | b6a326ab | feat(008): a look's highlight, RI4 on its colours, and RW2 on its con… |
+| 96094b80 | 42eab0a6 | test(008): bundle.test.ts's exact shapes of the index's flat and the … |
+| 235a4f62 | 8f3fff81 | feat(008): the three looks write out Q5's highlight, and the room's R… |
+| 7651ddc6 | 95b23bbe | feat(008): the targeting reducer, GREEN (T013) |
+| ebe3367c | 29448dff | feat(008): the 3D highlight's two hull passes over a selectable's mem… |
+| 998637a2 | 92fb5996 | feat(008): the pointer reports a hover's and a press's pick as target… |
+| 260bca87 | dc85a730 | feat(008): the stages take the room's target, and the 3D stage draws … |
+| 692a2264 | 3b726126 | feat(008): the "In the room" list's focus is a targeting input (T017) |
+| 8208fdcc | 67fb5f07 | feat(008): the room owns the target store, and a drafts build's frame… |
+| 2c9e28f6 | a8c16af5 | test(008): a stage that throws taking a target leaves the selection w… |
+| ed1f55c8 | 07b8bedc | fix(008): the room guards the stage's setTarget, GREEN (T018's guard) |
+| d0144a12 | 95b09697 | feat(008): the lookdev page's highlight sample, GREEN (T019) |
+| 1bc56b64 | 4b5f8761 | docs(008): plan.md §10's chunk sizes and the test files beyond §5.1's… |
+| 0e346106 | 9fd36a45 | docs(008): T001 to T020 ticked, each with its commits |
+| ca642080 | 4728580c | docs(008): the merge-request note for feat/008-visitor-movement, Phas… |
+| 6b463cd5 | 9d26bccf | test(008): Phase 1's review, its four findings and the nits, RED |
+| 3eb13abe | e73baa8c | fix(008): the 3D highlight as a mask and a ring, the labels after it … |
+| 65985244 | 279253f2 | fix(008): a press that ends off the surface (finding 3) |
+| f7db7b41 | 8b237871 | feat(008): the 2D highlight, moved into Phase 1 (finding 4; T064 to T… |
+| 728625b8 | d1184df2 | fix(008): RW2 also asks the band to stand 9:1 lighter than its edge (… |
+| 80624884 | 81a176e0 | docs(008): a press's end, a proposed amendment of FR-008 (b) and FR-0… |
+| 47ab9568 | 65b0b359 | docs(008): Phase 1's review in tasks.md, and the chunk sizes after it |
+| 1eaf0860 | 9a28c750 | style(008): Prettier over the ring's tests |
+| 3f1f1dae | 6ae7d11c | docs(008): the Phase 1 note after its review: the verdict, each findi… |
 
 ## What changed and why
 
@@ -17,7 +58,7 @@ The Author's words, 2026-11-07, as the main session relayed them:
 
 > "The visitor should be able to move around the room, and when targeting on an object, the object gains a highlight border until the user clicks on it. Also finish this out, and see what can be done in parallel"
 
-Phase 1 is the second half of the first sentence, on the camera every visitor has today: one piece at a time is the target, it shows a two-tone border until it's clicked, and the click opens what it opens today. The spec's reading, beside his words, not in their place: "targeting" is a hovering pointer, a press, or keyboard focus on the piece's button in the "In the room" list (Q4, provisional); "until the user clicks on it" is the border going in the same call as the selection and coming back only when the piece is targeted anew. At 1eaf0860, the tip this update describes, the branch has 25 commits on b95fd761, this note's first version among them: 47 files, 4,785 insertions and 107 deletions, 43 of the files under `apps/web/`, 3 under `specs/008-visitor-movement/`, and this note. The review's 8 commits, 6b463cd5 to 1eaf0860, change 20 of them.
+Phase 1 is the second half of the first sentence, on the camera every visitor has today: one piece at a time is the target, it shows a two-tone border until it's clicked, and the click opens what it opens today. The spec's reading, beside his words, not in their place: "targeting" is a hovering pointer, a press, or keyboard focus on the piece's button in the "In the room" list (Q4, provisional); "until the user clicks on it" is the border going in the same call as the selection and coming back only when the piece is targeted anew. At 6ae7d11c, group A's top before this update of the note, the branch has 26 commits on a50c6163, this note's two earlier versions among them: 47 files, 4,765 insertions and 107 deletions, 43 of the files under `apps/web/`, 3 under `specs/008-visitor-movement/`, and this note. The review's 9 commits, 9d26bccf to 6ae7d11c (6b463cd5 to 3f1f1dae before the move), change 20 of them.
 
 - **The target** (`apps/web/src/room/walk/target.ts`, T013; FR-007 to FR-013; R-06): a pure reducer in the entry chunk, at most one target, the latest input winning, a null clearing only its own input's target, a selection clearing it and consuming its ID until an input names another or none, and a reset. `src/room/app.ts` holds it for the visit (T018): the 3D stage's pointer and the list's focus feed it only after the hand-off's offer and only for an ID the index lists, each change goes to the stage that draws, `selectObject` clears it in the same call on every path, and the fall to 2D resets it.
 - **The inputs** (T016, T017; FR-008, FR-009): `objects.ts`'s `bindPointerSelection` reports a hovering pointer's pick on each move and none when it leaves, and a press's pick from its start until it ends, beyond the slop, or is cancelled, picking with the same function and pick areas as a selection, so a side-wall piece held at a stage isn't targeted by a pointer there. Since the review, a press takes the pointer, so a drag that ends off the canvas still ends on it, and a move with no button down drops a press whose end never came. `a11y.ts`'s list buttons report focus and blur, held pieces included.
@@ -29,6 +70,8 @@ Phase 1 is the second half of the first sentence, on the camera every visitor ha
 ## Departures
 
 Recorded in plan.md §10, "Phase 1, as built", each in the commit of the code it concerns:
+
+- **The move to group A's top (2026-11-08), a correction of plan.md §4.1.** The branch merges as group A's top, carrying the chalkboard and the open items, not alone after spec 008's merge as §4.1 has it; recorded in plan.md §10 with this update.
 
 - **The base, a correction (T001, T002).** The plan read line R at f9524081; line R has since been restacked onto `main` e189cc84, and its final tip is 848a94d6. The branch was cut from `spec/008-visitor-movement` (b95fd761, on `spec/007-twin-conversation` aa22a3b2, on 848a94d6), so the four documents were already in it and T002 had nothing to pick. Before any code, every file, function, and hook the plan names for Phase 1 was checked against 848a94d6 (`objects.ts`, `a11y.ts`, `app.ts`, `stage.ts`, `scene.ts`, `scene/look.ts`, `scene/bundle3d.ts`, `compose/pick.ts`, `signals/frame-log.ts`, the three looks, and the compositor's catalogue). They stand as the plan describes them, but for the entries below, which plan.md §10 records in the commit of the first code that depends on each.
 - **RI4 holds the highlight's colours, in `build/room/checks/ri.ts`**, which T012's file list leaves out though §3.2 names RI4 (T012).
@@ -99,7 +142,7 @@ Phase 1's requirements, and where each stands. The walking view's (FR-020 to FR-
 
 ## Security and agent governance
 
-Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, `infra/`, `deploy/`, `REVIEW.md`, `CLAUDE.md`, `.specify/memory/constitution.md`, or `docs/data-flow-disclosure.md` changes: `git diff --name-only b95fd761 1eaf0860` names 43 files under `apps/web/`, 3 under `specs/008-visitor-movement/`, and this note. There is no new dependency, no provider SDK, no network destination, and no human-only patch.
+Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, `infra/`, `deploy/`, `REVIEW.md`, `CLAUDE.md`, `.specify/memory/constitution.md`, or `docs/data-flow-disclosure.md` changes: `git diff --name-only a50c6163 6ae7d11c` names 43 files under `apps/web/`, 3 under `specs/008-visitor-movement/`, and this note. Group A's range below it, which this branch's merge carries, holds the chalkboard's `assets/` files and the open items' `apps/web/nginx.conf`, each reviewed on its own branch; the gate runs with the studio's Claude configuration for them (For the Author, A2). There is no new dependency, no provider SDK, no network destination, and no human-only patch.
 
 ## Cost, data flow, telemetry, and the dashboard
 
@@ -110,6 +153,8 @@ Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `cor
 - **Bytes:** gzip-9 bytes of a release build from `git archive` exports, b95fd761 against Phase 1: the entry's JavaScript and CSS 31,079 to 31,556 (+477) of spec 002's 153,600; the 3D chunk 167,271 to 168,615 (+1,344); the loader's chunk 15,992 to 15,993; the index 4,771 to 4,811 of spec 004's 16,384. After the review's fixes, built the same way from the worktree at 8062488: the entry 31,975 (+419 more: the 2D highlight and the press's capture), the 3D chunk 170,059 (+1,444 more: the mask, the ring, and the labels' order), the loader's 15,993, the index unchanged (plan.md §10).
 
 ## RED and GREEN
+
+The SHAs in this section and in Review are those before the move to group A; its map gives each one's commit on the branch.
 
 | Task | RED commit | What the RED run showed | GREEN commit |
 | --- | --- | --- | --- |
@@ -152,9 +197,19 @@ The nits:
 
 ## Verification
 
-All at 1eaf0860, the review's tip before this update of the note, which adds only this Markdown file. The first version's runs, at 0e346106, are in ca642080's copy of this note.
+All at 6ae7d11c, group A's top before this update of the note, which adds only Markdown: this note, and an entry each in plan.md §10 and tasks.md. The review's runs at 1eaf0860 are in 6ae7d11c's copy of this note, and the first version's at 0e346106 in ca642080's.
 
-`npm run room:report -w apps/web`'s Highlight section is unchanged by the review: RW2's tones rule refuses, and the report prints each look's palette contrasts as before (ca642080's copy has it).
+**The web suite**, `npx vitest run` in `apps/web/`, whole:
+
+```text
+ RUN  v5.0.3 /tmp/claude-1000/wt-feat008/apps/web
+
+
+ Test Files  84 passed (84)
+      Tests  2366 passed (2366)
+   Start at  01:28:59
+   Duration  42.71s (tests 76%, import 19%, transform 5%)
+```
 
 **`make lint`**, whole, exit 0:
 
@@ -167,12 +222,12 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-423 files already formatted
+425 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 ```
 
-**`gitleaks dir .`**, from inside a fresh `git archive` export of 1eaf0860, with the export's own `.gitleaks.toml`, 2026-11-08T08:16:01Z, gitleaks v8.30.1, run with `--no-color`:
+**`gitleaks dir .`**, from inside a fresh `git archive` export of 6ae7d11c, with the export's own `.gitleaks.toml`, 2026-11-08T08:30:28Z, gitleaks v8.30.1, run with `--no-color`:
 
 ```text
     ○
@@ -181,24 +236,129 @@ shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transacti
     ○ ░
     ░    gitleaks
 
-1:16AM INF scanned ~35080043 bytes (35.08 MB) in 1.3s
-1:16AM INF no leaks found
+1:30AM INF scanned ~35305152 bytes (35.31 MB) in 1.32s
+1:30AM INF no leaks found
 ```
 
-**The rehearsal**, with no worktree and no ref: `git merge-tree --write-tree refs/heads/main 1eaf0860`, `main` at a33b4833, the Author's chalkboard approval on spec 008's merge. It exits 0, a clean merge, and the merged tree differs from this branch's tip only by `main`'s own commit:
+**The rehearsal**, on a throwaway branch cut at `refs/heads/main` (a33b4833) in a worktree of its own, this branch's tip merged with `git merge --no-ff --no-edit`, then the worktree removed and the branch deleted by its own name:
 
 ```text
-$ git rev-parse refs/heads/main
-a33b4833c50490fea1f6d13731c09f34712ccc02
-$ git merge-tree --write-tree refs/heads/main 1eaf0860; echo "exit $?"
-f1565e95069a562f7136fb9521a90038da19bc25
+$ git worktree add -b rehearse/groupA-008 /tmp/claude-1000/rehearse-groupA-008 refs/heads/main
+Preparing worktree (new branch 'rehearse/groupA-008')
+HEAD is now at a33b4833 policy: the chalkboard's approval at 1.49
+$ git -C /tmp/claude-1000/rehearse-groupA-008 log --oneline -1
+a33b4833 policy: the chalkboard's approval at 1.49
+$ git -C /tmp/claude-1000/rehearse-groupA-008 merge --no-ff --no-edit 6ae7d11cbee8f61665df8e192b51d90bb45d069f
+Merge made by the 'ort' strategy.
+ apps/web/build/room/checks/family.ts               |   10 +-
+ apps/web/build/room/checks/ri.ts                   |   16 +-
+ apps/web/build/room/checks/rw.ts                   |  119 ++
+ apps/web/build/room/compose.ts                     |    8 +-
+ apps/web/build/room/emit.ts                        |   34 +-
+ apps/web/build/room/report.ts                      |   36 +
+ apps/web/build/room/schema.ts                      |   21 +-
+ apps/web/nginx.conf                                |    2 +
+ apps/web/room/README.md                            |    6 +-
+ apps/web/room/catalog/chalkboard.yaml              |   20 +-
+ apps/web/room/catalog/room-shell.yaml              |   12 +-
+ apps/web/room/looks/flat.yaml                      |    2 +
+ apps/web/room/looks/inked-cel.yaml                 |    3 +
+ apps/web/room/looks/painted.yaml                   |    2 +
+ apps/web/src/lookdev/main.ts                       |    2 +-
+ apps/web/src/lookdev/page.ts                       |   24 +-
+ apps/web/src/lookdev/stage.ts                      |   42 +-
+ apps/web/src/room/a11y.ts                          |   17 +-
+ apps/web/src/room/app.ts                           |   46 +-
+ apps/web/src/room/compose/bundle.ts                |   15 +-
+ apps/web/src/room/flat.ts                          |  106 +-
+ apps/web/src/room/objects.ts                       |   71 +-
+ apps/web/src/room/room.css                         |    8 +
+ apps/web/src/room/scene.ts                         |   40 +-
+ apps/web/src/room/scene/bundle3d.ts                |   25 +
+ apps/web/src/room/scene/highlight.ts               |  538 +++++++
+ apps/web/src/room/signals/frame-log.ts             |    7 +-
+ apps/web/src/room/stage.ts                         |    8 +
+ apps/web/src/room/walk/target.ts                   |   49 +
+ .../room/bad/RI4-look-highlight/expect.yaml        |    6 +
+ .../test/fixtures/room/bad/RW2-tones/expect.yaml   |    6 +
+ apps/web/test/fixtures/room/bad/RW2/expect.yaml    |   10 +
+ apps/web/test/helpers/room.ts                      |    4 +
+ apps/web/test/lookdev/page.test.ts                 |  104 +-
+ apps/web/test/manifest.test.ts                     |   16 +-
+ apps/web/test/room/bundle.test.ts                  |    7 +-
+ apps/web/test/room/compose.test.ts                 |  110 +-
+ apps/web/test/room/data-only.test.ts               |   35 +
+ apps/web/test/room/flat.test.ts                    |  124 ++
+ apps/web/test/room/highlight.test.ts               |  891 +++++++++++
+ apps/web/test/room/live.test.ts                    |   58 +
+ apps/web/test/room/loader.test.ts                  |   27 +-
+ apps/web/test/room/objects.test.ts                 |  209 ++-
+ apps/web/test/room/report.test.ts                  |   47 +
+ apps/web/test/room/scene.test.ts                   |    9 +-
+ apps/web/test/room/schema.test.ts                  |   26 +
+ apps/web/test/room/target.test.ts                  |  221 +++
+ apps/web/test/ui/degraded.test.ts                  |  133 ++
+ apps/web/test/ui/highlight.test.ts                 |  521 ++++++
+ assets/CREDITS.md                                  |    8 +-
+ assets/room/chalkboard.glb                         |  Bin 432752 -> 431364 bytes
+ assets/room/records.json                           |   30 +-
+ deploy/scripts/test_edge_site.py                   |    9 +
+ deploy/scripts/test_web_nginx.py                   |   24 +-
+ .../0010-real-time-avatar-rig-and-art-direction.md |   34 +-
+ docs/adr/README.md                                 |    2 +-
+ .../2026-11-07-feat-008-visitor-movement.md        |  991 ++++++++++++
+ .../2026-11-07-fix-000-open-items.md               | 1681 ++++++++++++++++++++
+ .../2026-11-08-feat-004-chalkboard-model.md        | 1257 +++++++++++++++
+ services/gateway/test/contract/adapter-contract.ts |   29 +-
+ .../test/contract/bedrock-converse.errors.test.ts  |    4 +-
+ .../test/contract/local-openai.errors.test.ts      |    9 +-
+ services/gateway/test/helpers/steady-clock.ts      |    9 +
+ .../gateway/test/integration/dispatcher.test.ts    |    6 +-
+ services/gateway/test/unit/circuit.test.ts         |   14 +-
+ services/gateway/test/unit/gateway.test.ts         |    8 +-
+ services/gateway/test/unit/telegram.test.ts        |    4 +-
+ specs/004-room-composition/contracts/serving.md    |   13 +-
+ specs/004-room-composition/plan.md                 |    6 +-
+ specs/004-room-composition/tasks.md                |   13 +
+ specs/008-visitor-movement/plan.md                 |   39 +-
+ specs/008-visitor-movement/spec.md                 |    8 +-
+ specs/008-visitor-movement/tasks.md                |   67 +-
+ 73 files changed, 7900 insertions(+), 218 deletions(-)
+ create mode 100644 apps/web/build/room/checks/rw.ts
+ create mode 100644 apps/web/src/room/scene/highlight.ts
+ create mode 100644 apps/web/src/room/walk/target.ts
+ create mode 100644 apps/web/test/fixtures/room/bad/RI4-look-highlight/expect.yaml
+ create mode 100644 apps/web/test/fixtures/room/bad/RW2-tones/expect.yaml
+ create mode 100644 apps/web/test/fixtures/room/bad/RW2/expect.yaml
+ create mode 100644 apps/web/test/room/highlight.test.ts
+ create mode 100644 apps/web/test/room/target.test.ts
+ create mode 100644 apps/web/test/ui/highlight.test.ts
+ create mode 100644 docs/merge-requests/2026-11-07-feat-008-visitor-movement.md
+ create mode 100644 docs/merge-requests/2026-11-07-fix-000-open-items.md
+ create mode 100644 docs/merge-requests/2026-11-08-feat-004-chalkboard-model.md
+ create mode 100644 services/gateway/test/helpers/steady-clock.ts
+merge exit 0
+$ git -C /tmp/claude-1000/rehearse-groupA-008 status --short
+$ git -C /tmp/claude-1000/rehearse-groupA-008 rev-parse 'HEAD^{tree}' '6ae7d11cbee8f61665df8e192b51d90bb45d069f^{tree}'
+33a8dc0ac42a790148fdb7f6be7cfd9ea5cde73a
+33a8dc0ac42a790148fdb7f6be7cfd9ea5cde73a
+$ git -C /tmp/claude-1000/rehearse-groupA-008 log --oneline --graph -3
+*   bf74861e Merge commit '6ae7d11cbee8f61665df8e192b51d90bb45d069f' into rehearse/groupA-008
+|\  
+| * 6ae7d11c docs(008): the Phase 1 note after its review: the verdict, each finding and its fix, RED and GREEN, make check, gitleaks
+| * 9a28c750 style(008): Prettier over the ring's tests
+$ git worktree remove /tmp/claude-1000/rehearse-groupA-008
 exit 0
-$ git diff --stat 1eaf0860 f1565e95069a562f7136fb9521a90038da19bc25
- assets/policy/approvals.json | 21 +++++++++++++++++++++
- 1 file changed, 21 insertions(+)
+$ git branch -D rehearse/groupA-008
+error: could not lock config file /home/h4reet/h4reet-ai/h4reet-ai/.git/config
+warning: update of config-file failed
+Deleted branch rehearse/groupA-008 (was bf74861e).
+exit 0
+$ git worktree list | grep -c rehearse-groupA-008; git branch --list rehearse/groupA-008
+0
 ```
 
-**`make check ENGINE_MODE=none-yet`** from the worktree's root, at 1eaf0860, whole: started 2026-11-08T08:14:48Z, its colour codes taken out (one line of the site build's), its exit 0. Its evals stage warns as it did at 0e346106: the agent-config evals' behavioural tier has no run for the configuration's trigger hash, which this branch doesn't change:
+**`make check ENGINE_MODE=none-yet`** from the worktree's root, at 6ae7d11c, whole: started 2026-11-08T08:30:21Z, its colour codes taken out (one line of the site build's), its exit 0. Its evals stage warns as it did at 0e346106 and 1eaf0860: the agent-config evals' behavioural tier has no run for the configuration's trigger hash, which neither this branch nor group A changes:
 
 ```text
 == makefiles-check
@@ -248,7 +408,7 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-423 files already formatted
+425 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
 -> PASS lint
@@ -266,8 +426,8 @@ npm test --workspaces --if-present
 
  Test Files  52 passed (52)
       Tests  810 passed | 12 skipped (822)
-   Start at  01:15:15
-   Duration  67.83s (tests 95%, import 3%, transform 2%)
+   Start at  01:30:49
+   Duration  62.83s (tests 95%, import 3%, transform 2%)
 
 
 > @h4reet/web@0.1.0 test
@@ -279,8 +439,8 @@ npm test --workspaces --if-present
 
  Test Files  84 passed (84)
       Tests  2366 passed (2366)
-   Start at  01:16:27
-   Duration  51.16s (tests 77%, import 19%, transform 4%)
+   Start at  01:31:55
+   Duration  46.44s (tests 78%, import 18%, transform 3%)
 
 pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
 ........................................................................ [  1%]
@@ -305,7 +465,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 37%]
 ........................................................................ [ 39%]
 ........................................................................ [ 41%]
-........................................................................ [ 43%]
+........................................................................ [ 42%]
 ........................................................................ [ 44%]
 ........................................................................ [ 46%]
 ........................................................................ [ 48%]
@@ -328,7 +488,7 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 80%]
 ........................................................................ [ 82%]
 ........................................................................ [ 84%]
-........................................................................ [ 86%]
+........................................................................ [ 85%]
 ........................................................................ [ 87%]
 ........................................................................ [ 89%]
 ........................................................................ [ 91%]
@@ -336,8 +496,8 @@ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam
 ........................................................................ [ 95%]
 ........................................................................ [ 97%]
 ........................................................................ [ 99%]
-..................................                                       [100%]
-3850 passed in 361.00s (0:06:01)
+....................................                                     [100%]
+3852 passed in 362.74s (0:06:02)
 -> PASS test
 == content-check
 + ROOM_DRAFTS=
@@ -359,276 +519,276 @@ policy: main's content-approvals.json, resume-header.json and caps.json into /tm
   - import "./build/policy" without a file extension (vite.config.ts:12:36). Add the file extension
   - import "./build/room/plugin" without a file extension (vite.config.ts:13:28). Add the file extension
   - import "./build/room/text" without a file extension (vite.config.ts:14:30). Add the file extension
+  - import "../approvals" without a file extension (build/room/text.ts:11:45). Add the file extension
+  - import "../src/resume/data" without a file extension (build/content.ts:27:58). Add the file extension
   - import "../src/resume/data" without a file extension (build/narration.ts:24:40). Add the file extension
   - import "../approvals" without a file extension (build/room/plugin.ts:28:26). Add the file extension
-  - import "../src/resume/data" without a file extension (build/content.ts:27:58). Add the file extension
-  - import "../approvals" without a file extension (build/room/text.ts:11:45). Add the file extension
-  - import "../src/narration/data" without a file extension (build/narration.ts:25:53). Add the file extension
-  - import "../manifest" without a file extension (build/room/plugin.ts:29:30). Add the file extension
-  - import "./approvals" without a file extension (build/content.ts:28:78). Add the file extension
   - import "./compose" without a file extension (build/room/text.ts:12:25). Add the file extension
+  - import "../src/narration/data" without a file extension (build/narration.ts:25:53). Add the file extension
+  - import "./approvals" without a file extension (build/content.ts:28:78). Add the file extension
   - import "./approvals" without a file extension (build/narration.ts:26:78). Add the file extension
-  - import "./compose" without a file extension (build/room/plugin.ts:30:40). Add the file extension
   - import "./narration-source" without a file extension (build/content.ts:29:29). Add the file extension
-  - import "./policy" without a file extension (build/room/text.ts:13:28). Add the file extension
   - import "./content" without a file extension (build/narration.ts:48:8). Add the file extension
-  - import "./compose" without a file extension (build/room/plugin.ts:31:36). Add the file extension
-  - import "./source" without a file extension (build/room/text.ts:14:26). Add the file extension
-  - import "./narration-source" without a file extension (build/narration.ts:49:57). Add the file extension
-  - import "./emit" without a file extension (build/room/plugin.ts:32:27). Add the file extension
   - import "./pdf" without a file extension (build/content.ts:30:46). Add the file extension
-  - import "./policy" without a file extension (build/narration.ts:50:36). Add the file extension
-  - import "./policy" without a file extension (build/room/plugin.ts:33:32). Add the file extension
+  - import "./narration-source" without a file extension (build/narration.ts:49:57). Add the file extension
   - import "./policy" without a file extension (build/content.ts:31:36). Add the file extension
+  - import "./policy" without a file extension (build/narration.ts:50:36). Add the file extension
+  - import "../manifest" without a file extension (build/room/plugin.ts:29:30). Add the file extension
+  - import "./policy" without a file extension (build/room/text.ts:13:28). Add the file extension
+  - import "./compose" without a file extension (build/room/plugin.ts:30:40). Add the file extension
+  - import "./source" without a file extension (build/room/text.ts:14:26). Add the file extension
+  - import "./compose" without a file extension (build/room/plugin.ts:31:36). Add the file extension
+  - import "./emit" without a file extension (build/room/plugin.ts:32:27). Add the file extension
+  - import "./policy" without a file extension (build/room/plugin.ts:33:32). Add the file extension
   - import "./policy" without a file extension (build/room/plugin.ts:34:33). Add the file extension
-  - import "./checks/family" without a file extension (build/room/compose.ts:10:48). Add the file extension
-  - import "../../src/room/glb/json" without a file extension (build/room/policy.ts:23:51). Add the file extension
   - import "./source" without a file extension (build/room/plugin.ts:35:38). Add the file extension
+  - import "./checks/family" without a file extension (build/room/compose.ts:10:48). Add the file extension
   - import "../src/narration/data" without a file extension (build/narration-source.ts:23:36). Add the file extension
-  - import "./approvals" without a file extension (build/pdf.ts:25:40). Add the file extension
+  - import "../../src/room/glb/json" without a file extension (build/room/policy.ts:23:51). Add the file extension
+  - import "./source" without a file extension (build/room/plugin.ts:36:27). Add the file extension
   - import "./checks/family" without a file extension (build/room/compose.ts:11:54). Add the file extension
   - import "../../src/room/glb/json" without a file extension (build/room/policy.ts:24:39). Add the file extension
-  - import "./source" without a file extension (build/room/plugin.ts:36:27). Add the file extension
-  - import "./content" without a file extension (build/pdf.ts:26:31). Add the file extension
+  - import "./approvals" without a file extension (build/pdf.ts:25:40). Add the file extension
   - import "./checks/rd" without a file extension (build/room/compose.ts:12:20). Add the file extension
   - import "../policy" without a file extension (build/room/policy.ts:25:25). Add the file extension
+  - import "./content" without a file extension (build/pdf.ts:26:31). Add the file extension
   - import "./checks/rg" without a file extension (build/room/compose.ts:13:20). Add the file extension
   - import "../policy" without a file extension (build/room/policy.ts:26:27). Add the file extension
   - import "./checks/ri" without a file extension (build/room/compose.ts:14:20). Add the file extension
   - import "./checks/family" without a file extension (build/room/policy.ts:27:28). Add the file extension
   - import "./checks/rk" without a file extension (build/room/compose.ts:15:20). Add the file extension
   - import "./schema" without a file extension (build/room/policy.ts:28:20). Add the file extension
-  - import "../../src/choice/avatars" without a file extension (build/room/emit.ts:37:25). Add the file extension
-  - import "../src/choice/avatars" without a file extension (build/manifest.ts:13:25). Add the file extension
   - import "./checks/rl" without a file extension (build/room/compose.ts:16:20). Add the file extension
-  - import "../../src/room/compose/bundle" without a file extension (build/room/emit.ts:47:8). Add the file extension
-  - import "../src/room/compose/bundle" without a file extension (build/manifest.ts:14:32). Add the file extension
+  - import "../src/choice/avatars" without a file extension (build/manifest.ts:13:25). Add the file extension
+  - import "../../src/choice/avatars" without a file extension (build/room/emit.ts:37:25). Add the file extension
   - import "./checks/rs" without a file extension (build/room/compose.ts:17:20). Add the file extension
-  - import "../../src/room/compose/cable" without a file extension (build/room/emit.ts:48:30). Add the file extension
-  - import "../src/room/events" without a file extension (build/manifest.ts:15:29). Add the file extension
+  - import "../src/room/compose/bundle" without a file extension (build/manifest.ts:14:32). Add the file extension
+  - import "../../src/room/compose/bundle" without a file extension (build/room/emit.ts:47:8). Add the file extension
   - import "./checks/rt" without a file extension (build/room/compose.ts:18:33). Add the file extension
-  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:49:42). Add the file extension
-  - import "../src/talk/messages" without a file extension (build/manifest.ts:16:42). Add the file extension
+  - import "../src/room/events" without a file extension (build/manifest.ts:15:29). Add the file extension
+  - import "../../src/room/compose/cable" without a file extension (build/room/emit.ts:48:30). Add the file extension
   - import "./checks/rv" without a file extension (build/room/compose.ts:19:20). Add the file extension
-  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:50:26). Add the file extension
-  - import "../src/talk/messages" without a file extension (build/manifest.ts:17:42). Add the file extension
+  - import "../src/talk/messages" without a file extension (build/manifest.ts:16:42). Add the file extension
+  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:49:42). Add the file extension
   - import "./checks/rw" without a file extension (build/room/compose.ts:20:20). Add the file extension
-  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:51:27). Add the file extension
-  - import "./room/emit" without a file extension (build/manifest.ts:18:53). Add the file extension
-  - import "./checks/rx" without a file extension (build/room/compose.ts:21:20). Add the file extension
-  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:52:35). Add the file extension
-  - import "./emit" without a file extension (build/room/compose.ts:22:22). Add the file extension
-  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:53:27). Add the file extension
-  - import "./emit" without a file extension (build/room/compose.ts:23:34). Add the file extension
   - import "../../src/room/compose/vocabulary" without a file extension (build/room/schema.ts:21:8). Add the file extension
   - import "../load" without a file extension (build/room/checks/family.ts:12:33). Add the file extension
-  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:54:32). Add the file extension
-  - import "./load" without a file extension (build/room/compose.ts:24:26). Add the file extension
-  - import "../../src/room/ui-keys" without a file extension (build/room/schema.ts:22:25). Add the file extension
+  - import "../src/talk/messages" without a file extension (build/manifest.ts:17:42). Add the file extension
+  - import "../../src/room/compose/framing" without a file extension (build/room/emit.ts:50:26). Add the file extension
+  - import "./checks/rx" without a file extension (build/room/compose.ts:21:20). Add the file extension
   - import "../policy" without a file extension (build/room/checks/family.ts:13:33). Add the file extension
-  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:55:87). Add the file extension
-  - import "./policy" without a file extension (build/room/compose.ts:25:33). Add the file extension
-  - import "../room/dom" without a file extension (src/choice/avatars.ts:4:21). Add the file extension
-  - import "../room/signals/tier" without a file extension (src/talk/messages.ts:6:28). Add the file extension
+  - import "./room/emit" without a file extension (build/manifest.ts:18:53). Add the file extension
+  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:51:27). Add the file extension
+  - import "./emit" without a file extension (build/room/compose.ts:22:22). Add the file extension
+  - import "../../src/room/ui-keys" without a file extension (build/room/schema.ts:22:25). Add the file extension
   - import "../source" without a file extension (build/room/checks/family.ts:14:33). Add the file extension
-  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:56:39). Add the file extension
-  - import "./source" without a file extension (build/room/compose.ts:26:27). Add the file extension
+  - import "../../src/room/compose/legibility" without a file extension (build/room/emit.ts:52:35). Add the file extension
+  - import "./emit" without a file extension (build/room/compose.ts:23:34). Add the file extension
   - import "../source" without a file extension (build/room/checks/family.ts:15:27). Add the file extension
-  - import "../../src/room/compose/mount" without a file extension (build/room/emit.ts:57:41). Add the file extension
+  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:53:27). Add the file extension
+  - import "./load" without a file extension (build/room/compose.ts:24:26). Add the file extension
+  - import "../../src/room/compose/load-order" without a file extension (build/room/emit.ts:54:32). Add the file extension
+  - import "./policy" without a file extension (build/room/compose.ts:25:33). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:55:87). Add the file extension
+  - import "./source" without a file extension (build/room/compose.ts:26:27). Add the file extension
+  - import "../../src/room/compose/math" without a file extension (build/room/emit.ts:56:39). Add the file extension
   - import "./checks/family" without a file extension (build/room/compose.ts:28:46). Add the file extension
-  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:58:36). Add the file extension
+  - import "../../src/room/compose/mount" without a file extension (build/room/emit.ts:57:41). Add the file extension
   - import "./policy" without a file extension (build/room/compose.ts:29:43). Add the file extension
-  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:59:40). Add the file extension
+  - import "../room/signals/tier" without a file extension (src/talk/messages.ts:6:28). Add the file extension
+  - import "../room/dom" without a file extension (src/choice/avatars.ts:4:21). Add the file extension
+  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:58:36). Add the file extension
   - import "./source" without a file extension (build/room/compose.ts:30:27). Add the file extension
-  - import "../../src/room/compose/stages" without a file extension (build/room/emit.ts:60:27). Add the file extension
-  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:61:44). Add the file extension
+  - import "../../src/room/compose/project" without a file extension (build/room/emit.ts:59:40). Add the file extension
+  - import "../compose/vocabulary" without a file extension (src/room/signals/tier.ts:16:32). Add the file extension
   - import "../schema" without a file extension (build/room/checks/rd.ts:14:23). Add the file extension
   - import "../load" without a file extension (build/room/checks/rw.ts:13:29). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rk.ts:23:33). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rv.ts:9:21). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:20:37). Add the file extension
+  - import "../../../src/room/glb/json" without a file extension (build/room/checks/rl.ts:14:28). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/ri.ts:13:48). Add the file extension
   - import "../../content" without a file extension (build/room/checks/rt.ts:30:8). Add the file extension
   - import "../../src/room/glb/json" without a file extension (build/room/load.ts:18:37). Add the file extension
-  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rk.ts:23:33). Add the file extension
   - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rx.ts:17:66). Add the file extension
-  - import "../../../src/room/compose/math" without a file extension (build/room/checks/ri.ts:13:48). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rv.ts:9:21). Add the file extension
-  - import "../../../src/room/glb/json" without a file extension (build/room/checks/rl.ts:14:28). Add the file extension
-  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:20:37). Add the file extension
-  - import "../compose/vocabulary" without a file extension (src/room/signals/tier.ts:16:32). Add the file extension
   - import "../../../src/room/compose/cable" without a file extension (build/room/checks/rg.ts:41:37). Add the file extension
-  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:62:45). Add the file extension
+  - import "../../src/room/compose/stages" without a file extension (build/room/emit.ts:60:27). Add the file extension
   - import "./family" without a file extension (build/room/checks/rd.ts:15:38). Add the file extension
   - import "../schema" without a file extension (build/room/checks/rw.ts:14:21). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:24:36). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rv.ts:10:38). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:21:27). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rl.ts:15:27). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:14:44). Add the file extension
   - import "../../content" without a file extension (build/room/checks/rt.ts:31:67). Add the file extension
   - import "./checks/family" without a file extension (build/room/load.ts:19:45). Add the file extension
-  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:24:36). Add the file extension
   - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rx.ts:18:57). Add the file extension
-  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:14:44). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rv.ts:10:38). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rl.ts:15:27). Add the file extension
-  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rs.ts:21:27). Add the file extension
   - import "../../../src/room/compose/cable" without a file extension (build/room/checks/rg.ts:42:31). Add the file extension
-  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:63:45). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:61:44). Add the file extension
   - import "./family" without a file extension (build/room/checks/rd.ts:16:46). Add the file extension
   - import "../schema" without a file extension (build/room/checks/rw.ts:15:31). Add the file extension
+  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:25:31). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rl.ts:16:37). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:15:33). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rs.ts:22:29). Add the file extension
   - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rt.ts:38:8). Add the file extension
   - import "./checks/family" without a file extension (build/room/load.ts:20:30). Add the file extension
-  - import "../../../src/room/glb/fit" without a file extension (build/room/checks/rk.ts:25:31). Add the file extension
   - import "../../../src/room/glb/gzip" without a file extension (build/room/checks/rx.ts:19:27). Add the file extension
-  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/ri.ts:15:33). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rl.ts:16:37). Add the file extension
-  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rs.ts:22:29). Add the file extension
   - import "../../../src/room/compose/framing" without a file extension (build/room/checks/rg.ts:43:36). Add the file extension
-  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:64:41). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/emit.ts:62:45). Add the file extension
   - import "./family" without a file extension (build/room/checks/rw.ts:16:38). Add the file extension
-  - import "./checks/rd" without a file extension (build/room/load.ts:21:31). Add the file extension
   - import "../../../src/room/glb/rules" without a file extension (build/room/checks/rk.ts:26:23). Add the file extension
-  - import "../load" without a file extension (build/room/checks/rx.ts:20:29). Add the file extension
-  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/ri.ts:16:30). Add the file extension
   - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rs.ts:23:32). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/ri.ts:16:30). Add the file extension
+  - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rt.ts:39:27). Add the file extension
+  - import "./checks/rd" without a file extension (build/room/load.ts:21:31). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rx.ts:20:29). Add the file extension
   - import "../../../src/room/compose/framing" without a file extension (build/room/checks/rg.ts:44:26). Add the file extension
-  - import "../../src/room/glb/gzip" without a file extension (build/room/emit.ts:65:23). Add the file extension
-  - import "./schema" without a file extension (build/room/load.ts:32:8). Add the file extension
+  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:63:45). Add the file extension
   - import "../load" without a file extension (build/room/checks/rk.ts:27:29). Add the file extension
-  - import "../policy" without a file extension (build/room/checks/rx.ts:21:24). Add the file extension
-  - import "../../../src/room/handoff" without a file extension (build/room/checks/ri.ts:17:24). Add the file extension
   - import "../schema" without a file extension (build/room/checks/rs.ts:24:43). Add the file extension
+  - import "../../../src/room/handoff" without a file extension (build/room/checks/ri.ts:17:24). Add the file extension
+  - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rt.ts:40:29). Add the file extension
+  - import "./schema" without a file extension (build/room/load.ts:32:8). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rx.ts:21:24). Add the file extension
   - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rg.ts:45:27). Add the file extension
-  - import "../../src/room/glb/images" without a file extension (build/room/emit.ts:66:27). Add the file extension
-  - import "./schema" without a file extension (build/room/load.ts:43:8). Add the file extension
+  - import "../../src/room/glb/fit" without a file extension (build/room/emit.ts:64:41). Add the file extension
   - import "../policy" without a file extension (build/room/checks/rk.ts:28:35). Add the file extension
-  - import "../policy" without a file extension (build/room/checks/rx.ts:22:31). Add the file extension
-  - import "../../../src/room/glb/json" without a file extension (build/room/checks/ri.ts:18:38). Add the file extension
   - import "./family" without a file extension (build/room/checks/rs.ts:25:38). Add the file extension
+  - import "../../../src/room/glb/json" without a file extension (build/room/checks/ri.ts:18:38). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rt.ts:41:34). Add the file extension
+  - import "./schema" without a file extension (build/room/load.ts:43:8). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rx.ts:22:31). Add the file extension
   - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rg.ts:46:66). Add the file extension
-  - import "../manifest" without a file extension (build/room/emit.ts:67:62). Add the file extension
-  - import "./source" without a file extension (build/room/load.ts:44:33). Add the file extension
+  - import "../../src/room/glb/gzip" without a file extension (build/room/emit.ts:65:23). Add the file extension
   - import "../schema" without a file extension (build/room/checks/rk.ts:29:35). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rx.ts:23:35). Add the file extension
-  - import "../load" without a file extension (build/room/checks/ri.ts:19:37). Add the file extension
   - import "./rg" without a file extension (build/room/checks/rs.ts:26:42). Add the file extension
+  - import "../load" without a file extension (build/room/checks/ri.ts:19:37). Add the file extension
+  - import "../../../src/room/glb/names" without a file extension (build/room/checks/rt.ts:42:29). Add the file extension
+  - import "./source" without a file extension (build/room/load.ts:44:33). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rx.ts:23:35). Add the file extension
   - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rg.ts:47:63). Add the file extension
-  - import "./source" without a file extension (build/room/load.ts:45:27). Add the file extension
+  - import "../../src/room/glb/images" without a file extension (build/room/emit.ts:66:27). Add the file extension
   - import "../source" without a file extension (build/room/checks/rk.ts:30:27). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rx.ts:24:38). Add the file extension
   - import "../load" without a file extension (build/room/checks/ri.ts:20:29). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rk.ts:31:38). Add the file extension
-  - import "./ri" without a file extension (build/room/checks/rx.ts:25:28). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/ri.ts:21:21). Add the file extension
+  - import "../../../src/room/ui-keys" without a file extension (build/room/checks/rt.ts:43:41). Add the file extension
+  - import "./source" without a file extension (build/room/load.ts:45:27). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rx.ts:24:38). Add the file extension
   - import "../../../src/room/compose/math" without a file extension (build/room/checks/rg.ts:48:71). Add the file extension
+  - import "../manifest" without a file extension (build/room/emit.ts:67:62). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rk.ts:31:38). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/ri.ts:21:21). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rt.ts:44:36). Add the file extension
+  - import "./ri" without a file extension (build/room/checks/rx.ts:25:28). Add the file extension
+  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rg.ts:49:39). Add the file extension
+  - import "./checks/family" without a file extension (build/room/emit.ts:68:26). Add the file extension
   - import "./rg" without a file extension (build/room/checks/rk.ts:32:41). Add the file extension
   - import "../schema" without a file extension (build/room/checks/ri.ts:22:64). Add the file extension
-  - import "../../../src/room/compose/math" without a file extension (build/room/checks/rg.ts:49:39). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rt.ts:45:41). Add the file extension
+  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/rg.ts:50:65). Add the file extension
+  - import "./checks/family" without a file extension (build/room/emit.ts:69:46). Add the file extension
+  - import "./images" without a file extension (src/room/glb/fit.ts:18:27). Add the file extension
   - import "./rg" without a file extension (build/room/checks/rk.ts:33:31). Add the file extension
   - import "./family" without a file extension (build/room/checks/ri.ts:23:38). Add the file extension
-  - import "../../../src/room/compose/mount" without a file extension (build/room/checks/rg.ts:50:65). Add the file extension
-  - import "./rx" without a file extension (build/room/checks/rk.ts:34:41). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rt.ts:46:29). Add the file extension
   - import "../../../src/room/compose/mount" without a file extension (build/room/checks/rg.ts:51:60). Add the file extension
-  - import "../../../src/room/compose/layout" without a file extension (build/room/checks/rt.ts:39:27). Add the file extension
-  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:52:73). Add the file extension
-  - import "./checks/family" without a file extension (build/room/emit.ts:68:26). Add the file extension
-  - import "./images" without a file extension (src/room/glb/fit.ts:18:27). Add the file extension
-  - import "./names" without a file extension (src/room/glb/rules.ts:6:27). Add the file extension
-  - import "../../../src/room/compose/legibility" without a file extension (build/room/checks/rt.ts:40:29). Add the file extension
-  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:53:62). Add the file extension
-  - import "./checks/family" without a file extension (build/room/emit.ts:69:46). Add the file extension
-  - import "./images" without a file extension (src/room/glb/fit.ts:19:58). Add the file extension
-  - import "./names" without a file extension (src/room/glb/rules.ts:7:34). Add the file extension
-  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rt.ts:41:34). Add the file extension
-  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:54:36). Add the file extension
   - import "./checks/rg" without a file extension (build/room/emit.ts:70:80). Add the file extension
+  - import "./images" without a file extension (src/room/glb/fit.ts:19:58). Add the file extension
+  - import "./rx" without a file extension (build/room/checks/rk.ts:34:41). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rt.ts:47:72). Add the file extension
+  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:52:73). Add the file extension
+  - import "./checks/rg" without a file extension (build/room/emit.ts:71:31). Add the file extension
+  - import "./json" without a file extension (src/room/glb/fit.ts:20:27). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rt.ts:48:27). Add the file extension
+  - import "../../../src/room/compose/pick" without a file extension (build/room/checks/rg.ts:53:62). Add the file extension
+  - import "./checks/ri" without a file extension (build/room/emit.ts:72:28). Add the file extension
+  - import "./json" without a file extension (src/room/glb/fit.ts:21:26). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rt.ts:49:28). Add the file extension
+  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:54:36). Add the file extension
+  - import "./checks/rw" without a file extension (build/room/emit.ts:73:35). Add the file extension
+  - import "./names" without a file extension (src/room/glb/fit.ts:22:80). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rt.ts:50:28). Add the file extension
+  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:55:40). Add the file extension
+  - import "./checks/rw" without a file extension (build/room/emit.ts:74:40). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:23:36). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rt.ts:51:38). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:64:8). Add the file extension
+  - import "./load" without a file extension (build/room/emit.ts:75:41). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:24:72). Add the file extension
+  - import "./rg" without a file extension (build/room/checks/rt.ts:52:42). Add the file extension
+  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:65:28). Add the file extension
+  - import "./orders" without a file extension (build/room/emit.ts:76:69). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/fit.ts:42:8). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:66:47). Add the file extension
+  - import "./policy" without a file extension (build/room/emit.ts:77:24). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/fit.ts:43:40). Add the file extension
+  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:67:50). Add the file extension
+  - import "./policy" without a file extension (build/room/emit.ts:78:55). Add the file extension
+  - import "./names" without a file extension (src/room/glb/rules.ts:6:27). Add the file extension
   - import "../choice/avatars" without a file extension (src/room/handoff.ts:10:40). Add the file extension
   - import "./math" without a file extension (src/room/compose/mount.ts:11:68). Add the file extension
-  - import "./json" without a file extension (src/room/glb/fit.ts:20:27). Add the file extension
-  - import "../../../src/room/glb/names" without a file extension (build/room/checks/rt.ts:42:29). Add the file extension
-  - import "../../../src/room/compose/project" without a file extension (build/room/checks/rg.ts:55:40). Add the file extension
-  - import "./checks/rg" without a file extension (build/room/emit.ts:71:31). Add the file extension
+  - import "./layout" without a file extension (src/room/compose/legibility.ts:8:49). Add the file extension
+  - import "./vocabulary" without a file extension (src/room/compose/layout.ts:9:31). Add the file extension
+  - import "../../src/room/compose/bundle" without a file extension (build/room/typefaces.ts:22:38). Add the file extension
+  - import "./read" without a file extension (src/room/glb/fit.ts:45:35). Add the file extension
+  - import "../load" without a file extension (build/room/checks/rg.ts:68:41). Add the file extension
+  - import "./report" without a file extension (build/room/emit.ts:79:28). Add the file extension
+  - import "./names" without a file extension (src/room/glb/rules.ts:7:34). Add the file extension
   - import "../choice/avatars" without a file extension (src/room/handoff.ts:11:31). Add the file extension
   - import "./math" without a file extension (src/room/compose/mount.ts:12:39). Add the file extension
-  - import "./json" without a file extension (src/room/glb/fit.ts:21:26). Add the file extension
-  - import "../../../src/room/ui-keys" without a file extension (build/room/checks/rt.ts:43:41). Add the file extension
-  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:64:8). Add the file extension
-  - import "./checks/ri" without a file extension (build/room/emit.ts:72:28). Add the file extension
-  - import "./clock" without a file extension (src/room/handoff.ts:12:28). Add the file extension
-  - import "./names" without a file extension (src/room/glb/fit.ts:22:80). Add the file extension
-  - import "../load" without a file extension (build/room/checks/rt.ts:44:36). Add the file extension
-  - import "../../../src/room/compose/stages" without a file extension (build/room/checks/rg.ts:65:28). Add the file extension
-  - import "./checks/rw" without a file extension (build/room/emit.ts:73:35). Add the file extension
-  - import "./read" without a file extension (src/room/glb/fit.ts:23:36). Add the file extension
-  - import "../load" without a file extension (build/room/checks/rt.ts:45:41). Add the file extension
-  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:66:47). Add the file extension
-  - import "./checks/rw" without a file extension (build/room/emit.ts:74:40). Add the file extension
-  - import "./read" without a file extension (src/room/glb/fit.ts:24:72). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rt.ts:46:29). Add the file extension
-  - import "../../../src/room/compose/vocabulary" without a file extension (build/room/checks/rg.ts:67:50). Add the file extension
-  - import "./load" without a file extension (build/room/emit.ts:75:41). Add the file extension
-  - import "./rules" without a file extension (src/room/glb/fit.ts:42:8). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rt.ts:47:72). Add the file extension
-  - import "../load" without a file extension (build/room/checks/rg.ts:68:41). Add the file extension
-  - import "./orders" without a file extension (build/room/emit.ts:76:69). Add the file extension
-  - import "./rules" without a file extension (src/room/glb/fit.ts:43:40). Add the file extension
-  - import "../typefaces" without a file extension (build/room/checks/rt.ts:48:27). Add the file extension
+  - import "./layout" without a file extension (src/room/compose/legibility.ts:9:53). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:23:31). Add the file extension
   - import "../policy" without a file extension (build/room/checks/rg.ts:69:24). Add the file extension
-  - import "./read" without a file extension (src/room/glb/fit.ts:45:35). Add the file extension
-  - import "../typefaces" without a file extension (build/room/checks/rt.ts:49:28). Add the file extension
-  - import "../policy" without a file extension (build/room/checks/rg.ts:70:33). Add the file extension
-  - import "./policy" without a file extension (build/room/emit.ts:77:24). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rt.ts:50:28). Add the file extension
-  - import "../schema" without a file extension (build/room/checks/rg.ts:82:8). Add the file extension
-  - import "./policy" without a file extension (build/room/emit.ts:78:55). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rt.ts:51:38). Add the file extension
-  - import "../typefaces" without a file extension (build/room/checks/rg.ts:83:31). Add the file extension
-  - import "./report" without a file extension (build/room/emit.ts:79:28). Add the file extension
-  - import "./rg" without a file extension (build/room/checks/rt.ts:52:42). Add the file extension
-  - import "../typefaces" without a file extension (build/room/checks/rg.ts:84:43). Add the file extension
   - import "./schema" without a file extension (build/room/emit.ts:80:41). Add the file extension
-  - import "./family" without a file extension (build/room/checks/rg.ts:85:38). Add the file extension
+  - import "./clock" without a file extension (src/room/handoff.ts:12:28). Add the file extension
+  - import "./math" without a file extension (src/room/compose/legibility.ts:10:62). Add the file extension
+  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:24:34). Add the file extension
+  - import "../policy" without a file extension (build/room/checks/rg.ts:70:33). Add the file extension
   - import "./schema" without a file extension (build/room/emit.ts:91:8). Add the file extension
-  - import "./rx" without a file extension (build/room/checks/rg.ts:86:27). Add the file extension
+  - import "./math" without a file extension (src/room/compose/legibility.ts:11:33). Add the file extension
+  - import "../schema" without a file extension (build/room/checks/rg.ts:82:8). Add the file extension
   - import "./source" without a file extension (build/room/emit.ts:92:33). Add the file extension
+  - import "./project" without a file extension (src/room/compose/legibility.ts:12:36). Add the file extension
+  - import "../pdf" without a file extension (build/room/typefaces.ts:25:32). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rg.ts:83:31). Add the file extension
   - import "./source" without a file extension (build/room/emit.ts:93:27). Add the file extension
+  - import "./project" without a file extension (src/room/compose/legibility.ts:13:29). Add the file extension
+  - import "../pdf" without a file extension (build/room/typefaces.ts:26:32). Add the file extension
+  - import "../typefaces" without a file extension (build/room/checks/rg.ts:84:43). Add the file extension
   - import "./typefaces" without a file extension (build/room/emit.ts:94:31). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/legibility.ts:14:28). Add the file extension
+  - import "./family" without a file extension (build/room/checks/rg.ts:85:38). Add the file extension
+  - import "./vocabulary" without a file extension (src/room/compose/legibility.ts:15:44). Add the file extension
+  - import "./rx" without a file extension (build/room/checks/rg.ts:86:27). Add the file extension
   - import "./json" without a file extension (src/room/glb/read.ts:20:51). Add the file extension
-  - import "../../src/room/compose/bundle" without a file extension (build/room/typefaces.ts:22:38). Add the file extension
-  - import "./vocabulary" without a file extension (src/room/compose/layout.ts:9:31). Add the file extension
-  - import "./layout" without a file extension (src/room/compose/legibility.ts:8:49). Add the file extension
-  - import "./math" without a file extension (src/room/compose/framing.ts:8:27). Add the file extension
+  - import "./math" without a file extension (src/room/compose/project.ts:7:65). Add the file extension
   - import "./framing" without a file extension (src/room/compose/pick.ts:10:26). Add the file extension
   - import "./math" without a file extension (src/room/compose/cable.ts:9:80). Add the file extension
-  - import "./math" without a file extension (src/room/compose/project.ts:7:65). Add the file extension
+  - import "./math" without a file extension (src/room/compose/framing.ts:8:27). Add the file extension
   - import "./json" without a file extension (src/room/glb/read.ts:21:39). Add the file extension
-  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:23:31). Add the file extension
-  - import "./layout" without a file extension (src/room/compose/legibility.ts:9:53). Add the file extension
-  - import "./project" without a file extension (src/room/compose/framing.ts:9:29). Add the file extension
+  - import "./math" without a file extension (src/room/compose/project.ts:8:33). Add the file extension
   - import "./project" without a file extension (src/room/compose/pick.ts:11:36). Add the file extension
   - import "./math" without a file extension (src/room/compose/cable.ts:10:33). Add the file extension
-  - import "./math" without a file extension (src/room/compose/project.ts:8:33). Add the file extension
+  - import "./project" without a file extension (src/room/compose/framing.ts:9:29). Add the file extension
+  - import "./names" without a file extension (src/room/glb/read.ts:22:30). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/project.ts:9:28). Add the file extension
+  - import "./project" without a file extension (src/room/compose/pick.ts:12:29). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/read.ts:23:51). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/pick.ts:13:27). Add the file extension
   - import "../../src/room/compose/vocabulary" without a file extension (build/room/report.ts:30:29). Add the file extension
   - import "../../src/room/compose/math" without a file extension (build/room/orders.ts:19:24). Add the file extension
-  - import "./names" without a file extension (src/room/glb/read.ts:22:30). Add the file extension
-  - import "../../src/room/compose/vocabulary" without a file extension (build/room/typefaces.ts:24:34). Add the file extension
-  - import "./math" without a file extension (src/room/compose/legibility.ts:10:62). Add the file extension
-  - import "./project" without a file extension (src/room/compose/pick.ts:12:29). Add the file extension
-  - import "./stages" without a file extension (src/room/compose/project.ts:9:28). Add the file extension
+  - import "./rules" without a file extension (src/room/glb/read.ts:24:29). Add the file extension
   - import "../../src/room/glb/gzip" without a file extension (build/room/report.ts:31:27). Add the file extension
   - import "../../src/room/compose/math" without a file extension (build/room/orders.ts:20:27). Add the file extension
-  - import "./rules" without a file extension (src/room/glb/read.ts:23:51). Add the file extension
-  - import "../pdf" without a file extension (build/room/typefaces.ts:25:32). Add the file extension
-  - import "./math" without a file extension (src/room/compose/legibility.ts:11:33). Add the file extension
-  - import "./stages" without a file extension (src/room/compose/pick.ts:13:27). Add the file extension
+  - import "./stages" without a file extension (src/room/compose/pick.ts:14:28). Add the file extension
   - import "../../src/room/glb/rules" without a file extension (build/room/report.ts:32:30). Add the file extension
   - import "../../src/room/compose/vocabulary" without a file extension (build/room/orders.ts:21:29). Add the file extension
-  - import "./rules" without a file extension (src/room/glb/read.ts:24:29). Add the file extension
-  - import "../pdf" without a file extension (build/room/typefaces.ts:26:32). Add the file extension
-  - import "./project" without a file extension (src/room/compose/legibility.ts:12:36). Add the file extension
-  - import "./stages" without a file extension (src/room/compose/pick.ts:14:28). Add the file extension
   - import "../../src/room/compose/bundle" without a file extension (build/room/report.ts:33:32). Add the file extension
   - import "../../src/room/glb/rules" without a file extension (build/room/orders.ts:22:58). Add the file extension
-  - import "./project" without a file extension (src/room/compose/legibility.ts:13:29). Add the file extension
   - import "../../src/room/compose/stages" without a file extension (build/room/report.ts:34:28). Add the file extension
   - import "./checks/rg" without a file extension (build/room/orders.ts:23:31). Add the file extension
-  - import "./stages" without a file extension (src/room/compose/legibility.ts:14:28). Add the file extension
   - import "./emit" without a file extension (build/room/report.ts:35:43). Add the file extension
   - import "./emit" without a file extension (build/room/orders.ts:24:31). Add the file extension
-  - import "./vocabulary" without a file extension (src/room/compose/legibility.ts:15:44). Add the file extension
   - import "./checks/family" without a file extension (build/room/report.ts:36:28). Add the file extension
   - import "./load" without a file extension (build/room/orders.ts:25:29). Add the file extension
   - import "./checks/rg" without a file extension (build/room/report.ts:37:72). Add the file extension
@@ -649,7 +809,7 @@ resume: C1–C9 passed; the private denylist is missing here, so C9 checked the 
 narration: N1–N5 passed for 44 scripts; the private denylist is missing here, so N3 checked the public list only
 computing gzip size...
 dist/index.html                                              0.83 kB │ gzip:   0.45 kB
-dist/room-manifest.json                                      1.60 kB │ gzip:   0.62 kB
+dist/room-manifest.json                                      1.52 kB │ gzip:   0.60 kB
 dist/resume.pdf.txt                                          5.00 kB │ gzip:   2.29 kB
 dist/a/busy-sign.5b004a8d57b31aeb.glb.gz                    11.15 kB
 dist/room-data.json                                         16.13 kB │ gzip:   3.35 kB
@@ -667,6 +827,7 @@ dist/a/split-keyboard.5c987d38380d61cb.glb.gz              116.58 kB
 dist/a/neon-sign.6a3f066de44a5bb0.glb.gz                   120.87 kB
 dist/a/laptop-stand.869193ea7baff8d8.glb.gz                129.24 kB
 dist/a/dog-sign.e45123bc258b1c20.glb.gz                    147.75 kB
+dist/a/chalkboard.24482ceb903c46fa.glb.gz                  162.93 kB
 dist/a/wall-window.2657859b32185b45.glb.gz                 179.77 kB
 dist/a/window-view.d030f41e7a98e3fd.glb.gz                 188.15 kB
 dist/a/vertical-mouse.ac009724b3b7f534.glb.gz              198.35 kB
@@ -680,20 +841,20 @@ dist/a/snowboard.f04dd193ad29f07b.glb.gz                   998.40 kB
 dist/a/room-shell.7ef950f7dea73f9c.glb.gz                1,038.26 kB
 dist/disclosure/style.css                                    0.49 kB │ gzip:   0.29 kB
 dist/assets/index-BvhYj-fI.css                               8.03 kB │ gzip:   2.33 kB
-dist/assets/loader-KI8-BV09.js                              51.91 kB │ gzip:  16.16 kB
-dist/assets/index-CzsFAEYm.js                               83.89 kB │ gzip:  29.90 kB
-dist/assets/scene-BCAA6qhn.js                              666.04 kB │ gzip: 171.96 kB
+dist/assets/loader-7B6MMzfY.js                              51.91 kB │ gzip:  16.16 kB
+dist/assets/index-D6SDOG1v.js                               83.83 kB │ gzip:  29.90 kB
+dist/assets/scene-DEwO-jGX.js                              666.25 kB │ gzip: 172.05 kB
 
 [plugin builtin:vite-reporter] 
 (!) Some chunks are larger than 640 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-✓ built in 4.53s
-[PLUGIN_TIMINGS] JavaScript callbacks ran for 4.4s of this 4.5s build (97%).
+✓ built in 5.12s
+[PLUGIN_TIMINGS] JavaScript callbacks ran for 4.9s of this 5.1s build (97%).
 The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
-  - plugin h4-room-data generateBundle (52%, 2.4s, 1 call)
-  - plugin h4-room-bundle buildStart (43%, 1.9s, 1 call)
+  - plugin h4-room-data generateBundle (55%, 2.8s, 1 call)
+  - plugin h4-room-bundle buildStart (40%, 2.1s, 1 call)
 Additional callback time came from the callbacks below and from callbacks under 1s.
 1 callback is listed without a time. Its calls overlapped, so the time inside one call includes work from other calls. To find its cost, profile the build with `node --cpu-prof`:
   - plugin vite:css transform (7 calls)
@@ -706,28 +867,28 @@ content check: PASS (48 content files: 1 approved by main, 47 drafts, none of wh
 bash tools/gates/secrets.sh
 secrets: gitleaks with /home/h4reet/h4reet-ai/h4reet-ai/.gitleaks.toml, over /tmp/claude-1000/wt-feat008
 == gitleaks: unstaged changes
-1:23AM INF 0 commits scanned.
-1:23AM INF scanned ~0 bytes (0) in 33.9ms
-1:23AM INF no leaks found
+1:39AM INF 0 commits scanned.
+1:39AM INF scanned ~0 bytes (0) in 23.8ms
+1:39AM INF no leaks found
 -> PASS unstaged changes
 == gitleaks: staged changes
-1:23AM INF 0 commits scanned.
-1:23AM INF scanned ~0 bytes (0) in 36.4ms
-1:23AM INF no leaks found
+1:39AM INF 0 commits scanned.
+1:39AM INF scanned ~0 bytes (0) in 26.2ms
+1:39AM INF no leaks found
 -> PASS staged changes
-== gitleaks: 25 commits since main (b95fd7619b0b..HEAD)
-1:23AM INF 25 commits scanned.
-1:23AM INF scanned ~335654 bytes (335.65 KB) in 140ms
-1:23AM INF no leaks found
--> PASS 25 commits since main (b95fd7619b0b..HEAD)
-secrets: PASS (unstaged changes, staged changes, 25 commits since main)
+== gitleaks: 42 commits since main (a33b4833c504..HEAD)
+1:39AM INF 42 commits scanned.
+1:39AM INF scanned ~961508 bytes (961.51 KB) in 136ms
+1:39AM INF no leaks found
+-> PASS 42 commits since main (a33b4833c504..HEAD)
+secrets: PASS (unstaged changes, staged changes, 42 commits since main)
 -> PASS secrets
 == arrival
 file                                bytes     gzip      vertices  triangles  texture
 assets/room/bag.glb                 1175616   739437    19485     24264      11184810
 assets/room/bicycle.glb             3157008   946913    78480     88896      6990506
 assets/room/busy-sign.glb           37040     11158     868       1014       0
-assets/room/chalkboard.glb          432752    162794    9523      6034       5592405
+assets/room/chalkboard.glb          431364    162939    9519      6034       5592405
 assets/room/charger.glb             150152    46681     3522      5280       0
 assets/room/desk-screen.glb         285384    95401     6546      10922      0
 assets/room/dog-sign.glb            177900    147759    1030      1330       11184810
@@ -745,8 +906,8 @@ assets/room/wall-outlet.glb         81880     17624     2218      1260       0
 assets/room/wall-window.glb         654476    179770    17353     10836      5592405
 assets/room/window-view.glb         505164    188152    10358     5826       11184810
 assets/room/work-desk.glb           1202408   513354    22674     37796      11184810
-first visit (phase 3): 6,593,612 of 25,000,000 bytes · history: 14,679,609 of 500,000,000 bytes
-arrival-check: 0 findings in 120 files (25 commits)
+first visit (phase 3): 6,593,757 of 25,000,000 bytes · history: 15,227,694 of 500,000,000 bytes
+arrival-check: 0 findings in 159 files (42 commits)
 python3 -I -B -X pycache_prefix=/dev/null scripts/assets/credits.py --check
 credits: OK: the renderings and the records' form
 -> PASS arrival
@@ -822,11 +983,11 @@ behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash
 WARN (behavioral tier): no run for trigger hash 0e1669499c9a in evals/agent-config/history/; the Author runs make evals-agent-config REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints
 agent-config behavioral: pending, 0 planned
 note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
-PASS  every relative link resolves: 1643 links in 231 files
+PASS  every relative link resolves: 1648 links in 233 files
 PASS  README.md links the ADR index (docs/adr/)
 PASS  the ADR index links every ADR file: 26 of 26
 PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
-docs links: 0 failed, 1643 relative links in 231 files
+docs links: 0 failed, 1648 relative links in 233 files
 -> WARN evals (WARN (behavioral tier): no run for trigger hash 0e1669499c9a in evals/agent-config/history/; the Author runs make evals-agent-config REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints)
 == redteam
 python3 -I -B -X pycache_prefix=/dev/null redteam/run.py
@@ -945,47 +1106,65 @@ make check: 12 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL
 
 ## For the Author
 
-Read these in order. Nothing here is urgent, and nothing merges before your approval.
+**This branch merges as group A's top.** Group A is one stack on `main` a33b4833: `feat/004-chalkboard-model` (495263d2), then `fix/000-open-items` (a50c6163), then this branch, which carries both. One gate checks the whole range, and one merge of this branch brings all three in. Its steps are group A's, in this order; each block stands alone, setting every name it uses, and no line is longer than 70 characters. Nothing here is urgent, and nothing merges before your yes (T000).
 
-1. **T000, your decision first.** Accept or close the intent, answer Q1 to Q5 and D1 to D8 or let the provisional answers stand, and approve spec.md and plan.md (tasks.md T000). A no to Q4 (how a piece is targeted) or Q5 (the colours) changes this branch before it merges; a no elsewhere changes only the walking phases.
-2. **T023, the highlight at lookdev (L1).** On the lookdev page of a drafts build, on both reference stages and in each of the three looks, choose each piece in the new "Highlight" control and judge the border against its light and dark neighbours, with the studio's pieces in place. Keep Q5's colours, or change them in the looks' `highlight`, a data edit. Since the review, look at:
-   - a piece standing on a surface nearer the camera than its foot, the laptop group on the desk and the wheels and the snowboard at the floor: its whole border shows, the lower side included (the review's finding 2);
-   - a stand-in's label beside a highlighted piece, with Labels on: no border paints over it (finding 2);
-   - a piece in front of the target: the target's border is drawn over it, the whole silhouette's; keep or refuse FR-015's proposed amendment;
-   - the widths on the monitor and the boards: the band 3 px and the edge 1.5 px all round, the corners round (finding 1);
-   - the 2D room, on both reference stages: hover, a press, and list focus draw the border in place of the dashed cue (finding 4);
-   - whether the first highlight of a large model hitches on the phone: its ring is made on first use, then kept.
-3. **The merges that come first are done, and `main` has moved past them.** You merged User Story 9 (cca02bfc), `spec/007-twin-conversation` (c45f54fa), and `spec/008-visitor-movement` (a893f267) tonight, then committed a33b4833, the chalkboard's approval, on `main`. The stacked guard below was built for `main` at spec 008's merge, as the main session asked: it checks that `main`'s second parent is b95fd761 and its tree b95fd761's, so with a33b4833 on top it prints `guard: no`. Before T024, the main session restacks this branch, and `feat/008-walking` after it, onto `main`'s tip in the morning, runs the checks again, and gives you the plain guard; don't run the block below until then.
-4. **T024: the gate and the merge**, from main's checkout, after T000, the review (T021), and L1 if you want it first. This branch changes nothing under `.claude/`, `evals/agent-config/`, `tools/gates/`, `deploy/`, or `Makefile`, so the gate's evals don't run for it. Paste the block whole; go on only after it printed `guard: go` and merged. If the gate's only failure is the gateway's timing test with a negative duration (a WSL clock step), run the gate again; with any other failure, or `guard: no`, stop and tell the session.
+**A1. The dev stack at group A's top, and your look at it (T023).** `make up` is heavy, so run it when no agents are running:
 
-The stacked guard, base `spec/008-visitor-movement`'s tip, every line at most 70 characters:
+```bash
+tip=$(git rev-parse --verify refs/heads/feat/008-visitor-movement)
+make up ENV=dev REF="$tip"
+```
+
+Then, on the dev stack's lookdev page, on both reference stages and in each of the three looks: the room's 21 pieces, the chalkboard at 1.49 among them, and the highlight on each from the "Highlight" control (T023). Keep Q5's colours, or change them in the looks' `highlight`, a data edit. Since Phase 1's review, look at:
+
+- a piece standing on a surface nearer the camera than its foot, the laptop group on the desk and the wheels and the snowboard at the floor: its whole border shows, the lower side included (the review's finding 2);
+- a stand-in's label beside a highlighted piece, with Labels on: no border paints over it (finding 2);
+- a piece in front of the target: the target's border is drawn over it, the whole silhouette's; keep or refuse FR-015's proposed amendment (T000, below);
+- the widths on the monitor and the boards: the band 3 px and the edge 1.5 px all round, the corners round (finding 1);
+- the 2D room, on both reference stages: hover, a press, and list focus draw the border in place of the dashed cue (finding 4);
+- whether the first highlight of a large model hitches on the phone: its ring is made on first use, then kept.
+
+**T000. Your yes to spec 008** (tasks.md T000): accept or close the intent, let the provisional answers to Q1 to Q5 and D1 to D8 stand or answer them, and approve spec.md and plan.md, with the four amendments Phase 1's review proposes, each written under its requirement in spec.md:
+
+- **FR-008 (b)**, a press's end: it names nothing for a finger, as the pointer leaving does, nor for a press that selected nothing; a mouse's or a pen's press that selected leaves the target to its next hover; a press with a mouse's other buttons isn't one; and a press whose end comes off the stage ends there too.
+- **FR-012**: a mouse's or a pen's press that selected names nothing at its end, so the piece it selected isn't targeted again while the pointer rests on it, until the pointer names something else or nothing.
+- **FR-015**: in 3D, the border goes around the members' whole silhouettes, drawn over whatever stands in front of them and never hidden by the surface they stand on, in place of "around the visible silhouettes of its members".
+- **FR-016**: the band stands at least 9:1 lighter than its edge; RW2 refuses a look whose highlight doesn't.
+
+A no to Q4 or Q5, or to one of the four, changes this branch before it merges: tell the session, and don't gate.
+
+**A2. The gate**, from main's checkout, with `CLAUDE_CONFIG_DIR=$HOME/.claude-studio`, since the range brings in the chalkboard's studio files:
 
 ```bash
 git switch main
 b=feat/008-visitor-movement
-tools/gates/gate "$b" 2>&1 | tee ~/gate-feat008.log
-log=~/gate-feat008.log
-base=b95fd7619b0ba44c2e5829734b7eaaa24862ed6e
+log=~/gate-groupA.log
+cfg=$HOME/.claude-studio
+CLAUDE_CONFIG_DIR=$cfg tools/gates/gate "$b" 2>&1 | tee "$log"
+```
+
+Expect Ready, with `evals` WARN, the behavioral tier's advisory line, as `make check` printed it (Verification). The gateway's timing tests no longer read the wall clock (the open items' Fix B), so a negative duration there is news. With any failure, don't merge, and tell the session.
+
+**A3. The guard, the merge, and the park**, in one block. It prints `guard: go`, and merges, only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, and that SHA holds `main`, so the merge writes the tree the gate checked. Whatever the guard prints, the block then parks your checkout off `main`:
+
+```bash
+b=feat/008-visitor-movement
+log=~/gate-groupA.log
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
 on=$(git symbolic-ref -q HEAD)
 tip=$(git rev-parse --verify "refs/heads/$b")
-p2=$(git rev-parse --verify "refs/heads/main^2")
-same=no; git diff --quiet refs/heads/main "$base" && same=yes
 ok=no
-want="refs/heads/main.$sha.$base.yes"
-[ "$n" -gt 0 ] && [ "$on.$tip.$p2.$same" = "$want" ] && ok=go
+[ "$n" -gt 0 ] && [ "$on.$tip" = "refs/heads/main.$sha" ] && ok=go
+git merge-base --is-ancestor refs/heads/main "$sha" || ok=no
 echo "guard: $ok"
 m="Merge $b (${sha:0:12})"
 o=(--no-replace-objects merge --no-ff -m "$m" -m "$s")
 [ "$ok" = go ] && git "${o[@]}" "$sha"
-```
-
-Then park off `main`:
-
-```bash
 git switch -C wip-park/11-7-2026
 ```
 
-**A note on `.git/config.lock`.** Deleting the first rehearsal's throwaway branch warned "could not lock config file .git/config". The branch, its ref, and its worktree are gone, and no entry of it is left in the config; but from inside the sandbox an empty, read-only `.git/config.lock` stands there, dated 23:19, which looks like a sandbox placeholder for a denied path rather than a lock git left. If `ls -l .git/config.lock` shows it in your terminal, a git command that writes the config will fail until it's removed; I haven't touched it.
+On `guard: no`, nothing merged: tell the session. The block was run in bash and in zsh against a stub git, six cases each: it merged only when everything held, and printed `guard: no` for a checkout off `main`, a branch moved since the gate, a SHA that doesn't hold `main`, a log with no merge line, and no log; it parked every time. `wip-park/11-7-2026` holds nothing `main` lacks (a33b4833 both), so `-C` loses nothing.
+
+**A note on `.git/config.lock`.** Deleting the first rehearsal's throwaway branch warned "could not lock config file .git/config". The branch, its ref, and its worktree are gone, and no entry of it is left in the config; but from inside the sandbox an empty, read-only `.git/config.lock` stands there, dated 23:19 then and 01:41 when this update's rehearsal deleted its branch with the same warning, which looks like a sandbox placeholder for a denied path rather than a lock git left. If `ls -l .git/config.lock` shows it in your terminal, a git command that writes the config will fail until it's removed; I haven't touched it.
