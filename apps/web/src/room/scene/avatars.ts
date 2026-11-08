@@ -503,6 +503,13 @@ export function createAvatarFigures(
         play(figures.visitor);
       }
     },
+    hold(item) {
+      // The kept paper in the avatar's holding hand; with no hand, or anything else, in the picture as the cut-out's.
+      if (item === room.paper.kept) keepPaper();
+      if (within(item, room.visitor)) return;
+      room.scene.updateMatrixWorld(true);
+      room.visitor.attach(item);
+    },
     rest() {
       if (home && visitorNode) {
         visitorNode.position.copy(home.position);

@@ -135,20 +135,33 @@ export interface AvatarDriving {
 
 /** The driver by picture (spec 009, FR-028; its plan's R-16), the one driver walking takes: each frame, the avatar's
  *  while the visitor's avatar shows, and the cut-out's otherwise, where no avatar module loaded too. When the picture
- *  changes mid-walk, the old driver rests and the new one takes the same pose on that frame. */
+ *  changes mid-walk, the old driver rests and the new one takes the same pose on that frame, and what walking handed
+ *  the figure to hold (hold, the kept paper), so it walks with whichever figure shows. */
 export function figureDriverFor(cutout: FigureDriver, avatar: () => AvatarDriving | null): FigureDriver {
   let last: FigureDriver | null = null;
+  let held: Object3D | null = null;
+  const current = (): FigureDriver => {
+    const figures = avatar();
+    return figures?.shows("visitor") ? figures.driver : cutout;
+  };
   return {
     frame(frame) {
-      const figures = avatar();
-      const now = figures?.shows("visitor") ? figures.driver : cutout;
-      if (last && last !== now) last.rest();
+      const now = current();
+      if (last && last !== now) {
+        last.rest();
+        if (held) now.hold?.(held);
+      }
       last = now;
       now.frame(frame);
+    },
+    hold(item) {
+      held = item;
+      current().hold?.(item);
     },
     rest() {
       last?.rest();
       last = null;
+      held = null;
     },
   };
 }

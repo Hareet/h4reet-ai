@@ -335,20 +335,9 @@ export function createScene(options: SceneOptions): Stage3D {
   const walkable = floorOfPart(part, part.walking.radius_m);
   const visitorNode = room.placements.get(part.figures.visitor);
   const cutout = visitorNode ? cutoutDriver({ node: visitorNode, picture: room.visitor }) : null;
-  // Spec 009 (FR-028; R-16): the visitor's avatar's driver while its avatar shows, the cut-out's otherwise; the cut-out
-  // walks with the kept paper in its picture, where an avatar that held it and fell back left it in the scene.
-  const figure = cutout
-    ? figureDriverFor(
-        {
-          frame(f) {
-            keepPaper(room);
-            cutout.frame(f);
-          },
-          rest: () => cutout.rest(),
-        },
-        () => figures,
-      )
-    : null;
+  // Spec 009 (FR-028; R-16): the visitor's avatar's driver while its avatar shows, the cut-out's otherwise, each
+  // holding the kept paper walking hands it, the one that takes over mid-walk too.
+  const figure = cutout ? figureDriverFor(cutout, () => figures) : null;
   const input = createWalkInput(canvas, win);
   const rates = { turn: (part.walking.turn_dps * Math.PI) / 180, tilt: (part.walking.tilt_dps * Math.PI) / 180 };
   let returning = false;
