@@ -1,6 +1,6 @@
 # Implementation Plan: The Room's Avatars
 
-**Branch**: `spec/009-room-avatars` (this plan; the work runs on `feat/009-room-avatars`, stacked on `feat/008-walking`, and the Author's intake on `feat/009-avatar-intake`, [§4](#4-the-order-of-work)) | **Date**: 2026-11-08 | **Spec**: [spec.md](spec.md)
+**Branch**: `spec/009-room-avatars` (this plan; the work runs on `feat/009-room-avatars`, cut from `feat/004-chalkboard-model`'s tip, bf6239d1, while `feat/008-walking` isn't finished, and moved onto the assembled stack, `feat/008-walking` and the conversation under it, before it merges, [§10](#10-departures); the Author's intake on `feat/009-avatar-intake`, [§4](#4-the-order-of-work)) | **Date**: 2026-11-08 | **Spec**: [spec.md](spec.md)
 
 **Status**: Planned overnight on 2026-11-08, under the Author's "Let's finish this and keep going until you can", on the spec's provisional answers (its Clarifications, Q1 to Q5, and its defaults D1 to D10). Not yet approved: the Author accepts the intent and approves the spec and this plan before any code (`CLAUDE.md`). The consistency check that `/speckit-analyze` makes is recorded at the end of this file, [with what it changed](#consistency-check-the-speckit-analyze-pass-2026-11-08).
 
@@ -241,7 +241,7 @@ The report gains FR-040's lines: a table of each avatar's files (role, bytes, gz
 | Branch | From | Holds | Merges |
 |---|---|---|---|
 | `feat/009-avatar-intake` (the Author's) | `main` | Phase A: the woman's and the man's files, records, notices, and credits | on its own, before or after the code: the room ignores the files until the code merges, and the code shows fallbacks until the files merge |
-| `feat/009-room-avatars` | `feat/008-walking`'s tip | Phases 1 to 5 | after `feat/008-walking`, which merges after `feat/008-visitor-movement` |
+| `feat/009-room-avatars` | `feat/004-chalkboard-model`'s tip for now (§10, T009); `feat/008-walking`'s tip once the stack is assembled | Phases 1 to 5 (Phase 3 waits for walking) | after `feat/008-walking`, which merges after `feat/008-visitor-movement` |
 | `feat/009-avatar-handoff` (only if the night ends after Phase 1) | Phase 1's tip | Phases 2 to 5 | after `feat/009-room-avatars` |
 
 If `feat/008-walking`'s tip moves before this merges, an agent rebases `feat/009-room-avatars` onto it; agents never merge (`CLAUDE.md`). The branch ends with a review by an agent that didn't write it and a merge-request note in `docs/merge-requests/`, holding `make check ENGINE_MODE=none-yet`'s whole output. If the work stops after Phase 1, that review and note cover Phase 1 alone, and the rest continues stacked on its tip (the third row), so nothing waits on unfinished work.
@@ -359,7 +359,9 @@ No constitution violation needs justifying. One new rule family, RA, joins spec 
 
 ## 10. Departures
 
-None yet. A task that departs from this plan records it here, in the commit that departs (`CLAUDE.md`: "If implementation departs from the plan, update `plan.md` in the same commit").
+A task that departs from this plan records it here, in the commit that departs (`CLAUDE.md`: "If implementation departs from the plan, update `plan.md` in the same commit").
+
+- **The base (T007 to T009, 2026-11-08).** `feat/008-walking` wasn't finished, so the main session cut `feat/009-room-avatars` from `feat/004-chalkboard-model`'s tip, bf6239d1, which carries the room's 21 pieces, and will move it onto the assembled stack (the chalkboard, the open items, spec 008's highlight, walking, the conversation, then this branch) before it merges. T009 read that base, not walking's: it has no `src/room/scene/figure.ts` or `scene/walking.ts`; `events.ts`'s kinds end at `mode_2d`, with no `walk_started`; `Stage3D` is `mode`, `canvas`, and `setQuality`, as §3.6 assumes; and §7.8 holds spec 002's six panels, with no spec 008 panel. So, until the move: `avatar_failed` follows `mode_2d` (§3.4 puts it after `walk_started`, where the move takes it); Phase 3 (T031 to T033), the avatar's walking driver, isn't built here, since it needs walking's driver interface; and the figures' pictures change behind seams of their own (`scene/avatars.ts`, a few marked lines in `scene.ts`, `bundle3d.ts`'s `paper.kept`, and optional fields at the ends of `SceneOptions` and `LoaderOptions`), so the move's conflicts stay small. The spec's commit, cherry-picked, is 21a932f7 on this branch.
 
 ## Constitution Check (post-design)
 

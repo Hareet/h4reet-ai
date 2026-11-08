@@ -65,9 +65,9 @@ description: "Task list for spec 009, The Room's Avatars"
 
 ### Setup
 
-- [ ] T007 Make the worktree: `git worktree add -b feat/009-room-avatars <new folder> feat/008-walking`; then `npm ci --ignore-scripts --cache "$TMPDIR/npm"` in it. Commit before any pause, since `/tmp` is wiped when WSL restarts. Check: `git -C <folder> rev-parse HEAD` prints `feat/008-walking`'s tip, and `git -C <folder> status --short` prints nothing (feat/009-room-avatars)
-- [ ] T008 Cherry-pick `spec/009-room-avatars`'s commits, oldest first, so `specs/009-room-avatars/plan.md` is in the branch's tree and a departure updates it in the same commit; resolve a conflict in an index file by keeping both sides' lines, never by changing a document's words. Check: the four documents are in the tree, byte-identical to the spec branch's (feat/009-room-avatars)
-- [ ] T009 Read the base: `src/room/scene/figure.ts`'s driver interface, `scene/walking.ts`, `stage.ts`'s `Stage3D`, `events.ts`'s kinds with spec 008's `walk_started`, and §7.8 with spec 008's panel, as `feat/008-walking` has them; record any difference from plan §3.6 and R-16 in plan.md §10. Check: §10 holds the differences, or "none at T009" (feat/009-room-avatars)
+- [x] T007 Make the worktree: `git worktree add -b feat/009-room-avatars <new folder> feat/008-walking`; then `npm ci --ignore-scripts --cache "$TMPDIR/npm"` in it. Commit before any pause, since `/tmp` is wiped when WSL restarts. Check: `git -C <folder> rev-parse HEAD` prints `feat/008-walking`'s tip, and `git -C <folder> status --short` prints nothing (feat/009-room-avatars)
+- [x] T008 Cherry-pick `spec/009-room-avatars`'s commits, oldest first, so `specs/009-room-avatars/plan.md` is in the branch's tree and a departure updates it in the same commit; resolve a conflict in an index file by keeping both sides' lines, never by changing a document's words. Check: the four documents are in the tree, byte-identical to the spec branch's (feat/009-room-avatars)
+- [x] T009 Read the base: `src/room/scene/figure.ts`'s driver interface, `scene/walking.ts`, `stage.ts`'s `Stage3D`, `events.ts`'s kinds with spec 008's `walk_started`, and §7.8 with spec 008's panel, as `feat/008-walking` has them; record any difference from plan §3.6 and R-16 in plan.md §10. Check: §10 holds the differences, or "none at T009" (feat/009-room-avatars)
 
 ### Tests for User Stories 1, 2, and 6 (first, RED)
 
