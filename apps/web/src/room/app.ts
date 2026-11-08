@@ -168,7 +168,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     targeting = reduceTarget(targeting, event);
     const after = targeting.target;
     if (after === before) return;
-    stage?.setTarget(after);
+    try {
+      stage?.setTarget(after);
+    } catch {
+      // The stage keeps what it drew; the selection and the list go on.
+    }
     log?.record("target", { id: after, input: event.kind === "name" ? event.input : event.kind });
   }
 
