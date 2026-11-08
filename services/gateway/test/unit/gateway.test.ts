@@ -22,6 +22,7 @@ import {
 import type { StateRead, Store } from "../../src/meter/store.js";
 import type { AdmitRequest, AdmitResult, Admitted, CallEnd, MeterPort } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
+import { steadyNow } from "../helpers/steady-clock.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 const T0 = Date.parse("2026-10-28T10:00:00.000Z");
@@ -146,7 +147,12 @@ describe("AdapterHealth (§3.1's cadence: unhealthy after 1 failure, healthy aft
 
   it("probes on the cadence once started, and not after stop()", async () => {
     const s = scripted();
-    const h = new AdapterHealth(s.adapter, { ...CADENCE, intervalMs: 20 }, { realNow: Date.now, onChange: () => {} });
+    // The cadence is timed on the clock AdapterHealth is handed: a steady one, which a step of the wall clock can't move.
+    const h = new AdapterHealth(
+      s.adapter,
+      { ...CADENCE, intervalMs: 20 },
+      { realNow: steadyNow(), onChange: () => {} },
+    );
     h.start();
     await new Promise((r) => setTimeout(r, 120));
     expect(h.status().healthy).toBe(true);

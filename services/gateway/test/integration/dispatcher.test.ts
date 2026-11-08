@@ -282,12 +282,12 @@ describe("waking (alerts.md §4.1)", () => {
     r.d.start();
     await new Promise((resolve) => setTimeout(resolve, 100)); // the first pass, which starts LISTEN
     await enqueue(r);
-    const started = Date.now();
-    while (r.telegram.requests.length === 0 && Date.now() - started < 5_000) {
+    const started = performance.now(); // monotonic: a step of the wall clock can't move it
+    while (r.telegram.requests.length === 0 && performance.now() - started < 5_000) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     expect(r.telegram.requests).toHaveLength(1);
-    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(performance.now() - started).toBeLessThan(5_000);
   });
 });
 
