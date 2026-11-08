@@ -1,0 +1,16 @@
+rule: RG6
+file: apps/web/room/scene.yaml
+path: selectables[2]
+why: a selectable on the floor at the room's front right, whose exclusive core the walking control's box covers in the stage's bottom-right corner (spec 008, FR-021, FR-058)
+edits:
+  - {
+      file: apps/web/room/scene.yaml,
+      at: [placements],
+      push:
+        { id: fx-corner, piece: fx-sign, mount: { on: fx-shell, anchor: floor, offset: [1.2, 0, 1.2] }, frame: true },
+    }
+  - {
+      file: apps/web/room/scene.yaml,
+      at: [selectables],
+      push: { id: fx-corner, name: Fixture corner, members: [fx-corner], action: { talk: { topic: fx-work } } },
+    }

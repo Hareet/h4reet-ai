@@ -363,3 +363,36 @@ describe("FR-064's carve-out (compose/pick.ts listOnly)", () => {
     });
   });
 });
+
+// T032 (spec 008; FR-021, FR-036, FR-058, SC-007; plan.md §3.5, R-09): the walking control's box, reserved. A core over
+// a reserved rectangle is the spacing check's new problem `reserved`; FR-064's carve-out holds a side-wall selectable
+// whose core it covers, as it holds one whose core can't fit; and a pick is as it was.
+describe("reserved rectangles (spec 008, T032)", () => {
+  const areas = (): ReturnType<typeof pickAreas> =>
+    pickAreas([
+      { id: "fx-corner", members: [{ rect: [240, 150, 40, 30], depth: 2 }] },
+      { id: "fx-middle", members: [{ rect: [130, 80, 40, 30], depth: 2 }] },
+    ]);
+  const VIEW: Rect = [0, 0, 300, 200];
+  const BOX: Rect = [148, 148, 144, 44];
+
+  it("report a core under a reserved rectangle as `reserved`, and none clear of it", () => {
+    expect(pickProblems(areas(), VIEW)).toEqual([]);
+    expect(pickProblems(areas(), VIEW, new Set(), [BOX])).toEqual([
+      { selectable: "fx-corner", problem: "reserved", other: null },
+    ]);
+    expect(pickProblems(areas(), VIEW, new Set(["fx-corner"]), [BOX])).toEqual([]);
+  });
+
+  it("hold a side-wall selectable whose core a reserved rectangle covers, and only a side-wall one", () => {
+    expect([...listOnly(areas(), VIEW, new Set(["fx-corner"]), [BOX])]).toEqual(["fx-corner"]);
+    expect([...listOnly(areas(), VIEW, new Set(["fx-corner"]))]).toEqual([]);
+    expect([...listOnly(areas(), VIEW, new Set(["fx-middle"]), [BOX])]).toEqual([]);
+  });
+
+  it("leave a pick as it was: the reserved rectangle is the spacing check's, not the pointer's", () => {
+    const a = areas();
+    expect(pick(a, [260, 165])).toBe("fx-corner");
+    expect(pick(a, [260, 165], listOnly(a, VIEW, new Set(["fx-corner"]), [BOX]))).toBeNull();
+  });
+});

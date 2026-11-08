@@ -377,14 +377,13 @@ describe("compose()", () => {
 });
 
 describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
-  it("holds every rule of spec 004's nine families, in order, then spec 008's RW, its RW2 alone until RW1 (T041)", () => {
+  it("holds every rule of spec 004's nine families, in order, then spec 008's RW, RW1 and RW2", () => {
     const counts = { RD: 5, RI: 11, RG: 9, RS: 6, RT: 13, RV: 3, RX: 10, RK: 4, RL: 4 };
     const expected = Object.entries(counts).flatMap(([family, n]) =>
       Array.from({ length: n }, (_, i) => `${family}${i + 1}`),
     );
-    // Spec 008's plan.md §3.5: RW1, the figure's start, comes with the walking data (T041); RW2, the highlight's
-    // contrast, with the highlight (T012).
-    expect([...RULE_IDS]).toEqual([...expected, "RW2"]);
+    // Spec 008's plan.md §3.5: RW1, the figure's start on the walkable floor (T041), and RW2, the highlight's contrast.
+    expect([...RULE_IDS]).toEqual([...expected, "RW1", "RW2"]);
     for (const rule of RULE_IDS) expect(RULES[rule].family).toBe(rule.replace(/\d+$/, ""));
   });
 
@@ -758,5 +757,59 @@ describe("the highlight (spec 008, T005)", () => {
     expect(JSON.stringify(b.index)).toBe(JSON.stringify(a.index));
     expect(JSON.stringify(b.scene)).toBe(JSON.stringify(a.scene));
     expect(b.digest).toBe(a.digest);
+  });
+});
+
+// T034 (spec 008; FR-026, FR-056, FR-058, SC-006; plan.md §3.1, §3.5): the scene's optional walking block, which the
+// 3D part carries resolved and the index never does; and RW1, which refuses a scene whose visitor figure's footprint,
+// at the walking radius, isn't on the walkable floor compose/floor.ts computes from the frame boxes, naming the visitor
+// placement's mount, so the walking view always starts free.
+describe("the walking block and RW1 (spec 008, T034)", () => {
+  const SCENE_FILE = "apps/web/room/scene.yaml";
+  const sceneText = (): string => decoder.decode(goodFiles().get(SCENE_FILE));
+  const STRICT_DRAFTS = { mode: "strict", drafts: true } as const;
+
+  it("is carried resolved in the 3D part, the spec's defaults where the scene leaves it out, and never in the index", () => {
+    const good = compose(goodTree(), noPolicy(), STRICT_DRAFTS);
+    expect(good.scene.walking).toEqual({
+      speed_mps: 1,
+      turn_dps: 90,
+      tilt_dps: 45,
+      radius_m: 0.12,
+      reach_m: 0.8,
+      reach_cone_deg: 60,
+      camera: { yaw_deg: 60, pitch_deg: [0, 35], min_distance_m: 1.2, focus_height_m: 1.1 },
+    });
+    expect(Object.keys(good.index)).not.toContain("walking");
+    expect(JSON.stringify(good.index)).not.toContain("reach_cone_deg");
+    const tuned = compose(
+      overlay({ [SCENE_FILE]: `${sceneText()}walking: { speed_mps: 1.4, camera: { pitch_deg: [5, 30] } }\n` }),
+      noPolicy(),
+      STRICT_DRAFTS,
+    );
+    expect(lines(tuned.findings)).toEqual([]);
+    expect(tuned.scene.walking.speed_mps).toBe(1.4);
+    expect(tuned.scene.walking.camera.pitch_deg).toEqual([5, 30]);
+    expect(tuned.digest).not.toBe(good.digest);
+  });
+
+  it("refuses with RW1 a visitor whose footprint isn't on the walkable floor, naming its mount, and passes the rest", () => {
+    const inDesk = compose(
+      overlay({ [SCENE_FILE]: sceneText().replace("offset: [0, 0, 0.8] }", "offset: [0, 0, -0.6] }") }),
+      noPolicy(),
+      STRICT_DRAFTS,
+    );
+    const rw1 = inDesk.findings.filter((f) => f.rule === "RW1");
+    expect(rw1.map((f) => `${f.rule} ${f.file}:${f.path}`)).toEqual([`RW1 ${SCENE_FILE}:placements[8].mount.offset`]);
+    expect(rw1[0]?.reason).toMatch(/fx-desk/);
+    expect(rw1[0]?.lenient).toBe(false);
+    // A radius that takes the start past the walls' margin: the floor's bound refuses it.
+    const wide = compose(
+      overlay({ [SCENE_FILE]: sceneText().replace("offset: [0, 0, 0.8] }", "offset: [1.95, 0, 0.8] }") }),
+      noPolicy(),
+      STRICT_DRAFTS,
+    );
+    expect(wide.findings.filter((f) => f.rule === "RW1").map((f) => f.path)).toEqual(["placements[8].mount.offset"]);
+    expect(lines(compose(goodTree(), noPolicy(), STRICT_DRAFTS).findings)).toEqual([]);
   });
 });

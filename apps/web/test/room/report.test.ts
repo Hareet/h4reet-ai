@@ -456,3 +456,37 @@ describe("the report's highlight (spec 008)", () => {
     expect(md).toContain("| looks[0] | #ffd23f, 3 px | #1d1d1f, 1.5 px | 3.67:1 | (a colour RT2 refused) |");
   });
 });
+
+// T034 (spec 008; FR-021, FR-026, FR-058; plan.md §3.5): the report's walking lines, after the highlight: the visitor
+// figure's start on the walkable floor and its clearance, the distance to the nearest edge of the floor or of an
+// obstacle, named; and the walking control's box, with any side-wall selectable it holds and where.
+describe("the report's walking lines (spec 008)", () => {
+  it("give the figure's start, its clearance and nearest edge, and the control's box, after the highlight", () => {
+    const md = good().report.markdown;
+    // The fixture's visitor stands at x 0, z 0.8: 0.875 m from the floor's open front (1.75 less its half-depth,
+    // 0.075, less 0.8), nearer than the desk's grown edge, 0.98 m away.
+    expect(md).toContain(
+      "Walking (spec 008, FR-026): the visitor figure's start, x 0 and z 0.8, is on the walkable floor at the radius " +
+        "0.12 m, 0.875 m from its nearest edge, the floor's open front.",
+    );
+    expect(md).toContain(
+      "The walking control's box (spec 008, FR-021): 9rem × 2.75rem, 0.5rem in from the stage's bottom-right corner, " +
+        "holds no side-wall selectable at any supported stage.",
+    );
+    expect(md.indexOf("Walking (spec 008")).toBeGreaterThan(md.indexOf("| Look | Band |"));
+    expect(md.indexOf("Walking (spec 008")).toBeLessThan(md.indexOf("Findings:"));
+  });
+
+  it("says where the start is refused, naming the obstacle it lies in", () => {
+    const scene = decoder.decode(goodFiles().get("apps/web/room/scene.yaml"));
+    const md = compose(
+      overlay({ "apps/web/room/scene.yaml": scene.replace("offset: [0, 0, 0.8] }", "offset: [0, 0, -0.6] }") }),
+      noPolicy(),
+      { mode: "strict", drafts: true },
+    ).report.markdown;
+    expect(md).toContain(
+      "Walking (spec 008, FR-026): the visitor figure's start, x 0 and z -0.6, isn't on the walkable floor at the " +
+        "radius 0.12 m: it lies within `fx-desk`'s footprint, grown by the radius.",
+    );
+  });
+});

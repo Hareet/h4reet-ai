@@ -718,6 +718,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "handoff",
       "load_order",
       "scene_texture_bytes",
+      // Spec 008's Amendment M12: the walking block, resolved.
+      "walking",
     ]);
     expect(Object.keys(scene.placements[0] ?? {})).toEqual([
       "id",

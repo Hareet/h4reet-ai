@@ -953,3 +953,34 @@ describe("the proof set, spec 008's highlight (FR-057, SC-006)", () => {
     expect(c.result.index.flat.highlight.edge_px).toBe(2);
   });
 });
+
+// T034 (spec 008; FR-056, SC-006): the walking view's figures are data. The walking speed, a camera limit, and the
+// reach, each changed in a data copy of the scene's walking block, compose with no finding and no source file changed,
+// and reach the 3D part's walking block.
+describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
+  it.each([
+    [
+      "the walking speed",
+      (w: Record<string, unknown>) => (w.speed_mps = 1.5),
+      (s: RoomScene) => s.walking.speed_mps,
+      1.5,
+    ],
+    [
+      "a camera limit",
+      (w: Record<string, unknown>) => ((w.camera as Record<string, unknown>).yaw_deg = 40),
+      (s: RoomScene) => s.walking.camera.yaw_deg,
+      40,
+    ],
+    ["the reach", (w: Record<string, unknown>) => (w.reach_m = 1.0), (s: RoomScene) => s.walking.reach_m, 1.0],
+  ] as const)("%s: a data edit, which the 3D part carries", (_, edit, read, value) => {
+    const scene = copy(SCENE) as unknown as Record<string, unknown>;
+    const walking = structuredClone(scene.walking) as Record<string, unknown>;
+    expect(walking).toBeDefined();
+    edit(walking);
+    scene.walking = walking;
+    const c = change({ [SCENE_FILE]: scene });
+    expectDataOnly(c);
+    expect(read(c.result.scene)).toBe(value);
+    expect(read(base.scene)).not.toBe(value);
+  });
+});

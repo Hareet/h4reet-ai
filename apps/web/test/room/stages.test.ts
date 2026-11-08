@@ -25,6 +25,8 @@ import {
   stageFor,
   supportedStages,
   sweepScreens,
+  WALK_CONTROL,
+  walkControlBox,
 } from "../../src/room/compose/stages";
 
 const CSS = readFileSync(fileURLToPath(new URL("../../src/room/room.css", import.meta.url)), "utf8");
@@ -241,5 +243,31 @@ describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
     const module = await import("../../src/room/compose/stages");
     expect(Object.keys(module)).not.toContain("isFr064Smallest");
     expect(Object.keys(module)).not.toContain("fr064SmallestStages");
+  });
+});
+
+// T033 (spec 008; FR-021; plan.md R-09): the walking control's box, a fixed box in the stage's bottom-right corner that
+// room.css's `.room-walk` sets and compose/stages.ts pins, as it pins the stage's rules: at least 44 × 44 CSS pixels.
+describe("the walking control's box (spec 008, T033)", () => {
+  it("reads room.css's .room-walk rule: 9rem by 2.75rem, 0.5rem in from the stage's bottom and right", () => {
+    expect(WALK_CONTROL).toEqual({ widthRem: 9, heightRem: 2.75, insetRem: 0.5 });
+    expect(decl(".room-walk", "position")).toBe("absolute");
+    expect(rem(decl(".room-walk", "width"))).toBe(WALK_CONTROL.widthRem);
+    expect(rem(decl(".room-walk", "height"))).toBe(WALK_CONTROL.heightRem);
+    expect(rem(decl(".room-walk", "right"))).toBe(WALK_CONTROL.insetRem);
+    expect(rem(decl(".room-walk", "bottom"))).toBe(WALK_CONTROL.insetRem);
+  });
+
+  it("is at least 44 × 44 CSS pixels, in the stage's bottom-right corner, at every supported stage", () => {
+    expect(WALK_CONTROL.heightRem * ROOM_CSS.rem).toBeGreaterThanOrEqual(44);
+    expect(WALK_CONTROL.widthRem * ROOM_CSS.rem).toBeGreaterThanOrEqual(44);
+    for (const stage of supportedStages()) {
+      const [x, y, w, h] = walkControlBox(stage);
+      expect([w, h]).toEqual([144, 44]);
+      expect(x + w).toBe(stage.w - 8);
+      expect(y + h).toBe(stage.h - 8);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
+    }
   });
 });

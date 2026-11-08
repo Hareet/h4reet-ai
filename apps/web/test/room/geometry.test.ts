@@ -35,10 +35,22 @@ import type { RoomPolicy } from "../../build/room/policy";
 import type { Tree } from "../../build/room/source";
 import type { Box } from "../../src/room/compose/framing";
 import { LABEL_HEIGHT, LABEL_LIFT } from "../../src/room/compose/framing";
-import { flatCore, pickAreas, pickProblems } from "../../src/room/compose/pick";
-import { flatScale, REFERENCE_PHONE, supportedStages } from "../../src/room/compose/stages";
+import { flatCore, listOnly, pickAreas, pickProblems } from "../../src/room/compose/pick";
+import { flatScale, REFERENCE_PHONE, supportedStages, walkControlBox } from "../../src/room/compose/stages";
 import { fixed } from "../../src/room/glb/rules";
-import { goodFiles, goodTree, overlay, sideWallFiles, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import {
+  badCases,
+  caseTree,
+  goodFiles,
+  goodTree,
+  overlay,
+  sideWallFiles,
+  sideWallPolicy,
+  sideWallTree,
+} from "../helpers/room-fixtures";
+import { framing } from "../../src/room/compose/framing";
+import { framedBoxes, pickAreasOn } from "../../src/room/scene/bundle3d";
+import { repositoryBundle } from "../helpers/room";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 
 const SCENE = "apps/web/room/scene.yaml";
@@ -854,4 +866,38 @@ describe("one production framing: the bundle and the report carry what RG and RK
       );
     },
   );
+});
+
+// T032 (spec 008; FR-021, FR-036, FR-058, SC-007; plan.md §3.5): RG6 holds every core clear of the walking control's
+// box, in 3D at the production framing at every supported stage, a side-wall selectable's being held instead; and the
+// repository's room keeps its RG6 results: the same held sets at every stage with the box as without it, and no core
+// under it.
+describe("RG6 and the walking control's box (spec 008, T032)", () => {
+  it("refuses a core the box covers at a supported stage, naming the box and the stages", () => {
+    const c = badCases().find((x) => x.name === "RG6-walk-control");
+    if (!c) throw new Error("no bad/RG6-walk-control/");
+    const result = compose(caseTree(c), c.policy, c.options);
+    const hits = result.findings.filter((f) => f.rule === "RG6" && f.path === "selectables[2]");
+    expect(hits.map((f) => f.reason).some((r) => /the walking control's box in 3D at \d+ × \d+/.test(r))).toBe(true);
+  });
+
+  it("leaves the repository's room as it was: the same held sets at every stage, and no core under the box", () => {
+    const { scene: part, index } = repositoryBundle();
+    const boxes = framedBoxes(part);
+    const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+    let stages = 0;
+    for (const stage of supportedStages()) {
+      const areas = pickAreasOn(part, index, framing(stage.w / stage.h, boxes), stage);
+      const view = [0, 0, stage.w, stage.h] as const;
+      const box = walkControlBox(stage);
+      const held = listOnly(areas, view, sideWall, [box]);
+      expect([...held], `${stage.w} × ${stage.h}`).toEqual([...listOnly(areas, view, sideWall)]);
+      expect(
+        pickProblems(areas, view, held, [box]).filter((p) => p.problem === "reserved"),
+        `${stage.w} × ${stage.h}`,
+      ).toEqual([]);
+      stages += 1;
+    }
+    expect(stages).toBeGreaterThan(100);
+  });
 });
