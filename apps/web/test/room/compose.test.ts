@@ -694,9 +694,14 @@ describe("the highlight (spec 008, T005)", () => {
     expect(hit?.reason).toMatch(/\d\.\d\d:1/);
     expect(hit?.reason).not.toMatch(/#[0-9a-f]{6}/);
     expect(hit?.lenient).toBe(false);
-    // One tone passing is enough: the ink edge holds every light colour, the yellow band every dark one.
-    const one = compose(overlay(withHighlight('{ band: "#7f7f7f", edge: fx-ink }')), noPolicy(), STRICT_DRAFTS);
+    // One tone passing is enough: against fx-floor the yellow band gives 2.72:1 and the ink 4.29:1, and against fx-ink
+    // the band 11.66:1 and the ink 1:1, yet the pair passes, each colour held by one of them.
+    const one = compose(overlay(withHighlight('{ band: "#ffd23f", edge: "#1d1d1f" }')), noPolicy(), STRICT_DRAFTS);
     expect(rw2(one.findings)).toEqual([]);
+    // A mid grey band with the ink edge fails against fx-slate, whose dark green neither holds at 3:1 (2.9:1 and 1.4:1).
+    const slate = compose(overlay(withHighlight('{ band: "#7f7f7f", edge: fx-ink }')), noPolicy(), STRICT_DRAFTS);
+    expect(rw2(slate.findings)).toEqual([`RW2 ${LOOK}:highlight`]);
+    expect(slate.findings.find((f) => f.rule === "RW2")?.reason).toContain("fx-slate");
   });
 
   it("refuses a look that isn't the scene's too, since the lookdev page draws every look", () => {

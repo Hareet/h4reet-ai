@@ -379,9 +379,10 @@ describe("the hull's normals (plan.md §10)", () => {
     const hull = hullGeometry(box);
     expect(hull.getAttribute("position")).toBe(box.getAttribute("position"));
     expect(hull.index).toBe(box.index);
+    // A vertex attribute holds 32-bit floats, good to about 1e-7.
     for (const n of normals(hull)) {
-      expect(n.length()).toBeCloseTo(1, 9);
-      for (const v of n.toArray()) expect(Math.abs(v)).toBeCloseTo(1 / Math.sqrt(3), 9);
+      expect(n.length()).toBeCloseTo(1, 6);
+      for (const v of n.toArray()) expect(Math.abs(v)).toBeCloseTo(1 / Math.sqrt(3), 6);
     }
     expect(hullGeometry(box)).toBe(hull);
   });
@@ -399,7 +400,7 @@ describe("the hull's normals (plan.md §10)", () => {
     const out = normals(hullGeometry(g));
     out.forEach((n, i) => {
       const p = new Vector3(flat[(i % 4) * 3], flat[(i % 4) * 3 + 1], 0).normalize();
-      expect(n.length()).toBeCloseTo(1, 9);
+      expect(n.length()).toBeCloseTo(1, 6);
       expect(n.distanceTo(p)).toBeLessThan(1e-6);
     });
   });
@@ -450,7 +451,7 @@ function stageIn(look: Look): StageRun {
 }
 
 /** The repository's three looks, resolved as the drafts build gives the lookdev page them. */
-function looks(): Look[] {
+function looks(): readonly Look[] {
   const drafts = repositoryBundle({ drafts: true }).drafts;
   if (!drafts) throw new Error("no drafts modules");
   return drafts.lookdev.looks;
