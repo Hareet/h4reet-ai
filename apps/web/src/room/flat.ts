@@ -17,6 +17,13 @@
 //   the side the paper comes from;
 // - each selectable's cue, a dashed rectangle around its hit rectangles with its name tag, styled by room.css's
 //   classes.
+// - each selectable's highlight (spec 008, FR-003, FR-046; plan.md R-08), moved into Phase 1 by its review (finding
+//   4): a hidden group of two rectangles around its hit rectangles' union, an edge and then a band, their strokes and
+//   widths the index's resolved highlight, room.css's two classes giving no fill and a non-scaling stroke, so the
+//   widths are CSS pixels; the stage grows them at the drawing's scale so the border lies outside the union, the band
+//   its width and the edge outside it, and shows the target's in place of its dashed cue, its name tag kept. They lie
+//   over the pieces and their faces and under the visitor, the labels, the paper, and the cues, so no border hides a
+//   word (FR-019). The drawing's pointer reports a hover's pick and a press's as targeting inputs (objects.ts).
 // - each bound live face, from its renderers' display list through the SVG backend (faces/svg.ts), in a group at the
 //   index's face transform, scaled from the face's pixels, over its piece and under the visitor: a still image, its
 //   final frame, drawn once its typefaces have a family (faces/fonts.ts) and redrawn only when a value changes, the
@@ -35,12 +42,12 @@ import { avatarPolygons } from "../choice/avatars";
 import type { AvatarId } from "../choice/avatars";
 import type { Matrix2D, Prim, RoomIndex } from "./compose/bundle";
 import { CORE_PX, listOnly, pick, pickAreas, unionOf } from "./compose/pick";
-import type { PickArea, PickInput } from "./compose/pick";
+import type { PickArea, PickInput, Rect } from "./compose/pick";
 import type { Stage as Size } from "./compose/stages";
 import { SVG_NS, h, svg } from "./dom";
 import { FLAT_FRAMES, VISITOR_TURN, flatFrame, handOffset, sideOf, visitorTurnShare } from "./handoff";
 import { bindPointerSelection } from "./objects";
-import type { Ndc } from "./objects";
+import type { Ndc, PointerTarget } from "./objects";
 import { typefaceFor } from "./compose/legibility";
 import type { TypefaceLoader } from "./faces/fonts";
 import { faceSvg } from "./faces/svg";
@@ -74,10 +81,22 @@ export interface FlatDrawing {
   readonly faces: ReadonlyMap<string, SVGElement>;
   /** Each selectable's cue, by selectable, in scene order: its dashed rectangle and its name tag. */
   readonly cues: ReadonlyMap<string, { readonly area: SVGElement; readonly name: SVGElement }>;
+  /** Each selectable's highlight, by selectable, in the index's order: its group, hidden but for the target's, and
+   *  the group's two rectangles, the edge and the band, around `union`, its hit rectangles' union (spec 008). */
+  readonly highlights: ReadonlyMap<string, FlatHighlight>;
   /** The visitor: the chosen avatar's polygons. */
   readonly visitor: SVGElement;
   /** The hand-off's paper in its three still frames: in the twin's hand, between the hands, in the visitor's. */
   readonly papers: readonly SVGElement[];
+}
+
+/** A selectable's highlight in the 2D drawing (spec 008, FR-046; plan.md R-08). */
+export interface FlatHighlight {
+  readonly group: SVGElement;
+  readonly edge: SVGElement;
+  readonly band: SVGElement;
+  /** Its hit rectangles' union, in the view box. */
+  readonly union: Rect;
 }
 
 export interface FlatStage extends Stage {
@@ -108,8 +127,8 @@ const ELEMENTS: ReadonlySet<string> = new Set([
   "text",
 ]);
 
-/** The room.css classes the drawing's cues and labels take. */
-const CLASSES = ["flat-cue", "flat-cue-name", "flat-label"] as const;
+/** The room.css classes the drawing's cues, labels, and highlights take. */
+const CLASSES = ["flat-cue", "flat-cue-name", "flat-label", "flat-highlight-edge", "flat-highlight-band"] as const;
 
 /** An attribute's value as written, or null where the value isn't one the attribute takes. */
 type Check = (value: unknown) => string | null;
@@ -171,6 +190,16 @@ const ATTRIBUTES: Readonly<Record<string, Check>> = {
   visibility: oneOf("visible", "hidden"),
 };
 
+/** Sets an element's attributes through the allowlist: an attribute or value off it throws. */
+function setChecked(el: Element, attrs: Readonly<Record<string, unknown>>): void {
+  for (const [name, value] of Object.entries(attrs)) {
+    const check = Object.hasOwn(ATTRIBUTES, name) ? ATTRIBUTES[name] : undefined;
+    const text = check ? check(value) : null;
+    if (text === null) throw new Error(`the 2D room refuses <${el.localName}>'s ${name}`);
+    el.setAttribute(name, text);
+  }
+}
+
 /** One element of the drawing, made only through the allowlist: an element, attribute, or value off it throws. */
 function node(
   doc: Document,
@@ -180,14 +209,20 @@ function node(
 ): SVGElement {
   if (!ELEMENTS.has(tag)) throw new Error(`the 2D room draws no <${tag}>`);
   const el = doc.createElementNS(SVG_NS, tag) as SVGElement;
-  for (const [name, value] of Object.entries(attrs)) {
-    const check = Object.hasOwn(ATTRIBUTES, name) ? ATTRIBUTES[name] : undefined;
-    const text = check ? check(value) : null;
-    if (text === null) throw new Error(`the 2D room refuses <${tag}>'s ${name}`);
-    el.setAttribute(name, text);
-  }
+  setChecked(el, attrs);
   el.append(...children);
   return el;
+}
+
+/** A rectangle grown on every side by a distance. */
+const grown = ([x, y, w, h]: Rect, by: number): Rect => [x - by, y - by, w + 2 * by, h + 2 * by];
+
+/** Places a highlight's rectangles at the drawing's scale on screen, CSS pixels per view-box unit: the band's stroke,
+ *  centred on its rectangle, from the union outward by its width, and the edge's from there by its own. */
+function placeHighlight(h: FlatHighlight, style: FlatIndex["flat"]["highlight"], scale: number): void {
+  const at = ([x, y, width, height]: Rect): Record<string, number> => ({ x, y, width, height });
+  setChecked(h.band, at(grown(h.union, style.band_px / 2 / scale)));
+  setChecked(h.edge, at(grown(h.union, (style.band_px + style.edge_px / 2) / scale)));
 }
 
 /** A switch case's, a paper's, or a cue's visibility, set by code. */
@@ -334,6 +369,27 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     faces.set(f.face, inner);
   }
 
+  // Each selectable's highlight, hidden, over the pieces and their faces and under everything after (see above); placed
+  // at a scale of one until the stage has a size.
+  const highlights = new Map<string, FlatHighlight>();
+  for (const s of room.selectables) {
+    const hit = flat.hits.find((x) => x.selectable === s.id);
+    const union = hit ? unionOf(hit.rects) : null;
+    if (!union || highlights.has(s.id)) continue;
+    const rect = (cls: string, stroke: string, width: number): SVGElement =>
+      node(doc, "rect", { class: cls, fill: "none", stroke, "stroke-width": width });
+    const h: FlatHighlight = {
+      group: node(doc, "g", { visibility: "hidden" }),
+      edge: rect("flat-highlight-edge", flat.highlight.edge, flat.highlight.edge_px),
+      band: rect("flat-highlight-band", flat.highlight.band, flat.highlight.band_px),
+      union,
+    };
+    h.group.append(h.edge, h.band);
+    placeHighlight(h, flat.highlight, 1);
+    highlights.set(s.id, h);
+    root.append(h.group);
+  }
+
   // The avatar's polygons are code's; where they stand, and at what scale, is the index's.
   const { x: feet, baseline, scale } = flat.visitor;
   if (![feet, baseline, scale].every(isNumber)) throw new Error("the 2D room refuses the visitor's place");
@@ -410,7 +466,7 @@ export function drawFlat(doc: Document, room: FlatIndex, avatar: AvatarId): Flat
     root.append(area, name);
   }
 
-  return { root, items, switches, labels, faces, cues, visitor, papers };
+  return { root, items, switches, labels, faces, cues, highlights, visitor, papers };
 }
 
 /**
@@ -534,6 +590,8 @@ export function renderFlat(
     typefaces?: TypefaceLoader;
     /** The cost channel's state when the 2D room was drawn (spec 004, FR-048). */
     cost?: CostState;
+    /** Where the drawing's pointer reports its targeting inputs (spec 008, FR-008 (a) and (b)). */
+    target?: PointerTarget;
   },
 ): FlatStage {
   const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
@@ -541,14 +599,25 @@ export function renderFlat(
   const moving = turnsOf(options.room.flat);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
-  const resize = (size: Size): void => {
-    // A pointer's move measures the box too; the cues follow the held set only when the size changes it.
-    if (!picker.resize(size)) return;
+  const [, , vw, vh] = options.room.flat.view_box;
+  /** The selectable bordered, or none (spec 008). */
+  let target: string | null = null;
+  /** Each cue shows where its selectable has a pick area, its dashed rectangle not while it is the target; the
+   *  target's highlight shows, held or not, so list focus borders a held side-wall selectable too. */
+  const showCues = (): void => {
     const held = picker.held();
     for (const [id, cue] of drawing.cues) {
-      show(cue.area, !held.has(id));
+      show(cue.area, !held.has(id) && id !== target);
       show(cue.name, !held.has(id));
     }
+    for (const [id, h] of drawing.highlights) show(h.group, id === target);
+  };
+  const resize = (size: Size): void => {
+    // A pointer's move measures the box too; the cues and the highlights follow only when the size changes.
+    if (!picker.resize(size)) return;
+    const scale = Math.min(size.w / vw, size.h / vh);
+    if (scale > 0) for (const h of drawing.highlights.values()) placeHighlight(h, options.room.flat.highlight, scale);
+    showCues();
   };
   /** The drawing's box on screen. */
   const measure = (): void => {
@@ -562,6 +631,7 @@ export function renderFlat(
       return picker.pick(ndc);
     },
     (id) => options.select(id),
+    options.target,
   );
   const Observer = doc.defaultView?.ResizeObserver;
   const observer = Observer ? new Observer(measure) : null;
@@ -597,8 +667,12 @@ export function renderFlat(
       cost = next;
       faces();
     },
-    // Spec 008's target: the 2D room draws its highlight with Phase 6 (FR-046), and takes the target until then.
-    setTarget: () => undefined,
+    // Spec 008's target: its highlight in place of its dashed cue at once (FR-003, FR-046); an ID the index doesn't
+    // list borders nothing.
+    setTarget(id) {
+      target = id;
+      showCues();
+    },
     dispose: () => {
       unwatch?.();
       observer?.disconnect();

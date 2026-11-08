@@ -470,6 +470,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         motion,
         text,
         cost: cost.state,
+        target: targetInput,
         ...(typefaces ? { typefaces } : {}),
       });
       showTier(flat, live.tier.tier);

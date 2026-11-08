@@ -38,9 +38,9 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 
 ---
 
-## Phase 1: The Target and Its Highlight on Today's Camera (User Story 1, P1, with User Story 6's checks for targeting) 🎯 MVP
+## Phase 1: The Target and Its Highlight on Today's Camera (User Story 1, P1, with User Story 6's checks for targeting, and User Story 5's 2D highlight) 🎯 MVP
 
-**Goal**: the target, from hover, press, and list focus, shows its two-tone border at the production framing; a selection clears it; nothing new is sent.
+**Goal**: the target, from hover, press, and list focus, shows its two-tone border at the production framing, and in the 2D room in place of its dashed cue; a selection clears it; nothing new is sent. (Phase 1's review moved the 2D highlight, T064 to T066, in from Phase 6: FR-003 asks the 2D room to highlight targets from the first target on.)
 
 **Independent Test**: spec.md User Story 1's.
 
@@ -59,6 +59,8 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 - [X] T008 [P] [US6] Extend `apps/web/test/ui/degraded.test.ts` (FR-001, FR-002, FR-004; SC-012): with the live source off, the tier unknown, and the stubbed kill switch `degraded`, targeting and the highlight behave as in T007; with the 2D drawing refused (`flat-failed`), no highlight is drawn and the list still selects every piece; the spies record no request for targeting. Check: RED where it depends on Phase 1's code (feat/008-visitor-movement) **Done:** 88504be.
 - [X] T009 [P] [US1] Extend `apps/web/test/room/live.test.ts`, where the frame log is tested (FR-054): a drafts build's log records `target` entries with the ID and the input; a release build has no log. Check: RED (feat/008-visitor-movement) **Done:** 88504be.
 - [X] T010 [P] [US1] Extend `apps/web/test/lookdev/page.test.ts` (FR-050's highlight sample): the lookdev page's control names a selectable and its stage draws the highlight on it; drafts builds only. Check: RED (feat/008-visitor-movement) **Done:** 88504be.
+- [ ] T064 [P] [US5] Extend `apps/web/test/room/flat.test.ts` (FR-046; R-08; SC-011): each selectable's highlight group, two rectangles with `stroke` and `stroke-width` from the index and classes from code's constants, hidden until targeted; the target's group shows and its dashed cue hides; a held side-wall selectable's group shows on focus; the allowlist gains only the two classes; nothing focusable is added. Moved here from Phase 6 by Phase 1's review (finding 4). Check: RED (feat/008-visitor-movement)
+- [ ] T065 [P] [US5] Extend `apps/web/test/ui/highlight.test.ts` (FR-040, FR-046, FR-047): in 2D, hover, press, and list focus highlight, and a selection clears; that no walking control shows in 2D is T045's, with the control. Moved here from Phase 6 by Phase 1's review (finding 4). Check: RED (feat/008-visitor-movement)
 
 ### Implementation for User Story 1
 
@@ -72,12 +74,13 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 - [X] T018 [US1] In `apps/web/src/room/app.ts`, own the target store: route the stages' and the list's inputs to it, hand each change to `stage.setTarget`, call `select` from `selectObject` in the same call, reset on the hand-off and the fall to 2D; and in `src/room/signals/frame-log.ts`, add the `target` event. Check: T007, T008, and T009 pass (feat/008-visitor-movement) **Done:** 8208fdc, its guard of the stage's `setTarget` in ed1f55c.
 - [X] T019 [US1] Add the highlight sample to the lookdev page (`apps/web/src/lookdev/controls.ts`, `src/lookdev/stage.ts`): a control naming any selectable, drawn with the room's own `scene/highlight.ts`. Check: T010 passes (feat/008-visitor-movement) **Done:** d0144a1.
 - [X] T020 [US1] Record the entry and lazy chunks' gzipped sizes before and after, and any departure in `specs/008-visitor-movement/plan.md` §10, in the commit that makes it. Check: the entry chunk is within spec 002's 150 KB; `make lint` reports zero warnings (feat/008-visitor-movement) **Done:** 1bc56b6: the entry's JavaScript and CSS 31,079 to 31,556 bytes at gzip 9 (+477) of 153,600, and the index 4,771 to 4,811 of 16,384 (plan.md §10); `make lint` passes.
+- [ ] T066 [US5] Draw the 2D highlight in `apps/web/src/room/flat.ts` (R-08; `setTarget`; the two classes in `CLASSES`) and its classes in `src/room/room.css`, and pass the room's targeting input to the 2D stage in `src/room/app.ts`. Moved here from Phase 6 by Phase 1's review (finding 4). Check: T064 and T065 pass (feat/008-visitor-movement)
 - [ ] T021 [US1] Review `feat/008-visitor-movement` with the reviewer agent (`.claude/agents/reviewer.md`) in a session that wrote none of it: every pass `REVIEW.md` holds, over the branch's diff from f9524081 (the cherry-picked documents apart); the implementing session fixes blockers test-first, and the reviewer re-reads the fix. Check: the verdict, for T022's note (feat/008-visitor-movement)
 - [X] T022 [US1] Write `docs/merge-requests/<date>-feat-008-visitor-movement.md`: what changed and why; the acceptance criteria; the constitution check; the cost and data-flow impact (none sent beyond today's); the RED and GREEN runs of T003 to T010; T020's chunk sizes; the review; the backlog; For the Author (L1; the merge after line R's stack); `make check ENGINE_MODE=none-yet`'s whole output and `gitleaks dir`'s from this worktree. Check: the note is committed on the branch (feat/008-visitor-movement) **Done:** `docs/merge-requests/2026-11-07-feat-008-visitor-movement.md`, with T021's review still to come.
 - [ ] T023 Author: L1, the highlight at lookdev (SC-002), on both reference stages, in each of the three looks, against light and dark neighbours, with the studio's pieces in place; keep Q5's colours or change them in the looks, a data edit. Check: his verdict in the note's For the Author, or in the next branch's (the Author's devices)
 - [ ] T024 Author: once line R's stack has merged, gate `feat/008-visitor-movement` from main's checkout and merge it with the command the gate prints. Check: `refs/heads/main` holds the branch's tip (main)
 
-**Checkpoint**: the highlight is live on the production framing, in 3D; the 2D room is as before.
+**Checkpoint**: the highlight is live on the production framing, in 3D, and in the 2D room.
 
 ---
 
@@ -175,13 +178,11 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 
 ## Phase 6: The 2D Room (User Story 5, P3; can start right after Phase 1, beside Phase 2)
 
-**Goal**: the highlight on the 2D drawing; no walking there.
+**Goal**: the highlight on the 2D drawing (built in Phase 1); no walking there (T045).
 
 **Independent Test**: spec.md User Story 5's.
 
-- [ ] T064 [P] [US5] Extend `apps/web/test/room/flat.test.ts` (FR-046; R-08; SC-011): each selectable's highlight group, two rectangles with `stroke` and `stroke-width` from the index and classes from code's constants, hidden until targeted; the target's group shows and its dashed cue hides; a held side-wall selectable's group shows on focus; the allowlist gains only the two classes; nothing focusable is added. Check: RED (feat/008-walking)
-- [ ] T065 [P] [US5] Extend `apps/web/test/ui/highlight.test.ts` (FR-040, FR-046, FR-047): in 2D, hover, press, and list focus highlight, a selection clears, and no walking control shows. Check: RED (feat/008-walking)
-- [ ] T066 [US5] Draw the 2D highlight in `apps/web/src/room/flat.ts` (R-08; `setTarget`; the two classes in `CLASSES`) and its classes in `src/room/room.css`. Check: T064 and T065 pass (feat/008-walking)
+Its tasks, T064 to T066, moved into Phase 1 at Phase 1's review (finding 4), since FR-003 asks the 2D room to highlight targets from the first target on; that no walking control shows in 2D is T045's, with the control.
 
 **Checkpoint**: the 2D room highlights as the 3D room does.
 
@@ -207,7 +208,7 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 - [ ] T071 [P] Document the walking block in `apps/web/room/README.md` beside T011's highlight. Check: `make test`'s docs checks pass (feat/008-walking)
 - [ ] T072 Record the chunks' gzipped sizes against Phase 1's (T020) and the index's size, and any departure in `specs/008-visitor-movement/plan.md` §10. Check: the entry chunk within 150 KB and the index within 16 KB; `make lint` reports zero warnings (feat/008-walking)
 - [ ] T073 Review `feat/008-walking` with the reviewer agent, in a session that wrote none of it, as T021 did, over the diff from Phase 1's tip. Check: the verdict, for T074's note (feat/008-walking)
-- [ ] T074 Write `docs/merge-requests/<date>-feat-008-walking.md` as T022's, with the RED and GREEN runs of T027 to T034, T043 to T047, T057, T059 to T061, T064, T065, T067, T068, and T070, the chunk sizes, and For the Author (L2, L3, the merge after `feat/008-visitor-movement`, ADR 0039). Check: committed on the branch (feat/008-walking)
+- [ ] T074 Write `docs/merge-requests/<date>-feat-008-walking.md` as T022's, with the RED and GREEN runs of T027 to T034, T043 to T047, T057, T059 to T061, T067, T068, and T070, the chunk sizes, and For the Author (L2, L3, the merge after `feat/008-visitor-movement`, ADR 0039). Check: committed on the branch (feat/008-walking)
 - [ ] T075 Author: L2, the phone (FR-048): the lookdev phone copy's 2-minute scripted walk on the reference phone (median, share of frames over 33 ms, the settled quality beside the static view's), then the walking view by touch, and the page's scroll from the stage with walking off. Check: SC-013's figures in the note (the Author's devices)
 - [ ] T076 Author: L3, spec 004's Q9 runs with the walking view: a keyboard-only visit that walks and opens a piece with Enter, and a screen-reader visit that chooses every piece from the list without walking. Check: SC-008's verdicts in the note (the Author's devices)
 - [ ] T077 Author: gate `feat/008-walking` from main's checkout and merge it with the command the gate prints, after `feat/008-visitor-movement`; accept ADR 0039 or leave it proposed. Check: `refs/heads/main` holds the branch's tip (main)
@@ -219,10 +220,10 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 ### Phase dependencies
 
 - **T000** blocks everything.
-- **Phase 1** (T001 to T024) needs only T000 and line R's tip; it lands first.
+- **Phase 1** (T001 to T024, with T064 to T066 since its review) needs only T000 and line R's tip; it lands first.
 - **Phase 2** (T025 to T042) starts from Phase 1's tip once T021's review has no blocker left, and blocks Phases 3 to 5 and 7.
 - **Phases 3, 4, 5, 7** run in that order on `feat/008-walking`.
-- **Phase 6** (T064 to T066) needs only Phase 1's reducer and index field, so it can run beside Phase 2.
+- **Phase 6**'s tasks, T064 to T066, moved into Phase 1 at its review.
 - **Phase 8** needs every story's phase.
 
 ### Within each phase
@@ -236,7 +237,7 @@ description: "Task list for spec 008, Visitor Movement and Target Highlighting"
 - Phase 1: T003 to T010 together; then T012, T013, T016, T017 together; T011 after T012; T012 → T014 → T015 → T018; T019 after T014.
 - Phase 2: T026 to T034 together; after T035, T036 to T040 together; then T041 and T042.
 - Phase 3: T043 to T047 together; T048, T049, T052, T053, T054, T055 together; then T050 → T051 → T056.
-- Across phases: Phase 6 beside Phase 2; lookdev's T070 once T051 is in.
+- Across phases: lookdev's T070 once T051 is in.
 
 ## Parallel Example: Phase 2
 

@@ -45,7 +45,7 @@ Quoted as the main session relayed them, typing included. The reading beside eac
 
 ## User Scenarios & Testing *(mandatory)*
 
-The users are visitors on desktop and phone, in 3D and in the 2D room, by pointer, touch, keyboard, and screen reader; and the Author, who judges the look and the phone. User Story 6, the degraded mode, is P1 and ships with User Story 1, as Principle I asks ("Every user-facing capability MUST define its degraded mode before its happy path"); it is listed last only because it adds no new input or view, only the proof that none of this depends on anything that can be off. User Story 4's accessibility applies to every story as it ships; it is also its own test pass.
+The users are visitors on desktop and phone, in 3D and in the 2D room, by pointer, touch, keyboard, and screen reader; and the Author, who judges the look and the phone. User Story 6, the degraded mode, is P1 and ships with User Story 1, as Principle I asks ("Every user-facing capability MUST define its degraded mode before its happy path"); it is listed last only because it adds no new input or view, only the proof that none of this depends on anything that can be off. User Story 4's accessibility applies to every story as it ships; it is also its own test pass. User Story 5's highlight (its scenarios 1 and 2) ships with User Story 1 too, moved there by Phase 1's review (plan.md §4.3 and §10): FR-003 asks the 2D room to highlight targets, and the targets come with User Story 1.
 
 ### User Story 1 - The Target Shows a Highlight Border, on Today's Camera (Priority: P1)
 
@@ -130,7 +130,7 @@ As a visitor using a keyboard, a screen reader, or reduced motion, I want the hi
 
 As a visitor on a device without 3D, I want the same highlight on the 2D drawing, and nothing that pretends to walk.
 
-**Why this priority**: Spec 004's FR-058: the 2D room shows the same pieces, states, and words as the 3D room. Walking is a 3D view.
+**Why this priority**: Spec 004's FR-058: the 2D room shows the same pieces, states, and words as the 3D room. Walking is a 3D view. Its highlight, scenarios 1 and 2, ships with User Story 1 (Phase 1's review; see the section's opening).
 
 **Independent Test**: In the 2D room, hover, press, and Tab through the list: the target's dashed cue becomes the two-tone border; there is no walking control. In 3D, start walking and press "2D view": the walk ends and the 2D room shows, with the conversation and the resume as they were.
 

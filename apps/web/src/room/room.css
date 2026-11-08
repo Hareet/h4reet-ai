@@ -251,6 +251,14 @@ body.in-room .disclosure p {
   paint-order: stroke;
 }
 
+/* Spec 008's highlight in the 2D drawing (FR-046; plan.md R-08): the target's border, an edge and a band around its
+   hit rectangles' union, their tones and widths the index's, as attributes; no fill, and widths in CSS pixels. */
+.flat-highlight-edge,
+.flat-highlight-band {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
 /* A stand-in's label: its ink haloed, so it reads over any piece. */
 .flat-label {
   stroke: #ffffff;
