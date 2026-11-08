@@ -27,7 +27,7 @@ import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { TierValue } from "../../src/room/compose/vocabulary";
-import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
+import type { SceneModule, SceneOptions, Stage3D, WalkEnd } from "../../src/room/stage";
 import type { CostState } from "../../src/room/signals/turn-cost";
 import type { SendTurn } from "../../src/talk/talk";
 
@@ -283,11 +283,16 @@ export interface FakeScene {
   cost: CostState[];
   /** Each target the room gave the stage through setTarget, in order (spec 008, T007): an ID, or null for none. */
   targets: (string | null)[];
+  /** Each call the room made on the stage's walking view, in order (spec 008, T042), with the element `enter` took. */
+  walks: ({ call: "enter"; focus: HTMLElement } | { call: "leave" })[];
+  /** Ends the walking view as the stage would on its own, and reports why through the room's walkEnded. */
+  endWalk(why: WalkEnd): void;
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
 }
 
 export function fakeScene(): FakeScene {
+  let walking = false;
   const fake: FakeScene = {
     loads: 0,
     created: [],
@@ -299,6 +304,11 @@ export function fakeScene(): FakeScene {
     applied: [],
     cost: [],
     targets: [],
+    walks: [],
+    endWalk(why) {
+      walking = false;
+      fake.created.at(-1)?.walkEnded?.(why);
+    },
     module: {
       createScene(options) {
         fake.created.push(options);
@@ -320,6 +330,19 @@ export function fakeScene(): FakeScene {
           apply: (value) => fake.applied.push({ value, frame: fake.frames, at: options.clock.now() }),
           setCost: (state) => fake.cost.push(state),
           setTarget: (id) => fake.targets.push(id),
+          walk: {
+            get walking() {
+              return walking;
+            },
+            enter(focus) {
+              fake.walks.push({ call: "enter", focus });
+              walking = true;
+            },
+            leave() {
+              fake.walks.push({ call: "leave" });
+              walking = false;
+            },
+          },
           dispose: () => {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);

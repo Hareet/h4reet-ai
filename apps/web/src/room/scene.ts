@@ -331,6 +331,8 @@ export function createScene(options: SceneOptions): Stage3D {
     setTarget(id) {
       highlight.setTarget(id);
     },
+    // Spec 008's walking view: its interface now (T042), its behaviour with Phase 3 (T050, T051).
+    walk: { walking: false, enter: () => undefined, leave: () => undefined },
     setQuality(level) {
       const before = settings.shadows;
       settings = qualitySettings(level);

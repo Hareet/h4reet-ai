@@ -29,8 +29,7 @@ export interface Stage {
    *  not (FR-060). A stage made after a report is given the state at its making. */
   setCost?(state: CostState): void;
   /** The room's target (spec 008, FR-007, FR-014; plan.md §2): the selectable the stage shows with the highlight,
-   *  from its next frame in 3D, or none. The 2D room draws its highlight with spec 008's Phase 6, and takes it until
-   *  then. */
+   *  from its next frame in 3D, or at once in 2D, or none. */
   setTarget(id: string | null): void;
   dispose(): void;
 }
@@ -38,11 +37,29 @@ export interface Stage {
 /** What a stage reads of the motion store, throughout the visit (spec 004, FR-059, FR-060; R-34). */
 export type MotionView = Pick<MotionState, "animate" | "reducedMotion">;
 
+/** Why the walking view ended without the room asking (spec 008): Escape on its focusable element (FR-022), or a step
+ *  that threw, after which the stage is back at the production framing with the figure at its place (FR-005). */
+export type WalkEnd = "escape" | "failed";
+
+/** The 3D stage's walking view (spec 008, FR-020 to FR-035; plan.md §2, §3.6): the room enters and leaves it, and the
+ *  stage reports a leave it made itself through SceneOptions' walkEnded. */
+export interface StageWalk {
+  /** Whether the walking view is on. */
+  readonly walking: boolean;
+  /** Enters the walking view from the production framing, its keys bound to `focus`, the element that holds focus
+   *  while walking (R-13); nothing while it's on. */
+  enter(focus: HTMLElement): void;
+  /** Leaves it, back to the production framing with the figure at its place (FR-022); nothing while it's off. */
+  leave(): void;
+}
+
 export interface Stage3D extends Stage {
   readonly mode: "3d";
   readonly canvas: HTMLCanvasElement;
   /** The quality controller's level, 0 (full) to 3 (R-04). */
   setQuality(level: number): void;
+  /** The walking view (spec 008). */
+  readonly walk: StageWalk;
 }
 
 export interface SceneOptions {
@@ -65,6 +82,9 @@ export interface SceneOptions {
   target?(input: Extract<TargetInput, "pointer" | "press">, id: string | null): void;
   /** Each frame's time, for the quality controller. */
   onFrame(time: number): void;
+  /** Where the stage reports a leave of the walking view it made itself (spec 008): Escape, or a failed step (FR-005).
+   *  Absent, nothing is reported. */
+  walkEnded?(why: WalkEnd): void;
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
