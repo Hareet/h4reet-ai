@@ -104,6 +104,24 @@ const int = (min: number, max: number) => z.number().int().min(min).max(max);
 const envKey = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 
 /**
+ * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 010 FR-017, built
+ * early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it as given;
+ * `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku 5.5
+ * "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
+ */
+export const PAID_TEMPERATURE = ["as_requested", "model_default"] as const;
+export type PaidTemperature = (typeof PAID_TEMPERATURE)[number];
+const paidTemperature = z.enum(PAID_TEMPERATURE).optional();
+
+/** The temperature a paid adapter sends: the request's, unless its `temperature` setting is `model_default`. */
+export function sentTemperature(
+  setting: PaidTemperature | undefined,
+  requested: number | undefined,
+): number | undefined {
+  return setting === "model_default" ? undefined : requested;
+}
+
+/**
  * A compose service's name: one DNS label that starts with a letter. A label of digits, or of hex or octal digits
  * after a 0, is an IPv4 address to URL parsing and to getaddrinfo (http://2852039166/ is 169.254.169.254), so a label
  * that doesn't start with a letter is never in-stack.
@@ -204,6 +222,7 @@ const bedrockConverse: AdapterTypeSpec = {
     region: z.string(),
     model: z.union([z.string().regex(/^[a-z0-9][a-z0-9.:-]{2,127}$/), placeholder]),
     additional_request_fields: z.record(z.string(), z.unknown()),
+    temperature: paidTemperature,
     timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
     retry: z.strictObject({
       on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
