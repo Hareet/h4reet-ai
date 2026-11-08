@@ -7,7 +7,9 @@
 # on this recessed slate, by the Author's choice of 2026-11-07, "Past the wall's edge": the smallest that keeps the
 # slate's one line, "denverlocal.ai", on one line at the floor of 9 CSS pixels on the reference phone (FR-082) with the
 # board clear of the artwork, which leaves it hanging past the left wall's front edge (scene.yaml), until the Author's
-# lookdev check (T309, T310).
+# lookdev check (T309, T310). It names no model: the studio's assets/room/chalkboard.glb is the board at 1.25, which the
+# compose refuses at 1.49 (RX7, RX8), so the board stays a stand-in until the studio rebuilds it at this scale and the
+# Author's one-file re-intake brings it, when `model: { file: chalkboard.glb }` comes back after `budget`.
 version: 1
 id: chalkboard
 name: Chalkboard
@@ -29,7 +31,6 @@ standin:
   - { shape: plane, size: [0.44, 0.58], at: [0, 0, 0.025], color: slate }
 drawing: { from: standin }
 budget: { gzip_bytes: 300000, triangles: 6500, texture_px: 2048, texture_bytes: 5592405 }
-model: { file: chalkboard.glb }
 work_order:
   method: >-
     Model the framed board from the dimension sheet and the Author's description. The slate is one quad, the live
