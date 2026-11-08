@@ -747,16 +747,17 @@ describe("the site's own room, from the repository's bundle (spec 002's work are
     expect(words.length).toBeGreaterThan(3);
     for (const w of words) expect(w).toMatch(/placeholder/i);
     disposeRoom(standins);
-    // The site's own room: every piece but the figures has its studio file set but the chalkboard, whose studio file is
-    // unset at T308's scale until the studio rebuilds it (chalkboard.yaml), so it labels that one stand-in alone. Its ID
-    // is the data's alone (FR-007), so the test takes the one placement without a model.
+    // The site's own room: every piece but the figures has its studio file set, the chalkboard's since the Author's
+    // re-intake of the studio's rebuild at T308's 1.49 (T331) ended T308's one stand-in, so it labels nothing. IDs are
+    // the data's alone (FR-007), so the test takes the placements without a model from it: it would label exactly
+    // those, each as a placeholder, and there are none.
     const site = repositoryBundle();
     const figures = new Set([site.scene.figures.twin, site.scene.figures.visitor]);
     const unset = site.scene.placements.filter((p) => p.model === null && !figures.has(p.id)).map((p) => p.id);
-    expect(unset).toHaveLength(1);
     const room = build(site);
     expect([...room.labels.keys()]).toEqual(unset);
     for (const node of room.labels.values()) expect(node.name.slice("label:".length)).toMatch(/placeholder/i);
+    expect(unset).toEqual([]);
     disposeRoom(room);
   });
 });
