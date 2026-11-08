@@ -100,7 +100,9 @@ describe("the walkable floor of the repository's room (FR-026, R-04)", () => {
     const scene = part();
     const floor = floorOfPart(scene, RADIUS) as WalkableFloor;
     const { world } = resolveMounts(scene.placements, scene.pieces);
-    const feet = origin(world.get(scene.figures.visitor) ?? []);
+    const at = world.get(scene.figures.visitor);
+    if (!at) throw new Error("no visitor in the world");
+    const feet = origin(at);
     expect(near(floor.start.x, feet[0]) && near(floor.start.z, feet[2])).toBe(true);
     expect(isWalkable(floor, floor.start.x, floor.start.z)).toBe(true);
     expect(clearance(floor, floor.start.x, floor.start.z)).toBeGreaterThan(0);

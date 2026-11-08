@@ -961,17 +961,28 @@ describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
   it.each([
     [
       "the walking speed",
-      (w: Record<string, unknown>) => (w.speed_mps = 1.5),
-      (s: RoomScene) => s.walking.speed_mps,
+      (w: Record<string, unknown>): void => {
+        w.speed_mps = 1.5;
+      },
+      (s: RoomScene): number => s.walking.speed_mps,
       1.5,
     ],
     [
       "a camera limit",
-      (w: Record<string, unknown>) => ((w.camera as Record<string, unknown>).yaw_deg = 40),
-      (s: RoomScene) => s.walking.camera.yaw_deg,
+      (w: Record<string, unknown>): void => {
+        (w.camera as Record<string, unknown>).yaw_deg = 40;
+      },
+      (s: RoomScene): number => s.walking.camera.yaw_deg,
       40,
     ],
-    ["the reach", (w: Record<string, unknown>) => (w.reach_m = 1.0), (s: RoomScene) => s.walking.reach_m, 1.0],
+    [
+      "the reach",
+      (w: Record<string, unknown>): void => {
+        w.reach_m = 1.0;
+      },
+      (s: RoomScene): number => s.walking.reach_m,
+      1.0,
+    ],
   ] as const)("%s: a data edit, which the 3D part carries", (_, edit, read, value) => {
     const scene = copy(SCENE) as unknown as Record<string, unknown>;
     const walking = structuredClone(scene.walking) as Record<string, unknown>;
