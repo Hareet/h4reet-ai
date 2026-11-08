@@ -29,3 +29,9 @@ declare module "virtual:room-lookdev" {
   /** The drafts build's room_text (§5), as room-data.json carries it, for the page's faces (spec 004, T192). */
   export const text: import("../../build/room/emit").RoomText;
 }
+
+declare module "virtual:room-frame-log" {
+  /** The frame log's factory in a drafts build (spec 004, T246; R-70), and null in a release build, which keeps no log
+   *  and holds none of its code. */
+  export const createFrameLog: typeof import("./signals/frame-log").createFrameLog | null;
+}

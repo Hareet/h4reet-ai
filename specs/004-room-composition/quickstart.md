@@ -394,12 +394,14 @@ The first room files are the desk and one sign (Amendment C10). **Where:** the A
 
 **The Author's runs** (after spec 001, on dev's drafts image, opened through SC-004's harness at `http://127.0.0.1:18106/`, which forwards the page's status requests to dev's relay on the stack's network and every other request to the stack's site, `edge:8087` ([research.md](research.md) R-70)):
 
+**Before the run, the browser and the clocks.** Record in a browser profile with no extensions, so the HAR holds only the page's requests (the checker notes any `chrome-extension:` or `moz-extension:` request apart). Then compare the clock that stamps the relay's log with the browser's, since WSL2's can drift from Windows' after the laptop sleeps, by more than the margin between the 30-second poll and the 40-second limit: in WSL, `date -u +%FT%T.%3NZ`, and at the same moment in the browser's console, `new Date().toISOString()`. Resync WSL if they differ (`sudo hwclock -s`), or keep the difference, the relay's clock minus the browser's in milliseconds, for step 4's `--relay-offset-ms`.
+
 **First, the harness.** Select the `status-harness` profile in dev's env file's `COMPOSE_PROFILES`, with `H4_STATUS_HARNESS_PORT=18106`, and `make up ENV=dev` (Heavy). **Expected:** preflight passes on dev, and `http://127.0.0.1:18106/` shows the room, while the site's own port, `http://127.0.0.1:18105/`, still answers 404 under `/api/`. After the run, take the profile out again and `make up ENV=dev`. Prod's and dev-cpu's preflight refuse the profile.
 
 1. **The failover** (SC-004). Enter the room. Once the charger shows plugged in, turn the relay's local path unhealthy as spec 001's quickstart does, and keep the time of the relay's path-change log line. **Expected:** the charger leaves the plugged pose within 40 seconds.
 2. **Pause, then hide** (SC-004). Press "Pause the room" for 10 minutes, then resume. Then hide the page, behind another tab, for 10 minutes, then return. **Expected:** 0 frames with the plugged pose while paused or hidden, and the tier reduced again before the next frame on each return.
 3. **The logs.** Copy the drafts build's frame log (the console's `h4FrameLog()`, [tier-signal.md](contracts/tier-signal.md) §6), and export the browser's network log of the whole visit as a HAR file. The HAR stays on the Author's machine.
-4. **The network log** (SC-012). From main's checkout, run `python3 -I scripts/room/har_check.py` with the HAR, the frame log, and the path change's time ([tier-signal.md](contracts/tier-signal.md) §9). **Expected:**
+4. **The network log** (SC-012). From main's checkout, run `python3 -I scripts/room/har_check.py <visit.har> <frame-log.json> <path-change-time>` (Python 3.11 or later), with the path change's time in ISO 8601 with its UTC offset, adding `--relay-offset-ms <ms>` if the clocks differed and WSL wasn't resynced ([tier-signal.md](contracts/tier-signal.md) §9). It exits 0 on a pass, 1 on a failure, and 2 on input it can't read. **Expected:**
    - 0 third-party hosts;
    - 0 status requests before Enter, while paused, or while hidden;
    - no two status requests within one poll interval;

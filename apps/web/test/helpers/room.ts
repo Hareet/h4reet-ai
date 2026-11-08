@@ -19,7 +19,7 @@ import { readRoomPolicy } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import { fileTree, overlayTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
-import type { RoomHandle } from "../../src/room/app";
+import type { RoomDeps, RoomHandle } from "../../src/room/app";
 import type { Clock } from "../../src/room/clock";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { RoomEvent } from "../../src/room/events";
@@ -445,6 +445,9 @@ export interface SceneOptionsForTest {
   /** The twin's sender, which the twin's spec gives the room (spec 004, T205): each turn the talk panel would send, by
    *  default to nowhere, since no sender exists until then. */
   sendTurn?: (request: TurnRequest) => void;
+  /** The drafts build's frame log (spec 004, T246): the factory main.ts gives a drafts build, which the room makes its
+   *  log with and puts h4FrameLog() on the window; absent, as in a release build, the room keeps no log. */
+  frameLog?: RoomDeps["frameLog"];
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -493,6 +496,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     clock,
     wall,
     ...(options.sendTurn ? { sendTurn: options.sendTurn } : {}),
+    ...(options.frameLog ? { frameLog: options.frameLog } : {}),
     loadScene: () => {
       scene.loads += 1;
       if (options.loadScene) return options.loadScene();
