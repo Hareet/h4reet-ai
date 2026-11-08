@@ -1,14 +1,14 @@
 # The chalkboard on the cube's left wall, left of the monitor (FR-078; the Author, 2026-10-23: "the chalkboard on a
 # brick wall that is left of the monitor"): a framed slate on the wall whose slate is a readable live face, drawn in
-# chalk by the room (FR-033). The slate is recessed in its frame, and the chalk tray stands out 4 cm at scale 1, 5 cm in
-# the room at 1.25, as the studio's hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a board
-# with the slate on its face, which stands in front of the recessed face until a model is set. Its size and where it
-# hangs are estimates until measured; the stylized scale is lookdev's to set, for the slate. 1.49, from 1.25, is T308's
-# on this recessed slate, by the Author's choice of 2026-11-07, "Past the wall's edge": the smallest that keeps the
-# slate's one line, "denverlocal.ai", on one line at the floor of 9 CSS pixels on the reference phone (FR-082) with the
-# board clear of the artwork, which leaves it hanging past the left wall's front edge (scene.yaml); the Author's
-# lookdev check kept it (T309, T310). Its model is the studio's rebuild of the board at 1.49 (2026-11-07), which
-# the Author's re-intake brings in with its own approval.
+# chalk by the room (FR-033). The slate is recessed in its frame, and the chalk tray stands out 4 cm at scale 1, 6.0 cm
+# in the room at 1.49, as the studio's hand-back of 2026-11-07 gives the Author's lookdev board; the stand-in stays a
+# board with the slate on its face, which stands in front of the recessed face until a model is set. Its size and where
+# it hangs are estimates until measured; the stylized scale is lookdev's to set, for the slate. 1.49, from 1.25, is
+# T308's on this recessed slate, by the Author's choice of 2026-11-07, "Past the wall's edge": the smallest that keeps
+# the slate's one line, "denverlocal.ai", on one line at the floor of 9 CSS pixels on the reference phone (FR-082) with
+# the board clear of the artwork, which leaves it hanging past the left wall's front edge (scene.yaml); the Author's
+# lookdev check kept it (T309, T310). Its model is the studio's rebuild of the board at 1.49 (2026-11-07), which the
+# Author's re-intake brings in with its own approval.
 version: 1
 id: chalkboard
 name: Chalkboard

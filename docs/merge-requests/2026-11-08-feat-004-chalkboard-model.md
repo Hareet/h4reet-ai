@@ -29,22 +29,29 @@ real bug; and write this note with your gate and merge. plan.md §10
 foresaw the tests: "a later commit puts the line back, with the
 three tests below as they were".
 
-**Status: ready for your gate; not reviewed** (Review). This branch
-carries your re-intake commit unchanged, so **gate and merge this
-branch instead of `feat/004-room-reintake`**, and delete yours
-afterwards.
+**Status: reviewed, "ready with suggestions", with nothing
+Important; its five nits are folded in; ready for your gate**
+(Review). This branch carries your re-intake commit unchanged, so
+**gate and merge this branch instead of `feat/004-room-reintake`**,
+and delete yours afterwards.
 
-- **Your commit, unchanged:** f7c4763b. Then five of the session's:
+- **Your commit, unchanged:** f7c4763b. Then six of the session's:
   the tasks (da987eff), the three tests (870dce93), the shell's 2D
   drawing with plan.md §10's entry (537760f6), a correction to the
-  words of that comment and entry (09dfc2d9), and this note. Nothing
-  under `assets/` changes.
+  words of that comment and entry (09dfc2d9), this note (bf6239d1),
+  and the review's nits, comments and docs only, in the commit after
+  it. Nothing under `assets/` changes.
 - **The four tests:** three pinned T308's interim state, the board
   as the room's one stand-in, and come back to the room with every
   piece set. The fourth caught a real drift in the data: the shell's
   2D drawing out of step with the 2D camera, which your re-intake
   moved. The drawing follows the camera; that test doesn't change.
-  No code bug: the beacon splits batches and drops nothing.
+  No code bug: with the 21 models in 2D, the hide's beacon carries
+  20 skips, and the 21st goes in the timer's next POST, one
+  `SEND_EVERY_MS` after the first event (`src/asset-events.ts`,
+  lines 157 to 161 and 174 to 183). If the page unloads first, the
+  21st is lost, by design (line 9: "the queue goes with the page");
+  and asset events stay off until spec 001.
 - **make check,** on 09dfc2d9, ends:
   `make check: 12 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL` (exit 0)
 - **gitleaks** on a fresh export of 09dfc2d9, as the gate runs it:
@@ -182,14 +189,17 @@ verdict:
    `hide()` sends at most `BATCH_MAX` (20) in its one beacon and
    leaves the rest queued; the timer the first event set posts at
    most 20 more `SEND_EVERY_MS` later, and again while any remain.
-   A new event drops only past `QUEUE_MAX` (64), by design ("a full
-   queue drops new ones"). `src/room/app.ts`'s `toFlat` records one
-   skip for each set model whose load hasn't ended, once. So with 21
-   models nothing drops, and no code changes. The case now runs on
-   the site's own 21 models, over `BATCH_MAX` on their own, with no
-   fixture model: the beacon carries the first 20, the next post the
-   21st, and after another `SEND_EVERY_MS` nothing more is sent, so
-   none drops and none goes twice. It also checks what that
+   `src/room/app.ts`'s `toFlat` records one skip for each set model
+   whose load hasn't ended, once. So with 21 models the 21st skip
+   waits in page memory for the timer's POST. By design it is lost
+   if the page unloads first (line 9: "the queue goes with the
+   page"), as is a new event past `QUEUE_MAX` (64) or a failed send;
+   asset events stay off until spec 001's route. No code changes.
+   The case now runs on the site's own 21 models, over `BATCH_MAX`
+   on their own, with no fixture model and the page staying: the
+   beacon carries the first 20, the next post the 21st, and after
+   another `SEND_EVERY_MS` nothing more is sent, so none drops and
+   none goes twice. It also checks what that
    expectation stands on: the models distinct, and at most
    `2 × BATCH_MAX`. This is the review of `feat/004-room-models`'s
    N4, which that note's backlog gave as "assert
@@ -264,15 +274,20 @@ The report whole, from 09dfc2d9, is under Room report.
 
 ## Acceptance criteria
 
-- **FR-013, User Story 4 scenario 1:** the board's model replaces
-  its stand-in; the manifest names no stand-in, and `placeholders`
-  stays the avatars'.
+- **FR-013, User Story 4 scenario 1, but for one edit:** the board's
+  model replaces its stand-in; the manifest names no stand-in, and
+  `placeholders` stays the avatars'. The scenario says "it replaces
+  its stand-in with no other edit", and this one takes another: the
+  hand edit to `room-shell.yaml`'s drawing, as at T234. That is the
+  room-models review's N1, still in the backlog (Backlog).
 - **FR-019:** framing uses the set model's measured bounds, with no
   label; the cameras move as it says.
 - **FR-006, FR-058:** the shell's 2D drawing follows the 2D camera by
   a data edit; `room:check` finds nothing.
 - **FR-007:** no test names the board's ID; `room:scan` has no hit.
-- **FR-071:** each set model's skip goes once, none dropped.
+- **FR-071:** each set model's skip is recorded once; with the page
+  staying, each is sent once, the 21st in the timer's POST after the
+  beacon's 20 (asset events off until spec 001).
 - **FR-064:** the side-wall premise holds on the reference desktop.
 - **FR-073:** the report, above and whole below.
 
@@ -293,18 +308,53 @@ The report whole, from 09dfc2d9, is under Room report.
   about the camera, the label as the cause, the session's own
   misnamed binding edge and its correction, and the two refused
   lines are stated here.
-- **VII. Own the Whole Product:** an agent wrote the five commits
+- **VII. Own the Whole Product:** an agent wrote the six commits
   after yours; your files and approval are untouched.
 - **VIII. Honest AI:** the twin's behaviour doesn't change.
 
 ## Review
 
-None yet. CLAUDE.md: "The agent that implements never reviews." No
-reviewer has read this range. REVIEW.md would run all six passes on
-it: Bugs, Security, Compliance, and Cost & telemetry; Arriving
-assets, since the range brings your rebuilt `chalkboard.glb` and its
-record; and Room data, for `chalkboard.yaml` and `room-shell.yaml`.
-The main session decides whether a review runs before your gate.
+**Verdict: "ready with suggestions": nothing Important, five
+Nits.** A reviewer that wrote none of this branch reviewed
+`main`..bf6239d1, and the main session relayed its verdict and
+findings. The passes REVIEW.md gives this range are Bugs, Security,
+Compliance, and Cost & telemetry; Arriving assets, since it brings
+your rebuilt `chalkboard.glb` and its record; and Room data, for
+`chalkboard.yaml` and `room-shell.yaml`. Of its checks, as relayed:
+it re-ran the arrival check over `main`..bf6239d1, "0 findings in 47
+files", and the credits check, OK.
+
+Each nit, and what was done, in one commit after bf6239d1, comments
+and docs only, with no test or code changed:
+
+1. **This note's "the beacon splits batches and drops nothing"**
+   (Status). Reworded to what the code does: the beacon carries 20,
+   and the 21st goes in the timer's next POST one `SEND_EVERY_MS`
+   later (`src/asset-events.ts`, 157 to 161 and 174 to 183), so it
+   is lost if the page unloads first, by design (line 9), and asset
+   events stay off until spec 001. The same claim, in the loader's
+   verdict and the FR-071 line above and in plan.md §10's entry, is
+   corrected alike.
+2. **User Story 4 scenario 1 cited as met** (Acceptance criteria).
+   Its line now names the hand edit to `room-shell.yaml` as the
+   exception to "with no other edit", with the backlog's N1, and
+   plan.md §10's entry records the departure too.
+3. **The records' Python and Pillow** (For the Author): a line for
+   you, since the records are yours to edit.
+4. **`room-shell.yaml`'s comment** gave the corners and the 2D
+   camera's z, which no test checks. They're out; the comment says
+   where the corners come from, and this note and plan.md §10 keep
+   the figures.
+5. **`chalkboard.yaml`'s comment:** "5 cm in the room at 1.25" is
+   now "6.0 cm in the room at 1.49", the GLB's z maximum being
+   0.0596 m. The paragraph is rewrapped to its 120 columns; no other
+   word changes.
+
+Checked on that commit's tree before it was made: Prettier on the
+two YAML files; `room:check`, no finding, and `room:generate`,
+nothing written; the web suite; the docs' links; ruff on this note;
+and gitleaks, as the gate runs it, on a fresh export of the tree:
+no leaks.
 
 ## Verification
 
@@ -1099,8 +1149,9 @@ make check: 12 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL
     equals 09dfc2d9's. `main` is an ancestor of the tip, so the
     gate's own merge by SHA writes the tip's tree.
 
-  The note's commit adds only this file; the session rehearses that
-  tip the same way before it reports.
+  The note's commit, bf6239d1, adds only this file and T334's tick;
+  merged the same way, its tree, 9096d6ee, equals bf6239d1's. The
+  review's commit after it changes comments and docs only (Review).
 
 ## Room report
 
@@ -1191,3 +1242,16 @@ until spec 001's route (row V6), so no disclosure entry changes.
   desktop. Nothing to decide unless you want the board's tap at the
   smallest stages.
 - **The rehearsal's branch** waits for your two lines (step 4).
+- **Four records may lack Python, and Pillow** (the review's nit 3;
+  the records are yours). The room shell's 4K step names Python
+  3.12.3 and Pillow 10.2.0 beside ComfyUI, under workflow
+  a7c1d797…, which, in the studio's words as the review relays
+  them, "belongs to the lookdev session's own Python script, not a
+  ComfyUI workflow file": its Pillow resize ran in Python, and the
+  script then drove ComfyUI. Four other steps cite that same
+  workflow with ComfyUI alone: the chalkboard's step 1
+  (`assets/room/records.json`, lines 438 to 481) and the first steps
+  of wall-art, wall-window, and window-view (lines 1901, 2139, and
+  2296). Ask the studio whether they ran that script too. If so,
+  each needs Python, and Pillow if it used it: a records edit of
+  yours, with `assets/CREDITS.md` re-rendered.
