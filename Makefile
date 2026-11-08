@@ -335,6 +335,11 @@ redteam: redteam-suite matrix ## The red-team suite and the forbidden-action mat
 redteam-suite: ## The adversarial scaffold alone (plan §14)
 	$(PY_HOST) redteam/run.py
 
+redteam-live: ## (the Author) The twin's red-team cases live, on one adapter through the admin twin route, history under redteam/history/ (spec 007): ADAPTER=local|bedrock [ENV=prod|dev]
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make redteam-live runs in the Author's terminal: it calls a real model" >&2; exit 2; }
+	@case "$${ADAPTER:-}" in local|bedrock) ;; *) echo "ADAPTER must be local or bedrock" >&2; exit 2 ;; esac
+	$(PY_HOST) redteam/live.py --live --stack $(ENV) --adapter $$ADAPTER
+
 matrix: ## The forbidden-action matrix alone (plan §13)
 	bash redteam/forbidden-actions.sh
 
@@ -659,7 +664,7 @@ plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spe
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
-	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
+	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or

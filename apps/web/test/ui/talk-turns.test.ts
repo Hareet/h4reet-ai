@@ -18,7 +18,7 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { TurnResult } from "../../src/room/signals/turn-cost";
-import type { TurnRequest } from "../../src/talk/talk";
+import type { TalkLimits, TurnRequest } from "../../src/talk/talk";
 import {
   FakeClock,
   WEB,
@@ -58,16 +58,23 @@ interface Sent {
 
 async function room(
   index: RoomIndex = ready(),
-  o: { freeTalk?: boolean } = {},
+  o: { freeTalk?: boolean; limits?: TalkLimits } = {},
 ): Promise<{ v: Visit; sent: Sent[]; outcomes: TurnResult[] }> {
   const sent: Sent[] = [];
   const content = roomContent();
+  const changed = o.freeTalk !== undefined || o.limits !== undefined;
   const v = start({
     room: index,
     sendTurn: (request, ended, signal) => sent.push({ request, ended, signal }),
-    ...(o.freeTalk === undefined
-      ? {}
-      : { content: { ...content, manifest: { ...content.manifest, free_talk: { ready: o.freeTalk } } } }),
+    ...(changed
+      ? {
+          content: {
+            ...content,
+            manifest: { ...content.manifest, free_talk: { ready: o.freeTalk ?? content.manifest.free_talk.ready } },
+            ...(o.limits === undefined ? {} : { twin: { limits: o.limits } }),
+          },
+        }
+      : {}),
   });
   await enter(v, "engineer");
   v.clock.advance(5000);
@@ -365,5 +372,59 @@ describe("free talk from the text box (T050; FR-032)", () => {
     select(v, first);
     expect(sent[0]?.signal?.aborted).toBe(true);
     expect(sent[1]?.request).toEqual({ feature: first, path: "engineer", turns: [] });
+  });
+});
+
+// T055 (spec 007; FR-027, FR-036, FR-041; User Story 3): the box stops at the build's limit and says so; a refused turn
+// shows its fixed message (429 slow_down; 400, 413, 415 unreadable), gives the words back to an empty box, never over
+// what the visitor typed since, and leaves the conversation as it was.
+describe("the limits in the room (T055; FR-027, FR-036, FR-041)", () => {
+  const refused = (status: number): TurnResult => ({ kind: "response", status, body: { error: "refused" } });
+  const message = (v: Visit): string | null => talkLog(v.doc).lastElementChild?.getAttribute("data-message") ?? null;
+
+  it("stops the text box at the build's limit, and states it", async () => {
+    const { v } = await room(ready(), {
+      freeTalk: true,
+      limits: { turnMaxChars: 120, historyMaxTurns: 4, historyMaxChars: 1_000 },
+    });
+    expect(box(v).maxLength).toBe(120);
+    const described = (box(v).getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => v.doc.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    expect(described).toContain("Up to 120 characters.");
+  });
+
+  for (const [status, id] of [
+    [429, "turn_refused.slow_down"],
+    [400, "turn_refused.unreadable"],
+    [413, "turn_refused.unreadable"],
+    [415, "turn_refused.unreadable"],
+  ] as const) {
+    it(`shows ${id} on a ${status}, gives the words back to an empty box, and drops the turn`, async () => {
+      const { v, sent } = await room(ready(), { freeTalk: true });
+      say(v, "What drives him?");
+      sent[0]?.ended(answer("He builds what lasts."));
+      say(v, "Tell me more.");
+      expect(box(v).value).toBe("");
+      sent[1]?.ended(refused(status));
+      expect(message(v)).toBe(id);
+      expect(box(v).value).toBe("Tell me more.");
+      say(v, "Tell me more.");
+      expect(sent[2]?.request.turns).toEqual([
+        { role: "visitor", text: "What drives him?" },
+        { role: "twin", text: "He builds what lasts." },
+        { role: "visitor", text: "Tell me more." },
+      ]);
+    });
+  }
+
+  it("keeps what the visitor typed while the refused turn was out", async () => {
+    const { v, sent } = await room(ready(), { freeTalk: true });
+    say(v, "What drives him?");
+    box(v).value = "Something newer.";
+    sent[0]?.ended(refused(429));
+    expect(message(v)).toBe("turn_refused.slow_down");
+    expect(box(v).value).toBe("Something newer.");
   });
 });
