@@ -597,6 +597,8 @@ export function renderFlat(
       cost = next;
       faces();
     },
+    // Spec 008's target: the 2D room draws its highlight with Phase 6 (FR-046), and takes the target until then.
+    setTarget: () => undefined,
     dispose: () => {
       unwatch?.();
       observer?.disconnect();

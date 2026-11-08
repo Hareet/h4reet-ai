@@ -14,6 +14,10 @@
 // the labels it draws on sprites, and the quality levels, and neither of the last two needs a renderer to test. Spec
 // 004's User Story 2 (T160, T161): the stage's `apply` shows the tier switch's case, cable tube and all, and the idle
 // sway reads the room's motion store on each frame, so a pause or a change of reduced motion reaches it mid-visit.
+// Spec 008's Phase 1 (T015; FR-014 to FR-019; plan.md R-07): the stage takes the room's target and draws the
+// highlight's two passes after the look's frame (scene/highlight.ts), at every quality level and in every look, its
+// widths following the stage's size; a model that swaps in or falls back is followed; and its pointer reports a
+// hovering pointer's pick and a press's to the room as targeting inputs (objects.ts).
 import {
   CanvasTexture,
   Object3D,
@@ -40,6 +44,7 @@ import {
 import type { LabelFactory } from "./scene/bundle3d";
 import { buildFaceQuads } from "./scene/faces3d";
 import { buildGlows } from "./scene/glows";
+import { createHighlight } from "./scene/highlight";
 import { createTextureLedger } from "./scene/ledger";
 import type { Loader } from "./scene/loader";
 import { qualitySettings } from "./scene/levels";
@@ -192,6 +197,9 @@ export function createScene(options: SceneOptions): Stage3D {
   renderer.shadowMap.enabled = true;
   const ink = createInk(renderer, part.look);
   ink.prepare(room.scene);
+  // Spec 008's highlight: the target's members' draws bordered in the look's highlight, its passes after the look's.
+  const members = new Map(options.room.selectables.map((s) => [s.id, s.members] as const));
+  const highlight = createHighlight({ room, style: part.look.highlight, members: (id) => members.get(id) ?? [] });
 
   // The studio models the 3D part sets, loaded as R-28 has it (scene/loader.ts): above ADR 0010's floor, which the room
   // read behind the choice (app.ts), so nothing here asks the device during the hand-off; after the hand-off; under the
@@ -228,7 +236,11 @@ export function createScene(options: SceneOptions): Stage3D {
             // The lines' one set of parameters, the stand-ins', so the stage's height reaches the model's too.
             ink.prepare(model);
           },
-          swap: (piece, model) => showModel(room, part, piece, model),
+          swap: (piece, model) => {
+            showModel(room, part, piece, model);
+            // The highlight follows what the member draws now (spec 008, FR-019).
+            highlight.refresh();
+          },
         });
         void loader.load(entries);
       })
@@ -247,7 +259,7 @@ export function createScene(options: SceneOptions): Stage3D {
   const boxes = framedBoxes(part);
   frameCamera(camera, 16 / 9, boxes);
   const picker = selectablePicker(part, options.room);
-  const unbind = bindPointerSelection(canvas, picker.pick, options.select);
+  const unbind = bindPointerSelection(canvas, picker.pick, options.select, options.target);
 
   let size = { w: 0, h: 0, ratio: 0 };
   const resize = (): void => {
@@ -262,6 +274,7 @@ export function createScene(options: SceneOptions): Stage3D {
     frameCamera(camera, w / h, boxes);
     picker.resize({ w, h });
     ink.setStageHeight(h);
+    highlight.setStage(w, h);
   };
 
   let frame = 0;
@@ -278,6 +291,8 @@ export function createScene(options: SceneOptions): Stage3D {
     faces.frame(time);
     glows.frame(time);
     ink.render(room.scene, camera);
+    // After the look's frame, whatever the quality level does to its ink lines (spec 008, FR-017).
+    highlight.render(renderer, camera);
     frame = clock.requestFrame(loop);
   };
   drawHandoff(room, 0, options.reducedMotion);
@@ -299,6 +314,9 @@ export function createScene(options: SceneOptions): Stage3D {
     },
     setCost(state) {
       faces.setCost(state);
+    },
+    setTarget(id) {
+      highlight.setTarget(id);
     },
     setQuality(level) {
       const before = settings.shadows;
@@ -326,6 +344,7 @@ export function createScene(options: SceneOptions): Stage3D {
       canvas.removeEventListener("webglcontextrestored", restored);
       faces.dispose();
       glows.dispose();
+      highlight.dispose();
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();
