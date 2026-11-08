@@ -208,7 +208,7 @@ export class Meter implements MeterPort {
     const entry = PriceTable.lookup(price, request.adapter.provider, request.adapter.model);
     if (entry === undefined) throw new Error("the adapter has no price"); // startup refuses this too (price_missing)
     const maxMicro = maxMicroOf(entry, {
-      maxInputChars: deps.budgets.limits.perCall.maxInputChars,
+      maxInputChars: request.maxInputChars ?? deps.budgets.limits.perCall.maxInputChars,
       maxOutputTokens: request.maxOutputTokens,
       ...(request.adapter.fixedUsage === undefined ? {} : { fixedUsage: request.adapter.fixedUsage }),
     });
@@ -356,7 +356,12 @@ export class Meter implements MeterPort {
       const done = !out.inserted && out.ownRowFound ? this.pending.get(a.reservationId)?.lost : out;
       if (done === undefined || !done.inserted) return;
       this.emit(done.effects);
-      this.deps.metrics.cost(call.costMicro, { provider: a.provider, model: a.model, attribution: a.attribution });
+      this.deps.metrics.cost(call.costMicro, {
+        provider: a.provider,
+        model: a.model,
+        attribution: a.attribution,
+        ...(a.room === undefined ? {} : { feature: a.room.feature }),
+      });
       this.deps.logger.info(completedRecord(a, call), "A provider attempt completed.");
       // 8. The commit record. A failed append doesn't undo the commit: the next reserve's append fails too, and
       //    metered calls stop until the journal is writable again.

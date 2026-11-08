@@ -2583,3 +2583,61 @@ def test_make_help_lists_the_new_operator_targets(home: Path) -> None:
         "operator-incidents",
     ):
         assert re.search(rf"^\s+{target}\s", out, re.MULTILINE), target
+
+
+# --- spec 007's evaluation calls (operator-admin.md §8, amended by spec 007; tasks.md T022) ---
+
+
+def test_twin_turn_posts_the_turn_with_its_adapter_and_reason(
+    home: Path, stub: Stub
+) -> None:
+    secret = token("prod", 7)
+    plant(home, "prod", secret + "\n")
+    answer = {
+        "text": "An opening from the corpus.",
+        "feature": "snowboard",
+        "cost_micro_usd": 0,
+        "route": "local",
+        "guard": None,
+        "model": "stand-in",
+        "usage": {"input_tokens": 900, "output_tokens": 40},
+        "trace_id": "0" * 32,
+    }
+    stub.answer("POST", "/admin/twin/turn", 200, answer)
+    client = op.AdminClient("prod", url=stub.url)
+    got = client.twin_turn(
+        "local",
+        feature="snowboard",
+        path="non-engineer",
+        turns=[],
+        reason="evals product twin-04-q1-non-engineer",
+    )
+    assert got == answer
+    assert stub.requests[0]["body"] == {
+        "feature": "snowboard",
+        "path": "non-engineer",
+        "turns": [],
+        "adapter": "local",
+        "reason": "evals product twin-04-q1-non-engineer",
+    }
+    assert secret not in repr(client)
+
+
+def test_twin_turn_refuses_an_adapter_id_or_a_path_off_its_list(
+    home: Path, stub: Stub
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    client = op.AdminClient("prod", url=stub.url)
+    with pytest.raises(op.Usage):
+        client.twin_turn(
+            "Bedrock!",
+            feature="free_talk",
+            path="engineer",
+            turns=[],
+            reason="evals x y",
+        )
+    with pytest.raises(op.Usage):
+        client.twin_turn(
+            "local", feature="free_talk", path="manager", turns=[], reason="evals x y"
+        )
+    assert stub.requests == []

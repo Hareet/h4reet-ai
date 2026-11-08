@@ -24,7 +24,7 @@ export const HELLO_SYSTEM_PROMPT =
   "You are the hello endpoint of the h4reet.ai stack, a test of its model gateway. You are not the Author and not the Author's AI twin, and you know nothing about the Author. Reply to the message in at most two short sentences.";
 
 export const MAX_MESSAGE_CODE_POINTS = 500;
-const CLIENT_LABEL = /^[a-z0-9-]{1,32}$/;
+export const CLIENT_LABEL = /^[a-z0-9-]{1,32}$/;
 const DEFAULT_MESSAGE = "Hello.";
 
 export interface HelloDeps {
@@ -62,7 +62,7 @@ const invalid = (field: string, detail: string, requestId: string) => ({
  * Edge's X-Forwarded-For, which it sets to exactly its own view of the client, when edge is the TCP peer; else the
  * TCP peer itself, whatever header it sent (§2.3).
  */
-async function clientAddress(req: FastifyRequest, forwardedBy: ForwardedBy): Promise<string> {
+export async function clientAddress(req: FastifyRequest, forwardedBy: ForwardedBy): Promise<string> {
   const peer = req.socket.remoteAddress ?? "unknown";
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.trim() !== "" && (await forwardedBy(peer))) {

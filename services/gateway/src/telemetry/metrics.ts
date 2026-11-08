@@ -49,10 +49,40 @@ export type OperatorAction =
   | "test_synthetic"
   | "adapter_call"
   // spec 003's studio GPU window (its contracts/gpu-window.md §1, §5)
-  | "studio_window";
+  | "studio_window"
+  // spec 007's evaluation calls (its Amendment 0-4; contracts/operator-admin.md §8)
+  | "twin_call";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
 /** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
 export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";
+
+/** A turn's outcome on POST /room/turn (spec 007, plan §9), the server span's h4.outcome and h4.twin.turns'. */
+export const TWIN_OUTCOMES = ["ok", "withheld", "degraded", "refused", "not_ready", "invalid", "error"] as const;
+export type TwinOutcome = (typeof TWIN_OUTCOMES)[number];
+/** A turn's cause: spec 000's nine, the turn route's own twin_unavailable, or none. */
+export const TWIN_CAUSES = [...DEGRADED_CAUSES, "twin_unavailable", "none"] as const;
+export type TwinCause = (typeof TWIN_CAUSES)[number];
+/** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9). */
+export const TWIN_GUARDS = [
+  "length",
+  "numbers",
+  "amounts",
+  "disclosure",
+  "prompt",
+  "secrets",
+  "links",
+  "ownership",
+  "privacy",
+  "agents_share",
+  "error",
+] as const;
+export type TwinGuard = (typeof TWIN_GUARDS)[number];
+const DECISIONS: readonly RouteDecisionAttribute[] = ["local", "fallback", "metered", "degraded", "none"];
+/** A room feature as a metric attribute: a selectable's ID or free_talk from the twin's pack, which bounds it, or none. */
+const featureOf = (feature: string | undefined): string =>
+  feature !== undefined && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(feature) ? feature : "none";
+const oneOf = <T extends string>(list: readonly T[], value: unknown, fallback: T): T =>
+  (list as readonly unknown[]).includes(value) ? (value as T) : fallback;
 
 export interface MeterGauge {
   spentMicro: bigint;
@@ -110,6 +140,9 @@ export class GatewayMetrics {
   private readonly operationDurations;
   private readonly roomEvents;
   private readonly roomEventsRefused;
+  private readonly twinTurns;
+  private readonly twinTurnDuration;
+  private readonly twinWithheldAnswers;
 
   constructor(meter: Meter) {
     const seconds = { unit: "s", advice: { explicitBucketBoundaries: [...SECONDS_BUCKETS] } };
@@ -133,6 +166,10 @@ export class GatewayMetrics {
     this.operationDurations = meter.createHistogram("gen_ai.client.operation.duration", seconds);
     this.roomEvents = meter.createCounter("h4.room.events", { unit: "{event}" });
     this.roomEventsRefused = meter.createCounter("h4.room.events.refused", { unit: "{event}" });
+    // Spec 007's turns (its plan §9; telemetry.md §4.1, amended).
+    this.twinTurns = meter.createCounter("h4.twin.turns", { unit: "{turn}" });
+    this.twinTurnDuration = meter.createHistogram("h4.twin.turn.duration", seconds);
+    this.twinWithheldAnswers = meter.createCounter("h4.twin.withheld", { unit: "{answer}" });
 
     const gauge = (name: string, unit: string, observe: (result: ObservableResult, s: GaugeSnapshot) => void) =>
       meter.createObservableGauge(name, { unit }).addCallback((result) => observe(result, this.snapshot));
@@ -187,13 +224,41 @@ export class GatewayMetrics {
     this.requestDuration.record(seconds, { "h4.route.decision": decision });
   }
 
-  /** When a ledger row commits, by its cost: 0 for local calls, and an expired reservation's settlement too. */
-  cost(micro: bigint, a: { provider: string; model: string; attribution: Attribution }): void {
+  /** When a ledger row commits, by its cost: 0 for local calls, and an expired reservation's settlement too. A twin
+   *  call's row carries its room feature (spec 007, Amendment 0-5); every other row is `none`. */
+  cost(micro: bigint, a: { provider: string; model: string; attribution: Attribution; feature?: string }): void {
     this.costUsd.add(usd(micro), {
       "gen_ai.provider.name": a.provider,
       "gen_ai.request.model": a.model,
       "h4.meter.attribution": a.attribution,
+      "h4.room.feature": featureOf(a.feature),
     });
+  }
+
+  /** Once per POST /room/turn, when its response is sent (spec 007, FR-044): by feature, outcome, and cause, and its
+   *  time from arrival by feature and routing decision. Every value from its bounded list. */
+  twinTurn(o: {
+    feature: string;
+    outcome: TwinOutcome;
+    cause: TwinCause;
+    decision: RouteDecisionAttribute;
+    seconds: number;
+  }): void {
+    const feature = featureOf(o.feature);
+    this.twinTurns.add(1, {
+      "h4.room.feature": feature,
+      "h4.outcome": oneOf(TWIN_OUTCOMES, o.outcome, "error"),
+      "h4.cause": oneOf(TWIN_CAUSES, o.cause, "none"),
+    });
+    this.twinTurnDuration.record(o.seconds, {
+      "h4.room.feature": feature,
+      "h4.route.decision": oneOf(DECISIONS, o.decision, "none"),
+    });
+  }
+
+  /** Once per answer the turn route withholds or replaces, by its guard (spec 007, FR-044). */
+  twinWithheld(guard: TwinGuard): void {
+    this.twinWithheldAnswers.add(1, { "h4.twin.guard": oneOf(TWIN_GUARDS, guard, "error") });
   }
 
   degradedResponse(cause: DegradedCause): void {

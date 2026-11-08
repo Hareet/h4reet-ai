@@ -32,6 +32,7 @@ import {
 } from "./config/validate.js";
 import { validateGatewayEnv } from "./config/validate-env.js";
 import type { RoomEventsConfig, RoomEventsLoad } from "./config/room-events.js";
+import type { TwinLoad } from "./config/twin.js";
 import { GatewayClock } from "./core/clock.js";
 import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
@@ -50,9 +51,11 @@ import { registerAdmin } from "./routes/admin.js";
 import { registerHealth, registerHealthLive } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
 import { registerRoomEvents } from "./routes/room-events.js";
+import { registerRoomTurn } from "./routes/room-turn.js";
 import { edgePeer, type ForwardedBy } from "./core/edge.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
 import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
+import { NO_TWIN, twinRuntime, type TwinRuntime } from "./twin/turn.js";
 
 export const API_BODY_LIMIT = 16_384;
 export const ADMIN_BODY_LIMIT = 4_096;
@@ -168,6 +171,8 @@ export interface GatewayServices {
   stateDir: string;
   /** Spec 002's event list, config/room-events.yaml; null when it was missing or invalid: every event is refused. */
   roomEvents: RoomEventsConfig | null;
+  /** Spec 007's twin: its files, its per-turn limits, its ranking, and the turn route's own per-client cap. */
+  twin: TwinRuntime;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -190,6 +195,8 @@ export interface ServiceOptions {
   forwardedBy?: ForwardedBy;
   /** Spec 002's event list; none by default, so every usage event is refused. */
   roomEvents?: RoomEventsConfig | null;
+  /** Spec 007's twin files, as loadTwin read them; none by default, so every turn is twin_unavailable. */
+  twin?: TwinLoad;
 }
 
 /**
@@ -307,6 +314,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     forwardedBy: opts.forwardedBy ?? edgePeer(),
     stateDir,
     roomEvents: opts.roomEvents ?? null,
+    twin: twinRuntime(opts.twin ?? NO_TWIN, budgets, envClass),
   };
 }
 
@@ -337,6 +345,16 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       forwardedBy: s.forwardedBy,
     });
     registerRoomEvents(api, { events: s.roomEvents, metrics: s.metrics });
+    registerRoomTurn(api, {
+      stack: s.stack,
+      gateway: s.gateway,
+      twin: s.twin,
+      clock: s.clock,
+      metrics: s.metrics,
+      logger: s.logger,
+      realNow: s.realNow,
+      forwardedBy: s.forwardedBy,
+    });
   }
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
 
@@ -360,6 +378,7 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       stateDir: s.stateDir,
       testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
       onChange: () => void s.gateway.refreshGauges().catch(() => {}),
+      twin: s.twin,
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is
@@ -400,6 +419,9 @@ export interface StartOptions {
    * gateway still starts, logs room_events.unavailable, and refuses every usage event; absent, it refuses them too.
    */
   roomEvents?: RoomEventsLoad;
+  /** Spec 007's twin files, as server.ts read them from the config directory. Missing or invalid, the gateway still
+   *  starts, logs twin.unavailable once, and answers every turn twin_unavailable (FR-054). */
+  twin?: TwinLoad;
 }
 
 export interface RunningGateway {
@@ -485,6 +507,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
       version: opts.version,
       ...(opts.factories === undefined ? {} : { factories: opts.factories }),
       roomEvents: roomEvents?.ok === true ? roomEvents.config : null,
+      ...(opts.twin === undefined ? {} : { twin: opts.twin }),
     });
   } catch (err) {
     await store.close();
@@ -500,6 +523,35 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     if (!(err instanceof FatalStoreError)) throw err;
     logFatal(logger, err.exitCode, err.reason);
     return { kind: "refused", exitCode: err.exitCode, lines: [`${err.message} (${err.reason})`] };
+  }
+
+  // Spec 007's twin never stops the gateway: each reason it can't answer is logged once, here, when server.ts read the
+  // files (FR-054, FR-030, FR-027); a caller that passes none, as the tests do, has nothing to report.
+  const twin = services.twin;
+  if (opts.twin !== undefined) {
+    if (!twin.load.available) {
+      logger.warn(
+        { event: "twin.unavailable", reason: twin.load.reason },
+        "The twin's files are missing or invalid, so every turn is twin_unavailable.",
+      );
+    }
+    if (!twin.load.readiness.ok) {
+      logger.info(
+        { event: "twin.readiness_unavailable", reason: twin.load.readiness.reason },
+        "The twin's readiness file is missing or invalid, so nothing is ready.",
+      );
+    }
+    if (twin.limits === null) {
+      logger.warn(
+        { event: "twin.unavailable", reason: "limits_missing" },
+        "config/budgets.yaml has no limits.twin, so every turn is twin_unavailable on prod.",
+      );
+    } else if (twin.limitsDefault) {
+      logger.info(
+        { event: "twin.limits_default" },
+        "config/budgets.yaml has no limits.twin, so the twin uses FR-027's defaults.",
+      );
+    }
   }
 
   // 3. The listeners, then the background work.

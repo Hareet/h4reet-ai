@@ -666,6 +666,31 @@ class AdminClient:
             body["temperature"] = temperature
         return self.request("POST", f"/admin/adapters/{adapter_id}/complete", body)
 
+    def twin_turn(
+        self,
+        adapter_id: str,
+        *,
+        feature: str,
+        path: str,
+        turns: list[dict[str, str]],
+        reason: str,
+    ) -> dict[str, Any]:
+        """POST /admin/twin/turn (operator-admin.md §8, spec 007): the twin's pipeline on one named adapter, for the
+        Author's live product and red-team runs. The 200 body: the answer's text, its guard, model, usage, cost, trace
+        ID, and the pack's and the prompt's hashes."""
+        if not ADAPTER_ID_RE.fullmatch(adapter_id):
+            raise Usage("an adapter ID is lowercase letters, digits, - and _")
+        if path not in ("engineer", "non-engineer"):
+            raise Usage("a path is engineer or non-engineer")
+        body: dict[str, Any] = {
+            "feature": feature,
+            "path": path,
+            "turns": turns,
+            "adapter": adapter_id,
+            "reason": check_reason(reason),
+        }
+        return self.request("POST", "/admin/twin/turn", body)
+
 
 # --- contract-record (provider-adapter.md §5.3, §5.4) ----------------------------------------------------------------
 

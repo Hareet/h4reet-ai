@@ -76,6 +76,17 @@ function scriptedRun(m: GatewayMetrics): void {
   m.roomEvent("object_selected", "fx-desk");
   m.roomEvent("mode_2d", "-");
   m.roomEventRefused("kind");
+  // Spec 007's turns (its plan §9): a turn by feature, outcome, and cause, its time by routing decision, a withheld answer.
+  m.twinTurn({ feature: "fx-desk", outcome: "ok", cause: "none", decision: "local", seconds: 1.4 });
+  m.twinTurn({
+    feature: "free_talk",
+    outcome: "degraded",
+    cause: "twin_unavailable",
+    decision: "none",
+    seconds: 0.002,
+  });
+  m.twinWithheld("numbers");
+  m.cost(0n, { provider: "local", model: "stand-in", attribution: "none", feature: "fx-desk" });
   m.tokenUsage(71, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "input" });
   m.tokenUsage(14, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "output" });
   m.operationDuration(0.2, {
@@ -97,7 +108,14 @@ function scriptedRun(m: GatewayMetrics): void {
 const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.gateway.requests": { unit: "{request}", keys: ["h4.outcome", "h4.route.decision"] },
   "h4.gateway.request.duration": { unit: "s", keys: ["h4.route.decision"] },
-  "h4.cost.usd": { unit: "{USD}", keys: ["gen_ai.provider.name", "gen_ai.request.model", "h4.meter.attribution"] },
+  // Spec 007's Amendment 0-5: h4.cost.usd gains the room's feature, `none` for a call that isn't a turn's.
+  "h4.cost.usd": {
+    unit: "{USD}",
+    keys: ["gen_ai.provider.name", "gen_ai.request.model", "h4.meter.attribution", "h4.room.feature"],
+  },
+  "h4.twin.turns": { unit: "{turn}", keys: ["h4.cause", "h4.outcome", "h4.room.feature"] },
+  "h4.twin.turn.duration": { unit: "s", keys: ["h4.room.feature", "h4.route.decision"] },
+  "h4.twin.withheld": { unit: "{answer}", keys: ["h4.twin.guard"] },
   "h4.meter.spend_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.meter.ceiling_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.meter.warn_usd": { unit: "{USD}", keys: ["h4.meter"] },
@@ -485,5 +503,41 @@ describe("the logger (telemetry.md §5)", () => {
     expect(rec.trace_flags).toBe("01");
     logger.info({ event: "gateway.started" }, "Outside any span.");
     expect(Object.keys(last())).not.toContain("trace_id");
+  });
+});
+
+// T021 (spec 007; FR-043, FR-044; plan §9): the twin's instruments take their attribute values from bounded lists.
+describe("the twin's instruments (spec 007, plan §9)", () => {
+  it("count turns by feature, outcome, and cause; time them by decision; count withheld answers by guard", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.twinTurn({ feature: "snowboard", outcome: "withheld", cause: "none", decision: "fallback", seconds: 2 });
+    m.twinWithheld("privacy");
+    const found = instruments(await h.collect());
+    const turns = found.find((x) => x.descriptor.name === "h4.twin.turns");
+    expect(turns?.dataPoints[0]?.attributes).toEqual({
+      "h4.room.feature": "snowboard",
+      "h4.outcome": "withheld",
+      "h4.cause": "none",
+    });
+    const withheld = found.find((x) => x.descriptor.name === "h4.twin.withheld");
+    expect(withheld?.dataPoints[0]?.attributes).toEqual({ "h4.twin.guard": "privacy" });
+    await h.shutdown();
+  });
+
+  it("refuse a value off their lists: an unknown guard, outcome, or cause reads as error, error, none", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    (m.twinTurn as (o: Record<string, unknown>) => void)({
+      feature: "snowboard",
+      outcome: "a visitor's words",
+      cause: "<script>",
+      decision: "elsewhere",
+      seconds: 1,
+    });
+    (m.twinWithheld as (g: string) => void)("my words");
+    const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
+    for (const leaked of ["a visitor's words", "<script>", "elsewhere", "my words"]) expect(all).not.toContain(leaked);
+    await h.shutdown();
   });
 });

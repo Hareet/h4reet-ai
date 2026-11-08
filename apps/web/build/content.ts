@@ -446,8 +446,8 @@ export function readFacts(root: string): Map<string, Fact> {
 }
 
 /** The slots of one facts file, `corpus/facts/<name>`, from its text; the yaml package's error for one that isn't
- * YAML. */
-function factsIn(text: string, name: string): Fact[] {
+ * YAML. Exported for spec 007's grounding pack (build/twin-pack.ts), which reads the files through its own reader. */
+export function factsIn(text: string, name: string): Fact[] {
   const doc = parseYaml(text, { schema: "core" }) as unknown;
   const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
   const facts: Fact[] = [];

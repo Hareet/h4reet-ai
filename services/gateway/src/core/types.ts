@@ -12,7 +12,14 @@ export interface ChatMessage {
   content: string;
 }
 
-export type CallPurpose = "hello" | "contract" | "eval" | "synthetic";
+export type CallPurpose = "hello" | "contract" | "eval" | "synthetic" | "twin";
+// "twin" (spec 007, Amendment 0-1): the twin's conversation turns, POST /room/turn and POST /admin/twin/turn.
+
+/** A twin call's room feature (a selectable's ID, or free_talk) and topic (spec 007, FR-026): bounded IDs from its pack. */
+export interface RoomCall {
+  feature: string;
+  topic: string;
+}
 
 export interface CompletionRequest {
   requestId: string; // the HTTP request's ID, for logs only; never sent to a provider
