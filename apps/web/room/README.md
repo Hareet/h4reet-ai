@@ -36,7 +36,7 @@ Every change ends the same way: run `npm run room:generate -w apps/web`, then `n
 - **Budgets.** A piece's budget stays at or under `main`'s caps, or FR-053's starting figures while `main` has none (RK1). Agents never raise a cap.
 - **Unmeasured figures.** A size, an anchor, or a mount not measured yet carries `estimated: true`, so its work order and the photo guide ask for the measurement (FR-002, FR-026).
 
-A finding prints as `<rule> <file>:<path>: <reason>` (contracts/room-data-files.md §14), and the rule's family says where to look: RD shape, RI identity, RG geometry, RS switches, RT words, RV drawings, RX the model's fit, RK budgets, RL the live configuration.
+A finding prints as `<rule> <file>:<path>: <reason>` (contracts/room-data-files.md §14), and the rule's family says where to look: RD shape, RI identity, RG geometry, RS switches, RT words, RV drawings, RX the model's fit, RK budgets, RL the live configuration, and RW, spec 008's, the highlight.
 
 ## Move a piece
 
@@ -69,6 +69,10 @@ Change a selectable's `action.talk.topic`, and its `lead` if it has one. Its ID,
 ## Reword
 
 Words are data. A selectable's `name`, a topic's `phrase`, and a UI word in `ui-words.yaml` change in place. Room text in `apps/web/content/room/` is approved by its hash, so a reworded block is a draft, shown only in drafts builds, until the Author approves the new hash. The word checks, RT2 to RT8, hold every reword; the grids a face's words fill are fixed, so a longer word can overflow its region (RT8).
+
+## Change the highlight
+
+The border a targeted piece shows (spec 008, FR-015 to FR-017) is look data: each look's `highlight` gives a `band`, the colour next to the piece's outline, and an `edge`, the dark frame outside it, each a palette name of that look or `#rrggbb`, with their widths in CSS pixels, `band_px` 2 to 8 and `edge_px` 1 to 4. A look that leaves `highlight` out, or any of its keys, takes the spec's defaults: a band of `#ffd23f`, 3 px wide, and an edge 1.5 px wide in the look's ink, its `outlines.color`. RI4 holds both colours to the look's own palette, and RW2 refuses a look whose band and edge both give under 3:1 against any colour of its palette, so one of the two always reads on the room's light surfaces and on its dark ones. `room:report`'s Highlight section gives each look's lowest contrast and the colour it is lowest against. The highlight is drawn in every look and at every quality level, and lookdev's Highlight control shows it on any piece, so the Author judges a change there.
 
 ## Add a switch case
 

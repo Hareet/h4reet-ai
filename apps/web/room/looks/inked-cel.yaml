@@ -44,6 +44,9 @@ shading: { steps: 3 }
 # The ink lines' width in CSS pixels of the stage's height (look.ts); 1 is about OutlineEffect's own default on the
 # 640-pixel reference stage.
 outlines: { color: ink, width: 1 }
+# Spec 008's highlight (Q5): the border a targeted piece shows, a warm yellow band framed on its outer side by the
+# look's ink, widths in CSS pixels; RW2 holds one of the two tones at 3:1 or better against every colour of the palette.
+highlight: { band: "#ffd23f", band_px: 3, edge: ink, edge_px: 1.5 }
 glow_tones:
   screen-blue: { color: "#8fc3ff", intensity: 0.6 }
   neon-warm: { color: "#ff6a3d", intensity: 1.5 }

@@ -40,6 +40,8 @@ lights:
 shading: { steps: 3 }
 # Inked cel's ink lines, which this method doesn't draw.
 outlines: { color: ink, width: 1 }
+# Spec 008's highlight (Q5), drawn in every look: a warm yellow band framed in the look's ink, widths in CSS pixels.
+highlight: { band: "#ffd23f", band_px: 3, edge: ink, edge_px: 1.5 }
 glow_tones:
   screen-blue: { color: "#8fc3ff", intensity: 0.6 }
   neon-warm: { color: "#ff6a3d", intensity: 1.5 }
