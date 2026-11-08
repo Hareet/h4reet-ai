@@ -2,16 +2,18 @@
 // pack and recomputes every hash; it refuses a pack with an unknown key, a hash that doesn't recompute, or a
 // selectable whose file isn't in the pack; and a pack, prompt, or fixed lines file that is missing or invalid leaves
 // the twin unavailable, logged by its reason, while nothing throws, so the gateway still starts.
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 import { loadTwin, twinFromTexts } from "../../src/config/twin.js";
 import { canonicalHash } from "../../src/twin/hash.js";
 import { parsePack } from "../../src/twin/pack.js";
-import { committed, committedTexts } from "../helpers/twin.js";
+import { REPO, committed, committedTexts } from "../helpers/twin.js";
 
 type Rec = Record<string, unknown>;
 const packObject = (): Rec => JSON.parse(committed("corpus.json")) as Rec;
@@ -28,8 +30,13 @@ describe("the pack's loader (FR-007)", () => {
     if (!load.ok) return;
     const { pack } = load;
     expect(pack.sections.length).toBeGreaterThan(50);
-    expect(pack.topics.map((t) => t.id).sort()).toEqual(["hobbies-and-travel", "mission", "work-projects"]);
-    expect(pack.selectables.map((s) => s.id).sort()).toEqual(["bicycle", "chalkboard", "laptop", "snowboard"]);
+    // The room's own topics and pieces, as config/room-topics.yaml names them (no ID of the data's stands here).
+    const topics = parse(readFileSync(`${REPO}config/room-topics.yaml`, "utf8")) as {
+      selectables: { id: string; topic: string }[];
+    };
+    expect(pack.topics.map((t) => t.id).sort()).toEqual([...new Set(topics.selectables.map((s) => s.topic))].sort());
+    expect(pack.selectables.map((s) => s.id).sort()).toEqual(topics.selectables.map((s) => s.id).sort());
+    expect(pack.selectables.length).toBeGreaterThanOrEqual(4);
     expect(pack.sha256).toMatch(/^[0-9a-f]{64}$/);
     for (const t of pack.topics) expect(t.sha256, t.id).toMatch(/^[0-9a-f]{64}$/);
     // Every hash is distinct: a topic's covers less than the whole.

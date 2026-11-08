@@ -375,6 +375,46 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     assert named(rows()["S14"][0].split("→", 1)[0]) == {"web"}
 
 
+def spec_007_entry(row_id: str) -> list[str]:
+    """specs/007-twin-conversation/spec.md's Data-Flow Disclosure Entries row: its eight cells."""
+    spec = (REPO / "specs" / "007-twin-conversation" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    (entry,) = [ln for ln in spec.splitlines() if ln.startswith(f"| {row_id} (")]
+    return [c.strip() for c in entry.strip().strip("|").split("|")]
+
+
+def test_the_twins_turn_has_row_v2_in_spec_007s_words() -> None:
+    # Spec 007 (FR-047; spec 002 FR-058; spec 004's RL4): the turn's row, in the room's section, with the spec's own
+    # From → To, Trigger, Carries, Never carries, Why, Default, and How to switch it off, written with the change that
+    # serves the route. Its Carries names the turn's estimated cost and its route, which RL4 reads before it lets the
+    # scene's live.turn be site.
+    room = TEXT.split("\n## Spec 002: the room\n", 1)[1]
+    assert "| V2 |" in room
+    entry = spec_007_entry("V2")
+    row = rows()["V2"]
+    assert row[:7] == entry[1:8]
+    assert "estimated cost" in row[2] and "route" in row[2]
+    assert "Rows V2, V3, and V5" not in room
+    assert "Rows V3 and V5 come with the work that creates each flow." in room
+
+
+def test_row_f1_adds_spec_007s_turn_to_its_own_words() -> None:
+    # Spec 007 (FR-048): F1 keeps its words and adds the room turn and the Author's evaluation calls, in spec 007's.
+    entry = spec_007_entry("F1")
+    f1 = rows()["F1"]
+    added = {
+        1: entry[2].removeprefix("as before, and: "),
+        2: entry[3].removeprefix("as before, and for a room turn: "),
+        3: entry[4].removeprefix("as before (anything that names who asked); and "),
+        4: entry[5].removeprefix("as before, and "),
+        6: entry[7].removeprefix("as before; and "),
+    }
+    for column, words in added.items():
+        assert words in f1[column], column
+    assert "spec 007 FR-048" in f1[-1]
+
+
 def test_security_md_links_the_disclosure() -> None:
     security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
     assert "](docs/data-flow-disclosure.md)" in security

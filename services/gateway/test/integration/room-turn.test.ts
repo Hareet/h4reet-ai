@@ -9,7 +9,7 @@
 //   defaults, logged once.
 import { afterEach, describe, expect, it } from "vitest";
 
-import { committedTexts, twinWith } from "../helpers/twin.js";
+import { ROOM, committedTexts, readinessText, short, twinWith } from "../helpers/twin.js";
 import { ledger, twinStack, type TwinStack } from "../helpers/twin-stack.js";
 import { twinFromTexts } from "../../src/config/twin.js";
 
@@ -106,7 +106,7 @@ describe("the refusals, before any model call (T013; FR-002, FR-003, FR-005)", (
 
   it("answers 409 not_ready for a feature whose topic isn't ready, and for free talk that isn't", async () => {
     const t = await stack({ twin: twinWith(null) });
-    for (const body of [turn({ feature: "snowboard", turns: [] }), turn()]) {
+    for (const body of [turn({ feature: ROOM.lead.id, turns: [] }), turn()]) {
       const res = await t.turn(body);
       expect(res.statusCode).toBe(409);
       expect(Object.keys(res.json() as Rec).sort()).toEqual(["error", "request_id"]);
@@ -143,7 +143,7 @@ describe("the refusals, before any model call (T013; FR-002, FR-003, FR-005)", (
 
 describe("the degraded paths, before any grounding (T014; FR-025, FR-054; SC-005's automated half)", () => {
   async function degraded(t: TwinStack, cause: string): Promise<void> {
-    const res = await t.turn(turn({ feature: "snowboard", turns: [] }));
+    const res = await t.turn(turn({ feature: ROOM.lead.id, turns: [] }));
     expect(res.statusCode, cause).toBe(503);
     expect(res.headers["x-h4-degraded-cause"]).toBe(cause);
     const body = res.json() as Rec;
@@ -193,7 +193,7 @@ describe("the degraded paths, before any grounding (T014; FR-025, FR-054; SC-005
   it("answers twin_unavailable for an invalid pack, prompt, or fixed lines, while hello still answers", async () => {
     for (const texts of [{ pack: "{}" }, { prompt: "# nothing\n" }, { lines: "lines: 1\n" }]) {
       const t = await stack({ twin: twinFromTexts({ ...committedTexts(), ...texts }) });
-      const res = await t.turn(turn({ feature: "snowboard", turns: [] }));
+      const res = await t.turn(turn({ feature: ROOM.lead.id, turns: [] }));
       expect(res.statusCode).toBe(503);
       expect(res.headers["x-h4-degraded-cause"]).toBe("twin_unavailable");
       expect(res.json()).toMatchObject({ state: "degraded", cause: "twin_unavailable" });
@@ -211,17 +211,106 @@ describe("the degraded paths, before any grounding (T014; FR-025, FR-054; SC-005
 
   it("answers twin_unavailable on prod without limits.twin, and answers with them", async () => {
     const without = await stack({ stack: "prod", limits: false });
-    const res = await without.turn(turn({ feature: "snowboard", turns: [] }));
+    const res = await without.turn(turn({ feature: ROOM.lead.id, turns: [] }));
     expect(res.statusCode).toBe(503);
     expect(res.headers["x-h4-degraded-cause"]).toBe("twin_unavailable");
     const withLimits = await stack({ stack: "prod", limits: true });
     withLimits.stub.next({ ok: { text: "An opening.", inputTokens: 10, outputTokens: 3, finish: "stop" } });
-    expect((await withLimits.turn(turn({ feature: "snowboard", turns: [] }))).statusCode).toBe(200);
+    expect((await withLimits.turn(turn({ feature: ROOM.lead.id, turns: [] }))).statusCode).toBe(200);
   });
 
   it("uses FR-027's defaults on dev without limits.twin", async () => {
     const t = await stack({ limits: false });
     expect(t.s.services.twin.limits).toMatchObject({ turnMaxChars: 600, maxInputChars: 32_000, maxOutputTokens: 300 });
     expect(t.s.services.twin.limitsDefault).toBe(true);
+  });
+});
+
+// T037 (spec 007; FR-003, FR-004, FR-006, FR-008, FR-024, FR-026; SC-006's automated half; plan §2): the happy path,
+// User Story 1's acceptance test over the units the foundation built.
+describe("an answered turn (T037; User Story 1)", () => {
+  type Sent = { messages: { role: string; content: string }[] };
+  const sentTo = (t: TwinStack): Sent[] =>
+    t.stub
+      .requests()
+      .filter((r) => r.path.endsWith("/chat/completions"))
+      .map((r) => r.body as Sent);
+
+  it("grounds a ready selectable's opening in the rules, 00, and its topic's files alone, with the piece's lead", async () => {
+    const t = await stack();
+    t.stub.next({
+      ok: { text: "Winter first: he rides every season.", inputTokens: 900, outputTokens: 12, finish: "stop" },
+    });
+    const res = await t.turn({ feature: ROOM.lead.id, path: "non-engineer", turns: [] });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as Rec;
+    expect(Object.keys(body).sort()).toEqual(["cost_micro_usd", "feature", "route", "text"]);
+    expect(body).toEqual({
+      text: "Winter first: he rides every season.",
+      feature: ROOM.lead.id,
+      cost_micro_usd: 0,
+      route: "local",
+    });
+    const [sent] = sentTo(t);
+    expect(sent?.messages.map((m) => m.role)).toEqual(["system", "user"]);
+    const system = sent?.messages[0]?.content ?? "";
+    expect(system).toContain("[00-profile — Role at a glance]");
+    expect(system).toContain(`[${short(ROOM.lead.files[0] ?? "")} — `);
+    // The rules carry every file's "Do not claim" bullets; no other file's sections come.
+    expect(system).not.toContain(`[${short(ROOM.third.files[0] ?? "")} —`);
+    expect(system).not.toContain("[01-ai-strategy-and-cht —");
+    expect(system).toContain("## Depth: non-engineer");
+    expect(sent?.messages[1]?.content).toContain(ROOM.lead.lead ?? "");
+    const rows = await ledger(t.s);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ purpose: "twin", room_feature: ROOM.lead.id, room_topic: ROOM.lead.topic });
+    expect(Number(rows[0]?.cost_micro)).toBe(0);
+  });
+
+  it("keeps a follow-up in its topic while free talk isn't ready, quoting the conversation", async () => {
+    const t = await stack({ twin: twinWith(readinessText({ topics: { [ROOM.second.topic]: { ready: true } } })) });
+    t.stub.next({
+      ok: { text: "An answer from his work projects.", inputTokens: 900, outputTokens: 9, finish: "stop" },
+    });
+    const turns = [
+      { role: "twin", text: "An opening about his work." },
+      { role: "visitor", text: "What does agent-watchdog do?" },
+    ];
+    expect((await t.turn({ feature: ROOM.second.id, path: "engineer", turns })).statusCode).toBe(200);
+    const system = sentTo(t)[0]?.messages[0]?.content ?? "";
+    expect(system).toContain(`[${short(ROOM.second.files[0] ?? "")} —`);
+    expect(system).not.toContain("[01-ai-strategy-and-cht —");
+    const user = sentTo(t)[0]?.messages[1]?.content ?? "";
+    expect(user).toContain(`Twin: ${JSON.stringify("An opening about his work.")}`);
+    expect(user).toContain(`Visitor: ${JSON.stringify("What does agent-watchdog do?")}`);
+  });
+
+  it("charges a fallback answer its priced cost, says route fallback, and the cost equals the turn's ledger rows", async () => {
+    const t = await stack({ fallback: true, healthy: false });
+    await t.s.services.gateway.probeAll(); // the synthetic fallback is healthy; local isn't
+    const res = await t.turn({ feature: ROOM.third.id, path: "engineer", turns: [] });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as Rec;
+    expect(body).toMatchObject({ feature: ROOM.third.id, route: "fallback", text: "synthetic response" });
+    const rows = await ledger(t.s);
+    const total = rows.reduce((n, r) => n + Number(r.cost_micro), 0);
+    expect(body.cost_micro_usd).toBe(total);
+    expect(total).toBeGreaterThan(0);
+    expect(
+      rows.every((r) => r.purpose === "twin" && r.room_feature === ROOM.third.id && r.room_topic === ROOM.third.topic),
+    ).toBe(true);
+  });
+
+  it("replaces an answer that breaks a guard with the fixed line, keeps its cost counted, and answers 200", async () => {
+    const t = await stack();
+    t.stub.next({
+      ok: { text: "He has biked across 4321 countries.", inputTokens: 900, outputTokens: 9, finish: "stop" },
+    });
+    const res = await t.turn({ feature: ROOM.leadless.id, path: "engineer", turns: [] });
+    expect(res.statusCode).toBe(200);
+    const twin = t.s.services.twin.load;
+    if (!twin.available) throw new Error("the twin isn't available");
+    expect(res.json()).toMatchObject({ text: twin.files.lines.withheld, route: "local", cost_micro_usd: 0 });
+    expect(await ledger(t.s)).toHaveLength(1);
   });
 });

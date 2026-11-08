@@ -256,7 +256,7 @@ describe("Gateway.complete for a twin call (plan §3)", () => {
       arrivedAt: Date.now(),
       signal: new AbortController().signal,
       clientKey: "198.51.100.7",
-      room: { feature: "snowboard", topic: "hobbies-and-travel" },
+      room: { feature: "fx-piece", topic: "fx-topic" },
     };
   }
 
@@ -301,7 +301,7 @@ describe("Gateway.complete for a twin call (plan §3)", () => {
       maxInputChars: 32_000,
       maxOutputTokens: 300,
       clientKey: "198.51.100.7",
-      room: { feature: "snowboard", topic: "hobbies-and-travel" },
+      room: { feature: "fx-piece", topic: "fx-topic" },
     });
     await g.complete({ ...twinCall(built), purpose: "hello", maxOutputTokens: 128 } as GatewayCall);
     const hello = { ...twinCall(built), purpose: "hello" as const, maxOutputTokens: 128 };

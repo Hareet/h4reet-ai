@@ -113,8 +113,8 @@ export interface RoomDeps {
    *  for a load that failed. The room loads it at Enter for its room text (spec 004, FR-061); absent, nothing loads and
    *  every face bound to room text stays plain. */
   roomData?: () => Promise<unknown>;
-  /** The twin's sender for a conversation turn, which the twin's spec gives (spec 004, FR-038; R-33): absent, as until
-   *  then, every turn answers with its fixed message and goes nowhere. */
+  /** The twin's sender for a conversation turn (spec 004, FR-038; R-33): main.ts gives src/talk/turn-client.ts's (spec
+   *  007, plan §7). Absent, every turn answers with its fixed message and goes nowhere. */
   sendTurn?: SendTurn;
   /** A drafts build's frame log (spec 004, T246; R-70): main.ts gives `virtual:room-frame-log`'s factory in a drafts
    *  build, and nothing in a release build, which then keeps no log. */
@@ -312,6 +312,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       turnRoute: deps.room.live.turn === "site",
       ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
+      // The twin's per-turn limits, from the build (spec 007, FR-027, FR-041); FR-027's defaults without them.
+      ...(content.twin ? { limits: content.twin.limits } : {}),
     });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
@@ -549,8 +551,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    * A selectable picked in 3D or 2D, or pressed in the list, the one path for every input (spec 004, FR-004, FR-071;
    * R-33): object_selected with the selectable's ID, only for one the index lists; then its action, from the index.
    * `talk`: an unready topic shows the fixed message naming it by its own phrase and calls nothing (FR-037); a ready
-   * one makes the conversation's feature the selectable's ID (FR-038). The lead stays in config/room-topics.yaml for
-   * the twin's spec, so nothing here sends it. `resume`: the resume opens.
+   * one opens its conversation through the talk panel, which sends the opening (spec 007, FR-032). The lead stays in
+   * config/room-topics.yaml, which the gateway's pack carries, so nothing here sends it. `resume`: the resume opens.
    */
   function selectObject(id: string): void {
     const selectable = deps.room.selectables.find((s) => s.id === id);

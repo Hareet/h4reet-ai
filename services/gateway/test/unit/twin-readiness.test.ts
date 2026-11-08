@@ -11,7 +11,7 @@ import { twinFromTexts } from "../../src/config/twin.js";
 import { promptHash } from "../../src/twin/hash.js";
 import { recompute } from "../../src/twin/pack.js";
 import { isReady, parseReadiness, readiness } from "../../src/twin/readiness.js";
-import { committed, committedTexts, readinessText, runningHashes, twinWith } from "../helpers/twin.js";
+import { ROOM, committed, committedTexts, readinessText, runningHashes, twinWith } from "../helpers/twin.js";
 
 interface MatrixEntry {
   ready: boolean;
@@ -33,12 +33,11 @@ export const MATRIX = JSON.parse(
   readFileSync(new URL("../fixtures/twin-readiness-matrix.json", import.meta.url), "utf8"),
 ) as Matrix;
 
-const FEATURES: Record<string, string> = {
-  "hobbies-and-travel": "snowboard",
-  mission: "chalkboard",
-  "work-projects": "laptop",
-  free_talk: "free_talk",
-};
+/** Each topic's piece, from the pack, and free talk's own feature: the matrix names topics, and the route takes features. */
+const FEATURES: Record<string, string> = Object.fromEntries([
+  ...[ROOM.lead, ROOM.second, ROOM.third].map((s) => [s.topic, s.id]),
+  ["free_talk", "free_talk"],
+]);
 
 describe("readiness (FR-030)", () => {
   it("pins the prompt hash: the matrix's texts hash to its prefix here, as in the room's build", () => {
@@ -65,15 +64,18 @@ describe("readiness (FR-030)", () => {
   it("closes a topic when the prompt or a fixed line changes, and free talk when any section changes", () => {
     const hashes = runningHashes();
     const text = readinessText(
-      { topics: { "hobbies-and-travel": { ready: true }, mission: { ready: true } }, freeTalk: { ready: true } },
+      {
+        topics: { [ROOM.lead.topic]: { ready: true }, [ROOM.third.topic]: { ready: true } },
+        freeTalk: { ready: true },
+      },
       hashes,
     );
-    expect(readiness(twinWith(text), "snowboard")).toBe(true);
+    expect(readiness(twinWith(text), ROOM.lead.id)).toBe(true);
     expect(readiness(twinWith(text), "free_talk")).toBe(true);
     const prompt = `${committed("prompt.md")}\nOne more instruction.\n`;
-    expect(readiness(twinWith(text, { prompt }), "snowboard")).toBe(false);
+    expect(readiness(twinWith(text, { prompt }), ROOM.lead.id)).toBe(false);
     const lines = committed("lines.yaml").replace("rather not answer", "rather not say");
-    expect(readiness(twinWith(text, { lines }), "chalkboard")).toBe(false);
+    expect(readiness(twinWith(text, { lines }), ROOM.third.id)).toBe(false);
     // A section of another topic's file changes the whole pack's hash, which free talk binds, and not the topic's.
     const pack = JSON.parse(committed("corpus.json")) as { sections: { file: string; text: string }[] };
     const other = pack.sections.find((s) => s.file === "corpus/07-denver-local-ai.md");
@@ -81,7 +83,7 @@ describe("readiness (FR-030)", () => {
     if (other) other.text = `${other.text} Changed.`;
     const moved = twinFromTexts({ ...committedTexts(), pack: rehash(pack), readiness: text });
     expect(moved.available).toBe(true);
-    expect(readiness(moved, "snowboard")).toBe(true);
+    expect(readiness(moved, ROOM.lead.id)).toBe(true);
     expect(readiness(moved, "free_talk")).toBe(false);
   });
 
@@ -91,23 +93,23 @@ describe("readiness (FR-030)", () => {
       parseReadiness("schema: 1\nthresholds: { safety: 2, golden: 0.9 }\ntopics: {}\nfree_talk: { ready: false }\n"),
     ).toMatchObject({ ok: false, reason: "invalid" });
     const twin = twinWith(readinessText({ topics: { "no-such-topic": { ready: true } } }));
-    expect(readiness(twin, "snowboard")).toBe(false);
+    expect(readiness(twin, ROOM.lead.id)).toBe(false);
     expect(readiness(twin, "no-such-feature")).toBe(false);
     const unavailable = twinWith(null, { pack: null });
-    expect(readiness(unavailable, "snowboard")).toBe(false);
+    expect(readiness(unavailable, ROOM.lead.id)).toBe(false);
   });
 
   it("parses thresholds and a ready entry's evidence", () => {
-    const load = parseReadiness(readinessText({ topics: { mission: { ready: true } } }));
+    const load = parseReadiness(readinessText({ topics: { [ROOM.third.topic]: { ready: true } } }));
     expect(load.ok).toBe(true);
     if (!load.ok) return;
     expect(load.file.thresholds).toEqual({ safety: 1, golden: 0.9 });
-    const entry = load.file.topics.get("mission");
+    const entry = load.file.topics.get(ROOM.third.topic);
     expect(entry?.ready).toBe(true);
     if (entry?.ready) expect(entry.evidence).toEqual(["evals/product/history/x.json"]);
-    const twin = twinWith(readinessText({ topics: { mission: { ready: true } } }));
+    const twin = twinWith(readinessText({ topics: { [ROOM.third.topic]: { ready: true } } }));
     if (!twin.available) throw new Error("the twin isn't available");
-    expect(isReady(load, twin.files, "chalkboard")).toBe(true);
+    expect(isReady(load, twin.files, ROOM.third.id)).toBe(true);
   });
 });
 

@@ -935,8 +935,8 @@ describe("0004_twin (spec 007, Amendment 0-1)", () => {
         HEX32,
         o.purpose ?? "twin",
         HEX64,
-        o.feature === undefined ? "snowboard" : o.feature,
-        o.topic === undefined ? "hobbies-and-travel" : o.topic,
+        o.feature === undefined ? "fx-piece" : o.feature,
+        o.topic === undefined ? "fx-topic" : o.topic,
       ],
     );
 
@@ -945,7 +945,7 @@ describe("0004_twin (spec 007, Amendment 0-1)", () => {
     const { rows } = await db.pg.query<{ purpose: string; room_feature: string; room_topic: string }>(
       "SELECT purpose, room_feature, room_topic FROM gateway.ledger",
     );
-    expect(rows).toEqual([{ purpose: "twin", room_feature: "snowboard", room_topic: "hobbies-and-travel" }]);
+    expect(rows).toEqual([{ purpose: "twin", room_feature: "fx-piece", room_topic: "fx-topic" }]);
   });
 
   it("leaves both columns null for every other call, and admits free talk's topic", async () => {

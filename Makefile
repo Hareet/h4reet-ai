@@ -308,6 +308,8 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
 	$(PY_HOST) evals/run.py --suite narration --adapter fake
 	$(PY_HOST) evals/agent-config/static.py
+	@# Spec 007's readiness evidence (its FR-031): one INFO line per ready topic, or why it isn't; it always exits 0.
+	$(PY_HOST) evals/twin_readiness.py
 	@# The behavioral tier's status is information here, never a merge block (spec 006 FR-002): evals/behavioral_line.py
 	@# prints its PENDING and a recorded run's FAIL as a "WARN (behavioral tier):" line, which make check and the gate read
 	@# as WARN. Then every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the

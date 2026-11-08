@@ -10,10 +10,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 
 import {
   BUDGETS_PATH,
+  CASES_DIR,
+  buildCases,
+  casesFiles,
   DEFAULT_TWIN_LIMITS,
   PACK_PATH,
   PROMPT_PATH,
@@ -77,7 +81,7 @@ const FIXTURE: Record<string, string> = {
     "",
     "- That he built the CHT skills (sponsored).",
   ].join("\n"),
-  "corpus/04-hobbies-and-travel.md": [
+  "corpus/04-fx-hobbies.md": [
     "# Hobbies and travel",
     "Priority: none",
     "",
@@ -87,7 +91,7 @@ const FIXTURE: Record<string, string> = {
     "",
     "## Golden Q&A",
     "",
-    "1. *Do you snowboard?* — Every winter. [A]",
+    "1. *Do you ride in winter?* — Every winter. [A]",
   ].join("\n"),
   "corpus/08-hareet-ai.md": [
     "# The twin",
@@ -129,15 +133,15 @@ const FIXTURE: Record<string, string> = {
   "config/room-topics.yaml": [
     "schema: 1",
     "selectables:",
-    '  - id: "snowboard"',
-    '    topic: "hobbies-and-travel"',
+    '  - id: "fx-board"',
+    '    topic: "fx-hobbies"',
     "    corpus:",
-    '      - "corpus/04-hobbies-and-travel.md"',
+    '      - "corpus/04-fx-hobbies.md"',
     '    lead: "Winter hobbies first."',
-    '  - id: "bicycle"',
-    '    topic: "hobbies-and-travel"',
+    '  - id: "fx-bike"',
+    '    topic: "fx-hobbies"',
     "    corpus:",
-    '      - "corpus/04-hobbies-and-travel.md"',
+    '      - "corpus/04-fx-hobbies.md"',
     "    lead: null",
   ].join("\n"),
 };
@@ -221,7 +225,7 @@ describe("the pack's sections (FR-007)", () => {
   });
 
   it("splits a section over 2,000 characters at its bullets, each part within the cap", () => {
-    const parts = pack.sections.filter((s) => s.id.startsWith("04-hobbies-and-travel#1."));
+    const parts = pack.sections.filter((s) => s.id.startsWith("04-fx-hobbies#1."));
     expect(parts.length).toBeGreaterThan(1);
     for (const p of parts) {
       expect(p.chars).toBeLessThanOrEqual(2_000);
@@ -285,12 +289,12 @@ describe("the pack's sections (FR-007)", () => {
     expect(pack.quotes.agents_share.answer).toBe("AI agents in named roles do most of the typing, and only I merge.");
     expect(pack.selectables).toEqual([
       {
-        id: "snowboard",
-        topic: "hobbies-and-travel",
-        files: ["corpus/04-hobbies-and-travel.md"],
+        id: "fx-board",
+        topic: "fx-hobbies",
+        files: ["corpus/04-fx-hobbies.md"],
         lead: "Winter hobbies first.",
       },
-      { id: "bicycle", topic: "hobbies-and-travel", files: ["corpus/04-hobbies-and-travel.md"], lead: null },
+      { id: "fx-bike", topic: "fx-hobbies", files: ["corpus/04-fx-hobbies.md"], lead: null },
     ]);
   });
 
@@ -345,19 +349,19 @@ describe("the committed pack (FR-007's freshness check)", () => {
     const { pack } = buildPack(mapReader(FIXTURE));
     const changed = {
       ...FIXTURE,
-      "corpus/04-hobbies-and-travel.md": (FIXTURE["corpus/04-hobbies-and-travel.md"] ?? "").replace(
-        "Every winter.",
-        "Most winters.",
-      ),
+      "corpus/04-fx-hobbies.md": (FIXTURE["corpus/04-fx-hobbies.md"] ?? "").replace("Every winter.", "Most winters."),
     };
     expect(movedFiles(JSON.parse(packJson(pack)) as unknown, buildPack(mapReader(changed)).pack)).toEqual([
-      "corpus/04-hobbies-and-travel.md",
+      "corpus/04-fx-hobbies.md",
     ]);
   });
 
   it("holds the topics the room opens, and only public topic files", () => {
     const pack = JSON.parse(readFileSync(join(REPO_ROOT, PACK_PATH), "utf8")) as TwinPack;
-    expect(pack.topics.map((t) => t.id)).toEqual(["hobbies-and-travel", "mission", "work-projects"]);
+    const topics = parse(readFileSync(join(REPO_ROOT, "config/room-topics.yaml"), "utf8")) as {
+      selectables: { topic: string }[];
+    };
+    expect(pack.topics.map((t) => t.id)).toEqual([...new Set(topics.selectables.map((s) => s.topic))].sort());
     for (const s of pack.sections) expect(s.file).toMatch(/^corpus\/\d{2}-[a-z0-9-]+\.md$/);
     for (const s of pack.sections) expect(s.text).not.toContain("{{slot");
   });
@@ -370,7 +374,7 @@ describe("the fit check (plan §4, R-1; departure D5)", () => {
       fitProblems(pack, { max_input_chars: 32_000, history_max_chars: 4_000, history_max_turns: 8 }, 5_000),
     ).toEqual([]);
     const tight = fitProblems(pack, { max_input_chars: 13_000, history_max_chars: 4_000, history_max_turns: 8 }, 5_000);
-    expect(tight.join("\n")).toContain("hobbies-and-travel");
+    expect(tight.join("\n")).toContain("fx-hobbies");
   });
 
   it("passes the repository's pack at config/budgets.yaml's limits, or FR-027's defaults, with the real instructions", () => {
@@ -384,5 +388,72 @@ describe("the fit check (plan §4, R-1; departure D5)", () => {
       fitLimits("limits:\n  twin: { max_input_chars: 40000, history_max_chars: 4000, history_max_turns: 8 }\n")
         .max_input_chars,
     ).toBe(40_000);
+  });
+});
+
+// T038 (spec 007; FR-016, FR-049; plan §8, departure D11): the product cases generated from the corpus by the same build
+// as the pack, one for each Golden Q&A on each path, each with its feature, its anchors present in both its answer and
+// its grounding, the "Do not claim" phrases of its file and 00 that its answer doesn't hold, and a check; and fresh.
+describe("the golden product cases (T038; FR-049)", () => {
+  const { pack } = buildPack(fsReader(REPO_ROOT));
+  const cases = buildCases(pack).filter((c) => c.kind === "golden");
+  const golden = pack.sections.filter((s) => s.golden !== null && !s.golden.question.startsWith("("));
+
+  it("makes one case per Golden Q&A per path, the stage directions aside", () => {
+    expect(cases).toHaveLength(golden.length * 2);
+    for (const s of golden) {
+      for (const path of ["engineer", "non-engineer"] as const) {
+        const id = `twin-${s.id.replace("#q", "-q")}-${path}`;
+        const c = cases.find((x) => x.id === id);
+        expect(c, id).toBeDefined();
+        expect(c?.twin.path).toBe(path);
+        expect(c?.prompt).toBe(s.golden?.question);
+        expect(c?.twin.turns).toEqual([{ role: "visitor", text: s.golden?.question }]);
+        expect(c?.fake_response).toBe(s.golden?.answer);
+      }
+    }
+  });
+
+  it("asks each under a selectable of its file, one with no lead first, and free talk for every other file", () => {
+    const room = parse(readFileSync(join(REPO_ROOT, "config/room-topics.yaml"), "utf8")) as {
+      selectables: { id: string; corpus: string[]; lead: string | null }[];
+    };
+    const sources = new Set(cases.map((c) => c.source));
+    for (const source of sources) {
+      const feature = cases.find((c) => c.source === source)?.twin.feature;
+      const pieces = room.selectables.filter((s) => s.corpus.includes(source));
+      if (pieces.length === 0) {
+        expect(feature, source).toBe("free_talk");
+        continue;
+      }
+      const chosen = pieces.find((s) => s.id === feature);
+      expect(chosen, source).toBeDefined();
+      if (pieces.some((s) => s.lead === null)) expect(chosen?.lead, source).toBeNull();
+    }
+    expect([...sources].some((s) => room.selectables.some((x) => x.corpus.includes(s)))).toBe(true);
+  });
+
+  it("checks every case: up to three anchors from its answer, and no Do not claim phrase its answer lacks", () => {
+    for (const c of cases) {
+      expect(c.expect.contains.length, c.id).toBeGreaterThan(0);
+      expect(c.expect.contains.length, c.id).toBeLessThanOrEqual(3);
+      for (const a of c.expect.contains)
+        expect(c.fake_response.toLowerCase(), `${c.id}: ${a}`).toContain(a.toLowerCase());
+      for (const n of c.expect.not_contains) expect(c.fake_response.toLowerCase(), `${c.id}: ${n}`).not.toContain(n);
+    }
+  });
+
+  it("are committed fresh, and no stale twin case is left beside them", () => {
+    const files = casesFiles(buildCases(pack));
+    for (const f of files) {
+      expect(readFileSync(join(REPO_ROOT, f.path), "utf8"), `${f.path}: stale, run npm run twin:pack -w apps/web`).toBe(
+        f.text,
+      );
+    }
+    const committed = fsReader(REPO_ROOT)
+      .list(CASES_DIR)
+      .filter((n) => n.startsWith("twin-"))
+      .map((n) => `${CASES_DIR}/${n}`);
+    expect(committed.sort()).toEqual(files.map((f) => f.path).sort());
   });
 });

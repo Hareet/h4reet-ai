@@ -11,7 +11,9 @@ import { createFrameLog } from "virtual:room-frame-log";
 import { beaconEvents } from "./events";
 import { asRoomResume } from "./resume";
 import { startRoom } from "./room/app";
+import { windowClock } from "./room/clock";
 import { narrationFromRoomData, resumeView, roomDataLoader } from "./room/resume-port";
+import { createTurnSender } from "./talk/turn-client";
 
 // The interactive resume is Phase 3's view (tasks.md T029) in the room's panel, through src/room/resume-port.ts, which
 // narrates a selected item at the path the visitor chose (tasks.md T053). room-data.json is fetched once for both and
@@ -29,5 +31,7 @@ startRoom({
   resume: resumeView(async () => asRoomResume(await roomData()), { load: narrationFromRoomData(roomData) }),
   events: beaconEvents(window.navigator),
   roomData,
+  // The twin's turns go to the site's own POST /api/room/turn (spec 007, plan §7; row V2 of the data-flow disclosure).
+  sendTurn: createTurnSender({ fetch: (url, init) => window.fetch(url, init), clock: windowClock(window) }),
   ...(createFrameLog ? { frameLog: createFrameLog } : {}),
 });

@@ -511,12 +511,12 @@ describe("the twin's instruments (spec 007, plan §9)", () => {
   it("count turns by feature, outcome, and cause; time them by decision; count withheld answers by guard", async () => {
     const h = meterHarness();
     const m = new GatewayMetrics(h.meter);
-    m.twinTurn({ feature: "snowboard", outcome: "withheld", cause: "none", decision: "fallback", seconds: 2 });
+    m.twinTurn({ feature: "fx-piece", outcome: "withheld", cause: "none", decision: "fallback", seconds: 2 });
     m.twinWithheld("privacy");
     const found = instruments(await h.collect());
     const turns = found.find((x) => x.descriptor.name === "h4.twin.turns");
     expect(turns?.dataPoints[0]?.attributes).toEqual({
-      "h4.room.feature": "snowboard",
+      "h4.room.feature": "fx-piece",
       "h4.outcome": "withheld",
       "h4.cause": "none",
     });
@@ -529,7 +529,7 @@ describe("the twin's instruments (spec 007, plan §9)", () => {
     const h = meterHarness();
     const m = new GatewayMetrics(h.meter);
     (m.twinTurn as (o: Record<string, unknown>) => void)({
-      feature: "snowboard",
+      feature: "fx-piece",
       outcome: "a visitor's words",
       cause: "<script>",
       decision: "elsewhere",

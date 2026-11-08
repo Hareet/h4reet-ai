@@ -17,7 +17,7 @@ const SECTIONS = [
 
 describe("the tokens", () => {
   it("are lowercase, accent-folded words, with stop words dropped and a light stem", () => {
-    expect(tokenize("The Snowboards, and Café biking!")).toEqual(["snowboard", "cafe", "bik"]);
+    expect(tokenize("The Mountains, and Café biking!")).toEqual(["mountain", "cafe", "bik"]);
     expect(tokenize("is it the of and a")).toEqual([]);
     expect(tokenize("agents' memories, voiced")).toEqual(["agent", "memori", "voic"]);
   });

@@ -338,7 +338,7 @@ const verbish = (word: string): boolean =>
 /** A "Do not claim" bullet's key phrases: its text up to the first clause break, without "That" or its subject, then
  * each alternative it joins with "or". When the first alternative opens with a verb and a later one doesn't, the verb
  * carries over: "built the CHT skills or cht-pr-review" gives "built the cht skills" and "built cht-pr-review". */
-function keyPhrases(bullet: string, roomName: string): string[] {
+export function keyPhrases(bullet: string, roomName: string): string[] {
   const subjects = ["he", "she", "they", "his", "her", "their", ...roomName.split(/\s+/).filter(Boolean).map(escape)];
   const lead = new RegExp(`^(?:that\\s+)?(?:(?:${subjects.join("|")})\\s+)?`, "i");
   const clause = keyPhrase(bullet, roomName);

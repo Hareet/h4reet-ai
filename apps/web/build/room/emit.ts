@@ -1074,7 +1074,12 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       action: x.action.talk ? { kind: "talk" as const, topic: x.action.talk.topic } : { kind: "resume" as const },
       side_wall: sideWall[k] ?? false,
     })),
-    topics: (c.room.topics?.value.topics ?? []).map((t) => ({ id: t.id, phrase: t.phrase, ready: false as const })),
+    // Ready only as the twin's readiness says, by FR-030's rule (spec 007, FR-037); nothing without it.
+    topics: (c.room.topics?.value.topics ?? []).map((t) => ({
+      id: t.id,
+      phrase: t.phrase,
+      ready: c.options.readiness?.topics.get(t.id) ?? false,
+    })),
     faces,
     switches,
     flat: flatOf(c, faces),
@@ -1501,6 +1506,7 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
 
   const manifest = roomManifest({
     index,
+    freeTalkReady: options.readiness?.freeTalk ?? false,
     standins,
     caps: { source: policy.caps_source, sha256: policy.caps_sha256 },
     items: itemIds(reader.tree),

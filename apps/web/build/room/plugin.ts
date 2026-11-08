@@ -27,6 +27,7 @@ import type { Plugin } from "vite";
 
 import { draftsOn } from "../approvals";
 import { readMessages } from "../manifest";
+import { talkLimits, twinReadiness } from "./readiness";
 import { compose, formatFinding } from "./compose";
 import type { ComposeResult } from "./compose";
 import { serialize } from "./emit";
@@ -64,6 +65,7 @@ export interface RoomBundleOptions {
 /** The Vite plugin: the room's bundle, composed once a build. */
 export function roomBundle(options: RoomBundleOptions): Plugin {
   let composed: ComposeResult | null = null;
+  let limits: ReturnType<typeof talkLimits> | null = null;
   const result = (): ComposeResult => {
     if (composed === null) throw new Error("roomBundle: the room is composed at buildStart, which hasn't run");
     return composed;
@@ -73,7 +75,13 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
     buildStart() {
       const tree = options.tree?.() ?? fileTree(options.root);
       const policy = options.policy?.() ?? readRoomPolicy({ env: process.env, root: options.root });
-      composed = compose(tree, policy, { mode: "lenient", drafts: draftsOn(process.env) });
+      // The twin's readiness and limits, from the same tree (spec 007, FR-037, FR-041).
+      composed = compose(tree, policy, {
+        mode: "lenient",
+        drafts: draftsOn(process.env),
+        readiness: twinReadiness(tree),
+      });
+      limits = talkLimits(tree);
       const refused: string[] = [];
       for (const f of composed.findings) {
         if (f.lenient) this.warn(formatFinding(f, "lenient"));
@@ -91,7 +99,11 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
         case resolved(ROOM_CONTENT): {
           this.addWatchFile(options.messages);
           const { index, manifest } = result();
-          const content = { messages: readMessages(options.messages), manifest };
+          const content = {
+            messages: readMessages(options.messages),
+            manifest,
+            ...(limits === null ? {} : { twin: { limits } }),
+          };
           return `export const content = ${serialize(content)};\nexport const room = ${serialize(index)};\n`;
         }
         case resolved(ROOM_SCENE):

@@ -64,7 +64,14 @@ HELLO_MAX_OUTPUT_TOKENS = (
 )
 RETRIES = 5
 RETRY_CAP_S = 60.0
-CASE_KEYS = {"id", "description", "prompt", "fake_response", "expect"}
+CASE_KEYS = {"id", "description", "prompt", "fake_response", "expect", "twin", "kind"}
+# Spec 007's twin cases (its FR-049): what the case asks the twin, and what kind of case it is.
+TWIN_KEYS = {"feature", "path", "turns"}
+TWIN_PATHS = {"engineer", "non-engineer"}
+TWIN_KINDS = {"golden", "gap"}
+TWIN_ROLES = {"visitor", "twin"}
+# The readiness file's default threshold for Golden Q&A cases (spec 007, FR-031), which the summary reads as information.
+TWIN_GOLDEN_THRESHOLD = 0.90
 # Suites that only the fake adapter runs. Spec 002's narration cases (contracts/narration.md §2) score prepared
 # scripts, not a model: a local run would send them to a stack's /hello, and the other adapter would charge prod's meter.
 FAKE_ONLY_SUITES = {"narration"}
@@ -94,6 +101,8 @@ def load_cases(suite: str) -> list[dict[str, Any]]:
         unknown = set(case) - CASE_KEYS
         if unknown:
             raise AdapterError(f"{path}: unknown keys {sorted(unknown)}")
+        if "twin" in case or "kind" in case:
+            check_twin(path, case)
         expect = case.get("expect") or {}
         if not isinstance(expect, dict) or set(expect) - EXPECT_KEYS:
             raise AdapterError(f"{path}: expect takes only {sorted(EXPECT_KEYS)}")
@@ -123,6 +132,38 @@ def load_cases(suite: str) -> list[dict[str, Any]]:
     if not cases:
         raise AdapterError(f"suite {suite!r} has no cases in {folder}")
     return cases
+
+
+def check_twin(path: Path, case: dict[str, Any]) -> None:
+    """A twin case's `twin` and `kind` (spec 007, plan §8): the turn the twin's pipeline answers, and golden or gap."""
+    twin, kind = case.get("twin"), case.get("kind")
+    if kind not in TWIN_KINDS:
+        raise AdapterError(f"{path}: kind is one of {sorted(TWIN_KINDS)}")
+    if not isinstance(twin, dict) or set(twin) != TWIN_KEYS:
+        raise AdapterError(f"{path}: twin is exactly {sorted(TWIN_KEYS)}")
+    if not isinstance(twin["feature"], str) or not re.fullmatch(
+        r"[a-z0-9][a-z0-9_-]{0,63}", twin["feature"]
+    ):
+        raise AdapterError(f"{path}: twin.feature is a selectable's ID or free_talk")
+    if twin["path"] not in TWIN_PATHS:
+        raise AdapterError(f"{path}: twin.path is engineer or non-engineer")
+    turns = twin["turns"]
+    if not isinstance(turns, list) or not all(
+        isinstance(t, dict)
+        and set(t) == {"role", "text"}
+        and t["role"] in TWIN_ROLES
+        and isinstance(t["text"], str)
+        for t in turns
+    ):
+        raise AdapterError(f"{path}: twin.turns is a list of {{role, text}}")
+
+
+def twin_topic(case_id: str) -> str:
+    """A generated case's corpus file, from its ID: twin-04-hobbies-and-travel-q1-engineer is 04-hobbies-and-travel."""
+    match = re.fullmatch(
+        r"twin-(.+?)-(?:q\d+|gap-\d+)-(?:engineer|non-engineer)", case_id
+    )
+    return match.group(1) if match else case_id
 
 
 def score(case: dict[str, Any], answer: str) -> list[str]:
@@ -256,12 +297,12 @@ def local_adapter(
     return call
 
 
-def bedrock_adapter(suite: str) -> Adapter:
-    """Prod's admin endpoint, with the operator token, through scripts/operator.py's AdminClient (plan §14)."""
+def admin_client(stack: str) -> Any:
+    """scripts/operator.py's AdminClient for a stack, with the operator token, loaded from the tree as data."""
     operator = REPO / "scripts" / "operator.py"
     if not operator.is_file():
         raise AdapterError(
-            "the bedrock adapter needs scripts/operator.py's AdminClient, which tasks.md T056 creates"
+            "the admin adapters need scripts/operator.py's AdminClient, which tasks.md T056 creates"
         )
     spec = importlib.util.spec_from_file_location("h4_operator", operator)
     if spec is None or spec.loader is None:
@@ -269,7 +310,60 @@ def bedrock_adapter(suite: str) -> Adapter:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    client = module.AdminClient(stack="prod")
+    return module.AdminClient(stack=stack)
+
+
+def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
+    """Spec 007's twin cases: POST /admin/twin/turn on the stack's admin listener, on one named adapter, never failing
+    over (contracts/operator-admin.md §8). The reply adds the guard and the pack's and the prompt's hashes."""
+    client = admin_client(stack)
+
+    def call(case: dict[str, Any]) -> Reply:
+        twin = case["twin"]
+        try:
+            answer = client.twin_turn(
+                adapter_id,
+                feature=twin["feature"],
+                path=twin["path"],
+                turns=twin["turns"],
+                reason=f"evals {suite} {case['id']}",
+            )
+        except (
+            Exception
+        ) as exc:  # AdminError carries a status and an error code, never the token
+            status = getattr(exc, "status", None)
+            raise AdapterError(
+                f"{adapter_id}: {exc.__class__.__name__}"
+                + (f", HTTP {status}" if status else "")
+            ) from exc
+        if not isinstance(answer, dict):
+            raise AdapterError(f"{adapter_id}: the reply isn't a JSON object")
+        out = reply(
+            answer.get("text"),
+            answer.get("route"),
+            "aws.bedrock" if adapter_id == "bedrock" else adapter_id,
+            answer.get("model"),
+            answer.get("usage"),
+            answer.get("cost_micro_usd"),
+            answer.get("trace_id"),
+        )
+        guard = answer.get("guard")
+        out["guard"] = guard if isinstance(guard, str) else None
+        for key in ("pack_sha256", "prompt_sha256"):
+            value = answer.get(key)
+            out[key] = (
+                value
+                if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                else None
+            )
+        return out
+
+    return call
+
+
+def bedrock_adapter(suite: str) -> Adapter:
+    """Prod's admin endpoint, with the operator token, through scripts/operator.py's AdminClient (plan §14)."""
+    client = admin_client("prod")
 
     def call(case: dict[str, Any]) -> Reply:
         try:
@@ -368,16 +462,34 @@ def main(argv: list[str]) -> int:
     started = dt.datetime.now(dt.UTC)
     try:
         cases = load_cases(args.suite)
-        if args.adapter == "fake":
-            call = fake_adapter
-        elif args.adapter == "local":
-            call = local_adapter(args.stack)
-        else:
-            call = bedrock_adapter(args.suite)
+        hello_call: Adapter | None = None
+        twin_call: Adapter | None = None
+
+        def adapter_for(case: dict[str, Any]) -> Adapter:
+            """The case's adapter, made when first needed: a twin case goes through the twin's admin route
+            (spec 007), every other case as before."""
+            nonlocal hello_call, twin_call
+            if args.adapter == "fake":
+                return fake_adapter
+            if "twin" in case:
+                if twin_call is None:
+                    adapter_id = "bedrock" if args.adapter == "bedrock" else "local"
+                    twin_call = twin_adapter(args.suite, stack, adapter_id)
+                return twin_call
+            if hello_call is None:
+                hello_call = (
+                    local_adapter(args.stack)
+                    if args.adapter == "local"
+                    else bedrock_adapter(args.suite)
+                )
+            return hello_call
+
         results, failed = [], 0
+        twin_rates: dict[tuple[str, str], list[int]] = {}
+        prompt_hashes: set[str] = set()
         for case in cases:
             begun = time.monotonic()
-            answer = call(case)
+            answer = adapter_for(case)(case)
             elapsed_ms = round((time.monotonic() - begun) * 1000)
             reasons = score(case, answer["answer"])
             failed += bool(reasons)
@@ -406,9 +518,33 @@ def main(argv: list[str]) -> int:
                     "answer_sha256": hashlib.sha256(
                         answer["answer"].encode("utf-8")
                     ).hexdigest(),
+                    # Spec 007 (its FR-050): the twin's guard, and the pack's hash the answer was grounded in.
+                    **(
+                        {
+                            "guard": answer.get("guard"),
+                            "pack_sha256": answer.get("pack_sha256"),
+                        }
+                        if "twin" in case
+                        else {}
+                    ),
                 }
             )
+            if case.get("kind") == "golden":
+                rate = twin_rates.setdefault(
+                    (twin_topic(case["id"]), case["twin"]["path"]), [0, 0]
+                )
+                rate[0] += not reasons
+                rate[1] += 1
+            if "twin" in case and answer.get("prompt_sha256"):
+                prompt_hashes.add(answer["prompt_sha256"])
         cost = sum(r["cost_micro_usd"] for r in results)
+        # Each topic's and path's Golden Q&A pass rate, against the readiness file's threshold: information, which
+        # fails nothing here (spec 007, FR-031; evals/twin_readiness.py reads the committed history).
+        for (topic, path), (passed, total) in sorted(twin_rates.items()):
+            print(
+                f"twin {topic} {path}: {passed} of {total} golden cases passed"
+                f" ({passed / total:.0%}; the threshold is {TWIN_GOLDEN_THRESHOLD:.0%})"
+            )
         if args.adapter != "fake":
             record = {
                 "suite": args.suite,
@@ -426,6 +562,9 @@ def main(argv: list[str]) -> int:
                 },
                 "results": results,
             }
+            if prompt_hashes:
+                # The prompt hashes the twin's cases ran at (spec 007, FR-050): one, unless the stack changed mid-run.
+                record["prompt_sha256"] = sorted(prompt_hashes)
             print(
                 f"history: {write_history(args.suite, args.adapter, record).relative_to(EVALS.parent)}"
             )

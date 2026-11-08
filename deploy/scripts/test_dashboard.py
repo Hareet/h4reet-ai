@@ -45,8 +45,9 @@ US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
 ROOM = ("7.8",)  # spec 002's usage events (contracts/room-events.md §4)
 REQUIRED = US1 + US2 + US3 + ROOM
+# §7.10, spec 007's conversation (its FR-045): whole, as its own tests below require.
 # §7.9, spec 004's "Room live state": all or nothing now, required at its User Story 8 switch-on.
-SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8", "7.9")
+SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8", "7.9", "7.10")
 DATASOURCES = {
     "prom": "prometheus",
     "loki": "loki",
@@ -369,6 +370,8 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         "Store state (authoritative)",
         "Audit log",
         "Fallback spend in studio windows",
+        # Spec 007's model panel reads gateway.v_twin_models (its departure D7).
+        "The model each turn used",
     }
     for panel in sql:
         (target,) = panel["targets"]
@@ -396,6 +399,7 @@ ROWS = {
     "Audit and alerts": "7.5",
     "Telemetry health": "7.6",
     "Room": "7.8",
+    "Room conversation": "7.10",
     "Studio GPU windows": STUDIO_ROW,
     dev_time_row(): "7.7",
 }
@@ -866,3 +870,75 @@ def test_the_dashboard_holds_none_of_room_live_state_yet() -> None:
             ]
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
     assert "Room live state" not in rows
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 007's conversation (telemetry.md §7.10; its FR-045, Amendment 0-5; tasks.md T045)
+# --------------------------------------------------------------------------------------------------
+
+CONVERSATION_SERIES = {
+    "h4_twin_turns_total",
+    "h4_twin_turn_duration_seconds_bucket",
+    "h4_twin_turn_duration_seconds_count",
+    "h4_twin_withheld_total",
+    "h4_cost_usd_total",
+}
+
+
+def test_the_conversation_row_has_the_contracts_exact_queries() -> None:
+    assert contract_panels("7.10"), "no panels parsed from telemetry.md §7.10"
+    found = by_title()
+    for title, (_kind, expected) in contract_panels("7.10").items():
+        assert title in found, f"§7.10 {title}"
+        assert queries(found[title]) == expected, title
+
+
+def test_the_conversation_row_is_whole_and_sits_below_the_room_row() -> None:
+    expected = contract_panels("7.10")
+    assert list(expected) == [
+        "Turns per feature, by outcome",
+        "Cost per feature, today",
+        "Turn latency, p95 by feature",
+        "Cost per feature, 30 days",
+        "Turn errors by feature",
+        "Degraded turns by cause",
+        "Answers withheld, by guard",
+        "Answered locally",
+        "The model each turn used",
+    ]
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert rows.index("Room") + 1 == rows.index("Room conversation")
+
+
+def test_the_conversation_reads_only_the_twins_series_and_never_a_visitor_label() -> (
+    None
+):
+    # FR-043: no series holds the visitor's words, the answer, the path, or a client identifier, so no panel can
+    # split by one: every grouping is the feature, the outcome, the cause, the guard, the decision, or a bucket.
+    allowed = {"h4_room_feature", "h4_outcome", "h4_cause", "h4_twin_guard", "le"}
+    for title in contract_panels("7.10"):
+        panel = by_title()[title]
+        if panel["datasource"]["uid"] != "prom":
+            continue
+        for expr in queries(panel):
+            names = metric_names(expr)
+            assert names and names <= CONVERSATION_SERIES, (title, names)
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", expr):
+                assert {g.strip() for g in group.split(",")} <= allowed, title
+            assert "path" not in expr and "client" not in expr, title
+
+
+def test_each_features_cost_sits_beside_its_latency_and_errors() -> None:
+    # Principle V: "every dashboard shows spend next to latency and errors".
+    cost = by_title()["Cost per feature, today"]["gridPos"]
+    latency = by_title()["Turn latency, p95 by feature"]["gridPos"]
+    errors = by_title()["Turn errors by feature"]["gridPos"]
+    month = by_title()["Cost per feature, 30 days"]["gridPos"]
+    assert cost["y"] == latency["y"] and month["y"] == errors["y"]
+
+
+def test_the_model_panel_reads_the_view_and_no_visit() -> None:
+    (target,) = by_title()["The model each turn used"]["targets"]
+    assert "gateway.v_twin_models" in target["rawSql"]
+    for column in ("client_label", "request_id", "trace_id"):
+        assert column not in target["rawSql"]

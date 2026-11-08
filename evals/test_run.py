@@ -89,8 +89,10 @@ def suite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_the_committed_product_suite_passes_on_fake(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Spec 007 (its FR-049) generates the twin's cases beside the scaffold's one: every committed case passes.
+    count = len(list((REPO / "evals" / "product" / "cases").glob("*.yaml")))
     assert run.main(["--suite", "product", "--adapter", "fake"]) == 0
-    assert "1 passed, 0 failed" in capsys.readouterr().out
+    assert f"{count} passed, 0 failed" in capsys.readouterr().out
 
 
 def test_the_committed_narration_suite_passes_on_fake(
@@ -316,3 +318,111 @@ def test_history_never_replaces_an_existing_path(
     with pytest.raises(run.AdapterError, match="FileExistsError"):
         run.write_history("demo", "local", {"x": 1})
     assert target.read_text(encoding="utf-8") == "KEEP=1\n"
+
+
+# --- Spec 007's twin cases (its FR-049, FR-050; plan §8; tasks.md T038) ---
+
+TWIN_CASE = (
+    "id: twin-04-hobbies-and-travel-q1-engineer\n"
+    "kind: golden\n"
+    "prompt: Do you snowboard?\n"
+    "twin:\n"
+    "  feature: bicycle\n"
+    "  path: engineer\n"
+    "  turns:\n"
+    "    - role: visitor\n"
+    "      text: Do you snowboard?\n"
+    "fake_response: Every winter.\n"
+    "expect:\n"
+    "  contains: [winter]\n"
+)
+
+STAND_IN_CLIENT = (
+    "CALLS = []\n"
+    "class AdminClient:\n"
+    "    def __init__(self, stack):\n"
+    "        self.stack = stack\n"
+    "    def twin_turn(self, adapter_id, *, feature, path, turns, reason):\n"
+    "        CALLS.append((self.stack, adapter_id, feature, path, turns, reason))\n"
+    "        return {'text': 'Every winter, on the mountain.', 'feature': feature, 'route': adapter_id,\n"
+    "                'cost_micro_usd': 0, 'guard': None, 'model': 'stand-in',\n"
+    "                'usage': {'input_tokens': 900, 'output_tokens': 7}, 'trace_id': 'ab' * 16,\n"
+    "                'pack_sha256': 'c' * 64, 'prompt_sha256': 'd' * 64}\n"
+)
+
+
+@pytest.fixture
+def twin_suite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An isolated evals/ tree with one twin case, and a stand-in for the operator client that records each call."""
+    monkeypatch.setattr(run, "EVALS", tmp_path / "evals")
+    monkeypatch.setattr(run, "STATE", tmp_path / "state")
+    cases = tmp_path / "evals" / "demo" / "cases"
+    cases.mkdir(parents=True)
+    (cases / "twin-a.yaml").write_text(TWIN_CASE, encoding="utf-8")
+    scripts = tmp_path / "repo" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "operator.py").write_text(STAND_IN_CLIENT, encoding="utf-8")
+    monkeypatch.setattr(run, "REPO", tmp_path / "repo")
+    return tmp_path / "evals"
+
+
+def test_twin_cases_load_with_their_twin_and_kind(twin_suite: Path) -> None:
+    (case,) = run.load_cases("demo")
+    assert case["kind"] == "golden"
+    assert case["twin"] == {
+        "feature": "bicycle",
+        "path": "engineer",
+        "turns": [{"role": "visitor", "text": "Do you snowboard?"}],
+    }
+
+
+def test_a_twin_case_with_a_bad_twin_or_kind_is_a_usage_error(twin_suite: Path) -> None:
+    path = twin_suite / "demo" / "cases" / "twin-a.yaml"
+    for bad in (
+        TWIN_CASE.replace("kind: golden", "kind: secret"),
+        TWIN_CASE.replace("path: engineer", "path: manager"),
+        TWIN_CASE.replace("role: visitor", "role: system"),
+    ):
+        path.write_text(bad, encoding="utf-8")
+        with pytest.raises(run.AdapterError):
+            run.load_cases("demo")
+
+
+def test_twin_cases_pass_on_the_fake_adapter_from_their_fake_response(
+    twin_suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 0
+    assert "1 passed, 0 failed" in capsys.readouterr().out
+
+
+def test_a_live_twin_case_goes_through_the_admin_twin_route_with_its_guard_and_hashes(
+    twin_suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert run.main(["--suite", "demo", "--adapter", "local", "--stack", "dev"]) == 0
+    calls = sys.modules["h4_operator"].CALLS
+    assert calls == [
+        (
+            "dev",
+            "local",
+            "bicycle",
+            "engineer",
+            [{"role": "visitor", "text": "Do you snowboard?"}],
+            "evals demo twin-04-hobbies-and-travel-q1-engineer",
+        )
+    ]
+    (path,) = (twin_suite / "demo" / "history").iterdir()
+    text = path.read_text(encoding="utf-8")
+    record = json.loads(text)
+    (result,) = record["results"]
+    assert result["guard"] is None
+    assert result["pack_sha256"] == "c" * 64
+    assert record["prompt_sha256"] == ["d" * 64]
+    assert "Every winter, on the mountain." not in text
+    out = capsys.readouterr().out
+    assert "twin 04-hobbies-and-travel engineer: 1 of 1 golden cases passed" in out
+
+
+def test_a_bedrock_twin_case_names_bedrock_on_prod(twin_suite: Path) -> None:
+    assert run.main(["--suite", "demo", "--adapter", "bedrock"]) == 0
+    stack, adapter, *_ = sys.modules["h4_operator"].CALLS[-1]
+    assert (stack, adapter) == ("prod", "bedrock")

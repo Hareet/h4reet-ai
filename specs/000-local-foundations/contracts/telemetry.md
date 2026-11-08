@@ -506,7 +506,7 @@ The row's title is "Room": what the room's visitors use, counted with no visitor
 - **Per day** is the 24 hours before the range's end. The two use panels read one instant there, and the PDF stat shows its last value, so the default range shows the last 24 hours, and a range that ends at a past midnight shows that day (the dashboard is in UTC). The gateway's clock gives each event its time; the browser sends none.
 - **The 2D share** is `mode_2d` over `resume_opened` plus `resume_kept`, a stand-in for visits, since no visit is counted (FR-054). Every visit that reaches the room ends its hand-off with one of the two; one that keeps the resume and opens it later counts twice, so the share reads low rather than high. With no visit in the range it has no value.
 - **Turns sent** count the text box's sends; **talk presses**, the talk button's. Both answer with a fixed message until the twin's conversation exists.
-- **Waiting for their groups** (FR-056's other panels, which have no data until their calls exist): each room feature's cost today and this month beside its latency and errors, from `h4_cost_usd_total` and the duration series by the turn endpoint's `h4.room.feature`; turns per room feature; the room's degraded responses by cause; and the model each step used come with conversations (spec 002's group 7). Recognition's latency and failures come with push-to-talk (group 8), and the voice's failures with the voice (group 9).
+- **Waiting for their groups** (FR-056's other panels, which have no data until their calls exist): the conversation's panels, each room feature's cost beside its latency and errors, turns per room feature, degraded turns by cause, withheld answers, and the model each turn used, are §7.10's, which spec 007 adds (its Amendment 0-5). Recognition's latency and failures come with push-to-talk (group 8), and the voice's failures with the voice (group 9).
 
 ### 7.9 Room live state (spec 004)
 
@@ -521,6 +521,25 @@ The row's title is "Room live state": the status requests behind the room's lapt
 - **Status requests** are every `GET /api/status` the relay answers, on both listeners: the room's polls, at most 2 a minute per visible, unpaused room; the `/status/` page's, every 60 s while it's visible; the snapshot sink's reads; and probes. The room's polls and the `/status/` page's can't be told apart, and both panels' descriptions say so.
 - **The 429s** are the status bucket's, `status_per_minute`: 30 a minute with a burst of 10, per address, shared by every visitor behind one address. A refused poll leaves that room's laptop at unknown until its next answer.
 - **Time in each class** is the share of the range the gauge spent at 1 in each class, read once at the range's end. It's the relay's view: a room's own rows (the live source, pause, a failed or stale request, a fallback reply) aren't in it.
+
+### 7.10 Room conversation (spec 007)
+
+The row's title is "Room conversation": the twin's turns, from `h4_twin_turns_total`, `h4_twin_turn_duration_seconds`, `h4_twin_withheld_total`, and `h4_cost_usd_total`'s `h4_room_feature`, and the model each turn used, from the store's `gateway.v_twin_models` through `grafana_ro` (spec 007, FR-045; its Amendment 0-5; its plan §9, departures D7 and D12). It sits below "Room", and below "Room live state" once that row exists. Each feature's cost sits beside its latency and its errors (Principle V). No panel reads a visitor's words, an answer, or a path: no series holds them.
+
+| Panel | Type | Query |
+|---|---|---|
+| Turns per feature, by outcome (FR-045) | bar chart | `sum by (h4_room_feature, h4_outcome) (increase(h4_twin_turns_total[$__rate_interval]))` |
+| Cost per feature, today (FR-045) | bar chart | `sum by (h4_room_feature) (increase(h4_cost_usd_total{h4_room_feature!="none", h4_meter_attribution!="test"}[1d]))` |
+| Turn latency, p95 by feature (FR-045) | time series | `histogram_quantile(0.95, sum by (le, h4_room_feature) (rate(h4_twin_turn_duration_seconds_bucket[$__rate_interval])))` |
+| Cost per feature, 30 days (FR-045) | bar chart | `sum by (h4_room_feature) (increase(h4_cost_usd_total{h4_room_feature!="none", h4_meter_attribution!="test"}[30d]))` |
+| Turn errors by feature (FR-045) | time series | `sum by (h4_room_feature) (increase(h4_twin_turns_total{h4_outcome=~"error\|degraded"}[$__rate_interval]))` |
+| Degraded turns by cause (FR-045) | bar chart | `sum by (h4_cause) (increase(h4_twin_turns_total{h4_outcome="degraded"}[$__rate_interval]))` |
+| Answers withheld, by guard (FR-045) | bar chart | `sum by (h4_twin_guard) (increase(h4_twin_withheld_total[$__rate_interval]))` |
+| Answered locally (FR-045) | stat, as a share | `sum(increase(h4_twin_turn_duration_seconds_count{h4_route_decision="local"}[$__range])) / sum(increase(h4_twin_turn_duration_seconds_count{h4_route_decision=~"local\|fallback"}[$__range]))` |
+| The model each turn used (FR-045) | table (SQL) | `SELECT request_model, room_feature, count(*) AS turns FROM gateway.v_twin_models WHERE ts > now() - interval '1 day' GROUP BY request_model, room_feature ORDER BY turns DESC` |
+
+- **Today** is the 24 hours before the range's end, and **30 days** the 30 before it: rolling windows, while the meter's own day and month stay the calendar's in UTC. The Author's evaluation calls, attributed `test`, are left out of the cost.
+- **Answered locally** is the share of answered turns the local model answered over the range; a turn that degraded or was refused counts in neither part.
 
 ## 8. What holds this contract
 

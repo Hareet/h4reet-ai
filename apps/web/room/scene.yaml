@@ -22,7 +22,7 @@
 # there.
 version: 1
 look: inked-cel
-live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
+live: { source: off, poll_s: 30, freshness_s: 35, turn: site, asset_events: off }
 placements:
   - { id: room-shell, piece: room-shell, frame: true }
   - id: work-desk

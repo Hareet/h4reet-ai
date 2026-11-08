@@ -21,3 +21,12 @@ messages:
     text: The room didn't catch that. Try again, or type instead.
   - id: utterance_limit
     text: That's the longest one recording can be, so the room stopped listening and used what it heard.
+  # Spec 007's four (its FR-038, Amendment 2-2; plan §7): proposed words, for the Author's read.
+  - id: twin_answering
+    text: The twin is answering.
+  - id: turn_refused.slow_down
+    text: You're sending messages faster than the twin can answer. Wait a moment, then try again.
+  - id: turn_refused.unreadable
+    text: The twin couldn't read that message. Try a shorter one.
+  - id: turn_stopped
+    text: Stopped. Ask again whenever you like.

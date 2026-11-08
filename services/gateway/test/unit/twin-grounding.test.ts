@@ -25,7 +25,7 @@ vi.mock("node:net", async (original) => {
 import { buildGrounding } from "../../src/twin/grounding.js";
 import { parsePack, type Pack } from "../../src/twin/pack.js";
 import { Ranker } from "../../src/twin/retrieve.js";
-import { committed } from "../helpers/twin.js";
+import { ROOM, committed } from "../helpers/twin.js";
 
 function pack(): Pack {
   const load = parsePack(committed("corpus.json"));
@@ -48,14 +48,14 @@ describe("a turn's grounding (FR-008)", () => {
     const g = buildGrounding({
       pack: p,
       ranker,
-      feature: "snowboard",
+      feature: ROOM.lead.id,
       turns: [],
       freeTalkReady: true,
       budgetChars: BIG,
     });
-    expect(g.topic).toBe("hobbies-and-travel");
-    expect(g.lead).toBe("Winter hobbies first.");
-    expect(filesOf(g.sections.map((s) => s.id))).toEqual(["corpus/00-profile.md", "corpus/04-hobbies-and-travel.md"]);
+    expect(g.topic).toBe(ROOM.lead.topic);
+    expect(g.lead).toBe(ROOM.lead.lead);
+    expect(filesOf(g.sections.map((s) => s.id))).toEqual(["corpus/00-profile.md", ...ROOM.lead.files]);
     expect(g.rules.do_not_claim.length).toBeGreaterThan(10);
     // 00 first, then the topic's sections in file order.
     const order = g.sections.map((s) => p.sections.indexOf(s));
@@ -68,13 +68,20 @@ describe("a turn's grounding (FR-008)", () => {
     const closed = buildGrounding({
       pack: p,
       ranker,
-      feature: "laptop",
+      feature: ROOM.second.id,
       turns,
       freeTalkReady: false,
       budgetChars: BIG,
     });
-    expect(filesOf(closed.sections.map((s) => s.id))).toEqual(["corpus/00-profile.md", "corpus/06-work-projects.md"]);
-    const open = buildGrounding({ pack: p, ranker, feature: "laptop", turns, freeTalkReady: true, budgetChars: BIG });
+    expect(filesOf(closed.sections.map((s) => s.id))).toEqual(["corpus/00-profile.md", ...ROOM.second.files]);
+    const open = buildGrounding({
+      pack: p,
+      ranker,
+      feature: ROOM.second.id,
+      turns,
+      freeTalkReady: true,
+      budgetChars: BIG,
+    });
     expect(filesOf(open.sections.map((s) => s.id))).toContain("corpus/01-ai-strategy-and-cht.md");
     expect(open.lead).toBeNull();
   });
@@ -94,25 +101,25 @@ describe("a turn's grounding (FR-008)", () => {
     const full = buildGrounding({
       pack: p,
       ranker,
-      feature: "chalkboard",
+      feature: ROOM.third.id,
       turns: [],
       freeTalkReady: false,
       budgetChars: BIG,
     });
-    const topicSections = full.sections.filter((s) => s.file === "corpus/05-mission.md");
+    const topicSections = full.sections.filter((s) => ROOM.third.files.includes(s.file));
     expect(topicSections.length).toBeGreaterThan(3);
     const bound = full.chars - (topicSections.at(-1)?.chars ?? 0) - (topicSections.at(-2)?.chars ?? 0) - 100;
     const cut = buildGrounding({
       pack: p,
       ranker,
-      feature: "chalkboard",
+      feature: ROOM.third.id,
       turns: [],
       freeTalkReady: false,
       budgetChars: bound,
     });
     expect(cut.chars).toBeLessThanOrEqual(bound);
     expect(cut.dropped).toBeGreaterThanOrEqual(2);
-    const kept = cut.sections.filter((s) => s.file === "corpus/05-mission.md").map((s) => s.id);
+    const kept = cut.sections.filter((s) => ROOM.third.files.includes(s.file)).map((s) => s.id);
     expect(kept).toEqual(topicSections.slice(0, kept.length).map((s) => s.id));
   });
 
@@ -147,12 +154,12 @@ describe("a turn's grounding (FR-008)", () => {
     const g = buildGrounding({
       pack: p,
       ranker,
-      feature: "snowboard",
+      feature: ROOM.lead.id,
       turns: [],
       freeTalkReady: false,
       budgetChars: BIG,
     });
-    expect(g.text).toContain("Winter hobbies first.");
+    expect(g.text).toContain(ROOM.lead.lead ?? "");
     expect(g.text).toContain(p.rules.rulings.text);
     for (const s of g.sections) expect(g.text).toContain(s.text);
   });

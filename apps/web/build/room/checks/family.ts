@@ -143,6 +143,10 @@ export interface ComposeOptions {
   readonly mode: "strict" | "lenient";
   /** A drafts build: draft room text, fixtures, and lookdev. */
   readonly drafts: boolean;
+  /** The twin's readiness (spec 007, FR-037; departure D3), which the build reads from config/twin-readiness.yaml by
+   *  the gateway's rule (build/room/readiness.ts) and hands in, so the compositor's own reads stay the room's data.
+   *  Absent, nothing is ready. */
+  readonly readiness?: { readonly topics: ReadonlyMap<string, boolean>; readonly freeTalk: boolean };
 }
 
 const RULE_PARTS = /^([A-Z]+)(\d+)$/;

@@ -14,7 +14,10 @@ import { bedrockConfigDir, MODEL } from "../helpers/bedrock-config.js";
 import { testStack, type TestStack } from "../helpers/stack.js";
 import { stubBedrock, type StubBedrock } from "../helpers/stub-bedrock.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
-import { twinWith } from "../helpers/twin.js";
+import { ROOM, short, twinWith } from "../helpers/twin.js";
+
+/** An evaluation call's reason, as evals/run.py writes it for a generated case. */
+const REASON = `evals product twin-${short(ROOM.lead.files[0] ?? "")}-q1-engineer`;
 import { TWIN_LIMITS_BLOCK } from "../helpers/twin-stack.js";
 
 type Rec = Record<string, unknown>;
@@ -73,11 +76,11 @@ async function prod(): Promise<TestStack> {
 }
 
 const body = (o: Rec = {}) => ({
-  feature: "snowboard",
+  feature: ROOM.lead.id,
   path: "engineer",
   turns: [],
   adapter: "local",
-  reason: "evals product twin-04-hobbies-and-travel-q1-engineer",
+  reason: REASON,
   ...o,
 });
 const call = (s: TestStack, b: unknown, headers: Record<string, string> = s.auth()) =>
@@ -106,13 +109,15 @@ describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
 
   it("runs the pipeline on the local adapter whatever readiness says, and adds what the runners record", async () => {
     const s = await prod();
-    openai.next({ ok: { text: "Winter first: he snowboards.", inputTokens: 900, outputTokens: 9, finish: "stop" } });
+    openai.next({
+      ok: { text: "Winter first: he rides every season.", inputTokens: 900, outputTokens: 9, finish: "stop" },
+    });
     const res = await call(s, body());
     expect(res.statusCode).toBe(200);
     const b = res.json() as Rec;
     expect(b).toMatchObject({
-      text: "Winter first: he snowboards.",
-      feature: "snowboard",
+      text: "Winter first: he rides every season.",
+      feature: ROOM.lead.id,
       route: "local",
       guard: null,
       model: "stand-in",
@@ -124,9 +129,9 @@ describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
     expect(String(b.prompt_sha256)).toMatch(/^[0-9a-f]{64}$/);
     const audit = (await s.db.pg.query<Rec>("SELECT action, reason FROM gateway.audit_log WHERE action = 'twin_call'"))
       .rows;
-    expect(audit).toEqual([{ action: "twin_call", reason: "evals product twin-04-hobbies-and-travel-q1-engineer" }]);
+    expect(audit).toEqual([{ action: "twin_call", reason: REASON }]);
     const rows = (await s.db.pg.query<Rec>("SELECT purpose, room_feature, room_topic FROM gateway.ledger")).rows;
-    expect(rows).toEqual([{ purpose: "twin", room_feature: "snowboard", room_topic: "hobbies-and-travel" }]);
+    expect(rows).toEqual([{ purpose: "twin", room_feature: ROOM.lead.id, room_topic: ROOM.lead.topic }]);
   });
 
   it("names the guard that withheld an answer", async () => {

@@ -80,3 +80,30 @@ export function allReady(): TwinLoad {
   const topics = Object.fromEntries(Object.keys(hashes.topics).map((id) => [id, { ready: true } as ReadyEntry]));
   return twinWith(readinessText({ topics, freeTalk: { ready: true } }, hashes));
 }
+
+interface PackPiece {
+  id: string;
+  topic: string;
+  files: string[];
+  lead: string | null;
+}
+
+/**
+ * The room's pieces as the committed pack names them (config/room-topics.yaml's selectables), by their place in the
+ * data, so no test holds an ID that only the room's data defines (spec 004, FR-007: its scan reads these tests).
+ * - lead: the piece with a lead; leadless: the other piece of its topic;
+ * - second and third: the first pieces of the next two topics, in the data's order.
+ */
+export const ROOM = ((): { lead: PackPiece; leadless: PackPiece; second: PackPiece; third: PackPiece } => {
+  const { selectables } = JSON.parse(committed("corpus.json")) as { selectables: PackPiece[] };
+  const lead = selectables.find((s) => s.lead !== null);
+  const leadless = selectables.find((s) => s.topic === lead?.topic && s.lead === null);
+  const others = selectables.filter((s) => s.topic !== lead?.topic);
+  const second = others[0];
+  const third = others.find((s) => s.topic !== second?.topic);
+  if (!lead || !leadless || !second || !third) throw new Error("the committed pack's selectables changed shape");
+  return { lead, leadless, second, third };
+})();
+
+/** A corpus file's short name, as the prompt's delimiter lines write it: `NN-<topic>` for `corpus/NN-<topic>.md`. */
+export const short = (file: string): string => file.replace(/^corpus\//, "").replace(/\.md$/, "");

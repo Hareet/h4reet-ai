@@ -10,7 +10,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { isHealthProbe } from "../../src/telemetry/otel.js";
-import { readinessText, twinWith } from "../helpers/twin.js";
+import { ROOM, readinessText, twinWith } from "../helpers/twin.js";
 import { twinStack, type TwinStack } from "../helpers/twin-stack.js";
 
 const exporter = new tracing.InMemorySpanExporter();
@@ -46,7 +46,7 @@ afterEach(async () => {
 
 const WORDS = "what-the-visitor-typed-qx";
 const ANSWER = "An answer the model gave, kept out of telemetry.";
-const READY = readinessText({ topics: { "work-projects": { ready: true } }, freeTalk: { ready: true } });
+const READY = readinessText({ topics: { [ROOM.second.topic]: { ready: true } }, freeTalk: { ready: true } });
 
 async function collect(): Promise<string> {
   const result = await reader.collect();
@@ -63,23 +63,23 @@ describe("a turn's spans (FR-043)", () => {
     stacks.push(t);
     t.stub.next({ ok: { text: ANSWER, inputTokens: 900, outputTokens: 12, finish: "stop" } });
     const res = await t.turn(
-      { feature: "laptop", path: "non-engineer", turns: [{ role: "visitor", text: `Tell me ${WORDS}` }] },
+      { feature: ROOM.second.id, path: "non-engineer", turns: [{ role: "visitor", text: `Tell me ${WORDS}` }] },
       { "x-h4-client": "author-terminal" },
     );
     expect(res.statusCode).toBe(200);
     const spans = exporter.getFinishedSpans();
     const server = spans.find((s) => s.kind === SpanKind.SERVER && s.attributes["http.route"] === "/room/turn");
     expect(server?.attributes).toMatchObject({
-      "h4.room.feature": "laptop",
-      "h4.room.topic": "work-projects",
+      "h4.room.feature": ROOM.second.id,
+      "h4.room.topic": ROOM.second.topic,
       "h4.outcome": "ok",
     });
     expect(String(server?.attributes["h4.twin.pack_sha"])).toMatch(/^[0-9a-f]{64}$/);
     expect(String(server?.attributes["h4.twin.prompt_sha"])).toMatch(/^[0-9a-f]{64}$/);
     for (const name of ["gateway.route", "chat stand-in"]) {
       expect(spans.find((s) => s.name === name)?.attributes, name).toMatchObject({
-        "h4.room.feature": "laptop",
-        "h4.room.topic": "work-projects",
+        "h4.room.feature": ROOM.second.id,
+        "h4.room.topic": ROOM.second.topic,
       });
     }
     const everything = JSON.stringify([spans.map((s) => s.attributes), t.s.logged]);
@@ -104,7 +104,11 @@ describe("a turn's spans (FR-043)", () => {
     const t = await twinStack({ twin: twinWith(READY), metrics: new GatewayMetrics(meterProvider.getMeter("twin-2")) });
     stacks.push(t);
     t.stub.next({ ok: { text: "He has built 4321 agents.", inputTokens: 900, outputTokens: 12, finish: "stop" } });
-    const res = await t.turn({ feature: "laptop", path: "engineer", turns: [{ role: "visitor", text: "How many?" }] });
+    const res = await t.turn({
+      feature: ROOM.second.id,
+      path: "engineer",
+      turns: [{ role: "visitor", text: "How many?" }],
+    });
     expect(res.statusCode).toBe(200);
     const server = exporter
       .getFinishedSpans()
@@ -116,7 +120,7 @@ describe("a turn's spans (FR-043)", () => {
   it("names the degraded cause on a degraded turn", async () => {
     const t = await twinStack({ twin: twinWith(READY), healthy: false });
     stacks.push(t);
-    const res = await t.turn({ feature: "laptop", path: "engineer", turns: [] });
+    const res = await t.turn({ feature: ROOM.second.id, path: "engineer", turns: [] });
     expect(res.statusCode).toBe(503);
     const server = exporter
       .getFinishedSpans()

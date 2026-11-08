@@ -20,10 +20,13 @@ import type { RoomManifest as BundleManifest } from "./room/emit";
 /** Where the gateway reads the events' kinds and IDs, from the repository's root. */
 export const ROOM_EVENTS_PATH = "config/room-events.yaml";
 
-/** What the page gets at build: its fixed messages and its manifest, Amendment B7's. */
+/** What the page gets at build: its fixed messages and its manifest, Amendment B7's; and the twin's per-turn limits
+ *  (spec 007, FR-027, FR-041), config/budgets.yaml's limits.twin or FR-027's defaults, which the text box and the
+ *  history window follow. */
 export interface RoomContent {
   messages: Messages;
   manifest: BundleManifest;
+  twin?: { limits: { turnMaxChars: number; historyMaxTurns: number; historyMaxChars: number } };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -36,6 +39,8 @@ const list = (key: string, values: readonly string[]): string =>
  *  SHA-256 as the policy read them, and the resume's item IDs. */
 export interface ManifestParts {
   readonly index: Pick<RoomIndex, "build" | "live" | "selectables" | "topics">;
+  /** Free talk's readiness, by FR-030's rule (spec 007, FR-037); not ready without it. */
+  readonly freeTalkReady?: boolean;
   readonly standins: BundleManifest["standins"];
   readonly caps: BundleManifest["caps"];
   readonly items: readonly string[];
@@ -52,7 +57,7 @@ export function roomManifest(parts: ManifestParts): BundleManifest {
         ? { id: s.id, action: "talk" as const, topic: s.action.topic, ready: ready.get(s.action.topic) ?? false }
         : { id: s.id, action: "resume" as const, topic: null, ready: null },
     ),
-    free_talk: { ready: false },
+    free_talk: { ready: parts.freeTalkReady ?? false },
     items: [...parts.items],
     avatars: AVATARS.map((a) => a.id),
     placeholders: parts.index.build.placeholders,

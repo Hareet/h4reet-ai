@@ -22,13 +22,13 @@
 // - hashes: SHA-256 of canonical JSON, per topic (the rules, the quotes, `00`, the topic's files, its selectables) and
 //   whole, which the gateway recomputes at load and readiness binds (FR-030).
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml } from "yaml";
 
-import { OWNERSHIP_VERBS, factsIn, fillSlots } from "./content";
+import { OWNERSHIP_VERBS, factsIn, fillSlots, keyPhrases } from "./content";
 import type { Fact } from "./content";
 
 export const PACK_PATH = "config/twin/corpus.json";
@@ -628,6 +628,168 @@ export function movedFiles(committed: unknown, fresh: TwinPack): string[] {
   return [...new Set([...a.keys(), ...b.keys()])].filter((f) => a.get(f) !== b.get(f)).sort();
 }
 
+// ---- The product cases (FR-049; plan §8; departure D11) ----
+
+/** Where the generated cases go, beside the scaffold's one: `twin-<file>-q<n>-<path>.yaml`. */
+export const CASES_DIR = "evals/product/cases";
+export const PATHS = ["engineer", "non-engineer"] as const;
+
+export interface GeneratedCase {
+  readonly id: string;
+  readonly kind: "golden" | "gap";
+  /** The corpus file the case comes from. */
+  readonly source: string;
+  readonly description: string;
+  readonly prompt: string;
+  readonly twin: {
+    readonly feature: string;
+    readonly path: (typeof PATHS)[number];
+    readonly turns: readonly { readonly role: "visitor"; readonly text: string }[];
+  };
+  readonly fake_response: string;
+  readonly expect: {
+    readonly contains: readonly string[];
+    readonly not_contains: readonly string[];
+    readonly regex?: string;
+  };
+}
+
+/** The feature a file's cases are asked under: its topic's selectable for a selectable's file, one with no lead first
+ *  (so the bicycle for 04, where the snowboard's lead would bend the answer), and free talk for every other file. */
+export function caseFeature(pack: Pick<TwinPack, "selectables">, file: string): string {
+  const candidates = pack.selectables
+    .filter((s) => s.files.includes(file))
+    .sort((a, b) => Number(a.lead !== null) - Number(b.lead !== null) || (a.id < b.id ? -1 : 1));
+  return candidates[0]?.id ?? "free_talk";
+}
+
+const COMMON_CAPITALS = new Set([
+  "I",
+  "I'm",
+  "I'd",
+  "I've",
+  "I'll",
+  "The",
+  "A",
+  "An",
+  "And",
+  "But",
+  "Yes",
+  "No",
+  "It",
+  "He",
+  "She",
+  "We",
+  "They",
+  "Then",
+  "Today",
+  "That",
+  "This",
+  "Our",
+  "My",
+  "His",
+  "Her",
+]);
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Up to three anchors from an answer, in order: its numbers, its proper nouns and hyphenated names, and its ownership
+ *  verbs; the answer's longest word when it has none (plan §8). Each appears in the answer as written. */
+export function anchorsOf(answer: string): string[] {
+  const found: { at: number; text: string }[] = [];
+  for (const m of answer.matchAll(/\d[\d,.]*\d|\d/g)) found.push({ at: m.index ?? 0, text: m[0] });
+  // A capitalized word that doesn't start a sentence.
+  for (const m of answer.matchAll(/\b[A-Z][A-Za-z0-9]+(?:[-'’][A-Za-z0-9]+)*/g)) {
+    const at = m.index ?? 0;
+    const before = answer.slice(0, at).trimEnd();
+    if (before === "" || /[.!?:—]$/.test(before) || COMMON_CAPITALS.has(m[0])) continue;
+    found.push({ at, text: m[0] });
+  }
+  for (const m of answer.matchAll(/\b[a-z][a-z0-9]+(?:-[a-z0-9]+)+\b/g)) found.push({ at: m.index ?? 0, text: m[0] });
+  for (const verb of OWNERSHIP_VERBS) {
+    const m = new RegExp(`\\b${escapeRe(verb)}\\b`, "i").exec(answer);
+    if (m) found.push({ at: m.index, text: m[0] });
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const f of found.sort((a, b) => a.at - b.at)) {
+    const key = f.text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f.text);
+    if (out.length === 3) break;
+  }
+  if (out.length > 0) return out;
+  const words = [...answer.matchAll(/[A-Za-z]{5,}/g)].map((m) => m[0]);
+  const longest = words.sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))[0];
+  return longest === undefined ? [] : [longest];
+}
+
+/** The "Do not claim" key phrases of a case's file and of 00, as the room's content check reads them, less any the
+ *  answer itself holds. */
+function forbiddenFor(pack: Pick<TwinPack, "rules">, file: string, answer: string): string[] {
+  const low = answer.toLowerCase();
+  const phrases = pack.rules.do_not_claim
+    .filter((r) => r.file === file || r.file === PROFILE_FILE)
+    .flatMap((r) => keyPhrases(`- ${r.text}`, "Hareet"));
+  return [...new Set(phrases)].filter((p) => !low.includes(p)).sort();
+}
+
+/** The product cases generated from the pack: one for each Golden Q&A on each path. A Golden Q&A whose "question" is a
+ *  stage direction, in parentheses, is the red-team suite's, not a case here. */
+export function buildCases(pack: TwinPack): GeneratedCase[] {
+  const out: GeneratedCase[] = [];
+  for (const s of pack.sections) {
+    const g = s.golden;
+    if (g === null || g.question.startsWith("(")) continue;
+    for (const path of PATHS) {
+      out.push({
+        id: `twin-${s.id.replace("#q", "-q")}-${path}`,
+        kind: "golden",
+        source: s.file,
+        description: `${s.file}'s Golden Q&A ${g.n}, on the ${path} path: the answer carries its facts (FR-016).`,
+        prompt: g.question,
+        twin: { feature: caseFeature(pack, s.file), path, turns: [{ role: "visitor", text: g.question }] },
+        fake_response: g.answer,
+        expect: { contains: anchorsOf(g.answer), not_contains: forbiddenFor(pack, s.file, g.answer) },
+      });
+    }
+  }
+  return out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+const quoted = (s: string): string => JSON.stringify(s);
+const yamlList = (indent: string, key: string, values: readonly string[]): string =>
+  values.length === 0
+    ? `${indent}${key}: []\n`
+    : `${indent}${key}:\n${values.map((v) => `${indent}  - ${quoted(v)}\n`).join("")}`;
+
+/** Each case as its committed YAML file, every scalar double-quoted, written by the build and never by hand. */
+export function casesFiles(cases: readonly GeneratedCase[]): { path: string; text: string }[] {
+  return cases.map((c) => ({
+    path: `${CASES_DIR}/${c.id}.yaml`,
+    text: [
+      `# Generated by \`${GENERATED_BY}\` from ${c.source} (spec 007, FR-049): don't edit it by hand; make test fails\n`,
+      "# while it's stale. On the fake adapter it passes by construction; the Author's live runs score real answers.\n",
+      `id: ${quoted(c.id)}\n`,
+      `kind: ${quoted(c.kind)}\n`,
+      `description: ${quoted(c.description)}\n`,
+      `prompt: ${quoted(c.prompt)}\n`,
+      "twin:\n",
+      `  feature: ${quoted(c.twin.feature)}\n`,
+      `  path: ${quoted(c.twin.path)}\n`,
+      c.twin.turns.length === 0
+        ? "  turns: []\n"
+        : `  turns:\n${c.twin.turns.map((t) => `    - role: ${quoted(t.role)}\n      text: ${quoted(t.text)}\n`).join("")}`,
+      `fake_response: ${quoted(c.fake_response)}\n`,
+      "expect:\n",
+      yamlList("  ", "contains", c.expect.contains),
+      yamlList("  ", "not_contains", c.expect.not_contains),
+      c.expect.regex === undefined ? "" : `  regex: ${quoted(c.expect.regex)}\n`,
+    ].join(""),
+  }));
+}
+
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /** The CLI: builds the pack from the repository and writes it; exits 1 with every problem when it can't. */
@@ -645,8 +807,17 @@ export function main(root: string = REPO_ROOT): number {
   const out = join(root, PACK_PATH);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, packJson(pack));
+  // The product cases, and none left over from a corpus that has changed since.
+  const files = casesFiles(buildCases(pack));
+  const keep = new Set(files.map((f) => f.path));
+  const dir = join(root, CASES_DIR);
+  for (const name of existsSync(dir) ? readdirSync(dir) : []) {
+    const path = `${CASES_DIR}/${name}`;
+    if (name.startsWith("twin-") && name.endsWith(".yaml") && !keep.has(path)) unlinkSync(join(root, path));
+  }
+  for (const f of files) writeFileSync(join(root, f.path), f.text);
   process.stdout.write(
-    `twin:pack: wrote ${PACK_PATH}: ${pack.sections.length} sections, ${pack.topics.length} topics\n`,
+    `twin:pack: wrote ${PACK_PATH}: ${pack.sections.length} sections, ${pack.topics.length} topics; ${files.length} cases\n`,
   );
   return 0;
 }
