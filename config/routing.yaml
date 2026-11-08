@@ -28,6 +28,9 @@ adapters:
     # Haiku 5.5 thinks by default, and its thinking counts against the cap: hello's 128 tokens could end in thinking
     # with no text. Off, which this model accepts at its default effort, medium.
     additional_request_fields: { thinking: { type: disabled } }
+    # Haiku 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), so the twin's 0.3 reaches the
+    # local model alone, and Bedrock gets none (spec 010 FR-017; spec 007 D22).
+    temperature: model_default
     timeouts: { connect_ms: 1000, request_ms: 4000 }
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
