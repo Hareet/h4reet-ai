@@ -1212,7 +1212,7 @@ Both are human-only, built from plain copies (`git show` into a scratch folder, 
 | I1, G7 missed the passive voice and synonyms | G7 reads "was <verb> by" after a ruled system, and fails closed on an authorship verb off the corpus's list (wrote, authored, created, developed, implemented, and the like) beside one | `twin-guards.test.ts`, with I2 and N3: 5 failed of 27; then 27 passed, every golden answer still passing its own grounding |
 | I2, G1 allowed tags' dates and list numbers | G1 reads no number from a claim tag, an ISO date, or a list's numbering, and reads plural number words; the review's two figures are withheld on every piece's real grounding | as I1 |
 | I3, the readiness evidence couldn't fail | 29 live cases gain `forbid` patterns, so every live case can fail; a case that couldn't is `unjudged`, its answer printed, never a pass; the red-team history records the hashes and each case's feature, and the product history each case's feature; readiness holds each result to its own feature's hash, a missing hash is missing evidence, and an unjudged case leaves a run unclean | `redteam/test_run.py` 5 failed of 78, then 78 passed (my own Phase 5 live tests brought to the judged-case rule); `evals/test_twin_readiness.py` 3 failed of 10, then 10; `evals/test_run.py` 1 failed, then 27 |
-| I4, P-1 held only the canonical deny | P-1 rebuilt in spec 003's form, with CODEOWNERS, `HUMAN_ONLY`, and rule A10; T070's guard checks that P-1 is on `main` | on a patched export of `main`, the arrival check's 235 tests pass, and the patched hook refuses all three spellings |
+| I4, P-1 held only the canonical deny | P-1 rebuilt in spec 003's form, with CODEOWNERS, `HUMAN_ONLY`, and rule A10; T070's guard checks P-1's commit in the gated range above this branch's tip (since the rebase; the stacked form, base 465f1079) | on a patched export of `main`, the arrival check's 235 tests pass, and the patched hook refuses all three spellings |
 | I5, x005 forwarded the visitor's `X-H4-Client` | cleared on both of the site's gateway locations | `test_edge_site.py` 1 failed, then 37 passed with `test_edge.py` |
 | I6, a visitor's feature string reached telemetry, and the cost series started unseeded | a feature the pack doesn't name is `none`; each piece's and free talk's cost series starts at zero | `room-turn-telemetry.test.ts` 2 failed of 5, then 5; `cost-series.test.ts` unchanged |
 | I7, D19 executes `evals/twin_readiness.py` | named in `docs/START-HERE.md` §7 and above under Runs in the Author's terminal | `evals/test_repository_docs.py` 17 passed |
@@ -2317,33 +2317,37 @@ git switch main
 make evals-agent-config REF=feat/007-p1
 ```
 
-**Group B's gate (T070),** on `feat/007-p1`, and the plain guard, `main` being its base: the gate's merge line, your checkout on `main`, the branch at the SHA the gate checked, this branch below it, and P-1's commit in the gated range above this branch's tip:
+**Group B's gate (T070),** on `feat/007-p1`, and the stacked guard, base group A's top, 465f1079: once you merge group A, `main` is a merge commit whose second parent is 465f1079 and whose tree is 465f1079's, so `main` isn't below group B's tip. The guard checks the gate's merge line, your checkout on `main`, the branch at the SHA the gate checked, `main`'s second parent the base and its tree the base's (nothing else landed on `main`), P-1's commit in the gated range above this branch's tip, and this branch below the gated SHA:
 
 ```bash
 git switch main
 b=feat/007-p1
 tools/gates/gate "$b" 2>&1 | tee ~/gate-007-p1.log
 log=~/gate-007-p1.log
+base=465f10791ce0f6497fbbeecec27dd2d740618d10
 mine=refs/heads/feat/007-twin-conversation
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
 on=$(git symbolic-ref -q HEAD)
 tip=$(git rev-parse --verify "refs/heads/$b")
+p2=$(git rev-parse --verify "refs/heads/main^2")
+same=no; git diff --quiet refs/heads/main "$base" && same=yes
 r="$mine..$sha"
 p1=$(git log --format=%h "$r" -- config/twin-readiness.yaml | wc -l)
 below=no; git merge-base --is-ancestor "$mine" "$sha" && below=yes
 ok=no
-want="refs/heads/main.$sha.yes"
-c="$on.$tip.$below"
-[ "$n" -gt 0 ] && [ "$p1" -gt 0 ] && [ "$c" = "$want" ] && ok=go
+want="refs/heads/main.$sha.$base.yes"
+k="$on.$tip.$p2.$same"
+[ "$n" -gt 0 ] && [ "$p1" -gt 0 ] && [ "$k" = "$want" ] && ok=go
+[ "$below" = yes ] || ok=no
 echo "guard: $ok"
 m="Merge $b (${sha:0:12})"
 o=(--no-replace-objects merge --no-ff -m "$m" -m "$s")
 [ "$ok" = go ] && git "${o[@]}" "$sha"
 ```
 
-Expect the gate Ready. If the guard prints `guard: no`, don't merge, and tell the session. Then park off `main`:
+Expect the gate Ready. If the guard prints `guard: no`, don't merge, and tell the session. The block was run as written, in bash and in zsh, against a stub `git` and a stub gate: the good case merged, and each broken condition (another checkout, the branch moved, `main`'s second parent or tree not the base's, no P-1 commit in the range, this branch not below, no merge line) printed `guard: no` and merged nothing, 16 runs of 16. Then park off `main`:
 
 ```bash
 git switch -C wip-park/11-7-2026
