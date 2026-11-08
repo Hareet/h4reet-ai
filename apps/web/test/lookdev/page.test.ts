@@ -53,6 +53,7 @@ import type { Capability } from "../../src/room/quality";
 import { qualitySettings } from "../../src/room/scene";
 import { SCENE_TEXTURE_BYTES } from "../../src/room/scene/ledger";
 import { CABLE_NODE } from "../../src/room/scene/cables";
+import { HIGHLIGHT_PASSES } from "../../src/room/scene/highlight";
 import { MODEL_NODE, modelEntries } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
 import { outlineThickness } from "../../src/room/scene/look";
@@ -1575,8 +1576,14 @@ describe("User Story 9's sample figures on the page (T267; FR-049)", () => {
 // highlight is set aside while it measures, its control off, and the Author's choice comes back after it. The page is
 // a drafts build's alone (test/lookdev/builds.test.ts), so a release build holds none of this.
 describe("spec 008's highlight sample on the page (T010; FR-050)", () => {
-  // The stencil mask, then the two borders (the review of Phase 1, finding 2).
-  const PASSES = ["highlight:mask", "highlight:edge", "highlight:band"];
+  // The stencil mask, then the ring (the review of Phase 1, findings 1 and 2).
+  const PASSES = [...HIGHLIGHT_PASSES];
+  /** A frame's renders from its first pass on: the passes, then the labels' own render where the page shows labels
+   *  and the room has any, so no border paints over a label (finding 2). */
+  const fromPasses = (o: Opened, frame: readonly string[]): { got: string[]; want: string[] } => ({
+    got: frame.slice(frame.indexOf(PASSES[0] ?? "")),
+    want: [...PASSES, ...(o.page.stage.labels && o.page.stage.room.labels.size > 0 ? [""] : [])],
+  });
 
   function opened(): Opened & { names(): string[] } {
     const names: string[] = [];
@@ -1608,8 +1615,8 @@ describe("spec 008's highlight sample on the page (T010; FR-050)", () => {
       choose(select, s.id);
       expect(o.page.stage.highlight, s.id).toBe(s.id);
       o.clock.advance(16);
-      const frame = o.names();
-      expect(frame.slice(-3), s.id).toEqual(PASSES);
+      const { got, want } = fromPasses(o, o.names());
+      expect(got, s.id).toEqual(want);
       expect(o.page.stage.frameSample().drawCalls, s.id).toBeGreaterThan(before);
     }
     choose(select, "");
@@ -1628,7 +1635,8 @@ describe("spec 008's highlight sample on the page (T010; FR-050)", () => {
       expect(o.page.stage.look.id).toBe(look.id);
       expect(o.page.stage.highlight, look.id).toBe(id);
       o.clock.advance(16);
-      expect(o.names().slice(-3), look.id).toEqual(PASSES);
+      const { got, want } = fromPasses(o, o.names());
+      expect(got, look.id).toEqual(want);
     }
   });
 

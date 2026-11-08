@@ -33,7 +33,8 @@
 //   phone copy, which makes no request, every model from memory.
 // - Spec 008's highlight sample (T019; FR-050): any selectable the page names drawn with the room's own highlight
 //   (scene/highlight.ts), its two passes after the look's frame, in the look chosen, following a model as it swaps in
-//   or falls back; none by default, and its draws counted in the readouts with the room's.
+//   or falls back; none by default, and its draws counted in the readouts with the room's. The labels draw after the
+//   passes, as the room's do (highlight.ts's drawFrame, on its LABEL_LAYER, the layer this page's Labels shows).
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
 // the live switch held off, and to the page's status line, which says how a candidate's load ended; and a pick on the
 // canvas logs spec 002's object_selected in the log too.
@@ -75,7 +76,7 @@ import { buildFaceQuads } from "../room/scene/faces3d";
 import type { FaceQuads } from "../room/scene/faces3d";
 import { buildGlows } from "../room/scene/glows";
 import type { GlowCards } from "../room/scene/glows";
-import { createHighlight } from "../room/scene/highlight";
+import { LABEL_LAYER, createHighlight, drawFrame } from "../room/scene/highlight";
 import type { Highlight } from "../room/scene/highlight";
 import { createTextureLedger } from "../room/scene/ledger";
 import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
@@ -178,8 +179,6 @@ export interface LookdevStage {
 /** The figure the visitor's placement shows: the first avatar, as the scene's anchors are its. */
 const AVATAR = AVATARS[0].id;
 const IDLE_SWAY = 0.015;
-/** The layer the stand-ins' labels draw on, which the page's camera sees beside its own, layer 0, while Labels is on. */
-const LABEL_LAYER = 1;
 
 /** A fixture's turn as the outcome it stands for (contracts/turn-cost.md §3): a fixture's degraded turn names no
  *  cause, and none is shown. */
@@ -549,8 +548,14 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     faces?.frame(time);
     glows?.frame(time);
     renderer.info.reset();
-    ink.render(room.scene, camera);
-    highlight.render(renderer, camera);
+    drawFrame({
+      renderer,
+      scene: room.scene,
+      camera,
+      highlight,
+      labels: room.labels.size > 0,
+      drawRoom: () => ink.render(room.scene, camera),
+    });
     last = {
       drawCalls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,

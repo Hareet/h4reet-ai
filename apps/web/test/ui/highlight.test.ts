@@ -24,6 +24,7 @@ import { listOnly } from "../../src/room/compose/pick";
 import { REFERENCE_DESKTOP } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
+import { HIGHLIGHT_PASSES } from "../../src/room/scene/highlight";
 import type { SceneModule, SceneOptions } from "../../src/room/stage";
 import { button, enter, flush, intoRoom, repositoryBundle, roomIndex, start } from "../helpers/room";
 import type { TestWindow, Visit } from "../helpers/room";
@@ -361,8 +362,8 @@ async function realStage(): Promise<RealStage> {
   };
 }
 
-// The stencil mask, then the two borders (the review of Phase 1, finding 2).
-const PASSES = ["highlight:mask", "highlight:edge", "highlight:band"];
+// The stencil mask, then the ring (the review of Phase 1, findings 1 and 2).
+const PASSES = [...HIGHLIGHT_PASSES];
 const passesIn = (names: readonly string[]): string[] => names.filter((n) => n.startsWith("highlight:"));
 
 /** The centre of each selectable's core at a stage, and the IDs held there, by the runtime's own functions. */
@@ -406,7 +407,7 @@ describe("the target on the real 3D stage, through its pointer", () => {
     r.leave();
     r.move(at);
     r.v.clock.advance(16);
-    expect(passesIn(r.renders()).slice(-3)).toEqual(PASSES);
+    expect(passesIn(r.renders()).slice(-PASSES.length)).toEqual(PASSES);
   });
 
   it("targets by hover exactly what a click would select at each point, so a held side-wall selectable only by focus", async () => {
@@ -434,7 +435,7 @@ describe("the target on the real 3D stage, through its pointer", () => {
     for (const id of held) {
       listButton(r.v, id).focus();
       r.v.clock.advance(16);
-      expect(passesIn(r.renders()).slice(-3), id).toEqual(PASSES);
+      expect(passesIn(r.renders()).slice(-PASSES.length), id).toEqual(PASSES);
     }
   });
 });

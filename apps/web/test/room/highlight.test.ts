@@ -7,40 +7,24 @@
 //   and the case are found in the bundle by those relations, never by an ID written here (the source scan, FR-007).
 // - No target draws nothing: no pass, no render call (FR-049).
 // - A member's model swapped in, and back to its stand-in, is followed (FR-019).
-// - Three passes, in order: the target's draws into the stencil, then the edge, then the band, each border a back-face
-//   hull drawn after the look's frame, outside the stencil and with no depth test, so neither the target nor the
-//   surface it stands on hides it (the review of Phase 1, finding 2), its width from the look's highlight in CSS pixels
-//   on each axis of the stage (scene/look.ts's outlineThickness), the edge at the band's width plus its own; the hull's
-//   normals, each vertex's the mean of the normals its position shares, so a hard-edged box extrudes with no gap at its
-//   corners (plan.md §10), and its push mitered, so a straight edge moves the full width (finding 1): a box's and a
-//   capped tube's hulls, projected, measure the band and the edge at the look's widths and at the schema's least.
+// - Two passes, in order (FR-049): the target's draws into the stencil, then the ring, a capsule around each of a
+//   draw's edges on screen, drawn after the look's frame outside the stencil, so the target never covers it, and with
+//   its distances for depth, nearer than the room's own, so the surface the target stands on never hides it (the
+//   review of Phase 1, finding 2); its widths, the look's highlight in CSS pixels, from the stage's size. The ring's
+//   edges: each geometry's, a box face's diagonal left out. Its widths, the shaders mirrored in JS (ringVertex,
+//   ringFragment) and drawn over a box's and a capped tube's edges: every pixel within the band's width of the
+//   outline is the band's, every one beyond it to the edge's outer side the edge's, and none farther, at the look's
+//   widths and at the schema's least (finding 1).
 // - The highlight changes nothing else in the room (FR-019).
 // - In the 3D stage: the passes on the first frame after the target is set, after the room's own render, at quality
 //   levels 0 to 3 and in the inked-cel, painted, and flat looks (FR-017, FR-018), whatever setQuality does to the ink;
 //   the stand-ins' labels drawn after the passes, so a border never paints over a label (FR-019; finding 2); and a
 //   renderer with a stencil buffer.
 import { JSDOM } from "jsdom";
-import {
-  BoxGeometry,
-  BufferGeometry,
-  Color,
-  Float32BufferAttribute,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  Object3D,
-} from "three";
-import {
-  AlwaysStencilFunc,
-  BackSide,
-  CylinderGeometry,
-  DoubleSide,
-  KeepStencilOp,
-  Matrix3,
-  Matrix4,
-  NotEqualStencilFunc,
-} from "three";
-import { PerspectiveCamera, PlaneGeometry, ReplaceStencilOp, Vector3, Vector4 } from "three";
+import { AlwaysStencilFunc, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide } from "three";
+import { Float32BufferAttribute, Group, KeepStencilOp, Matrix3, Matrix4, Mesh, MeshBasicMaterial } from "three";
+import { NotEqualStencilFunc, Object3D, PerspectiveCamera, PlaneGeometry, ReplaceStencilOp } from "three";
+import { Vector2, Vector3, Vector4 } from "three";
 import type { Camera, Material, Scene, ShaderMaterial } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -49,10 +33,10 @@ import { REFERENCE_DESKTOP, REFERENCE_PHONE } from "../../src/room/compose/stage
 import { createScene } from "../../src/room/scene";
 import { buildRoom, memberDraws } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
-import { HIGHLIGHT_PASSES, LABEL_LAYER, createHighlight, hullGeometry, hullPush } from "../../src/room/scene/highlight";
-import type { Highlight } from "../../src/room/scene/highlight";
+import { HIGHLIGHT_PASSES, LABEL_LAYER, createHighlight, ringFragment } from "../../src/room/scene/highlight";
+import { ringContour, ringGeometry, ringVertex } from "../../src/room/scene/highlight";
+import type { Clip, Highlight, RingFragment } from "../../src/room/scene/highlight";
 import { MODEL_NODE, showModel } from "../../src/room/scene/loader";
-import { outlineThickness } from "../../src/room/scene/look";
 import { FakeClock, repositoryBundle } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
 
@@ -140,9 +124,8 @@ interface Call {
   readonly scene: Scene;
   readonly name: string;
   readonly autoClear: boolean;
-  /** Each pass's visible proxies' materials' uniforms, as they stood at the call. */
-  readonly thickness: [number, number] | null;
-  readonly color: string | null;
+  /** The ring's uniforms as they stood at the call: the stage, the widths, and the two colours as hex. */
+  readonly ring: { stage: [number, number]; band: number; outer: number; colors: [string, string] } | null;
   readonly visible: number;
 }
 
@@ -158,15 +141,21 @@ function spyRenderer(): {
       scene.traverseVisible((n) => {
         if ((n as Mesh).isMesh) shown.push(n as Mesh);
       });
-      const material = shown[0]?.material as ShaderMaterial | undefined;
-      const t = material?.uniforms?.thickness?.value as { x: number; y: number } | undefined;
-      const c = material?.uniforms?.color?.value as Color | undefined;
+      const u = (shown[0]?.material as ShaderMaterial | undefined)?.uniforms;
+      const stage = u?.stage?.value as Vector2 | undefined;
+      const hex = (name: string): string => `#${(u?.[name]?.value as Color).getHexString()}`;
       calls.push({
         scene,
         name: scene.name,
         autoClear: renderer.autoClear,
-        thickness: t ? [t.x, t.y] : null,
-        color: c ? `#${c.getHexString()}` : null,
+        ring: stage
+          ? {
+              stage: [stage.x, stage.y],
+              band: u?.band?.value as number,
+              outer: u?.outer?.value as number,
+              colors: [hex("bandColor"), hex("edgeColor")],
+            }
+          : null,
         visible: shown.length,
       });
     },
@@ -265,21 +254,24 @@ describe("the passes (FR-015, FR-049)", () => {
     const highlight = highlightOf(room());
     const { renderer, calls } = spyRenderer();
     highlight.render(renderer, camera());
+    expect(highlight.active).toBe(false);
     highlight.setTarget(group().id);
+    expect(highlight.active).toBe(true);
     highlight.setTarget(null);
+    expect(highlight.active).toBe(false);
     highlight.render(renderer, camera());
     expect(calls).toEqual([]);
     expect(renderer.autoClear).toBe(true);
   });
 
-  it("are three, the stencil mask, then edge, then band, each over every draw, without clearing, autoClear restored", () => {
+  it("are two, the stencil mask, then the ring, each over every draw, without clearing, autoClear restored", () => {
     const r = room();
     const highlight = highlightOf(r);
     highlight.setTarget(group().id);
     const { renderer, calls } = spyRenderer();
     highlight.render(renderer, camera());
     expect(calls.map((c) => c.name)).toEqual([...HIGHLIGHT_PASSES]);
-    expect(HIGHLIGHT_PASSES).toEqual(["highlight:mask", "highlight:edge", "highlight:band"]);
+    expect(HIGHLIGHT_PASSES).toEqual(["highlight:mask", "highlight:ring"]);
     for (const call of calls) {
       expect(call.autoClear, call.name).toBe(false);
       expect(call.visible, call.name).toBe(highlight.draws.length);
@@ -287,7 +279,7 @@ describe("the passes (FR-015, FR-049)", () => {
     expect(renderer.autoClear).toBe(true);
   });
 
-  it("take their colours and widths from the look's highlight, in CSS pixels on each axis of the stage", () => {
+  it("take their colours and widths from the look's highlight, in CSS pixels, the stage's size following it", () => {
     const look = bundle().scene.look;
     const { band, band_px, edge, edge_px } = look.highlight;
     expect(look.highlight).toEqual({ band: "#ffd23f", band_px: 3, edge: "#1a1a1a", edge_px: 1.5 });
@@ -297,16 +289,17 @@ describe("the passes (FR-015, FR-049)", () => {
       highlight.setStage(stage.w, stage.h);
       const { renderer, calls } = spyRenderer();
       highlight.render(renderer, camera());
-      const [, edgeCall, bandCall] = calls;
-      const at = (px: number): [number, number] => [outlineThickness(px, stage.w), outlineThickness(px, stage.h)];
-      expect(edgeCall?.thickness, `${stage.w} × ${stage.h}`).toEqual(at(band_px + edge_px));
-      expect(bandCall?.thickness, `${stage.w} × ${stage.h}`).toEqual(at(band_px));
-      expect(edgeCall?.color).toBe(`#${new Color(edge).getHexString()}`);
-      expect(bandCall?.color).toBe(`#${new Color(band).getHexString()}`);
+      const ring = calls[1]?.ring;
+      expect(ring, `${stage.w} × ${stage.h}`).toEqual({
+        stage: [stage.w, stage.h],
+        band: band_px,
+        outer: band_px + edge_px,
+        colors: [`#${new Color(band).getHexString()}`, `#${new Color(edge).getHexString()}`],
+      });
     }
   });
 
-  it("mask the target's draws in the stencil, then draw the back-face hulls outside it, with no depth test or write", () => {
+  it("mask the target's draws in the stencil, then draw the ring outside it, its depth its own, nearest", () => {
     const r = room();
     const highlight = highlightOf(r);
     highlight.setTarget(group().id);
@@ -321,20 +314,23 @@ describe("the passes (FR-015, FR-049)", () => {
       const materials = new Set(proxies.map((p) => p.material as Material));
       expect(materials.size, call.name).toBe(1);
       const [material] = [...materials];
-      expect(material?.depthTest, call.name).toBe(false);
-      expect(material?.depthWrite, call.name).toBe(false);
+      expect(material?.side, call.name).toBe(DoubleSide);
       expect(material?.stencilWrite, call.name).toBe(true);
       expect(material?.stencilRef, call.name).toBe(1);
       if (k === 0) {
-        // The mask: every pixel of the target's draws, front and back, into the stencil, and no colour.
-        expect(material?.side).toBe(DoubleSide);
+        // The mask: every pixel of the target's draws, front and back, into the stencil, and no colour or depth.
         expect(material?.colorWrite).toBe(false);
+        expect(material?.depthTest).toBe(false);
+        expect(material?.depthWrite).toBe(false);
         expect(material?.stencilFunc).toBe(AlwaysStencilFunc);
         expect(material?.stencilZPass).toBe(ReplaceStencilOp);
       } else {
-        expect(material?.side, call.name).toBe(BackSide);
-        expect(material?.stencilFunc, call.name).toBe(NotEqualStencilFunc);
-        expect([material?.stencilFail, material?.stencilZFail, material?.stencilZPass], call.name).toEqual([
+        // The ring: outside the mask, the nearest edge's fragment kept where capsules cross, faded at its outer side.
+        expect(material?.depthTest).toBe(true);
+        expect(material?.depthWrite).toBe(true);
+        expect(material?.alphaToCoverage).toBe(true);
+        expect(material?.stencilFunc).toBe(NotEqualStencilFunc);
+        expect([material?.stencilFail, material?.stencilZFail, material?.stencilZPass]).toEqual([
           KeepStencilOp,
           KeepStencilOp,
           KeepStencilOp,
@@ -342,19 +338,14 @@ describe("the passes (FR-015, FR-049)", () => {
       }
       proxies.forEach((proxy, i) => {
         const source = highlight.draws[i] as Mesh;
-        expect(proxy.geometry.getAttribute("position")).toBe(source.geometry.getAttribute("position"));
-        expect(proxy.geometry.index).toBe(source.geometry.index);
-        if (k > 0) {
-          expect(proxy.geometry.getAttribute("hullNormal")?.count).toBe(source.geometry.getAttribute("position").count);
-          expect(proxy.geometry.getAttribute("normal")).toBe(source.geometry.getAttribute("normal"));
-        }
+        expect(proxy.geometry).toBe(k === 0 ? source.geometry : ringGeometry(source.geometry));
         expect(proxy.matrixWorld.elements).toEqual(source.matrixWorld.elements);
         expect(proxy.castShadow || proxy.receiveShadow).toBe(false);
       });
     });
   });
 
-  it("hide the hull of a draw that doesn't show, and show it again when it does", () => {
+  it("hide the proxies of a draw that doesn't show, and show them again when it does", () => {
     const r = room();
     const { id, members } = group();
     const highlight = highlightOf(r);
@@ -369,11 +360,11 @@ describe("the passes (FR-015, FR-049)", () => {
     const { renderer, calls } = spyRenderer();
     node.visible = false;
     highlight.render(renderer, camera());
-    for (const call of calls.slice(0, 3)) expect(call.visible, call.name).toBe(highlight.draws.length);
+    for (const call of calls.slice(0, 2)) expect(call.visible, call.name).toBe(highlight.draws.length);
     node.visible = true;
     highlight.render(renderer, camera());
-    for (const call of calls.slice(3, 6)) expect(call.visible, call.name).toBe(highlight.draws.length);
-    expect(calls[3]?.visible).toBe((calls[0]?.visible ?? 0) + hidden);
+    for (const call of calls.slice(2, 4)) expect(call.visible, call.name).toBe(highlight.draws.length);
+    expect(calls[2]?.visible).toBe((calls[0]?.visible ?? 0) + hidden);
   });
 
   it("change nothing else in the room: no piece moves, changes material, or shows or hides (FR-019)", () => {
@@ -402,41 +393,88 @@ describe("the passes (FR-015, FR-049)", () => {
   });
 });
 
-describe("the hull's normals (plan.md §10)", () => {
-  const normals = (g: BufferGeometry): Vector3[] => {
-    const a = g.getAttribute("hullNormal");
-    return Array.from({ length: a.count }, (_, i) => new Vector3(a.getX(i), a.getY(i), a.getZ(i)));
-  };
+describe("the ring's edges (finding 1)", () => {
+  type V3 = [number, number, number];
+  /** Each instance's ends and faces' normals. */
+  function edgesOf(ring: ReturnType<typeof ringGeometry>): { ends: [V3, V3]; faces: [V3, V3] }[] {
+    const get = (name: string, i: number): V3 => {
+      const a = ring.getAttribute(name);
+      return [a.getX(i), a.getY(i), a.getZ(i)];
+    };
+    expect(ring.getAttribute("edgeA").count).toBe(ring.instanceCount);
+    return Array.from({ length: ring.instanceCount }, (_, i) => ({
+      ends: [get("edgeA", i), get("edgeB", i)],
+      faces: [get("faceA", i), get("faceB", i)],
+    }));
+  }
 
-  it("give each of a box's corners the mean of its three faces' normals, so the hull has no gap", () => {
+  it("are a box's twelve, no face's diagonal, each an instance of one quad with its two faces' normals", () => {
     const box = new BoxGeometry(0.4, 0.2, 0.1);
-    const hull = hullGeometry(box);
-    expect(hull.getAttribute("position")).toBe(box.getAttribute("position"));
-    expect(hull.index).toBe(box.index);
-    // A vertex attribute holds 32-bit floats, good to about 1e-7.
-    for (const n of normals(hull)) {
-      expect(n.length()).toBeCloseTo(1, 6);
-      for (const v of n.toArray()) expect(Math.abs(v)).toBeCloseTo(1 / Math.sqrt(3), 6);
+    const ring = ringGeometry(box);
+    // The quad: its four corners, x the end and y the side, in two triangles.
+    expect(Array.from(ring.getAttribute("position").array)).toEqual([1, 1, 0, 1, -1, 0, -1, 1, 0, -1, -1, 0]);
+    expect(Array.from(ring.index?.array ?? [])).toEqual([0, 1, 2, 0, 2, 3]);
+    const all = edgesOf(ring);
+    expect(all.length).toBe(12);
+    for (const { ends, faces } of all) {
+      // Along one axis: the box's own edges, never a diagonal across a face.
+      const differs = [0, 1, 2].filter((k) => Math.abs((ends[0][k] ?? 0) - (ends[1][k] ?? 0)) > 1e-9);
+      expect(differs.length).toBe(1);
+      // Its two faces, each along an axis the edge doesn't run, outward: away from the box's centre.
+      for (const n of faces) {
+        expect(Math.hypot(...n)).toBeCloseTo(1, 6);
+        const axis = n.findIndex((c) => Math.abs(c) > 0.5);
+        expect(differs).not.toContain(axis);
+        expect(Math.sign(n[axis] ?? 0)).toBe(Math.sign(ends[0][axis] ?? 0));
+      }
+      expect(faces[0]).not.toEqual(faces[1]);
     }
-    expect(hullGeometry(box)).toBe(hull);
+    expect(ringGeometry(box)).toBe(ring);
+    const released = vi.fn();
+    ring.addEventListener("dispose", released);
+    box.dispose();
+    expect(released).toHaveBeenCalledTimes(1);
   });
 
-  it("keep a flat plane's own normal, and fall back to pointing out from the centre where normals cancel", () => {
-    for (const n of normals(hullGeometry(new PlaneGeometry(1, 1)))) expect(n.toArray()).toEqual([0, 0, 1]);
-    // Two faces at the same corners, facing away from each other: their normals cancel at every position.
-    const flat = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
+  it("are a plane's four sides, a capped tube's rims and sides, and the same without an index", () => {
+    // A plane's sides are its borders: each always draws, its faces zero.
+    const plane = edgesOf(ringGeometry(new PlaneGeometry(1, 1)));
+    expect(plane.length).toBe(4);
+    for (const { faces } of plane) expect(faces).toEqual([
+      [0, 0, 0],
+      [0, 0, 0],
+    ]);
+    // 24 sides, each a flat facet: its 24 upright edges and its two rims of 24, no facet's diagonal or cap's spoke.
+    const tube = edgesOf(ringGeometry(new CylinderGeometry(0.06, 0.06, 0.6, 24, 1, false)));
+    expect(tube.length).toBe(72);
+    for (const { faces } of tube) expect(faces.every((n) => Math.hypot(...n) > 0.99)).toBe(true);
+    expect(edgesOf(ringGeometry(new BoxGeometry(0.4, 0.2, 0.1).toNonIndexed())).length).toBe(12);
+  });
+
+  it("draw always where two triangles run their edge the same way, so their normals don't agree on a side", () => {
+    // Two triangles on the edge from (0, 0, 0) to (1, 0, 0), both running it that way.
     const g = new BufferGeometry();
-    g.setAttribute("position", new Float32BufferAttribute([...flat, ...flat], 3));
-    g.setAttribute(
-      "normal",
-      new Float32BufferAttribute([...Array(4).fill([0, 0, 1]), ...Array(4).fill([0, 0, -1])].flat(), 3),
+    g.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], 3));
+    const shared = edgesOf(ringGeometry(g)).find(
+      ({ ends }) => ends.some((q) => q.join() === "0,0,0") && ends.some((q) => q.join() === "1,0,0"),
     );
-    const out = normals(hullGeometry(g));
-    out.forEach((n, i) => {
-      const p = new Vector3(flat[(i % 4) * 3], flat[(i % 4) * 3 + 1], 0).normalize();
-      expect(n.length()).toBeCloseTo(1, 6);
-      expect(n.distanceTo(p)).toBeLessThan(1e-6);
-    });
+    expect(shared?.faces).toEqual([
+      [0, 0, 0],
+      [0, 0, 0],
+    ]);
+  });
+
+  it("are on the contour where their two faces face opposite ways from the eye, or a face is zero", () => {
+    // In view space, the eye at the origin looking down -z: an edge 2 m ahead, one face toward the eye, one away.
+    const mid: V3 = [0.5, 0, -2];
+    expect(ringContour([0, 0, 1], [0, 0, -1], mid, false)).toBe(true);
+    expect(ringContour([0, 0, 1], [0.2, 0.1, 0.97], mid, false)).toBe(false);
+    expect(ringContour([0, 0, 0], [0, 0, 0], mid, false)).toBe(true);
+    // A face edge on to the eye counts as on it.
+    expect(ringContour([1, 0, 0.25], [0, 0, 1], mid, false)).toBe(true);
+    // Orthographic: facing by the normal's z alone.
+    expect(ringContour([0.9, 0, 0.1], [0.9, 0, -0.1], [5, 0, -2], true)).toBe(true);
+    expect(ringContour([0.9, 0, 0.1], [0.5, 0, 0.2], [5, 0, -2], true)).toBe(false);
   });
 });
 
@@ -519,10 +557,15 @@ describe("in the 3D stage (FR-017, FR-018)", () => {
         const frame = run.calls();
         const passes = frame.filter((n) => n.startsWith("highlight:"));
         expect(passes, `${look.id} at ${level}`).toEqual([...HIGHLIGHT_PASSES]);
-        // After every render of the room's own scene, which the look draws once, or twice with its ink lines; the
-        // repository's room, its models set, has no stand-in's label to draw after them.
-        expect(frame.slice(-3), `${look.id} at ${level}`).toEqual([...HIGHLIGHT_PASSES]);
-        expect(frame.slice(0, -3).every((n) => !n.startsWith("highlight:"))).toBe(true);
+        // After every render of the room's own scene, which the look draws once, or twice with its ink lines, and
+        // before the labels' own render where the room has a stand-in's label (finding 2), as the repository's has.
+        const at = frame.indexOf(HIGHLIGHT_PASSES[0]);
+        expect(at, `${look.id} at ${level}`).toBeGreaterThan(0);
+        expect(frame.slice(0, at).every((n) => n === "")).toBe(true);
+        expect(frame.slice(at), `${look.id} at ${level}`).toEqual([
+          ...HIGHLIGHT_PASSES,
+          ...(room().labels.size > 0 ? [""] : []),
+        ]);
         run.stage.setTarget(null);
         run.clock.advance(16);
         expect(
@@ -535,69 +578,131 @@ describe("in the 3D stage (FR-017, FR-018)", () => {
 });
 
 // --------------------------------------------------------------------------------------------------------------------
-// The hull's widths, projected (the review of Phase 1, finding 1)
+// The ring's widths, drawn (the review of Phase 1, finding 1)
 // --------------------------------------------------------------------------------------------------------------------
-// The vertex shader's push, mirrored in JS by hullPush, over every vertex of a hard-edged box and of a capped tube: the
-// hull's back faces, pushed, against the mesh's own outline, both projected to the stage's CSS pixels. Without the
-// miter a corner moves the full width along its averaged normal, so a straight edge moves only t·cos 45° (2.1 px of 3).
-describe("the hull's widths on screen (finding 1)", () => {
+// The shaders mirrored in JS over a hard-edged box's ring and a capped tube's: every quad's corners placed as the
+// vertex shader places them, each point's fragment interpolated straight on screen, as the corners' w of 1 makes it,
+// and of the fragments covering a point the one with the least depth kept, as the depth test keeps it. The mesh's own
+// outline, the convex hull of its projected positions, stands for the mask. Around it, every point nearer than the
+// band's width is the band's, every one beyond that to the outer side the edge's, and nothing farther: the widths on
+// screen are the data's, with no spur at a corner. The back-face hull missed them: 2.33 px for a band of 3, and 2.47
+// for one of 2 once mitered.
+describe("the ring's widths on screen (finding 1)", () => {
   const STAGE = REFERENCE_DESKTOP.stage;
+  type P = [number, number];
+  type Local = readonly [number, number, number];
+  interface Drawn {
+    readonly tris: { at: [P, P, P]; local: [Local, Local, Local] }[];
+    readonly outline: P[];
+  }
 
-  /** The outline's right and top edges in CSS pixels, y up: the mesh's own, and its hull's at a width. */
-  function edges(geometry: BufferGeometry, world: Matrix4, px: number | null): [number, number] {
+  /** The convex hull of points, counter-clockwise, y up. */
+  function outlineOf(points: P[]): P[] {
+    const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o: P, a: P, b: P): number => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const half = (list: P[]): P[] => {
+      const out: P[] = [];
+      for (const q of list) {
+        while (out.length >= 2 && cross(out[out.length - 2] as P, out[out.length - 1] as P, q) <= 0) out.pop();
+        out.push(q);
+      }
+      return out.slice(0, -1);
+    };
+    return [...half(sorted), ...half([...sorted].reverse())];
+  }
+
+  /** How far a point lies outside a convex outline, in CSS pixels; 0 inside it. */
+  function outside(q: P, poly: P[]): number {
+    let inside = true;
+    let best = Infinity;
+    poly.forEach((a, i) => {
+      const b = poly[(i + 1) % poly.length] as P;
+      const [ex, ey] = [b[0] - a[0], b[1] - a[1]];
+      if (ex * (q[1] - a[1]) - ey * (q[0] - a[0]) < 0) inside = false;
+      const t = Math.min(Math.max(((q[0] - a[0]) * ex + (q[1] - a[1]) * ey) / (ex * ex + ey * ey), 0), 1);
+      best = Math.min(best, Math.hypot(q[0] - a[0] - t * ex, q[1] - a[1] - t * ey));
+    });
+    return inside ? 0 : best;
+  }
+
+  function draw(geometry: BufferGeometry, world: Matrix4, reach: number): Drawn {
     const cam = new PerspectiveCamera(45, STAGE.w / STAGE.h, 0.1, 50);
     cam.position.set(0, 0, 3);
     cam.updateMatrixWorld(true);
     cam.updateProjectionMatrix();
+    const mvp = new Matrix4().multiplyMatrices(
+      cam.projectionMatrix,
+      new Matrix4().multiplyMatrices(cam.matrixWorldInverse, world),
+    );
+    const clipOf = (x: number, y: number, z: number): Clip => {
+      const v = new Vector4(x, y, z, 1).applyMatrix4(mvp);
+      return [v.x, v.y, v.z, v.w];
+    };
+    const px = (c: Clip): P => [((c[0] / c[3] + 1) / 2) * STAGE.w, ((c[1] / c[3] + 1) / 2) * STAGE.h];
+    const pos = geometry.getAttribute("position");
+    const points = Array.from({ length: pos.count }, (_, i) => px(clipOf(pos.getX(i), pos.getY(i), pos.getZ(i))));
+    const ring = ringGeometry(geometry);
     const modelView = new Matrix4().multiplyMatrices(cam.matrixWorldInverse, world);
     const normals = new Matrix3().getNormalMatrix(modelView);
-    const pos = geometry.getAttribute("position");
-    const own = geometry.getAttribute("normal");
-    const hull = hullGeometry(geometry).getAttribute("hullNormal");
-    const thickness: [number, number] =
-      px === null ? [0, 0] : [outlineThickness(px, STAGE.w), outlineThickness(px, STAGE.h)];
-    const clipOf = (v: Vector4): Vector4 => v.applyMatrix4(modelView).applyMatrix4(cam.projectionMatrix);
-    const along = (n: Vector3): Vector4 => {
-      const m = n.applyMatrix3(normals);
-      return new Vector4(m.x, m.y, m.z, 0).applyMatrix4(cam.projectionMatrix);
+    const read = (name: string, i: number): Vector3 => {
+      const a = ring.getAttribute(name);
+      return new Vector3(a.getX(i), a.getY(i), a.getZ(i));
     };
-    const screen: [number, number][] = [];
-    const flat: [number, number][] = [];
-    for (let i = 0; i < pos.count; i += 1) {
-      const clip = clipOf(new Vector4(pos.getX(i), pos.getY(i), pos.getZ(i), 1));
-      flat.push([((clip.x / clip.w + 1) / 2) * STAGE.w, ((clip.y / clip.w + 1) / 2) * STAGE.h]);
-      const pushed =
-        px === null
-          ? clip.toArray()
-          : hullPush(
-              clip.toArray() as [number, number, number, number],
-              along(new Vector3(hull.getX(i), hull.getY(i), hull.getZ(i))).toArray() as [
-                number,
-                number,
-                number,
-                number,
-              ],
-              along(new Vector3(own.getX(i), own.getY(i), own.getZ(i))).toArray() as [number, number, number, number],
-              thickness,
-            );
-      screen.push([((pushed[0] / pushed[3] + 1) / 2) * STAGE.w, ((pushed[1] / pushed[3] + 1) / 2) * STAGE.h]);
-    }
-    if (px === null) return [Math.max(...flat.map((p) => p[0])), Math.max(...flat.map((p) => p[1]))];
-    // The hull is drawn over back faces alone: a triangle whose unpushed screen winding runs clockwise.
-    const index = geometry.index;
-    const corners = index ? Array.from({ length: index.count }, (_, k) => index.getX(k)) : flat.map((_, k) => k);
-    let [right, top] = [-Infinity, -Infinity];
-    for (let k = 0; k + 2 < corners.length; k += 3) {
-      const [a, b, c] = [corners[k], corners[k + 1], corners[k + 2]] as [number, number, number];
-      const [pa, pb, pc] = [flat[a], flat[b], flat[c]] as [[number, number], [number, number], [number, number]];
-      const area = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
-      if (!(area < 0)) continue;
-      for (const v of [a, b, c]) {
-        right = Math.max(right, screen[v]?.[0] ?? -Infinity);
-        top = Math.max(top, screen[v]?.[1] ?? -Infinity);
+    const view = (q: Vector3): [number, number, number] => {
+      const v = q.clone().applyMatrix4(modelView);
+      return [v.x, v.y, v.z];
+    };
+    const turned = (n: Vector3): [number, number, number] => {
+      const v = n.clone().applyMatrix3(normals);
+      return [v.x, v.y, v.z];
+    };
+    const corner = ring.getAttribute("position");
+    const tris: Drawn["tris"] = [];
+    for (let e = 0; e < ring.instanceCount; e += 1) {
+      const [a, b] = [read("edgeA", e), read("edgeB", e)];
+      const mid = view(a.clone().add(b).multiplyScalar(0.5));
+      if (!ringContour(turned(read("faceA", e)), turned(read("faceB", e)), mid, false)) continue;
+      const corners = [0, 1, 2, 3].map((k) => {
+        const [end, side] = [corner.getX(k), corner.getY(k)];
+        const [own, far] = end > 0 ? [a, b] : [b, a];
+        return ringVertex(clipOf(own.x, own.y, own.z), clipOf(far.x, far.y, far.z), [end, side], [STAGE.w, STAGE.h], reach);
+      });
+      if (corners.some((c) => c === null)) continue;
+      const placed = corners.map((c) => ({ at: px(c?.clip as Clip), local: c?.local as Local }));
+      for (const [i, j, k] of [
+        [0, 1, 2],
+        [0, 2, 3],
+      ] as const) {
+        const [x, y, z] = [placed[i], placed[j], placed[k]] as [(typeof placed)[0], (typeof placed)[0], (typeof placed)[0]];
+        tris.push({ at: [x.at, y.at, z.at], local: [x.local, y.local, z.local] });
       }
     }
-    return [right, top];
+    return { tris, outline: outlineOf(points) };
+  }
+
+  /** The fragment the depth test keeps at a point: of those covering it, the least depth; or none. */
+  function fragmentAt(drawn: Drawn, q: P, band: number, outer: number, reach: number): RingFragment | null {
+    let best: RingFragment | null = null;
+    for (const {
+      at: [a, b, c],
+      local,
+    } of drawn.tris) {
+      const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+      if (Math.abs(det) < 1e-12) continue;
+      const l1 = ((b[1] - c[1]) * (q[0] - c[0]) + (c[0] - b[0]) * (q[1] - c[1])) / det;
+      const l2 = ((c[1] - a[1]) * (q[0] - c[0]) + (a[0] - c[0]) * (q[1] - c[1])) / det;
+      const l3 = 1 - l1 - l2;
+      if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
+      const [la, lb, lc] = local;
+      const mixed: Local = [
+        l1 * la[0] + l2 * lb[0] + l3 * lc[0],
+        l1 * la[1] + l2 * lb[1] + l3 * lc[1],
+        l1 * la[2] + l2 * lb[2] + l3 * lc[2],
+      ];
+      const f = ringFragment(mixed, band, outer, reach);
+      if (f && (best === null || f.depth < best.depth)) best = f;
+    }
+    return best;
   }
 
   const shapes = (): { name: string; geometry: BufferGeometry; world: Matrix4 }[] => [
@@ -612,32 +717,104 @@ describe("the hull's widths on screen (finding 1)", () => {
   it.each([
     [3, 1.5],
     [2, 1],
-  ] as const)("push a straight edge out the full widths: a band of %s px, then an edge of %s px", (band, edge) => {
+  ] as const)("are the data's: a band of %s px, then an edge of %s px, and nothing beyond", (band, edge) => {
+    const outer = band + edge;
+    const reach = outer + 1;
     for (const { name, geometry, world } of shapes()) {
-      const [meshRight, meshTop] = edges(geometry, world, null);
-      const [bandRight, bandTop] = edges(geometry, world, band);
-      const [edgeRight, edgeTop] = edges(geometry, world, band + edge);
-      for (const [what, width, want] of [
-        ["the band at its right", bandRight - meshRight, band],
-        ["the band at its top", bandTop - meshTop, band],
-        ["the edge at its right", edgeRight - bandRight, edge],
-        ["the edge at its top", edgeTop - bandTop, edge],
+      const drawn = draw(geometry, world, reach);
+      const { outline } = drawn;
+      const centre: P = [
+        outline.reduce((sum, q) => sum + q[0], 0) / outline.length,
+        outline.reduce((sum, q) => sum + q[1], 0) / outline.length,
+      ];
+      // Across the right side and the top, from the outline outward: the band's width, then the edge's.
+      for (const [side, dir] of [
+        ["right", [1, 0]],
+        ["top", [0, 1]],
       ] as const) {
-        expect(width, `${name}: ${what}`).toBeGreaterThanOrEqual(want * 0.97);
-        expect(width, `${name}: ${what}`).toBeLessThanOrEqual(want * 1.15);
+        let [lo, hi] = [0, 1000];
+        for (let k = 0; k < 60; k += 1) {
+          const mid = (lo + hi) / 2;
+          if (outside([centre[0] + dir[0] * mid, centre[1] + dir[1] * mid], outline) > 0) hi = mid;
+          else lo = mid;
+        }
+        const start: P = [centre[0] + dir[0] * lo, centre[1] + dir[1] * lo];
+        let [bandEnd, edgeEnd] = [0, 0];
+        for (let s = 0.005; s <= outer + 1; s += 0.01) {
+          const f = fragmentAt(drawn, [start[0] + dir[0] * s, start[1] + dir[1] * s], band, outer, reach);
+          if (f && f.alpha >= 0.5) {
+            edgeEnd = s;
+            if (f.tone < 0.5) bandEnd = s;
+          }
+        }
+        expect(bandEnd, `${name}: the band at its ${side}`).toBeCloseTo(band, 1);
+        expect(edgeEnd - bandEnd, `${name}: the edge at its ${side}`).toBeCloseTo(edge, 1);
       }
+      // Every point around the outline, a quarter pixel apart: the band's within its width, then the edge's, and
+      // none beyond the outer side, corners and all.
+      const xs = outline.map((q) => q[0]);
+      const ys = outline.map((q) => q[1]);
+      const wrong: string[] = [];
+      for (let x = Math.min(...xs) - reach; x <= Math.max(...xs) + reach; x += 0.25)
+        for (let y = Math.min(...ys) - reach; y <= Math.max(...ys) + reach; y += 0.25) {
+          const d = outside([x, y], outline);
+          if (d === 0 || d > outer + 1) continue;
+          const f = fragmentAt(drawn, [x, y], band, outer, reach);
+          const shows = f !== null && f.alpha >= 0.5;
+          const ok =
+            d >= outer + 0.02
+              ? !shows
+              : d <= outer - 0.02
+                ? shows && (d < band - 0.02 ? (f?.tone ?? 1) < 0.5 : d > band + 0.02 ? (f?.tone ?? 0) >= 0.5 : true)
+                : true;
+          if (!ok) wrong.push(`(${x.toFixed(2)}, ${y.toFixed(2)}) ${d.toFixed(3)} px out: ${JSON.stringify(f)}`);
+        }
+      expect(wrong.slice(0, 5), `${name}: ${wrong.length} points`).toEqual([]);
     }
   });
 
-  it("push no further than the miter's limit, four times the width, where a corner is sharp", () => {
-    const clip: [number, number, number, number] = [0.2, 0.1, 0.5, 1];
-    const t: [number, number] = [0.01, 0.01];
-    // An averaged normal at nearly a right angle to the vertex's own, on screen.
-    const out = hullPush(clip, [1, 0, 0, 0], [0.01, 1, 0, 0], t);
-    expect(Math.hypot(out[0] - clip[0], out[1] - clip[1])).toBeLessThanOrEqual(0.01 * 4 + 1e-12);
-    // Its own normal facing away on screen, as a face pointing from the camera has: no miter at all.
-    const away = hullPush(clip, [1, 0, 0, 0], [-1, 0, 0, 0], t);
-    expect(Math.hypot(away[0] - clip[0], away[1] - clip[1])).toBeCloseTo(0.01, 12);
+  it("follow the shaders line for line: the lines the mirrors copy stand in the ring's material", () => {
+    const highlight = highlightOf(room());
+    highlight.setTarget(group().id);
+    const { renderer, calls } = spyRenderer();
+    highlight.render(renderer, camera());
+    let material: ShaderMaterial | null = null;
+    calls[1]?.scene.traverse((n) => {
+      if ((n as Mesh).isMesh) material = (n as Mesh).material as ShaderMaterial;
+    });
+    const { vertexShader, fragmentShader } = material as unknown as ShaderMaterial;
+    for (const line of [
+      "float sa = isOrthographic ? -na.z : dot( na, mid );",
+      "float sb = isOrthographic ? -nb.z : dot( nb, mid );",
+      "if ( sa * sb > 0.0 || ( da < 0.0 && db < 0.0 ) ) {",
+      "if ( da < 0.0 ) a = mix( a, b, da / ( da - db ) );",
+      "else if ( db < 0.0 ) b = mix( b, a, db / ( db - da ) );",
+      "vec2 dir = len > 1e-4 ? d / len : vec2( 1.0, 0.0 );",
+      "gl_Position = vec4( ( p + ( dir + position.y * perp ) * reach ) / half_, 0.0, 1.0 );",
+      "vLocal = vec3( position.x * vec2( len * 0.5 + reach, position.y * reach ), len * 0.5 );",
+    ])
+      expect(vertexShader).toContain(line);
+    for (const line of [
+      "float along = max( abs( vLocal.x ) - vLocal.z, 0.0 );",
+      "if ( d > outer + 0.5 ) discard;",
+      "gl_FragDepth = 1e-3 * d / reach;",
+      "mix( bandColor, edgeColor, clamp( d - band + 0.5, 0.0, 1.0 ) ), clamp( outer + 0.5 - d, 0.0, 1.0 )",
+    ])
+      expect(fragmentShader).toContain(line);
+  });
+
+  it("cut an edge at the near plane, draw nothing of one wholly behind it, and a disc of an edge seen end on", () => {
+    const stage = [800, 600] as const;
+    expect(ringVertex([0, 0, -2, 1], [0.1, 0, -3, 1], [1, 1], stage, 5)).toBeNull();
+    const cut = ringVertex([0.5, 0, -2, 1], [0, 0, 0.5, 1], [1, 1], stage, 5);
+    expect(cut?.clip.every((v) => Number.isFinite(v))).toBe(true);
+    expect(cut?.clip[3]).toBe(1);
+    // Both ends at one point on screen: the quad a square of the reach around it, and the fragment a disc.
+    const end = ringVertex([0.2, 0.1, 0.5, 1], [0.4, 0.2, 0.9, 2], [1, -1], stage, 5);
+    expect(end?.local).toEqual([5, -5, 0]);
+    expect(ringFragment([5, -5, 0], 3, 4.5, 5.5)).toBeNull();
+    expect(ringFragment([0, 2, 0], 3, 4.5, 5.5)).toMatchObject({ tone: 0, alpha: 1 });
+    expect(ringFragment([0, 4, 0], 3, 4.5, 5.5)).toMatchObject({ tone: 1, alpha: 1 });
   });
 });
 
@@ -696,8 +873,8 @@ describe("the stage's frame with a target (finding 2)", () => {
     const at = frame.findIndex((c) => c.name.startsWith("highlight:"));
     expect(at).toBeGreaterThan(0);
     expect(frame.slice(0, at).every((c) => c.name === "" && !c.labels)).toBe(true);
-    expect(frame.slice(at, at + 3).map((c) => c.name)).toEqual([...HIGHLIGHT_PASSES]);
-    expect(frame.slice(at + 3)).toEqual([{ name: "", labels: true, onlyLabels: true }]);
+    expect(frame.slice(at, at + HIGHLIGHT_PASSES.length).map((c) => c.name)).toEqual([...HIGHLIGHT_PASSES]);
+    expect(frame.slice(at + HIGHLIGHT_PASSES.length)).toEqual([{ name: "", labels: true, onlyLabels: true }]);
     stage.dispose();
   });
 });
