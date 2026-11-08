@@ -677,6 +677,7 @@ def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
         "Visits shown the 2D mode",
         "Turns sent and talk presses",
         "Events refused",
+        "Visits that walked",
     ]
     # After the stack's own rows and before the dev-time row. Not necessarily right above it: spec 003's studio row
     # (its gpu-window.md §3) goes there, and asks for that place itself.
@@ -724,6 +725,16 @@ def test_the_2d_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
     panel = by_title()["Visits shown the 2D mode"]
     assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
     for words in ("resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+
+
+def test_the_walked_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    # Spec 008's Amendment M1 (FR-053): walk_started over the same stand-in for visits as the 2D share.
+    panel = by_title()["Visits that walked"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    (target,) = panel["targets"]
+    assert 'kind="walk_started"' in target["expr"]
+    for words in ("walk_started", "resume_opened", "resume_kept", "stand-in"):
         assert words in panel["description"], words
 
 

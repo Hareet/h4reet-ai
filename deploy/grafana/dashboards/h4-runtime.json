@@ -1,7 +1,7 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; \u00a77.8), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md \u00a73), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md \u00a77). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; §7.8), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md §3), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md §7). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
   "tags": ["h4reet", "spec-000", "spec-003"],
   "timezone": "utc",
   "refresh": "10s",
@@ -240,7 +240,7 @@
       "type": "stat",
       "id": 24,
       "title": "Why responses are degraded",
-      "description": "The cause a hello arriving now would get, in FR-022's order: none in green, any cause in red (FR-022, FR-028; contracts/gateway-http.md \u00a73).",
+      "description": "The cause a hello arriving now would get, in FR-022's order: none in green, any cause in red (FR-022, FR-028; contracts/gateway-http.md §3).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -362,7 +362,7 @@
       "type": "table",
       "id": 26,
       "title": "Store state (authoritative)",
-      "description": "The kill switch, the renewal flag, and today's meters, straight from the store through grafana_ro, so it still answers when telemetry is down (data-model.md \u00a72.9).",
+      "description": "The kill switch, the renewal flag, and today's meters, straight from the store through grafana_ro, so it still answers when telemetry is down (data-model.md §2.9).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "gateway"
@@ -1341,7 +1341,7 @@
       "type": "timeseries",
       "id": 4,
       "title": "Error rate",
-      "description": "The share of requests answered 502 local_error or an unexpected 5xx; degraded answers are by design and not counted. With no traffic it has no value (telemetry.md \u00a77.3).",
+      "description": "The share of requests answered 502 local_error or an unexpected 5xx; degraded answers are by design and not counted. With no traffic it has no value (telemetry.md §7.3).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -1575,7 +1575,7 @@
       "type": "stat",
       "id": 9,
       "title": "Model-server health",
-      "description": "The model server answers its metrics once its model is loaded; and each adapter's health as the gateway sees it (FR-028): local, and on prod bedrock, the paid fallback. bedrock reads down while its credentials are missing, expired, or refused, or while its circuit is open after three failed calls (contracts/provider-adapter.md \u00a72.4 and \u00a76). Runbooks: docs/runbooks/model-server-down.md, docs/runbooks/bedrock-unavailable.md, and, before the SSO session ends, docs/runbooks/bedrock-credentials-expiring.md.",
+      "description": "The model server answers its metrics once its model is loaded; and each adapter's health as the gateway sees it (FR-028): local, and on prod bedrock, the paid fallback. bedrock reads down while its credentials are missing, expired, or refused, or while its circuit is open after three failed calls (contracts/provider-adapter.md §2.4 and §6). Runbooks: docs/runbooks/model-server-down.md, docs/runbooks/bedrock-unavailable.md, and, before the SSO session ends, docs/runbooks/bedrock-credentials-expiring.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2058,7 +2058,7 @@
       "type": "logs",
       "id": 40,
       "title": "Alert log",
-      "description": "The alert outbox's events from the gateway's log: queued, delivered, retry, failed. Empty while telemetry is down; the store keeps the outbox (contracts/alerts.md \u00a74.4).",
+      "description": "The alert outbox's events from the gateway's log: queued, delivered, retry, failed. Empty while telemetry is down; the store keeps the outbox (contracts/alerts.md §4.4).",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -2145,7 +2145,7 @@
       "type": "stat",
       "id": 14,
       "title": "Backends up",
-      "description": "Each scraped backend, one per job: how a degraded telemetry pipeline shows itself (plan \u00a719).",
+      "description": "Each scraped backend, one per job: how a degraded telemetry pipeline shows itself (plan §19).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2221,7 +2221,7 @@
       "type": "stat",
       "id": 15,
       "title": "Spend freshness",
-      "description": "Seconds since the day's spend gauge was last seen: green under 30, amber under 60, red at 60 or more or with no data (telemetry.md \u00a76.5 and \u00a77.6).",
+      "description": "Seconds since the day's spend gauge was last seen: green under 30, amber under 60, red at 60 or more or with no data (telemetry.md §6.5 and §7.6).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2888,7 +2888,7 @@
       "type": "timeseries",
       "id": 65,
       "title": "Turns sent and talk presses",
-      "description": "The text box's sends and the talk button's presses, and when (spec 002, FR-054). Until the twin's conversation exists, each answers with a fixed message and calls nothing; its cost, latency, and turns per room feature come with conversations (telemetry.md \u00a77.8).",
+      "description": "The text box's sends and the talk button's presses, and when (spec 002, FR-054). Until the twin's conversation exists, each answers with a fixed message and calls nothing; its cost, latency, and turns per room feature come with conversations (telemetry.md §7.8).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2942,7 +2942,7 @@
       "type": "timeseries",
       "id": 66,
       "title": "Events refused",
-      "description": "Usage events the gateway refused, by reason: content_type (415, neither JSON nor text), shape (400, not {kind} or {kind, id}), kind (400, a kind config/room-events.yaml doesn't list), and id (400, an ID it doesn't list for the kind; every event while the file is missing or invalid, which the gateway's startup log names as room_events.unavailable). The room never retries one, so the use panels undercount by these (spec 002, contracts/room-events.md \u00a73).",
+      "description": "Usage events the gateway refused, by reason: content_type (415, neither JSON nor text), shape (400, not {kind} or {kind, id}), kind (400, a kind config/room-events.yaml doesn't list), and id (400, an ID it doesn't list for the kind; every event while the file is missing or invalid, which the gateway's startup log names as room_events.unavailable). The room never retries one, so the use panels undercount by these (spec 002, contracts/room-events.md §3).",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2993,13 +2993,72 @@
       }
     },
     {
+      "type": "stat",
+      "id": 77,
+      "title": "Visits that walked",
+      "description": "The share of visits that entered the walking view over the dashboard's range: walk_started events, one a visit at its first entry, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 008, FR-051, FR-053; spec 002, FR-054). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 117,
+        "w": 5,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"walk_started\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "walked share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "type": "row",
       "id": 67,
       "title": "Room conversation",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 117,
+        "y": 124,
         "w": 24,
         "h": 1
       },
@@ -3016,7 +3075,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 125,
         "w": 8,
         "h": 7
       },
@@ -3070,7 +3129,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 118,
+        "y": 125,
         "w": 8,
         "h": 7
       },
@@ -3124,7 +3183,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 118,
+        "y": 125,
         "w": 8,
         "h": 7
       },
@@ -3174,7 +3233,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 125,
+        "y": 132,
         "w": 8,
         "h": 7
       },
@@ -3228,7 +3287,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 125,
+        "y": 132,
         "w": 8,
         "h": 7
       },
@@ -3278,7 +3337,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 125,
+        "y": 132,
         "w": 8,
         "h": 7
       },
@@ -3332,7 +3391,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 132,
+        "y": 139,
         "w": 8,
         "h": 7
       },
@@ -3386,7 +3445,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 132,
+        "y": 139,
         "w": 4,
         "h": 7
       },
@@ -3445,7 +3504,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 132,
+        "y": 139,
         "w": 12,
         "h": 7
       },
@@ -3477,7 +3536,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 139,
+        "y": 146,
         "w": 24,
         "h": 1
       },
@@ -3494,7 +3553,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 140,
+        "y": 147,
         "w": 24,
         "h": 6
       },
@@ -3583,7 +3642,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 147,
+        "y": 154,
         "w": 24,
         "h": 1
       },
@@ -3600,7 +3659,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 148,
+        "y": 155,
         "w": 10,
         "h": 7
       },
@@ -3659,7 +3718,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 148,
+        "y": 155,
         "w": 4,
         "h": 7
       },
@@ -3713,7 +3772,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 148,
+        "y": 155,
         "w": 10,
         "h": 7
       },
@@ -3772,14 +3831,14 @@
       "type": "stat",
       "id": 46,
       "title": "Agent-config eval runs: notional cost",
-      "description": "The behavioral agent-config evals' cost in the dashboard's time range: each run the Author's gate recorded from evals/agent-config/history/ (plan \u00a714; telemetry.md \u00a74.4), counted once however often it was posted. It is notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
+      "description": "The behavioral agent-config evals' cost in the dashboard's time range: each run the Author's gate recorded from evals/agent-config/history/ (plan §14; telemetry.md §4.4), counted once however often it was posted. It is notional cost on the Team plan's flat fee, outside the production meter (FR-037): it never adds to h4_cost_usd_total or the ceilings. Only prod's collector receives it (edge's x004), so dev and dev-cpu show none.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
       },
       "gridPos": {
         "x": 0,
-        "y": 155,
+        "y": 162,
         "w": 4,
         "h": 7
       },
@@ -3833,7 +3892,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 155,
+        "y": 162,
         "w": 8,
         "h": 7
       },
@@ -3899,7 +3958,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 155,
+        "y": 162,
         "w": 12,
         "h": 7
       },
