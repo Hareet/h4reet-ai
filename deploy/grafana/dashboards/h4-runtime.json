@@ -2779,7 +2779,7 @@
       "gridPos": {
         "x": 0,
         "y": 110,
-        "w": 5,
+        "w": 4,
         "h": 7
       },
       "targets": [
@@ -2835,9 +2835,9 @@
         "uid": "prom"
       },
       "gridPos": {
-        "x": 5,
+        "x": 4,
         "y": 110,
-        "w": 5,
+        "w": 4,
         "h": 7
       },
       "targets": [
@@ -2885,6 +2885,65 @@
       }
     },
     {
+      "type": "stat",
+      "id": 78,
+      "title": "Visits whose avatar failed",
+      "description": "The share of visits in which a figure's avatar file failed to load after its retry, so the figure showed its fallback (spec 009, FR-032, FR-034): avatar_failed events, at most one a visit and with no identifier, over resume_opened plus resume_kept, a stand-in for visits, read as the 2D share is read. A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 110,
+        "w": 4,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"avatar_failed\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "Avatar failed share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "type": "timeseries",
       "id": 65,
       "title": "Turns sent and talk presses",
@@ -2894,9 +2953,9 @@
         "uid": "prom"
       },
       "gridPos": {
-        "x": 10,
+        "x": 12,
         "y": 110,
-        "w": 7,
+        "w": 6,
         "h": 7
       },
       "targets": [
@@ -2948,9 +3007,9 @@
         "uid": "prom"
       },
       "gridPos": {
-        "x": 17,
+        "x": 18,
         "y": 110,
-        "w": 7,
+        "w": 6,
         "h": 7
       },
       "targets": [

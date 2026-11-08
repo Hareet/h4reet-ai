@@ -675,6 +675,8 @@ def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
         "Use per item per day",
         "PDF downloads per day",
         "Visits shown the 2D mode",
+        # Spec 009's (its FR-034; Amendment M1).
+        "Visits whose avatar failed",
         "Turns sent and talk presses",
         "Events refused",
         "Visits that walked",
@@ -953,3 +955,11 @@ def test_the_model_panel_reads_the_view_and_no_visit() -> None:
     assert "gateway.v_twin_models" in target["rawSql"]
     for column in ("client_label", "request_id", "trace_id"):
         assert column not in target["rawSql"]
+
+
+def test_the_avatar_failure_share_reads_as_the_2d_share_reads() -> None:
+    # Spec 009's FR-034: avatar_failed over the same stand-in for visits, as a percentage.
+    panel = by_title()["Visits whose avatar failed"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    for words in ("avatar_failed", "resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
