@@ -2,7 +2,7 @@
 // (scene.ts), or the 2D drawing (flat.ts). The room holds one at a time, and swaps the scene for the drawing when the
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
-import type { AvatarId } from "../choice/avatars";
+import type { AvatarId, ClipRole } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
@@ -106,7 +106,30 @@ export interface SceneOptions {
   text?: RoomText | null;
   /** The cost channel's state when the stage was made (spec 004, FR-048). */
   cost?: CostState;
+  /** Spec 009: where the 3D stage reports its figures, each picture's and clip's change, and each avatar file that
+   *  failed after its retry (scene/avatars.ts); the room sends avatar_failed once a visit from it and logs the rest in a
+   *  drafts build's frame log. Absent, nothing is reported. */
+  onFigure?: (signal: FigureSignal) => void;
 }
+
+/** One of the room's two figures (spec 009). */
+export type FigureId = "twin" | "visitor";
+
+/** Why a figure shows its fallback (spec 009, plan.md §3.4): its avatar has no file in the bundle; a file failed after
+ *  its retry, or was skipped (the ledger, a stop); the device is below the floor; the room went to 2D; the avatar
+ *  wasn't ready within the hand-off's wait (Phase 2); or its model measured no height. */
+export type FigureWhy = "no-file" | "failed" | "skipped" | "floor" | "2d" | "late" | "degenerate";
+
+/** What the 3D stage reports of its figures (spec 009, FR-032, FR-035; plan.md §3.4). */
+export type FigureSignal =
+  | {
+      readonly kind: "picture";
+      readonly figure: FigureId;
+      readonly shows: "avatar" | "fallback";
+      readonly why: FigureWhy | null;
+    }
+  | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole }
+  | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */
 export interface SceneModule {

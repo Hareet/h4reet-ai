@@ -111,7 +111,8 @@ export interface Room3D {
     readonly sheet: Mesh;
     readonly atTwin: MeshBasicMaterial;
     readonly atVisitor: MeshBasicMaterial;
-    /** The sheet at the visitor's hand, the one the figure keeps once the hand-off has ended (spec 008, R-12). */
+    /** The sheet at the visitor's hand, the one the figure keeps once the hand-off has ended (spec 008, R-12); spec
+     *  009's avatars put it in the holding hand (scene/avatars.ts). */
     readonly kept: Mesh;
   };
   /** The look's materials, which the stand-ins share. */

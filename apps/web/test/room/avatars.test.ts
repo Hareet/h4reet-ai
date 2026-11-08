@@ -81,10 +81,12 @@ async function feed(
   expect(s.figures.model(avatar, await parsed(avatarGlb(o.model).bytes))).toBe(true);
   for (const role of o.roles ?? (["idle", "idle-holding", "take"] as const)) {
     const tracks = o.tracks?.[role];
+    // The clips in the model's own units, as the studio exports a set.
+    const clips = o.model?.unit === undefined ? CLIPS : avatarClips({ unit: o.model.unit });
     const bytes =
       tracks !== undefined
         ? clipGlb(role, { tracks, unit: o.model?.unit ?? 1 }).bytes
-        : (role === "walk" ? CLIPS.idle : CLIPS[role]).bytes;
+        : (role === "walk" ? clips.idle : clips[role]).bytes;
     s.figures.clip(avatar, role, await clipsOf(bytes));
   }
 }
@@ -92,8 +94,12 @@ async function feed(
 const groupOf = (s: Setup, figure: "twin" | "visitor"): Object3D => (figure === "twin" ? s.room.twin : s.room.visitor);
 const avatarIn = (s: Setup, figure: "twin" | "visitor"): Object3D | undefined =>
   groupOf(s, figure).children.find((c) => c.name === AVATAR_NODE);
+/** An object's world box with its skinned vertices, as a frame draws them: the whole tree's matrices updated by
+ *  updateMatrixWorld, which also refreshes a skinned mesh's bind inverse (updateWorldMatrix doesn't). */
 const worldBox = (o: Object3D): Box3 => {
-  o.updateWorldMatrix(true, true);
+  let root = o;
+  while (root.parent) root = root.parent;
+  root.updateMatrixWorld(true);
   return new Box3().setFromObject(o, true);
 };
 const bone = (root: Object3D, name: string): Object3D => {
