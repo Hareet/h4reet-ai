@@ -6,6 +6,12 @@
 // index, as compose() makes it: of the fixture set, whose IDs are synthetic fx- ones, and of the repository's data,
 // whose IDs no test names. A selectable whose topic isn't ready answers topic_not_ready, its {topic} filled with the
 // topic's own phrase from the index, never the visitor's words, and calls nothing.
+// T205 (spec 004; FR-036 to FR-038, FR-076, SC-015; User Story 6, scenarios 3 and 4; R-33): selectObject runs the
+// selectable's action. An unready topic shows topic_not_ready with its own phrase, makes no model call and no request
+// but its usage event, and sends no turn; "Laptop and screen" holds the laptop, its stand, and the monitor, found from
+// compose()'s room by how they mount; a ready topic makes the conversation's feature the selectable's ID, so a turn
+// carries only that ID, the visitor's path, and the turns, through the twin's sender (absent until the twin's spec) and
+// only while live.turn is site; and a resume action opens the resume.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -16,7 +22,20 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { MESSAGE_IDS, cannotTalkFor } from "../../src/talk/messages";
-import { WEB, button, flush, intoRoom, roomContent, roomIndex, start, talkLog, textOf } from "../helpers/room";
+import type { TurnRequest } from "../../src/talk/talk";
+import {
+  WEB,
+  button,
+  enter,
+  flush,
+  intoRoom,
+  repositoryBundle,
+  roomContent,
+  roomIndex,
+  start,
+  talkLog,
+  textOf,
+} from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -58,13 +77,14 @@ describe("the selectables", () => {
       for (const { id } of index.selectables) {
         const [events, shown] = [v.events.length, talkLog(v.doc).children.length];
         listButton(v, id).click();
-        expect(v.events.slice(events), id).toEqual([{ kind: "object_selected", id }]);
+        expect(v.events.slice(events)[0], id).toEqual({ kind: "object_selected", id });
         const phrase = phraseOf(index, id);
         if (phrase === null) {
-          // An action other than talk names no topic: its message isn't this one (running it is T207's).
+          // An action other than talk names no topic, so it shows no message: the fixture's opens the resume.
           expect(talkLog(v.doc).children, id).toHaveLength(shown);
           continue;
         }
+        expect(v.events.slice(events), id).toEqual([{ kind: "object_selected", id }]);
         expect(textOf(lastMessage(v)), id).toBe(messages.topic_not_ready.replace("{topic}", phrase));
         expect(lastMessage(v)?.getAttribute("data-message")).toBe("topic_not_ready");
       }
@@ -89,6 +109,164 @@ describe("the selectables", () => {
     expect(manifest.objects.map((o) => o.id)).toEqual(roomIndex().selectables.map((s) => s.id));
     for (const o of manifest.objects) expect(o.ready, o.id).toBe(o.action === "talk" ? false : null);
     expect(manifest.free_talk.ready).toBe(false);
+  });
+});
+
+/** The index with one topic made ready, as the twin's spec will mark it, and the turn route on (`live.turn`). */
+function readyIndex(index: RoomIndex, topic: string, turn: RoomIndex["live"]["turn"] = "site"): RoomIndex {
+  return {
+    ...index,
+    live: { ...index.live, turn },
+    topics: index.topics.map((t) => (t.id === topic ? { ...t, ready: true } : t)),
+  };
+}
+
+/** The fixture's selectable whose action is talk, and its topic's ID. */
+function talkingSelectable(index: RoomIndex): { id: string; topic: string } {
+  for (const s of index.selectables) if (s.action.kind === "talk") return { id: s.id, topic: s.action.topic };
+  throw new Error("the fixture opens no topic");
+}
+
+/** Sends the visitor's words through the text box. */
+function say(v: Visit, words: string): void {
+  textBox(v).value = words;
+  button(v.doc, "Send").click();
+}
+
+describe("a selectable's action (T205)", () => {
+  it("is topic_not_ready for every unready topic, with no request but its usage event and no turn", async () => {
+    for (const index of [fixture().index, roomIndex()]) {
+      const sent: TurnRequest[] = [];
+      // The route on and a sender given: an unready topic still sends nothing anywhere.
+      const v = start({ room: { ...index, live: { ...index.live, turn: "site" } }, sendTurn: (r) => sent.push(r) });
+      await intoRoom(v);
+      const before = v.events.length;
+      const talking = index.selectables.filter((s) => s.action.kind === "talk");
+      expect(talking.length).toBeGreaterThan(0);
+      for (const { id } of talking) {
+        listButton(v, id).click();
+        expect(lastMessage(v)?.getAttribute("data-message"), id).toBe("topic_not_ready");
+        expect(textOf(lastMessage(v)), id).toBe(messages.topic_not_ready.replace("{topic}", phraseOf(index, id) ?? ""));
+      }
+      expect(v.events.slice(before)).toEqual(talking.map(({ id }) => ({ kind: "object_selected", id })));
+      // A typed turn afterwards is still free talk, which isn't ready.
+      say(v, "and now?");
+      expect(lastMessage(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(sent).toEqual([]);
+      expect(v.spies.network).toEqual([]);
+      expect(v.spies.beacons).toEqual([]);
+    }
+  });
+
+  it("gives each topic of the repository's room its own phrase, which every selectable opening it shares", () => {
+    const index = roomIndex();
+    for (const s of index.selectables) {
+      if (s.action.kind !== "talk") continue;
+      const { topic } = s.action;
+      expect(
+        index.topics.filter((t) => t.id === topic),
+        s.id,
+      ).toHaveLength(1);
+    }
+    const phrases = index.topics.map((t) => t.phrase);
+    expect(new Set(phrases).size).toBe(phrases.length);
+    for (const t of index.topics) expect(t.ready, t.id).toBe(false);
+  });
+
+  it("makes one selectable of the plugged pose's host, its stand, and the monitor, which opens a topic (compose())", () => {
+    const { index, scene } = repositoryBundle();
+    const placement = (id: string | undefined): (typeof scene.placements)[number] | undefined =>
+      scene.placements.find((p) => p.id === id);
+    // The laptop: where the tier switch's pose that claims local (the plugged pose) mounts its plug.
+    const tier = index.switches.find((s) => s.signal === "tier" && s.claims);
+    const plugged = tier?.claims ? scene.switches.find((s) => s.id === tier.id)?.poses[tier.claims.local] : undefined;
+    const laptop = plugged?.mount.on;
+    // Its stand: what the laptop mounts on. The monitor: what the neon sign clips onto.
+    const stand = placement(laptop)?.mount?.on;
+    const neon = index.faces.find((f) => f.regions.some((r) => r.renderer === "neon"))?.placement;
+    const monitor = placement(neon)?.mount?.on;
+    const found = [laptop, stand, monitor];
+    expect(found.every((id) => typeof id === "string")).toBe(true);
+    expect(new Set(found).size).toBe(3);
+    const selectable = index.selectables.find((s) => laptop !== undefined && s.members.includes(laptop));
+    expect([...(selectable?.members ?? [])].sort()).toEqual([...found].sort());
+    // FR-036: its ID is `laptop`, the laptop's own, and it opens work projects.
+    expect(selectable?.id).toBe(laptop);
+    expect(selectable?.action.kind).toBe("talk");
+  });
+
+  it("makes a ready topic's selectable the conversation's feature: a turn carries only it, the path, and the turns", async () => {
+    const base = fixture().index;
+    const { id, topic } = talkingSelectable(base);
+    const sent: TurnRequest[] = [];
+    const v = start({ room: readyIndex(base, topic), sendTurn: (r) => sent.push(r) });
+    await enter(v, "non-engineer");
+    v.clock.advance(5000);
+    button(v.doc, "Keep it for later").click();
+    await flush();
+    const shown = talkLog(v.doc).children.length;
+    listButton(v, id).click();
+    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id });
+    // No fixed message: the twin's spec opens the conversation.
+    expect(talkLog(v.doc).children).toHaveLength(shown);
+    say(v, "What was the work?");
+    expect(sent).toHaveLength(1);
+    expect(Object.keys(sent[0] ?? {}).sort()).toEqual(["feature", "path", "turns"]);
+    expect(sent[0]).toEqual({
+      feature: id,
+      path: "non-engineer",
+      turns: [{ role: "visitor", text: "What was the work?" }],
+    });
+    // The conversation so far, newest last.
+    say(v, "And then?");
+    expect(sent[1]?.turns).toEqual([
+      { role: "visitor", text: "What was the work?" },
+      { role: "visitor", text: "And then?" },
+    ]);
+    // Selecting it again starts a new conversation on it.
+    listButton(v, id).click();
+    say(v, "Once more.");
+    expect(sent[2]).toEqual({ feature: id, path: "non-engineer", turns: [{ role: "visitor", text: "Once more." }] });
+    // No lead, live value, face's words, or cost rides along; the room itself made no request.
+    expect(JSON.stringify(sent)).not.toContain("lead");
+    expect(v.spies.network).toEqual([]);
+    expect(v.events.filter((e) => e.kind === "turn_sent")).toHaveLength(3);
+  });
+
+  it("sends no turn while the turn route is off or no sender exists: the turn is cannot_talk.unavailable", async () => {
+    const base = fixture().index;
+    const { id, topic } = talkingSelectable(base);
+    const sent: TurnRequest[] = [];
+    for (const v of [
+      start({ room: readyIndex(base, topic, "off"), sendTurn: (r) => sent.push(r) }),
+      start({ room: readyIndex(base, topic) }),
+    ]) {
+      await intoRoom(v);
+      listButton(v, id).click();
+      say(v, "hello");
+      expect(lastMessage(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(textBox(v).value).toBe("hello");
+      expect(v.spies.network).toEqual([]);
+    }
+    expect(sent).toEqual([]);
+  });
+
+  it("opens the resume for a resume action, with no message and no call", async () => {
+    const index = fixture().index;
+    const resume = index.selectables.find((s) => s.action.kind === "resume");
+    if (!resume) throw new Error("the fixture has no resume action");
+    const sent: TurnRequest[] = [];
+    const v = start({ room: index, sendTurn: (r) => sent.push(r) });
+    await intoRoom(v);
+    const [before, shown] = [v.events.length, talkLog(v.doc).children.length];
+    expect(v.doc.querySelector(".resume-panel")?.hasAttribute("hidden")).toBe(true);
+    listButton(v, resume.id).click();
+    await flush();
+    expect(v.events.slice(before)).toEqual([{ kind: "object_selected", id: resume.id }, { kind: "resume_opened" }]);
+    expect(v.doc.querySelector(".resume-panel")?.hasAttribute("hidden")).toBe(false);
+    expect(talkLog(v.doc).children).toHaveLength(shown);
+    expect(sent).toEqual([]);
+    expect(v.spies.network).toEqual([]);
   });
 });
 

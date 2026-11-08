@@ -124,7 +124,7 @@ interface RoomIndex {
   selectables: { id: string; name: string; members: string[];
                  action: { kind: "talk"; topic: string } | { kind: "resume" };
                  side_wall: boolean }[];   // scene order; no lead; side_wall: FR-064's carve-out
-  topics: { id: string; phrase: string; ready: false }[];
+  topics: { id: string; phrase: string; ready: boolean }[];  // false in every build until the twin's spec (FR-037)
   faces: { id: string;                                  // "<placement>.<role>"
            placement: string; role: string; readable: boolean; label: string;
            atmosphere: boolean; max_chars: number | null;

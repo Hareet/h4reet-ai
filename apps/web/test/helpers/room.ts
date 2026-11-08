@@ -28,6 +28,7 @@ import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { TierValue } from "../../src/room/compose/vocabulary";
 import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
+import type { TurnRequest } from "../../src/talk/talk";
 
 export const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 export const REPO = resolve(WEB, "../..");
@@ -441,6 +442,9 @@ export interface SceneOptionsForTest {
   loadScene?: () => Promise<SceneModule>;
   /** Answers the page's fetches, after the spy records each: by default every fetch is refused. */
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  /** The twin's sender, which the twin's spec gives the room (spec 004, T205): each turn the talk panel would send, by
+   *  default to nowhere, since no sender exists until then. */
+  sendTurn?: (request: TurnRequest) => void;
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -488,6 +492,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     },
     clock,
     wall,
+    ...(options.sendTurn ? { sendTurn: options.sendTurn } : {}),
     loadScene: () => {
       scene.loads += 1;
       if (options.loadScene) return options.loadScene();

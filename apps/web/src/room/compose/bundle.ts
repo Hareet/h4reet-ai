@@ -90,7 +90,9 @@ export interface RoomIndex {
      *  to the "In the room" list at any stage where its core can't fit. */
     side_wall: boolean;
   }[];
-  topics: { id: string; phrase: string; ready: false }[];
+  /** `ready` is false in every build until the twin's spec marks a topic ready (FR-037); the room reads it as it comes
+   *  (plan.md §10). */
+  topics: { id: string; phrase: string; ready: boolean }[];
   faces: {
     /** `<placement>.<role>` */
     id: string;
