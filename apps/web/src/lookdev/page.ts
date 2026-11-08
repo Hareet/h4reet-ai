@@ -3,8 +3,9 @@
 // inputs, renderer, clock, and capability it's given; main.ts's startLookdev gives it the drafts build's own, and the
 // tests their stand-ins. The page holds:
 // - one canvas (stage.ts), the production runtime at the production framing;
-// - the controls of §3: the view, the scene, the look, the sample state, quality, pause (the room's motion store, User
-//   Story 2's, T162), "Load every piece", and
+// - the controls of §3: the view, the scene, the look, spec 008's highlight sample (T019; FR-050), which draws the
+//   room's own highlight on any selectable it names and is set aside while a run measures the room as visitors get
+//   it, the sample state, quality, pause (the room's motion store, User Story 2's, T162), "Load every piece", and
 //   "Run 2 minutes" and "Run 10 minutes" (each starting with the scripted load), which turn the other settings off
 //   while they measure, so the results describe one setting throughout; and "Labels", on by default, which hides the
 //   stand-ins' labels from the page's view alone, and which a run turns on while it measures, so its figures are the
@@ -331,6 +332,18 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       showReadouts();
     },
   });
+  // Spec 008's highlight sample: none, or any selectable of the index, by its name (FR-050).
+  let highlightChoice = "";
+  const highlightSelect = selectControl(doc, {
+    label: "Highlight",
+    choices: [{ value: "", label: "None" }, ...index.selectables.map((x) => ({ value: x.id, label: x.name }))],
+    value: highlightChoice,
+    onChange: (id) => {
+      highlightChoice = id;
+      stage.setHighlight(id === "" ? null : id);
+      showReadouts();
+    },
+  });
   const sampleSelect = selectControl(doc, {
     label: "Sample state",
     choices: fixtures.map((f) => ({ value: f.id, label: `${f.id} (${f.tier})` })),
@@ -366,7 +379,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
   );
   const stopButton = actionButton(doc, "Stop the run", () => stop());
   stopButton.disabled = true;
-  controls.push(viewGroup, sceneGroup, lookSelect, sampleSelect, qualityGroup, pause, labelToggle);
+  controls.push(viewGroup, sceneGroup, lookSelect, highlightSelect, sampleSelect, qualityGroup, pause, labelToggle);
   const controlPanel = h(
     doc,
     "section",
@@ -375,6 +388,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     viewGroup.element,
     sceneGroup.element,
     lookSelect.element,
+    highlightSelect.element,
     sampleSelect.element,
     samplePanel,
     qualityGroup.element,
@@ -627,10 +641,12 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     for (const b of [loadEvery, ...clears]) b.disabled = on;
     for (const b of runButtons) b.disabled = on;
     stopButton.disabled = !on;
-    // A run measures the room as visitors get it, its stand-ins labelled; the Author's choice comes back after it.
+    // A run measures the room as visitors get it, its stand-ins labelled and no piece highlighted; the Author's
+    // choices come back after it.
     const labelled = on || labelsOn;
     stage.setLabels(labelled);
     labelToggle.set(labelled);
+    stage.setHighlight(on || highlightChoice === "" ? null : highlightChoice);
   }
 
   function begin(seconds: RunSeconds): void {

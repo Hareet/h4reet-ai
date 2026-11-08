@@ -7,13 +7,15 @@
 //   path's form: keys joined by dots, indices in brackets, `-` for the whole file, and a key that isn't printable left
 //   out with everything below it, so no path prints a name RT2 refused;
 // - the context each family's check reads and reports through. A family is `(ctx) => void`, one module each in this
-//   folder, run by compose.ts in the order RI, RG, RS, RT, RV, RX, RK, RL, after RD (the loader's) and RT2's walk.
+//   folder, run by compose.ts in the order RI, RG, RS, RT, RV, RX, RK, RL, and spec 008's RW, after RD (the loader's)
+//   and RT2's walk.
 import type { LoadedRoom } from "../load";
 import type { RoomPolicy } from "../policy";
 import { compareBytewise } from "../source";
 import type { Tree } from "../source";
 
-export const FAMILIES = ["RD", "RI", "RG", "RS", "RT", "RV", "RX", "RK", "RL"] as const;
+/** Spec 004's nine families, then spec 008's RW (its plan.md §3.5). */
+export const FAMILIES = ["RD", "RI", "RG", "RS", "RT", "RV", "RX", "RK", "RL", "RW"] as const;
 export type FamilyId = (typeof FAMILIES)[number];
 
 export interface RuleInfo {
@@ -40,7 +42,7 @@ const read = { loader: "whole" } as const;
 const readPart = { loader: "part" } as const;
 const model = { lenient: true } as const;
 
-/** Every rule of contracts/room-data-files.md §13, in its order. */
+/** Every rule of contracts/room-data-files.md §13, in its order, then spec 008's (its Amendment M12). */
 export const RULES = {
   RD1: rule("RD", read), // a file that doesn't parse
   RD2: rule("RD", read), // a key its schema doesn't define
@@ -107,6 +109,8 @@ export const RULES = {
   RL2: rule("RL"), // the status source without row V7
   RL3: rule("RL"), // asset events without row V6
   RL4: rule("RL"), // the turn route without row V2
+  // Spec 008 (plan.md §3.5): RW1, the visitor figure's start on the walkable floor, joins with the walking data (T041).
+  RW2: rule("RW"), // a look whose highlight's band and edge both give under 3:1 against a colour of its palette
 } as const satisfies Record<string, RuleInfo>;
 
 export type RuleId = keyof typeof RULES;

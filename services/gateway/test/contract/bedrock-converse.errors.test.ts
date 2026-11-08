@@ -246,9 +246,9 @@ describe("the Bedrock adapter's health (§3.2's health probe)", () => {
     });
     expect(await failing.health(AbortSignal.timeout(1_000))).toMatchObject({ healthy: false, reason: "credentials" });
     const slow = adapter({ deps: { credentials: () => new Promise(() => {}) } });
-    const started = Date.now();
+    const started = performance.now(); // monotonic: a step of the wall clock can't move it
     expect(await slow.health(AbortSignal.timeout(200))).toMatchObject({ healthy: false, reason: "credentials" });
-    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it("refuses to be built with routing.yaml's placeholder model", () => {

@@ -3,7 +3,8 @@ tokenizer: the headers on every response, the cache rule, the access log's field
 
 Spec 004's T214 (FR-079; Amendment B14; R-45; its contracts/serving.md §2.1 and §8): the content-addressed files at
 /a/, every GLB as its build-time gzip-9 copy. The cache map gains one rule and the server one location, exactly as
-§2.1 gives them; nothing is compressed per request, and nothing below the server adds a header."""
+§2.1 gives them; nothing is compressed per request, and nothing below the server adds a header. The location takes
+gzip_proxied any, so a request through a proxy that adds Via gets the copy too (the Author's decision of 2026-11-07)."""
 
 from __future__ import annotations
 
@@ -120,9 +121,10 @@ def directives(block: list[edge.Directive]) -> list[tuple]:
 
 def test_a_holds_exactly_the_contracts_directives() -> None:
     # gzip_static always serves <file>.gz for <file>, with Content-Encoding: gzip, whatever the client's Accept-Encoding,
-    # and needs no plain file on disk; gunzip inflates it for a client that takes no gzip; gzip_vary adds Vary. A types
-    # block in a location replaces the inherited map there, so every extension /a/ serves is listed. The .gz URL
-    # answers 404: the copy has one public name, the .glb one.
+    # and needs no plain file on disk; gunzip inflates it for a client that takes no gzip; gzip_proxied any lets a
+    # request with Via take the copy; gzip_vary adds Vary. A types block in a location replaces the inherited map
+    # there, so every extension /a/ serves is listed. The .gz URL answers 404: the copy has one public name, the .glb
+    # one.
     assert directives(location("^~", "/a/").block) == [
         ("limit_except", ["GET"], [("deny", ["all"])]),
         (
@@ -138,9 +140,18 @@ def test_a_holds_exactly_the_contracts_directives() -> None:
         ("default_type", ["application/octet-stream"]),
         ("gzip_static", ["always"]),
         ("gunzip", ["on"]),
+        ("gzip_proxied", ["any"]),
         ("gzip_vary", ["on"]),
         ("location", ["~", r"\.gz$"], [("return", ["404"])]),
     ]
+
+
+def test_a_sends_the_copy_to_a_request_through_a_proxy() -> None:
+    # nginx's ngx_http_gzip_ok refuses gzip to a request that carries Via while gzip_proxied is off, its default, and
+    # edge passes a client's Via through, so gunzip would inflate every GLB for a visitor behind a proxy that adds one.
+    # The Author's answer of 2026-11-07: "go ahead with ... compression behind proxy" (contracts/serving.md §2.1). With
+    # any, a request that carries Via takes the copy exactly when the same request without Via would.
+    assert location("^~", "/a/").one("gzip_proxied").args == ["any"]
 
 
 def test_a_has_no_fallback_and_adds_no_header() -> None:
@@ -154,10 +165,11 @@ def test_a_has_no_fallback_and_adds_no_header() -> None:
 
 def test_nothing_is_compressed_per_request() -> None:
     # B14: the image "compresses no GLB per request", which would cost its 0.1 CPU and send bytes the caps don't
-    # measure. No directive named gzip in any block; gzip_static, gunzip, and gzip_vary only where /a/ holds them.
+    # measure. No directive named gzip in any block; gzip_static, gunzip, gzip_proxied, and gzip_vary only where /a/
+    # holds them.
     assert [d for d in every(TOP) if d.name == "gzip"] == []
     a = location("^~", "/a/")
-    for name in ("gzip_static", "gunzip", "gzip_vary"):
+    for name in ("gzip_static", "gunzip", "gzip_proxied", "gzip_vary"):
         assert [d for d in every(TOP) if d.name == name] == a.all(name), name
 
 

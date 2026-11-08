@@ -5,6 +5,9 @@
 // Since spec 004 (FR-004, FR-063; R-40), the list is the bundle's index's: a button per selectable in scene order,
 // named by its name, with a visually hidden ": " and its topic's phrase, or the resume action's UI word, under the
 // index's own heading, so a selectable added, renamed, or retargeted as data changes the list with no change here.
+// Spec 008 (T017; FR-008 (c), FR-040): keyboard focus on a button is a targeting input, naming its selectable, held at
+// the stage or not, and none when focus leaves it, so the piece shows the highlight in the scene while its button has
+// focus.
 import type { RoomIndex } from "./compose/bundle";
 import { h } from "./dom";
 import { uiWord } from "./ui-keys";
@@ -20,8 +23,14 @@ function opens(room: ListIndex, selectable: ListIndex["selectables"][number]): s
   return uiWord(room.ui, "list.resume_action");
 }
 
-/** The "In the room" list: a button per selectable, in the index's order, named by it and by what it opens. */
-export function renderObjectList(doc: Document, room: ListIndex, select: (id: string) => void): HTMLElement {
+/** The "In the room" list: a button per selectable, in the index's order, named by it and by what it opens. With
+ *  `target`, each button's focus names its selectable and its blur names none (spec 008). */
+export function renderObjectList(
+  doc: Document,
+  room: ListIndex,
+  select: (id: string) => void,
+  target?: (id: string | null) => void,
+): HTMLElement {
   const heading = h(
     doc,
     "h2",
@@ -38,6 +47,10 @@ export function renderObjectList(doc: Document, room: ListIndex, select: (id: st
       ...(what === null ? [] : [h(doc, "span", { class: "visually-hidden" }, `: ${what}`)]),
     );
     button.addEventListener("click", () => select(selectable.id));
+    if (target) {
+      button.addEventListener("focus", () => target(selectable.id));
+      button.addEventListener("blur", () => target(null));
+    }
     return h(doc, "li", {}, button);
   });
   return h(

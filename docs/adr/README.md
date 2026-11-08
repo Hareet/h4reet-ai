@@ -13,7 +13,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | 0007 | One AWS account; environments separated by VM, IAM role, tag, and budget | proposed | 001 |
 | 0008 | Terraform, plan-in-PR, human-gated apply | proposed | 001 |
 | 0009 | Pull-based deployment to the local tier; no inbound ports; no self-hosted runners | proposed | 001 |
-| [0010](0010-real-time-avatar-rig-and-art-direction.md) | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | proposed (drafted by spec 003; avatars wait for its acceptance; spec 004 adds the room's caps, and it stays proposed until spec 004's lookdev records the look) | 003, Phase 2, 004 |
+| [0010](0010-real-time-avatar-rig-and-art-direction.md) | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | accepted (the Author's commit 1f929db0, with the avatar caps; the room's caps from his ec2fdb87; spec 004's look to come in ADR 0037, which amends it) | 003, Phase 2, 004 |
 | 0011 | Cloned voice for the twin, disclosed | proposed | Phase 2 |
 | [0012](0012-constitution-1-0-1-spec-kit-lifecycle.md) | Constitution 1.0.1: Spec Kit 1.0.8 lifecycle order and command names | accepted | — |
 | [0013](0013-local-until-publication.md) | Develop locally until publication; publish the history from its first commit | accepted (one Consequence replaced by 0014; its cleanup extended to assets by 0032, proposed) | 000, 001, 003 |

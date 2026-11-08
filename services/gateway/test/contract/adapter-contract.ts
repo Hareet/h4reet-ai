@@ -103,6 +103,8 @@ export const CONTRACT_TIMEOUTS = { connectMs: 100, requestMs: 3_000 } as const;
 const C10_WITHIN_MS = 100 + 2_000;
 /** The stub's slow answer: longer than the request timeout, so the timeout, the abort, or the deadline ends the call. */
 const SLOW_MS = 5_000;
+// Every duration below is timed on the monotonic clock, performance.now(): WSL's wall clock steps back, and Date.now()
+// gave the gateway's timed cases negative durations. A request's deadline stays epoch milliseconds, as §2.1 has it.
 
 // telemetry.md §3.3: the client span's canonical keys.
 const ALWAYS_KEYS = [
@@ -398,9 +400,9 @@ export function describeAdapterContract(
 
     it("C3: health() resolves within its signal, with the HealthStatus shape, and never spends", async () => {
       const before = completionCount();
-      const started = Date.now();
+      const started = performance.now();
       const status = await subject.adapter.health(AbortSignal.timeout(2_000));
-      expect(Date.now() - started).toBeLessThan(2_500);
+      expect(performance.now() - started).toBeLessThan(2_500);
       expectHealthShape(status);
       expect(status.healthy).toBe(true);
 
@@ -421,10 +423,10 @@ export function describeAdapterContract(
         expect([refused.healthy, refused.reason]).toEqual([false, "unreachable"]);
 
         control.nextHealth({ delayMs: 3_000 });
-        const slowStarted = Date.now();
+        const slowStarted = performance.now();
         const slow = await subject.adapter.health(AbortSignal.timeout(150));
         // Well under the stub's 3 s, so the signal ended it, with room for a loaded host (round 3's review).
-        expect(Date.now() - slowStarted).toBeLessThan(150 + 1_000);
+        expect(performance.now() - slowStarted).toBeLessThan(150 + 1_000);
         expectHealthShape(slow);
         expect([slow.healthy, slow.reason]).toEqual([false, "timeout"]);
       }
@@ -644,33 +646,38 @@ export function describeAdapterContract(
       if (direct()) {
         // It answers at once, so the only abort it can meet is one before the call, or a deadline already past.
         for (const f of directFailures()) {
-          const started = Date.now();
+          const started = performance.now();
           const out = await call(f.req);
           expect(out.ok, f.name).toBe(false);
           if (!out.ok) expect(out.error.kind, f.name).toBe("timeout");
-          expect(Date.now() - started, f.name).toBeLessThan(100);
+          expect(performance.now() - started, f.name).toBeLessThan(100);
         }
         return;
       }
       stub().next({ delayMs: SLOW_MS });
       const controller = new AbortController();
-      let abortedAt = 0;
+      // NaN until the abort fires, so a call that ends before it fails the bound below. 0 was the sentinel while this
+      // read Date.now(); on performance.now() it would let an early end pass in a worker under 2.1 s old.
+      let abortedAt = Number.NaN;
       setTimeout(() => {
-        abortedAt = Date.now();
+        abortedAt = performance.now();
         controller.abort();
       }, 50);
       const aborted = await call(request({ signal: controller.signal, deadline: Date.now() + 10_000 }));
       expect(aborted.ok).toBe(false);
       if (!aborted.ok) expect(aborted.error.kind).toBe("timeout");
-      expect(Date.now() - abortedAt).toBeLessThan(C10_WITHIN_MS);
+      expect(performance.now() - abortedAt).toBeLessThan(C10_WITHIN_MS);
 
       stub().next({ delayMs: SLOW_MS });
-      // Far shorter than the request timeout, even with C10_WITHIN_MS on top, so the deadline is what ends it.
+      // Far shorter than the request timeout, even with C10_WITHIN_MS on top, so the deadline is what ends it. The
+      // request carries the deadline in epoch milliseconds; the time past it is read from its twin on the monotonic
+      // clock, taken first, so the bound is never looser.
+      const deadlineMono = performance.now() + 120;
       const deadline = Date.now() + 120;
       const late = await call(request({ deadline }));
       expect(late.ok).toBe(false);
       if (!late.ok) expect(late.error.kind).toBe("timeout");
-      expect(Date.now() - deadline).toBeLessThan(C10_WITHIN_MS);
+      expect(performance.now() - deadlineMono).toBeLessThan(C10_WITHIN_MS);
     });
 
     it("C12: returns a filtered answer as a result, not an error", async (ctx) => {

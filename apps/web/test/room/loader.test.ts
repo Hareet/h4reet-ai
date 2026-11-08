@@ -1126,20 +1126,20 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     await enter(none);
     expect(none.room.visit.mode).toBe("2d");
     expect(beaconed(none)).toEqual([]);
-    // The site's own room, every piece but the figures with its studio file set (T234) but the chalkboard, whose studio
-    // file is unset at T308's scale until the studio rebuilds it (chalkboard.yaml): each skipped in 2D, once, in load
-    // order. The hide's one beacon carries at most BATCH_MAX of them; the rest stay queued, and the batcher's next
-    // post, SEND_EVERY_MS after the first event, carries them (the review of feat/004-room-models, N4). The site's own
-    // models are BATCH_MAX exactly while the chalkboard is a stand-in, so one fixture model after them, fx-desk, keeps
-    // one over the beacon's batch.
+    // The site's own room, every piece but the figures with its studio file set (T234), the chalkboard's since the
+    // Author's re-intake of the studio's rebuild at T308's 1.49 (T331): each skipped in 2D, once, in load order. The
+    // hide's one beacon carries at most BATCH_MAX of them; the rest stay queued, and the batcher's next post,
+    // SEND_EVERY_MS after the first event, carries them (the review of feat/004-room-models, N4). The site's own models
+    // are over BATCH_MAX on their own, so no fixture model is needed to put the room over the beacon's batch; and at
+    // most twice it, so one post carries the rest, after which nothing more is sent: none dropped, none twice.
     const site = roomIndex();
-    expect(site.models).toHaveLength(BATCH_MAX);
-    expect(site.models).not.toContain("fx-desk");
-    const models = [...site.models, "fx-desk"];
+    expect(site.models.length).toBeGreaterThan(BATCH_MAX);
+    expect(site.models.length).toBeLessThanOrEqual(2 * BATCH_MAX);
+    expect(new Set(site.models).size).toBe(site.models.length);
     const posts: AssetEvent[][] = [];
     const v = start({
       webgl: false,
-      room: sending({ ...site, models }),
+      room: sending(site),
       fetch: (url, init) => {
         if (url === ASSET_EVENTS_URL && init.method === "POST")
           posts.push((JSON.parse(String(init.body)) as { events: AssetEvent[] }).events);
@@ -1148,10 +1148,13 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     });
     await enter(v);
     expect(v.room.visit.mode).toBe("2d");
-    expect(beaconed(v)).toEqual(site.models.map(skipped2d));
+    expect(beaconed(v)).toEqual(site.models.slice(0, BATCH_MAX).map(skipped2d));
     expect(posts).toEqual([]);
     v.clock.advance(SEND_EVERY_MS);
     await flush();
-    expect(posts).toEqual([[skipped2d("fx-desk")]]);
+    expect(posts).toEqual([site.models.slice(BATCH_MAX).map(skipped2d)]);
+    v.clock.advance(SEND_EVERY_MS);
+    await flush();
+    expect(posts).toHaveLength(1);
   });
 });

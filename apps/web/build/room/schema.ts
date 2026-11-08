@@ -545,8 +545,26 @@ const hex = z.string().regex(HEX, own("RD3", "not a colour #rrggbb in lowercase"
 const intensity = z.number().min(0);
 const typeface = z.strictObject({ family: z.string(), weight: z.number().int() });
 
+/** Spec 008's highlight defaults (Clarifications, Q5): a warm yellow band 3 CSS pixels wide, framed on its outer side by
+ *  an edge 1.5 CSS pixels wide in the look's ink, its outlines' colour, which the compositor fills where `edge` is
+ *  left out (plan.md §3.2, §10). */
+export const HIGHLIGHT_DEFAULTS = { band: "#ffd23f", band_px: 3, edge_px: 1.5 } as const;
+
+/** A look's `highlight` (spec 008, FR-015, FR-057; plan.md §3.2), every key optional: `band` and `edge` a palette name
+ *  of the look or `#rrggbb`, which RI4 holds to the look's own palette; `band_px` "2 to 8"; `edge_px` "1 to 4". RW2
+ *  refuses a look whose two tones both give under 3:1 against a colour of its palette. */
+const highlight = z
+  .strictObject({
+    band: z.string().default(HIGHLIGHT_DEFAULTS.band),
+    band_px: z.number().min(2).max(8).default(HIGHLIGHT_DEFAULTS.band_px),
+    edge: z.string().optional(),
+    edge_px: z.number().min(1).max(4).default(HIGHLIGHT_DEFAULTS.edge_px),
+  })
+  .default(() => ({ ...HIGHLIGHT_DEFAULTS }));
+
 /** `apps/web/room/looks/<look>.yaml` (§10): `method` inked-cel, painted, or flat; `palette` to `#rrggbb`; `lights`;
- *  `shading.steps` "integer 2 to 5"; `outlines`; `glow_tones`; `typefaces` for each use; `material_notes`. */
+ *  `shading.steps` "integer 2 to 5"; `outlines`; `glow_tones`; `typefaces` for each use; `material_notes`; and spec
+ *  008's optional `highlight` (Amendment M12). */
 export const lookSchema = z.strictObject({
   version: version(),
   id: name("a look's name"),
@@ -567,6 +585,7 @@ export const lookSchema = z.strictObject({
     counters: typeface,
   } satisfies Record<(typeof TYPEFACE_USES)[number], typeof typeface>),
   material_notes: z.string(),
+  highlight,
 });
 
 /** A turn's outcome (turn-cost.md): a reply may be invalid on purpose, so `route` is any string and `cost_micro_usd`

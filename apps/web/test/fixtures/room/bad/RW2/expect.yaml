@@ -1,0 +1,10 @@
+rule: RW2
+file: apps/web/room/looks/fx-cel.yaml
+path: highlight
+why: a highlight whose band and edge, two mid greys, both give under 3:1 against a colour of the look's palette (spec 008, FR-016)
+edits:
+  - {
+      file: apps/web/room/looks/fx-cel.yaml,
+      at: [highlight],
+      set: { band: "#7f7f7f", band_px: 3, edge: "#909090", edge_px: 1.5 },
+    }

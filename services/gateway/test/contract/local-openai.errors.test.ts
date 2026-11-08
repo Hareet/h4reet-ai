@@ -66,14 +66,17 @@ const request = (): CompletionRequest => ({
   signal: new AbortController().signal,
 });
 
-/** The call's rejection, which must be a ProviderError, and how long the call took. */
+/**
+ * The call's rejection, which must be a ProviderError, and how long the call took, on the monotonic clock: WSL's wall
+ * clock steps back, and Date.now() gave these calls negative durations.
+ */
 async function failure(adapter: ProviderAdapter): Promise<{ err: ProviderError; ms: number }> {
-  const started = Date.now();
+  const started = performance.now();
   const err = await adapter.complete(request()).then(
     () => undefined,
     (e: unknown) => e,
   );
-  const ms = Date.now() - started;
+  const ms = performance.now() - started;
   expect(err).toBeInstanceOf(ProviderError);
   return { err: err as ProviderError, ms };
 }

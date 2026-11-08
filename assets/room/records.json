@@ -348,8 +348,8 @@
       "kind": "room",
       "made": "2026-11-07",
       "source": {
-        "type": "prompt",
-        "id": "P-0002"
+        "type": "design",
+        "id": "D-0001"
       },
       "likeness": false,
       "steps": [
@@ -425,7 +425,7 @@
     },
     {
       "file": "chalkboard.glb",
-      "sha256": "ead06b65eb1da86a9a531f2dba76caaa31807dcb4336292d408183fb0e0887a6",
+      "sha256": "24482ceb903c46fa0e116347651f0d09b40330172d4240dc9c97277acf3c137d",
       "kind": "room",
       "made": "2026-11-07",
       "source": {
@@ -541,7 +541,7 @@
           "workflow_sha256": "efbc5f4512d82e338c5028fb1c3ec742790fe38b76771d1c3df7d373ce4f0269"
         },
         {
-          "name": "rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender",
+          "name": "rebuilt from the studio's copy of that script, at the catalog's stylized scale of 1.49, every part scaled about the origin, by a wrapper that pins it and adds that scale, and exported, by the studio's agent, run in Blender",
           "by": "model",
           "models": [
             {
@@ -574,11 +574,11 @@
             "disclosure_row": "D4"
           },
           "models_checked": "2026-11-07",
-          "workflow_sha256": "14e73546c332310365c9347e664c060945476de54716bd2637de1a38d391f7bc"
+          "workflow_sha256": "d222e266ff2eaba9962b723bf8b22968e9c3b095a49c990958b65c3bb9fda301"
         }
       ],
       "media_license": "all-rights-reserved-2026",
-      "approval": "A-20261107-chalkboard"
+      "approval": "A-20261107-chalkboard-2"
     },
     {
       "file": "charger.glb",
@@ -748,8 +748,8 @@
       "kind": "room",
       "made": "2026-11-07",
       "source": {
-        "type": "prompt",
-        "id": "P-0009"
+        "type": "design",
+        "id": "D-0002"
       },
       "likeness": false,
       "steps": [
@@ -1427,7 +1427,7 @@
           "workflow_sha256": "07d25b2b4fceca6dfaef25aac8ed2f02470c161a5aacaf532d22ed140055f779"
         },
         {
-          "name": "the textures refined image-to-image at 4K, from the session's own textures (no photo)",
+          "name": "the textures enlarged to 4K by a plain resize, then refined image-to-image at 4K, from the session's own textures (no photo)",
           "by": "model",
           "models": [
             {
@@ -1461,6 +1461,18 @@
               "version": "0.42.5",
               "license": "gpl-3.0",
               "license_version": "3"
+            },
+            {
+              "name": "Python",
+              "version": "3.12.3",
+              "license": "psf-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Pillow",
+              "version": "10.2.0",
+              "license": "hpnd",
+              "license_version": "1"
             }
           ],
           "service": {

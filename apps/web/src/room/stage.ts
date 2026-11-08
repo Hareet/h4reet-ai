@@ -11,6 +11,7 @@ import type { TypefaceLoader } from "./faces/fonts";
 import type { RoomText } from "./faces/words";
 import type { MotionState } from "./motion";
 import type { CostState } from "./signals/turn-cost";
+import type { TargetInput } from "./walk/target";
 
 export interface Stage {
   readonly mode: "3d" | "2d";
@@ -27,6 +28,10 @@ export interface Stage {
   /** The cost channel's state (spec 004, FR-047, FR-048): the neon sign's counters are drawn again at once, paused or
    *  not (FR-060). A stage made after a report is given the state at its making. */
   setCost?(state: CostState): void;
+  /** The room's target (spec 008, FR-007, FR-014; plan.md §2): the selectable the stage shows with the highlight,
+   *  from its next frame in 3D, or none. The 2D room draws its highlight with spec 008's Phase 6, and takes it until
+   *  then. */
+  setTarget(id: string | null): void;
   dispose(): void;
 }
 
@@ -55,6 +60,9 @@ export interface SceneOptions {
   motion?: MotionView;
   /** The one handler a pick, a touch, and the list's button all call, with a selectable's ID. */
   select(id: string): void;
+  /** Where the stage's pointer reports its targeting inputs (spec 008, FR-008 (a) and (b)): a hovering pointer's
+   *  pick and a press's, a selectable's ID or none. Absent, nothing is reported. */
+  target?(input: Extract<TargetInput, "pointer" | "press">, id: string | null): void;
   /** Each frame's time, for the quality controller. */
   onFrame(time: number): void;
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full

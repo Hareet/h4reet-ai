@@ -6,8 +6,10 @@
 # viewer's right. The scene frames the shell, so the camera looks straight into the open front. The 2D drawing is the
 # cube as framing(1.6) sees it, drawn in the back wall's plane: the floor and the two side walls in perspective, then
 # the back wall, their front corners where the 2D camera projects the cube's open front onto that plane (a test holds
-# them to the camera). The chalkboard binds the 2D camera, not the shell's open front, so they move with the board, as
-# T308's larger slate moved them.
+# them to the camera). The front edge of the shell's own floor binds that camera, since no stand-in's label raises a
+# framed box once every piece but the figures has its model set (the chalkboard's by the Author's re-intake at 1.49,
+# T331), as at T234. A framed box that binds it instead moves them, as the chalkboard's labelled stand-in did while
+# T308 left it unset.
 version: 1
 id: room-shell
 name: Room shell, a brick cube open at the front
@@ -29,15 +31,15 @@ standin:
 drawing:
   primitives:
     - primitive: polygon
-      points: [[-1.0668, 0], [1.0668, 0], [1.4668, -0.4312], [-1.4668, -0.4312]]
+      points: [[-1.0668, 0], [1.0668, 0], [1.5088, -0.4764], [-1.5088, -0.4764]]
       fill: cement
     - primitive: polygon
-      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.4668, 2.5024], [-1.4668, -0.4312]]
+      points: [[-1.0668, 0], [-1.0668, 2.1336], [-1.5088, 2.5411], [-1.5088, -0.4764]]
       fill: brick
       stroke: ink
       stroke_width: 0.01
     - primitive: polygon
-      points: [[1.0668, 0], [1.0668, 2.1336], [1.4668, 2.5024], [1.4668, -0.4312]]
+      points: [[1.0668, 0], [1.0668, 2.1336], [1.5088, 2.5411], [1.5088, -0.4764]]
       fill: brick
       stroke: ink
       stroke_width: 0.01

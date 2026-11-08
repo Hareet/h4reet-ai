@@ -48,6 +48,8 @@ The Author's answer during `/speckit-clarify`, on whether to send the models gzi
       default_type application/octet-stream;
       gzip_static always;
       gunzip on;
+      # A request through a proxy carries Via, and gzip_proxied's default, off, would send it every GLB inflated.
+      gzip_proxied any;
       gzip_vary on;
       location ~ \.gz$ {
         return 404;
@@ -56,6 +58,7 @@ The Author's answer during `/speckit-clarify`, on whether to send the models gzi
 ```
 
 - **`gzip_static always`** serves `<file>.gz` for `<file>` with `Content-Encoding: gzip`, whatever the client's `Accept-Encoding`, and needs no plain file on disk; **`gunzip on`** inflates it as it is sent to a client that takes no gzip, so every client gets valid bytes. An image card has no `.gz`, so nginx serves it as stored.
+- **`gzip_proxied any`** lets a request through a proxy take the copy: nginx's `ngx_http_gzip_ok` refuses gzip to a request that carries `Via` while `gzip_proxied` is `off`, its default, and edge passes a client's `Via` through (§4), so `gunzip` would inflate every GLB for a visitor behind a proxy that adds one. The Author's decision of 2026-11-07, in his words: "go ahead with … compression behind proxy". The review of `feat/004-us4-studio` (its Nit 2) offered this or edge dropping `Via`; the main session's brief took this one. A shared cache on the way keeps the two answers apart by `gzip_vary`'s `Vary: Accept-Encoding`.
 - **No `gzip on` anywhere.** Nothing is compressed per request (B14: the image "compresses no GLB per request"), which would cost the image's 0.1 CPU and send bytes the caps don't measure.
 - **No `add_header` in the location.** An `add_header` there would replace the server's security headers in it; `Content-Encoding` comes from `gzip_static`, `Vary` from `gzip_vary`, and `Cache-Control` from the map.
 - **`types` lists the image types too.** A `types` block inside a location replaces the inherited map there, so every extension `/a/` serves is listed.
@@ -67,7 +70,7 @@ The Author's answer during `/speckit-clarify`, on whether to send the models gzi
 
 | Request | Response |
 |---|---|
-| `GET /a/<stem>.<hash16>.glb` with gzip in `Accept-Encoding`, as every browser sends | 200; `Content-Type: model/gltf-binary`; `Content-Encoding: gzip`; `Content-Length` the `.gz` length; `Vary: Accept-Encoding`; `Cache-Control: public, max-age=31536000, immutable`; and spec 002's server headers: the CSP, `Referrer-Policy`, `Permissions-Policy`, and `X-Content-Type-Options: nosniff` |
+| `GET /a/<stem>.<hash16>.glb` with gzip in `Accept-Encoding`, as every browser sends, with or without a `Via` header | 200; `Content-Type: model/gltf-binary`; `Content-Encoding: gzip`; `Content-Length` the `.gz` length; `Vary: Accept-Encoding`; `Cache-Control: public, max-age=31536000, immutable`; and spec 002's server headers: the CSP, `Referrer-Policy`, `Permissions-Policy`, and `X-Content-Type-Options: nosniff` |
 | The same, without gzip in `Accept-Encoding` | 200, the plain GLB, inflated as it is sent, with no `Content-Encoding`, and the same type and headers |
 | `HEAD` of either | as `GET`, with no body |
 | `GET /a/<stem>.<hash16>.glb.gz` | 404 |
@@ -101,7 +104,7 @@ COPY --from=room-assets / /src/assets/room/
 
 ## 4. The stack's edge (B14)
 
-`deploy/edge/nginx.conf`'s x005 listener (on the `feat/002-*` branches) needs no change, and its tests pin why: its `location /` passes the client's `Accept-Encoding` to `web` (it sets no `Accept-Encoding` header of its own), and passes the response's `Content-Encoding` back unchanged, since edge has no `gzip`, `gzip_static`, or `gunzip` directive in any block, and runs with `proxy_buffering off`. The listener keeps its four locations.
+`deploy/edge/nginx.conf`'s x005 listener (on the `feat/002-*` branches) needs no change, and its tests pin why: its `location /` passes the client's `Accept-Encoding` to `web` (it sets no `Accept-Encoding` header of its own), and passes the response's `Content-Encoding` back unchanged, since edge has no `gzip`, `gzip_static`, or `gunzip` directive in any block, and runs with `proxy_buffering off`. It asks `web` over HTTP/1.1, from its `http` block's `proxy_http_version 1.1`, which nothing below overrides on the site: `web`'s nginx sends gzip to no older request (`gzip_http_version` defaults to 1.1), and nginx proxies over HTTP/1.0 unless told otherwise. It passes a client's `Via` through, which `gzip_proxied any` (§2.1) lets take the copy. The listener keeps its four locations.
 
 ## 5. Spec 001's release and CloudFront (A6, A5)
 
@@ -131,12 +134,12 @@ When spec 001's `make release` writes the site (its `releases-deployer.md` §2 s
 
 | Test | Proves | Spec |
 |---|---|---|
-| `deploy/scripts/test_web_nginx.py` (on `feat/002-us6-events`), extended | the cache map holds exactly its three rules; the `/a/` location holds exactly §2.1's directives (no `try_files`, no `add_header`); no directive named `gzip` in any block; still no nested `add_header`; `limit_except GET` on both `/` and `/a/` | B14, FR-079 |
+| `deploy/scripts/test_web_nginx.py` (on `feat/002-us6-events`), extended | the cache map holds exactly its three rules; the `/a/` location holds exactly §2.1's directives, `gzip_proxied any` among them (no `try_files`, no `add_header`); no directive named `gzip` in any block; still no nested `add_header`; `limit_except GET` on both `/` and `/a/` | B14, FR-079 |
 | `deploy/scripts/test_web_image.py` (on `feat/002-us6-events`), extended | `POLICY_FILES` holds three entries, in order, and the label digests `caps.json`; `--build-context room-assets=<tree>/assets/room` is passed exactly when that path is a directory and not a link; the Dockerfile's `room-assets` stage and its copy come before the build's `RUN`, and the runtime stage copies only `dist/`; `.dockerignore` holds `assets/policy` and `**/dist-phone` | B14, FR-053 |
-| `deploy/scripts/test_edge_site.py` (on `feat/002-us6-events`), extended | x005's `location /` sets no `Accept-Encoding` and hides no `Content-Encoding`; no `gzip`, `gzip_static`, or `gunzip` directive anywhere in edge's configuration | B14 |
+| `deploy/scripts/test_edge_site.py` (on `feat/002-us6-events`), extended | x005's `location /` sets no `Accept-Encoding` and hides no `Content-Encoding`; no `gzip`, `gzip_static`, or `gunzip` directive anywhere in edge's configuration; `proxy_http_version 1.1` in edge's `http` block, and none in the site's server or location to override it (the review of `feat/004-us4-studio`, its Nit 1) | B14, SC-006 |
 | `apps/web/test/serving.test.ts` (new): a release build of a fixture tree whose GLBs `test/helpers/glb.ts` makes at run time, since rule A1 refuses a committed model | `dist/a/` holds `.glb.gz` copies and no plain `.glb`; each inflates to bytes whose SHA-256 is the bundle's `sha256` and whose first 16 hexadecimal digits are its URL's; each equals `pako.gzip(plain, {level: 9, header: {time: 0, os: 255}})` byte for byte, with the header bytes `1f 8b 08 00`, MTIME 0, XFL 2, OS 255; each model entry's `bytes` is its copy's length; two builds write identical copies; a build with no models has no `dist/a/` GLB and a manifest that says stand-ins are in use | FR-079, FR-010, FR-013, C11 |
 | [plain-model-fit.md](plain-model-fit.md) §7's parity test | the copy's length is the arrival check's gzip-9 measure | FR-079, SC-006 |
-| The in-network probe on dev-cpu, through the agents' engine, once the first room model is in the tree ([quickstart.md](../quickstart.md)): a container on the stack's network asks `web:8080` and `edge:8087` for each model's URL, with and without gzip in `Accept-Encoding` | §2.2's table, header by header; the encoded body's length is the bundle's `bytes`, and the inflated body's SHA-256 its `sha256`; the `.gz` URL answers 404 | B14, SC-006 |
+| The in-network probe on dev-cpu, through the agents' engine, once the first room model is in the tree ([quickstart.md](../quickstart.md)): a container on the stack's network asks `web:8080` and `edge:8087` for each model's URL, with and without gzip in `Accept-Encoding`, and with gzip and a `Via` header, as a proxy adds (T235), over HTTP/1.1 | §2.2's table, header by header; the encoded body's length is the bundle's `bytes`, and the inflated body's SHA-256 its `sha256`; the `.gz` URL answers 404 | B14, SC-006 |
 | `nginx -V` in the pinned image, once | `--with-http_gzip_static_module` and `--with-http_gunzip_module` | B14 |
 | The Author's network log ([quickstart.md](../quickstart.md)): a visit to the room on dev from the Author's desktop browser, and after publication one on the reference phone | 100% of GLB responses carry `Content-Encoding: gzip` | SC-006 |
 | After spec 001's release, the Author's check of a GLB's response headers from the public edge ([quickstart.md](../quickstart.md)) | §5: CloudFront serves the stored encoding and type | A6, SC-006 |

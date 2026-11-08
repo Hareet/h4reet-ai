@@ -89,6 +89,15 @@ def test_edge_neither_compresses_nor_inflates() -> None:
     assert HTTP.one("proxy_buffering").args == ["off"]
 
 
+def test_the_site_asks_web_over_http_1_1() -> None:
+    # The review's Nit 1 on feat/004-us4-studio: web sends the gzip copy only to an HTTP/1.1 request, since nginx's
+    # gzip_http_version defaults to 1.1, and nginx proxies over HTTP/1.0 unless told otherwise. So SC-006's "100% of GLB
+    # responses carry Content-Encoding: gzip" rests on edge's proxy_http_version 1.1, which the site's levels inherit.
+    assert HTTP.one("proxy_http_version").args == ["1.1"]
+    for level in (SITE, location("/")):
+        assert level.all("proxy_http_version") == [], level.name
+
+
 def test_web_unreachable_is_edges_own_503_page() -> None:
     site = location("/")
     assert [d.args for d in site.all("error_page")] == [

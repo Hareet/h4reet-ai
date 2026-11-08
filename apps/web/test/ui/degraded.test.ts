@@ -682,3 +682,136 @@ describe("room text failing to load or withheld, and a typeface that never arriv
     await expectUsable(v, index, "late typeface");
   });
 });
+
+// --------------------------------------------------------------------------------------------------------------------
+// Targeting under each degraded state (spec 008, T008; FR-001, FR-002, FR-004, SC-012; User Story 6 scenarios 1, 2, 5)
+// --------------------------------------------------------------------------------------------------------------------
+// Targeting and the highlight run on the device alone, so every state of the tier leaves them as they are: the live
+// source off, the tier unknown after a failure, and the kill switch tripped (a valid answer whose state is degraded,
+// read as the budget's tier, row 6). Only what a selection opens degrades, as it does today. With the 2D drawing refused
+// (flat-failed), there is no stage to draw a highlight on, and the list still selects every piece. The spies record no
+// request for targeting: none at all with the live source off, and only the status poller's with it on.
+describe("targeting under each degraded state (spec 008, T008)", () => {
+  /** The stand-in stage's targeting callback, as its pointer calls it. */
+  const targetOf =
+    (v: Visit) =>
+    (input: "pointer" | "press", id: string | null): void => {
+      const target = v.scene.created[0]?.target;
+      if (!target) throw new Error("the room gave the stage no targeting callback");
+      target(input, id);
+    };
+  const listButton = (v: Visit, id: string): HTMLButtonElement => {
+    const b = v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`);
+    if (!b) throw new Error(`no list button for ${id}`);
+    return b;
+  };
+
+  /** A hover, a press, list focus, and a selection, each as on the happy path; the log's messages counted. */
+  async function targetsAsAlways(v: Visit, index: RoomIndex, what: string): Promise<void> {
+    const [first, second] = index.selectables;
+    if (!first || !second) throw new Error("fewer than two selectables");
+    const target = targetOf(v);
+    target("pointer", first.id);
+    expect(v.scene.targets.at(-1), what).toBe(first.id);
+    target("pointer", null);
+    expect(v.scene.targets.at(-1), what).toBeNull();
+    listButton(v, second.id).focus();
+    expect(v.scene.targets.at(-1), what).toBe(second.id);
+    target("press", first.id);
+    expect(v.scene.targets.at(-1), what).toBe(first.id);
+    const [events, messages] = [v.events.length, talkLog(v.doc).childElementCount];
+    v.scene.created[0]?.select(first.id);
+    await flush();
+    expect(v.events.slice(events), what).toEqual([{ kind: "object_selected", id: first.id }]);
+    expect(v.scene.targets.at(-1), what).toBeNull();
+    // What the selection opens answers as it does in this state: a topic's fixed message in the log.
+    if (first.action.kind === "talk") expect(talkLog(v.doc).childElementCount, what).toBeGreaterThan(messages);
+  }
+
+  it("works unchanged with the live source off, and asks the network for nothing", async () => {
+    const index = roomIndex();
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    await targetsAsAlways(v, index, "the live source off");
+    v.clock.advance(60_000);
+    expect(v.spies.network).toEqual([]);
+    expect(v.spies.beacons).toEqual([]);
+    expect(v.spies.storage).toEqual([]);
+    await expectUsable(v, index, "targeting, the live source off");
+  });
+
+  it("works unchanged with the tier unknown after a status failure, asking only for the status", async () => {
+    const { index } = fixture();
+    const v = start({ webgl: true, room: site(index) });
+    await intoRoom(v);
+    v.room.live.complete(failure(v, "network"));
+    expect(v.room.live.tier.tier).toBe("unknown");
+    await targetsAsAlways(v, index, "the tier unknown");
+    expect(v.spies.network.filter((r) => r !== "fetch /api/status")).toEqual([]);
+    expect(v.spies.beacons).toEqual([]);
+    await expectUsable(v, index, "targeting, the tier unknown");
+  });
+
+  it("works unchanged with the kill switch tripped, and the selection's topic answers with its fixed message", async () => {
+    const { index } = fixture();
+    const v = start({ webgl: true, room: site(index) });
+    await intoRoom(v);
+    v.room.live.complete({
+      ok: true,
+      started: v.clock.now() - 150,
+      ended: v.clock.now(),
+      endedWall: WALL0 + v.clock.now(),
+      answer: { local_tier: "up", state: "degraded", cause_now: "kill_switch_tripped" },
+    });
+    expect(v.room.live.tier).toMatchObject({ tier: "budget", row: 6 });
+    await targetsAsAlways(v, index, "the kill switch tripped");
+    expect(v.spies.network.filter((r) => r !== "fetch /api/status")).toEqual([]);
+    await expectUsable(v, index, "targeting, the kill switch tripped");
+  });
+
+  // The review of Phase 1's nit: FR-002's other states, each a valid answer of the status: the local tier off, the
+  // budget spent, and the kill switch's state unknown.
+  it.each([
+    ["the local tier off", { local_tier: "down", state: "normal", cause_now: null }, "cloud"],
+    ["the budget spent", { local_tier: "up", state: "degraded", cause_now: "meter_at_ceiling" }, "budget"],
+    ["the kill switch's state unknown", { local_tier: "up", state: "unknown", cause_now: null }, "unknown"],
+  ] as const)("works unchanged with %s, asking only for the status", async (what, answerBody, tier) => {
+    const { index } = fixture();
+    const v = start({ webgl: true, room: site(index) });
+    await intoRoom(v);
+    v.room.live.complete({
+      ok: true,
+      started: v.clock.now() - 150,
+      ended: v.clock.now(),
+      endedWall: WALL0 + v.clock.now(),
+      answer: answerBody,
+    });
+    expect(v.room.live.tier.tier).toBe(tier);
+    await targetsAsAlways(v, index, what);
+    expect(v.spies.network.filter((r) => r !== "fetch /api/status")).toEqual([]);
+    await expectUsable(v, index, `targeting, ${what}`);
+  });
+
+  it("draws no highlight when the 2D drawing refuses, and the list still selects every piece (FR-004)", async () => {
+    const { index } = fixture();
+    const viewBox = [0, 0, Number.NaN, 200] as unknown as RoomIndex["flat"]["view_box"];
+    const broken: RoomIndex = { ...index, flat: { ...index.flat, view_box: viewBox } };
+    const v = start({ webgl: false, room: broken });
+    await intoRoom(v);
+    expect(v.room.visit.mode).toBe("2d");
+    const view = v.doc.querySelector(".room-stage-view");
+    expect(view?.querySelector(".flat, canvas")).toBeNull();
+    expect(textOf(view)).toBe(index.ui["flat-failed"]);
+    for (const s of index.selectables) {
+      listButton(v, s.id).focus();
+      const from = v.events.length;
+      listButton(v, s.id).click();
+      expect(v.events.slice(from)[0], s.id).toEqual({ kind: "object_selected", id: s.id });
+    }
+    // Nothing drew a highlight: no stage took a target, and the stage's view holds only flat-failed's line.
+    expect(v.scene.targets).toEqual([]);
+    expect(view?.children.length).toBe(1);
+    expect(v.spies.network).toEqual([]);
+    expect(v.spies.storage).toEqual([]);
+  });
+});

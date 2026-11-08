@@ -149,6 +149,8 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "labels",
       "papers",
       "visitor",
+      // Spec 008's Amendment M12: the scene's look's highlight, resolved, for the 2D drawing.
+      "highlight",
     ]);
     expect(Object.keys(index.typefaces[0] ?? {})).toEqual(["use", "family", "weight", "cap_ratio", "fallback"]);
   });
@@ -838,7 +840,9 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
     ]);
     const look = fixture("room/looks/fx-cel.yaml");
     delete look.material_notes;
-    expect(scene.look).toEqual(look);
+    // Spec 008's Amendment M12: the look's highlight, resolved; the fixture look gives none, so Q5's band and widths,
+    // and its edge in the look's ink, fx-ink.
+    expect(scene.look).toEqual({ ...look, highlight: { band: "#ffd23f", band_px: 3, edge: "#1d1d1f", edge_px: 1.5 } });
     expect(Object.keys(scene.look)).toEqual([
       "version",
       "id",
@@ -849,6 +853,7 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "outlines",
       "glow_tones",
       "typefaces",
+      "highlight",
     ]);
     expect(scene.figures).toEqual({ twin: "fx-twin", visitor: "fx-visitor" });
     expect(scene.handoff).toEqual({

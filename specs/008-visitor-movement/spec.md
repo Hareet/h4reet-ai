@@ -45,7 +45,7 @@ Quoted as the main session relayed them, typing included. The reading beside eac
 
 ## User Scenarios & Testing *(mandatory)*
 
-The users are visitors on desktop and phone, in 3D and in the 2D room, by pointer, touch, keyboard, and screen reader; and the Author, who judges the look and the phone. User Story 6, the degraded mode, is P1 and ships with User Story 1, as Principle I asks ("Every user-facing capability MUST define its degraded mode before its happy path"); it is listed last only because it adds no new input or view, only the proof that none of this depends on anything that can be off. User Story 4's accessibility applies to every story as it ships; it is also its own test pass.
+The users are visitors on desktop and phone, in 3D and in the 2D room, by pointer, touch, keyboard, and screen reader; and the Author, who judges the look and the phone. User Story 6, the degraded mode, is P1 and ships with User Story 1, as Principle I asks ("Every user-facing capability MUST define its degraded mode before its happy path"); it is listed last only because it adds no new input or view, only the proof that none of this depends on anything that can be off. User Story 4's accessibility applies to every story as it ships; it is also its own test pass. User Story 5's highlight (its scenarios 1 and 2) ships with User Story 1 too, moved there by Phase 1's review (plan.md §4.3 and §10): FR-003 asks the 2D room to highlight targets, and the targets come with User Story 1.
 
 ### User Story 1 - The Target Shows a Highlight Border, on Today's Camera (Priority: P1)
 
@@ -130,7 +130,7 @@ As a visitor using a keyboard, a screen reader, or reduced motion, I want the hi
 
 As a visitor on a device without 3D, I want the same highlight on the 2D drawing, and nothing that pretends to walk.
 
-**Why this priority**: Spec 004's FR-058: the 2D room shows the same pieces, states, and words as the 3D room. Walking is a 3D view.
+**Why this priority**: Spec 004's FR-058: the 2D room shows the same pieces, states, and words as the 3D room. Walking is a 3D view. Its highlight, scenarios 1 and 2, ships with User Story 1 (Phase 1's review; see the section's opening).
 
 **Independent Test**: In the 2D room, hover, press, and Tab through the list: the target's dashed cue becomes the two-tone border; there is no walking control. In 3D, start walking and press "2D view": the walk ends and the 2D room shows, with the conversation and the resume as they were.
 
@@ -198,19 +198,23 @@ Terms used below, beside spec 004's (a selectable, a pick area and its exclusive
 - **FR-008**: THE TARGETING INPUTS SHALL be:
   - (a) a hovering pointer over the stage (a mouse, a trackpad, or a pen that hovers), naming the selectable a pick at its point gives, each time it moves, and nothing when it leaves the stage;
   - (b) a press on the stage (a finger, a pen's contact, or a mouse's main button), naming the selectable a pick at its start gives, until it ends, or nothing once it moves beyond the tap slop;
+    - *Proposed at Phase 1's review, for T000 (plan.md §10, "A press's end"):* its end names nothing for a finger, as the pointer leaving does, nor for a press that selected nothing; a mouse's or a pen's press that selected leaves the target to its next hover; a press with a mouse's other buttons isn't one, its moves staying hovers; and a press whose end comes off the stage ends there too, a mouse's or a pen's next move with no button down hovering again.
   - (c) keyboard focus on a button of the "In the room" list, naming that button's selectable, and nothing when focus leaves the list;
   - (d) in the walking view, reach (FR-033), each time it changes.
 - **FR-009**: Inputs (a) and (b) SHALL pick with the same function and the same pick areas as a selection does (spec 004's `compose/pick.ts`, and FR-035 in the walking view): a point that would select nothing SHALL target nothing, and a side-wall selectable that spec 004's FR-064 leaves to the list at the stage SHALL NOT be targeted by a pointer or a press there. Input (c) SHALL target any selectable, held or not.
 - **FR-010**: WHILE the hand-off plays or its offer shows, THE ROOM SHALL have no target, and the walking control SHALL be inert, as the room's other controls are.
 - **FR-011**: WHEN the visitor selects a selectable (a click or a tap within the tap slop, Enter or Space on its list button, or Enter in the walking view on the target), THE ROOM SHALL run today's selection unchanged (spec 004 FR-071 and FR-036 to FR-038: one `object_selected` event with its ID, then its topic or the resume) and SHALL clear the highlight in the same call.
 - **FR-012**: WHEN a selectable has been selected, THE ROOM SHALL NOT make it the target again until a targeting input has named something else or nothing: the pointer leaves its pick area, focus leaves its button, or reach loses it.
+  - *Proposed at Phase 1's review, for T000 (plan.md §10, "A press's end"):* a mouse's or a pen's press that selected names nothing at its end, so the piece it selected isn't targeted again while the pointer rests on it (User Story 1, scenario 3), until the pointer names something else or nothing.
 - **FR-013**: A hover alone SHALL never select. A target or a highlight SHALL send nothing: no event, request, or log line, outside a drafts build's frame log (FR-054).
 
 **The highlight**
 
 - **FR-014**: WHILE a selectable is the target, ITS MEMBERS SHALL show the highlight, and no other piece SHALL. A member's highlight SHALL cover what its placement draws, its studio model or its stand-in, and none of the placements mounted on it that aren't members (the neon sign on the monitor, the charger's plug on the laptop).
 - **FR-015**: THE HIGHLIGHT SHALL be a border outside the target's outline on screen (in 3D, around the visible silhouettes of its members; in 2D, around its hit rectangles): a band of the highlight colour, at least 2 CSS pixels wide, framed on its outer side by a dark edge at least 1 CSS pixel wide. ITS COLOURS AND WIDTHS SHALL be look data (FR-057), by default Q5's: a band of `#ffd23f`, 3 CSS pixels, and an edge of the look's ink, `#1a1a1a`, 1.5 CSS pixels (Clarifications, Q5).
+  - *Proposed at Phase 1's review, for T000 (plan.md §10, "The highlight's passes"):* in 3D, around the whole silhouettes of its members, drawn over whatever stands in front of them and never hidden by the surface they stand on, in place of "around the visible silhouettes of its members"; L1 judges it.
 - **FR-016**: THE HIGHLIGHT'S TWO TONES SHALL give, against every colour of the look's palette, a contrast ratio of at least 3:1 for at least one of the two (WCAG 2.2's 1.4.11), so the border reads on the room's light surfaces and on its dark ones. THE COMPOSITOR SHALL refuse a look whose highlight doesn't (FR-058).
+  - *Proposed at Phase 1's review, for T000 (plan.md §10, "RW2's tones"):* and its band SHALL stand at least 9:1 lighter than its edge, so the two read as one border's band and its dark frame; Q5's pair stands at about 12:1. The compositor's RW2 refuses one that doesn't.
 - **FR-017**: THE HIGHLIGHT SHALL be drawn in every look (inked cel, painted, and flat) and at every quality level, including the levels and looks that draw no ink lines (spec 004's R-35 turns the lines off at quality 2 and 3).
 - **FR-018**: THE HIGHLIGHT SHALL be still, in every mode: no pulse, fade, or motion. IT SHALL appear on the first frame drawn after its target is set, in 3D, or at once in 2D, and go in the same way when the target clears.
 - **FR-019**: THE HIGHLIGHT SHALL change nothing else: no piece moves, changes colour, or changes its state (a switch's case, a face's words), and a stand-in's label stays as it is. WHEN a member's studio model swaps in, or falls back to its stand-in, while it is highlighted, THE HIGHLIGHT SHALL follow what the member draws now.

@@ -409,3 +409,50 @@ describe("the report's exempt faces and side-wall selectables", () => {
     );
   });
 });
+
+// T005 (spec 008; FR-016, FR-058, SC-002; plan.md §3.5): the report's highlight section, after the switches: each
+// look's band and edge, resolved, with their widths, and the lowest contrast the better of the two gives against any
+// colour of the look's palette, RW2's own measure, with the colour it's lowest against, by its name. A contrast is cut,
+// not rounded, to two decimals, so a figure under 3:1 never prints as 3.00:1.
+describe("the report's highlight (spec 008)", () => {
+  const HIGHLIGHT_HEADER = "| Look | Band | Edge | Lowest contrast | Against |";
+
+  it("gives each look's band, edge, and lowest contrast against its palette, after the switches", () => {
+    const md = good().report.markdown;
+    // The fixture look gives no highlight: Q5's band, and its edge in the look's ink, fx-ink, #1d1d1f; the lowest is
+    // against fx-wood, where the ink's 3.677:1 beats the band's 3.169:1.
+    expect(md).toContain(
+      `${HIGHLIGHT_HEADER}\n|---|---|---|---:|---|\n| \`fx-cel\` | #ffd23f, 3 px | #1d1d1f, 1.5 px | 3.67:1 | \`fx-wood\` |`,
+    );
+    expect(md.indexOf(HIGHLIGHT_HEADER)).toBeGreaterThan(md.indexOf(PAIR_HEADER));
+    expect(md.indexOf(HIGHLIGHT_HEADER)).toBeLessThan(md.indexOf("Findings:"));
+  });
+
+  it("gives every look in looks/, the scene's or not, in path order", () => {
+    const cel = decoder.decode(goodFiles().get("apps/web/room/looks/fx-cel.yaml"));
+    const flat = cel.replace("id: fx-cel", "id: fx-flat").replace("method: inked-cel", "method: flat");
+    const md = compose(
+      overlay({ "apps/web/room/looks/fx-flat.yaml": `${flat}highlight: { band: fx-glow, band_px: 4, edge_px: 2 }\n` }),
+      noPolicy(),
+      { mode: "strict", drafts: true },
+    ).report.markdown;
+    const rows = md.split("\n").filter((l) => /^\| `fx-(cel|flat)` \|/.test(l));
+    expect(rows).toEqual([
+      "| `fx-cel` | #ffd23f, 3 px | #1d1d1f, 1.5 px | 3.67:1 | `fx-wood` |",
+      // fx-glow against fx-wood gives 3.04:1 and the ink 3.677:1; against fx-floor the ink's 4.288:1 is the better.
+      expect.stringMatching(/^\| `fx-flat` \| #ffcf70, 4 px \| #1d1d1f, 2 px \| \d\.\d\d:1 \| `fx-[a-z]+` \|$/),
+    ]);
+  });
+
+  it("names a look RT2 refused by its index among the looks, and a palette colour RT2 refused by the refusal", () => {
+    const tree = goodTree();
+    const refused = new Set(["fx-cel", "fx-wood"]);
+    const out = emit(loadRoom(tree), noPolicy(), { mode: "strict", drafts: true }, [], {
+      tree,
+      printable: (v) => !refused.has(v),
+    });
+    const md = out.report.markdown;
+    expect(md).not.toMatch(/fx-cel|fx-wood/);
+    expect(md).toContain("| looks[0] | #ffd23f, 3 px | #1d1d1f, 1.5 px | 3.67:1 | (a colour RT2 refused) |");
+  });
+});

@@ -20,6 +20,9 @@
 // - the switches: each one's case-to-pose table, and for every two poses its cases show, the largest on-screen distance
 //   any part of the piece moves, or the size of a cue a pose's glow adds, on each stage: apart, or under the floor, RG8's
 //   own measure (`poseSeparations`), which only reports;
+// - spec 008's highlight: each look's band and edge, resolved, with their widths, and the lowest contrast the better of
+//   the two gives against a colour of the look's palette, with that colour's name, RW2's own measure
+//   (`highlightContrasts`), cut to two decimals;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
 // Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
 // outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
@@ -34,6 +37,7 @@ import { formatPath } from "./checks/family";
 import { faceCaps, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
+import { contrastText, highlightContrasts } from "./checks/rw";
 import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { Switch } from "./schema";
 import { compareBytewise } from "./source";
@@ -198,6 +202,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
 
+  // Spec 008's highlight: each look's band and edge, and RW2's lowest contrast against its palette.
+  lines.push(...highlights(c), "");
+
   // The findings.
   if (c.findings.length === 0) lines.push("Findings: none.");
   else {
@@ -303,6 +310,35 @@ function switches(c: Composed): string[] {
     out.push(
       `| ${switchName(sw, pair.switch)} | ${poseName(a, pair.switch)} / ${poseName(b, pair.switch)} | ` +
         `${px(pair.desktop)} | ${px(pair.phone)} | ${pair.status} |`,
+    );
+  }
+  return out;
+}
+
+/** Spec 008's highlight (FR-016; plan.md §3.5): each look's band and edge, resolved, with their widths, and RW2's own
+ *  measure, the lowest contrast the better of the two gives against a colour of the look's palette, with that colour. A
+ *  look RT2 refused is named by its place among the looks, and a colour by the refusal. */
+function highlights(c: Composed): string[] {
+  const rows = highlightContrasts(c.room.looks);
+  if (rows.length === 0) return ["Highlight: no look."];
+  const out = [
+    "Highlight (spec 008, FR-016): each look's band and edge, and the lowest contrast the better of the two gives " +
+      "against a colour of its palette; RW2 refuses under 3:1.",
+    "",
+    "| Look | Band | Edge | Lowest contrast | Against |",
+    "|---|---|---|---:|---|",
+  ];
+  for (const r of rows) {
+    const name = c.reader.printable(r.look) ? `\`${r.look}\`` : `looks[${r.index}]`;
+    const lowest = r.lowest === null ? DASH : contrastText(r.lowest.contrast);
+    const against =
+      r.lowest === null
+        ? DASH
+        : c.reader.printable(r.lowest.against)
+          ? `\`${r.lowest.against}\``
+          : "(a colour RT2 refused)";
+    out.push(
+      `| ${name} | ${r.band}, ${plain(r.band_px)} px | ${r.edge}, ${plain(r.edge_px)} px | ${lowest} | ${against} |`,
     );
   }
   return out;

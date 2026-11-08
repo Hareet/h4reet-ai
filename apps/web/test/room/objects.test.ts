@@ -23,7 +23,7 @@ import type { MemberRect, PickArea } from "../../src/room/compose/pick";
 import { FLAT_VIEW, REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, flatScale } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { renderFlat } from "../../src/room/flat";
-import { bindPointerSelection } from "../../src/room/objects";
+import { TAP_SLOP_PX, bindPointerSelection } from "../../src/room/objects";
 import { frameCamera, framedBoxes, selectablePicker } from "../../src/room/scene/bundle3d";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
@@ -372,5 +372,212 @@ describe("selectObject", () => {
       "bindPointerSelection",
       "toNdc",
     ]);
+  });
+});
+
+// T006 (spec 008; FR-008 (a) and (b), FR-013; plan.md R-10): bindPointerSelection reports two targeting inputs beside
+// its selection, through an optional fourth argument, over a synthetic picker whose left half is fx-left and right half
+// fx-right above the middle, nothing below:
+// - a hovering pointer, a mouse or a pen that hovers, reports its pick ("pointer") on each move, the same pick again
+//   included, so it takes the target back from another input, and null when it leaves the surface; a touch never
+//   hovers, so a touch's move with no press reports nothing;
+// - a press, a mouse's main button, a pen's contact, or a finger, reports the pick at its start ("press") until it
+//   ends: null once it moves beyond TAP_SLOP_PX, or when it's cancelled, or when it ends with no selection; a tap
+//   within the slop still selects once, and the finger's lift then reports null, as the pointer leaving, while a mouse
+//   or a pen leaves its target to the next hover, so a selected piece isn't targeted again while it rests (FR-012).
+describe("hover and press as targeting inputs (spec 008, T006)", () => {
+  const STAGE: Stage = { w: 400, h: 300 };
+  const picker = (ndc: { x: number; y: number }): string | null => {
+    if (ndc.y < 0) return null;
+    return ndc.x < 0 ? "fx-left" : "fx-right";
+  };
+  const LEFT: Point = [100, 60];
+  const RIGHT: Point = [300, 60];
+  const FLOOR: Point = [200, 250];
+
+  function bound() {
+    const { win, canvas } = surface(STAGE);
+    const select = vi.fn<(id: string) => void>();
+    const target = vi.fn<(input: "pointer" | "press", id: string | null) => void>();
+    const unbind = bindPointerSelection(canvas, picker, select, target);
+    const fire = (type: string, pointerType: string, [clientX, clientY]: Point, extra: object = {}): void => {
+      canvas.dispatchEvent(
+        new win.PointerEvent(type, { bubbles: true, pointerType, clientX, clientY, button: 0, ...extra }),
+      );
+    };
+    return { canvas, select, target, unbind, fire };
+  }
+
+  it("reports a mouse's and a hovering pen's pick on each move, and null when it leaves the surface", () => {
+    for (const pointerType of ["mouse", "pen"]) {
+      const { select, target, fire } = bound();
+      fire("pointermove", pointerType, LEFT);
+      fire("pointermove", pointerType, LEFT);
+      fire("pointermove", pointerType, RIGHT);
+      fire("pointermove", pointerType, FLOOR);
+      fire("pointermove", pointerType, RIGHT);
+      fire("pointerleave", pointerType, [-5, 60]);
+      expect(target.mock.calls, pointerType).toEqual([
+        ["pointer", "fx-left"],
+        ["pointer", "fx-left"],
+        ["pointer", "fx-right"],
+        ["pointer", null],
+        ["pointer", "fx-right"],
+        ["pointer", null],
+      ]);
+      expect(select).not.toHaveBeenCalled();
+    }
+  });
+
+  it("reports nothing for a touch until it presses, and nothing when a touch leaves", () => {
+    const { target, fire } = bound();
+    fire("pointermove", "touch", LEFT);
+    fire("pointerleave", "touch", LEFT);
+    expect(target).not.toHaveBeenCalled();
+  });
+
+  it("reports a finger's press until the tap selects, then null as it lifts, and selects once", () => {
+    const { select, target, fire } = bound();
+    fire("pointerdown", "touch", LEFT);
+    expect(target.mock.calls).toEqual([["press", "fx-left"]]);
+    fire("pointermove", "touch", [LEFT[0] + 3, LEFT[1] + 3]);
+    fire("pointerup", "touch", [LEFT[0] + 3, LEFT[1] + 3]);
+    expect(select.mock.calls).toEqual([["fx-left"]]);
+    expect(target.mock.calls).toEqual([
+      ["press", "fx-left"],
+      ["press", null],
+    ]);
+  });
+
+  it("reports a mouse's press, selects once on the click, and leaves the target to the next hover", () => {
+    const { select, target, fire } = bound();
+    fire("pointermove", "mouse", RIGHT);
+    fire("pointerdown", "mouse", RIGHT, { buttons: 1 });
+    fire("pointerup", "mouse", RIGHT);
+    expect(select.mock.calls).toEqual([["fx-right"]]);
+    expect(target.mock.calls).toEqual([
+      ["pointer", "fx-right"],
+      ["press", "fx-right"],
+    ]);
+    // The mouse rests over the piece: the next move is a hover again.
+    fire("pointermove", "mouse", [RIGHT[0] + 1, RIGHT[1]]);
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", "fx-right"]);
+  });
+
+  it("reports null once a press moves beyond the slop, once, and selects nothing when it ends", () => {
+    for (const pointerType of ["touch", "mouse", "pen"]) {
+      const { select, target, fire } = bound();
+      fire("pointerdown", pointerType, LEFT, { buttons: 1 });
+      fire("pointermove", pointerType, [LEFT[0] + TAP_SLOP_PX + 1, LEFT[1]], { buttons: 1 });
+      fire("pointermove", pointerType, [LEFT[0] + 40, LEFT[1]], { buttons: 1 });
+      fire("pointerup", pointerType, [LEFT[0] + 40, LEFT[1]]);
+      expect(select, pointerType).not.toHaveBeenCalled();
+      expect(target.mock.calls, pointerType).toEqual([
+        ["press", "fx-left"],
+        ["press", null],
+      ]);
+    }
+  });
+
+  it("reports null when a press is cancelled, and when it ends with no selection", () => {
+    const cancelled = bound();
+    cancelled.fire("pointerdown", "touch", RIGHT);
+    cancelled.fire("pointercancel", "touch", RIGHT);
+    expect(cancelled.target.mock.calls).toEqual([
+      ["press", "fx-right"],
+      ["press", null],
+    ]);
+    const nothing = bound();
+    nothing.fire("pointerdown", "mouse", FLOOR, { buttons: 1 });
+    nothing.fire("pointerup", "mouse", FLOOR);
+    expect(nothing.select).not.toHaveBeenCalled();
+    expect(nothing.target.mock.calls).toEqual([
+      ["press", null],
+      ["press", null],
+    ]);
+  });
+
+  it("takes no press for a mouse's other buttons, whose moves stay hovers", () => {
+    const { select, target, fire } = bound();
+    fire("pointerdown", "mouse", LEFT, { button: 2, buttons: 2 });
+    fire("pointermove", "mouse", RIGHT, { buttons: 2 });
+    fire("pointerup", "mouse", RIGHT, { button: 2 });
+    expect(select).not.toHaveBeenCalled();
+    expect(target.mock.calls).toEqual([["pointer", "fx-right"]]);
+  });
+
+  it("keeps the selection and the cursor's class as they were, with no targeting argument", () => {
+    const { win, canvas } = surface(STAGE);
+    const select = vi.fn<(id: string) => void>();
+    bindPointerSelection(canvas, picker, select);
+    canvas.dispatchEvent(
+      new win.PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: 100, clientY: 60 }),
+    );
+    expect(canvas.classList.contains("over-object")).toBe(true);
+    tap(win, canvas, LEFT, "touch");
+    tap(win, canvas, RIGHT, "mouse");
+    expect(select.mock.calls).toEqual([["fx-left"], ["fx-right"]]);
+  });
+
+  it("reports nothing once unbound", () => {
+    const { select, target, unbind, fire } = bound();
+    unbind();
+    fire("pointermove", "mouse", LEFT);
+    fire("pointerdown", "touch", LEFT);
+    fire("pointerup", "touch", LEFT);
+    fire("pointerleave", "mouse", LEFT);
+    expect(target).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+  });
+});
+
+// The review of Phase 1, finding 3: a mouse drag that ends off the canvas never sends its pointerup to it, so the press
+// must not outlive it. The surface takes the pointer on a press (setPointerCapture), so the press's end reaches it; and
+// a move with no button down is a hover whatever came before, the stale press dropped.
+describe("a press that ends off the surface (the review of Phase 1, finding 3)", () => {
+  const STAGE: Stage = { w: 400, h: 300 };
+  const picker = (ndc: { x: number; y: number }): string | null =>
+    ndc.y < 0 ? null : ndc.x < 0 ? "fx-left" : "fx-right";
+
+  it("takes the pointer on a press, so the press's end comes back to the surface", () => {
+    const { win, canvas } = surface(STAGE);
+    const captured: number[] = [];
+    canvas.setPointerCapture = (id: number) => void captured.push(id);
+    bindPointerSelection(canvas, picker, vi.fn(), vi.fn());
+    canvas.dispatchEvent(
+      new win.PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerType: "mouse",
+        pointerId: 7,
+        clientX: 100,
+        clientY: 60,
+        button: 0,
+        buttons: 1,
+      }),
+    );
+    expect(captured).toEqual([7]);
+  });
+
+  it("hovers again on the first move with no button down after a drag whose end never arrived", () => {
+    const { win, canvas } = surface(STAGE);
+    const select = vi.fn<(id: string) => void>();
+    const target = vi.fn<(input: "pointer" | "press", id: string | null) => void>();
+    bindPointerSelection(canvas, picker, select, target);
+    const fire = (type: string, x: number, y: number, buttons: number): void => {
+      canvas.dispatchEvent(
+        new win.PointerEvent(type, { bubbles: true, pointerType: "mouse", clientX: x, clientY: y, button: 0, buttons }),
+      );
+    };
+    fire("pointerdown", 100, 60, 1);
+    fire("pointermove", 150, 60, 1);
+    // The button comes up off the canvas: no pointerup reaches it. The mouse comes back, no button down.
+    fire("pointermove", 300, 60, 0);
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", "fx-right"]);
+    fire("pointermove", 300, 250, 0);
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", null]);
+    // A click later is a click, its press its own.
+    fire("pointerdown", 100, 60, 1);
+    fire("pointerup", 100, 60, 0);
+    expect(select.mock.calls).toEqual([["fx-left"]]);
   });
 });

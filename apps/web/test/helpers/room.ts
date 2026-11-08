@@ -281,6 +281,8 @@ export interface FakeScene {
   /** The cost channel's state the room gave the stage at its making, then each it gave through setCost (spec 004,
    *  T264). */
   cost: CostState[];
+  /** Each target the room gave the stage through setTarget, in order (spec 008, T007): an ID, or null for none. */
+  targets: (string | null)[];
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
 }
@@ -296,6 +298,7 @@ export function fakeScene(): FakeScene {
     frames: 0,
     applied: [],
     cost: [],
+    targets: [],
     module: {
       createScene(options) {
         fake.created.push(options);
@@ -316,6 +319,7 @@ export function fakeScene(): FakeScene {
           setQuality: (level) => fake.quality.push(level),
           apply: (value) => fake.applied.push({ value, frame: fake.frames, at: options.clock.now() }),
           setCost: (state) => fake.cost.push(state),
+          setTarget: (id) => fake.targets.push(id),
           dispose: () => {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);

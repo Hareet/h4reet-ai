@@ -43,7 +43,7 @@ export function startLookdev(root: HTMLElement, options: LookdevOptions): void {
       inputs: { part, index: room, lookdev, fixtures, text: roomTextOf({ room_text: text }) },
       renderer: (canvas) => {
         try {
-          return new WebGLRenderer({ canvas, antialias: true });
+          return new WebGLRenderer({ canvas, antialias: true, stencil: true });
         } catch (error) {
           noContext = true;
           throw error;

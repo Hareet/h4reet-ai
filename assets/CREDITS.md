@@ -36,7 +36,7 @@ No files yet.
 ### `busy-sign.glb`
 
 - Kind: room
-- Source: a prompt
+- Source: an original design, `D-0001`
 - Made: 2026-11-07
 - A likeness of the Author: no
 - Step 1, `modeled in Blender at showcase detail`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `4.2.0`, under `gpl-3.0-or-later` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
@@ -52,7 +52,7 @@ No files yet.
 - Step 1, `textures from prompts (P-walnut)`, by a model: `FLUX.2 [klein] 4B` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Step 2, `modeled in Blender at showcase detail`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `4.2.0`, under `gpl-3.0-or-later` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Step 3, `textures scaled to powers of two and re-encoded as WebP, quality 92`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
-- Step 4, `rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 4, `rebuilt from the studio's copy of that script, at the catalog's stylized scale of 1.49, every part scaled about the origin, by a wrapper that pins it and adds that scale, and exported, by the studio's agent, run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Media license: `all-rights-reserved-2026`
 
 ### `charger.glb`
@@ -78,7 +78,7 @@ No files yet.
 ### `dog-sign.glb`
 
 - Kind: room
-- Source: a prompt
+- Source: an original design, `D-0002`
 - Made: 2026-11-07
 - A likeness of the Author: no
 - Step 1, `textures from prompts (P-hero-walnut)`, by a model: `FLUX.2 [klein] 4B` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
@@ -146,7 +146,7 @@ No files yet.
 - Made: 2026-11-07
 - A likeness of the Author: no
 - Step 1, `textures from prompts (P-brick-2k, P-brick-side-2k, P-floor-2k)`, by a model: `FLUX.2 [klein] 4B` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
-- Step 2, `the textures refined image-to-image at 4K, from the session's own textures (no photo)`, by a model: `FLUX.2 [klein] 4B` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
+- Step 2, `the textures enlarged to 4K by a plain resize, then refined image-to-image at 4K, from the session's own textures (no photo)`, by a model: `FLUX.2 [klein] 4B` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), primary, under `apache-2.0` `2.0`; `Qwen3-4B, its text encoder` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; `FLUX.2 VAE` (`Comfy-Org/Flux-2-Klein-4B`, revision `533c4cbc`), auxiliary, under `apache-2.0` `2.0`; with `ComfyUI` `0.42.5`, under `gpl-3.0` `3`; `Python` `3.12.3`, under `psf-2.0` `2.0`; `Pillow` `10.2.0`, under `hpnd` `1`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Step 3, `modeled in Blender at showcase detail`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `4.2.0`, under `gpl-3.0-or-later` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Step 4, `textures scaled to powers of two and re-encoded as WebP, quality 92`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)
 - Step 5, `rebuilt from the studio's copy of that script and exported, by the studio's agent, run in Blender`, by a model: `Claude Opus 5.5` (`anthropic/claude-opus-5-5`, revision `claude-opus-5-5`), primary, under `anthropic-consumer-terms` `2025-10-08`; with `Blender` `5.2.3`, under `gpl-3.0-or-later` `3`; `glTF exporter, bundled with Blender` `5.2.41`, under `apache-2.0` `2.0`; a hosted service, `Claude Code`, under `anthropic-consumer-terms` `2025-10-08` (disclosure row D4)

@@ -130,9 +130,9 @@ describe("the Telegram channel's transport (alerts.md §4.1, T188)", () => {
   it("ends a send whose lookup never answers at its deadline, as timeout", async () => {
     resolveHost("never");
     const channel = { base: `http://${HOST}:9`, token: TOKEN, chatId: "0", timeoutMs: 300 };
-    const started = Date.now();
+    const started = performance.now(); // monotonic: a step of the wall clock can't move it
     expect(await sendTelegram(channel, "hi")).toEqual({ ok: false, errorClass: "timeout" });
-    const ms = Date.now() - started;
+    const ms = performance.now() - started;
     expect(ms).toBeGreaterThanOrEqual(250);
     expect(ms).toBeLessThan(2_000);
   });

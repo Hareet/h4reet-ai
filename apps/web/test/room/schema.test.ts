@@ -631,6 +631,21 @@ const CONSTRAINTS: Constraint[] = [
   ],
   ["a negative intensity", "look", (d) => (at(d, "lights", "ambient").intensity = -1), "RD3 lights.ambient.intensity"],
   ["a palette name outside the grammar", "look", (d) => (at(d, "palette").Ink = "#000000"), "RI1 palette"],
+  // Spec 008's highlight (T005; FR-015, FR-057; plan.md §3.2): band_px 2 to 8, edge_px 1 to 4, colours by name or value.
+  [
+    "a highlight of Q5's figures, its edge the look's ink",
+    "look",
+    (d) => (d.highlight = { band: "#ffd23f", band_px: 3, edge: "fx-ink", edge_px: 1.5 }),
+    null,
+  ],
+  ["a highlight of the least widths", "look", (d) => (d.highlight = { band_px: 2, edge_px: 1 }), null],
+  ["a highlight of the greatest widths", "look", (d) => (d.highlight = { band_px: 8, edge_px: 4 }), null],
+  ["a highlight band under 2 px", "look", (d) => (d.highlight = { band_px: 1.5 }), "RD3 highlight.band_px"],
+  ["a highlight band over 8 px", "look", (d) => (d.highlight = { band_px: 8.5 }), "RD3 highlight.band_px"],
+  ["a highlight edge under 1 px", "look", (d) => (d.highlight = { edge_px: 0.5 }), "RD3 highlight.edge_px"],
+  ["a highlight edge over 4 px", "look", (d) => (d.highlight = { edge_px: 4.5 }), "RD3 highlight.edge_px"],
+  ["a highlight key outside the four", "look", (d) => (d.highlight = { glow: "#ffffff" }), "RD2 highlight.glow"],
+  ["a highlight colour that isn't a string", "look", (d) => (d.highlight = { band: 5 }), "RD3 highlight.band"],
   [
     "a refused status of 400 and 499",
     "fixture",
@@ -729,6 +744,17 @@ describe("the defaults", () => {
       variant(FILES.scene, (d) => delete at(d, "retired", 0).kinds),
     ).value as Doc;
     expect(at(kinds, "retired", 0).kinds).toEqual(["piece", "placement", "selectable", "topic"]);
+  });
+
+  it("fills a look's highlight with Q5's band and widths, leaving its edge to the look's ink (spec 008, T005)", () => {
+    // The fixture look gives no highlight: the compositor draws its edge in the look's ink, its outlines' colour.
+    expect(value("look").highlight).toEqual({ band: "#ffd23f", band_px: 3, edge_px: 1.5 });
+    const some = readFile(
+      "look",
+      FILES.look,
+      variant(FILES.look, (d) => (d.highlight = { band_px: 4, edge: "#000000" })),
+    ).value as Doc;
+    expect(some.highlight).toEqual({ band: "#ffd23f", band_px: 4, edge: "#000000", edge_px: 1.5 });
   });
 
   it("fills room text's", () => {
