@@ -50,7 +50,17 @@ export type Shape = { at: Vec3; turn: Turn; scale: Vec3; color: string; lit: boo
   | { shape: "polygon"; points: [number, number][]; depth: number }
 );
 
-/** A look (contracts/room-data-files.md §10), without `material_notes`, which reaches only the work orders. */
+/** Spec 008's highlight (FR-015, FR-057; plan.md §3.2), resolved: its band's and its edge's colours as `#rrggbb`, and
+ *  their widths in CSS pixels. */
+export interface Highlight {
+  band: string;
+  band_px: number;
+  edge: string;
+  edge_px: number;
+}
+
+/** A look (contracts/room-data-files.md §10), without `material_notes`, which reaches only the work orders; with spec
+ *  008's highlight, resolved (Amendment M12). */
 export interface Look {
   version: 1;
   id: string;
@@ -64,6 +74,7 @@ export interface Look {
   outlines: { color: string; width: number };
   glow_tones: Record<string, { color: string; intensity: number }>;
   typefaces: Record<TypefaceUse, { family: string; weight: number }>;
+  highlight: Highlight;
 }
 
 /** The index, in the entry chunk: at most 16 KB gzipped (contracts/room-bundle.md §3.1). */
@@ -143,6 +154,8 @@ export interface RoomIndex {
     labels: { placement: string; label: string; at: [number, number] }[];
     papers: [[number, number], [number, number], [number, number]];
     visitor: { x: number; baseline: number; scale: number };
+    /** The scene's look's highlight, resolved, for the 2D drawing (spec 008, FR-046; Amendment M12). */
+    highlight: Highlight;
   };
   /** The text copy's order. */
   copy: ({ face: string } | { switch: string } | { figures: true } | { line: string })[];

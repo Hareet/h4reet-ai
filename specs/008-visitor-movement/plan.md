@@ -4,7 +4,7 @@
 
 **Status**: Planned overnight on 2026-11-07, under the Author's "Keep going!", on the spec's provisional answers (its Clarifications, Q1 to Q5, and its defaults D1 to D8). Not yet approved: the Author accepts the intent and approves the spec and this plan before any code (`CLAUDE.md`). The consistency check that `/speckit-analyze` makes is recorded at the end of [tasks.md](tasks.md), with what it changed.
 
-**Input**: [spec.md](spec.md) and [intent.md](intent.md). The room's code was read at line R's User Story 9 tip, f9524081 (`feat/004-us9-neon-sign`), from a checkout of that branch; spec 004's documents and spec 002's contracts on `main` (ea9fc7ad).
+**Input**: [spec.md](spec.md) and [intent.md](intent.md). The room's code was read at line R's User Story 9 tip, f9524081 (`feat/004-us9-neon-sign`), from a checkout of that branch; spec 004's documents and spec 002's contracts on `main` (ea9fc7ad). Phase 1 checked every file, function, and hook it names again at line R's final tip, 848a94d6, and builds on it (§10, "The base").
 
 **Companions**: none apart. This plan holds its decisions (§1, research), its data and interfaces (§3, the data model and contracts), and the Author's runs (§5.3, the quickstart), since the feature is one slice of spec 004's room runtime. Where this plan and spec 004's contracts disagree on the room's existing behaviour, spec 004's contract is right, and the spec's Amendments name what changes.
 
@@ -89,6 +89,7 @@ apps/web/
 │   ├── emit.ts                    # writes both, resolved, into the index and the 3D part
 │   ├── compose.ts                 # runs the RW family after RL
 │   ├── checks/family.ts           # the RW family and its two rules in the catalogue
+│   ├── checks/ri.ts               # RI4 on the highlight's colours (§10)
 │   ├── checks/rw.ts             + # RW1 (the figure's start), RW2 (the highlight's contrast)
 │   ├── checks/rg.ts               # RG6 with the walking control's box reserved, in 3D
 │   └── report.ts                  # RW lines; the control box's line
@@ -230,7 +231,7 @@ The report gains a line for each: the figure's start and its clearance; each loo
 
 | Branch | From | Holds | Merges |
 |---|---|---|---|
-| `feat/008-visitor-movement` | line R's User Story 9 tip, f9524081 | Phase 1: setup, User Story 1, and User Story 6's checks for targeting | first, once line R's stack has merged, in order |
+| `feat/008-visitor-movement` | `spec/008-visitor-movement`'s tip, b95fd761, on `spec/007-twin-conversation` (aa22a3b2) on line R's final User Story 9 tip, 848a94d6 (§10) | Phase 1: setup, User Story 1, and User Story 6's checks for targeting | first, once line R's stack and the two spec branches have merged, in order |
 | `feat/008-walking` | Phase 1's tip | Phases 2 to 8 | after `feat/008-visitor-movement` |
 
 If line R's tip moves before these merge (a rebase onto `main`), an agent rebases both branches onto it, in order; agents never merge (`CLAUDE.md`). Each branch ends with a review by an agent that didn't write it and a merge-request note in `docs/merge-requests/`, holding `make check ENGINE_MODE=none-yet`'s whole output.
@@ -329,7 +330,15 @@ No constitution violation needs justifying. One new rule family, RW, joins spec 
 
 ## 10. Departures
 
-None yet. A task that departs from this plan records it here, in the commit that departs (`CLAUDE.md`: "If implementation departs from the plan, update `plan.md` in the same commit").
+A task that departs from this plan records it here, in the commit that departs (`CLAUDE.md`: "If implementation departs from the plan, update `plan.md` in the same commit"); a correction of this plan's reading of the code lands in the commit of the first code that depends on it.
+
+### Phase 1, as built on `feat/008-visitor-movement` (2026-11-07)
+
+- **The base (T001, T002), a correction.** This plan read line R's code at f9524081. Line R has since been restacked onto `main` (e189cc84), and its final tip, `feat/004-us9-neon-sign`, is 848a94d6. The branch was cut from `spec/008-visitor-movement`'s tip, b95fd761, which stacks on `spec/007-twin-conversation` (aa22a3b2) on 848a94d6, so this folder's four documents were already in its tree and T002 had nothing to pick; spec 007's four documents are in it too, merged first with their own branch. Every file, function, and hook §1 to §3 name for Phase 1 was checked at 848a94d6: `objects.ts`'s `bindPointerSelection` and `TAP_SLOP_PX`; `a11y.ts`'s list buttons and their `data-object-id`; `app.ts`'s `selectObject`, `toFlat`, `open`, and frame log; `stage.ts`'s `Stage` and `SceneOptions`; `scene.ts`'s `ink.render`, resize, `setQuality`, and the loader's swap; `scene/look.ts`'s `createInk` and `outlineThickness`; `scene/bundle3d.ts`'s placement nodes and pictures; `compose/pick.ts`'s `pick` and `listOnly`; `signals/frame-log.ts`'s events; the three looks, each with an `ink` in its palette; and the compositor's catalogue (`checks/family.ts`'s `FAMILIES` and `RULES`, `compose.ts`'s `FAMILY_ORDER`). They stand as §1 to §3 describe them, but for the entries below.
+- **RI4 holds the highlight's colours, in `build/room/checks/ri.ts` (T012).** §3.2 gives the colours "a palette name of the look or `#rrggbb` (spec 004's RI4)", but T012's files leave out `checks/ri.ts`, where RI4's look check (`inks`) lives. It now holds `highlight.band` and `highlight.edge` to the look's own palette, as it holds `outlines.color`, in every look; RW2 judges no colour RI4 refuses.
+- **The edge's default is the look's ink, its `outlines.color` (T012).** §3.2's default, "`edge: ink` (… each look names its own ink)", is read as each look's outlines' colour, which RI4 already holds, so a look with no colour named `ink` (the fixture set's) takes its own ink rather than a name RI4 would refuse. The schema leaves `edge` out by default and the compositor fills it; the three repository looks write `edge: ink` out.
+- **Phase 1's catalogue holds RW2 alone (T012).** §3.5's RW1 checks the visitor figure's start against the walkable floor, which comes with the walking data (T041). RW joins `FAMILIES` with its one rule now, and `compose.test.ts`'s catalogue test lists RW2 after spec 004's nine families until RW1 joins.
+- **RW2's finding, and the report's section (T012).** One finding a look, at `highlight`, naming the palette colour the better of the two tones gives least against, by its name, with both contrasts, cut to two decimals so a figure under 3:1 never reads 3.00:1. The report's Highlight section, after the switches, gives each look's resolved band and edge with their widths, its lowest contrast, and that colour, through RW2's own `highlightContrasts`; a look RT2 refused is named `looks[<n>]`. The index's `flat.highlight` is the last field of `flat`.
 
 ## Constitution Check (post-design)
 

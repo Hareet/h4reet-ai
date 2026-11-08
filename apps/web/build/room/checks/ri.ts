@@ -245,12 +245,18 @@ function references(ctx: Context): void {
   }
 }
 
-/** RI4, each look's ink: every look in looks/, the scene's or not, names its outlines' colour in its own palette or as
- *  #rrggbb, since the lookdev page shows every look to compare them (contracts/lookdev.md). */
+/** RI4, each look's ink and its highlight's two colours (spec 008, plan.md §3.2): every look in looks/, the scene's or
+ *  not, names each in its own palette or as #rrggbb, since the lookdev page shows every look to compare them
+ *  (contracts/lookdev.md). A highlight's edge left out is the look's ink, already held here. */
 function inks(ctx: Context): void {
-  for (const { file, value } of ctx.room.looks)
-    if (!HEX.test(value.outlines.color) && !has(value.palette, value.outlines.color))
-      ctx.report("RI4", file, "outlines.color", "neither #rrggbb nor a colour of the look's palette");
+  const reason = "neither #rrggbb nor a colour of the look's palette";
+  for (const { file, value } of ctx.room.looks) {
+    const resolves = (colour: string): boolean => HEX.test(colour) || has(value.palette, colour);
+    if (!resolves(value.outlines.color)) ctx.report("RI4", file, "outlines.color", reason);
+    if (!resolves(value.highlight.band)) ctx.report("RI4", file, "highlight.band", reason);
+    if (value.highlight.edge !== undefined && !resolves(value.highlight.edge))
+      ctx.report("RI4", file, "highlight.edge", reason);
+  }
 }
 
 /** RI5: an ID of the four namespaces equal to a word of the closed vocabulary. */

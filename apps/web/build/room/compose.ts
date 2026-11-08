@@ -3,7 +3,8 @@
 // bundle. Pure: it reads only through `tree` and `policy` (policy.ts does the reading of the policy), with no clock,
 // environment variable, network, or process state, and it never throws on data, since every problem is a finding.
 // The order of checking is §13's: RD on each file as the loader reads it (load.ts), then RT2 over every string
-// (checks/rt.ts's walk), then the families RI, RG, RS, RT, RV, RX, RK, and RL, one module each under checks/.
+// (checks/rt.ts's walk), then the families RI, RG, RS, RT, RV, RX, RK, and RL, one module each under checks/, and
+// last spec 008's RW (its plan.md §3.5).
 // Findings are reported once each, sorted by file, then path with its indices as numbers, then rule; with any finding
 // lenient mode doesn't tolerate, the outputs aren't to be used. The outputs are emit.ts's.
 import { compareFindings, createContext } from "./checks/family";
@@ -16,6 +17,7 @@ import { rl } from "./checks/rl";
 import { rs } from "./checks/rs";
 import { rt, walkStrings } from "./checks/rt";
 import { rv } from "./checks/rv";
+import { rw } from "./checks/rw";
 import { rx } from "./checks/rx";
 import { emit } from "./emit";
 import type { RoomOutputs } from "./emit";
@@ -27,8 +29,8 @@ export type { ComposeOptions, Finding } from "./checks/family";
 export type { RoomCaps, RoomPolicy } from "./policy";
 export type { Tree } from "./source";
 
-/** The families after RD and RT2's walk, in §13's order. */
-export const FAMILY_ORDER: readonly Family[] = [ri, rg, rs, rt, rv, rx, rk, rl];
+/** The families after RD and RT2's walk, in §13's order, then spec 008's RW. */
+export const FAMILY_ORDER: readonly Family[] = [ri, rg, rs, rt, rv, rx, rk, rl, rw];
 
 /** contracts/room-bundle.md §1's ComposeResult: emit.ts's outputs, and every finding, sorted. */
 export interface ComposeResult extends RoomOutputs {

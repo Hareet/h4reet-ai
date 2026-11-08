@@ -35,7 +35,16 @@ import { createHash } from "node:crypto";
 import { parse } from "yaml";
 
 import { AVATARS } from "../../src/choice/avatars";
-import type { Look, Matrix2D, Prim, RoomIndex, RoomScene, SceneModel, Shape } from "../../src/room/compose/bundle";
+import type {
+  Highlight,
+  Look,
+  Matrix2D,
+  Prim,
+  RoomIndex,
+  RoomScene,
+  SceneModel,
+  Shape,
+} from "../../src/room/compose/bundle";
 import { cableControl } from "../../src/room/compose/cable";
 import { FOV, framing, LABEL_LIFT } from "../../src/room/compose/framing";
 import type { Box } from "../../src/room/compose/framing";
@@ -61,12 +70,14 @@ import type { ComposeOptions, Finding } from "./checks/family";
 import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
+import { resolvedHighlight } from "./checks/rw";
+import type { ResolvedHighlight } from "./checks/rw";
 import type { Loaded, LoadedRoom } from "./load";
 import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
 import { capsOf } from "./policy";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import { roomReport } from "./report";
-import { HEX } from "./schema";
+import { HEX, HIGHLIGHT_DEFAULTS } from "./schema";
 import type {
   CatalogEntry,
   DrawingPrimitive,
@@ -906,6 +917,8 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     visitor: at
       ? { x: inView(at)[0], baseline: inView(at)[1], scale: u4(ppmAt(view.depth(at))) }
       : { x: 0, baseline: 0, scale: 0 },
+    // Spec 008's highlight, the scene's look's, resolved for the 2D drawing (FR-046; Amendment M12).
+    highlight: highlightOf(c.look?.value),
   };
 }
 
@@ -1165,6 +1178,23 @@ function lookOf(look: LookFile | undefined): Look {
     outlines: { color: look?.outlines.color ?? "#000000", width: m6(look?.outlines.width ?? 0) },
     glow_tones: sortedMap(look?.glow_tones ?? {}, (t) => ({ color: t.color, intensity: m6(t.intensity) })),
     typefaces,
+    highlight: highlightOf(look),
+  };
+}
+
+/**
+ * Spec 008's highlight of a look, resolved against the look's own palette by RW2's own function (FR-015, FR-057; plan.md
+ * §3.2): each colour a palette name of the look or #rrggbb, the edge the look's ink, its outlines' colour, where the
+ * look leaves it out, and Q5's band and widths where it leaves them out. A name RI4 refuses falls to black, as a
+ * stand-in's colour does; with no look, Q5's band on a black edge.
+ */
+function highlightOf(look: LookFile | undefined): Highlight {
+  const given: ResolvedHighlight = look ? resolvedHighlight(look) : { ...HIGHLIGHT_DEFAULTS, edge: null };
+  return {
+    band: given.band ?? "#000000",
+    band_px: m6(given.band_px),
+    edge: given.edge ?? "#000000",
+    edge_px: m6(given.edge_px),
   };
 }
 
