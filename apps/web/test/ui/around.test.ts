@@ -120,8 +120,10 @@ describe('"Around the room" (FR-034, FR-063)', () => {
     const held = lines(v);
     const ui = index.ui;
     expect(held).toContain(`${ui["label.neon-word"]}: ${ui["sign.word"]}`);
-    expect(held).toContain(`${ui["label.neon-call"]}: ${ui["sign.unavailable"]}`);
-    expect(held).toContain(`${ui["label.neon-visit"]}: ${ui["sign.unavailable"]}`);
+    // Spec 007 turns the repository's turn route on (live.turn: site, with row V2; its FR-033, FR-047): "no call yet"
+    // and "$0" until the first turn, where spec 004's sign read "cost unavailable" while the route was off.
+    expect(held).toContain(`${ui["label.neon-call"]}: ${ui["sign.no_call_yet"]}`);
+    expect(held).toContain(`${ui["label.neon-visit"]}: $0`);
     expect(held).toContain(`${ui["label.neon-line"]}: ${ui["sign.second_line"]}`);
     expect(held).toContain(ui["sign.not_affiliated"]);
     expect(held.join("\n")).toContain("Langfuse");

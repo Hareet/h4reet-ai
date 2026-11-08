@@ -277,7 +277,15 @@ describe("resolveId and load (contracts/room-bundle.md §3)", () => {
     const expected: ComposeResult = compose(overlay(setPieces()), capsPolicy(), { mode: "lenient", drafts: false });
     const module = loadModule(plugin, h.context, "virtual:room-content");
     expect(Object.keys(module)).toEqual(["content", "room"]);
-    expect(module.content).toEqual(json({ messages: readMessages(MESSAGES), manifest: expected.manifest }));
+    // Spec 007 (its FR-027, FR-041): the twin's per-turn limits ride along, FR-027's defaults where the tree's
+    // config/budgets.yaml sets none.
+    expect(module.content).toEqual(
+      json({
+        messages: readMessages(MESSAGES),
+        manifest: expected.manifest,
+        twin: { limits: { turnMaxChars: 600, historyMaxTurns: 8, historyMaxChars: 4_000 } },
+      }),
+    );
     expect(module.room).toEqual(json(expected.index));
     expect(h.watched).toEqual([MESSAGES]);
   });

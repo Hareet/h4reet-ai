@@ -66,7 +66,7 @@ export const UNSIGNED_SHORT = 5123;
 export const UNSIGNED_INT = 5125;
 export const FLOAT = 5126;
 const SIZE: Readonly<Record<number, number>> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
-const PER_ELEMENT: Readonly<Record<string, number>> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+const PER_ELEMENT: Readonly<Record<string, number>> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 
 /** Values as little-endian components of one type, tightly packed. */
 export function encode(values: readonly number[], componentType: number): Uint8Array {
@@ -1157,4 +1157,224 @@ export function rxVariants(): Variant[] {
     edit: (g) => (material(g, 0).occlusionTexture = { index: 0 }),
   });
   return out;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// The room's avatars (spec 009, T010 to T012): a skinned model with ADR 0010's Mixamo-named skeleton, and clips
+// --------------------------------------------------------------------------------------------------------------------
+/** One bone of the avatar fixtures' skeleton: its raw glTF name, its parent's index in this list (−1 for the root
+ *  bone), and its rest translation from its parent, in metres. */
+export interface AvatarBone {
+  readonly name: string;
+  readonly parent: number;
+  readonly at: Vec3;
+}
+
+/** The skeleton every avatar fixture shares: standing on the floor at the origin, facing +z, so its right hand is on its
+ *  −x side, ADR 0010's `mixamorig:` names, each with a colon, which three's loader sanitizes away. */
+export const AVATAR_BONES: readonly AvatarBone[] = [
+  { name: "mixamorig:Hips", parent: -1, at: [0, 0.9, 0] },
+  { name: "mixamorig:Spine", parent: 0, at: [0, 0.15, 0] },
+  { name: "mixamorig:Head", parent: 1, at: [0, 0.5, 0] },
+  { name: "mixamorig:RightArm", parent: 1, at: [-0.18, 0.35, 0] },
+  { name: "mixamorig:RightHand", parent: 3, at: [-0.05, -0.55, 0] },
+  { name: "mixamorig:LeftArm", parent: 1, at: [0.18, 0.35, 0] },
+  { name: "mixamorig:LeftHand", parent: 5, at: [0.05, -0.55, 0] },
+  { name: "mixamorig:RightUpLeg", parent: 0, at: [-0.1, -0.05, 0] },
+  { name: "mixamorig:LeftUpLeg", parent: 0, at: [0.1, -0.05, 0] },
+];
+/** The bones a fixture without hands leaves out, the dog's and the dinosaur's case. */
+const HAND_BONES = new Set(["mixamorig:RightHand", "mixamorig:LeftHand"]);
+
+/** A bone's rest position in the model's frame, in metres: the sum of its own and its ancestors' translations. */
+export function boneRest(bones: readonly AvatarBone[], index: number): Vec3 {
+  let at: [number, number, number] = [0, 0, 0];
+  for (let i = index; i >= 0; i = bones[i]?.parent ?? -1) {
+    const b = bones[i];
+    if (!b) break;
+    at = [at[0] + b.at[0], at[1] + b.at[1], at[2] + b.at[2]];
+  }
+  return at;
+}
+
+export interface AvatarGlbOptions extends PackOptions {
+  /** The body's height from the floor, in metres: 1.6 by default. */
+  readonly height?: number;
+  /** File units a metre: 1, or 100 for a model exported in centimetres. */
+  readonly unit?: number;
+  /** Whether the skeleton has its two hand bones: true by default. */
+  readonly hands?: boolean;
+  /** Images the body's material uses, each embedded: the decode cap's and the ledger's cases. */
+  readonly images?: readonly Uint8Array[];
+}
+
+/** The avatar's bones as the options give them. */
+function avatarBones(o: { readonly hands?: boolean }): AvatarBone[] {
+  if (o.hands !== false) return [...AVATAR_BONES];
+  // Without the hands, every index after a dropped bone moves down; no bone below has a hand as its parent.
+  const kept = AVATAR_BONES.filter((b) => !HAND_BONES.has(b.name));
+  return kept.map((b) => {
+    const parent = b.parent < 0 ? -1 : kept.indexOf(AVATAR_BONES[b.parent] as AvatarBone);
+    return { ...b, parent };
+  });
+}
+
+/**
+ * A skinned avatar: the root node `fx-avatar`, holding the skeleton (its first bone the hips) and the body, a box from
+ * the floor to `height`, 0.5 m wide and 0.24 m deep, every vertex bound to the hips with weight 1, so the box in its
+ * rest pose is exactly its bounds. The skin's inverse bind matrices are each bone's rest transform undone.
+ */
+export function avatarGlb(o: AvatarGlbOptions = {}): Model {
+  const unit = o.unit ?? 1;
+  const height = o.height ?? 1.6;
+  const bones = avatarBones(o);
+  const b = new ModelBuilder();
+  const scaled = (v: Vec3): Vec3 => [v[0] * unit, v[1] * unit, v[2] * unit];
+  const images = o.images ?? [];
+  const material =
+    images.length === 0
+      ? b.material({ pbrMetallicRoughness: { baseColorFactor: [0.7, 0.5, 0.4, 1], metallicFactor: 0 } })
+      : (() => {
+          const textures = images.map((data) => b.texture(b.image(data, "image/png")));
+          const def: Obj = { pbrMetallicRoughness: { baseColorTexture: { index: textures[0] }, metallicFactor: 0 } };
+          if (textures[1] !== undefined) def.normalTexture = { index: textures[1] };
+          if (textures[2] !== undefined)
+            (def.pbrMetallicRoughness as Obj).metallicRoughnessTexture = { index: textures[2] };
+          return b.material(def);
+        })();
+  const corners = Array.from({ length: 8 }, (_, i): Vec3 =>
+    scaled([i & 1 ? 0.25 : -0.25, i & 2 ? height : 0, i & 4 ? 0.12 : -0.12]),
+  );
+  const uvs = corners.map((_, i): Uv => [i & 1 ? 1 : 0, i & 2 ? 1 : 0]);
+  const prim: Obj = {
+    attributes: {
+      POSITION: b.positions(corners),
+      TEXCOORD_0: b.texcoords(uvs),
+      JOINTS_0: b.values(new Array<number>(8 * 4).fill(0), "VEC4", UNSIGNED_BYTE),
+      WEIGHTS_0: b.values(
+        Array.from({ length: 8 * 4 }, (_, i) => (i % 4 === 0 ? 1 : 0)),
+        "VEC4",
+        FLOAT,
+      ),
+    },
+    indices: b.indices(BOX_INDICES),
+    material,
+  };
+  const mesh = b.mesh([prim], "fx-body");
+  // Node 0 the root; 1 to n the bones; n + 1 the body.
+  const root = b.node({ name: "fx-avatar", children: [1, bones.length + 1] });
+  b.root(root);
+  bones.forEach((bone, i) => {
+    const children = bones.flatMap((c, k) => (c.parent === i ? [k + 1] : []));
+    b.node({ name: bone.name, translation: scaled(bone.at), ...(children.length > 0 ? { children } : {}) });
+  });
+  const inverse = bones.flatMap((_, i) => {
+    const [x, y, z] = scaled(boneRest(bones, i));
+    return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -x, -y, -z, 1];
+  });
+  const ibm = b.values(inverse, "MAT4", FLOAT);
+  list(b.gltf, "skins").push({ joints: bones.map((_, i) => i + 1), skeleton: 1, inverseBindMatrices: ibm });
+  b.node({ name: "fx-body", mesh, skin: 0 });
+  return b.pack(o);
+}
+
+/** One channel of a clip fixture: the bone it moves, by its raw name, the property, and its value at 0 s and 1 s. */
+export interface ClipTrack {
+  readonly bone: string;
+  readonly path: "translation" | "rotation";
+  /** Two keyframes' values, each [x, y, z] for a translation (in metres) or [x, y, z, w] for a rotation. */
+  readonly values: readonly (readonly number[])[];
+}
+
+export interface ClipGlbOptions extends PackOptions {
+  /** The animation's channels; none leaves the file with no animation. */
+  readonly tracks?: readonly ClipTrack[];
+  /** File units a metre, as the model's. */
+  readonly unit?: number;
+  /** The clip's length in seconds: 1 by default. */
+  readonly duration?: number;
+}
+
+/** A clip as the studio exports one: the skeleton's nodes alone, no mesh, and one animation named `name` moving
+ *  `tracks`; a track's bone the skeleton lacks becomes a node of its own under the root, so the clip names it. */
+export function clipGlb(name: string, o: ClipGlbOptions = {}): Model {
+  const unit = o.unit ?? 1;
+  const duration = o.duration ?? 1;
+  const tracks = o.tracks ?? [];
+  const bones = [...AVATAR_BONES];
+  for (const t of tracks)
+    if (!bones.some((bone) => bone.name === t.bone)) bones.push({ name: t.bone, parent: -1, at: [0, 0, 0] });
+  const b = new ModelBuilder();
+  const tops = bones.flatMap((bone, k) => (bone.parent < 0 ? [k + 1] : []));
+  b.root(b.node({ name: "fx-avatar", children: tops }));
+  bones.forEach((bone, i) => {
+    const children = bones.flatMap((c, k) => (c.parent === i ? [k + 1] : []));
+    b.node({
+      name: bone.name,
+      translation: bone.at.map((v) => v * unit),
+      ...(children.length > 0 ? { children } : {}),
+    });
+  });
+  if (tracks.length > 0) {
+    const input = b.values([0, duration], "SCALAR", FLOAT, { min: [0], max: [duration] });
+    const samplers: Obj[] = [];
+    const channels: Obj[] = [];
+    tracks.forEach((t, k) => {
+      const values = t.values.flatMap((v) => (t.path === "translation" ? v.map((x) => x * unit) : [...v]));
+      const output = b.values(values, t.path === "translation" ? "VEC3" : "VEC4", FLOAT);
+      samplers.push({ input, output, interpolation: "LINEAR" });
+      channels.push({
+        sampler: k,
+        target: { node: bones.findIndex((bone) => bone.name === t.bone) + 1, path: t.path },
+      });
+    });
+    list(b.gltf, "animations").push({ name, channels, samplers });
+  }
+  return b.pack(o);
+}
+
+/** A bone's rest translation, as a clip's keyframe. */
+const restOf = (bone: string): number[] => [...(AVATAR_BONES.find((b) => b.name === bone)?.at ?? [0, 0, 0])];
+
+/** The idle fixture: the hips rise by 1 cm and settle, so the idle's first frame is the rest pose. */
+export const IDLE_TRACKS: readonly ClipTrack[] = [
+  { bone: "mixamorig:Hips", path: "translation", values: [restOf("mixamorig:Hips"), [0, 0.91, 0]] },
+];
+
+/** "idle-holding": the holding hand raised and brought forward to hold a sheet, from the first frame on, the right
+ *  hand by default. */
+export function holdingTracks(hand: "right" | "left" = "right"): ClipTrack[] {
+  const bone = hand === "right" ? "mixamorig:RightHand" : "mixamorig:LeftHand";
+  const x = hand === "right" ? -0.02 : 0.02;
+  return [
+    {
+      bone,
+      path: "translation",
+      values: [
+        [x, -0.3, 0.22],
+        [x, -0.29, 0.22],
+      ],
+    },
+  ];
+}
+
+/** "take": the right arm turns forward and back about x over the clip. */
+export const TAKE_TRACKS: readonly ClipTrack[] = [
+  {
+    bone: "mixamorig:RightArm",
+    path: "rotation",
+    values: [
+      [0, 0, 0, 1],
+      [-0.3826834, 0, 0, 0.9238795],
+    ],
+  },
+];
+
+/** The avatar's three clips by role, as the studio delivered the woman's and the man's (spec 009, Readings). */
+export function avatarClips(o: Omit<ClipGlbOptions, "tracks"> = {}): Record<"idle" | "idle-holding" | "take", Model> {
+  return {
+    idle: clipGlb("idle", { ...o, tracks: IDLE_TRACKS }),
+    "idle-holding": clipGlb("idle-holding", { ...o, tracks: holdingTracks() }),
+    take: clipGlb("take", { ...o, tracks: TAKE_TRACKS, duration: 1.5 }),
+  };
 }

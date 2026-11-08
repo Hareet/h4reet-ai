@@ -39,9 +39,13 @@ import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
 import { noteErrorType, noteStudioWindowState } from "../telemetry/otel.js";
 import { registerAdapterCalls } from "./adapters.js";
+import { registerAdminTwin } from "./admin-twin.js";
+import type { TwinRuntime } from "../twin/turn.js";
 import { registerTestMachinery } from "./test.js";
 
 export interface AdminDeps {
+  /** Spec 007's twin, for POST /admin/twin/turn (operator-admin.md §8); absent, the route isn't served. */
+  twin?: TwinRuntime;
   stack: StackName;
   envClass: EnvClass;
   /** OPERATOR_TOKEN_SHA256: the gateway holds only the hash (data-model.md §5). */
@@ -341,6 +345,7 @@ const AUDIT_ACTIONS = new Set([
   "adapter_call",
   "journal_failed",
   "studio_window", // spec 003 (its contracts/gpu-window.md §5)
+  "twin_call", // spec 007 (its Amendment 0-4; operator-admin.md §8)
 ]);
 
 /** An incident draft's path, relative to the state directory, as the drafter writes it (alerts.md §7). */
@@ -474,6 +479,21 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
     realNow: deps.realNow,
     operatorOf,
   });
+
+  // Spec 007's evaluation calls (operator-admin.md §8), behind the same authentication.
+  if (deps.twin !== undefined) {
+    registerAdminTwin(admin, {
+      stack: deps.stack,
+      gateway: deps.gateway,
+      store: deps.store,
+      clock: deps.clock,
+      metrics: deps.metrics,
+      logger: deps.logger,
+      realNow: deps.realNow,
+      operatorOf,
+      twin: deps.twin,
+    });
+  }
 
   // §3: the dev-only test machinery, behind the same authentication.
   registerTestMachinery(admin, {

@@ -55,6 +55,9 @@ export interface LedgerRow {
   periodDay: string;
   periodMonth: string;
   clientLabel: string | null;
+  /** A twin call's room feature and topic (spec 007, FR-026); NULL for every other call. */
+  roomFeature?: string | null;
+  roomTopic?: string | null;
 }
 
 /** The ledger's routing decision for a metered call: fallback, or metered for dev's synthetic and prod's tests. */
@@ -92,6 +95,8 @@ const LEDGER_COLUMNS = [
   "period_day",
   "period_month",
   "client_label",
+  "room_feature",
+  "room_topic",
 ] as const;
 
 export const INSERT_LEDGER = `INSERT INTO gateway.ledger (${LEDGER_COLUMNS.join(", ")})
@@ -128,6 +133,8 @@ export async function insertLedgerRow(q: Queryable, r: LedgerRow): Promise<void>
     r.periodDay,
     r.periodMonth,
     r.clientLabel,
+    r.roomFeature ?? null,
+    r.roomTopic ?? null,
   ]);
 }
 
@@ -293,6 +300,7 @@ export function commitLedgerRow(input: CommitInput, now: number, offsetMs: numbe
     periodDay: a.periodDay,
     periodMonth: a.periodMonth,
     clientLabel: input.clientLabel,
+    ...(a.room === undefined ? {} : { roomFeature: a.room.feature, roomTopic: a.room.topic }),
   };
 }
 

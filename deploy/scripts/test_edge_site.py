@@ -35,12 +35,16 @@ def location(*args: str):
     return found
 
 
-def test_the_site_listener_has_exactly_its_four_locations() -> None:
+def test_the_site_listener_has_exactly_its_locations() -> None:
+    # Spec 007 adds the twin's turn and its two answers of edge's own (its plan §2).
     assert sorted(tuple(loc.args) for loc in SITE.all("location")) == [
         ("/",),
         ("/api/",),
         ("=", "/api/room/events"),
+        ("=", "/api/room/turn"),
         ("@site_unavailable",),
+        ("@turn_too_large",),
+        ("@turn_unavailable",),
     ]
 
 
@@ -167,7 +171,10 @@ def test_events_reach_the_gateway_only_through_the_sites_limited_location() -> N
 def test_the_events_limit_is_one_zone_per_stack() -> None:
     # Every visitor's address on the local tier is the loopback, so the zone is keyed by the listener: one per stack.
     zones = [d.args for d in HTTP.all("limit_req_zone")]
-    assert zones == [["$server_port", "zone=room_events:1m", "rate=10r/s"]]
+    assert zones == [
+        ["$server_port", "zone=room_events:1m", "rate=10r/s"],
+        ["$server_port", "zone=room_turn:1m", "rate=1r/s"],
+    ]
     assert HTTP.one("limit_req_status").args == ["429"]
 
 
@@ -186,3 +193,84 @@ def test_compose_publishes_it_on_the_loopback_as_x005() -> None:
     assert ports[-1] == "127.0.0.1:${H4_SITE_PORT}:8087"
     assert [p for p in ports if p.endswith(":8087")] == [ports[-1]]
     assert all(p.startswith("127.0.0.1:") for p in ports)
+
+
+# --- Spec 007's turn (its FR-001, FR-028; plan §2; spec 002's T069) ---
+
+
+def test_the_turn_goes_to_the_gateway_post_only_capped_and_limited() -> None:
+    turn = location("=", "/api/room/turn")
+    assert turn.one("set").args == ["$upstream", "gateway:8080"]
+    assert turn.one("proxy_pass").args == ["http://$upstream/room/turn"]
+    (methods,) = turn.all("limit_except")
+    assert methods.args == ["POST"]
+    assert [(d.name, d.args) for d in methods.block] == [("deny", ["all"])]
+    assert turn.one("client_max_body_size").args == ["32k"]
+    assert turn.one("limit_req").args == ["zone=room_turn", "burst=5", "nodelay"]
+    headers = turn.headers()
+    assert headers["x-forwarded-for"] == "$remote_addr"
+    for name in (
+        "traceparent",
+        "tracestate",
+        "baggage",
+        "forwarded",
+        "x-real-ip",
+        "x-forwarded-host",
+        "x-forwarded-proto",
+    ):
+        assert headers[name] == "", name
+    assert headers["x-request-id"] == "$request_id"
+    # Above the gateway's 20-second deadline, and below the room's 35-second timeout.
+    assert turn.one("proxy_read_timeout").args == ["30s"]
+    pages = {tuple(d.args[:-1]): d.args[-1] for d in turn.all("error_page")}
+    assert pages == {
+        ("502", "504", "="): "@turn_unavailable",
+        ("413", "="): "@turn_too_large",
+    }
+
+
+def test_a_stopped_gateway_is_a_degraded_turn_the_room_reads_as_unavailable() -> None:
+    page = location("@turn_unavailable")
+    assert page.one("default_type").args == ["application/json"]
+    headers = {d.args[0]: d.args[1:] for d in page.all("add_header")}
+    assert headers["X-H4-Degraded-Cause"] == ["api_unavailable", "always"]
+    assert headers["Cache-Control"] == ["no-store", "always"]
+    status, body = page.one("return").args
+    assert status == "503"
+    parsed = json.loads(body.replace("$request_id", "ab" * 16))
+    assert (parsed["state"], parsed["cause"]) == ("degraded", "api_unavailable")
+    # x000's own answer, word for word, so both doors say the same (gateway-http.md §6).
+    (x000,) = [
+        loc
+        for loc in edge.SERVERS["8080"].all("location")
+        if loc.args == ["@api_unavailable"]
+    ]
+    assert body == x000.one("return").args[1]
+
+
+def test_a_body_over_32_kib_is_a_json_413() -> None:
+    page = location("@turn_too_large")
+    status, body = page.one("return").args
+    assert status == "413"
+    assert json.loads(body) == {"error": "body_too_large", "limit_bytes": 32768}
+    assert page.one("default_type").args == ["application/json"]
+
+
+def test_the_turn_reaches_the_gateway_only_through_the_sites_location() -> None:
+    # x000 answers /room/turn itself with 404, as it answers /room/events.
+    api = edge.SERVERS["8080"]
+    prefixes = [
+        loc.args[0] for loc in api.all("location") if not loc.args[0].startswith("@")
+    ]
+    assert max((p for p in prefixes if "/room/turn".startswith(p)), key=len) == "/room/"
+    # The site has no regex location, so an exact match on the normalized URI is the only way in: nginx merges
+    # slashes, resolves dot segments, and decodes before it matches, so every such spelling lands in it.
+    assert not [loc for loc in SITE.all("location") if loc.args[0] in ("~", "~*")]
+    assert [d.args for d in HTTP.all("merge_slashes")] in ([], [["on"]])
+
+
+def test_the_sites_gateway_locations_send_no_client_label_of_the_visitors() -> None:
+    # The review of T066 (I5): the gateway keys a client by its address and X-H4-Client's label, so a visitor's own
+    # label would buy fresh per-client buckets and put the visitor's string on prod's ledger: x005 sends none.
+    for path in ("/api/room/turn", "/api/room/events"):
+        assert location("=", path).headers().get("x-h4-client") == "", path

@@ -156,10 +156,52 @@ body.in-room .disclosure p {
   cursor: pointer;
 }
 
-.room-note {
+/* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the stage's bottom-right corner,
+   8rem by 2.75rem, 0.5rem in, which compose/stages.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
+   every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. */
+.room-walk {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: 8rem;
+  height: 2.75rem;
+  z-index: 1;
+  padding: 0 0.5rem;
+  font: inherit;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  color: #1a1a1a;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+}
+
+/* The walking view (spec 008, FR-042; R-13): the stage's view takes focus while walking, its ring the room's, inside
+   its edge so the stage's frame doesn't clip it; and the canvas shows it can be dragged. */
+.room-stage-view[role="application"]:focus-visible {
+  outline: 3px solid #0b4f9c;
+  outline-offset: -3px;
+}
+
+.room-stage-view[role="application"] .room-canvas {
+  cursor: grab;
+}
+
+/* The stage's notes, over the view's top left: the placeholder note and spec 009's stand-in line, each its own
+   paragraph. They take no room in the layout and let a pointer or a touch through to the scene (spec 009, FR-029). */
+.room-notes {
   position: absolute;
   left: 0.5rem;
   top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.room-note {
   margin: 0;
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;

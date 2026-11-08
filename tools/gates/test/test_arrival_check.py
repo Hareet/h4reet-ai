@@ -1965,3 +1965,52 @@ def test_c7_a_per_asset_room_it_cant_read_exits_2_naming_the_key_never_the_value
     assert key in run.out
     for value in ("2500000", "Mug Shelf", "1000", "-9", "95000000"):
         assert value not in run.out
+
+
+# Spec 007's P-1, rule A10: only the Author marks the twin ready, on main. A branch may carry the readiness file with
+# nothing ready, as P-1 creates it, but a branch that marks a topic or free talk ready is refused, staged or in range.
+READY_NONE = (
+    b"schema: 1\ntopics:\n  mission: { ready: false }\nfree_talk: { ready: false }\n"
+)
+READY_ONE = (
+    b"schema: 1\ntopics:\n  mission: { ready: true }\nfree_talk: { ready: false }\n"
+)
+
+
+def test_a10_a_branch_that_marks_the_twin_ready(repo: fx.Repo) -> None:
+    repo.write("config/twin-readiness.yaml", READY_NONE)
+    repo.commit("the readiness file, nothing ready")
+    assert not check(repo, "--range", "main..HEAD").has("A10")
+    repo.write("config/twin-readiness.yaml", READY_ONE.replace(b"true", b"yes"))
+    commit = repo.commit("a topic marked ready on a branch")
+    run = check(repo, "--range", "main..HEAD")
+    assert run.code == 1 and run.has("A10", "config/twin-readiness.yaml", commit), (
+        run.out
+    )
+
+
+def test_a10_passes_p1s_own_file_whose_comments_show_ready_true(repo: fx.Repo) -> None:
+    # P-1 rides on the stack's top as a branch of the Author's, feat/007-p1: its file, nothing ready, passes, though
+    # its header's example shows `ready: true` in a comment.
+    p1 = (
+        Path(__file__).resolve().parents[3] / "config" / "twin-readiness.yaml"
+    ).read_bytes()
+    assert b"ready: true" in p1
+    repo.write("config/twin-readiness.yaml", p1)
+    repo.commit("P-1's readiness file")
+    run = check(repo, "--range", "main..HEAD")
+    assert not run.has("A10"), run.out
+
+
+def test_a10_staged_on_a_branch_but_not_the_authors_commit_on_main(
+    repo: fx.Repo,
+) -> None:
+    repo.write("config/twin-readiness.yaml", READY_ONE)
+    repo.git("add", "-A")
+    assert check(repo, "--staged").has("A10", "config/twin-readiness.yaml")
+    repo.git("stash", "-q")
+    repo.git("switch", "-q", "main")
+    repo.git("stash", "pop", "-q")
+    repo.git("add", "-A")
+    run = check(repo, "--staged")
+    assert run.code == 0, run.out

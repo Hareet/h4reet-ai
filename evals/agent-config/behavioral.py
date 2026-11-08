@@ -156,6 +156,7 @@ HUMAN_ONLY = (
     "config/budgets*",
     "config/alert*",
     "config/kill-switch*",
+    "config/twin-readiness*",
     "GNUmakefile",
     "makefile",
 )

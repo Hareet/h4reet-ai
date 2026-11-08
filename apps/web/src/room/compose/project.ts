@@ -4,7 +4,7 @@
 // camera's world inverse, then its projection matrix) for spec 002's camera, which looks straight down −Z; the test
 // holds it to three.js within 1e-9. Normalized device coordinates run −1 to 1, y up; a stage's CSS pixels run from its
 // top left, y down.
-import { DEG, cross, dot, normalize, sub, transformPoint } from "./math";
+import { DEG, cross, dot, invert, multiply, normalize, sub, transformPoint } from "./math";
 import type { Mat4, Vec3 } from "./math";
 import type { Stage } from "./stages";
 
@@ -87,4 +87,32 @@ export function viewDepth(point: Vec3, camera: Camera): number {
 /** Normalized device coordinates to a stage's CSS pixels, from its top left. */
 export function toStage(ndc: Vec3, stage: Stage): readonly [number, number] {
   return [((ndc[0] + 1) / 2) * stage.w, ((1 - ndc[1]) / 2) * stage.h];
+}
+
+/** A ray: its origin, and its direction, a unit vector (spec 008, R-11). */
+export interface Ray {
+  readonly origin: Vec3;
+  readonly direction: Vec3;
+}
+
+/**
+ * The ray through a point of the view in normalized device coordinates, the inverse of `project` (spec 008; FR-030 to
+ * FR-032; plan.md R-11): from the camera's near plane through its far plane, so every point along it projects back to
+ * the same coordinates. A click or a tap on the stage walks the figure to where it meets the floor.
+ */
+export function ray(camera: Camera, aspect: number, ndc: readonly [x: number, y: number]): Ray {
+  const back = invert(multiply(projectionMatrix(camera, aspect), viewMatrix(camera)));
+  if (!back) return { origin: camera.position, direction: normalize(sub(camera.target, camera.position)) };
+  const near = transformPoint(back, [ndc[0], ndc[1], -1]);
+  const far = transformPoint(back, [ndc[0], ndc[1], 1]);
+  return { origin: near, direction: normalize(sub(far, near)) };
+}
+
+/** Where a ray meets the horizontal plane at a height, ahead of its origin, as [x, z]; null where it never does. */
+export function planeHit(r: Ray, y: number): readonly [x: number, z: number] | null {
+  const dy = r.direction[1];
+  if (Math.abs(dy) < 1e-12) return null;
+  const t = (y - r.origin[1]) / dy;
+  if (!(t > 0)) return null;
+  return [r.origin[0] + r.direction[0] * t, r.origin[2] + r.direction[2] * t];
 }

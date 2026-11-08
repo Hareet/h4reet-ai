@@ -205,11 +205,14 @@ describe("a selectable's action (T205)", () => {
     expect(selectable?.action.kind).toBe("talk");
   });
 
-  it("makes a ready topic's selectable the conversation's feature: a turn carries only it, the path, and the turns", async () => {
+  // Spec 007 supersedes what this test pinned before the twin existed (its FR-032, provisional Q4; FR-033; FR-034): a
+  // ready piece's selection now sends its opening, the conversation takes one turn at a time, and selecting the active
+  // conversation's own piece sends nothing.
+  it("makes a ready topic's selectable the conversation's feature and sends its opening: a turn carries only it, the path, and the turns", async () => {
     const base = fixture().index;
     const { id, topic } = talkingSelectable(base);
-    const sent: TurnRequest[] = [];
-    const v = start({ room: readyIndex(base, topic), sendTurn: (r) => sent.push(r) });
+    const sent: { request: TurnRequest; ended: (result: TurnResult) => void }[] = [];
+    const v = start({ room: readyIndex(base, topic), sendTurn: (request, ended) => sent.push({ request, ended }) });
     await enter(v, "non-engineer");
     v.clock.advance(5000);
     button(v.doc, "Keep it for later").click();
@@ -217,30 +220,37 @@ describe("a selectable's action (T205)", () => {
     const shown = talkLog(v.doc).children.length;
     listButton(v, id).click();
     expect(v.events.at(-1)).toEqual({ kind: "object_selected", id });
-    // No fixed message: the twin's spec opens the conversation.
+    // No fixed message: the twin's opening is on its way.
     expect(talkLog(v.doc).children).toHaveLength(shown);
+    expect(sent.map((s) => s.request)).toEqual([{ feature: id, path: "non-engineer", turns: [] }]);
+    const reply = (text: string): TurnResult => ({
+      kind: "response",
+      status: 200,
+      body: { text, feature: id, cost_micro_usd: 0, route: "local" },
+    });
+    sent[0]?.ended(reply("An opening."));
     say(v, "What was the work?");
-    expect(sent).toHaveLength(1);
-    expect(Object.keys(sent[0] ?? {}).sort()).toEqual(["feature", "path", "turns"]);
-    expect(sent[0]).toEqual({
+    expect(sent).toHaveLength(2);
+    expect(Object.keys(sent[1]?.request ?? {}).sort()).toEqual(["feature", "path", "turns"]);
+    expect(sent[1]?.request).toEqual({
       feature: id,
       path: "non-engineer",
-      turns: [{ role: "visitor", text: "What was the work?" }],
+      turns: [
+        { role: "twin", text: "An opening." },
+        { role: "visitor", text: "What was the work?" },
+      ],
     });
     // The conversation so far, newest last.
+    sent[1]?.ended(reply("The work was this."));
     say(v, "And then?");
-    expect(sent[1]?.turns).toEqual([
-      { role: "visitor", text: "What was the work?" },
-      { role: "visitor", text: "And then?" },
-    ]);
-    // Selecting it again starts a new conversation on it.
+    expect(sent[2]?.request.turns.at(-1)).toEqual({ role: "visitor", text: "And then?" });
+    // Selecting it again sends nothing: it is the active conversation's own piece.
     listButton(v, id).click();
-    say(v, "Once more.");
-    expect(sent[2]).toEqual({ feature: id, path: "non-engineer", turns: [{ role: "visitor", text: "Once more." }] });
+    expect(sent).toHaveLength(3);
     // No lead, live value, face's words, or cost rides along; the room itself made no request.
-    expect(JSON.stringify(sent)).not.toContain("lead");
+    expect(JSON.stringify(sent.map((s) => s.request))).not.toContain("lead");
     expect(v.spies.network).toEqual([]);
-    expect(v.events.filter((e) => e.kind === "turn_sent")).toHaveLength(3);
+    expect(v.events.filter((e) => e.kind === "turn_sent")).toHaveLength(2);
   });
 
   it("sends no turn while the turn route is off or no sender exists: the turn is cannot_talk.unavailable", async () => {
@@ -442,6 +452,11 @@ describe("the fixed messages", () => {
       "voice_output_unavailable",
       "didnt_catch",
       "utterance_limit",
+      // Spec 007's Amendment 2-2 adds four to the closed list (its FR-038).
+      "twin_answering",
+      "turn_refused.slow_down",
+      "turn_refused.unreadable",
+      "turn_stopped",
     ]);
     for (const id of MESSAGE_IDS) expect(messages[id].trim(), id).not.toBe("");
     expect(messages.topic_not_ready).toContain("{topic}");
@@ -511,18 +526,21 @@ describe("onTurnOutcome (T264; contracts/turn-cost.md §7)", () => {
   it("is called exactly once for each sent turn, after its end, with what the sender reported", () => {
     const { sent, outcomes, send } = panel();
     send("first");
+    // Spec 007's FR-033: one turn in flight, so the second waits for the first's end.
     send("second");
-    expect(sent).toHaveLength(2);
+    expect(sent).toHaveLength(1);
     // Nothing before a turn's end.
     expect(outcomes).toEqual([]);
     const lost: TurnResult = { kind: "error", error: "aborted" };
-    sent[1]?.ended(lost);
+    sent[0]?.ended(lost);
     expect(outcomes).toEqual([lost]);
-    sent[0]?.ended(paid);
+    send("second");
+    expect(sent).toHaveLength(2);
+    sent[1]?.ended(paid);
     expect(outcomes).toEqual([lost, paid]);
     // A second end of the same turn reports nothing more.
     sent[0]?.ended({ kind: "error", error: "network" });
-    sent[1]?.ended(paid);
+    sent[1]?.ended(lost);
     expect(outcomes).toEqual([lost, paid]);
   });
 
@@ -556,8 +574,8 @@ describe("the room's cost channel (T264, T266; contracts/turn-cost.md §6, §7)"
     await intoRoom(v);
     expect(v.room.cost.state.configured).toBe(true);
     expect(v.room.cost.state.call).toBe("no-call-yet");
+    // Spec 007's FR-032: the selection sends the opening, whose end feeds the channel.
     listButton(v, id).click();
-    say(v, "What was the work?");
     expect(v.room.cost.state.call).toBe("no-call-yet");
     sent[0]?.ended(paid);
     expect(v.room.cost.state.visitMicro).toBe(950n);

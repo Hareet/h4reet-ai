@@ -13,6 +13,8 @@
 // rests there. The review of Phase 1 (finding 3): a press takes the pointer (setPointerCapture), so a drag that ends
 // off the surface still ends here; and where that fails, a mouse's or a pen's move with no button down is a hover
 // again, the press whose end never came dropped as a cancel drops it.
+// Spec 008's walking view (T052; FR-030, FR-032): a tap that picks nothing goes to `miss`, with its point, which the 3D
+// stage turns into a walk toward the floor there while walking; a tap that picks still selects, the one selection path.
 
 /** A point in normalized device coordinates: x and y from -1 to 1, y up. */
 export interface Ndc {
@@ -45,6 +47,7 @@ export function bindPointerSelection(
   pick: Picker,
   select: (id: string) => void,
   target?: PointerTarget,
+  miss?: (ndc: Ndc) => void,
 ): () => void {
   /** The press in progress: where it started, whether it has moved beyond the slop, and what pressed. */
   let down: { x: number; y: number; moved: boolean; pointerType: string } | null = null;
@@ -81,6 +84,10 @@ export function bindPointerSelection(
     }
     const id = at(e);
     if (id) select(id);
+    else if (miss) {
+      const rect = surface.getBoundingClientRect();
+      if (rect.width && rect.height) miss(toNdc(rect, e.clientX, e.clientY));
+    }
     if (start.pointerType === "touch" || !id) target?.("press", null);
   };
   const onCancel = (): void => {

@@ -1,21 +1,22 @@
 // What the rule families share (spec 004; FR-009, FR-013; R-09, R-10; contracts/room-data-files.md §13 to §15):
 // - the catalogue: every rule of §13, its family, whether lenient mode tolerates it (RX and RK2, the findings about one
-//   piece's model file, alone), what of it runs only in strict mode (RT9, RT8's section-title fit, RT13's intent
-//   lookup), whether it refuses (all but RG8, which only reports), and what of it the loader reports as it reads,
+//   piece's model file, and spec 009's RA1 to RA4 and RK5, about the avatars' files), what of it runs only in strict
+//   mode (RT9, RT8's section-title fit, RT13's intent lookup), whether it refuses (all but RG8 and spec 009's RA5, which
+//   only report), and what of it the loader reports as it reads,
 //   from a constraint the schemas hold (schema.ts's `own`), so the family's module needn't check that part again;
 // - a finding, `<rule> <file>:<path>: <reason>`, its order (file, then path with indices as numbers, then rule), and a
 //   path's form: keys joined by dots, indices in brackets, `-` for the whole file, and a key that isn't printable left
 //   out with everything below it, so no path prints a name RT2 refused;
 // - the context each family's check reads and reports through. A family is `(ctx) => void`, one module each in this
-//   folder, run by compose.ts in the order RI, RG, RS, RT, RV, RX, RK, RL, and spec 008's RW, after RD (the loader's)
-//   and RT2's walk.
+//   folder, run by compose.ts in the order RI, RG, RS, RT, RV, RX, RA (spec 009's), RK, RL, and spec 008's RW, after RD
+//   (the loader's) and RT2's walk.
 import type { LoadedRoom } from "../load";
 import type { RoomPolicy } from "../policy";
 import { compareBytewise } from "../source";
 import type { Tree } from "../source";
 
-/** Spec 004's nine families, then spec 008's RW (its plan.md §3.5). */
-export const FAMILIES = ["RD", "RI", "RG", "RS", "RT", "RV", "RX", "RK", "RL", "RW"] as const;
+/** Spec 004's nine families, with spec 009's RA before RK, then spec 008's RW (their plans' §3.5). */
+export const FAMILIES = ["RD", "RI", "RG", "RS", "RT", "RV", "RX", "RA", "RK", "RL", "RW"] as const;
 export type FamilyId = (typeof FAMILIES)[number];
 
 export interface RuleInfo {
@@ -101,15 +102,24 @@ export const RULES = {
   RX8: rule("RX", model),
   RX9: rule("RX", model),
   RX10: rule("RX", model),
+  // Spec 009's avatars (its FR-038; plan.md §3.5): lenient, as RX is, so a lenient build leaves the file out and its
+  // figure shows its fallback; RA5 only reports, as RG8 does.
+  RA1: rule("RA", model), // an avatar's file not recorded in its folder's records.json, or with another kind
+  RA2: rule("RA", model), // an avatar's file the reader can't read; a clip with no animation, or moving a node its model lacks
+  RA3: rule("RA", model), // the stand-in's model recorded as a likeness, or from a photo
+  RA4: rule("RA", model), // an avatar's file over main's per_asset cap for its kind
+  RA5: rule("RA", { refuses: false }), // a file in a visitor's folder with no role: reported, never refused
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap
   RK4: rule("RK"), // a malformed room block (policy.ts keeps it and its problems)
+  RK5: rule("RK", model), // spec 009: the first visit with both figures' files over main's phase-3 budget
   RL1: rule("RL", read), // the poll interval and the freshness window
   RL2: rule("RL"), // the status source without row V7
   RL3: rule("RL"), // asset events without row V6
   RL4: rule("RL"), // the turn route without row V2
-  // Spec 008 (plan.md §3.5): RW1, the visitor figure's start on the walkable floor, joins with the walking data (T041).
+  // Spec 008 (plan.md §3.5).
+  RW1: rule("RW"), // the visitor figure's footprint, at the walking radius, off the walkable floor
   RW2: rule("RW"), // a look whose highlight's band and edge both give under 3:1 against a colour of its palette
 } as const satisfies Record<string, RuleInfo>;
 
@@ -143,6 +153,10 @@ export interface ComposeOptions {
   readonly mode: "strict" | "lenient";
   /** A drafts build: draft room text, fixtures, and lookdev. */
   readonly drafts: boolean;
+  /** The twin's readiness (spec 007, FR-037; departure D3), which the build reads from config/twin-readiness.yaml by
+   *  the gateway's rule (build/room/readiness.ts) and hands in, so the compositor's own reads stay the room's data.
+   *  Absent, nothing is ready. */
+  readonly readiness?: { readonly topics: ReadonlyMap<string, boolean>; readonly freeTalk: boolean };
 }
 
 const RULE_PARTS = /^([A-Z]+)(\d+)$/;

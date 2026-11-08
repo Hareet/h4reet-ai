@@ -125,8 +125,18 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "draft.badge": [],
       // The stage's line when the 2D drawing can't be drawn (FR-081; the Author, 2026-10-30: "flat-failed is good").
       "flat-failed": [],
+      // Spec 008's Amendment M12: FR-059's seven keys, the last with the target's name.
+      "walk.enter": [],
+      "walk.leave": [],
+      "walk.region": [],
+      "walk.help": [],
+      "walk.entered": [],
+      "walk.left": [],
+      "walk.target": ["name"],
+      // Spec 009's stand-in line (FR-013, FR-039).
+      "twin.stand_in": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(33);
+    expect(Object.keys(UI_KEYS)).toHaveLength(41);
   });
 
   it("give one tier sentence for each tier value", () => {

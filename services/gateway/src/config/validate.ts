@@ -654,8 +654,29 @@ export interface Budgets {
       readonly helloMaxOutputTokens: number;
       readonly maxOutputTokens: number;
     };
+    /** The twin's per-turn limits (spec 007, FR-027; Amendment 0-2): optional, the Author's patch P-2 sets them. */
+    readonly twin?: TwinLimits;
   };
 }
+
+/** limits.twin (spec 007, FR-027): a visitor turn's characters, the turns and characters of conversation a request
+ *  carries, a twin call's input bound (its reservation's too), and its output cap. */
+export interface TwinLimits {
+  readonly turnMaxChars: number;
+  readonly historyMaxTurns: number;
+  readonly historyMaxChars: number;
+  readonly maxInputChars: number;
+  readonly maxOutputTokens: number;
+}
+
+/** FR-027's defaults, which dev and dev-cpu use while config/budgets.yaml has no limits.twin. */
+export const TWIN_LIMIT_DEFAULTS: TwinLimits = {
+  turnMaxChars: 600,
+  historyMaxTurns: 8,
+  historyMaxChars: 4_000,
+  maxInputChars: 32_000,
+  maxOutputTokens: 300,
+};
 
 /** The derived thresholds, in micro-USD (§3.1). */
 export interface Thresholds {
@@ -707,6 +728,16 @@ const BUDGETS_TOP = z.strictObject({
       hello_max_output_tokens: int(1),
       max_output_tokens: int(1, 4_096),
     }),
+    // Spec 007's Amendment 0-2: optional; the cross-field bounds are checked below.
+    twin: z
+      .strictObject({
+        turn_max_chars: int(50, 2_000),
+        history_max_turns: int(1, 20),
+        history_max_chars: int(50, 16_000),
+        max_input_chars: int(4_000, 64_000),
+        max_output_tokens: int(32, 4_096),
+      })
+      .optional(),
   }),
 });
 
@@ -780,6 +811,13 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
   if (call.hello_max_output_tokens > call.max_output_tokens) {
     out.error("limits.per_call.hello_max_output_tokens", "B5", "must be at most max_output_tokens");
   }
+  const twin = doc.limits.twin;
+  if (twin !== undefined && twin.history_max_chars < twin.turn_max_chars) {
+    out.error("limits.twin.history_max_chars", "B5", "must be at least turn_max_chars");
+  }
+  if (twin !== undefined && twin.max_output_tokens > call.max_output_tokens) {
+    out.error("limits.twin.max_output_tokens", "B5", "must be at most limits.per_call.max_output_tokens");
+  }
 
   if (out.failed || !prod || !dev) return { issues: out.issues };
   return {
@@ -799,6 +837,17 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
           helloMaxOutputTokens: call.hello_max_output_tokens,
           maxOutputTokens: call.max_output_tokens,
         },
+        ...(twin === undefined
+          ? {}
+          : {
+              twin: {
+                turnMaxChars: twin.turn_max_chars,
+                historyMaxTurns: twin.history_max_turns,
+                historyMaxChars: twin.history_max_chars,
+                maxInputChars: twin.max_input_chars,
+                maxOutputTokens: twin.max_output_tokens,
+              },
+            }),
       },
     },
     issues: out.issues,

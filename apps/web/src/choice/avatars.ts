@@ -1,6 +1,9 @@
 // The visitor's avatars (spec 002, FR-001; data-model.md §5; research.md R-11): intent 000's four placeholders, "a
-// generic woman, a generic man, a generic dinosaur, a generic dog", as flat shapes with names, until spec 003's avatars
-// replace them. One shape per avatar serves the choice screen's preview, the 2D drawing, and the 3D scene's cut-out.
+// generic woman, a generic man, a generic dinosaur, a generic dog", as flat shapes with names. One shape per avatar
+// serves three uses (spec 009's Amendment M3): the choice screen's preview, the 2D room's figure, and the 3D figure's
+// fallback, the cut-out shown wherever the avatar's model isn't (spec 009: in 3D, an avatar with files in the room's
+// bundle shows its model). Its height is the room's height for it, the 2D room's and the 3D model's alike (spec 009,
+// FR-016). Beside the table, the clip roles an avatar's files may hold (spec 009, FR-009; plan.md R-02).
 import { svg } from "../room/dom";
 
 export const AVATARS = [
@@ -11,6 +14,13 @@ export const AVATARS = [
 ] as const;
 
 export type AvatarId = (typeof AVATARS)[number]["id"];
+
+/** The clips an avatar's folder may hold beside its model, `<id>-<role>.glb`, a closed list (spec 009, FR-009; plan.md
+ *  R-02): the idle, the idle while holding the resume's paper, taking it, and walking. A new role is code, through the
+ *  lifecycle, as a new kind of piece is (spec 004, FR-005). */
+export const CLIP_ROLES = ["idle", "idle-holding", "take", "walk"] as const;
+
+export type ClipRole = (typeof CLIP_ROLES)[number];
 
 export function isAvatarId(value: unknown): value is AvatarId {
   return AVATARS.some((a) => a.id === value);

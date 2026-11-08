@@ -300,6 +300,7 @@ export async function admissionTx(q: Queryable, input: AdmissionInput): Promise<
       purpose: r.purpose,
       routeReason,
       routingSha: input.routingSha,
+      ...(r.room === undefined ? {} : { room: r.room }),
     },
   };
 }

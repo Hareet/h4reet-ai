@@ -42,7 +42,8 @@ export interface ChatMessage {
   content: string;
 }
 
-export type CallPurpose = 'hello' | 'contract' | 'eval' | 'synthetic';
+export type CallPurpose = 'hello' | 'contract' | 'eval' | 'synthetic' | 'twin';
+// 'twin' (spec 007, Amendment 0-1): the twin's conversation turns, POST /room/turn and POST /admin/twin/turn.
 
 export interface CompletionRequest {
   requestId: string;          // the HTTP request's ID, for logs only; never sent to a provider

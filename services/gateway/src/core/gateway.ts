@@ -63,6 +63,7 @@ import {
   type HealthStatus,
   type ProviderAdapter,
   type ProviderErrorKind,
+  type RoomCall,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -93,6 +94,8 @@ export interface AttemptContext {
   metrics?: GatewayMetrics;
   /** Called on each failed attempt: health tracking counts unavailable and timeout as a failed probe (§6). */
   onFailure?: (err: ProviderError) => void;
+  /** A twin call's room feature and topic, on each client span (spec 007, FR-026, FR-043). */
+  room?: RoomCall;
 }
 
 /** An attempt's client span as operator-admin.md §5 reports it: its name, its kind, and its attribute keys, no values. */
@@ -175,6 +178,10 @@ async function oneAttempt(
     "langfuse.observation.type": "generation",
   };
   if (adapter.server.port !== undefined) always["server.port"] = adapter.server.port;
+  if (ctx.room !== undefined) {
+    always["h4.room.feature"] = ctx.room.feature;
+    always["h4.room.topic"] = ctx.room.topic;
+  }
   if (ctx.payloadSampling) always["gen_ai.input.messages"] = redactSecrets(inputMessages(req.messages));
 
   const parent = context.active();
@@ -544,7 +551,9 @@ export interface GatewayLogger {
 export interface GatewayCall {
   requestId: string;
   purpose: CallPurpose;
-  messages: ChatMessage[];
+  /** The messages, or a function that builds them, which the gateway calls once, only after its state read passes, so
+   *  a degraded turn builds nothing (spec 007, FR-025). */
+  messages: ChatMessage[] | (() => ChatMessage[]);
   maxOutputTokens: number;
   /** Real clock, epoch ms: the deadline counts from here (gateway-http.md §2.4). */
   arrivedAt: number;
@@ -554,14 +563,27 @@ export interface GatewayCall {
   temperature?: number;
   /** X-H4-Client: the ledger keeps it, and nothing else does (§2.3). */
   clientLabel?: string;
-  /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
+  /** The client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5): hello's, and a twin turn's
+   *  (spec 007, plan §3). */
   clientKey?: string;
+  /** A twin call's input bound, limits.twin.max_input_chars, which its reservation counts (spec 007, Amendment 0-2). */
+  maxInputChars?: number;
+  /** A twin call's room feature and topic (spec 007, FR-026): on its spans, in its ledger rows, on h4.cost.usd. */
+  room?: RoomCall;
   /**
    * Its own trace: a root gateway.route span, linked to the caller's span. POST /admin/test/synthetic makes one call
    * after another in one request, and each call's trace ID is its own (operator-admin.md §3.2).
    */
   newTrace?: boolean;
 }
+
+/** A call whose messages are built: what every step after the state read works with. */
+type ResolvedCall = Omit<GatewayCall, "messages"> & { messages: ChatMessage[] };
+
+const resolveCall = (call: GatewayCall): ResolvedCall => ({
+  ...call,
+  messages: typeof call.messages === "function" ? call.messages() : call.messages,
+});
 
 export type GatewayAnswer =
   | {
@@ -633,6 +655,9 @@ export interface GatewayOptions {
   testMachinery: { clock: boolean; synthetic: boolean };
   /** The result of the journal's last append (data-model.md §3); unknown before the first. */
   journalStatus?: () => JournalStatus;
+  /** Spec 007's room features, each selectable's ID and free_talk, whose cost series start at zero beside none's (plan
+   *  §3; SC-006; the review of T066, I6). None without the twin's files. */
+  roomFeatures?: readonly string[];
   /** The metered path: admission, the commit, and their upkeep. A stack with a fallback needs it. */
   meter?: MeterPort;
   realNow?: () => number;
@@ -700,9 +725,9 @@ function traceIdOf(span: Span): string {
 const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, started_at, stack, request_id, trace_id, purpose,
     route_decision, route_reason, attribution, adapter_id, provider, request_model, response_model, input_tokens,
     output_tokens, cache_read_tokens, latency_ms, finish_reason, outcome, error_kind, cost_micro, cost_basis,
-    price_version, routing_sha, period_day, period_month, client_label)
+    price_version, routing_sha, period_day, period_month, client_label, room_feature, room_topic)
   VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'local', NULL, 'none', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-    $18, 0, 'none', $19, $20, $21, $22, $23)`;
+    $18, 0, 'none', $19, $20, $21, $22, $23, $24, $25)`;
 
 export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
@@ -785,6 +810,9 @@ export class Gateway {
       ];
       for (const attribution of attributions) {
         this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution });
+        for (const feature of this.opts.roomFeatures ?? []) {
+          this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution, feature });
+        }
       }
     }
   }
@@ -883,11 +911,12 @@ export class Gateway {
       span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined) return this.degrade(span, early, traceId);
+      const resolved = resolveCall(call);
 
       // 5.1: a healthy local adapter answers, free; one that fails as unavailable or timeout fails over (5.3).
       const localWasHealthy = this.primary.health.status().healthy;
       if (localWasHealthy) {
-        const local = await this.callLocal(call, traceId);
+        const local = await this.callLocal(resolved, traceId);
         if (local !== "failed_over") {
           span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
           return local;
@@ -904,7 +933,7 @@ export class Gateway {
         );
       }
       // 5.4–5.8: the metered fallback.
-      return this.callMetered(span, call, traceId, this.fallback, "fallback", reason);
+      return this.callMetered(span, resolved, traceId, this.fallback, "fallback", reason);
     });
   }
 
@@ -923,7 +952,7 @@ export class Gateway {
       span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined) return this.degrade(span, early, traceId);
-      return this.callMetered(span, call, traceId, routed, o.attribution, null);
+      return this.callMetered(span, resolveCall(call), traceId, routed, o.attribution, null);
     });
   }
 
@@ -942,8 +971,9 @@ export class Gateway {
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined)
         return { kind: "degraded", decision: early, traceId: this.degrade(span, early, traceId).traceId };
-      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, call, traceId, routed);
-      const step = await this.meteredAttempt(span, call, traceId, routed, "test", null);
+      const resolved = resolveCall(call);
+      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, resolved, traceId, routed);
+      const step = await this.meteredAttempt(span, resolved, traceId, routed, "test", null);
       if ("early" in step) {
         if (step.early.kind === "degraded" || step.early.kind === "refused") return step.early;
         throw new Error("the metered path refused with an answer that isn't a refusal");
@@ -968,7 +998,7 @@ export class Gateway {
    */
   private async localAdapterCall(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
   ): Promise<AdapterCallAnswer> {
@@ -999,6 +1029,7 @@ export class Gateway {
       onFailure: (err) => {
         if (!call.signal.aborted) health.callFailed(err);
       },
+      ...(call.room === undefined ? {} : { room: call.room }),
     });
     const ids: string[] = [];
     for (const attempt of outcome.attempts) {
@@ -1088,7 +1119,11 @@ export class Gateway {
 
   /** The gateway.route span of one routing decision; a call of its own trace starts a root span, linked to its caller. */
   private routeSpan<T>(call: GatewayCall, fn: (span: Span, traceId: string) => Promise<T>): Promise<T> {
-    const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
+    const attributes: Attributes = {
+      "h4.stack": this.opts.stack,
+      "h4.routing.sha": this.opts.routing.sha256,
+      ...(call.room === undefined ? {} : { "h4.room.feature": call.room.feature, "h4.room.topic": call.room.topic }),
+    };
     const caller = trace.getSpan(context.active())?.spanContext();
     const options =
       call.newTrace === true
@@ -1124,7 +1159,7 @@ export class Gateway {
    */
   private async callMetered(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
     attribution: MeteredAttribution,
@@ -1151,7 +1186,7 @@ export class Gateway {
    */
   private async meteredAttempt(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
     attribution: MeteredAttribution,
@@ -1193,6 +1228,8 @@ export class Gateway {
         adapterHealthy: routed.health.status().healthy && pass.allowed,
         ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
         maxOutputTokens: call.maxOutputTokens,
+        ...(call.maxInputChars === undefined ? {} : { maxInputChars: call.maxInputChars }),
+        ...(call.room === undefined ? {} : { room: call.room }),
         ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
         requestId: call.requestId,
         traceId,
@@ -1245,6 +1282,7 @@ export class Gateway {
           onFailure: (err) => {
             if (!call.signal.aborted) routed.health.callFailed(err);
           },
+          ...(call.room === undefined ? {} : { room: call.room }),
         });
         callerGone = call.signal.aborted;
       } finally {
@@ -1261,7 +1299,7 @@ export class Gateway {
   }
 
   /** The local call (§2.4 step 5.1): free, unmetered, within its own timeouts and the request's deadline. */
-  private async callLocal(call: GatewayCall, traceId: string): Promise<GatewayAnswer | "failed_over"> {
+  private async callLocal(call: ResolvedCall, traceId: string): Promise<GatewayAnswer | "failed_over"> {
     const { built, health, requestTimeoutMs } = this.primary;
     const adapter = built.adapter;
     const version = this.opts.prices.active(this.opts.clock.now());
@@ -1290,6 +1328,7 @@ export class Gateway {
       onFailure: (err) => {
         if (!call.signal.aborted) health.callFailed(err);
       },
+      ...(call.room === undefined ? {} : { room: call.room }),
     });
     for (const attempt of outcome.attempts) await this.recordLocal(attempt, call, traceId, version);
     if (outcome.ok) {
@@ -1315,7 +1354,7 @@ export class Gateway {
    */
   private async recordLocal(
     attempt: Awaited<ReturnType<typeof attemptCall>>["attempts"][number],
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     version: PriceVersion,
   ): Promise<string | null> {
@@ -1353,8 +1392,15 @@ export class Gateway {
         periods.day,
         periods.month,
         call.clientLabel ?? null,
+        call.room?.feature ?? null,
+        call.room?.topic ?? null,
       ]);
-      this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution: "none" });
+      this.opts.metrics.cost(0n, {
+        provider: adapter.provider,
+        model: adapter.model,
+        attribution: "none",
+        ...(call.room === undefined ? {} : { feature: call.room.feature }),
+      });
       written = true;
     } catch {
       // Logged by the store as state.unknown, at most once a minute (telemetry.md §5.2).

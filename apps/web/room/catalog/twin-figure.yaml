@@ -1,9 +1,11 @@
 # The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (its src/room/scene.ts), at LAYOUT's
 # size (its src/room/framing.ts), widened to hold the arm, which reaches to its −x side, toward the visitor, who
 # stands on its left in the cube (FR-008; handoff.ts reads the side from the anchors). Its picture is the twin's
-# avatar (spec 003), so the piece
-# has no model; it gives the stand-in, the size, and the hand the paper leaves from (FR-008). Its budget is nominal:
-# the avatar's files carry their own.
+# avatar (spec 003), so the piece has no model (RI8); until the twin's own avatar exists, a visitor avatar stands in,
+# the scene's figures.twin_stand_in (spec 009, FR-011), scaled to this entry's height and labelled a stand-in in the
+# room's words, and this entry's stand-in shape shows wherever that avatar has no files or fails. It gives the stand-in
+# shape, the size, and the hand the paper leaves from (FR-008). Its budget is nominal: the avatars' files carry their
+# own.
 version: 1
 id: twin-figure
 name: The twin's figure
@@ -29,7 +31,8 @@ budget: { gzip_bytes: 1, triangles: 1, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
     No room model: the twin's picture is its avatar, which comes after the room (the intent's order, step 5), through
-    spec 003's avatar intake.
+    spec 003's avatar intake. Until then a visitor avatar stands in, the one the scene's figures block names (spec 009),
+    and the room says the figure is a stand-in.
   shots: []
   measurements: []
   studio_notes: >-

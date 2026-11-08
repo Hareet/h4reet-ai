@@ -578,6 +578,84 @@ const CONSTRAINTS: Constraint[] = [
   ["a poll that isn't an integer", "scene", (d) => (at(d, "live").poll_s = 30.5), "RL1 live.poll_s"],
   ["freshness under poll_s + 5", "scene", (d) => (at(d, "live").freshness_s = 34), "RL1 live.freshness_s"],
   ["a live source outside off and site", "scene", (d) => (at(d, "live").source = "on"), "RD3 live.source"],
+  // Spec 008's walking block (T034; FR-056; plan.md §3.1): each figure in its range, the pitch's first at most its second.
+  [
+    "a walking block of the spec's defaults",
+    "scene",
+    (d) =>
+      (d.walking = {
+        speed_mps: 1,
+        turn_dps: 90,
+        tilt_dps: 45,
+        radius_m: 0.12,
+        reach_m: 0.3,
+        reach_cone_deg: 60,
+        camera: { yaw_deg: 60, pitch_deg: [0, 35], min_distance_m: 1.2, focus_height_m: 1.1 },
+      }),
+    null,
+  ],
+  [
+    "a walking block at its least",
+    "scene",
+    (d) =>
+      (d.walking = {
+        speed_mps: 0.3,
+        turn_dps: 30,
+        tilt_dps: 15,
+        radius_m: 0.05,
+        reach_m: 0.2,
+        reach_cone_deg: 15,
+        camera: { yaw_deg: 0, pitch_deg: [0, 0], min_distance_m: 0.5, focus_height_m: 0.5 },
+      }),
+    null,
+  ],
+  [
+    "a walking block at its most",
+    "scene",
+    (d) =>
+      (d.walking = {
+        speed_mps: 2,
+        turn_dps: 180,
+        tilt_dps: 90,
+        radius_m: 0.4,
+        reach_m: 1.5,
+        reach_cone_deg: 90,
+        camera: { yaw_deg: 75, pitch_deg: [60, 60], min_distance_m: 3, focus_height_m: 2 },
+      }),
+    null,
+  ],
+  ["a walking speed under 0.3", "scene", (d) => (d.walking = { speed_mps: 0.2 }), "RD3 walking.speed_mps"],
+  ["a turn rate over 180", "scene", (d) => (d.walking = { turn_dps: 181 }), "RD3 walking.turn_dps"],
+  ["a tilt rate under 15", "scene", (d) => (d.walking = { tilt_dps: 14 }), "RD3 walking.tilt_dps"],
+  ["a radius over 0.4", "scene", (d) => (d.walking = { radius_m: 0.41 }), "RD3 walking.radius_m"],
+  ["a reach under 0.2", "scene", (d) => (d.walking = { reach_m: 0.19 }), "RD3 walking.reach_m"],
+  ["a reach cone over 90", "scene", (d) => (d.walking = { reach_cone_deg: 91 }), "RD3 walking.reach_cone_deg"],
+  ["a camera yaw over 75", "scene", (d) => (d.walking = { camera: { yaw_deg: 76 } }), "RD3 walking.camera.yaw_deg"],
+  [
+    "a camera pitch over 60",
+    "scene",
+    (d) => (d.walking = { camera: { pitch_deg: [0, 61] } }),
+    "RD3 walking.camera.pitch_deg[1]",
+  ],
+  [
+    "a camera pitch whose first is over its second",
+    "scene",
+    (d) => (d.walking = { camera: { pitch_deg: [40, 30] } }),
+    "RD3 walking.camera.pitch_deg",
+  ],
+  [
+    "a minimum distance under 0.5",
+    "scene",
+    (d) => (d.walking = { camera: { min_distance_m: 0.4 } }),
+    "RD3 walking.camera.min_distance_m",
+  ],
+  [
+    "a focus height over 2",
+    "scene",
+    (d) => (d.walking = { camera: { focus_height_m: 2.1 } }),
+    "RD3 walking.camera.focus_height_m",
+  ],
+  ["a walking key outside the block", "scene", (d) => (d.walking = { run: true }), "RD2 walking.run"],
   // Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (T077).
   ["a phrase of 60 characters", "topics", (d) => (at(d, "topics", 0).phrase = "p".repeat(60)), null],
   ["a phrase of 61 characters", "topics", (d) => (at(d, "topics", 0).phrase = "p".repeat(61)), "RD3 topics[0].phrase"],
@@ -755,6 +833,25 @@ describe("the defaults", () => {
       variant(FILES.look, (d) => (d.highlight = { band_px: 4, edge: "#000000" })),
     ).value as Doc;
     expect(some.highlight).toEqual({ band: "#ffd23f", band_px: 4, edge: "#000000", edge_px: 1.5 });
+  });
+
+  it("fills the scene's walking block with the spec's defaults, each where it's left out (spec 008, T034)", () => {
+    const defaults = {
+      speed_mps: 1,
+      turn_dps: 90,
+      tilt_dps: 45,
+      radius_m: 0.12,
+      reach_m: 0.3,
+      reach_cone_deg: 60,
+      camera: { yaw_deg: 60, pitch_deg: [0, 35], min_distance_m: 1.2, focus_height_m: 1.1 },
+    };
+    expect(value("scene").walking).toEqual(defaults);
+    const some = readFile(
+      "scene",
+      FILES.scene,
+      variant(FILES.scene, (d) => (d.walking = { speed_mps: 1.4, camera: { yaw_deg: 30 } })),
+    ).value as Doc;
+    expect(some.walking).toEqual({ ...defaults, speed_mps: 1.4, camera: { ...defaults.camera, yaw_deg: 30 } });
   });
 
   it("fills room text's", () => {

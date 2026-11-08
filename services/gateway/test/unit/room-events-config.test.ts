@@ -3,9 +3,9 @@
 // committed file loads; a missing file and an invalid one each give a reason the startup log records, never a value
 // from the file, and the gateway then answers every event 400 (the route's tests, test/integration/room-events.test.ts).
 // Which objects the committed file lists is the room's data (spec 004, FR-007, SC-001; its research.md R-16), so its
-// case holds the list's bounds, the eight kinds, and the IDs' format, and none of its IDs: adding or removing a
-// selectable changes no source file. The other cases parse lists of their own, with synthetic IDs in `fx-`, a prefix
-// the room's data never takes.
+// case holds the list's bounds, the kinds (spec 008 added walk_started, and spec 009 avatar_failed), and the IDs'
+// format, and none of its IDs: adding or removing a selectable changes no source file. The other cases parse lists of their own, with synthetic
+// IDs in `fx-`, a prefix the room's data never takes.
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,8 +49,9 @@ describe("config/room-events.yaml", () => {
     const loaded = await loadRoomEvents(REPO_CONFIG);
     expect(loaded).toMatchObject({ ok: true });
     if (!loaded.ok) return;
-    // The eight kinds and the IDs' format are code's (contracts/room-events.md §1, §3), not the room's data, so they
-    // stay pinned; which objects and items the file lists is data, and stays unnamed.
+    // The kinds and the IDs' format are code's (contracts/room-events.md §1, §3, spec 008's Amendment M3, which
+    // adds walk_started, and spec 009's Amendment M4, which adds avatar_failed), not the room's data, so they stay
+    // pinned; which objects and items the file lists is data, and stays unnamed.
     expect([...loaded.config.kinds]).toEqual([
       "object_selected",
       "item_selected",
@@ -60,6 +61,8 @@ describe("config/room-events.yaml", () => {
       "turn_sent",
       "voice_pressed",
       "mode_2d",
+      "walk_started",
+      "avatar_failed",
     ]);
     expect(loaded.config.items.size).toBeGreaterThan(0);
     for (const id of [...loaded.config.items, ...loaded.config.objects]) expect(id).toMatch(/^[a-z][a-z0-9-]{1,40}$/);

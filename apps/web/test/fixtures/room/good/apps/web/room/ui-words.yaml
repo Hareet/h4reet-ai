@@ -34,6 +34,14 @@ words:
   standin.note: Fixture shapes stand in for the pieces
   draft.badge: Draft
   flat-failed: This drawing of the room could not be shown. The list below still works.
+  walk.enter: Walk around
+  walk.leave: Stop walking
+  walk.region: The fixture room, walking
+  walk.help: The fixture's keys walk the figure. Escape stops walking.
+  walk.entered: Walking. Escape stops.
+  walk.left: Walking stopped.
+  walk.target: "{name}: press Enter to open."
+  twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
   label.fx-desk: fixture desk
   label.fx-monitor: fixture monitor
   label.fx-laptop: fixture laptop

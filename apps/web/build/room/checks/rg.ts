@@ -61,6 +61,7 @@ import {
   flatScale,
   smallestFlatStage,
   supportedStages,
+  walkControlBox,
 } from "../../../src/room/compose/stages";
 import type { Stage } from "../../../src/room/compose/stages";
 import { TIER_VALUES, isSideWallAnchor } from "../../../src/room/compose/vocabulary";
@@ -555,6 +556,9 @@ interface SweptProblem {
 export interface PickSweep {
   readonly problems: readonly SweptProblem[];
   readonly sideWalls: readonly SideWallPick[];
+  /** Spec 008: each side-wall selectable the walking control's box holds, in 3D, at stages where its core would
+   *  otherwise keep its pick area, in scene order; the report names them. */
+  readonly boxHolds: readonly { readonly id: string; readonly index: number; readonly stages: readonly Stage[] }[];
 }
 
 const sweeps = new WeakMap<Geometry, PickSweep>();
@@ -592,6 +596,12 @@ export function pickSweep(g: Geometry): PickSweep {
       ];
     }),
   );
+  const boxHolds = new Map(
+    [...sideWall].map((id) => [
+      id,
+      { id: s.selectables[Number(id)]?.id ?? "", index: Number(id), stages: [] as Stage[] },
+    ]),
+  );
   const found = new Map<string, SweptProblem>();
   const note = (mode: "3D" | "2D", problems: readonly PickProblem[], stage: Stage): void => {
     for (const problem of problems) {
@@ -617,9 +627,13 @@ export function pickSweep(g: Geometry): PickSweep {
       })),
     );
     const view: Rect = [0, 0, stage.w, stage.h];
-    const held = listOnly(areas, view, sideWall);
-    note("3D", pickProblems(areas, view, held), stage);
+    // Spec 008 (FR-021, FR-058): the walking control's box, in the stage's bottom-right corner in 3D, is reserved.
+    const reserved = [walkControlBox(stage)];
+    const held = listOnly(areas, view, sideWall, reserved);
+    note("3D", pickProblems(areas, view, held, reserved), stage);
     for (const id of held) picks.get(id)?.stages.push(stage);
+    const plain = listOnly(areas, view, sideWall);
+    for (const id of held) if (!plain.has(id)) boxHolds.get(id)?.stages.push(stage);
     // In 2D the view box is fixed, and a core's 44 px are view-box units at the stage's scale.
     const scale = flatScale(stage);
     let drawn = flatAreas.get(scale);
@@ -631,6 +645,7 @@ export function pickSweep(g: Geometry): PickSweep {
   const sweep: PickSweep = {
     problems: [...found.values()],
     sideWalls: [...picks.values()],
+    boxHolds: [...boxHolds.values()].filter((h) => h.stages.length > 0),
   };
   sweeps.set(g, sweep);
   return sweep;
@@ -648,7 +663,9 @@ function spacing(ctx: Context, g: Geometry): void {
     const what =
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
-        : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
+        : problem.problem === "reserved"
+          ? "its exclusive core lies under the walking control's box"
+          : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "3D"
         ? `in 3D at ${stagesPhrase(first, more)}`

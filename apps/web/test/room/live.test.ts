@@ -1006,3 +1006,34 @@ describe("the frame log's targets (spec 008, T009)", () => {
     expect(v.spies.beacons).toEqual([]);
   });
 });
+
+// T045's frame-log case (spec 008; FR-054; plan.md §3.4): a drafts build's frame log records the walking view's
+// entries and leaves, with why it was left: the control, Escape, or the fall to 2D.
+describe("the frame log's walks (spec 008, T045)", () => {
+  const walks = (v: Visit): FrameLogEntry[] => events(frameLog(v), "walk");
+  const control = (v: Visit): HTMLButtonElement => {
+    const b = v.doc.querySelector<HTMLButtonElement>("button.room-walk");
+    if (!b) throw new Error("no walking control");
+    return b;
+  };
+
+  it("records each entry and leave of the walking view, with why it was left, in a drafts build", async () => {
+    const v = start({ webgl: true, frameLog: createFrameLog });
+    await intoRoom(v);
+    control(v).click();
+    control(v).click();
+    control(v).click();
+    v.scene.endWalk("escape");
+    control(v).click();
+    button(v.doc, "2D view").click();
+    await flush();
+    expect(walks(v).map((e) => ({ state: e.state, why: e.why ?? null }))).toEqual([
+      { state: "entered", why: null },
+      { state: "left", why: "control" },
+      { state: "entered", why: null },
+      { state: "left", why: "escape" },
+      { state: "entered", why: null },
+      { state: "left", why: "flat" },
+    ]);
+  });
+});

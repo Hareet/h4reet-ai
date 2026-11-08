@@ -1,0 +1,652 @@
+// T009 (spec 007; FR-007, SC-011; plan §4): the twin's grounding pack, config/twin/corpus.json. On a fixture corpus and
+// on the committed one: the builder reads only `corpus/NN-<topic>.md`, `corpus/facts/*.yaml`, and
+// `config/room-topics.yaml`, never the intake, the proposals, the tools, the README, or the private denylist; it makes
+// one section per `##` heading, one per Golden Q&A item, and splits a section over 2,000 characters at its bullets,
+// keeping claim tags; it fills a filled, public-safe slot and renders an empty or unsafe one as its fallback or nothing;
+// it holds the "Do not claim" union verbatim with each bullet's file, `01`'s rulings as `{system, verbs}`, the public
+// artifacts' links, `08`'s answers for the privacy promise and the agents' share, and the selectables; its hashes are
+// whole and per topic over canonical JSON; two builds are byte-identical; the committed pack is fresh, and a changed
+// corpus file names itself; and the fit check names a topic past the input bound.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { parse } from "yaml";
+import { describe, expect, it } from "vitest";
+
+import {
+  BUDGETS_PATH,
+  CASES_DIR,
+  buildCases,
+  casesFiles,
+  DEFAULT_TWIN_LIMITS,
+  PACK_PATH,
+  PROMPT_PATH,
+  buildPack,
+  canonicalHash,
+  fitLimits,
+  fitProblems,
+  fsReader,
+  instructionsChars,
+  movedFiles,
+  packJson,
+  packReport,
+  topicHashInput,
+  wholeHashInput,
+} from "../build/twin-pack";
+import type { PackReader, TwinPack } from "../build/twin-pack";
+import { REPO_ROOT } from "../build/content";
+
+const LONG_BULLETS = Array.from(
+  { length: 30 },
+  (_, i) => `- \`[A 2026-11-06]\` Ride ${i}: ${"a long mountain day ".repeat(5).trim()}`,
+);
+
+const FIXTURE: Record<string, string> = {
+  "corpus/00-profile.md": [
+    "# Profile: who the twin represents",
+    "Priority: 0 (loads first) · Status: draft · Last verified: 2026-09-27",
+    "",
+    "Surname: the twin never gives or confirms it `[A 2026-10-07]`.",
+    "",
+    "## Role at a glance",
+    "",
+    "- `[A-BIO]` Fixture is a lead at Example, {{slot:career.years}} there; {{slot:career.empty | else: some years}} before.",
+    "- `[A]` Its budget was {{slot:career.unsafe}} in the end.",
+    "",
+    "## Do not claim",
+    "",
+    "- His home address.",
+    "- That he coined the fixture words.",
+    "",
+    "## Golden Q&A",
+    "",
+    "1. *Who are you?* — I'm an AI twin of Fixture, disclosed as AI. [A-BIO]",
+    "2. *(A visitor names a surname.)* — I don't confirm it. [policy]",
+  ].join("\n"),
+  "corpus/01-ai-strategy-and-cht.md": [
+    "# AI strategy",
+    "Priority: 1",
+    "",
+    "**Ownership rulings (2026-09-27).** *Built:* agent-watchdog, Example's side of Voice Thing; cht-agent, mainly by him (2026-10-28). *Designed:* cht-agent; claude-medic-aws, Voice Thing (the idea); the strategy, with Andra as co-author; No-Code Thing's goal. *Sponsored:* the CHT skills in cht-ai-tools, including `cht-pr-review`. *AI system architect:* No-Code Thing.",
+    "",
+    "## The strategy `[A-DOC strategy]`",
+    "",
+    "- `[A]` Two tracks.",
+    "",
+    "## Public artifacts",
+    "",
+    "- github.com/Example/cht-agent · github.com/medic/cht-agent",
+    "- https://docs.example.org/ai/ (the docs)",
+    "",
+    "## Do not claim",
+    "",
+    "- That he built the CHT skills (sponsored).",
+  ].join("\n"),
+  "corpus/04-fx-hobbies.md": [
+    "# Hobbies and travel",
+    "Priority: none",
+    "",
+    "## Snowboarding",
+    "",
+    ...LONG_BULLETS,
+    "",
+    "## Golden Q&A",
+    "",
+    "1. *Do you ride in winter?* — Every winter. [A]",
+  ].join("\n"),
+  "corpus/08-hareet-ai.md": [
+    "# The twin",
+    "",
+    "## How it's built `[A 2026-11-06]`",
+    "",
+    '- `[A 2026-11-06]` In his words: "We disclose every data flow, their conversation is not saved and they can look at the repo."',
+    "",
+    "## Do not claim",
+    "",
+    "- Any spend figure.",
+    "",
+    "## Golden Q&A",
+    "",
+    "1. *How is this built?* — AI agents in named roles do most of the typing, and only I merge. It runs locally. [A]",
+    "2. *Who writes the code?* — AI agents in named roles do most of the typing, and only I merge. [A]",
+    "3. *What happens to what I say here?* — We disclose every data flow, your conversation is not saved. [A]",
+  ].join("\n"),
+  "corpus/facts/career.yaml": [
+    "facts:",
+    "  - id: career.years",
+    '    value: "six years"',
+    "    public_safe: true",
+    '    phrasing: "{value}"',
+    "  - id: career.empty",
+    "    value: null",
+    "    public_safe: false",
+    '    phrasing: "{value}"',
+    "  - id: career.unsafe",
+    '    value: "a held-back figure"',
+    "    public_safe: false",
+    '    phrasing: "{value}"',
+  ].join("\n"),
+  "corpus/README.md": "# README, never read\n",
+  "corpus/INTAKE.md": "# INTAKE, never read\n",
+  "corpus/intake/private/denylist.txt": "never read\n",
+  "corpus/proposals/p.md": "never read\n",
+  "corpus/tools/check_corpus.py": "never read\n",
+  "config/room-topics.yaml": [
+    "schema: 1",
+    "selectables:",
+    '  - id: "fx-board"',
+    '    topic: "fx-hobbies"',
+    "    corpus:",
+    '      - "corpus/04-fx-hobbies.md"',
+    '    lead: "Winter hobbies first."',
+    '  - id: "fx-bike"',
+    '    topic: "fx-hobbies"',
+    "    corpus:",
+    '      - "corpus/04-fx-hobbies.md"',
+    "    lead: null",
+  ].join("\n"),
+};
+
+/** A reader over a map of files, recording every path it reads or lists. */
+function mapReader(files: Record<string, string>): PackReader & { reads: string[]; lists: string[] } {
+  const reads: string[] = [];
+  const lists: string[] = [];
+  return {
+    reads,
+    lists,
+    read(path) {
+      reads.push(path);
+      return files[path] ?? null;
+    },
+    list(dir) {
+      lists.push(dir);
+      const prefix = `${dir}/`;
+      const names = Object.keys(files)
+        .filter((p) => p.startsWith(prefix))
+        .map((p) => p.slice(prefix.length).split("/")[0] ?? "");
+      return [...new Set(names)].sort();
+    },
+  };
+}
+
+function recording(root: string): PackReader & { reads: string[] } {
+  const inner = fsReader(root);
+  const reads: string[] = [];
+  return {
+    reads,
+    read(path) {
+      reads.push(path);
+      return inner.read(path);
+    },
+    list: (dir) => inner.list(dir),
+  };
+}
+
+const ALLOWED = (path: string): boolean =>
+  /^corpus\/\d{2}-[a-z0-9-]+\.md$/.test(path) ||
+  /^corpus\/facts\/[a-z0-9-]+\.yaml$/.test(path) ||
+  path === "config/room-topics.yaml";
+
+describe("the builder's reads (FR-007)", () => {
+  it("reads only the topic files, the facts, and config/room-topics.yaml, on the fixture and the repository", () => {
+    const fixture = mapReader(FIXTURE);
+    buildPack(fixture);
+    expect(fixture.reads.filter((p) => !ALLOWED(p))).toEqual([]);
+    expect(fixture.reads).toContain("corpus/00-profile.md");
+    expect(fixture.reads).toContain("corpus/facts/career.yaml");
+    const repo = recording(REPO_ROOT);
+    buildPack(repo);
+    expect(repo.reads.filter((p) => !ALLOWED(p))).toEqual([]);
+    for (const p of repo.reads) expect(p).not.toMatch(/intake|proposals|tools|README|INTAKE|denylist/);
+  });
+});
+
+describe("the pack's sections (FR-007)", () => {
+  const { pack, problems } = buildPack(mapReader(FIXTURE));
+
+  it("builds the fixture with no problem", () => expect(problems).toEqual([]));
+
+  it("makes one section per ## heading, the lead before it, and one per Golden Q&A item", () => {
+    const ids = pack.sections.filter((s) => s.file === "corpus/00-profile.md").map((s) => [s.id, s.kind, s.heading]);
+    expect(ids).toEqual([
+      ["00-profile#0", "lead", "Profile: who the twin represents"],
+      ["00-profile#1", "section", "Role at a glance"],
+      ["00-profile#q1", "golden", "Golden Q&A 1"],
+      ["00-profile#q2", "golden", "Golden Q&A 2"],
+    ]);
+    const q1 = pack.sections.find((s) => s.id === "00-profile#q1");
+    expect(q1?.golden).toEqual({
+      n: 1,
+      question: "Who are you?",
+      answer: "I'm an AI twin of Fixture, disclosed as AI.",
+      tags: ["[A-BIO]"],
+    });
+    // The lead drops its metadata line.
+    expect(pack.sections.find((s) => s.id === "00-profile#0")?.text).not.toContain("Priority:");
+  });
+
+  it("splits a section over 2,000 characters at its bullets, each part within the cap", () => {
+    const parts = pack.sections.filter((s) => s.id.startsWith("04-fx-hobbies#1."));
+    expect(parts.length).toBeGreaterThan(1);
+    for (const p of parts) {
+      expect(p.chars).toBeLessThanOrEqual(2_000);
+      expect(p.text.startsWith("- ")).toBe(true);
+      expect(p.heading).toBe("Snowboarding");
+    }
+    expect(parts.map((p) => p.text).join("\n")).toBe(LONG_BULLETS.join("\n"));
+  });
+
+  it("keeps claim tags, fills a filled public-safe slot, and renders an empty or unsafe one as its fallback or nothing", () => {
+    const role = pack.sections.find((s) => s.id === "00-profile#1")?.text ?? "";
+    expect(role).toContain("`[A-BIO]`");
+    expect(role).toContain("six years there");
+    expect(role).toContain("some years before");
+    expect(role).not.toContain("held-back");
+    expect(role).not.toContain("{{slot");
+  });
+
+  it("holds every Do not claim bullet verbatim with its file, and no Do not claim section", () => {
+    expect(pack.rules.do_not_claim).toEqual([
+      { file: "corpus/00-profile.md", text: "His home address." },
+      { file: "corpus/00-profile.md", text: "That he coined the fixture words." },
+      { file: "corpus/01-ai-strategy-and-cht.md", text: "That he built the CHT skills (sponsored)." },
+      { file: "corpus/08-hareet-ai.md", text: "Any spend figure." },
+    ]);
+    expect(pack.sections.some((s) => s.heading === "Do not claim")).toBe(false);
+  });
+
+  it("parses 01's rulings into {system, verbs}, against the paragraph's own text", () => {
+    const text = FIXTURE["corpus/01-ai-strategy-and-cht.md"]?.split("\n")[3] ?? "";
+    expect(pack.rules.rulings.text).toBe(text);
+    const verbs = Object.fromEntries(pack.rules.rulings.entries.map((e) => [e.system, e.verbs]));
+    expect(verbs).toMatchObject({
+      "agent-watchdog": ["built"],
+      "cht-agent": ["built", "designed"],
+      "claude-medic-aws": ["designed"],
+      "Voice Thing": ["designed"],
+      "Example's side of Voice Thing": ["built"],
+      "the strategy": ["co-authored", "designed"],
+      "No-Code Thing": ["AI system architect", "designed"],
+      "CHT skills in cht-ai-tools": ["sponsored"],
+      "cht-pr-review": ["sponsored"],
+    });
+    // The rulings paragraph is a rule, not a section of the lead.
+    expect(pack.sections.find((s) => s.id === "01-ai-strategy-and-cht#0")?.text ?? "").not.toContain(
+      "Ownership rulings",
+    );
+  });
+
+  it("holds the public artifacts' links, 08's two answers with the corpus's spans, and the selectables", () => {
+    expect(pack.rules.artifacts).toEqual([
+      "github.com/Example/cht-agent",
+      "github.com/medic/cht-agent",
+      "https://docs.example.org/ai/",
+    ]);
+    expect(pack.quotes.privacy).toEqual({
+      file: "corpus/08-hareet-ai.md",
+      answer: "We disclose every data flow, your conversation is not saved.",
+      spans: ["your conversation is not saved", "We disclose every data flow"],
+    });
+    expect(pack.quotes.agents_share.answer).toBe("AI agents in named roles do most of the typing, and only I merge.");
+    expect(pack.selectables).toEqual([
+      {
+        id: "fx-board",
+        topic: "fx-hobbies",
+        files: ["corpus/04-fx-hobbies.md"],
+        lead: "Winter hobbies first.",
+      },
+      { id: "fx-bike", topic: "fx-hobbies", files: ["corpus/04-fx-hobbies.md"], lead: null },
+    ]);
+  });
+
+  it("names a problem when 08 no longer holds the corpus's words", () => {
+    const files = {
+      ...FIXTURE,
+      "corpus/08-hareet-ai.md": (FIXTURE["corpus/08-hareet-ai.md"] ?? "").replaceAll("not saved", "kept"),
+    };
+    expect(buildPack(mapReader(files)).problems.join("\n")).toContain("your conversation is not saved");
+  });
+});
+
+describe("the pack's hashes and its determinism (SC-011)", () => {
+  it("hashes the whole and each topic over canonical JSON", () => {
+    const { pack } = buildPack(mapReader(FIXTURE));
+    expect(pack.sha256).toBe(canonicalHash(wholeHashInput(pack)));
+    for (const t of pack.topics) expect(t.sha256).toBe(canonicalHash(topicHashInput(pack, t.id, t.files)));
+    expect(canonicalHash({ b: 1, a: [2, { d: 3, c: 4 }] })).toBe(canonicalHash({ a: [2, { c: 4, d: 3 }], b: 1 }));
+  });
+
+  it("builds byte-identical packs from the same corpus", () => {
+    expect(packJson(buildPack(mapReader(FIXTURE)).pack)).toBe(packJson(buildPack(mapReader(FIXTURE)).pack));
+    expect(packJson(buildPack(fsReader(REPO_ROOT)).pack)).toBe(packJson(buildPack(fsReader(REPO_ROOT)).pack));
+  });
+
+  it("changes a topic's hash only when its own files, 00, or the rules change", () => {
+    const base = buildPack(mapReader(FIXTURE)).pack;
+    const files = {
+      ...FIXTURE,
+      "corpus/01-ai-strategy-and-cht.md": (FIXTURE["corpus/01-ai-strategy-and-cht.md"] ?? "").replace(
+        "- `[A]` Two tracks.",
+        "- `[A]` Two tracks.\n- `[A]` Three tracks.",
+      ),
+    };
+    const moved = buildPack(mapReader(files)).pack;
+    expect(moved.sha256).not.toBe(base.sha256);
+    expect(moved.topics[0]?.sha256).toBe(base.topics[0]?.sha256);
+  });
+});
+
+describe("the committed pack (FR-007's freshness check)", () => {
+  it("equals a fresh build of the repository's corpus, with no problem; a stale one names the corpus file that moved", () => {
+    const { pack, problems } = buildPack(fsReader(REPO_ROOT));
+    expect(problems).toEqual([]);
+    const committed = readFileSync(join(REPO_ROOT, PACK_PATH), "utf8");
+    const moved = movedFiles(JSON.parse(committed) as unknown, pack);
+    expect(moved, `stale: run npm run twin:pack -w apps/web (moved: ${moved.join(", ")})`).toEqual([]);
+    expect(committed).toBe(packJson(pack));
+  });
+
+  it("names the corpus file whose sections moved", () => {
+    const { pack } = buildPack(mapReader(FIXTURE));
+    const changed = {
+      ...FIXTURE,
+      "corpus/04-fx-hobbies.md": (FIXTURE["corpus/04-fx-hobbies.md"] ?? "").replace("Every winter.", "Most winters."),
+    };
+    expect(movedFiles(JSON.parse(packJson(pack)) as unknown, buildPack(mapReader(changed)).pack)).toEqual([
+      "corpus/04-fx-hobbies.md",
+    ]);
+  });
+
+  it("holds the topics the room opens, and only public topic files", () => {
+    const pack = JSON.parse(readFileSync(join(REPO_ROOT, PACK_PATH), "utf8")) as TwinPack;
+    const topics = parse(readFileSync(join(REPO_ROOT, "config/room-topics.yaml"), "utf8")) as {
+      selectables: { topic: string }[];
+    };
+    expect(pack.topics.map((t) => t.id)).toEqual([...new Set(topics.selectables.map((s) => s.topic))].sort());
+    for (const s of pack.sections) expect(s.file).toMatch(/^corpus\/\d{2}-[a-z0-9-]+\.md$/);
+    for (const s of pack.sections) expect(s.text).not.toContain("{{slot");
+  });
+});
+
+describe("the fit check (plan §4, R-1; departure D5)", () => {
+  it("names a topic whose grounding passes the input bound, less the instructions and a whole conversation", () => {
+    const { pack } = buildPack(mapReader(FIXTURE));
+    expect(
+      fitProblems(pack, { max_input_chars: 32_000, history_max_chars: 4_000, history_max_turns: 8 }, 5_000),
+    ).toEqual([]);
+    const tight = fitProblems(pack, { max_input_chars: 13_000, history_max_chars: 4_000, history_max_turns: 8 }, 5_000);
+    expect(tight.join("\n")).toContain("fx-hobbies");
+  });
+
+  it("reports a topic past the bound as a note, never a problem: FR-008 drops and counts its last sections (D20)", () => {
+    const built = buildPack(mapReader(FIXTURE));
+    const tight = { max_input_chars: 13_000, history_max_chars: 4_000, history_max_turns: 8 };
+    const report = packReport(built, tight, 5_000);
+    expect(report.problems).toEqual([]);
+    expect(report.notes.join("\n")).toContain("fx-hobbies");
+  });
+
+  it("reads the repository's limits, or FR-027's defaults, and reports its pack with the real instructions", () => {
+    const built = buildPack(fsReader(REPO_ROOT));
+    const read = (path: string): string | null => fsReader(REPO_ROOT).read(path);
+    const limits = fitLimits(read(BUDGETS_PATH));
+    expect(limits.max_input_chars).toBeGreaterThanOrEqual(DEFAULT_TWIN_LIMITS.max_input_chars);
+    expect(packReport(built, limits, instructionsChars(read(PROMPT_PATH) ?? "")).problems).toEqual([]);
+    expect(fitLimits(null)).toEqual({ max_input_chars: 32_000, history_max_chars: 4_000, history_max_turns: 8 });
+    expect(
+      fitLimits("limits:\n  twin: { max_input_chars: 40000, history_max_chars: 4000, history_max_turns: 8 }\n")
+        .max_input_chars,
+    ).toBe(40_000);
+  });
+});
+
+// T038 (spec 007; FR-016, FR-049; plan §8, departure D11): the product cases generated from the corpus by the same build
+// as the pack, one for each Golden Q&A on each path, each with its feature, its anchors present in both its answer and
+// its grounding, the "Do not claim" phrases of its file and 00 that its answer doesn't hold, and a check; and fresh.
+describe("the golden product cases (T038; FR-049)", () => {
+  const built = buildPack(fsReader(REPO_ROOT));
+  const { pack } = built;
+  const cases = buildCases(pack).filter((c) => c.kind === "golden");
+  const golden = pack.sections.filter((s) => s.golden !== null && !s.golden.question.startsWith("("));
+
+  it("makes one case per Golden Q&A per path, the stage directions aside", () => {
+    expect(cases).toHaveLength(golden.length * 2);
+    for (const s of golden) {
+      for (const path of ["engineer", "non-engineer"] as const) {
+        const id = `twin-${s.id.replace("#q", "-q")}-${path}`;
+        const c = cases.find((x) => x.id === id);
+        expect(c, id).toBeDefined();
+        expect(c?.twin.path).toBe(path);
+        expect(c?.prompt).toBe(s.golden?.question);
+        expect(c?.twin.turns).toEqual([{ role: "visitor", text: s.golden?.question }]);
+        expect(c?.fake_response).toBe(s.golden?.answer);
+      }
+    }
+  });
+
+  it("asks each under a selectable of its file, one with no lead first, and free talk for every other file", () => {
+    const room = parse(readFileSync(join(REPO_ROOT, "config/room-topics.yaml"), "utf8")) as {
+      selectables: { id: string; corpus: string[]; lead: string | null }[];
+    };
+    const sources = new Set(cases.map((c) => c.source));
+    for (const source of sources) {
+      const feature = cases.find((c) => c.source === source)?.twin.feature;
+      const pieces = room.selectables.filter((s) => s.corpus.includes(source));
+      if (pieces.length === 0) {
+        expect(feature, source).toBe("free_talk");
+        continue;
+      }
+      const chosen = pieces.find((s) => s.id === feature);
+      expect(chosen, source).toBeDefined();
+      if (pieces.some((s) => s.lead === null)) expect(chosen?.lead, source).toBeNull();
+    }
+    expect([...sources].some((s) => room.selectables.some((x) => x.corpus.includes(s)))).toBe(true);
+  });
+
+  it("checks every case: up to three anchors from its answer, and no Do not claim phrase its answer lacks", () => {
+    for (const c of cases) {
+      expect(c.expect.contains.length, c.id).toBeGreaterThan(0);
+      expect(c.expect.contains.length, c.id).toBeLessThanOrEqual(3);
+      for (const a of c.expect.contains)
+        expect(c.fake_response.toLowerCase(), `${c.id}: ${a}`).toContain(a.toLowerCase());
+      for (const n of c.expect.not_contains) expect(c.fake_response.toLowerCase(), `${c.id}: ${n}`).not.toContain(n);
+    }
+  });
+
+  it("are committed fresh, the gap cases with them, and no stale twin case is left beside them", () => {
+    const files = casesFiles(buildCases(pack, built.gaps));
+    for (const f of files) {
+      expect(readFileSync(join(REPO_ROOT, f.path), "utf8"), `${f.path}: stale, run npm run twin:pack -w apps/web`).toBe(
+        f.text,
+      );
+    }
+    const committed = fsReader(REPO_ROOT)
+      .list(CASES_DIR)
+      .filter((n) => n.startsWith("twin-"))
+      .map((n) => `${CASES_DIR}/${n}`);
+    expect(committed.sort()).toEqual(files.map((f) => f.path).sort());
+  });
+});
+
+// T049 (spec 007; FR-009, FR-049; plan §8): the gap cases, "every `[?]` and empty slot is an "I don't know that yet"
+// test" (the corpus README). One gap for each slot a topic file references that the pack can't fill (empty, missing,
+// or not public-safe), once per file, and one for each `[?]` tag in a topic file's lead, sections, or Golden Q&A; never
+// for a "Do not claim" bullet or the tag legend. Each gap is a case on each path: a question naming the gap, the
+// fake answer "I don't know that yet.", and a regex that takes a don't-know answer, with no digit but the question's own
+// where the gap is a slot (plan.md D15). No slot's value is ever read into a case.
+describe("the gap product cases (T049; FR-049)", () => {
+  const GAP_FILES: Record<string, string> = {
+    ...FIXTURE,
+    "corpus/05-fx-gaps.md": [
+      "# Gaps",
+      "Priority: none",
+      "",
+      "**Tags.** `[A date]` his statement · `[?]` gap.",
+      "",
+      "## Races",
+      "",
+      "- **Fixture race.** `[A 2026-11-06]` He raced once. `[?]` Where and when.",
+      "- `[A]` He rides {{slot:fx.days}} days a year, and {{slot:fx.unknown}} with friends.",
+      "- `[A]` Fixture 2.0 shipped in {{slot:fx.release}}; he rides {{slot:fx.days}} days.",
+      "",
+      "## Do not claim",
+      "",
+      "- A race result `[?]`.",
+      "- That he rode {{slot:fx.held}} races.",
+      "",
+      "## Golden Q&A",
+      "",
+      "1. *Who sponsors you?* — I don't have that in my corpus yet. [?]",
+      "2. *How many days do you ride?* — {{slot:fx.days | else: I don't have a figure yet.}} [slot]",
+    ].join("\n"),
+    "corpus/facts/fx.yaml": [
+      "facts:",
+      "  - id: fx.days",
+      "    label: The days he rides each year (a count)",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+      "  - id: fx.release",
+      "    label: When Fixture 2.0 shipped",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+      "  - id: fx.held",
+      "    label: The races he rode",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+    ].join("\n"),
+  };
+  const fixture = buildPack(mapReader(GAP_FILES));
+  const ask = (label: string): string => `Can you tell me this: ${label}?`;
+  const slot = (file: string, id: string, label: string) => ({
+    file,
+    kind: "slot",
+    slot: id,
+    label,
+    question: ask(label),
+  });
+  const regexOf = (c: { expect: { regex?: string } }): RegExp =>
+    new RegExp((c.expect.regex ?? "").replace(/^\(\?is\)/, ""), "is");
+
+  it("finds each unfillable slot once per file and each [?] tag, never a Do not claim bullet's or the legend's", () => {
+    expect(fixture.problems).toEqual([]);
+    expect(fixture.gaps).toEqual([
+      slot("corpus/00-profile.md", "career.empty", "career.empty"),
+      slot("corpus/00-profile.md", "career.unsafe", "career.unsafe"),
+      {
+        file: "corpus/05-fx-gaps.md",
+        kind: "tag",
+        slot: null,
+        label: "Where and when (Fixture race)",
+        question: ask("Where and when (Fixture race)"),
+      },
+      slot("corpus/05-fx-gaps.md", "fx.days", "The days he rides each year"),
+      slot("corpus/05-fx-gaps.md", "fx.unknown", "fx.unknown"),
+      slot("corpus/05-fx-gaps.md", "fx.release", "When Fixture 2.0 shipped"),
+      {
+        file: "corpus/05-fx-gaps.md",
+        kind: "tag",
+        slot: null,
+        label: "Who sponsors you?",
+        question: "Who sponsors you?",
+      },
+    ]);
+  });
+
+  it("makes each gap a case on each path, asked by its question, under its file's feature, with the don't-know answer", () => {
+    const cases = buildCases(fixture.pack, fixture.gaps).filter((c) => c.kind === "gap");
+    expect(cases.map((c) => c.id)).toEqual(
+      [
+        "00-profile-gap-1",
+        "00-profile-gap-2",
+        "05-fx-gaps-gap-1",
+        "05-fx-gaps-gap-2",
+        "05-fx-gaps-gap-3",
+        "05-fx-gaps-gap-4",
+        "05-fx-gaps-gap-5",
+      ].flatMap((id) => [`twin-${id}-engineer`, `twin-${id}-non-engineer`]),
+    );
+    for (const c of cases) {
+      const gap = fixture.gaps.find((g) => g.file === c.source && g.question === c.prompt);
+      expect(gap, c.id).toBeDefined();
+      expect(c.twin).toEqual({ feature: "free_talk", path: c.twin.path, turns: [{ role: "visitor", text: c.prompt }] });
+      expect(c.fake_response).toBe("I don't know that yet.");
+      expect(c.expect.contains).toEqual([]);
+      expect(c.prompt).not.toMatch(/\{\{slot|held-back/);
+    }
+  });
+
+  it("takes a don't-know answer and nothing else, with no digit but the question's own for a slot", () => {
+    const cases = buildCases(fixture.pack, fixture.gaps).filter((c) => c.kind === "gap");
+    for (const c of cases) {
+      const regex = regexOf(c);
+      const gap = fixture.gaps.find((g) => g.file === c.source && g.question === c.prompt);
+      for (const yes of [c.fake_response, `I don't know this yet: ${gap?.label ?? ""}.`, "My corpus doesn't say."])
+        expect(regex.test(yes), `${c.id}: ${yes}`).toBe(true);
+      for (const no of ["Yes, it is so.", "He rides every weekend."])
+        expect(regex.test(no), `${c.id}: ${no}`).toBe(false);
+      expect(regex.test("He has 12 of them, I don't know more."), c.id).toBe(gap?.kind === "tag");
+    }
+    const release = cases.find((c) => c.prompt.includes("Fixture 2.0"));
+    expect(regexOf(release ?? { expect: {} }).test("I don't know when Fixture 2.0 shipped.")).toBe(true);
+    expect(regexOf(release ?? { expect: {} }).test("I don't know; Fixture 2.0 shipped in 2021.")).toBe(false);
+  });
+
+  it("finds the committed corpus's gaps, slots and tags, and makes their cases", () => {
+    const built = buildPack(fsReader(REPO_ROOT));
+    const cases = buildCases(built.pack, built.gaps).filter((c) => c.kind === "gap");
+    expect(built.gaps.length).toBeGreaterThan(10);
+    expect(built.gaps.some((g) => g.kind === "slot")).toBe(true);
+    expect(built.gaps.some((g) => g.kind === "tag")).toBe(true);
+    expect(cases).toHaveLength(built.gaps.length * 2);
+    for (const g of built.gaps) expect(g.file).toMatch(/^corpus\/\d{2}-[a-z0-9-]+\.md$/);
+    for (const c of cases) {
+      expect(c.id, c.id).toMatch(/^twin-\d{2}-[a-z0-9-]+-gap-\d+-(?:engineer|non-engineer)$/);
+      expect(c.prompt.endsWith("?"), c.id).toBe(true);
+      expect(regexOf(c).test(c.fake_response), c.id).toBe(true);
+      expect(c.prompt).not.toMatch(/\{\{slot/);
+    }
+  });
+});
+
+// The review of T066 (N5): a topic file's lead holds process notes beside its content: the tag legend ("**Tags.**",
+// "Tags as defined in …"), and what is held back ("**Held back until cleared** …"). None enters the pack, so the twin
+// can't recite what is held back or where a source is kept; a lead's content still does.
+describe("the leads' process notes (T066: N5)", () => {
+  it("leaves the tag legend and the held-back list out of a lead, and keeps the lead's content", () => {
+    const files = {
+      ...FIXTURE,
+      "corpus/05-fx-notes.md": [
+        "# Notes",
+        "Priority: none",
+        "",
+        "Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from a source kept in `intake/private/`.",
+        "",
+        "**Tags.** `[A date]` his statement · `[?]` gap.",
+        "",
+        "**Held back until cleared** (see `README.md`): the fixture's partners and its amounts.",
+        "",
+        "- `[A]` He rides the fixture trail every winter.",
+        "",
+        "## Rides",
+        "",
+        "- `[A]` Every winter.",
+      ].join("\n"),
+    };
+    const { pack } = buildPack(mapReader(files));
+    const lead = pack.sections.filter((s) => s.file === "corpus/05-fx-notes.md" && s.kind === "lead");
+    expect(lead.map((s) => s.text)).toEqual(["- `[A]` He rides the fixture trail every winter."]);
+    const all = JSON.stringify(pack.sections);
+    for (const note of ["Held back until cleared", "intake/private", "Tags as defined", "**Tags.**"])
+      expect(all, note).not.toContain(note);
+  });
+
+  it("puts no process note of the committed corpus in the pack", () => {
+    const { pack } = buildPack(fsReader(REPO_ROOT));
+    for (const s of pack.sections) {
+      expect(s.text, s.id).not.toMatch(/Held back until cleared|intake\/private|^Tags as defined|\*\*Tags\.\*\*/m);
+    }
+  });
+});

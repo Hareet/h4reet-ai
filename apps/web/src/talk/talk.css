@@ -40,6 +40,7 @@
 
 .talk-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
@@ -49,4 +50,38 @@
   font: inherit;
   border: 1px solid #555555;
   border-radius: 4px;
+}
+
+/* Spec 007 (FR-034 to FR-042): the conversation's lines, each under its speaker's label; the waiting status, outside the
+   log; and the characters left once a visitor has used 80% of the limit. */
+.talk-entry {
+  margin: 0 0 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.talk-speaker {
+  font-weight: 700;
+}
+
+.talk-status {
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.talk-counter {
+  font-size: 0.875rem;
+}
+
+/* A gentle pulse while the twin answers; none under reduced motion, where the words alone carry the state. */
+@media (prefers-reduced-motion: no-preference) {
+  .talk-status:not(:empty) {
+    animation: talk-waiting 1.6s ease-in-out infinite;
+  }
+
+  @keyframes talk-waiting {
+    50% {
+      opacity: 0.6;
+    }
+  }
 }

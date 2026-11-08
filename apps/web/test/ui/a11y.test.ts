@@ -25,7 +25,7 @@ import { renderObjectList } from "../../src/room/a11y";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
 import { memberRect } from "../../src/room/compose/pick";
-import { stageFor, sweepScreens } from "../../src/room/compose/stages";
+import { stageFor, sweepScreens, walkControlBox } from "../../src/room/compose/stages";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { renderFlat } from "../../src/room/flat";
 import { framedBoxes } from "../../src/room/scene/bundle3d";
@@ -180,12 +180,15 @@ describe("keyboard", () => {
     async (_, webgl) => {
       const v = start({ webgl });
       await intoRoom(v);
+      // Spec 008's Amendment M6: in 3D, the walking control comes after the toolbar, in the stage.
+      const walk = webgl ? [roomIndex().ui["walk.enter"] ?? "Walk around"] : [];
       const stops = tabOrder(v.doc);
       expect(stops.map(nameOf)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
+        ...walk,
         ...OBJECT_BUTTONS,
         "Your message",
         "Send",
@@ -203,12 +206,13 @@ describe("keyboard", () => {
       const order = tabOrder(v.doc).map(nameOf);
       // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, the conversation
       // panel's three, and "Around the room" come first.
-      const room = 4 + OBJECT_BUTTONS.length + 3 + 1;
+      const room = 4 + walk.length + OBJECT_BUTTONS.length + 3 + 1;
       expect(order.slice(0, room)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
+        ...walk,
         ...OBJECT_BUTTONS,
         "Your message",
         "Send",
@@ -822,6 +826,24 @@ describe("320 × 568 (FR-065; User Story 7 scenario 4)", () => {
       expect(y + h, `${id}'s foot`).toBeLessThanOrEqual(stage.h + 1e-6);
     }
     expect(stage.top + stage.h).toBeLessThanOrEqual(SCREEN.h);
+  });
+
+  // T047 (spec 008; FR-021): the walking control sits in the stage, so the toolbar keeps its five controls and its rows,
+  // and the text box and the talk button stay on screen; its box, room.css's, is at least 44 × 44 inside that stage.
+  it("puts the walking control in the stage, not the toolbar, at least 44 × 44 and inside the stage", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    const walk = v.doc.querySelector<HTMLElement>("button.room-walk");
+    expect(walk?.closest(".room-stage")).not.toBeNull();
+    expect(walk?.closest(".room-toolbar")).toBeNull();
+    expect(walk?.hidden).toBe(false);
+    const page = portraitPage(v.doc, SCREEN);
+    expect(page.toolbar).toHaveLength(5);
+    expect(page.talkBottom).toBeLessThanOrEqual(SCREEN.h);
+    const stage = stageFor(SCREEN);
+    const [x, y, w, h] = walkControlBox(stage);
+    expect(Math.min(w, h)).toBeGreaterThanOrEqual(44);
+    expect([x >= 0, y >= 0, x + w <= stage.w, y + h <= stage.h]).toEqual([true, true, true, true]);
   });
 
   it("drops the toolbar's type to 0.875rem below a portrait width of 25rem, and grows the stage's reserve below 35rem", () => {

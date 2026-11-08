@@ -338,7 +338,7 @@ const verbish = (word: string): boolean =>
 /** A "Do not claim" bullet's key phrases: its text up to the first clause break, without "That" or its subject, then
  * each alternative it joins with "or". When the first alternative opens with a verb and a later one doesn't, the verb
  * carries over: "built the CHT skills or cht-pr-review" gives "built the cht skills" and "built cht-pr-review". */
-function keyPhrases(bullet: string, roomName: string): string[] {
+export function keyPhrases(bullet: string, roomName: string): string[] {
   const subjects = ["he", "she", "they", "his", "her", "their", ...roomName.split(/\s+/).filter(Boolean).map(escape)];
   const lead = new RegExp(`^(?:that\\s+)?(?:(?:${subjects.join("|")})\\s+)?`, "i");
   const clause = keyPhrase(bullet, roomName);
@@ -446,8 +446,8 @@ export function readFacts(root: string): Map<string, Fact> {
 }
 
 /** The slots of one facts file, `corpus/facts/<name>`, from its text; the yaml package's error for one that isn't
- * YAML. */
-function factsIn(text: string, name: string): Fact[] {
+ * YAML. Exported for spec 007's grounding pack (build/twin-pack.ts), which reads the files through its own reader. */
+export function factsIn(text: string, name: string): Fact[] {
   const doc = parseYaml(text, { schema: "core" }) as unknown;
   const list = isObject(doc) && Array.isArray(doc.facts) ? doc.facts : [];
   const facts: Fact[] = [];

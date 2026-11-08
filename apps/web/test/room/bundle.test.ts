@@ -347,8 +347,11 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
     expect(Object.keys(index.switches[0]?.cases ?? {})).toEqual([...TIER_VALUES]);
   });
 
-  it("lists the text copy by reference: the bound faces, the switches, the sign's figures, and the fixed lines", () => {
+  it("lists the text copy by reference: the stand-in line, the bound faces, the switches, the figures, the fixed lines", () => {
+    // Spec 009's stand-in line comes first while the twin's figure shows anything but the twin's own avatar, which in
+    // that spec is always (its FR-013, R-13).
     expect(good().index.copy).toEqual([
+      { line: "twin.stand_in" },
       { face: "fx-monitor.screen" },
       { face: "fx-neon.panel" },
       { face: "fx-board.slate" },
@@ -718,6 +721,10 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "handoff",
       "load_order",
       "scene_texture_bytes",
+      // Spec 008's Amendment M12: the walking block, resolved.
+      "walking",
+      // Spec 009's avatars, last (its plan.md §3.2).
+      "avatars",
     ]);
     expect(Object.keys(scene.placements[0] ?? {})).toEqual([
       "id",
@@ -855,7 +862,16 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "typefaces",
       "highlight",
     ]);
-    expect(scene.figures).toEqual({ twin: "fx-twin", visitor: "fx-visitor" });
+    // With spec 009's block resolved (its FR-037; plan.md §3.2): no stand-in, the defaults, and the twin's catalog height.
+    expect(scene.figures).toEqual({
+      twin: "fx-twin",
+      visitor: "fx-visitor",
+      stand_in: null,
+      texture_px: 1024,
+      wait_ms: 1500,
+      twin_height: 0.5,
+    });
+    expect(scene.avatars).toEqual({});
     expect(scene.handoff).toEqual({
       from: { placement: "fx-twin", anchor: "hand" },
       to: { placement: "fx-visitor", anchor: "hand" },

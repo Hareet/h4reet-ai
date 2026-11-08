@@ -100,6 +100,8 @@ describe("room-manifest.json (Amendment B7)", () => {
       "turn_sent",
       "voice_pressed",
       "mode_2d",
+      "walk_started",
+      "avatar_failed",
     ]);
   });
 
@@ -223,6 +225,11 @@ describe("content/messages.yaml", () => {
         "utterance_limit",
         "voice_output_unavailable",
         "voice_unavailable",
+        // Spec 007's Amendment 2-2 (its FR-038).
+        "twin_answering",
+        "turn_refused.slow_down",
+        "turn_refused.unreadable",
+        "turn_stopped",
       ].sort(),
     );
   });

@@ -415,7 +415,7 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
     expect(scripts.some((n) => readFileSync(join(root, n), "utf8").includes(digest))).toBe(true);
   });
 
-  it("holds no plain .glb, and each a/*.glb.gz is a model's copy: its SHA-256, MTIME 0, and its length the entry's bytes", () => {
+  it("holds no plain .glb, and each a/*.glb.gz is a model's or an avatar file's copy: its SHA-256, MTIME 0, and its length", () => {
     const files = builtFiles(root);
     expect(files.filter((n) => n.endsWith(".glb"))).toEqual([]);
     // Each model the 3D part names, by its copy's path; a piece only a switch's poses show is named by compose()'s
@@ -425,6 +425,13 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
     for (const p of scene.placements) if (p.model) named.set(`${p.model.url}.gz`, p.model);
     for (const m of models)
       if (!named.has(`${m.url}.gz`)) named.set(`${m.url}.gz`, { sha256: m.sha256, bytes: m.gz.length });
+    // And each avatar file the 3D part bundles (spec 009, FR-023, FR-043): computed from the part, so the Author's intake
+    // changes nothing here.
+    for (const avatar of Object.values(scene.avatars)) {
+      if (!avatar) continue;
+      named.set(`${avatar.model.url}.gz`, avatar.model);
+      for (const clip of Object.values(avatar.clips)) if (clip) named.set(`${clip.url}.gz`, clip);
+    }
     const copies = files.filter((n) => n.endsWith(".glb.gz"));
     expect(copies).toEqual([...named.keys()].sort());
     for (const name of copies) {

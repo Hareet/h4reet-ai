@@ -6,6 +6,10 @@ dist/
 coverage/
 package-lock.json
 **/package-lock.json
+# Spec 007's twin files: the generated grounding pack, and the instructions and fixed lines, whose bytes are hashed as
+# the prompt hash, so reformatting them would close every topic (FR-030). The product cases are generated beside it.
+config/twin/
+evals/product/cases/twin-*.yaml
 evals/agent-config/history/
 .specify/
 .claude/
@@ -14,6 +18,7 @@ corpus/
 # Human-only configuration, kept exactly as contracts/config-files.md gives it (tasks.md T022).
 config/budgets.yaml
 config/alerts.yaml
+config/twin-readiness.yaml
 # Human-only policy files, kept as the Author writes them: spec 002's content approvals and PDF header, and spec
 # 003's asset policy beside them.
 assets/policy/

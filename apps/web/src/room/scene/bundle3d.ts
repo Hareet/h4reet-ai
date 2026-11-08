@@ -48,6 +48,7 @@ import { listOnly, memberRect, pick, pickAreas } from "../compose/pick";
 import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
 import type { Camera } from "../compose/project";
+import { walkControlBox } from "../compose/stages";
 import type { Stage } from "../compose/stages";
 import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
 import type { Side } from "../handoff";
@@ -106,7 +107,14 @@ export interface Room3D {
    *  hand, the visitor toward the twin's, each from where the other's hand lies in its own frame. */
   readonly facing: { readonly twin: Side; readonly visitor: Side };
   /** The paper: the sheet that travels from the twin's hand (or fades there), and its two materials. */
-  readonly paper: { readonly sheet: Mesh; readonly atTwin: MeshBasicMaterial; readonly atVisitor: MeshBasicMaterial };
+  readonly paper: {
+    readonly sheet: Mesh;
+    readonly atTwin: MeshBasicMaterial;
+    readonly atVisitor: MeshBasicMaterial;
+    /** The sheet at the visitor's hand, the one the figure keeps once the hand-off has ended (spec 008, R-12); spec
+     *  009's avatars put it in the holding hand (scene/avatars.ts). */
+    readonly kept: Mesh;
+  };
   /** The look's materials, which the stand-ins share. */
   readonly materials: Materials;
 }
@@ -287,7 +295,7 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
     visitor,
     anchors,
     facing,
-    paper: { sheet: paper, atTwin, atVisitor },
+    paper: { sheet: paper, atTwin, atVisitor, kept },
     materials,
   };
 }
@@ -351,6 +359,9 @@ export interface SelectablePicker {
   resize(stage: Stage): void;
   /** The selectable under a point of the view, in normalized device coordinates, or null; none before a size. */
   readonly pick: (ndc: Ndc) => string | null;
+  /** The walking view's follow camera on a stage, the areas recomputed there (spec 008, FR-035); null, the production
+   *  framing's again. */
+  setCamera(camera: Camera | null, stage: Stage): void;
 }
 
 /** Picks the index's selectables from the part's frame boxes, framed as frameCamera frames them (compose/pick.ts). At
@@ -361,12 +372,25 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
   let stage: Stage | null = null;
   let areas: readonly PickArea[] = [];
   let held: ReadonlySet<string> = new Set();
+  /** The follow camera the walking view set, or none: the production framing's. */
+  let following: Camera | null = null;
+  const measure = (next: Stage): void => {
+    stage = { w: next.w, h: next.h };
+    const camera = following ?? framing(next.w / next.h, boxes);
+    areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, camera, stage) : [];
+    // The walking control's box reserved, as RG6 reserves it: a side-wall selectable whose core lies under it is held
+    // here exactly where the compositor's report lists it (spec 008, FR-021; plan.md §2); and at the follow camera,
+    // where the control still stands, the carve-out applied there (FR-035).
+    held = listOnly(areas, [0, 0, next.w, next.h], sideWall, [walkControlBox(next)]);
+  };
   return {
     resize(next) {
       if (stage !== null && next.w === stage.w && next.h === stage.h) return;
-      stage = { w: next.w, h: next.h };
-      areas = next.w > 0 && next.h > 0 ? pickAreasOn(part, index, framing(next.w / next.h, boxes), stage) : [];
-      held = listOnly(areas, [0, 0, next.w, next.h], sideWall);
+      measure(next);
+    },
+    setCamera(camera, next) {
+      following = camera;
+      measure(next);
     },
     pick: (ndc) => (stage === null ? null : pick(areas, toStage([ndc.x, ndc.y, 0], stage), held)),
   };
@@ -414,6 +438,17 @@ export function showHandoff(room: Room3D, progress: number, reducedMotion: boole
   atVisitor.opacity = 0;
   room.twin.rotation.y = room.facing.twin * TWIN_TURN * Math.min(1, p / 0.3) * Math.min(1, (1 - p) / 0.2);
   room.visitor.rotation.y = room.facing.visitor * VISITOR_TURN * visitorTurnShare(p);
+}
+
+/** The kept paper into the visitor's picture, its world transform kept, so it walks and mirrors with the figure and
+ *  comes back with it (spec 008, FR-034; R-12): once the hand-off has ended, before the walking view first moves the
+ *  figure. Nothing the second time. */
+export function keepPaper(room: Room3D): void {
+  const { kept } = room.paper;
+  // Anywhere in the picture already, the avatar's holding hand too (spec 009, R-09), it stays where it is.
+  for (let at = kept.parent; at; at = at.parent) if (at === room.visitor) return;
+  room.scene.updateMatrixWorld(true);
+  room.visitor.attach(kept);
 }
 
 /** Releases what the room made: every mesh's geometry, every material and its textures (the ramp, a label's), and the

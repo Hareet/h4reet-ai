@@ -48,11 +48,12 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state, 0002_grafana_ro, and 0003_studio_window, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, and 0004_twin, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
       [3, "0003_studio_window"],
+      [4, "0004_twin"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -70,7 +71,7 @@ describe("applying them", () => {
   });
 
   it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3]);
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -119,14 +120,14 @@ describe("applying them", () => {
 
   it("rolls back a migration that fails, and records nothing for it", async () => {
     const broken: Migration = {
-      version: 4,
-      name: "0004_broken",
+      version: 5,
+      name: "0005_broken",
       sql: "CREATE TABLE gateway.half_done (id int); SELECT no_such_function();",
       sha256: sha256("x"),
     };
     await expect(runMigrations(db, [...migrations, broken])).rejects.toThrow(/no_such_function/);
     const { rows } = await db.pg.query<{ version: number }>("SELECT version FROM gateway.schema_migrations");
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4]);
     expect((await db.pg.query("SELECT to_regclass('gateway.half_done') AS t")).rows[0]).toEqual({ t: null });
   });
 });
@@ -691,7 +692,7 @@ describe("the store", () => {
     ]);
     expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "ECONNREFUSED" });
     expect(JSON.stringify(logged)).not.toContain("10.0.0.1");
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3] });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4] });
     await store.close();
   });
 
@@ -799,7 +800,7 @@ describe("the store", () => {
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
     expect(store.status).toBe("ready");
     expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
-      [1, 2, 3],
+      [1, 2, 3, 4],
       [],
     ]);
     expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
@@ -828,10 +829,11 @@ describe("the store", () => {
       { version: 1 },
       { version: 2 },
       { version: 3 },
+      { version: 4 },
     ]);
     // One run, for both reads, and no outage: the store answered throughout.
     expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
-      ["info", "migrations.applied", [1, 2, 3]],
+      ["info", "migrations.applied", [1, 2, 3, 4]],
     ]);
     expect(store.outageStartedAt()).toBeUndefined();
     await store.close();
@@ -905,5 +907,78 @@ describe("the store", () => {
       "SELECT rolpassword AS v FROM pg_authid WHERE rolname = 'grafana_ro'",
     );
     expect(rows[0]?.v).toMatch(/^SCRAM-SHA-256\$4096:/);
+  });
+});
+
+// T012 (spec 007; FR-026; Amendment 0-1): 0004_twin admits the purpose `twin` on the ledger and the reservations, adds
+// the ledger's two nullable columns for the room's feature and topic, each a bounded ID, admits the audit action
+// `twin_call`, and leaves 0001_state.sql as it was: an append-only migration, never an edit.
+describe("0004_twin (spec 007, Amendment 0-1)", () => {
+  let db: TestDatabase;
+  beforeEach(async () => {
+    db = await migrated();
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  const ledgerRow = (o: { purpose?: string; feature?: string | null; topic?: string | null } = {}) =>
+    db.pg.query(
+      `INSERT INTO gateway.ledger (id, reservation_id, ts, started_at, stack, request_id, trace_id, purpose,
+         route_decision, route_reason, attribution, adapter_id, provider, request_model, response_model, input_tokens,
+         output_tokens, cache_read_tokens, latency_ms, finish_reason, outcome, error_kind, cost_micro, cost_basis,
+         price_version, routing_sha, period_day, period_month, client_label, room_feature, room_topic)
+       VALUES (gen_random_uuid(), NULL, now(), now(), 'dev', 'r1', $1, $2, 'local', NULL, 'none', 'local', 'local',
+         'stand-in', 'stand-in', 10, 5, NULL, 12, 'stop', 'ok', NULL, 0, 'none', '2026-10-08.1', $3, '2026-11-07',
+         '2026-11', NULL, $4, $5)`,
+      [
+        HEX32,
+        o.purpose ?? "twin",
+        HEX64,
+        o.feature === undefined ? "fx-piece" : o.feature,
+        o.topic === undefined ? "fx-topic" : o.topic,
+      ],
+    );
+
+  it("admits a twin call's ledger row with its feature and topic", async () => {
+    await ledgerRow();
+    const { rows } = await db.pg.query<{ purpose: string; room_feature: string; room_topic: string }>(
+      "SELECT purpose, room_feature, room_topic FROM gateway.ledger",
+    );
+    expect(rows).toEqual([{ purpose: "twin", room_feature: "fx-piece", room_topic: "fx-topic" }]);
+  });
+
+  it("leaves both columns null for every other call, and admits free talk's topic", async () => {
+    await ledgerRow({ purpose: "hello", feature: null, topic: null });
+    await ledgerRow({ feature: "free_talk", topic: "free_talk" });
+    const { rows } = await db.pg.query<{ room_feature: string | null }>(
+      "SELECT room_feature FROM gateway.ledger ORDER BY purpose",
+    );
+    expect(rows.map((r) => r.room_feature).sort()).toEqual(["free_talk", null].sort());
+  });
+
+  it("refuses a feature or a topic outside their pattern, and a purpose outside the list", async () => {
+    await expect(ledgerRow({ feature: "Not An ID" })).rejects.toThrow();
+    await expect(ledgerRow({ topic: "x".repeat(65) })).rejects.toThrow();
+    await expect(ledgerRow({ purpose: "chat" })).rejects.toThrow();
+  });
+
+  it("admits a reservation for a twin call, and the audit action twin_call with its reason", async () => {
+    const constraint = await db.pg.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'reservations' AND pg_get_constraintdef(c.oid) LIKE '%purpose%'`,
+    );
+    expect(constraint.rows.map((r) => r.def).join(" ")).toContain("twin");
+    const audit = await db.pg.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'audit_log'`,
+    );
+    expect(audit.rows.map((r) => r.def).join(" ")).toContain("twin_call");
+  });
+
+  it("leaves 0001_state.sql byte for byte as recorded", async () => {
+    const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
+    expect(text).not.toContain("twin");
+    expect(migrations.find((m) => m.name === "0004_twin")?.sql).toContain("ADD COLUMN room_feature");
   });
 });

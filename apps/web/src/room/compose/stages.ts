@@ -5,6 +5,8 @@
 // fails the test until this file follows it. Sizes are CSS pixels.
 
 /** A screen: the browser's viewport, in CSS pixels. */
+import type { Rect } from "./pick";
+
 export interface Screen {
   readonly w: number;
   readonly h: number;
@@ -161,6 +163,18 @@ export function supportedStages(): Stage[] {
     seen.set(`${s.w}x${s.h}`, s);
   }
   return [...seen.values()].sort((a, b) => a.w - b.w || a.h - b.h);
+}
+
+/** The walking control's box (spec 008, FR-021; plan.md R-09): `.room-walk`'s width, height, and inset from the
+ *  stage's bottom-right corner, in rem, which room.css sets and test/room/stages.test.ts pins. */
+export const WALK_CONTROL = { widthRem: 8, heightRem: 2.75, insetRem: 0.5 } as const;
+
+/** The walking control's box on a stage, in CSS pixels from the stage's top left: what RG6 reserves in 3D, and the
+ *  room's picker with it (spec 008, FR-021, FR-058). */
+export function walkControlBox(stage: Stage): Rect {
+  const rem = ROOM_CSS.rem;
+  const [w, h, inset] = [WALK_CONTROL.widthRem * rem, WALK_CONTROL.heightRem * rem, WALK_CONTROL.insetRem * rem];
+  return [stage.w - inset - w, stage.h - inset - h, w, h];
 }
 
 /** The 2D drawing's view box, 320 × 200: room.css keeps its 8:5 shape inside the stage (`.flat`). */

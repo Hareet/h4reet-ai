@@ -21,6 +21,11 @@ FROM scratch AS policy
 # names none, such as the gate's image step, gets this empty stage, and every piece builds as its stand-in.
 FROM scratch AS room-assets
 
+# ---- visitor-assets: the tree's assets/visitors, as web_image.py hands it over (spec 009, FR-023) ----
+# web_image.py replaces this stage with the named build context `visitor-assets` when the tree has the folder. A build
+# that names none gets this empty stage, and both figures build as their fallbacks.
+FROM scratch AS visitor-assets
+
 # ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
 FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS install
 # On the agents' engine npm reaches the registry only through the egress proxy: web_image.py passes H4_BUILD_PROXY as
@@ -52,6 +57,9 @@ FROM install AS build
 # the runtime stage copies only dist/, so no plain model, record, or license file reaches nginx's root. The lookdev
 # phone copy's stage builds on install, not on this stage, and holds no model.
 COPY --from=room-assets / /src/assets/room/
+# The visitor avatars, where the compositor reads them, assets/visitors/: the commit's own, or none (spec 009, FR-023).
+# The build writes their bundled files' gzip-9 copies into dist/a/ beside the models.
+COPY --from=visitor-assets / /src/assets/visitors/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.

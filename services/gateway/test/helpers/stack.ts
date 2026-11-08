@@ -11,6 +11,7 @@ import type { FastifyInstance } from "fastify";
 
 import { buildApp, createServices, type GatewayServices } from "../../src/app.js";
 import type { RoomEventsConfig } from "../../src/config/room-events.js";
+import type { TwinLoad } from "../../src/config/twin.js";
 import { loadConfig } from "../../src/config/validate.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
 import type { GatewayMetrics } from "../../src/telemetry/metrics.js";
@@ -76,6 +77,8 @@ export async function testStack(
     roomEvents?: RoomEventsConfig | null;
     /** The instruments, on a meter the test reads; the global meter by default. */
     metrics?: GatewayMetrics;
+    /** The twin's files (spec 007), as loadTwin reads them; none by default, so every turn is twin_unavailable. */
+    twin?: TwinLoad;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -122,6 +125,7 @@ export async function testStack(
     ...(o.realNow === undefined ? {} : { realNow: o.realNow }),
     ...(o.roomEvents === undefined ? {} : { roomEvents: o.roomEvents }),
     ...(o.metrics === undefined ? {} : { metrics: o.metrics }),
+    ...(o.twin === undefined ? {} : { twin: o.twin }),
   });
   const { api, admin } = buildApp({ stack, logger, services });
   await Promise.all([api.ready(), admin.ready()]);

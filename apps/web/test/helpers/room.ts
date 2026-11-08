@@ -27,7 +27,7 @@ import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { TierValue } from "../../src/room/compose/vocabulary";
-import type { SceneModule, SceneOptions, Stage3D } from "../../src/room/stage";
+import type { SceneModule, SceneOptions, Stage3D, WalkEnd } from "../../src/room/stage";
 import type { CostState } from "../../src/room/signals/turn-cost";
 import type { SendTurn } from "../../src/talk/talk";
 
@@ -283,11 +283,20 @@ export interface FakeScene {
   cost: CostState[];
   /** Each target the room gave the stage through setTarget, in order (spec 008, T007): an ID, or null for none. */
   targets: (string | null)[];
+  /** Each call the room made on the stage's walking view, in order (spec 008, T042), with the element `enter` took. */
+  walks: ({ call: "enter"; focus: HTMLElement } | { call: "leave" })[];
+  /** Ends the walking view as the stage would on its own, and reports why through the room's walkEnded. */
+  endWalk(why: WalkEnd): void;
   /** With sceneLate: lets the chunk's import resolve now. */
   release?: () => void;
+  /** Spec 009's Stage3D.figures and waitMs (Phase 2), which the next stage made gives the room as set here; absent,
+   *  the stage gives none, and the room doesn't wait. */
+  figures?: Promise<void>;
+  waitMs?: number;
 }
 
 export function fakeScene(): FakeScene {
+  let walking = false;
   const fake: FakeScene = {
     loads: 0,
     created: [],
@@ -299,6 +308,11 @@ export function fakeScene(): FakeScene {
     applied: [],
     cost: [],
     targets: [],
+    walks: [],
+    endWalk(why) {
+      walking = false;
+      fake.created.at(-1)?.walkEnded?.(why);
+    },
     module: {
       createScene(options) {
         fake.created.push(options);
@@ -320,10 +334,24 @@ export function fakeScene(): FakeScene {
           apply: (value) => fake.applied.push({ value, frame: fake.frames, at: options.clock.now() }),
           setCost: (state) => fake.cost.push(state),
           setTarget: (id) => fake.targets.push(id),
+          walk: {
+            get walking() {
+              return walking;
+            },
+            enter(focus) {
+              fake.walks.push({ call: "enter", focus });
+              walking = true;
+            },
+            leave() {
+              fake.walks.push({ call: "leave" });
+              walking = false;
+            },
+          },
           dispose: () => {
             fake.disposed += 1;
             options.clock.cancelFrame(frame);
           },
+          ...(fake.figures ? { figures: fake.figures, waitMs: fake.waitMs ?? 0 } : {}),
         };
         fake.stage = stage;
         return stage;
@@ -447,6 +475,8 @@ export interface SceneOptionsForTest {
   sceneLate?: boolean;
   /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it. */
   room?: RoomIndex;
+  /** The room's content (messages and manifest): by default roomContent(), the repository's, as the build reads it. */
+  content?: RoomContent;
   /** The wall clock the room reads (spec 004): by default WALL0 plus the fake clock's time. */
   wall?: (clock: FakeClock) => number;
   /** Imports the 3D chunk in place of the stand-in: the real scene module, with a stand-in renderer (spec 004, T157). */
@@ -485,7 +515,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   let roomDataLoads = 0;
   const room = startRoom({
     win,
-    content: roomContent(),
+    content: options.content ?? roomContent(),
     room: options.room ?? roomIndex(),
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
     resume: resumeView(

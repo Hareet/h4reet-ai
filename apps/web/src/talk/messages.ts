@@ -14,6 +14,11 @@ export const MESSAGE_IDS = [
   "voice_output_unavailable",
   "didnt_catch",
   "utterance_limit",
+  // Spec 007's four (its FR-038, Amendment 2-2): the waiting status, two refusals, and a stopped turn.
+  "twin_answering",
+  "turn_refused.slow_down",
+  "turn_refused.unreadable",
+  "turn_stopped",
 ] as const;
 
 export type MessageId = (typeof MESSAGE_IDS)[number];

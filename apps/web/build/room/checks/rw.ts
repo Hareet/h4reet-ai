@@ -7,13 +7,79 @@
 //   0.73). One finding a look, at its `highlight`, each part it fails in its reason: the palette colour the better of
 //   the two tones gives least against, by its name where RT2 passed it, with the two contrasts; and the band's
 //   contrast with its edge. Never a colour's value.
-// - RW1, the visitor figure's start on the walkable floor, comes with the walking data (spec 008's T041).
+// - RW1: a scene whose visitor figure's footprint, at the walking block's radius, isn't on the walkable floor that
+//   compose/floor.ts computes from the frame boxes (spec 008's FR-026, FR-058), so the walking view always starts
+//   free. One finding, at the visitor placement's mount offset, naming the obstacle its feet stand in, where RT2 passed
+//   its ID, or the bound they're past.
 // A highlight colour RI4 refuses isn't judged here: RI4's finding is the one to fix. The report prints each look's
 // lowest contrast through `highlightContrasts`, this rule's own measure.
+import { clearanceOf, isWalkable, walkableFloor } from "../../../src/room/compose/floor";
+import type { FloorEdge } from "../../../src/room/compose/floor";
+import { origin } from "../../../src/room/compose/math";
 import type { Loaded } from "../load";
 import { HEX } from "../schema";
 import type { LookFile } from "../schema";
 import type { Context, Family } from "./family";
+import { geometryOf } from "./rg";
+import type { Geometry } from "./rg";
+
+/** RW1's measure, which the report prints too: the visitor figure's start at the scene's walking radius, whether it's
+ *  on the walkable floor, and its clearance, with the nearest edge. */
+export interface FigureStart {
+  /** The visitor placement's index in scene.yaml's placements. */
+  readonly index: number;
+  readonly x: number;
+  readonly z: number;
+  readonly radius: number;
+  readonly walkable: boolean;
+  readonly clearance: { readonly distance: number; readonly edge: FloorEdge };
+}
+
+/** The visitor figure's start over the geometry's frame boxes; null without a geometry, a visitor, or its feet. */
+export function figureStart(g: Geometry | null): FigureStart | null {
+  if (!g) return null;
+  const scene = g.scene.value;
+  const index = scene.placements.findIndex((p) => p.role === "visitor");
+  const visitor = scene.placements[index];
+  const world = visitor && g.resolved.world.get(visitor.id);
+  if (!visitor || !world) return null;
+  const feet = origin(world);
+  const placements = scene.placements.flatMap((p) => {
+    const box = g.boxes.get(p.id);
+    return box ? [{ id: p.id, root: p.mount === undefined, box }] : [];
+  });
+  const radius = scene.walking.radius_m;
+  const floor = walkableFloor(placements, visitor.id, [feet[0], feet[2]], radius);
+  if (!floor) return null;
+  return {
+    index,
+    x: feet[0],
+    z: feet[2],
+    radius,
+    walkable: isWalkable(floor, feet[0], feet[2]),
+    clearance: clearanceOf(floor, feet[0], feet[2]),
+  };
+}
+
+/** RW1: the visitor figure's start off the walkable floor. */
+function start(ctx: Context): void {
+  const g = geometryOf(ctx);
+  const s = figureStart(g);
+  if (!g || !s || s.walkable) return;
+  const { edge } = s.clearance;
+  const where =
+    typeof edge === "object"
+      ? ctx.printable(edge.obstacle)
+        ? `its feet stand in ${edge.obstacle}'s footprint, grown by the radius`
+        : "its feet stand in an obstacle's footprint, grown by the radius"
+      : `its feet stand past the floor's ${edge === "front" ? "open front" : `${edge} wall`}, less the radius`;
+  ctx.report(
+    "RW1",
+    g.scene.file,
+    ctx.path("placements", s.index, "mount", "offset"),
+    `the visitor figure's footprint, at the walking radius, isn't on the walkable floor: ${where}`,
+  );
+}
 
 /** WCAG 2.2's least contrast for a border against what is around it (1.4.11). */
 export const HIGHLIGHT_CONTRAST = 3;
@@ -97,8 +163,9 @@ export function contrastText(contrast: number): string {
   return `${(Math.floor(contrast * 100) / 100).toFixed(2)}:1`;
 }
 
-/** RW: RW2 over every look (RW1 joins with the walking data). */
+/** RW: RW1, the figure's start, then RW2 over every look. */
 export const rw: Family = (ctx: Context) => {
+  start(ctx);
   for (const c of highlightContrasts(ctx.room.looks)) {
     const parts: string[] = [];
     if (c.lowest !== null && c.lowest.contrast < HIGHLIGHT_CONTRAST) {

@@ -176,6 +176,8 @@ describe("POST /room/events accepts", () => {
       { kind: "turn_sent" },
       { kind: "voice_pressed" },
       { kind: "mode_2d" },
+      { kind: "walk_started" },
+      { kind: "avatar_failed" },
     ];
     for (const [i, event] of sent.entries()) {
       const res = await post(stack, JSON.stringify(event), i % 2 === 0 ? BEACON : "application/json");
@@ -193,8 +195,21 @@ describe("POST /room/events accepts", () => {
       [{ kind: "turn_sent", id: "-" }, 1],
       [{ kind: "voice_pressed", id: "-" }, 1],
       [{ kind: "mode_2d", id: "-" }, 1],
+      [{ kind: "walk_started", id: "-" }, 1],
+      [{ kind: "avatar_failed", id: "-" }, 1],
     ]);
     expect(await meter.points("h4.room.events.refused")).toEqual([]);
+  });
+
+  it("avatar_failed with no identifier, and refuses it with one as the shape (spec 009, FR-032, SC-011)", async () => {
+    const { stack, meter } = await stackWith();
+    const ok = await post(stack, '{"kind":"avatar_failed"}');
+    expect(ok.statusCode).toBe(204);
+    const withId = await post(stack, `{"kind":"avatar_failed","id":"${firstObject()}"}`);
+    expect(withId.statusCode).toBe(400);
+    expect(withId.json()).toMatchObject({ error: "invalid_request", field: "body" });
+    expect(await meter.points("h4.room.events")).toEqual([[{ kind: "avatar_failed", id: "-" }, 1]]);
+    expect(await meter.points("h4.room.events.refused")).toEqual([[{ reason: "shape" }, 1]]);
   });
 
   it("answers while the store is down: an event reads nothing from it", async () => {
@@ -235,6 +250,7 @@ describe("POST /room/events refuses, and counts each refusal by its reason", () 
     ["the avatar", '{"kind":"mode_2d","avatar":"dog"}'],
     ["a time", '{"kind":"mode_2d","time":"2026-10-18T00:00:00Z"}'],
     ["an ID on a kind that takes none", '{"kind":"mode_2d","id":"fx-desk"}'],
+    ["an ID on walk_started, which takes none (spec 008)", '{"kind":"walk_started","id":"fx-desk"}'],
     ["no ID on a kind that takes one", '{"kind":"object_selected"}'],
     ["an ID that isn't a string", '{"kind":"object_selected","id":3}'],
     ["a prototype key", '{"kind":"mode_2d","__proto__":{"id":"fx-desk"}}'],

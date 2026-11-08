@@ -23,6 +23,7 @@
 /config/budgets*         @hareet
 /config/alert*           @hareet
 /config/kill-switch*     @hareet
+/config/twin-readiness*  @hareet
 /deploy/env/             @hareet
 /GNUmakefile             @hareet
 /makefile                @hareet

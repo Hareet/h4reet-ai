@@ -15,7 +15,9 @@
 // holds to main's at the branch's base, so agents still never raise a cap.
 // Without a room block the source is "defaults": FR-053's starting figures, every model a stand-in (no-caps). This
 // module does the I/O so compose() stays pure. A block that's malformed is RK4's: the reader keeps it raw, with its
-// problems by path, never quoting a value, and the RK family (T078) reports them; such a block gives no caps.
+// problems by path, never quoting a value, and the RK family (T078) reports them; such a block gives no caps. Since
+// spec 009, the same file's `per_asset.avatar` and `per_asset.animation` come with them (`avatar_caps`, absent where
+// it holds neither), under which the visitor avatars are bundled (build/room/avatars.ts).
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -50,6 +52,14 @@ export interface CapsProblem {
   readonly reason: string;
 }
 
+/** One of main's per-asset blocks for spec 003's files (spec 009, FR-009, FR-038): each measure's cap where caps.json
+ *  gives it as an integer above 0, as spec 003's F2 reads `bytes`, `triangles`, and `texture_bytes`. */
+export interface AssetCaps {
+  readonly bytes?: number;
+  readonly triangles?: number;
+  readonly texture_bytes?: number;
+}
+
 /** contracts/room-bundle.md §1's RoomPolicy, with the raw block and its problems for RK4, and the name RT2 needs. */
 export interface RoomPolicy {
   /** Null while main has no room block, or a malformed one. */
@@ -67,6 +77,10 @@ export interface RoomPolicy {
   readonly caps_problems: readonly CapsProblem[];
   /** Main's resume-header.json `full_name` (spec 002), for RT2's surname rule; null without one. */
   readonly full_name: string | null;
+  /** Spec 009: main's `per_asset.avatar` and `per_asset.animation`, each null where caps.json lacks it; absent where it
+   *  lacks both, or there is no caps.json. A visitor avatar is bundled only under the first, and a clip only under both,
+   *  as a room model is set only under main's room block (plan.md R-12). */
+  readonly avatar_caps?: { readonly avatar: AssetCaps | null; readonly animation: AssetCaps | null };
 }
 
 /** FR-053's starting figures: the caps while main has no room block. */
@@ -165,6 +179,24 @@ function blockProblems(block: Json): CapsProblem[] {
   return out;
 }
 
+const ASSET_MEASURES = ["bytes", "triangles", "texture_bytes"] as const;
+
+/** A per-asset block's caps: each of F2's measures it gives as an integer above 0; null where it isn't an object. */
+function assetCaps(block: Json | undefined): AssetCaps | null {
+  if (block === undefined || !isObject(block)) return null;
+  const out: Record<string, number> = {};
+  for (const key of ASSET_MEASURES)
+    if (isIntegerAt(block, key) && (block[key] as number) > 0) out[key] = block[key] as number;
+  return out;
+}
+
+/** Spec 009's avatar caps from caps.json's per_asset, or nothing where it holds neither block. */
+function avatarCaps(perAsset: JsonObject | null): Pick<RoomPolicy, "avatar_caps"> {
+  const avatar = assetCaps(perAsset?.avatar);
+  const animation = assetCaps(perAsset?.animation);
+  return avatar === null && animation === null ? {} : { avatar_caps: { avatar, animation } };
+}
+
 /** Main's approvals, `{sha256, kind}` each; a malformed file stops the build, as spec 002's approvals.ts does. */
 function approvalsOf(data: Uint8Array | null): { sha256: string; kind: string }[] {
   if (data === null) return [];
@@ -215,11 +247,12 @@ export function policyFrom(files: PolicyFiles, source: Exclude<CapsSource, "defa
   const phase3_bytes =
     visit && isIntegerAt(visit, "phase3") && (visit.phase3 as number) > 0 ? (visit.phase3 as number) : PHASE3_DEFAULT;
   const perAsset = doc && isObject(doc.per_asset ?? null) ? (doc.per_asset as JsonObject) : null;
-  if (perAsset === null || !Object.hasOwn(perAsset, "room")) return { ...base, caps_sha256, phase3_bytes };
+  const avatars = avatarCaps(perAsset);
+  if (perAsset === null || !Object.hasOwn(perAsset, "room")) return { ...base, caps_sha256, phase3_bytes, ...avatars };
   const block = perAsset.room as Json;
   const caps_problems = blockProblems(block);
   if (caps_problems.length > 0)
-    return { ...base, caps_source: source, caps_sha256, phase3_bytes, caps_block: block, caps_problems };
+    return { ...base, caps_source: source, caps_sha256, phase3_bytes, caps_block: block, caps_problems, ...avatars };
   const room = block as JsonObject;
   const caps: RoomCaps = {
     gzip_bytes: room.gzip_bytes as number,
@@ -229,7 +262,7 @@ export function policyFrom(files: PolicyFiles, source: Exclude<CapsSource, "defa
     scene_texture_bytes: room.scene_texture_bytes as number,
     legibility_floor_css_px: room.legibility_floor_css_px as number,
   };
-  return { ...base, caps, caps_source: source, caps_sha256, phase3_bytes, caps_block: block };
+  return { ...base, caps, caps_source: source, caps_sha256, phase3_bytes, caps_block: block, ...avatars };
 }
 
 /** The reader's I/O: the environment's ROOM_POLICY_DIR, the repository's root, and how main's blobs are read. */

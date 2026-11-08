@@ -40,6 +40,12 @@
 //   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
 //   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
 //   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
+// - Spec 009's avatars: before the hand-off the room waits for both figures' avatars, at most the scene's wait_ms from
+//   the 3D stage's mount (Phase 2); the stage's note shows the stand-in line, the UI word twin.stand_in, while the
+//   index's copy holds it, which in that spec is always, in 3D and 2D (its FR-013); the 3D stage reports its figures
+//   (onFigure), and the room sends avatar_failed once a visit, with no identifier, on the first figure file that
+//   failed after its retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and
+//   clip's change in a drafts build's frame log (FR-035).
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -86,7 +92,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { SceneModule, Stage, Stage3D } from "./stage";
+import type { FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -113,8 +119,8 @@ export interface RoomDeps {
    *  for a load that failed. The room loads it at Enter for its room text (spec 004, FR-061); absent, nothing loads and
    *  every face bound to room text stays plain. */
   roomData?: () => Promise<unknown>;
-  /** The twin's sender for a conversation turn, which the twin's spec gives (spec 004, FR-038; R-33): absent, as until
-   *  then, every turn answers with its fixed message and goes nowhere. */
+  /** The twin's sender for a conversation turn (spec 004, FR-038; R-33): main.ts gives src/talk/turn-client.ts's (spec
+   *  007, plan §7). Absent, every turn answers with its fixed message and goes nowhere. */
   sendTurn?: SendTurn;
   /** A drafts build's frame log (spec 004, T246; R-70): main.ts gives `virtual:room-frame-log`'s factory in a drafts
    *  build, and nothing in a release build, which then keeps no log. */
@@ -185,6 +191,34 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
 
+  /** Whether this visit has walked: walk_started goes once a visit (FR-051). */
+  let walked = false;
+  /** The stage, where it's the 3D one, which walks. */
+  const walker = (s: Stage | null): Stage3D | null => (s?.mode === "3d" && "walk" in s ? (s as Stage3D) : null);
+  /** Into the walking view: focus on it, walk_started the first time, and the frame log's entry (FR-022, FR-054). */
+  function enterWalking(scene3d: Stage3D): void {
+    const layout = room;
+    if (!layout) return;
+    scene3d.walk.enter(layout.view);
+    if (!scene3d.walk.walking) return;
+    layout.setWalking(true);
+    layout.view.focus();
+    if (!walked) {
+      walked = true;
+      emit({ kind: "walk_started" });
+    }
+    log?.record("walk", { state: "entered" });
+  }
+  /** Out of it, by the control, Escape, a failed step, or the fall to 2D: focus back on the control (FR-022). */
+  function leaveWalking(why: "control" | WalkEnd | "flat"): void {
+    const layout = room;
+    if (why === "control") walker(stage)?.walk.leave();
+    if (!layout) return;
+    layout.setWalking(false);
+    if (why !== "flat") layout.walkButton.focus();
+    log?.record("walk", { state: "left", why });
+  }
+
   // The motion store, read throughout the visit by whichever stage the room draws (3D or 2D), and the tier signal, which
   // shows each reading on the stage and in the text copy at once (spec 004, FR-042, FR-059, FR-060).
   const motion = createMotionStore({ win, wall });
@@ -231,6 +265,21 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room?.setPaused(state.paused);
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
+
+  /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
+  let avatarFailed = false;
+  function figureSignal(signal: FigureSignal): void {
+    if (signal.kind === "failed") {
+      if (avatarFailed) return;
+      avatarFailed = true;
+      emit({ kind: "avatar_failed" });
+      return;
+    }
+    if (!log) return;
+    if (signal.kind === "picture")
+      log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else log.record("clip", { figure: signal.figure, role: signal.role });
+  }
 
   const app = doc.getElementById("app") ?? doc.body;
   const screen = h(doc, "div", { class: "screen" });
@@ -312,6 +361,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       turnRoute: deps.room.live.turn === "site",
       ...(deps.sendTurn ? { sendTurn: deps.sendTurn } : {}),
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
+      // The twin's per-turn limits, from the build (spec 007, FR-027, FR-041); FR-027's defaults without them.
+      ...(content.twin ? { limits: content.twin.limits } : {}),
     });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
@@ -323,8 +374,25 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       around: around.element,
       note: uiWord(deps.room.ui, "standin.note") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
+      walk: {
+        enter: uiWord(deps.room.ui, "walk.enter") ?? "",
+        leave: uiWord(deps.room.ui, "walk.leave") ?? "",
+        region: uiWord(deps.room.ui, "walk.region") ?? "",
+        help: uiWord(deps.room.ui, "walk.help") ?? "",
+      },
+      // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
+      standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
+        ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
+        : "",
     });
     room = layout;
+    // Spec 008's walking control (FR-020 to FR-022, FR-051): it enters and leaves the 3D stage's walking view.
+    layout.walkButton.addEventListener("click", () => {
+      const scene3d = walker(stage);
+      if (!open() || !scene3d) return;
+      if (scene3d.walk.walking) leaveWalking("control");
+      else enterWalking(scene3d);
+    });
     layout.setPaused(motion.paused);
     around.setPausedAt(motion.paused ? motion.pausedAt : null);
     layout.pauseButton.addEventListener("click", () => {
@@ -357,12 +425,41 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const module = loaded === "late" ? null : loaded;
     if (module) mount3d(module, choice);
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
+    const wait = figuresWait();
+    if (wait === null) startHandoff();
+    else void wait.then(startHandoff);
+  }
+
+  function startHandoff(): void {
     handoff = runHandoff({
       clock,
       durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", motion.reducedMotion),
       announce: (text) => announcer.say(text),
       show: (progress) => stage?.showHandoff(progress),
       onDone: offerResume,
+    });
+  }
+
+  /**
+   * Spec 009's wait (FR-019 (a); plan.md R-10): the hand-off starts once both figures show their avatars or keep their
+   * fallbacks for good, or the scene's wait_ms after the 3D stage's mount, whichever comes first. Null where there's
+   * nothing to wait for (the 2D room, or a stage that gives no promise), so the hand-off starts at once, as before.
+   */
+  function figuresWait(): Promise<void> | null {
+    const current = stage;
+    if (current?.mode !== "3d") return null;
+    const { figures, waitMs } = current as Stage3D;
+    if (!figures) return null;
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        clock.clearTimeout(timer);
+        resolve();
+      };
+      const timer = clock.setTimeout(finish, Math.max(0, waitMs ?? 0));
+      void figures.then(finish, finish);
     });
   }
 
@@ -410,6 +507,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         motion,
         select: selectObject,
         target: targetInput,
+        walkEnded: (why) => leaveWalking(why),
         onFrame,
         floor: meetsModelFloor(device),
         handoff: handoffDone,
@@ -420,6 +518,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         ...(typefaces ? { typefaces } : {}),
         text,
         cost: cost.state,
+        onFigure: figureSignal,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -458,6 +557,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
+    // The walk ends with the 3D stage (FR-003).
+    if (walker(stage)?.walk.walking) leaveWalking("flat");
+    room.setWalkOffered(false);
     unwatch?.();
     unwatch = null;
     const old = stage;
@@ -504,6 +606,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       offering = false;
       removeOffer();
       layout.setInteractive(true);
+      layout.setWalkOffered(walker(stage) !== null);
     };
     const removeOffer = layout.offer(
       () => {
@@ -549,8 +652,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
    * A selectable picked in 3D or 2D, or pressed in the list, the one path for every input (spec 004, FR-004, FR-071;
    * R-33): object_selected with the selectable's ID, only for one the index lists; then its action, from the index.
    * `talk`: an unready topic shows the fixed message naming it by its own phrase and calls nothing (FR-037); a ready
-   * one makes the conversation's feature the selectable's ID (FR-038). The lead stays in config/room-topics.yaml for
-   * the twin's spec, so nothing here sends it. `resume`: the resume opens.
+   * one opens its conversation through the talk panel, which sends the opening (spec 007, FR-032). The lead stays in
+   * config/room-topics.yaml, which the gateway's pack carries, so nothing here sends it. `resume`: the resume opens.
    */
   function selectObject(id: string): void {
     const selectable = deps.room.selectables.find((s) => s.id === id);

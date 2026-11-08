@@ -17,8 +17,8 @@
 // - `virtual:room-frame-log`, which the room's entry (src/main.ts) imports in every build (spec 004, T246; R-70): in a
 //   drafts build it re-exports src/room/signals/frame-log.ts's `createFrameLog`, so the log lands in the entry; in a
 //   release build it is `createFrameLog = null`, so the release build holds neither the log's code nor its names.
-// - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each set card plain, and room-manifest.json,
-//   each through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
+// - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each bundled avatar file's (spec 009), each set
+//   card plain, and room-manifest.json, each through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
 //   are `room:generate`'s alone (cli.ts), and room_text reaches room-data.json through roomTextPart (T186).
 // Every module is the compose's output serialized as §11 has it, so two builds of one commit and policy agree.
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,7 @@ import type { Plugin } from "vite";
 
 import { draftsOn } from "../approvals";
 import { readMessages } from "../manifest";
+import { talkLimits, twinReadiness } from "./readiness";
 import { compose, formatFinding } from "./compose";
 import type { ComposeResult } from "./compose";
 import { serialize } from "./emit";
@@ -64,6 +65,7 @@ export interface RoomBundleOptions {
 /** The Vite plugin: the room's bundle, composed once a build. */
 export function roomBundle(options: RoomBundleOptions): Plugin {
   let composed: ComposeResult | null = null;
+  let limits: ReturnType<typeof talkLimits> | null = null;
   const result = (): ComposeResult => {
     if (composed === null) throw new Error("roomBundle: the room is composed at buildStart, which hasn't run");
     return composed;
@@ -73,7 +75,13 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
     buildStart() {
       const tree = options.tree?.() ?? fileTree(options.root);
       const policy = options.policy?.() ?? readRoomPolicy({ env: process.env, root: options.root });
-      composed = compose(tree, policy, { mode: "lenient", drafts: draftsOn(process.env) });
+      // The twin's readiness and limits, from the same tree (spec 007, FR-037, FR-041).
+      composed = compose(tree, policy, {
+        mode: "lenient",
+        drafts: draftsOn(process.env),
+        readiness: twinReadiness(tree),
+      });
+      limits = talkLimits(tree);
       const refused: string[] = [];
       for (const f of composed.findings) {
         if (f.lenient) this.warn(formatFinding(f, "lenient"));
@@ -91,7 +99,11 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
         case resolved(ROOM_CONTENT): {
           this.addWatchFile(options.messages);
           const { index, manifest } = result();
-          const content = { messages: readMessages(options.messages), manifest };
+          const content = {
+            messages: readMessages(options.messages),
+            manifest,
+            ...(limits === null ? {} : { twin: { limits } }),
+          };
           return `export const content = ${serialize(content)};\nexport const room = ${serialize(index)};\n`;
         }
         case resolved(ROOM_SCENE):
@@ -117,7 +129,7 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
       }
     },
     generateBundle() {
-      const { models, cards, manifest } = result();
+      const { models, cards, avatars, manifest } = result();
       const emit = (fileName: string, source: string | Uint8Array): void => {
         // Each name is a/<stem>.<hash16>.<ext> or the manifest's: a path under dist/, never out of it.
         if (!isTreePath(fileName) || fileName === "") throw new Error("roomBundle: a file name outside dist/");
@@ -125,6 +137,9 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
       };
       for (const m of models) emit(`${m.url}.gz`, m.gz);
       for (const c of cards) emit(c.url, c.bytes);
+      // Spec 009's avatars (its FR-023; plan.md R-15): each bundled file's copy, with the room's pako call, beside the
+      // models, and never a plain .glb.
+      for (const a of avatars) emit(`${a.url}.gz`, a.gz);
       emit("room-manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
