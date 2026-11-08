@@ -48,12 +48,13 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, and 0004_twin, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, and 0005_adapter_month, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
       [3, "0003_studio_window"],
       [4, "0004_twin"],
+      [5, "0005_adapter_month"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -120,14 +121,14 @@ describe("applying them", () => {
 
   it("rolls back a migration that fails, and records nothing for it", async () => {
     const broken: Migration = {
-      version: 5,
-      name: "0005_broken",
+      version: 6,
+      name: "0006_broken",
       sql: "CREATE TABLE gateway.half_done (id int); SELECT no_such_function();",
       sha256: sha256("x"),
     };
     await expect(runMigrations(db, [...migrations, broken])).rejects.toThrow(/no_such_function/);
     const { rows } = await db.pg.query<{ version: number }>("SELECT version FROM gateway.schema_migrations");
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5]);
     expect((await db.pg.query("SELECT to_regclass('gateway.half_done') AS t")).rows[0]).toEqual({ t: null });
   });
 });
@@ -185,6 +186,37 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
        VALUES ($1, $2, $3, $4, now(), now())`,
       [meter, key, allowance, grant],
     );
+
+  it("meters (spec 010, 0005): the adapter_month kind, keyed <adapter>:<YYYY-MM>, with no allowance or grant", async () => {
+    await runMigrations(db, migrations);
+    const insert = (meter: string, key: string, allowance: number | null = null, grant: number | null = null) =>
+      db.pg.query(
+        `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no,
+           created_at, updated_at) VALUES ($1, $2, 0, 0, $3, $4, now(), now())`,
+        [meter, key, allowance, grant],
+      );
+    await insert("adapter_month", "anthropic:2026-11");
+    for (const bad of ["anthropic:2026-13", "anthropic", "Anthropic:2026-11", "2026-11", "anthropic:2026-11-01"]) {
+      await expect(insert("adapter_month", bad)).rejects.toThrow();
+    }
+    await expect(insert("adapter_month", "bedrock:2026-11", 2_000_000, 1)).rejects.toThrow();
+    await expect(insert("someone", "x:2026-11")).rejects.toThrow();
+    await db.pg.query(
+      "UPDATE gateway.meters SET spent_micro = 250000, reserved_micro = 1000 WHERE meter = 'adapter_month'",
+    );
+    const { rows } = await db.pg.query<Record<string, unknown>>(
+      "SELECT adapter, month, spent_micro::text AS spent, reserved_micro::text AS reserved FROM gateway.v_adapter_months",
+    );
+    expect(rows).toEqual([{ adapter: "anthropic", month: "2026-11", spent: "250000", reserved: "1000" }]);
+    const grants = await db.pg.query<{ privilege_type: string }>(
+      "SELECT privilege_type FROM information_schema.role_table_grants WHERE grantee = 'grafana_ro' AND table_name = 'v_adapter_months'",
+    );
+    expect(grants.rows.map((r) => r.privilege_type)).toEqual(["SELECT"]);
+    const flag = await db.pg.query<{ column_default: string; is_nullable: string }>(
+      "SELECT column_default, is_nullable FROM information_schema.columns WHERE table_name = 'reservations' AND column_name = 'adapter_month'",
+    );
+    expect(flag.rows).toEqual([{ column_default: "false", is_nullable: "NO" }]);
+  });
 
   it("meters: one row per (meter, period_key), and the allowance and grant on fallback_day only", async () => {
     await expect(meter("day", "2026-10-08", null, null)).resolves.toBeDefined();

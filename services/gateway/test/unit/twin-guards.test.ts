@@ -629,3 +629,26 @@ describe("the red-team's detectors, as redteam/run.py's text writes them (D31)",
     expect([...TWIN_GUARDS]).toEqual([...GUARD_NAMES]);
   });
 });
+
+describe("the refusal guard (spec 010, FR-018; Amendment 7-3)", () => {
+  it("withholds a content_filter finish whole, with text or without, before the trim and every other guard", () => {
+    for (const answer of [
+      "He has snowboarded for 15 years.",
+      "",
+      "He rides. He snowboards in the win",
+      "He has biked across 4321 countries.",
+    ]) {
+      expect(guardAnswer(answer, "content_filter", ctx()), answer).toEqual({
+        kind: "withheld",
+        guard: "refusal",
+        text: lines.withheld,
+      });
+    }
+  });
+
+  it("is one of the guards' names, and runs on no other finish", () => {
+    expect(GUARD_NAMES).toContain("refusal");
+    expect(guardAnswer("He has snowboarded for 15 years.", "stop", ctx())).toMatchObject({ kind: "pass" });
+    expect(guardAnswer("He has snowboarded for 15 years.", "other", ctx())).toMatchObject({ kind: "pass" });
+  });
+});

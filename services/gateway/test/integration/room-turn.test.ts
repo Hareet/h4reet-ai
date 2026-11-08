@@ -319,6 +319,24 @@ describe("an answered turn (T037; User Story 1)", () => {
     expect(res.json()).toMatchObject({ text: twin.files.lines.withheld, route: "local", cost_micro_usd: 0 });
     expect(await ledger(t.s)).toHaveLength(1);
   });
+
+  it("withholds a refusal whole as the fixed line, under the guard refusal, with no retry (spec 010, FR-018)", async () => {
+    const t = await stack();
+    t.stub.next({
+      ok: { text: "He has snowboarded for 15 years.", inputTokens: 900, outputTokens: 9, finish: "content_filter" },
+    });
+    const before = t.stub.requests().filter((r) => r.method === "POST").length;
+    const res = await t.turn({ feature: ROOM.leadless.id, path: "engineer", turns: [] });
+    expect(res.statusCode).toBe(200);
+    const twin = t.s.services.twin.load;
+    if (!twin.available) throw new Error("the twin isn't available");
+    expect(res.json()).toMatchObject({ text: twin.files.lines.withheld, route: "local" });
+    expect(res.body).not.toContain("15 years");
+    expect(t.stub.requests().filter((r) => r.method === "POST").length - before).toBe(1);
+    const rows = await ledger(t.s);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ finish_reason: "content_filter" });
+  });
 });
 
 // T048 (spec 007; FR-008, FR-009, FR-015; User Story 2): free talk, and the follow-up rule, at the route. A free-talk

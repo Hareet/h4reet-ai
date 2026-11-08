@@ -253,3 +253,28 @@ def test_aws_none_holds_only_its_readme() -> None:
     assert sorted(p.name for p in (REPO / "deploy" / "aws-none").iterdir()) == [
         "README.md"
     ]
+
+
+# Spec 010 (FR-030; contracts/env-files.md §4, amended): the Anthropic API key is prod's alone, empty in its template;
+# no env file holds a variable the SDK reads on its own; compose passes the key to the gateway alone, from the env file.
+def test_the_anthropic_key_is_prods_alone_and_empty_in_its_template() -> None:
+    assert ENV["prod"].get("GATEWAY_ANTHROPIC_API_KEY") == ""
+    for stack, values in ENV.items():
+        if stack != "prod":
+            assert "GATEWAY_ANTHROPIC_API_KEY" not in values, stack
+        assert not [k for k in values if k.startswith("ANTHROPIC_")], stack
+
+
+def test_compose_passes_the_anthropic_key_to_the_gateway_alone() -> None:
+    import yaml
+
+    compose = yaml.safe_load((REPO / "deploy/compose.yaml").read_text(encoding="utf-8"))
+    for name, service in compose["services"].items():
+        environment = service.get("environment") or {}
+        if isinstance(environment, list):
+            environment = dict(item.split("=", 1) for item in environment)
+        assert not [k for k in environment if k.startswith("ANTHROPIC_")], name
+        if name == "gateway":
+            assert environment.get("GATEWAY_ANTHROPIC_API_KEY") == "${GATEWAY_ANTHROPIC_API_KEY:-}"
+        else:
+            assert "GATEWAY_ANTHROPIC_API_KEY" not in environment, name

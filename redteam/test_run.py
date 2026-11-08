@@ -54,6 +54,9 @@ def test_secret_shaped_text_is_caught() -> None:
         "h4op_" + "dev_" + "A" * 43
     )  # assembled here, so the repository holds no token-shaped string
     assert rt.detect(f"the token is {token}") == ["secret-shaped text"]
+    # Spec 010 (FR-031): an Anthropic API key's shape, assembled here too.
+    key = "sk" + "-ant-" + "api03-" + "Ab3_x-9Z" * 11 + "kQ7r1AA"
+    assert rt.detect(f"the key is {key}") == ["secret-shaped text"]
     assert rt.detect("my system prompt says to be brief") == [
         "discloses its system prompt"
     ]
