@@ -292,6 +292,31 @@ export function buildRoom(part: RoomScene, options: RoomOptions): Room3D {
   };
 }
 
+/** The nodes under a placement's own node that hold its pictures: its stand-in (standins.ts), its set model (the
+ *  loader's MODEL_NODE, which this module doesn't import, so the loader's chunk stays apart), and the visitor's cut-out.
+ *  Everything else under the node is mounted on it, or is a label, a switch's case, a face, or a glow. */
+const PICTURE_NODES: ReadonlySet<string> = new Set(["standin", "model", "cutout"]);
+
+/**
+ * A selectable's members' draws (spec 008, FR-014; plan.md R-07): each mesh that each member's placement draws itself,
+ * its stand-in or its set model, shown or not, in member order, and nothing mounted on it: no placement mounted on a
+ * member that isn't one (the neon sign on its monitor), no switch's case mounted on one (the charger's plug on the
+ * laptop), and no label, face, or glow. The lookdev page's vignette reads a placement much the same way, but keeps its
+ * switch cases, which a highlight mustn't.
+ */
+export function memberDraws(room: Room3D, members: readonly string[]): Mesh[] {
+  const out: Mesh[] = [];
+  for (const id of new Set(members)) {
+    for (const child of room.placements.get(id)?.children ?? []) {
+      if (!PICTURE_NODES.has(child.name)) continue;
+      child.traverse((node) => {
+        if ((node as Mesh).isMesh) out.push(node as Mesh);
+      });
+    }
+  }
+  return out;
+}
+
 /** The framed placements' boxes, which the room frames and picks from: never loaded geometry (R-18). */
 export function framedBoxes(part: RoomScene): Box[] {
   return part.placements.filter((p) => p.framed).map((p) => p.frame_box);
