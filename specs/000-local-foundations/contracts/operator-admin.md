@@ -352,7 +352,7 @@ Request:
 |---|---|
 | `messages` | 1 to 8 messages; at most one `system` message, and first; roles `system`, `user`, `assistant`; contents together at most `per_call.max_input_chars` (2,000) code points |
 | `max_output_tokens` | 1 to `per_call.max_output_tokens` (512) |
-| `temperature` | optional, 0 to 1 |
+| `temperature` | optional, 0 to 1. A paid adapter whose `temperature` setting is `model_default` sends none, whatever the request carries, so its model applies its own default: Bedrock's, in the committed `config/routing.yaml` (spec 007's plan, D22; spec 010's FR-017). The local adapter sends it as given |
 | `purpose` | `contract` or `eval` |
 | `reason` | §1.2 |
 

@@ -104,10 +104,10 @@ const int = (min: number, max: number) => z.number().int().min(min).max(max);
 const envKey = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 
 /**
- * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 010 FR-017, built
- * early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it as given;
- * `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku 5.5
- * "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
+ * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 007's plan, D22;
+ * spec 010 FR-017, built early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it
+ * as given; `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku
+ * 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
  */
 export const PAID_TEMPERATURE = ["as_requested", "model_default"] as const;
 export type PaidTemperature = (typeof PAID_TEMPERATURE)[number];

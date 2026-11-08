@@ -376,7 +376,20 @@ It joins every closed list of causes: `DegradedCause` (`src/core/types.ts`); the
 
 ### 5.2 The temperature (FR-017; Amendment 7-4)
 
-`_settings.ts`'s `bedrock-converse` and `anthropic-messages` specs gain `temperature: z.enum(["as_requested", "model_default"]).optional()`. Each adapter sends `req.temperature` only when the setting isn't `model_default`. `config/routing.yaml` sets `model_default` on both, so the twin's `temperature: 0.3` (`src/twin/turn.ts`) reaches the local model alone. The contract suite's subjects keep `as_requested`, so C9 still sees the temperature it sends.
+**FR-017 exists on `main`** for Bedrock, built early by `fix/007-paid-temperature` (spec 007's plan, D22; merged at a5eb05b8). Its note's paragraph for this section, `docs/merge-requests/2026-11-08-fix-007-paid-temperature.md`, in its words:
+
+> Built early on `fix/007-paid-temperature` (spec 007's plan, D22):
+> `PAID_TEMPERATURE`, the optional `temperature` key on
+> `bedrock-converse`, and `sentTemperature()` in
+> `src/adapters/_settings.ts`; `temperature: model_default` on
+> `bedrock` in `config/routing.yaml`; and config-files.md §1.1's
+> row. This spec adds the key to `anthropic-messages`' schema,
+> calls `sentTemperature()` in its request, and sets
+> `model_default` on `anthropic`. Spec 007's Bedrock runs (T075,
+> T077) no longer wait for this spec's merge (§13 action 7, R-1,
+> T058): they wait for `fix/007-paid-temperature`'s.
+
+So this branch reuses `PAID_TEMPERATURE` and `sentTemperature()`, and builds nothing new for Bedrock: `anthropic-messages`' spec gains the same optional `temperature` key, its request sends `req.temperature` only when `sentTemperature()` returns one, and `config/routing.yaml` sets `model_default` on `anthropic`, so the twin's `temperature: 0.3` (`src/twin/turn.ts`) reaches the local model alone. The contract suite's subjects keep `as_requested`. T012's Bedrock half, and T019's, are already on `main`: their tests there (`config.test.ts`, `bedrock-converse.errors.test.ts`, `twin-paid-temperature.test.ts`) stand, and this branch's tests cover `anthropic`.
 
 ## 6. The live runs (FR-024, FR-025)
 
@@ -484,7 +497,7 @@ Every row is a test: the gateway's integration tests drive the first seven on th
 4. `make init-env ENV=prod SYNC=1`, before his next `make up ENV=prod`.
 5. Spec 007's P-2, if it hasn't landed: without `limits.twin` no twin call answers on prod.
 6. Apply P-C and P-B on `main`; accept the ADR, or leave it proposed.
-7. Spec 007's Bedrock runs, its T075 and T077, after this merge, whose temperature setting they rely on (R-1).
+7. Spec 007's Bedrock runs, its T075 and T077, whenever he chooses: the temperature setting they rely on is on `main` since `fix/007-paid-temperature` (§5.2; R-1), so they don't wait for this branch.
 8. If he chooses the Anthropic API: read Anthropic's published commercial terms and write his words in F3 in place of the placeholder, weighing them against intent 000's "Nothing is retained beyond the session without explicit consent" and the corpus's "their conversation is not saved"; put the key in prod's env file, in an editor; commit `fallback: anthropic`; `make up ENV=prod`; check `/health`.
 9. `make contract-live ENV=prod ADAPTER=anthropic REASON="…"`.
 10. `make evals ADAPTER=anthropic` and `make redteam-live ADAPTER=anthropic ENV=prod`, committing their histories.
@@ -506,7 +519,7 @@ As the spec's [Expected Cost Impact](spec.md#expected-cost-impact): about $0.000
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R-1 | Haiku 5.5 refuses the twin's temperature 0.3, on Bedrock and on the Anthropic API alike | `model_default` on both paid adapters (§5.2); spec 007's Bedrock runs after this merge (§13, action 7) |
+| R-1 | Haiku 5.5 refuses the twin's temperature 0.3, on Bedrock and on the Anthropic API alike | `model_default` on both paid adapters (§5.2): Bedrock's on `main` since `fix/007-paid-temperature`, so spec 007's Bedrock runs needn't wait for this branch (§13, action 7); `anthropic`'s in this branch |
 | R-2 | The 4,000 ms request timeout cuts a 300-token answer, as spec 007's R-2 has it for Bedrock | Measured in the Author's runs on each adapter; the remedy is a smaller output cap or a per-purpose timeout, a spec 000 schema change with the Author |
 | R-3 | The SDK reads an ambient variable, retries, or logs a payload | Every option explicit, `maxRetries: 0`, logging off, no `ANTHROPIC_*` variable in the container, R12, and a test that sets them all (D4) |
 | R-4 | The pinned SDK takes no custom `fetch`, or drops a rejection's `cause` | T001 confirms before any code; a departure here, and the Author's choice (§2.6) |
@@ -579,7 +592,7 @@ A read-only consistency pass in the form of `/speckit-analyze`, made after tasks
 
 | ID | Category | Severity | Location | Summary | Resolution |
 |---|---|---|---|---|---|
-| A1 | Inconsistency | HIGH | spec FR-017; spec 007's plan §2 step 4; `src/twin/turn.ts` | The twin sends `temperature: 0.3`, while spec 000's live case records that Haiku 5.5 "takes no temperature but its default, 1"; spec 007's Bedrock runs (its T075, T077) would meet it first | Resolved in the documents: FR-017 and §5.2 set `model_default` on both paid adapters; T058 orders the Bedrock runs after this merge. Open until the Author's runs show it live |
+| A1 | Inconsistency | HIGH | spec FR-017; spec 007's plan §2 step 4; `src/twin/turn.ts` | The twin sends `temperature: 0.3`, while spec 000's live case records that Haiku 5.5 "takes no temperature but its default, 1"; spec 007's Bedrock runs (its T075, T077) would meet it first | Resolved: FR-017 and §5.2 set `model_default` on both paid adapters; Bedrock's is on `main` since `fix/007-paid-temperature` (spec 007's plan, D22), so T058 no longer waits for this merge. Open until the Author's runs show it live |
 | A2 | Dependency | HIGH | spec FR-002, FR-039; plan §13 | Choosing the Anthropic API needs, in order, P-A, the merge, P-B, P-C, the key, and F3's words | Resolved by enforcement: `missing_env`, `price_missing`, `adapter_cap_missing`, preflight, and the disclosure gate each refuse a switch made early (R-12); the order is T054 to T059 |
 | A3 | Constitution | MEDIUM | spec FR-039; intent 000; `corpus/08-hareet-ai.md` | What Anthropic keeps of a request may not square with "Nothing is retained beyond the session without explicit consent" and "their conversation is not saved"; no agent can decide it | Open, the Author's: T059 asks it before the switch, and `make test` holds the switch until F3 holds his words |
 | A4 | Inconsistency | MEDIUM | `docs/data-flow-disclosure.md` D1; `evals/test_disclosure.py` | D1 says the stack "calls no Anthropic endpoint", and a test's comment reads it so; both become false once the adapter exists | Resolved: FR-038 changes D1's sentence in the same change, and T028 changes the test with it |

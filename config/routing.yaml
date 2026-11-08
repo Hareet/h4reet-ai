@@ -29,7 +29,7 @@ adapters:
     # with no text. Off, which this model accepts at its default effort, medium.
     additional_request_fields: { thinking: { type: disabled } }
     # Haiku 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), so the twin's 0.3 reaches the
-    # local model alone, and Bedrock gets none (spec 010 FR-017; spec 007 D22).
+    # local model alone, and Bedrock gets none (spec 007 D22; spec 010 FR-017).
     temperature: model_default
     timeouts: { connect_ms: 1000, request_ms: 4000 }
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
