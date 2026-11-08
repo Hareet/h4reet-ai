@@ -1306,8 +1306,11 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     clock.advance(1_000);
     expect(page.stage.textureBytes).toBe(0);
     expect(readout("Draw calls")).toBe(count(results.draw_calls ?? -1));
+    // Out of the ledger's limit, the 3D part's scene_texture_bytes, main's caps (stage.ts), never the starting figure
+    // where main has raised it (the review of feat/004-room-models, N5).
+    expect(given.part.scene_texture_bytes).not.toBe(SCENE_TEXTURE_BYTES);
     expect(readout("Texture memory")).toBe(
-      `${count(results.texture_bytes ?? -1)} of ${count(SCENE_TEXTURE_BYTES)} bytes`,
+      `${count(results.texture_bytes ?? -1)} of ${count(given.part.scene_texture_bytes)} bytes`,
     );
   });
 

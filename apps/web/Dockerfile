@@ -1,7 +1,8 @@
 # The room's image (spec 002, plan §1; contracts/web-serving.md §1 and §3; tasks.md T006). Built outside compose by
 # deploy/scripts/web_image.py, with the repository root as its context: on a host stack the run's export of the
 # commit, on dev-cpu the working tree. deploy/compose.yaml names it h4reet-web:<ref><suffix> and never builds or pulls
-# it. .dockerignore keeps .git, env files, node_modules, dist, and dist-phone out.
+# it. .dockerignore keeps .git, env files, node_modules, dist, and dist-phone out, and assets/policy but its caps.json
+# (spec 004, contracts/serving.md §3; its plan.md §10).
 #
 # Every base is pinned by digest, as deploy/images.lock pins it (base:node, and edge's nginx-unprivileged). There is
 # no `# syntax=` line: it would pull an unpinned frontend image.
@@ -14,6 +15,11 @@
 # stage copies (spec 004, T328), and nothing is pulled under that name. Nothing below runs git
 # (contracts/web-serving.md §1).
 FROM scratch AS policy
+
+# ---- room-assets: the tree's assets/room, as web_image.py hands it over ----
+# web_image.py replaces this stage with the named build context `room-assets` when the tree has models. A build that
+# names none, such as the gate's image step, gets this empty stage, and every piece builds as its stand-in.
+FROM scratch AS room-assets
 
 # ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
 FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS install
@@ -41,6 +47,11 @@ COPY --from=policy / /src/policy/
 
 # ---- build: the static site ----
 FROM install AS build
+# The room's models, where the compositor reads them in a checkout, assets/room/: the commit's own, each through the
+# arrival check, or none (spec 004, contracts/serving.md §3). The build writes their gzip-9 copies into dist/a/, and
+# the runtime stage copies only dist/, so no plain model, record, or license file reaches nginx's root. The lookdev
+# phone copy's stage builds on install, not on this stage, and holds no model.
+COPY --from=room-assets / /src/assets/room/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.

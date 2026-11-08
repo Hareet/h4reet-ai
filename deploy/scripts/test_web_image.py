@@ -17,6 +17,14 @@ the agents' engine only. deploy/compose.yaml names that image and never pulls it
 Spec 004's T005 (FR-053; research.md R-13; contracts/serving.md §3): caps.json joins the policy third, so the room's
 compositor reads main's caps while main holds caps.json, and the image's label org.h4reet.web.policy digests the three
 files in that order, as apps/web/build/approvals.ts's policyDigest does for room-data.json's built_from.
+
+Spec 004's T215 (FR-013, FR-053, FR-079; Amendment B14; R-46; contracts/serving.md §3 and §8): the models come from
+the tree it builds. --build-context room-assets=<tree>/assets/room is passed exactly when that path is a directory of
+the tree's own, neither it nor assets/ a link, and the Dockerfile's empty room-assets stage gives every other build no
+model, so each piece keeps its stand-in. The build stage copies the context to /src/assets/room/ before its RUN, and
+the runtime stage still copies only dist/. .dockerignore leaves assets/policy out of every context but the caps, so
+the build reads the approvals and the PDF's header only from the named policy context, and the install stage's copy of
+the caps (T328) still finds its file.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -117,24 +126,32 @@ def digest(files: dict[str, bytes | None]) -> str:
 
 
 class FakeDocker:
-    """docker buildx build, as the engine would answer it, keeping a copy of the policy context it was handed."""
+    """docker buildx build, as the engine would answer it, keeping a copy of the policy context it was handed, and
+    the room-assets context's path, or None where the build names none."""
 
     def __init__(self, build_rc: int = 0) -> None:
         self.build_rc = build_rc
         self.calls: list[tuple[str, ...]] = []
         self.contexts: list[dict[str, bytes]] = []
         self.context_dirs: list[Path] = []
+        self.room_assets: list[str | None] = []
 
     def __call__(self, *args: str, capture: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(args)
         if args[:2] != ("buildx", "build"):
             raise AssertionError(args)
-        spec = args[args.index("--build-context") + 1]
-        name, _, where = spec.partition("=")
-        assert name == "policy"
-        folder = Path(where)
+        named = [
+            args[i + 1].partition("=")
+            for i, a in enumerate(args)
+            if a == "--build-context"
+        ]
+        names = [name for name, _, _ in named]
+        assert names in (["policy"], ["policy", "room-assets"]), names
+        where = {name: path for name, _, path in named}
+        folder = Path(where["policy"])
         self.context_dirs.append(folder)
         self.contexts.append({p.name: p.read_bytes() for p in sorted(folder.iterdir())})
+        self.room_assets.append(where.get("room-assets"))
         return subprocess.CompletedProcess(args, self.build_rc, "", "")
 
     def builds(self) -> list[tuple[str, ...]]:
@@ -142,10 +159,18 @@ class FakeDocker:
 
 
 def build_argv(
-    tree: Path, tag: str, proxy: str, drafts: str, context: str, policy: str
+    tree: Path,
+    tag: str,
+    proxy: str,
+    drafts: str,
+    context: str,
+    policy: str,
+    room: Path | None = None,
 ) -> tuple[str, ...]:
     """The one build the script may run: its own tree's Dockerfile and context, the proxy, the drafts flag, the
-    policy context, and its digest as a label."""
+    policy context, the tree's models as the room-assets context where it has them (`room`), and the policy's digest
+    as a label."""
+    models = ("--build-context", f"room-assets={room}") if room is not None else ()
     return (
         "buildx",
         "build",
@@ -162,6 +187,7 @@ def build_argv(
         f"ROOM_DRAFTS={drafts}",
         "--build-context",
         f"policy={context}",
+        *models,
         "--label",
         f"org.h4reet.web.policy={policy}",
         str(tree),
@@ -703,6 +729,139 @@ def test_a_tag_named_main_with_no_branch_main_approves_nothing(
 
 
 # --------------------------------------------------------------------------------------------------
+# Spec 004's models (T215; contracts/serving.md §3): the tree's own assets/room, as the named context
+# room-assets, exactly when it is a directory of the tree, neither it nor assets/ a link
+# --------------------------------------------------------------------------------------------------
+def with_models(tree: Path) -> Path:
+    """The tree's assets/room/, holding a model and its record, as an export of a commit with models holds them."""
+    room = tree / "assets/room"
+    room.mkdir(parents=True)
+    (room / "fx-desk.glb").write_bytes(b"glTF made by the test")
+    (room / "records.json").write_text('{"schema": 1}\n', encoding="utf-8")
+    return room
+
+
+@pytest.mark.parametrize(
+    ("stack", "suffix", "drafts"), [("prod", "", ""), ("dev", "-drafts", "1")]
+)
+def test_the_models_come_from_the_export_it_builds(
+    tmp_path: Path,
+    export: Path,
+    repo: Path,
+    stack: str,
+    suffix: str,
+    drafts: str,
+) -> None:
+    # Only the policy comes from main: the models are the commit's own, each already through the arrival check.
+    room = with_models(export)
+    env, run = host_files(tmp_path, export, stack=stack, suffix=suffix)
+    fake = FakeDocker()
+    assert host(stack, env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, f"{SHA}{suffix}", "", drafts, context_of(argv), digest(BOTH), room=room
+    )
+    assert fake.room_assets == [str(room)]
+    # The policy context and its label don't change for it.
+    assert fake.contexts == [BOTH]
+
+
+def test_a_tree_without_models_names_no_room_assets_context(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    # The Dockerfile's empty room-assets stage then stands in, and every piece builds as its stand-in (FR-013).
+    (export / "assets/policy").mkdir(parents=True)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(export, SHA, "", "", context_of(argv), digest(BOTH))
+    assert fake.room_assets == [None]
+    assert not [a for a in argv if "room-assets" in a]
+
+
+def link_to_a_directory_outside(tree: Path, outside: Path) -> None:
+    room = with_models(outside)
+    (tree / "assets").mkdir()
+    (tree / "assets/room").symlink_to(room, target_is_directory=True)
+
+
+def link_to_a_directory_inside(tree: Path, outside: Path) -> None:
+    room = with_models(tree / "elsewhere")
+    (tree / "assets").mkdir()
+    (tree / "assets/room").symlink_to(room, target_is_directory=True)
+
+
+def assets_a_link(tree: Path, outside: Path) -> None:
+    with_models(outside)
+    (tree / "assets").symlink_to(outside / "assets", target_is_directory=True)
+
+
+def room_a_file(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+    (tree / "assets/room").write_bytes(b"not a directory")
+
+
+def room_a_dangling_link(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+    (tree / "assets/room").symlink_to(outside / "gone", target_is_directory=True)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        link_to_a_directory_outside,
+        link_to_a_directory_inside,
+        assets_a_link,
+        room_a_file,
+        room_a_dangling_link,
+    ],
+)
+def test_assets_room_that_isnt_the_trees_own_directory_names_no_context(
+    tmp_path: Path,
+    export: Path,
+    repo: Path,
+    make: Callable[[Path, Path], None],
+) -> None:
+    # A link would hand the build a directory the commit doesn't hold, wherever it points; rule A3 refuses a link
+    # inside an asset directory, and this refuses one in place of the directory itself, or of assets/.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make(export, outside)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(export, SHA, "", "", context_of(argv), digest(BOTH))
+    assert fake.room_assets == [None]
+
+
+def test_the_build_gets_no_other_flag_for_the_models(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    # No --ssh, --secret, cache import or export, --allow, --network, or --add-host, with models or without.
+    for tree in (export, tmp_path / "with-models"):
+        if tree != export:
+            (tree / "apps/web").mkdir(parents=True)
+            (tree / "apps/web/Dockerfile").write_text(
+                "FROM scratch\n", encoding="utf-8"
+            )
+            with_models(tree)
+        env, run = host_files(tmp_path, tree)
+        fake = FakeDocker()
+        assert host("prod", env, run, fake, tree, repo) == 0
+        flags = [a.partition("=")[0] for a in built(fake) if a.startswith("--")]
+        assert set(flags) <= {
+            "--load",
+            "--file",
+            "--tag",
+            "--build-arg",
+            "--build-context",
+            "--label",
+        }, flags
+
+
+# --------------------------------------------------------------------------------------------------
 # dev-cpu: the working tree, on the agents' engine, every run
 # --------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize(
@@ -730,12 +889,22 @@ def test_dev_cpu_builds_the_working_tree_with_drafts(
     args = ["--stack", "dev-cpu", "--env-file", str(DEV_CPU_VARS), "--repo", str(repo)]
     assert wi.main(args, fake, root=REPO) == 0
     argv = built(fake)
+    # The working tree holds the room's models, under assets/room/ (spec 004, T234), so they go with the build.
+    room = REPO / "assets/room"
+    assert room.is_dir() and not room.is_symlink() and not room.parent.is_symlink()
     assert fake.calls == [
         build_argv(
-            REPO, "working-tree-drafts", PROXY, "1", context_of(argv), digest(BOTH)
+            REPO,
+            "working-tree-drafts",
+            PROXY,
+            "1",
+            context_of(argv),
+            digest(BOTH),
+            room=room,
         )
     ]
     assert fake.contexts == [BOTH]
+    assert fake.room_assets == [str(room)]
     assert "h4reet-web:working-tree-drafts, built" in capsys.readouterr().out
 
 
@@ -885,11 +1054,165 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     ]
     assert len(builds) == 2
     assert all(copy < i for i in builds)
+    # Of the files the build context gives (a COPY or ADD with no --from), the caps are the only one under assets/.
+    # The models come from the named room-assets stage instead (T219), never from the context's assets/room.
     assert [
         ln
         for ln in instructions
-        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln
+        if ln.startswith(("COPY ", "ADD ")) and "--from=" not in ln and "assets/" in ln
     ] == [caps]
+    assert [
+        ln
+        for ln in instructions
+        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln and ln != caps
+    ] == [ROOM_ASSETS_COPY]
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's room-assets stage (T219; contracts/serving.md §3): the models web_image.py hands over, or none
+# --------------------------------------------------------------------------------------------------
+ROOM_ASSETS_COPY = "COPY --from=room-assets / /src/assets/room/"
+
+
+def test_the_room_assets_stage_is_empty_and_beside_the_policy_stage() -> None:
+    # web_image.py replaces the stage with the named context when the tree has models; a build that names none, such
+    # as the gate's image step, gets the empty stage, so nothing is pulled under that name and every piece builds as
+    # its stand-in.
+    stages = dockerfile_stages()
+    names = [name for _, name, _ in stages]
+    at = names.index("room-assets")
+    assert names[at - 1] == "policy"
+    assert stages[at] == ("scratch", "room-assets", [])
+    text = (REPO / "apps/web/Dockerfile").read_text(encoding="utf-8")
+    comment = (
+        "# ---- room-assets: the tree's assets/room, as web_image.py hands it over ----\n"
+        "# web_image.py replaces this stage with the named build context `room-assets` when the tree has models. A "
+        "build that\n"
+        "# names none, such as the gate's image step, gets this empty stage, and every piece builds as its stand-in.\n"
+        "FROM scratch AS room-assets\n"
+    )
+    assert comment in text
+
+
+def test_the_build_stage_copies_the_models_before_it_builds() -> None:
+    # The compositor reads the models from /src/assets/room/, the repository-relative assets/room/ it reads in a
+    # checkout, and writes their .gz copies into dist/a/.
+    by_name = {name: body for _, name, body in dockerfile_stages() if name}
+    build = by_name["build"]
+    (run,) = [
+        i
+        for i, ln in enumerate(build)
+        if ln.startswith("RUN ") and " build -w apps/web" in ln
+    ]
+    assert ROOM_ASSETS_COPY in build
+    assert build.index(ROOM_ASSETS_COPY) < run
+
+
+def test_only_the_build_stage_reads_the_models() -> None:
+    # The phone copy holds no model (contracts/lookdev.md), and the runtime stage copies only dist/: no plain model,
+    # record, or license file reaches nginx's root.
+    stages = dockerfile_stages()
+    readers = [
+        name or image
+        for image, name, body in stages
+        if image.lower() == "room-assets"
+        or any(
+            copied_from(ln) == "room-assets" or "room-assets" in mounted_from(ln)
+            for ln in body
+        )
+    ]
+    assert readers == ["build"]
+    image, _, body = stages[-1]
+    assert image.startswith("ghcr.io/nginx/nginx-unprivileged:")
+    assert [ln for ln in body if copied_from(ln)] == [
+        "COPY --from=build /src/apps/web/dist /usr/share/nginx/html"
+    ]
+
+
+# --------------------------------------------------------------------------------------------------
+# .dockerignore (T219; contracts/serving.md §3): assets/policy out of every context, but the caps
+# --------------------------------------------------------------------------------------------------
+def ignore_regex(pattern: str) -> re.Pattern[str]:
+    """A .dockerignore pattern as Docker reads it (moby/patternmatcher): `**` any number of directories, `*` and `?`
+    within one, `[...]` a class."""
+    out, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        elif pattern[i] == "[":
+            end = pattern.index("]", i)
+            out.append(pattern[i : end + 1])
+            i = end + 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out))
+
+
+def dockerignored(path: str) -> bool:
+    """Whether the root .dockerignore leaves `path` out of a build context: the last pattern that matches it, or a
+    directory above it, decides, a `!` pattern putting it back."""
+    lines = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    parts = path.split("/")
+    ignored = False
+    for line in lines:
+        pattern = line.strip()
+        if not pattern or pattern.startswith("#"):
+            continue
+        keep = pattern.startswith("!")
+        regex = ignore_regex(pattern.removeprefix("!").strip("/"))
+        if any(regex.fullmatch("/".join(parts[:n])) for n in range(1, len(parts) + 1)):
+            ignored = not keep
+    return ignored
+
+
+def test_the_matcher_reads_dockerignore_as_docker_does() -> None:
+    # The file's own patterns: a root-only name, a **/ pattern at any depth, a class, and the caps' exception.
+    assert dockerignored(".git/config")
+    assert not dockerignored("apps/.git")
+    assert dockerignored("apps/web/node_modules/three/package.json")
+    assert dockerignored("deploy/scripts/web_image.pyc")
+    assert not dockerignored("deploy/scripts/web_image.py")
+    assert dockerignored("apps/web/dist-phone/lookdev.html")
+
+
+def test_the_policy_reaches_the_build_only_through_its_named_context() -> None:
+    # The approvals and the PDF's header never enter a context from the tree: the build reads them from the policy
+    # context, main's, or not at all. The caps are the exception, which the install stage copies (T328).
+    ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert "assets/policy" in ignore
+    assert "!assets/policy/caps.json" in ignore
+    assert ignore.index("assets/policy") < ignore.index("!assets/policy/caps.json")
+    for name in (
+        "content-approvals.json",
+        "resume-header.json",
+        "approvals.json",
+        "anything-else.json",
+    ):
+        assert dockerignored(f"assets/policy/{name}"), name
+    assert not dockerignored("assets/policy/caps.json")
+
+
+def test_every_file_the_dockerfile_copies_from_the_context_is_in_it() -> None:
+    # A COPY whose source .dockerignore leaves out fails the build: the caps' copy among them.
+    sources = []
+    for _, _, body in dockerfile_stages():
+        for ln in body:
+            words = ln.split()
+            if words[0].upper() in ("COPY", "ADD") and not copied_from(ln):
+                sources += [w for w in words[1:-1] if not w.startswith("--")]
+    assert "assets/policy/caps.json" in sources
+    assert [s for s in sources if dockerignored(s.rstrip("/"))] == []
 
 
 def test_the_pdfs_text_file_stays_in_the_build_stage() -> None:

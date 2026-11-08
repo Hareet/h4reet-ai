@@ -36,7 +36,6 @@ import { h } from "../room/dom";
 import { count } from "../room/glb/rules";
 import { MODEL_FLOOR } from "../room/quality";
 import type { Capability } from "../room/quality";
-import { SCENE_TEXTURE_BYTES } from "../room/scene/ledger";
 import {
   NOT_GLB,
   PREVIEW,
@@ -427,10 +426,12 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
       ["Frames over 33 ms", f ? `${(f.over33Share * 100).toFixed(1)}%` : "measured during a run"],
       ["Draw calls", count(measured?.drawCalls ?? frame.drawCalls)],
       ["Triangles", count(measured?.triangles ?? frame.triangles)],
-      // The largest over the run while its figures show, as the draw calls and triangles (§5; the review's page-8).
+      // The largest over the run while its figures show, as the draw calls and triangles (§5; the review's page-8), out
+      // of the ledger's limit, the 3D part's scene_texture_bytes (stage.ts): main's caps, not FR-053's starting figure
+      // where main has raised it (the review of feat/004-room-models, N5).
       [
         "Texture memory",
-        `${count(measured?.textureBytes ?? stage.textureBytes)} of ${count(SCENE_TEXTURE_BYTES)} bytes`,
+        `${count(measured?.textureBytes ?? stage.textureBytes)} of ${count(part.scene_texture_bytes)} bytes`,
       ],
       ["Smallest cap height", "none yet: the faces are drawn with User Story 5"],
     ];

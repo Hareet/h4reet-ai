@@ -40,7 +40,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
-import { ASSET_EVENTS_URL, BATCH_MAX } from "../../src/asset-events";
+import { ASSET_EVENTS_URL, BATCH_MAX, SEND_EVERY_MS } from "../../src/asset-events";
 import type { AssetEvent } from "../../src/asset-events";
 import type { Mode } from "../../src/choice/visit";
 import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
@@ -923,6 +923,52 @@ describe("a model shown in place of its piece's stand-ins", () => {
   });
 });
 
+describe("User Story 4: the loader swaps a set model in for its stand-in (T217, scenario 1; FR-019, FR-023)", () => {
+  it("fetches the clean model the one catalog edit set, readies it with its face objects hidden, and shows it in place of the stand-in", async () => {
+    // A clean model at the fixture monitor's size, origin, and live face (room-models.ts), set by its catalog entry's
+    // model alone, wired as src/room/scene.ts wires the room's loader: prepareModel, then showModel.
+    const piece = "fx-monitor";
+    const changes = modelChanges([piece]);
+    const { scene: part, index } = compose(overlay(changes), capsPolicy(), { mode: "lenient", drafts: false });
+    const label = (text: string): Object3D => Object.assign(new Object3D(), { name: `label:${text}` });
+    const room = buildRoom(part, { avatar: "dog", label, index });
+    const h = harness();
+    const loader = createLoader({
+      ...optionsOf(h),
+      prepare: (p, model) => prepareModel(model, part.pieces[p] ?? { faces: {} }, part.look, room.materials),
+      swap: (p, model) => showModel(room, part, p, model),
+    });
+    const placement = part.placements.find((p) => p.piece === piece);
+    if (!placement?.model) throw new Error(`no set model on ${piece}`);
+    const holder = room.placements.get(placement.id) as Object3D;
+    expect(holder.children.find((c) => c.name === "standin")?.visible).toBe(true);
+    const done = loader.load(modelEntries(part));
+    await settle();
+    expect(h.fetch.calls.map((c) => c.url)).toEqual([placement.model.url]);
+    expect(h.fetch.calls[0]?.init.integrity).toBe(integrity(placement.model.sha256));
+    // The browser hands over the plain file, inflated from the .gz copy the image sends.
+    h.fetch.calls[0]?.answer({ body: changes[`assets/room/${piece}.glb`] as Uint8Array });
+    await settle();
+    h.clock.advance(32);
+    await done;
+    const shown = holder.children.filter((c) => c.name === MODEL_NODE);
+    expect(shown).toHaveLength(1);
+    expect(holder.children.find((c) => c.name === "standin")?.visible).toBe(false);
+    // No stand-in's label floats over a set piece, before its load or after: the room makes labels only where a
+    // placement has no set model (bundle3d.ts), though the 3D part keeps the label's key.
+    expect(placement.label).not.toBeNull();
+    expect(room.labels.has(placement.id)).toBe(false);
+    // The model's own face objects are hidden: the room draws the screen itself, on the face's plane.
+    const roles = Object.keys(part.pieces[piece]?.faces ?? {});
+    expect(roles).toEqual(["screen"]);
+    for (const role of roles) expect(shown[0]?.getObjectByName(role)?.visible, role).toBe(false);
+    expect(shown[0]?.getObjectByName("body")?.visible).toBe(true);
+    expect(h.events).toEqual([
+      { asset: piece, outcome: "loaded", ms_bucket: "<250", bytes: placement.model.bytes, mode: "full" },
+    ]);
+  });
+});
+
 // --------------------------------------------------------------------------------------------------------------------
 // The room's wiring (app.ts)
 // --------------------------------------------------------------------------------------------------------------------
@@ -1081,12 +1127,26 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     expect(none.room.visit.mode).toBe("2d");
     expect(beaconed(none)).toEqual([]);
     // The site's own room, every piece but the figures with its studio file set (T234): each skipped in 2D, once, in
-    // load order. The hide's one beacon carries at most BATCH_MAX of them; the rest stay queued for the next send.
+    // load order. The hide's one beacon carries at most BATCH_MAX of them; the rest stay queued, and the batcher's
+    // next post, SEND_EVERY_MS after the first event, carries them (the review of feat/004-room-models, N4).
     const site = roomIndex();
-    expect(site.models.length).toBeGreaterThan(0);
-    const v = start({ webgl: false, room: sending(site) });
+    expect(site.models.length).toBeGreaterThan(BATCH_MAX);
+    const posts: AssetEvent[][] = [];
+    const v = start({
+      webgl: false,
+      room: sending(site),
+      fetch: (url, init) => {
+        if (url === ASSET_EVENTS_URL && init.method === "POST")
+          posts.push((JSON.parse(String(init.body)) as { events: AssetEvent[] }).events);
+        return Promise.reject(new Error("no network in the room's tests"));
+      },
+    });
     await enter(v);
     expect(v.room.visit.mode).toBe("2d");
     expect(beaconed(v)).toEqual(site.models.slice(0, BATCH_MAX).map(skipped2d));
+    expect(posts).toEqual([]);
+    v.clock.advance(SEND_EVERY_MS);
+    await flush();
+    expect(posts).toEqual([site.models.slice(BATCH_MAX).map(skipped2d)]);
   });
 });
