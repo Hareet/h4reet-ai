@@ -377,12 +377,14 @@ describe("compose()", () => {
 });
 
 describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
-  it("holds every rule of the nine families, in order", () => {
+  it("holds every rule of spec 004's nine families, in order, then spec 008's RW, its RW2 alone until RW1 (T041)", () => {
     const counts = { RD: 5, RI: 11, RG: 9, RS: 6, RT: 13, RV: 3, RX: 10, RK: 4, RL: 4 };
     const expected = Object.entries(counts).flatMap(([family, n]) =>
       Array.from({ length: n }, (_, i) => `${family}${i + 1}`),
     );
-    expect([...RULE_IDS]).toEqual(expected);
+    // Spec 008's plan.md §3.5: RW1, the figure's start, comes with the walking data (T041); RW2, the highlight's
+    // contrast, with the highlight (T012).
+    expect([...RULE_IDS]).toEqual([...expected, "RW2"]);
     for (const rule of RULE_IDS) expect(RULES[rule].family).toBe(rule.replace(/\d+$/, ""));
   });
 
@@ -653,4 +655,88 @@ describe("User Story 4: a studio model in place of its stand-in (T217; FR-019, F
       }
     },
   );
+});
+
+// T005 (spec 008; FR-015, FR-016, FR-057, FR-058, SC-002; plan.md §3.2, §3.5): each look's optional `highlight`, the
+// band's and the edge's colours and CSS-pixel widths, which a look may leave out for Q5's figures, its edge then the
+// look's ink. RI4 holds its colours to the look's own palette or #rrggbb; RW2 refuses a look, the scene's or another,
+// whose band and edge both give under 3:1 against one colour of its palette (WCAG 2.2's 1.4.11), naming the rule, the
+// look's file, and the path; and the compositor writes it resolved, to #rrggbb, into the 3D part's look, the lookdev
+// page's looks, and the index's flat.highlight for the 2D drawing.
+describe("the highlight (spec 008, T005)", () => {
+  const LOOK = "apps/web/room/looks/fx-cel.yaml";
+  const OTHER = "apps/web/room/looks/fx-flat.yaml";
+  const lookText = (): string => decoder.decode(goodFiles().get(LOOK));
+  const withHighlight = (yaml: string, file = LOOK, text = lookText()): Record<string, string> => ({
+    [file]: `${text}highlight: ${yaml}\n`,
+  });
+  const STRICT_DRAFTS = { mode: "strict", drafts: true } as const;
+  const rw2 = (findings: readonly Finding[]): string[] =>
+    findings.filter((f) => f.rule === "RW2").map((f) => `${f.rule} ${f.file}:${f.path}`);
+
+  it("passes Q5's colours, written out or left to the defaults, against every look's palette", () => {
+    expect(rw2(compose(goodTree(), noPolicy(), STRICT_DRAFTS).findings)).toEqual([]);
+    const written = overlay(withHighlight('{ band: "#ffd23f", band_px: 3, edge: fx-ink, edge_px: 1.5 }'));
+    expect(lines(compose(written, noPolicy(), STRICT_DRAFTS).findings)).toEqual([]);
+    const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+    const committed = compose(fileTree(ROOT), readRoomPolicy({ env: process.env, root: ROOT }), STRICT_DRAFTS);
+    expect(rw2(committed.findings)).toEqual([]);
+    expect(committed.drafts?.lookdev.looks.length).toBe(3);
+  });
+
+  it("is refused by RW2 where its band and edge both fall under 3:1 against a colour of the look's palette", () => {
+    const grey = '{ band: "#7f7f7f", edge: "#909090" }';
+    const result = compose(overlay(withHighlight(grey)), noPolicy(), STRICT_DRAFTS);
+    expect(rw2(result.findings)).toEqual([`RW2 ${LOOK}:highlight`]);
+    const hit = result.findings.find((f) => f.rule === "RW2");
+    // The reason names the palette colour it fails against, a name of the look's, and the two contrasts, no value.
+    expect(hit?.reason).toMatch(/fx-[a-z]+/);
+    expect(hit?.reason).toMatch(/\d\.\d\d:1/);
+    expect(hit?.reason).not.toMatch(/#[0-9a-f]{6}/);
+    expect(hit?.lenient).toBe(false);
+    // One tone passing is enough: the ink edge holds every light colour, the yellow band every dark one.
+    const one = compose(overlay(withHighlight('{ band: "#7f7f7f", edge: fx-ink }')), noPolicy(), STRICT_DRAFTS);
+    expect(rw2(one.findings)).toEqual([]);
+  });
+
+  it("refuses a look that isn't the scene's too, since the lookdev page draws every look", () => {
+    const other = lookText().replace("id: fx-cel", "id: fx-flat").replace("method: inked-cel", "method: flat");
+    expect(other).not.toBe(lookText());
+    const tree = overlay(withHighlight('{ band: "#7f7f7f", edge: "#909090" }', OTHER, other));
+    expect(rw2(compose(tree, noPolicy(), STRICT_DRAFTS).findings)).toEqual([`RW2 ${OTHER}:highlight`]);
+  });
+
+  it("holds its colours to the look's own palette or #rrggbb (RI4), and RW2 then judges nothing it can't resolve", () => {
+    const result = compose(overlay(withHighlight("{ band: fx-missing, edge: fx-ink }")), noPolicy(), STRICT_DRAFTS);
+    expect(result.findings.map((f) => `${f.rule} ${f.file}:${f.path}`)).toEqual([`RI4 ${LOOK}:highlight.band`]);
+    const edge = compose(overlay(withHighlight('{ band: "#ffd23f", edge: fx-gone }')), noPolicy(), STRICT_DRAFTS);
+    expect(edge.findings.map((f) => `${f.rule} ${f.file}:${f.path}`)).toEqual([`RI4 ${LOOK}:highlight.edge`]);
+  });
+
+  it("is written resolved: the 3D part's look, the lookdev page's looks, and the index's flat.highlight", () => {
+    const good = compose(goodTree(), noPolicy(), STRICT_DRAFTS);
+    // Left out, Q5's band and widths, the edge the look's ink, fx-ink.
+    const defaults = { band: "#ffd23f", band_px: 3, edge: "#1d1d1f", edge_px: 1.5 };
+    expect(good.scene.look.highlight).toEqual(defaults);
+    expect(good.index.flat.highlight).toEqual(defaults);
+    expect(good.drafts?.lookdev.looks.map((l) => l.highlight)).toEqual([defaults]);
+    const named = compose(
+      overlay(withHighlight("{ band: fx-glow, band_px: 4, edge: fx-ink, edge_px: 2 }")),
+      noPolicy(),
+      STRICT_DRAFTS,
+    );
+    expect(lines(named.findings)).toEqual([]);
+    const resolved = { band: "#ffcf70", band_px: 4, edge: "#1d1d1f", edge_px: 2 };
+    expect(named.scene.look.highlight).toEqual(resolved);
+    expect(named.index.flat.highlight).toEqual(resolved);
+    expect(named.digest).not.toBe(good.digest);
+  });
+
+  it("composes byte for byte the same twice", () => {
+    const tree = (): Tree => overlay(withHighlight("{ band: fx-glow, band_px: 4, edge: fx-ink, edge_px: 2 }"));
+    const [a, b] = [compose(tree(), noPolicy(), STRICT_DRAFTS), compose(tree(), noPolicy(), STRICT_DRAFTS)];
+    expect(JSON.stringify(b.index)).toBe(JSON.stringify(a.index));
+    expect(JSON.stringify(b.scene)).toBe(JSON.stringify(a.scene));
+    expect(b.digest).toBe(a.digest);
+  });
 });

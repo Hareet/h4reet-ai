@@ -103,7 +103,10 @@ function beyondSetModels(network: readonly string[], part: LookdevDeps["inputs"]
 
 /** A stand-in for WebGLRenderer: each render "draws" every visible mesh, counting its calls and triangles as
  *  renderer.info does, and calls its onBeforeRender, as OutlineEffect's lines need. */
-function fakeRenderer(): { renderer: WebGLRenderer; state: { ratio: number; size: [number, number]; passes: number } } {
+function fakeRenderer(onRender?: (scene: Scene) => void): {
+  renderer: WebGLRenderer;
+  state: { ratio: number; size: [number, number]; passes: number };
+} {
   const state = { ratio: 1, size: [0, 0] as [number, number], passes: 0 };
   const info = {
     autoReset: true,
@@ -125,6 +128,7 @@ function fakeRenderer(): { renderer: WebGLRenderer; state: { ratio: number; size
     dispose: () => undefined,
     render(scene: Scene, camera: Camera): void {
       state.passes += 1;
+      onRender?.(scene);
       if (info.autoReset) info.reset();
       scene.traverseVisible((node: Object3D) => {
         const mesh = node as Mesh;
@@ -225,6 +229,8 @@ function open(
     capability?: Capability;
     standins?: boolean;
     inputs?: LookdevDeps["inputs"];
+    /** Each scene the renderer draws, as it draws it (spec 008, T010). */
+    onRender?: (scene: Scene) => void;
   } = {},
 ): Opened {
   const dom = new JSDOM('<!doctype html><html lang="en"><head></head><body><main id="lookdev"></main></body></html>', {
@@ -235,7 +241,7 @@ function open(
   const spies = spyOn(win);
   imageBitmaps(win);
   const clock = new FakeClock();
-  const { renderer, state } = fakeRenderer();
+  const { renderer, state } = fakeRenderer(options.onRender);
   const given = options.inputs ?? inputs({ standins: options.standins ?? false });
   const root = win.document.getElementById("lookdev") as HTMLElement;
   const page = createLookdev(
@@ -1559,5 +1565,90 @@ describe("User Story 9's sample figures on the page (T267; FR-049)", () => {
       }
     }
     expect(amounts).toBeGreaterThan(0);
+  });
+});
+
+// T010 (spec 008; FR-050's highlight sample; plan.md §5.3's L1): the page's "Highlight" control names any selectable
+// of the index, by its name, or none, the default; the stage draws the room's own highlight (src/room/scene/
+// highlight.ts) on the one chosen, its two passes after the room's frame from the next frame on, in whichever look is
+// chosen, and the readouts count its draws as they count the room's. A run measures the room as visitors get it: the
+// highlight is set aside while it measures, its control off, and the Author's choice comes back after it. The page is
+// a drafts build's alone (test/lookdev/builds.test.ts), so a release build holds none of this.
+describe("spec 008's highlight sample on the page (T010; FR-050)", () => {
+  const PASSES = ["highlight:edge", "highlight:band"];
+
+  function opened(): Opened & { names(): string[] } {
+    const names: string[] = [];
+    const o = open({ onRender: (scene) => names.push(scene.name) });
+    return { ...o, names: () => names.splice(0) };
+  }
+
+  it("names every selectable by its name, none first and chosen, and draws nothing extra until one is chosen", () => {
+    const o = opened();
+    const select = control<HTMLSelectElement>(o.root, "Highlight");
+    const index = o.inputs.index;
+    expect([...select.options].map((x) => [x.value, collapse(x.textContent)])).toEqual([
+      ["", "None"],
+      ...index.selectables.map((s) => [s.id, s.name]),
+    ]);
+    expect(select.value).toBe("");
+    expect(o.page.stage.highlight).toBeNull();
+    o.clock.advance(16);
+    expect(o.names().filter((n) => n.startsWith("highlight:"))).toEqual([]);
+  });
+
+  it("draws the chosen selectable's highlight from the next frame, its draws counted in the readouts, and none for None", () => {
+    const o = opened();
+    const select = control<HTMLSelectElement>(o.root, "Highlight");
+    o.clock.advance(16);
+    o.names();
+    const before = o.page.stage.frameSample().drawCalls;
+    for (const s of o.inputs.index.selectables) {
+      choose(select, s.id);
+      expect(o.page.stage.highlight, s.id).toBe(s.id);
+      o.clock.advance(16);
+      const frame = o.names();
+      expect(frame.slice(-2), s.id).toEqual(PASSES);
+      expect(o.page.stage.frameSample().drawCalls, s.id).toBeGreaterThan(before);
+    }
+    choose(select, "");
+    expect(o.page.stage.highlight).toBeNull();
+    o.clock.advance(16);
+    expect(o.names().filter((n) => n.startsWith("highlight:"))).toEqual([]);
+    expect(o.page.stage.frameSample().drawCalls).toBe(before);
+  });
+
+  it("keeps its highlight through a change of look, drawn in each look", () => {
+    const o = opened();
+    const id = o.inputs.index.selectables[0]?.id ?? "";
+    choose(control<HTMLSelectElement>(o.root, "Highlight"), id);
+    for (const look of o.inputs.lookdev.looks) {
+      choose(control<HTMLSelectElement>(o.root, "Look"), look.id);
+      expect(o.page.stage.look.id).toBe(look.id);
+      expect(o.page.stage.highlight, look.id).toBe(id);
+      o.clock.advance(16);
+      expect(o.names().slice(-2), look.id).toEqual(PASSES);
+    }
+  });
+
+  it("sets the highlight aside while a run measures, its control off, and gives it back after", async () => {
+    const o = opened();
+    const select = control<HTMLSelectElement>(o.root, "Highlight");
+    const id = o.inputs.index.selectables[0]?.id ?? "";
+    choose(select, id);
+    buttonNamed(o.root, "Run 2 minutes").click();
+    await settle(o.clock);
+    expect(select.disabled).toBe(true);
+    expect(o.page.stage.highlight).toBeNull();
+    o.names();
+    o.clock.advance(1_000, 100);
+    expect(o.names().filter((n) => n.startsWith("highlight:"))).toEqual([]);
+    buttonNamed(o.root, "Stop the run").click();
+    await settle(o.clock);
+    expect(select.disabled).toBe(false);
+    expect(select.value).toBe(id);
+    expect(o.page.stage.highlight).toBe(id);
+    expect(o.spies.network.filter((r) => !r.startsWith("fetch ../a/"))).toEqual([]);
+    expect(o.spies.storage).toEqual([]);
   });
 });

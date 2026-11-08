@@ -948,3 +948,61 @@ describe("the frame log (R-70; contracts/tier-signal.md §6; T246)", () => {
     expect(release.v.spies.storage).toEqual([]);
   });
 });
+
+// T009 (spec 008; FR-013, FR-054; plan.md §3.4): a drafts build's frame log records each change of the room's target,
+// with the selectable's ID, or null for none, and the input that made it: `pointer`, `press`, `focus`, `select` (a
+// selection clearing it), or `reset` (the fall to 2D). An input that changes nothing logs nothing. A release build
+// keeps no log, so no target is recorded anywhere; nothing about a target is ever sent.
+describe("the frame log's targets (spec 008, T009)", () => {
+  const targets = (v: Visit): FrameLogEntry[] => events(frameLog(v), "target");
+  const listButton = (v: Visit, id: string): HTMLButtonElement => {
+    const b = v.doc.querySelector<HTMLButtonElement>(`.room-list button[data-object-id="${id}"]`);
+    if (!b) throw new Error(`no list button for ${id}`);
+    return b;
+  };
+  const targetOf =
+    (v: Visit) =>
+    (input: "pointer" | "press", id: string | null): void => {
+      const target = v.scene.created[0]?.target;
+      if (!target) throw new Error("the room gave the stage no targeting callback");
+      target(input, id);
+    };
+
+  it("records each change of target with its ID and its input, in a drafts build", async () => {
+    const v = start({ webgl: true, frameLog: createFrameLog });
+    await intoRoom(v);
+    const [first, second] = roomIndex().selectables.map((s) => s.id);
+    if (!first || !second) throw new Error("fewer than two selectables");
+    const target = targetOf(v);
+    target("pointer", first);
+    target("pointer", first);
+    target("pointer", null);
+    target("press", second);
+    listButton(v, first).focus();
+    listButton(v, first).click();
+    target("pointer", second);
+    button(v.doc, "2D view").click();
+    await flush();
+    expect(targets(v).map((e) => ({ id: e.id, input: e.input }))).toEqual([
+      { id: first, input: "pointer" },
+      { id: null, input: "pointer" },
+      { id: second, input: "press" },
+      { id: first, input: "focus" },
+      { id: null, input: "select" },
+      { id: second, input: "pointer" },
+      { id: null, input: "reset" },
+    ]);
+    for (const e of targets(v)) expect(Object.keys(e).sort()).toEqual(["event", "frame", "id", "input", "t", "wall"]);
+    expect(v.spies.network).toEqual([]);
+    expect(v.spies.beacons).toEqual([]);
+  });
+
+  it("keeps no log in a release build, so no target is recorded anywhere", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    targetOf(v)("pointer", roomIndex().selectables[0]?.id ?? "");
+    expect("h4FrameLog" in v.win).toBe(false);
+    expect(v.spies.storage).toEqual([]);
+    expect(v.spies.beacons).toEqual([]);
+  });
+});

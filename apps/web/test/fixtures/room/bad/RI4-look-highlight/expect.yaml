@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/looks/fx-cel.yaml
+path: highlight.edge
+why: a highlight whose edge colour is neither #rrggbb nor a colour of the look's own palette (spec 008, plan.md §3.2)
+edits:
+  - { file: apps/web/room/looks/fx-cel.yaml, at: [highlight], set: { band: "#ffd23f", edge: fx-missing } }

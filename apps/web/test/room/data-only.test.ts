@@ -918,3 +918,38 @@ describe("apps/web/room/README.md (T114; R-01)", () => {
     expect(ids.filter(holds)).toEqual([]);
   });
 });
+
+// T005 (spec 008; FR-057, SC-006): the highlight's colours and widths are look data. Changing the band of the scene's
+// look in a data copy composes with no finding, changes no source file, and reaches the 3D part's look and the index's
+// flat.highlight, resolved; the look's name is read from the committed scene, never written here.
+describe("the proof set, spec 008's highlight (FR-057, SC-006)", () => {
+  it("a highlight colour: the band of the scene's look changes, and the 3D part and the index follow", () => {
+    const look = must(
+      committed.looks.find((l) => l.value.id === SCENE.look),
+      "the scene's look",
+    );
+    expect(base.scene.look.highlight.band).toBe("#ffd23f");
+    expect(base.index.flat.highlight.band).toBe("#ffd23f");
+    const value = copy(look.value) as unknown as Record<string, unknown>;
+    // A light yellow, which gives at least 3:1 against every colour darker than the look's ink can hold.
+    value.highlight = { ...(value.highlight as object), band: "#ffe066" };
+    const c = change({ [look.file]: value });
+    expectDataOnly(c);
+    expect(c.changed).toEqual([pathOf("look", SCENE.look)]);
+    expect(c.result.scene.look.highlight).toEqual({ ...base.scene.look.highlight, band: "#ffe066" });
+    expect(c.result.index.flat.highlight).toEqual({ ...base.index.flat.highlight, band: "#ffe066" });
+  });
+
+  it("a highlight width: the edge of the scene's look widens, and the 3D part and the index follow", () => {
+    const look = must(
+      committed.looks.find((l) => l.value.id === SCENE.look),
+      "the scene's look",
+    );
+    const value = copy(look.value) as unknown as Record<string, unknown>;
+    value.highlight = { ...(value.highlight as object), edge_px: 2 };
+    const c = change({ [look.file]: value });
+    expectDataOnly(c);
+    expect(c.result.scene.look.highlight.edge_px).toBe(2);
+    expect(c.result.index.flat.highlight.edge_px).toBe(2);
+  });
+});
