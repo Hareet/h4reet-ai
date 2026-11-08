@@ -18,7 +18,8 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { TurnResult } from "../../src/room/signals/turn-cost";
-import type { TalkLimits, TurnRequest } from "../../src/talk/talk";
+import type { SendTurn, TalkLimits, TurnRequest } from "../../src/talk/talk";
+import { createTurnSender } from "../../src/talk/turn-client";
 import {
   FakeClock,
   WEB,
@@ -426,5 +427,166 @@ describe("the limits in the room (T055; FR-027, FR-036, FR-041)", () => {
     sent[0]?.ended(refused(429));
     expect(message(v)).toBe("turn_refused.slow_down");
     expect(box(v).value).toBe("Something newer.");
+  });
+});
+
+// T060 (spec 007; FR-005, FR-025, FR-036, FR-054; User Story 4): when the twin can't answer, the room says why, through
+// the real turn client and a stub fetch. Each of spec 000's degraded causes shows its class's message, followed by the
+// resume and the PDF; the edge's api_unavailable, twin_unavailable, a 502 local_error, a network error, the 35-second
+// timeout, and a lost body show cannot_talk.unavailable, the last three marking the sign's visit "at least"; Stop shows
+// turn_stopped; a 409 shows topic_not_ready and ends that conversation. Every time, the resume, the PDF, and the pieces
+// still work.
+describe("when the twin can't answer (T060; FR-036, FR-054)", () => {
+  type Reply = (init: RequestInit) => Promise<Response>;
+  const json =
+    (status: number, body: unknown): Reply =>
+    () =>
+      Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
+  const degraded = (cause: string): Reply => json(503, { state: "degraded", cause, request_id: "r", trace_id: null });
+
+  async function fetched(reply: Reply, o: { freeTalk?: boolean } = {}) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    let sender: SendTurn | null = null;
+    const v = start({
+      room: ready(),
+      sendTurn: (request, ended, signal) => sender?.(request, ended, signal),
+      ...(o.freeTalk === false
+        ? {}
+        : {
+            content: {
+              ...roomContent(),
+              manifest: { ...roomContent().manifest, free_talk: { ready: true } },
+            },
+          }),
+    });
+    sender = createTurnSender({
+      fetch: (url, init) => {
+        calls.push({ url, init });
+        return reply(init);
+      },
+      clock: v.clock,
+    });
+    await enter(v, "engineer");
+    v.clock.advance(5000);
+    button(v.doc, "Keep it for later").click();
+    await flush();
+    return { v, calls };
+  }
+  const message = (v: Visit): Element | null => talkLog(v.doc).lastElementChild;
+  /** The resume, the PDF, and a piece still work after the failure. */
+  async function stillWorks(v: Visit, calls: { url: string }[]): Promise<void> {
+    const shown = message(v);
+    const controls = [...(shown?.querySelectorAll("button, a") ?? [])].map((c) => [textOf(c), c.getAttribute("href")]);
+    if (shown?.getAttribute("data-message")?.startsWith("cannot_talk.")) {
+      expect(controls).toEqual([
+        ["Read the resume", null],
+        ["Download the resume (PDF)", "./resume.pdf"],
+      ]);
+    }
+    const [first] = talking(fixture().index);
+    if (first === undefined) throw new Error("no talk piece");
+    const before = calls.length;
+    select(v, first);
+    await flush();
+    expect(calls.length).toBe(before + 1);
+    // A cannot_talk message's own pointer, or the room's Resume button; the panel offers the PDF.
+    const pointer = [...(shown?.querySelectorAll("button") ?? [])].find((b) => textOf(b) === "Read the resume");
+    (pointer ?? button(v.doc, "Resume")).click();
+    await flush();
+    expect(v.doc.querySelector(".resume-panel")?.hasAttribute("hidden")).toBe(false);
+    expect(v.doc.querySelector('.resume-panel a[href="./resume.pdf"]')).not.toBeNull();
+  }
+
+  const CLASSES: Record<string, readonly string[]> = {
+    "cannot_talk.resting": ["no_fallback_in_stack", "fallback_unavailable"],
+    "cannot_talk.budget": [
+      "meter_at_ceiling",
+      "fallback_spent_today",
+      "fallback_awaiting_renewal",
+      "kill_switch_tripped",
+    ],
+    "cannot_talk.unavailable": [
+      "store_unreachable",
+      "store_uninitialized",
+      "journal_unwritable",
+      "api_unavailable",
+      "twin_unavailable",
+    ],
+  };
+  for (const [id, causes] of Object.entries(CLASSES)) {
+    for (const cause of causes) {
+      it(`shows ${id} for ${cause}, then the resume and the PDF, and the room still works`, async () => {
+        const { v, calls } = await fetched(degraded(cause));
+        say(v, "What drives him?");
+        await flush();
+        expect(calls.map((c) => c.url)).toEqual(["/api/room/turn"]);
+        expect(message(v)?.getAttribute("data-message")).toBe(id);
+        expect(textOf(message(v))).toContain(messages[id as keyof typeof messages]);
+        await stillWorks(v, calls);
+      });
+    }
+  }
+
+  it("shows cannot_talk.unavailable for a 502 local_error, with the visit not marked", async () => {
+    const { v, calls } = await fetched(json(502, { error: "local_error", request_id: "r" }));
+    say(v, "What drives him?");
+    await flush();
+    expect(message(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+    await stillWorks(v, calls);
+  });
+
+  const lost: Reply = () =>
+    Promise.resolve({ status: 200, text: () => Promise.reject(new Error("lost")) } as unknown as Response);
+  const hangs: Reply = (init) =>
+    new Promise((_resolve, reject) =>
+      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))),
+    );
+  for (const [name, reply, wait] of [
+    ["a network error", (() => Promise.reject(new TypeError("Failed to fetch"))) as Reply, 0],
+    ["the 35-second timeout", hangs, 35_000],
+    ["a lost body", lost, 0],
+  ] as const) {
+    it(`shows cannot_talk.unavailable for ${name}, and marks the sign's visit "at least"`, async () => {
+      const { v, calls } = await fetched(reply);
+      say(v, "What drives him?");
+      await flush();
+      if (wait > 0) {
+        v.clock.advance(wait - 1);
+        await flush();
+        expect(message(v)?.getAttribute("data-message")).not.toBe("cannot_talk.unavailable");
+        v.clock.advance(1);
+        await flush();
+      }
+      expect(message(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(v.room.cost.state.visitAtLeast).toBe(true);
+      expect(box(v).value).toBe("What drives him?");
+      await stillWorks(v, calls);
+    });
+  }
+
+  it("shows turn_stopped when the visitor stops the turn, the fetch aborted", async () => {
+    const { v, calls } = await fetched(hangs);
+    say(v, "What drives him?");
+    await flush();
+    button(v.doc, "Stop").click();
+    await flush();
+    expect(calls[0]?.init.signal?.aborted).toBe(true);
+    expect(message(v)?.getAttribute("data-message")).toBe("turn_stopped");
+    await stillWorks(v, calls);
+  });
+
+  it("shows topic_not_ready for a 409 and ends that conversation", async () => {
+    const replies: Reply[] = [json(409, { error: "not_ready", feature: "f" }), json(200, { text: "x" })];
+    const { v, calls } = await fetched((init) => (replies.shift() ?? json(503, {}))(init), { freeTalk: false });
+    const [first] = talking(fixture().index);
+    if (first === undefined) throw new Error("no talk piece");
+    select(v, first);
+    await flush();
+    expect(message(v)?.getAttribute("data-message")).toBe("topic_not_ready");
+    // The conversation ended: typed text doesn't carry it on, and free talk isn't ready.
+    say(v, "Tell me more.");
+    await flush();
+    expect(calls).toHaveLength(1);
+    expect(message(v)?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
   });
 });

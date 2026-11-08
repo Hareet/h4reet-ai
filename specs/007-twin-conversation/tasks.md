@@ -172,13 +172,13 @@ description: "Task list for spec 007, the twin's conversation core"
 
 ### Tests for User Story 4 (first)
 
-- [ ] T060 [P] [US4] Extend `apps/web/test/ui/talk.test.ts` (FR-036): through a stub `fetch`, each of spec 000's causes in its class's message with the resume and the PDF; the edge's `api_unavailable` and `twin_unavailable` as `cannot_talk.unavailable`; a 502 `local_error` as `cannot_talk.unavailable` (analyze finding A1); a network error, a 35-second timeout, and a lost body as `cannot_talk.unavailable`, with the neon sign's visit marked "at least"; Stop as `turn_stopped`; a 409 as `topic_not_ready`, ending that conversation; in every case the resume, the PDF, and the pieces still work. Check: RED for any row T040 doesn't already handle
-- [ ] T061 [P] [US4] Extend `services/gateway/test/integration/room-turn.test.ts` with fault injection (FR-025, FR-054, SC-005's automated half): the store lost mid-run, the journal unwritable, the local adapter failing with and without a fallback, and the fallback unavailable each give spec 000's cause, with 0 ledger rows for every turn refused before a call. Check: RED for any path T029 doesn't already handle
+- [x] T060 [P] [US4] Extend `apps/web/test/ui/talk.test.ts` (FR-036): through a stub `fetch`, each of spec 000's causes in its class's message with the resume and the PDF; the edge's `api_unavailable` and `twin_unavailable` as `cannot_talk.unavailable`; a 502 `local_error` as `cannot_talk.unavailable` (analyze finding A1); a network error, a 35-second timeout, and a lost body as `cannot_talk.unavailable`, with the neon sign's visit marked "at least"; Stop as `turn_stopped`; a 409 as `topic_not_ready`, ending that conversation; in every case the resume, the PDF, and the pieces still work. Check: RED for any row T040 doesn't already handle
+- [x] T061 [P] [US4] Extend `services/gateway/test/integration/room-turn.test.ts` with fault injection (FR-025, FR-054, SC-005's automated half): the store lost mid-run, the journal unwritable, the local adapter failing with and without a fallback, and the fallback unavailable each give spec 000's cause, with 0 ledger rows for every turn refused before a call. Check: RED for any path T029 doesn't already handle
 
 ### Implementation for User Story 4
 
-- [ ] T062 [US4] Close any gap T060 shows in `apps/web/src/talk/talk.ts`. Check: T060 passes
-- [ ] T063 [US4] Close any gap T061 shows in `src/twin/turn.ts` or `src/routes/room-turn.ts`. Check: T061 passes
+- [x] T062 [US4] Close any gap T060 shows in `apps/web/src/talk/talk.ts`. Check: T060 passes
+- [x] T063 [US4] Close any gap T061 shows in `src/twin/turn.ts` or `src/routes/room-turn.ts`. Check: T061 passes
 
 **Checkpoint**: every degraded path is proven in the room and in the gateway.
 

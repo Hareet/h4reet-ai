@@ -7,11 +7,17 @@
 //   with no fallback, each 503 with spec 000's body and header, no call made; twin_unavailable for invalid twin files
 //   and for prod without limits.twin, while POST /hello still answers on the same app; dev without limits.twin on the
 //   defaults, logged once.
-import { afterEach, describe, expect, it } from "vitest";
+import { chmod, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ROOM, committed, committedTexts, readinessText, runningHashes, short, twinWith } from "../helpers/twin.js";
 import { ledger, twinStack, type TwinStack } from "../helpers/twin-stack.js";
 import { twinFromTexts } from "../../src/config/twin.js";
+import { SyntheticAdapter } from "../../src/adapters/synthetic.js";
+import { monthKey } from "../../src/core/clock.js";
+import { connectionLost } from "../helpers/pglite.js";
 
 type Rec = Record<string, unknown>;
 const stacks: TwinStack[] = [];
@@ -416,5 +422,91 @@ describe("free talk and a follow-up's ranked sections (T048; User Story 2)", () 
     expect(gap).toBeDefined();
     expect(system).toContain(`${header(gap as Section)}\n${gap?.text ?? "~"}\n`);
     expect(system).not.toContain("{{slot");
+  });
+});
+
+// T061 (spec 007; FR-025, FR-054; SC-005's automated half; User Story 4): faults injected mid-run. The store lost after
+// a turn answered, the call journal unwritable, the local call failing with a fallback and without one, and the
+// fallback down beside the local model: each gives spec 000's cause, and a turn refused before a call makes no call and
+// writes no ledger row.
+describe("faults mid-run (T061; FR-025, FR-054)", () => {
+  const ok = { ok: { text: "An answer from the corpus.", inputTokens: 900, outputTokens: 6, finish: "stop" as const } };
+  const calls = (t: TwinStack): number => t.stub.requests().filter((r) => r.path.endsWith("/chat/completions")).length;
+  const opening = () => ({ feature: ROOM.lead.id, path: "engineer", turns: [] });
+  const cause = (res: { statusCode: number; headers: Record<string, unknown> }) => [
+    res.statusCode,
+    res.headers["x-h4-degraded-cause"],
+  ];
+
+  it("answers store_unreachable once the store is lost after a turn answered, and answers again when it's back", async () => {
+    const t = await stack();
+    t.stub.setCompletions(ok);
+    expect((await t.turn(opening())).statusCode).toBe(200);
+    const before = calls(t);
+    t.s.db.hook = () => {
+      throw connectionLost();
+    };
+    expect(cause(await t.turn(opening()))).toEqual([503, "store_unreachable"]);
+    expect(calls(t)).toBe(before);
+    t.s.db.hook = undefined;
+    expect(await ledger(t.s)).toHaveLength(1);
+    expect((await t.turn(opening())).statusCode).toBe(200);
+  });
+
+  it("answers journal_unwritable on the fallback's path with no call, row, or reservation, and local still answers", async () => {
+    const t = await stack({ fallback: true, healthy: false });
+    t.stub.setCompletions(ok);
+    await t.s.services.gateway.probeAll(); // the synthetic fallback is healthy; local isn't yet
+    const dir = join(t.s.stateDir, "journal");
+    await mkdir(dir, { recursive: true });
+    await chmod(join(dir, `${monthKey(Date.now())}.jsonl`), 0o400);
+    await chmod(dir, 0o500);
+    try {
+      expect(cause(await t.turn(opening()))).toEqual([503, "journal_unwritable"]);
+      expect(calls(t)).toBe(0);
+      expect((await t.s.db.pg.query("SELECT count(*)::int AS n FROM gateway.reservations")).rows).toEqual([{ n: 0 }]);
+      expect(await ledger(t.s)).toEqual([]);
+      await t.s.services.gateway.probeAll();
+      await t.s.services.gateway.probeAll(); // three passing probes: local is healthy
+      expect((await t.turn(opening())).json()).toMatchObject({ route: "local" });
+    } finally {
+      await chmod(dir, 0o700);
+    }
+  });
+
+  it("falls back when the local call fails as unavailable on a stack with a fallback, and says route fallback", async () => {
+    const t = await stack({ fallback: true });
+    t.stub.next({ refuse: true }); // the model server stops between the probe and the call (gateway-http.md §2.4, 5.3)
+    const res = await t.turn(opening());
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ route: "fallback", text: "synthetic response" });
+    expect((await ledger(t.s)).some((r) => r.route_decision === "fallback")).toBe(true);
+  });
+
+  it("answers no_fallback_in_stack, or 502 local_error, when the local call fails on a stack with no fallback", async () => {
+    const t = await stack();
+    t.stub.next({ refuse: true }); // unavailable: it would fail over, and there's nowhere to go
+    expect(cause(await t.turn(opening()))).toEqual([503, "no_fallback_in_stack"]);
+    const fresh = await stack();
+    fresh.stub.next({ status: 500 }); // a provider error doesn't fail over (5.1)
+    const res = await fresh.turn(opening());
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({ error: "local_error" });
+  });
+
+  it("answers fallback_unavailable when the local model and the fallback are both down, with no call and no row", async () => {
+    const t = await stack({ fallback: true, healthy: false });
+    t.stub.setHealth({ status: 500 });
+    const down = vi
+      .spyOn(SyntheticAdapter.prototype, "health")
+      .mockResolvedValue({ healthy: false, checkedAt: new Date().toISOString(), reason: "timeout" });
+    try {
+      for (let i = 0; i < 3; i += 1) await t.s.services.gateway.probeAll();
+      expect(cause(await t.turn(opening()))).toEqual([503, "fallback_unavailable"]);
+      expect(calls(t)).toBe(0);
+      expect(await ledger(t.s)).toEqual([]);
+    } finally {
+      down.mockRestore();
+    }
   });
 });
