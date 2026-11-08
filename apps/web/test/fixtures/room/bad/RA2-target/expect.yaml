@@ -1,0 +1,8 @@
+rule: RA2
+file: assets/visitors/dog/dog-idle.glb
+path: animations[0].channels[0].target.node
+why: a clip moving a node its model doesn't name, the model without hand bones (spec 009, FR-003)
+generate:
+  assets/visitors/dog/dog.glb: glb:avatar-handless
+  assets/visitors/dog/dog-idle.glb: glb:avatar-idle-holding
+  assets/visitors/dog/records.json: visitor-records

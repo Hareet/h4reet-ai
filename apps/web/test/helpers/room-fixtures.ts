@@ -16,7 +16,7 @@ import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
-import { desk, rxVariants, sign } from "./glb";
+import { avatarClips, avatarGlb, clipGlb, desk, rxVariants, sign } from "./glb";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 export const FIXTURES_DIR = here("../fixtures/room/");
@@ -188,10 +188,52 @@ function edited(data: Uint8Array, file: string, edits: readonly Edit[], where: s
 
 let variants: Map<string, Uint8Array> | null = null;
 
-/** A generator's output: a GLB (glb:desk, glb:sign, glb:<rxVariants id>), or `records` over the tree's models. */
-function generated(name: string, files: ReadonlyMap<string, Uint8Array | null>, where: string): Uint8Array {
+/** An avatar's file as spec 009's fixtures make it (test/helpers/glb.ts): its model, one without hand bones, each of its
+ *  three clips, or a clip with no animation. */
+const AVATAR_GENERATORS: Readonly<Record<string, () => Uint8Array>> = {
+  "glb:avatar": () => avatarGlb().bytes,
+  "glb:avatar-handless": () => avatarGlb({ hands: false }).bytes,
+  "glb:avatar-idle": () => avatarClips().idle.bytes,
+  "glb:avatar-idle-holding": () => avatarClips()["idle-holding"].bytes,
+  "glb:avatar-take": () => avatarClips().take.bytes,
+  "glb:avatar-still": () => clipGlb("idle").bytes,
+};
+
+/** A visitor avatar's records.json (spec 009, FR-009): every file of its folder in the tree, sorted, the model, named
+ *  for the folder, of the kind avatar and every other file animation, from a prompt, no likeness. */
+function visitorRecords(path: string, files: ReadonlyMap<string, Uint8Array | null>): Uint8Array {
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  const id = dir.slice(dir.lastIndexOf("/") + 1);
+  const entries = [...files]
+    .filter(([p, data]) => data !== null && p.startsWith(`${dir}/`) && p.endsWith(".glb"))
+    .map(([p, data]) => ({ file: p.slice(dir.length + 1), data: data as Uint8Array }))
+    .sort((a, b) => (a.file < b.file ? -1 : 1))
+    .map(({ file, data }) => ({
+      file,
+      sha256: sha256(data),
+      kind: file === `${id}.glb` ? "avatar" : "animation",
+      made: "2026-11-07",
+      source: { type: "prompt", id: "P-0042" },
+      likeness: false,
+      media_license: "all-rights-reserved-2026",
+    }));
+  const record = { schema: 1, directory: dir, license: "all-rights-reserved-2026", entries };
+  return bytes(`${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** A generator's output: a GLB (glb:desk, glb:sign, glb:<rxVariants id>, spec 009's glb:avatar…), `records` over the
+ *  tree's models, or `visitor-records` over the folder of `path`. */
+function generated(
+  name: string,
+  files: ReadonlyMap<string, Uint8Array | null>,
+  where: string,
+  path: string,
+): Uint8Array {
   if (name === "glb:desk") return desk().bytes;
   if (name === "glb:sign") return sign().bytes;
+  const avatar = Object.hasOwn(AVATAR_GENERATORS, name) ? AVATAR_GENERATORS[name] : undefined;
+  if (avatar) return avatar();
+  if (name === "visitor-records") return visitorRecords(path, files);
   if (name.startsWith("glb:")) {
     variants ??= new Map(rxVariants().map((v) => [v.id, v.bytes]));
     const found = variants.get(name.slice(4));
@@ -268,10 +310,11 @@ function readCase(name: string): BadCase {
   for (const [rel, data] of existsSync(files) ? walk(files) : []) changes.set(rel, data);
   for (const [p, text] of Object.entries(stringMap(spec.raw, `${where} raw`))) changes.set(p, rawBytes(text, where));
   const generate = stringMap(spec.generate, `${where} generate`);
-  const order = Object.entries(generate).sort(([, a], [, b]) => Number(a === "records") - Number(b === "records"));
+  const late = (g: string): number => Number(g === "records" || g === "visitor-records");
+  const order = Object.entries(generate).sort(([, a], [, b]) => late(a) - late(b));
   for (const [p, generator] of order) {
     const tree = new Map<string, Uint8Array | null>([...base, ...changes]);
-    changes.set(p, generated(generator, tree, where));
+    changes.set(p, generated(generator, tree, where, p));
   }
   const edits = (spec.edits ?? []) as Edit[];
   if (!Array.isArray(edits)) throw new Error(`${where}: edits is a list`);

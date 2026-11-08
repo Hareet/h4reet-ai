@@ -133,8 +133,10 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "walk.entered": [],
       "walk.left": [],
       "walk.target": ["name"],
+      // Spec 009's stand-in line (FR-013, FR-039).
+      "twin.stand_in": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(40);
+    expect(Object.keys(UI_KEYS)).toHaveLength(41);
   });
 
   it("give one tier sentence for each tier value", () => {

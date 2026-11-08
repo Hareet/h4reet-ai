@@ -1,0 +1,8 @@
+rule: RA2
+file: assets/visitors/woman/woman-idle.glb
+path: "-"
+why: a clip with no animation (spec 009, FR-009)
+generate:
+  assets/visitors/woman/woman.glb: glb:avatar
+  assets/visitors/woman/woman-idle.glb: glb:avatar-still
+  assets/visitors/woman/records.json: visitor-records

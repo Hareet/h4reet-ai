@@ -1,0 +1,10 @@
+rule: RA1
+file: assets/visitors/woman/woman-idle.glb
+path: "-"
+why: a clip recorded with a kind other than animation (spec 009, FR-009)
+generate:
+  assets/visitors/woman/woman.glb: glb:avatar
+  assets/visitors/woman/woman-idle.glb: glb:avatar-idle
+  assets/visitors/woman/records.json: visitor-records
+edits:
+  - { file: assets/visitors/woman/records.json, at: [entries, 0, kind], set: avatar }

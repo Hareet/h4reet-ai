@@ -29,8 +29,10 @@ import { roomBundle } from "../build/room/plugin";
 import { fileTree } from "../build/room/source";
 import type { SceneModel } from "../src/room/compose/bundle";
 import { png } from "./helpers/glb";
+import { avatarPolicy, nightFiles } from "./helpers/room-avatars";
 import { goodFiles } from "./helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "./helpers/room-models";
+import type { RoomPolicy } from "../build/room/policy";
 
 const MESSAGES = fileURLToPath(new URL("../content/messages.yaml", import.meta.url));
 /** The pieces whose models the fixture tree sets: two placements' and the switch's (fx-power shows fx-plug). */
@@ -103,7 +105,10 @@ const MAIN =
 
 /** A release build of a small page through the room's plugin, over a tree of `data`: its dist/, and the compose the
  *  plugin made (the same tree and policy, so its bundle is the build's). */
-async function releaseBuild(data: Map<string, string | Uint8Array>): Promise<{ dist: string; result: ComposeResult }> {
+async function releaseBuild(
+  data: Map<string, string | Uint8Array>,
+  policy: () => RoomPolicy = capsPolicy,
+): Promise<{ dist: string; result: ComposeResult }> {
   vi.stubEnv("ROOM_DRAFTS", "");
   const top = temp("room-serving-");
   const [repository, site] = [join(top, "repository"), join(top, "page")];
@@ -119,9 +124,9 @@ async function releaseBuild(data: Map<string, string | Uint8Array>): Promise<{ d
     publicDir: false,
     cacheDir: join(top, "vite-cache"),
     build: { outDir: join(site, "dist"), emptyOutDir: true },
-    plugins: [roomBundle({ root: repository, messages: MESSAGES, policy: capsPolicy })],
+    plugins: [roomBundle({ root: repository, messages: MESSAGES, policy })],
   });
-  const result = compose(fileTree(repository), capsPolicy(), { mode: "lenient", drafts: false });
+  const result = compose(fileTree(repository), policy(), { mode: "lenient", drafts: false });
   return { dist: join(site, "dist"), result };
 }
 
@@ -221,5 +226,50 @@ describe("a release build that can read no model (contracts/serving.md §3)", ()
     ))
       expect(shown.has(placement.id), placement.id).toBe(true);
     expect(manifest.standins.every((s) => s.reason !== "no-caps")).toBe(true);
+  });
+});
+
+// Spec 009's avatars (FR-023; plan.md R-15; Amendment M19): each bundled avatar file's copy, written by the room's build
+// with the same pako call as a room model's, under a/, and no plain .glb.
+describe("a release build with the avatars' files (spec 009, FR-023)", () => {
+  it("holds each bundled avatar file's .glb.gz under a/: pako's gzip-9, its SHA-256 and URL, its length the entry's bytes", async () => {
+    const night = nightFiles();
+    const data = new Map<string, string | Uint8Array>([...goodFiles(), ...Object.entries(night)]);
+    const { dist, result } = await releaseBuild(data, () => avatarPolicy());
+    const built = [...files(dist).keys()];
+    expect(built.filter((p) => p.endsWith(".glb"))).toEqual([]);
+    const entries = new Map<string, { sha256: string; bytes: number }>();
+    for (const avatar of Object.values(result.scene.avatars)) {
+      if (!avatar) continue;
+      entries.set(avatar.model.url, avatar.model);
+      for (const clip of Object.values(avatar.clips)) if (clip) entries.set(clip.url, clip);
+    }
+    expect(entries.size).toBe(8);
+    expect(built.filter((p) => p.startsWith("a/")).sort()).toEqual([...entries.keys()].map((u) => `${u}.gz`).sort());
+    for (const [url, entry] of entries) {
+      const copy = readFileSync(join(dist, `${url}.gz`));
+      const [, stem, hash16] = /^a\/([a-z0-9-]+)\.([0-9a-f]{16})\.glb$/.exec(url) ?? [];
+      const id = (stem ?? "").split("-")[0] ?? "";
+      const plain = data.get(`assets/visitors/${id}/${stem ?? ""}.glb`) as Uint8Array;
+      expect(Buffer.compare(gunzipSync(copy), Buffer.from(plain)), url).toBe(0);
+      expect(sha256(plain).slice(0, 16), url).toBe(hash16);
+      expect(entry.sha256, url).toBe(sha256(plain));
+      expect(Buffer.compare(copy, Buffer.from(gzip(plain, { level: 9, header: { time: 0, os: 255 } }))), url).toBe(0);
+      expect([...copy.subarray(0, 10)], url).toEqual(HEADER);
+      expect(entry.bytes, url).toBe(copy.length);
+    }
+  });
+
+  it("builds without the avatars' files, both figures on their fallbacks, as the image's build without visitor-assets", async () => {
+    const night = nightFiles();
+    const data = new Map<string, string | Uint8Array>([
+      ...goodFiles(),
+      ...Object.entries(night).filter(([path]) => !path.startsWith("assets/visitors/")),
+    ]);
+    const { dist, result } = await releaseBuild(data, () => avatarPolicy());
+    expect(result.findings.map((f) => formatFinding(f, "lenient"))).toEqual([]);
+    expect(result.scene.avatars).toEqual({});
+    expect(result.scene.figures.stand_in).toBe("man");
+    expect([...files(dist).keys()].filter((p) => p.startsWith("a/"))).toEqual([]);
   });
 });

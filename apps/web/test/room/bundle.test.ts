@@ -347,8 +347,11 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
     expect(Object.keys(index.switches[0]?.cases ?? {})).toEqual([...TIER_VALUES]);
   });
 
-  it("lists the text copy by reference: the bound faces, the switches, the sign's figures, and the fixed lines", () => {
+  it("lists the text copy by reference: the stand-in line, the bound faces, the switches, the figures, the fixed lines", () => {
+    // Spec 009's stand-in line comes first while the twin's figure shows anything but the twin's own avatar, which in
+    // that spec is always (its FR-013, R-13).
     expect(good().index.copy).toEqual([
+      { line: "twin.stand_in" },
       { face: "fx-monitor.screen" },
       { face: "fx-neon.panel" },
       { face: "fx-board.slate" },

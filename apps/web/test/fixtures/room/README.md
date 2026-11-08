@@ -34,11 +34,11 @@ copy: { <from>: <to> } # optional: a file of the set, copied
 move: { <from>: <to> } # optional: a file of the set, moved
 remove: [<path>] # optional: files or folders taken out
 raw: { <path>: "<bytes>" } # optional: a file written byte for byte, each character one byte, so YAML's \xNN escapes write any byte
-generate: { <path>: glb:desk } # optional: a file made when the test runs (glb:desk, glb:sign, glb:<rxVariants id>, records)
+generate: { <path>: glb:desk } # optional: a file made when the test runs (glb:desk, glb:sign, glb:<rxVariants id>, records; spec 009's glb:avatar, glb:avatar-handless, glb:avatar-idle, glb:avatar-idle-holding, glb:avatar-take, glb:avatar-still, visitor-records)
 caps: { schema: 1, per_asset: { room: {} } } # optional: main's caps.json, as a value written as JSON, or as text
 full_name: <name> # optional: main's resume-header.json full name, for the surname rule
 ```
 
-They apply in this order: `copy`, `move`, `remove`, `files/`, `raw`, `generate` (the GLBs, then `records`, which records every model and card under `assets/room/` with the kind `room` and its SHA-256), then `edits`, which may change a generated JSON file too. Spec 003's rule A1 refuses a committed model outside `assets/`, so a case's models are made when the test runs, by `test/helpers/glb.ts`. A case composes with no policy at all (`policy.ts`'s `noPolicy()`: FR-053's starting figures, nothing approved, no name) unless it gives `caps` or `full_name`; then the policy is the one a policy directory holding those files would give.
+They apply in this order: `copy`, `move`, `remove`, `files/`, `raw`, `generate` (the GLBs, then `records`, which records every model and card under `assets/room/` with the kind `room` and its SHA-256, and spec 009's `visitor-records`, which records every GLB of its own folder under `assets/visitors/`, the model named for the folder with the kind `avatar` and every other file `animation`), then `edits`, which may change a generated JSON file too. Spec 003's rule A1 refuses a committed model outside `assets/`, so a case's models are made when the test runs, by `test/helpers/glb.ts`. A case composes with no policy at all (`policy.ts`'s `noPolicy()`: FR-053's starting figures, nothing approved, no name) unless it gives `caps` or `full_name`; then the policy is the one a policy directory holding those files would give.
 
 The test holds each case to a finding with its rule, file, and path; other findings may come with it, such as a reference to a file the case broke. Every rule of contracts/room-data-files.md §13 but RG8, which only reports, needs at least one case: `compose.test.ts`'s coverage test fails until each has one.

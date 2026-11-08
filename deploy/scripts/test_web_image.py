@@ -127,7 +127,7 @@ def digest(files: dict[str, bytes | None]) -> str:
 
 class FakeDocker:
     """docker buildx build, as the engine would answer it, keeping a copy of the policy context it was handed, and
-    the room-assets context's path, or None where the build names none."""
+    the room-assets and visitor-assets contexts' paths, or None where the build names one or the other not."""
 
     def __init__(self, build_rc: int = 0) -> None:
         self.build_rc = build_rc
@@ -135,6 +135,7 @@ class FakeDocker:
         self.contexts: list[dict[str, bytes]] = []
         self.context_dirs: list[Path] = []
         self.room_assets: list[str | None] = []
+        self.visitor_assets: list[str | None] = []
 
     def __call__(self, *args: str, capture: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(args)
@@ -146,12 +147,18 @@ class FakeDocker:
             if a == "--build-context"
         ]
         names = [name for name, _, _ in named]
-        assert names in (["policy"], ["policy", "room-assets"]), names
+        assert names in (
+            ["policy"],
+            ["policy", "room-assets"],
+            ["policy", "visitor-assets"],
+            ["policy", "room-assets", "visitor-assets"],
+        ), names
         where = {name: path for name, _, path in named}
         folder = Path(where["policy"])
         self.context_dirs.append(folder)
         self.contexts.append({p.name: p.read_bytes() for p in sorted(folder.iterdir())})
         self.room_assets.append(where.get("room-assets"))
+        self.visitor_assets.append(where.get("visitor-assets"))
         return subprocess.CompletedProcess(args, self.build_rc, "", "")
 
     def builds(self) -> list[tuple[str, ...]]:
@@ -166,11 +173,16 @@ def build_argv(
     context: str,
     policy: str,
     room: Path | None = None,
+    visitors: Path | None = None,
 ) -> tuple[str, ...]:
     """The one build the script may run: its own tree's Dockerfile and context, the proxy, the drafts flag, the
-    policy context, the tree's models as the room-assets context where it has them (`room`), and the policy's digest
-    as a label."""
+    policy context, the tree's models as the room-assets context where it has them (`room`), its visitor avatars'
+    folder as the visitor-assets context where it has one (`visitors`, spec 009), and the policy's digest as a
+    label."""
     models = ("--build-context", f"room-assets={room}") if room is not None else ()
+    avatars = (
+        ("--build-context", f"visitor-assets={visitors}") if visitors is not None else ()
+    )
     return (
         "buildx",
         "build",
@@ -188,6 +200,7 @@ def build_argv(
         "--build-context",
         f"policy={context}",
         *models,
+        *avatars,
         "--label",
         f"org.h4reet.web.policy={policy}",
         str(tree),
@@ -892,6 +905,9 @@ def test_dev_cpu_builds_the_working_tree_with_drafts(
     # The working tree holds the room's models, under assets/room/ (spec 004, T234), so they go with the build.
     room = REPO / "assets/room"
     assert room.is_dir() and not room.is_symlink() and not room.parent.is_symlink()
+    # And its visitor avatars' folder, under assets/visitors/ (spec 009, FR-023), whatever avatars it holds yet.
+    visitors = REPO / "assets/visitors"
+    assert visitors.is_dir() and not visitors.is_symlink()
     assert fake.calls == [
         build_argv(
             REPO,
@@ -901,10 +917,12 @@ def test_dev_cpu_builds_the_working_tree_with_drafts(
             context_of(argv),
             digest(BOTH),
             room=room,
+            visitors=visitors,
         )
     ]
     assert fake.contexts == [BOTH]
     assert fake.room_assets == [str(room)]
+    assert fake.visitor_assets == [str(visitors)]
     assert "h4reet-web:working-tree-drafts, built" in capsys.readouterr().out
 
 
@@ -1055,7 +1073,8 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     assert len(builds) == 2
     assert all(copy < i for i in builds)
     # Of the files the build context gives (a COPY or ADD with no --from), the caps are the only one under assets/.
-    # The models come from the named room-assets stage instead (T219), never from the context's assets/room.
+    # The models come from the named room-assets stage instead (T219), never from the context's assets/room, and the
+    # visitor avatars from the visitor-assets stage (spec 009, FR-023).
     assert [
         ln
         for ln in instructions
@@ -1065,7 +1084,7 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
         ln
         for ln in instructions
         if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln and ln != caps
-    ] == [ROOM_ASSETS_COPY]
+    ] == [ROOM_ASSETS_COPY, VISITOR_ASSETS_COPY]
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1429,3 +1448,110 @@ def test_web_image_names_no_target(tmp_path: Path, export: Path, repo: Path) -> 
         fake = FakeDocker()
         assert host(stack, env, run, fake, export, repo) == 0
         assert not [a for a in built(fake) if a.startswith("--target")], stack
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 009's avatars (FR-023; plan.md R-15; Amendment M19): the tree's own assets/visitors, as the named context
+# visitor-assets, exactly when it is a directory of the tree, neither it nor assets/ a link
+# --------------------------------------------------------------------------------------------------
+VISITOR_ASSETS_COPY = "COPY --from=visitor-assets / /src/assets/visitors/"
+
+
+def with_visitors(tree: Path) -> Path:
+    """The tree's assets/visitors/, holding an avatar's folder with its model and record, as the intake lays it out."""
+    visitors = tree / "assets/visitors"
+    (visitors / "woman").mkdir(parents=True)
+    (visitors / "woman/woman.glb").write_bytes(b"glTF made by the test")
+    (visitors / "woman/records.json").write_text('{"schema": 1}\n', encoding="utf-8")
+    return visitors
+
+
+def test_the_avatars_come_from_the_export_it_builds(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    visitors = with_visitors(export)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, SHA, "", "", context_of(argv), digest(BOTH), visitors=visitors
+    )
+    assert fake.visitor_assets == [str(visitors)]
+    assert fake.room_assets == [None]
+    # With the room's models too: both named contexts, room-assets first.
+    room = with_models(export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, SHA, "", "", context_of(argv), digest(BOTH), room=room, visitors=visitors
+    )
+
+
+def visitors_a_link(tree: Path, outside: Path) -> None:
+    visitors = with_visitors(outside)
+    (tree / "assets").mkdir()
+    (tree / "assets/visitors").symlink_to(visitors, target_is_directory=True)
+
+
+def visitors_under_assets_a_link(tree: Path, outside: Path) -> None:
+    with_visitors(outside)
+    (tree / "assets").symlink_to(outside / "assets", target_is_directory=True)
+
+
+def visitors_a_file(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+    (tree / "assets/visitors").write_bytes(b"not a directory")
+
+
+@pytest.mark.parametrize(
+    "make", [visitors_a_link, visitors_under_assets_a_link, visitors_a_file]
+)
+def test_assets_visitors_that_isnt_the_trees_own_directory_names_no_context(
+    tmp_path: Path,
+    export: Path,
+    repo: Path,
+    make: Callable[[Path, Path], None],
+) -> None:
+    # As for room-assets: a link would hand the build a directory the commit doesn't hold.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make(export, outside)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.visitor_assets == [None]
+    assert not [a for a in built(fake) if "visitor-assets" in a]
+
+
+def test_the_visitor_assets_stage_is_empty_and_beside_the_room_assets_stage() -> None:
+    # A build that names no visitor-assets context, such as the gate's image step, gets the empty stage, and both
+    # figures show their fallbacks.
+    stages = dockerfile_stages()
+    names = [name for _, name, _ in stages]
+    at = names.index("visitor-assets")
+    assert names[at - 1] == "room-assets"
+    assert stages[at] == ("scratch", "visitor-assets", [])
+
+
+def test_the_build_stage_copies_the_avatars_before_it_builds_and_nothing_else_reads_them() -> None:
+    by_name = {name: body for _, name, body in dockerfile_stages() if name}
+    build = by_name["build"]
+    (run,) = [
+        i
+        for i, ln in enumerate(build)
+        if ln.startswith("RUN ") and " build -w apps/web" in ln
+    ]
+    assert VISITOR_ASSETS_COPY in build
+    assert build.index(VISITOR_ASSETS_COPY) < run
+    readers = [
+        name or image
+        for image, name, body in dockerfile_stages()
+        if image.lower() == "visitor-assets"
+        or any(
+            copied_from(ln) == "visitor-assets" or "visitor-assets" in mounted_from(ln)
+            for ln in body
+        )
+    ]
+    assert readers == ["build"]

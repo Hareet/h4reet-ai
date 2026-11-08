@@ -42,6 +42,19 @@ function markdownTables(md: string): string[][][] {
   return tables;
 }
 
+/** Spec 009's Amendment M6, in its own words: what V1's Carries gains, after "and", and what V4's Trigger gains. */
+function amendmentM6(): { v1: string; v4: string } {
+  const spec = readFileSync(resolve(WEB, "../../specs/009-room-avatars/spec.md"), "utf8");
+  const row = markdownTables(spec)
+    .flatMap((t) => t.slice(1))
+    .find((r) => r[0] === "M6");
+  const change = row?.[2] ?? "";
+  const v1 = /V1's Carries gains "([^"]+)"/.exec(change)?.[1];
+  const v4 = /V4's Trigger gains "([^"]+)"/.exec(change)?.[1];
+  if (v1 === undefined || v4 === undefined) throw new Error("spec 009's M6 doesn't read as this test reads it");
+  return { v1: `and ${v1}`, v4 };
+}
+
 function htmlTables(html: string): string[][][] {
   const doc = new JSDOM(html).window.document;
   return [...doc.querySelectorAll("table")].map((table) =>
@@ -67,7 +80,8 @@ describe("the disclosure page", () => {
 
   it("gives the room's rows what the spec's entries carry, never carry, and why, in the spec's own words", () => {
     // spec.md's Data-Flow Disclosure Entries: ID | From → To | Carries | Never carries | Why. The disclosure adds
-    // Trigger after From → To, so its Carries, Never carries, and Why are columns 3 to 5 (FR-058; T062 for V4).
+    // Trigger after From → To, so its Carries, Never carries, and Why are columns 3 to 5 (FR-058; T062 for V4). Spec
+    // 009's Amendment M6 adds to V1's Carries, in its own words, and to V4's Trigger, which spec 002's entry lacks.
     const spec = readFileSync(resolve(WEB, "../../specs/002-the-room/spec.md"), "utf8");
     const entries = new Map(
       markdownTables(spec)
@@ -79,11 +93,13 @@ describe("the disclosure page", () => {
         .flatMap((t) => t.slice(1))
         .map((row) => [row[0], row] as const),
     );
+    const { v1 } = amendmentM6();
     for (const id of ["V1", "V4"]) {
       const entry = entries.get(id);
       const row = rows.get(id);
       expect(entry, id).toBeDefined();
-      expect(row?.slice(3, 6), id).toEqual(entry?.slice(2, 5));
+      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${v1}` : entry?.[2];
+      expect(row?.slice(3, 6), id).toEqual([carries, ...(entry?.slice(3, 5) ?? [])]);
     }
   });
 
@@ -94,6 +110,19 @@ describe("the disclosure page", () => {
         .map((row) => [row[0], row] as const),
     );
     expect(rows.get("V4")?.[2]).toContain("the visitor first entering the walking view in a visit");
+  });
+
+  it("names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)", () => {
+    const rows = new Map(
+      markdownTables(SOURCE)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    const { v1, v4 } = amendmentM6();
+    expect(v1).toMatch(/^and the avatar files: .*whose paths show which avatar the visitor chose$/);
+    expect(rows.get("V1")?.[3]).toContain(v1);
+    expect(v4).toBe("and a figure's avatar failing to load, once a visit");
+    expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);
   });
 
   it("puts header cells in th and body cells in td", () => {

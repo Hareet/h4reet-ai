@@ -177,6 +177,7 @@ describe("POST /room/events accepts", () => {
       { kind: "voice_pressed" },
       { kind: "mode_2d" },
       { kind: "walk_started" },
+      { kind: "avatar_failed" },
     ];
     for (const [i, event] of sent.entries()) {
       const res = await post(stack, JSON.stringify(event), i % 2 === 0 ? BEACON : "application/json");
@@ -195,8 +196,20 @@ describe("POST /room/events accepts", () => {
       [{ kind: "voice_pressed", id: "-" }, 1],
       [{ kind: "mode_2d", id: "-" }, 1],
       [{ kind: "walk_started", id: "-" }, 1],
+      [{ kind: "avatar_failed", id: "-" }, 1],
     ]);
     expect(await meter.points("h4.room.events.refused")).toEqual([]);
+  });
+
+  it("avatar_failed with no identifier, and refuses it with one as the shape (spec 009, FR-032, SC-011)", async () => {
+    const { stack, meter } = await stackWith();
+    const ok = await post(stack, '{"kind":"avatar_failed"}');
+    expect(ok.statusCode).toBe(204);
+    const withId = await post(stack, `{"kind":"avatar_failed","id":"${firstObject()}"}`);
+    expect(withId.statusCode).toBe(400);
+    expect(withId.json()).toMatchObject({ error: "invalid_request", field: "body" });
+    expect(await meter.points("h4.room.events")).toEqual([[{ kind: "avatar_failed", id: "-" }, 1]]);
+    expect(await meter.points("h4.room.events.refused")).toEqual([[{ reason: "shape" }, 1]]);
   });
 
   it("answers while the store is down: an event reads nothing from it", async () => {
