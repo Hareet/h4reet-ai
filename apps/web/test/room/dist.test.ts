@@ -16,8 +16,9 @@
 // builds, the global setup's release build and drafts build (test/global-build.ts), with the room's data in them.
 // - No file under either holds a † field's value or a pending line of the committed data, read the same way, a
 //   script's template literals among its whole strings, as the minifier writes most strings so. A value that a public
-//   field holds as well, a topic's phrase being its own quote, is that field's, and so is a claim's quote that a
-//   narration script says too, which the build publishes as the script's words (plan.md §10; T308).
+//   field holds as well, a topic's phrase being its own quote, is that field's, and so, in the drafts build, is a
+//   claim's quote that a narration script says too, which that build publishes as the script's words (plan.md §10;
+//   T308). The release build publishes no narration, so there the quote is held nowhere (the review of T308, nit 2).
 // - The release build holds no lookdev page, no drafts-only module, no fixture, and no draft room text.
 // - No plain .glb is anywhere, and each a/*.glb.gz is the gzip copy of a model the 3D part names, inflating to its
 //   SHA-256, with MTIME 0, its length the entry's `bytes`.
@@ -389,13 +390,15 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
 
   it("holds no † field's value and no pending line of the committed data, in any file", () => {
     const room = committed();
-    // A value a public field holds too is that field's: spec 002's topic phrase that is its own quote, and a claim's
-    // quote that a narration script says too, in the words the build publishes as the script's (plan.md §10; T308).
+    // A value a public field holds too is that field's: spec 002's topic phrase that is its own quote, and, in the
+    // drafts build, a claim's quote that a narration script says too, in the words that build publishes as the
+    // script's (plan.md §10; T308). The release build publishes no narration, so there the exception doesn't apply and
+    // the quote must be in no file (the review of T308, nit 2).
     const phrases = new Set(room.topics?.value.topics.map((t) => t.phrase));
     const facts = readFacts(REPO);
     const narration = readScripts(REPO).map((s) => collapse(fillSlots(s.body, facts)));
     const said = (s: Secret): boolean =>
-      s.field === "claims" && narration.some((words) => words.includes(collapse(s.value)));
+      kind === "drafts" && s.field === "claims" && narration.some((words) => words.includes(collapse(s.value)));
     const values = secrets(room).filter((s) => !phrases.has(s.value) && !said(s));
     expect(values.length).toBeGreaterThan(0);
     const survey = ["survey", ...Object.keys(room.scene?.value.survey ?? {})];

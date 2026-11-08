@@ -450,16 +450,19 @@ describe("the committed room text (T181; FR-031, FR-033, User Story 5 scenario 4
   });
 
   // FR-082: until the Author adds more ("We can add more later"), the slate shows one line, "denverlocal.ai", and
-  // nothing else: one chalk region, one row, bound to that line's block alone; no resume_titles region; the drafted
-  // blocks bound to no face (spec.md's Clarifications, Session 2026-10-30, US5 · 1 and US5 · 3).
+  // nothing else: one chalk region, one row, bound to that line's block alone, and the only region on its face; no
+  // resume_titles region; the drafted blocks bound to no face (spec.md's Clarifications, Session 2026-10-30, US5 · 1
+  // and US5 · 3; the review of T308, nit 3).
   it("binds FR-082's one chalk line alone, in one row: denverlocal.ai, citing corpus/07's sentence (T308)", () => {
     const repository = loadRoom(fileTree(root));
-    const regions = (repository.scene?.value.placements ?? []).flatMap((p) =>
-      Object.values(p.faces ?? {}).flatMap((face) => face.regions.filter((r) => r.renderer === "chalk")),
-    );
+    const faces = (repository.scene?.value.placements ?? []).flatMap((p) => Object.values(p.faces ?? {}));
+    const regions = faces.flatMap((face) => face.regions.filter((r) => r.renderer === "chalk"));
     expect(regions.map((r) => ({ grid: r.grid, resume_titles: r.resume_titles ?? false }))).toEqual([
       { grid: { rows: 1 }, resume_titles: false },
     ]);
+    // "that line and nothing else": the face that holds the chalk region holds no other region.
+    const slates = faces.filter((face) => face.regions.some((r) => r.renderer === "chalk"));
+    expect(slates.map((face) => face.regions.length)).toEqual([1]);
     const bound = repository.blocks.filter((b) => regions.some((r) => r.text === b.value.block));
     const lines = bound.map((b) => b.value.lines.map((l) => ({ text: l.text, pending: l.pending, claims: l.claims })));
     expect(lines).toEqual([
