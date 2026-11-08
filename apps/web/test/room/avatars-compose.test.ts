@@ -193,7 +193,10 @@ describe("the avatars in the bundle (FR-009, FR-023, FR-024; plan.md §3.2, R-01
 
 describe("the RA family (FR-038; plan.md §3.5)", () => {
   /** The finding a strict build refuses with, and the lenient build's bundle without the file. */
-  function both(tree: Tree, policy: RoomPolicy = avatarPolicy()): { strict: Finding[]; lenient: ComposeResult } {
+  function both(
+    tree: Tree,
+    policy: RoomPolicy = avatarPolicy(),
+  ): { strict: readonly Finding[]; lenient: ComposeResult } {
     return { strict: composed(tree, policy, STRICT).findings, lenient: composed(tree, policy, LENIENT) };
   }
 

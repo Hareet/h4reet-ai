@@ -3,8 +3,8 @@
 // bundle. Pure: it reads only through `tree` and `policy` (policy.ts does the reading of the policy), with no clock,
 // environment variable, network, or process state, and it never throws on data, since every problem is a finding.
 // The order of checking is §13's: RD on each file as the loader reads it (load.ts), then RT2 over every string
-// (checks/rt.ts's walk), then the families RI, RG, RS, RT, RV, RX, RK, and RL, one module each under checks/, and
-// last spec 008's RW (its plan.md §3.5).
+// (checks/rt.ts's walk), then the families RI, RG, RS, RT, RV, RX, RA (spec 009's), RK, and RL, one module each under
+// checks/, and last spec 008's RW (its plan.md §3.5).
 // Findings are reported once each, sorted by file, then path with its indices as numbers, then rule; with any finding
 // lenient mode doesn't tolerate, the outputs aren't to be used. The outputs are emit.ts's.
 import { compareFindings, createContext } from "./checks/family";
@@ -12,6 +12,7 @@ import type { ComposeOptions, Family, Finding } from "./checks/family";
 import { rd } from "./checks/rd";
 import { rg } from "./checks/rg";
 import { ri } from "./checks/ri";
+import { ra } from "./checks/ra";
 import { rk } from "./checks/rk";
 import { rl } from "./checks/rl";
 import { rs } from "./checks/rs";
@@ -29,8 +30,9 @@ export type { ComposeOptions, Finding } from "./checks/family";
 export type { RoomCaps, RoomPolicy } from "./policy";
 export type { Tree } from "./source";
 
-/** The families after RD and RT2's walk, in §13's order, then spec 008's RW. */
-export const FAMILY_ORDER: readonly Family[] = [ri, rg, rs, rt, rv, rx, rk, rl, rw];
+/** The families after RD and RT2's walk, in §13's order, with spec 009's RA before RK, whose RK3 and RK5 count the
+ *  avatars RA reads, then spec 008's RW. */
+export const FAMILY_ORDER: readonly Family[] = [ri, rg, rs, rt, rv, rx, ra, rk, rl, rw];
 
 /** contracts/room-bundle.md §1's ComposeResult: emit.ts's outputs, and every finding, sorted. */
 export interface ComposeResult extends RoomOutputs {

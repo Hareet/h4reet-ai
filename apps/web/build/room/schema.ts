@@ -466,7 +466,29 @@ const walking = z
     camera: { ...W.camera, pitch_deg: [W.camera.pitch_deg[0], W.camera.pitch_deg[1]] as [number, number] },
   }));
 
-/** `apps/web/room/scene.yaml` (§5), with spec 008's optional `walking` block (Amendment M12). */
+/** Spec 009's figures block, its defaults (FR-037; plan.md §3.1): no stand-in, avatar textures at most 1,024 pixels a
+ *  side, and the hand-off's wait of 1,500 ms. */
+export const FIGURES_DEFAULTS = { texture_px: 1024, wait_ms: 1500 } as const;
+
+/** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
+ *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
+ *  3,000", 1,500 by default. */
+const figures = z
+  .strictObject({
+    twin_stand_in: z.string().optional(),
+    texture_px: z
+      .number()
+      .int()
+      .min(256)
+      .max(4096)
+      .refine(isPowerOfTwo, own("RD3", "not a power of two"))
+      .default(FIGURES_DEFAULTS.texture_px),
+    wait_ms: z.number().int().min(0).max(3000).default(FIGURES_DEFAULTS.wait_ms),
+  })
+  .default(() => ({ ...FIGURES_DEFAULTS }));
+
+/** `apps/web/room/scene.yaml` (§5), with spec 008's optional `walking` block (Amendment M12) and spec 009's optional
+ *  `figures` block. */
 export const sceneSchema = z.strictObject({
   version: version(),
   look: z.string(),
@@ -478,6 +500,7 @@ export const sceneSchema = z.strictObject({
   handoff: z.strictObject({ from: anchorRef, to: anchorRef }),
   survey: z.strictObject({ desk_corner: anchorRef }),
   retired: z.array(retired).default(() => []),
+  figures,
 });
 
 // ---- Topics, room text, outlines, UI words, looks, fixtures, and lookdev.yaml (§6 to §12; T077) ----
@@ -680,6 +703,7 @@ export type Selectable = Scene["selectables"][number];
 export type Retired = Scene["retired"][number];
 export type Live = Scene["live"];
 export type AnchorRef = Scene["handoff"]["from"];
+export type Figures = Scene["figures"];
 export type Topics = z.output<typeof topicsSchema>;
 export type Topic = Topics["topics"][number];
 export type RoomTextBlock = z.output<typeof roomTextSchema>;

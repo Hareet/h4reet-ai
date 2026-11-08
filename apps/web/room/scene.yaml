@@ -220,3 +220,8 @@ retired:
     kinds: [topic]
     retired: 2026-10-23
     reason: Amendment B4 made hobbies and travel adventures one topic, by the Author's answer 1.
+# Spec 009's figures (its FR-037; plan.md §3.1), each provisional and the Author's to change as data: the twin's figure
+# shows the man as a stand-in, by the Author's "the male one can act as my twin" (2026-11-08), until the twin's own
+# avatar exists, and the room says so in its note and its text copy; the avatars' textures decode at most 1,024 pixels
+# a side; and the hand-off waits at most 1.5 s for both avatars (Phase 2).
+figures: { twin_stand_in: man, texture_px: 1024, wait_ms: 1500 }

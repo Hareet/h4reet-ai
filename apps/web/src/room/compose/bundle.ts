@@ -3,6 +3,7 @@
 // and the 3D part, `virtual:room-scene`'s default export in the lazy 3D chunk. Exactly contracts/room-bundle.md §3.1's
 // RoomIndex and §3.2's RoomScene: the compositor writes them field by field in this order (§11), and the room, the
 // lookdev page, and the tests read them. Types only, so nothing here reaches a chunk.
+import type { AvatarId, ClipRole } from "../../choice/avatars";
 import type { Box } from "./framing";
 import type { Turn, Vec3 } from "./math";
 import type { GlowMotion, LookMethod, Renderer, TierValue, TypefaceUse } from "./vocabulary";
@@ -240,8 +241,17 @@ export interface RoomScene {
   }[];
   /** room-data-files.md §10, without material_notes. */
   look: Look;
-  /** Placement IDs. */
-  figures: { twin: string; visitor: string };
+  /** Placement IDs; and spec 009's figures block, resolved (its FR-037; plan.md §3.2): the visitor avatar the twin's
+   *  figure shows as a stand-in, or null for its capsule; the avatars' texture side cap; the hand-off's wait; and the
+   *  twin figure's catalog height, its stand-in's target height (FR-016). */
+  figures: {
+    twin: string;
+    visitor: string;
+    stand_in: AvatarId | null;
+    texture_px: number;
+    wait_ms: number;
+    twin_height: number;
+  };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
   load_order: string[];
@@ -250,4 +260,16 @@ export interface RoomScene {
   scene_texture_bytes: number;
   /** Spec 008's walking data, resolved (Amendment M12). */
   walking: Walking;
+  /** Spec 009's avatars (its FR-009, FR-023, FR-024; plan.md §3.2): only avatars whose model is bundled, by ID, each
+   *  file's `url` `a/<stem>.<hash16>.glb`, `sha256` the plain file's, and `bytes` the served copy's length; a model's
+   *  `texture_bytes` at texture_px, for the texture ledger. */
+  avatars: Partial<
+    Record<
+      AvatarId,
+      {
+        model: { url: string; sha256: string; bytes: number; texture_bytes: number };
+        clips: Partial<Record<ClipRole, { url: string; sha256: string; bytes: number }>>;
+      }
+    >
+  >;
 }

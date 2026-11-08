@@ -23,6 +23,9 @@
 //   a placement carries its own, and a pose in `load_order` resolves to it (plan.md §10).
 // - The figures' placements show avatars, so they aren't stand-ins of their own; whether an avatar is a placeholder is
 //   spec 003's files: the twin's GLB under assets/twin/, and each visitor's at assets/visitors/<avatar>/<avatar>.glb.
+// - Spec 009's avatars (its FR-009, FR-013, FR-023, FR-037; plan.md §3.2): the 3D part's `figures` holds the scene's
+//   block resolved and the twin's catalog height, and its `avatars` each bundled avatar (build/room/avatars.ts), whose
+//   files' gzip-9 copies the plugin writes beside the room's models; the index's copy opens with the stand-in line.
 // - The 2D drawing is each placement's front elevation in a plane square to the view at the farthest depth of its frame
 //   box ("its depth"), so the shell's stands at its wall: at its origin pushed back to that depth, scaled by the
 //   view-box units a metre takes there times its stylized scale, turned by its tilt in the view (its x axis against the
@@ -35,6 +38,7 @@ import { createHash } from "node:crypto";
 import { parse } from "yaml";
 
 import { AVATARS } from "../../src/choice/avatars";
+import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
   Look,
@@ -66,6 +70,8 @@ import type { FitInput, Measures } from "../../src/room/glb/fit";
 import { gzip9 } from "../../src/room/glb/gzip";
 import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
+import { avatarsOf, bundledFiles } from "./avatars";
+import type { AvatarSet, FileRole } from "./avatars";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
 import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
@@ -191,6 +197,17 @@ export interface RoomOutputs {
     readonly bytes: Uint8Array;
     readonly sha256: string;
   }[];
+  /** Spec 009: each bundled avatar file, as the 3D part's `avatars` names it, its gzip-9 copy landing at `dist/<url>.gz`
+   *  beside the room's models, never a plain copy (its FR-023; plan.md R-15). */
+  readonly avatars: readonly {
+    readonly avatar: AvatarId;
+    readonly role: FileRole;
+    /** The plain file's repository path. */
+    readonly path: string;
+    readonly url: string;
+    readonly gz: Uint8Array;
+    readonly sha256: string;
+  }[];
   readonly roomText: RoomText;
   readonly manifest: RoomManifest;
   readonly generated: readonly { readonly path: string; readonly text: string }[];
@@ -290,6 +307,8 @@ export interface Composed {
   readonly pictures: ReadonlyMap<string, Picture>;
   /** The placements whose `role` makes them figures. */
   readonly figures: ReadonlySet<string>;
+  /** Spec 009's avatars, as build/room/avatars.ts read them for this compose. */
+  readonly avatars: AvatarSet;
   /** RG's geometry over the pieces set here, whose numbers RG and RK3 checked, its reference cameras among them; null
    *  without a scene. */
   readonly geometry: Geometry | null;
@@ -443,6 +462,7 @@ function prepare(
     placements,
     pictures,
     figures,
+    avatars: avatarsOf(reader.tree, policy, scene),
     geometry: g,
     world,
     frames: g?.boxes ?? new Map<string, Box>(),
@@ -1002,11 +1022,14 @@ function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; 
   return { claims: { local: named("local"), cloud: named("cloud") } };
 }
 
-/** The text copy's order (§3.1): the bound faces, the switches, the sign's figures, and the fixed lines. */
+/** The text copy's order (§3.1): spec 009's stand-in line, the bound faces, the switches, the sign's figures, and the
+ *  fixed lines. The stand-in line comes first while the twin's figure shows anything but the twin's own avatar, which
+ *  in spec 009 is always (its FR-013; plan.md R-13). */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
   const has = (test: (r: IndexRegion) => boolean): boolean => regions.some(test);
   return [
+    { line: "twin.stand_in" },
     ...faces.map((f) => ({ face: f.id })),
     ...switches.map((s) => ({ switch: s.id })),
     ...(has((r) => "signal" in r.source) ? [{ figures: true as const }] : []),
@@ -1292,7 +1315,16 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       model: setModel(c, sw.piece),
     })),
     look: lookOf(c.look?.value),
-    figures: { twin: twin?.id ?? "", visitor: visitor?.id ?? "" },
+    figures: {
+      twin: twin?.id ?? "",
+      visitor: visitor?.id ?? "",
+      // Spec 009's block, resolved (its FR-037; plan.md §3.2), and the twin's catalog height, its stand-in's target
+      // (FR-016), since the part's pieces carry no size (plan.md §10).
+      stand_in: c.avatars.figures.stand_in,
+      texture_px: c.avatars.figures.texture_px,
+      wait_ms: c.avatars.figures.wait_ms,
+      twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
+    },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
       to: { placement: scene?.handoff.to.placement ?? "", anchor: scene?.handoff.to.anchor ?? "" },
@@ -1300,6 +1332,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     load_order: loadOrder(entries),
     scene_texture_bytes: c.caps.scene_texture_bytes,
     walking: walkingOf(scene),
+    avatars: avatarsPart(c),
   };
 }
 
@@ -1321,6 +1354,31 @@ function walkingOf(scene: Scene | null): Walking {
       focus_height_m: m6(w.camera.focus_height_m),
     },
   };
+}
+
+/** Spec 009's `avatars` (its FR-009, FR-023, FR-024; plan.md §3.2): each avatar whose model is bundled, its keys sorted
+ *  bytewise, with its model's URL, SHA-256, served bytes, and texture memory at texture_px, and its bundled clips by
+ *  role. */
+function avatarsPart(c: Composed): RoomScene["avatars"] {
+  const out: Record<string, RoomScene["avatars"][AvatarId]> = {};
+  for (const avatar of [...c.avatars.avatars].sort((a, b) => compareBytewise(a.id, b.id))) {
+    const files = bundledFiles(avatar);
+    const model = files[0];
+    if (!model) continue;
+    const clips: Record<string, { url: string; sha256: string; bytes: number }> = {};
+    for (const clip of files.slice(1).sort((a, b) => compareBytewise(String(a.role), String(b.role))))
+      clips[String(clip.role)] = { url: clip.url, sha256: clip.sha256, bytes: clip.gz?.length ?? 0 };
+    out[avatar.id] = {
+      model: {
+        url: model.url,
+        sha256: model.sha256,
+        bytes: model.gz?.length ?? 0,
+        texture_bytes: model.measures?.decoded_bytes ?? 0,
+      },
+      clips,
+    };
+  }
+  return out;
 }
 
 /** A placement's model (§3.2), or null while it shows its stand-in, or an avatar, as a figure's does. */
@@ -1525,6 +1583,13 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
   const cards = shown.flatMap(([piece, p]) =>
     p.kind === "card" ? [{ piece, url: p.url, bytes: p.bytes, sha256: p.sha256 }] : [],
   );
+  const avatars = c.avatars.avatars.flatMap((avatar) =>
+    bundledFiles(avatar).flatMap((f) =>
+      f.gz !== null && f.role !== null
+        ? [{ avatar: avatar.id, role: f.role, path: f.path, url: f.url, gz: f.gz, sha256: f.sha256 }]
+        : [],
+    ),
+  );
 
   const manifest = roomManifest({
     index,
@@ -1567,6 +1632,7 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
     drafts: options.drafts ? { fixtures: room.fixtures.map((f) => fixtureOf(f.value)), lookdev: lookdevOf(c) } : null,
     models,
     cards,
+    avatars,
     roomText: roomTextOf(c),
     manifest,
     generated,

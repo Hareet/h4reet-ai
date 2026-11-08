@@ -4,12 +4,13 @@
 // RI2 a duplicate ID or name; RI3 a retired ID taken again; RI4 a reference that doesn't resolve; RI5 an ID equal to
 // a vocabulary word; RI6 too many selectables, a repeated member, or a placement in two; RI7 a model not directly under
 // assets/room/, off its piece's ID, or not recorded with the kind room and its SHA-256; RI8 the root, the figures, and
-// the hand-off, each hand on the side the other figure's lies on; RI10 lookdev.yaml's placements, in a drafts build;
-// RI11 a label nothing references.
+// the hand-off, each hand on the side the other figure's lies on, and spec 009's stand-in, an avatar of the table;
+// RI10 lookdev.yaml's placements, in a drafts build; RI11 a label nothing references.
 // A reference into a file the loader refused (or a required file that is missing) isn't reported again: that file's
 // finding is the one to fix. No reason holds a value from the data.
 import { createHash } from "node:crypto";
 
+import { isAvatarId } from "../../../src/choice/avatars";
 import { invert, origin, transformPoint } from "../../../src/room/compose/math";
 import { anchorWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountPiece } from "../../../src/room/compose/mount";
@@ -341,7 +342,7 @@ function models(ctx: Context): void {
 }
 
 /** RI8: exactly one placement without a mount, one twin, and one visitor; no model on a figure's piece; a hand-off
- *  from an anchor of the twin's placement to one of the visitor's. */
+ *  from an anchor of the twin's placement to one of the visitor's; and spec 009's stand-in, an avatar of the table. */
 function figures(ctx: Context): void {
   const scene = ctx.room.scene;
   if (!scene) return;
@@ -382,6 +383,10 @@ function figures(ctx: Context): void {
     }
   }
   if (sound.from && sound.to) handSides(ctx, ri8);
+  // Spec 009's stand-in (its FR-011, FR-037): an avatar of the room's table, in every build.
+  const named = s.figures.twin_stand_in;
+  if (named !== undefined && !isAvatarId(named))
+    ri8(ctx.path("figures", "twin_stand_in"), "a stand-in that isn't an avatar of the room's table");
 }
 
 /**

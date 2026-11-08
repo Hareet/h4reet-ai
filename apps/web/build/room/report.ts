@@ -23,13 +23,18 @@
 // - spec 008's highlight: each look's band and edge, resolved, with their widths, and the lowest contrast the better of
 //   the two gives against a colour of the look's palette, with that colour's name, RW2's own measure
 //   (`highlightContrasts`), cut to two decimals;
+// - spec 009's avatars (its FR-040): each file of each avatar's folder with its measures and whether it's bundled, the
+//   scale its reader's bounds imply, which avatar the twin shows, each file with no role (RA5), RK3's figures with the
+//   stand-in, and the first visit with both figures' files (RK5) beside spec 003's F3 view;
 // - the findings, each line, a lenient one marked warn in a lenient build, or "none".
 // Bytes are integers with thousands separators and glyph heights are to 0.1 px. Nothing in it is a time, a path
 // outside the repository, or a data string: pieces, placements, faces, switches, and poses are named by IDs, each only
 // where RT2 passed it.
+import { AVATAR_SHAPES } from "../../src/choice/avatars";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
+import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import { WALK_CONTROL } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
@@ -40,7 +45,8 @@ import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } fro
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
-import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
+import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
+import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
 import { compareBytewise } from "./source";
 import type { Tree } from "./source";
@@ -195,6 +201,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
     });
   lines.push("");
 
+  // Spec 009's avatars (its FR-040).
+  lines.push(...avatars(c, memory, share, f3), "");
+
   // Legibility, RG7's measure, on both reference stages.
   lines.push(...legibility(c, index), "");
 
@@ -223,6 +232,91 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
     );
   }
   return { markdown: `${lines.join("\n")}\n` };
+}
+
+/**
+ * Spec 009's avatars (its FR-040; plan.md §3.5): each file of each avatar's folder with its role, bytes, gzip-9 bytes,
+ * triangles, and texture memory at its own size and at texture_px, bundled or why not; the scale its model's reader
+ * bounds imply for each figure that may show it; which avatar the twin shows; each file with no role (RA5, reported,
+ * never refused); RK3's figures with the stand-in; and the first visit with both figures' files (RK5's sum) beside
+ * spec 003's F3 view, which counts one visitor folder.
+ */
+function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: number): string[] {
+  const set = c.avatars;
+  const px = set.figures.texture_px;
+  const out = ["### Avatars", ""];
+  const files = set.avatars.flatMap((a) => [...(a.model ? [a.model] : []), ...a.clips, ...a.others]);
+  if (files.length === 0)
+    out.push("No visitor avatar has a file under assets/visitors/ yet: both figures show their fallbacks.");
+  else {
+    out.push(
+      `| File | Role | Bytes | gzip-9 bytes | Triangles | Texture memory | At ${px} px | Bundled |`,
+      "|---|---|---:|---:|---:|---:|---:|---|",
+    );
+    const cell = (f: AvatarFile): string[] => [
+      `\`${f.path}\``,
+      f.role ?? DASH,
+      count(f.bytes),
+      f.gz === null ? DASH : count(f.gz.length),
+      f.measures === null ? DASH : count(f.measures.triangles),
+      f.measures === null ? DASH : count(f.measures.texture_bytes),
+      f.measures === null ? DASH : count(f.measures.decoded_bytes),
+      f.bundled ? "yes" : `no (${f.why ?? DASH})`,
+    ];
+    for (const f of files) out.push(`| ${cell(f).join(" | ")} |`);
+    out.push("");
+  }
+  // The scale each model's reader bounds imply, for the room's height for it (the visitor's) and the twin's catalog
+  // height where it stands in.
+  const twinHeight = (c.scene?.placements ?? []).find((p) => p.role === "twin");
+  const twinH = (twinHeight && c.pieces.get(twinHeight.piece)?.value.size.h) ?? 0;
+  for (const a of set.avatars) {
+    const h = a.model?.measures?.height ?? null;
+    if (h === null || !(h > 0)) continue;
+    const visitor = `${fixed(AVATAR_SHAPES[a.id].height / h, 3)}× for the visitor's ${plain(AVATAR_SHAPES[a.id].height)} m`;
+    const twin = a.id === set.figures.stand_in ? `, ${fixed(twinH / h, 3)}× for the twin's ${plain(twinH)} m` : "";
+    out.push(`Scale its reader's bounds imply for \`${a.id}\`: ${visitor}${twin}.`);
+  }
+  const stand = set.figures.stand_in;
+  const named = c.scene?.figures.twin_stand_in;
+  const standIn = stand === null ? undefined : set.avatars.find((a) => a.id === stand);
+  if (stand !== null && standIn?.model?.bundled)
+    out.push(`The twin shows \`${stand}\`, a stand-in, not the Author's likeness.`);
+  else if (stand !== null) out.push(`The twin shows its capsule: \`${stand}\` has no bundled model.`);
+  else if (named !== undefined && c.reader.printable(named))
+    out.push(`The twin shows its capsule: RA3 or RI8 refuses its stand-in \`${named}\`.`);
+  else out.push("The twin shows its capsule: the scene names no stand-in.");
+  for (const a of set.avatars)
+    for (const f of a.others)
+      out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);
+  const twinTerm =
+    memory.twin === null
+      ? "nothing yet"
+      : `${count(memory.twin)} (its own models ${memory.twin_own === null ? DASH : count(memory.twin_own)}, the ` +
+        `stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ${px} px)`;
+  out.push(
+    `RK3's figures with the stand-in: the twin's figure counts ${twinTerm}; the visitor's, ` +
+      `${memory.visitor === null ? "nothing yet" : count(memory.visitor)}, the largest visitor avatar at ${px} px.`,
+  );
+  // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
+  const visit = figuresVisit(set);
+  const tree = c.reader.tree;
+  const glbsUnder = (dir: string): number =>
+    filesUnder(tree, dir)
+      .filter((f) => f.path.endsWith(".glb"))
+      .reduce((sum, f) => sum + gzipBytes(f.data), 0);
+  const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
+  // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
+  const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
+  const total = share + visit.stand_in + visit.other;
+  out.push(
+    `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
+      `models and cards, ${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of the largest ` +
+      `other visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
+      `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
+      `aside): ${count(f3View)}.`,
+  );
+  return out;
 }
 
 /** Each bound face's smallest cap height on each reference stage, RG7's, with the floor, the margin, and its status. */

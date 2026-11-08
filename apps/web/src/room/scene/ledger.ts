@@ -16,6 +16,25 @@ export function textureBytes(width: number, height: number): number {
   return Math.floor((16 * width * height) / 3);
 }
 
+/** Half a side, never under one pixel: spec 003's reduced tier. */
+const half = (side: number): number => Math.max(1, side >> 1);
+
+/**
+ * An image's sides as the room decodes it (spec 009, FR-024; plan.md R-11): where `maxSide` is given and the image is
+ * larger on a side, resized so its larger side is `maxSide`, keeping its aspect (the smaller side rounded, at least one
+ * pixel); then halved in spec 003's reduced tier. The compositor's RK3 measures an avatar's images by this same rule,
+ * so the build and the ledger count the same bytes. The room's models take no `maxSide`.
+ */
+export function capSides(width: number, height: number, maxSide: number | null, reduced: boolean): [number, number] {
+  let [w, h] = [width, height];
+  const larger = Math.max(w, h);
+  if (maxSide !== null && larger > maxSide) {
+    const k = maxSide / larger;
+    [w, h] = w >= h ? [maxSide, Math.max(1, Math.round(h * k))] : [Math.max(1, Math.round(w * k)), maxSide];
+  }
+  return reduced ? [half(w), half(h)] : [w, h];
+}
+
 /** What uploads a texture at once: the renderer's initTexture. */
 export interface Uploader {
   initTexture(texture: Texture): void;

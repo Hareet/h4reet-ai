@@ -13,7 +13,12 @@
 //   counted in `unread`, and a figure with no model counting 0, both of which the report notes; and each bound live
 //   face's canvas, min(px, its largest on-screen size at the reference stages × the phone's pixel ratio) on each side,
 //   rounded down, so it is at most that (FR-054), as the room sizes it (R-37);
-// - RK4, a malformed caps.json: each of policy.ts's problems, by its path in the file.
+// - RK4, a malformed caps.json: each of policy.ts's problems, by its path in the file;
+// - RK5 (spec 009, FR-038), the first visit with both figures' files over main's phase-3 budget: the room's set models
+//   and cards as served, the stand-in avatar's bundled files, and the largest other visitor avatar's, by their gzip-9
+//   copies, lenient, as RK2 is.
+// Since spec 009, RK3's twin is the larger of its own models and the stand-in avatar's files, and every visitor avatar
+// is counted at its decoded size, at most the scene's texture_px a side, as the room decodes it (its FR-024).
 // RK1, RK3, and RK4 fail every build. A reason names keys and figures, never a value from the data.
 //
 // A figure's piece isn't counted by its budget: the figure shows an avatar, which RK3 measures, and RI8 gives its piece
@@ -23,7 +28,12 @@
 import { REFERENCE_PHONE } from "../../../src/room/compose/stages";
 import { fit, textureMemory } from "../../../src/room/glb/fit";
 import type { FitInput } from "../../../src/room/glb/fit";
+import { readImage } from "../../../src/room/glb/images";
+import { readGlb } from "../../../src/room/glb/read";
 import { count } from "../../../src/room/glb/rules";
+import { capSides } from "../../../src/room/scene/ledger";
+import { avatarsOf, bundledFiles, figureBlock, VISITORS_DIR } from "../avatars";
+import type { AvatarSet } from "../avatars";
 import type { Loaded } from "../load";
 import { CAPS_PATH, capsOf } from "../policy";
 import type { CatalogEntry } from "../schema";
@@ -31,10 +41,10 @@ import type { Tree } from "../source";
 import type { Context, Family } from "./family";
 import { faceScreens, geometryOf } from "./rg";
 import type { Geometry } from "./rg";
-import { modelChecks, overBudget } from "./rx";
+import { modelChecks, overBudget, setModels } from "./rx";
 
 export const TWIN_DIR = "assets/twin";
-export const VISITORS_DIR = "assets/visitors";
+export { VISITORS_DIR };
 
 /** A figure's model is read by the fit check's reader, for its texture memory alone. */
 const NO_FIT: FitInput = { bounds: { min: [0, 0, 0], max: [0, 0, 0] }, faces: [], smallPropTexturePx: null };
@@ -64,10 +74,16 @@ export interface SceneTextureMemory {
   readonly models: number;
   /** Of `pieces`, the pieces whose image card is set. */
   readonly cards: number;
-  /** Every model under assets/twin/, measured together; null while it holds no model, which the report notes. */
+  /** The twin's figure (spec 009, FR-038): the larger of its own models (`twin_own`) and the stand-in avatar's files
+   *  (`stand_in`); null while neither has a model, which the report notes. */
   readonly twin: number | null;
-  /** The largest visitor avatar's models, measured together; null while assets/visitors/ holds no model, which the
-   *  report notes. */
+  /** Every model under assets/twin/, measured together at its own size, as before spec 009; null while it holds none. */
+  readonly twin_own: number | null;
+  /** The stand-in avatar's files together, at their decoded size (spec 009, FR-024); null where the scene names no
+   *  stand-in, or its folder holds no model. */
+  readonly stand_in: number | null;
+  /** The largest visitor avatar's models, measured together at their decoded size (spec 009, FR-024); null while
+   *  assets/visitors/ holds no model, which the report notes. */
   readonly visitor: number | null;
   /** The figures' models RX1 or RX2 refuses (but for a property the reader reads past, READ_PAST), or the tree can't
    *  read, each counted 0, which the report notes. */
@@ -110,32 +126,64 @@ const together = (a: Models, b: Models): Models => ({
   unread: a.unread + b.unread,
 });
 
+/** A .glb's texture memory at its images' decoded sizes, at most `maxSide` a side (spec 009, FR-024; ledger.ts's
+ *  capSides), by the fit check's reader; null where RX1 or RX2 refuses it (READ_PAST aside). */
+function decodedMemory(bytes: Uint8Array, maxSide: number): number | null {
+  const glb = readGlb(bytes).glb;
+  if (glb === null) return null;
+  let memory = 0;
+  for (const image of glb.json.images ?? []) {
+    if (image.bufferView === undefined) continue;
+    const header = readImage(glb.viewBytes(image.bufferView)).header;
+    if (!header) continue;
+    const [w, h] = capSides(header.width, header.height, maxSide, false);
+    memory += textureMemory(w, h);
+  }
+  return memory;
+}
+
 /** The models at `path`: the file itself where it is a .glb, else each .glb under the folder, at any depth, in the
- *  tree's order. A .glb is read with the fit check's reader for its texture memory alone, by §7's measure; one that RX1
- *  or RX2 refuses, or that the tree lists but can't read and that holds nothing, can't be read, and counts 0. A property
- *  the reader reads past (READ_PAST) stops no read, so such a model counts its measured texture memory. */
-function modelsAt(tree: Tree, path: string): Models {
+ *  tree's order. A .glb is read with the fit check's reader for its texture memory alone, by §7's measure, at its
+ *  images' own sizes, or at most `maxSide` a side where one is given, as the room decodes a visitor avatar's (spec 009,
+ *  FR-024); one that RX1 or RX2 refuses, or that the tree lists but can't read and that holds nothing, can't be read,
+ *  and counts 0. A property the reader reads past (READ_PAST) stops no read, so such a model counts its memory. */
+function modelsAt(tree: Tree, path: string, maxSide: number | null = null): Models {
   const model = path.endsWith(".glb");
   const bytes = model ? tree.read(path) : null;
   if (bytes !== null) {
-    const memory = fit(bytes, NO_FIT, { file: path, gzipBytes: 0 }).measures.textureBytes;
+    const memory =
+      maxSide === null
+        ? fit(bytes, NO_FIT, { file: path, gzipBytes: 0 }).measures.textureBytes
+        : decodedMemory(bytes, maxSide);
     return memory === null ? { bytes: 0, count: 1, unread: 1 } : { bytes: memory, count: 1, unread: 0 };
   }
   const entries = tree.list(path);
   if (entries.length === 0) return model ? { bytes: 0, count: 1, unread: 1 } : NO_MODELS;
-  return entries.map((name) => modelsAt(tree, `${path}/${name}`)).reduce(together, NO_MODELS);
+  return entries.map((name) => modelsAt(tree, `${path}/${name}`, maxSide)).reduce(together, NO_MODELS);
 }
 
-/** The twin's models together, and the largest visitor avatar's, each folder of assets/visitors/ (or a model directly
- *  in it) one avatar; null for either while it holds no model; and how many of either's models can't be read. */
-function figures(tree: Tree): Pick<SceneTextureMemory, "twin" | "visitor" | "unread"> {
+/** The twin's figure and the largest visitor avatar's (spec 009, FR-038; plan.md R-19): the twin's own models together
+ *  at their own size, as before, against the stand-in avatar's folder at its decoded size, the larger counting; each
+ *  folder of assets/visitors/ (or a model directly in it) one avatar at its decoded size; null for either while it holds
+ *  no model; and how many of either's models can't be read. The stand-in is the scene's, read from its own folder, so
+ *  nothing more under assets/twin/ is read for it (FR-012). */
+function figures(
+  tree: Tree,
+  block: ReturnType<typeof figureBlock>,
+): Pick<SceneTextureMemory, "twin" | "twin_own" | "stand_in" | "visitor" | "unread"> {
   const twin = modelsAt(tree, TWIN_DIR);
-  const avatars = tree
-    .list(VISITORS_DIR)
-    .map((name) => modelsAt(tree, `${VISITORS_DIR}/${name}`))
-    .filter((avatar) => avatar.count > 0);
+  const folders = tree.list(VISITORS_DIR).map((name) => ({
+    name,
+    models: modelsAt(tree, `${VISITORS_DIR}/${name}`, block.texture_px),
+  }));
+  const avatars = folders.map((f) => f.models).filter((avatar) => avatar.count > 0);
+  const own = twin.count > 0 ? twin.bytes : null;
+  const standing = block.stand_in === null ? undefined : folders.find((f) => f.name === block.stand_in)?.models;
+  const standIn = standing && standing.count > 0 ? standing.bytes : null;
   return {
-    twin: twin.count > 0 ? twin.bytes : null,
+    twin: own === null && standIn === null ? null : Math.max(own ?? 0, standIn ?? 0),
+    twin_own: own,
+    stand_in: standIn,
     visitor: avatars.length > 0 ? Math.max(...avatars.map((avatar) => avatar.bytes)) : null,
     unread: { twin: twin.unread, visitor: sum(avatars.map((avatar) => avatar.unread)) },
   };
@@ -157,7 +205,7 @@ export function sceneTextureTotal(g: Geometry | null, tree: Tree): SceneTextureM
     if (g?.set.get(id) === null) cards += budget;
     else models += budget;
   }
-  const { twin, visitor, unread } = figures(tree);
+  const { twin, twin_own, stand_in, visitor, unread } = figures(tree, figureBlock(scene));
   const faces = faceCanvases(g);
   const canvases = sum(faces.map((f) => f.bytes));
   const pieces = models + cards;
@@ -167,6 +215,8 @@ export function sceneTextureTotal(g: Geometry | null, tree: Tree): SceneTextureM
     models,
     cards,
     twin,
+    twin_own,
+    stand_in,
     visitor,
     unread,
     figures: figureBytes,
@@ -236,10 +286,64 @@ function capsFile(ctx: Context): void {
     ctx.report("RK4", CAPS_PATH, p.path, `${p.reason}; the Author's to fix on main`);
 }
 
+/** The figures' share of the first visit (spec 009, FR-038; plan.md R-19), by their bundled files' gzip-9 copies: the
+ *  stand-in avatar's, and the largest other visitor avatar's, which a visitor who chooses it fetches beside them. */
+export interface FiguresVisit {
+  readonly stand_in: number;
+  /** The largest bundled avatar's but the stand-in's, and which; null with none. */
+  readonly other: number;
+  readonly other_id: string | null;
+}
+
+export function figuresVisit(set: AvatarSet): FiguresVisit {
+  const served = (id: string): number => {
+    const avatar = set.avatars.find((a) => a.id === id);
+    return avatar ? sum(bundledFiles(avatar).map((f) => f.gz?.length ?? 0)) : 0;
+  };
+  const standIn = set.figures.stand_in === null ? 0 : served(set.figures.stand_in);
+  let [other, otherId] = [0, null as string | null];
+  for (const a of set.avatars) {
+    if (a.id === set.figures.stand_in) continue;
+    const bytes = served(a.id);
+    if (bytes > other || (otherId === null && bytes > 0)) [other, otherId] = [bytes, a.id];
+  }
+  return { stand_in: standIn, other, other_id: otherId };
+}
+
+/** RK5 (spec 009, FR-038): the first visit with both figures' files, the room's set models and cards by what the site
+ *  serves and the figures' share, against main's phase-3 budget; lenient, so a lenient build warns and builds. */
+function firstVisit(ctx: Context): void {
+  const scene = ctx.room.scene;
+  if (!scene) return;
+  const placed = new Set([
+    ...scene.value.placements.flatMap((p) => (p.role === undefined ? [p.piece] : [])),
+    ...scene.value.switches.map((s) => s.piece),
+  ]);
+  const set = setModels(ctx);
+  const room = sum(
+    modelChecks(ctx)
+      .filter((c) => placed.has(c.entry.value.id) && set.has(c.entry.value.id))
+      .map((c) => c.measures?.served ?? 0),
+  );
+  const figures = figuresVisit(avatarsOf(ctx.tree, ctx.policy, scene.value));
+  const total = room + figures.stand_in + figures.other;
+  const budget = ctx.policy.phase3_bytes;
+  if (total > budget)
+    ctx.report(
+      "RK5",
+      scene.file,
+      "-",
+      `${count(total)} bytes in the first visit with both figures' files, over main's phase-3 budget of ` +
+        `${count(budget)}: ${count(room)} in the room's set models and cards, ${count(figures.stand_in)} in the ` +
+        `stand-in's files, and ${count(figures.other)} in the largest other visitor avatar's`,
+    );
+}
+
 /** RK: every rule of the family, in its order. */
 export const rk: Family = (ctx) => {
   budgets(ctx);
   models(ctx);
   sceneMemory(ctx);
   capsFile(ctx);
+  firstVisit(ctx);
 };
