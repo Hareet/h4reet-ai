@@ -4,6 +4,10 @@ Spec: [specs/004-room-composition/](../../specs/004-room-composition/) (Phase 11
 Session: worked in the branch's worktree, `/tmp/claude-1000/wt-us9`, which the main session made from 6c3955d, `feat/004-us8-live-tier`'s tip (T262), with `node_modules` copied in. The main checkout wasn't touched. Repo hooks active: yes. Each commit ran the arrival check (`arrival-check: 0 findings in …`) and gitleaks (`no leaks found`).
 Authorized by: tasks.md T262 to T269; plan.md §10's entry "User Story 9's cost channel, as built"; the main session's direction for the review's four nits.
 
+## 2026-11-08: restacked onto feat/004-us8-live-tier's tip on the serving branch, with the studio's models: the whole room (T271)
+
+`feat/004-us9-neon-sign was d045ee5003e076a65f96ddfbc5a6a6d072f82185` (T271): 19 commits on a058e1d664208839bc33522a8a2fb55fd54ac328, `feat/004-us8-live-tier`'s tip before its restack onto `feat/004-us6-topics`'s tip on the serving branch (T250), on `main` at ea9fc7adf0193261a57bbfc332f797f4365f44f2 with `feat/004-room-models` merged. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
+
 ## 2026-11-07, night: restacked onto feat/004-us8-live-tier's tip on User Story 5's on main (T271)
 
 `feat/004-us9-neon-sign was f84521494bb9da6b99bf41e7d1b41a2295d613c3` (T271): 16 commits on 9f243f6d74679cfbef1da9fa9de9f08655bd219e, `feat/004-us8-live-tier`'s tip before its restack onto `feat/004-us6-topics`'s new tip (T250), which is now a058e1d664208839bc33522a8a2fb55fd54ac328, on 91a6fcdfd95028c1bb6e0935c0a84ef891e083f0, User Story 6's, on fefc452ae4f1f80d42f6de6be2e96b750e136ac8, User Story 5's tip on `main` at 4414b4adda1a577c2816cc97d8ba626c0161aee8. This record is committed first, before the rebase, and is replayed with it; the rest of this section follows the rebase.
