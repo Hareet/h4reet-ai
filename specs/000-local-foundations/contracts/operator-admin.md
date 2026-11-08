@@ -532,3 +532,13 @@ Make reports any non-zero exit as its own error 2, so the CLI's last line names 
 - **bash-gate** blocks `make operator-*` and admin URLs for prod and dev.
 - **The prefix check.** Prod's gateway refuses any token without `h4op_prod_`, and refuses at startup an `OPERATOR_TOKEN_SHA256` equal to the dev-cpu dummy's hash.
 - **Matrix rows** test each of these ([plan.md §13](../plan.md#13-the-forbidden-action-matrix)). The positive row: the dev-cpu dummy resets the agents' own stack.
+
+## 8. The twin's evaluation calls: `POST /admin/twin/turn` (spec 007, Amendment 0-4)
+
+The Author's live product and red-team runs ([spec 007](../../007-twin-conversation/spec.md) FR-050; its [plan](../../007-twin-conversation/plan.md) §2 and §8). Authenticated as every admin route (§1.1), with the reason rule (§1.2).
+
+Request: the turn's body (`feature`, `path`, `turns`, as [gateway-http.md §10](gateway-http.md#10-post-roomturn-spec-007-amendment-0-3) gives it), plus `adapter`, the ID of the stack's primary or fallback adapter (never a synthetic one: any other is 404 `{"error":"unknown_adapter"}`), and `reason`.
+
+It runs the twin's whole pipeline, the grounding, the prompt, and the guards, whatever `config/twin-readiness.yaml` says, since evaluation comes before readiness, and calls the named adapter through §5's pipeline: the state read first; a paid adapter through the global metered limits and admission attributed `test` (the ceilings, not the sub-budget); the local adapter directly and free; never a failover. Each call writes a `twin_call` audit row with its reason and counts in `h4.operator.actions{h4.action="twin_call"}`, never in `h4.twin.turns` or `h4.twin.withheld`.
+
+Its 200 is the turn's, plus what the runners record and a visitor never sees: `guard` (the guard that withheld or replaced the answer, or null), `model`, `usage` (`input_tokens`, `output_tokens`), `cost_micro_usd`, `trace_id`, `pack_sha256`, and `prompt_sha256`. A degraded state is 503 with gateway-http.md §2.5.2's body; a refusal before the call 429.

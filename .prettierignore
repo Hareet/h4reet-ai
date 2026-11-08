@@ -6,6 +6,10 @@ dist/
 coverage/
 package-lock.json
 **/package-lock.json
+# Spec 007's twin files: the generated grounding pack, and the instructions and fixed lines, whose bytes are hashed as
+# the prompt hash, so reformatting them would close every topic (FR-030). The product cases are generated beside it.
+config/twin/
+evals/product/cases/twin-*.yaml
 evals/agent-config/history/
 .specify/
 .claude/

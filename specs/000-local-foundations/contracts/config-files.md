@@ -28,6 +28,7 @@ For each file it gives every field, the rules, an example, the validation errors
   | `config/prices.yaml` | the Author only (human-only) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from the closing patch ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)) |
   | `config/budgets.yaml` | the Author only (already protected by `config/budgets*`) | the same; the closing patch adds `denyWrite` |
   | `config/alerts.yaml` | the Author only (already protected by `config/alert*`) | the same; the closing patch adds `denyWrite` |
+  | `config/twin-readiness.yaml` (spec 007) | the Author only (human-only): which topics the twin may talk about, each bound to the pack's and the prompt's hashes his live runs tested ([spec 007](../../007-twin-conversation/spec.md) FR-029 to FR-031) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from his patch P-1, which creates the file with its deny |
 
   A change to budgets, alerting, or the kill switch needs an ADR and the Author's approval (the spec's edge cases). Agents propose such changes in a merge-request note, never in the file.
 
@@ -273,6 +274,12 @@ It sets the ceilings, the fallback sub-budget, the warning ratio, the request li
 | `limits.per_call.max_input_chars` | integer | 100 to 4,000: all messages of one call together, and the reservation's input bound ([data-model.md §7.2](../data-model.md#72-admission-for-a-metered-call)) |
 | `limits.per_call.hello_max_output_tokens` | integer | 1 to `max_output_tokens` |
 | `limits.per_call.max_output_tokens` | integer | 1 to 4,096 |
+| `limits.twin` (spec 007) | map, optional | the twin's per-turn limits ([spec 007](../../007-twin-conversation/spec.md) FR-027, Amendment 0-2), the five keys below and no other. Absent: prod's `POST /room/turn` answers every turn degraded with `twin_unavailable`, and dev's and dev-cpu's use the defaults in brackets, logging `twin.limits_default` once at start |
+| `limits.twin.turn_max_chars` | integer | 50 to 2,000 [600]: a visitor turn's code points after trimming |
+| `limits.twin.history_max_turns` | integer | 1 to 20 [8]: the turns one request carries |
+| `limits.twin.history_max_chars` | integer | `turn_max_chars` to 16,000 [4,000]: all of a request's turns together, the newest visitor turn included |
+| `limits.twin.max_input_chars` | integer | 4,000 to 64,000 [32,000]: a twin call's messages together, instructions, grounding, and conversation; and its reservation's input bound in place of `per_call.max_input_chars` (data-model.md §7.2, amended by spec 007) |
+| `limits.twin.max_output_tokens` | integer | 32 to `per_call.max_output_tokens` [300]: a twin call's output cap, which its reservation counts |
 
 **Derived thresholds,** in micro-USD:
 - a ceiling = the amount × 1,000,000;

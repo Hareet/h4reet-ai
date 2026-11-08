@@ -1,6 +1,6 @@
 # Implementation Plan: The Twin's Conversation Core — A Piece or a Question, Answered From the Corpus
 
-**Branch**: `feat/007-twin-conversation`, cut from f9524081bb57c6fa07bbb26bf58a9fa135505d7c, line R's User Story 9 tip (`feat/004-us9-neon-sign`), which holds the room's latest code ([§14](#14-the-branch-and-the-order-of-work)) | **Date**: 2026-11-07 | **Spec**: [spec.md](spec.md)
+**Branch**: `feat/007-twin-conversation`, cut from b95fd7619b0ba44c2e5829734b7eaaa24862ed6e, `spec/008-visitor-movement`'s tip, which sits on `spec/007-twin-conversation` (aa22a3b2) on line R's User Story 9 tip as restacked onto main e189cc84, `feat/004-us9-neon-sign` at 848a94d6c8f697e1260d74a42a3406bd7f4a08b1, which holds the room's latest code ([§14](#14-the-branch-and-the-order-of-work); departure D1) | **Date**: 2026-11-07 | **Spec**: [spec.md](spec.md)
 
 **Status**: Planned on 2026-11-07 while the Author was away, under his "Keep going!", on the spec's provisional answers (its Clarifications). Choices this plan makes beyond the spec are marked "(plan choice)" and are the Author's to overturn like the answers. Code waits for the Author's approval of the spec and this plan: `CLAUDE.md`, "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`."
 
@@ -138,7 +138,7 @@ scripts/operator.py, scripts/test_operator.py                          [chg] Adm
 Makefile                                                               [chg] redteam-live, the Author's
 
 docs/data-flow-disclosure.md                                           [chg] rows V2 and F1 (FR-047, FR-048)
-docs/adr/0039-the-twins-conversation-core.md (or the next free number) [new] proposed
+docs/adr/0040-the-twins-conversation-core.md                            [new] proposed (D4)
 specs/000-local-foundations/contracts/{provider-adapter,config-files,gateway-http,operator-admin,telemetry}.md   [chg] Amendments 0-1 to 0-5, each section marked "(spec 007)"
 specs/002-the-room/tasks.md                                            [chg] Phase 7's lines point to spec 007's tasks (2-3)
 
@@ -262,7 +262,7 @@ A ready entry: `{ready: true, pack_sha256: <the topic's hash, or the whole pack'
 
 ## 7. The room's client: spec 002's T065 and T066, adopted
 
-At f9524081 the talk panel already has spec 004's `onTurnOutcome(result: TurnResult)` seam, and the room one cost channel wired to the neon sign (spec 004's turn-cost contract §6, §7); T001 confirms both.
+At 848a94d6 (line R's restacked tip; departure D1) the talk panel already has spec 004's `onTurnOutcome(result: TurnResult)` seam, and the room one cost channel wired to the neon sign (spec 004's turn-cost contract §6, §7); T001 confirmed both, and found the panel's sender seam shaped otherwise than this section first assumed (departure D2): `renderTalk` takes `sendTurn?: SendTurn`, `(request, ended) => void`, which `RoomDeps.sendTurn` passes in and only the twin's spec gives, beside `turns` (the visit's), `freeTalkReady`, and `turnRoute` (the index's `live.turn` is `site`). So `src/talk/turn-client.ts` makes that sender, `createTurnSender({fetch, clock})`, which `src/main.ts` gives the room; `SendTurn` gains a third, optional parameter, the turn's `AbortSignal`, so Stop, Escape, and another piece's selection abort it; and the panel shows each result as it passes it on to `onTurnOutcome`. The manifest's `free_talk.ready` is written by `build/manifest.ts`'s `roomManifest` from its parts, not by `emit.ts`, which writes the index's topics' `ready` (departure D3).
 
 - **The request** (`src/talk/turn-client.ts`): `sendTurn({feature, path, turns}, {signal, clock}): Promise<TurnResult>`, a same-origin `fetch` of `POST /api/room/turn` with `credentials: "omit"`, `cache: "no-store"`, a JSON body, and a 35-second timeout on the room's Clock; it resolves spec 004's `TurnResult` and never throws.
 - **The conversation** (`src/talk/talk.ts`): `{feature, turns[]}` and one `AbortController`. A ready piece's selection (`src/room/app.ts`'s `selectObject`, through its `talk` action) starts a new conversation and sends the opening, unless that piece's conversation is the active one; another piece's selection aborts a turn in flight first. Typed text continues the active conversation, or starts free talk when none is active and free talk is ready. Unready topics and free talk keep spec 002's and 004's fixed messages and send nothing (FR-032).
@@ -366,9 +366,9 @@ Every row is a test: the gateway's integration tests drive the first seven on th
 
 ## 14. The branch, and the order of work
 
-- **The branch**: `feat/007-twin-conversation`, made in its own worktree from f9524081bb57c6fa07bbb26bf58a9fa135505d7c, the tip of `feat/004-us9-neon-sign`, with `npm ci --ignore-scripts`; `spec/007-twin-conversation`'s commits cherry-picked first, so this plan is in its tree and a departure updates it in the same commit. Agents rebase and cherry-pick, never merge; work is committed before any pause, since `/tmp` is wiped when WSL restarts.
+- **The branch**: `feat/007-twin-conversation`, made in its own worktree from b95fd761, `spec/008-visitor-movement`'s tip, with `npm ci --ignore-scripts`. That base already holds `spec/007-twin-conversation`'s commit (aa22a3b2) and spec 008's documents on line R's restacked tip, 848a94d6, so nothing is cherry-picked and this plan is in its tree from the first commit (departure D1). Agents rebase and cherry-pick, never merge; work is committed before any pause, since `/tmp` is wiped when WSL restarts.
 - **The phases** (tasks.md): Setup; Foundational, which builds the pack, the limits, the purpose, the route's every refusal and degraded path, the guards, the admin route, the edge, and the telemetry before any happy path (Principle I); then User Stories 1 to 4 by priority; then Polish.
-- **The merge order**: line R's stack merges first, through `feat/004-us9-neon-sign`; then this branch, rebased onto `main` with `git rebase --onto refs/heads/main f9524081bb57c6fa07bbb26bf58a9fa135505d7c feat/007-twin-conversation` if line R was rebased before merging; P-1 before this merge, P-2 after it; then the Author's live runs; then readiness, topic by topic.
+- **The merge order**: line R's stack merges first, through `feat/004-us9-neon-sign`; then `spec/007-twin-conversation` and `spec/008-visitor-movement`, then spec 008's Phase 1, `feat/008-visitor-movement`, built from the same base; then this branch, moved onto that branch's tip by the main session (`git rebase --onto <feat/008's tip> b95fd761 feat/007-twin-conversation`), so only this branch's own commits move (departure D1); P-1 before this merge, P-2 after it; then the Author's live runs; then readiness, topic by topic.
 - **Dormant on merge**: on prod without `limits.twin`, every turn is `twin_unavailable`; with it and nothing ready, every piece keeps its fixed message, and the neon sign reads "no call yet".
 
 ## 15. Expected cost, and how it's measured
@@ -451,3 +451,14 @@ A read-only consistency pass in the form of `/speckit-analyze`, made after tasks
 **Metrics**: 54 FRs, 11 SCs, 86 tasks; FR coverage 100%; 0 CRITICAL; 2 open HIGH findings, both dependencies outside the documents (A6, A7); 1 open MEDIUM, the Author's decision (A11); no constitution conflict left open.
 
 **Next actions**: the Author's approval of the spec and this plan, or his overturning of any provisional answer; then T001, which settles A6.
+
+## Departures while building (`feat/007-twin-conversation`)
+
+Each departure from the sections above, recorded in the commit that made it, as `CLAUDE.md` asks ("If implementation departs from the plan, update `plan.md` in the same commit"). The sections above are corrected in place where a departure changes what they say. A6 is settled by T001, with D1 to D3.
+
+| ID | Where | The plan said | What was built, and why |
+|---|---|---|---|
+| D1 | Header, §14; tasks.md T001, T002, T068 | Cut from f9524081, line R's US9 tip, with `spec/007-twin-conversation` cherry-picked first; rebased later with `--onto refs/heads/main f9524081…` | Line R was restacked onto main e189cc84 before this branch began, so f9524081 is no branch's tip. The branch is cut from b95fd761, `spec/008-visitor-movement`'s tip, on `spec/007-twin-conversation` (aa22a3b2) on line R's restacked tip 848a94d6, whose code is what T001 read: `git diff --stat 848a94d6 b95fd761` lists only `specs/007-twin-conversation/` and `specs/008-visitor-movement/`. Nothing needed cherry-picking (T002). The morning's order puts spec 008's Phase 1 first, so the main session moves this branch onto `feat/008-visitor-movement`'s tip with `git rebase --onto <its tip> b95fd761` |
+| D2 | §7 | `turn-client.ts`'s `sendTurn(…): Promise<TurnResult>`, called by `talk.ts` | The panel's seam at 848a94d6 is a sender the room is given, `SendTurn = (request, ended) => void`. The turn client makes one (`createTurnSender`), `main.ts` passes it to `startRoom`, and `SendTurn` gains an optional third parameter, the turn's `AbortSignal`, so the panel can stop it; tests keep giving their own sender |
+| D3 | §7, tasks.md T042 | `emit.ts` writes `ready` and `free_talk.ready` | `emit.ts` writes each index topic's `ready`; the manifest's objects take theirs from the index, and its `free_talk.ready` comes from `build/manifest.ts`'s `roomManifest`, which gains the free-talk readiness as one of its parts |
+| D4 | §13, Project Structure; tasks.md T004 | ADR 0039, or the next free number | Spec 008's plan allocates 0039 to its walking view, and its Phase 1 lands first, so this ADR is 0040 |
