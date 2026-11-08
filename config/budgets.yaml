@@ -20,3 +20,7 @@ limits:
   per_client:  { requests_per_minute: 20, burst: 5, requests_per_day: 500, metered_in_flight: 1 }
   global:      { metered_in_flight: 4, metered_per_minute: 60 }
   per_call:    { max_input_chars: 2000, hello_max_output_tokens: 128, max_output_tokens: 512 }
+  # The twin's per-turn limits (spec 007 FR-027; ADR 0040), the Author's patch P-2: a visitor turn's characters, the
+  # turns and characters of conversation a request carries, a twin call's input bound (also its reservation's), and
+  # its output cap.
+  twin:        { turn_max_chars: 600, history_max_turns: 8, history_max_chars: 4000, max_input_chars: 32000, max_output_tokens: 300 }
