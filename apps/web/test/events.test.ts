@@ -87,6 +87,8 @@ describe("the beacon", () => {
       '{"kind":"voice_pressed"}',
       '{"kind":"mode_2d"}',
       '{"kind":"walk_started"}',
+      // Spec 009's (its FR-032): no identifier.
+      '{"kind":"avatar_failed"}',
     ]);
     expect(p.touched).toEqual([]);
   });

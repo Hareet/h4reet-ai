@@ -14,6 +14,9 @@ export const EVENT_KINDS = [
   "mode_2d",
   // Spec 008 (FR-051; Amendment M3): the visitor's first entry into the walking view in a visit; no ID.
   "walk_started",
+  // Spec 009 (its FR-032; Amendment M4): a figure's avatar file failed to load after its retry, once a visit, with no
+  // identifier, after spec 008's walk_started (plan.md §3.4).
+  "avatar_failed",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
