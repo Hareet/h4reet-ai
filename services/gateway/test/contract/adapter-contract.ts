@@ -656,7 +656,9 @@ export function describeAdapterContract(
       }
       stub().next({ delayMs: SLOW_MS });
       const controller = new AbortController();
-      let abortedAt = 0;
+      // NaN until the abort fires, so a call that ends before it fails the bound below. 0 was the sentinel while this
+      // read Date.now(); on performance.now() it would let an early end pass in a worker under 2.1 s old.
+      let abortedAt = Number.NaN;
       setTimeout(() => {
         abortedAt = performance.now();
         controller.abort();
