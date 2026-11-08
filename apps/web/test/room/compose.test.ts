@@ -704,6 +704,21 @@ describe("the highlight (spec 008, T005)", () => {
     expect(slate.findings.find((f) => f.rule === "RW2")?.reason).toContain("fx-slate");
   });
 
+  // The review of Phase 1's nit: the band also stands at least 9:1 lighter than its edge, 9·(L_edge + 0.05) at most
+  // L_band + 0.05, so the two tones read as one border's band and edge; Q5's pair stands at 0.54 to 0.73.
+  it("is refused by RW2 where its band doesn't stand 9:1 lighter than its edge, though each palette colour is held", () => {
+    const tones = compose(overlay(withHighlight('{ band: "#ffffff", edge: "#545454" }')), noPolicy(), STRICT_DRAFTS);
+    expect(rw2(tones.findings)).toEqual([`RW2 ${LOOK}:highlight`]);
+    expect(tones.findings.find((f) => f.rule === "RW2")?.reason).toMatch(/9:1/);
+    // Q5's pair swapped, the ink the band: refused too.
+    const swapped = compose(overlay(withHighlight('{ band: fx-ink, edge: "#ffd23f" }')), noPolicy(), STRICT_DRAFTS);
+    expect(rw2(swapped.findings)).toEqual([`RW2 ${LOOK}:highlight`]);
+    // Q5's own pair passes.
+    expect(
+      rw2(compose(overlay(withHighlight('{ band: "#ffd23f", edge: fx-ink }')), noPolicy(), STRICT_DRAFTS).findings),
+    ).toEqual([]);
+  });
+
   it("refuses a look that isn't the scene's too, since the lookdev page draws every look", () => {
     const other = lookText().replace("id: fx-cel", "id: fx-flat").replace("method: inked-cel", "method: flat");
     expect(other).not.toBe(lookText());

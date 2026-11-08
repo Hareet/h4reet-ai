@@ -956,3 +956,127 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     expect(wide.select.mock.calls).toEqual([["fx-upper"], ["fx-lower"]]);
   });
 });
+
+// T064 (spec 008; FR-003, FR-046, SC-011; plan.md R-08), moved into Phase 1 by its review (finding 4): the 2D room's
+// highlight. Each selectable has a hidden group of two rectangles around its hit rectangles' union, an edge and then a
+// band, their strokes the index's resolved highlight, their widths CSS pixels (room.css's classes set no fill and a
+// non-scaling stroke), inflated at the drawing's scale so the border lies outside the union; the target's group shows
+// and its dashed cue hides, its name tag kept; a held side-wall selectable's group shows on list focus, its cue still
+// hidden; the drawing's pointer reports hover and press as targeting inputs; and the allowlist gains only the two
+// classes, nothing focusable.
+describe("the 2D highlight (spec 008, T064; the review of Phase 1, finding 4)", () => {
+  const groupOf = (stage: ReturnType<typeof renderFlat>, id: string) => {
+    const h = stage.drawing.highlights.get(id);
+    if (!h) throw new Error(`no highlight for ${id}`);
+    return h;
+  };
+  const shown = (el: Element): boolean => el.getAttribute("visibility") !== "hidden";
+
+  it("gives each selectable a hidden group of an edge and a band around its hit rectangles, in the look's tones", () => {
+    const { doc } = page();
+    const { index } = fixture();
+    const stage = renderFlat(doc, { room: index, avatar: "dog", select: () => undefined });
+    const { band, band_px, edge, edge_px } = index.flat.highlight;
+    expect([...stage.drawing.highlights.keys()]).toEqual(index.selectables.map((s) => s.id));
+    for (const s of index.selectables) {
+      const h = groupOf(stage, s.id);
+      expect(h.group.localName).toBe("g");
+      expect(h.group.getAttribute("visibility")).toBe("hidden");
+      expect([...h.group.children]).toEqual([h.edge, h.band]);
+      expect([h.edge.getAttribute("class"), h.band.getAttribute("class")]).toEqual([
+        "flat-highlight-edge",
+        "flat-highlight-band",
+      ]);
+      expect([h.edge.getAttribute("stroke"), h.edge.getAttribute("stroke-width")]).toEqual([edge, String(edge_px)]);
+      expect([h.band.getAttribute("stroke"), h.band.getAttribute("stroke-width")]).toEqual([band, String(band_px)]);
+      expect([h.edge.getAttribute("fill"), h.band.getAttribute("fill")]).toEqual(["none", "none"]);
+    }
+    const css = parseCss(
+      readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../src/room/room.css"), "utf8"),
+    );
+    for (const cls of [".flat-highlight-edge", ".flat-highlight-band"]) {
+      const rule = css.rules.find((r) => r.selector.split(",").some((x) => x.trim() === cls))?.declarations;
+      expect(rule?.get("fill"), cls).toBe("none");
+      expect(rule?.get("vector-effect"), cls).toBe("non-scaling-stroke");
+    }
+    // Nothing focusable joins the drawing.
+    expect(stage.element.querySelectorAll("[tabindex], button, a").length).toBe(0);
+  });
+
+  it("lies outside the union, the band its width and the edge outside it, at the drawing's scale on its box", () => {
+    const { doc } = page();
+    const { index } = fixture();
+    const stage = renderFlat(doc, { room: index, avatar: "dog", select: () => undefined });
+    const { band_px, edge_px } = index.flat.highlight;
+    for (const size of [box(REFERENCE_DESKTOP.stage), box(REFERENCE_PHONE.stage)]) {
+      stage.resize(size);
+      const s = flatScale(size);
+      for (const hit of index.flat.hits) {
+        const [x, y, w, h] = unionOf(hit.rects) as Rect;
+        const h0 = groupOf(stage, hit.selectable);
+        const rect = (el: Element): number[] => ["x", "y", "width", "height"].map((n) => num(el, n));
+        const grown = (by: number): number[] => [x - by, y - by, w + 2 * by, h + 2 * by];
+        expectClose(rect(h0.band), grown(band_px / 2 / s), 1e-6, `${hit.selectable}'s band at ${s}`);
+        expectClose(rect(h0.edge), grown((band_px + edge_px / 2) / s), 1e-6, `${hit.selectable}'s edge at ${s}`);
+      }
+    }
+  });
+
+  it("shows the target's group and hides its dashed cue, keeping its name tag, one at a time, and clears", () => {
+    const { doc } = page();
+    const { index } = fixture();
+    const stage = renderFlat(doc, { room: index, avatar: "dog", select: () => undefined });
+    const [a, b] = index.selectables.map((s) => s.id) as [string, string];
+    stage.setTarget(a);
+    expect(shown(groupOf(stage, a).group)).toBe(true);
+    expect(shown(groupOf(stage, b).group)).toBe(false);
+    expect(stage.drawing.cues.get(a)?.area.getAttribute("visibility")).toBe("hidden");
+    expect(shown(stage.drawing.cues.get(a)?.name as Element)).toBe(true);
+    stage.setTarget(b);
+    expect([shown(groupOf(stage, a).group), shown(groupOf(stage, b).group)]).toEqual([false, true]);
+    expect(stage.drawing.cues.get(a)?.area.getAttribute("visibility")).toBe("visible");
+    stage.setTarget(null);
+    expect([shown(groupOf(stage, a).group), shown(groupOf(stage, b).group)]).toEqual([false, false]);
+    expect(stage.drawing.cues.get(b)?.area.getAttribute("visibility")).toBe("visible");
+    stage.setTarget("fx-elsewhere");
+    expect([...stage.drawing.highlights.values()].some((h) => shown(h.group))).toBe(false);
+  });
+
+  it("draws a held side-wall selectable's border where list focus targets it, its cue still hidden", () => {
+    const built = compose(sideWallTree(), sideWallPolicy(), { mode: "strict", drafts: false });
+    const { doc } = page();
+    const stage = renderFlat(doc, { room: built.index, avatar: "woman", select: () => undefined });
+    stage.resize(box({ w: 304, h: 208 }));
+    expect(stage.drawing.cues.get("fx-lower")?.area.getAttribute("visibility")).toBe("hidden");
+    stage.setTarget("fx-lower");
+    expect(shown(groupOf(stage, "fx-lower").group)).toBe(true);
+    expect(stage.drawing.cues.get("fx-lower")?.area.getAttribute("visibility")).toBe("hidden");
+    // A resize keeps the target's cue hidden, and the held one's too.
+    stage.resize(box({ w: 304, h: 640 }));
+    expect(stage.drawing.cues.get("fx-lower")?.area.getAttribute("visibility")).toBe("hidden");
+    stage.setTarget(null);
+    expect(stage.drawing.cues.get("fx-lower")?.area.getAttribute("visibility")).toBe("hidden");
+  });
+
+  it("reports hover and press from the drawing's pointer as targeting inputs", () => {
+    const { doc, win } = page();
+    const { index } = fixture();
+    const target = vi.fn<(input: "pointer" | "press", id: string | null) => void>();
+    const stage = renderFlat(doc, { room: index, avatar: "dog", select: () => undefined, target });
+    doc.body.append(stage.element);
+    const size = box(REFERENCE_DESKTOP.stage);
+    stage.element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, x: 0, y: 0 }) as DOMRect;
+    const hit = index.flat.hits[0];
+    if (!hit) throw new Error("no hit");
+    const [px, py] = onBox(centreOf(unionOf(hit.rects)), size);
+    stage.element.dispatchEvent(
+      new win.PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: px, clientY: py }),
+    );
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", hit.selectable]);
+    stage.element.dispatchEvent(
+      new win.PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", clientX: px, clientY: py, button: 0 }),
+    );
+    expect(target.mock.calls.at(-1)).toEqual(["press", hit.selectable]);
+  });
+});

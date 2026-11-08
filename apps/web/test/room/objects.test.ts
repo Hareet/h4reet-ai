@@ -530,3 +530,54 @@ describe("hover and press as targeting inputs (spec 008, T006)", () => {
     expect(select).not.toHaveBeenCalled();
   });
 });
+
+// The review of Phase 1, finding 3: a mouse drag that ends off the canvas never sends its pointerup to it, so the press
+// must not outlive it. The surface takes the pointer on a press (setPointerCapture), so the press's end reaches it; and
+// a move with no button down is a hover whatever came before, the stale press dropped.
+describe("a press that ends off the surface (the review of Phase 1, finding 3)", () => {
+  const STAGE: Stage = { w: 400, h: 300 };
+  const picker = (ndc: { x: number; y: number }): string | null =>
+    ndc.y < 0 ? null : ndc.x < 0 ? "fx-left" : "fx-right";
+
+  it("takes the pointer on a press, so the press's end comes back to the surface", () => {
+    const { win, canvas } = surface(STAGE);
+    const captured: number[] = [];
+    canvas.setPointerCapture = (id: number) => void captured.push(id);
+    bindPointerSelection(canvas, picker, vi.fn(), vi.fn());
+    canvas.dispatchEvent(
+      new win.PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerType: "mouse",
+        pointerId: 7,
+        clientX: 100,
+        clientY: 60,
+        button: 0,
+        buttons: 1,
+      }),
+    );
+    expect(captured).toEqual([7]);
+  });
+
+  it("hovers again on the first move with no button down after a drag whose end never arrived", () => {
+    const { win, canvas } = surface(STAGE);
+    const select = vi.fn<(id: string) => void>();
+    const target = vi.fn<(input: "pointer" | "press", id: string | null) => void>();
+    bindPointerSelection(canvas, picker, select, target);
+    const fire = (type: string, x: number, y: number, buttons: number): void => {
+      canvas.dispatchEvent(
+        new win.PointerEvent(type, { bubbles: true, pointerType: "mouse", clientX: x, clientY: y, button: 0, buttons }),
+      );
+    };
+    fire("pointerdown", 100, 60, 1);
+    fire("pointermove", 150, 60, 1);
+    // The button comes up off the canvas: no pointerup reaches it. The mouse comes back, no button down.
+    fire("pointermove", 300, 60, 0);
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", "fx-right"]);
+    fire("pointermove", 300, 250, 0);
+    expect(target.mock.calls.at(-1)).toEqual(["pointer", null]);
+    // A click later is a click, its press its own.
+    fire("pointerdown", 100, 60, 1);
+    fire("pointerup", 100, 60, 0);
+    expect(select.mock.calls).toEqual([["fx-left"]]);
+  });
+});

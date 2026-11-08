@@ -769,6 +769,29 @@ describe("targeting under each degraded state (spec 008, T008)", () => {
     await expectUsable(v, index, "targeting, the kill switch tripped");
   });
 
+  // The review of Phase 1's nit: FR-002's other states, each a valid answer of the status: the local tier off, the
+  // budget spent, and the kill switch's state unknown.
+  it.each([
+    ["the local tier off", { local_tier: "down", state: "normal", cause_now: null }, "cloud"],
+    ["the budget spent", { local_tier: "up", state: "degraded", cause_now: "meter_at_ceiling" }, "budget"],
+    ["the kill switch's state unknown", { local_tier: "up", state: "unknown", cause_now: null }, "unknown"],
+  ] as const)("works unchanged with %s, asking only for the status", async (what, answerBody, tier) => {
+    const { index } = fixture();
+    const v = start({ webgl: true, room: site(index) });
+    await intoRoom(v);
+    v.room.live.complete({
+      ok: true,
+      started: v.clock.now() - 150,
+      ended: v.clock.now(),
+      endedWall: WALL0 + v.clock.now(),
+      answer: answerBody,
+    });
+    expect(v.room.live.tier.tier).toBe(tier);
+    await targetsAsAlways(v, index, what);
+    expect(v.spies.network.filter((r) => r !== "fetch /api/status")).toEqual([]);
+    await expectUsable(v, index, `targeting, ${what}`);
+  });
+
   it("draws no highlight when the 2D drawing refuses, and the list still selects every piece (FR-004)", async () => {
     const { index } = fixture();
     const viewBox = [0, 0, Number.NaN, 200] as unknown as RoomIndex["flat"]["view_box"];

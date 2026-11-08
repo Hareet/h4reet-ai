@@ -1,0 +1,6 @@
+rule: RW2
+file: apps/web/room/looks/fx-cel.yaml
+path: highlight
+why: a white band on a dark grey edge, which hold every colour of the palette between them but stand under 9:1 apart, so the band doesn't read lighter than its edge (spec 008, the review of Phase 1)
+edits:
+  - { file: apps/web/room/looks/fx-cel.yaml, at: [highlight], set: { band: "#ffffff", edge: "#545454" } }

@@ -361,7 +361,8 @@ async function realStage(): Promise<RealStage> {
   };
 }
 
-const PASSES = ["highlight:edge", "highlight:band"];
+// The stencil mask, then the two borders (the review of Phase 1, finding 2).
+const PASSES = ["highlight:mask", "highlight:edge", "highlight:band"];
 const passesIn = (names: readonly string[]): string[] => names.filter((n) => n.startsWith("highlight:"));
 
 /** The centre of each selectable's core at a stage, and the IDs held there, by the runtime's own functions. */
@@ -405,7 +406,7 @@ describe("the target on the real 3D stage, through its pointer", () => {
     r.leave();
     r.move(at);
     r.v.clock.advance(16);
-    expect(passesIn(r.renders()).slice(-2)).toEqual(PASSES);
+    expect(passesIn(r.renders()).slice(-3)).toEqual(PASSES);
   });
 
   it("targets by hover exactly what a click would select at each point, so a held side-wall selectable only by focus", async () => {
@@ -433,7 +434,87 @@ describe("the target on the real 3D stage, through its pointer", () => {
     for (const id of held) {
       listButton(r.v, id).focus();
       r.v.clock.advance(16);
-      expect(passesIn(r.renders()).slice(-2), id).toEqual(PASSES);
+      expect(passesIn(r.renders()).slice(-3), id).toEqual(PASSES);
     }
+  });
+});
+
+// T065 (spec 008; FR-003, FR-040, FR-046, SC-011), moved into Phase 1 by its review (finding 4): the 2D room's target.
+// With no WebGL 2 the room draws its 2D drawing; a hover on a selectable's hit area, a press, and keyboard focus on its
+// list button each draw its two-tone border in place of its dashed cue; a selection clears it in the same call.
+describe("the target in the 2D room (T065; the review of Phase 1, finding 4)", () => {
+  /** The visible highlight group's band, if one shows: its rectangle in view-box units. */
+  const shownBand = (v: Visit): number[] | null => {
+    const bands = [...v.doc.querySelectorAll(".flat rect.flat-highlight-band")].filter(
+      (r) => r.parentElement?.getAttribute("visibility") === "visible",
+    );
+    if (bands.length > 1) throw new Error("more than one highlight shows");
+    const band = bands[0];
+    return band ? ["x", "y", "width", "height"].map((n) => Number(band.getAttribute(n))) : null;
+  };
+  /** Whether a band's rectangle surrounds a selectable's hit rectangles' union. */
+  const around = (rect: number[] | null, id: string): boolean => {
+    const hit = roomIndex().flat.hits.find((h) => h.selectable === id);
+    if (!rect || !hit) return false;
+    const [x0, y0] = [Math.min(...hit.rects.map((r) => r[0])), Math.min(...hit.rects.map((r) => r[1]))];
+    const [x1, y1] = [Math.max(...hit.rects.map((r) => r[0] + r[2])), Math.max(...hit.rects.map((r) => r[1] + r[3]))];
+    const [x, y, w, h] = rect as [number, number, number, number];
+    return x <= x0 && y <= y0 && x + w >= x1 && y + h >= y1;
+  };
+
+  it("draws the border of a hovered selectable, then of a focused list button's, and clears it on selection", async () => {
+    const v = start({ webgl: false });
+    await intoRoom(v);
+    expect(v.room.visit.mode).toBe("2d");
+    const flat = v.doc.querySelector<HTMLElement>(".flat");
+    if (!flat) throw new Error("no 2D drawing");
+    const size = { w: 640, h: 400 };
+    flat.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, x: 0, y: 0 }) as DOMRect;
+    expect(shownBand(v)).toBeNull();
+    // A hover at the first selectable's hit area: the view box fills the box at a scale of 2.
+    const first = roomIndex().selectables[0]?.id ?? "";
+    const hit = roomIndex().flat.hits.find((h) => h.selectable === first);
+    const r0 = hit?.rects[0];
+    if (!r0) throw new Error("no hit rectangle");
+    const [cx, cy] = [(r0[0] + r0[2] / 2) * 2, (r0[1] + r0[3] / 2) * 2];
+    flat.dispatchEvent(
+      new (v.win as TestWindow).PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: cx,
+        clientY: cy,
+      }),
+    );
+    expect(around(shownBand(v), first)).toBe(true);
+    // Focus moves to another list button: its piece shows the border instead.
+    const second = roomIndex().selectables[1]?.id ?? "";
+    listButton(v, second).focus();
+    expect(around(shownBand(v), second)).toBe(true);
+    // Its button pressed: one object_selected, and no border.
+    const events = v.events.length;
+    listButton(v, second).click();
+    expect(v.events.slice(events)[0]).toEqual({ kind: "object_selected", id: second });
+    expect(shownBand(v)).toBeNull();
+    expect(v.spies.network).toEqual([]);
+  });
+
+  it("draws a pressed selectable's border while the finger is down, and the tap's selection clears it", async () => {
+    const v = start({ webgl: false, touch: true });
+    await intoRoom(v);
+    const flat = v.doc.querySelector<HTMLElement>(".flat");
+    if (!flat) throw new Error("no 2D drawing");
+    flat.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 640, bottom: 400, width: 640, height: 400, x: 0, y: 0 }) as DOMRect;
+    const id = roomIndex().selectables[0]?.id ?? "";
+    const r0 = roomIndex().flat.hits.find((h) => h.selectable === id)?.rects[0];
+    if (!r0) throw new Error("no hit rectangle");
+    const point = { clientX: (r0[0] + r0[2] / 2) * 2, clientY: (r0[1] + r0[3] / 2) * 2 };
+    const W = v.win as TestWindow;
+    flat.dispatchEvent(new W.PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", button: 0, ...point }));
+    expect(around(shownBand(v), id)).toBe(true);
+    flat.dispatchEvent(new W.PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0, ...point }));
+    expect(v.events.at(-1)).toEqual({ kind: "object_selected", id });
+    expect(shownBand(v)).toBeNull();
   });
 });
