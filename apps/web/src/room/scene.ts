@@ -51,6 +51,7 @@ import { createWalking } from "./scene/walking";
 import { createWalkInput } from "./walk/input";
 import { reachTargets } from "./walk/reach";
 import type { LabelFactory } from "./scene/bundle3d";
+import type { AvatarFigures } from "./scene/avatars";
 import { buildFaceQuads } from "./scene/faces3d";
 import { buildGlows } from "./scene/glows";
 import { LABEL_LAYER, createHighlight, drawFrame } from "./scene/highlight";
@@ -223,17 +224,34 @@ export function createScene(options: SceneOptions): Stage3D {
   const { floor } = options;
   let loader: Loader | null = null;
   let disposed = false;
-  if (part.load_order.length > 0)
-    void import("./scene/loader")
-      .then(({ createLoader, modelEntries, prepareModel, showModel }) => {
+  // Spec 009's figures (its FR-008, FR-011, FR-021; plan.md R-03, R-04): the stand-in's and the chosen avatar's files,
+  // loaded first, with the loader, by scene/avatars.ts's controllers, which show each in its figure once ready. Until
+  // then, and for good where one fails, the figures keep buildRoom's fallbacks.
+  let figures: AvatarFigures | null = null;
+  let leaving = false;
+  const bundled = (id: string | null): boolean => id !== null && Object.hasOwn(part.avatars, id);
+  const wantsAvatars = bundled(part.figures.stand_in) || bundled(options.avatar);
+  if (part.load_order.length > 0 || wantsAvatars)
+    void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars") : null])
+      .then(([{ createLoader, figureEntries, modelEntries, prepareModel, showModel }, avatars]) => {
         const entries = modelEntries(part);
-        if (disposed || entries.length === 0) return;
+        const figureFiles = figureEntries(part, options.avatar);
+        if (disposed || (entries.length === 0 && figureFiles.length === 0)) return;
+        const atFloor = floor === undefined ? (): boolean => meetsModelFloor(capability(win)) : (): boolean => floor;
+        figures =
+          avatars?.createAvatarFigures(room, part, {
+            chosen: options.avatar,
+            ...(options.onFigure ? { signal: options.onFigure } : {}),
+          }) ?? null;
+        // The room's models start once every figure file's fetch has ended (FR-021; Amendment M17).
+        let figuresFetched: () => void = () => undefined;
+        const fetched = new Promise<void>((resolve) => (figuresFetched = resolve));
         loader = createLoader({
           clock,
           fetch: (url, init) => win.fetch(url, init),
           decode: (source, o) => win.createImageBitmap(source, o),
-          floor: floor === undefined ? () => meetsModelFloor(capability(win)) : () => floor,
-          figures: Promise.resolve(),
+          floor: atFloor,
+          figures: figureFiles.length > 0 ? fetched : Promise.resolve(),
           handoff: options.handoff ?? Promise.resolve(),
           hold: options.hold ?? (() => () => undefined),
           level: options.level ?? (() => 0),
@@ -243,8 +261,9 @@ export function createScene(options: SceneOptions): Stage3D {
           uploader: renderer,
           prepare: (piece, model) => {
             const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
-            if (!own) return;
-            prepareModel(model, own, part.look, room.materials);
+            // An avatar's model, by its file's key: readied as a room model with no face of its own.
+            if (!own && !piece.startsWith("avatar:")) return;
+            prepareModel(model, own ?? { faces: {} }, part.look, room.materials);
             // The lines' one set of parameters, the stand-ins', so the stage's height reaches the model's too.
             ink.prepare(model);
           },
@@ -253,8 +272,23 @@ export function createScene(options: SceneOptions): Stage3D {
             // The highlight follows what the member draws now (spec 008, FR-019).
             highlight.refresh();
           },
+          avatar: (entry, model) => figures?.model(entry.figure.avatar, model) ?? false,
+          clip: (entry, clips) => {
+            if (entry.figure.role !== null) figures?.clip(entry.figure.avatar, entry.figure.role, clips);
+          },
+          figureEnded: (entry, outcome) => {
+            if (outcome === "loaded") return;
+            // avatar_failed's source (FR-032): a file that failed after its retry; a skip never sends it.
+            if (outcome === "failed") options.onFigure?.({ kind: "failed" });
+            const why = outcome === "failed" ? "failed" : leaving ? "2d" : atFloor() ? "skipped" : "floor";
+            figures?.missed(entry.figure.avatar, entry.figure.role, why);
+          },
+          maxSide: part.figures.texture_px,
         });
+        void loader.loadFigures(figureFiles, figuresFetched);
         void loader.load(entries);
+        // The kept paper goes to the visitor's holding hand once the hand-off ends (R-09).
+        void (options.handoff ?? Promise.resolve()).then(() => figures?.handoffEnded());
       })
       .catch(() => {
         if (disposed) return;
@@ -262,8 +296,18 @@ export function createScene(options: SceneOptions): Stage3D {
         for (const asset of options.room.models)
           options.assets?.(assetEvent({ asset, outcome, ms: 0, bytes: 0, mode: options.mode?.() ?? "3d" }));
       });
-  // A restored context lost the models' textures, whose bitmaps were closed: back to stand-ins, and loaded again.
-  const restored = (): void => void loader?.reload();
+  // A restored context lost the models' textures, whose bitmaps were closed: back to stand-ins and fallbacks, and loaded
+  // again, from the HTTP cache (spec 009, FR-006, for the figures).
+  const restored = (): void => {
+    if (!loader) return;
+    if (figures) {
+      figures.reset();
+      void import("./scene/loader").then(({ figureEntries }) => {
+        if (!disposed) void loader?.loadFigures(figureEntries(part, options.avatar));
+      });
+    }
+    void loader.reload();
+  };
   canvas.addEventListener("webglcontextrestored", restored);
 
   let settings = qualitySettings(0);
@@ -355,6 +399,8 @@ export function createScene(options: SceneOptions): Stage3D {
   };
 
   let frame = 0;
+  let level = 0;
+  let last: number | null = null;
   const loop = (time: number): void => {
     if (disposed) return;
     options.onFrame(time);
@@ -362,7 +408,8 @@ export function createScene(options: SceneOptions): Stage3D {
     if (disposed) return;
     resize();
     // Idle sway only while the motion store animates: paused, reduced motion, or a hidden page show its final frame,
-    // still, and the loop keeps drawing (spec 004, FR-059, FR-060; R-34).
+    // still, and the loop keeps drawing (spec 004, FR-059, FR-060; R-34). An avatar the twin shows has its own idle,
+    // so the stand-in's sway stops (spec 009).
     const moving = animating().animate;
     // The walking view's frame before drawing (spec 008, FR-022 to FR-035): its camera, or the way back from it.
     const dt = lastTime === null ? 0 : Math.min(0.1, Math.max(0, (time - lastTime) / 1000));
@@ -385,7 +432,11 @@ export function createScene(options: SceneOptions): Stage3D {
         }
       }
     }
-    room.twin.rotation.z = settings.animations && moving ? Math.sin(time / 900) * 0.015 : 0;
+    const sway = settings.animations && moving && !figures?.shows("twin");
+    room.twin.rotation.z = sway ? Math.sin(time / 900) * 0.015 : 0;
+    // The figures' clips advance only while the motion store animates (spec 009, FR-025 to FR-027).
+    figures?.update(last === null ? 0 : Math.max(0, time - last), moving, level);
+    last = time;
     faces.frame(time);
     glows.frame(time);
     // The highlight after the look's frame, whatever the quality level does to its ink lines (spec 008, FR-017), and
@@ -440,13 +491,14 @@ export function createScene(options: SceneOptions): Stage3D {
       },
       leave: leaveWalk,
     },
-    setQuality(level) {
+    setQuality(next) {
       const before = settings.shadows;
-      settings = qualitySettings(level);
+      level = next;
+      settings = qualitySettings(next);
       renderer.shadowMap.enabled = settings.shadows;
       ink.setOutlines(settings.outlines);
       labels.setScale(settings.textureScale);
-      faces.setLevel(level);
+      faces.setLevel(next);
       glows.setEnabled(settings.glowCards);
       if (before !== settings.shadows) {
         room.scene.traverse((node) => {
@@ -459,11 +511,13 @@ export function createScene(options: SceneOptions): Stage3D {
       size = { w: 0, h: 0, ratio: 0 };
     },
     dispose() {
+      leaving = true;
       disposed = true;
       clock.cancelFrame(frame);
       unbind();
       input.unbind();
       loader?.stop();
+      figures?.dispose();
       canvas.removeEventListener("webglcontextrestored", restored);
       faces.dispose();
       glows.dispose();

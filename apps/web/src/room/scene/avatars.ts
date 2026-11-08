@@ -72,8 +72,9 @@ export interface AvatarFigures {
   model(avatar: AvatarId, model: Object3D): boolean;
   /** A clip file's animations, its first the role's clip. */
   clip(avatar: AvatarId, role: ClipRole, clips: readonly AnimationClip[]): void;
-  /** A figure file's load ended without it: its model (role null) or a clip failed after its retry, or was skipped. */
-  missed(avatar: AvatarId, role: ClipRole | null, why: "failed" | "skipped"): void;
+  /** A figure file's load ended without it: its model (role null) or a clip failed after its retry, or was skipped,
+   *  below the floor, or as the room went to 2D. */
+  missed(avatar: AvatarId, role: ClipRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
   /** Whether a figure shows its avatar. */
   shows(figure: FigureId): boolean;
   /** The figure's holding hand's bone, or null. */
