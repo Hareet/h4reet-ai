@@ -49,6 +49,15 @@ export const UI_KEYS = {
   "draft.badge": [],
   // The stage's line when the 2D drawing can't be drawn (FR-081).
   "flat-failed": [],
+  // Spec 008's walking view (FR-059; its plan.md §3.3): the control's two words, the walking view's name and help, and
+  // its three announcements, the last with the target's name.
+  "walk.enter": [],
+  "walk.leave": [],
+  "walk.region": [],
+  "walk.help": [],
+  "walk.entered": [],
+  "walk.left": [],
+  "walk.target": ["name"],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

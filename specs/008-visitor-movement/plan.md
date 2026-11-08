@@ -362,6 +362,16 @@ A task that departs from this plan records it here, in the commit that departs (
 - **The RED tests, two corrected before their code was committed:** `data-only.test.ts`'s proof set typed, and `floor.test.ts`'s world lookup guarded (643da730); `focusOf` takes a whole pose or its place, so the camera test's pose literal type-checks.
 - **The walking interface (T042)** is `Stage3D.walk` (`walking`, `enter(focus)`, `leave()`) with `SceneOptions.walkEnded(why)` for a leave the stage makes itself, Escape or a failed step; the 3D stage holds a stub until Phase 3, and the stand-in scene records each call.
 
+### Phase 3, as built on `feat/008-walking` (2026-11-08)
+
+- **Clicks stay objects.ts's (T048, T052; R-10).** `walk/input.ts` takes the keys, the drags, and the wheel, not the clicks: `bindPointerSelection` stays the one selection path, and gains `miss(ndc)`, a click within the slop that picks nothing, which the 3D stage hands the walking view as a tap for a walk toward the floor there (FR-030, FR-032). So a click on a piece selects once, whether walking or not, and hover targeting goes on while walking, at the follow camera.
+- **The picker's `setCamera(camera, stage)`** (T051; FR-035) takes the stage beside the camera, recomputes the areas there, keeps the walking control's box reserved, and returns to the production framing with null once the return's blend ends.
+- **The kept paper joins the visitor's picture at the first entry into the walking view** (T051; R-12, which says at the hand-off's end): the same in effect, since nothing moves the figure before then, and `keepPaper` does it once.
+- **The walking view's focusable element (T056, with part of T062).** FR-022 gives the walking view focus on entry, so the view takes R-13's `tabindex`, `role="application"`, name, and instructions (the visually hidden `walk.help`) in Phase 3, only while walking; the announcements, `walk.entered`, `walk.left`, and `walk.target`, stay Phase 5's (T061, T062).
+- **The figure driver (T049; FR-034)** is `FigureDriver`'s `frame({pose, camera, animate})` and `rest()`, nothing of the cut-out in it, so spec 009's rigged avatar takes the visitor's figure through it, turning to the heading and crossfading its clips by the speed; the cut-out's driver mirrors by the side of the camera's right the heading falls on, with R-12's hold of 0.2, and bobs by at most 0.015 m a 0.35 m stride.
+- **Spec 004's fixture room gains the seven walking words** in its `ui-words.yaml`, since RT12 holds every closed-list key; `vocabulary.test.ts`'s pin of the closed list gains them (Amendment M12), and `a11y.test.ts`'s Tab order in 3D gains the walking control after the toolbar (Amendment M6).
+- **Test files beyond §5.1's list:** `test/room/input.test.ts`, `test/room/stage-walk.test.ts`, `live.test.ts`'s walk entries, `events.test.ts`'s beacon kinds, and `deploy/scripts/test_dashboard.py`'s walked share.
+
 ## Constitution Check (post-design)
 
 Re-checked after §1 to §5: the design adds no flow beyond `walk_started` (I), every FR has a test or an Author's run (II), the order keeps code behind the Author's approval and merges behind line R's (III), nothing is widened (IV), the cost stays at $0 for models (V), and the AI disclosure is held visible by SC-012 (VIII). **PASS**, with the spec's one named deviation.

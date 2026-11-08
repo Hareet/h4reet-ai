@@ -79,7 +79,7 @@ export interface SceneOptions {
   select(id: string): void;
   /** Where the stage's pointer reports its targeting inputs (spec 008, FR-008 (a) and (b)): a hovering pointer's
    *  pick and a press's, a selectable's ID or none. Absent, nothing is reported. */
-  target?(input: Extract<TargetInput, "pointer" | "press">, id: string | null): void;
+  target?(input: Extract<TargetInput, "pointer" | "press" | "reach">, id: string | null): void;
   /** Each frame's time, for the quality controller. */
   onFrame(time: number): void;
   /** Where the stage reports a leave of the walking view it made itself (spec 008): Escape, or a failed step (FR-005).

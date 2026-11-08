@@ -86,7 +86,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { SceneModule, Stage, Stage3D } from "./stage";
+import type { SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -184,6 +184,34 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     retarget({ kind: "name", input, id });
   }
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
+
+  /** Whether this visit has walked: walk_started goes once a visit (FR-051). */
+  let walked = false;
+  /** The stage, where it's the 3D one, which walks. */
+  const walker = (s: Stage | null): Stage3D | null => (s?.mode === "3d" && "walk" in s ? (s as Stage3D) : null);
+  /** Into the walking view: focus on it, walk_started the first time, and the frame log's entry (FR-022, FR-054). */
+  function enterWalking(scene3d: Stage3D): void {
+    const layout = room;
+    if (!layout) return;
+    scene3d.walk.enter(layout.view);
+    if (!scene3d.walk.walking) return;
+    layout.setWalking(true);
+    layout.view.focus();
+    if (!walked) {
+      walked = true;
+      emit({ kind: "walk_started" });
+    }
+    log?.record("walk", { state: "entered" });
+  }
+  /** Out of it, by the control, Escape, a failed step, or the fall to 2D: focus back on the control (FR-022). */
+  function leaveWalking(why: "control" | WalkEnd | "flat"): void {
+    const layout = room;
+    if (why === "control") walker(stage)?.walk.leave();
+    if (!layout) return;
+    layout.setWalking(false);
+    if (why !== "flat") layout.walkButton.focus();
+    log?.record("walk", { state: "left", why });
+  }
 
   // The motion store, read throughout the visit by whichever stage the room draws (3D or 2D), and the tier signal, which
   // shows each reading on the stage and in the text copy at once (spec 004, FR-042, FR-059, FR-060).
@@ -325,8 +353,21 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       around: around.element,
       note: uiWord(deps.room.ui, "standin.note") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
+      walk: {
+        enter: uiWord(deps.room.ui, "walk.enter") ?? "",
+        leave: uiWord(deps.room.ui, "walk.leave") ?? "",
+        region: uiWord(deps.room.ui, "walk.region") ?? "",
+        help: uiWord(deps.room.ui, "walk.help") ?? "",
+      },
     });
     room = layout;
+    // Spec 008's walking control (FR-020 to FR-022, FR-051): it enters and leaves the 3D stage's walking view.
+    layout.walkButton.addEventListener("click", () => {
+      const scene3d = walker(stage);
+      if (!open() || !scene3d) return;
+      if (scene3d.walk.walking) leaveWalking("control");
+      else enterWalking(scene3d);
+    });
     layout.setPaused(motion.paused);
     around.setPausedAt(motion.paused ? motion.pausedAt : null);
     layout.pauseButton.addEventListener("click", () => {
@@ -412,6 +453,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         motion,
         select: selectObject,
         target: targetInput,
+        walkEnded: (why) => leaveWalking(why),
         onFrame,
         floor: meetsModelFloor(device),
         handoff: handoffDone,
@@ -460,6 +502,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
+    // The walk ends with the 3D stage (FR-003).
+    if (walker(stage)?.walk.walking) leaveWalking("flat");
+    room.setWalkOffered(false);
     unwatch?.();
     unwatch = null;
     const old = stage;
@@ -506,6 +551,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       offering = false;
       removeOffer();
       layout.setInteractive(true);
+      layout.setWalkOffered(walker(stage) !== null);
     };
     const removeOffer = layout.offer(
       () => {

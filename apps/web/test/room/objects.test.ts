@@ -581,3 +581,29 @@ describe("a press that ends off the surface (the review of Phase 1, finding 3)",
     expect(select.mock.calls).toEqual([["fx-left"]]);
   });
 });
+
+// T052 (spec 008; FR-030, FR-032): a tap that picks nothing goes to `miss`, with its point, for the walking view to
+// walk toward the floor there; a tap on a piece still selects, and misses nothing.
+describe("a tap that picks nothing (spec 008, T052)", () => {
+  const STAGE: Stage = { w: 400, h: 300 };
+  const picker = (ndc: { x: number; y: number }): string | null => (ndc.y < 0 ? null : "fx-piece");
+
+  it("goes to miss with its point, and a tap on a piece selects as before", () => {
+    const { win, canvas } = surface(STAGE);
+    const select = vi.fn<(id: string) => void>();
+    const miss = vi.fn<(ndc: { x: number; y: number }) => void>();
+    bindPointerSelection(canvas, picker, select, undefined, miss);
+    const tap = (x: number, y: number): void => {
+      for (const type of ["pointerdown", "pointerup"])
+        canvas.dispatchEvent(
+          new win.PointerEvent(type, { bubbles: true, pointerType: "mouse", clientX: x, clientY: y, button: 0 }),
+        );
+    };
+    tap(100, 250);
+    expect(select).not.toHaveBeenCalled();
+    expect(miss.mock.calls).toEqual([[{ x: (100 / 400) * 2 - 1, y: -((250 / 300) * 2) + 1 }]]);
+    tap(100, 60);
+    expect(select.mock.calls).toEqual([["fx-piece"]]);
+    expect(miss).toHaveBeenCalledTimes(1);
+  });
+});

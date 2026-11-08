@@ -19,7 +19,18 @@ export const FRAME_LOG_LIMIT = 10_000;
 export const FRAME_LOG_KIND = "h4-frame-log";
 
 export type FrameEvent =
-  "enter" | "pause" | "resume" | "hide" | "show" | "request" | "result" | "tier" | "fallback" | "case" | "target";
+  | "enter"
+  | "pause"
+  | "resume"
+  | "hide"
+  | "show"
+  | "request"
+  | "result"
+  | "tier"
+  | "fallback"
+  | "case"
+  | "target"
+  | "walk";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;

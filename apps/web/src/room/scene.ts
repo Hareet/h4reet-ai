@@ -40,9 +40,16 @@ import {
   disposeRoom,
   frameCamera,
   framedBoxes,
+  keepPaper,
   selectablePicker,
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
+import { floorOfPart } from "./compose/floor";
+import type { Camera as ViewCamera } from "./compose/project";
+import { cutoutDriver } from "./scene/figure";
+import { createWalking } from "./scene/walking";
+import { createWalkInput } from "./walk/input";
+import { reachTargets } from "./walk/reach";
 import type { LabelFactory } from "./scene/bundle3d";
 import { buildFaceQuads } from "./scene/faces3d";
 import { buildGlows } from "./scene/glows";
@@ -265,7 +272,71 @@ export function createScene(options: SceneOptions): Stage3D {
   const boxes = framedBoxes(part);
   frameCamera(camera, 16 / 9, boxes);
   const picker = selectablePicker(part, options.room);
-  const unbind = bindPointerSelection(canvas, picker.pick, options.select, options.target);
+  // Spec 008's walking view (T051): the walkable floor and the figure's driver from the 3D part, the input over the
+  // canvas, and the orchestrator, which reach and the walking control's room callbacks reach the room through. Where
+  // the part gives no floor or no figure, there is no walking view, and entering does nothing.
+  const walkable = floorOfPart(part, part.walking.radius_m);
+  const visitorNode = room.placements.get(part.figures.visitor);
+  const figure = visitorNode ? cutoutDriver({ node: visitorNode, picture: room.visitor }) : null;
+  const input = createWalkInput(canvas, win);
+  const rates = { turn: (part.walking.turn_dps * Math.PI) / 180, tilt: (part.walking.tilt_dps * Math.PI) / 180 };
+  let returning = false;
+  const leaveWalk = (): void => {
+    if (!walking?.on) return;
+    input.unbind();
+    walking.leave(clock.now());
+    returning = true;
+  };
+  const walking =
+    walkable && figure
+      ? createWalking({
+          floor: walkable,
+          data: part.walking,
+          boxes,
+          targets: reachTargets(part, options.room),
+          figure,
+          picker: { setCamera: (c, stage) => picker.setCamera(c, stage), pick: picker.pick },
+          reach: (id) => options.target?.("reach", id),
+          select: options.select,
+          target: () => highlight.target,
+          escape: () => {
+            leaveWalk();
+            options.walkEnded?.("escape");
+          },
+        })
+      : null;
+  /** A camera of the kernel's on the stage's camera. */
+  const applyCamera = (spec: ViewCamera, aspect: number): void => {
+    camera.fov = spec.fov;
+    camera.aspect = aspect;
+    camera.near = spec.near;
+    camera.far = spec.far;
+    camera.up.set(0, 1, 0);
+    camera.position.set(...spec.position);
+    camera.lookAt(...spec.target);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+  };
+  /** A step that threw: the walk ends at the production framing, the figure at its place, and the room is told
+   *  (FR-005), so the scene is never left blank or frozen. */
+  const failWalk = (): void => {
+    input.unbind();
+    try {
+      walking?.leave(clock.now());
+    } catch {
+      // Its own leave failing too: the camera goes back below all the same.
+    }
+    returning = false;
+    if (size.w > 0 && size.h > 0) {
+      frameCamera(camera, size.w / size.h, boxes);
+      picker.setCamera(null, { w: size.w, h: size.h });
+    }
+    options.walkEnded?.("failed");
+  };
+  let lastTime: number | null = null;
+  const unbind = bindPointerSelection(canvas, picker.pick, options.select, options.target, (ndc) => {
+    if (walking?.on) input.miss(ndc);
+  });
 
   let size = { w: 0, h: 0, ratio: 0 };
   const resize = (): void => {
@@ -293,6 +364,27 @@ export function createScene(options: SceneOptions): Stage3D {
     // Idle sway only while the motion store animates: paused, reduced motion, or a hidden page show its final frame,
     // still, and the loop keeps drawing (spec 004, FR-059, FR-060; R-34).
     const moving = animating().animate;
+    // The walking view's frame before drawing (spec 008, FR-022 to FR-035): its camera, or the way back from it.
+    const dt = lastTime === null ? 0 : Math.min(0.1, Math.max(0, (time - lastTime) / 1000));
+    lastTime = time;
+    if (walking && size.w > 0 && size.h > 0) {
+      const stage = { w: size.w, h: size.h };
+      if (walking.on) {
+        try {
+          applyCamera(walking.frame(input.take(dt, rates), stage, time, dt, moving), size.w / size.h);
+        } catch {
+          failWalk();
+        }
+      } else if (returning) {
+        const back = walking.returning(stage, time, moving);
+        if (back) applyCamera(back, size.w / size.h);
+        else {
+          returning = false;
+          frameCamera(camera, size.w / size.h, boxes);
+          picker.setCamera(null, stage);
+        }
+      }
+    }
     room.twin.rotation.z = settings.animations && moving ? Math.sin(time / 900) * 0.015 : 0;
     faces.frame(time);
     glows.frame(time);
@@ -331,8 +423,21 @@ export function createScene(options: SceneOptions): Stage3D {
     setTarget(id) {
       highlight.setTarget(id);
     },
-    // Spec 008's walking view: its interface now (T042), its behaviour with Phase 3 (T050, T051).
-    walk: { walking: false, enter: () => undefined, leave: () => undefined },
+    // Spec 008's walking view (T051): entered and left by the room's walking control, Escape reported through
+    // walkEnded, as a failed step is.
+    walk: {
+      get walking() {
+        return walking?.on ?? false;
+      },
+      enter(focus) {
+        if (!walking || walking.on) return;
+        keepPaper(room);
+        input.bind(focus);
+        returning = false;
+        walking.enter(clock.now());
+      },
+      leave: leaveWalk,
+    },
     setQuality(level) {
       const before = settings.shadows;
       settings = qualitySettings(level);
@@ -355,6 +460,7 @@ export function createScene(options: SceneOptions): Stage3D {
       disposed = true;
       clock.cancelFrame(frame);
       unbind();
+      input.unbind();
       loader?.stop();
       canvas.removeEventListener("webglcontextrestored", restored);
       faces.dispose();

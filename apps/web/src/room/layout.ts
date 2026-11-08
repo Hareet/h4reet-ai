@@ -38,6 +38,12 @@ export interface RoomLayout {
   setPlaceholders(on: boolean): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
+  /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
+  readonly walkButton: HTMLButtonElement;
+  /** Offers the walking control, in 3D after the hand-off's offer, or takes it away, in 2D. */
+  setWalkOffered(on: boolean): void;
+  /** The walking view on or off: the control's words, and the view's name, role, and focus while walking (R-13). */
+  setWalking(on: boolean): void;
 }
 
 export function renderRoom(
@@ -51,6 +57,8 @@ export function renderRoom(
     note: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
+    /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help. */
+    walk?: { readonly enter: string; readonly leave: string; readonly region: string; readonly help: string };
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
@@ -69,7 +77,10 @@ export function renderRoom(
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
   const view = h(doc, "div", { class: "room-stage-view" }, h(doc, "p", { class: "room-loading" }, "Loading the room…"));
   const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
-  const stage = h(doc, "div", { class: "room-stage" }, view, note);
+  const walkWords = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
+  const walkButton = h(doc, "button", { type: "button", class: "room-walk", hidden: true }, walkWords.enter);
+  const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden" }, walkWords.help);
+  const stage = h(doc, "div", { class: "room-stage" }, view, note, walkButton, walkHelp);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
   const resumeBody = h(doc, "div", { class: "resume-body" });
   const resumePanel = h(
@@ -91,7 +102,7 @@ export function renderRoom(
     parts.around,
     resumePanel,
   );
-  const controls = [toolbar, view, parts.list, parts.talk, resumePanel];
+  const controls = [toolbar, view, walkButton, parts.list, parts.talk, resumePanel];
 
   return {
     element,
@@ -131,6 +142,21 @@ export function renderRoom(
     },
     setPaused(on) {
       pauseButton.setAttribute("aria-pressed", String(on));
+    },
+    walkButton,
+    setWalkOffered(on) {
+      walkButton.hidden = !on || walkWords.enter === "";
+    },
+    setWalking(on) {
+      walkButton.textContent = on ? walkWords.leave : walkWords.enter;
+      // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
+      // the canvas inside it, which stays aria-hidden (R-13).
+      if (on) {
+        view.setAttribute("tabindex", "0");
+        view.setAttribute("role", "application");
+        view.setAttribute("aria-label", walkWords.region);
+        view.setAttribute("aria-describedby", "room-walk-help");
+      } else for (const name of ["tabindex", "role", "aria-label", "aria-describedby"]) view.removeAttribute(name);
     },
   };
 }

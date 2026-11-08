@@ -176,6 +176,17 @@ body.in-room .disclosure p {
   border-radius: 4px;
 }
 
+/* The walking view (spec 008, FR-042; R-13): the stage's view takes focus while walking, its ring the room's, inside
+   its edge so the stage's frame doesn't clip it; and the canvas shows it can be dragged. */
+.room-stage-view[role="application"]:focus-visible {
+  outline: 3px solid #0b4f9c;
+  outline-offset: -3px;
+}
+
+.room-stage-view[role="application"] .room-canvas {
+  cursor: grab;
+}
+
 .room-note {
   position: absolute;
   left: 0.5rem;
