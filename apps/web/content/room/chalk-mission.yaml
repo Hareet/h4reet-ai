@@ -4,7 +4,8 @@
 # span, so the claim stays out of what the site publishes. The pending line is a placeholder for the Author: it is never
 # drawn or published, and waits for a mission statement in the Author's own words. No line names Seva or quotes the
 # corpus's framing of it (answer 3: "leave it off the chalkboard"); `exclude` holds the framing's phrases, so RT7
-# refuses a line that does. The slate is still unbound (plan.md §10, "The chalkboard's slate stays unbound").
+# refuses a line that does. It is bound to no face: the slate holds chalk-denverlocal's one line alone (FR-082; plan.md
+# §10, "The chalkboard's slate stays unbound, but for T308's one line").
 version: 1
 block: chalk-mission
 renderer: chalk

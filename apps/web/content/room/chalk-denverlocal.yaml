@@ -1,6 +1,7 @@
 # The chalkboard's one line (spec 004; FR-082, FR-030, FR-033, FR-034; T308): "denverlocal.ai", a verbatim span of
 # the sentence "The site is live now, at denverlocal.ai.", which corpus/07-denver-local-ai.md holds under its
-# [A 2026-10-30] tag. The claim quotes the whole sentence, the longer span, so it stays out of what the site publishes.
+# [A 2026-10-30] tag. The claim quotes the whole sentence, the longer span: the claims field isn't published, and the
+# narration says the sentence in its own words (content/narration/denver-local-ai.engineer.md).
 # The Author, 2026-10-30: "Let's start the chalkboard with only having "denverlocal.ai" written. We can add more later"
 # (spec.md's Clarifications, Session 2026-10-30, US5 · 1 and US5 · 3). It is the slate's only words, bound alone to
 # it, and stays one line. A draft until the Author approves its SHA-256 on main with the kind room-text (T203): a
