@@ -447,3 +447,112 @@ def test_the_product_suite_as_make_evals_runs_it_ends_with_the_twins_readiness(
     assert "INFO (twin readiness):" not in capsys.readouterr().out
     assert run.main(["--suite", "product", "--adapter", "fake"]) == 0
     assert "INFO (twin readiness):" not in capsys.readouterr().out
+
+
+# --- The Author's live runs of 2026-11-08 (spec 007's T074, T075): Bedrock's cost, and the scaffold's fake case ---
+
+
+def stand_in_bedrock(tmp_path: Path, cost: object) -> Path:
+    """scripts/operator.py's AdminClient as a stand-in whose §5 answer carries `cost` as its cost_micro_usd."""
+    scripts = tmp_path / "repo" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "operator.py").write_text(
+        "class AdminClient:\n"
+        "    def __init__(self, stack):\n"
+        "        assert stack == 'prod'\n"
+        "    def adapter_complete(self, adapter_id, messages, *, max_output_tokens, purpose, reason):\n"
+        f"        return {{'adapter': 'bedrock', 'attribution': 'test', 'cost_micro_usd': {cost!r},\n"
+        "                'trace_id': 'ab' * 16,\n"
+        "                'result': {'text': 'Hello.', 'response_model': 'us.haiku',\n"
+        "                           'usage': {'input_tokens': 9, 'output_tokens': 2}}}\n",
+        encoding="utf-8",
+    )
+    return tmp_path / "repo"
+
+
+def test_bedrock_reads_the_cost_as_operator_admins_decimal_string(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # contracts/operator-admin.md §5 (T103's readings): "Costs are decimal strings of micro-USD in both answers, as
+    # BigInt can't travel in JSON". T075's run stopped at its first case on the integer this reader wanted.
+    monkeypatch.setattr(run, "REPO", stand_in_bedrock(tmp_path, "31"))
+    answer = run.bedrock_adapter("demo")(CASE)
+    assert answer["cost_micro_usd"] == 31
+    assert type(answer["cost_micro_usd"]) is int
+
+
+@pytest.mark.parametrize(
+    "cost",
+    ["3.1", "-1", "", " 31", "31 ", "0x1f", "1e3", chr(0x663), "9" * 19, None, -1, 1.5],
+)
+def test_bedrock_refuses_a_cost_that_isnt_micro_usd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cost: object
+) -> None:
+    monkeypatch.setattr(run, "REPO", stand_in_bedrock(tmp_path, cost))
+    with pytest.raises(run.AdapterError, match="cost_micro_usd"):
+        run.bedrock_adapter("demo")(CASE)
+
+
+FAKE_ONLY = "id: b\nprompt: Say hello.\nfake_response: Hello there.\nfake_only: true\nexpect:\n  contains: [hello]\n"
+
+
+@pytest.mark.parametrize("adapter", ["local", "bedrock"])
+def test_a_fake_only_case_is_skipped_on_a_live_adapter_counted_and_said(
+    adapter: str,
+    suite: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The scaffold's hello case scores a scripted answer (spec 000 plan §14): a live run never sends it, so no real
+    # model is scored against the fake adapter's words, and prod's meter isn't charged for them. It says so.
+    (suite / "demo" / "cases" / "b.yaml").write_text(FAKE_ONLY, encoding="utf-8")
+    sent: list[str] = []
+
+    def adapter_factory(*_args: object) -> Any:
+        def call(case: dict[str, Any]) -> Any:
+            sent.append(case["id"])
+            usage = {"input_tokens": 1, "output_tokens": 2}
+            return run.reply("Hello there.", "local", "local", "m", usage, 0, None)
+
+        return call
+
+    monkeypatch.setattr(run, "local_adapter", adapter_factory)
+    monkeypatch.setattr(run, "bedrock_adapter", adapter_factory)
+    argv = ["--suite", "demo", "--adapter", adapter]
+    assert run.main(argv + (["--stack", "dev"] if adapter == "local" else [])) == 0
+    assert sent == ["a"]
+    out = capsys.readouterr().out
+    assert "SKIP  b  (the fake adapter only)" in out
+    assert f"evals demo ({adapter}): 1 passed, 0 failed, 1 skipped" in out
+    (path,) = (suite / "demo" / "history").iterdir()
+    record = json.loads(path.read_text(encoding="utf-8"))
+    assert record["skipped"] == ["b"]
+    assert record["cases"] == 1 and [r["id"] for r in record["results"]] == ["a"]
+
+
+def test_a_fake_only_case_runs_on_the_fake_adapter(
+    suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (suite / "demo" / "cases" / "b.yaml").write_text(FAKE_ONLY, encoding="utf-8")
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 0
+    out = capsys.readouterr().out
+    assert "evals demo (fake): 2 passed, 0 failed\n" in out
+    assert "SKIP" not in out
+
+
+@pytest.mark.parametrize("value", ["maybe", "'true'", "1", "[fake]"])
+def test_fake_only_is_true_or_false(
+    suite: Path, capsys: pytest.CaptureFixture[str], value: str
+) -> None:
+    (suite / "demo" / "cases" / "b.yaml").write_text(
+        FAKE_ONLY.replace("fake_only: true", f"fake_only: {value}"), encoding="utf-8"
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 2
+    assert "fake_only" in capsys.readouterr().err
+
+
+def test_the_scaffolds_hello_case_runs_on_the_fake_adapter_alone() -> None:
+    # T074 printed "FAIL hello-fake (missing 'test')": a real model was scored against hello-fake's scripted answer,
+    # and on Bedrock, which sends it without hello's system prompt, it could never pass.
+    (case,) = [c for c in run.load_cases("product") if c["id"] == "hello-fake"]
+    assert case["fake_only"] is True
