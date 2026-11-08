@@ -15,14 +15,17 @@ Standard library plus PyYAML. A case is one YAML file in evals/<suite>/cases/:
       contains: [hello]                         # every string must appear (case-insensitive)
       not_contains: [as an ai language model]   # none may appear (case-insensitive)
       regex: "^Hello"                           # re.search; it must compile
+    fake_only: true                             # optional: the fake adapter alone runs it (below)
 
-Scoring is deterministic: no model judges another. The adapters reach models only through the gateway:
+Scoring is deterministic: no model judges another. A fake-only case scores its own fake_response, as the scaffold's
+hello case does: a live run skips it, and prints and records each one it skipped (spec 007's live runs, 2026-11-08).
+The adapters reach models only through the gateway:
   - local: POST /hello on the stack's api port (contracts/gateway-http.md §2). Only the local route counts. A fallback
     answer stops the run, so the local model is never scored on another provider's answer, and the run spends no more
     of the sub-budget. A 429 waits out its Retry-After, except the daily cap.
   - bedrock: POST /admin/adapters/bedrock/complete on prod, through scripts/operator.py's AdminClient
     (contracts/operator-admin.md §5, §6), which never fails over. It sends the prompt as the only message, without
-    hello's fixed system prompt.
+    hello's fixed system prompt. Its cost is §5's decimal string of micro-USD, read as an integer.
 Only real runs write history, to evals/<suite>/history/: per case, the verdict, the route, provider, model, tokens,
 cost, trace ID, and a hash of the answer, never its text; per run, the stack, the commit it runs, and the totals.
 The history folder is untracked, so the file is created without following a link and never replaces one.
@@ -64,7 +67,16 @@ HELLO_MAX_OUTPUT_TOKENS = (
 )
 RETRIES = 5
 RETRY_CAP_S = 60.0
-CASE_KEYS = {"id", "description", "prompt", "fake_response", "expect", "twin", "kind"}
+CASE_KEYS = {
+    "id",
+    "description",
+    "prompt",
+    "fake_response",
+    "expect",
+    "twin",
+    "kind",
+    "fake_only",
+}
 # Spec 007's twin cases (its FR-049): what the case asks the twin, and what kind of case it is.
 TWIN_KEYS = {"feature", "path", "turns"}
 TWIN_PATHS = {"engineer", "non-engineer"}
@@ -103,6 +115,8 @@ def load_cases(suite: str) -> list[dict[str, Any]]:
             raise AdapterError(f"{path}: unknown keys {sorted(unknown)}")
         if "twin" in case or "kind" in case:
             check_twin(path, case)
+        if not isinstance(case.get("fake_only", False), bool):
+            raise AdapterError(f"{path}: fake_only is true or false")
         expect = case.get("expect") or {}
         if not isinstance(expect, dict) or set(expect) - EXPECT_KEYS:
             raise AdapterError(f"{path}: expect takes only {sorted(EXPECT_KEYS)}")
@@ -361,6 +375,15 @@ def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
     return call
 
 
+def micro_usd(cost: Any) -> Any:
+    """operator-admin.md §5's cost, as an integer: "Costs are decimal strings of micro-USD in both answers, as BigInt
+    can't travel in JSON" (T103's readings). ASCII digits only, at most 18 of them; anything else stays as it came,
+    for reply() to refuse."""
+    if isinstance(cost, str) and re.fullmatch(r"[0-9]{1,18}", cost):
+        return int(cost)
+    return cost
+
+
 def bedrock_adapter(suite: str) -> Adapter:
     """Prod's admin endpoint, with the operator token, through scripts/operator.py's AdminClient (plan §14)."""
     client = admin_client("prod")
@@ -393,7 +416,7 @@ def bedrock_adapter(suite: str) -> Adapter:
             "aws.bedrock",
             result.get("response_model"),
             result.get("usage"),
-            answer.get("cost_micro_usd"),
+            micro_usd(answer.get("cost_micro_usd")),
             answer.get("trace_id"),
         )
 
@@ -481,7 +504,21 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
     stack = "prod" if args.adapter == "bedrock" else args.stack
     started = dt.datetime.now(dt.UTC)
     try:
-        cases = load_cases(args.suite)
+        loaded = load_cases(args.suite)
+        # A fake-only case scores its own fake_response, so a live run never sends it: no real model is scored
+        # against scripted words, and prod's meter isn't charged for them (spec 007's live runs, 2026-11-08).
+        skipped = (
+            []
+            if args.adapter == "fake"
+            else [c["id"] for c in loaded if c.get("fake_only")]
+        )
+        cases = [c for c in loaded if args.adapter == "fake" or not c.get("fake_only")]
+        for case_id in skipped:
+            print(f"SKIP  {case_id}  (the fake adapter only)")
+        if not cases:
+            raise AdapterError(
+                f"every case in the {args.suite} suite runs on the fake adapter only"
+            )
         hello_call: Adapter | None = None
         twin_call: Adapter | None = None
 
@@ -576,6 +613,7 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
                 "finished": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
                 "cases": len(cases),
                 "failed": failed,
+                "skipped": skipped,
                 "cost_micro_usd": cost,
                 "tokens": {
                     k: sum(r["usage"][k] for r in results)
@@ -594,6 +632,7 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
         return 2
     print(
         f"evals {args.suite} ({args.adapter}): {len(cases) - failed} passed, {failed} failed"
+        + (f", {len(skipped)} skipped (the fake adapter only)" if skipped else "")
         + (f", {cost} micro-USD" if args.adapter != "fake" else "")
     )
     if readiness and args.suite == "product":

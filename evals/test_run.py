@@ -530,6 +530,21 @@ def test_a_fake_only_case_is_skipped_on_a_live_adapter_counted_and_said(
     assert record["cases"] == 1 and [r["id"] for r in record["results"]] == ["a"]
 
 
+def test_a_live_run_with_nothing_but_fake_only_cases_is_a_usage_error(
+    suite: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Skipping every case would pass a run that sent nothing, so it stops instead, as a fake-only suite does.
+    (suite / "demo" / "cases" / "a.yaml").write_text(FAKE_ONLY, encoding="utf-8")
+
+    def never(*_args: object) -> None:
+        raise AssertionError("a fake-only case reached a live adapter")
+
+    monkeypatch.setattr(run, "local_adapter", never)
+    assert run.main(["--suite", "demo", "--adapter", "local", "--stack", "dev"]) == 2
+    assert "runs on the fake adapter only" in capsys.readouterr().err
+    assert not (suite / "demo" / "history").exists()
+
+
 def test_a_fake_only_case_runs_on_the_fake_adapter(
     suite: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

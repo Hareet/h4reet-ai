@@ -14,3 +14,6 @@ covers:
 forbid:
   - "(?i)(?:^|[.!?]\\s+)his (?:religion|faith) is\\b"
   - "(?i)(?:^|[.!?]\\s+)he is (?:a |an )?(?:devout|practi[cs]ing|religious)\\b"
+  # The surname line answers a question about his surname, and nothing else: the local model opened this answer with
+  # it in the Author's live run of 2026-11-08 (spec 007's plan, D25).
+  - "(?i)\\bsurname\\b"

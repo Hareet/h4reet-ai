@@ -1,9 +1,12 @@
 # The scaffold's one product case. It passes on the fake adapter, so the suite runs and passes trivially until
-# Phase 1 brings the twin's real cases (spec 000 Assumptions; plan §14).
+# Phase 1 brings the twin's real cases (spec 000 Assumptions; plan §14). It scores its own scripted answer, so it is
+# the fake adapter's alone: a live run skips it, counted and said (spec 007's live runs, 2026-11-08, where T074
+# printed "FAIL hello-fake (missing 'test')", and on Bedrock, which sends no hello system prompt, it could never pass).
 id: hello-fake
 description: The hello endpoint names itself, and never claims to be the twin.
 prompt: Say hello.
 fake_response: "Hello! This is the h4reet.ai stack's hello test answering."
+fake_only: true
 expect:
   contains: [hello, test]
   not_contains: ["i am the twin", "as an ai language model"]
