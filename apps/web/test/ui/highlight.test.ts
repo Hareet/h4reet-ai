@@ -224,6 +224,27 @@ describe("the target on the stand-in 3D stage", () => {
     expect(v.scene.targets).toEqual([]);
   });
 
+  it("leaves the selection whole when the stage throws taking a target: the event, the topic, and the room drawing", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    const stage = v.scene.stage;
+    if (!stage) throw new Error("no stage");
+    stage.setTarget = () => {
+      throw new Error("a stage that can't take its target");
+    };
+    const id = roomIndex().selectables.find((s) => s.action.kind === "talk")?.id ?? "";
+    const messages = v.doc.querySelector('[role="log"]')?.childElementCount ?? 0;
+    expect(() => targetVia(v)("pointer", id)).not.toThrow();
+    const events = v.events.length;
+    expect(() => sceneOf(v).select(id)).not.toThrow();
+    expect(v.events.slice(events)).toEqual([{ kind: "object_selected", id }]);
+    expect(v.doc.querySelector('[role="log"]')?.childElementCount ?? 0).toBeGreaterThan(messages);
+    expect(() => listButton(v, id).focus()).not.toThrow();
+    const frames = v.scene.frames;
+    v.clock.advance(100);
+    expect(v.scene.frames).toBeGreaterThan(frames);
+  });
+
   it("is cleared by the fall to 2D, the 3D stage given none before it goes", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
