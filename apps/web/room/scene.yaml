@@ -23,6 +23,18 @@
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: site, asset_events: off }
+# Spec 008's walking view (FR-056), written out with the spec's defaults, each a data edit that lookdev may tune: the
+# figure's speed in metres a second, the camera's turn and tilt rates in degrees a second, the figure's radius, what it
+# reaches and the cone it faces, and the follow camera's yaw either side of straight into the room, its pitch down from
+# level, its nearest distance, and the height above the figure's feet it looks at.
+walking:
+  speed_mps: 1
+  turn_dps: 90
+  tilt_dps: 45
+  radius_m: 0.12
+  reach_m: 0.8
+  reach_cone_deg: 60
+  camera: { yaw_deg: 60, pitch_deg: [0, 35], min_distance_m: 1.2, focus_height_m: 1.1 }
 placements:
   - { id: room-shell, piece: room-shell, frame: true }
   - id: work-desk

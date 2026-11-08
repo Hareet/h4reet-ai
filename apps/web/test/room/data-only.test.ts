@@ -52,6 +52,7 @@ import {
   flatScale,
   smallestFlatStage,
   supportedStages,
+  walkControlBox,
 } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import { TIER_VALUES, isSideWallAnchor } from "../../src/room/compose/vocabulary";
@@ -250,13 +251,15 @@ const apart = (a: Rect, b: Rect): number =>
 /** The added piece's clearance in one view: its core's margin inside the view and from every other selectable's union
  *  and core, and every other core's from its rectangle; under 0 where pickProblems would refuse it. A selectable the
  *  view holds (FR-064's carve-out, see listOnly) has no union or core there, only its members, which the core must
- *  clear. */
+ *  clear. Since spec 008, the core clears the view's reserved rectangles too: the walking control's box in 3D (FR-021,
+ *  FR-058), as RG6 holds it. */
 function clearance(
   rect: Rect,
   others: readonly PickArea[],
   core: number,
   view: Rect,
   held: ReadonlySet<string>,
+  reserved: readonly Rect[] = [],
 ): number {
   const c = must(pickAreas([{ id: ADDED_PICK, members: [{ rect, depth: 0 }] }], core)[0]?.core, "core");
   let least = Math.min(
@@ -273,6 +276,7 @@ function clearance(
     if (o.union) least = Math.min(least, apart(c, o.union));
     if (o.core) least = Math.min(least, apart(c, o.core), apart(o.core, rect));
   }
+  for (const r of reserved) least = Math.min(least, apart(c, r));
   return least;
 }
 
@@ -287,6 +291,8 @@ interface View {
   readonly grid: boolean;
   /** The selectables FR-064's carve-out holds there, by the kernel's listOnly. */
   readonly held: ReadonlySet<string>;
+  /** What no core may lie under there: in 3D the walking control's box (spec 008); nothing in 2D. */
+  readonly reserved: readonly Rect[];
 }
 
 /** The index's side-wall selectables. */
@@ -302,8 +308,9 @@ function views(): View[] {
   const out: View[] = supportedStages().map((stage) => {
     const camera = framing(stage.w / stage.h, framed);
     const others = pickAreasOn(base.scene, base.index, camera, stage);
-    const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall);
-    return { camera, stage, others, core: CORE_PX, grid: false, held };
+    const reserved = [walkControlBox(stage)];
+    const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, reserved);
+    return { camera, stage, others, core: CORE_PX, grid: false, held, reserved };
   });
   const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
   const seen = new Map<string, View>();
@@ -318,7 +325,7 @@ function views(): View[] {
     const held = listOnly(others, [0, 0, FLAT_VIEW.w, FLAT_VIEW.h], sideWall);
     const key = `${flatScale(stage)}\n${[...held].join("\n")}`;
     if (!seen.has(key))
-      seen.set(key, { camera: flat, stage: FLAT_VIEW, others, core: flatCore(stage), grid: true, held });
+      seen.set(key, { camera: flat, stage: FLAT_VIEW, others, core: flatCore(stage), grid: true, held, reserved: [] });
   }
   return [...out, ...seen.values()];
 }
@@ -332,7 +339,7 @@ function clearanceOver(box: Box, over: readonly View[]): number {
     if (!member) return -Infinity;
     const q = (n: number): number => (v.grid ? Math.round(n * 1e4) / 1e4 : n);
     const rect: Rect = [q(member.rect[0]), q(member.rect[1]), q(member.rect[2]), q(member.rect[3])];
-    least = Math.min(least, clearance(rect, v.others, v.core, [0, 0, v.stage.w, v.stage.h], v.held));
+    least = Math.min(least, clearance(rect, v.others, v.core, [0, 0, v.stage.w, v.stage.h], v.held, v.reserved));
   }
   return least;
 }

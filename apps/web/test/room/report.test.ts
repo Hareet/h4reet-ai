@@ -470,7 +470,7 @@ describe("the report's walking lines (spec 008)", () => {
         "0.12 m, 0.875 m from its nearest edge, the floor's open front.",
     );
     expect(md).toContain(
-      "The walking control's box (spec 008, FR-021): 9rem × 2.75rem, 0.5rem in from the stage's bottom-right corner, " +
+      "The walking control's box (spec 008, FR-021): 8rem × 2.75rem, 0.5rem in from the stage's bottom-right corner, " +
         "holds no side-wall selectable at any supported stage.",
     );
     expect(md.indexOf("Walking (spec 008")).toBeGreaterThan(md.indexOf("| Look | Band |"));

@@ -7,6 +7,8 @@
 // the point; else, among the selectables whose union or core holds the point, to the one whose union is nearest, ties
 // going to scene order (FR-064: "the nearest selectable whose pick area contains the point"); else to none. A
 // selectable the stage leaves to the "In the room" list (`listOnly`, FR-064's carve-out) is held: it has no area there.
+// Spec 008 (FR-021, FR-058; plan.md §3.5): the spacing check and the carve-out take reserved rectangles, the walking
+// control's box in 3D, under which no core may lie; a side-wall selectable's core under one is held there instead.
 import type { Box } from "./framing";
 import { projector, toStage } from "./project";
 import type { Camera } from "./project";
@@ -41,8 +43,9 @@ export const CORE_PX = 44;
 export interface PickProblem {
   readonly selectable: string;
   /** The core leaves the stage, so less than 44 × 44 of it shows; or it overlaps another's core, or another's member;
-   *  or, meeting none of its members, another's union, where `pick` sends a point that misses every member. */
-  readonly problem: "outside" | "core" | "member" | "union";
+   *  or, meeting none of its members, another's union, where `pick` sends a point that misses every member; or it lies
+   *  under a reserved rectangle, the walking control's box (spec 008). */
+  readonly problem: "outside" | "core" | "member" | "union" | "reserved";
   readonly other: string | null;
 }
 
@@ -147,13 +150,19 @@ export function flatCore(stage: Stage): number {
  * exclusive: no point of it picks another selectable. A held selectable (`listOnly`) has no area, so it is no
  * problem's subject, and no core and no union to be met; its members still are, since a point on one picks nothing.
  */
-export function pickProblems(areas: readonly PickArea[], view: Rect, held: ReadonlySet<string> = NONE): PickProblem[] {
+export function pickProblems(
+  areas: readonly PickArea[],
+  view: Rect,
+  held: ReadonlySet<string> = NONE,
+  reserved: readonly Rect[] = [],
+): PickProblem[] {
   const out: PickProblem[] = [];
   for (const area of areas) {
     if (held.has(area.id)) continue;
     const core = area.core;
     if (!core || !inside(core, view)) out.push({ selectable: area.id, problem: "outside", other: null });
     if (!core) continue;
+    if (reserved.some((r) => overlaps(core, r))) out.push({ selectable: area.id, problem: "reserved", other: null });
     for (const other of areas) {
       if (other !== area && !held.has(other.id) && other.core && overlaps(core, other.core))
         out.push({ selectable: area.id, problem: "core", other: other.id });
@@ -183,9 +192,14 @@ export function pickProblems(areas: readonly PickArea[], view: Rect, held: Reado
  * box's rectangle, and `sideWall` the IDs the index flags `side_wall`. Gives the IDs held, for `pick` and
  * `pickProblems`; deterministic, since the pass goes in scene order.
  */
-export function listOnly(areas: readonly PickArea[], view: Rect, sideWall: ReadonlySet<string>): ReadonlySet<string> {
+export function listOnly(
+  areas: readonly PickArea[],
+  view: Rect,
+  sideWall: ReadonlySet<string>,
+  reserved: readonly Rect[] = [],
+): ReadonlySet<string> {
   if (sideWall.size === 0) return NONE;
-  const short = new Set(pickProblems(areas, view).map((p) => p.selectable));
+  const short = new Set(pickProblems(areas, view, NONE, reserved).map((p) => p.selectable));
   const held = new Set(areas.filter((a) => sideWall.has(a.id) && short.has(a.id)).map((a) => a.id));
   // The release pass, in scene order: a held selectable keeps its pick area after all where releasing it alone gives
   // no problem with it as subject and none that wasn't there before. So of two side-wall selectables whose cores meet
@@ -193,10 +207,10 @@ export function listOnly(areas: readonly PickArea[], view: Rect, sideWall: Reado
   const key = (p: PickProblem): string => `${p.selectable}\n${p.problem}\n${p.other ?? ""}`;
   for (const area of areas) {
     if (!held.has(area.id)) continue;
-    const before = new Set(pickProblems(areas, view, held).map(key));
+    const before = new Set(pickProblems(areas, view, held, reserved).map(key));
     const rest = new Set(held);
     rest.delete(area.id);
-    if (pickProblems(areas, view, rest).every((p) => p.selectable !== area.id && before.has(key(p))))
+    if (pickProblems(areas, view, rest, reserved).every((p) => p.selectable !== area.id && before.has(key(p))))
       held.delete(area.id);
   }
   return held;

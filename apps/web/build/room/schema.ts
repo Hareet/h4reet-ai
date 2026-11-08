@@ -419,11 +419,59 @@ const live = z
   })
   .default(() => ({ ...LIVE_OFF }));
 
-/** `apps/web/room/scene.yaml` (§5). */
+/** Spec 008's walking defaults (its plan.md §3.1; FR-056), each the spec's figure. */
+export const WALKING_DEFAULTS = {
+  speed_mps: 1,
+  turn_dps: 90,
+  tilt_dps: 45,
+  radius_m: 0.12,
+  reach_m: 0.8,
+  reach_cone_deg: 60,
+  camera: { yaw_deg: 60, pitch_deg: [0, 35] as [number, number], min_distance_m: 1.2, focus_height_m: 1.1 },
+} as const;
+
+const W = WALKING_DEFAULTS;
+const pitchDeg = z.number().min(0).max(60);
+
+/** The scene's `walking` block (spec 008, FR-056; plan.md §3.1), every key optional with the spec's default: the
+ *  speed "0.3 to 2.0", the turn rate "30 to 180", the tilt rate "15 to 90", the radius "0.05 to 0.4", the reach "0.2
+ *  to 1.5" and its cone "15 to 90", and the camera's yaw "0 to 75", its pitch "each 0 to 60, the first at most the
+ *  second", its minimum distance "0.5 to 3.0", and its focus height "0.5 to 2.0". */
+const walkingCamera = z
+  .strictObject({
+    yaw_deg: z.number().min(0).max(75).default(W.camera.yaw_deg),
+    pitch_deg: z
+      .tuple([pitchDeg, pitchDeg])
+      .default((): [number, number] => [W.camera.pitch_deg[0], W.camera.pitch_deg[1]])
+      .superRefine((p, ctx) => {
+        if (p[0] > p[1]) ctx.addIssue({ code: "custom", message: "RD3: a pitch whose first is over its second" });
+      }),
+    min_distance_m: z.number().min(0.5).max(3).default(W.camera.min_distance_m),
+    focus_height_m: z.number().min(0.5).max(2).default(W.camera.focus_height_m),
+  })
+  .default(() => ({ ...W.camera, pitch_deg: [W.camera.pitch_deg[0], W.camera.pitch_deg[1]] as [number, number] }));
+
+const walking = z
+  .strictObject({
+    speed_mps: z.number().min(0.3).max(2).default(W.speed_mps),
+    turn_dps: z.number().min(30).max(180).default(W.turn_dps),
+    tilt_dps: z.number().min(15).max(90).default(W.tilt_dps),
+    radius_m: z.number().min(0.05).max(0.4).default(W.radius_m),
+    reach_m: z.number().min(0.2).max(1.5).default(W.reach_m),
+    reach_cone_deg: z.number().min(15).max(90).default(W.reach_cone_deg),
+    camera: walkingCamera,
+  })
+  .default(() => ({
+    ...W,
+    camera: { ...W.camera, pitch_deg: [W.camera.pitch_deg[0], W.camera.pitch_deg[1]] as [number, number] },
+  }));
+
+/** `apps/web/room/scene.yaml` (§5), with spec 008's optional `walking` block (Amendment M12). */
 export const sceneSchema = z.strictObject({
   version: version(),
   look: z.string(),
   live,
+  walking,
   placements: z.array(placement),
   switches: z.array(switchSchema).default(() => []),
   selectables: z.array(selectable).default(() => []),

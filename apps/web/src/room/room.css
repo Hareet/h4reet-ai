@@ -156,6 +156,26 @@ body.in-room .disclosure p {
   cursor: pointer;
 }
 
+/* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the stage's bottom-right corner,
+   8rem by 2.75rem, 0.5rem in, which compose/stages.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
+   every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. */
+.room-walk {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: 8rem;
+  height: 2.75rem;
+  z-index: 1;
+  padding: 0 0.5rem;
+  font: inherit;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  color: #1a1a1a;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+}
+
 .room-note {
   position: absolute;
   left: 0.5rem;

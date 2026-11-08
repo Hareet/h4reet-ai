@@ -31,13 +31,15 @@ import { TIER_VALUES } from "../../src/room/compose/vocabulary";
 import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { WALK_CONTROL } from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
+import type { FloorEdge } from "../../src/room/compose/floor";
 import type { Composed, RoomReport } from "./emit";
 import { formatPath } from "./checks/family";
-import { faceCaps, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
+import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } from "./checks/rg";
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
-import { contrastText, highlightContrasts } from "./checks/rw";
+import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
 import { sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { Switch } from "./schema";
 import { compareBytewise } from "./source";
@@ -205,6 +207,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Spec 008's highlight: each look's band and edge, and RW2's lowest contrast against its palette.
   lines.push(...highlights(c), "");
 
+  // Spec 008's walking lines: the figure's start, RW1's measure, and the walking control's box, RG6's.
+  lines.push(...walking(c), "");
+
   // The findings.
   if (c.findings.length === 0) lines.push("Findings: none.");
   else {
@@ -311,6 +316,52 @@ function switches(c: Composed): string[] {
       `| ${switchName(sw, pair.switch)} | ${poseName(a, pair.switch)} / ${poseName(b, pair.switch)} | ` +
         `${px(pair.desktop)} | ${px(pair.phone)} | ${pair.status} |`,
     );
+  }
+  return out;
+}
+
+/** Spec 008's walking lines (FR-021, FR-026; plan.md §3.5): the visitor figure's start at the walking radius, RW1's
+ *  measure, with how far it stands from the nearest edge of the walkable floor and which; or, where RW1 refuses it,
+ *  what it stands in. Then the walking control's box, as RG6 reserves it in 3D, with each side-wall selectable it
+ *  leaves to the list and where. An obstacle RT2 refused, or a selectable, is named by its index. */
+function walking(c: Composed): string[] {
+  const out: string[] = [];
+  const s = figureStart(c.geometry);
+  const head = "Walking (spec 008, FR-026): the visitor figure's start";
+  if (!s) out.push(`${head}: none, the scene having no visitor figure to measure.`);
+  else {
+    const at = `x ${plain(s.x)} and z ${plain(s.z)}`;
+    const radius = `the radius ${plain(s.radius)} m`;
+    const { edge } = s.clearance;
+    const obstacle = (e: { readonly obstacle: string }): string =>
+      c.reader.printable(e.obstacle) ? `\`${e.obstacle}\`` : "an obstacle";
+    const side = (e: Exclude<FloorEdge, { readonly obstacle: string }>): string =>
+      e === "front" ? "the floor's open front" : `the floor's ${e} wall`;
+    if (s.walkable) {
+      const nearest = typeof edge === "object" ? `${obstacle(edge)}, grown by the radius` : side(edge);
+      const metres = plain(Math.round(s.clearance.distance * 1000) / 1000);
+      out.push(`${head}, ${at}, is on the walkable floor at ${radius}, ${metres} m from its nearest edge, ${nearest}.`);
+    } else {
+      const where =
+        typeof edge === "object"
+          ? `it lies within ${obstacle(edge)}'s footprint, grown by the radius`
+          : `it lies past ${side(edge)}, less the radius`;
+      out.push(`${head}, ${at}, isn't on the walkable floor at ${radius}: ${where}.`);
+    }
+  }
+  const box =
+    `The walking control's box (spec 008, FR-021): ${WALK_CONTROL.widthRem}rem × ${WALK_CONTROL.heightRem}rem, ` +
+    `${WALK_CONTROL.insetRem}rem in from the stage's bottom-right corner,`;
+  const holds = c.geometry ? pickSweep(c.geometry).boxHolds : [];
+  if (holds.length === 0) out.push(`${box} holds no side-wall selectable at any supported stage.`);
+  else {
+    const named = holds.flatMap((h) => {
+      const [first] = h.stages;
+      if (!first) return [];
+      const name = c.reader.printable(h.id) ? `\`${h.id}\`` : `selectables[${h.index}]`;
+      return [`${name} at ${stagesPhrase(first, h.stages.length - 1)}`];
+    });
+    out.push(`${box} leaves to the list ${named.join("; ")}, as the carve-out does a side-wall core that can't fit.`);
   }
   return out;
 }

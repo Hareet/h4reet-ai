@@ -109,7 +109,8 @@ export const RULES = {
   RL2: rule("RL"), // the status source without row V7
   RL3: rule("RL"), // asset events without row V6
   RL4: rule("RL"), // the turn route without row V2
-  // Spec 008 (plan.md §3.5): RW1, the visitor figure's start on the walkable floor, joins with the walking data (T041).
+  // Spec 008 (plan.md §3.5).
+  RW1: rule("RW"), // the visitor figure's footprint, at the walking radius, off the walkable floor
   RW2: rule("RW"), // a look whose highlight's band and edge both give under 3:1 against a colour of its palette
 } as const satisfies Record<string, RuleInfo>;
 

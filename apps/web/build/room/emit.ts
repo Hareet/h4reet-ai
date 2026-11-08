@@ -44,6 +44,7 @@ import type {
   RoomScene,
   SceneModel,
   Shape,
+  Walking,
 } from "../../src/room/compose/bundle";
 import { cableControl } from "../../src/room/compose/cable";
 import { FOV, framing, LABEL_LIFT } from "../../src/room/compose/framing";
@@ -77,7 +78,7 @@ import { PHOTO_GUIDE, photoGuide, workOrder, WORK_ORDERS_DIR } from "./orders";
 import { capsOf } from "./policy";
 import type { CapsSource, RoomCaps, RoomPolicy } from "./policy";
 import { roomReport } from "./report";
-import { HEX, HIGHLIGHT_DEFAULTS } from "./schema";
+import { HEX, HIGHLIGHT_DEFAULTS, WALKING_DEFAULTS } from "./schema";
 import type {
   CatalogEntry,
   DrawingPrimitive,
@@ -1298,6 +1299,27 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     },
     load_order: loadOrder(entries),
     scene_texture_bytes: c.caps.scene_texture_bytes,
+    walking: walkingOf(scene),
+  };
+}
+
+/** Spec 008's walking block, resolved, each figure to 1e-6 (Amendment M12): the spec's defaults where the scene leaves
+ *  it out, or has none. */
+function walkingOf(scene: Scene | null): Walking {
+  const w = scene?.walking ?? WALKING_DEFAULTS;
+  return {
+    speed_mps: m6(w.speed_mps),
+    turn_dps: m6(w.turn_dps),
+    tilt_dps: m6(w.tilt_dps),
+    radius_m: m6(w.radius_m),
+    reach_m: m6(w.reach_m),
+    reach_cone_deg: m6(w.reach_cone_deg),
+    camera: {
+      yaw_deg: m6(w.camera.yaw_deg),
+      pitch_deg: [m6(w.camera.pitch_deg[0]), m6(w.camera.pitch_deg[1])],
+      min_distance_m: m6(w.camera.min_distance_m),
+      focus_height_m: m6(w.camera.focus_height_m),
+    },
   };
 }
 

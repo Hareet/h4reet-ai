@@ -176,6 +176,18 @@ export interface SceneModel {
   texture_bytes: number;
 }
 
+/** Spec 008's walking data (FR-056; plan.md §3.1), resolved: every figure, the spec's default where the scene leaves
+ *  it out. */
+export interface Walking {
+  speed_mps: number;
+  turn_dps: number;
+  tilt_dps: number;
+  radius_m: number;
+  reach_m: number;
+  reach_cone_deg: number;
+  camera: { yaw_deg: number; pitch_deg: [number, number]; min_distance_m: number; focus_height_m: number };
+}
+
 /** The 3D part, in the lazy 3D chunk (contracts/room-bundle.md §3.2). */
 export interface RoomScene {
   schema: 1;
@@ -236,4 +248,6 @@ export interface RoomScene {
   /** The caps' scene_texture_bytes the compose used, FR-053's starting figure while main has no room block: the room's
    *  texture ledger's limit, as RK3's at build time (plain-model-fit.md §8.2; an addition to §3.2, plan.md §10). */
   scene_texture_bytes: number;
+  /** Spec 008's walking data, resolved (Amendment M12). */
+  walking: Walking;
 }
