@@ -1,7 +1,7 @@
 # feat/009-room-avatars
 
 Spec: [specs/009-room-avatars/](../../specs/009-room-avatars/)
-(tasks.md T007 to T030; plan.md §10) · Intent:
+(tasks.md T007 to T033; plan.md §10) · Intent:
 [specs/009-room-avatars/intent.md](../../specs/009-room-avatars/intent.md),
 a draft · Written by: implementer subagent (Claude Opus 5.5), for the
 main session · Date: 2026-11-08
@@ -10,12 +10,14 @@ Session: the main session started from
 `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is
 `/tmp/claude-1000/wt-feat009`, cut from `feat/004-chalkboard-model`
 at bf6239d137ac5fe2470e6d870475ed793583cf13, on `main` at
-a33b4833c50490fea1f6d13731c09f34712ccc02, and **moved after Phase 2
-onto `feat/007-twin-conversation`'s tip,
-3a614ef6** (the conversation over group A: the chalkboard, the open
-items, and spec 008's highlight, `feat/008-visitor-movement` at
-465f1079), since `feat/008-walking` didn't stand on the conversation
-yet (plan.md §10, "The move").
+a33b4833c50490fea1f6d13731c09f34712ccc02; **moved after Phase 2 onto
+`feat/007-twin-conversation`'s tip of the time, dad2891b** (this note
+said 3a614ef6 until the review found it wrong); and **moved again
+onto `feat/008-walking`'s tip, 87deda8f**, which stands on the
+conversation's c43cf72b, over group A's top,
+`feat/008-visitor-movement` at 465f1079 (the chalkboard, the open
+items, and spec 008's highlight) (plan.md §10, "The move" and "The
+second move").
 Repo hooks active: yes. In `.claude/audit/hooks.log`, this session's
 379 events under its worktrees' and scratch folders' paths are ALLOW
 but three: two post-edit WARNs, lint failures on two files the
@@ -34,29 +36,38 @@ gitleaks and the arrival check, with no finding.
 Authorized by: the main session's brief of 2026-11-08, "Build spec
 009, avatars in the room: Phase 1 (T007–T027), then Phase 2, the
 hand-off (T028–T030), test-first, on a new branch", under the relaxed
-lifecycle for your absences, relaying your words below. The spec and
-the plan were written tonight with provisional clarifications;
-**T000, your approval, is open**, and nothing here merges without it.
+lifecycle for your absences, relaying your words below. Then, after
+Phase 2's report, the main session's later directions: move the
+branch onto walking, make the visitor's avatar coherent with walking
+(T031 to T033, "minimal, test-first"), and fix what the review of
+Phases 1 and 2 found, in its order. The spec and the plan were
+written tonight with provisional clarifications; **T000, your
+approval, is open**, and nothing here merges without it: the code ran
+ahead of it, on this branch, at the main session's direction, a
+departure the spec's Deviations name.
 
-**Status: Phases 1 and 2 built and verified, on a provisional spec;
-not reviewed** (Review). Your merge of this branch is **group C's
-gate, on the status page, after the stack is assembled**: group A
-(the chalkboard, the open items, spec 008's highlight), then
-`feat/007-twin-conversation`, then `feat/008-walking`, then this
-branch, with your P-1 on top, in one gate for all of it. It stands
-on the conversation's tip now, and moves onto walking's once walking
-stands on the conversation.
+**Status: Phases 1 to 3 built and verified, on a provisional spec;
+reviewed once, its must-fixes done** (Review). Your merge of this
+branch is **group C's gate, on the status page, after the stack is
+assembled**, in one gate for all of it: group A's top
+(`feat/008-visitor-movement`, 465f1079), then
+`feat/007-twin-conversation` (c43cf72b), then `feat/008-walking`
+(87deda8f), then this branch, with your P-1 on top:
+`feat/007-p1`, cut from this branch's tip as group B's top.
 
 - **Without the avatars' files the room behaves as today:** the flat
-  figures, the capsule, the hand-off between them. The one sight
-  that changes is the stand-in line, which shows in every visit.
+  figures, the capsule, the hand-off between them, and the cut-out
+  walking. The one sight that changes is the stand-in line, which
+  shows in every visit.
 - **With your intake merged** (Phase A, below), the woman and the man
   stand in the room, the man in the twin's figure, labelled; the
-  hand-off plays between them when both are ready within 1.5 s.
-- **Not built:** Phase 3, walking with the avatar (T031 to T033),
-  which needs `feat/008-walking`'s driver; Phase 4, the phone and the
-  lookdev page (T034 to T039); Phase 5, the ADR, the README, the
-  review, and the demo (T040 to T047).
+  hand-off plays between them when both are ready within 1.5 s; and
+  in the walking view the woman walks, turned the way she goes, never
+  mirrored, the paper in her hand. Her set has no walk clip, so she
+  slides in her idle-holding (M21); a set with a walk clip plays it.
+- **Not built:** Phase 4, the phone and the lookdev page (T034 to
+  T039); Phase 5, the ADR, the README, the final review, and the demo
+  (T040 to T047).
 
 ## What changed and why
 
@@ -69,11 +80,11 @@ the twin's stand-in, as data in the scene's `figures` block; the
 woman as what you choose at the door for your demo; "everything
 working" as the room of specs 002 to 008 with avatars in it, the
 hand-off between them included, and nothing breaking when a file
-fails. The answer to your question, in order of work: Phases 1 and 2
+fails. The answer to your question, in order of work: Phases 1 to 3
 are built; the woman and the man show once your intake lands.
 
-What the branch holds, by phase (17 commits over the conversation's
-tip, the spec's among them, cherry-picked, now c4adde93):
+What the branch holds, by phase (21 commits over walking's tip,
+the spec's first, cherry-picked, now 33e5f183):
 
 - **The bundle** (T016, T017): `apps/web/build/room/avatars.ts`
   reads each avatar's folder under `assets/visitors/<id>/` by the
@@ -123,6 +134,21 @@ tip, the spec's among them, cherry-picked, now c4adde93):
   hand-off; a late avatar plays the hand-off as its fallback and
   swaps in after; under reduced motion the crossfade stays, no take
   plays, and the clips cut at the start and the end.
+- **Walking with the avatar** (T031 to T033): while the visitor's
+  avatar shows, walking's figure is the avatar's driver, the
+  controller's `driver` in `scene/avatars.ts`: the figure at the
+  pose's place, the avatar turned to its heading, never mirrored and
+  never bobbing, the paper in its holding hand, "walk" while it walks
+  where it has the clip and its slide in idle-holding otherwise, and
+  back at its place, facing its placement's turn, on leaving.
+  `scene/figure.ts` gains `figureDriverFor`, which picks the avatar's
+  driver or the cut-out's each frame by what the figure shows, the
+  old one resting as the new one takes the same pose; walking takes
+  that one driver, so `scene/walking.ts` doesn't change. Where the
+  avatar fails or has no file, the cut-out walks as on walking's
+  branch, with the paper in its picture.
+- **The review's fixes** (Review, below): the paper beside walking,
+  RK3's count, the run-time bone check, and the cheap fixes.
 
 plan.md §10 records every departure, each in the commit that made
 it: the real base; the move onto the conversation, each conflict
@@ -131,8 +157,10 @@ brief asked; the new test files beside the ones spec 008 also
 extends; the pins plan.md §5.4 missed; `figures.twin_height`; where
 the RA family runs; RK3's stand-in term; the loader's figure
 entries; the note's stack; the panel's layout; Phase 1's measures;
-the rigged hand-off's readings; and the one test written after its
-code.
+the rigged hand-off's readings; the one test written after its
+code; the second move, onto walking, each conflict kept on both
+sides; the avatar's driver and its departures; and the review's
+fixes.
 
 ## Runs in your terminal
 
@@ -232,8 +260,9 @@ git -C "$R" apply /tmp/f3.patch
 
 ## Acceptance criteria
 
-Phase 1 (User Stories 1, 2, and 6) and Phase 2 (User Story 3), by
-the spec's IDs; the Author's runs (L1 to L5) and Phases 3 to 5 wait.
+Phase 1 (User Stories 1, 2, and 6), Phase 2 (User Story 3), and
+Phase 3 (User Story 4), by the spec's IDs; the Author's runs (L1 to
+L5) and Phases 4 and 5 wait.
 
 | Requirement | Where it's held |
 |---|---|
@@ -244,11 +273,12 @@ the spec's IDs; the Author's runs (L1 to L5) and Phases 3 to 5 wait.
 | FR-015 to FR-018, FR-025 to FR-027, placement, clips, hand, paper | `avatars.test.ts` |
 | FR-019, FR-020, FR-022, the hand-off and its wait | `avatar-handoff.test.ts`, `handoff-wait.test.ts`, the parse gate in `avatar-loader.test.ts` |
 | FR-021, FR-024, loading and the decode cap | `avatar-loader.test.ts` |
+| FR-028, walking with the avatar | `avatar-driver.test.ts` (10,000 seeded steps; the driver by picture; the paper beside walking); spec 008's walking tests, unchanged. The walk clip plays on or off by the pose's `walking`, not weighted by speed (plan.md §10) |
 | FR-023, serving | `serving.test.ts`, `dist.test.ts`, `test_web_image.py`, `test_makefile.py` |
 | FR-031 to FR-036, telemetry and data flow | `ui/avatars.test.ts`, the gateway's two room-events tests, `test_dashboard.py`, `disclosure.test.ts`, `evals/test_disclosure.py` |
 | FR-043, tests computed from the tree | `dist.test.ts` (the avatars' copies computed from the part) |
-| SC-001, SC-002, SC-003, SC-004, SC-005, SC-006, SC-008, SC-009, SC-010, SC-011 | the tests above; SC-001's and SC-012's human halves are L1 and L3 |
-| Not yet | FR-028 (walking, Phase 3), FR-041 (lookdev, Phase 4), SC-007, SC-012's human half, SC-013, SC-014 (your intake and runs) |
+| SC-001 to SC-011 | the tests above; SC-001's and SC-012's human halves are L1 and L3 |
+| Not yet | FR-041 (lookdev, Phase 4), SC-012's human half, SC-013, SC-014 (your intake and runs) |
 
 ## Constitution check
 
@@ -258,7 +288,7 @@ Constitution 1.0.1, with the constitution-check skill's questions.
 |---|---|---|
 | I. Data-local by default | Yes | The avatar files are same-origin static requests, row V1 amended in the commit that serves them (80afa34b); `avatar_failed` rides the beacon with no identifier, row V4 amended with the kind (eea82dd9); nothing is stored. The degraded mode was built first and tested: every failure keeps the figure's fallback. No biometrics: visitors still choose pre-generated avatars. |
 | II. Production-grade or not shipped | Yes | Tests for every behaviour built (RED and GREEN below), one event and its panel, the cost measured (chunks, report). No model, so no evals; no alert, so no runbook. The ADR and README are Phase 5's. |
-| III. Intent before spec, spec before code, humans merge | Yes | Deviation, named in the spec: the intent is a draft and T000 is open; this code was built under your relaxed lifecycle for absences, on a branch, and merges only by your hand. plan.md changed in the same commits as each departure. |
+| III. Intent before spec, spec before code, humans merge | Yes | Deviations, named in the spec: the intent is a draft and T000 is open; this code was built ahead of your approval, on a branch, at the main session's direction under your "keep going until you can", and merges only by your hand after T000. plan.md changed in the same commits as each departure. |
 | IV. Least privilege | No | No permission, allowlist, sandbox, CSP, cap, or human-only path changed. The F3 patch to `tools/gates/` is offered as a file, never applied. |
 | V. Cost is a first-class signal | Yes | $0 model spend; about 10 MB more per first visit after publication, bounded by RK5 and measured in the report. |
 | VI. Build in public | Yes | Everything here is public; the records and licenses are public by spec 003's design. |
@@ -267,9 +297,29 @@ Constitution 1.0.1, with the constitution-check skill's questions.
 
 ## Review
 
-None yet. The branch wants a reviewer agent that wrote none of it
-(T043), before your gate. Reviewer subagents aren't held to their
-Bash grant yet (spec 000's closing patch), so say so to the reviewer.
+One review so far, by an agent that wrote none of the branch, of
+Phases 1 and 2 on walking's tip, which the main session relayed as
+"not ready": three must-fixes, cheap fixes, and a backlog item. What
+was done, tests first where it's code (9903b30f RED, 54005ca4 GREEN):
+
+| Finding | Done |
+|---|---|
+| Must fix 1, the mirror: the cut-out's driver mirrors the group that holds the avatar (`figure.ts`, `picture.scale.set(… * side, …)`) | While the avatar shows, the avatar's driver drives the figure (T031 to T033), and never mirrors it; the cut-out's driver drives only the cut-out |
+| Must fix 1, the paper: walking's `keepPaper` moves the kept sheet into the visitor's picture, and a late avatar hid every child of the picture, the sheet with them; `dropPaper` assumed the sheet in the scene | An avatar hides only its fallback's meshes, recorded when the controller begins; `dropPaper` finds the sheet wherever the avatar holds it and puts it back where it was, walking's picture or the scene's anchor; walking's `keepPaper` leaves the sheet in the avatar's hand; a driver that takes over mid-walk takes the paper too |
+| Must fix 1, the panel id: 77 is walking's "Visits that walked" | The panel is 78 |
+| Must fix 2, spec compliance: the build ran ahead of approval | The spec's Deviations name it (built on a branch ahead of approval, at the main session's direction, under your "keep going until you can", nothing merging before T000); the spec's Status, plan.md's, and intent.md's lifecycle line say so |
+| Must fix 3, RK3 counts the stand-in twice when its folder is the largest | RK3's visitor term is the largest other folder, as RK5's (FR-038 and the report's line say so); RED first in `avatars-compose.test.ts` |
+| `scene.ts`'s `Promise.all` tied the room's models to the avatar chunk | The avatar chunk's import has its own catch, and without the chunk no figure file is fetched (no test of its own: the fixture set has no room models to show the difference; Backlog) |
+| `clip()`'s bone check passed with no instance | `model()` checks the clips parsed before it. The new test found the check itself took `PropertyBinding.findNode`'s null for a found node, so no clip failed it at run time since Phase 1: fixed (FR-003) |
+| The loader didn't read the parse gate again after taking a parse slot | It does; FR-022 says a parse already begun when the hand-off starts may finish, its avatar swapping in when the hand-off ends |
+| plan.md and this note named the base 3a614ef6 | Corrected: dad2891b, then walking's tip |
+| The fixtures README said "but RG8" | "but RG8 and RA5" |
+| The frame log's `late` was never sent (FR-035) | A figure whose avatar isn't ready at the hand-off's start sends it |
+| Backlog: loading on spec 002's reference 4G network | In Backlog and For the Author, below |
+
+The branch wants its final review (T043) before your gate. Reviewer
+subagents aren't held to their Bash grant yet (spec 000's closing
+patch), so say so to the reviewer.
 
 ## RED and GREEN
 
@@ -287,6 +337,7 @@ Bash grant yet (spec 000's closing patch), so say so to the reviewer.
 | `make check`'s two Python pins (2f55e485) | 5 failed in Phase 1's first `make check` | 69 passed |
 | T028, T029 (aca938cb) | 3 files, 10 failed, 14 passed | |
 | T030 (fac7f502) | | 5 files, 48 passed; the web suite, 88 files, 2,357 passed |
+| T031 to T033 and the review (9903b30f, 54005ca4) | `avatar-driver.test.ts` and `avatars-compose.test.ts`, 12 failed, 33 passed | 45 passed; the web suite, 107 files, 2,681 passed |
 
 The web suite at the base: 81 files, 2,252 passed.
 
@@ -2224,11 +2275,22 @@ First visit with both figures' files (RK5): 6,593,757 gzip-9 bytes, 6,593,757 of
   isn't recorded (plan.md §10).
 - The lookdev page doesn't show the avatars yet (Phase 4): L1 and L2
   need it.
-- At walking's move, still to come: `avatar_failed` follows spec
-  008's `walk_started` in `events.ts`, `config/room-events.yaml`, and
-  the pins of the kinds; §7.8 and the dashboard's Room row take spec
-  008's panel beside this one; `scene.ts`'s figures meet walking's
-  figure driver, which Phase 3 extends (plan.md R-16).
+- **Loading on spec 002's reference 4G network** (the review): both
+  models, about 4.8 MB each, fetch at once (`loader.ts`'s
+  `loadFigures`, "Each avatar's model at once") under the 10-second
+  timeout that covers the body (`FETCH_TIMEOUT_MS`, `loader.ts`:56):
+  about 8 of the 10 s as the files stand, not inside it at the 6 MB
+  cap, and on a slower link both time out twice and hold the room's
+  models about 20 s. The fix needs a spec amendment before
+  publication (a timeout scaled by size, the stand-in's model first,
+  the room's models starting at `wait_ms`); today's demo is on
+  loopback.
+- The walk clip's blend by speed (R-16's `min(1, speed /
+  speed_mps)`) waits for a set with a walk clip; until then it plays
+  on or off by the pose's `walking` (plan.md §10).
+- The avatar chunk's catch has no test of its own:
+  `avatar-scene.test.ts`'s fixture set has no room models, so a
+  failed chunk looks the same there before and after the fix.
 
 ## For the Author
 
@@ -2248,6 +2310,12 @@ First visit with both figures' files (RK5): 6,593,757 gzip-9 bytes, 6,593,757 of
 5. **The RA family runs only where `main`'s caps hold
    `per_asset.avatar`** (plan.md §10), since nothing is bundled
    without them; `main`'s do.
-6. **The merge:** group C's gate on the status page, once the main
-   session has moved this branch onto the assembled stack and
-   rehearsed it there; Phases 3 to 5 follow on their own branch.
+6. **The merge:** group C's gate on the status page, once the stack
+   is assembled: group A's top (465f1079), the conversation
+   (c43cf72b), walking (87deda8f), this branch, then your P-1,
+   `feat/007-p1`, cut from this branch's tip as group B's top. Phases
+   4 and 5 follow on their own branch.
+7. **Loading on 4G** (Backlog): a spec amendment before publication;
+   its shape is yours to choose.
+8. **The review** (Review): its must-fixes are done here; its backlog
+   line waits for you.
