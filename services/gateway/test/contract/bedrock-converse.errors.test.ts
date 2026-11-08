@@ -221,6 +221,24 @@ describe("the Bedrock adapter's requests (§3.2's request row)", () => {
     expect(body.additionalModelRequestFields).toEqual(fields);
     expect(body.modelId).toBe(MODEL);
   });
+
+  const inference = (): unknown[] => stub.requests().map((r) => (r.body as Record<string, unknown>).inferenceConfig);
+
+  it("sends no temperature under temperature: model_default, whatever the request carries (spec 010 FR-017)", async () => {
+    const a = adapter({ settings: { temperature: "model_default" } });
+    for (const temperature of [0.3, 0, 1]) await a.complete(request({ temperature }));
+    await a.complete(request());
+    expect(inference()).toEqual([{ maxTokens: 16 }, { maxTokens: 16 }, { maxTokens: 16 }, { maxTokens: 16 }]);
+  });
+
+  it("sends the temperature as given under temperature: as_requested, as with no setting", async () => {
+    await adapter({ settings: { temperature: "as_requested" } }).complete(request({ temperature: 0.3 }));
+    await adapter().complete(request({ temperature: 0.3 }));
+    expect(inference()).toEqual([
+      { maxTokens: 16, temperature: 0.3 },
+      { maxTokens: 16, temperature: 0.3 },
+    ]);
+  });
 });
 
 describe("the Bedrock adapter's health (§3.2's health probe)", () => {

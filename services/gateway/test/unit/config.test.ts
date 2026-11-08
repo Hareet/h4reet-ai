@@ -404,6 +404,26 @@ describe("routing.yaml (§1.3)", () => {
       'config/routing.yaml: envs.prod.fallback: names "local", a local adapter; prod\'s fallback must be a paid adapter',
     ]);
   });
+
+  it("R11: a paid adapter's temperature is as_requested, the default, or model_default (spec 010 FR-017)", () => {
+    const temperature = (value: unknown) => routing((d) => (d.adapters.bedrock.temperature = value));
+    for (const value of ["as_requested", "model_default"]) {
+      const result = temperature(value);
+      expect(errorLines(result.issues), value).toEqual([]);
+      expect(result.value?.adapters.get("bedrock")?.settings.temperature, value).toBe(value);
+    }
+    // Absent, it is as_requested: the form without it stays valid, and nothing fills it in.
+    expect(routingConfig().adapters.get("bedrock")?.settings).not.toHaveProperty("temperature");
+    for (const value of ["default", "Model_Default", 1, 0.3, true, null, ["model_default"]]) {
+      expect(errorLines(temperature(value).issues), JSON.stringify(value)).toEqual([
+        'config/routing.yaml: adapters.bedrock.temperature: must be "as_requested" or "model_default"',
+      ]);
+    }
+    // A paid adapter's setting: the local model takes the request's temperature, and its type has no such key.
+    expect(errorLines(routing((d) => (d.adapters.local.temperature = "model_default")).issues)).toEqual([
+      "config/routing.yaml: adapters.local.temperature: unknown key",
+    ]);
+  });
 });
 
 describe("routing.yaml's startup refusals (§1.4)", () => {
