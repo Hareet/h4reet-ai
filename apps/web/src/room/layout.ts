@@ -79,7 +79,8 @@ export function renderRoom(
   const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
   const walkWords = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
   const walkButton = h(doc, "button", { type: "button", class: "room-walk", hidden: true }, walkWords.enter);
-  const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden" }, walkWords.help);
+  // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
+  const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
   const stage = h(doc, "div", { class: "room-stage" }, view, note, walkButton, walkHelp);
   const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
   const resumeBody = h(doc, "div", { class: "resume-body" });
@@ -149,6 +150,7 @@ export function renderRoom(
     },
     setWalking(on) {
       walkButton.textContent = on ? walkWords.leave : walkWords.enter;
+      walkHelp.hidden = !on;
       // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
       // the canvas inside it, which stays aria-hidden (R-13).
       if (on) {

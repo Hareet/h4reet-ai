@@ -25,6 +25,9 @@ export interface FigureFrame {
   readonly camera: Vec3;
   /** Whether the motion store animates: no bob, nor any other motion of the driver's own, while it doesn't. */
   readonly animate: boolean;
+  /** The frame's seconds, which the walking view always gives: what a rigged driver advances and crossfades its clips
+   *  by. The cut-out's driver reads nothing of it. */
+  readonly dt?: number;
 }
 
 /** Drives a figure from the walking view: the flat cut-out's driver now, a rigged avatar's later (spec 009). */
@@ -33,6 +36,9 @@ export interface FigureDriver {
   frame(frame: FigureFrame): void;
   /** Back where the scene has it, as the hand-off left it: on leaving the walking view. */
   rest(): void;
+  /** Takes what the figure holds, the paper kept from the hand-off, into its hand, keeping its place in the room, so it
+   *  moves with the figure: the cut-out's hand is its picture, a rigged avatar's a hand's bone (spec 009). */
+  hold?(item: Object3D): void;
 }
 
 /** The highest bob, in metres, and the distance walked for each. */
@@ -102,6 +108,9 @@ export function cutoutDriver(options: CutoutOptions): FigureDriver {
       last = { x: pose.x, z: pose.z };
       const bob = pose.walking && animate ? BOB_M * Math.abs(Math.sin((Math.PI * walked) / BOB_STRIDE_M)) : 0;
       picture.position.y = home.lift + bob;
+    },
+    hold(item) {
+      picture.attach(item);
     },
     rest() {
       node.position.copy(home.position);

@@ -83,6 +83,8 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
     (e.code.startsWith("Key") ? HELD[e.code] : undefined) ?? HELD[e.key] ?? HELD[e.code];
 
   const onKeyDown = (e: KeyboardEvent): void => {
+    // The browser's and the system's shortcuts stay theirs: Ctrl+F, Ctrl+D, Cmd+A (whose key-up macOS never sends).
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const what = keyOf(e);
     if (what) {
       held.add(what);

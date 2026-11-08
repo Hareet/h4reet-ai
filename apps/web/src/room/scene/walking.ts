@@ -123,14 +123,18 @@ export function createWalking(options: WalkingOptions): WalkingView {
     },
     frame(intents, stage, now, dt, animate) {
       if (!on) return production(stage);
+      // Escape leaves through the room at once (the review of walking, finding 1): nothing of this frame after it, so the
+      // figure stays where leaving rested it, and the camera starts back from where it stood.
       if (intents.escape) options.escape();
+      if (!on) return back?.from ?? production(stage);
       const base = production(stage);
       // The orbit: turned, tilted, and zoomed, then held to the limits and the region about the figure's focus.
       const focus = focusOf(pose, limits, floor);
       const far = farthest(base, focus);
       orbit = clampOrbit(
         {
-          yaw: orbit.yaw + intents.turn,
+          // E turns the view right: the camera swings to the figure's left, looking right of straight on (FR-029).
+          yaw: orbit.yaw - intents.turn,
           pitch: orbit.pitch + intents.tilt,
           distance: Math.min(orbit.distance, far) * (1 - ZOOM_STEP * intents.zoom),
         },
@@ -173,7 +177,7 @@ export function createWalking(options: WalkingOptions): WalkingView {
       }
       // Reach, only when the figure moved or turned.
       if (pose.x !== before.x || pose.z !== before.z || pose.heading !== before.heading) nameReach();
-      figure.frame({ pose, camera: camera.position, animate });
+      figure.frame({ pose, camera: camera.position, animate, dt });
       shown = camera;
       return camera;
     },
@@ -185,6 +189,10 @@ export function createWalking(options: WalkingOptions): WalkingView {
       pose = startPose(floor);
       back = shown ? { from: shown, at: now } : null;
       shown = null;
+      // Leaving names reach none, by any road (plan.md R-06; the review of walking, finding 2), so the piece reach
+      // targeted doesn't stay bordered; the next entry names it again.
+      reached = undefined;
+      options.reach(null);
     },
     returning(stage, now, animate) {
       if (on || !back) return null;

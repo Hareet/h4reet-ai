@@ -173,7 +173,7 @@ deploy/grafana/dashboards/h4-runtime.json            # the panel
 | `turn_dps` | 90 | 30 to 180 | FR-028 |
 | `tilt_dps` | 45 | 15 to 90 | FR-028 |
 | `radius_m` | 0.12 | 0.05 to 0.4 | FR-026 |
-| `reach_m` | 0.8 | 0.2 to 1.5 | FR-033 |
+| `reach_m` | 0.3 (0.8 until walking's review; §10) | 0.2 to 1.5 | FR-033 |
 | `reach_cone_deg` | 60 | 15 to 90 | FR-033 |
 | `camera.yaw_deg` | 60 | 0 to 75 | FR-023 |
 | `camera.pitch_deg` | [0, 35] | each 0 to 60, the first at most the second | FR-023 |
@@ -299,7 +299,7 @@ In each phase the test tasks come first and must fail before the code that makes
 
 ### 5.3 The Author's runs (the quickstart)
 
-- **L1, the highlight at lookdev** (SC-002): the lookdev page in a drafts build, on both reference stages, each of the three looks, the highlight sample on each selectable against its light and dark neighbours, with the studio's pieces in place; the Author keeps Q5's colours or changes them as data. Since Phase 1's review (§10), also: a piece standing on a surface nearer the camera than its foot, the laptop on the desk and the wheels and the snowboard at the floor, shows its whole border; no border paints over a stand-in's label; a piece in front of the target has the target's border drawn over it, which FR-015's proposed amendment asks the Author to keep or refuse; and the 2D room's border, by hover and by list focus, at both reference stages.
+- **L1, the highlight at lookdev** (SC-002): the lookdev page in a drafts build, on both reference stages, each of the three looks, the highlight sample on each selectable against its light and dark neighbours, with the studio's pieces in place; the Author keeps Q5's colours or changes them as data. Since Phase 1's review (§10), also: a piece standing on a surface nearer the camera than its foot, the laptop on the desk and the wheels and the snowboard at the floor, shows its whole border; no border paints over a stand-in's label; a piece in front of the target has the target's border drawn over it, which FR-015's proposed amendment asks the Author to keep or refuse; and the 2D room's border, by hover and by list focus, at both reference stages. Since walking's review: the flat cut-out is wider than the figure's footprint, so at the walkable strip's ends it cuts into the left wall and overlaps the twin; the Author judges whether that reads, or wants a narrower footprint or cut-out.
 - **L2, the phone** (SC-013, User Story 3): the lookdev page's phone copy (spec 004's FR-069), the 2-minute scripted walk, the report's median, share over 33 ms, and settled quality beside the static view's; then the walking view by touch: tap, drag, pinch, a tap on a piece, the page's scroll from the stage with walking off.
 - **L3, keyboard and screen reader** (SC-008): spec 004's Q9 runs again, with the walking view: a keyboard-only visit, and a screen-reader visit that never walks.
 
@@ -371,6 +371,17 @@ A task that departs from this plan records it here, in the commit that departs (
 - **The figure driver (T049; FR-034)** is `FigureDriver`'s `frame({pose, camera, animate})` and `rest()`, nothing of the cut-out in it, so spec 009's rigged avatar takes the visitor's figure through it, turning to the heading and crossfading its clips by the speed; the cut-out's driver mirrors by the side of the camera's right the heading falls on, with R-12's hold of 0.2, and bobs by at most 0.015 m a 0.35 m stride.
 - **Spec 004's fixture room gains the seven walking words** in its `ui-words.yaml`, since RT12 holds every closed-list key; `vocabulary.test.ts`'s pin of the closed list gains them (Amendment M12), and `a11y.test.ts`'s Tab order in 3D gains the walking control after the toolbar (Amendment M6).
 - **Test files beyond §5.1's list:** `test/room/input.test.ts`, `test/room/stage-walk.test.ts`, `live.test.ts`'s walk entries, `events.test.ts`'s beacon kinds, and `deploy/scripts/test_dashboard.py`'s walked share.
+
+### Walking's review, on `feat/008-walking` (2026-11-08)
+
+- **Escape stops the frame it leaves in** (finding 1): `scene/walking.ts` returns at once after the room's Escape has left the walking view, so nothing steps, points the picker, names reach, or frames the figure after `rest()`, and the figure is back at its place, unturned and unmirrored.
+- **Leaving names reach none** (finding 2; R-06): `leave()` resets reach and names none, by the control, Escape, or a failed step, so the piece reach targeted isn't left bordered.
+- **ADR 0039's Decision 5 and its alternatives** (finding 3) record the mask and the contour ring, and the back-face hull as the alternative Phase 1's review replaced.
+- **E turns the view right** (FR-029; a proposed amendment): the orbit's yaw goes down on E and up on Q, so the camera swings to the figure's left and looks right of straight on, as the visitor sees "turn right"; Phase 3 had it the other way round. A drag to the right turns the view right with it.
+- **The reach default is 0.3 m** (FR-033; a proposed amendment), in the schema and the scene, since 0.8 m reached the snowboard from the figure's place; a test holds that the place reaches nothing.
+- **The walking keys' help is hidden unless walking**, and **the input ignores keys with Ctrl, Cmd, or Alt**, so the browser's and the system's shortcuts stay theirs.
+- **The figure driver, for spec 009, two additions:** `FigureFrame.dt?`, the frame's seconds, which the walking view always gives; and `FigureDriver.hold?(item)`, which takes what the figure holds into its hand keeping its place in the room, the cut-out's hand its picture; the 3D stage gives the kept paper to `hold` where the driver has one.
+- **The dashboard's escapes** are back in feat/007's form, `\u00a7`, after the move's rewrite turned them literal.
 
 ## Constitution Check (post-design)
 

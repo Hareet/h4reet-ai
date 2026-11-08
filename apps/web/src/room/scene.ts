@@ -431,7 +431,9 @@ export function createScene(options: SceneOptions): Stage3D {
       },
       enter(focus) {
         if (!walking || walking.on) return;
-        keepPaper(room);
+        // The kept paper into the figure's hand: the driver's, where it has one (spec 009's avatar), else the cut-out's.
+        if (figure?.hold) figure.hold(room.paper.kept);
+        else keepPaper(room);
         input.bind(focus);
         returning = false;
         walking.enter(clock.now());
