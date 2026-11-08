@@ -56,6 +56,7 @@ describe("the scene's figures block (FR-037; plan.md §3.1)", () => {
       stand_in: null,
       texture_px: 1024,
       wait_ms: 1500,
+      twin_height: 0.5,
     });
     expect(result.scene.avatars).toEqual({});
   });
@@ -137,6 +138,7 @@ describe("the avatars in the bundle (FR-009, FR-023, FR-024; plan.md §3.2, R-01
       stand_in: "man",
       texture_px: 512,
       wait_ms: 250,
+      twin_height: 0.5,
     });
   });
 

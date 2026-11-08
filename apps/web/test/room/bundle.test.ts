@@ -723,6 +723,8 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "scene_texture_bytes",
       // Spec 008's Amendment M12: the walking block, resolved.
       "walking",
+      // Spec 009's avatars, last (its plan.md §3.2).
+      "avatars",
     ]);
     expect(Object.keys(scene.placements[0] ?? {})).toEqual([
       "id",
@@ -860,7 +862,16 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "typefaces",
       "highlight",
     ]);
-    expect(scene.figures).toEqual({ twin: "fx-twin", visitor: "fx-visitor" });
+    // With spec 009's block resolved (its FR-037; plan.md §3.2): no stand-in, the defaults, and the twin's catalog height.
+    expect(scene.figures).toEqual({
+      twin: "fx-twin",
+      visitor: "fx-visitor",
+      stand_in: null,
+      texture_px: 1024,
+      wait_ms: 1500,
+      twin_height: 0.5,
+    });
+    expect(scene.avatars).toEqual({});
     expect(scene.handoff).toEqual({
       from: { placement: "fx-twin", anchor: "hand" },
       to: { placement: "fx-visitor", anchor: "hand" },
