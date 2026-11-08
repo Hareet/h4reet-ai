@@ -1,0 +1,56 @@
+diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
+index c95d692db755eeee0f3615f436a8cdd2acd3f948..ff1c9090067ddfb2b8ab46d71952b02d585bac30 100644
+--- a/tools/gates/arrival_check.py
++++ b/tools/gates/arrival_check.py
+@@ -2865,9 +2865,10 @@ class Checker:
+ 
+     def first_visit_total(self, tree: Tree, commit: str | None) -> None:
+         """SC-006's first visit, by transfer size: every GLB under assets/twin/ and assets/animations/, every file the
+-        room serves under assets/room/, image cards included (spec 004, Amendment C6), and the largest visitor
+-        avatar's GLBs; phase 3's budget once assets/room/ holds such a file. A directory's records.json and
+-        LICENSE.md aren't served, so they count for neither."""
++        room serves under assets/room/, image cards included (spec 004, Amendment C6), and the two largest visitor
++        avatars' GLBs, since the twin's figure shows a visitor avatar as its stand-in beside the one the visitor
++        chooses (spec 009, Amendment M13); phase 3's budget once assets/room/ holds such a file. A directory's
++        records.json and LICENSE.md aren't served, so they count for neither."""
+         room_files = [
+             p
+             for p in tree.under(ROOM)
+@@ -2901,7 +2902,8 @@ class Checker:
+             if p.startswith("assets/visitors/"):
+                 character = p.split("/")[2] if p.count("/") >= 3 else ""
+                 visitors[character] = visitors.get(character, 0) + gz(p)
+-        total += max(visitors.values(), default=0)
++        # The stand-in's folder and the largest other one (spec 009, M13): the two largest.
++        total += sum(sorted(visitors.values(), reverse=True)[:2])
+         phase = "phase3" if room else "phase2"
+         budget = policy.caps["first_visit_bytes"][phase]
+         self.first_visit = (phase.replace("phase", "phase "), total, budget)
+diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
+index 4d1869cfc1b056c1c7f6f1a7b136f4c066606565..3a40d65e8672c735e7d07ad8cd14e9c4ec60ce44 100644
+--- a/tools/gates/test/test_arrival_check.py
++++ b/tools/gates/test/test_arrival_check.py
+@@ -955,6 +955,23 @@ def test_f3_the_first_visit_over_its_budget(tmp_path: Path) -> None:
+     assert "first visit (phase 2)" in run.out
+ 
+ 
++def test_f3_counts_the_two_largest_visitor_folders(tmp_path: Path) -> None:
++    # Spec 009 (Amendment M13): the twin's stand-in is a visitor avatar, fetched beside the visitor's own, so the first
++    # visit counts the two largest visitor folders. Each folder alone fits the budget; the two together don't.
++    import gzip
++
++    model = fx.glb()
++    size = len(gzip.compress(model, 9, mtime=0))
++    repo = fx.repository(tmp_path, limits=fx.caps(phase2=size + size // 2))
++    repo.directory(DOG, {"dog.glb": model})
++    repo.directory("assets/visitors/cat", {"cat.glb": model})
++    repo.directory(TWIN, {}, [])
++    repo.commit("two visitor avatars")
++    run = check(repo, "--range", "main..HEAD")
++    assert run.code == 1 and run.has("F3"), run.out
++    assert f"first visit (phase 2): {2 * size:,} of" in run.out, run.out
++
++
+ def test_h1_the_history_over_its_cap(tmp_path: Path) -> None:
+     repo = fx.repository(tmp_path, limits=fx.caps(history=100))
+     repo.directory(DOG, {"still.png": fx.png()})
