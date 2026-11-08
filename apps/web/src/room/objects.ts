@@ -10,7 +10,9 @@
 // touch never hovers. A press names the pick at its start until it ends: nothing once it moves beyond the tap slop, or
 // is cancelled, or ends without selecting; a finger's lift names nothing too, as the pointer leaving, while a mouse or
 // a pen that selected leaves its target to its next hover, so the piece it selected isn't targeted again while it
-// rests there.
+// rests there. The review of Phase 1 (finding 3): a press takes the pointer (setPointerCapture), so a drag that ends
+// off the surface still ends here; and where that fails, a mouse's or a pen's move with no button down is a hover
+// again, the press whose end never came dropped as a cancel drops it.
 
 /** A point in normalized device coordinates: x and y from -1 to 1, y up. */
 export interface Ndc {
@@ -57,6 +59,15 @@ export function bindPointerSelection(
       return;
     }
     down = { x: e.clientX, y: e.clientY, moved: false, pointerType: e.pointerType };
+    // The press's moves and its end come here wherever the pointer goes; a page that can't capture it falls back on
+    // the moves with no button down, below.
+    if (typeof surface.setPointerCapture === "function") {
+      try {
+        surface.setPointerCapture(e.pointerId);
+      } catch {
+        // Not an active pointer (a synthetic event): nothing to capture.
+      }
+    }
     target?.("press", at(e));
   };
   const onUp = (e: PointerEvent): void => {
@@ -78,6 +89,8 @@ export function bindPointerSelection(
     if (start && !start.moved) target?.("press", null);
   };
   const onMove = (e: PointerEvent): void => {
+    // A mouse or a pen moving with no button down has ended any press it made, wherever that ended.
+    if (down && e.pointerType !== "touch" && e.buttons === 0) onCancel();
     const hovering = down === null && e.pointerType !== "touch";
     const id = e.pointerType === "mouse" || hovering ? at(e) : null;
     if (e.pointerType === "mouse") surface.classList.toggle("over-object", id !== null);
