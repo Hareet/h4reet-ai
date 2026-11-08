@@ -24,7 +24,7 @@ import { buildRoom, keepPaper } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { PAPER_LIFT, createAvatarFigures } from "../../src/room/scene/avatars";
 import type { AvatarFigures } from "../../src/room/scene/avatars";
-import { figureDriverFor } from "../../src/room/scene/figure";
+import { cutoutDriver, figureDriverFor } from "../../src/room/scene/figure";
 import type { FigureDriver, FigureFrame } from "../../src/room/scene/figure";
 import type { FigureSignal } from "../../src/room/stage";
 import type { Pose } from "../../src/room/walk/movement";
@@ -217,6 +217,42 @@ describe("the driver by picture (FR-028; R-16)", () => {
     driver.frame(frameOf({ x: 0, z: 0, heading: 0, speed: 0, walking: false }));
     driver.rest();
     expect(cutout.calls).toEqual(["frame", "rest"]);
+  });
+
+  // Walking's hold hook (spec 008's figure.ts on a7c214a7): walking's entry hands the kept paper to the figure's driver.
+  it("hands walking's held paper to the driver of the picture, and again to the one that takes over mid-walk", async () => {
+    const s = setup("woman");
+    s.figures.handoffEnded();
+    const driver = figureDriverFor(cutoutDriver({ node: node(s), picture: s.room.visitor }), () => s.figures);
+    const walk = poses(worldOf(node(s)), 3);
+    // The cut-out's picture holds it while the cut-out shows.
+    driver.hold?.(s.room.paper.kept);
+    expect(s.room.paper.kept.parent).toBe(s.room.visitor);
+    driver.frame(frameOf(walk[0] as Pose));
+    // The avatar arrives mid-walk and takes it in its hand.
+    await feed(s, "woman");
+    driver.frame(frameOf(walk[1] as Pose));
+    expect(s.room.paper.kept.parent).toBe(s.figures.handOf("visitor"));
+    // It falls back mid-walk: the cut-out's picture holds the paper again, so it walks with the figure.
+    s.figures.missed("woman", null, "failed");
+    driver.frame(frameOf(walk[2] as Pose));
+    expect(s.room.paper.kept.parent).toBe(s.room.visitor);
+    driver.rest();
+  });
+
+  it("gives the cut-out the paper when an avatar that took it from the scene falls back mid-walk", async () => {
+    const s = setup("woman");
+    await feed(s, "woman");
+    s.figures.handoffEnded();
+    const driver = figureDriverFor(cutoutDriver({ node: node(s), picture: s.room.visitor }), () => s.figures);
+    const walk = poses(worldOf(node(s)), 2);
+    driver.hold?.(s.room.paper.kept);
+    driver.frame(frameOf(walk[0] as Pose));
+    expect(s.room.paper.kept.parent).toBe(s.figures.handOf("visitor"));
+    s.figures.missed("woman", null, "failed");
+    driver.frame(frameOf(walk[1] as Pose));
+    expect(s.room.paper.kept.parent).toBe(s.room.visitor);
+    driver.rest();
   });
 });
 
