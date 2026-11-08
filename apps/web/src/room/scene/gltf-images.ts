@@ -3,20 +3,21 @@
 // object URL, then turns a texture that fails into no texture, so a model would draw untextured with no error. This
 // plugin replaces the parser's image-source step, which the texture step calls for every image, PNG, JPEG, and WebP
 // alike: it wraps the buffer view in a Blob and decodes it with createImageBitmap, neither premultiplied nor
-// colour-converted, at half size in spec 003's reduced tier, which the room reads as a quality level of 1 or more when
-// the model decodes. It returns a texture with flipY false, as glTF has it, and the image's MIME type, decoding each
+// colour-converted, at most a side's cap for a visitor avatar (spec 009's texture_px, ledger.ts's capSides), and at
+// half size in spec 003's reduced tier, which the room reads as a quality level of 1 or more when the model decodes. It returns a texture with flipY false, as glTF has it, and the image's MIME type, decoding each
 // image once; it refuses an image `uri`, and never makes a URL. It counts what it decodes against what the materials'
 // texture steps asked for, so a piece short of the images its materials use fails rather than drawing untextured.
 // test/room/gltf-images.test.ts pins the loader's internals this relies on, in three 0.186.1, whose EXT_texture_webp
 // makes no support probe that the plugin would have to mark supported first.
 //
 // It belongs to the room's 3D chunk, which never imports the GLB reader in src/room/glb/ (R-08), so it reads no image
-// header: a reduced image is decoded, then resized to half its decoded sides, and the full-size bitmap closed.
+// header: a reduced or capped image is decoded, then resized to its sides (half its decoded sides, after any cap), and
+// the full-size bitmap closed.
 import { Texture } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { GLTF, GLTFLoaderPlugin, GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-import { textureBytes } from "./ledger";
+import { capSides, textureBytes } from "./ledger";
 
 /**
  * createImageBitmap's options for every decode: the pixels as stored, neither premultiplied nor colour-converted, as
@@ -31,6 +32,10 @@ export interface ImageOptions {
   /** Half size: spec 003's reduced tier, a quality level of 1 or more when the model decodes (R-28, step 6). */
   readonly reduced: boolean;
   readonly decode: Decode;
+  /** Spec 009's decode cap (its FR-024; plan.md R-11): an image larger on a side decodes at most this many pixels a
+   *  side, keeping its aspect, before any halving. A visitor avatar's model takes the 3D part's texture_px; the room's
+   *  models take none. */
+  readonly maxSide?: number;
 }
 
 /** An image as decoded: its size, after any halving, and its MIME type. */
@@ -61,8 +66,6 @@ interface ImageDef {
   readonly mimeType?: unknown;
 }
 
-const half = (side: number): number => Math.max(1, side >> 1);
-
 export function roomImages(options: ImageOptions): RoomImages {
   const requested = new Set<number>();
   const decoded = new Map<number, DecodedImage>();
@@ -76,14 +79,11 @@ export function roomImages(options: ImageOptions): RoomImages {
     const view = (await parser.getDependency("bufferView", def.bufferView)) as ArrayBuffer;
     const mimeType = typeof def.mimeType === "string" ? def.mimeType : "";
     let bitmap = await options.decode(new Blob([view], { type: mimeType }), DECODE);
-    if (options.reduced) {
+    const [width, height] = capSides(bitmap.width, bitmap.height, options.maxSide ?? null, options.reduced);
+    if (options.reduced || width !== bitmap.width || height !== bitmap.height) {
       const full = bitmap;
       try {
-        bitmap = await options.decode(full, {
-          ...DECODE,
-          resizeWidth: half(full.width),
-          resizeHeight: half(full.height),
-        });
+        bitmap = await options.decode(full, { ...DECODE, resizeWidth: width, resizeHeight: height });
       } finally {
         full.close();
       }

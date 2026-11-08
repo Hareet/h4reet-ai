@@ -174,6 +174,18 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 6; i += 1) await flush();
 }
 
+/** Answers the figure files' fetches and runs frames, which the loader's holds settle on, until `done` settles. */
+async function drive(h: Harness, done: Promise<void>, answered: Set<Call> | null = new Set<Call>()): Promise<void> {
+  let finished = false;
+  void done.then(() => (finished = true));
+  for (let i = 0; i < 60 && !finished; i += 1) {
+    if (answered) answerAll(h, answered);
+    await settle();
+    h.clock.advance(32);
+  }
+  await done;
+}
+
 /** Answers every unanswered fetch with its file. */
 function answerAll(h: Harness, answered: Set<Call>): void {
   for (const call of h.fetch.calls) {
@@ -252,7 +264,7 @@ describe("the figures' fetches (FR-021, FR-022; R-03)", () => {
       await settle();
     }
     expect(fetched).toBe(true);
-    await done;
+    await drive(h, done, answered);
     expect(h.models.map((m) => m.avatar)).toEqual(["man", "woman"]);
     expect(h.clips.map((c) => `${c.avatar} ${c.role}`).sort()).toEqual(
       ["man idle", "man idle-holding", "man take", "woman idle", "woman idle-holding", "woman take"].sort(),
@@ -291,11 +303,7 @@ describe("the figures' fetches (FR-021, FR-022; R-03)", () => {
     await settle();
     // The model's retry; its clips wait for its fetch to end.
     expect(h.fetch.calls.map((c) => c.url).filter((u) => u.includes("fx-desk"))).toEqual([]);
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await figuresDone;
+    await drive(h, figuresDone, answered);
     expect(h.fetch.calls.some((c) => c.url.includes("fx-desk"))).toBe(true);
     h.loader.stop();
     await roomDone;
@@ -354,18 +362,10 @@ describe("the figures' fetches (FR-021, FR-022; R-03)", () => {
     const h = harness();
     const answered = new Set<Call>();
     const first = h.loader.loadFigures(figureEntries(night.scene, "man"));
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await first;
+    await drive(h, first, answered);
     const before = h.fetch.calls.length;
     const second = h.loader.loadFigures(figureEntries(night.scene, "man"));
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await second;
+    await drive(h, second, answered);
     expect(h.fetch.calls.length).toBe(2 * before);
     expect(h.models).toHaveLength(2);
   });
@@ -383,7 +383,7 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
     expect(h.fetch.calls).toHaveLength(4);
     expect(h.models).toEqual([]);
     h.handoff();
-    await done;
+    await drive(h, done, answered);
     expect(h.models).toHaveLength(1);
   });
 
@@ -396,11 +396,7 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
       h.level = level;
       const answered = new Set<Call>();
       const done = h.loader.loadFigures(figureEntries(night.scene, "woman").filter((e) => e.figure.avatar === "woman"));
-      for (let i = 0; i < 6; i += 1) {
-        answerAll(h, answered);
-        await settle();
-      }
-      await done;
+      await drive(h, done, answered);
       const resized = h.decoder.options.filter((o) => o.resizeWidth !== undefined);
       expect(resized.map((o) => [o.resizeWidth, o.resizeHeight])).toEqual([size]);
       expect(h.uploads).toHaveLength(1);
@@ -412,11 +408,7 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
     const h = harness({ limit: textureBytes(1024, 512) - 1 });
     const answered = new Set<Call>();
     const done = h.loader.loadFigures(figureEntries(night.scene, "woman").filter((e) => e.figure.avatar === "woman"));
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await done;
+    await drive(h, done, answered);
     expect(h.models).toEqual([]);
     expect(h.ended).toContain("woman skipped");
     expect(h.uploads).toEqual([]);
@@ -427,11 +419,7 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
     h.takes = false;
     const answered = new Set<Call>();
     const done = h.loader.loadFigures(figureEntries(night.scene, "man").filter((e) => e.figure.role === null));
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await done;
+    await drive(h, done, answered);
     expect(h.events.map((e) => `${e.asset} ${e.outcome}`)).toEqual(["man retried", "man failed"]);
     expect(h.ended).toEqual(["man failed"]);
   });
@@ -440,11 +428,7 @@ describe("parse and hand over (FR-022, FR-024; R-03, R-11)", () => {
     const h = harness();
     const answered = new Set<Call>();
     const done = h.loader.loadFigures(figureEntries(night.scene, "man"));
-    for (let i = 0; i < 6; i += 1) {
-      answerAll(h, answered);
-      await settle();
-    }
-    await done;
+    await drive(h, done, answered);
     const take = h.clips.find((c) => c.role === "take");
     expect(take?.clips[0]?.name).toBe("take");
     expect(take?.clips[0]?.tracks.map((t) => t.name)).toEqual(["mixamorigRightArm.quaternion"]);

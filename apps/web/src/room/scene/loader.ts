@@ -34,10 +34,12 @@
 //   addition to room-bundle.md §3.2, since RS2 lets no placement place a switch's piece; it shows in every case.
 // - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips.
 // - A failed attempt's hold, like a swap's, is released two frames after it.
-import type { Light, Material, Mesh, Object3D, Texture } from "three";
+import type { AnimationClip, Light, Material, Mesh, Object3D, Texture } from "three";
 
 import { assetEvent } from "../../asset-events";
 import type { AssetEvent, AssetOutcome } from "../../asset-events";
+import { CLIP_ROLES } from "../../choice/avatars";
+import type { AvatarId, ClipRole } from "../../choice/avatars";
 import type { Mode } from "../../choice/visit";
 import type { Clock } from "../clock";
 import type { Look, RoomScene } from "../compose/bundle";
@@ -78,6 +80,17 @@ export interface ModelEntry {
   readonly source: ModelSource;
 }
 
+/**
+ * One file of an avatar a figure shows (spec 009, R-03): its model or one of its clips, one entry however many figures
+ * show it (FR-015). Its `piece` is the file's own key, `avatar:<id>` or `avatar:<id>:<role>`, which no piece ID can
+ * equal, so a newer load of the file supersedes an older one as a piece's does.
+ */
+export interface FigureEntry extends ModelEntry {
+  readonly figure: { readonly avatar: AvatarId; readonly role: ClipRole | null };
+}
+
+const isFigure = (entry: ModelEntry): entry is FigureEntry => "figure" in entry;
+
 /** The page's fetch, as far as the loader calls it. */
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -105,11 +118,27 @@ export interface LoaderOptions {
   readonly prepare: (piece: string, model: Object3D) => void;
   /** Shows a model in place of its piece's stand-ins, or the stand-ins again for null (showModel). */
   readonly swap: (piece: string, model: Object3D | null) => void;
+  // Spec 009's figures (R-03): absent, as on the lookdev page until its Phase 4, no figure file loads.
+  /** Takes an avatar's parsed model, readied by `prepare` with its file's key: the figures' from now on, its textures
+   *  uploaded through the ledger once taken. False where the figures can't place it, a failed parse. */
+  readonly avatar?: (entry: FigureEntry, model: Object3D) => boolean;
+  /** Takes a clip file's animations: no ledger, no swap; the clip's own scene released. */
+  readonly clip?: (entry: FigureEntry, clips: readonly AnimationClip[]) => void;
+  /** Where a figure file's load ended: loaded, failed after its retry, or skipped. */
+  readonly figureEnded?: (entry: FigureEntry, outcome: "loaded" | "failed" | "skipped") => void;
+  /** An avatar model's images decode at most this many pixels a side (R-11): the 3D part's texture_px. */
+  readonly maxSide?: number;
 }
 
 export interface Loader {
   /** Loads each entry, as R-28 orders it; resolves once every one has settled, its hold let go. */
   load(entries: readonly ModelEntry[]): Promise<void>;
+  /** Spec 009 (R-03, FR-021): loads the figures' files without waiting on `figures`, the models at once, then each
+   *  avatar's clips once its model's fetch has ended (a clip of a model whose fetch failed is skipped); `fetched` is
+   *  called once every file's fetch has ended, fetched or failed, or at once where nothing is fetched (below the floor,
+   *  stopped, or no entry), which is what lets the room's models start. Resolves once every file has settled. A second
+   *  call loads them again, as a restored context's reload does. */
+  loadFigures(entries: readonly FigureEntry[], fetched?: () => void): Promise<void>;
   /** Puts every swapped piece back to its stand-in at once, then loads it again: after a lost context's restore, or
    *  lookdev's scripted load. */
   reload(): Promise<void>;
@@ -158,6 +187,43 @@ export function modelEntries(part: Pick<RoomScene, "placements" | "switches" | "
     });
   }
   return out;
+}
+
+/**
+ * The figures' files as entries (spec 009, FR-010, FR-015, FR-021; R-03): the stand-in's and the chosen avatar's, each
+ * avatar once where the 3D part bundles its model, the stand-in first; their models first, then their clips in the
+ * closed list's order, each at `base` + its a/ URL, its asset its URL's stem.
+ */
+export function figureEntries(
+  part: Pick<RoomScene, "figures" | "avatars">,
+  chosen: AvatarId,
+  base = "",
+): FigureEntry[] {
+  const ids = [...new Set([part.figures.stand_in, chosen])].filter(
+    (id): id is AvatarId => id !== null && part.avatars[id] !== undefined,
+  );
+  const entry = (
+    avatar: AvatarId,
+    role: ClipRole | null,
+    file: { url: string; sha256: string; bytes: number },
+  ): FigureEntry => ({
+    piece: role === null ? `avatar:${avatar}` : `avatar:${avatar}:${role}`,
+    asset: assetOf(file.url, avatar),
+    bytes: file.bytes,
+    source: { kind: "url", url: `${base}${file.url}`, sha256: file.sha256 },
+    figure: { avatar, role },
+  });
+  const models = ids.flatMap((id) => {
+    const own = part.avatars[id];
+    return own ? [entry(id, null, own.model)] : [];
+  });
+  const clips = ids.flatMap((id) =>
+    CLIP_ROLES.flatMap((role) => {
+      const file = part.avatars[id]?.clips[role];
+      return file ? [entry(id, role, file)] : [];
+    }),
+  );
+  return [...models, ...clips];
 }
 
 /**
@@ -337,7 +403,9 @@ export function createLoader(options: LoaderOptions): Loader {
   };
 
   const record = (entry: ModelEntry, outcome: AssetOutcome, start: number | null): void => {
-    if (outcome === "failed" || outcome === "skipped") fellBack = true;
+    // A figure's file falling back is its figure's, not a piece's: the placeholder note is the pieces'.
+    if ((outcome === "failed" || outcome === "skipped") && !isFigure(entry)) fellBack = true;
+    if (isFigure(entry) && outcome !== "retried") options.figureEnded?.(entry, outcome);
     options.record(
       assetEvent({
         asset: entry.asset,
@@ -423,6 +491,10 @@ export function createLoader(options: LoaderOptions): Loader {
     const release = options.hold();
     try {
       if (stopped) return;
+      if (isFigure(entry)) {
+        await parseFigure(load, entry, data, start);
+        return;
+      }
       const parsed = await parseModel(data, { reduced: options.level() >= 1, decode: options.decode });
       const model = parsed.gltf.scene;
       if (stopped || latest.get(entry.piece) !== load.mine) {
@@ -453,11 +525,57 @@ export function createLoader(options: LoaderOptions): Loader {
     }
   }
 
-  /** One entry through its fetch, its parse, and its swap, with one retry. */
-  async function one(load: Load): Promise<void> {
+  /** A figure file parsed (spec 009, R-03): a model through the image step at the decode cap and the ledger, handed
+   *  to the figures, its textures uploaded once they take it; a clip's animations handed over, its scene released. */
+  async function parseFigure(load: Load, entry: FigureEntry, data: ArrayBuffer, start: number | null): Promise<void> {
+    const clip = entry.figure.role !== null;
+    const parsed = await parseModel(data, {
+      reduced: options.level() >= 1,
+      decode: options.decode,
+      ...(!clip && options.maxSide !== undefined ? { maxSide: options.maxSide } : {}),
+    });
+    const model = parsed.gltf.scene;
+    if (stopped || latest.get(entry.piece) !== load.mine) {
+      parsed.close();
+      disposeModel(model);
+      return;
+    }
+    if (clip) {
+      parsed.close();
+      disposeModel(model);
+      options.clip?.(entry, parsed.gltf.animations);
+      end(load, "loaded", start);
+      return;
+    }
+    if (!options.ledger.fits(parsed.textureBytes)) {
+      parsed.close();
+      disposeModel(model);
+      end(load, "skipped", null);
+      return;
+    }
+    options.prepare(entry.piece, model);
+    if (!(options.avatar?.(entry, model) ?? false)) {
+      parsed.close();
+      disposeModel(model);
+      throw new Error("the figures can't place the model");
+    }
+    options.ledger.upload(options.uploader, texturesOf(model));
+    parsed.close();
+    end(load, "loaded", start);
+  }
+
+  /** One entry through its fetch, its parse, and its swap, with one retry; `fetchEnded` is called once, true when its
+   *  data is in hand, false when its last fetch has failed or the loader stopped. */
+  async function one(load: Load, fetchEnded: (ok: boolean) => void = () => undefined): Promise<void> {
     const { entry } = load;
     active += 1;
     let start: number | null = null;
+    let ended = false;
+    const fetchDone = (ok: boolean): void => {
+      if (ended) return;
+      ended = true;
+      fetchEnded(ok);
+    };
     try {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         if (stopped) return;
@@ -471,6 +589,7 @@ export function createLoader(options: LoaderOptions): Loader {
           } finally {
             releaseFetch();
           }
+          fetchDone(true);
           await options.handoff;
           if (stopped) return;
           await parseAndSwap(load, data, start);
@@ -483,6 +602,7 @@ export function createLoader(options: LoaderOptions): Loader {
       }
     } finally {
       active -= 1;
+      fetchDone(false);
     }
   }
 
@@ -505,7 +625,65 @@ export function createLoader(options: LoaderOptions): Loader {
         return;
       }
       // A load superseded while it waited fetches nothing.
-      await Promise.all(loads.filter((l) => pending.has(l)).map(one));
+      await Promise.all(loads.filter((l) => pending.has(l)).map((l) => one(l)));
+    } finally {
+      active -= 1;
+    }
+  }
+
+  async function loadFigures(entries: readonly FigureEntry[], fetched: () => void = () => undefined): Promise<void> {
+    if (stopped || entries.length === 0) {
+      fetched();
+      return;
+    }
+    const mine = new Map(entries.map((e) => [e.piece, Symbol(e.piece)]));
+    for (const [piece, token] of mine) {
+      latest.set(piece, token);
+      supersede(piece);
+    }
+    const loads = entries.map((entry): Load => ({ entry, mine: mine.get(entry.piece) as symbol }));
+    for (const l of loads) pending.add(l);
+    active += 1;
+    let left = loads.length;
+    const fetchEnded = (): void => {
+      left -= 1;
+      if (left === 0) fetched();
+    };
+    try {
+      floor ??= options.floor();
+      if (!floor) {
+        for (const l of loads) end(l, "skipped", null);
+        fetched();
+        return;
+      }
+      const avatarOf = (l: Load): AvatarId => (l.entry as FigureEntry).figure.avatar;
+      const models = loads.filter((l) => (l.entry as FigureEntry).figure.role === null);
+      const clipsOf = (avatar: AvatarId): Load[] =>
+        loads.filter((l) => (l.entry as FigureEntry).figure.role !== null && avatarOf(l) === avatar);
+      /** A clip that won't load: its model's fetch failed, the loader stopped, or a newer load superseded it. */
+      const skip = (c: Load): Promise<void> => {
+        end(c, "skipped", null);
+        fetchEnded();
+        return Promise.resolve();
+      };
+      // Each avatar's model at once; its clips once the model's fetch has ended, skipped where it failed.
+      await Promise.all(
+        models.map(async (m) => {
+          let modelFetched: (ok: boolean) => void = () => undefined;
+          const fetchedOk = new Promise<boolean>((resolve) => (modelFetched = resolve));
+          const run = one(m, (ok) => {
+            fetchEnded();
+            modelFetched(ok);
+          });
+          const ok = await fetchedOk;
+          const runs = clipsOf(avatarOf(m)).map((c) =>
+            !ok || stopped || !pending.has(c) ? skip(c) : one(c, () => fetchEnded()),
+          );
+          await Promise.all([run, ...runs]);
+        }),
+      );
+      // A clip of an avatar whose model has no entry isn't loaded: skipped.
+      for (const l of loads) if (pending.has(l) && !models.some((m) => avatarOf(m) === avatarOf(l))) void skip(l);
     } finally {
       active -= 1;
     }
@@ -513,6 +691,7 @@ export function createLoader(options: LoaderOptions): Loader {
 
   return {
     load,
+    loadFigures,
     reload() {
       const entries = [...shown.values()].map((s) => s.entry);
       for (const piece of [...shown.keys()]) take(piece);
