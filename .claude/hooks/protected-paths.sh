@@ -49,6 +49,7 @@ check() {
     .claude/* | CLAUDE.md | REVIEW.md | .specify/memory/constitution.md) block "protected governance path" ;;
     .git | .git/*) block "git internals (refs, config, and hooks change through git, and main only by the Author)" ;;
     infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/alert* | config/kill-switch*) block "cost/alert/edge/kill-switch configuration" ;;
+    config/twin-readiness*) block "the twin's readiness, which opens a topic to visitors' words, the Author's alone (spec 007 FR-029)" ;;
     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
     config/prices*) block "the price table (human-only, versioned, append-only; spec 000 FR-008)" ;;

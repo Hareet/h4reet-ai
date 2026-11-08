@@ -1315,7 +1315,7 @@ PY
   }
   # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
   for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
-    config/prices.yaml config/budgets.yaml config/alerts.yaml GNUmakefile makefile \
+    config/prices.yaml config/budgets.yaml config/alerts.yaml config/twin-readiness.yaml GNUmakefile makefile \
     deploy/agents-engine .gitleaks.toml .gitleaksignore; do
     s_unwritable "$p" block "$stage_s_tree/$p"
   done
@@ -1979,6 +1979,19 @@ edit allow 'specs/000-local-foundations/spec.md' # exists, one link
 edit allow 'corpus/proposals/2026-10-07-example.md'
 edit allow 'services/gateway/src/router.ts'
 edit allow 'docs/adr/0013-example.md'
+# Spec 007's P-1: the twin's readiness file, which prod reads and only the Author changes (its FR-029). As spec 003's
+# policy rows: an Edit of the file and two path forms are refused, and so is an Edit in a linked worktree; its
+# neighbours, which agents write, stay allowed.
+edit block 'config/twin-readiness.yaml'
+edit block 'specs/../config/twin-readiness.yaml'
+edit block './config//twin-readiness.yaml'
+edit allow 'config/twin/prompt.md'
+edit allow 'config/room-topics.yaml'
+check protected-paths.sh block 'Edit in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg f "$gov_wt/config/twin-readiness.yaml" '{file_path:$f}')"
+# A shell write: the sandbox's denyWrite masks config/twin-readiness.yaml in the main tree. In a linked worktree no rule
+# sees a shell write's target: a gap. What holds it is the arrival check's rule A10 (spec 007's P-1): it refuses any
+# branch whose change to the file marks a topic or free talk ready, so only the Author's commits on main open one.
+check bash-gate.sh gap 'a shell write in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg c "cp /tmp/new $gov_wt/config/twin-readiness.yaml" '{command:$c}')"
 
 # The early patch's human-only paths (plan §15).
 edit block 'config/prices.yaml'
@@ -2475,7 +2488,7 @@ has "the Author's config is denied in every layer (FR-007)" '(.sandbox.filesyste
 has "the state directory, the engine's PKI, and the other credential stores are denied" '(.sandbox.filesystem.denyWrite | index("~/.local/state/h4reet") != null) and (.sandbox.filesystem.denyRead as $r | ["/etc/h4agents/pki", "~/.docker/config.json", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.gnupg", "/mnt/c/Users"] | all(. as $p | $r | index($p) != null))'
 has "the agents' own engine certificate stays readable" '[.sandbox.filesystem.denyRead[] | select(startswith("~/.config/h4reet/"))] | length == 0'
 # shellcheck disable=SC2016 # $w and $p are jq variables, not shell expansions
-has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
+has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./config/twin-readiness.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
 # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
 has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
 has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'

@@ -22,6 +22,13 @@ E/section
 H/bash-gate.sh/terraform apply
 H/bash-gate.sh/git push origin main
 H/bash-gate.sh/git checkout main
+# Spec 007's P-1: the twin's readiness file is refused to every agent edit, in two path forms and in a linked worktree
+# (its FR-029); a shell write in a linked worktree is a gap, held by the arrival check's rule A10.
+H/protected-paths.sh/config/twin-readiness.yaml
+H/protected-paths.sh/specs/../config/twin-readiness.yaml
+H/protected-paths.sh/./config//twin-readiness.yaml
+H/protected-paths.sh/Edit in a linked worktree: config/twin-readiness.yaml
+H/bash-gate.sh/a shell write in a linked worktree: config/twin-readiness.yaml
 # Edit-protection guards that run in stage H before the check (via the role rows, which exercise protected-paths.sh):
 # protected-paths blocks these for every role, so they also prove the deploy/env (FR-007) and budget-config denies hold.
 # The base protected-paths edit rows (.claude/settings.json, CLAUDE.md, …) run after this check, so they are not listed;

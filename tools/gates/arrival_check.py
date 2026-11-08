@@ -46,8 +46,9 @@ The modes: --staged checks the index's added and changed files, and the director
 each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
 that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
 by the tree it leaves. --history checks every commit reachable from any ref. PATH... checks the named files as they
-are on disk. Rule A9, a branch changing assets/policy/, applies under --range, and under --staged when the current
-branch isn't main: the Author's own policy commits on main are expected.
+are on disk. Rule A9, a branch changing assets/policy/, and rule A10, a branch whose config/twin-readiness.yaml marks
+the twin ready (spec 007's P-1), apply under --range, and under --staged when the current branch isn't main: the
+Author's own policy commits on main are expected.
 
 Output: one line per finding, `<rule> <path>[ @<commit>]: <reason>`, then the size table, the totals, and a summary.
 Exit 0: nothing refused. 1: at least one finding. 2: it can't check (a range that doesn't resolve, a path outside the
@@ -83,6 +84,12 @@ ROOTS = ("assets/", "docs/research/images/")
 ROOT_TOPS = ("assets", "docs/research/images")
 POLICY = "assets/policy/"
 POLICY_FILES = ("licenses.json", "approvals.json", "caps.json")
+# Spec 007's readiness file: only the Author marks the twin ready, on main (its FR-029; P-1). A branch may hold it with
+# nothing ready, as P-1 creates it, but never with a topic or free talk marked ready, in any spelling YAML reads as true.
+READINESS = "config/twin-readiness.yaml"
+MARKS_READY = re.compile(rb"(?i)\bready\s*:\s*(?:true|yes|on|y)\b")
+# A YAML comment's words are no entry: the file's own header shows `ready: true` as an example.
+YAML_COMMENT = re.compile(rb"(?m)(?:^|[ \t])#.*$")
 PUBLISHED = "docs/research/images/"
 ROOT_FILES = frozenset(
     {"assets/README.md", "assets/CREDITS.md", "docs/research/images/CREDITS.md"}
@@ -2832,6 +2839,20 @@ class Checker:
     ) -> None:
         touched = set()
         for path in changed + deleted:
+            if path == READINESS:
+                data = tree.read(path)
+                if (
+                    a9
+                    and data is not None
+                    and MARKS_READY.search(YAML_COMMENT.sub(b"", data))
+                ):
+                    self.add(
+                        "A10",
+                        path,
+                        "the branch marks the twin ready, which only the Author does, on main (spec 007 FR-029)",
+                        commit,
+                    )
+                continue
             if path.startswith(POLICY):
                 if a9:
                     self.add(
