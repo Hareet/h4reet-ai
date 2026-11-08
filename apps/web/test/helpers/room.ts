@@ -447,6 +447,8 @@ export interface SceneOptionsForTest {
   sceneLate?: boolean;
   /** The bundle's index the room starts with: by default the repository's, as the site's build bundles it. */
   room?: RoomIndex;
+  /** The room's content (messages and manifest): by default roomContent(), the repository's, as the build reads it. */
+  content?: RoomContent;
   /** The wall clock the room reads (spec 004): by default WALL0 plus the fake clock's time. */
   wall?: (clock: FakeClock) => number;
   /** Imports the 3D chunk in place of the stand-in: the real scene module, with a stand-in renderer (spec 004, T157). */
@@ -485,7 +487,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   let roomDataLoads = 0;
   const room = startRoom({
     win,
-    content: roomContent(),
+    content: options.content ?? roomContent(),
     room: options.room ?? roomIndex(),
     // The real resume view (Phase 3), its room-data.json from the test, never from the network.
     resume: resumeView(

@@ -9,7 +9,7 @@
 //   defaults, logged once.
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ROOM, committedTexts, readinessText, short, twinWith } from "../helpers/twin.js";
+import { ROOM, committed, committedTexts, readinessText, runningHashes, short, twinWith } from "../helpers/twin.js";
 import { ledger, twinStack, type TwinStack } from "../helpers/twin-stack.js";
 import { twinFromTexts } from "../../src/config/twin.js";
 
@@ -312,5 +312,109 @@ describe("an answered turn (T037; User Story 1)", () => {
     if (!twin.available) throw new Error("the twin isn't available");
     expect(res.json()).toMatchObject({ text: twin.files.lines.withheld, route: "local", cost_micro_usd: 0 });
     expect(await ledger(t.s)).toHaveLength(1);
+  });
+});
+
+// T048 (spec 007; FR-008, FR-009, FR-015; User Story 2): free talk, and the follow-up rule, at the route. A free-talk
+// turn is grounded in the rules, `00`, and the sections the ranking scores for its question; a piece's follow-up adds
+// ranked sections only while free talk is ready; the same question on either path gets the same sections and its own
+// depth line, whatever the two depth lines' lengths; a question about an empty slot gets its fallback, no value.
+describe("free talk and a follow-up's ranked sections (T048; User Story 2)", () => {
+  type Sent = { messages: { role: string; content: string }[] };
+  type Section = { id: string; file: string; heading: string; text: string };
+  const PROFILE = "corpus/00-profile.md";
+  const { sections } = JSON.parse(committed("corpus.json")) as { sections: Section[] };
+  const header = (s: Section): string => `[${short(s.file)} — ${s.heading}]`;
+  const headersIn = (system: string): string[] =>
+    system.split("\n").filter((l) => /^\[\d{2}-[a-z0-9-]+ — .*\]$/.test(l));
+  const systems = (t: TwinStack): string[] =>
+    t.stub
+      .requests()
+      .filter((r) => r.path.endsWith("/chat/completions"))
+      .map((r) => (r.body as Sent).messages[0]?.content ?? "");
+  const answer = {
+    ok: { text: "An answer from the corpus.", inputTokens: 900, outputTokens: 6, finish: "stop" as const },
+  };
+  const FREE_READY = readinessText({ freeTalk: { ready: true } });
+  // "Who is Arya?" ranks only the sections that name her: its other words are on the ranking's stop list.
+  const ARYA = "Who is Arya?";
+  const arya = sections.filter((s) => s.file !== PROFILE && /\barya/i.test(s.text));
+  const profile = sections.filter((s) => s.file === PROFILE);
+
+  it("grounds a free-talk turn in the rules, 00, and the sections ranked for its question, and nothing else", async () => {
+    expect(arya.length).toBeGreaterThan(0);
+    const t = await stack({ twin: twinWith(FREE_READY) });
+    t.stub.setCompletions(answer);
+    expect((await t.turn({ feature: "free_talk", path: "engineer", turns: [visitor(ARYA)] })).statusCode).toBe(200);
+    const [system = ""] = systems(t);
+    const headers = headersIn(system);
+    expect(headers.slice(0, profile.length)).toEqual(profile.map(header));
+    expect(new Set(headers.slice(profile.length))).toEqual(new Set(arya.map(header)));
+    expect(system.indexOf("Do not claim:")).toBeGreaterThan(-1);
+    expect(system.indexOf("Ownership rulings:")).toBeLessThan(system.indexOf(headers[0] ?? "~"));
+  });
+
+  it("adds ranked sections to a piece's follow-up only while free talk is ready", async () => {
+    expect(ROOM.second.files.some((f) => arya.some((s) => s.file === f))).toBe(false);
+    const turns = [{ role: "twin", text: "An opening about his work." }, visitor(ARYA)];
+    const topic = { [ROOM.second.topic]: { ready: true } };
+    const ready = await stack({ twin: twinWith(readinessText({ topics: topic, freeTalk: { ready: true } })) });
+    const closed = await stack({ twin: twinWith(readinessText({ topics: topic })) });
+    for (const t of [ready, closed]) {
+      t.stub.setCompletions(answer);
+      expect((await t.turn({ feature: ROOM.second.id, path: "engineer", turns })).statusCode).toBe(200);
+    }
+    const added = (t: TwinStack) => headersIn(systems(t)[0] ?? "").filter((h) => arya.map(header).includes(h));
+    expect(new Set(added(ready))).toEqual(new Set(arya.map(header)));
+    expect(added(closed)).toEqual([]);
+    // An opening has no visitor words to rank: free talk's readiness adds nothing to it.
+    const opening = await stack({ twin: twinWith(readinessText({ topics: topic, freeTalk: { ready: true } })) });
+    opening.stub.setCompletions(answer);
+    expect((await opening.turn({ feature: ROOM.second.id, path: "engineer", turns: [] })).statusCode).toBe(200);
+    expect(headersIn(systems(opening)[0] ?? "").every((h) => !h.startsWith("[" + short(arya[0]?.file ?? "~")))).toBe(
+      true,
+    );
+  });
+
+  it("gives the same question the same sections on either path, with that path's depth line alone", async () => {
+    // The non-engineer depth line made far longer than the engineer one: the grounding's bound mustn't follow it.
+    const longer = committed("prompt.md").replace(
+      /\n## Depth: non-engineer\n\n[^\n]*/,
+      (line) => line + " Keep each answer plain and short.".repeat(100),
+    );
+    expect(longer).not.toBe(committed("prompt.md"));
+    const texts = { ...committedTexts(), prompt: longer };
+    const t = await stack({
+      twin: twinWith(readinessText({ freeTalk: { ready: true } }, runningHashes(texts)), { prompt: longer }),
+    });
+    t.stub.setCompletions(answer);
+    const question = "What did he build for health workers at national scale with AI and agents on the cloud?";
+    for (const path of ["engineer", "non-engineer"]) {
+      expect((await t.turn({ feature: "free_talk", path, turns: [visitor(question)] })).statusCode).toBe(200);
+    }
+    const [engineer = "", plain = ""] = systems(t);
+    expect(headersIn(engineer).length).toBeGreaterThan(profile.length + 5);
+    expect(headersIn(plain)).toEqual(headersIn(engineer));
+    expect(engineer).toContain("\n## Depth: engineer\n");
+    expect(engineer).not.toContain("\n## Depth: non-engineer\n");
+    expect(plain).toContain("\n## Depth: non-engineer\n");
+    expect(plain).not.toContain("\n## Depth: engineer\n");
+  });
+
+  it("grounds a question about an empty slot in its fallback, with no value and no slot reference", async () => {
+    const gap = sections.find((s) => /national deployment go live\?/.test(s.text));
+    expect(gap?.text).toMatch(/go live\?\* — [^\d\n]+$/);
+    const t = await stack({ twin: twinWith(FREE_READY) });
+    t.stub.setCompletions(answer);
+    const res = await t.turn({
+      feature: "free_talk",
+      path: "engineer",
+      turns: [visitor("When did the national deployment go live?")],
+    });
+    expect(res.statusCode).toBe(200);
+    const [system = ""] = systems(t);
+    expect(gap).toBeDefined();
+    expect(system).toContain(`${header(gap as Section)}\n${gap?.text ?? "~"}\n`);
+    expect(system).not.toContain("{{slot");
   });
 });

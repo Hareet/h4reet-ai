@@ -166,6 +166,25 @@ export interface PackBuild {
   readonly problems: readonly string[];
   /** Every topic file's sections, by file, for the freshness check's message. */
   readonly facts: ReadonlyMap<string, Fact>;
+  /** What the corpus says it doesn't know, in file order, each a gap case on each path (FR-049; plan §8). */
+  readonly gaps: readonly PackGap[];
+}
+
+/** A gap the corpus names (FR-009, FR-049; plan §8; the corpus README's "every `[?]` and empty slot is an "I don't
+ *  know that yet" test"): a slot a topic file references that the pack can't fill (empty, missing, or not public-safe),
+ *  once per file; or a `[?]` tag in a topic file's lead, sections, or Golden Q&A. Never a "Do not claim" bullet's, which
+ *  the red-team suite holds, nor the tag legend's. It never holds a slot's value. */
+export interface PackGap {
+  readonly file: string;
+  readonly kind: "slot" | "tag";
+  /** The slot's ID, for a slot; null for a tag. */
+  readonly slot: string | null;
+  /** What the gap is: the fact's label without its trailing note in parentheses (its ID when it has none); for a tag,
+   *  the words after it, or the sentence before it, with the bullet's bold title or the section's heading; for a Golden
+   *  Q&A tagged `[?]`, its question. */
+  readonly label: string;
+  /** The question the gap's cases ask. */
+  readonly question: string;
 }
 
 // ---- Canonical JSON and its hash, as the gateway's src/twin/hash.ts computes them ----
@@ -412,12 +431,15 @@ function selectablesOf(text: string | null, problems: string[]): Selectable[] {
 export function buildPack(reader: PackReader): PackBuild {
   const problems: string[] = [];
   const facts = new Map<string, Fact>();
+  const labels = new Map<string, string>();
   for (const name of reader.list("corpus/facts")) {
     if (!FACTS_FILE.test(name)) continue;
     const text = reader.read(`corpus/facts/${name}`);
     if (text === null) continue;
     for (const fact of factsIn(text, name)) facts.set(fact.id, fact);
+    for (const [id, label] of labelsIn(text)) labels.set(id, label);
   }
+  const gaps: PackGap[] = [];
   const files = reader
     .list("corpus")
     .filter((name) => TOPIC_FILE.test(name))
@@ -447,6 +469,16 @@ export function buildPack(reader: PackReader): PackBuild {
         rulings = { file, text: paragraph, entries: parsed.entries };
       }
     }
+    gaps.push(
+      ...gapsOf({
+        file,
+        title,
+        lead: lead.filter((l) => !/^Priority:/.test(l.trim()) && l.trim() !== paragraph),
+        sections: raw,
+        facts,
+        labels,
+      }),
+    );
     // The lead: the title's file's own lines, without its metadata line and without the rulings, which are rules.
     const leadLines = rendered(
       lead.filter((l) => !/^Priority:/.test(l.trim()) && l.trim() !== paragraph),
@@ -542,7 +574,105 @@ export function buildPack(reader: PackReader): PackBuild {
     topics,
     sha256: canonicalHash(wholeHashInput(body)),
   };
-  return { pack, problems, facts };
+  return { pack, problems, facts, gaps };
+}
+
+// ---- The gaps (FR-049; plan §8) ----
+
+/** A slot reference with a well-formed ID. A malformed one is content.ts's to refuse, and prose that shows the syntax,
+ *  `{{slot:…}}`, isn't one. */
+const SLOT_IN_LINE = /\{\{slot:\s*([a-z0-9_.-]+)\s*(?:\|[^}]*)?\}\}/g;
+/** A `[?]` tag, in backticks or not. */
+const GAP_TAG = /`?\[\?\]`?/g;
+/** The corpus's tag legend, which names `[?]` without being a gap. */
+const LEGEND = /^\s*\*\*Tags\.\*\*/;
+
+/** Each fact's label, by ID, from a facts file's text: the words a gap case asks with, never its value. */
+function labelsIn(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const doc = parseYaml(text, { schema: "core" }) as unknown;
+  const list = typeof doc === "object" && doc !== null ? (doc as { facts?: unknown }).facts : undefined;
+  if (!Array.isArray(list)) return out;
+  for (const f of list as unknown[]) {
+    if (typeof f !== "object" || f === null) continue;
+    const { id, label } = f as { id?: unknown; label?: unknown };
+    if (typeof id === "string" && typeof label === "string") out.set(id, collapse(label));
+  }
+  return out;
+}
+
+/** Whether the pack fills a slot: content.ts's fillSlots renders a fact only with a value and public_safe: true. */
+const fillable = (fact: Fact | undefined): boolean =>
+  fact !== undefined && fact.value !== null && fact.value !== undefined && fact.public_safe === true;
+
+/** A label's trailing note in parentheses and its end punctuation off. */
+const bareLabel = (label: string): string => collapse(label.replace(/\s*\([^()]*\)\s*$/, "").replace(/[\s.;:,]+$/, ""));
+
+/** The question a slot's or a tag's gap case asks: the gap, named. */
+export const gapQuestion = (label: string): string => `Can you tell me this: ${label}?`;
+
+/** A line's words with its slot references and claim tags off. */
+const plainWords = (text: string): string =>
+  collapse(
+    text
+      .replace(SLOT_IN_LINE, "")
+      .replace(/`\[[^\]`]*\]`/g, "")
+      .replace(/\[[^\]]*\]/g, ""),
+  );
+
+/** One topic file's gaps, in line order and, within a line, in order of place. */
+function gapsOf(o: {
+  file: string;
+  title: string;
+  lead: readonly string[];
+  sections: readonly RawSection[];
+  facts: ReadonlyMap<string, Fact>;
+  labels: ReadonlyMap<string, string>;
+}): PackGap[] {
+  const out: PackGap[] = [];
+  const seen = new Set<string>();
+  const blocks = [
+    { subject: plainHeading(o.title), golden: false, lines: o.lead },
+    ...o.sections
+      .map((s) => ({ name: plainHeading(s.heading), lines: s.lines }))
+      .filter((s) => s.name.toLowerCase() !== "do not claim")
+      .map((s) => ({ subject: s.name, golden: s.name.toLowerCase() === "golden q&a", lines: s.lines })),
+  ];
+  for (const block of blocks) {
+    for (const line of block.lines) {
+      if (LEGEND.test(line)) continue;
+      const golden = block.golden ? GOLDEN_ITEM.exec(line.trim()) : null;
+      const item = golden ? goldenOf(Number(golden[1]), (golden[2] ?? "").trim()) : null;
+      const found = [
+        ...[...line.matchAll(SLOT_IN_LINE)].map((m) => ({ at: m.index ?? 0, slot: m[1] ?? "", tag: null })),
+        ...[...line.matchAll(GAP_TAG)].map((m) => ({ at: m.index ?? 0, slot: null, tag: m })),
+      ].sort((a, b) => a.at - b.at);
+      for (const f of found) {
+        if (f.slot !== null) {
+          if (seen.has(f.slot) || fillable(o.facts.get(f.slot))) continue;
+          seen.add(f.slot);
+          const label = bareLabel(o.labels.get(f.slot) ?? f.slot);
+          out.push({ file: o.file, kind: "slot", slot: f.slot, label, question: gapQuestion(label) });
+          continue;
+        }
+        if (item !== null) {
+          out.push({ file: o.file, kind: "tag", slot: null, label: item.question, question: item.question });
+          continue;
+        }
+        const at = f.at + (f.tag?.[0].length ?? 0);
+        const after = plainWords(line.slice(at).split("`[")[0] ?? "");
+        const before = plainWords(line.slice(0, f.at).replace(/^\s*[-*]\s+(?:\*\*.+?\*\*)?/, ""))
+          .split(/(?<=[.!?])\s+/)
+          .filter((x) => x !== "")
+          .at(-1);
+        const bold = /^\s*[-*]\s+\*\*(.+?)\*\*/.exec(line);
+        const subject = bold ? bareLabel(bold[1] ?? "") : block.subject;
+        const label = `${bareLabel(after !== "" ? after : (before ?? ""))} (${subject})`;
+        out.push({ file: o.file, kind: "tag", slot: null, label, question: gapQuestion(label) });
+      }
+    }
+  }
+  return out;
 }
 
 function pushSplit(
@@ -735,10 +865,47 @@ function forbiddenFor(pack: Pick<TwinPack, "rules">, file: string, answer: strin
   return [...new Set(phrases)].filter((p) => !low.includes(p)).sort();
 }
 
-/** The product cases generated from the pack: one for each Golden Q&A on each path. A Golden Q&A whose "question" is a
- *  stage direction, in parentheses, is the red-team suite's, not a case here. */
-export function buildCases(pack: TwinPack): GeneratedCase[] {
+/** The fake answer every gap case carries: on the fake adapter, a gap case passes by construction. */
+export const GAP_ANSWER = "I don't know that yet.";
+
+/** A don't-know answer: a negation, then within three words a word of knowing or holding; or "unknown". It reads the
+ *  same in Python's re, which evals/run.py applies, as in JavaScript. */
+const DONT_KNOW = String.raw`\b(?:\w*n['’]t|not|cannot|no)(?:\s+\w+){0,3}?\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\s+my\s+corpus|yet)\b|\bunknown\b`;
+
+/** A gap case's regex (plan §8; plan.md D15): a don't-know answer; for a slot, one with no digit but the question's own,
+ *  since an empty slot is never estimated, whatever it would hold. */
+export function gapRegex(gap: Pick<PackGap, "kind" | "question">): string {
+  if (gap.kind === "tag") return `(?is)(?:${DONT_KNOW})`;
+  const own = [...new Set(gap.question.match(/\d+(?:[.,]\d+)*/g) ?? [])]
+    .sort((a, b) => b.length - a.length || (a < b ? -1 : 1))
+    .map(escapeRe);
+  return own.length === 0
+    ? String.raw`(?is)^(?!.*\d).*?(?:${DONT_KNOW})`
+    : String.raw`(?is)^(?=.*?(?:${DONT_KNOW}))(?:${own.join("|")}|\D)*$`;
+}
+
+/** The product cases generated from the pack: one for each Golden Q&A on each path, and one for each gap on each path.
+ *  A Golden Q&A whose "question" is a stage direction, in parentheses, is the red-team suite's, not a case here. */
+export function buildCases(pack: TwinPack, gaps: readonly PackGap[] = []): GeneratedCase[] {
   const out: GeneratedCase[] = [];
+  const counted = new Map<string, number>();
+  for (const g of gaps) {
+    const n = (counted.get(g.file) ?? 0) + 1;
+    counted.set(g.file, n);
+    const what = g.kind === "slot" ? `the slot ${g.slot ?? ""}, which the pack can't fill` : "a [?] gap";
+    for (const path of PATHS) {
+      out.push({
+        id: `twin-${stemOf(g.file)}-gap-${n}-${path}`,
+        kind: "gap",
+        source: g.file,
+        description: `${g.file}'s gap ${n}, ${what}, on the ${path} path: the twin says it doesn't know, and never estimates (FR-009).`,
+        prompt: g.question,
+        twin: { feature: caseFeature(pack, g.file), path, turns: [{ role: "visitor", text: g.question }] },
+        fake_response: GAP_ANSWER,
+        expect: { contains: [], not_contains: forbiddenFor(pack, g.file, ""), regex: gapRegex(g) },
+      });
+    }
+  }
   for (const s of pack.sections) {
     const g = s.golden;
     if (g === null || g.question.startsWith("(")) continue;
@@ -808,7 +975,7 @@ export function main(root: string = REPO_ROOT): number {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, packJson(pack));
   // The product cases, and none left over from a corpus that has changed since.
-  const files = casesFiles(buildCases(pack));
+  const files = casesFiles(buildCases(pack, built.gaps));
   const keep = new Set(files.map((f) => f.path));
   const dir = join(root, CASES_DIR);
   for (const name of existsSync(dir) ? readdirSync(dir) : []) {

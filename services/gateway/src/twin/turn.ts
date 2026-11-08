@@ -17,7 +17,7 @@ import type { FinishReason } from "../core/types.js";
 import { buildGrounding, type Grounding, type Turn } from "./grounding.js";
 import { guardAnswer, type Guarded } from "./guards.js";
 import { FREE_TALK, type Pack } from "./pack.js";
-import { buildMessages, instructionChars, userText } from "./prompt.js";
+import { buildMessages, instructionBound, userText } from "./prompt.js";
 import { Ranker } from "./retrieve.js";
 
 export interface TwinRuntime {
@@ -131,10 +131,10 @@ export function twinCall(
   const selectable = files.pack.selectable.get(input.feature);
   const topic = topicOf(files.pack, input.feature);
   const messages = () => {
-    // The bound left for the grounding: the input bound, less the instructions and the conversation as sent.
-    // The grounding counts its own rules, sections, and lead.
+    // The bound left for the grounding: the input bound, less the longer path's instructions and the conversation as
+    // sent, the same on either path. The grounding counts its own rules, sections, and lead.
     const shell = { topic, lead: selectable?.lead ?? null };
-    const used = instructionChars(files, input.path) + userText(shell, input.feature, input.turns).length;
+    const used = instructionBound(files) + userText(shell, input.feature, input.turns).length;
     grounding = buildGrounding({
       pack: files.pack,
       ranker,

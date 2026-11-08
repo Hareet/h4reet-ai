@@ -395,7 +395,8 @@ describe("the fit check (plan §4, R-1; departure D5)", () => {
 // as the pack, one for each Golden Q&A on each path, each with its feature, its anchors present in both its answer and
 // its grounding, the "Do not claim" phrases of its file and 00 that its answer doesn't hold, and a check; and fresh.
 describe("the golden product cases (T038; FR-049)", () => {
-  const { pack } = buildPack(fsReader(REPO_ROOT));
+  const built = buildPack(fsReader(REPO_ROOT));
+  const { pack } = built;
   const cases = buildCases(pack).filter((c) => c.kind === "golden");
   const golden = pack.sections.filter((s) => s.golden !== null && !s.golden.question.startsWith("("));
 
@@ -443,8 +444,8 @@ describe("the golden product cases (T038; FR-049)", () => {
     }
   });
 
-  it("are committed fresh, and no stale twin case is left beside them", () => {
-    const files = casesFiles(buildCases(pack));
+  it("are committed fresh, the gap cases with them, and no stale twin case is left beside them", () => {
+    const files = casesFiles(buildCases(pack, built.gaps));
     for (const f of files) {
       expect(readFileSync(join(REPO_ROOT, f.path), "utf8"), `${f.path}: stale, run npm run twin:pack -w apps/web`).toBe(
         f.text,
@@ -455,5 +456,148 @@ describe("the golden product cases (T038; FR-049)", () => {
       .filter((n) => n.startsWith("twin-"))
       .map((n) => `${CASES_DIR}/${n}`);
     expect(committed.sort()).toEqual(files.map((f) => f.path).sort());
+  });
+});
+
+// T049 (spec 007; FR-009, FR-049; plan §8): the gap cases, "every `[?]` and empty slot is an "I don't know that yet"
+// test" (the corpus README). One gap for each slot a topic file references that the pack can't fill (empty, missing,
+// or not public-safe), once per file, and one for each `[?]` tag in a topic file's lead, sections, or Golden Q&A; never
+// for a "Do not claim" bullet or the tag legend. Each gap is a case on each path: a question naming the gap, the
+// fake answer "I don't know that yet.", and a regex that takes a don't-know answer, with no digit but the question's own
+// where the gap is a slot (plan.md D15). No slot's value is ever read into a case.
+describe("the gap product cases (T049; FR-049)", () => {
+  const GAP_FILES: Record<string, string> = {
+    ...FIXTURE,
+    "corpus/05-fx-gaps.md": [
+      "# Gaps",
+      "Priority: none",
+      "",
+      "**Tags.** `[A date]` his statement · `[?]` gap.",
+      "",
+      "## Races",
+      "",
+      "- **Fixture race.** `[A 2026-11-06]` He raced once. `[?]` Where and when.",
+      "- `[A]` He rides {{slot:fx.days}} days a year, and {{slot:fx.unknown}} with friends.",
+      "- `[A]` Fixture 2.0 shipped in {{slot:fx.release}}; he rides {{slot:fx.days}} days.",
+      "",
+      "## Do not claim",
+      "",
+      "- A race result `[?]`.",
+      "- That he rode {{slot:fx.held}} races.",
+      "",
+      "## Golden Q&A",
+      "",
+      "1. *Who sponsors you?* — I don't have that in my corpus yet. [?]",
+      "2. *How many days do you ride?* — {{slot:fx.days | else: I don't have a figure yet.}} [slot]",
+    ].join("\n"),
+    "corpus/facts/fx.yaml": [
+      "facts:",
+      "  - id: fx.days",
+      "    label: The days he rides each year (a count)",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+      "  - id: fx.release",
+      "    label: When Fixture 2.0 shipped",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+      "  - id: fx.held",
+      "    label: The races he rode",
+      "    value: null",
+      "    public_safe: null",
+      '    phrasing: "{value}"',
+    ].join("\n"),
+  };
+  const fixture = buildPack(mapReader(GAP_FILES));
+  const ask = (label: string): string => `Can you tell me this: ${label}?`;
+  const slot = (file: string, id: string, label: string) => ({
+    file,
+    kind: "slot",
+    slot: id,
+    label,
+    question: ask(label),
+  });
+  const regexOf = (c: { expect: { regex?: string } }): RegExp =>
+    new RegExp((c.expect.regex ?? "").replace(/^\(\?is\)/, ""), "is");
+
+  it("finds each unfillable slot once per file and each [?] tag, never a Do not claim bullet's or the legend's", () => {
+    expect(fixture.problems).toEqual([]);
+    expect(fixture.gaps).toEqual([
+      slot("corpus/00-profile.md", "career.empty", "career.empty"),
+      slot("corpus/00-profile.md", "career.unsafe", "career.unsafe"),
+      {
+        file: "corpus/05-fx-gaps.md",
+        kind: "tag",
+        slot: null,
+        label: "Where and when (Fixture race)",
+        question: ask("Where and when (Fixture race)"),
+      },
+      slot("corpus/05-fx-gaps.md", "fx.days", "The days he rides each year"),
+      slot("corpus/05-fx-gaps.md", "fx.unknown", "fx.unknown"),
+      slot("corpus/05-fx-gaps.md", "fx.release", "When Fixture 2.0 shipped"),
+      {
+        file: "corpus/05-fx-gaps.md",
+        kind: "tag",
+        slot: null,
+        label: "Who sponsors you?",
+        question: "Who sponsors you?",
+      },
+    ]);
+  });
+
+  it("makes each gap a case on each path, asked by its question, under its file's feature, with the don't-know answer", () => {
+    const cases = buildCases(fixture.pack, fixture.gaps).filter((c) => c.kind === "gap");
+    expect(cases.map((c) => c.id)).toEqual(
+      [
+        "00-profile-gap-1",
+        "00-profile-gap-2",
+        "05-fx-gaps-gap-1",
+        "05-fx-gaps-gap-2",
+        "05-fx-gaps-gap-3",
+        "05-fx-gaps-gap-4",
+        "05-fx-gaps-gap-5",
+      ].flatMap((id) => [`twin-${id}-engineer`, `twin-${id}-non-engineer`]),
+    );
+    for (const c of cases) {
+      const gap = fixture.gaps.find((g) => g.file === c.source && g.question === c.prompt);
+      expect(gap, c.id).toBeDefined();
+      expect(c.twin).toEqual({ feature: "free_talk", path: c.twin.path, turns: [{ role: "visitor", text: c.prompt }] });
+      expect(c.fake_response).toBe("I don't know that yet.");
+      expect(c.expect.contains).toEqual([]);
+      expect(c.prompt).not.toMatch(/\{\{slot|held-back/);
+    }
+  });
+
+  it("takes a don't-know answer and nothing else, with no digit but the question's own for a slot", () => {
+    const cases = buildCases(fixture.pack, fixture.gaps).filter((c) => c.kind === "gap");
+    for (const c of cases) {
+      const regex = regexOf(c);
+      const gap = fixture.gaps.find((g) => g.file === c.source && g.question === c.prompt);
+      for (const yes of [c.fake_response, `I don't know this yet: ${gap?.label ?? ""}.`, "My corpus doesn't say."])
+        expect(regex.test(yes), `${c.id}: ${yes}`).toBe(true);
+      for (const no of ["Yes, it is so.", "He rides every weekend."])
+        expect(regex.test(no), `${c.id}: ${no}`).toBe(false);
+      expect(regex.test("He has 12 of them, I don't know more."), c.id).toBe(gap?.kind === "tag");
+    }
+    const release = cases.find((c) => c.prompt.includes("Fixture 2.0"));
+    expect(regexOf(release ?? { expect: {} }).test("I don't know when Fixture 2.0 shipped.")).toBe(true);
+    expect(regexOf(release ?? { expect: {} }).test("I don't know; Fixture 2.0 shipped in 2021.")).toBe(false);
+  });
+
+  it("finds the committed corpus's gaps, slots and tags, and makes their cases", () => {
+    const built = buildPack(fsReader(REPO_ROOT));
+    const cases = buildCases(built.pack, built.gaps).filter((c) => c.kind === "gap");
+    expect(built.gaps.length).toBeGreaterThan(10);
+    expect(built.gaps.some((g) => g.kind === "slot")).toBe(true);
+    expect(built.gaps.some((g) => g.kind === "tag")).toBe(true);
+    expect(cases).toHaveLength(built.gaps.length * 2);
+    for (const g of built.gaps) expect(g.file).toMatch(/^corpus\/\d{2}-[a-z0-9-]+\.md$/);
+    for (const c of cases) {
+      expect(c.id, c.id).toMatch(/^twin-\d{2}-[a-z0-9-]+-gap-\d+-(?:engineer|non-engineer)$/);
+      expect(c.prompt.endsWith("?"), c.id).toBe(true);
+      expect(regexOf(c).test(c.fake_response), c.id).toBe(true);
+      expect(c.prompt).not.toMatch(/\{\{slot/);
+    }
   });
 });

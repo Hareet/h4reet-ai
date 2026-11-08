@@ -56,11 +56,18 @@ interface Sent {
   signal: AbortSignal | undefined;
 }
 
-async function room(index: RoomIndex = ready()): Promise<{ v: Visit; sent: Sent[]; outcomes: TurnResult[] }> {
+async function room(
+  index: RoomIndex = ready(),
+  o: { freeTalk?: boolean } = {},
+): Promise<{ v: Visit; sent: Sent[]; outcomes: TurnResult[] }> {
   const sent: Sent[] = [];
+  const content = roomContent();
   const v = start({
     room: index,
     sendTurn: (request, ended, signal) => sent.push({ request, ended, signal }),
+    ...(o.freeTalk === undefined
+      ? {}
+      : { content: { ...content, manifest: { ...content.manifest, free_talk: { ready: o.freeTalk } } } }),
   });
   await enter(v, "engineer");
   v.clock.advance(5000);
@@ -312,4 +319,51 @@ describe("the panel's states and accessibility (T035; FR-034, FR-035, FR-039 to 
 
 describe("the clock", () => {
   it("is the room's FakeClock in these tests", () => expect(new FakeClock().now()).toBe(0));
+});
+
+// T050 (spec 007; FR-032; User Story 2): with no conversation open, typed text starts free talk when the manifest marks
+// it ready, and shows cannot_talk.unavailable, with nothing sent and the words left in the box, when it doesn't.
+describe("free talk from the text box (T050; FR-032)", () => {
+  it("starts free talk with typed text when it is ready, and carries it on", async () => {
+    const { v, sent } = await room(ready(), { freeTalk: true });
+    say(v, "What drives him?");
+    expect(sent[0]?.request).toEqual({
+      feature: "free_talk",
+      path: "engineer",
+      turns: [{ role: "visitor", text: "What drives him?" }],
+    });
+    sent[0]?.ended(answer("The corpus says he builds what lasts."));
+    say(v, "Tell me more.");
+    expect(sent[1]?.request).toEqual({
+      feature: "free_talk",
+      path: "engineer",
+      turns: [
+        { role: "visitor", text: "What drives him?" },
+        { role: "twin", text: "The corpus says he builds what lasts." },
+        { role: "visitor", text: "Tell me more." },
+      ],
+    });
+    expect(entries(v).map((e) => e.speaker)).toEqual(["You", "AI twin", "You"]);
+  });
+
+  it("shows cannot_talk.unavailable, sends nothing, and leaves the words in the box when free talk isn't ready", async () => {
+    for (const freeTalk of [false, undefined]) {
+      const { v, sent } = await room(ready(), freeTalk === undefined ? {} : { freeTalk });
+      say(v, "What drives him?");
+      expect(sent).toEqual([]);
+      expect(talkLog(v.doc).lastElementChild?.getAttribute("data-message")).toBe("cannot_talk.unavailable");
+      expect(box(v).value).toBe("What drives him?");
+      expect(entries(v)).toEqual([]);
+    }
+  });
+
+  it("leaves free talk for a piece's conversation when a ready piece is selected", async () => {
+    const { v, sent } = await room(ready(), { freeTalk: true });
+    const [first] = talking(fixture().index);
+    if (first === undefined) throw new Error("no talk piece");
+    say(v, "What drives him?");
+    select(v, first);
+    expect(sent[0]?.signal?.aborted).toBe(true);
+    expect(sent[1]?.request).toEqual({ feature: first, path: "engineer", turns: [] });
+  });
 });

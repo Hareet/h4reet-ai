@@ -128,15 +128,15 @@ description: "Task list for spec 007, the twin's conversation core"
 
 ### Tests for User Story 2 (first)
 
-- [ ] T048 [P] [US2] Extend `room-turn.test.ts` (FR-008, FR-009, FR-015): a free-talk turn is grounded in the rules, `00`, and the ranked sections for its question; a topic's follow-up adds ranked sections only while free talk is ready; the same question on both paths gets the same sections and a different depth line; a question about an empty slot gets a grounding with no value for it. Check: RED before T051
-- [ ] T049 [P] [US2] Extend `apps/web/test/twin-pack.test.ts` (FR-049): one gap case per `[?]` line and per empty slot a topic file references, with its question, `fake_response`, and don't-know `regex`, digit-free where the gap is a number. Check: RED before T052
-- [ ] T050 [P] [US2] Extend `apps/web/test/ui/talk.test.ts` (FR-032): with no active conversation, typed text starts free talk when it is ready and shows `cannot_talk.unavailable` with nothing sent when it isn't. Check: RED before T053
+- [x] T048 [P] [US2] Extend `room-turn.test.ts` (FR-008, FR-009, FR-015): a free-talk turn is grounded in the rules, `00`, and the ranked sections for its question; a topic's follow-up adds ranked sections only while free talk is ready; the same question on both paths gets the same sections and a different depth line; a question about an empty slot gets a grounding with no value for it. Check: RED before T051
+- [x] T049 [P] [US2] Extend `apps/web/test/twin-pack.test.ts` (FR-049): one gap case per `[?]` line and per empty slot a topic file references, with its question, `fake_response`, and don't-know `regex`, digit-free where the gap is a number. Check: RED before T052
+- [x] T050 [P] [US2] Extend `apps/web/test/ui/talk.test.ts` (FR-032): with no active conversation, typed text starts free talk when it is ready and shows `cannot_talk.unavailable` with nothing sent when it isn't. Check: RED before T053
 
 ### Implementation for User Story 2
 
-- [ ] T051 [US2] Complete `src/twin/grounding.ts`'s free-talk path and the follow-up rule. Check: T048 passes
-- [ ] T052 [US2] Generate the gap cases with `twin:pack`. Check: T049 passes; `make evals`
-- [ ] T053 [US2] Wire free talk in `apps/web/src/talk/talk.ts`. Check: T050 passes
+- [x] T051 [US2] Complete `src/twin/grounding.ts`'s free-talk path and the follow-up rule. Check: T048 passes
+- [x] T052 [US2] Generate the gap cases with `twin:pack`. Check: T049 passes; `make evals`
+- [x] T053 [US2] Wire free talk in `apps/web/src/talk/talk.ts`. Check: T050 passes
 
 **Checkpoint**: free talk works once the Author marks it ready, and a gap is answered with "I don't know".
 

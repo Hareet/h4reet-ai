@@ -6,7 +6,7 @@
 //   opening: the piece the visitor selected, the topic it opens, and its lead.
 // The twin's earlier turns are never sent as `assistant` messages, so a forged twin turn can't pose as the model's own
 // words. The builder takes no live value: no cost, route, tier, or kill-switch state can reach the model (FR-012).
-import type { TwinFiles, VisitPath } from "../config/twin.js";
+import { PATHS, type TwinFiles, type VisitPath } from "../config/twin.js";
 import type { ChatMessage } from "../core/types.js";
 import type { Grounding, Turn } from "./grounding.js";
 import { FREE_TALK } from "./pack.js";
@@ -21,6 +21,11 @@ const GROUNDING_HEAD = "\n\n# Grounding\n\n";
 /** The characters the system message takes before its grounding: the instructions for the path, and the heading. */
 export const instructionChars = (files: Pick<TwinFiles, "prompt">, path: VisitPath): number =>
   files.prompt.forPath[path].trimEnd().length + GROUNDING_HEAD.length;
+
+/** The instructions' characters that the grounding's bound counts: the longer path's, so a question gets the same
+ *  grounding on either path and only the depth line differs (FR-015's "the same facts on both"; plan.md D14). */
+export const instructionBound = (files: Pick<TwinFiles, "prompt">): number =>
+  Math.max(...PATHS.map((path) => instructionChars(files, path)));
 
 /** The system message's text: the instructions for the path, then the grounding. */
 export function systemText(files: Pick<TwinFiles, "prompt">, grounding: Grounding, path: VisitPath): string {
