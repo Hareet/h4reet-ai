@@ -441,6 +441,27 @@
       },
       "disclosure_line": null,
       "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-chalkboard-2",
+      "sha256": "24482ceb903c46fa0e116347651f0d09b40330172d4240dc9c97277acf3c137d",
+      "path_when_approved": "assets/room/chalkboard.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
     }
   ]
 }
