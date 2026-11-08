@@ -13,38 +13,45 @@ Session: the main session started from
 `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is
 `/tmp/claude-1000/wt-open-items`, cut from `main` at e189cc84 with
 `git worktree add -b fix/000-open-items /tmp/claude-1000/wt-open-items refs/heads/main`.
-Then rebased twice, each time with no conflict and the branch's own
-change the same patch (`git patch-id --stable`):
+Then rebased three times, each time with no conflict and the
+branch's own change the same patch (`git patch-id --stable`):
 - onto `main` at a893f267 (line R and the two spec branches), at
   06:17Z on 2026-11-08, with `git rebase refs/heads/main` (patch-id
   1d67a9c2 before and after);
 - onto `feat/004-chalkboard-model` at bf6239d1, the chalkboard's
-  final tip on `main` a33b4833, at the main session's go, with
+  tip on `main` a33b4833, at the main session's go, with
   `git rebase refs/heads/feat/004-chalkboard-model` (patch-id
   df644f36 before and after). The chalkboard branch's 6 commits on
   a33b4833 (7 since a893f267, with your approval commit) change 12
-  files, none of this branch's.
+  files, none of this branch's;
+- onto `feat/004-chalkboard-model` at 495263d2, its final tip, one
+  commit on bf6239d1 that folds in its review's nits as comments and
+  docs, at 07:52Z, the same way (patch-id 0de0c8bf before and after,
+  with e02a8a9a's change now in the branch). It touches two catalog
+  files' comments, its note, and spec 004's plan.md: no file of this
+  branch's, and nothing under `assets/`.
 
 The SHAs, from the first base to the last:
 
-| Commit | On e189cc84 | On a893f267 | On bf6239d1 |
-|---|---|---|---|
-| Fix B, the gateway's tests | 1bd0ea0a | 99500d6f | e2519567 |
-| `/a/` and edge, RED | f4f2e52c | ca65e004 | d9762f76 |
-| `/a/` and serving.md, GREEN | 5f4fdc1c | bf589229 | ae104608 |
-| ADR 0010 and the index | 5990aaa7 | cd9b7644 | aa226705 |
-| this note | a4f0b22d | 7cb4c7c7 | cefab8c7 |
-| the review's N1 | — | d3091061 | 673e3140 |
-| the review's other nits | — | bc8921b9 | b3e19d54 |
+| Commit | On e189cc84 | On a893f267 | On bf6239d1 | On 495263d2 |
+|---|---|---|---|---|
+| Fix B, the gateway's tests | 1bd0ea0a | 99500d6f | e2519567 | c0cd58d9 |
+| `/a/` and edge, RED | f4f2e52c | ca65e004 | d9762f76 | eb3fa6c6 |
+| `/a/` and serving.md, GREEN | 5f4fdc1c | bf589229 | ae104608 | cf3eb700 |
+| ADR 0010 and the index | 5990aaa7 | cd9b7644 | aa226705 | 14d66bd5 |
+| this note | a4f0b22d | 7cb4c7c7 | cefab8c7 | 741480a6 |
+| the review's N1 | — | d3091061 | 673e3140 | af5b4814 |
+| the review's other nits | — | bc8921b9 | b3e19d54 | 436017b1 |
+| group A's steps and figures | — | — | e02a8a9a | 4c1625af |
 
-This note's updates on bf6239d1 are the commits after b3e19d54.
-SHAs elsewhere in this note are the ones a check ran on, unless they
-say otherwise.
+This note's update on 495263d2 is the commit after 4c1625af. SHAs
+elsewhere in this note are the ones a check ran on, unless they say
+otherwise.
 
 Repo hooks active: yes.
 In `.claude/audit/hooks.log`, this session's events from
 2026-11-08T04:15:36Z are ALLOW but these:
-- four post-edit WARNs: on
+- five post-edit WARNs: on
   `services/gateway/test/unit/circuit.test.ts` at 04:32:35Z and on
   `services/gateway/test/unit/gateway.test.ts` at 04:34:23Z, each a
   name declared or imported one edit before the edit that used it;
@@ -52,8 +59,10 @@ In `.claude/audit/hooks.log`, this session's events from
   shellcheck's SC2148 (no shebang), added; and on
   `services/gateway/test/contract/adapter-contract.ts` at 07:03:29Z,
   `prefer-const`, from the review's N1 mutation, which left
-  `abortedAt` unassigned and was reverted, never committed. The
-  final files lint clean;
+  `abortedAt` unassigned and was reverted, never committed; and on
+  the steps test's scratch harness, `run.sh`, at 07:57:18Z,
+  shellcheck's SC2148 and SC2086, fixed with a shebang and a
+  directive for its deliberate split. The final files lint clean;
 - three bash BLOCKs. "Network egress tool", at 04:40:49Z, on the
   command that wrote the engine check's scratch files: its heredoc
   held the probe script, which asks nginx over the build's own
@@ -73,6 +82,11 @@ In `.claude/audit/hooks.log`, this session's events from
   any worktree. It wasn't respelled; the commit waited until your
   checkout left `main`, and went in at 06:17Z (a4f0b22d), once it
   was parked on `wip-park/11-7-2026` again.
+
+Claude Code's own permission check, not a repo hook, refused one
+command at about 07:56Z: `sed -i` on that scratch harness after a
+`cd` whose target it couldn't resolve. It wasn't retried in that
+spelling; the harness was changed with the Edit tool instead.
 
 The log's other BLOCKs and WARNs in that time are other sessions'.
 Three of them ran in this worktree: "a read-only role writing a
@@ -120,15 +134,18 @@ chalkboard branch, to merge as part of group A** (below).
   `evals` WARN is the behavioral tier's advisory line, and `image`
   is SKIP under `ENGINE_MODE=none-yet`; exit 0.
 - **Merged as part of group A.** This branch sits on
-  `feat/004-chalkboard-model` at bf6239d1, the chalkboard's final
-  tip on `main` a33b4833. Group A is one stack: the chalkboard
-  branch, then this branch, then spec 008's highlight, under group
-  A's single gate, whose page carries the steps (below). Both
-  rebases had no conflict and left this branch's change the same
-  patch (Session). On this base the room measures 145 bytes more,
-  so the ADR's first-visit figures follow it (What changed, 3). If a
-  review finding changes the chalkboard branch, the session moves
-  this branch again.
+  `feat/004-chalkboard-model` at 495263d2, the chalkboard's final
+  tip, on bf6239d1 and `main` a33b4833. Group A is one stack: the
+  chalkboard branch, then this branch, then spec 008's highlight,
+  under group A's single gate, whose page carries the steps (below).
+  Every rebase had no conflict and left this branch's change the
+  same patch (Session). On the chalkboard's base the room measures
+  145 bytes more, so the ADR's first-visit figures follow it (What
+  changed, 3). The move to 495263d2 changed only comments and docs
+  below this branch, so `make check` didn't run again, by the main
+  session's word; the gateway's suite, gitleaks, and the rehearsal
+  did (Verification). If a review finding changes the chalkboard
+  branch again, the session moves this branch again.
 
 ## Runs in your terminal
 
@@ -140,7 +157,7 @@ image step builds it. One directive and its one-line comment, inside
 changes are tests, the contract, the ADR, and its index row.
 
 **This branch merges as part of group A.** Group A is one stack
-under one gate: `feat/004-chalkboard-model` (bf6239d1), then this
+under one gate: `feat/004-chalkboard-model` (495263d2), then this
 branch, then spec 008's highlight. Group A's page carries that gate
 and the merge lines for all three; follow it, and nothing below.
 Nothing here is paid: the gate runs the behavioral tier only for a
@@ -149,19 +166,19 @@ Code pin, and this branch touches none of them.
 
 **Fallback, only if group A is split:** this branch gated alone,
 after the chalkboard branch has merged. The guard takes the stacked
-form. This branch's base is bf6239d1, so it merges only onto a
-`main` whose last merge brought in that base (`main^2` is bf6239d1)
+form. This branch's base is 495263d2, so it merges only onto a
+`main` whose last merge brought in that base (`main^2` is 495263d2)
 and whose tree is the base's, so nothing else has landed since. If
 `main` has moved past that (another branch merged first, say), tell
 the session, which moves the branch onto `main` again. Each block
 below stands alone: it sets every name it uses.
 
 1. **Check the base,** before the gate. It prints `same` only while
-   `main`'s tree is bf6239d1's; on `moved`, don't gate, and tell
+   `main`'s tree is 495263d2's; on `moved`, don't gate, and tell
    the session:
 
    ```bash
-   base=bf6239d137ac5fe2470e6d870475ed793583cf13
+   base=495263d2ec4bb05b514a7f2158509219c439ef94
    git diff --quiet refs/heads/main "$base" && echo same || echo moved
    ```
 
@@ -189,7 +206,7 @@ below stands alone: it sets every name it uses.
    ```bash
    b=fix/000-open-items
    log=~/gate-open.log
-   base=bf6239d137ac5fe2470e6d870475ed793583cf13
+   base=495263d2ec4bb05b514a7f2158509219c439ef94
    s=$(grep '^gate: ' "$log" | tail -n 1)
    sha=$(printf '%s\n' "$s" | awk '{print $2}')
    n=$(grep -c '^merge: ' "$log")
@@ -214,7 +231,7 @@ below stands alone: it sets every name it uses.
    ```bash
    b=fix/000-open-items
    log=~/gate-open.log
-   base=bf6239d137ac5fe2470e6d870475ed793583cf13
+   base=495263d2ec4bb05b514a7f2158509219c439ef94
    s=$(grep '^gate: ' "$log" | tail -n 1)
    sha=$(printf '%s\n' "$s" | awk '{print $2}')
    n=$(grep -c '^merge: ' "$log")
@@ -456,7 +473,8 @@ Your words: "change adr 0010 to match what the caps we need".
   its idle (1,000,000) make 17,000,000, over phase 2's 10,000,000,
   which F3 applies only while `assets/room/` holds no file it
   serves. The room's 21 files are 6,593,757 bytes at gzip level 9
-  on this branch's base, bf6239d1, with the chalkboard's re-intake
+  with the chalkboard's re-intake, on bf6239d1 and on 495263d2,
+  whose change touches no asset
   (measured as F3 measures, with `gzip.compress(data, 9, mtime=0)`;
   6,593,612 on `main` before the re-intake, as the brief gave it),
   so phase 3's 25,000,000 applies, and that visit is 23,593,757
@@ -598,7 +616,9 @@ changed files. Once more on the rebased tip, 7cb4c7c7, from 06:18:31Z
 to 06:19:51Z, alone: 52 files passed, 810 tests passed, 12 skipped.
 And with the review's N1 fix, from 07:07:14Z to 07:08:25Z: 52 files
 passed, 810 tests passed, 12 skipped; C10 alone, for all three
-adapters: 3 passed.
+adapters: 3 passed. And on 495263d2's base, at 4c1625af, from
+07:53:12Z to 07:54:27Z: 52 files passed, 810 tests passed, 12
+skipped.
 
 **The nginx tests, RED then GREEN.** `pytest -q -p no:cacheprovider
 --import-mode=importlib --tb=line deploy/scripts/test_web_nginx.py
@@ -641,10 +661,10 @@ figures present
 
 The room's 21 files at gzip level 9, from a `git archive` of
 `main`'s `assets/room`, `records.json` and `LICENSE.md` left out:
-`21 6593612`. On this branch's base, bf6239d1, with the chalkboard's
-re-intake: `21 6593757`. The same check, run again on the ADR as it
-reads on that base, against bf6239d1's `caps.json` (unchanged since
-e189cc84):
+`21 6593612`. On bf6239d1, with the chalkboard's re-intake:
+`21 6593757`; 495263d2 changes nothing under `assets/`. The same
+check, run again on the ADR as it reads on that base, against
+bf6239d1's `caps.json` (unchanged since e189cc84):
 
 ```text
 snippets equal the base's caps.json: True True True
@@ -743,7 +763,11 @@ And on the chalkboard branch's base, at 07:47Z, in a fresh export
 of the tree this note's commit makes (b3e19d54's, with this note and
 the ADR as they are here),
 `/tmp/claude-1000/open-items-scratch/export-final-bf`: exit 0,
-"scanned ~35000629 bytes (35 MB)", "no leaks found".
+"scanned ~35000629 bytes (35 MB)", "no leaks found"; then on
+e02a8a9a's own fresh export: exit 0, "no leaks found". And on
+495263d2's base, at 07:54Z, in a fresh export of 4c1625af,
+`/tmp/claude-1000/open-items-scratch/export-4c1625af`: exit 0,
+"scanned ~35005571 bytes (35.01 MB)", "no leaks found".
 
 **The rehearsal.** A throwaway branch, `rehearse/fix-000-open-items`,
 at `refs/heads/main` (e189cc84) in its own worktree,
@@ -778,7 +802,19 @@ a33b4833 and b3e19d54, and its tree, 81652e72, equals b3e19d54's.
 Then the worktree was removed, and the branch deleted by its own
 name, on a line naming no other branch. The commit after b3e19d54
 changes only this note and the ADR's figures, which `main` doesn't
-touch.
+touch; that commit, e02a8a9a, rehearsed the same way at 07:49Z:
+tree 1e70dfe2, equal to e02a8a9a's, 14 commits.
+
+**The rehearsal on 495263d2's base,** at 07:54Z, with your checkout
+parked: a throwaway branch, `rehearse/fix-000-open-items-5`, at
+`refs/heads/main` (a33b4833) in its own worktree,
+`/tmp/claude-1000/wt-open-items-rehearse5`, and a real merge there,
+`git merge --no-ff -m "rehearsal: …" 4c1625af…`. It brought in 15
+commits, the chalkboard branch's 7 and this branch's 8, across 26
+files. The merge commit's parents are a33b4833 and 4c1625af, and
+its tree, 184d082a, equals 4c1625af's. Then the worktree was
+removed, and the branch deleted by its own name. The commit after
+4c1625af changes only this note.
 
 **The Author's steps, tested.** The plain-form steps 3 and 4, taken
 from this note's text on a893f267, ran in bash and in zsh against a
@@ -792,8 +828,10 @@ and 4 as this note now has them, ran the same way: `same`,
 no` and no merge with `main`'s second parent another commit or
 none, its tree not the base's (step 1 then prints `moved`), the
 checkout off `main`, the branch moved, or no merge line; 14 runs,
-each as expected. The longest step line is 70 characters with its
-indent.
+each as expected, with base bf6239d1 and again with 495263d2. A
+run whose stub still gave `main^2` as bf6239d1 against the blocks'
+495263d2 printed `guard: no` in its go case too, as it should. The
+longest step line is 70 characters with its indent.
 
 **make check,** `make check ENGINE_MODE=none-yet`. First on
 5990aaa7, on e189cc84's base, with this note's draft untracked in
