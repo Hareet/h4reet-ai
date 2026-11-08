@@ -33,8 +33,8 @@
 // - A switch's pose in load_order, `<switch>.<pose>`, loads the switch's own model, its `switches[].model`, an
 //   addition to room-bundle.md §3.2, since RS2 lets no placement place a switch's piece; it shows in every case.
 // - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips; a
-//   figure file of spec 009's may parse before the hand-off starts too, within the room's wait (figureGate), never
-//   during it.
+//   figure file of spec 009's may parse before the hand-off starts too, within the room's wait (figureGate), read again
+//   once it has a parse slot; one already parsing when the hand-off starts finishes, and shows when it ends.
 // - A failed attempt's hold, like a swap's, is released two frames after it.
 import type { AnimationClip, Light, Material, Mesh, Object3D, Texture } from "three";
 
@@ -493,6 +493,9 @@ export function createLoader(options: LoaderOptions): Loader {
   async function parseAndSwap(load: Load, data: ArrayBuffer, start: number | null): Promise<void> {
     const { entry } = load;
     const releaseSlot = await parseSlot();
+    // The gate again once the slot is taken: the hand-off may have started while the file waited for it (R-10). A parse
+    // already begun when it starts finishes, and its avatar shows once the hand-off ends (FR-022).
+    if (isFigure(entry) && options.figureGate) await options.figureGate();
     const release = options.hold();
     try {
       if (stopped) return;

@@ -445,7 +445,8 @@ export function showHandoff(room: Room3D, progress: number, reducedMotion: boole
  *  figure. Nothing the second time. */
 export function keepPaper(room: Room3D): void {
   const { kept } = room.paper;
-  if (kept.parent === room.visitor) return;
+  // Anywhere in the picture already, the avatar's holding hand too (spec 009, R-09), it stays where it is.
+  for (let at = kept.parent; at; at = at.parent) if (at === room.visitor) return;
   room.scene.updateMatrixWorld(true);
   room.visitor.attach(kept);
 }

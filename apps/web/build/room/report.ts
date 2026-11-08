@@ -10,11 +10,11 @@
 // - the totals: the largest set model against the caps; the scene's texture memory by class, RK3's own sum through its
 //   own function (checks/rk.ts's `sceneTextureTotal`, at the bundle's framing): each piece placed by a placement that
 //   isn't a figure's, or by a switch, by its budget once, models and image cards by its picture's class; the twin's
-//   models and the largest visitor avatar's, measured, with a note while their files don't exist, and one counting each
-//   model that can't be read, which counts 0; every bound face's canvas at min(px, its largest on-screen size × the
-//   reference phone's pixel ratio); the first visit, the placed models' .glb.gz and cards beside the design's estimate
-//   and the enforced phase-3 limit, and spec 003's F3 view, every file under assets/room/ at gzip-9; and a note for
-//   each small prop the caps name that the catalog doesn't have;
+//   models and the largest visitor avatar's (other than the stand-in's), measured, with a note while their files don't
+//   exist, and one counting each model that can't be read, which counts 0; every bound face's canvas at min(px, its
+//   largest on-screen size × the reference phone's pixel ratio); the first visit, the placed models' .glb.gz and cards
+//   beside the design's estimate and the enforced phase-3 limit, and spec 003's F3 view, every file under assets/room/
+//   at gzip-9; and a note for each small prop the caps name that the catalog doesn't have;
 // - legibility: each bound face's smallest cap height on each reference stage at the production framing, with the
 //   floor, the margin, and readable, atmosphere (max <n>), or under: RG7's own measure (checks/rg.ts's `faceCaps`);
 // - the switches: each one's case-to-pose table, and for every two poses its cases show, the largest on-screen distance
@@ -296,7 +296,8 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
         `stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ${px} px)`;
   out.push(
     `RK3's figures with the stand-in: the twin's figure counts ${twinTerm}; the visitor's, ` +
-      `${memory.visitor === null ? "nothing yet" : count(memory.visitor)}, the largest visitor avatar at ${px} px.`,
+      `${memory.visitor === null ? "nothing yet" : count(memory.visitor)}, the largest ` +
+      `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
   const visit = figuresVisit(set);

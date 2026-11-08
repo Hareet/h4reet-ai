@@ -164,9 +164,10 @@ function modelsAt(tree: Tree, path: string, maxSide: number | null = null): Mode
 
 /** The twin's figure and the largest visitor avatar's (spec 009, FR-038; plan.md R-19): the twin's own models together
  *  at their own size, as before, against the stand-in avatar's folder at its decoded size, the larger counting; each
- *  folder of assets/visitors/ (or a model directly in it) one avatar at its decoded size; null for either while it holds
- *  no model; and how many of either's models can't be read. The stand-in is the scene's, read from its own folder, so
- *  nothing more under assets/twin/ is read for it (FR-012). */
+ *  folder of assets/visitors/ (or a model directly in it) one avatar at its decoded size, the visitor's the largest
+ *  folder other than the stand-in's, as RK5's first visit counts it, so the stand-in's folder never counts twice; null
+ *  for either while it holds no model; and how many of either's models can't be read. The stand-in is the scene's, read
+ *  from its own folder, so nothing more under assets/twin/ is read for it (FR-012). */
 function figures(
   tree: Tree,
   block: ReturnType<typeof figureBlock>,
@@ -176,9 +177,12 @@ function figures(
     name,
     models: modelsAt(tree, `${VISITORS_DIR}/${name}`, block.texture_px),
   }));
-  const avatars = folders.map((f) => f.models).filter((avatar) => avatar.count > 0);
-  const own = twin.count > 0 ? twin.bytes : null;
   const standing = block.stand_in === null ? undefined : folders.find((f) => f.name === block.stand_in)?.models;
+  const avatars = folders
+    .filter((f) => standing === undefined || f.name !== block.stand_in)
+    .map((f) => f.models)
+    .filter((avatar) => avatar.count > 0);
+  const own = twin.count > 0 ? twin.bytes : null;
   const standIn = standing && standing.count > 0 ? standing.bytes : null;
   return {
     twin: own === null && standIn === null ? null : Math.max(own ?? 0, standIn ?? 0),

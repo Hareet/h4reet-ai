@@ -34,8 +34,8 @@
 //   avatar that becomes ready during it waits for its end to show. Under reduced motion the hand-off's crossfade
 //   stays, "take" doesn't play, and the clips change by cuts at the start and the end. `settled` resolves once both
 //   figures show their avatars or keep their fallbacks for good: what the room waits for, at most wait_ms.
-import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Vector3 } from "three";
-import type { AnimationAction, AnimationClip, Object3D } from "three";
+import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Quaternion, Vector3 } from "three";
+import type { AnimationAction, AnimationClip, Euler, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { AVATAR_SHAPES } from "../../choice/avatars";
@@ -45,6 +45,7 @@ import { handoffDuration } from "../handoff";
 import type { FigureId, FigureSignal, FigureWhy } from "../stage";
 import { showHandoff as drawHandoff } from "./bundle3d";
 import type { Room3D } from "./bundle3d";
+import type { FigureDriver } from "./figure";
 import { disposeModel } from "./loader";
 
 /** The name an avatar instance takes in its figure's picture group. */
@@ -99,6 +100,10 @@ export interface AvatarFigures {
   handoffEnded(): void;
   /** Resolves once both figures show their avatars or keep their fallbacks for good (R-10): the room's wait. */
   readonly settled: Promise<void>;
+  /** Walking's driver for the visitor's avatar (FR-028; R-16), which figure.ts's figureDriverFor uses while the
+   *  visitor's avatar shows: the figure at the pose's place, the avatar turned to its heading, never mirrored, no bob,
+   *  "walk" while it walks where it has the clip and its slide otherwise; rest() puts back what its first frame found. */
+  readonly driver: FigureDriver;
   /** Every figure back to its fallback and every avatar's resources released, as a restored context's reload starts
    *  again; the figures want what they wanted. */
   reset(): void;
@@ -129,19 +134,40 @@ interface Figure {
   shown: boolean;
   /** It keeps its fallback for good: its model failed, or it has none to show. */
   gone: boolean;
+  /** The fallback's meshes, its picture group's children when the controller began, before anything else joined it
+   *  (walking's kept paper, an avatar): what an avatar hides, and nothing else. */
+  readonly fallback: readonly Object3D[];
   /** The fallback's meshes' visibility before the avatar hid them. */
   hidden: Map<Object3D, boolean>;
 }
 
-/** Whether every track of a clip names a node the instance has. */
+/** Whether every track of a clip names a node the instance has. PropertyBinding.findNode returns null for a name it
+ *  doesn't find, so both null and undefined are a miss. */
 function binds(instance: Object3D, clip: AnimationClip): boolean {
   return clip.tracks.every((track) => {
     const { nodeName } = PropertyBinding.parseTrackName(track.name);
-    return nodeName !== undefined && PropertyBinding.findNode(instance, nodeName) !== undefined;
+    if (nodeName === undefined) return false;
+    const node = PropertyBinding.findNode(instance, nodeName) as Object3D | null | undefined;
+    return node !== null && node !== undefined;
   });
 }
 
 const worldOf = (node: Object3D): Vector3 => new Vector3().setFromMatrixPosition(node.matrixWorld);
+
+/** Whether `node` is `root` or lies under it. */
+function within(node: Object3D, root: Object3D | null): boolean {
+  for (let at: Object3D | null = node; at; at = at.parent) if (at === root) return true;
+  return false;
+}
+
+/** A node's turn about +Y in the world. */
+function yawOf(node: Object3D | null): number {
+  if (!node) return 0;
+  node.updateWorldMatrix(true, false);
+  const turn = new Quaternion();
+  node.matrixWorld.decompose(new Vector3(), turn, new Vector3());
+  return 2 * Math.atan2(turn.y, turn.w);
+}
 
 export function createAvatarFigures(
   room: Room3D,
@@ -152,6 +178,9 @@ export function createAvatarFigures(
   const bundled = (id: AvatarId | null): AvatarId | null => (id !== null && part.avatars[id] ? id : null);
   /** The hand-off's two anchors as buildRoom placed them: the paper's fallback places. */
   const anchors = { twin: room.anchors.twinHand.clone(), visitor: room.anchors.visitorHand.clone() };
+  /** A picture's fallback meshes: its children now, less the kept paper and an avatar, should either be in it. */
+  const fallbackOf = (group: Object3D): Object3D[] =>
+    group.children.filter((c) => c !== room.paper.kept && c.name !== AVATAR_NODE);
   const figures: Record<FigureId, Figure> = {
     twin: {
       id: "twin",
@@ -165,6 +194,7 @@ export function createAvatarFigures(
       hand: null,
       shown: false,
       gone: false,
+      fallback: fallbackOf(room.twin),
       hidden: new Map(),
     },
     visitor: {
@@ -179,6 +209,7 @@ export function createAvatarFigures(
       hand: null,
       shown: false,
       gone: false,
+      fallback: fallbackOf(room.visitor),
       hidden: new Map(),
     },
   };
@@ -199,6 +230,10 @@ export function createAvatarFigures(
   let taking = false;
   /** The sheet's start: the twin's holding hand's place at the hand-off's start, where it showed its avatar. */
   let sheetFrom: Vector3 | null = null;
+  /** The visitor walks now, by walking's last pose to the avatar's driver (FR-028). */
+  let walkingNow = false;
+  /** Where the kept paper was before the visitor's hand took it: walking's picture, or the scene (R-09). */
+  let paperHome: { parent: Object3D; position: Vector3; quaternion: Quaternion; scale: Vector3 } | null = null;
   let disposed = false;
   let settle: () => void = () => undefined;
   const settled = new Promise<void>((resolve) => (settle = resolve));
@@ -295,6 +330,8 @@ export function createAvatarFigures(
   function wanted(f: Figure): ClipRole | null {
     const has = (role: ClipRole): boolean => f.actions.has(role);
     if (f.id === "visitor") {
+      // While it walks, its walk where it has one (FR-028); otherwise it slides in what it stands in.
+      if (walkingNow && has("walk")) return "walk";
       if (phase === "after" && has("idle-holding")) return "idle-holding";
       if (phase === "during" && taking && has("take")) return "take";
     } else if (phase === "before" && has("idle-holding")) return "idle-holding";
@@ -360,17 +397,36 @@ export function createAvatarFigures(
     // The sheet the hand-off carried and the kept one both sit at the visitor's hand when it ends: the kept one shows.
     atTwin.opacity = 0;
     atVisitor.opacity = 1;
+    if (!within(kept, f.instance)) {
+      const parent = kept.parent ?? room.scene;
+      paperHome = {
+        parent,
+        position: kept.position.clone(),
+        quaternion: kept.quaternion.clone(),
+        scale: kept.scale.clone(),
+      };
+    }
     f.hand.updateWorldMatrix(true, false);
     f.hand.attach(kept);
     const lifted = worldOf(f.hand).add(new Vector3(0, PAPER_LIFT, 0));
     kept.position.copy(f.hand.worldToLocal(lifted));
   }
 
-  /** The kept paper back at the visitor's anchor, in the scene. */
+  /** The kept paper, wherever the visitor's avatar holds it, back where it was before: in walking's picture as it sat
+   *  there, or in the scene at the visitor's anchor. A sheet the avatar doesn't hold stays where it is. */
   function dropPaper(): void {
     const { kept } = room.paper;
-    if (kept.parent === room.scene) return;
-    room.scene.attach(kept);
+    const home = paperHome;
+    if (!within(kept, figures.visitor.instance)) return;
+    paperHome = null;
+    if (home && home.parent !== room.scene) {
+      home.parent.add(kept);
+      kept.position.copy(home.position);
+      kept.quaternion.copy(home.quaternion);
+      kept.scale.copy(home.scale);
+      return;
+    }
+    room.scene.add(kept);
     kept.position.copy(anchors.visitor);
     kept.quaternion.identity();
     kept.scale.set(1, 1, 1);
@@ -382,8 +438,8 @@ export function createAvatarFigures(
     if (disposed || f.shown || f.wants === null || !f.instance || phase === "during") return;
     const source = sourceOf(f.wants);
     if (roles(f.wants).includes("idle") && !source.ended.has("idle")) return;
-    f.hidden = new Map(f.group.children.map((c) => [c, c.visible] as const));
-    for (const child of f.group.children) child.visible = false;
+    f.hidden = new Map(f.fallback.map((c) => [c, c.visible] as const));
+    for (const child of f.fallback) child.visible = false;
     f.group.add(f.instance);
     f.shown = true;
     picture(f, "avatar", null);
@@ -412,8 +468,60 @@ export function createAvatarFigures(
     checkSettled();
   }
 
+  /** Walking's driver for the visitor's avatar (FR-028; R-16): the placement's node at the pose's place, as the cut-out's
+   *  driver puts it, and the picture group, which holds the avatar, turned to the heading, at its own scale made
+   *  positive and its own height, so nothing mirrors or bobs; its first frame since a rest keeps what it found. */
+  const visitorNode = room.placements.get(part.figures.visitor) ?? null;
+  let home: { position: Vector3; rotation: Euler; scale: Vector3; lift: number } | null = null;
+  const driver: FigureDriver = {
+    frame({ pose }) {
+      const [node, group] = [visitorNode, room.visitor];
+      if (!node) return;
+      home ??= {
+        position: node.position.clone(),
+        rotation: group.rotation.clone(),
+        scale: group.scale.clone(),
+        lift: group.position.y,
+      };
+      // The feet at the pose's place, the node's height in the world kept.
+      node.updateWorldMatrix(true, false);
+      const feet = new Vector3().setFromMatrixPosition(node.matrixWorld);
+      feet.set(pose.x, feet.y, pose.z);
+      if (node.parent) {
+        node.parent.updateWorldMatrix(true, false);
+        node.parent.worldToLocal(feet);
+      }
+      node.position.copy(feet);
+      node.updateMatrixWorld(true);
+      // The avatar faces +z as glTF has it, and heading 0 faces into the room (−z): its turn in the world is heading + π.
+      group.rotation.set(home.rotation.x, pose.heading + Math.PI - yawOf(group.parent), home.rotation.z);
+      group.scale.set(Math.abs(home.scale.x), Math.abs(home.scale.y), Math.abs(home.scale.z));
+      group.position.y = home.lift;
+      group.updateMatrixWorld(true);
+      if (pose.walking !== walkingNow) {
+        walkingNow = pose.walking;
+        play(figures.visitor);
+      }
+    },
+    rest() {
+      if (home && visitorNode) {
+        visitorNode.position.copy(home.position);
+        room.visitor.rotation.copy(home.rotation);
+        room.visitor.scale.copy(home.scale);
+        room.visitor.position.y = home.lift;
+        visitorNode.updateMatrixWorld(true);
+      }
+      home = null;
+      if (walkingNow) {
+        walkingNow = false;
+        play(figures.visitor);
+      }
+    },
+  };
+
   return {
     wants: { twin: figures.twin.wants, visitor: figures.visitor.wants },
+    driver,
     model(avatar, model) {
       if (disposed) return false;
       const wanting = both().filter((f) => f.wants === avatar && !f.instance);
@@ -425,6 +533,9 @@ export function createAvatarFigures(
       }
       const source = sourceOf(avatar);
       source.model = model;
+      // A clip parsed before its model is checked now: one that names a bone the model lacks failed (FR-003).
+      for (const [role, clip] of [...source.clips])
+        if (!placed.every((p) => binds(p.instance as Object3D, clip))) source.clips.delete(role);
       for (const { f, instance } of placed) {
         f.instance = instance;
         f.mixer = new AnimationMixer(instance as Object3D);
@@ -488,6 +599,8 @@ export function createAvatarFigures(
         sheetFrom = paperAt(figures.twin);
         phase = "during";
         play(figures.twin);
+        // A figure whose avatar isn't ready yet keeps its fallback through it (FR-022), and the frame log says why.
+        for (const f of both()) if (f.wants !== null && !f.shown && !f.gone) picture(f, "fallback", "late");
       }
       const visitor = figures.visitor;
       const take = visitor.actions.get("take");

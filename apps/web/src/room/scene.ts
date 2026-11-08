@@ -46,7 +46,7 @@ import {
 } from "./scene/bundle3d";
 import { floorOfPart } from "./compose/floor";
 import type { Camera as ViewCamera } from "./compose/project";
-import { cutoutDriver } from "./scene/figure";
+import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
 import { createWalkInput } from "./walk/input";
 import { reachTargets } from "./walk/reach";
@@ -239,10 +239,12 @@ export function createScene(options: SceneOptions): Stage3D {
   let started = false;
   const handoffEnded = options.handoff ?? Promise.resolve();
   if (part.load_order.length > 0 || wantsAvatars)
-    void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars") : null])
+    // The avatars' chunk failing to load leaves the figures their fallbacks, and the room's models load all the same.
+    void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars").catch(() => null) : null])
       .then(([{ createLoader, figureEntries, modelEntries, prepareModel, showModel }, avatars]) => {
         const entries = modelEntries(part);
-        const figureFiles = figureEntries(part, options.avatar);
+        // Without the avatars' chunk nothing could show them, so their files aren't fetched.
+        const figureFiles = avatars ? figureEntries(part, options.avatar) : [];
         if (disposed || (entries.length === 0 && figureFiles.length === 0)) return;
         const atFloor = floor === undefined ? (): boolean => meetsModelFloor(capability(win)) : (): boolean => floor;
         figures =
@@ -332,7 +334,21 @@ export function createScene(options: SceneOptions): Stage3D {
   // the part gives no floor or no figure, there is no walking view, and entering does nothing.
   const walkable = floorOfPart(part, part.walking.radius_m);
   const visitorNode = room.placements.get(part.figures.visitor);
-  const figure = visitorNode ? cutoutDriver({ node: visitorNode, picture: room.visitor }) : null;
+  const cutout = visitorNode ? cutoutDriver({ node: visitorNode, picture: room.visitor }) : null;
+  // Spec 009 (FR-028; R-16): the visitor's avatar's driver while its avatar shows, the cut-out's otherwise; the cut-out
+  // walks with the kept paper in its picture, where an avatar that held it and fell back left it in the scene.
+  const figure = cutout
+    ? figureDriverFor(
+        {
+          frame(f) {
+            keepPaper(room);
+            cutout.frame(f);
+          },
+          rest: () => cutout.rest(),
+        },
+        () => figures,
+      )
+    : null;
   const input = createWalkInput(canvas, win);
   const rates = { turn: (part.walking.turn_dps * Math.PI) / 180, tilt: (part.walking.tilt_dps * Math.PI) / 180 };
   let returning = false;

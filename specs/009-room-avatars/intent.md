@@ -52,7 +52,7 @@ Verbatim, as the main session relayed them on 2026-11-08:
 - **The local tier is production.** `make up` must work with the files and without them.
 - **Assets.** Agents never edit `assets/**`, `tools/gates/**`, `corpus/`, `.claude/**`, `CLAUDE.md`, `REVIEW.md`, or the constitution. The files come in by the Author's hand.
 - **The caps.** `assets/policy/caps.json` on `main` sets the avatar caps, and the scene's texture memory had 41,373,819 bytes of headroom in the last room report (`docs/merge-requests/2026-11-07-feat-004-room-models.md`), which two avatars could exceed.
-- **The lifecycle.** No code before an approved spec and plan.
+- **The lifecycle.** No code before an approved spec and plan. (Departed from on 2026-11-08: the code was built on a branch ahead of approval at the main session's direction, and nothing merges before it; spec.md, Deviations.)
 
 ## Expected cost impact
 

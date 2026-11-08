@@ -11,6 +11,8 @@
 //   flicker;
 // - bobbing by at most BOB_M with each BOB_STRIDE_M walked, only while it walks and the motion store animates;
 // - and whatever the picture holds, the paper kept from the hand-off, moving and mirroring with it.
+// Spec 009's avatar's driver is its scene/avatars.ts controller's `driver`; figureDriverFor below picks between the two
+// each frame by what the visitor's figure shows (its FR-028, its plan's R-16), and walking takes that one driver.
 import { Quaternion, Vector3 } from "three";
 import type { Object3D } from "three";
 
@@ -120,6 +122,32 @@ export function cutoutDriver(options: CutoutOptions): FigureDriver {
       node.updateMatrixWorld(true);
       side = 1;
       walked = 0;
+      last = null;
+    },
+  };
+}
+
+/** What the driver by picture asks of spec 009's figures: whether the visitor's avatar shows, and its driver. */
+export interface AvatarDriving {
+  shows(figure: "visitor"): boolean;
+  readonly driver: FigureDriver;
+}
+
+/** The driver by picture (spec 009, FR-028; its plan's R-16), the one driver walking takes: each frame, the avatar's
+ *  while the visitor's avatar shows, and the cut-out's otherwise, where no avatar module loaded too. When the picture
+ *  changes mid-walk, the old driver rests and the new one takes the same pose on that frame. */
+export function figureDriverFor(cutout: FigureDriver, avatar: () => AvatarDriving | null): FigureDriver {
+  let last: FigureDriver | null = null;
+  return {
+    frame(frame) {
+      const figures = avatar();
+      const now = figures?.shows("visitor") ? figures.driver : cutout;
+      if (last && last !== now) last.rest();
+      last = now;
+      now.frame(frame);
+    },
+    rest() {
+      last?.rest();
       last = null;
     },
   };
