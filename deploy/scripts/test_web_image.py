@@ -181,7 +181,9 @@ def build_argv(
     label."""
     models = ("--build-context", f"room-assets={room}") if room is not None else ()
     avatars = (
-        ("--build-context", f"visitor-assets={visitors}") if visitors is not None else ()
+        ("--build-context", f"visitor-assets={visitors}")
+        if visitors is not None
+        else ()
     )
     return (
         "buildx",
@@ -1485,7 +1487,14 @@ def test_the_avatars_come_from_the_export_it_builds(
     assert host("prod", env, run, fake, export, repo) == 0
     argv = built(fake)
     assert argv == build_argv(
-        export, SHA, "", "", context_of(argv), digest(BOTH), room=room, visitors=visitors
+        export,
+        SHA,
+        "",
+        "",
+        context_of(argv),
+        digest(BOTH),
+        room=room,
+        visitors=visitors,
     )
 
 
@@ -1535,7 +1544,9 @@ def test_the_visitor_assets_stage_is_empty_and_beside_the_room_assets_stage() ->
     assert stages[at] == ("scratch", "visitor-assets", [])
 
 
-def test_the_build_stage_copies_the_avatars_before_it_builds_and_nothing_else_reads_them() -> None:
+def test_the_build_stage_copies_the_avatars_before_it_builds_and_nothing_else_reads_them() -> (
+    None
+):
     by_name = {name: body for _, name, body in dockerfile_stages() if name}
     build = by_name["build"]
     (run,) = [

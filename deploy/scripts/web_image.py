@@ -37,12 +37,15 @@ The room's models come from the tree it builds, never from main (spec 004, FR-01
 named build context `room-assets`, which the Dockerfile copies to /src/assets/room/ for the compositor. Each model is
 the commit's own, already through the arrival check, whose rule A3 refuses a link inside an asset directory; a link in
 place of the directory, or of assets/, would hand over a directory the commit doesn't hold, so it names no context.
-Without one the Dockerfile's empty room-assets stage stands in, and every piece builds as its stand-in.
+Without one the Dockerfile's empty room-assets stage stands in, and every piece builds as its stand-in. The visitor
+avatars come the same way (spec 009, FR-023): <tree>/assets/visitors, on the same terms, as the named context
+`visitor-assets`, which the Dockerfile copies to /src/assets/visitors/; without it both figures build as their
+fallbacks.
 
 Otherwise as the gateway's: a host stack builds the export its run file names, and only in the Author's terminal;
 dev-cpu builds the working tree on the agents' engine only. The build is `docker buildx build --load` with this tree's
 Dockerfile and context, the env file's H4_BUILD_PROXY as the proxy arguments, ROOM_DRAFTS, the policy context, the
-models' context where the tree has them, and the label, and nothing else: no --ssh, --secret, cache import or export,
+models' and the avatars' contexts where the tree has them, and the label, and nothing else: no --ssh, --secret, cache import or export,
 --add-host, --allow, or --network. Docker and git get only their own settings from the environment.
 
 Exit codes: 0 the image is built; 1 the build failed; 2 usage, or refused.
@@ -82,6 +85,9 @@ POLICY_LABEL = "org.h4reet.web.policy"
 # The tree's models (spec 004, contracts/serving.md §3), and the named context the Dockerfile's room-assets stage takes.
 ROOM_ASSETS = "assets/room"
 ROOM_ASSETS_CONTEXT = "room-assets"
+# The tree's visitor avatars (spec 009, FR-023; its Amendment M19), and the named context of the visitor-assets stage.
+VISITOR_ASSETS = "assets/visitors"
+VISITOR_ASSETS_CONTEXT = "visitor-assets"
 RELAY_HOST = "tcp://127.0.0.1:2376"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -238,9 +244,10 @@ def policy_digest(files: dict[str, bytes | None]) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def room_assets(root: Path) -> Path | None:
-    """<root>/assets/room where it is a directory of the tree's own: neither it nor assets/ a link. None otherwise."""
-    room = root / ROOM_ASSETS
+def room_assets(root: Path, folder: str = ROOM_ASSETS) -> Path | None:
+    """<root>/assets/room (or another folder under assets/) where it is a directory of the tree's own: neither it nor
+    assets/ a link. None otherwise."""
+    room = root / folder
     if room.parent.is_symlink() or room.is_symlink() or not room.is_dir():
         return None
     return room
@@ -305,6 +312,12 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             f"web image: {root} has no {ROOM_ASSETS} directory of its own, so every piece builds as its stand-in",
             flush=True,
         )
+    avatars = room_assets(root, VISITOR_ASSETS)
+    if avatars is None:
+        print(
+            f"web image: {root} has no {VISITOR_ASSETS} directory of its own, so both figures build as their fallbacks",
+            flush=True,
+        )
     try:
         print(
             f"web image: building {image} from {root}{' with drafts' if drafts else ''}",
@@ -329,6 +342,11 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             *(
                 ("--build-context", f"{ROOM_ASSETS_CONTEXT}={models}")
                 if models is not None
+                else ()
+            ),
+            *(
+                ("--build-context", f"{VISITOR_ASSETS_CONTEXT}={avatars}")
+                if avatars is not None
                 else ()
             ),
             "--label",
