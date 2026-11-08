@@ -12,18 +12,28 @@
 // compose()'s room by how they mount; a ready topic makes the conversation's feature the selectable's ID, so a turn
 // carries only that ID, the visitor's path, and the turns, through the twin's sender (absent until the twin's spec) and
 // only while live.turn is site; and a resume action opens the resume.
+// T264 (spec 004; FR-037, FR-047, FR-050, SC-015; contracts/turn-cost.md §7): renderTalk's onTurnOutcome(result) is
+// called exactly once for each turn the panel sent, when the sender reports its end, and never for a turn it didn't
+// send: an unready topic, free talk that isn't ready, the route off, or no sender. The room wires it to its one cost
+// channel (signals/turn-cost.ts), whose fallback cue reaches the tier (row 7's, in the frame log), and whose state reaches
+// the stage; it makes no request and stores nothing.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compose } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { createFrameLog } from "../../src/room/signals/frame-log";
+import type { TurnResult } from "../../src/room/signals/turn-cost";
 import { MESSAGE_IDS, cannotTalkFor } from "../../src/talk/messages";
+import { renderTalk } from "../../src/talk/talk";
 import type { TurnRequest } from "../../src/talk/talk";
 import {
+  FakeClock,
   WEB,
   button,
   enter,
@@ -459,5 +469,123 @@ describe("the fixed messages", () => {
     ]) {
       expect(cannotTalkFor(cause), String(cause)).toBe("cannot_talk.unavailable");
     }
+  });
+});
+
+// ---- T264: the turn's outcome (contracts/turn-cost.md §7) ----
+
+/** A talk panel on its own page, every option given, its sender recording each turn and the end it reports. */
+function panel(o: { ready?: boolean; route?: boolean; sender?: boolean } = {}) {
+  const doc = new JSDOM("<main></main>").window.document;
+  const sent: { request: TurnRequest; ended: (result: TurnResult) => void }[] = [];
+  const outcomes: TurnResult[] = [];
+  const talk = renderTalk(doc, {
+    messages,
+    clock: new FakeClock(),
+    emit: () => undefined,
+    enabled: () => true,
+    openResume: () => undefined,
+    pdfFollowed: () => undefined,
+    path: () => "engineer",
+    turns: [],
+    freeTalkReady: o.ready ?? true,
+    turnRoute: o.route ?? true,
+    ...(o.sender === false ? {} : { sendTurn: (request, ended) => sent.push({ request, ended }) }),
+    onTurnOutcome: (result) => outcomes.push(result),
+  });
+  doc.body.append(talk.element);
+  const send = (words: string): void => {
+    talk.textBox.value = words;
+    talk.element.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+  };
+  return { talk, sent, outcomes, send };
+}
+
+const paid: TurnResult = {
+  kind: "response",
+  status: 200,
+  body: { text: "t", feature: "free_talk", cost_micro_usd: 950, route: "fallback" },
+};
+
+describe("onTurnOutcome (T264; contracts/turn-cost.md §7)", () => {
+  it("is called exactly once for each sent turn, after its end, with what the sender reported", () => {
+    const { sent, outcomes, send } = panel();
+    send("first");
+    send("second");
+    expect(sent).toHaveLength(2);
+    // Nothing before a turn's end.
+    expect(outcomes).toEqual([]);
+    const lost: TurnResult = { kind: "error", error: "aborted" };
+    sent[1]?.ended(lost);
+    expect(outcomes).toEqual([lost]);
+    sent[0]?.ended(paid);
+    expect(outcomes).toEqual([lost, paid]);
+    // A second end of the same turn reports nothing more.
+    sent[0]?.ended({ kind: "error", error: "network" });
+    sent[1]?.ended(paid);
+    expect(outcomes).toEqual([lost, paid]);
+  });
+
+  it("is never called for a turn the panel didn't send: free talk not ready, an unready topic, no route, no sender", () => {
+    for (const o of [{ ready: false }, { route: false }, { sender: false }]) {
+      const { sent, outcomes, send } = panel(o);
+      send("hello");
+      expect(sent, JSON.stringify(o)).toEqual([]);
+      expect(outcomes, JSON.stringify(o)).toEqual([]);
+    }
+    const { talk, sent, outcomes, send } = panel();
+    talk.topicSelected("fx-topic-selectable", { phrase: "a topic", ready: false });
+    send("about it");
+    // The conversation stays free talk, which is ready here: one turn, and its outcome only at its end.
+    expect(sent).toHaveLength(1);
+    expect(outcomes).toEqual([]);
+  });
+});
+
+describe("the room's cost channel (T264, T266; contracts/turn-cost.md §6, §7)", () => {
+  it("makes one channel, configured by live.turn, fed by each turn's outcome, its fallback cue reaching the tier", async () => {
+    const base = fixture().index;
+    const { id, topic } = talkingSelectable(base);
+    const sent: { request: TurnRequest; ended: (result: TurnResult) => void }[] = [];
+    const v = start({
+      room: readyIndex(base, topic),
+      sendTurn: (request, ended) => sent.push({ request, ended }),
+      frameLog: createFrameLog,
+      webgl: true,
+    });
+    await intoRoom(v);
+    expect(v.room.cost.state.configured).toBe(true);
+    expect(v.room.cost.state.call).toBe("no-call-yet");
+    listButton(v, id).click();
+    say(v, "What was the work?");
+    expect(v.room.cost.state.call).toBe("no-call-yet");
+    sent[0]?.ended(paid);
+    expect(v.room.cost.state.visitMicro).toBe(950n);
+    expect(v.room.cost.state.call).toEqual({ paid: 950n });
+    const fallbacks = (): number => {
+      const log = JSON.parse((v.win as unknown as { h4FrameLog: () => string }).h4FrameLog()) as {
+        entries: { event: string }[];
+      };
+      return log.entries.filter((e) => e.event === "fallback").length;
+    };
+    // Row 7's cue, through signals/live.ts.
+    expect(fallbacks()).toBe(1);
+    say(v, "And then?");
+    sent[1]?.ended({ kind: "response", status: 200, body: { cost_micro_usd: 0, route: "local" } });
+    expect(v.room.cost.state.call).toBe("local-zero");
+    expect(fallbacks()).toBe(1);
+    // The stage took each state.
+    expect(v.scene.cost.at(-1)).toEqual(v.room.cost.state);
+    // No request, no storage, and nothing in the talk panel's log about the cost.
+    expect(v.spies.network).toEqual([]);
+    expect(v.spies.storage).toEqual([]);
+    expect(textOf(talkLog(v.doc))).not.toMatch(/\$|est\./);
+  });
+
+  it("reads unconfigured while live.turn is off, and changes nothing", async () => {
+    const v = start({ room: fixture().index });
+    await intoRoom(v);
+    expect(v.room.cost.state.configured).toBe(false);
+    expect(v.room.cost.state.call).toBe("unconfigured");
   });
 });

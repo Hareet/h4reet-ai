@@ -15,6 +15,9 @@
 //   shows (contracts/room-data-files.md §5.4).
 // The words come from compose() over the fixture set (its fx- IDs are synthetic), in a drafts build, so every room-text
 // file is a draft and drawn with "Draft".
+// T264 (spec 004; FR-034, FR-047 to FR-049, FR-060; contracts/turn-cost.md §5, §6, §8): the neon sign's counters draw
+// the room's cost channel's state: each reading's words and badge, the text copy equal to the drawn words; and the 3D
+// quads redraw them at once on each new state, while the room is paused too, since a pause stops only the glow's motion.
 import { JSDOM } from "jsdom";
 import { Object3D } from "three";
 import type { Mesh } from "three";
@@ -37,6 +40,8 @@ import type { RegionInput } from "../../src/room/faces/registry";
 import { faceSvg } from "../../src/room/faces/svg";
 import type { SvgNode } from "../../src/room/faces/svg";
 import { faceLayout, faceList, faceWords, regionInputs, roomTextOf } from "../../src/room/faces/words";
+import { costReadings, createCostChannel } from "../../src/room/signals/turn-cost";
+import type { CostState, TurnOutcome } from "../../src/room/signals/turn-cost";
 import type { FaceSources, RoomText } from "../../src/room/faces/words";
 import { buildRoom } from "../../src/room/scene/bundle3d";
 import { buildFaceQuads } from "../../src/room/scene/faces3d";
@@ -623,5 +628,124 @@ describe("a switch pose's glows (contracts/room-data-files.md §5.4)", () => {
       seen.add(Number(opacity().toFixed(4)));
     }
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+// ---- T264: the counters ----
+
+describe("the neon sign's counters (T264; contracts/turn-cost.md §5, §6)", () => {
+  /** The fixture's index with the turn route on. */
+  const routed = (): RoomIndex => ({ ...fixture().index, live: { ...fixture().index.live, turn: "site" } });
+  /** Each counter region of an index: its face, its place among the face's regions, and the part it reads. The
+   *  fixture's neon panel holds the word and both counters in one face. */
+  const counterRegions = (
+    index: RoomIndex,
+  ): { face: RoomIndex["faces"][number]; k: number; part: "call" | "visit" }[] =>
+    index.faces.flatMap((face) =>
+      face.regions.flatMap((r, k) => ("signal" in r.source ? [{ face, k, part: r.source.part }] : [])),
+    );
+  const state = (outcomes: TurnOutcome[], from: "turn" | "fixture" = "turn"): CostState => {
+    const channel = createCostChannel({ configured: true, clock: new FakeClock() });
+    for (const o of outcomes) channel.report(o, from);
+    return channel.state;
+  };
+  const reply = (route: string, cost: number): TurnOutcome => ({ kind: "reply", route, cost_micro_usd: cost });
+  const counter = (index: RoomIndex, part: "call" | "visit") => {
+    const found = counterRegions(index).find((c) => c.part === part);
+    if (!found) throw new Error(`no ${part} counter`);
+    return found;
+  };
+
+  it("draws each reading of the channel's state, its badge beside it, its text copy equal to its drawn words", () => {
+    const index = routed();
+    expect(
+      counterRegions(index)
+        .map((c) => c.part)
+        .sort(),
+    ).toEqual(["call", "visit"]);
+    const states = [
+      state([]),
+      state([reply("local", 0)]),
+      state([reply("fallback", 950)]),
+      state([reply("fallback", 950), { kind: "lost" }]),
+      state([reply("fallback", 950)], "fixture"),
+      createCostChannel({ configured: false, clock: new FakeClock() }).state,
+    ];
+    for (const cost of states) {
+      const readings = costReadings(cost, { ui: index.ui, drafts: index.build.kind === "drafts" });
+      for (const { face, k, part } of counterRegions(index)) {
+        const what = `${face.id} ${part} ${JSON.stringify(cost, (_, v: unknown) => (typeof v === "bigint" ? String(v) : v))}`;
+        const reading = readings[part];
+        const input = regionInputs(face, { index, text: null, cost })[k];
+        expect(input?.lines, what).toEqual([reading?.text]);
+        expect(input?.badge ?? null, what).toEqual(reading?.badge ?? null);
+        expect(input?.counter, what).toBe(true);
+        const list = faceList(face, { index, text: null, cost });
+        expect(list ? drawnWords(list.ops) : null, what).toEqual(faceWords(face, { index, text: null, cost }));
+      }
+    }
+  });
+
+  it('reads "Sample" for a fixture\'s figures and "test" for a turn\'s in a drafts build, as badges of their kinds', () => {
+    const index = routed();
+    expect(index.build.kind).toBe("drafts");
+    const { face, k } = counter(index, "call");
+    const region = face.regions[k];
+    if (!region) throw new Error("no call region");
+    const kinds = (cost: CostState): string[] => {
+      const input = regionInputs(face, { index, text: null, cost })[k];
+      return input ? REGISTRY[region.renderer].draw(input).flatMap((o) => (o.op === "badge" ? [o.kind] : [])) : [];
+    };
+    expect(kinds(state([reply("fallback", 950)]))).toEqual(["test"]);
+    expect(kinds(state([reply("fallback", 950)], "fixture"))).toEqual(["sample"]);
+    expect(kinds(state([]))).toEqual([]);
+  });
+
+  it("reads the index without a state: cost unavailable while live.turn is off, no call yet and $0 once it's on", () => {
+    const off = fixture().index;
+    for (const { face, k } of counterRegions(off))
+      expect(regionInputs(face, { index: off, text: null })[k]?.lines, face.id).toEqual([off.ui["sign.unavailable"]]);
+    const on = routed();
+    const call = counter(on, "call");
+    const visit = counter(on, "visit");
+    expect(regionInputs(call.face, { index: on, text: null })[call.k]).toMatchObject({
+      lines: [on.ui["sign.no_call_yet"]],
+      badge: null,
+    });
+    expect(regionInputs(visit.face, { index: on, text: null })[visit.k]).toMatchObject({
+      lines: ["$0"],
+      badge: { kind: "test", text: on.ui["sign.test"] },
+    });
+  });
+
+  it("redraws the counters in 3D at once on each new state, while the room is paused too", () => {
+    const index = routed();
+    const { scene: part } = fixture();
+    const room = buildRoom(part, { avatar: "dog", label: () => new Object3D(), index });
+    const faces = buildFaceQuads({
+      part,
+      index,
+      placements: room.placements,
+      doc: new JSDOM("<main></main>").window.document,
+      clock: new FakeClock(),
+      dpr: 1,
+      level: 0,
+      motion: () => ({ animate: false }),
+    });
+    const { face } = counter(index, "call");
+    const words = (): string[] => {
+      const list = faces.lists.get(face.id);
+      return list ? drawnWords(list.ops) : [];
+    };
+    expect(words()).toContain(index.ui["sign.no_call_yet"]);
+    faces.setCost(state([reply("fallback", 950)]));
+    expect(words()).toContain("$0.000950 est.");
+    expect(words()).toContain(`[${index.ui["sign.test"]}]`);
+    // The call region itself was drawn again (the review of T268, nit 4).
+    expect(words()).not.toContain(index.ui["sign.no_call_yet"]);
+    faces.setCost(state([reply("fallback", 950), { kind: "failed" }]));
+    expect(words()).toContain(index.ui["sign.unavailable"]);
+    expect(words()).toContain("at least $0.000950 est.");
+    expect(faces.quads.get(face.id)?.visible).toBe(true);
   });
 });

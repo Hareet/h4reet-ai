@@ -174,6 +174,7 @@ export function createScene(options: SceneOptions): Stage3D {
     ...(options.typefaces ? { typefaces: options.typefaces } : {}),
   });
   if (options.text !== undefined) faces.setText(options.text);
+  if (options.cost) faces.setCost(options.cost);
   const glows = buildGlows({ part, placements: room.placements, glow: room.cases.glow, motion: animating });
   const canvas = doc.createElement("canvas");
   canvas.className = "room-canvas";
@@ -295,6 +296,9 @@ export function createScene(options: SceneOptions): Stage3D {
     },
     setText(text) {
       faces.setText(text);
+    },
+    setCost(state) {
+      faces.setCost(state);
     },
     setQuality(level) {
       const before = settings.shadows;

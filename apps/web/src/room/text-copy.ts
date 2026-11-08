@@ -5,8 +5,9 @@
 // - a bound face: its label and its words, from its renderers' own word lists (faces/words.ts), so the 3D room, the 2D
 //   room, and this can't differ (FR-034), each badge in brackets; a face with no words now is left out (FR-061): one
 //   bound to room text until room-data.json has loaded, and for good if it failed or the build withheld its block.
-//   setText words them in place, in copy[]'s order. The sign's figures entry waits for their channel (T266): until
-//   then its counters' faces carry their readings;
+//   setText words them in place, in copy[]'s order. The neon sign's counters are faces too: their entries carry the
+//   cost channel's readings (signals/turn-cost.ts), which setCost gives in place, each "est." marked up as an
+//   abbreviation of "estimated" (contracts/turn-cost.md §8), so the index's `figures` entry adds nothing of its own;
 // - a switch: its label and the sentence of the tier the room shows, `tier.<value>`: not-live until the tier signal
 //   applies another through setTier (signals/live.ts), in the same call as the switch's case;
 // - a fixed line: its UI word (`sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face
@@ -22,6 +23,7 @@ import { h } from "./dom";
 import { faceWords } from "./faces/words";
 import type { RoomText } from "./faces/words";
 import { pausedAtWords } from "./motion";
+import type { CostState } from "./signals/turn-cost";
 import { uiWord } from "./ui-keys";
 
 /** What the text copy reads of the index: its words, its order of entries, its switches, and its faces with what words
@@ -37,12 +39,19 @@ export interface TextCopy {
   setPausedAt(time: string | null): void;
   /** The room text, once room-data.json has loaded: each face it words gets its entry, in place. */
   setText(text: RoomText | null): void;
+  /** The cost channel's state: the neon sign's counters' entries take their readings, in place (FR-048, FR-063). */
+  setCost(state: CostState): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
 const SHOWN: TierValue = "not-live";
 /** The line shown only while the room is paused, with the time it paused. */
 const PAUSED = "pause.paused_at";
+/** What the counters' "est." abbreviates (contracts/turn-cost.md §8). */
+const ESTIMATED = "estimated";
+
+/** Whether a face holds one of the neon sign's counters: a region that reads the turn's cost. */
+const isCounter = (face: RoomIndex["faces"][number]): boolean => face.regions.some((r) => "signal" in r.source);
 
 export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   const sentence = (value: TierValue): string => uiWord(room.ui, `tier.${value}`) ?? "";
@@ -78,26 +87,44 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       const words = uiWord(room.ui, entry.line);
       if (words !== null) list.append(h(doc, "li", {}, words));
     }
-    // The sign's figures come with their channel (T266): its counters' faces carry their readings until then.
+    // `figures`: the counters' readings are their faces' entries, above, so the copy holds them once.
   }
-  /** Each face's entry from the room text now: its label and its words, replaced in place, or left out. */
-  const word = (text: RoomText | null): void => {
+  /** The mark "est." as the UI word sign.estimated has it around its amount; none where it has no such word. */
+  const mark = uiWord(room.ui, "sign.estimated", { amount: "" })?.trim() ?? "";
+  /** An entry's text, with a counter's "est." as an abbreviation of "estimated": its text content is the line. */
+  const fill = (item: HTMLElement, line: string, counter: boolean): void => {
+    if (!counter || mark === "") {
+      item.textContent = line;
+      return;
+    }
+    item.replaceChildren(
+      ...line
+        .split(/(\s+)/)
+        .filter((part) => part !== "")
+        .map((part) => (part === mark ? h(doc, "abbr", { title: ESTIMATED }, part) : doc.createTextNode(part))),
+    );
+  };
+  let text: RoomText | null = null;
+  let cost: CostState | null = null;
+  /** Each face's entry from the room text and the cost now: its label and its words, replaced in place, or left out. */
+  const word = (): void => {
     for (const slot of faces) {
-      const words = faceWords(slot.face, { index: room, text });
+      const words = faceWords(slot.face, { index: room, text, ...(cost ? { cost } : {}) });
       const label = uiWord(room.ui, slot.face.label);
       const line = words === null || label === null ? null : `${label}: ${words.join(" ")}`;
       if (line === null) {
         slot.item?.remove();
         slot.item = null;
       } else if (slot.item) {
-        if (slot.item.textContent !== line) slot.item.textContent = line;
+        if (slot.item.textContent !== line) fill(slot.item, line, isCounter(slot.face));
       } else {
-        slot.item = h(doc, "li", {}, line);
+        slot.item = h(doc, "li", {});
+        fill(slot.item, line, isCounter(slot.face));
         slot.marker.after(slot.item);
       }
     }
   };
-  word(null);
+  word();
   // A Tab stop of its own, after the conversation (FR-065; Amendment B8): a keyboard reaches it, with the room's focus
   // ring, and a screen reader hears its heading as its name.
   const element = h(
@@ -110,7 +137,14 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   let paused: HTMLElement | null = null;
   return {
     element,
-    setText: word,
+    setText(next) {
+      text = next;
+      word();
+    },
+    setCost(next) {
+      cost = next;
+      word();
+    },
     setTier(value) {
       for (const state of states) state.textContent = sentence(value);
     },

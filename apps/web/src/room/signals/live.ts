@@ -12,7 +12,7 @@
 // - The status poller (status-poller.ts; T246) runs only while live.source is `site`, the visitor has entered, the page
 //   is visible, and the room isn't paused: Enter, pause, resume, hide, and show reach it after the reduction, so on
 //   resume or show the tier is reduced before any request starts. Each completed request comes back through
-//   `complete`. The cost channel (T266) calls `fallbackReply` for each fallback reply.
+//   `complete`. The cost channel (turn-cost.ts) calls `fallbackReply` for each fallback reply from a turn (app.ts).
 // - A drafts build's frame log (frame-log.ts; R-70) gets Enter, pause, resume, hide, show, each request's start and
 //   result, each reduction's tier and row, and each fallback cue; the room logs the cases it draws.
 // Nothing here stores anything or calls a model (FR-076); the poller's GET /api/status is the only request.

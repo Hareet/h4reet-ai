@@ -2,8 +2,9 @@
 // tube over a glow pass, the room's own neon lettering, with no logo, wordmark, or colours of Langfuse's; its second
 // line; and its two counter panels, "this call" and "this visit", whose readings are plain IBM Plex Mono. Each region is
 // one row, its words centred on it, their caps centred in its height. A counter reads "cost unavailable" while the
-// room's live configuration has no turn route (FR-048; contracts/turn-cost.md §5); its amounts, which T266's channel
-// brings, carry "test" in a drafts build and "Sample" from a fixture, as a badge beside the figure (FR-049).
+// room's live configuration has no turn route (FR-048; contracts/turn-cost.md §5); its amounts, from the room's cost
+// channel (signals/turn-cost.ts), carry "test" in a drafts build and "Sample" from a fixture, as a badge beside the
+// figure (FR-049).
 import { textGrid } from "../compose/layout";
 import { badgeOps, copyOf } from "./display-list";
 import type { Op } from "./display-list";
