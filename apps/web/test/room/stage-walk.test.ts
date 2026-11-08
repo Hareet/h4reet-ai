@@ -35,6 +35,7 @@ function run() {
     index: ReturnType<typeof repositoryBundle>["index"];
   };
   const seen: number[][] = [];
+  const drawn: { room: Scene | null } = { room: null };
   swapped.renderer = () => ({
     autoClear: true,
     outputColorSpace: "",
@@ -43,7 +44,9 @@ function run() {
     setSize: () => undefined,
     initTexture: () => undefined,
     render: (scene: Scene, cam: Camera) => {
-      if (scene.name === "") seen.push(cam.position.toArray());
+      if (scene.name !== "") return;
+      seen.push(cam.position.toArray());
+      drawn.room ??= scene;
     },
     dispose: () => undefined,
   });
@@ -52,6 +55,7 @@ function run() {
   win.HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
   const clock = new FakeClock();
   const ended: WalkEnd[] = [];
+  const named: [string, string | null][] = [];
   const stage = createScene({
     win,
     doc: win.document,
@@ -61,6 +65,7 @@ function run() {
     reducedMotion: false,
     select: () => undefined,
     onFrame: () => undefined,
+    target: (input, id) => named.push([input, id]),
     walkEnded: (why) => ended.push(why),
   });
   const [w, h] = [960, 600];
@@ -72,13 +77,44 @@ function run() {
     view.dispatchEvent(new win.KeyboardEvent(type, { code, key: k, bubbles: true, cancelable: true }));
   };
   const last = (): number[] => seen.at(-1) ?? [];
-  return { stage, clock, view, home, key, last, ended, seen };
+  /** The visitor's figure as the room draws it: its node's place, and its picture's turn and scale. */
+  const figure = (): number[][] => {
+    const picture = drawn.room?.getObjectByName("cutout");
+    const node = picture?.parent;
+    if (!picture || !node) throw new Error("no visitor's picture drawn");
+    return [node.position.toArray(), picture.rotation.toArray().slice(0, 3) as number[], picture.scale.toArray()];
+  };
+  return { stage, clock, view, home, key, last, ended, seen, named, figure };
 }
 
 const near = (a: readonly number[], b: readonly number[]): boolean =>
   a.every((v, k) => Math.abs(v - (b[k] ?? 0)) < 1e-6);
 
 describe("the walking view in the 3D stage (spec 008, T051)", () => {
+  it("leaves on Escape at once, the figure back at its place, unturned and unmirrored, however the view turned", () => {
+    const r = run();
+    r.clock.advance(16);
+    const home = r.figure();
+    r.stage.walk.enter(r.view);
+    for (let k = 0; k < 10; k += 1) r.clock.advance(16);
+    // Turn the view well past the mirror's hold, walking forward, then press Escape mid-turn.
+    r.key("keydown", "KeyE", "e");
+    r.key("keydown", "KeyW", "w");
+    for (let k = 0; k < 40; k += 1) r.clock.advance(16);
+    expect(r.figure()).not.toEqual(home);
+    r.key("keydown", "Escape", "Escape");
+    r.clock.advance(16);
+    r.key("keyup", "KeyE", "e");
+    r.key("keyup", "KeyW", "w");
+    expect(r.ended).toEqual(["escape"]);
+    expect(r.figure()).toEqual(home);
+    for (let k = 0; k < 10; k += 1) r.clock.advance(16);
+    expect(r.figure()).toEqual(home);
+    // Reach, the walking view's own input, named none on leaving (plan.md R-06).
+    expect(r.named.filter(([input]) => input === "reach").at(-1)).toEqual(["reach", null]);
+    r.stage.dispose();
+  });
+
   it("follows the figure once entered, walks by a held key, and comes back on Escape, reported", () => {
     const r = run();
     r.clock.advance(16);
@@ -103,15 +139,25 @@ describe("the walking view in the 3D stage (spec 008, T051)", () => {
     r.stage.dispose();
   });
 
-  it("leaves when the room asks, without a report, and does nothing entered twice or left while off", () => {
+  it("leaves when the room asks, without a report, the figure at home, and does nothing entered twice or left while off", () => {
     const r = run();
     r.clock.advance(16);
+    const home = r.figure();
     r.stage.walk.leave();
     r.stage.walk.enter(r.view);
     r.stage.walk.enter(r.view);
+    r.key("keydown", "KeyQ", "q");
+    r.key("keydown", "KeyA", "a");
     for (let k = 0; k < 40; k += 1) r.clock.advance(16);
+    r.key("keyup", "KeyQ", "q");
+    r.key("keyup", "KeyA", "a");
+    // The view turned, and the camera with it, off the production framing.
+    expect(near(r.last(), r.home)).toBe(false);
+    expect(r.figure()).not.toEqual(home);
     r.stage.walk.leave();
     expect(r.stage.walk.walking).toBe(false);
+    expect(r.figure()).toEqual(home);
+    expect(r.named.filter(([input]) => input === "reach").at(-1)).toEqual(["reach", null]);
     for (let k = 0; k * 16 <= TRANSITION_MS + 32; k += 1) r.clock.advance(16);
     expect(near(r.last(), r.home)).toBe(true);
     expect(r.ended).toEqual([]);

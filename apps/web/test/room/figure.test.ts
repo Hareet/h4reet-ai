@@ -113,6 +113,29 @@ describe("the figure driver (spec 008, T044; R-12)", () => {
     expect(Math.sign(c.x - 0.3)).toBe(-Math.sign(b.x - 0.3));
   });
 
+  it("takes a frame's seconds, which a rigged driver needs, and the cut-out reads nothing of them", () => {
+    const a = figure();
+    const b = figure();
+    a.driver.frame({ pose: pose(0.2, 0.6, -Math.PI / 2), camera: [0, 1.5, 3], animate: true });
+    b.driver.frame({ pose: pose(0.2, 0.6, -Math.PI / 2), camera: [0, 1.5, 3], animate: true, dt: 0.016 });
+    expect(world(b.node).toArray()).toEqual(world(a.node).toArray());
+    expect(b.picture.position.y).toBe(a.picture.position.y);
+  });
+
+  it("holds what it's given in its hand, its place in the room kept: the cut-out's hand its picture", () => {
+    const { root, picture, driver } = figure();
+    const sheet = new Mesh(new PlaneGeometry(0.2, 0.3), new MeshBasicMaterial());
+    sheet.position.set(0.4, 1.2, 0.9);
+    root.add(sheet);
+    const before = world(sheet).toArray();
+    driver.hold?.(sheet);
+    expect(sheet.parent).toBe(picture);
+    expect(world(sheet).distanceTo(new Vector3(...before))).toBeLessThan(1e-12);
+    // It walks with the figure from then on.
+    driver.frame({ pose: pose(0.5, 0.6, -Math.PI / 2, false), camera: [0, 1.5, 3], animate: false });
+    expect(world(sheet).distanceTo(new Vector3(...before))).toBeGreaterThan(0.1);
+  });
+
   it("rests the figure as the scene has it: its place, its turn, its side, no bob", () => {
     const { node, picture, driver } = figure();
     const before = [node.position.toArray(), picture.rotation.toArray(), picture.scale.toArray()];

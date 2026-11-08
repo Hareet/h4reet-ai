@@ -34,7 +34,7 @@ const NONE: WalkIntents = {
 };
 const intents = (over: Partial<WalkIntents>): WalkIntents => ({ ...NONE, ...over });
 
-function setup(pickAt: (ndc: { x: number; y: number }) => string | null = () => null) {
+function setup(pickAt: (ndc: { x: number; y: number }) => string | null = () => null, onEscape?: () => void) {
   const { scene: part, index } = repositoryBundle() as {
     scene: RoomScene;
     index: ReturnType<typeof repositoryBundle>["index"];
@@ -59,9 +59,23 @@ function setup(pickAt: (ndc: { x: number; y: number }) => string | null = () => 
     reach: (id) => record.reach.push(id),
     select: (id) => record.selected.push(id),
     target: () => record.target,
-    escape: () => (record.escapes += 1),
+    escape: () => {
+      record.escapes += 1;
+      onEscape?.();
+    },
   });
   return { part, index, floor, view, record };
+}
+
+/** setup's, with an escape that leaves the walking view at once, as the 3D stage's does (scene.ts). */
+function setupEscaping() {
+  const box: { view: ReturnType<typeof createWalking> | null } = { view: null };
+  const made = setup(
+    () => null,
+    () => box.view?.leave(32),
+  );
+  box.view = made.view;
+  return made;
 }
 
 describe("the walking view's orchestrator (spec 008, T043)", () => {
@@ -144,21 +158,20 @@ describe("the walking view's orchestrator (spec 008, T043)", () => {
     expect(Math.hypot(view.pose.x - goal[0], view.pose.z - goal[2])).toBeLessThanOrEqual(ARRIVE_M + 1e-9);
   });
 
-  it("selects the room's target on Enter, passes Escape on, and leaves to the production framing", () => {
+  it("selects the room's target on Enter, and leaves to the production framing, the camera back within 500 ms", () => {
     const { part, view, record } = setup();
     view.enter(0);
     record.target = "the-target";
     view.frame(intents({ enter: true }), STAGE, 0, 0, true);
     expect(record.selected).toEqual(["the-target"]);
-    view.frame(intents({ escape: true }), STAGE, 16, 0.016, true);
-    expect(record.escapes).toBe(1);
-    view.frame(intents({ move: { forward: 0, right: 1 } }), STAGE, 600, 0.3, true);
+    const following = view.frame(intents({ move: { forward: 0, right: 1 } }), STAGE, 600, 0.3, true);
     view.leave(600);
     expect(view.on).toBe(false);
     expect(record.rests).toBe(1);
     const home = framing(STAGE.w / STAGE.h, framedBoxes(part));
     const midway = view.returning(STAGE, 600 + TRANSITION_MS / 2, true);
-    expect(midway).not.toBeNull();
+    expect(midway?.position).not.toEqual(home.position);
+    expect(midway?.position).not.toEqual(following.position);
     expect(view.returning(STAGE, 600 + TRANSITION_MS, true)).toBeNull();
     // Not animating: back at once.
     const again = setup();
@@ -166,6 +179,54 @@ describe("the walking view's orchestrator (spec 008, T043)", () => {
     again.view.frame(NONE, STAGE, 0, 0, false);
     again.view.leave(16);
     expect(again.view.returning(STAGE, 16, false)).toBeNull();
-    expect(home.position.length).toBe(3);
+  });
+
+  it("stops the frame where Escape leaves: no step, no figure, no picker, and reach named none (FR-022)", () => {
+    // The room's Escape leaves the walking view at once, as the 3D stage's does (scene.ts).
+    const { view, record } = setupEscaping();
+    view.enter(0);
+    view.frame(intents({ turn: 0.5 }), STAGE, 16, 0.016, false);
+    const [frames, cameras] = [record.frames.length, record.cameras.length];
+    const at = view.pose;
+    view.frame(intents({ escape: true, move: { forward: 1, right: 0 }, turn: 0.4 }), STAGE, 32, 0.016, false);
+    expect([view.on, record.escapes, record.rests]).toEqual([false, 1, 1]);
+    // Nothing after the rest: the figure isn't framed again, the pose isn't stepped, the picker isn't moved, and
+    // reach's last naming is none.
+    expect(record.frames.length).toBe(frames);
+    expect(record.cameras.length).toBe(cameras);
+    expect([view.pose.x, view.pose.z]).toEqual([at.x, at.z]);
+    expect(record.reach.at(-1)).toBeNull();
+  });
+
+  it("names reach none on leaving, by any road, and again at the next entry", () => {
+    const { view, record } = setup();
+    view.enter(0);
+    view.frame(NONE, STAGE, 0, 0, false);
+    view.leave(16);
+    expect(record.reach.at(-1)).toBeNull();
+    const count = record.reach.length;
+    view.enter(32);
+    expect(record.reach.length).toBe(count + 1);
+  });
+
+  it("turns the view right on E and left on Q, the camera looking to the right of straight on (FR-029)", () => {
+    for (const [turn, sign] of [
+      [0.3, 1],
+      [-0.3, -1],
+    ] as const) {
+      const { view } = setup();
+      view.enter(0);
+      view.frame(NONE, STAGE, 0, 0, false);
+      const camera = view.frame(intents({ turn }), STAGE, 16, 0.016, false);
+      const forward = camera.target[0] - camera.position[0];
+      expect(Math.sign(forward), `a turn of ${turn}`).toBe(sign);
+    }
+  });
+
+  it("reaches nothing from the figure's place at the data's default reach, 0.3 m", () => {
+    const { part, record, view } = setup();
+    expect(part.walking.reach_m).toBe(0.3);
+    view.enter(0);
+    expect(record.reach).toEqual([null]);
   });
 });

@@ -776,7 +776,7 @@ describe("the walking block and RW1 (spec 008, T034)", () => {
       turn_dps: 90,
       tilt_dps: 45,
       radius_m: 0.12,
-      reach_m: 0.8,
+      reach_m: 0.3,
       reach_cone_deg: 60,
       camera: { yaw_deg: 60, pitch_deg: [0, 35], min_distance_m: 1.2, focus_height_m: 1.1 },
     });

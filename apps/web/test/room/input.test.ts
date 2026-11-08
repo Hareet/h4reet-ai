@@ -75,6 +75,26 @@ describe("the walking view's input (spec 008, T048)", () => {
     expect(input.take(0.5, RATES).escape).toBe(false);
   });
 
+  it("acts on no key pressed with Ctrl, Cmd, or Alt: the browser's and the system's shortcuts stay theirs", () => {
+    const { win, view, input } = setup();
+    for (const [code, key, mods] of [
+      ["KeyF", "f", { ctrlKey: true }],
+      ["KeyD", "d", { ctrlKey: true }],
+      ["KeyA", "a", { metaKey: true }],
+      ["KeyW", "w", { altKey: true }],
+      ["Equal", "+", { ctrlKey: true }],
+      ["Enter", "Enter", { metaKey: true }],
+    ] as const)
+      view.dispatchEvent(new win.KeyboardEvent("keydown", { code, key, bubbles: true, cancelable: true, ...mods }));
+    expect(input.take(0.5, RATES)).toMatchObject({
+      move: { forward: 0, right: 0 },
+      turn: 0,
+      tilt: 0,
+      zoom: 0,
+      enter: false,
+    });
+  });
+
   it("acts on no key pressed anywhere but the walking view", () => {
     const { doc, input, key } = setup();
     key("keydown", "KeyW", "w", doc.querySelector("button") as HTMLElement);

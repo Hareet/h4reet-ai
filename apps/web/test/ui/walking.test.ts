@@ -48,7 +48,10 @@ describe("the walking control (spec 008, T045)", () => {
     expect([view(v).getAttribute("role"), view(v).getAttribute("aria-label")]).toEqual(["application", WORDS.region]);
     expect(view(v).getAttribute("tabindex")).toBe("0");
     expect(control(v).textContent).toBe(WORDS.leave);
+    // The walking keys' instructions only while walking, so nothing reads them in 2D or during the hand-off.
+    expect(v.doc.getElementById("room-walk-help")?.hidden).toBe(false);
     control(v).click();
+    expect(v.doc.getElementById("room-walk-help")?.hidden).toBe(true);
     expect(v.scene.walks.at(-1)).toEqual({ call: "leave" });
     expect(v.doc.activeElement).toBe(control(v));
     expect(view(v).hasAttribute("role")).toBe(false);
@@ -74,11 +77,20 @@ describe("the walking control (spec 008, T045)", () => {
   it('ends with "2D view", which takes the control away, the conversation and the resume kept', async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
+    const message = v.doc.querySelector<HTMLTextAreaElement | HTMLInputElement>(".talk textarea, .talk input");
+    if (message) message.value = "half a thought";
     control(v).click();
     button(v.doc, "2D view").click();
     expect(control(v).hidden).toBe(true);
     expect(view(v).hasAttribute("role")).toBe(false);
     expect(v.room.visit.mode).toBe("2d");
+    // The conversation as it was, its text box and what it held, and the resume still kept for later.
+    expect(message).not.toBeNull();
+    expect(message?.isConnected).toBe(true);
+    expect(message?.value).toBe("half a thought");
+    expect(message?.closest("[inert]")).toBeNull();
+    expect(v.room.visit.resumeKept).toBe(true);
+    expect(v.doc.getElementById("room-walk-help")?.hidden).toBe(true);
   });
 
   it("isn't offered in 2D", async () => {
