@@ -120,7 +120,7 @@ apps/web/
 │   ├── events.ts                  # walk_started
 │   ├── ui-keys.ts                 # the seven keys
 │   └── signals/frame-log.ts       # walk and target events
-├── src/lookdev/stage.ts, controls.ts   # the walking view, the scripted walk, a highlight sample
+├── src/lookdev/stage.ts, page.ts       # the walking view, the scripted walk, a highlight sample (§10)
 └── test/room/*.test.ts, test/ui/*.test.ts, test/lookdev/*.test.ts
 config/room-events.yaml            # generated: walk_started
 services/gateway/test/integration/room-events.test.ts, unit/room-events-config.test.ts
@@ -248,7 +248,7 @@ The main session asked "see what can be done in parallel". Each lane below touch
 | D, the room's DOM | `walk/input.ts`, `layout.ts`, `room.css`, `app.ts` | C's `Stage3D.walk` interface (T042 states it first) |
 | E, the 2D highlight | `flat.ts`, its room.css classes, its tests | Phase 1's reducer and B's index field |
 | F, telemetry and documents | `events.ts`, `config/room-events.yaml`, the gateway's tests, the disclosure, §7.8, the dashboard, ADR 0039, the README | nothing; the disclosure lands in the commit that adds the kind |
-| G, lookdev | `src/lookdev/stage.ts`, `controls.ts` | C |
+| G, lookdev | `src/lookdev/stage.ts`, `page.ts` (§10) | C |
 
 Phase 1 itself has two parallel lanes: the compositor's highlight data (B) and the reducer with the highlight pass (A and C), joined in `app.ts`.
 
@@ -344,6 +344,7 @@ A task that departs from this plan records it here, in the commit that departs (
 - **A press's end (T016), a reading of FR-008 (b) and FR-012.** A press names its start's pick until it ends. Its end names nothing for a finger, as the pointer leaving, and for any press that selected nothing; a mouse's or a pen's press that selected leaves the target to its next hover, so the piece it selected isn't targeted again while the pointer rests there (User Story 1, scenario 3). A press with a mouse's other buttons isn't one: its moves stay hovers.
 - **The store (T018).** It starts empty and takes no input until the hand-off's offer is answered, so the hand-off needs no reset of its own; the fall to 2D resets it (R-06). It takes a name only for a selectable the index lists.
 - **A stage that throws taking a target (T018's guard).** `app.ts` calls `setTarget` in a guard of its own, as it guards the stage's `setText`, so a stage that throws there keeps what it drew while the selection, its event, its topic, and the list go on, and the room keeps drawing (FR-005's rule, never a blank or frozen scene, for the target). Found writing this branch's degraded-mode table, and built test first: the test failed without the guard, and passes with it.
+- **The highlight sample's control is in `src/lookdev/page.ts`, not `controls.ts` (T019).** `controls.ts` holds the page's widgets, which the control is made from, and `page.ts` builds the panels, as User Story 9's T267 found (spec 004's plan.md §10). A run sets the highlight aside while it measures, as it turns Labels on, so its results describe the room as visitors get it and keep contracts/lookdev.md §6's fields; the Author's choice comes back after the run.
 
 ## Constitution Check (post-design)
 

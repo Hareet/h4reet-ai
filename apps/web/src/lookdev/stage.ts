@@ -31,6 +31,9 @@
 //   arrives: the page judges a look, so it never shows a face blank while a typeface loads.
 // - Candidates, from page memory, through the loader; the site's page also loads each set model from ../a/, and the
 //   phone copy, which makes no request, every model from memory.
+// - Spec 008's highlight sample (T019; FR-050): any selectable the page names drawn with the room's own highlight
+//   (scene/highlight.ts), its two passes after the look's frame, in the look chosen, following a model as it swaps in
+//   or falls back; none by default, and its draws counted in the readouts with the room's.
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
 // the live switch held off, and to the page's status line, which says how a candidate's load ended; and a pick on the
 // canvas logs spec 002's object_selected in the log too.
@@ -72,6 +75,8 @@ import { buildFaceQuads } from "../room/scene/faces3d";
 import type { FaceQuads } from "../room/scene/faces3d";
 import { buildGlows } from "../room/scene/glows";
 import type { GlowCards } from "../room/scene/glows";
+import { createHighlight } from "../room/scene/highlight";
+import type { Highlight } from "../room/scene/highlight";
 import { createTextureLedger } from "../room/scene/ledger";
 import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
 import { caseFor } from "../room/signals/tier";
@@ -149,6 +154,8 @@ export interface LookdevStage {
   readonly loaded: ReadonlySet<string>;
   /** The texture ledger's bytes. */
   readonly textureBytes: number;
+  /** The selectable drawn with the highlight (spec 008, FR-050), or none. */
+  readonly highlight: string | null;
   setView(view: ViewChoice): void;
   setScene(scene: SceneChoice): void;
   setLook(id: string): void;
@@ -157,6 +164,8 @@ export interface LookdevStage {
   setPaused(on: boolean): void;
   /** Shows the stand-ins' labels in the page's view, or hides them from it. */
   setLabels(on: boolean): void;
+  /** Draws the room's highlight on a selectable of the index from the next frame, or none (spec 008, FR-050). */
+  setHighlight(id: string | null): void;
   /** Shows a candidate for its piece through the loader; null clears it, its set model or its stand-in back. */
   setCandidate(piece: string, entry: ModelEntry | null): void;
   /** The scripted load: every model back to its stand-in, then each loaded again, in load order, under the holds. */
@@ -271,6 +280,15 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let ink: Ink = createInk(renderer, look);
   // The lines' one set of parameters, shared once (scene/look.ts), so the view's height reaches every line.
   ink.prepare(room.scene);
+  // Spec 008's highlight sample, the room's own, rebuilt with the room in each look.
+  const members = new Map(index.selectables.map((s) => [s.id, s.members] as const));
+  let highlighted: string | null = null;
+  const makeHighlight = (): Highlight => {
+    const made = createHighlight({ room, style: look.highlight, members: (id) => members.get(id) ?? [] });
+    made.setTarget(highlighted);
+    return made;
+  };
+  let highlight: Highlight = makeHighlight();
   let view: ViewChoice = options.device ? "device" : "desktop";
   let scene: SceneChoice = "room";
   let sample: RoomFixture | null = fixtures[0] ?? null;
@@ -359,6 +377,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     spec = frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
     picker.resize(stage);
     ink.setStageHeight(stage.h);
+    highlight.setStage(stage.w, stage.h);
   }
 
   /** The quality level's settings, as the room's 3D stage applies them (scene.ts's setQuality). */
@@ -464,6 +483,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     swap: (piece, model) => {
       showModel(room, part, piece, model);
       applyScene();
+      highlight.refresh();
     },
   });
 
@@ -530,6 +550,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     glows?.frame(time);
     renderer.info.reset();
     ink.render(room.scene, camera);
+    highlight.render(renderer, camera);
     last = {
       drawCalls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
@@ -599,6 +620,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get textureBytes() {
       return ledger.bytes;
     },
+    get highlight() {
+      return highlighted;
+    },
     setView(next) {
       view = next;
       fit();
@@ -615,11 +639,13 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       for (const piece of shown) loader.remove(piece);
       faces?.dispose();
       glows?.dispose();
+      highlight.dispose();
       disposeRoom(room);
       look = next;
       room = build(look);
       ink = createInk(renderer, look);
       ink.prepare(room.scene);
+      highlight = makeHighlight();
       applySettings();
       applySample();
       applyScene();
@@ -640,6 +666,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     setLabels(on) {
       if (on) camera.layers.enable(LABEL_LAYER);
       else camera.layers.disable(LABEL_LAYER);
+    },
+    setHighlight(id) {
+      highlighted = id !== null && members.has(id) ? id : null;
+      highlight.setTarget(highlighted);
     },
     setCandidate(piece, entry) {
       if (entry) {
@@ -667,6 +697,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       canvas.removeEventListener("webglcontextrestored", restored);
       faces?.dispose();
       glows?.dispose();
+      highlight.dispose();
       fonts.dispose();
       disposeRoom(room);
       renderer.dispose();
