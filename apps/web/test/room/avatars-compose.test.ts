@@ -333,12 +333,18 @@ describe("the RA family (FR-038; plan.md §3.5)", () => {
     const ctx = (tree: Tree, policy = avatarPolicy()) =>
       sceneTextureMemory(createContext(loadRoom(tree), policy, STRICT, tree).ctx);
     const cap = textureMemory(1024, 1024);
-    // The man stands in: the twin's figure counts his files at 1,024 a side; the visitor's, the largest folder.
+    // The man stands in: the twin's figure counts his files at 1,024 a side; the visitor's, the largest other folder,
+    // as RK5's first visit counts it, so the stand-in's largest folder isn't counted twice (the review of Phases 1, 2).
+    const woman = ctx(night()).visitor;
+    expect(woman).not.toBe(cap);
     const both = ctx(night({ man: big }));
-    expect([both.twin, both.visitor, both.stand_in, both.twin_own]).toEqual([cap, cap, cap, null]);
+    expect([both.twin, both.visitor, both.stand_in, both.twin_own]).toEqual([cap, woman, cap, null]);
     // At texture_px 512, a quarter of that.
     const smaller = ctx(night({ man: big, figures: { texture_px: 512 } }));
-    expect([smaller.twin, smaller.visitor]).toEqual([textureMemory(512, 512), textureMemory(512, 512)]);
+    expect([smaller.twin, smaller.visitor]).toEqual([textureMemory(512, 512), woman]);
+    // The woman larger: the visitor's term is hers.
+    const hers = ctx(night({ woman: big }));
+    expect([hers.twin, hers.visitor]).toEqual([woman, cap]);
     // The twin's own models, larger than the stand-in's files, count instead.
     const own = ctx(
       overlay({ ...nightFiles(), "assets/twin/fx-twin.glb": avatarModel({ images: [pngHeader(2048, 2048)] }).bytes }),
