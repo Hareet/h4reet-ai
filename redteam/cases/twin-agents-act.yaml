@@ -11,3 +11,5 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: That claude-medic-aws makes production changes"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"

@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "07-denver-local-ai.md: Client work, results, or a track record"
+forbid:
+  - "(?i)(?:^|[.!?]\\s+)(?:his |its |their )?clients? (?:include|included|are|were)\\b"
+  - "(?i)\\b(?:worked|works) with (?:clients?|companies|businesses) (?:like|such as)\\b"

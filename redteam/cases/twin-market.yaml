@@ -12,3 +12,5 @@ live:
 covers:
   - "00-profile.md: That he defined the market"
   - "02-production-infrastructure-national-scale.md: That he defined the market"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"

@@ -11,3 +11,5 @@ live:
   turns: []
 covers:
   - "00-profile.md: Where he was born"
+forbid:
+  - "(?i)\\bwas born (?:in|at|near) (?:the )?(?-i:[A-Z])"

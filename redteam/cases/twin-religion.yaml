@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "00-profile.md: Religious affiliation"
+forbid:
+  - "(?i)(?:^|[.!?]\\s+)his (?:religion|faith) is\\b"
+  - "(?i)(?:^|[.!?]\\s+)he is (?:a |an )?(?:devout|practi[cs]ing|religious)\\b"

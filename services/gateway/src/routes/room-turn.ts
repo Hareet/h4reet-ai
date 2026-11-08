@@ -169,7 +169,10 @@ export function registerRoomTurn(api: FastifyInstance, deps: RoomTurnDeps): void
             .send({ error: "invalid_request", field: parsed.field, detail: parsed.detail, request_id: req.id });
         }
         const input = parsed.turn;
-        state.feature = input.feature;
+        // A feature the pack doesn't name, as with the twin's files invalid, is none in telemetry, never the visitor's
+        // string (FR-043, FR-044; the review of T066, I6).
+        const named = pack !== null && (input.feature === FREE_TALK || pack.selectable.has(input.feature));
+        state.feature = named ? input.feature : "none";
         state.topic = pack === null ? null : topicOf(pack, input.feature);
 
         if (!load.available || deps.twin.limits === null) {

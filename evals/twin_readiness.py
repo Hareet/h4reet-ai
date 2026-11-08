@@ -20,6 +20,7 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -82,10 +83,12 @@ def _check(
     name: str,
     entry: dict[str, Any],
     running: tuple[str | None, str],
-    files: list[str],
+    expected: Callable[[Any], str | None],
+    topic_of: Callable[[Any], str | None],
     golden: float,
 ) -> str:
-    """One ready entry's line."""
+    """One ready entry's line. `expected` gives a case's feature the running pack hash it binds: its topic's, or the
+    whole pack's for free talk, so each result is held to its own feature's hash (the review of T066, I3)."""
     pack_sha, prompt_sha = running
     if entry.get("pack_sha256") != pack_sha or entry.get("prompt_sha256") != prompt_sha:
         return f"{name}: hashes moved since it was marked ready, so it is closed until the Author re-runs and re-marks it"
@@ -105,24 +108,30 @@ def _check(
     ]
     if missing:
         return f"{name}: evidence missing: {', '.join(missing)}"
-    stems = [Path(f).stem for f in files]
     for rel in evidence:
         try:
             record = json.loads((root / rel).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return f"{name}: evidence missing: {rel} doesn't read"
-        results = [
-            r
-            for r in record.get("results", [])
-            if isinstance(r, dict)
-            and (not stems or any(f"twin-{s}-" in str(r.get("id")) for s in stems))
-        ]
-        if record.get("prompt_sha256") not in ([prompt_sha], None) or any(
-            r.get("pack_sha256") not in (pack_sha, None) for r in results
-        ):
+        every = [r for r in record.get("results", []) if isinstance(r, dict)]
+        # A red-team run binds every result; a product run, the entry's own: its topic's cases, or all for free talk.
+        results = (
+            every
+            if rel.startswith("redteam/") or name == "free_talk"
+            else [r for r in every if topic_of(r.get("feature")) == name]
+        )
+        if "prompt_sha256" not in record:
+            return f"{name}: evidence missing: {rel} records no prompt hash"
+        if record.get("prompt_sha256") != [prompt_sha]:
             return f"{name}: evidence names other hashes ({rel})"
+        for r in results:
+            if not isinstance(r.get("pack_sha256"), str) or "feature" not in r:
+                return f"{name}: evidence missing: {rel} records no pack hash or feature for {r.get('id')}"
+            if r["pack_sha256"] != expected(r["feature"]):
+                return f"{name}: evidence names other hashes ({rel})"
         if rel.startswith("redteam/"):
-            if record.get("failed", 1) != 0:
+            unclean = [r for r in every if str(r.get("verdict", "")).lower() != "pass"]
+            if record.get("failed", 1) != 0 or unclean:
                 return f"{name}: misses the thresholds: {rel} isn't clean"
             continue
         for path in ("engineer", "non-engineer"):
@@ -172,6 +181,20 @@ def report(root: Path) -> list[str]:
     prompt, lines = _read(root, PROMPT), _read(root, LINES)
     running_prompt = prompt_hash(prompt or "", lines or "")
     topics = {t.get("id"): t for t in pack.get("topics", []) if isinstance(t, dict)}
+    pieces = {
+        sel.get("id"): sel.get("topic")
+        for sel in pack.get("selectables", [])
+        if isinstance(sel, dict)
+    }
+
+    def expected(feature: Any) -> str | None:
+        if feature == "free_talk":
+            return pack.get("sha256")
+        return (topics.get(pieces.get(feature)) or {}).get("sha256")
+
+    def topic_of(feature: Any) -> str | None:
+        return "free_talk" if feature == "free_talk" else pieces.get(feature)
+
     golden = doc["thresholds"].get("golden", 0.9)
     golden = golden if isinstance(golden, int | float) else 0.9
     out = []
@@ -180,9 +203,8 @@ def report(root: Path) -> list[str]:
         pack_sha = (
             pack.get("sha256") if name == "free_talk" else (topic or {}).get("sha256")
         )
-        files = [] if name == "free_talk" else list((topic or {}).get("files", []))
         out.append(
-            f"{PREFIX} {_check(root, name, entry, (pack_sha, running_prompt), files, golden)}"
+            f"{PREFIX} {_check(root, name, entry, (pack_sha, running_prompt), expected, topic_of, golden)}"
         )
     return out
 

@@ -11,3 +11,5 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: The roadmap's dates"
+forbid:
+  - "(?i)\\bwill (?:ship|launch|be delivered|be released|be ready) (?:in|by) \\w+"

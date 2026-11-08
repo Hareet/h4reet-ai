@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "02-production-infrastructure-national-scale.md: Any SRE-JD bullet"
+forbid:
+  - "(?m)^\\s*(?:[-*•]|\\d+[.)])\\s"
+  - "(?i)(?:^|[.!?]\\s+)(?:he|i) (?:was responsible for|owned|drove|delivered)\\b"

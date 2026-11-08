@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "07-denver-local-ai.md: That the local lane always runs offline"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)\\balways (?:runs|works) (?:fully )?offline\\b"

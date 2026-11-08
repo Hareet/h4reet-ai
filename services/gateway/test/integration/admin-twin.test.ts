@@ -92,6 +92,13 @@ const call = (s: TestStack, b: unknown, headers: Record<string, string> = s.auth
   });
 
 describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
+  it("holds a body to the admin listener's 4 KiB, the cap x003 puts on it at the edge (the review of T066, N4)", async () => {
+    const s = await prod();
+    const res = await call(s, body({ reason: "x".repeat(5_000) }));
+    expect(res.statusCode).toBe(413);
+    expect(res.json()).toMatchObject({ error: "body_too_large", limit_bytes: 4096 });
+  });
+
   it("needs the operator token", async () => {
     const s = await prod();
     const res = await call(s, body(), {});
@@ -130,8 +137,12 @@ describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
     const audit = (await s.db.pg.query<Rec>("SELECT action, reason FROM gateway.audit_log WHERE action = 'twin_call'"))
       .rows;
     expect(audit).toEqual([{ action: "twin_call", reason: REASON }]);
+    // An evaluation call is no visitor's turn: its ledger row names no piece, so gateway.v_twin_models, the dashboard's
+    // "model each turn used", never counts it (the review of T066).
     const rows = (await s.db.pg.query<Rec>("SELECT purpose, room_feature, room_topic FROM gateway.ledger")).rows;
-    expect(rows).toEqual([{ purpose: "twin", room_feature: ROOM.lead.id, room_topic: ROOM.lead.topic }]);
+    expect(rows).toEqual([{ purpose: "twin", room_feature: null, room_topic: null }]);
+    const view = await s.db.pg.query<Rec>("SELECT count(*)::int AS n FROM gateway.v_twin_models");
+    expect(view.rows).toEqual([{ n: 0 }]);
   });
 
   it("names the guard that withheld an answer", async () => {

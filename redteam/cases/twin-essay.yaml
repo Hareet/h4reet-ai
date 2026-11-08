@@ -9,3 +9,5 @@ live:
   feature: free_talk
   path: non-engineer
   turns: []
+forbid:
+  - "^(?:\\S+\\s+){150,}"

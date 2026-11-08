@@ -37,6 +37,8 @@ export const GENERATED_BY = "npm run twin:pack -w apps/web";
 export const PROFILE_FILE = "corpus/00-profile.md";
 export const RULINGS_FILE = "corpus/01-ai-strategy-and-cht.md";
 export const PROMISE_FILE = "corpus/08-hareet-ai.md";
+/** A lead's process note: the tag legend ("**Tags.**", "Tags as defined in …") and the held-back list ("**Held back …**"). */
+const PROCESS_NOTE = /^(?:Tags as defined\b|\*\*Tags\.\*\*|\*\*Held back\b)/i;
 /** A section longer than this is split at its bullets (plan §4). */
 export const SECTION_MAX_CHARS = 2_000;
 
@@ -479,9 +481,11 @@ export function buildPack(reader: PackReader): PackBuild {
         labels,
       }),
     );
-    // The lead: the title's file's own lines, without its metadata line and without the rulings, which are rules.
+    // The lead: the title's file's own lines, without its metadata line, the rulings, which are rules, and its process
+    // notes (the tag legend, what is held back, where a source is kept), which the twin never recites (the review of
+    // T066, N5).
     const leadLines = rendered(
-      lead.filter((l) => !/^Priority:/.test(l.trim()) && l.trim() !== paragraph),
+      lead.filter((l) => !/^Priority:/.test(l.trim()) && l.trim() !== paragraph && !PROCESS_NOTE.test(l.trim())),
       facts,
     );
     if (leadLines.length > 0) pushSplit(sections, { stem, file, heading: title, kind: "lead", n: 0, lines: leadLines });
@@ -723,8 +727,18 @@ export function instructionsChars(prompt: string): number {
 export const FRAMING_CHARS = 400;
 export const PER_TURN_CHARS = 16;
 
-/** The fit check (plan §4, R-1): the rules, `00`, and each topic's files fit the input bound less the instructions, the
- *  framing, and a whole conversation, or the build fails naming the topic. */
+/** What the CLI fails on, and what it only reports (plan.md D20; the review of T066): a topic past the input bound is a
+ *  note, never a problem, since FR-008 drops its last sections in reverse file order, and counts them, at turn time. */
+export function packReport(
+  built: PackBuild,
+  limits: FitLimits,
+  instructions: number,
+): { problems: readonly string[]; notes: readonly string[] } {
+  return { problems: built.problems, notes: fitProblems(built.pack, limits, instructions) };
+}
+
+/** The fit check (plan §4, R-1; D20): the topics whose rules, `00`, and files pass the input bound less the instructions,
+ *  the framing, and a whole conversation, each named: a report, never a failure. */
 export function fitProblems(pack: TwinPack, limits: FitLimits, instructions: number): string[] {
   const conversation = limits.history_max_chars + limits.history_max_turns * PER_TURN_CHARS;
   const room = limits.max_input_chars - instructions - FRAMING_CHARS - conversation;
@@ -966,7 +980,10 @@ export function main(root: string = REPO_ROOT): number {
   const read = (path: string): string | null =>
     existsSync(join(root, path)) ? readFileSync(join(root, path), "utf8") : null;
   const limits = fitLimits(read(BUDGETS_PATH));
-  const problems = [...built.problems, ...fitProblems(pack, limits, instructionsChars(read(PROMPT_PATH) ?? ""))];
+  const { problems, notes } = packReport(built, limits, instructionsChars(read(PROMPT_PATH) ?? ""));
+  for (const n of notes) {
+    process.stderr.write(`twin:pack: note: ${n}; FR-008 drops its last sections, counted, at turn time\n`);
+  }
   if (problems.length > 0) {
     for (const p of problems) process.stderr.write(`twin:pack: ${p}\n`);
     return 1;

@@ -9,3 +9,6 @@ live:
   feature: free_talk
   path: non-engineer
   turns: []
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)\\b(?:i am|i['’]m) (?:a )?(?:real )?(?:human|person)\\b"

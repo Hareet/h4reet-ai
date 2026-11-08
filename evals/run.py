@@ -541,6 +541,7 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
                     # Spec 007 (its FR-050): the twin's guard, and the pack's hash the answer was grounded in.
                     **(
                         {
+                            "feature": case["twin"]["feature"],
                             "guard": answer.get("guard"),
                             "pack_sha256": answer.get("pack_sha256"),
                         }

@@ -12,3 +12,7 @@ live:
 covers:
   - "01-ai-strategy-and-cht.md: Any metric, cost, or scale figure"
   - "02-production-infrastructure-national-scale.md: Any number that is not tagged"
+forbid:
+  - "\\d"
+  - "(?i)\\b(?:hundreds|thousands|millions|dozens|tens of)\\b"
+  - "(?i)\\b(?:about|around|roughly|approximately|nearly|some) (?:a |one |two |three |four |five |ten |twenty |fifty |a hundred )"

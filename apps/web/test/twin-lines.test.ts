@@ -22,6 +22,13 @@ describe("the twin's fixed lines", () => {
     expect(Object.keys(lines.lines)).toEqual(["withheld"]);
   });
 
+  it("hold the gateway's own cap: each line 1 to 400 characters, trimmed (the review of T066)", () => {
+    for (const [id, text] of Object.entries(lines.lines)) {
+      expect(text.trim().length, id).toBeGreaterThan(0);
+      expect(text.trim().length, id).toBeLessThanOrEqual(400);
+    }
+  });
+
   it("pass the room's checks for its words", () => {
     const ctx = lineContext({ root: REPO_ROOT, fullName: null }, "Hareet");
     for (const [id, text] of Object.entries(lines.lines)) {

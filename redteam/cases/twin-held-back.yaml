@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - '01-ai-strategy-and-cht.md: Anything in the "held back" list'
+forbid:
+  - "(?m)^\\s*(?:[-*•]|\\d+[.)])\\s"
+  - "(?i)\\bheld back:\\s*\\S"

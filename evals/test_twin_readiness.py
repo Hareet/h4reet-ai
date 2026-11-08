@@ -42,6 +42,7 @@ def tree(tmp_path: Path) -> Path:
                 "sha256": h("topic"),
             }
         ],
+        "selectables": [{"id": "fx-bike", "topic": "hobbies-and-travel"}],
     }
     (tmp_path / "config" / "twin" / "corpus.json").write_text(
         json.dumps(pack), encoding="utf-8"
@@ -78,6 +79,7 @@ def history(
                 {
                     "id": f"twin-04-hobbies-and-travel-q{i + 1}-{path}",
                     "verdict": "PASS" if i < passed else "FAIL",
+                    "feature": "fx-bike",
                     "pack_sha256": pack,
                     "guard": None,
                 }
@@ -218,3 +220,71 @@ def test_the_repository_reports_without_failing(
 ) -> None:
     assert report.main(["--root", str(REPO)]) == 0
     assert "INFO (twin readiness)" in capsys.readouterr().out
+
+
+# The review of T066 (I3): a missing hash is missing evidence, each result is held to its own feature's hash (the
+# topic's, or the whole pack's for free talk), and a red-team run with an unjudged case isn't clean.
+def write_record(tree: Path, rel: str, record: dict) -> str:
+    path = tree / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record), encoding="utf-8")
+    return rel
+
+
+def test_a_missing_pack_or_prompt_hash_is_missing_evidence(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
+    record = json.loads((tree / files[0]).read_text(encoding="utf-8"))
+    for result in record["results"]:
+        result.pop("pack_sha256")
+    write_record(tree, files[0], record)
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    assert "evidence missing" in capsys.readouterr().out
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
+    record = json.loads((tree / files[2]).read_text(encoding="utf-8"))
+    record.pop("prompt_sha256")
+    write_record(tree, files[2], record)
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    assert "evidence missing" in capsys.readouterr().out
+
+
+def test_free_talk_holds_each_result_to_its_own_features_hash(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
+    for rel in files:
+        record = json.loads((tree / rel).read_text(encoding="utf-8"))
+        record["results"].append(
+            {
+                "id": "twin-02-gap-1-engineer",
+                "verdict": "PASS",
+                "feature": "free_talk",
+                "pack_sha256": h("whole"),
+            }
+        )
+        write_record(tree, rel, record)
+    readiness(
+        tree,
+        "{ ready: false }",
+        free_talk=ready_entry(h("whole"), prompt_sha(tree), files),
+    )
+    assert report.main(["--root", str(tree)]) == 0
+    assert (
+        "free_talk: ready, its evidence at the running hashes"
+        in capsys.readouterr().out
+    )
+
+
+def test_a_red_team_run_with_an_unjudged_case_isnt_clean(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
+    record = json.loads((tree / files[2]).read_text(encoding="utf-8"))
+    record["results"][0]["verdict"] = "unjudged"
+    write_record(tree, files[2], record)
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    assert "isn't clean" in capsys.readouterr().out

@@ -56,6 +56,11 @@ import { edgePeer, type ForwardedBy } from "./core/edge.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
 import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
 import { NO_TWIN, twinRuntime, type TwinRuntime } from "./twin/turn.js";
+import { FREE_TALK } from "./twin/pack.js";
+
+/** The room features a turn can be charged under: each selectable the pack names, and free talk (spec 007). */
+const roomFeaturesOf = (twin: TwinLoad): string[] =>
+  twin.available ? [...twin.files.pack.selectable.keys(), FREE_TALK].sort() : [];
 
 export const API_BODY_LIMIT = 16_384;
 export const ADMIN_BODY_LIMIT = 4_096;
@@ -257,6 +262,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     journalStatus: () => journal.status(),
     meter,
     realNow,
+    roomFeatures: roomFeaturesOf(opts.twin ?? NO_TWIN),
   });
   // A committed change to a meter or the state replaces the gauges' snapshot at once (telemetry.md §4.1).
   meter.onChange = () => void gateway.refreshGauges().catch(() => {});

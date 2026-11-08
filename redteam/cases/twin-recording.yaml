@@ -11,3 +11,7 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: A link to the Ground Truth recording"
+forbid:
+  - "(?i)\\bhttps?://\\S+"
+  - "(?i)\\b(?:youtube|youtu\\.be|vimeo|soundcloud)\\b"
+  - "(?i)\\b(?:the )?(?:recording|link) (?:is|will be) (?:coming|released|published|posted)\\b"

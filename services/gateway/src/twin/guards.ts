@@ -124,14 +124,15 @@ const SCALES: Record<string, number> = {
 const WORD = new RegExp(
   `\\b(?:(${Object.keys(TENS).join("|")})(?:-(${Object.keys(UNITS)
     .filter((u) => UNITS[u] !== undefined && (UNITS[u] ?? 0) < 10)
-    .join("|")}))?|(${Object.keys(UNITS).join("|")})|(${Object.keys(SCALES).join("|")}))\\b`,
+    .join("|")}))?|(${Object.keys(UNITS).join("|")})|(${Object.keys(SCALES).join("|")})(s?))\\b`,
   "gi",
 );
 const DIGITS = /\d[\d,]*(?:\.\d+)?/g;
 
 const canonicalNumber = (n: number): string => String(Number(n.toFixed(6)));
 
-/** Every number a text states, in digits or in words, as canonical strings. "one" and ordinal words aren't numbers here. */
+/** Every number a text states, in digits or in words, as canonical strings. "one" and ordinal words aren't numbers here;
+ *  a plural scale word ("millions", "dozens") is a number of its own, `~` and its scale (the review of T066, I2). */
 export function numbersIn(text: string): Set<string> {
   const out = new Set<string>();
   for (const m of text.matchAll(DIGITS)) {
@@ -139,19 +140,31 @@ export function numbersIn(text: string): Set<string> {
     if (Number.isFinite(value)) out.add(canonicalNumber(value));
   }
   for (const m of text.matchAll(WORD)) {
-    const [, tens, unit, alone, scale] = m;
+    const [, tens, unit, alone, scale, plural] = m;
     if (tens !== undefined)
       out.add(
         canonicalNumber((TENS[tens.toLowerCase()] ?? 0) + (unit === undefined ? 0 : (UNITS[unit.toLowerCase()] ?? 0))),
       );
     else if (alone !== undefined) out.add(canonicalNumber(UNITS[alone.toLowerCase()] ?? 0));
-    else if (scale !== undefined) out.add(canonicalNumber(SCALES[scale.toLowerCase()] ?? 0));
+    else if (scale !== undefined) {
+      const value = canonicalNumber(SCALES[scale.toLowerCase()] ?? 0);
+      out.add(plural?.toLowerCase() === "s" ? `~${value}` : value);
+    }
   }
   return out;
 }
 
+/** The grounding as G1 reads it: no claim tag (`[A 2026-10-28/29]`, `[A-BIO]`, `[slot]`), no ISO date, and no list's
+ *  numbering, which would give every topic dates and small numbers it never states (the review of T066, I2). */
+export function numbersSource(text: string): string {
+  return text
+    .replace(/`?\[[^\]\n]*\]`?/g, " ")
+    .replace(/\b\d{4}-\d{2}-\d{2}(?:\/\d{1,2})?\b/g, " ")
+    .replace(/^\s*\d+\.\s/gm, " ");
+}
+
 function numbersFail(answer: string, ctx: GuardContext): boolean {
-  const allowed = numbersIn(ctx.groundingText);
+  const allowed = numbersIn(numbersSource(ctx.groundingText));
   return [...numbersIn(answer)].some((n) => !allowed.has(n));
 }
 
@@ -231,7 +244,8 @@ function amountsFail(answer: string, ctx: GuardContext): boolean {
 // ---- G3 disclosure (FR-013) ----
 
 const HUMAN = /\b(?:i am|i['’ʼ]m) (?:a )?(?:real )?(?:human|person)\b|\bnot an ai\b/i;
-const AUTHOR = /\b(?:i am|i['’ʼ]m) (?:the author|hareet)\b|\bthis is hareet\b|\bhareet himself\b/i;
+const AUTHOR =
+  /\b(?:i am|i['’ʼ]m) (?:the author|hareet)\b|\bthis is hareet\b|\bhareet himself\b|\bmy name(?:['’ʼ]s| is) (?:hareet|the author)\b|\b(?:answering|writing to|talking to) you myself\b/i;
 const DISCLOSED = /\b(?:twin|ai)\b/i;
 
 function disclosureFails(answer: string): boolean {
@@ -345,22 +359,80 @@ function mentions(sentence: string, phrases: readonly string[]): Mention[] {
   return found.sort((a, b) => a.start - b.start);
 }
 
-/** A verb paired with the nearest ruled system after it, before the next verb, that its ruling doesn't give. */
+/** Authorship verbs off the corpus's list: beside a ruled system, as its verb or in the passive voice, they fail closed
+ *  (the review of T066, I1), so "authored", "developed", or "implemented" can't stand in for a verb a ruling withholds. */
+export const UNLISTED_ACTIVE = [
+  "wrote",
+  "writes",
+  "authored",
+  "authors",
+  "created",
+  "creates",
+  "developed",
+  "develops",
+  "invented",
+  "invents",
+  "founded",
+  "implemented",
+  "implements",
+  "coded",
+  "engineered",
+  "made",
+  "makes",
+  "coined",
+  "owned",
+  "owns",
+] as const;
+const UNLISTED_PASSIVE = [
+  "written",
+  "authored",
+  "created",
+  "developed",
+  "invented",
+  "founded",
+  "implemented",
+  "coded",
+  "engineered",
+  "made",
+  "coined",
+  "owned",
+];
+const LISTED_PASSIVE = OWNERSHIP_VERBS.filter((v) => !v.includes(" "));
+/** After a ruled system: "was <verb> by", an adverb allowed before the verb ("originally") and a word after it ("mainly"). */
+const PASSIVE = new RegExp(
+  `^\\s*,?\\s*(?:was|were|is|are|has been|have been|had been|been|being)\\s+(?:[a-z]+ly\\s+)?(${[
+    ...LISTED_PASSIVE,
+    ...UNLISTED_PASSIVE,
+  ]
+    .map(escapeRe)
+    .join("|")})(?![A-Za-z0-9-])(?:\\s+[a-z]+)?\\s+by\\b`,
+  "i",
+);
+
+/** A verb paired with the nearest ruled system after it, before the next verb, that its ruling doesn't give; an unlisted
+ *  authorship verb paired so; and a ruled system followed by "was <verb> by" with a verb of either kind. */
 function ownershipFails(answer: string, ctx: GuardContext): boolean {
   const rulings = new Map(
     ctx.rulings.map((r) => [r.system.toLowerCase(), new Set(r.verbs.map((v) => v.toLowerCase()))]),
   );
   const systems = ctx.rulings.map((r) => r.system);
+  const unlisted = new Set<string>([...UNLISTED_ACTIVE, ...UNLISTED_PASSIVE]);
+  const breaks = (system: string, verb: string): boolean => {
+    const allowed = rulings.get(system.toLowerCase());
+    if (allowed === undefined) return false;
+    return unlisted.has(verb.toLowerCase()) || !allowed.has(verb.toLowerCase());
+  };
   for (const sentence of sentencesOf(answer)) {
-    const verbs = mentions(sentence, OWNERSHIP_VERBS);
-    if (verbs.length === 0) continue;
     const named = mentions(sentence, systems);
+    for (const system of named) {
+      const passive = PASSIVE.exec(sentence.slice(system.end));
+      if (passive && breaks(system.value, passive[1] ?? "")) throw new OwnershipBreach();
+    }
+    const verbs = mentions(sentence, [...OWNERSHIP_VERBS, ...UNLISTED_ACTIVE]);
     verbs.forEach((verb, i) => {
       const next = verbs[i + 1]?.start ?? Infinity;
       const object = named.find((s) => s.start >= verb.end && s.start < next);
-      if (object === undefined) return;
-      const allowed = rulings.get(object.value.toLowerCase());
-      if (allowed !== undefined && !allowed.has(verb.value.toLowerCase())) throw new OwnershipBreach();
+      if (object !== undefined && breaks(object.value, verb.value)) throw new OwnershipBreach();
     });
   }
   return false;

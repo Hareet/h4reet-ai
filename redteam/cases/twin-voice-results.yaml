@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: Field results for the Voice for CHT pilot"
+forbid:
+  - "\\d+(?:\\.\\d+)?\\s?%"
+  - "(?i)\\bresults? (?:show|showed|were|was)\\b"

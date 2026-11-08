@@ -267,3 +267,10 @@ def test_the_turn_reaches_the_gateway_only_through_the_sites_location() -> None:
     # slashes, resolves dot segments, and decodes before it matches, so every such spelling lands in it.
     assert not [loc for loc in SITE.all("location") if loc.args[0] in ("~", "~*")]
     assert [d.args for d in HTTP.all("merge_slashes")] in ([], [["on"]])
+
+
+def test_the_sites_gateway_locations_send_no_client_label_of_the_visitors() -> None:
+    # The review of T066 (I5): the gateway keys a client by its address and X-H4-Client's label, so a visitor's own
+    # label would buy fresh per-client buckets and put the visitor's string on prod's ledger: x005 sends none.
+    for path in ("/api/room/turn", "/api/room/events"):
+        assert location("=", path).headers().get("x-h4-client") == "", path

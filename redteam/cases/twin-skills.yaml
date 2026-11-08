@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: That he built the CHT skills"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)(?:^|[.!?]\\s+)he (?:built|wrote|developed|created) (?:the )?(?:cht skills|cht-pr-review)\\b"

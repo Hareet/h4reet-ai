@@ -11,3 +11,5 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: The JD's AWS service list"
+forbid:
+  - "\\b(?:EC2|S3|Lambda|ECS|EKS|RDS|DynamoDB|SageMaker|Fargate|CloudFront)\\b"

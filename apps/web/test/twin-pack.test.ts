@@ -29,6 +29,7 @@ import {
   instructionsChars,
   movedFiles,
   packJson,
+  packReport,
   topicHashInput,
   wholeHashInput,
 } from "../build/twin-pack";
@@ -377,12 +378,20 @@ describe("the fit check (plan §4, R-1; departure D5)", () => {
     expect(tight.join("\n")).toContain("fx-hobbies");
   });
 
-  it("passes the repository's pack at config/budgets.yaml's limits, or FR-027's defaults, with the real instructions", () => {
-    const { pack } = buildPack(fsReader(REPO_ROOT));
+  it("reports a topic past the bound as a note, never a problem: FR-008 drops and counts its last sections (D20)", () => {
+    const built = buildPack(mapReader(FIXTURE));
+    const tight = { max_input_chars: 13_000, history_max_chars: 4_000, history_max_turns: 8 };
+    const report = packReport(built, tight, 5_000);
+    expect(report.problems).toEqual([]);
+    expect(report.notes.join("\n")).toContain("fx-hobbies");
+  });
+
+  it("reads the repository's limits, or FR-027's defaults, and reports its pack with the real instructions", () => {
+    const built = buildPack(fsReader(REPO_ROOT));
     const read = (path: string): string | null => fsReader(REPO_ROOT).read(path);
     const limits = fitLimits(read(BUDGETS_PATH));
     expect(limits.max_input_chars).toBeGreaterThanOrEqual(DEFAULT_TWIN_LIMITS.max_input_chars);
-    expect(fitProblems(pack, limits, instructionsChars(read(PROMPT_PATH) ?? ""))).toEqual([]);
+    expect(packReport(built, limits, instructionsChars(read(PROMPT_PATH) ?? "")).problems).toEqual([]);
     expect(fitLimits(null)).toEqual({ max_input_chars: 32_000, history_max_chars: 4_000, history_max_turns: 8 });
     expect(
       fitLimits("limits:\n  twin: { max_input_chars: 40000, history_max_chars: 4000, history_max_turns: 8 }\n")
@@ -598,6 +607,46 @@ describe("the gap product cases (T049; FR-049)", () => {
       expect(c.prompt.endsWith("?"), c.id).toBe(true);
       expect(regexOf(c).test(c.fake_response), c.id).toBe(true);
       expect(c.prompt).not.toMatch(/\{\{slot/);
+    }
+  });
+});
+
+// The review of T066 (N5): a topic file's lead holds process notes beside its content: the tag legend ("**Tags.**",
+// "Tags as defined in …"), and what is held back ("**Held back until cleared** …"). None enters the pack, so the twin
+// can't recite what is held back or where a source is kept; a lead's content still does.
+describe("the leads' process notes (T066: N5)", () => {
+  it("leaves the tag legend and the held-back list out of a lead, and keeps the lead's content", () => {
+    const files = {
+      ...FIXTURE,
+      "corpus/05-fx-notes.md": [
+        "# Notes",
+        "Priority: none",
+        "",
+        "Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from a source kept in `intake/private/`.",
+        "",
+        "**Tags.** `[A date]` his statement · `[?]` gap.",
+        "",
+        "**Held back until cleared** (see `README.md`): the fixture's partners and its amounts.",
+        "",
+        "- `[A]` He rides the fixture trail every winter.",
+        "",
+        "## Rides",
+        "",
+        "- `[A]` Every winter.",
+      ].join("\n"),
+    };
+    const { pack } = buildPack(mapReader(files));
+    const lead = pack.sections.filter((s) => s.file === "corpus/05-fx-notes.md" && s.kind === "lead");
+    expect(lead.map((s) => s.text)).toEqual(["- `[A]` He rides the fixture trail every winter."]);
+    const all = JSON.stringify(pack.sections);
+    for (const note of ["Held back until cleared", "intake/private", "Tags as defined", "**Tags.**"])
+      expect(all, note).not.toContain(note);
+  });
+
+  it("puts no process note of the committed corpus in the pack", () => {
+    const { pack } = buildPack(fsReader(REPO_ROOT));
+    for (const s of pack.sections) {
+      expect(s.text, s.id).not.toMatch(/Held back until cleared|intake\/private|^Tags as defined|\*\*Tags\.\*\*/m);
     }
   });
 });

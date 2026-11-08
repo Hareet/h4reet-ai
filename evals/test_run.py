@@ -416,6 +416,8 @@ def test_a_live_twin_case_goes_through_the_admin_twin_route_with_its_guard_and_h
     (result,) = record["results"]
     assert result["guard"] is None
     assert result["pack_sha256"] == "c" * 64
+    # The review of T066 (I3): each result names its feature, which readiness holds to its own pack hash.
+    assert result["feature"] == "bicycle"
     assert record["prompt_sha256"] == ["d" * 64]
     assert "Every winter, on the mountain." not in text
     out = capsys.readouterr().out

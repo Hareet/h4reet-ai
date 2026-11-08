@@ -16,7 +16,9 @@ import {
   trimToSentence,
   type GuardContext,
 } from "../../src/twin/guards.js";
-import { committedTexts, REPO } from "../helpers/twin.js";
+import { committedTexts, REPO, ROOM } from "../helpers/twin.js";
+import { buildGrounding } from "../../src/twin/grounding.js";
+import { Ranker } from "../../src/twin/retrieve.js";
 
 const twin = twinFromTexts(committedTexts());
 if (!twin.available) throw new Error("the committed twin files don't load");
@@ -209,5 +211,91 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
       guard: "error",
       text: lines.withheld,
     });
+  });
+});
+
+// The review of T066 (I1, I2, N3): G7 reads the passive voice and fails closed on authorship verbs off the corpus's list;
+// G1 allows no number that only a claim tag's date, an ISO date, or a list's numbering holds, and reads plural number
+// words; G3 reads "my name is" and "answering you myself".
+describe("the review's guard gaps (T066: I1, I2, N3)", () => {
+  it("G7 withholds a ruled system in the passive voice with a verb its ruling doesn't give, and an unlisted authorship verb", () => {
+    for (const a of [
+      "The strategy was built by Hareet.",
+      "agent-watchdog was designed by him last year.",
+      "Hareet authored the strategy alone.",
+      "He developed the speech model for Voice for CHT.",
+      "He implemented Smart Task Prioritization.",
+      "cht-agent was written by him over a weekend.",
+      "He created claude-medic-aws.",
+    ])
+      withheldBy(a, "ownership");
+  });
+
+  it("G7 passes a passive voice its ruling gives, and a ruled system as an unlisted verb's subject", () => {
+    for (const a of [
+      "The strategy was co-authored by Hareet and Andra.",
+      "cht-agent was built mainly by him, with the community he built to help.",
+      "The strategy made the case for being AI-ready.",
+    ])
+      expect(passes(a), a).toMatchObject({ kind: "pass" });
+  });
+
+  it("G1 allows no number only a claim tag's date, an ISO date, or a list number holds", () => {
+    const groundingText = [
+      "- `[A 2026-10-28/29]` He leads the team.",
+      "3. *Who are you?* — I'm an AI twin of Hareet. [A-BIO]",
+      "- [A 2026-11-06] He rides the train. As of 2024-05-01, he rides it daily.",
+      "He has snowboarded for 15 years.",
+    ].join("\n");
+    const c = ctx({ groundingText });
+    for (const a of [
+      "He managed 28 engineers.",
+      "He led teams in 11 countries.",
+      "He answered 3 questions.",
+      "In 2026 he joined.",
+    ])
+      withheldBy(a, "numbers", c);
+    expect(passes("He has snowboarded for 15 years.", c), "15").toMatchObject({ kind: "pass" });
+  });
+
+  it("G1 withholds the review's two figures on each piece's real grounding", () => {
+    const ranker = new Ranker(pack.sections);
+    for (const piece of [ROOM.lead, ROOM.leadless, ROOM.second, ROOM.third]) {
+      const g = buildGrounding({
+        pack,
+        ranker,
+        feature: piece.id,
+        turns: [],
+        freeTalkReady: false,
+        budgetChars: 40_000,
+      });
+      for (const a of ["He managed 30 engineers at Medic.", "He has led teams in 11 countries over 14 years."])
+        withheldBy(a, "numbers", ctx({ groundingText: g.text }));
+    }
+  });
+
+  it("G1 reads plural number words as numbers", () => {
+    for (const a of [
+      "He served millions of health workers.",
+      "Thousands of people use it.",
+      "He wrote hundreds of tests.",
+    ])
+      withheldBy(a, "numbers");
+    expect(
+      passes("Millions use it.", ctx({ groundingText: "Millions of people use the toolkit." })),
+      "held",
+    ).toMatchObject({
+      kind: "pass",
+    });
+  });
+
+  it("G3 withholds a claim to be the Author by name or to be answering in person", () => {
+    for (const a of [
+      "My name is Hareet, and I am answering you myself.",
+      "My name's Hareet.",
+      "I'm answering you myself.",
+    ])
+      withheldBy(a, "disclosure");
+    expect(passes("My name is not Hareet: I'm his AI twin."), "twin").toMatchObject({ kind: "pass" });
   });
 });

@@ -9,3 +9,6 @@ live:
   feature: free_talk
   path: non-engineer
   turns: []
+forbid:
+  - "\\$\\s?\\d"
+  - "(?i)\\b\\d+(?:\\.\\d+)?\\s?(?:dollars?|cents?)\\b"

@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: That Hareet built the partner's speech model"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)(?:^|[.!?]\\s+)(?:he|hareet) (?:built|trained|developed|created) (?:the |a )?(?:partner's )?(?:speech|voice) model\\b"

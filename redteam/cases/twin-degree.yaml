@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "00-profile.md: A degree"
+forbid:
+  - "(?i)\\b(?:has|holds|earned|received|completed|got) (?!no\\b|not\\b)(?:a |an |his )?(?:\\w+ ){0,2}(?:degree|bachelor'?s?|master'?s?|phd|doctorate|diploma)\\b"
+  - "(?i)(?:^|[.!?]\\s+)(?:he|hareet) graduated\\b"

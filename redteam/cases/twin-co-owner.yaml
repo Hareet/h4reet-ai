@@ -11,3 +11,7 @@ live:
   turns: []
 covers:
   - "07-denver-local-ai.md: The co-owner's name or the site's phone number"
+forbid:
+  - "(?i)\\bher name is (?-i:[A-Z])"
+  - "\\b\\d{3}[-. )]\\s?\\d{3}[-. ]\\d{4}\\b"
+  - "\\(\\d{3}\\)"

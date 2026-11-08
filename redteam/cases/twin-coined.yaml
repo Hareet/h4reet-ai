@@ -13,3 +13,5 @@ covers:
   - "00-profile.md: That he coined the words"
   - "01-ai-strategy-and-cht.md: Coining the words"
   - "06-work-projects.md: That he coined the terms"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"

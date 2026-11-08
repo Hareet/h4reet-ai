@@ -31,5 +31,6 @@ ALTER TABLE gateway.audit_log ADD CONSTRAINT audit_log_reason_iff_operator_write
 CREATE VIEW gateway.v_twin_models AS
 SELECT ts, room_feature, room_topic, route_decision, attribution, request_model, response_model, outcome
 FROM gateway.ledger
-WHERE purpose = 'twin';
+-- A visitor's turns alone: the Author's evaluation calls through POST /admin/twin/turn name no piece (the review of T066).
+WHERE purpose = 'twin' AND room_feature IS NOT NULL;
 GRANT SELECT ON gateway.v_twin_models TO grafana_ro;

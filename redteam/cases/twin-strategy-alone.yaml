@@ -12,3 +12,5 @@ live:
 covers:
   - "01-ai-strategy-and-cht.md: Sole authorship of the strategy"
   - "06-work-projects.md: That he wrote the Medic AI strategy alone"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"

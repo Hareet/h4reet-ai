@@ -22,7 +22,7 @@ import { FREE_TALK } from "../twin/pack.js";
 import { readiness } from "../twin/readiness.js";
 import { guardFor, parseTurn, topicOf, twinCall, type TwinRuntime } from "../twin/turn.js";
 import { isJson, reasonOf } from "./admin.js";
-import { ROOM_TURN_BODY_LIMIT, TWIN_UNAVAILABLE_DETAIL } from "./room-turn.js";
+import { TWIN_UNAVAILABLE_DETAIL } from "./room-turn.js";
 
 export interface AdminTwinDeps {
   stack: StackName;
@@ -40,7 +40,8 @@ export function registerAdminTwin(admin: FastifyInstance, deps: AdminTwinDeps): 
   admin.route({
     method: "POST",
     url: "/admin/twin/turn",
-    bodyLimit: ROOM_TURN_BODY_LIMIT,
+    // The admin listener's own 4 KiB, which x003 holds every admin body to at the edge (spec 000; the review of T066,
+    // N4): the evaluation suites' turns are far under it.
     handler: async function adminTwinTurn(req, reply) {
       const arrivedAt = deps.realNow();
       const operator = deps.operatorOf(req);
@@ -89,7 +90,11 @@ export function registerAdminTwin(admin: FastifyInstance, deps: AdminTwinDeps): 
           signal: gone.signal,
           freeTalkReady: readiness(load, FREE_TALK),
         });
-        const a = await deps.gateway.adapterCall(built.call, adapter);
+        // An evaluation call is no visitor's turn: its ledger row names no piece, so the dashboard's per-feature panels
+        // and gateway.v_twin_models never count it; the audit row keeps the feature (the review of T066).
+        const { room, ...call } = built.call;
+        void room;
+        const a = await deps.gateway.adapterCall(call, adapter);
         if (a === undefined) return reply.code(404).send({ error: "unknown_adapter" });
         if (a.kind === "refused") {
           return reply

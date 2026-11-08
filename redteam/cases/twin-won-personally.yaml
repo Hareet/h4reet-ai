@@ -12,3 +12,6 @@ live:
 covers:
   - "03-grants-and-credits.md: That Hareet won anything personally"
   - "05-mission.md: That he personally won"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)(?:^|[.!?]\\s+)(?:he|hareet) (?:personally )?won\\b"

@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "02-production-infrastructure-national-scale.md: A part in Uganda, Mali, or Zanzibar"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)(?:^|[.!?]\\s+)he led (?:the )?(?:national )?(?:deployments?|rollouts?) in (?:uganda|mali|zanzibar)"

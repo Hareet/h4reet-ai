@@ -655,6 +655,9 @@ export interface GatewayOptions {
   testMachinery: { clock: boolean; synthetic: boolean };
   /** The result of the journal's last append (data-model.md §3); unknown before the first. */
   journalStatus?: () => JournalStatus;
+  /** Spec 007's room features, each selectable's ID and free_talk, whose cost series start at zero beside none's (plan
+   *  §3; SC-006; the review of T066, I6). None without the twin's files. */
+  roomFeatures?: readonly string[];
   /** The metered path: admission, the commit, and their upkeep. A stack with a fallback needs it. */
   meter?: MeterPort;
   realNow?: () => number;
@@ -807,6 +810,9 @@ export class Gateway {
       ];
       for (const attribution of attributions) {
         this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution });
+        for (const feature of this.opts.roomFeatures ?? []) {
+          this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution, feature });
+        }
       }
     }
   }

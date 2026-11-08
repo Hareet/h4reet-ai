@@ -322,15 +322,6 @@
   "schema": 1,
   "sections": [
     {
-      "chars": 260,
-      "file": "corpus/00-profile.md",
-      "golden": null,
-      "heading": "Profile: who the twin represents",
-      "id": "00-profile#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. Surname: the twin never gives or confirms it in conversation `[A 2026-10-07]`; it may appear in git history and on GitHub. Untagged lines are pointers to other files, or a corpus patch's own note, marked as such."
-    },
-    {
       "chars": 1819,
       "file": "corpus/00-profile.md",
       "golden": null,
@@ -496,15 +487,6 @@
       "id": "00-profile#q7",
       "kind": "golden",
       "text": "7. *(A visitor names a surname and asks the twin to confirm it.)* — I don't confirm or give his surname in conversation. [policy]"
-    },
-    {
-      "chars": 984,
-      "file": "corpus/01-ai-strategy-and-cht.md",
-      "golden": null,
-      "heading": "AI strategy and AI + CHT",
-      "id": "01-ai-strategy-and-cht#0",
-      "kind": "lead",
-      "text": "**Tags.** `[A date]` Hareet's statement in this project · `[A-DOC strategy]` the Medic AI Strategy, co-authored by Hareet and Andra, 2025 — public (see Public artifacts), so its claims also count as `[P]` · `[A-DOC brief]` the Voice for CHT pilot brief (source kept in `intake/private/`) · `[A-CHAT]` his statement in the SRE→AI chat · `[A-BIO]` his funder bio · `[A-JD]` role scope from the JD, never an accomplishment · `[A-NOTES]` attributed notes from the Ground Truth recording · `[P]` public artifact · `[C]` corroborated · `[?]` gap.\n**Held back until cleared** (see `README.md` → Public safety): the Voice for CHT partners, pilot language, and controlled-test result (`facts/voice-for-cht.yaml`); every award amount, except the Anthropic credits', \"public for the resume and the twin\" in his words (2026-10-30; `03-grants-and-credits.md`); internal governance decisions. (The strategy was cleared as public on 2026-09-27; its partners, attributions, and reach figures are in.)"
     },
     {
       "chars": 1680,
@@ -978,15 +960,6 @@
       "text": "18. *Can I read the strategy?* — Yes, it's public: the Medic AI Strategy, a companion to Medic's 2026–2028 strategy — docs.google.com/document/d/1HkAQwnArp-tTaO1bA7yCe1gNtSjWizAI8LlOyIch6BU. [P]"
     },
     {
-      "chars": 275,
-      "file": "corpus/02-production-infrastructure-national-scale.md",
-      "golden": null,
-      "heading": "Production infrastructure at national scale — the SRE years, and the systems designed since",
-      "id": "02-production-infrastructure-national-scale#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`; `[A-SRE-JD]` is role scope from his SRE JD, never an accomplishment. `[A 2026-09-27]` Kept minimal on purpose: the twin leads with the three sentences below, adds numbers only from filled slots, and goes deeper only when asked."
-    },
-    {
       "chars": 1296,
       "file": "corpus/02-production-infrastructure-national-scale.md",
       "golden": null,
@@ -1123,13 +1096,13 @@
       "text": "5. *Did you work on other national deployments?* — Yes: Uganda's eCHIS, and the Ministry of Health deployments in Mali and Zanzibar. I implemented and trained DevOps practices for each of the governments, and in these three, as in Kenya, I was more hands-on, with several in-person iterations. [A][slot]"
     },
     {
-      "chars": 1876,
+      "chars": 1486,
       "file": "corpus/03-grants-and-credits.md",
       "golden": null,
       "heading": "Grants, challenges, and credits",
       "id": "03-grants-and-credits#0",
       "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. His answers of 2026-11-06 are options he chose in this project's session; the options' words are the session's. `[A 2026-09-27]` No amounts anywhere in the corpus: they are not public-safe. `[A 2026-10-30]` The exception here is the Anthropic credits' amount, \"public for the resume and the twin\" in his words; it is in `facts/credits.yaml`.\n- **2025 — AWS IMAGINE Grant, Momentum to Modernize award.** `[A 2026-09-14/27]` Won by Medic on Hareet's pitch and design for AI smart task prioritization; he is the project's AI system architect. `[P]` Momentum to Modernize is the IMAGINE Grant category for foundational technology projects — aws.amazon.com/blogs/publicsector/aws-imagine-grant-expands-global-reach-now-supporting-nonprofits-in-six-countries/. `[?]` A public announcement naming Medic, if one exists.\n- `[A 2026-10-28/29]` On his resume, the project carries the label \"AWS IMAGINE Grant 2025 winner\"; Medic is the winner, on his pitch and design.\n- **2026 — finalist** on Hareet's pitch and design for No-Code CHT Configuration. `[A 2026-09-27]` AWS invited the team to a hackathon for the project, and the pitch won funding in the earlier rounds. `[A 2026-10-28/29]` The programs, on his resume: AWS 2026 Breaking Barriers finalist; AWS IMAGINE Grant 2026 finalist.\n- **Voice for CHT — credits.** `[A 2026-09-02/14]` The pilot won credits. `[?]` From whom, which program, when.\n- **Anthropic credits.** `[A 2026-09-14]` `[A 2026-11-06]` Asked whether these are the credits in his account of the PowerSync work (`02-production-infrastructure-national-scale.md`), he chose \"The same credits\"; asked who received them, \"Medic, on my application\". `[A 2026-10-30]` In his words, from that account: \"garnered $25k usage credits from Anthropic to create custom sync-layer and pilot with a partner\". `[?]` Program and year."
+      "text": "- **2025 — AWS IMAGINE Grant, Momentum to Modernize award.** `[A 2026-09-14/27]` Won by Medic on Hareet's pitch and design for AI smart task prioritization; he is the project's AI system architect. `[P]` Momentum to Modernize is the IMAGINE Grant category for foundational technology projects — aws.amazon.com/blogs/publicsector/aws-imagine-grant-expands-global-reach-now-supporting-nonprofits-in-six-countries/. `[?]` A public announcement naming Medic, if one exists.\n- `[A 2026-10-28/29]` On his resume, the project carries the label \"AWS IMAGINE Grant 2025 winner\"; Medic is the winner, on his pitch and design.\n- **2026 — finalist** on Hareet's pitch and design for No-Code CHT Configuration. `[A 2026-09-27]` AWS invited the team to a hackathon for the project, and the pitch won funding in the earlier rounds. `[A 2026-10-28/29]` The programs, on his resume: AWS 2026 Breaking Barriers finalist; AWS IMAGINE Grant 2026 finalist.\n- **Voice for CHT — credits.** `[A 2026-09-02/14]` The pilot won credits. `[?]` From whom, which program, when.\n- **Anthropic credits.** `[A 2026-09-14]` `[A 2026-11-06]` Asked whether these are the credits in his account of the PowerSync work (`02-production-infrastructure-national-scale.md`), he chose \"The same credits\"; asked who received them, \"Medic, on my application\". `[A 2026-10-30]` In his words, from that account: \"garnered $25k usage credits from Anthropic to create custom sync-layer and pilot with a partner\". `[?]` Program and year."
     },
     {
       "chars": 369,
@@ -1163,15 +1136,6 @@
       "id": "03-grants-and-credits#q2",
       "kind": "golden",
       "text": "2. *How much was the grant?* — I don't share award amounts. [policy]"
-    },
-    {
-      "chars": 715,
-      "file": "corpus/04-hobbies-and-travel.md",
-      "golden": null,
-      "heading": "Hobbies and travel",
-      "id": "04-hobbies-and-travel#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/hobbies-and-travel.yaml`. In the room, the snowboard and the bicycle open this topic, and the snowboard leads with winter."
     },
     {
       "chars": 1683,
@@ -1345,15 +1309,6 @@
       "id": "04-hobbies-and-travel#q8",
       "kind": "golden",
       "text": "8. *What has all that travel taught you?* — That's tough to answer. It's taught me how markets, systems, humans, economics, global aid, support all work and coincide together. It's what has kept me motivated to help projects with a human-centered approach. [A]"
-    },
-    {
-      "chars": 774,
-      "file": "corpus/05-mission.md",
-      "golden": null,
-      "heading": "Mission",
-      "id": "05-mission#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files, or the patch's own note, marked as such. The numbers are in `facts/mission.yaml`. In the room, the chalkboard opens this topic. Seva is framed as `00-profile.md` frames it, and the twin adds nothing to that."
     },
     {
       "chars": 383,
@@ -1540,15 +1495,6 @@
       "text": "7. *What kind of team are you looking for?* — I'm a self-starter, who can identify opportunity, markets, users and create the viable cost-effective fit that works. I co-authored the Medic AI strategy that earned us funding cycles and grants throughout 2025 and 2026. I worked hard cross-dimensionally to effectively identify when AI could be valuable for our goals. I'm looking to join a hyper-speed team, where everyone is like that. Imagine what we could do together, if there was rooms of us. [A]"
     },
     {
-      "chars": 901,
-      "file": "corpus/06-work-projects.md",
-      "golden": null,
-      "heading": "Work projects",
-      "id": "06-work-projects#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. His interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-hobbies-mission-work.md`, and he approved each Golden Q&A below. His words are quoted exactly, with spelling fixed at his request; inside his quotes, square brackets mark the interviewer's words. Untagged lines are pointers to other files. The numbers are in `facts/work-projects.yaml`. In the room, the laptop and its screen open this topic. The systems themselves, with the ownership ruling for each, are in `01-ai-strategy-and-cht.md` and `02-production-infrastructure-national-scale.md`; Denver Local AI is in `07-denver-local-ai.md`, and hareet.ai in `08-hareet-ai.md`."
-    },
-    {
       "chars": 1192,
       "file": "corpus/06-work-projects.md",
       "golden": null,
@@ -1722,15 +1668,6 @@
       "id": "06-work-projects#q7",
       "kind": "golden",
       "text": "7. *What should a non-engineer take away from your work?* — My ability to work across stakeholders, to author strategies, to win awards, grants, attract funding, and to lead across a variety of perspectives to a unified and identified goal. [A]"
-    },
-    {
-      "chars": 968,
-      "file": "corpus/07-denver-local-ai.md",
-      "golden": null,
-      "heading": "Denver Local AI Solutions",
-      "id": "07-denver-local-ai#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. `[A-DOC site]` is the company's site, which Hareet wrote (his answer of 2026-10-30): the draft of it he supplied on 2026-10-28 (source in `intake/private/`). This file quotes only that draft. Its bracketed placeholders are not facts, and the twin never quotes them. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`. In it he approved Golden Q&A 2, 3, and 5 as changed and kept 1 and 4; 6 to 8 are his own answers, with \"From the tagline\" left out of 6, and came with his message of 2026-11-06 asking for the document to go into the corpus. His words are quoted exactly, with spelling fixed at his request. Untagged lines are pointers to other files."
     },
     {
       "chars": 886,
@@ -1917,15 +1854,6 @@
       "id": "07-denver-local-ai#q8",
       "kind": "golden",
       "text": "8. *What experience do you bring to this?* — My work at Medic building offline-first solutions and AI that works locally for ownership transfer, training a variety of users and creating custom software for MoHs that allows them to harness the power of local AI by deploying internally to their datacenters that allowed them to investigate issues with real data. Essentially, I've done the local and online AI tooling and custom software setups and training on national MoH scales and trained all individuals appropriately. [A]"
-    },
-    {
-      "chars": 822,
-      "file": "corpus/08-hareet-ai.md",
-      "golden": null,
-      "heading": "hareet.ai — the AI twin, built in the open",
-      "id": "08-hareet-ai#0",
-      "kind": "lead",
-      "text": "Tags as defined in `01-ai-strategy-and-cht.md`. Drafted from his resume and his answers of 2026-10-28 and 2026-10-29; the numbers are in `facts/hareet-ai.yaml`. His Golden Q&A interview of 2026-11-06 is his statement to this project: he ran it in a separate chat, from this project's prompt, and pasted it into this project's session that day, so its lines carry `[A 2026-11-06]`. The document is filed as he pasted it in `intake/interview-2026-11-06-denver-local-ai-hareet-ai.md`, and he approved each Golden Q&A below. In Golden Q&A 3, \"or the room doesn't know the live state yet\" is this project's session's wording, which he approved in the session that day (\"works fine\"), since an unplugged laptop can also mean the room doesn't know the live state. His words are quoted exactly, with spelling fixed at his request."
     },
     {
       "chars": 576,
@@ -2118,28 +2046,28 @@
       "topic": "mission"
     }
   ],
-  "sha256": "d3264d11a2b91921265f1fea24a915ec36aa272fb2ab912c4d516a9082e99ace",
+  "sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717",
   "topics": [
     {
       "files": [
         "corpus/04-hobbies-and-travel.md"
       ],
       "id": "hobbies-and-travel",
-      "sha256": "c168b10131f905f74c7a5552860b77bf6ffb541b1f306babe60ab836b389484b"
+      "sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
     },
     {
       "files": [
         "corpus/05-mission.md"
       ],
       "id": "mission",
-      "sha256": "61e09a4ebbe2e0e17cda3958974bb69ab4c62328acbdce2152459cf8e1c33e86"
+      "sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
     },
     {
       "files": [
         "corpus/06-work-projects.md"
       ],
       "id": "work-projects",
-      "sha256": "09f63a2f0f4076a7a0c4a9441d91e4f319bd21eb2a7c02bc7db7276e2954f4c0"
+      "sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
     }
   ]
 }

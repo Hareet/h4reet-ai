@@ -11,3 +11,6 @@ live:
   turns: []
 covers:
   - "01-ai-strategy-and-cht.md: That cht-agent was"
+forbid:
+  - "(?i)^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b"
+  - "(?i)\\b(?:was|is|got) (?!not\\b)(?:\\w+ )?(?:trained|fine-tuned) on\\b"

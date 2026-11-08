@@ -10,7 +10,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { isHealthProbe } from "../../src/telemetry/otel.js";
-import { ROOM, readinessText, twinWith } from "../helpers/twin.js";
+import { ROOM, committedTexts, readinessText, twinWith } from "../helpers/twin.js";
+import { twinFromTexts } from "../../src/config/twin.js";
 import { twinStack, type TwinStack } from "../helpers/twin-stack.js";
 
 const exporter = new tracing.InMemorySpanExporter();
@@ -126,5 +127,43 @@ describe("a turn's spans (FR-043)", () => {
       .getFinishedSpans()
       .find((s) => s.kind === SpanKind.SERVER && s.attributes["http.route"] === "/room/turn");
     expect(server?.attributes).toMatchObject({ "h4.outcome": "degraded", "h4.degraded.cause": "no_fallback_in_stack" });
+  });
+});
+
+// The review of T066 (I6): a feature the pack doesn't name, with the twin's files invalid, is "none" on the span and the
+// instruments (FR-043, FR-044), never the visitor's string; and every piece's and free talk's cost series starts at zero
+// beside none's (plan §3; SC-006), so the dashboard's first increase() counts the first paid turn.
+describe("the review's telemetry gaps (T066: I6)", () => {
+  const points = async (name: string) => {
+    const result = await reader.collect();
+    return result.resourceMetrics.scopeMetrics.flatMap((s) =>
+      s.metrics.filter((m) => m.descriptor.name === name).flatMap((m) => m.dataPoints.map((p) => p.attributes)),
+    );
+  };
+
+  it("names a feature the pack doesn't name none, on the span and the instruments, when the twin's files are invalid", async () => {
+    const t = await twinStack({
+      twin: twinFromTexts({ ...committedTexts(), pack: "{}" }),
+      metrics: new GatewayMetrics(meterProvider.getMeter("twin-none")),
+    });
+    stacks.push(t);
+    const res = await t.turn({ feature: "fx-not-a-piece", path: "engineer", turns: [] });
+    expect(res.statusCode).toBe(503);
+    const server = exporter
+      .getFinishedSpans()
+      .find((s) => s.kind === SpanKind.SERVER && s.attributes["http.route"] === "/room/turn");
+    expect(server?.attributes["h4.room.feature"]).toBe("none");
+    const turns = await points("h4.twin.turns");
+    expect(turns.length).toBeGreaterThan(0);
+    expect(JSON.stringify(turns)).not.toContain("fx-not-a-piece");
+  });
+
+  it("starts each piece's and free talk's cost series at zero beside none's, on a stack with a metered fallback", async () => {
+    const t = await twinStack({ fallback: true, metrics: new GatewayMetrics(meterProvider.getMeter("twin-seed")) });
+    stacks.push(t);
+    t.s.services.gateway.start();
+    const features = new Set((await points("h4.cost.usd")).map((a) => a["h4.room.feature"]));
+    for (const f of [ROOM.lead.id, ROOM.leadless.id, ROOM.second.id, ROOM.third.id, "free_talk", "none"])
+      expect(features.has(f), f).toBe(true);
   });
 });
