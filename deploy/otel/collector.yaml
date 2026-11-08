@@ -101,6 +101,7 @@ processors:
       - '-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----'
       - "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}"
       - '\b(?:AKIA|ASIA)[0-9A-Z]{16}\b'
+      - "sk-ant-[A-Za-z0-9_-]{20,}"
       - "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}"
       - "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}"
       - 'eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}'
@@ -117,6 +118,7 @@ processors:
           - 'replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -126,6 +128,7 @@ processors:
           - 'replace_pattern(status.message, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(status.message, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(status.message, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(status.message, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(status.message, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(status.message, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(status.message, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -138,6 +141,7 @@ processors:
           - 'replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -150,6 +154,7 @@ processors:
           - 'replace_pattern(body, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****") where IsString(body)'
           - 'replace_pattern(body, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****") where IsString(body)'
           - 'replace_pattern(body, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****") where IsString(body)'
+          - 'replace_pattern(body, "sk-ant-[A-Za-z0-9_-]{20,}", "****") where IsString(body)'
           - 'replace_pattern(body, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****") where IsString(body)'
           - 'replace_pattern(body, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****") where IsString(body)'
           - 'replace_pattern(body, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****") where IsString(body)'

@@ -364,7 +364,8 @@ export interface StoreOptions {
   realNow?: () => number;
 }
 
-export type MeterName = "day" | "month" | "fallback_day";
+/** The meters (data-model.md §2.3); adapter_month is spec 010's, keyed <adapter id>:<YYYY-MM>. */
+export type MeterName = "day" | "month" | "fallback_day" | "adapter_month";
 
 export interface MeterRow {
   meter: MeterName;
@@ -662,7 +663,10 @@ export class Store {
     }
   }
 
-  /** The current periods' meter rows (data-model.md §2.3); a period with no row yet has none here. */
+  /**
+   * The current periods' meter rows (data-model.md §2.3), each capped adapter's month among them (spec 010); a period
+   * with no row yet has none here.
+   */
   async readMeters(day: string, month: string): Promise<MeterRow[]> {
     const { rows } = await this.query<{
       meter: MeterName;
@@ -674,7 +678,8 @@ export class Store {
     }>(
       `SELECT meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no FROM gateway.meters
        WHERE (meter = 'day' AND period_key = $1) OR (meter = 'month' AND period_key = $2)
-          OR (meter = 'fallback_day' AND period_key = $1)`,
+          OR (meter = 'fallback_day' AND period_key = $1)
+          OR (meter = 'adapter_month' AND split_part(period_key, ':', 2) = $2)`,
       [day, month],
     );
     return rows.map((r) => ({

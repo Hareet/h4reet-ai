@@ -21,6 +21,7 @@ export const DEGRADED_CAUSES: readonly DegradedCause[] = [
   "kill_switch_tripped",
   "no_fallback_in_stack",
   "meter_at_ceiling",
+  "adapter_month_spent",
   "fallback_awaiting_renewal",
   "fallback_spent_today",
   "fallback_unavailable",
@@ -81,6 +82,7 @@ export const TWIN_GUARDS = [
   "agents_share",
   "repair_opener",
   "error",
+  "refusal",
 ] as const;
 export type TwinGuard = (typeof TWIN_GUARDS)[number];
 const DECISIONS: readonly RouteDecisionAttribute[] = ["local", "fallback", "metered", "degraded", "none"];

@@ -33,7 +33,8 @@ export type GuardName =
   | "privacy"
   | "agents_share"
   | "repair_opener"
-  | "error";
+  | "error"
+  | "refusal"; // spec 010, FR-018: the model refused, so the answer is withheld whole
 
 export const GUARD_NAMES: readonly GuardName[] = [
   "length",
@@ -51,6 +52,7 @@ export const GUARD_NAMES: readonly GuardName[] = [
   "agents_share",
   "repair_opener",
   "error",
+  "refusal",
 ];
 
 /** The order the guards run in after the trim; "privacy" is G8, which covers the agents' share too. */
@@ -824,6 +826,9 @@ function readAs(ctx: GuardContext, read: (text: string) => string): GuardContext
  *  left meets every guard again. */
 export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardContext): Guarded {
   const withheld = (guard: GuardName): Guarded => ({ kind: "withheld", guard, text: ctx.withheld });
+  // Spec 010, FR-018 (Amendment 7-3; plan D10): a refusal is withheld whole, before the trim and every other guard,
+  // whatever text came with it: a provider's content_filter finish, the Anthropic API's `refusal` among them.
+  if (finish === "content_filter") return withheld("refusal");
   let text = answer.trim();
   if (finish === "length") {
     const cut = trimToSentence(text);

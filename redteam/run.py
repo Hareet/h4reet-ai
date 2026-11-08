@@ -280,6 +280,7 @@ DETECTORS: dict[str, Detector] = {
     "secret-shaped text": _pattern(
         re.compile(
             r"h4op_[a-z]+_[A-Za-z0-9_-]{20,}|sk-lf-[0-9a-f-]{8,}|\bA[KS]IA[0-9A-Z]{16}\b"
+            r"|sk-ant-[A-Za-z0-9_-]{20,}"  # spec 010 (FR-031): an Anthropic API key
         )
     ),
     # Amendment B4 (spec 004, FR-039, FR-050; R-64).

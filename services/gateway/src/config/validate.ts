@@ -636,6 +636,9 @@ export interface BudgetEnv {
   readonly fallbackDailyMicro: bigint;
   /** warn_ratio in basis points: 0.70 is 7000. */
   readonly warnRatioBp: bigint;
+  /** adapter_monthly_usd (spec 010, FR-021): each capped paid adapter's monthly cap, by its routing.yaml ID; absent
+   *  when the file caps none. */
+  readonly adapterMonthly?: ReadonlyMap<string, bigint>;
 }
 
 export interface Budgets {
@@ -689,6 +692,8 @@ export interface Thresholds {
   readonly fallbackGrant: bigint;
   /** A grant's warning: its allowance − (fallback_daily − fallback_daily × warn_ratio). */
   fallbackWarn(allowanceMicro: bigint): bigint;
+  /** Each capped adapter's month (spec 010, FR-021): its cap, and the cap × warn_ratio, rounded down. */
+  readonly adapterCaps: ReadonlyMap<string, { readonly cap: bigint; readonly warn: bigint }>;
 }
 
 export function thresholds(env: BudgetEnv): Thresholds {
@@ -701,6 +706,7 @@ export function thresholds(env: BudgetEnv): Thresholds {
     monthWarn: warn(env.monthlyMicro),
     fallbackGrant: env.fallbackDailyMicro,
     fallbackWarn: (allowanceMicro) => allowanceMicro - gap,
+    adapterCaps: new Map([...(env.adapterMonthly ?? new Map<string, bigint>())].map(([id, cap]) => [id, { cap, warn: warn(cap) }])),
   };
 }
 
@@ -710,6 +716,8 @@ const BUDGET_ENV = z.strictObject({
   monthly_usd: MONEY,
   fallback_daily_usd: MONEY,
   warn_ratio: z.number(),
+  // Spec 010's Amendment 0-4: optional; its keys and bounds are rule B9, checked below and across the files.
+  adapter_monthly_usd: z.record(z.string(), z.unknown()).optional(),
 });
 const BUDGETS_TOP = z.strictObject({
   schema: z.literal(1),
@@ -740,6 +748,11 @@ const BUDGETS_TOP = z.strictObject({
       .optional(),
   }),
 });
+
+/** Two envs' adapter caps, the same adapters at the same caps (B8 holds them too). */
+function sameCaps(a: ReadonlyMap<string, bigint> = new Map(), b: ReadonlyMap<string, bigint> = new Map()): boolean {
+  return a.size === b.size && [...a].every(([id, cap]) => b.get(id) === cap);
+}
 
 export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: ConfigIssue[] } {
   if (parsed.issues.length > 0) return { issues: parsed.issues };
@@ -781,8 +794,34 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
     if (!ratio.ok || ratio.scaled <= 0n || ratio.scaled >= 10_000n) {
       out.error(ratioPath, "B4", "must be more than 0 and less than 1, with at most 4 decimal places");
     }
+    // B9 (spec 010, FR-021): each cap more than 0 and at most monthly_usd, to the micro-dollar; its keys an adapter
+    // ID's shape here, and a paid adapter of routing.yaml's across the files (validateConfigFiles).
+    const adapterMonthly = new Map<string, bigint>();
+    for (const [id, value] of Object.entries(raw.adapter_monthly_usd ?? {})) {
+      const path = `${at}.adapter_monthly_usd.${id}`;
+      if (!/^[a-z][a-z0-9-]{0,31}$/.test(id)) {
+        out.error(path, "B9", "must be a paid adapter's ID in config/routing.yaml");
+        continue;
+      }
+      const a = amount(out, value, parsed.numberSources, path, "B9", {
+        placeholders: false,
+        message: "must be a USD amount more than 0 and at most monthly_usd, with at most 6 decimal places",
+      });
+      if (a.kind !== "micro") continue;
+      if (a.micro === 0n || (monthly !== undefined && a.micro > monthly)) {
+        out.error(path, "B9", "must be more than 0 and at most monthly_usd; the cap counts inside the monthly ceiling");
+        continue;
+      }
+      adapterMonthly.set(id, a.micro);
+    }
     if (daily !== undefined && monthly !== undefined && fallback !== undefined && ratio.ok) {
-      envs[env] = { dailyMicro: daily, monthlyMicro: monthly, fallbackDailyMicro: fallback, warnRatioBp: ratio.scaled };
+      envs[env] = {
+        dailyMicro: daily,
+        monthlyMicro: monthly,
+        fallbackDailyMicro: fallback,
+        warnRatioBp: ratio.scaled,
+        ...(adapterMonthly.size === 0 ? {} : { adapterMonthly }),
+      };
     }
   }
   const { prod, dev } = envs;
@@ -792,7 +831,8 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
     (prod.dailyMicro !== dev.dailyMicro ||
       prod.monthlyMicro !== dev.monthlyMicro ||
       prod.fallbackDailyMicro !== dev.fallbackDailyMicro ||
-      prod.warnRatioBp !== dev.warnRatioBp)
+      prod.warnRatioBp !== dev.warnRatioBp ||
+      !sameCaps(prod.adapterMonthly, dev.adapterMonthly))
   ) {
     out.error("envs.dev", "B8", "must equal envs.prod", "FR-031");
   }
@@ -997,6 +1037,22 @@ export function validateConfigFiles(
     });
   }
 
+  // B9 across the files (spec 010, FR-021): each adapter_monthly_usd key names a paid adapter in routing.yaml.
+  if (set.routing && set.budgets) {
+    for (const env of ENV_CLASSES) {
+      for (const id of set.budgets.envs[env].adapterMonthly?.keys() ?? []) {
+        if (set.routing.adapters.get(id)?.kind === "paid") continue;
+        set.issues.push({
+          severity: "error",
+          file: "config/budgets.yaml",
+          path: `envs.${env}.adapter_monthly_usd.${id}`,
+          rule: "B9",
+          message: `names "${id}", which isn't a paid adapter in config/routing.yaml`,
+        });
+      }
+    }
+  }
+
   // P7: a paid model is never free, in any version.
   if (set.routing && set.prices) {
     for (const adapter of set.routing.adapters.values()) {
@@ -1071,7 +1127,7 @@ export function routeFor(routing: RoutingConfig, env: EnvClass): AdapterConfig[]
  * environment on its own; this checks what the files mean for it.
  */
 export function checkStartup(
-  config: { routing: RoutingConfig; prices: PriceTable },
+  config: { routing: RoutingConfig; prices: PriceTable; budgets?: Budgets },
   env: Env,
   nowMs: number,
 ): StartupRefusal[] {
@@ -1103,6 +1159,18 @@ export function checkStartup(
       });
     }
     for (const r of adapter.spec.checkEnv(adapter.settings, env)) refusals.push({ ...r });
+    // Spec 010 (FR-021): the Anthropic API is routed only with its monthly cap in budgets.yaml.
+    if (
+      adapter.type === "anthropic-messages" &&
+      config.budgets !== undefined &&
+      config.budgets.envs[envClass].adapterMonthly?.has(adapter.id) !== true
+    ) {
+      refusals.push({
+        reason: "adapter_cap_missing",
+        path: `config/budgets.yaml: envs.${envClass}.adapter_monthly_usd.${adapter.id}`,
+        message: `the ${envClass} route names "${adapter.id}", the Anthropic API, and budgets.yaml caps no month for it (spec 010, FR-021)`,
+      });
+    }
   }
 
   const active = config.prices.active(nowMs);
@@ -1154,5 +1222,5 @@ export function startupRefusals(set: ConfigSet, env: Env, nowMs: number): Startu
   if (!set.routing || !set.prices || !set.budgets || !set.alerts) {
     return [{ reason: "invalid_config", message: "the configuration is incomplete" }];
   }
-  return checkStartup({ routing: set.routing, prices: set.prices }, env, nowMs);
+  return checkStartup({ routing: set.routing, prices: set.prices, budgets: set.budgets }, env, nowMs);
 }

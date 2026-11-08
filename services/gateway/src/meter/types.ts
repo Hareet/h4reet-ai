@@ -63,6 +63,8 @@ export interface Admitted {
   purpose: CallPurpose;
   routeReason: RouteReason | null;
   routingSha: string;
+  /** Whether the call reserved against its adapter's month, which then releases and charges it (spec 010, B7). */
+  adapterMonth?: boolean;
   /** A twin call's room feature and topic (spec 007, FR-026). */
   room?: RoomCall;
 }

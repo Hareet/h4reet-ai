@@ -201,9 +201,9 @@ describe("the anthropic-messages type (FR-004, FR-005)", () => {
 
 describe("the adapter's monthly cap in budgets.yaml (FR-021, B8, B9)", () => {
   it("is optional, and parses as micro-USD per adapter", () => {
-    expect(budgetsValue(budgetsText()).envs.prod.adapterMonthly.size).toBe(0);
+    expect(budgetsValue(budgetsText()).envs.prod.adapterMonthly).toBeUndefined();
     const b = budgetsValue(budgetsText("{ anthropic: 10.00 }"));
-    expect(b.envs.prod.adapterMonthly.get("anthropic")).toBe(10_000_000n);
+    expect(b.envs.prod.adapterMonthly?.get("anthropic")).toBe(10_000_000n);
   });
 
   it("takes a cap more than 0 and at most monthly_usd, to the micro-dollar (B9)", () => {
