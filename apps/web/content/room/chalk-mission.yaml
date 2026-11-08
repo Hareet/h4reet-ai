@@ -1,0 +1,35 @@
+# The chalkboard's mission statements (spec 004; FR-030, FR-033, FR-035; T189): a draft. A drafts build publishes it
+# marked "Draft"; a release build publishes it only once the Author approves its SHA-256 on main with the kind room-text,
+# after P-9. Each drawn line is the corpus's own words, a span of the sentence its claim quotes; the quote is the longer
+# span, so the claim stays out of what the site publishes. The pending line is a placeholder for the Author: it is never
+# drawn or published, and waits for a mission statement in the Author's own words. No line names Seva or quotes the
+# corpus's framing of it (answer 3: "leave it off the chalkboard"); `exclude` holds the framing's phrases, so RT7
+# refuses a line that does. It is bound to no face: the slate holds chalk-denverlocal's one line alone (FR-082; plan.md
+# §10, "The chalkboard's slate stays unbound, but for T308's one line").
+version: 1
+block: chalk-mission
+renderer: chalk
+exclude: [Seva, selfless service, service to humanity, cultural tradition]
+lines:
+  - text: AI for good
+    about_author: true
+    claims:
+      - file: corpus/00-profile.md
+        quote: "AI for good: human-centered, shaped by the guidance of community health workers"
+  - text: human-centered
+    about_author: true
+    claims:
+      - file: corpus/00-profile.md
+        quote: "AI for good: human-centered, shaped by the guidance of community health workers"
+  - text: shaped by the guidance of community health workers
+    about_author: true
+    claims:
+      - file: corpus/00-profile.md
+        quote: "AI for good: human-centered, shaped by the guidance of community health workers"
+  - text: supporting and empowering everyone who cares
+    about_author: true
+    claims:
+      - file: corpus/00-profile.md
+        quote: "he believes it is an all-hands-on-deck effort — supporting and empowering everyone who cares, to move the needle"
+  - text: "PLACEHOLDER for the Author: a mission statement in the Author's own words, once the corpus holds it"
+    pending: true

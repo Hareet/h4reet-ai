@@ -69,7 +69,7 @@ On the desk, from its front-left corner:
 On the shell, at its anchors:
 
 - [ ] Desk: on the anchor `back-wall`, offset x 0, y 0, z 0.4 (estimated)
-- [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8696 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
+- [ ] Chalkboard: on the anchor `left-wall`, its origin (the centre of the board's back, against the wall) 0.8972 from the back wall and 1.65 above the floor, 0 out from the wall (estimated)
 - [ ] Snowboard: on the anchor `left-wall`, its origin (the centre of the board, midway along its length and across its width, in the middle of its thickness) 0.2096 from the back wall and 0.775 above the floor, 0.035 out from the wall (estimated)
 - [ ] Bicycle: on the anchor `right-wall`, its origin (midway between the two wheels' hubs) 0.8317 from the back wall and 1.49 above the floor, 0.09 out from the wall (estimated)
 - [ ] Window: on the anchor `back-wall`, offset x 0, y 1.45, z 0 (estimated)

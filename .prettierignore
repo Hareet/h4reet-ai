@@ -17,6 +17,9 @@ config/alerts.yaml
 # Human-only policy files, kept as the Author writes them: spec 002's content approvals and PDF header, and spec
 # 003's asset policy beside them.
 assets/policy/
+# The desk signs' outline files (spec 004, FR-032; R-06): their approved SHA-256 is of their bytes as they arrived, so
+# reformatting one would make it a draft again.
+apps/web/content/room/outlines/
 docs/
 intent/
 specs/

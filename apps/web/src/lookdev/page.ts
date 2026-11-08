@@ -49,7 +49,7 @@ import {
 import type { Candidate } from "./candidate";
 import { actionButton, filePicker, radioGroup, selectControl, toggleButton } from "./controls";
 import type { Control } from "./controls";
-import { RUN_SECONDS, startRun } from "./metrics";
+import { RUN_SECONDS, smallestCap, startRun } from "./metrics";
 import type { Run, RunReadouts, RunSeconds } from "./metrics";
 import { results, resultsJson, resultsText } from "./results";
 import type { Probe, QualityChoice, SceneChoice, ViewChoice } from "./results";
@@ -401,6 +401,15 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     readoutList,
   );
   let measured: RunReadouts | null = null;
+  /** The bound faces' smallest cap height at the current view, rounded down as the results round cap heights, and its
+   *  face's label (T192; metrics.ts's smallestCap). */
+  function capReadout(): string {
+    const { part, index } = deps.inputs;
+    const cap = smallestCap(part, index, stage.framing, stage.stage, deps.inputs.text ?? null);
+    return cap === null
+      ? "no bound face is measured here"
+      : `${(Math.floor(cap.px * 10) / 10).toFixed(1)} px, ${cap.label}`;
+  }
   function showReadouts(): void {
     const closeUp = stage.view === "close-up";
     readoutHeading.textContent = closeUp ? "Readouts, close-up: they judge nothing" : "Readouts";
@@ -433,7 +442,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
         "Texture memory",
         `${count(measured?.textureBytes ?? stage.textureBytes)} of ${count(part.scene_texture_bytes)} bytes`,
       ],
-      ["Smallest cap height", "none yet: the faces are drawn with User Story 5"],
+      ["Smallest cap height", capReadout()],
     ];
     readoutList.replaceChildren(...rows.flatMap(([term, value]) => [h(doc, "dt", {}, term), h(doc, "dd", {}, value)]));
   }

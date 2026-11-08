@@ -11,7 +11,10 @@
 // - No WebGL 2: the 2D room, with the same pieces, states, and words (scenario 5).
 // - Reduced motion switched on mid-visit, in 3D and 2D.
 // - Pause and hide while an answer is in flight: paused wins, and the room comes back on resume and show.
-// Later stories add their faults here: room text and typefaces (T182), the turn-cost channel's (T244).
+// - Room text failing to load (and its retry), or withheld, and a typeface that never arrives (spec 004, T182; FR-061):
+//   the faces bound to room text stay plain with their text-copy entries left out, the faces drawn from UI words are
+//   drawn with the fallback typeface after 2 seconds, and the text copy equals the 2D drawing face by face.
+// Later stories add their faults here: the turn-cost channel's (T244).
 import { Object3D } from "three";
 import type { Scene } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +24,9 @@ import type { ComposeResult } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex, RoomScene } from "../../src/room/compose/bundle";
 import { TIER_VALUES } from "../../src/room/compose/vocabulary";
+import { TYPEFACE_WAIT_MS } from "../../src/room/faces/fonts";
+import { ROOM_TEXT_RETRY_MS, faceWords, roomTextOf } from "../../src/room/faces/words";
+import type { RoomText } from "../../src/room/faces/words";
 import type { TierValue } from "../../src/room/compose/vocabulary";
 import { MODEL_NODE } from "../../src/room/scene/loader";
 import { caseFor } from "../../src/room/signals/tier";
@@ -67,8 +73,17 @@ vi.mock("three", async (importOriginal) => {
   return { ...three, WebGLRenderer };
 });
 
-/** The 2D stages the room draws, the latest last, so a case is read by its pose's name from the drawing's switches. */
-const flats = vi.hoisted(() => [] as { drawing: { switches: ReadonlyMap<string, ReadonlyMap<string, Element>> } }[]);
+/** The 2D stages the room draws, the latest last, so a case is read by its pose's name from the drawing's switches,
+ *  and a face's words from the drawing's faces. */
+const flats = vi.hoisted(
+  () =>
+    [] as {
+      drawing: {
+        switches: ReadonlyMap<string, ReadonlyMap<string, Element>>;
+        faces: ReadonlyMap<string, Element>;
+      };
+    }[],
+);
 
 vi.mock("../../src/room/flat", async (importOriginal) => {
   const flat = await importOriginal<typeof import("../../src/room/flat")>();
@@ -442,4 +457,109 @@ describe("a piece's model failing to load (scenario 4)", () => {
       expect(v.room.visit.mode).toBe("3d");
     },
   );
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// Room text and typefaces (T182; FR-061)
+// --------------------------------------------------------------------------------------------------------------------
+describe("room text failing to load or withheld, and a typeface that never arrives (FR-061)", () => {
+  let drafted: ComposeResult | null = null;
+  /** The fixture set as a drafts build composes it, so its room text is published, as drafts. */
+  const drafts = (): ComposeResult => (drafted ??= compose(goodTree(), noPolicy(), { mode: "strict", drafts: true }));
+
+  /** "Around the room"'s face entries, by face: its label, then its words; null where it's left out. */
+  function faceEntries(v: Visit, index: RoomIndex): Map<string, string | null> {
+    const lines = [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
+    return new Map(
+      index.faces.map((f) => [f.id, lines.find((l) => l.startsWith(`${index.ui[f.label] ?? "?"}:`)) ?? null]),
+    );
+  }
+
+  /** The 2D drawing's words for a face, in its order, its tube's glow pass left out, a group of paths read as the
+   *  words of the outline whose paths they are; and the families it draws its text in. */
+  function drawn(v: Visit, face: string, text: RoomText | null): { words: string[]; families: string[] } {
+    const group = flats.at(-1)?.drawing.faces.get(face);
+    if (!group || !v.doc.querySelector(".flat svg")?.contains(group)) return { words: [], families: [] };
+    const words: string[] = [];
+    const families = new Set<string>();
+    for (const el of group.querySelectorAll("text, g")) {
+      if (el.localName === "text") {
+        if (el.hasAttribute("opacity")) continue;
+        words.push(el.textContent ?? "");
+        families.add(el.getAttribute("font-family") ?? "");
+        continue;
+      }
+      const paths = [...el.children].filter((c) => c.localName === "path").map((p) => p.getAttribute("d"));
+      if (paths.length === 0) continue;
+      const outline = [...(text?.blocks.values() ?? [])].find(
+        (b) => JSON.stringify(b.outline?.paths ?? null) === JSON.stringify(paths),
+      );
+      words.push(outline?.lines[0] ?? "(paths of no outline)");
+    }
+    return { words, families: [...families] };
+  }
+
+  /** The text copy equals the 2D drawing, face by face: an entry left out is a face drawn plain. */
+  function expectCopyIsDrawing(v: Visit, index: RoomIndex, text: RoomText | null, what: string): void {
+    const entries = faceEntries(v, index);
+    for (const face of index.faces) {
+      const words = faceWords(face, { index, text });
+      const label = index.ui[face.label] ?? "?";
+      expect(entries.get(face.id), `${what}: ${face.id}`).toBe(words === null ? null : `${label}: ${words.join(" ")}`);
+      const badge = index.ui["draft.badge"];
+      expect(
+        drawn(v, face.id, text).words.map((w) => (w === badge ? `[${w}]` : w)),
+        `${what}: ${face.id} drawn`,
+      ).toEqual(words ?? []);
+    }
+  }
+
+  const textBound = (index: RoomIndex): string[] =>
+    index.faces.filter((f) => f.regions.some((r) => "room_text" in r.source)).map((f) => f.id);
+
+  for (const webgl of [true, false]) {
+    const mode = webgl ? "3D" : "2D";
+
+    it(`keeps the faces plain when room-data.json fails to load, and again on its retry, and ends usable, in ${mode}`, async () => {
+      const { index } = drafts();
+      const v = start({ webgl, room: index, roomData: [null] });
+      await intoRoom(v);
+      v.clock.advance(ROOM_TEXT_RETRY_MS);
+      await flush();
+      expect(v.roomDataLoads()).toBe(2);
+      const entries = faceEntries(v, index);
+      expect(textBound(index).length).toBeGreaterThan(0);
+      for (const id of textBound(index)) expect(entries.get(id), id).toBeNull();
+      await expectUsable(v, index, `room text failed, ${mode}`);
+      if (!webgl) expectCopyIsDrawing(v, index, null, "failed");
+    });
+
+    it(`keeps the faces plain when the room text is withheld, a release build's drafts, and ends usable, in ${mode}`, async () => {
+      const { index } = fixture();
+      const v = start({ webgl, room: index, roomData: [{ room_text: { blocks: [] } }] });
+      await intoRoom(v);
+      const entries = faceEntries(v, index);
+      for (const id of textBound(index)) expect(entries.get(id), id).toBeNull();
+      expect(v.roomDataLoads()).toBe(1);
+      await expectUsable(v, index, `withheld, ${mode}`);
+      if (!webgl) expectCopyIsDrawing(v, index, roomTextOf({ room_text: { blocks: [] } }), "withheld");
+    });
+  }
+
+  it("draws in the fallback typeface when the typeface never arrives, its text copy equal to the drawing", async () => {
+    const { index, roomText } = drafts();
+    const data = { room_text: roomText };
+    // jsdom has no document.fonts: every typeface counts as late, and never arrives.
+    const v = start({ webgl: false, room: index, roomData: [data] });
+    await intoRoom(v);
+    v.clock.advance(TYPEFACE_WAIT_MS);
+    await flush();
+    for (const face of index.faces) {
+      const { families } = drawn(v, face.id, roomTextOf(data));
+      const fallbacks = new Set(index.typefaces.map((t) => t.fallback));
+      for (const family of families) expect(fallbacks.has(family), `${face.id}: ${family}`).toBe(true);
+    }
+    expectCopyIsDrawing(v, index, roomTextOf(data), "late typeface");
+    await expectUsable(v, index, "late typeface");
+  });
 });

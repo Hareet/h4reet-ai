@@ -204,7 +204,7 @@ interface RoomScene {
 ### 3.3 Drafts only: fixtures and the lookdev inputs
 
 - **`virtual:room-fixtures`** exports the fixtures of room-data-files.md §11, typed by the signals.
-- **`virtual:room-lookdev`** exports `lookdev.yaml`'s two lists (`vignette.show` and `close_up.frame`), every look in `apps/web/room/looks/`, and each piece's fit inputs (its expected bounds and live faces at the stylized scale, its budget, whether it's a small prop, and the caps the compose read), the values the compositor judges the repository's models against ([lookdev.md](lookdev.md), [plain-model-fit.md](plain-model-fit.md)).
+- **`virtual:room-lookdev`** exports `lookdev.yaml`'s two lists (`vignette.show` and `close_up.frame`), every look in `apps/web/room/looks/`, and each piece's fit inputs (its expected bounds and live faces at the stylized scale, its budget, whether it's a small prop, and the caps the compose read), the values the compositor judges the repository's models against ([lookdev.md](lookdev.md), [plain-model-fit.md](plain-model-fit.md)). It also exports the index as `room`, the page's own copy, and the drafts build's `room_text` (§5) as `text`, so the page, and the phone copy that makes no request, draw the faces' words (T192; plan.md §10).
 
 In a release build, the plugin's `resolveId` throws `fixtures and lookdev are drafts-only (FR-066)` for either, so an import that reaches them fails the build rather than shipping them (FR-066; Amendments A5, B11).
 

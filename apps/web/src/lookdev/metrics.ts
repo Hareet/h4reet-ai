@@ -11,7 +11,18 @@
 // from running counts and a fixed histogram of the intervals in 0.1-ms steps, each read at its step's top, so a live
 // figure is within 0.1 ms of the exact one and never reads better; the exact percentiles are taken once, at the end
 // (the review's page-9).
+// The smallest-glyph readout (spec 004, T192; FR-052, FR-067): each bound face's smallest cap height at the current
+// view, as RG7 and the compositor's report measure it (compose/legibility.ts), at the camera the view is framed with
+// and its stage, the faces marked atmosphere aside, whose words the text copy carries; the smallest of them, with its
+// face's label. A sign's lettering counts once its outline is in the room text.
 import type { Clock } from "../room/clock";
+import type { RoomIndex, RoomScene } from "../room/compose/bundle";
+import { regionCap, smallestCapPx, typefaceFor } from "../room/compose/legibility";
+import type { CapRegion } from "../room/compose/legibility";
+import { modelOf, resolveMounts } from "../room/compose/mount";
+import type { Camera } from "../room/compose/project";
+import type { Stage } from "../room/compose/stages";
+import type { RoomText } from "../room/faces/words";
 import { median } from "../room/quality";
 
 /** A frame interval over this many milliseconds counts as over (SC-005). */
@@ -210,4 +221,42 @@ export function startRun(options: RunOptions): Run {
       return running;
     },
   };
+}
+
+/** The smallest cap height of the bound faces at a view, in CSS pixels, and its face; null where none is measured. */
+export function smallestCap(
+  part: Pick<RoomScene, "placements" | "pieces">,
+  index: Pick<RoomIndex, "faces" | "typefaces" | "ui">,
+  camera: Camera,
+  stage: Stage,
+  text: RoomText | null = null,
+): { px: number; face: string; label: string } | null {
+  const { world } = resolveMounts(part.placements, part.pieces);
+  let best: { px: number; face: string; label: string } | null = null;
+  for (const face of index.faces) {
+    if (face.atmosphere) continue;
+    const p = part.placements.find((x) => x.id === face.placement);
+    const piece = p && Object.hasOwn(part.pieces, p.piece) ? part.pieces[p.piece] : undefined;
+    const geometry = piece && Object.hasOwn(piece.faces, face.role) ? piece.faces[face.role] : undefined;
+    const w = p ? world.get(p.id) : undefined;
+    if (!piece || !geometry || !w) continue;
+    const regions: CapRegion[] = face.regions.flatMap((r) => {
+      const outline = "room_text" in r.source ? text?.blocks.get(r.source.room_text)?.outline : null;
+      const use = typefaceFor(r.renderer, r.source);
+      const ratio = index.typefaces.find((t) => t.use === use)?.cap_ratio;
+      const cap =
+        r.renderer === "sign"
+          ? outline
+            ? regionCap(geometry, r, { outline })
+            : null
+          : ratio === undefined
+            ? null
+            : regionCap(geometry, r, { capRatio: ratio });
+      return cap === null ? [] : [{ rect: r.rect, cap }];
+    });
+    const px = smallestCapPx(modelOf(w, piece.scale), geometry, regions, camera, stage);
+    if (px !== null && (best === null || px < best.px))
+      best = { px, face: face.id, label: index.ui[face.label] ?? face.id };
+  }
+  return best;
 }

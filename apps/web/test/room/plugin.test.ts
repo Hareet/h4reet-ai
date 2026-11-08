@@ -300,14 +300,17 @@ describe("resolveId and load (contracts/room-bundle.md §3)", () => {
     const plugin = bundle(goodTree);
     const h = hookContext();
     callHook(plugin, "buildStart", h.context, {});
-    const { drafts, index } = compose(goodTree(), noPolicy(), { mode: "lenient", drafts: true });
+    const { drafts, index, roomText } = compose(goodTree(), noPolicy(), { mode: "lenient", drafts: true });
     expect(drafts?.fixtures.length).toBeGreaterThan(0);
     expect(loadModule(plugin, h.context, "virtual:room-fixtures")).toEqual({ default: json(drafts?.fixtures) });
     // The lookdev page's own copy of the index, beside its inputs, as `room`: importing virtual:room-content would
-    // take the index out of the room's entry chunk in a drafts build (plan.md §10).
+    // take the index out of the room's entry chunk in a drafts build (plan.md §10). And the drafts build's room_text, as
+    // `text`, so the page, and the phone copy that makes no request, draw the faces' words (spec 004, T192).
+    expect(roomText.blocks.length).toBeGreaterThan(0);
     expect(loadModule(plugin, h.context, "virtual:room-lookdev")).toEqual({
       default: json(drafts?.lookdev),
       room: json(index),
+      text: json(roomText),
     });
   });
 });

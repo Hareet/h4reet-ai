@@ -16,15 +16,15 @@ Model the framed board from the dimension sheet and the Author's description. Th
 - The board's outer width, height, and depth, and the slate's width and height inside the frame.
 - Where the board hangs, from the floor and from the back wall.
 - Measure: the size, now estimated at 0.48 × 0.64 × 0.04 m (w × h × d).
-- Measure: where `chalkboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (-0.26, 1.65, 0) m.
+- Measure: where `chalkboard` sits, now estimated: on `room-shell`'s anchor `left-wall`, offset (-0.2876, 1.65, 0) m.
 
 ## Size, origin, and bounds
 
 - The size: 0.48 × 0.64 × 0.04 m (w × h × d), estimated.
-- The stylized scale: 1.25, so the model is made at 0.6 × 0.8 × 0.05 m (FR-051).
+- The stylized scale: 1.49, so the model is made at 0.7152 × 0.9536 × 0.0596 m (FR-051).
 - The origin: the centre of the board's back, against the wall.
-- The expected bounds at that scale: from (-0.3, -0.4, 0) to (0.3, 0.4, 0.05) m.
-- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.02 m, y 0.024 m, z 0.02 m (FR-019).
+- The expected bounds at that scale: from (-0.3576, -0.4768, 0) to (0.3576, 0.4768, 0.0596) m.
+- Their tolerance at both corners, the larger of 2 cm and 3% of the extent on each axis: x 0.021456 m, y 0.028608 m, z 0.02 m (FR-019).
 
 ## Anchors
 
@@ -36,7 +36,7 @@ At the model's scale, in the piece's frame. Each is its own object, named for it
 
 | Object name | Centre (m) | Size (m) | Facing | Up |
 |---|---|---|---|---|
-| `slate` | (0, 0, 0.012) | 0.51 × 0.71 | (0, 0, 1) | (0, 1, 0) |
+| `slate` | (0, 0, 0.014304) | 0.60792 × 0.84632 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 

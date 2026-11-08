@@ -408,6 +408,75 @@ describe("RT7, a chalk block's excludes (FR-033)", () => {
   });
 });
 
+describe("the committed room text (T181; FR-031, FR-033, User Story 5 scenario 4)", () => {
+  const root = fileURLToPath(new URL("../../../../", import.meta.url));
+  /** The repository composed in strict mode, as room:check composes it. */
+  const strict = () => compose(fileTree(root), noPolicy(), { mode: "strict", drafts: true });
+
+  it("holds the board's drafts, each excluding \"Seva\" and the corpus's framing of it", () => {
+    const repository = loadRoom(fileTree(root));
+    const chalk = repository.blocks.filter((b) => b.value.renderer === "chalk");
+    expect(chalk.length).toBeGreaterThan(0);
+    for (const block of chalk) {
+      const excluded = block.value.exclude?.map((p) => p.trim().toLowerCase()) ?? [];
+      expect(excluded, block.file).toContain("seva");
+      expect(excluded, block.file).toContain("selfless service");
+    }
+  });
+
+  it("names Seva on no committed line, and echoes no corpus sentence that does (RT7)", () => {
+    const repository = loadRoom(fileTree(root));
+    for (const block of repository.blocks)
+      for (const line of block.value.lines) expect(line.text, block.file).not.toMatch(/seva/i);
+    expect(
+      strict()
+        .findings.filter((f) => f.rule === "RT7")
+        .map((f) => formatFinding(f)),
+    ).toEqual([]);
+  });
+
+  it("passes RT6 for every committed monitor block, and every other RT rule for every block", () => {
+    const found = strict()
+      .findings.filter((f) => f.rule.startsWith("RT"))
+      .map((f) => formatFinding(f));
+    expect(found).toEqual([]);
+  });
+
+  it("marks every chalk line whose corpus words don't exist yet as pending, and cites the corpus for the rest", () => {
+    const repository = loadRoom(fileTree(root));
+    for (const block of repository.blocks.filter((b) => b.value.renderer === "chalk"))
+      for (const line of block.value.lines)
+        if (!line.pending) expect(line.claims?.length ?? 0, `${block.file}: ${line.text}`).toBeGreaterThan(0);
+  });
+
+  // FR-082: until the Author adds more ("We can add more later"), the slate shows one line, "denverlocal.ai", and
+  // nothing else: one chalk region, one row, bound to that line's block alone, and the only region on its face; no
+  // resume_titles region; the drafted blocks bound to no face (spec.md's Clarifications, Session 2026-10-30, US5 · 1
+  // and US5 · 3; the review of T308, nit 3).
+  it("binds FR-082's one chalk line alone, in one row: denverlocal.ai, citing corpus/07's sentence (T308)", () => {
+    const repository = loadRoom(fileTree(root));
+    const faces = (repository.scene?.value.placements ?? []).flatMap((p) => Object.values(p.faces ?? {}));
+    const regions = faces.flatMap((face) => face.regions.filter((r) => r.renderer === "chalk"));
+    expect(regions.map((r) => ({ grid: r.grid, resume_titles: r.resume_titles ?? false }))).toEqual([
+      { grid: { rows: 1 }, resume_titles: false },
+    ]);
+    // "that line and nothing else": the face that holds the chalk region holds no other region.
+    const slates = faces.filter((face) => face.regions.some((r) => r.renderer === "chalk"));
+    expect(slates.map((face) => face.regions.length)).toEqual([1]);
+    const bound = repository.blocks.filter((b) => regions.some((r) => r.text === b.value.block));
+    const lines = bound.map((b) => b.value.lines.map((l) => ({ text: l.text, pending: l.pending, claims: l.claims })));
+    expect(lines).toEqual([
+      [
+        {
+          text: "denverlocal.ai",
+          pending: false,
+          claims: [{ file: "corpus/07-denver-local-ai.md", quote: "The site is live now, at denverlocal.ai." }],
+        },
+      ],
+    ]);
+  });
+});
+
 describe("RT8, words over their grid (FR-031, FR-033, FR-052)", () => {
   it("refuses more drawn lines than a terminal grid's rows, a pending line taking none", () => {
     const four = [{ text: "fx run" }, { text: "fx ok" }, { text: "fx three" }, { text: "fx four" }];

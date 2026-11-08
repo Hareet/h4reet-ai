@@ -26,4 +26,6 @@ declare module "virtual:room-lookdev" {
   export default lookdev;
   /** The index (§3.1), the page's own copy: importing virtual:room-content would move it out of the room's entry. */
   export const room: import("./compose/bundle").RoomIndex;
+  /** The drafts build's room_text (§5), as room-data.json carries it, for the page's faces (spec 004, T192). */
+  export const text: import("../../build/room/emit").RoomText;
 }

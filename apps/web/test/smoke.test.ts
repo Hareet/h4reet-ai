@@ -116,13 +116,24 @@ describe("the built room-data.json", () => {
           .sort()
           .map((n) => `apps/web/content/narration/${n}`)
       : [];
+    // Then the room's text, its blocks and then its outlines, each in name order, every one a draft here, and room_text
+    // with no block (spec 004, T186; contracts/room-bundle.md §5).
+    const room = (dir: string, suffix: string): string[] =>
+      existsSync(join(WEB, dir))
+        ? readdirSync(join(WEB, dir))
+            .filter((n) => n.endsWith(suffix))
+            .sort()
+            .map((n) => `apps/web/${dir}/${n}`)
+        : [];
+    const roomText = [...room("content/room", ".yaml"), ...room("content/room/outlines", ".outline.json")];
     expect(data).toEqual({
       built_from: { policy: absent, lock },
       published: [],
-      drafts: ["apps/web/content/resume.yaml", ...scripts],
+      drafts: ["apps/web/content/resume.yaml", ...scripts, ...roomText],
       resume_state: "withheld",
       header: null,
       sections: [],
+      room_text: { blocks: [] },
     });
   });
 });

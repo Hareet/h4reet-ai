@@ -11,6 +11,11 @@
 // - Every selectable, the text box, and the talk button answer with the fixed messages and call nothing (R-14). The
 //   selectables, the list, and the 2D drawing are the bundle's index's (spec 004, FR-011): no ID of the room's is here.
 // - Usage events go to the EventSink: the page's sends beacons (src/events.ts); by default, nothing is sent.
+// - Room text (spec 004, User Story 5): room-data.json is loaded once at Enter, through the loader the resume and its
+//   narration share (resume-port.ts), and once more ROOM_TEXT_RETRY_MS later if that load failed; its room text and the
+//   resume's titles word the faces on the stage and in "Around the room" in the same call. Until then, and for good if
+//   the retry fails too, the faces it words stay plain and their entries are left out (FR-061). The faces' typefaces
+//   load through document.fonts from Enter (faces/fonts.ts).
 // - The tier (spec 004, User Story 2; signals/live.ts) is reduced at Enter, on pause, resume, hide, and show, and when
 //   an answer turns stale, each reduction showing the switch's case on the stage and the tier's sentence in "Around
 //   the room" in the same call; "Pause the room" and the motion store (motion.ts), read throughout the visit, stop the
@@ -35,6 +40,10 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { renderFlat } from "./flat";
+import { loadTypefaces } from "./faces/fonts";
+import type { TypefaceLoader } from "./faces/fonts";
+import { ROOM_TEXT_RETRY_MS, roomTextOf } from "./faces/words";
+import type { RoomText } from "./faces/words";
 import { createMotionStore } from "./motion";
 import type { MotionStore } from "./motion";
 import { handoffDuration, runHandoff } from "./handoff";
@@ -74,6 +83,10 @@ export interface RoomDeps {
   wall?: () => number;
   /** Imports the 3D chunk; the tests give a stand-in, since jsdom has no WebGL. */
   loadScene?: () => Promise<SceneModule>;
+  /** room-data.json, through the loader the resume and its narration share (resume-port.ts's roomDataLoader): null
+   *  for a load that failed. The room loads it at Enter for its room text (spec 004, FR-061); absent, nothing loads and
+   *  every face bound to room text stays plain. */
+  roomData?: () => Promise<unknown>;
 }
 
 export interface RoomHandle {
@@ -105,6 +118,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   let offering = false;
   let resumeOpen = false;
   let copy: TextCopy | null = null;
+  /** The room text, once room-data.json has loaded at Enter; null before, and for good if it failed twice. */
+  let text: RoomText | null = null;
+  let typefaces: TypefaceLoader | null = null;
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
@@ -230,6 +246,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     layout.heading.focus();
     // Enter (contracts/tier-signal.md §5.4): the tier reduced, and shown in the text copy, before the stage is drawn.
     live.enter();
+    // The faces' typefaces, and the room text, from Enter, whatever the 3D chunk does (spec 004, FR-061; R-11, R-37).
+    typefaces = loadTypefaces(doc, clock, deps.room.typefaces);
+    loadText(1);
 
     const loaded = await sceneOrLate();
     const module = loaded === "late" ? null : loaded;
@@ -242,6 +261,35 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       show: (progress) => stage?.showHandoff(progress),
       onDone: offerResume,
     });
+  }
+
+  /** room-data.json for the room text: once at Enter, and once more ROOM_TEXT_RETRY_MS after a load that failed. Its
+   *  words reach the stage and the text copy in one call; a second failure leaves the faces plain (FR-061). */
+  function loadText(attempt: 1 | 2): void {
+    const load = deps.roomData;
+    if (!load) return;
+    void load()
+      .catch(() => null)
+      .then((json) => {
+        if (json === null || json === undefined) {
+          if (attempt === 1) clock.setTimeout(() => loadText(2), ROOM_TEXT_RETRY_MS);
+          return;
+        }
+        text = roomTextOf(json);
+        // The text copy first, and each guarded, so a stage that can't take the words leaves the copy worded (the
+        // review of T194, nit 4); the faces it would draw then stay plain on the stage.
+        try {
+          copy?.setText(text);
+        } catch {
+          // The text copy keeps what it had.
+        }
+        try {
+          stage?.setText?.(text);
+        } catch {
+          // The stage keeps its faces as they were.
+        }
+      })
+      .catch(() => undefined);
   }
 
   function mount3d(module: SceneModule, choice: Choice): void {
@@ -265,6 +313,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         level: () => controller?.quality ?? 0,
         mode: () => visit.mode,
         assets: recordAsset,
+        ...(typefaces ? { typefaces } : {}),
+        text,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -306,7 +356,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const old = stage;
     let flat: Stage | null;
     try {
-      flat = renderFlat(doc, { room: deps.room, avatar: visit.avatar, select: selectObject, motion });
+      flat = renderFlat(doc, {
+        room: deps.room,
+        avatar: visit.avatar,
+        select: selectObject,
+        motion,
+        text,
+        ...(typefaces ? { typefaces } : {}),
+      });
       flat.apply(live.tier.tier);
     } catch {
       flat = null;

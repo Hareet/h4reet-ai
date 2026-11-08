@@ -34,6 +34,8 @@ vi.mock("virtual:room-lookdev", async () => {
     get room() {
       return given.digest === null ? bundle.index : { ...bundle.index, digest: given.digest };
     },
+    // The drafts build's room text (spec 004, T192).
+    text: bundle.roomText,
   };
 });
 

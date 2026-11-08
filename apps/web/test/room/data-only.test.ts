@@ -792,7 +792,18 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
         return Promise.resolve(scene.module);
       },
     });
-    return { dom, win, doc: win.document, clock, events, spies, scene, room, resumeLoads: () => 0 };
+    return {
+      dom,
+      win,
+      doc: win.document,
+      clock,
+      events,
+      spies,
+      scene,
+      room,
+      resumeLoads: () => 0,
+      roomDataLoads: () => 0,
+    };
   }
 
   it("gets a labelled stand-in in 3D, and a pick area its pointer picks", () => {

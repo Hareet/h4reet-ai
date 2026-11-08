@@ -2,9 +2,11 @@
 // words and states the room draws, as page text, visible to every visitor with nothing to expand, after the
 // conversation panel and outside the stage, in 3D and 2D (layout.ts places it). It reads the index alone, so it never
 // waits for the 3D part. Built from the index's copy[] by reference, in its order:
-// - a bound face: its label and its words, from its renderer's own word list, so the 3D room, the 2D room, and this
-//   can't differ (FR-034); none exists until T183 and T184, so a face with no words is left out, as the neon sign's
-//   figures are until their counters word them;
+// - a bound face: its label and its words, from its renderers' own word lists (faces/words.ts), so the 3D room, the 2D
+//   room, and this can't differ (FR-034), each badge in brackets; a face with no words now is left out (FR-061): one
+//   bound to room text until room-data.json has loaded, and for good if it failed or the build withheld its block.
+//   setText words them in place, in copy[]'s order. The sign's figures entry waits for their channel (T266): until
+//   then its counters' faces carry their readings;
 // - a switch: its label and the sentence of the tier the room shows, `tier.<value>`: not-live until the tier signal
 //   applies another through setTier (signals/live.ts), in the same call as the switch's case;
 // - a fixed line: its UI word (`sign.not_affiliated` with the neon sign, `around.illustration` once the monitor's face
@@ -12,16 +14,19 @@
 //   setPausedAt gives (motion.ts; FR-060), in its place in copy[]'s order, and gone on resume; a hidden page shows none.
 // Updates replace text in place, in no live region, so a poll announces nothing (FR-063). The section is a Tab stop,
 // the last of the room's before the resume (FR-065; Amendment B8), and every tier value has its own sentence, so no state
-// rests on the charger's pose or a colour alone (R-40). Badges ("Draft", "Sample", "test") are UI words, and come in
-// with the faces' words (T183, T184).
+// rests on the charger's pose or a colour alone (R-40). Badges ("Draft", "Sample", "test") are UI words, said in
+// brackets beside the words they mark (contracts/turn-cost.md §8).
 import type { RoomIndex } from "./compose/bundle";
 import type { TierValue } from "./compose/vocabulary";
 import { h } from "./dom";
+import { faceWords } from "./faces/words";
+import type { RoomText } from "./faces/words";
 import { pausedAtWords } from "./motion";
 import { uiWord } from "./ui-keys";
 
-/** What the text copy reads of the index: its words, its order of entries, and its switches. */
-export type CopyIndex = Pick<RoomIndex, "ui" | "copy" | "switches">;
+/** What the text copy reads of the index: its words, its order of entries, its switches, and its faces with what words
+ *  them. */
+export type CopyIndex = Pick<RoomIndex, "ui" | "copy" | "switches" | "faces" | "build" | "live" | "typefaces">;
 
 export interface TextCopy {
   /** The "Around the room" section. */
@@ -30,6 +35,8 @@ export interface TextCopy {
   setTier(value: TierValue): void;
   /** While the room is paused, "Paused at" with the time it paused (HH:MM); null takes the line away. */
   setPausedAt(time: string | null): void;
+  /** The room text, once room-data.json has loaded: each face it words gets its entry, in place. */
+  setText(text: RoomText | null): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
@@ -44,7 +51,18 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   const states: HTMLElement[] = [];
   /** Where "Paused at" goes while the room is paused: after the entry before it, or first; null where copy[] lacks it. */
   let pausedAfter: Element | "first" | null = null;
+  /** Each face's place in the list, in copy[]'s order: its entry while it has words, and a marker where it would go,
+   *  so an entry comes and goes in its place. */
+  const faces: { face: RoomIndex["faces"][number]; marker: Comment; item: HTMLElement | null }[] = [];
   for (const entry of room.copy) {
+    if ("face" in entry) {
+      const face = room.faces.find((f) => f.id === entry.face);
+      if (!face) continue;
+      const marker = doc.createComment("");
+      list.append(marker);
+      faces.push({ face, marker, item: null });
+      continue;
+    }
     if ("line" in entry && entry.line === PAUSED) {
       pausedAfter ??= list.lastElementChild ?? "first";
       continue;
@@ -60,8 +78,26 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       const words = uiWord(room.ui, entry.line);
       if (words !== null) list.append(h(doc, "li", {}, words));
     }
-    // A face's words and the sign's figures come from the renderers' own word lists (T183, T184): none yet.
+    // The sign's figures come with their channel (T266): its counters' faces carry their readings until then.
   }
+  /** Each face's entry from the room text now: its label and its words, replaced in place, or left out. */
+  const word = (text: RoomText | null): void => {
+    for (const slot of faces) {
+      const words = faceWords(slot.face, { index: room, text });
+      const label = uiWord(room.ui, slot.face.label);
+      const line = words === null || label === null ? null : `${label}: ${words.join(" ")}`;
+      if (line === null) {
+        slot.item?.remove();
+        slot.item = null;
+      } else if (slot.item) {
+        if (slot.item.textContent !== line) slot.item.textContent = line;
+      } else {
+        slot.item = h(doc, "li", {}, line);
+        slot.marker.after(slot.item);
+      }
+    }
+  };
+  word(null);
   // A Tab stop of its own, after the conversation (FR-065; Amendment B8): a keyboard reaches it, with the room's focus
   // ring, and a screen reader hears its heading as its name.
   const element = h(
@@ -74,6 +110,7 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   let paused: HTMLElement | null = null;
   return {
     element,
+    setText: word,
     setTier(value) {
       for (const state of states) state.textContent = sentence(value);
     },

@@ -3,20 +3,23 @@
 # ultrawide monitor on it with the neon sign clipped to its top edge and the two desk signs beside it, the keyboard,
 # the mouse, and the notebook in front, the large window centred behind them, and the laptop on its stand at the
 # desk's right side; on the left wall the chalkboard hangs high, the artwork above the snowboard's top, and the
-# snowboard stands low on its tail, with small gaps at the wall's corners (D1); the bicycle hangs upright by its front
-# wheel on the right wall, next to the laptop, with the wall outlet beside the desk, just under its top; the bag and
-# the helmet lie on the floor; the twin stands a little right of the desk, by the laptop, and the visitor at the
-# floor's open front, left of where D3 put it, by the Author's "Move further left" (FR-080). The studio's hand-back of
-# 2026-11-07 moved the monitor, the laptop's stand, the signs, the window, the artwork, and the bicycle, and placed
-# the six new pieces, as the Author took its scene changes on 2026-11-07. Every piece's position is an estimate until
-# measured; the two figures' places are composition, set from the Author's words and what the camera shows past them,
-# with nothing in the room to measure. The charger is the laptop's switch on the tier: plugged in only while the tier
-# is local (FR-043); its cable runs to the wall outlet.
+# snowboard stands low on its tail, with small gaps at the wall's corners (D1) but for the chalkboard, which hangs past
+# the front one (below); the bicycle hangs upright by its front wheel on the right wall, next to the laptop, with the
+# wall outlet beside the desk, just under its top; the bag and the helmet lie on the floor; the twin stands a little
+# right of the desk, by the laptop, and the visitor at the floor's open front, left of where D3 put it, by the Author's
+# "Move further left" (FR-080). The studio's hand-back of 2026-11-07 moved the monitor, the laptop's stand, the signs,
+# the window, the artwork, and the bicycle, and placed the six new pieces, as the Author took its scene changes on
+# 2026-11-07. Every piece's position is an estimate until measured; the two figures' places are composition, set from
+# the Author's words and what the camera shows past them, with nothing in the room to measure. The charger is the
+# laptop's switch on the tier: plugged in only while the tier is local (FR-043); its cable runs to the wall outlet.
 # Offsets are in the anchor's frame, so on the side walls they read along the wall: the shell turns `left-wall` +90°
 # about Y, so its +x points toward the back wall, and `right-wall` −90°, so its +x points toward the open front; y is
 # the height, and z the distance out from the wall. The side walls' offsets are derived from the cube's depth: on the
-# left wall the chalkboard's −0.26 leaves about 5 cm to the front corner (0.6096 − 0.26 − 0.30) and the snowboard's
-# 0.4 about 5 cm to the back corner (0.6096 − 0.4 − 0.16).
+# left wall the chalkboard, at T308's stylized scale of 1.49, hangs at −0.2876, 1 cm short of the artwork (0.33 − 0.25 +
+# 0.2876 − 0.3576), and so 3.6 cm past the wall's front edge (0.2876 + 0.3576 − 0.6096), by the Author's choice of
+# 2026-11-07, "Past the wall's edge"; the snowboard's 0.4 leaves about 5 cm to the back corner (0.6096 − 0.4 − 0.16).
+# The slate shows one line alone, "denverlocal.ai" (FR-082): one row across its width, the largest glyph that keeps it
+# there.
 version: 1
 look: inked-cel
 live: { source: off, poll_s: 30, freshness_s: 35, turn: off, asset_events: off }
@@ -78,9 +81,14 @@ placements:
     label: label.dog-sign
   - id: chalkboard
     piece: chalkboard
-    mount: { on: room-shell, anchor: left-wall, offset: [-0.26, 1.65, 0], estimated: true }
+    mount: { on: room-shell, anchor: left-wall, offset: [-0.2876, 1.65, 0], estimated: true }
     frame: true
     label: label.chalkboard
+    faces:
+      slate:
+        label: label.chalkboard
+        regions:
+          - { rect: [0, 0.4065, 1, 0.187], renderer: chalk, grid: { rows: 1 }, text: chalk-denverlocal }
   - id: snowboard
     piece: snowboard
     mount: { on: room-shell, anchor: left-wall, offset: [0.4, 0.775, 0.035], estimated: true }

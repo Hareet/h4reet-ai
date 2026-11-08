@@ -119,15 +119,19 @@ describe("room-manifest.json (Amendment B7)", () => {
     expect(composed({ standins: true, drafts: true }).manifest.standins).toEqual(manifest.standins);
   });
 
-  it("names none once every piece but the figures has its studio model set, each within its fit and budget (T234)", () => {
+  it("names one piece, whose entry names no model, once every other piece but the figures has its studio model set, each within its fit and budget (T234, T308)", () => {
     const { scene, manifest } = composed();
     const figures = new Set([scene.figures.twin, scene.figures.visitor]);
-    // Every placed piece and the switch's piece, which each of its poses shows, has its file set; the figures have none.
-    expect(scene.placements.filter((p) => p.model === null && !figures.has(p.id)).map((p) => p.id)).toEqual([]);
+    // Every placed piece and the switch's piece, which each of its poses shows, has its file set but one: the
+    // chalkboard, whose studio file is the board at 1.25, which the compose refuses at T308's 1.49, so its entry names
+    // no model until the studio rebuilds it (chalkboard.yaml). Its ID is the data's alone (FR-007), so the test takes
+    // the one placement without a model, and holds its reason to no-model, never a refused file's. The figures have none.
+    const unset = scene.placements.filter((p) => p.model === null && !figures.has(p.id)).map((p) => p.id);
+    expect(unset).toHaveLength(1);
     expect(scene.switches.filter((s) => s.model === null).map((s) => s.id)).toEqual([]);
     expect(scene.placements.filter((p) => figures.has(p.id) && p.model !== null).map((p) => p.id)).toEqual([]);
-    expect(manifest.standins).toEqual([]);
-    expect(composed({ drafts: true }).manifest.standins).toEqual([]);
+    expect(manifest.standins).toEqual(unset.map((placement) => ({ placement, reason: "no-model" })));
+    expect(composed({ drafts: true }).manifest.standins).toEqual(manifest.standins);
     // So placeholders is the avatars' alone (build/room/emit.ts): true until the twin's GLB is under assets/twin/ and
     // each visitor's under assets/visitors/<avatar>/ (spec 003's files).
     const twin = join(REPO, "assets/twin");

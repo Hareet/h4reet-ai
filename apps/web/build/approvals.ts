@@ -9,7 +9,11 @@
 //
 // Spec 004 (FR-030, FR-053; Amendment B9; its research.md R-13, R-57): an approval may name the kind room-text, so the
 // Author's first room-text approval on main breaks no build, make up included; and main's assets/policy/caps.json is
-// the policy's third file, read here as bytes for the room's compositor, which parses it.
+// the policy's third file, read here as bytes for the room's compositor, which parses it. The room's text is content
+// too (T186): its blocks, apps/web/content/room/*.yaml, then its outlines, apps/web/content/room/outlines/*.outline.json,
+// each in name order after spec 002's files, each approved only by an entry of kind room-text, so a room-text file main
+// approves under another kind stays a draft (data-model.md §6.4; the review of feat/004-setup, N1). The resume and the
+// narration scripts keep spec 002's rule.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -33,8 +37,10 @@ export interface PdfHeader {
 }
 
 export interface Policy {
-  /** The digests main approves. */
+  /** The digests main approves, under any kind: spec 002's rule for the resume and the narration scripts. */
   approved: ReadonlySet<string>;
+  /** The digests main approves under the kind room-text: the room text's rule (spec 004, T186). */
+  roomText: ReadonlySet<string>;
   /** resume-header.json's two slots, as main holds them; null without the file. */
   header: { full_name: string | null; contact: string | null } | null;
   /** Each policy file's bytes, or null when main doesn't hold it. caps.json stays bytes here: the room's compositor
@@ -68,13 +74,14 @@ function parse(name: string, data: Buffer): unknown {
   }
 }
 
-function approvedDigests(data: Buffer | null): Set<string> {
+function approvedDigests(data: Buffer | null): { all: Set<string>; roomText: Set<string> } {
   const name = POLICY_FILES[0];
-  if (data === null) return new Set();
+  if (data === null) return { all: new Set(), roomText: new Set() };
   const doc = parse(name, data);
   if (!isObject(doc) || doc.schema !== 1) refuse(name, "schema isn't 1");
   if (!Array.isArray(doc.approvals)) refuse(name, "approvals isn't a list");
   const digests = new Set<string>();
+  const roomText = new Set<string>();
   doc.approvals.forEach((entry: unknown, i: number) => {
     const at = `approvals[${i}]`;
     if (!isObject(entry)) refuse(name, `${at} isn't an object`);
@@ -88,8 +95,9 @@ function approvedDigests(data: Buffer | null): Set<string> {
     if (typeof entry.date !== "string" || !DATE.test(entry.date)) refuse(name, `${at}.date isn't YYYY-MM-DD`);
     if (typeof entry.reason !== "string") refuse(name, `${at}.reason is missing`);
     digests.add(entry.sha256);
+    if (entry.kind === "room-text") roomText.add(entry.sha256);
   });
-  return digests;
+  return { all: digests, roomText };
 }
 
 function header(data: Buffer | null): Policy["header"] {
@@ -117,7 +125,8 @@ export function readPolicy(dir: string): Policy {
     "resume-header.json": read(POLICY_FILES[1]),
     "caps.json": read(POLICY_FILES[2]),
   };
-  return { approved: approvedDigests(files[POLICY_FILES[0]]), header: header(files[POLICY_FILES[1]]), files };
+  const approved = approvedDigests(files[POLICY_FILES[0]]);
+  return { approved: approved.all, roomText: approved.roomText, header: header(files[POLICY_FILES[1]]), files };
 }
 
 /** The policy's digest, as web_image.py labels the image: each file's name and SHA-256, or "absent", in order. */
@@ -129,8 +138,11 @@ export function policyDigest(policy: Policy): string {
   return sha256(Buffer.from(text));
 }
 
-export function stateOf(data: Uint8Array, policy: Policy): ContentState {
-  return policy.approved.has(sha256(data)) ? "approved" : "draft";
+/** A content file's state: approved when main approves its digest, under any kind for spec 002's files, and only under
+ *  the kind room-text for the room's text. */
+export function stateOf(data: Uint8Array, policy: Policy, kind?: "room-text"): ContentState {
+  const approved = kind === "room-text" ? policy.roomText : policy.approved;
+  return approved.has(sha256(data)) ? "approved" : "draft";
 }
 
 /** The PDF's full header when main fills both slots; null gives the PDF the room's header (FR-017). */
@@ -140,22 +152,31 @@ export function pdfHeader(policy: Policy): PdfHeader | null {
   return { full_name: h.full_name, contact: h.contact };
 }
 
-/** The room's content files under a tree: the resume's source, then the narration scripts in name order. */
+/** The files of a content folder under a tree whose names end in `suffix`, in name order, by repository path. */
+function folder(root: string, dir: string, suffix: string): string[] {
+  const full = join(root, dir);
+  if (!existsSync(full)) return [];
+  return readdirSync(full)
+    .sort()
+    .filter((name) => name.endsWith(suffix))
+    .map((name) => posix.join(dir, name));
+}
+
+/** The room's content files under a tree: the resume's source, then the narration scripts, then the room text's
+ *  blocks and its outlines, each in name order (spec 004, T186). */
 export function contentFiles(root: string, policy: Policy): ContentFile[] {
   const content = posix.join("apps", "web", "content");
-  const paths: string[] = [];
-  if (existsSync(join(root, content, "resume.yaml"))) paths.push(posix.join(content, "resume.yaml"));
-  const narration = join(root, content, "narration");
-  if (existsSync(narration)) {
-    for (const name of readdirSync(narration).sort()) {
-      if (name.endsWith(".md")) paths.push(posix.join(content, "narration", name));
-    }
-  }
-  return paths.map((path) => {
+  const paths: { path: string; kind?: "room-text" }[] = [];
+  if (existsSync(join(root, content, "resume.yaml"))) paths.push({ path: posix.join(content, "resume.yaml") });
+  for (const path of folder(root, posix.join(content, "narration"), ".md")) paths.push({ path });
+  for (const path of folder(root, posix.join(content, "room"), ".yaml")) paths.push({ path, kind: "room-text" });
+  for (const path of folder(root, posix.join(content, "room", "outlines"), ".outline.json"))
+    paths.push({ path, kind: "room-text" });
+  return paths.map(({ path, kind }) => {
     const full = join(root, path);
     if (!lstatSync(full).isFile()) throw new Error(`${path}: a content file must be a regular file, not a link`);
     const data = readFileSync(full);
-    return { path, sha256: sha256(data), state: stateOf(data, policy) };
+    return { path, sha256: sha256(data), state: stateOf(data, policy, kind) };
   });
 }
 
@@ -199,7 +220,8 @@ export interface RoomDataContext {
   info?(message: string): void;
 }
 
-/** A part of room-data.json: the resume (build/content.ts), and later narration and messages. */
+/** A part of room-data.json: the resume (build/content.ts), narration (build/narration.ts), and the room's text
+ *  (build/room/text.ts). */
 export type RoomDataPart = (data: RoomData, context: RoomDataContext) => RoomData | Promise<RoomData>;
 
 /** room-data.json's own fields: the policy built with, each content file the build published with its digest, and
