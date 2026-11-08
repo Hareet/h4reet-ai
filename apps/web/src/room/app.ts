@@ -32,8 +32,14 @@
 //   With live.turn off, as until the twin's spec, both read "cost unavailable" and nothing reports to it. It makes no
 //   request and stores nothing; a reload makes a new one.
 // - A drafts build's frame log (spec 004, R-70; signals/frame-log.ts), when main.ts gives its factory: the live
-//   signal's events, each frame the 3D stage draws, and each new switch case, with h4FrameLog() on the window. A
-//   release build gives none, so the room keeps no log.
+//   signal's events, each frame the 3D stage draws, each new switch case, and each change of the target, with
+//   h4FrameLog() on the window. A release build gives none, so the room keeps no log.
+// - The target (spec 008, Phase 1; FR-007 to FR-013; plan.md R-06): one store a visit, in this function's memory
+//   (walk/target.ts's reducer), so it outlives the fall to 2D. The stage's pointer reports a hover's and a press's pick
+//   and the "In the room" list each button's focus, only once the hand-off and its offer are over, and only for a
+//   selectable the index lists (FR-010); each change goes to the stage that draws, which shows it with the highlight.
+//   A selection, on any path, clears it in the same call (FR-011); the fall to 2D resets it. A target sends nothing:
+//   no event, request, or storage, and no log line outside a drafts build's frame log (FR-013).
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -84,6 +90,8 @@ import type { SceneModule, Stage, Stage3D } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
+import { NO_TARGET, reduceTarget } from "./walk/target";
+import type { TargetEvent, TargetInput, TargetState } from "./walk/target";
 
 export interface RoomDeps {
   win: Window;
@@ -147,9 +155,30 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The room text, once room-data.json has loaded at Enter; null before, and for good if it failed twice. */
   let text: RoomText | null = null;
   let typefaces: TypefaceLoader | null = null;
+  /** The room's target (spec 008): the selectable the stage shows with the highlight, and what set it. */
+  let targeting: TargetState = NO_TARGET;
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
+
+  /** A targeting event through the store: a change of target goes to the stage that draws, and to a drafts build's
+   *  frame log with the input that made it (spec 008, FR-007, FR-054). */
+  function retarget(event: TargetEvent): void {
+    const before = targeting.target;
+    targeting = reduceTarget(targeting, event);
+    const after = targeting.target;
+    if (after === before) return;
+    stage?.setTarget(after);
+    log?.record("target", { id: after, input: event.kind === "name" ? event.input : event.kind });
+  }
+
+  /** A targeting input's name: taken only while the room takes input, and only for a selectable the index lists, or
+   *  none (spec 008, FR-008, FR-010). */
+  function targetInput(input: TargetInput, id: string | null): void {
+    if (!open()) return;
+    if (id !== null && !deps.room.selectables.some((s) => s.id === id)) return;
+    retarget({ kind: "name", input, id });
+  }
   const pdfFollowed = (): void => emit({ kind: "pdf_downloaded" });
 
   // The motion store, read throughout the visit by whichever stage the room draws (3D or 2D), and the tier signal, which
@@ -265,7 +294,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   async function arrive(choice: Choice): Promise<void> {
-    const list = renderObjectList(doc, deps.room, selectObject);
+    const list = renderObjectList(doc, deps.room, selectObject, (id) => targetInput("focus", id));
     talk = renderTalk(doc, {
       messages: content.messages,
       clock,
@@ -376,6 +405,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         },
         motion,
         select: selectObject,
+        target: targetInput,
         onFrame,
         floor: meetsModelFloor(device),
         handoff: handoffDone,
@@ -421,6 +451,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
+    // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
+    retarget({ kind: "reset" });
     controller?.toFlat(reason);
     unwatch?.();
     unwatch = null;
@@ -519,6 +551,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const selectable = deps.room.selectables.find((s) => s.id === id);
     if (!open() || !talk || !selectable) return;
     emit({ kind: "object_selected", id: selectable.id });
+    // Spec 008: the highlight clears in the same call, and the piece isn't targeted again until an input names another
+    // or none (FR-011, FR-012).
+    retarget({ kind: "select", id: selectable.id });
     const { action } = selectable;
     if (action.kind === "resume") {
       openResume();

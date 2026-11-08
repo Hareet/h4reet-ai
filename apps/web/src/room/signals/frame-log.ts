@@ -6,8 +6,9 @@
 //   room's Clock, `wall` on the wall clock, `frame` the count of 3D frames drawn so far.
 // - Its events: enter, pause, resume, hide, and show; each request's start (`request`) and its result (`result`, with
 //   `outcome` "ok" or its `why`, and its `status`); each reduction's tier and row (`tier`); each fallback cue
-//   (`fallback`); and each new switch case (`case`), with the frame on which the 3D room first drew it, or in 2D the
-//   time it was applied.
+//   (`fallback`); each new switch case (`case`), with the frame on which the 3D room first drew it, or in 2D the
+//   time it was applied; and each change of the room's target (`target`, spec 008's FR-054 and plan.md §3.4), with the
+//   selectable's `id`, or null, and the `input` that made it: pointer, press, focus, reach, select, or reset.
 // - In a drafts build, the console's h4FrameLog() returns it as JSON, which the Author copies out for
 //   scripts/room/har_check.py. It is never stored or sent.
 import type { Clock } from "../clock";
@@ -18,7 +19,7 @@ export const FRAME_LOG_LIMIT = 10_000;
 export const FRAME_LOG_KIND = "h4-frame-log";
 
 export type FrameEvent =
-  "enter" | "pause" | "resume" | "hide" | "show" | "request" | "result" | "tier" | "fallback" | "case";
+  "enter" | "pause" | "resume" | "hide" | "show" | "request" | "result" | "tier" | "fallback" | "case" | "target";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;
