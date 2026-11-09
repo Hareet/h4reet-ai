@@ -13,7 +13,18 @@ import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { TurnResult } from "../../src/room/signals/turn-cost";
 import type { TurnRequest } from "../../src/talk/talk";
 import { createWalkInput } from "../../src/room/walk/input";
-import { announcer, button, enter, flush, hasButton, intoRoom, roomIndex, start, textOf } from "../helpers/room";
+import {
+  announcer,
+  button,
+  enter,
+  flush,
+  hasButton,
+  intoRoom,
+  roomIndex,
+  start,
+  stubFullscreen,
+  textOf,
+} from "../helpers/room";
 import type { Visit } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 
@@ -21,44 +32,6 @@ const UI = roomIndex().ui;
 const ENTER = "Full screen";
 const LEAVE = "Leave full screen";
 const REFUSED = "Full screen isn't available here. The room still fills the window.";
-
-/** The page's Fullscreen API, a stand-in: whether the browser offers it, whether it refuses, and what was asked. */
-function offerFullscreen(v: Visit, o: { supported?: boolean; refuse?: boolean } = {}) {
-  const doc = v.doc as Document & Record<string, unknown>;
-  const root = doc.documentElement as HTMLElement & Record<string, unknown>;
-  let element: Element | null = null;
-  const asked: unknown[] = [];
-  const fire = (name: string): void => {
-    doc.dispatchEvent(new v.win.Event(name));
-  };
-  Object.defineProperty(doc, "fullscreenEnabled", { configurable: true, value: o.supported ?? true });
-  Object.defineProperty(doc, "fullscreenElement", { configurable: true, get: () => element });
-  root.requestFullscreen = (options?: unknown) => {
-    asked.push(options);
-    if (o.refuse) return Promise.reject(new TypeError("refused"));
-    element = root;
-    fire("fullscreenchange");
-    return Promise.resolve();
-  };
-  doc.exitFullscreen = () => {
-    asked.push("exit");
-    element = null;
-    fire("fullscreenchange");
-    return Promise.resolve();
-  };
-  return {
-    asked,
-    /** The browser's own exit: Escape, a system gesture, or a tab switch. */
-    exit(): void {
-      element = null;
-      fire("fullscreenchange");
-    },
-    enterByBrowser(): void {
-      element = root;
-      fire("fullscreenchange");
-    },
-  };
-}
 
 const altEnter = (v: Visit, target: EventTarget): KeyboardEvent => {
   const e = new v.win.KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true, cancelable: true });
@@ -75,7 +48,7 @@ async function room(o: { supported?: boolean; refuse?: boolean; index?: RoomInde
     ...(o.index ? { room: o.index } : {}),
     ...(o.sendTurn ? { sendTurn: o.sendTurn } : {}),
   });
-  const fs = offerFullscreen(v, o);
+  const fs = stubFullscreen(v, o);
   await intoRoom(v);
   return { v, fs };
 }
@@ -150,7 +123,7 @@ describe("Alt+Enter (FR-037; D2)", () => {
 
   it("does nothing during the hand-off and its offer", async () => {
     const v = start({ webgl: true });
-    const fs = offerFullscreen(v);
+    const fs = stubFullscreen(v);
     await enter(v);
     v.clock.advance(1000);
     altEnter(v, v.doc.body);
@@ -180,7 +153,7 @@ describe("Escape in full screen is the browser's (FR-039; D3)", () => {
       room: index,
       sendTurn: (_r: TurnRequest, _e: (x: TurnResult) => void, signal?: AbortSignal) => sent.push({ signal }),
     });
-    const fs = offerFullscreen(v);
+    const fs = stubFullscreen(v);
     await intoRoom(v);
     button(v.doc, ENTER).click();
     await flush();
@@ -212,7 +185,7 @@ describe("Escape in full screen is the browser's (FR-039; D3)", () => {
 
   it("leaves the walking view on in full screen, and lets the next Escape after the exit leave it", () => {
     const v = start({ webgl: true });
-    const fs = offerFullscreen(v);
+    const fs = stubFullscreen(v);
     const canvas = v.doc.createElement("canvas");
     const view = v.doc.createElement("div");
     view.tabIndex = 0;

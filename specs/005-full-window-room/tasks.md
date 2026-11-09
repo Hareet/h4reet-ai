@@ -342,7 +342,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 **Independent Test**: spec.md User Story 7's.
 
-- [ ] T040 [P] [US7] Write `apps/web/test/ui/hud-faults.test.ts` (FR-001 to FR-007; SC-009), fault-injection runs over:
+- [x] T040 [P] [US7] Write `apps/web/test/ui/hud-faults.test.ts` (FR-001 to FR-007; SC-009), fault-injection runs over:
   - FR-002's states;
   - no WebGL 2;
   - the 2D drawing failing;
@@ -352,7 +352,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - a lost context while in full screen.
 
   Each must end with the room filling the window, the HUD usable, the AI disclosure in view, and the stand-in line in view while it applies, with 0 blank or frozen scenes. A fetch and beacon spy must see no request beyond today's but one `fullscreen_entered`. Check: RED for any fault the code doesn't yet meet, then GREEN after T041 (feat/005-full-window-room)
-- [ ] T041 [US7] Fix what T040 finds, in the module it names. Check: T040 passes (feat/005-full-window-room)
+- [x] T041 [US7] Fix what T040 finds, in the module it names. Check: T040 passes (feat/005-full-window-room)
 
 **Checkpoint**: the layout never degrades.
 

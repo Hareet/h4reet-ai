@@ -601,6 +601,44 @@ export function stubViewport(initial: Partial<WindowMeasures> = {}) {
   };
 }
 
+/** Spec 005: The page's Fullscreen API, a stand-in: whether the browser offers it, whether it refuses, and what was asked. */
+export function stubFullscreen(v: Visit, o: { supported?: boolean; refuse?: boolean } = {}) {
+  const doc = v.doc as Document & Record<string, unknown>;
+  const root = doc.documentElement as HTMLElement & Record<string, unknown>;
+  let element: Element | null = null;
+  const asked: unknown[] = [];
+  const fire = (name: string): void => {
+    doc.dispatchEvent(new v.win.Event(name));
+  };
+  Object.defineProperty(doc, "fullscreenEnabled", { configurable: true, value: o.supported ?? true });
+  Object.defineProperty(doc, "fullscreenElement", { configurable: true, get: () => element });
+  root.requestFullscreen = (options?: unknown) => {
+    asked.push(options);
+    if (o.refuse) return Promise.reject(new TypeError("refused"));
+    element = root;
+    fire("fullscreenchange");
+    return Promise.resolve();
+  };
+  doc.exitFullscreen = () => {
+    asked.push("exit");
+    element = null;
+    fire("fullscreenchange");
+    return Promise.resolve();
+  };
+  return {
+    asked,
+    /** The browser's own exit: Escape, a system gesture, or a tab switch. */
+    exit(): void {
+      element = null;
+      fire("fullscreenchange");
+    },
+    enterByBrowser(): void {
+      element = root;
+      fire("fullscreenchange");
+    },
+  };
+}
+
 /** Lets promises the page started settle (the 3D chunk's import, the stage after Enter). */
 export async function flush(): Promise<void> {
   for (let i = 0; i < 5; i += 1) await new Promise((r) => setImmediate(r));
