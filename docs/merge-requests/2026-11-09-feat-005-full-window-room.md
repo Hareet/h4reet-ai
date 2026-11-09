@@ -4,7 +4,106 @@ Spec: specs/005-full-window-room/ · Intent: specs/005-full-window-room/intent.m
 Session: /home/h4reet/h4reet-ai/h4reet-ai, working in the worktree /tmp/claude-1000/wt-feat005 · Repo hooks active: the session's hooks; the worktree's commits ran the repository's git hooks (gitleaks and the arrival check print on each commit)
 Authorized by: the spec and the plan, approved by the Author in the session on 2026-11-09 (tasks.md T000, recorded in his words)
 
-**Draft, a save point.** This note grows with the branch; its sections below fill in as the phases land.
+## What changed and why
+
+The Author, after his first visit to the live room on 2026-11-09, in his words: "Let's organize the interface better, should we make the room responisive, as in the room takes up the whole browser window and the interface is laid over top of it with opaque and make it more game click-able buttons?" And later that day: "When we say the "room fills the whole window", i don't mean the little window inside the browser page, we were meaning the browser window. Is it possible that the assets and game are responsive, so if someone makes the browswer window larger, it fills out appropriately". His answers to the clarify questions: "Bottom bar, plus one column on the right"; "Use the dark glass recommendation and just go ahead with putting everything in instead of approval at lookdev first"; "Only when asked (Recommended)"; "Whole room, more around (Recommended)". He approved the spec and plan with "Approve and build (Recommended)" (tasks.md T000).
+
+What this branch builds, by plan.md:
+- **The canvas is the window.** The room block is the window's width and its dynamic height; the buffer follows the device's pixel ratio within each quality level's ratio and pixel cap; one `refit` follows every change of the window (`hud/viewport.ts`), the quality controller held until two frames after the last.
+- **The HUD's places are one kernel table**, `compose/hud.ts`: the column layout (the AI disclosure as a strip at the top, the bar at the foot, one column on the right of two fifths of the safe width, 15rem to 28rem), the dock layout on a window held upright (the list's strip and the text box's row above the bar), and the stacked layout, spec 004's grid, where neither fits. `room.css` takes the table's numbers through CSS properties set with `style.setProperty`; a test pins its rules to them, and a model with real text widths holds the table's bands at every screen of the sweep.
+- **The clear area is the stage.** The supported stages are the clear areas; every one of spec 004's 5,403 screens gets a stage at least its stage before, held by a frozen copy of the old formulas. The room is framed into the clear area by one camera whose projection is shifted (`setViewOffset`), so the scene continues behind the glass; the picker, the walking view's taps, and its follow camera take the same shift.
+- **The look**: dark glass at 0.60, the lowest 5% step at which every text and mark passes WCAG over white and black beneath; tiles of an icon over their words; the highlight's yellow for focus; a blur only at quality levels 0 and 1; opaque under reduced transparency, more contrast, and no backdrop blur, and the system's colours in forced colours.
+- **The HUD's parts**: the list's and the log's header buttons, which collapse them (the log stays a live region), the larger conversation view only when asked, the resume over the clear area, and nothing covering the walking control.
+- **Full screen** of the page's root where the browser offers it (the bar's control after "Pause the room", and Alt+Enter), Escape left to the browser, and one `fullscreen_entered` event a visit, with row V4's trigger, the "Visits in full screen" panel, and §7.8's row.
+- **Spec 004's checks** at the new stages (RG6 reserves `reservedBoxes`; RG5's aspects 0.288 to 11.444), the report's "Stages" and "Reserved boxes" lines, and the lookdev page's three window views with the buffer, the ratio, and the cap in its readouts and results.
+
+## Acceptance criteria
+
+| FRs | Status | Proven by |
+|---|---|---|
+| FR-001, FR-002 | met | `test/ui/degraded.test.ts` (T010), `test/ui/hud-faults.test.ts` (T040) |
+| FR-003, FR-004 | met | T010, T040 (`data-stage="2d"` at the clear area; flat-failed's new words, D9) |
+| FR-005 | met | `test/ui/fullscreen.test.ts` (T034) |
+| FR-006 | met | T010, `test/room/hud-contrast.test.ts` (T019) |
+| FR-007 | met | `test/room/hud.test.ts` (T005), `test/ui/hud-model.test.ts` (T008), T010's stacked grid |
+| FR-008, FR-009 | met; the safe areas on a real notch at the Author's look | `test/ui/resize.test.ts` (T016), `test/ui/hud-a11y.test.ts` (T031) |
+| FR-010, FR-011 | met; the caps' tuning is the Author's lookdev runs (T049, SC-008) | `test/room/fit.test.ts` (T009), `test/room/scene-fit.test.ts` (T015) |
+| FR-012, FR-013 | met | T015, T016 |
+| FR-014 | met: no file under `apps/web/room/catalog/`, `apps/web/room/scene.yaml`, or `assets/` changed | the branch's paths, below |
+| FR-015 to FR-018 | met | T009, T015 |
+| FR-019 to FR-023 | met | T005, T008, `test/ui/hud.test.ts` (T020) |
+| FR-024, FR-025 | met | T019 |
+| FR-026 | met in code and CSS; the look itself is the Author's (T048) | T020 |
+| FR-027, FR-028 | met | T020 |
+| FR-029 | met: `package-lock.json` and every `package.json` unchanged | the branch's paths |
+| FR-030 to FR-035 | met | `test/ui/hud-pointer.test.ts` (T029), T015 |
+| FR-036 to FR-042 | met, Q4 provisional | `test/room/fullscreen.test.ts` (T033), T034 |
+| FR-043 to FR-051 | met in jsdom; the keyboard-only and screen-reader runs are the Author's (SC-005) | T021, T031 |
+| FR-052 to FR-057 | met | `test/room/stages.test.ts` (T006), `stages-floor.test.ts` (T007), `stages-checks.test.ts` (T025) |
+| FR-058, FR-059 | the lookdev views built (T028); the frame rates are the Author's runs (T049) | `test/lookdev/page.test.ts` (T026) |
+| FR-060 to FR-064 | met, D1 provisional | T035; row V4 in the commit that adds the kind (4a862dee) |
+| FR-065 | met | `test/room/vocabulary.test.ts` (T022, T036) |
+| FR-066 | met: `apps/web/nginx.conf` and its tests unchanged; sizes only through `style.setProperty` | T020's spy |
+| FR-067 | met: no compose file, service, port, env key, or secret changed | the branch's paths |
+| FR-068 | ADR 0043, proposed | `make evals`' docs links |
+
+SC-005, SC-008, and SC-013 are the Author's runs after the merge (T048, T049).
+
+## Constitution check
+
+| Principle | How this branch complies |
+|---|---|
+| I. Data-local by default | One event kind with no identifier, row V4's trigger in the same commit; nothing about the window, the panels, or the display leaves the device; the degraded paths were built first (Phase 2) and the faults run end to end (T040) |
+| II. Production-grade | Tests first in every phase, RED and GREEN below; the event, the panel, and the frame log's `refit`, `panel`, and `fullscreen` entries; the cost below; ADR 0043 and the room's README |
+| III. Intent before spec, spec before code | From the approved spec and plan; each departure recorded in plan.md (B1 to B11) in its commit; the living contracts marked "(spec 005)"; no agent merges |
+| IV. Least privilege | No header, permission, sandbox domain, human-only file, or protected path changed (none of `.claude/`, `CLAUDE.md`, `REVIEW.md`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `infra/`) |
+| V. Cost | $0 in the cloud; one beacon per visit that enters full screen; the device's pixels bounded by the caps |
+| VI. Build in public | The table, the floor, the palette, and this record committed |
+| VII. Own the whole product | The reasoning in plan.md's departures and ADR 0043 |
+| VIII. Honest AI | The AI disclosure is the fixed strip, in view in every layout, panel state, scroll position, and full screen; the stand-in line stays in the clear area's top left (T020, T040) |
+
+## Review
+
+T045's review by an agent that wrote none of this work is **pending**: this session can't start one, so the main session runs it, and T046 fixes what it finds, each in its own commit, with this note's outputs run again.
+
+## Cost and data-flow impact
+
+$0 in the cloud. One `fullscreen_entered` beacon at most per visit that enters full screen, on spec 002's existing flow, disclosed in row V4's trigger. The entry chunk and the compositor's time are in the numbers below. On the visitor's device the buffer grows with the window, bounded by each level's pixel cap and the controller's steps; the Author's lookdev runs measure it (T049).
+
+## For the Author
+
+**Decisions, each provisional and yours** (T050): ADR 0043, proposed; Q4 (no control where the browser offers no full screen); D1 (the event, its panel, and V4's words); D2 (Alt+Enter); D3 to D11. Two findings beyond the plan: spec 008's FR-043 words `walk.left` and `walk.target` were never said by the room on `main`, and still aren't (this branch wires `walk.entered`, which FR-039 replaces in full screen; departure B11); and FR-056's "96 MB" reads here as RK3's cap in force, your 200,000,000, which the room's models already exceeded at 96 MB before this change.
+
+**The gate.** This branch touches neither `deploy/agents-engine/` nor `.claude/settings.json`, so the gate's matrix-e step is SKIP and needs no `--prove`. It touches none of `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin, so its agent-config-evals step, the behavioral tier, is SKIP and needs no run of yours (both read from `tools/gates/gate`'s own rules).
+
+**Your steps**, each pasted line 45 characters or fewer. From main's checkout:
+
+```bash
+cd ~/h4reet-ai/h4reet-ai
+B=feat/005-full-window-room
+T=<the tip, from the report>
+tools/gates/gate "$B"
+```
+
+Once nothing fails or waits, set the gate's summary line, then guard and merge (or paste the merge command the gate prints):
+
+```bash
+G='<the gate summary line>'
+S=$(git rev-parse --short=12 "$T")
+[ "$(git rev-parse "$B")" = "$T" ] && echo ok
+git --no-replace-objects merge --no-ff \
+  -m "Merge $B ($S)" -m "$G" "$T"
+```
+
+Then bring the room up as you do:
+
+```bash
+make up ENV=prod
+```
+
+**Your look** (T048; SC-013): resize the window from small to large; look at the glass over the scene's light and dark parts; use the bar and the column, and collapse and open the list and the conversation; try a phone held upright and sideways, and full screen where the browser offers it, Alt+Enter too; then a keyboard-only run and a screen-reader run (SC-005): every selectable from the list, every control, each panel collapsed and opened, full screen entered and left, the walking view entered and left in and out of full screen, the resume opened and closed. Record a yes or a no in a follow-up note, naming anything that doesn't read or doesn't fill; a change to the look is a new intent. Then the lookdev page's 2-minute window runs on the reference phone, the reference desktop, and a large monitor (T049; SC-008), from a drafts build.
+
+**A refusal this session met.** The bash gate refused one shell command that wrote this note through a heredoc, since its text named an Author-only make target in a sentence saying no run of it is needed; the gate matches text. The note was written with the editor instead, and nothing was respelled to pass the gate.
 
 ## T001: the base, the outside facts, and the numbers
 
