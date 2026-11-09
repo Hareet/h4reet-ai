@@ -1,6 +1,6 @@
 # ADR 0041: The Anthropic API as a second paid adapter, prod's fallback one at a time (spec 010)
 
-Status: proposed, 2026-11-08 · Spec: 010 (FR-001 to FR-041; its Clarifications Q1 to Q6, taken provisionally and approved by the Author as taken on 2026-11-08; plan §1, D1 to D9, departures B1 to B14) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its Decision item 3 and its "Bedrock model" line; replaces nothing · Number: the next free one on `main` at a5eb05b8, when the branch's task T003 ran
+Status: proposed, 2026-11-08 · Spec: 010 (FR-001 to FR-041; its Clarifications Q1 to Q6, taken provisionally and approved by the Author as taken on 2026-11-08; plan §1, D1 to D9, departures B1 to B15) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its Decision item 3 and its "Bedrock model" line; replaces nothing · Number: the next free one on `main` at a5eb05b8, when the branch's task T003 ran
 
 ## Context
 
