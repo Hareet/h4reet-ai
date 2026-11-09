@@ -1,5 +1,12 @@
-/* The room's layout (spec 002, T044; FR-046, FR-047; contracts/room-scene.md §5 and §6). From the site's own origin,
-   classes only: the CSP's style-src 'self' refuses inline styles. */
+/* The room's layout (spec 002, T044; FR-046, FR-047; contracts/room-scene.md §5 and §6), and since spec 005 the HUD
+   (its FR-006 to FR-009, FR-019 to FR-028; plan.md §2.3, §4.1, §6): the room block fills the window, and the
+   interface is laid over it. From the site's own origin, classes only: the CSP's style-src 'self' refuses inline
+   styles, and the room sets its sizes as CSS properties through the CSS object model (layout.ts's applyHud).
+   - The page's root carries data-hud (column, dock, or stacked), data-list, data-blur, data-walk, and the table's
+     sizes (compose/hud.ts): --strip-h, --bar-h, --column-w, --dock-h, --clear-x, --clear-y, --clear-w, --clear-h,
+     --safe-top, --safe-right, --safe-bottom, --safe-left, and --keyboard. Every docked box takes its size from them
+     alone (test/room/stages.test.ts), so moving a panel is one edit to the table.
+   - The stacked layout keeps spec 004's grid at e324771e, where the HUD can't fit (FR-007). */
 
 .visually-hidden {
   position: absolute;
@@ -61,13 +68,14 @@
   text-decoration: underline;
 }
 
-/* The AI disclosure, index.html's header, stays in view on every screen, from the choice to the end of the visit
-   (FR-004; contracts/room-scene.md §1): sticky and opaque. The scroll padding keeps a focused control from scrolling
-   under it (WCAG 2.4.11). */
+/* The scroll padding keeps a focused control from scrolling under the AI disclosure (WCAG 2.4.11): its strip's height
+   and a rem in the room's HUD, 5rem elsewhere. */
 html {
-  scroll-padding-top: 5rem;
+  scroll-padding-top: calc(var(--strip-h, 4rem) + 1rem);
 }
 
+/* The AI disclosure, index.html's header, stays in view on every screen, from the choice to the end of the visit
+   (FR-004; contracts/room-scene.md §1): sticky and opaque, and in the room's HUD fixed at the window's top (below). */
 .disclosure {
   position: sticky;
   top: 0;
@@ -75,62 +83,127 @@ html {
   background: #ffffff;
 }
 
-/* In the room, the page uses the screen's height: the AI disclosure stays on top, smaller. */
-body.in-room {
-  max-width: 72rem;
-  padding: 0.5rem;
-}
-
 body.in-room .disclosure p {
   margin: 0.25rem 0;
   font-size: 0.875rem;
 }
 
-/* Portrait first: the toolbar, the stage, the list, the conversation, "Around the room" (spec 004, FR-063), then the
-   resume when it's open. */
+/* The HUD's palette (spec 005, FR-024, FR-025; plan.md §6.7, PD-16): dark glass at the lowest 5% step of opacity at
+   which every text and mark passes over white and over black beneath (test/room/hud-contrast.test.ts computes it), a
+   tile face darker than the glass, light text, a light border, and the highlight's yellow for focus. The sizes start at
+   0 until the room sets them; --strip-h has no value until then, so the scroll padding keeps its 4rem fallback. */
+:root {
+  --glass: 16 20 26;
+  --glass-alpha: 0.6;
+  --hud-text: #ffffff;
+  --tile-face: rgb(6 8 11 / 0.4);
+  --tile-border: rgb(255 255 255 / 0.72);
+  --hud-focus: #ffd23f;
+  --hud-blur: blur(12px);
+  --bar-h: 0px;
+  --column-w: 0px;
+  --dock-h: 0px;
+  --clear-x: 0px;
+  --clear-y: 0px;
+  --clear-w: 0px;
+  --clear-h: 0px;
+  --safe-top: 0px;
+  --safe-right: 0px;
+  --safe-bottom: 0px;
+  --safe-left: 0px;
+  --keyboard: 0px;
+}
+
+/* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
+   browser draws no backdrop blur, so the tint alone carries the contrast (FR-006). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-alpha: 1;
+  }
+
+  .hud-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --glass-alpha: 1;
+  }
+
+  .hud-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-alpha: 1;
+  }
+
+  .hud-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* The room's block (spec 005, FR-008; plan.md §4.1): the window's width and its dynamic height, 100vh first for a
+   browser without dvh, with no page frame around it; the 3D canvas or the 2D drawing fills it, the HUD is laid over it,
+   and "Around the room" follows below in a reading column. */
+html[data-hud="column"] body.in-room,
+html[data-hud="dock"] body.in-room {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
 .room {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "toolbar" "stage" "list" "talk" "around" "resume";
-}
-
-.room-toolbar {
-  grid-area: toolbar;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.room-toolbar a {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.5rem;
-}
-
-/* The stage leaves room, on a 320 by 568 screen, for the disclosure, the toolbar, the list, the text box, and the
-   talk button without scrolling (FR-047); dvh follows a phone's browser bars. Below a portrait width of 35rem the
-   reserve grows by one toolbar row (below). */
-.room-stage {
-  grid-area: stage;
   position: relative;
-  height: calc(100vh - 20rem);
-  height: calc(100dvh - 20rem);
-  min-height: 9rem;
-  max-height: 40rem;
-  container-type: size;
+}
+
+html[data-hud="column"] .room-block,
+html[data-hud="dock"] .room-block {
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* The stage: the room block's backdrop, spec 002's #20252b across the window in 3D and 2D alike (FR-003). */
+.room-stage {
+  position: relative;
   overflow: hidden;
   background: #20252b;
-  border-radius: 4px;
 }
 
+html[data-hud="column"] .room-stage,
+html[data-hud="dock"] .room-stage {
+  position: absolute;
+  inset: 0;
+}
+
+/* The stage's view: the canvas's place. In 3D it fills the stage; loading, and in 2D, it sits in the clear area, the
+   drawing at its 8:5 shape inside it (`.flat`, its container). */
 .room-stage-view {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  container-type: size;
+}
+
+html[data-hud="column"] .room-stage-view[data-stage="2d"],
+html[data-hud="dock"] .room-stage-view[data-stage="2d"],
+html[data-hud="column"] .room-stage-view[data-stage="loading"],
+html[data-hud="dock"] .room-stage-view[data-stage="loading"] {
+  inset: auto;
+  left: var(--clear-x);
+  top: var(--clear-y);
+  width: var(--clear-w);
+  height: var(--clear-h);
 }
 
 .room-loading,
@@ -139,7 +212,7 @@ body.in-room .disclosure p {
   color: #ffffff;
 }
 
-/* The stage's line when the 2D drawing can't be drawn (FR-081): centred, clear of the stage's sides. */
+/* The stage's line when the 2D drawing can't be drawn (FR-081; spec 005's FR-004): centred, clear of its sides. */
 .room-flat-failed {
   padding: 0 1rem;
   text-align: center;
@@ -156,8 +229,31 @@ body.in-room .disclosure p {
   cursor: pointer;
 }
 
-/* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the stage's bottom-right corner,
-   8rem by 2.75rem, 0.5rem in, which compose/stages.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
+/* The clear box (spec 005, FR-015, FR-021; plan.md §5.4, §6.3): the clear area, over the stage, holding the notes, the
+   hand-off's offer, and the walking control. It lets a pointer through to the scene; only its controls take one. */
+.room-clear {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+html[data-hud="column"] .room-clear,
+html[data-hud="dock"] .room-clear {
+  inset: auto;
+  left: var(--clear-x);
+  top: var(--clear-y);
+  width: var(--clear-w);
+  height: var(--clear-h);
+}
+
+.room-walk,
+.room-offer {
+  pointer-events: auto;
+}
+
+/* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the clear area's bottom-right
+   corner, 8rem by 2.75rem, 0.5rem in, which compose/hud.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
    every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. */
 .room-walk {
   position: absolute;
@@ -187,7 +283,7 @@ body.in-room .disclosure p {
   cursor: grab;
 }
 
-/* The stage's notes, over the view's top left: the placeholder note and spec 009's stand-in line, each its own
+/* The stage's notes, at the clear area's top left: the placeholder note and spec 009's stand-in line, each its own
    paragraph. They take no room in the layout and let a pointer or a touch through to the scene (spec 009, FR-029). */
 .room-notes {
   position: absolute;
@@ -210,7 +306,7 @@ body.in-room .disclosure p {
   border-radius: 3px;
 }
 
-/* The offer after the hand-off, over the stage's foot. */
+/* The offer after the hand-off, over the clear area's foot. */
 .room-offer {
   position: absolute;
   left: 0.5rem;
@@ -239,8 +335,10 @@ body.in-room .disclosure p {
   opacity: 0.6;
 }
 
-.room-list {
-  grid-area: list;
+.room-toolbar a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
 }
 
 .room-list ul {
@@ -256,7 +354,176 @@ body.in-room .disclosure p {
   padding: 0 0.5rem;
 }
 
-/* The 2D drawing keeps its 8:5 shape inside the stage, the view box's, so a pointer's place maps onto the drawing's
+/* The HUD's docked boxes (spec 005; plan.md §2.3): the strip at the window's top, the bar at the room block's foot,
+   and the column on the right between them, or the dock across the foot above the bar. Each is dark glass, and each
+   takes its own pointer (FR-033). The keyboard's inset lifts the foot over the scene, and nothing re-fits (FR-050). */
+html[data-hud="column"] .disclosure,
+html[data-hud="dock"] .disclosure {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--strip-h);
+  z-index: 5;
+  box-sizing: border-box;
+  padding: calc(0.25rem + var(--safe-top)) calc(0.5rem + var(--safe-right)) 0.25rem calc(0.5rem + var(--safe-left));
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+  border-bottom: 0;
+  overflow: hidden;
+}
+
+html[data-hud="column"] .disclosure p,
+html[data-hud="dock"] .disclosure p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+html[data-hud="column"] .hud-bar,
+html[data-hud="dock"] .hud-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--keyboard);
+  height: var(--bar-h);
+  z-index: 3;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.25rem calc(0.25rem + var(--safe-right)) calc(0.25rem + var(--safe-bottom)) calc(0.25rem + var(--safe-left));
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+html[data-hud="column"] .hud-panels {
+  position: absolute;
+  right: 0;
+  top: var(--strip-h);
+  bottom: calc(var(--bar-h) + var(--keyboard));
+  width: var(--column-w);
+  z-index: 3;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem calc(0.25rem + var(--safe-right)) 0.25rem 0.25rem;
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+html[data-hud="dock"] .hud-panels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--bar-h) + var(--keyboard));
+  height: var(--dock-h);
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 0.25rem calc(0.25rem + var(--safe-right)) 0.25rem calc(0.25rem + var(--safe-left));
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+/* The column: the list above the conversation, the list scrolling inside it, and the conversation's text box at the
+   column's foot (FR-022). */
+html[data-hud="column"] .room-list {
+  flex: 0 1 auto;
+  min-height: 3rem;
+  overflow-y: auto;
+}
+
+html[data-hud="column"] .talk {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+html[data-hud="column"] .talk-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* The dock: the conversation's log is a sheet above it, at most 4.75rem, shown once it holds a line; its form stays in
+   the dock (PD-6). */
+html[data-hud="dock"] .talk-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  padding: 0.25rem calc(0.25rem + var(--safe-right)) 0.25rem calc(0.25rem + var(--safe-left));
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+html[data-hud="dock"] .talk[data-log="empty"] .talk-sheet {
+  clip-path: inset(50%);
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
+   outside the stage, open to every visitor; a Tab stop after the conversation (layout.ts), its focus ring the room's.
+   Below the room block in the HUD, in a reading column. */
+.room-around h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.room-around ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+html[data-hud="column"] .room-around,
+html[data-hud="dock"] .room-around {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.resume-panel {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #555555;
+  border-radius: 4px;
+}
+
+/* The resume opens over the room, in the clear area, as an opaque panel (spec 005, FR-027; D5). */
+html[data-hud="column"] .resume-panel,
+html[data-hud="dock"] .resume-panel {
+  position: absolute;
+  left: var(--clear-x);
+  top: var(--clear-y);
+  width: var(--clear-w);
+  height: var(--clear-h);
+  z-index: 4;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.resume-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.resume-actions a {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The 2D drawing keeps its 8:5 shape inside its view, the view box's, so a pointer's place maps onto the drawing's
    pick areas at its scale (spec 004, R-20, R-39). */
 .flat {
   position: relative;
@@ -309,78 +576,114 @@ body.in-room .disclosure p {
   paint-order: stroke;
 }
 
-/* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
-   outside the stage, open to every visitor, its own area of the grid; a Tab stop after the conversation (layout.ts),
-   its focus ring the room's. */
-.room-around {
-  grid-area: around;
+/* Forced colours: the system's colours throughout the HUD, no blur, and focus in Highlight (FR-006). */
+@media (forced-colors: active) {
+  html[data-hud="column"] .disclosure,
+  html[data-hud="dock"] .disclosure,
+  .hud-glass {
+    color: CanvasText;
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .hud-bar button,
+  .hud-bar a {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: ButtonText;
+  }
+
+  .room button:focus-visible,
+  .room a:focus-visible {
+    outline-color: Highlight;
+  }
 }
 
-.room-around h2 {
-  margin: 0 0 0.25rem;
-  font-size: 1rem;
+/* The stacked layout (spec 005, FR-007; plan.md §6.11, PD-23): where the HUD can't fit, spec 004's grid as it stood at
+   e324771e, the panels in the page's flow below the stage in the Tab order's order, the page scrolling vertically.
+   Portrait first: the toolbar, the stage, the list, the conversation, "Around the room" (spec 004, FR-063), then the
+   resume when it's open. The stage leaves room, on a 320 by 568 screen, for the disclosure, the toolbar, the list, the
+   text box, and the talk button without scrolling (FR-047); dvh follows a phone's browser bars. */
+html[data-hud="stacked"] body.in-room {
+  max-width: 72rem;
+  padding: 0.5rem;
 }
 
-.room-around ul {
-  margin: 0;
-  padding-left: 1.25rem;
+html[data-hud="stacked"] .room {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "toolbar" "stage" "list" "talk" "around" "resume";
 }
 
-.resume-panel {
-  grid-area: resume;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #555555;
-  border-radius: 4px;
+html[data-hud="stacked"] .room-block,
+html[data-hud="stacked"] .hud-panels {
+  display: contents;
 }
 
-.resume-panel h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.125rem;
-}
-
-.resume-actions {
+html[data-hud="stacked"] .hud-bar {
+  grid-area: toolbar;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
 }
 
-.resume-actions a {
-  display: inline-flex;
-  align-items: center;
+html[data-hud="stacked"] .room-stage {
+  grid-area: stage;
+  position: relative;
+  height: calc(100vh - 20rem);
+  height: calc(100dvh - 20rem);
+  min-height: 9rem;
+  max-height: 40rem;
+  border-radius: 4px;
 }
 
-/* A phone held upright, below a portrait width of 35rem (spec 004, FR-065; spec 002's FR-047, as Amendment B8 extends
-   it; the review of T171, B1): the toolbar's five controls, spec 003's "Credits" link among them once it lands, wrap to
-   two rows at 1rem, so the stage gives up one toolbar row, a 44 px control and the toolbar's 0.5rem gap, 3.25rem, and
-   the text box and the talk button stay on screen. The bound follows the toolbar, code and UI words, never the list's
-   names, which are data. compose/stages.ts follows this rule (test/room/stages.test.ts pins it). max-width, not range
-   syntax, which Safari reads only from 16.4. */
+html[data-hud="stacked"] .room-list {
+  grid-area: list;
+}
+
+html[data-hud="stacked"] .talk {
+  grid-area: talk;
+}
+
+html[data-hud="stacked"] .room-around {
+  grid-area: around;
+}
+
+html[data-hud="stacked"] .resume-panel {
+  grid-area: resume;
+}
+
+/* A phone held upright, below a portrait width of 35rem (spec 004, FR-065; spec 002's FR-047; the review of T171, B1):
+   the toolbar's controls wrap to two rows at 1rem, so the stage gives up one toolbar row, 3.25rem. max-width, not
+   range syntax, which Safari reads only from 16.4. */
 @media (orientation: portrait) and (max-width: 34.99rem) {
-  .room-stage {
+  html[data-hud="stacked"] .room-stage {
     height: calc(100vh - 23.25rem);
     height: calc(100dvh - 23.25rem);
   }
 }
 
-/* Narrower still, below 25rem (R-40): the toolbar's type drops to 0.875rem, so the five controls keep to two rows on a
-   320 by 568 screen. */
+/* Narrower still, below 25rem (R-40): the toolbar's type drops to 0.875rem. */
 @media (orientation: portrait) and (max-width: 24.99rem) {
-  .room-toolbar {
+  html[data-hud="stacked"] .hud-bar {
     font-size: 0.875rem;
   }
 }
 
-/* Landscape, on a phone turned sideways or a desktop: the stage beside the list and the conversation, then "Around the
-   room" across both columns before the resume (FR-046; spec 004, FR-063). */
+/* Landscape: the stage beside the list and the conversation, then "Around the room" across both columns before the
+   resume (FR-046; spec 004, FR-063). */
 @media (orientation: landscape) and (min-width: 32rem) {
-  .room {
+  html[data-hud="stacked"] .room {
     grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
     grid-template-areas: "toolbar toolbar" "stage list" "stage talk" "around around" "resume resume";
     align-items: start;
   }
 
-  .room-stage {
+  html[data-hud="stacked"] .room-stage {
     height: calc(100vh - 7rem);
     height: calc(100dvh - 7rem);
   }
@@ -388,7 +691,8 @@ body.in-room .disclosure p {
 
 @media (prefers-reduced-motion: reduce) {
   .room *,
-  .choice * {
+  .choice *,
+  .disclosure {
     transition: none !important;
     animation: none !important;
     scroll-behavior: auto !important;

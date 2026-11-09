@@ -145,19 +145,24 @@ export function renderTalk(
     limitNote,
     counter,
   );
+  // Spec 005 (FR-020, FR-028; plan.md §6.5): the log and the waiting status are the conversation's sheet, which the
+  // dock layout lays above the dock once the log holds a line (data-log), and the column layout keeps in the column.
+  const sheet = h(doc, "div", { class: "talk-sheet" }, log, status);
   const element = h(
     doc,
     "section",
-    { class: "talk", "aria-labelledby": "talk-heading" },
+    { class: "talk", "aria-labelledby": "talk-heading", "data-log": "empty" },
     h(doc, "h2", { id: "talk-heading", class: "visually-hidden" }, "Talk to the twin"),
-    log,
-    status,
+    sheet,
     form,
   );
 
   const append = (node: HTMLElement): void => {
     log.append(node);
     while (log.children.length > LOG_LIMIT) log.firstElementChild?.remove();
+    element.setAttribute("data-log", "lines");
+    // The newest line stays in view (spec 007, FR-042; spec 005, FR-028).
+    log.scrollTop = log.scrollHeight;
   };
 
   const show = (id: MessageId, vars: Readonly<Record<string, string>> = {}): void => {

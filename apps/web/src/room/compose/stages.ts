@@ -29,11 +29,14 @@ const ASPECT_STEP = 1.25;
 const STEPS_DOWN = 2;
 const STEPS_UP = 7;
 
+/** A series value without binary noise: 0.288, not 0.28800000000000003, as RG5's reasons print it. */
+const decimal = (x: number): number => Number(x.toFixed(12));
+
 /** The framing aspects RG5 checks: spec 002's six, and the series by ×1.25 outward (FR-053; PD-10). */
 export const ASPECTS: readonly number[] = [
-  ...Array.from({ length: STEPS_DOWN }, (_, i) => SPEC_002_ASPECTS[0] / ASPECT_STEP ** (STEPS_DOWN - i)),
+  ...Array.from({ length: STEPS_DOWN }, (_, i) => decimal(SPEC_002_ASPECTS[0] / ASPECT_STEP ** (STEPS_DOWN - i))),
   ...SPEC_002_ASPECTS,
-  ...Array.from({ length: STEPS_UP }, (_, i) => SPEC_002_ASPECTS[5] * ASPECT_STEP ** (i + 1)),
+  ...Array.from({ length: STEPS_UP }, (_, i) => decimal(SPEC_002_ASPECTS[5] * ASPECT_STEP ** (i + 1))),
 ];
 
 /** The stage for a screen: the clear area the HUD leaves it with every panel open, at the compositor's metrics (a

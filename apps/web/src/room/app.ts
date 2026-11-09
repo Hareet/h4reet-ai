@@ -61,6 +61,8 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
+import { DEFAULT_METRICS, OPENING, fitsHud, hudBoxes } from "./compose/hud";
+import type { HudMetrics, HudState } from "./compose/hud";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -166,6 +168,38 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
+
+  /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
+  let hudState: HudState = OPENING;
+
+  /** The window's measures: its CSS size, its root font size, and its safe areas. */
+  function measures(): { w: number; h: number; metrics: HudMetrics } {
+    const size = Number.parseFloat(win.getComputedStyle(doc.documentElement).fontSize);
+    const rem = Number.isFinite(size) && size > 0 ? size : DEFAULT_METRICS.rem;
+    return { w: win.innerWidth, h: win.innerHeight, metrics: { rem, safe: DEFAULT_METRICS.safe } };
+  }
+
+  /** Lays the HUD out for the window: the layout and its boxes from compose/hud.ts, or the stacked layout where it
+   *  can't fit (FR-007), applied to the page's root (plan.md §4.3). */
+  function fitRoom(): void {
+    const layout = room;
+    if (!layout) return;
+    const { w, h: height, metrics } = measures();
+    const screen = { w, h: height };
+    const boxes = hudBoxes(screen, hudState, metrics);
+    const fits = fitsHud(screen, hudState, metrics);
+    layout.applyHud({
+      layout: fits ? boxes.layout : "stacked",
+      state: hudState,
+      metrics,
+      strip: boxes.strip.h,
+      bar: boxes.bar.h,
+      column: boxes.column?.w ?? 0,
+      dock: boxes.dock?.h ?? 0,
+      clear: boxes.clear,
+      keyboard: 0,
+    });
+  }
 
   /** A targeting event through the store: a change of target goes to the stage that draws, and to a drafts build's
    *  frame log with the input that made it (spec 008, FR-007, FR-054). */
@@ -412,6 +446,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       event.preventDefault();
       closeResume();
     });
+    fitRoom();
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
     layout.heading.focus();
@@ -545,6 +580,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // The canvas and the drawing are pictures of what the list holds (FR-045).
     next.element.setAttribute("aria-hidden", "true");
     room?.view.replaceChildren(next.element);
+    room?.setStage(next.mode);
   }
 
   /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). If the 2D drawing refuses
@@ -584,6 +620,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     else {
       const words = uiWord(deps.room.ui, "flat-failed") ?? "";
       room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
+      room.setStage("2d");
     }
     // The 3D stage's loader skips what it had on its way; every other set model whose load hadn't recorded its end is
     // skipped here, the room in 2D (data-model.md §11.4): one the room started in 2D without, or one its 3D stage's
