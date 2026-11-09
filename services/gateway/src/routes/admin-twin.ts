@@ -124,6 +124,8 @@ export function registerAdminTwin(admin: FastifyInstance, deps: AdminTwinDeps): 
           : null;
         // The guard that withheld, replaced, or repaired the answer (D34), for the runners' history.
         const guard = guarded === null || guarded.kind === "pass" ? null : guarded.guard;
+        // The guards that removed a sentence, or the claim tags, from an answer delivered (D41, D42), for the runners.
+        const redacted = guarded === null || guarded.kind === "withheld" ? [] : [...(guarded.redacted ?? [])];
         const detail = {
           adapter: a.adapter,
           feature: input.feature,
@@ -175,6 +177,7 @@ export function registerAdminTwin(admin: FastifyInstance, deps: AdminTwinDeps): 
           cost_micro_usd: Number(a.costMicro),
           route: a.adapter,
           guard,
+          redacted,
           model: outcome.result.responseModel,
           usage: { input_tokens: outcome.result.usage.inputTokens, output_tokens: outcome.result.usage.outputTokens },
           trace_id: a.traceId,

@@ -238,6 +238,9 @@ export function registerRoomTurn(api: FastifyInstance, deps: RoomTurnDeps): void
               state.guard = guarded.guard;
               deps.metrics.twinWithheld(guarded.guard);
             }
+            // An answer delivered with a sentence, or its claim tags, removed (D40, D41): each guard that removed one,
+            // counted once for the answer, with the outcome ok.
+            for (const redaction of guarded.redacted ?? []) deps.metrics.twinRedacted(redaction);
           }
           return reply.code(200).send({
             text: guarded.text,

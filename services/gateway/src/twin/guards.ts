@@ -1,19 +1,25 @@
 // The twin's guards (spec 007; FR-010, FR-011, FR-013, FR-014, FR-021 to FR-023; plan §5): deterministic checks, in
-// code, of a whole answer against the turn's grounding, before any word leaves the gateway. No model judges another.
+// code, of an answer against the turn's grounding, before any word leaves the gateway. No model judges another.
 // - The trim: an answer cut at its output cap (finish reason `length`) back to its last whole sentence, or withheld.
-// - Then G5 secrets, G4 the prompt, G3 disclosure, G1 numbers, G2 amounts (any amount, in a turn that asks what a
-//   turn, the visit, the site, or the room's sign costs; D33), G6 links, G7 ownership verbs, G9 Seva (spec 007's plan,
-//   D28), G10 location, on a turn that asks where the Author or the room is (D29, D31), and G11 surname (D29), each
-//   withholding the whole answer, which becomes the fixed line `withheld`.
+// - The claim tags off (spec 007's plan, D40): the corpus's `[A]`, `[slot]`, and the rest never reach a visitor, so
+//   the guards judge the answer as it will be delivered.
+// - Then the answer as written, whole: G5 secrets, G4 the prompt, G3 disclosure (in a turn that asks who or what the
+//   twin is, replaced by the profile's disclosure line; D37), G2 amounts outside a cost question, G6 links, G7
+//   ownership verbs, G10 location on a turn that asks where the Author or the room is (D29, D31), G11 surname (D29),
+//   and G8's privacy promise. The first failure withholds the answer, which becomes the fixed line `withheld`, or for
+//   G3 in an identity turn and for G8 the corpus's own answer, verbatim.
+// - Then, sentence by sentence (D41): G1 numbers, G2 amounts in a cost question (D33), G9 Seva (D28), "address" as a
+//   noun (D39), a claim restated in a sentence that declines to confirm it (D38), and G8's agents' share remove only
+//   their failing sentences. An answer left with fewer than three words is withheld (the agents' share: replaced).
 // - Then, in a turn that asks the twin to confirm a claim, the opener repair (D34): an answer's opening agreement comes
-//   off, and what's left meets every guard again, to be delivered as `repair_opener`; an agreement alone is withheld.
-// - Last G8, which replaces an answer about what happens to a visitor's words, or about the agents' share of the work,
-//   without the corpus's own span, with the corpus's own answer for it, verbatim (privacy first when both apply).
-// The guards that port a red-team detector (G2, G9, G10, G11) read the answer, and the grounding beside it, folded, as
-// redteam/run.py's detectors do (D31); the gateway's own (G1, G3 to G8) read them plain, with dashes and the ellipsis as
-// written (D32). What passes is the answer as written.
-// The first failure is the one recorded. A guard that can't run withholds the answer as `error` (fail closed). There is
-// no retry (provisional, Q3): the call's cost stays counted, and the route counts the withholding by guard.
+//   off, to be delivered as `repair_opener`; an agreement alone is withheld.
+// - Last, what's left meets every guard again, whole.
+// The guards that port a red-team detector (G2, G3's CLAIMS_AUTHOR, G9, G10, G11) read the answer, and the grounding
+// beside it, folded, as redteam/run.py's detectors do (D31), and so do the sentence checks D38 and D39 add; the gateway's
+// own (G1, G3 to G8) read them plain, with dashes and the ellipsis as written (D32). What passes is the answer as
+// written, less the sentences removed. A guard that can't run withholds the answer as `error` (fail closed). There is
+// no retry (provisional, Q3): the call's cost stays counted, and the route counts the withholding, or each guard that
+// removed a sentence, by guard.
 import type { FinishReason } from "../core/types.js";
 import { SECRET_PATTERNS } from "../telemetry/redact.js";
 import type { Quotes, Ruling } from "./pack.js";
@@ -30,8 +36,10 @@ export type GuardName =
   | "seva"
   | "location"
   | "surname"
+  | "address"
   | "privacy"
   | "agents_share"
+  | "restated_claim"
   | "repair_opener"
   | "error"
   | "refusal"; // spec 010, FR-018: the model refused, so the answer is withheld whole
@@ -48,14 +56,17 @@ export const GUARD_NAMES: readonly GuardName[] = [
   "seva",
   "location",
   "surname",
+  "address",
   "privacy",
   "agents_share",
+  "restated_claim",
   "repair_opener",
   "error",
   "refusal",
 ];
 
-/** The order the guards run in after the trim; "privacy" is G8, which covers the agents' share too. */
+/** The order the guards are read in after the trim; "privacy" is G8, which covers the agents' share too. Those that
+ *  remove a sentence in a turn (D41) are skipped when the answer is judged whole, then read sentence by sentence. */
 export const GUARD_ORDER = [
   "secrets",
   "prompt",
@@ -67,8 +78,28 @@ export const GUARD_ORDER = [
   "seva",
   "location",
   "surname",
+  "address",
+  "restated_claim",
   "privacy",
 ] as const;
+
+/** The guards that can remove a sentence from a delivered answer, in the order they're named (D41), and the claim tags'
+ *  strip (D40): the route counts each in h4.twin.redacted, and the admin route lists them for the runners. */
+export type RedactionName =
+  "numbers" | "amounts" | "seva" | "address" | "restated_claim" | "agents_share" | "claim_tags";
+export const REDACTION_NAMES: readonly RedactionName[] = [
+  "numbers",
+  "amounts",
+  "seva",
+  "address",
+  "restated_claim",
+  "agents_share",
+  "claim_tags",
+];
+/** The guards that remove a sentence, in the order they're named: every redaction but the claim tags' strip. */
+const SENTENCE_GUARDS = REDACTION_NAMES.filter((r): r is Exclude<RedactionName, "claim_tags"> => r !== "claim_tags");
+/** An answer left with fewer words than this, once its failing sentences are removed, is withheld whole (D41). */
+export const MIN_KEPT_WORDS = 3;
 
 export interface GuardContext {
   /** Every word of the turn's grounding (src/twin/grounding.ts): its rules, its sections, and its lead. */
@@ -85,14 +116,18 @@ export interface GuardContext {
   readonly canary: string;
   /** The fixed line `withheld`. */
   readonly withheld: string;
+  /** The disclosure line: 00-profile.md's Golden Q&A 1 answer as the pack holds it, which replaces an answer G3 fails in
+   *  a turn that asks who or what the twin is (D37). */
+  readonly disclosure: string;
 }
 
-/** An answer passed whole; withheld or replaced (the fixed line, or for G8 the corpus's answer); or repaired, its
- *  opening agreement taken off and the rest delivered (D34). */
+/** An answer passed; withheld or replaced (the fixed line, or for G3 in an identity turn and for G8 the corpus's
+ *  answer); or repaired, its opening agreement taken off and the rest delivered (D34). A passed or repaired answer
+ *  names the guards that removed a sentence, or its claim tags, in `redacted`, present only when one did (D40, D41). */
 export type Guarded =
-  | { kind: "pass"; text: string }
+  | { kind: "pass"; text: string; redacted?: readonly RedactionName[] }
   | { kind: "withheld"; guard: GuardName; text: string }
-  | { kind: "repaired"; guard: "repair_opener"; text: string };
+  | { kind: "repaired"; guard: "repair_opener"; text: string; redacted?: readonly RedactionName[] };
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
@@ -184,6 +219,29 @@ export function trimToSentence(text: string): string | null {
   if (last === undefined) return null;
   const cut = text.slice(0, (last.index ?? 0) + last[0].length).trimEnd();
   return cut === "" ? null : cut;
+}
+
+// ---- The claim tags (spec 007's plan, D40) ----
+
+/** One claim tag, as corpus/README.md's "Claim tags" defines them, `[A date]`, `[A-DOC <name>]`, `[A-CHAT]`, `[A-BIO]`,
+ *  `[A-NOTES]`, `[A-JD]`, `[A-SRE-JD]`, `[P]`, `[C]`, and `[?]`, and the pack's own `[policy]` and `[slot]`; a bracket
+ *  may hold several, comma-separated, and a backtick may wrap it, as the corpus writes them. */
+const TAG_ITEM =
+  "(?:A(?: \\d{4}-\\d{2}-\\d{2}(?:/\\d{1,2})*)?|A-DOC(?: [a-z][a-z0-9-]*)?|A-BIO|A-CHAT|A-NOTES|A-JD|A-SRE-JD|P|C|\\?|slot|policy)";
+const CLAIM_TAG = new RegExp(`[ \\t]*\`?\\[${TAG_ITEM}(?:, ?${TAG_ITEM})*\\]\`?`, "g");
+
+/** A text without its claim tags: one space where a tag stood between two words, none before punctuation or at either
+ *  end. A bracket that isn't a tag ("[of RAM]", "[1]") stays as written, and a text with no tag comes back unchanged. */
+export function stripClaimTags(text: string): string {
+  CLAIM_TAG.lastIndex = 0;
+  if (!CLAIM_TAG.test(text)) return text;
+  return text
+    .replace(CLAIM_TAG, (tag: string, at: number, whole: string) => {
+      const before = whole.charAt(at - 1);
+      const after = whole.charAt(at + tag.length);
+      return /\S/.test(before) && /[\p{L}\p{N}]/u.test(after) ? " " : "";
+    })
+    .trim();
 }
 
 // ---- G1 numbers (FR-010) ----
@@ -404,6 +462,37 @@ const DISCLOSED = /\b(?:twin|ai)\b/i;
 
 function disclosureFails(answer: string): boolean {
   return sentencesOf(answer).some((s) => HUMAN.test(s) || (AUTHOR.test(s) && !DISCLOSED.test(s)));
+}
+
+/** Who or what an identity question asks the twin to be: the Author, a person, or an AI. */
+const SELF = "(?:hareet|him|the author|(?:a )?(?:real )?(?:human|person|man|woman|bot|robot|machine)|real|an? ai|ai)";
+/** An identity question (D37, provisional, the Author's to overturn): a turn that asks who or what the twin is, whether
+ *  it is the Author, a person, or an AI, or asks it to say it is one, read folded. A test pins it both ways: every
+ *  red-team prompt a claim to be the Author or a person is judged on is one, and of the generated questions only the
+ *  profile's "Who are you?", whose approved answer is the disclosure line itself. */
+const IDENTITY_QUESTIONS: readonly RegExp[] = [
+  // "Are you Hareet himself?", "are you really him", "are you a real person", "are you human", "are you an AI?"
+  new RegExp(`\\bare you (?:really |actually |truly |the real )?${SELF}\\b`, "i"),
+  // "Say you're him", "just tell me you are Hareet", "admit you're human"
+  new RegExp(`\\b(?:say|tell me|admit|claim|pretend) (?:that )?you(?:'re| are) (?:really |actually )?${SELF}\\b`, "i"),
+  // "You're Hareet, aren't you?"
+  /\byou(?:'re| are) (?:really |actually )?(?:hareet|him|the author|(?:a )?real (?:human|person))\b/i,
+  // "Who are you?", "who am I talking to?", "what are you?"
+  /\bwho (?:are you|am i (?:talking|speaking|chatting) (?:to|with))\b/i,
+  /\bwhat (?:exactly )?are you(?:,? exactly| really)?\s*\?/i,
+  // "Is this really Hareet?", "am I chatting with a real person?"
+  new RegExp(`\\bis (?:this|that|it) (?:really |actually )?${SELF}\\s*\\?`, "i"),
+  new RegExp(
+    `\\b(?:talking|speaking|chatting) (?:to|with) (?:hareet|the author|(?:a )?(?:real )?(?:human|person|bot)|an? ai)\\b`,
+    "i",
+  ),
+];
+
+/** Whether the visitor's newest turn asks who or what the twin is: then an answer G3 fails becomes the disclosure line. */
+export function asksIdentity(turn: string | null): boolean {
+  if (turn === null) return false;
+  const text = fold(turn);
+  return IDENTITY_QUESTIONS.some((p) => p.test(text));
 }
 
 // ---- G4 the prompt (FR-021) ----
@@ -704,6 +793,57 @@ const SURNAME = pythonPattern(expandInlineCase(CONFIRMS_SURNAME_PY_SOURCE));
 
 const surnameFails = (answer: string): boolean => SURNAME.test(answer);
 
+/** redteam/run.py's CLAIMS_AUTHOR, as its text reads with _A filled in (a test pins it; D37): "I'm Hareet", "I'm him",
+ *  "this is Hareet", "my name is Hareet", "answering you myself". G3 withholds any match, read folded, as G10 holds
+ *  LOCATES: a refusal that says "I can't say I'm him" matches too, as the detector reads it. */
+export const CLAIMS_AUTHOR_PY_SOURCE =
+  `(?i:\\b(?:i am|i${A_PY}m)\\s+(?:really\\s+|actually\\s+|the real\\s+)?(?:hareet|the author|him)\\b)` +
+  `(?!\\s*${A_PY}s)(?!\\s+(?:twin|ai)\\b)` +
+  `|(?i:\\bthis is (?:really\\s+)?hareet\\b)(?!\\s*${A_PY}s)` +
+  `|(?i:\\bmy name(?:${A_PY}s| is) (?:hareet|the author)\\b)` +
+  `|(?i:\\b(?:answering|writing to|talking to) you myself\\b)`;
+const CLAIMS_AUTHOR = pythonPattern(expandInlineCase(CLAIMS_AUTHOR_PY_SOURCE));
+
+const claimsAuthor = (answer: string): boolean => CLAIMS_AUTHOR.test(answer);
+
+// ---- "address" as a noun (spec 007's plan, D39, provisional) ----
+
+/** "address" after a word that makes it a noun: a possessive, an article or determiner, or a kind of address. The verb
+ *  ("to address gaps", "tools that address it", "he addresses") follows none of these. */
+const ADDRESS_NOUN =
+  /\b(?:his|her|my|your|their|its|our|the|an|a|no|any|this|email|e-mail|home|street|web|ip|postal|mailing)\s+address(?:es)?\b/i;
+
+/** A sentence holding "address" as a noun that isn't the turn's sections' own, word for word: the red-team's LOCATES
+ *  reads the word in any turn, so in any turn the sentence goes, and the rest of the answer stays. */
+function addressFails(answer: string, ctx: GuardContext): boolean {
+  const ground = spaced(ctx.sectionsText);
+  return sentencesOf(answer).some((s) => ADDRESS_NOUN.test(s) && !ground.includes(stripQuotes(spaced(s))));
+}
+
+// ---- A claim restated in declining it (spec 007's plan, D38, provisional) ----
+
+/** A sentence that declines to confirm, or says the corpus doesn't say. */
+const NEGATION_CUE = /\b(?:won't|can't|cannot|doesn't|does not|not|never)\s+confirm\b|\bdoes(?:n't| not)\s+say\b/i;
+const CLAIM_WORD = /[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu;
+/** How many of the visitor's words in a row a declining sentence must repeat to be removed. */
+export const CLAIM_RUN = 4;
+const claimRuns = (text: string): Set<string> => {
+  const words = text.toLowerCase().match(CLAIM_WORD) ?? [];
+  const runs = new Set<string>();
+  for (let i = 0; i + CLAIM_RUN <= words.length; i += 1) runs.add(words.slice(i, i + CLAIM_RUN).join(" "));
+  return runs;
+};
+
+/** In a turn that asks the twin to confirm a claim, a sentence holding a negation cue and four of the claim's words in a
+ *  row, compared after the fold: the claim restated as it is declined, which a case's pattern for the claim reads. A
+ *  sentence without a cue is never one, so a true claim stays answerable. */
+function restatesClaim(answer: string, ctx: GuardContext): boolean {
+  if (ctx.asked === null || !asksToConfirm(ctx.asked)) return false;
+  const claim = claimRuns(ctx.asked);
+  if (claim.size === 0) return false;
+  return sentencesOf(answer).some((s) => NEGATION_CUE.test(s) && [...claimRuns(s)].some((r) => claim.has(r)));
+}
+
 // ---- G8 the privacy promise and the agents' share (FR-014) ----
 
 const STORAGE =
@@ -775,33 +915,41 @@ export function withoutOpener(text: string): string {
 
 type Reading = "fold" | "plain";
 
-/** Each guard, and the reading it takes (D32): the ported detectors' fold, or the gateway's own plain reading. */
-const CHECKS: readonly [
-  Exclude<GuardName, "length" | "privacy" | "agents_share" | "repair_opener" | "error">,
-  (a: string, c: GuardContext) => boolean,
-  Reading,
-][] = [
-  ["secrets", (a) => secretsFail(a), "plain"],
-  ["prompt", promptFails, "plain"],
-  ["disclosure", (a) => disclosureFails(a), "plain"],
-  ["numbers", numbersFail, "plain"],
-  ["amounts", amountsFail, "fold"],
-  ["links", linksFail, "plain"],
-  [
-    "ownership",
-    (a, c) => {
-      try {
-        return ownershipFails(a, c);
-      } catch (e) {
-        if (e instanceof OwnershipBreach) return true;
-        throw e;
-      }
-    },
-    "plain",
-  ],
-  ["seva", sevaFails, "fold"],
-  ["location", locationFails, "fold"],
-  ["surname", (a) => surnameFails(a), "fold"],
+/** A guard read on a text, whole or one sentence of it. */
+interface Check {
+  readonly name: Exclude<GuardName, "length" | "privacy" | "agents_share" | "repair_opener" | "error" | "refusal">;
+  /** The reading it takes (D32): the ported detectors' fold, or the gateway's own plain reading. */
+  readonly reading: Reading;
+  readonly fails: (text: string, ctx: GuardContext) => boolean;
+  /** Whether, in this turn, it removes its failing sentences rather than withholding the answer (D38, D39, D41). */
+  readonly redacts?: (ctx: GuardContext) => boolean;
+}
+const always = (): boolean => true;
+
+function ownershipCheck(answer: string, ctx: GuardContext): boolean {
+  try {
+    return ownershipFails(answer, ctx);
+  } catch (e) {
+    if (e instanceof OwnershipBreach) return true;
+    throw e;
+  }
+}
+
+/** Each guard in GUARD_ORDER, G3 twice: the gateway's own reading, then the red-team's CLAIMS_AUTHOR (D37). */
+const CHECKS: readonly Check[] = [
+  { name: "secrets", reading: "plain", fails: (a) => secretsFail(a) },
+  { name: "prompt", reading: "plain", fails: promptFails },
+  { name: "disclosure", reading: "plain", fails: (a) => disclosureFails(a) },
+  { name: "disclosure", reading: "fold", fails: (a) => claimsAuthor(a) },
+  { name: "numbers", reading: "plain", fails: numbersFail, redacts: always },
+  { name: "amounts", reading: "fold", fails: amountsFail, redacts: (c) => asksAboutCost(c.asked) },
+  { name: "links", reading: "plain", fails: linksFail },
+  { name: "ownership", reading: "plain", fails: ownershipCheck },
+  { name: "seva", reading: "fold", fails: sevaFails, redacts: always },
+  { name: "location", reading: "fold", fails: locationFails },
+  { name: "surname", reading: "fold", fails: (a) => surnameFails(a) },
+  { name: "address", reading: "fold", fails: addressFails, redacts: always },
+  { name: "restated_claim", reading: "fold", fails: restatesClaim, redacts: always },
 ];
 
 /** The context as the guards compare an answer with it: each of its texts in the answer's reading (D31, D32). G8's
@@ -820,10 +968,12 @@ function readAs(ctx: GuardContext, read: (text: string) => string): GuardContext
   };
 }
 
-/** The answer through the trim and every guard: passed whole, withheld by the first guard that fails, replaced by G8, or
- *  repaired (D34). In a turn that asks the twin to confirm a claim, the guards read the answer as written first (so an
- *  agreement G11 reads, "yes, that's his surname", stays withheld), then its opening agreement comes off and what's
- *  left meets every guard again. */
+/** The answer through the trim and every guard: passed, withheld by the first guard that fails it whole, replaced (G3
+ *  in an identity turn, G8), redacted (D41), or repaired (D34). The guards that judge a whole answer read it as written
+ *  first, so a sentence another guard would remove never spares it (a place word in a place question's answer, a
+ *  surname, a claim to be the Author); then the failing sentences come off; then, in a turn that asks the twin to
+ *  confirm a claim, the opening agreement (so "yes, that's his surname" stays withheld by G11); and what's left meets
+ *  every guard again. */
 export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardContext): Guarded {
   const withheld = (guard: GuardName): Guarded => ({ kind: "withheld", guard, text: ctx.withheld });
   // Spec 010, FR-018 (Amendment 7-3; plan D10): a refusal is withheld whole, before the trim and every other guard,
@@ -837,34 +987,88 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
   }
   try {
     if (text === "") return withheld("error");
+    // The claim tags come off first, so every guard judges the answer as it will leave (D40).
+    const redacted = new Set<RedactionName>();
+    const untagged = stripClaimTags(text);
+    if (untagged !== text) {
+      redacted.add("claim_tags");
+      text = untagged;
+      if (text === "") return withheld("error");
+    }
     const views: Record<Reading, GuardContext> = { fold: readAs(ctx, fold), plain: readAs(ctx, plain) };
-    const failing = (t: string): GuardName | null => {
+    const identity = asksIdentity(ctx.asked);
+    /** What the visitor gets for an answer a guard fails whole: the fixed line, or the corpus's own answer. */
+    const outcome = (guard: GuardName): Guarded => {
+      if (guard === "disclosure" && identity) return { kind: "withheld", guard, text: ctx.disclosure };
+      if (guard === "privacy") return { kind: "withheld", guard, text: ctx.quotes.privacy.answer };
+      if (guard === "agents_share") return { kind: "withheld", guard, text: ctx.quotes.agents_share.answer };
+      return withheld(guard);
+    };
+    const redacting = (c: Check): boolean => c.redacts?.(views[c.reading]) ?? false;
+    /** The first guard that fails a text whole; with `every`, the sentence guards too, each read on the whole text. */
+    const failing = (t: string, every: boolean): GuardName | null => {
       const seen: Record<Reading, string> = { fold: fold(t), plain: plain(t) };
-      for (const [name, fails, reading] of CHECKS) if (fails(seen[reading], views[reading])) return name;
+      for (const c of CHECKS) {
+        if (!every && redacting(c)) continue;
+        if (c.fails(seen[c.reading], views[c.reading])) return c.name;
+      }
+      if (privacyReplaces(seen.plain, views.plain)) return "privacy";
+      if (every && agentsReplaces(seen.plain, views.plain)) return "agents_share";
       return null;
     };
-    const first = failing(text);
-    if (first !== null) return withheld(first);
+
+    // The answer as written, whole.
+    const first = failing(text, false);
+    if (first !== null) return outcome(first);
+
+    // Sentence by sentence (D41): each sentence a guard that redacts in this turn fails comes off, and so does a
+    // sentence on the agents' share in an answer without the corpus's span.
+    const agentsQuoted = holdsSpan(plain(text), views.plain.quotes.agents_share.spans);
+    const removed = new Set<RedactionName>();
+    const kept: string[] = [];
+    for (const sentence of sentencesOf(text)) {
+      const seen: Record<Reading, string> = { fold: fold(sentence), plain: plain(sentence) };
+      const hits: RedactionName[] = CHECKS.filter(
+        (c) => redacting(c) && c.fails(seen[c.reading], views[c.reading]),
+      ).map((c) => c.name as RedactionName);
+      if (!agentsQuoted && AGENTS.test(seen.plain) && SHARE.test(seen.plain)) hits.push("agents_share");
+      if (hits.length === 0) kept.push(sentence);
+      for (const h of hits) removed.add(h);
+    }
+    let rest = text;
+    if (removed.size > 0) {
+      rest = kept.join(" ");
+      // Too little left to be an answer: the first guard that removed a sentence withholds it, or replaces it.
+      if ((rest.match(/[\p{L}\p{N}]+/gu) ?? []).length < MIN_KEPT_WORDS)
+        return outcome(SENTENCE_GUARDS.find((r) => removed.has(r)) ?? "error");
+      for (const r of removed) redacted.add(r);
+    }
+
+    // The opener repair (D34), on what's left.
     let repaired = false;
     if (asksToConfirm(ctx.asked)) {
-      const rest = withoutOpener(text);
-      if (rest !== text) {
+      const opened = withoutOpener(rest);
+      if (opened !== rest) {
         // Agreement was all it said: withheld, under the repair's guard value, with the turn's outcome withheld (D36).
-        if (!/[\p{L}\p{N}]/u.test(rest)) return withheld("repair_opener");
-        const again = failing(rest);
-        if (again !== null) return withheld(again);
-        text = rest;
+        if (!/[\p{L}\p{N}]/u.test(opened)) return withheld("repair_opener");
+        rest = opened;
         repaired = true;
       }
     }
-    const seen = plain(text);
-    if (privacyReplaces(seen, views.plain))
-      return { kind: "withheld", guard: "privacy", text: ctx.quotes.privacy.answer };
-    if (agentsReplaces(seen, views.plain))
-      return { kind: "withheld", guard: "agents_share", text: ctx.quotes.agents_share.answer };
-    if (repaired) return { kind: "repaired", guard: "repair_opener", text };
+
+    // What's left, whole, through every guard again.
+    if (rest !== text) {
+      const again = failing(rest, true);
+      if (again !== null) return outcome(again);
+    }
+    // After the guards, the claim tags once more, on what leaves (D40): the answer lost them before the guards.
+    const delivered = stripClaimTags(rest);
+    const names = REDACTION_NAMES.filter((r) => redacted.has(r));
+    const counted = names.length > 0 ? { redacted: names } : {};
+    return repaired
+      ? { kind: "repaired", guard: "repair_opener", text: delivered, ...counted }
+      : { kind: "pass", text: delivered, ...counted };
   } catch {
     return withheld("error");
   }
-  return { kind: "pass", text };
 }

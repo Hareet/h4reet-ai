@@ -85,7 +85,8 @@ export const TWIN_CAUSES = [...DEGRADED_CAUSES, "twin_unavailable", "none"] as c
 export type TwinCause = (typeof TWIN_CAUSES)[number];
 /** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9): each answer withheld, replaced, or
  *  repaired, by guard. `repair_opener` (D34) counts an answer delivered without its opening agreement, and one withheld
- *  because agreement was all it said; the turn's outcome, ok or withheld, tells them apart (D36). */
+ *  because agreement was all it said; the turn's outcome, ok or withheld, tells them apart (D36). `address` and
+ *  `restated_claim` (D38, D39) withhold an answer only when too little is left once their sentences are removed. */
 export const TWIN_GUARDS = [
   "length",
   "numbers",
@@ -98,13 +99,27 @@ export const TWIN_GUARDS = [
   "seva",
   "location",
   "surname",
+  "address",
   "privacy",
   "agents_share",
+  "restated_claim",
   "repair_opener",
   "error",
   "refusal",
 ] as const;
 export type TwinGuard = (typeof TWIN_GUARDS)[number];
+/** h4.twin.redacted's h4.twin.guard (spec 007's plan, D40, D41): each guard that removed a sentence from an answer the
+ *  visitor got, and the claim tags' strip, counted once for each such answer. */
+export const TWIN_REDACTIONS = [
+  "numbers",
+  "amounts",
+  "seva",
+  "address",
+  "restated_claim",
+  "agents_share",
+  "claim_tags",
+] as const;
+export type TwinRedaction = (typeof TWIN_REDACTIONS)[number];
 const DECISIONS: readonly RouteDecisionAttribute[] = ["local", "fallback", "metered", "degraded", "none"];
 /** A room feature as a metric attribute: a selectable's ID or free_talk from the twin's pack, which bounds it, or none. */
 const featureOf = (feature: string | undefined): string =>
@@ -177,6 +192,7 @@ export class GatewayMetrics {
   private readonly twinTurns;
   private readonly twinTurnDuration;
   private readonly twinWithheldAnswers;
+  private readonly twinRedactedAnswers;
 
   constructor(meter: Meter) {
     const seconds = { unit: "s", advice: { explicitBucketBoundaries: [...SECONDS_BUCKETS] } };
@@ -206,6 +222,8 @@ export class GatewayMetrics {
     this.twinTurns = meter.createCounter("h4.twin.turns", { unit: "{turn}" });
     this.twinTurnDuration = meter.createHistogram("h4.twin.turn.duration", seconds);
     this.twinWithheldAnswers = meter.createCounter("h4.twin.withheld", { unit: "{answer}" });
+    // Spec 007's plan, D41: each answer delivered with a sentence removed, by the guard that removed it.
+    this.twinRedactedAnswers = meter.createCounter("h4.twin.redacted", { unit: "{answer}" });
 
     const gauge = (name: string, unit: string, observe: (result: ObservableResult, s: GaugeSnapshot) => void) =>
       meter.createObservableGauge(name, { unit }).addCallback((result) => observe(result, this.snapshot));
@@ -306,6 +324,13 @@ export class GatewayMetrics {
   /** Once per answer the turn route withholds or replaces, by its guard (spec 007, FR-044). */
   twinWithheld(guard: TwinGuard): void {
     this.twinWithheldAnswers.add(1, { "h4.twin.guard": oneOf(TWIN_GUARDS, guard, "error") });
+  }
+
+  /** Once per answer the turn route delivers with a sentence, or its claim tags, removed, for each guard that removed
+   *  one (spec 007's plan, D40, D41). A value off the list is never recorded. */
+  twinRedacted(guard: TwinRedaction): void {
+    if ((TWIN_REDACTIONS as readonly unknown[]).includes(guard))
+      this.twinRedactedAnswers.add(1, { "h4.twin.guard": guard });
   }
 
   degradedResponse(cause: DegradedCause): void {
