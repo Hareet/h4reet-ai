@@ -767,6 +767,26 @@ cmd block 'make operator-token ENV=prod'
 cmd block 'make ENV=prod operator-status'
 cmd block "bash -c 'make operator-reset ENV=prod REASON=x'"
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod status'
+# make operator-alert-samples (spec 011 FR-032; its plan §11, D11): the samples go wherever the stack's alerts go, so
+# prod's reach the Author's phone; agents send dev-cpu's alone. The existing rules cover the name, with no .claude/
+# change: make's operator-* pattern, and the CLI rule, which names no subcommand. The spellings: plain, dev, no ENV
+# (which is prod), make's -C, bash -c, a quoted part of the name, ENV in the environment, a second ENV after
+# dev-cpu's, and the CLI's own subcommand.
+cmd block 'make operator-alert-samples ENV=prod REASON="a design check"'
+cmd block 'make operator-alert-samples ENV=dev REASON="a design check"'
+cmd block 'make operator-alert-samples REASON="a design check"'
+cmd block 'make -C . operator-alert-samples ENV=prod REASON="a design check"'
+cmd block "bash -c 'make operator-alert-samples ENV=prod REASON=x'"
+cmd block 'make "operator"-alert-samples ENV=prod REASON="a design check"'
+cmd block 'ENV=prod make operator-alert-samples REASON="a design check"'
+cmd block 'make operator-alert-samples ENV=dev-cpu ENV=prod REASON="a design check"'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod alert-samples --reason "a design check"'
+# Spellings the rule can't see, as the studio window's gap rows have them: the name built at run time, or put together
+# from parts the command holds apart. What holds them: the recipe's own OPERATOR_AGENTS refusal inside the sandbox, the
+# operator token the sandbox can't read (FR-007), and prod's admin port out of its reach (stage S).
+cmd gap "make \"\$(printf 'oper%s' ator-alert-samples)\" ENV=prod REASON=x"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=oper; make "${t}ator-alert-samples" ENV=prod REASON=x'
 # make studio-window (spec 003 FR-035; its contracts/gpu-window.md §2, §4): it records a window on the stack's admin
 # listener and stops or restarts its model server, so it is the Author's on prod, refused like operator-* for every stack
 # but dev-cpu. Planned until docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch extends bash-gate's operator
@@ -839,6 +859,9 @@ cmd gap "make \$(printf 'to%s' ols)"
 cmd allow 'make operator-status ENV=dev-cpu'
 cmd allow 'make operator-reset ENV=dev-cpu REASON="breach-test"'
 cmd allow 'python3 scripts/operator.py --stack dev-cpu --url http://127.0.0.1:18303 status'
+# Spec 011's samples on dev-cpu stay the agents' (its plan §11).
+cmd allow 'make operator-alert-samples ENV=dev-cpu REASON="a design check"'
+cmd allow 'python3 scripts/operator.py --stack dev-cpu alert-samples --reason "a design check"'
 cmd allow 'python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status'
 cmd allow 'pytest -q tools/gates/test'
 cmd allow 'make check'

@@ -1861,3 +1861,76 @@ def test_the_http_client_ignores_proxies_and_refuses_redirects(
             client.request("GET", f"{base}/ok")
     finally:
         server.server_close()
+
+
+# --- spec 011: each message's form (FR-040, FR-041; its plan §8.2) ---------------------------------------------------
+
+
+def stand_in(entities: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "messages": [
+            {
+                "message_id": 8,
+                "text": alert_text(KEY),
+                "entities": entities,
+                "received_at": "t",
+            }
+        ]
+    }
+
+
+def test_a_telegram_check_reports_the_form_and_holds_it_to_designed() -> None:
+    designed = [
+        {"type": "bold", "offset": 0, "length": 4},
+        {"type": "code", "offset": 9, "length": 3},
+    ]
+    for entities, ok in ((designed, True), ([], False)):
+        rig = make()
+        rig.http.on("GET", f"{probe.TELEGRAM}/messages", fixed(200, stand_in(entities)))
+        op = {
+            "op": "telegram",
+            "assert": "12a",
+            "key": KEY,
+            "within_s": 120,
+            "expect": {"designed": True},
+            **AT_START,
+        }
+        rig.run([op], "12")
+        result = rig.result()
+        assert result["ok"] is ok
+        assert result["designed"] is ok and result["entities"] == len(entities)
+        assert result.get("misses", []) == ([] if ok else ["designed"])
+        # The form is a flag and a count: no text, and no entity, is printed.
+        assert "text" not in result and "bold" not in json.dumps(result)
+
+
+def test_a_mailpit_check_reads_the_found_messages_form_and_prints_no_payload() -> None:
+    for html, ok in (('<!DOCTYPE html><html lang="en"></html>', True), ("", False)):
+        rig = make()
+        listing = {"messages": [{"ID": "m1", "Created": "t1"}], "total": 1}
+        rig.http.on("GET", f"{probe.MAILPIT}/api/v1/messages", fixed(200, listing))
+        rig.http.on(
+            "GET",
+            f"{probe.MAILPIT}/api/v1/message/m1/headers",
+            fixed(200, {"X-H4-Alert-Id": [KEY]}),
+        )
+        rig.http.on(
+            "GET",
+            f"{probe.MAILPIT}/api/v1/message/m1",
+            fixed(200, {"Text": alert_text(KEY), "HTML": html}),
+        )
+        op = {
+            "op": "mailpit",
+            "assert": "12a",
+            "key": KEY,
+            "within_s": 120,
+            "expect": {"designed": True},
+            **AT_START,
+        }
+        rig.run([op], "12")
+        result = rig.result()
+        assert result["ok"] is ok and result["designed"] is ok
+        assert "HTML" not in result and "Text" not in result
+        assert "DOCTYPE" not in json.dumps(result) and "WARNING" not in json.dumps(
+            result
+        )

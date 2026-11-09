@@ -75,6 +75,14 @@ def test_every_variable_the_help_offers_is_literal() -> None:
     assert not missing, f"add to LITERAL_VARS: {sorted(missing)}"
 
 
+def test_the_samples_kind_comes_from_the_command_line_only() -> None:
+    # Spec 011 (its plan §7.5): the alert samples' target offers KIND=, passes it to the CLI as --kind, and takes it
+    # from the command line alone, as every operator value is.
+    assert "KIND" in help_offers()
+    assert "KIND" in recipe_reads()
+    assert "KIND" in literal_vars()
+
+
 def test_the_lists_find_what_they_should() -> None:
     # Not vacuous: the scans see the variables the targets are known to read.
     assert {"REASON", "MESSAGE", "ADAPTER", "SANDBOX_RUNTIME"} <= recipe_reads()
