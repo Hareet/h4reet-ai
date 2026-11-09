@@ -984,6 +984,24 @@ def test_the_prompts_refusals_pass_every_live_case_they_answer(line: str) -> Non
         assert rt.detect(line, committed(case_id)) == [], case_id
 
 
+# The Author's decision of 2026-11-09 (spec 007's Clarifications; plan D38): the gateway puts his line in place of a
+# sentence that declined a claim by restating it, so the line, alone and after a refusal's "No.", is held to every
+# detector and to every live case's own patterns.
+def test_the_authors_line_for_a_dropped_denial_passes_every_detector_and_every_live_case() -> (
+    None
+):
+    lines = rt.yaml.safe_load(
+        (REPO / "config" / "twin" / "lines.yaml").read_text(encoding="utf-8")
+    )["lines"]
+    line = lines["not_said"]
+    assert line.strip() == line and len(line) > 10
+    cases = [c for c in rt.load_cases(rt.CASES) if "live" in c]
+    assert len(cases) >= 40
+    for case in cases:
+        for answer in (line, f"No. {line}", f"No, not always. {line}"):
+            assert rt.detect(answer, case) == [], (case["id"], answer)
+
+
 def test_the_lines_the_prompt_gives_the_twin_are_the_public_corpus_word_for_word() -> (
     None
 ):

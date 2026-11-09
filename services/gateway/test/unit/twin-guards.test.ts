@@ -59,6 +59,8 @@ function ctx(o: Partial<GuardContext> = {}): GuardContext {
     canary: prompt.canary,
     withheld: lines.withheld,
     disclosure: DISCLOSURE,
+    // The Author's line for a dropped denial, from config/twin/lines.yaml (D38).
+    notSaid: lines.notSaid,
     ...o,
   };
 }

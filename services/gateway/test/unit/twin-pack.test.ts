@@ -98,6 +98,8 @@ describe("the twin's files at start (FR-054)", () => {
     ["the prompt with no marker section", { prompt: "# The twin's instructions\n\n## Who you are\n\nA twin.\n" }],
     ["the fixed lines missing", { lines: null }],
     ["the fixed lines invalid", { lines: "schema: 1\nlines: { other: x }\n" }],
+    // The Author's line for a dropped denial is one of the fixed lines (spec 007's plan, D38).
+    ["the fixed lines without not_said", { lines: "schema: 1\nlines: { withheld: A fixture line. }\n" }],
   ] as const) {
     it(`is unavailable with ${name}, and throws nothing`, () => {
       const twin = twinFromTexts({ ...committedTexts(), ...texts });

@@ -216,16 +216,49 @@ describe("a restated claim in a turn that asks the twin to confirm one (D38)", (
     for (const f of offline.forbid ?? []) expect(forbidden(f).test(fold(text)), `${f}: ${text}`).toBe(false);
   };
 
-  it("removes the live run's sentence that restated the claim it declined, and keeps the rest", () => {
+  // The Author's decision of 2026-11-09 (spec.md's Clarifications): each dropped denial becomes his line, read from
+  // config/twin/lines.yaml, once an answer, so the refusal keeps its meaning: "No. My corpus doesn't say that."
+  const NOT_SAID = lines.notSaid;
+
+  it("reads the Author's line from the fixed lines", () => {
+    const file = parse(readFileSync(`${REPO}config/twin/lines.yaml`, "utf8")) as { lines: Record<string, string> };
+    expect(NOT_SAID).toBe(file.lines.not_said);
+    expect(NOT_SAID.length).toBeGreaterThan(10);
+    expect(run(NOT_SAID, asked)).toEqual({ kind: "pass", text: NOT_SAID });
+  });
+
+  it("puts the line in place of the live run's sentence that restated the claim it declined", () => {
     // Bedrock's answer at de7d2348, its middle in the corpus's words.
     const live = `No, not always. Per the Denver Local AI description, ${GROUNDED.charAt(0).toLowerCase()}${GROUNDED.slice(1, -1)}, so I won't confirm that it always runs fully offline.`;
     const out = run(live, asked);
-    expect(out).toEqual({ kind: "pass", text: "No, not always.", redacted: ["restated_claim"] });
+    expect(out).toEqual({ kind: "pass", text: `No, not always. ${NOT_SAID}`, redacted: ["restated_claim"] });
     passesCase(out.text);
     const split = `No, not always. ${GROUNDED} I won\u2019t confirm that it always runs fully offline.`;
     const kept = run(split, asked);
-    expect(kept).toEqual({ kind: "pass", text: `No, not always. ${GROUNDED}`, redacted: ["restated_claim"] });
+    expect(kept).toEqual({
+      kind: "pass",
+      text: `No, not always. ${GROUNDED} ${NOT_SAID}`,
+      redacted: ["restated_claim"],
+    });
     passesCase(kept.text);
+  });
+
+  it("gives twin-market's planted refusal its meaning back", () => {
+    const market = caseOf("twin-market");
+    const out = run(market.response, turnCtx(market.prompt));
+    expect(out).toEqual({ kind: "pass", text: `No. ${NOT_SAID}`, redacted: ["restated_claim"] });
+    for (const f of market.forbid ?? []) expect(forbidden(f).test(fold(out.text)), f).toBe(false);
+  });
+
+  it("writes the line once an answer, and not again where the answer holds it", () => {
+    const twice =
+      "No. I won't confirm that it always runs fully offline. The corpus doesn't say the local lane always runs fully offline.";
+    expect(run(twice, asked)).toEqual({ kind: "pass", text: `No. ${NOT_SAID}`, redacted: ["restated_claim"] });
+    expect(run(`${NOT_SAID} I won't confirm that it always runs fully offline.`, asked)).toEqual({
+      kind: "pass",
+      text: NOT_SAID,
+      redacted: ["restated_claim"],
+    });
   });
 
   it("reads each negation cue", () => {
@@ -242,7 +275,7 @@ describe("a restated claim in a turn that asks the twin to confirm one (D38)", (
     ])
       expect(run(`${GROUNDED} ${declined}`, asked), declined).toEqual({
         kind: "pass",
-        text: GROUNDED,
+        text: `${GROUNDED} ${NOT_SAID}`,
         redacted: ["restated_claim"],
       });
   });
@@ -267,8 +300,18 @@ describe("a restated claim in a turn that asks the twin to confirm one (D38)", (
     expect(run(b, turnCtx("Does the local lane run offline?"))).toEqual({ kind: "pass", text: b });
   });
 
-  it("withholds the answer as the fixed line when nothing is left", () => {
-    expect(run("I won't confirm that it always runs fully offline.", asked)).toEqual(withheldLine("restated_claim"));
+  it("answers with the line alone when nothing else is left, and counts the words after it", () => {
+    expect(run("I won't confirm that it always runs fully offline.", asked)).toEqual({
+      kind: "pass",
+      text: NOT_SAID,
+      redacted: ["restated_claim"],
+    });
+    expect(run("He has ridden 4321 trails. I won't confirm that it always runs fully offline.", asked)).toEqual({
+      kind: "pass",
+      text: NOT_SAID,
+      redacted: ["numbers", "restated_claim"],
+    });
+    expect(run("He has ridden 4321 trails. Truly, always.", asked)).toEqual(withheldLine("numbers"));
   });
 });
 
@@ -301,8 +344,6 @@ describe("'address' as a noun, in every turn (D39)", () => {
       "no",
       "any",
       "this",
-      "email",
-      "e-mail",
       "home",
       "street",
       "web",
@@ -314,16 +355,60 @@ describe("'address' as a noun, in every turn (D39)", () => {
       expect(run(a, priced), before).toEqual({ kind: "pass", text: LEAD, redacted: ["address"] });
     }
     for (const a of [
-      `${LEAD} Their email addresses are on the site.`,
+      `${LEAD} Their home addresses are on the site.`,
       `${LEAD} His \uff41\uff44\uff44\uff52\uff45\uff53\uff53 is on the site.`,
       `${LEAD} His addr\u200bess is on the site.`,
     ])
       expect(run(a, priced), a).toEqual({ kind: "pass", text: LEAD, redacted: ["address"] });
-    expect(run(`${LEAD} His email address is on his resume.`, turnCtx(null, "free_talk"))).toEqual({
+    expect(run(`${LEAD} His home address is on his resume.`, turnCtx(null, "free_talk"))).toEqual({
       kind: "pass",
       text: LEAD,
       redacted: ["address"],
     });
+  });
+
+  // The Author's decision of 2026-11-09 (spec.md's Clarifications): "We can use "My email is on my resume PDF" and drop
+  // address from that sentence." After "email" or "e-mail", the word "address" comes off and the sentence stays, as the
+  // corpus says it; the sentence then meets every guard again. Every other noun use still removes its sentence.
+  it("drops 'address' after 'email' or 'e-mail', keeping the sentence as the corpus says it", () => {
+    const q3 = golden("07", 3);
+    expect(q3.answer).toContain("My email is on my resume PDF.");
+    const reworded = q3.answer.replace("My email is", "My email address is");
+    expect(reworded).not.toBe(q3.answer);
+    expect(run(reworded, turnCtx(q3.question))).toEqual({
+      kind: "pass",
+      text: q3.answer,
+      redacted: ["address_repair"],
+    });
+    for (const [a, repaired] of [
+      ["My email address is on my resume PDF.", "My email is on my resume PDF."],
+      ["Their e-mail addresses are on the site.", "Their e-mails are on the site."],
+      ["His Email Address is on his resume.", "His Email is on his resume."],
+    ] as const)
+      expect(run(`${LEAD} ${a}`, priced), a).toEqual({
+        kind: "pass",
+        text: `${LEAD} ${repaired}`,
+        redacted: ["address_repair"],
+      });
+    expect(run("My email address is on my resume PDF.", turnCtx(null, "free_talk"))).toEqual({
+      kind: "pass",
+      text: "My email is on my resume PDF.",
+      redacted: ["address_repair"],
+    });
+  });
+
+  it("holds a repaired sentence to every guard again, and removes one that names another address", () => {
+    expect(run(`${LEAD} His email address is on page 4321 of his resume.`, priced)).toEqual({
+      kind: "pass",
+      text: LEAD,
+      redacted: ["numbers"],
+    });
+    for (const a of [
+      "His email address and home address are on the site.",
+      "For a quote, email Hareet; his address is on his resume PDF.",
+      "My email \uff41\uff44\uff44\uff52\uff45\uff53\uff53 is on my resume PDF.",
+    ])
+      expect(run(`${LEAD} ${a}`, priced), a).toEqual({ kind: "pass", text: LEAD, redacted: ["address"] });
   });
 
   it("leaves the verb as written", () => {
@@ -520,6 +605,7 @@ describe("sentences removed, not whole answers withheld, by G1, G2 in a cost que
       "amounts",
       "seva",
       "address",
+      "address_repair",
       "restated_claim",
       "agents_share",
       "claim_tags",

@@ -53,6 +53,8 @@ function ctx(o: Partial<GuardContext> = {}): GuardContext {
     withheld: lines.withheld,
     // 00-profile.md's Golden Q&A 1 answer, the disclosure line, as the pack holds it (D37).
     disclosure: pack.sections.find((s) => s.id.startsWith("00-") && s.golden?.n === 1)?.golden?.answer ?? "",
+    // The Author's line for a dropped denial, from config/twin/lines.yaml (D38).
+    notSaid: lines.notSaid,
     ...o,
   };
 }

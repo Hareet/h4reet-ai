@@ -1,4 +1,5 @@
-// T018's room part (spec 007; FR-021; plan §5): the twin's fixed line `withheld`, in config/twin/lines.yaml, held to
+// T018's room part (spec 007; FR-021; plan §5): the twin's fixed lines, `withheld` and, since the Author's decision of
+// 2026-11-09, `not_said` (spec 007's plan, D38), in config/twin/lines.yaml, held to
 // the room's checks for its words (build/content.ts's checkLine: no bare number, no unknown slot, no ownership verb it
 // doesn't cite, no forbidden phrase), as spec 004's room words are; and the instructions, config/twin/prompt.md, name
 // no number in digits and no amount.
@@ -17,9 +18,9 @@ const lines = parse(readFileSync(join(REPO_ROOT, "config/twin/lines.yaml"), "utf
 const prompt = readFileSync(join(REPO_ROOT, "config/twin/prompt.md"), "utf8");
 
 describe("the twin's fixed lines", () => {
-  it("are schema 1 with exactly `withheld`", () => {
+  it("are schema 1 with exactly `withheld` and `not_said`", () => {
     expect(lines.schema).toBe(1);
-    expect(Object.keys(lines.lines)).toEqual(["withheld"]);
+    expect(Object.keys(lines.lines)).toEqual(["withheld", "not_said"]);
   });
 
   it("hold the gateway's own cap: each line 1 to 400 characters, trimmed (the review of T066)", () => {
