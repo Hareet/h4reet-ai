@@ -16,7 +16,13 @@ events from 2026-11-09T21:09Z were ALLOW but one post-edit WARN
 (21:19:28Z) on `apps/web/test/helpers/room.ts`, an import not yet
 used, which the next edit used. The BLOCKs in the same window (21:18:37Z,
 21:26:06Z, 21:29:55Z) are other sessions': a scratch repository's
-`git switch`, and a read-only reviewer's in `wt-resume-pdf`.
+`git switch`, and a read-only reviewer's in `wt-resume-pdf`. In the
+review round, one bash BLOCK was this session's: at 22:19:25Z,
+"switching to main", on a Python heredoc that rewrote this note, whose
+text held your step's `switch main` line. Nothing was respelled: the
+same edits went in with the Edit tool. The BLOCKs at 22:07:20Z to
+22:10:36Z in `wt-avfix` ("a read-only role writing a file",
+"redirecting git hooks or config") are the reviewer's session's.
 
 Authorized by: the main session's brief of 2026-11-09 (F1 to F4, and
 the arrival check's folder form), its message adding F5, and your
