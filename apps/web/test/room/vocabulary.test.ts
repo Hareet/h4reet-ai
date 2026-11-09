@@ -2,6 +2,9 @@
 // behaviour kind, renderer, signal, or UI key is a new behaviour, made through the lifecycle, so these lists are pinned
 // word for word: `compose/vocabulary.ts`, which RI5 keeps the four namespaces' IDs off, and `ui-keys.ts`, the UI words'
 // closed keys with exactly their slots, which RT12 holds `ui-words.yaml` to.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,6 +28,7 @@ import {
   isVocabulary,
 } from "../../src/room/compose/vocabulary";
 import { LABEL_KEY, SLOTS, UI_KEYS, isUiKey, slotsIn } from "../../src/room/ui-keys";
+import { WEB } from "../helpers/room";
 
 describe("the closed vocabulary (compose/vocabulary.ts)", () => {
   it("holds exactly room-data-files.md §3.4's lists, in its order", () => {
@@ -135,8 +139,30 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "walk.target": ["name"],
       // Spec 009's stand-in line (FR-013, FR-039).
       "twin.stand_in": [],
+      // Spec 005's HUD (its FR-023, FR-028, FR-065; plan.md §6.10): the conversation log's header button, and the larger
+      // view's two words.
+      "hud.log_toggle": [],
+      "talk.larger": [],
+      "talk.smaller": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(41);
+    expect(Object.keys(UI_KEYS)).toHaveLength(44);
+  });
+
+  // T022 (spec 005; FR-065): the HUD's words join the closed list with no slot, and every room holds them: the
+  // repository's and the fixture set's, each with the plan's words (RT12), none stating anything about the Author (RT3).
+  it("hold spec 005's HUD words with no slot, in the repository's room and the fixture set's", () => {
+    const words = {
+      "hud.log_toggle": "Conversation",
+      "talk.larger": "Larger conversation",
+      "talk.smaller": "Smaller conversation",
+    };
+    for (const [key, text] of Object.entries(words)) {
+      expect(UI_KEYS[key as keyof typeof UI_KEYS], key).toEqual([]);
+      for (const file of ["room/ui-words.yaml", "test/fixtures/room/good/apps/web/room/ui-words.yaml"]) {
+        const yaml = readFileSync(join(WEB, file), "utf8");
+        expect(yaml, `${file}: ${key}`).toContain(`  ${key}: ${text}\n`);
+      }
+    }
   });
 
   it("give one tier sentence for each tier value", () => {

@@ -3,6 +3,7 @@
 // microphone API the page could reach, a stand-in for the 3D chunk (jsdom has no WebGL), and the room's content and
 // index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
 // network: jsdom loads no subresource, and every request API is a spy.
+import type { Viewport, ViewportChange, WindowMeasures } from "../../src/room/hud/viewport";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -564,6 +565,39 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     room,
     resumeLoads: () => loads,
     roomDataLoads: () => roomDataLoads,
+  };
+}
+
+/** A stand-in for hud/viewport.ts (spec 005): measures a test sets, and the change it reports to the room, "refit" or
+ *  "keyboard". Its factory goes to start()'s `viewport`. */
+export function stubViewport(initial: Partial<WindowMeasures> = {}) {
+  let m: WindowMeasures = {
+    w: 1280,
+    h: 720,
+    dpr: 1,
+    rem: 16,
+    safe: { top: 0, right: 0, bottom: 0, left: 0 },
+    keyboard: 0,
+    ...initial,
+  };
+  const listeners = new Set<(what: ViewportChange) => void>();
+  const viewport: Viewport = {
+    read: () => m,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    dispose: () => listeners.clear(),
+  };
+  return {
+    factory: (): Viewport => viewport,
+    set(next: Partial<WindowMeasures>, what: ViewportChange = "refit"): void {
+      m = { ...m, ...next };
+      for (const fn of [...listeners]) fn(what);
+    },
+    get measures(): WindowMeasures {
+      return m;
+    },
   };
 }
 

@@ -9,41 +9,9 @@ import { describe, expect, it } from "vitest";
 
 import { fitsHud, hudBoxes } from "../../src/room/compose/hud";
 import type { HudMetrics } from "../../src/room/compose/hud";
-import type { Viewport, WindowMeasures } from "../../src/room/hud/viewport";
-import { button, flush, intoRoom, start, talkLog } from "../helpers/room";
+import type { WindowMeasures } from "../../src/room/hud/viewport";
+import { button, flush, intoRoom, start, stubViewport, talkLog } from "../helpers/room";
 import type { Visit } from "../helpers/room";
-
-/** A stand-in for hud/viewport.ts: measures the test sets, and a change it reports to the room. */
-function stubViewport(initial: Partial<WindowMeasures> = {}) {
-  let m: WindowMeasures = {
-    w: 1280,
-    h: 720,
-    dpr: 1,
-    rem: 16,
-    safe: { top: 0, right: 0, bottom: 0, left: 0 },
-    keyboard: 0,
-    ...initial,
-  };
-  const listeners = new Set<(what: "refit" | "keyboard") => void>();
-  const viewport: Viewport = {
-    read: () => m,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    dispose: () => listeners.clear(),
-  };
-  return {
-    factory: (): Viewport => viewport,
-    set(next: Partial<WindowMeasures>, what: "refit" | "keyboard" = "refit"): void {
-      m = { ...m, ...next };
-      for (const fn of [...listeners]) fn(what);
-    },
-    get measures(): WindowMeasures {
-      return m;
-    },
-  };
-}
 
 /** The steps of SC-001, at pixel ratios of 1, 2, and 1.5, then full screen entered and left on 1920 × 1200. */
 const STEPS: { w: number; h: number; dpr: number }[] = [

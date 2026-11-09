@@ -39,6 +39,7 @@ import {
   repositoryBundle,
   roomIndex,
   start,
+  stubViewport,
   stylesheets,
   tabOrder,
   talkLog,
@@ -740,4 +741,34 @@ describe("every portrait screen to 35rem wide (FR-047; the review of T171, B1)",
       expect({ w: model.clear.w, h: model.clear.h }, where).toEqual(stageFor(screen));
     }
   });
+});
+
+// T021 (spec 005; FR-021, FR-043, FR-048, FR-051): axe in every layout and panel state, in 3D and 2D, the window stubbed
+// (hud/viewport.ts): the column layout, the dock layout, and the stacked layout; the list and the log each collapsed;
+// the larger conversation view; and the walking view.
+describe("the HUD, in every layout and panel state (spec 005, T021)", () => {
+  const LAYOUTS = [
+    ["the column layout", { w: 1280, h: 720 }],
+    ["the dock layout", { w: 390, h: 844 }],
+    ["the stacked layout", { w: 320, h: 256 }],
+  ] as const;
+
+  for (const webgl of [true, false])
+    for (const [layout, screen] of LAYOUTS)
+      it(`has 0 axe violations in ${layout}, its panels open and collapsed, in ${webgl ? "3D" : "2D"}`, async () => {
+        const viewport = stubViewport(screen);
+        const v = start({ webgl, viewport: viewport.factory });
+        await intoRoom(v);
+        expect(v.doc.documentElement.getAttribute("data-hud"), layout).toBe(layout.split(" ")[1]);
+        expect(await axeViolations(v), `${layout}, open`).toEqual([]);
+        button(v.doc, roomIndex().ui["list.heading"] ?? "").click();
+        button(v.doc, roomIndex().ui["hud.log_toggle"] ?? "").click();
+        expect(await axeViolations(v), `${layout}, collapsed`).toEqual([]);
+        v.doc.querySelector<HTMLButtonElement>(".talk-larger")?.click();
+        expect(await axeViolations(v), `${layout}, the larger view`).toEqual([]);
+        if (webgl) {
+          button(v.doc, roomIndex().ui["walk.enter"] ?? "").click();
+          expect(await axeViolations(v), `${layout}, walking`).toEqual([]);
+        }
+      });
 });
