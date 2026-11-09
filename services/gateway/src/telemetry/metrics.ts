@@ -73,6 +73,8 @@ export const TWIN_GUARDS = [
   "links",
   "ownership",
   "seva",
+  "location",
+  "surname",
   "privacy",
   "agents_share",
   "error",

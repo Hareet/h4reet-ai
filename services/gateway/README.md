@@ -52,9 +52,9 @@ prompt as quoted data, never as instructions or as the model's own turns (`src/t
 The guards (`src/twin/guards.ts`) run on every answer, in code, with no model judging another: a `length` finish
 trimmed to its last sentence, then secret-shaped text, the instructions or their canary, a claim to be human or the
 Author, a number or an amount the grounding doesn't hold (in words too), a link it doesn't hold, an ownership verb the
-rulings don't give, a sentence naming Seva that isn't the grounding's own, word for word, and the privacy promise or
-the agents' share without the corpus's own words. An answer that fails one is replaced whole by the fixed line, its
-cost still counted.
+rulings don't give, a sentence naming Seva, or holding a place word, that isn't the grounding's own, word for word, a
+surname given or confirmed, and the privacy promise or the agents' share without the corpus's own words. An answer
+that fails one is replaced whole by the fixed line, its cost still counted.
 
 `POST /admin/twin/turn` (operator-admin.md §8) runs the same pipeline on one named adapter, never failing over and
 never checking readiness, for the Author's live product and red-team runs (`make evals ADAPTER=…`,
