@@ -26,48 +26,72 @@ Authorized by: your answer at T000, as tasks.md records it: "Approve
 branch once that's finished, with the spec inside it, so one gate at the
 end covers spec 010 and 011 together."
 
-## Status: built and checked on 911df96f, not reviewed, not re-stacked
+## Status: reviewed, its findings fixed on 911df96f, not re-stacked
 
 - **Built**: T001 to T046, test-first, a RED commit and then a GREEN
   one for each phase (below).
-- **Not run here**: T047, the dev-cpu run (`make up`, the breach test's
-  step 12, and the samples on the stand-ins). This session has no
-  agents' engine (`ENGINE_MODE=none-yet`), and the main session's disk
-  advisory gave C: 22.3 GB free, three agents writing, against the 20
-  GB under which your `make up` refuses. SC-002's, SC-006's, and
-  SC-012's dev-cpu halves wait for it; their unit and integration
-  halves pass.
-- **Not mine**: T048, the review, by an agent that wrote none of this.
+- **Reviewed**: T048, by an agent that wrote none of this, at b1b831d2;
+  every finding is fixed or recorded, RED then GREEN where there was
+  behavior (Review, below). The reviewer re-reads each fix.
+- **Waived for the merge**: T047, the dev-cpu run (decision D-1,
+  below). This session has no agents' engine (`ENGINE_MODE=none-yet`).
 - **Waiting**: T050, the re-stack onto `feat/010-anthropic-provider`'s
-  final tip, which the main session names once its last round and its
-  move onto main's new tip are done; P-A's check against that tip goes
-  with it (below).
+  final tip, which the main session sends after fix/007-live-runs'
+  round 4 and feat/010's small move onto it; P-A's check against that
+  tip, and the whole suite once, go with it (below).
 - **Yours**: T051 (optional), T052, T053, and T054, at the end.
 
 ### The base, and what waits for its last move
 
 This branch stacks on `feat/010-anthropic-provider` at 911df96f, which
-is still moving: one more round of its review's fixes (its T000 record,
-P-C rebuilt at $20.00, a disclosure test, and P-A's compose rule), then
-its move onto main's next tip. The main session asked for one re-stack,
-near the end (T050): this branch's own commits, cherry-picked or rebased
-onto that final tip, the golden files regenerated in a follow-up commit
-if spec 010's alert texts change, and `make check ENGINE_MODE=none-yet`
-run again and appended here. P-A is being rebuilt in that round, so its
-dry run on a fresh export of this branch, and the combined tree's run
-with it, wait for the final tip too: checking today's P-A would prove
-nothing about the one you'll apply. Before the re-stack, record this
-tip: `feat/011-alert-message-design was c925d353` (its code), with this
-note's commit on top.
+is still moving: its review's round, then its move onto
+`fix/007-live-runs`' tip, and once more after fix/007's round 4. The
+main session asked for one re-stack, near the end (T050): this branch's
+own commits, cherry-picked onto that final tip, the golden files
+regenerated in a follow-up commit if spec 010's alert texts change, and
+the whole suite and `make check ENGINE_MODE=none-yet` run once and
+appended here. P-A is rebuilt in spec 010's round, so its dry run on a
+fresh export of this branch, and the combined tree's run with it, wait
+for the final tip too: checking today's P-A would prove nothing about
+the one you'll apply. Before the re-stack, record this tip:
+`feat/011-alert-message-design was c925d353` (its code), with this
+note's commit and T048's round on top.
 
-An early look, not that check: when this note was written,
-`feat/010-anthropic-provider` was at c1111516, rewritten on the same
-main (a5eb05b8), so the re-stack cherry-picks this branch's commits.
-P-A as c1111516 holds it touches eight files. Seven of them are the
-same at c1111516 and at this tip. The eighth, `redteam/forbidden-actions.sh`,
-is one this branch also changes: on a plain copy of this tip's file
-alone, P-A's five hunks there passed a dry run, two of them 23 lines
-lower, below this branch's rows.
+An early look, not that check: at c1111516, spec 010's round, P-A
+touched eight files. Seven were the same there and at this branch's
+tip. The eighth, `redteam/forbidden-actions.sh`, is one this branch
+also changes: on a plain copy of this tip's file alone, P-A's five
+hunks there passed a dry run, two of them 23 lines lower, below this
+branch's rows. An in-memory merge of this branch's changes onto
+c1111516 met one conflict, `evals/test_disclosure.py`, where both add
+tests at the end; T050 keeps both.
+
+## Decisions while you were away
+
+The main session's, under the relaxed lifecycle: provisional,
+recorded, and yours to overturn.
+
+- **D-1, T047 waived for the merge.** It can't run here: there's no
+  agents' engine. What stays unproven until it runs: the dev-cpu halves
+  of SC-002 (the Telegram stand-in accepting every designed message,
+  and the breach test finding its alerts as before), SC-006 (one sample
+  request delivering the whole catalogue to both stand-ins), and SC-012
+  (`make up ENV=dev-cpu` starting, and the breach test passing there);
+  FR-053's `make up` on a stack; and the breach test's step 12 and its
+  `designed: true` checks. Your later proof: your next `make
+  breach-test ENV=dev` is the first live run of those checks, and a
+  failure there is a rehearsal bug, not a prod risk (For the Author,
+  step 9). plan.md records it as B17, and tasks.md beside T047.
+- **D-2, the samples' adapter month at your $20.00 cap**, your answer
+  at spec 010's T000, in place of spec 010's texts' $10: $14.40 spent
+  of $20.00 on the warning, the month meter at $14.70, which holds it,
+  and the whole cap on the exhaustion. Golden files 04, 07, and
+  `case-longest` regenerated in their own commit (B14). At your figures
+  the month ceiling stops paid calls first (spec 010's note, P-C), so
+  prod sends the exhaustion only under a cap below the ceiling; its
+  sample shows the design at your cap.
+- **D-3, the Bot API's facts** stay assumptions for your first prod
+  samples (T053), as listed below.
 
 ## What changed and why
 
@@ -137,27 +161,27 @@ telegram.org) are assumptions for your first prod samples (T053):
   zero after the samples**, and that each looks designed.
 
 plan.md's "What T001 read, and the departures while building" holds
-the record and the departures, B1 to B11, each in the commit that made
-it. B11, in this note's commit, is the order of your steps below: your
-answer at T000 changed plan §13's two gates and two merges into one of
-each, and its commit changed tasks.md alone.
+the record and the departures, B1 to B17, each in the commit that made
+it. B11 is the order of your steps below: your answer at T000 changed
+plan §13's two gates and two merges into one of each, and its commit
+changed tasks.md alone. B12 to B17 are T048's round (Review, below).
 
 ## Acceptance criteria
 
 | SC | Status |
 |---|---|
 | SC-001 | PASS: 26 golden cases pinned; the plain text and the plain form's subject unchanged (alerts.test.ts unchanged in its §3 cases) |
-| SC-002 | PASS in unit tests (every entity of every case checked in UTF-16; the stand-in's own rules); dev-cpu half waits for T047 |
+| SC-002 | PASS in unit tests (every entity of every case checked in UTF-16; the stand-in's own rules); the dev-cpu half waived for the merge (D-1) |
 | SC-003 | PASS: no canary, token shape, 9-hex run, URL, or element outside the allowlist in any form of any case or sample |
 | SC-004 | PASS: dispatcher-forms.test.ts, stub and real designs |
 | SC-005 | PASS: crossings-forms.test.ts |
-| SC-006 | PASS in the integration test; dev-cpu half waits for T047 |
+| SC-006 | PASS in the integration test; the dev-cpu half waived for the merge (D-1) |
 | SC-007 | PASS: a real alert due is attempted before the next sample |
 | SC-008 | PASS: every entry's longest facts inside 1,000, 2,000, and 32 KiB |
 | SC-009 | PASS: every text pair at 4.5:1, every bar at 3:1, both palettes |
 | SC-010 | Yours: T053 |
 | SC-011 | PASS: alerts-anthropic.test.ts, both paid adapters |
-| SC-012 | The breach test's existing assertions unchanged beside the new checks (unit-tested); the dev-cpu run waits for T047; cloud cost $0 |
+| SC-012 | The breach test's existing assertions unchanged, its checks of the designed forms beside them as assertions of their own (unit-tested, B15); the dev-cpu run waived for the merge (D-1); cloud cost $0 |
 
 ## Constitution check
 
@@ -174,11 +198,31 @@ each, and its commit changed tasks.md alone.
 
 ## Review
 
-Not yet: T048, by an agent that wrote none of this.
+T048, by the reviewer agent in a session that wrote none of this, at
+b1b831d2. Its verdict, as the main session relayed it: the code ready,
+with one blocker in this note, three decisions, and nits. Each, and
+what was done:
+
+| Finding | What was done |
+|---|---|
+| B-1, blocker: the combined steps dropped spec 010's canary (`make matrix-canary`, its T054 check) | For the Author, step 1 ends with it, with its expected line and exits 1 and 3; after step 5, spec 010's blocks for T058 to T063; the stack's bottom, fix/007-live-runs, merges with it, one gate for all three; spec 010's note re-read for any other block |
+| D-1, T047 | Waived for the merge (Decisions, above; B17) |
+| D-2, the samples' $10 cap | $20.00: 6c4178fe RED, 2adef3dd GREEN, 2c964387 the golden files 04, 07, and `case-longest` (B14) |
+| D-3, the Bot API's facts | Stay for T053 |
+| Nit 1: two sample requests that overlap both passed the 409 | c5f41e90 RED, 7d03c508 GREEN: a flag set before the audit row's transaction (B12) |
+| Nit 2: the rollback and later-version claims contradicted spec 000 and the decoder | d0d2a9b6: corrected in the migration, data-model.md, plan §2.3, R-10, R-11, and `facts.ts`; a test holds a later version going plain (B16) |
+| Nit 3: the reason's canary, end to end | 1b83bad4: absent from everything both stub channels received, the email's parts decoded (passed at once) |
+| Nit 4: the disclosure's doubled marker; the ADR's building section past B10 | 81c93ef4 |
+| Nit 5: the designed forms checked inside the receivers' checks | 44005094 RED, 2467b575 GREEN: assertions of their own beside them (B15) |
+| Nit 5: `fallback_reason` on `alert.retry` (FR-044) | 3eb7489f RED, 9251486d GREEN: on `alert.retry` and `alert.failed`, as FR-044's letter has it (B13) |
+| Nit 5: telemetry.md's `operator.alert_samples` row; a test's title | 81c93ef4; 1b83bad4 |
+| Nit 6: `config/alerts.yaml`'s 240 s comment, now 250 s under A2 | Flagged for you, your file unedited (For the Author) |
+| The reviewer's proposed line for `CLAUDE.md` | Yours (For the Author) |
 
 ## Backlog
 
-- T047's dev-cpu run, with the agents' engine and the disk to spare.
+- T047's dev-cpu run, waived for the merge (D-1): your next breach test
+  on dev is its first live run.
 - The Bot API assumptions above, for T053.
 - Analyze finding A13, yours: `redteam/forbidden-actions.sh` still
   marks the studio window's rows `planned`, though the hook enforces
@@ -210,6 +254,45 @@ Not yet: T048, by an agent that wrote none of this.
 `scripts/test_operator.py` ran only inside `make test`: the bash gate
 reads that file's name as the operator CLI (refusal 5, below).
 
+### T048's round, RED and GREEN
+
+On the same base, 911df96f, with targeted runs only, as the main
+session asked: the whole suite runs once, at T050.
+
+| Commit | Finding | Run |
+|---|---|---|
+| c5f41e90 | nit 1 RED | alert-samples.test.ts: `expected [ 200, 200 ] to deeply equal [ 200, 409 ]`; 10 passed |
+| 7d03c508 | nit 1 GREEN | alert-samples.test.ts 11 passed; tsc and eslint clean |
+| 1b83bad4 | nits 3 and 5 | alert-samples.test.ts 12 passed; the canary test passed at once |
+| 3eb7489f | nit 5 RED | dispatcher-forms.test.ts: `alert.retry` has no `fallback_reason`; 1 failed, 15 passed |
+| 9251486d | nit 5 GREEN | dispatcher-forms, dispatcher, smtp-tls, crossings-forms, alerts-anthropic, alert-samples, telemetry, redact, and app tests pass |
+| 6c4178fe | D-2 RED | alert-catalogue.test.ts: `capMicro 10000000n`; 1 failed, 7 passed |
+| 2adef3dd | D-2 GREEN | alert-catalogue.test.ts 8 passed; the three cases' goldens differ (9 cases), as planned |
+| 2c964387 | D-2 goldens | 9 files regenerated with `-u`; every gateway unit test, 49 files, 760 passed |
+| 44005094 | nit 5 RED | inside `make test-fast` (refusal 11): the three tests fail; 4 failed, 3,999 passed, the fourth the inherited one |
+| 2467b575 | nit 5 GREEN | inside `make test-fast`: 1 failed, 4,002 passed, the inherited `test_the_fr007_list_is_the_contracts` |
+| d0d2a9b6 | nit 2 | alert-facts and migrations tests 58 passed; the new test passed at once |
+| 81c93ef4 | nits 4 and 5 | evals/test_disclosure.py 27 passed; telemetry.test.ts passes; docs links 0 failed |
+
+### make lint, at 81c93ef4 (T048's round)
+
+Whole, as it printed; the round's other checks are its targeted runs above.
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+453 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+make lint exit=0
+```
+
 ### Sizes and times
 
 - The golden HTML parts: 5,222 bytes (`17-store-unreachable`) to 11,276
@@ -217,6 +300,9 @@ reads that file's name as the operator CLI (refusal 5, below).
 - The render benchmark (`test/unit/alert-render-bench.test.ts`): 0.0076
   ms an alert for Telegram's design, 0.0206 ms for both, against 5 ms.
 - The lockfile's diff from 911df96f: empty (FR-052).
+
+The six checks below ran at c925d353, before T048's round; T050 runs
+them again, once, on the re-stacked tip, and appends them here.
 
 ### make lint
 
@@ -1742,7 +1828,7 @@ merge commit 29da20b7, parents a5eb05b8 c925d353
 
 ### Refusals
 
-The bash gate refused 10 commands; none was respelled:
+The bash gate refused 13 commands; none was respelled:
 
 - Refusal 1 (Phase 5, T032): a python3 heredoc that edited docs/runbooks/alert-channel-down.md. The runbook text inside it named the samples' make target with ENV=dev-cpu beside "make up ENV=<stack>"; the bash gate refused it as "an operator target outside dev-cpu". Not respelled: the same edit was made with the Edit tool, and the section names the target with "that stack's ENV" and no ENV value.
 - Refusal 2, right after: a printf that appended a record of refusal 1 to a scratch file in $TMPDIR. The record quoted the same words, so the gate refused it the same way. Not respelled: the record is written with the Write tool.
@@ -1754,6 +1840,9 @@ The bash gate refused 10 commands; none was respelled:
 - Refusal 8 (the checks): an rm of the gitleaks export folder, by its literal path under $TMPDIR, after the scan; refused as "recursive delete outside workspace". Not respelled: the export, /tmp/claude-1000/f011-export-gl (44 MB), the empty ignore folder beside it, and the plain copies at /tmp/claude-1000/f011-pa (68 KB) are left for the main session or the Author to delete by name.
 - Refusal 9 (the note): the command that assembled this note, copied the optional patch beside it, ran the links check, and searched the note's command lines for any over 70 characters with awk; the pattern held two words that read together as an Author-only make target. Not respelled: the first three ran as commands of their own, and the length check was written as a scratch script that reads the note's bash blocks.
 - Refusal 10, right after: a heredoc that appended refusal 9's record, quoting those two words; refused the same way. Not respelled: this record is written with the Write tool.
+- Refusal 11 (T048's round, nit 5's RED): pytest on evals/test_breach.py, the breach runner's own unit tests, refused as "the breach test outside dev-cpu". Not respelled: the RED and GREEN runs of those tests ran inside make test-fast, whose whole output is kept, and the commits say so.
+- Refusal 12 (nit 5's GREEN): a scratch script, written and run in one command, that added the designed checks' IDs at the runner's five call sites; it named the runner beside python3, refused the same way. Not respelled: the five call sites were edited with the Edit tool.
+- Refusal 13 (the note's round 2): a search of spec 010's tasks, main's Makefile, and fix/007-live-runs' note whose pattern named the canary's target, refused as "an Author-only make target". Not respelled: spec 010's task and the canary script's docstring were read with the Read tool, and the branch lookup ran as a command of its own.
 
 ## Cost and data-flow impact
 
@@ -1776,6 +1865,21 @@ spec 010's final tip (T050). Run them in your own terminal, in main's
 checkout (`/home/h4reet/h4reet-ai/h4reet-ai`), with no agent session
 using the agents' engine while the gate's `--prove` runs.
 
+### The stack: one gate for all three
+
+After the re-stack, `fix/007-live-runs` sits at the bottom of this
+stack: `feat/010-anthropic-provider` sits on its tip, and this branch on
+feat/010's. Your P-A branch, cut from this branch's tip, holds all
+three, so one gate and one merge bring in fix/007-live-runs, spec 010,
+and spec 011 together. Don't merge fix/007-live-runs on its own first:
+its merge commit wouldn't be an ancestor of the P-A branch's tip, so
+step 4's guard would print `guard: no`, and the stack would have to move
+onto main's new tip first. Its note
+(`docs/merge-requests/2026-11-08-fix-007-live-runs.md`, "For you"):
+its steps 3a and 3b, its own gate and merge, give way to steps 3 and 4
+here; its step 2, optional before the gate, and its step 4, after the
+merge, are fix/007's, as its note gives them.
+
 ### Two failures this branch inherits
 
 Spec 010's P-A isn't applied here, so this tip fails exactly the two
@@ -1795,9 +1899,9 @@ here. A gate of this branch without P-A can't pass.
 
 ### 1. Spec 010's P-A, on a branch cut from this tip
 
-One gate and one merge then bring in specs 010 and 011 together, P-A
-on top (your answer at T000). Your untracked files stay as they are:
-`git add -u` stages tracked files only.
+One gate and one merge then bring in the whole stack, P-A on top (your
+answer at T000, and the stack above). Your untracked files stay as they
+are: `git add -u` stages tracked files only.
 
 ```bash
 b=feat/011-alert-message-design
@@ -1818,6 +1922,24 @@ git commit -m "enforce(010): P-A, the Anthropic key's denies"
 ```
 
 The status lists P-A's files, as feat/010's note names them.
+
+Then the canary, which spec 010's T054 check asks for, "`make
+matrix-canary` passes with `GATEWAY_ANTHROPIC_API_KEY` in its list
+(plan B9)", and which the gate never runs. Run it while your checkout
+is still on the P-A branch, so the one `claude -p` session it starts
+reads P-A's settings. It runs on the Team plan and prints names, never
+values (`tools/gates/matrix_canary.py`, its docstring):
+
+```bash
+make matrix-canary
+```
+
+Expect `matrix-canary: PASS (exit 0) — 28 FR-007 variables`, then the
+rest of its line. Exit 1 means a fake value reached the session's
+environment or its transcript; exit 3 means it can't tell (no claude,
+API-key auth, no answer in time, or a session that didn't run the
+probe as written). make shows either as error 2, so read the summary
+line. On either, don't go on: tell the session.
 
 ### 2. The behavioral tier, for P-A's `.claude/` and `CLAUDE.md`
 
@@ -1886,6 +2008,13 @@ next `make up ENV=prod`, then the cap (P-C, as rebuilt) and the price
 (P-B) as your commit on main, then the park. They are unchanged by
 this branch.
 
+Then spec 010's own blocks for T058 to T063, as feat/010's note gives
+them: "6. T058: Bedrock's live runs, whenever you choose", "7. T059: if
+you choose the Anthropic API", "8. T060 to T062: the live runs with
+ADAPTER=anthropic", "9. T063: the wrong-key check, and your console",
+and "To go back to Bedrock". This branch changes none of their
+commands, and T053 below doesn't wait for them.
+
 ### 6. T053: the samples on prod
 
 `make up ENV=prod` starts the gateway at the merge and applies
@@ -1934,3 +2063,26 @@ git add tools/gates/matrix-required.txt
 git commit -m "enforce(011): the samples' matrix rows required"
 git switch -C wip-park/11-9-2026
 ```
+
+### 9. Later: the first live run of the dev-cpu checks
+
+T047 was waived for the merge (decision D-1, above), so your next
+breach test on dev is the first live run of the checks it would have
+run: step 12's samples, and the designed forms' own assertions (3d, 4f,
+5f, 7g, and 10i). A failure there is a bug in the rehearsal, not a risk
+to prod: tell the session, and it becomes a fix. It runs as always:
+
+```bash
+make breach-test ENV=dev
+```
+
+### Yours, outside the steps
+
+- **`config/alerts.yaml`, your file, line 10**: its comment reads
+  "230 s + the 10 s email timeout = 240 s, inside 300". Under rule A2's
+  two sends (spec 000's config-files.md §4.3, as this branch amends it)
+  the last attempt ends by 250 s: 230 s and two 10 s sends, still inside
+  300, so `validate-config` passes as it is. The comment's figure is
+  yours to change, or not; this branch leaves your file alone.
+- **A line for `CLAUDE.md`**: T048's reviewer proposed one. That file
+  changes by your hand only; the main session holds its words.
