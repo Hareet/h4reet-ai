@@ -226,7 +226,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Tests for User Story 3 (first)
 
-- [ ] T025 [P] [US3] Extend `apps/web/test/room/legibility.test.ts`, `budgets.test.ts`, `bundle.test.ts`, and `report.test.ts` (FR-054 to FR-057; SC-002):
+- [x] T025 [P] [US3] Extend `apps/web/test/room/legibility.test.ts`, `budgets.test.ts`, `bundle.test.ts`, and `report.test.ts` (FR-054 to FR-057; SC-002):
   - each readable face's smallest cap height on each new reference stage is at least its height on the legacy stage, and at least the floor;
   - the index's `screen_css` comes from the new reference stages;
   - RK3's total texture memory on the reference phone is at most 96 MB, and the note gives it;
@@ -234,12 +234,12 @@ description: "Task list for spec 005, the room fills the browser window"
   - with `pickSweep` run at `legacy-stages.ts`'s stages and at the new ones, each side-wall selectable's list-only stages at the new ones are a subset of today's.
 
   Check: RED before T027 where the report's lines are new; the rest prove T011 and T014 (feat/005-full-window-room)
-- [ ] T026 [P] [US3] Extend `apps/web/test/lookdev/page.test.ts` and `phone.test.ts` (FR-059): the "window" view sizes its canvas at the reference screen's full size and shifts the camera into its clear area; the static HUD panels carry the room's classes, with the blur at levels 0 and 1; the metrics panel shows the buffer's size, the ratio, and the cap; the phone copy's own stage is its device's clear area. Check: RED before T028 (feat/005-full-window-room)
+- [x] T026 [P] [US3] Extend `apps/web/test/lookdev/page.test.ts` and `phone.test.ts` (FR-059): the "window" view sizes its canvas at the reference screen's full size and shifts the camera into its clear area; the static HUD panels carry the room's classes, with the blur at levels 0 and 1; the metrics panel shows the buffer's size, the ratio, and the cap; the phone copy's own stage is its device's clear area. Check: RED before T028 (feat/005-full-window-room)
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Finish `build/room/report.ts`'s lines and any `rg.ts` change T025 asks for (plan §10.1, §10.2). If RK3 is over the cap, record R-6's departure here for the Author. Check: T025 passes; `npm run room:check` and `npm run room:report` pass on the repository's room, the report's new lines in the note (feat/005-full-window-room)
-- [ ] T028 [US3] Change `apps/web/src/lookdev/stage.ts` (the window view; `fit()` with `bufferRatio`), `phone.ts`, and `metrics.ts` by plan §10.4. Check: T026 passes; the page stays out of the release build (spec 004's FR-066 test) (feat/005-full-window-room)
+- [x] T027 [US3] Finish `build/room/report.ts`'s lines and any `rg.ts` change T025 asks for (plan §10.1, §10.2). If RK3 is over the cap, record R-6's departure here for the Author. Check: T025 passes; `npm run room:check` and `npm run room:report` pass on the repository's room, the report's new lines in the note (feat/005-full-window-room)
+- [x] T028 [US3] Change `apps/web/src/lookdev/stage.ts` (the window view; `fit()` with `bufferRatio`), `phone.ts`, and `metrics.ts` by plan §10.4. Check: T026 passes; the page stays out of the release build (spec 004's FR-066 test) (feat/005-full-window-room)
 
 **Checkpoint**: every check runs at the stages visitors see, and only gets easier.
 

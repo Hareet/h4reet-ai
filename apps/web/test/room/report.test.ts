@@ -470,9 +470,10 @@ describe("the report's walking lines (spec 008)", () => {
       "Walking (spec 008, FR-026): the visitor figure's start, x 0 and z 0.8, is on the walkable floor at the radius " +
         "0.12 m, 0.875 m from its nearest edge, the floor's open front.",
     );
+    // Spec 005: the reserved boxes, the walking control's in the clear area's bottom-right corner.
     expect(md).toContain(
-      "The walking control's box (spec 008, FR-021): 8rem × 2.75rem, 0.5rem in from the stage's bottom-right corner, " +
-        "holds no side-wall selectable at any supported stage.",
+      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), 8rem × 2.75rem, 0.5rem in from " +
+        "the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.",
     );
     expect(md.indexOf("Walking (spec 008")).toBeGreaterThan(md.indexOf("| Look | Band |"));
     expect(md.indexOf("Walking (spec 008")).toBeLessThan(md.indexOf("Findings:"));

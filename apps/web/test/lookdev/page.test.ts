@@ -752,7 +752,9 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
     pinned.clock.advance(20_000, 100);
     expect(pinned.page.stage.level).toBe(2);
     expect(pinned.page.stage.quality).toBe(2);
-    expect(pinned.renderer.ratio).toBe(Math.min(1, qualitySettings(2).pixelRatio));
+    // Since spec 005 the desktop's stage is its clear area, 1472 × 1120.5, where level 2's pixel cap binds.
+    const { w, h } = REFERENCE_DESKTOP.stage;
+    expect(pinned.renderer.ratio).toBeCloseTo(bufferRatio(1, qualitySettings(2), w, h), 12);
   });
 
   it("pauses the idle sway, and lets it move again", () => {
@@ -1296,7 +1298,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     });
     // The pixel ratio drawn at: the desktop's 1, as the level the controller settled at caps it.
     const settled = (results.quality as { settled: number }).settled;
-    expect(results.dpr).toBe(Math.min(1, qualitySettings(settled).pixelRatio));
+    // Since spec 005, the room's buffer ratio, its level's pixel cap among its bounds.
+    const { w, h } = REFERENCE_DESKTOP.stage;
+    expect(results.dpr).toBe(Math.round(bufferRatio(1, qualitySettings(settled), w, h) * 1e4) / 1e4);
     expect(results.stage_css).toEqual([REFERENCE_DESKTOP.stage.w, REFERENCE_DESKTOP.stage.h]);
     expect((results.frames as { count: number }).count).toBeGreaterThan(1000);
     expect(results.draw_calls).toBeGreaterThan(0);
@@ -1710,8 +1714,11 @@ describe("the window views (spec 005, T026)", () => {
       // The readouts: the buffer's size, the ratio, and the cap.
       const ratio = bufferRatio(dpr, qualitySettings(0), screen.w, screen.h);
       const cap = qualitySettings(0).pixelCap.toLocaleString("en-US");
-      expect(collapse(root.querySelector(".lookdev-readouts")?.textContent)).toContain(
-        `Buffer ${Math.floor(screen.w * ratio)} × ${Math.floor(screen.h * ratio)} device px at a pixel ratio of ` +
+      clock.advance(1000);
+      const terms = [...root.querySelectorAll(".lookdev-readouts dt")];
+      const buffer = terms.find((dt) => collapse(dt.textContent) === "Buffer")?.nextElementSibling;
+      expect(collapse(buffer?.textContent)).toBe(
+        `${Math.floor(screen.w * ratio)} × ${Math.floor(screen.h * ratio)} device px at a pixel ratio of ` +
           `${Math.round(ratio * 1000) / 1000}, under a cap of ${cap} device px`,
       );
     });
@@ -1719,10 +1726,10 @@ describe("the window views (spec 005, T026)", () => {
   it("turns the blur off from quality level 2, and hides the HUD's boxes in the stage views", () => {
     const { clock, root, doc } = open();
     choose(control<HTMLInputElement>(root, "Reference desktop's window"));
-    choose(control<HTMLSelectElement>(root, "Quality"), "2");
+    choose(control<HTMLInputElement>(root, "Pinned at 2"));
     clock.advance(50);
     expect(doc.documentElement.getAttribute("data-blur")).toBe("off");
-    choose(control<HTMLSelectElement>(root, "Quality"), "1");
+    choose(control<HTMLInputElement>(root, "Pinned at 1"));
     clock.advance(50);
     expect(doc.documentElement.getAttribute("data-blur")).toBe("on");
     choose(control<HTMLInputElement>(root, "Reference desktop"));
