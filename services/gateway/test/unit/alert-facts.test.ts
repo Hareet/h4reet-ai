@@ -74,7 +74,7 @@ describe("the round trip (plan §2.2)", () => {
     }
   });
 
-  it("ignores a key a later version adds, so a version 3 keeps decoding as 2 (R-10)", () => {
+  it("ignores a key added beside version 2's, so adding one breaks nothing (R-10)", () => {
     const [c, s] = allShapes()[0] as [AlertContext, AlertSpec];
     expect(decodeFacts({ ...factsOf(c, s), added_later: [1, 2] }, c.dedupeKey)).toEqual({ ctx: c, spec: s });
   });
@@ -86,6 +86,13 @@ describe("what decodes to nothing (FR-030), and never throws", () => {
     expect(() => (out = decodeFacts(facts, key))).not.toThrow();
     return out;
   };
+
+  it("refuses facts of another version, a later one included, which go plain (R-10)", () => {
+    const [c, s] = allShapes()[0] as [AlertContext, AlertSpec];
+    for (const version of [1, 3, "2", null]) {
+      expect(decodes({ ...factsOf(c, s), facts_version: version }, c.dedupeKey), String(version)).toBeUndefined();
+    }
+  });
 
   it("refuses a version 1 row's facts, as the code before this change wrote them", () => {
     for (const [c, s] of allShapes()) {

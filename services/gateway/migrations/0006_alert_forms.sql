@@ -4,7 +4,9 @@
 --
 -- 1. Each channel's form, and the reason when the plain form went in the designed one's place. NULL until the
 --    channel's first attempt; each attempt writes the form it sent. No column holds a designed form: the dispatcher
---    renders it at each attempt from the row's facts, and an older gateway after a rollback ignores these columns.
+--    renders it at each attempt from the row's facts. A rollback to an older gateway across this migration stops
+--    it, exit 78 schema_newer_than_code, as across any migration (data-model.md §2.1); the designs' own undo is
+--    formats set to plain in config/alerts.yaml, which needs no rollback.
 ALTER TABLE gateway.alert_outbox
   ADD COLUMN telegram_form text CHECK (telegram_form IN ('designed', 'plain')),
   ADD COLUMN email_form text CHECK (email_form IN ('designed', 'plain')),

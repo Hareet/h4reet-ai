@@ -6,8 +6,9 @@
 // the stack's prefix and an adapter's ID and label, which come from configuration and code, never from a request. A
 // strict, total decoder gives back exactly the context and spec the plain text was rendered from, or nothing: a row
 // written before version 2, or facts with a key missing or ill-typed, decode to nothing, and their alert goes in its
-// plain form (FR-030). It reads version 2's keys only and ignores any other, so a later version keeps decoding as 2,
-// and it never throws.
+// plain form (FR-030). It reads version 2's keys only and ignores any other key, so a key added beside them breaks
+// nothing; facts of any other version, earlier or later, decode to nothing (decodeFacts' first check); and it never
+// throws.
 import type { AuthFailureClass } from "../telemetry/metrics.js";
 import type {
   AdapterMonthFacts,
