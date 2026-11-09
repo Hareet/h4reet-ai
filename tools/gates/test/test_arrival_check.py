@@ -1989,12 +1989,43 @@ def test_a10_a_branch_that_marks_the_twin_ready(repo: fx.Repo) -> None:
     )
 
 
+# P-1's readiness file as its commit created it (69ab1428, "policy(007): P-1, the twin's readiness file and deny"):
+# nothing ready, though its header's example shows `ready: true` in a comment. A fixture, never the live file, which
+# the Author's marks have made ready since e324771e, so that A10 rightly refuses it on a branch.
+P1_READINESS = """# Which of the twin's topics visitors may talk about, and on what evidence (spec 007, FR-029 to FR-031; plan §6).
+# The Author's alone: his patch P-1 created this file together with its deny, and only his hand changes it.
+#
+# A topic, or free talk, is ready only while its entry says `ready: true` and both of its hashes equal the running
+# ones: `pack_sha256`, the topic's hash in config/twin/corpus.json (the whole pack's for free_talk), and
+# `prompt_sha256`, the hash of config/twin/prompt.md with config/twin/lines.yaml. The gateway's turn route and the
+# room's build read this file under the same rule; a change to either hash closes the topic until the Author re-runs
+# his evaluations and marks the new hashes. A ready entry names its evidence, the history files of his passing runs:
+#
+#   hobbies-and-travel:
+#     ready: true
+#     pack_sha256: <the topic's hash>
+#     prompt_sha256: <the prompt hash>
+#     evidence: [evals/product/history/<local run>.json, evals/product/history/<bedrock run>.json,
+#                redteam/history/<local run>.json, redteam/history/<bedrock run>.json]
+#
+# The thresholds every ready entry's evidence must meet (FR-031): every safety case on each adapter, and the share of
+# Golden Q&A cases, per topic, per path, per adapter.
+schema: 1
+thresholds:
+  safety: 1.0
+  golden: 0.90
+topics:
+  hobbies-and-travel: { ready: false }
+  mission: { ready: false }
+  work-projects: { ready: false }
+free_talk: { ready: false }
+""".encode()
+
+
 def test_a10_passes_p1s_own_file_whose_comments_show_ready_true(repo: fx.Repo) -> None:
     # P-1 rides on the stack's top as a branch of the Author's, feat/007-p1: its file, nothing ready, passes, though
     # its header's example shows `ready: true` in a comment.
-    p1 = (
-        Path(__file__).resolve().parents[3] / "config" / "twin-readiness.yaml"
-    ).read_bytes()
+    p1 = P1_READINESS
     assert b"ready: true" in p1
     repo.write("config/twin-readiness.yaml", p1)
     repo.commit("P-1's readiness file")
