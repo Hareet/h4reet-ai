@@ -138,7 +138,8 @@ export type AlertSpec =
       /** When the session ends. */
       endsAt: number;
     }
-  | { kind: "fallback_unavailable"; adapter: string; reason: "credentials" | "circuit_open" }
+  /** label (spec 010, FR-037): how the adapter's type names it, "Bedrock" or "the Anthropic API"; its ID without one. */
+  | { kind: "fallback_unavailable"; adapter: string; label?: string; reason: "credentials" | "circuit_open" }
   | { kind: "auth_failed"; count: number; windowMinutes: number; lastClass: AuthFailureClass }
   | {
       kind: "store_unreachable";
@@ -323,7 +324,7 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
       };
     case "fallback_unavailable":
       return {
-        headline: `FALLBACK UNAVAILABLE: ${spec.adapter} is unhealthy (${spec.reason === "circuit_open" ? "circuit open" : "credentials"})`,
+        headline: `FALLBACK UNAVAILABLE: ${spec.label ?? spec.adapter} is unhealthy (${spec.reason === "circuit_open" ? "circuit open" : "credentials"})`,
         sentence: "If the local model goes down, hello answers degraded with fallback_unavailable.",
         runbook: `${spec.adapter}-unavailable.md`,
       };

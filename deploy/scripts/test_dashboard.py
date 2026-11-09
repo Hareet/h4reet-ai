@@ -372,6 +372,8 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         "Fallback spend in studio windows",
         # Spec 007's model panel reads gateway.v_twin_models (its departure D7).
         "The model each turn used",
+        # Spec 010's table of the paid adapters' months reads gateway.v_adapter_months (its FR-036).
+        "Paid adapters' months (authoritative)",
     }
     for panel in sql:
         (target,) = panel["targets"]

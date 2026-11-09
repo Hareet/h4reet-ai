@@ -427,6 +427,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Why responses are degraded (FR-022, FR-028) | stat | `max by (h4_cause) (h4_degraded_cause) == 1` | the cause a hello would get now; `none` green |
 | Degraded responses by cause | bar chart | `sum by (h4_cause) (increase(h4_degraded_responses_total[$__rate_interval]))` | which causes answered, and when |
 | Store state (authoritative) | table (SQL) | `SELECT stack, env, state, since, crossed, fallback_awaiting_renewal, fallback_awaiting_since, day_key, month_key, day_spent_micro / 1e6 AS day_usd, month_spent_micro / 1e6 AS month_usd, fallback_spent_micro / 1e6 AS fallback_usd, fallback_allowance_micro / 1e6 AS fallback_allowance_usd, fallback_grant_no FROM gateway.v_state` | the state straight from the store, which still works when telemetry is down ([data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)) |
+| Paid adapters' months (authoritative) | table (SQL) | `SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter` | each paid adapter's month as the store holds it, its spend, reservations, and when its warning and cap were reached (spec 010, FR-036) |
 
 ### 7.2 Spend
 
@@ -436,6 +437,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Spend month-to-date (FR-028) | time series and stat | the same three with `h4_meter="month"` | against $14.00 and $20.00 |
 | Fallback sub-budget remaining (FR-028, FR-030) | stat and time series | A: `h4_fallback_allowance_usd - ignoring (h4_meter) h4_meter_spend_usd{h4_meter="fallback_day"}`; B: `max(h4_fallback_awaiting_renewal)`; C: `max(h4_meter_warn_usd{h4_meter="fallback_day"})` | what fallback can still spend today; B maps 1 to "awaiting renewal" in red |
 | Cost by provider and attribution (FR-023, SC-005) | table | `sum by (gen_ai_provider_name, gen_ai_request_model, h4_meter_attribution) (increase(h4_cost_usd_total[$__range]))` | Bedrock's fallback and test cost beside local's zero |
+| Paid adapter's month against its cap | time series and stat | A: `max by (h4_adapter) (h4_adapter_month_spend_usd)`; B: `max by (h4_adapter) (h4_adapter_month_warn_usd)`; C: `max by (h4_adapter) (h4_adapter_month_cap_usd)` | each capped paid adapter's month against its warning and its cap (spec 010, FR-036) |
 
 - Fallback remaining is the allowance minus committed fallback spend. `ignoring (h4_meter)` is needed because the spend series carries the `h4_meter` label and the allowance series doesn't. Without it the subtraction matches nothing and the panel shows no data.
 - Each panel reads the meter's own values and never re-sums the cost counter, so it agrees with the store (ADR 0004).

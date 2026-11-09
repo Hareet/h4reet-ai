@@ -547,7 +547,7 @@ export class Dispatcher {
    * most one an hour per adapter. While the store is empty or down, its own state answers for the stack and nothing is
    * queued. Resolves true when this call queued it.
    */
-  async fallbackUnavailable(adapter: string, reason: "credentials" | "circuit_open"): Promise<boolean> {
+  async fallbackUnavailable(adapter: string, reason: "credentials" | "circuit_open", label?: string): Promise<boolean> {
     const { deps } = this;
     if (deps.store.status !== "ready") return false;
     const read = await deps.store.readStackState();
@@ -576,7 +576,7 @@ export class Dispatcher {
                 : { state: "available" },
             meters: meterFactsOf(await readPeriodRows(q, periods), t),
           },
-          { kind: "fallback_unavailable", adapter, reason },
+          { kind: "fallback_unavailable", adapter, reason, ...(label === undefined ? {} : { label }) },
           deps.realNow(),
         ),
       );

@@ -284,7 +284,10 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
   });
   // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
-  gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
+  // Spec 010 (FR-037): the alert names the adapter by its type's label, "Bedrock" or "the Anthropic API".
+  const labels = new Map(adapters.map((a) => [a.config.id, a.config.spec.label] as [string, string | undefined]));
+  gateway.onFallbackUnavailable = (adapter, reason) =>
+    void dispatcher.fallbackUnavailable(adapter, reason, labels.get(adapter));
   // A paid adapter whose SSO session ends soon: the dispatcher queues its credentials_expiring alert (alerts.md §2).
   gateway.onCredentialsExpiring = (adapter, label, endsAt) => dispatcher.credentialsExpiring(adapter, label, endsAt);
   const drafts = new IncidentDrafts({

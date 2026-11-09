@@ -148,8 +148,8 @@ description: "Task list for spec 010, the Anthropic API as a second paid adapter
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Add the texts to `src/alerts/format.ts`; write `docs/runbooks/anthropic-unavailable.md`; add the adapter month to `docs/runbooks/fallback-renewal.md`; add both to `docs/runbooks/README.md` and contracts/alerts.md §6 (plan §9). Check: T041 and T043 pass (feat/010-anthropic-provider)
-- [ ] T045 [US3] Add the gauges to `src/telemetry/metrics.ts`, the panels to `deploy/grafana/dashboards/h4-runtime.json`, and amend contracts/telemetry.md §4.1, §7.1, and §7.2 in the same commit. Check: T042 passes (feat/010-anthropic-provider)
+- [X] T044 [US3] Add the texts to `src/alerts/format.ts`; write `docs/runbooks/anthropic-unavailable.md`; add the adapter month to `docs/runbooks/fallback-renewal.md`; add both to `docs/runbooks/README.md` and contracts/alerts.md §6 (plan §9). Check: T041 and T043 pass (feat/010-anthropic-provider)
+- [X] T045 [US3] Add the gauges to `src/telemetry/metrics.ts`, the panels to `deploy/grafana/dashboards/h4-runtime.json`, and amend contracts/telemetry.md §4.1, §7.1, and §7.2 in the same commit. Check: T042 passes (feat/010-anthropic-provider)
 
 **Checkpoint**: the cap is on the dashboard beside the month's spend, and its alerts lead to their runbooks.
 

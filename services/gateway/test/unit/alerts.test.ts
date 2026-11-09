@@ -558,7 +558,12 @@ describe("§3, amended by spec 010 (FR-037): the adapter month, and the Anthropi
 
   it("names the Anthropic API in fallback_unavailable, with its own runbook", () => {
     const c = ctx({ key: "prod:fallback_unavailable:anthropic:2026-10-29T16Z", at: "2026-10-29T16:12:44Z", meters: m });
-    const out = lines(c, { kind: "fallback_unavailable", adapter: "anthropic", label: "the Anthropic API", reason: "credentials" });
+    const out = lines(c, {
+      kind: "fallback_unavailable",
+      adapter: "anthropic",
+      label: "the Anthropic API",
+      reason: "credentials",
+    });
     expect(out[0]).toBe("[h4reet.ai prod] FALLBACK UNAVAILABLE: the Anthropic API is unhealthy (credentials)");
     expect(out.at(-1)).toBe("Runbook: docs/runbooks/anthropic-unavailable.md");
   });

@@ -250,6 +250,7 @@ def plan_runbooks() -> list[str]:
 
 
 SPEC_003_PLAN = REPO / "specs" / "003-studio-assets" / "plan.md"
+SPEC_010_PLAN = REPO / "specs" / "010-anthropic-provider" / "plan.md"
 
 
 def spec_003_runbooks() -> set[str]:
@@ -259,6 +260,13 @@ def spec_003_runbooks() -> set[str]:
     section = text[start : text.index("\n## 9. ", start)]
     (line,) = [ln for ln in section.splitlines() if ln.startswith("- **Runbooks:**")]
     return set(re.findall(r"`([a-z0-9-]+\.md)`", line))
+
+
+def spec_010_runbooks() -> set[str]:
+    """The new pages spec 010's plan §9 lists in its "Runbooks" paragraph (the Anthropic API's)."""
+    text = SPEC_010_PLAN.read_text(encoding="utf-8")
+    (line,) = [ln for ln in text.splitlines() if ln.startswith("**Runbooks**:")]
+    return set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)` \(new\)", line))
 
 
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
@@ -272,6 +280,11 @@ def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
         "asset-withdrawal.md",
         "studio-gpu-window.md",
     }  # not vacuous: spec 003's list parses
+    # Spec 010 adds the Anthropic API's page (its plan §9).
+    assert spec_010_runbooks() == {
+        "anthropic-unavailable.md"
+    }  # not vacuous: spec 010's list parses
+    later |= spec_010_runbooks()
     found = {p.name for p in pages()}
     assert set(PLAN_PAGES.values()) <= found
     assert found - set(PLAN_PAGES.values()) <= later, (
