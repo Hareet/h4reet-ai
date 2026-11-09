@@ -37,3 +37,28 @@ versions:
         model: metered-test
         input: 0
         output: 100
+  - id: "2026-11-08.1"
+    effective_from: "2026-11-08T00:00:00Z"
+    # Spec 010 (FR-019; its plan §4.1, P-B): the Anthropic API's own entry, for prompts up to 100K tokens, which every
+    # call stays under. No cache_read_input until the Author reads one: cache reads are then priced at input, which
+    # never undercounts. The other entries repeat 2026-10-12.1's. Change the id and effective_from to the day you
+    # apply it if you like, and write the day you read the prices into the source line.
+    source: "est.: the claude-api skill's reference, cached 2026-10-06 (Claude Haiku 5.5, prompts up to 100K tokens); the Author confirms on Anthropic's pricing page and writes the day he read it here"
+    entries:
+      - provider: anthropic
+        model: claude-haiku-5-5
+        input: 0.1
+        output: 0.5
+      - provider: aws.bedrock
+        model: us.anthropic.claude-haiku-5-5
+        input: 0.1
+        output: 0.5
+        cache_read_input: 0.01
+      - provider: local
+        model: "*"
+        input: 0
+        output: 0
+      - provider: synthetic
+        model: metered-test
+        input: 0
+        output: 100
