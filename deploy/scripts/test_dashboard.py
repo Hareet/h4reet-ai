@@ -983,8 +983,10 @@ def test_the_paid_adapters_month_has_its_panels() -> None:
     ]
     table = found[ADAPTER_MONTHS_TABLE]
     assert queries(table) == [
-        "SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, "
-        "reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter"
+        (
+            "SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, "
+            "reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter"
+        )
     ]
     assert table["type"] == "table"
     assert table["datasource"]["uid"] == "gateway"
