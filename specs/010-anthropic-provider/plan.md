@@ -20,9 +20,9 @@
 - **Cost** (§4): a new price version (P-B); the adapter's monthly cap in `config/budgets.yaml` (P-C); a meter of its own per capped adapter and month (migration `0005_adapter_month.sql`), the cause `adapter_month_spent`, and crossings that reuse the sub-budget's flag, alert kinds, and renewal.
 - **The twin** (§5): a `content_filter` finish becomes the fixed line under the guard `refusal`; both paid adapters send their model's default temperature.
 - **The live runs** (§6) take `ADAPTER=anthropic`; **readiness** (§7) asks for the paid adapter the route names, and counts only complete runs.
-- **Secrets** (§8): the Author's enforcement patch, P-A, lands before the merge; **telemetry, the dashboard, alerts, runbooks** (§9); **disclosure** (§10): row F3 in a section of its own, with a placeholder for the Author's words that `make test` won't let the route pass.
+- **Secrets** (§8): the Author's enforcement patch, P-A, lands with the merge, on his branch cut from this branch's tip (B10); **telemetry, the dashboard, alerts, runbooks** (§9); **disclosure** (§10): row F3 in a section of its own, with a placeholder for the Author's words that `make test` won't let the route pass.
 
-**What the Author does** (§13): approves; applies P-A before the merge; gates and merges; syncs prod's env file; applies P-C and P-B; runs spec 007's Bedrock runs; and, if he chooses the Anthropic API, writes F3's words, puts the key in, switches the route, and runs the live runs on it before re-marking readiness.
+**What the Author does** (§13): approves; commits P-A on a branch cut from this branch's tip; gates and merges the two as one (B10); syncs prod's env file; applies P-C and P-B; runs spec 007's Bedrock runs; and, if he chooses the Anthropic API, writes F3's words, puts the key in, switches the route, and runs the live runs on it before re-marking readiness.
 
 ## Technical Context
 
@@ -416,17 +416,17 @@ No mirror exists to fix: `services/gateway/src/twin/readiness.ts` and `apps/web/
 
 **In the branch** (agent-editable): the key's redaction (`src/telemetry/redact.ts`, a pattern for an Anthropic key's shape, `sk-ant-` followed by 20 or more key characters, plan choice, which T001 checks against the shape gitleaks's default rule uses); the same in `deploy/otel/collector.yaml`'s §6.3 transform, in guard G5's source (it imports `SECRET_PATTERNS`), and in the red-team suite's secret pattern; tests build every key-shaped value at run time (`"sk-" + "ant-" + …`), never as a literal, so neither gitleaks nor the content scan sees one; contracts/env-files.md §4 and §8's rows (Amendment 0-9).
 
-**P-A**, the Author's, built from plain copies of `main`'s files as `docs/merge-requests/<date>-feat-010-pa-anthropic-denies.patch`, applied on `main` before this branch merges (CLAUDE.md: "a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one"):
+**P-A**, the Author's, built from plain copies of `main`'s files as `docs/merge-requests/<date>-feat-010-pa-anthropic-denies.patch`, committed by the Author on a branch cut from this branch's tip and merged with it, as one (B10) (CLAUDE.md: "a secret, a paid route, or a file prod reads gets its deny in the same patch that creates it, or an earlier one"):
 1. `.claude/settings.json`: `GATEWAY_ANTHROPIC_API_KEY` and `ANTHROPIC_API_KEY` in the sandbox's `credentials.envVars`, mode deny.
-2. `evals/agent-config/static.py`: both in FR-007's variable list, which the static tier checks and the canary (`make matrix-canary`) reads.
+2. `evals/agent-config/static.py`: `GATEWAY_ANTHROPIC_API_KEY` in FR-007's variable list, which the static tier checks and the canary (`make matrix-canary`) and the behavioral tier read; `ANTHROPIC_API_KEY` stays off it, with its own matrix row instead (B9).
 3. `.claude/hooks/bash-gate.sh`: an `anthropic_word` beside `bedrock_word`, refusing `make evals` or `make check` with it ("the Anthropic evals") and `evals/run.py`, its module, or an import of it with it, through every spelling the Bedrock rules catch.
-4. `redteam/forbidden-actions.sh`: stage H rows for the two denied variables and for the bash gate's spellings (quotes, backslashes, `${v:-anthropic}`, a backslash-newline, `bash -c`, a subshell, `make -C`, `--eval=`, a heredoc), and gap rows for what text matching can't catch (a name built at run time), as `CLAUDE.md` asks of every bash-gate rule.
+4. `redteam/forbidden-actions.sh`: stage H rows for the two denied variables (`GATEWAY_ANTHROPIC_API_KEY` through env-files.md §8's FR-007 table, `ANTHROPIC_API_KEY` on a `set_has` row of its own: B9) and for the bash gate's spellings (quotes, backslashes, `${v:-anthropic}`, a backslash-newline, `bash -c`, a subshell, `make -C`, `--eval=`, a heredoc), and gap rows for what text matching can't catch (a name built at run time), as `CLAUDE.md` asks of every bash-gate rule.
 5. `tools/gates/matrix-required.txt`: their lines.
 6. `tools/gates/compose_policy.py` and its test: refuse any `ANTHROPIC_*` key on any service; refuse `GATEWAY_ANTHROPIC_API_KEY` on any service but the gateway, and on the gateway in any form but `${GATEWAY_ANTHROPIC_API_KEY:-}`.
 7. `CLAUDE.md`: "Routing is configuration (`config/routing.yaml`): local-first, Bedrock fallback within sub-budget, then degraded." becomes "Routing is configuration (`config/routing.yaml`): local-first, then the one paid fallback prod's route names (Bedrock or the Anthropic API) within its sub-budget and caps, then degraded." (FR-041).
 8. `.gitleaks.toml`, only if T001 finds gitleaks's default rules don't flag an Anthropic key's shape: a rule of his.
 
-P-A changes `.claude/` and `CLAUDE.md`, so its behavioral-tier run follows `main`'s rule then (spec 006's interim, ADR 0038). With P-A on `main`, this branch's gate sees the new rows pass.
+P-A changes `.claude/` and `CLAUDE.md`, so its behavioral-tier run follows `main`'s rule then (spec 006's interim, ADR 0038). Gated together, this branch and P-A see the new rows pass; neither passes alone (B10).
 
 ## 9. Telemetry, the dashboard, alerts, and runbooks
 
@@ -484,7 +484,7 @@ Every row is a test: the gateway's integration tests drive the first seven on th
 ## 13. The Author's patches and actions
 
 **The patches** (human-only paths; agents write each as a `.patch` beside the branch's note, from plain copies, never applied by an agent):
-- **P-A**, the enforcement layer and `CLAUDE.md`'s sentence (§8), before this branch merges.
+- **P-A**, the enforcement layer and `CLAUDE.md`'s sentence (§8), with this branch: on a branch cut from its tip, gated and merged as one (B10).
 - **P-B**, the price version (§4.1), after the merge, with the figures and the source line he confirms.
 - **P-C**, the cap (§4.2), after the merge, with his value.
 
@@ -492,8 +492,8 @@ Every row is a test: the gateway's integration tests drive the first seven on th
 
 **The Author's actions, in order** (the note gives each as a short, wrap-proof line):
 1. Accept the intent; answer Q1 to Q6, or let the provisional answers stand; approve the spec and this plan.
-2. Apply P-A on `main`, with its behavioral-tier run.
-3. Gate and merge this branch, after group B.
+2. Commit P-A on a branch cut from this branch's tip, with its behavioral-tier run.
+3. Gate that branch, with `--prove`, and merge it, after group B: one merge brings this branch and P-A.
 4. `make init-env ENV=prod SYNC=1`, before his next `make up ENV=prod`.
 5. Spec 007's P-2, if it hasn't landed: without `limits.twin` no twin call answers on prod.
 6. Apply P-C and P-B on `main`; accept the ADR, or leave it proposed.
@@ -508,7 +508,7 @@ Every row is a test: the gateway's integration tests drive the first seven on th
 
 - **The branch**: `feat/010-anthropic-provider`, in its own worktree, from group B's top when T001 runs, with `npm ci --ignore-scripts --cache "$TMPDIR/npm"`; this folder enters its tree from `spec/010-anthropic-provider`'s commit, cherry-picked first if the base lacks it. Agents rebase and cherry-pick, never merge; work is committed before any pause, since `/tmp` is wiped when WSL restarts.
 - **The phases** (tasks.md): Setup; Foundational, which holds every refusal, degraded path, and secret check before any happy path (Principle I); User Story 1 (P1, the MVP); User Story 2 (P1); User Story 3 (P2); User Story 4 (P3); Polish, the merge, and the Author's runs.
-- **The merge order**: group B (with spec 007's P-1, as its note has it), then P-A, then this branch; P-B and P-C after it; the switch only after them, the key, and F3's words.
+- **The merge order**: group B (with spec 007's P-1, as its note has it), then this branch with P-A on top, as one merge (B10); P-B and P-C after it; the switch only after them, the key, and F3's words.
 - **Dormant on merge**: prod's route names Bedrock, so the adapter isn't built and nothing reaches Anthropic; the only changes a visitor could see are the refusal's fixed line and Bedrock's default temperature.
 
 ## 15. Expected cost, and how it's measured
@@ -630,3 +630,5 @@ Each departure from the sections above, recorded in the commit that made it, as 
 | B6 | §8 item 8 | A `.gitleaks.toml` rule only if gitleaks's defaults don't flag an Anthropic key's shape | gitleaks 8.30.1's default rule `anthropic-api-key` flags the API key's shape (`sk-ant-api03-`, 93 key characters, `AA`), tried on a value built at run time in a scratch folder, and `.gitleaks.toml` extends the defaults (`useDefault = true`), so P-A has no gitleaks item. A bare `sk-ant-` value of another shape isn't flagged, which is why the gateway's own redaction (§8) matches `sk-ant-` followed by 20 or more key characters |
 | B7 | §4.4 ("The rows a call touches"); data-model.md §2.4 | "the reservation already holds `adapter_id` and `period_month`, which name the row", so whether a call counts toward its adapter's month follows the configuration | A column, `reservations.adapter_month boolean NOT NULL DEFAULT false`, in `0005_adapter_month.sql`, set at admission when the call reserved against its adapter's month; the commit, the sweep, and a compensation release and charge that row only when it is true. The configuration is read at start, so a cap added or removed across a restart would otherwise have a sweep subtract what no reservation holds, a CHECK violation that fails its transaction and with it admission, or leave a reservation on the row forever |
 | B8 | §7 steps 3 and 5 | A complete red-team run holds every committed live case of `redteam/cases/twin-*.yaml`; a complete product run holds every committed case of the topic | Two choices, each stricter: a red-team run holds every committed case with `live` in `redteam/cases/`, twin-named or not (45 at this branch, 41 of them `twin-*`), since `redteam/run.py`'s live mode sends every case with `live`; and a product run must also find at least one committed golden case of the topic on each path, or it reads "evidence missing", so a topic the suite can't ask about on a path can't be marked ready on a run that never asked (the coordinator's brief: "a product run holding no case of the entry's topic, on either path, is 'evidence missing'"). The lines say how many cases a run lacks, by path and kind |
+| B9 | §8 items 2, 4, 5; spec FR-032; contracts/env-files.md §8; tasks.md T005, T054 | Both names in `evals/agent-config/static.py`'s FR-007 list, "which the canary reads", and in env-files.md §8's FR-007 table | `GATEWAY_ANTHROPIC_API_KEY` alone is an FR-007 variable. `ANTHROPIC_API_KEY` is still denied by name in `credentials.envVars` (P-A item 1), as `GITHUB_TOKEN` is, with its own matrix row, `H/settings/spec 010: ANTHROPIC_API_KEY is denied by name`, and a paragraph below §8's table. Found on a patched export before the note: `tools/gates/matrix_canary.py` and `evals/agent-config/behavioral.py` put a fake value for every FR-007 variable into a Claude Code session after stripping their `STRIPPED` names, `ANTHROPIC_API_KEY` first among them, so a fake under that name would sign the session in with it. The canary's own test refused it (`test_nothing_that_could_sign_the_session_in_elsewhere_reaches_it`: `assert ['ANTHROPIC_API_KEY'] == []`, and the passing case's API-key check), and every behavioral session would have stopped at its init event on API-key auth |
+| B10 | §8 (where P-A lands), §13 (the patches; actions 2 and 3), §14 (the merge order); spec FR-032 and "The Author's patches"; tasks.md T054, T055 | P-A applied on `main` before this branch merges, then this branch gated and merged | P-A is committed on the Author's branch cut from this branch's tip, gated with it (with `--prove`, since `.claude/settings.json` changes, and with the behavioral tier), and merged as one (the coordinator's brief: "P-A on his branch cut from this tip, gated with it"). Neither half passes alone. On this tip, env-files.md §8 names `GATEWAY_ANTHROPIC_API_KEY` while `main`'s settings and FR-007 list don't, so the matrix's FR-007 row for it and the canary's `test_the_fr007_list_is_the_contracts` fail. On `main` with P-A alone, `static.py` would name it and §8 wouldn't, so that test would fail there. One merge gives `main` the code that reads the key and the deny that guards it together: `CLAUDE.md`'s "in the same patch that creates it" |

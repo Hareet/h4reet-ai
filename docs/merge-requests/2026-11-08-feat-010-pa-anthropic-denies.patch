@@ -95,22 +95,23 @@ index 0101579..880c010 100644
  - New endpoint or feature → also: telemetry span, dashboard panel, cost estimate in the spec, degraded-mode behavior, data-flow disclosure entry (`docs/data-flow-disclosure.md`) if a byte leaves the visitor's device.
  
 diff --git a/evals/agent-config/static.py b/evals/agent-config/static.py
-index 7e6ad32..4b7f248 100644
+index 7e6ad32..5a47ae1 100644
 --- a/evals/agent-config/static.py
 +++ b/evals/agent-config/static.py
-@@ -69,6 +69,10 @@ FR007_VARIABLES = [
+@@ -69,6 +69,11 @@ FR007_VARIABLES = [
      "AWS_ROLE_ARN",
      "AWS_CONTAINER_CREDENTIALS_FULL_URI",
      "AWS_CONTAINER_AUTHORIZATION_TOKEN",
-+    # Spec 010 (FR-030, FR-032; contracts/env-files.md §8): the Anthropic API key, under prod's name and under the
-+    # name its SDK reads on its own, which the Author's shell may hold for another use.
++    # Spec 010 (FR-030, FR-032; contracts/env-files.md §8): the Anthropic API key, under prod's name. The name its
++    # SDK reads on its own, ANTHROPIC_API_KEY, is denied by name too, but it isn't on this list: the canary and the
++    # behavioral tier put a fake value for every name here into a Claude Code session, and that name would sign the
++    # session in with the fake. Both strip it instead (STRIPPED), and the matrix checks its deny on a row of its own.
 +    "GATEWAY_ANTHROPIC_API_KEY",
-+    "ANTHROPIC_API_KEY",
  ]
  
  # The FR-007 variables the settings denied before spec 000; the early patch (T045) denies the rest.
 diff --git a/redteam/forbidden-actions.sh b/redteam/forbidden-actions.sh
-index 0d7fdf0..ca5b932 100644
+index 0d7fdf0..fa9b3da 100644
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
 @@ -357,6 +357,33 @@ cmd block 'make ./evals ADAPTER=bedrock'
@@ -174,10 +175,21 @@ index 0d7fdf0..ca5b932 100644
  has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./config/twin-readiness.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
  # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
 -has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
-+has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN", "GATEWAY_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"] | all(. as $v | $n | index($v) != null)'
++has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN", "GATEWAY_ANTHROPIC_API_KEY"] | all(. as $v | $n | index($v) != null)'
  has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
  
  # FR-007, per secret (convergence T198): contracts/env-files.md §8's table names each variable and the file that holds
+@@ -2546,6 +2581,10 @@ while read -r kind item; do
+       ;;
+   esac
+ done <<<"$fr007"
++# ANTHROPIC_API_KEY (spec 010, FR-032; its plan's B9): denied by name, as GITHUB_TOKEN is, but not an FR-007 variable.
++# It is the name Claude Code signs in with, so the canary and the behavioral tier, which fake every FR-007 variable in
++# a session, strip it instead, and its deny gets this row of its own.
++set_has "spec 010: ANTHROPIC_API_KEY is denied by name" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] | index("ANTHROPIC_API_KEY") != null'
+ 
+ # The closing patch (plan §15; tasks.md T117): the paths it denies, and Claude Code's own reporting switched off.
+ # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
 diff --git a/tools/gates/compose_policy.py b/tools/gates/compose_policy.py
 index bf525f4..f95c100 100644
 --- a/tools/gates/compose_policy.py
@@ -216,7 +228,7 @@ index bf525f4..f95c100 100644
  
  
 diff --git a/tools/gates/matrix-required.txt b/tools/gates/matrix-required.txt
-index 6afdd6b..c6857f1 100644
+index 6afdd6b..5bacb80 100644
 --- a/tools/gates/matrix-required.txt
 +++ b/tools/gates/matrix-required.txt
 @@ -323,3 +323,23 @@ H/git-hook/update-ref refs/remotes/origin/main, a remote-tracking branch
@@ -226,7 +238,7 @@ index 6afdd6b..c6857f1 100644
 +
 +# --- spec 010's patch P-A (FR-024, FR-032): the Anthropic key's names, and the bash gate's anthropic rules ---
 +H/settings/FR-007: GATEWAY_ANTHROPIC_API_KEY is denied by name
-+H/settings/FR-007: ANTHROPIC_API_KEY is denied by name
++H/settings/spec 010: ANTHROPIC_API_KEY is denied by name
 +H/bash-gate.sh/make evals ADAPTER=anthropic
 +H/bash-gate.sh/ADAPTER=anthropic make check
 +H/bash-gate.sh/make evals ADAPTER=${A:-anthropic}
