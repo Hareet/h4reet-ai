@@ -1607,14 +1607,47 @@ def test_real_run_starts_each_command_in_its_own_session(
 # --- spec 011: the designed forms on the stand-ins, and step 12's samples (FR-040, FR-053; SC-006, SC-012) ---------
 
 
-def test_the_stand_in_checks_expect_the_designed_forms() -> None:
-    # The existing alert checks stay as they were, with the form checked beside them (FR-053).
+# Each alert's receivers' check, and the check of its designed form beside it (FR-053; T048's review).
+DESIGNED_BESIDE = {"3b": "3d", "4c": "4f", "5d": "5f", "7d": "7g", "10b": "10i"}
+
+
+def test_the_stand_in_checks_stay_as_they_were_with_the_designed_forms_checked_beside_them() -> (
+    None
+):
+    # FR-053: the existing stand-in assertions unchanged, and the checks of the designed forms beside them, each an
+    # assertion of its own, on the same alert's key, in the same step.
     stack = FakeStack()
     code, text = run(["--stack", "dev-cpu"], stack)
     assert code == 0, text
-    receivers = [o for o in stack.ops_seen if o["op"] in ("telegram", "mailpit")]
-    assert receivers
-    assert all(o.get("expect") == {"designed": True} for o in receivers)
+    by_id = {a.id: a for a in breach.CATALOG}
+    for receivers, designed in DESIGNED_BESIDE.items():
+        held = [
+            o
+            for o in stack.ops_seen
+            if o.get("assert") == receivers and o["op"] in ("telegram", "mailpit")
+        ]
+        assert sorted(o["op"] for o in held) == ["mailpit", "telegram"], receivers
+        # As before spec 011: found by key within 300 s, nothing asked of the form.
+        assert all("expect" not in o and o["within_s"] == 300 for o in held), receivers
+        beside = [o for o in stack.ops_seen if o.get("assert") == designed]
+        assert sorted(o["op"] for o in beside) == ["mailpit", "telegram"], designed
+        assert all(
+            o["expect"] == {"designed": True}
+            and o["key"] == held[0]["key"]
+            and o["within_s"] == 300
+            for o in beside
+        ), designed
+        assert by_id[designed].stand_in_only, designed
+        assert by_id[designed].step == by_id[receivers].step, designed
+        assert by_id[designed].source == "L", designed
+
+
+def test_a_miss_of_the_designed_form_leaves_the_receivers_check_passing() -> None:
+    stack = FakeStack(miss={"3d"})
+    code, text = run(["--stack", "dev-cpu"], stack)
+    assert code == 1
+    table = rows(text)
+    assert [aid for aid, (_, result, _) in table.items() if result != "PASS"] == ["3d"]
 
 
 def test_step_12_sends_the_samples_and_finds_each_designed_on_both_stand_ins() -> None:
@@ -1674,3 +1707,8 @@ def test_step_12_is_skipped_with_real_delivery_so_the_authors_run_sends_nothing_
     assert not [o for o in stack.ops_seen if str(o.get("assert", "")).startswith("12")]
     table = rows(text)
     assert all(table[a][1] == "SKIP" for a in ("12a", "12b", "12c", "12d"))
+    # The designed forms' checks beside the receivers' read SKIP too: real delivery leaves the stand-ins empty.
+    assert not [
+        o for o in stack.ops_seen if o.get("assert") in DESIGNED_BESIDE.values()
+    ]
+    assert all(table[a][1] == "SKIP" for a in DESIGNED_BESIDE.values())
