@@ -11,11 +11,6 @@
 // ends with "Around the room", in 3D and 2D; axe on the paused room too; "Around the room" visible after the
 // conversation, outside the stage, open, updated in place in no live region; no meaning on colour alone; and the
 // 320 × 568 page, modelled from room.css (below), with five toolbar controls.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { create } from "fontkit";
-import type { Font } from "fontkit";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,7 +27,6 @@ import { framedBoxes } from "../../src/room/scene/bundle3d";
 import { renderTextCopy } from "../../src/room/text-copy";
 import {
   AI_DISCLOSURE,
-  WEB,
   axeViolations,
   button,
   enter,
@@ -52,6 +46,7 @@ import {
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
 import { goodTree, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import { flexRows, textLines, textWidth } from "./hud-model";
 
 /** The "In the room" list's buttons by their accessible names, as the index gives them: in scene order, each name, a
  *  ": ", and its topic's phrase, or the resume action's UI word. */
@@ -666,40 +661,6 @@ function sides(value: string | undefined, axis: "x" | "y"): number {
 
 /** A border shorthand's width. */
 const borderWidth = (value: string | undefined): number => length(/^([\d.]+px)/.exec(value ?? "")?.[1] ?? "0");
-
-let plex: Font | null = null;
-/** A text's advance width in CSS pixels, in the page's typeface at `size` px, kerning applied. */
-function textWidth(text: string, size: number): number {
-  plex ??= create(readFileSync(join(WEB, "fonts", "IBMPlexSans-Regular.woff"))) as Font;
-  return (plex.layout(text).advanceWidth / plex.unitsPerEm) * size;
-}
-
-/** How many rows a wrapping flex line of items takes in a width, with a gap between items. */
-function flexRows(widths: readonly number[], width: number, gap: number): number {
-  let rows = 0;
-  let used = Infinity;
-  for (const w of widths) {
-    if (used + gap + w <= width) used += gap + w;
-    else {
-      rows += 1;
-      used = w;
-    }
-  }
-  return rows;
-}
-
-/** How many lines a paragraph's words wrap to in a width. */
-function textLines(text: string, size: number, width: number): number {
-  const space = textWidth(" ", size);
-  return flexRows(
-    text
-      .split(/\s+/)
-      .filter((w) => w !== "")
-      .map((w) => textWidth(w, size)),
-    width,
-    space,
-  );
-}
 
 interface PortraitPage {
   readonly toolbar: readonly string[];

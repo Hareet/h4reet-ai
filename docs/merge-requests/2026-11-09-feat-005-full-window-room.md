@@ -33,3 +33,9 @@ Authorized by: the spec and the plan, approved by the Author in the session on 2
 - **`npm run room:check`**: 2.73 s wall, "room: 0 findings in 0 files", with 1,787 supported stages from 5,403 sweep screens.
 - **The entry chunk**: the release build's entry, `assets/index-CAIVYGH1.js`, 32,396 bytes gzipped, and its one stylesheet 2,561 bytes: 34,957 bytes of the 153,600-byte budget (measured as `test/room/chunk.test.ts` measures it, with a scratch script outside the repository).
 - **The web tests at the base**: 2,685 passed and 8 failed, the 8 being `main`'s known readiness failures in `test/room/chunk.test.ts` and `test/room/dist.test.ts`, which this branch doesn't fix.
+
+## The RED and GREEN runs
+
+Each phase's tests were committed failing before the code that makes them pass. The runs are `npx vitest run <files>` in `apps/web`, under Node 24.21.0.
+
+**Phase 2 (Foundational), RED** (T005 to T010, before T011 to T014): 5 of 7 files failed, 6 of 66 tests. `test/room/hud.test.ts`, `stages.test.ts`, `fit.test.ts`, and `test/ui/hud-model.test.ts` failed to load ("Cannot find module '../../src/room/compose/hud'"); `test/ui/degraded.test.ts`'s six new cases failed (no `data-hud`, no `data-stage`, flat-failed's old words, no fallback rules, no stacked rules). `test/room/stages-floor.test.ts` (T007) passed at once: at the base the shipped stages are the floor itself, so it holds T011 to the floor rather than failing first; `test/room/legacy-stages.test.ts` (T004) passed, as T004 requires.
