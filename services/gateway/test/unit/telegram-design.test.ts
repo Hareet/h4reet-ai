@@ -61,7 +61,8 @@ describe("the message, line by line (FR-003, FR-011; plan §4.1)", () => {
   it("puts spec 010's adapter month in the block, labelled with the adapter's ID, against its cap", () => {
     const warn = entryCases().find((c) => c.name === "04-warn-adapter-month") as GoldenCase;
     const block = covered(design(warn)).find(([type]) => type === "pre")?.[1] ?? "";
-    expect(block.split("\n").at(-1)).toMatch(/^anthropic +7\.20 \/ 10\.00 USD {3}2026-10$/);
+    // The catalogue's figures: $14.40 of the Author's $20.00 cap (T048's decision D-2).
+    expect(block.split("\n").at(-1)).toMatch(/^anthropic +14\.40 \/ 20\.00 USD {3}2026-10$/);
   });
 
   it("shows the grant's warning only in the fallback grant's own warning, as the plain text does", () => {

@@ -1,12 +1,12 @@
 🧪 SAMPLE · A sample, sent by operator #1a2b3c4d: nothing happened on dev.
 🔴 Critical · [h4reet.ai 🧪 xxxxxxxxxxxxxxxxx]
 💸 PAID FALLBACK CAPPED: the Anthropic API's month reached its cap
-Next: 10.00 of 10.00 USD in 2026-10. The Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.
+Next: 20.00 of 20.00 USD in 2026-10. The Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.
 Meters
 Daily                              1.00 /  5.00 USD   warning  3.50
 Month                              9.00 / 20.00 USD   warning 14.00
 Fallback                           0.30 /  2.00 USD   grant 1
-adapter-xxxxxxxxxxxxxxxxxxxxxxxx  10.00 / 10.00 USD   2026-10
+adapter-xxxxxxxxxxxxxxxxxxxxxxxx  20.00 / 20.00 USD   2026-10
 (synthetic spend)
 Runtime: normal
 Fallback: awaiting renewal since 2026-10-29T16:00:00Z (test clock)
@@ -16,6 +16,6 @@ Runbook: docs/runbooks/fallback-renewal.md
 --- entities (UTF-16 offset, length)
 bold 3 6 "SAMPLE"
 bold 125 63 "PAID FALLBACK CAPPED: the Anthropic API's month reached its cap"
-pre 372 277 "Daily                              1.00 /  5.00 USD   warning  3.50\nMonth                              9.00 / 20.00 USD   warning 14.00\nFallback                           0.30 /  2.00 USD   grant 1\nadapter-xxxxxxxxxxxxxxxxxxxxxxxx  10.00 / 10.00 USD   2026-10\n(synthetic spend)"
+pre 372 277 "Daily                              1.00 /  5.00 USD   warning  3.50\nMonth                              9.00 / 20.00 USD   warning 14.00\nFallback                           0.30 /  2.00 USD   grant 1\nadapter-xxxxxxxxxxxxxxxxxxxxxxxx  20.00 / 20.00 USD   2026-10\n(synthetic spend)"
 code 776 43 "dev:sample:exhausted-adapter-month:12345678"
 code 829 33 "docs/runbooks/fallback-renewal.md"

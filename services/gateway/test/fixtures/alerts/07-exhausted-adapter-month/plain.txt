@@ -1,5 +1,5 @@
 [h4reet.ai prod] PAID FALLBACK CAPPED: the Anthropic API's month reached its cap
 Daily: 1.00 / 5.00 USD (warning 3.50) · Month: 9.00 / 20.00 (warning 14.00) · Fallback today: 0.30 / 2.00 (grant 1)
 Runtime: normal · Fallback: awaiting renewal since 2026-10-29T16:00:00Z · 2026-10-29T16:00:00Z · id prod:fallback_exhausted:adapter_month:anthropic:2026-10
-10.00 of 10.00 USD in 2026-10. The Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.
+20.00 of 20.00 USD in 2026-10. The Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.
 Runbook: docs/runbooks/fallback-renewal.md
