@@ -51,13 +51,17 @@ function meters(day: number, month: number, fallback: number, allowance = 2_000_
 const SSO = SAMPLE_ADAPTERS.sso;
 const CAPPED = SAMPLE_ADAPTERS.capped;
 
-/** Spec 010's adapter month: $7.20 of the capped adapter's $10 cap in October, as its texts' examples. */
+/**
+ * Spec 010's adapter month in October at the Author's cap, $20.00 (his answer at spec 010's T000), so prod's samples
+ * name the cap he chose (spec 011's review, decision D-2): $14.40 spent, 72%, past its 70% warning, as $7.20 was of
+ * the $10 in spec 010's texts.
+ */
 const ADAPTER_MONTH: AdapterMonthFacts = {
   adapter: CAPPED.id,
   label: CAPPED.label,
   month: "2026-10",
-  spentMicro: 7_200_000n,
-  capMicro: 10_000_000n,
+  spentMicro: 14_400_000n,
+  capMicro: 20_000_000n,
 };
 
 interface Fixed {
@@ -126,7 +130,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     "warn-adapter-month",
     "warn",
     (s) => `${s}:warn:adapter_month:${CAPPED.id}:2026-10`,
-    { at: "2026-10-29T16:00:00Z", meters: meters(1_000_000, 9_000_000, 300_000) },
+    // The month meter holds the adapter's $14.40, which is part of it, and so is past its own warning too.
+    { at: "2026-10-29T16:00:00Z", meters: meters(1_000_000, 14_700_000, 300_000) },
     () => ({ kind: "warn", meter: "adapter_month", warnRatioBp: WARN_70, adapterMonth: ADAPTER_MONTH }),
   ),
   entry(
@@ -160,7 +165,9 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
       fallback: { state: "awaiting", since: T("2026-10-29T16:00:00Z") },
       meters: meters(1_000_000, 9_000_000, 300_000),
     },
-    () => ({ kind: "fallback_exhausted", adapterMonth: { ...ADAPTER_MONTH, spentMicro: 10_000_000n } }),
+    // At his figures the month ceiling stops paid calls first, so prod sends this alert only under a cap below the
+    // ceiling (spec 010's note, P-C); the sample shows its design at his cap.
+    () => ({ kind: "fallback_exhausted", adapterMonth: { ...ADAPTER_MONTH, spentMicro: ADAPTER_MONTH.capMicro } }),
   ),
   entry(
     "operator-reset",
