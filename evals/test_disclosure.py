@@ -262,12 +262,14 @@ def test_the_rows_t110_adds_keep_plan_17s_words() -> None:
 
 def test_the_claude_code_row_names_what_keeps_secrets_out_of_a_session() -> None:
     # The plan's control is "the sandbox, the deny lists": the row says what they keep out, by the requirement and the
-    # contract that list it, and that the stack itself never calls Anthropic.
+    # contract that list it, and that the stack never calls Anthropic as a session: since spec 010, its only calls to
+    # Anthropic are F3's, prod's gateway with its own key.
     from_to, _trigger, _carried, never, _why, default, _off, fr = rows()["D1"]
     assert "FR-007" in never and "contracts/env-files.md §8" in never
     assert "FR-037" in fr and "FR-007" in fr
     assert "Claude Code" in from_to
     assert "never" in default.lower()
+    assert "F3" in default and "calls no Anthropic endpoint" not in default
 
 
 def test_the_claude_code_row_lists_its_default_reporting_and_its_switch() -> None:
@@ -358,7 +360,10 @@ def test_spec_000s_part_closes_with_fr_040s_sentence() -> None:
     assert "No visitor data flows in this spec." in spec
     spec_000, *later = TEXT.split("\n## ")
     assert spec_000.rstrip().splitlines()[-1] == "No visitor data flows in this spec."
-    assert [section.splitlines()[0] for section in later] == ["Spec 002: the room"]
+    assert [section.splitlines()[0] for section in later] == [
+        "Spec 002: the room",
+        "Spec 010: the Anthropic API",  # spec 010, FR-038 (its plan, D12)
+    ]
     assert "aren't here yet" not in TEXT  # the intro no longer waits for rows
 
 
@@ -404,7 +409,9 @@ def test_the_twins_turn_has_row_v2_in_spec_007s_words() -> None:
     assert "| V2 |" in room
     entry = spec_007_entry("V2")
     row = rows()["V2"]
-    assert row[:7] == entry[1:8]
+    # Spec 010's Amendment 7-5: its Why is spec 007's words, then spec 010's sentence; the other cells unchanged.
+    assert row[:4] == entry[1:5] and row[5:7] == entry[6:8]
+    assert row[4] == f"{entry[5]}. {v2_sentence()}"
     assert "estimated cost" in row[2] and "route" in row[2]
     assert "Rows V2, V3, and V5" not in room
     assert "Rows V3 and V5 come with the work that creates each flow." in room
@@ -429,3 +436,98 @@ def test_row_f1_adds_spec_007s_turn_to_its_own_words() -> None:
 def test_security_md_links_the_disclosure() -> None:
     security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
     assert "](docs/data-flow-disclosure.md)" in security
+
+
+# Spec 010 (FR-038, FR-039, SC-010; its plan §10, D12): the Anthropic API's row, F3, in a section of its own in the
+# spec's words, with S2, D1, and V2 changed as its entries give them; and the placeholder gate, which fails make test
+# while prod's route names an anthropic-messages adapter and F3 still holds the marked placeholder for the Author's
+# words about what Anthropic keeps.
+SPEC_010 = REPO / "specs" / "010-anthropic-provider" / "spec.md"
+PLACEHOLDER = "<the Author's words"
+
+
+def spec_010_entry(row_id: str) -> list[str]:
+    """specs/010-anthropic-provider/spec.md's Data-Flow Disclosure Entries row: its eight cells."""
+    lines = SPEC_010.read_text(encoding="utf-8").splitlines()
+    (entry,) = [ln for ln in lines if ln.startswith(f"| {row_id} (")]
+    return [c.strip() for c in entry.strip().strip("|").split("|")]
+
+
+def v2_sentence() -> str:
+    """Spec 010's sentence for V2's Why, from its entry: "as before, and: on prod, …" as "On prod, … (spec 010)"."""
+    added = spec_010_entry("V2")[5].removeprefix("as before, and: ")
+    return f"{added[0].upper()}{added[1:]} (spec 010)"
+
+
+def test_the_anthropic_apis_row_is_in_its_own_section_in_the_specs_words() -> None:
+    section = TEXT.split("\n## Spec 010: the Anthropic API\n", 1)[1]
+    spec = SPEC_010.read_text(encoding="utf-8")
+    lead = re.search(r'The new section\'s lead, for the disclosure: "([^"]+)"', spec)
+    assert lead, "spec 010's entries don't read as this test reads them"
+    assert lead.group(1) in section
+    assert "| F3 |" in section
+    entry = spec_010_entry("F3")
+    row = rows()["F3"]
+    assert row[:7] == entry[1:8]
+    assert row[7] == (
+        "spec 010 FR-038, FR-039; spec 000 FR-021, FR-022, FR-023, FR-030, FR-031, FR-040"
+    )
+    assert named(row[0].split("→", 1)[0]) == {"gateway"}
+
+
+def test_f3s_host_is_the_adapters_own_constant() -> None:
+    source = (
+        REPO / "services" / "gateway" / "src" / "adapters" / "anthropic-messages.ts"
+    ).read_text(encoding="utf-8")
+    origin = re.search(r'export const ANTHROPIC_ORIGIN = "https://([^"/]+)"', source)
+    assert origin, "the adapter's origin constant isn't where this test reads it"
+    assert f"`{origin.group(1)}`" in rows()["F3"][0]
+
+
+def test_s2_d1_and_v2_change_as_spec_010s_entries_give_them() -> None:
+    found = rows()
+    s2 = spec_010_entry("S2")
+    assert s2[2].removeprefix("as before, and: ") in found["S2"][1]
+    assert found["S2"][2] == "what A1, A2, F1, F2, and F3 say"
+    d1 = spec_010_entry("D1")
+    replacement = re.search(r'becomes "([^"]+)"', d1[6])
+    assert replacement, "spec 010's D1 entry doesn't read as this test reads it"
+    assert replacement.group(1) in found["D1"][5]
+    assert found["V2"][4].endswith(v2_sentence())
+
+
+def placeholder_gate(routing_text: str, disclosure_text: str) -> list[str]:
+    """What stops the Anthropic API's route (FR-039): F3's placeholder, while prod's fallback is anthropic-messages."""
+    routing = yaml.safe_load(routing_text)
+    fallback = ((routing.get("envs") or {}).get("prod") or {}).get("fallback")
+    adapter = (routing.get("adapters") or {}).get(fallback) or {}
+    if adapter.get("type") != "anthropic-messages":
+        return []
+    (f3,) = [ln for ln in disclosure_text.splitlines() if ln.startswith("| F3 |")]
+    from_to = [c.strip() for c in f3.strip().strip("|").split("|")][1]
+    if PLACEHOLDER in from_to:
+        return [
+            "config/routing.yaml names the Anthropic API as prod's fallback while F3 holds the placeholder for the "
+            "Author's words about what Anthropic keeps (spec 010, FR-039)"
+        ]
+    return []
+
+
+def test_the_route_waits_for_the_authors_words_in_f3() -> None:
+    # The committed files: while F3 holds the placeholder, prod's route can't name the Anthropic API.
+    routing = (REPO / "config" / "routing.yaml").read_text(encoding="utf-8")
+    assert placeholder_gate(routing, TEXT) == []
+
+
+def test_the_placeholder_gate_fails_a_switch_made_before_the_authors_words() -> None:
+    routing = yaml.safe_load((REPO / "config" / "routing.yaml").read_text(encoding="utf-8"))
+    assert routing["adapters"]["anthropic"]["type"] == "anthropic-messages"
+    assert PLACEHOLDER in rows()["F3"][0]
+    routing["envs"]["prod"]["fallback"] = "anthropic"
+    switched = yaml.safe_dump(routing)
+    assert placeholder_gate(switched, TEXT) != []
+    worded = TEXT.replace(
+        rows()["F3"][0][rows()["F3"][0].index(PLACEHOLDER) :].split(">", 1)[0] + ">",
+        "the Author's words, read from Anthropic's terms on a given day",
+    )
+    assert placeholder_gate(switched, worded) == []

@@ -58,6 +58,8 @@ const SNAPSHOT: GaugeSnapshot = {
   fallbackAwaitingRenewal: false,
   studioWindow: false,
   adapters: [{ id: "local", healthy: true }],
+  // Spec 010 (FR-035): a capped paid adapter's month, so its three gauges report.
+  adapterMonths: [{ adapter: "anthropic", spentMicro: 1_250_000n, capMicro: 10_000_000n, warnMicro: 7_000_000n }],
 };
 
 /** Every instrument once, as a request, a crossing, and an operator write would record them. */
@@ -117,6 +119,10 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.twin.turn.duration": { unit: "s", keys: ["h4.room.feature", "h4.route.decision"] },
   "h4.twin.withheld": { unit: "{answer}", keys: ["h4.twin.guard"] },
   "h4.meter.spend_usd": { unit: "{USD}", keys: ["h4.meter"] },
+  // Spec 010 (FR-035; plan §9): each capped, routed adapter's month, its cap, and its warning.
+  "h4.adapter.month_spend_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_cap_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_warn_usd": { unit: "{USD}", keys: ["h4.adapter"] },
   "h4.meter.ceiling_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.meter.warn_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.fallback.allowance_usd": { unit: "{USD}", keys: [] },

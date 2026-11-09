@@ -189,3 +189,88 @@ describe("every degraded cause on prod's anthropic route makes no Messages reque
     expect(anthropic.messages()).toHaveLength(3);
   });
 });
+
+// The happy path (T026, FR-001 to FR-003, FR-019, FR-020, FR-033, SC-001's automated half).
+describe("the Anthropic API answers hello while the local model can't (FR-001, FR-019, FR-020)", () => {
+  it("says route fallback, and the ledger row names the provider, the model, the tokens, and the priced cost", async () => {
+    const s = await prod();
+    anthropic.next({ ok: { text: "Hello there.", inputTokens: 40, outputTokens: 4, finish: "stop" } });
+    const res = await hello(s);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as Rec;
+    expect(body).toMatchObject({
+      answer: "Hello there.",
+      route: "fallback",
+      route_reason: "local_unhealthy",
+      provider: "anthropic",
+      model: "claude-haiku-5-5",
+      usage: { input_tokens: 40, output_tokens: 4 },
+    });
+    const rows = (await s.db.pg.query<Rec>("SELECT * FROM gateway.ledger ORDER BY ts, id")).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      provider: "anthropic",
+      adapter_id: "anthropic",
+      request_model: "claude-haiku-5-5",
+      input_tokens: 40,
+      output_tokens: 4,
+      attribution: "fallback",
+      route_decision: "fallback",
+      route_reason: "local_unhealthy",
+    });
+    // $1 in and $5 out per million: 40 + 20 micro-USD.
+    expect(Number(rows[0]?.cost_micro)).toBe(60);
+    expect(body.cost_micro_usd).toBe(60);
+    const meters = (
+      await s.db.pg.query<Rec>("SELECT meter, period_key, spent_micro::text AS spent FROM gateway.meters ORDER BY meter")
+    ).rows;
+    for (const meter of ["day", "month", "fallback_day", "adapter_month"]) {
+      expect(meters.find((m) => m.meter === meter)?.spent, meter).toBe("60");
+    }
+    expect(meters.find((m) => m.meter === "adapter_month")?.period_key).toBe(`anthropic:${monthKey(Date.now())}`);
+    // Only the stub's origin was reached, and the request carried no temperature.
+    expect(anthropic.messages()).toHaveLength(1);
+    expect(anthropic.messages()[0]?.body).not.toHaveProperty("temperature");
+  });
+
+  it("sends nothing to the Anthropic API while the local model is healthy, over 100 turns", async () => {
+    const s = await prod();
+    openai.setHealth(undefined);
+    for (let i = 0; i < 3; i++) await s.services.gateway.probeAll();
+    for (let i = 1; i <= 100; i++) {
+      const res = await hello(s, { "x-forwarded-for": `198.51.100.${i}` });
+      expect(res.statusCode, res.body).toBe(200);
+      expect((res.json() as Rec).route).toBe("local");
+    }
+    expect(anthropic.requests().filter((r) => r.method === "POST")).toEqual([]);
+  });
+
+  it("builds no anthropic adapter while prod's route names Bedrock, and its admin route answers unknown_adapter", async () => {
+    const configDir = await anthropicConfigDir({ fallback: "bedrock" });
+    dirs.push(configDir);
+    const { factories, built } = await anthropicFactories(anthropic.origin);
+    const s = await testStack({
+      stack: "prod",
+      env: { LOCAL_MODEL_BASE_URL: openai.baseUrl, GATEWAY_ANTHROPIC_API_KEY: "" },
+      configDir,
+      factories,
+    });
+    stacks.push(s);
+    expect(built).toEqual([]);
+    expect(s.services.gateway.routedAdapters().map((a) => a.id)).toEqual(["local", "bedrock"]);
+    const res = await s.admin.inject({
+      method: "POST",
+      url: "/admin/adapters/anthropic/complete",
+      headers: { ...s.auth(), "content-type": "application/json" },
+      payload: JSON.stringify({
+        messages: [{ role: "user", content: "Say hello." }],
+        max_output_tokens: 16,
+        purpose: "contract",
+        reason: "A live run on an adapter the route doesn't name.",
+      }),
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect(res.json()).toMatchObject({ error: "unknown_adapter" });
+    expect(anthropic.requests()).toEqual([]);
+  });
+});
