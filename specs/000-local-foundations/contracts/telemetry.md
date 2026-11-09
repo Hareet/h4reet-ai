@@ -276,8 +276,8 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |
 | `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID); **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
-| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s`; **(spec 011)** `form` |
-| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class`; **(spec 011)** `form` (`none` when no attempt was made) |
+| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s`; **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
+| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class`; **(spec 011)** `form` (`none` when no attempt was made), and `fallback_reason` when the last attempt sent the plain form in the designed one's place |
 | `alert.fallback` **(spec 011, Amendment 0-9)** | warn | an attempt sends the plain form in the designed one's place | `dedupe_key`, `kind`, `channel`, `attempt`, `reason`, and the refused designed send's `error_class` (`http_400`, `telegram_400`, `smtp_554`), none for a render's reason. No text, URL, or response body |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
 | `incident.draft_failed` | warn | a draft's write fails, when the failure starts or its class changes; it is retried every 10 s. At error, a draft that can never be written: its trip's audit row or ledger row is missing (tasks.md T078) | `incident_id`, `error_class` |

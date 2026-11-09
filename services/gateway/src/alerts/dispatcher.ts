@@ -413,15 +413,18 @@ export class Dispatcher {
       attempts: unknown;
       error: string | null;
       form: AlertForm | null;
+      fallback: FallbackReason | null;
     }>(
       `UPDATE gateway.alert_outbox SET ${p}_status = 'failed', ${p}_next_at = NULL, ${p}_error = coalesce(${p}_error, 'expired')
        WHERE ${p}_status = 'pending' AND enqueued_at <= $1 AND NOT (id = ANY ($2::bigint[]))
-       RETURNING dedupe_key, kind, ${p}_attempts AS attempts, ${p}_error AS error, ${p}_form AS form`,
+       RETURNING dedupe_key, kind, ${p}_attempts AS attempts, ${p}_error AS error, ${p}_form AS form,
+         ${p}_fallback AS fallback`,
       [iso(now - alerts.retry.giveUpAfterS * 1_000), held],
     );
     for (const r of expired.rows) {
       // A channel marked failed with no attempt has no form; after attempts, it keeps the last one's.
-      this.failed(channel, r.dedupe_key, r.kind, Number(r.attempts), r.error ?? "expired", r.form ?? "none");
+      const attempts = Number(r.attempts);
+      this.failed(channel, r.dedupe_key, r.kind, attempts, r.error ?? "expired", r.form ?? "none", r.fallback);
     }
     // The due rows, leased past two sends' timeouts: an attempt that falls back makes both inside it (FR-028).
     const lease = now + 2 * this.timeoutOf(channel) + 5_000;
@@ -588,7 +591,7 @@ export class Dispatcher {
     }
     const next = nextAttemptAt(a.enqueuedAt, a.attempts, end, this.deps.alerts.retry);
     if (next === undefined) {
-      this.failed(channel, a.dedupeKey, a.kind, a.attempts, result.errorClass, form);
+      this.failed(channel, a.dedupeKey, a.kind, a.attempts, result.errorClass, form, fallback);
       return { status: "failed", nextAt: null, deliveredAt: null, ref: null, error: result.errorClass, form, fallback };
     }
     this.deps.metrics.alertAttempt({ channel, kind: a.kind, outcome: "retry", form });
@@ -600,7 +603,7 @@ export class Dispatcher {
         attempt: a.attempts,
         error_class: result.errorClass,
         next_in_s: Math.max(0, Math.round((next - end) / 1_000)),
-        form,
+        ...formFields,
       },
       "An alert's delivery attempt failed; another is due.",
     );
@@ -614,10 +617,20 @@ export class Dispatcher {
     attempts: number,
     errorClass: string,
     form: AlertForm | "none",
+    fallback: FallbackReason | null,
   ): void {
     this.deps.metrics.alertAttempt({ channel, kind, outcome: "failed", form });
     this.deps.logger.error(
-      { event: "alert.failed", dedupe_key: key, channel, attempts, error_class: errorClass, form },
+      {
+        event: "alert.failed",
+        dedupe_key: key,
+        channel,
+        attempts,
+        error_class: errorClass,
+        form,
+        // As alert.delivered and alert.retry have it, when the last attempt sent the plain form by fallback (FR-044).
+        ...(fallback === null ? {} : { fallback_reason: fallback }),
+      },
       "An alert's channel gave up.",
     );
   }
@@ -755,7 +768,8 @@ export class Dispatcher {
           if (c.status !== "pending" || c.nextAt > now) return;
           if (now > alert.enqueuedAt + this.deps.alerts.retry.giveUpAfterS * 1_000) {
             c.status = "failed";
-            this.failed(channel, alert.dedupeKey, alert.kind, c.attempts, c.error ?? "expired", c.form ?? "none");
+            const error = c.error ?? "expired";
+            this.failed(channel, alert.dedupeKey, alert.kind, c.attempts, error, c.form ?? "none", c.fallback);
             return;
           }
           c.attempts += 1;
@@ -828,7 +842,7 @@ export class Dispatcher {
         if (c.status !== "pending") continue;
         if (now > s.enqueuedAt + this.deps.alerts.retry.giveUpAfterS * 1_000) {
           c.status = "failed";
-          this.failed(channel, s.dedupeKey, "sample", c.attempts, c.error ?? "expired", c.form ?? "none");
+          this.failed(channel, s.dedupeKey, "sample", c.attempts, c.error ?? "expired", c.form ?? "none", c.fallback);
           continue;
         }
         if (c.nextAt > now) continue;

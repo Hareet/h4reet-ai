@@ -234,6 +234,7 @@ describe("the retry schedule (alerts.md §4.2)", () => {
       error_class: "http_500",
       next_in_s: 5,
       form: "plain",
+      fallback_reason: "not_rendered", // spec 011 (FR-044): facts from before version 2 go plain
     });
     expect(events(r, "alert.failed")).toEqual([
       {
@@ -243,6 +244,7 @@ describe("the retry schedule (alerts.md §4.2)", () => {
         attempts: 6,
         error_class: "http_500",
         form: "plain",
+        fallback_reason: "not_rendered",
       },
     ]);
   });
