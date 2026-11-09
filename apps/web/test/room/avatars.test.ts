@@ -15,7 +15,7 @@
 // - The holding hand from the clips (the right on a tie), each hand's motion counting the bones under it, its fingers,
 //   as the Author amended FR-018 on 2026-11-09 ("Count the fingers"); the nearer hand with no "idle-holding", none with
 //   no hand bone; the kept paper in it after the hand-off, moving with it.
-import { Box3, Object3D, Quaternion, Vector3 } from "three";
+import { Box3, Object3D, PropertyBinding, Quaternion, Vector3 } from "three";
 import type { AnimationClip } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -31,7 +31,15 @@ import { AVATAR_NODE, CROSSFADE_S, PAPER_LIFT, createAvatarFigures } from "../..
 import type { AvatarFigures } from "../../src/room/scene/avatars";
 import type { FigureSignal } from "../../src/room/stage";
 import { PerspectiveCamera } from "three";
-import { avatarClips, avatarGlb, clipGlb, fingerTracks, holdingTracks, IDLE_TRACKS } from "../helpers/glb";
+import {
+  AVATAR_BONES,
+  avatarClips,
+  avatarGlb,
+  clipGlb,
+  fingerTracks,
+  holdingTracks,
+  IDLE_TRACKS,
+} from "../helpers/glb";
 import type { AvatarGlbOptions, ClipTrack } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
 import { avatarPolicy, nightFiles } from "../helpers/room-avatars";
@@ -341,6 +349,29 @@ describe("the holding hand and the kept paper (FR-018; R-08, R-09)", () => {
       },
     });
     expect(drift.figures.handOf("visitor")?.name).toBe("mixamorigRightHand");
+  });
+
+  it("counts bones alone: a late idle-holding doesn't count the kept sheet with the hand that holds it", async () => {
+    // The visitor shows with its idle alone, so the nearer hand holds, and takes the kept sheet at the hand-off's end.
+    const s = setup("woman");
+    await feed(s, "woman", { roles: ["idle"] });
+    s.figures.handoffEnded();
+    const holder = s.figures.handOf("visitor")?.name;
+    expect(s.room.paper.kept.parent?.name).toBe(holder);
+    // "idle-holding" arrives late (FR-018's rule runs again): the holding hand moves 10 mm, the other 15 mm. The sheet
+    // under the holding hand moves with it, so counted it would carry that hand past the other; it is no bone.
+    const [held, other] =
+      holder === "mixamorigRightHand"
+        ? (["mixamorig:RightHand", "mixamorig:LeftHand"] as const)
+        : (["mixamorig:LeftHand", "mixamorig:RightHand"] as const);
+    const moved = (bone: string, dz: number): ClipTrack => {
+      const [x, y, z] = AVATAR_BONES.find((b) => b.name === bone)?.at ?? [0, 0, 0];
+      const at = [x, y, z + dz];
+      return { bone, path: "translation", values: [at, at] };
+    };
+    const late = clipGlb("idle-holding", { tracks: [moved(held, 0.01), moved(other, 0.015)] }).bytes;
+    s.figures.clip("woman", "idle-holding", await clipsOf(late));
+    expect(s.figures.handOf("visitor")?.name).toBe(PropertyBinding.sanitizeNodeName(other));
   });
 
   it("takes the hand nearer the other figure with no idle-holding, and none with no hand bone", async () => {
