@@ -41,7 +41,7 @@ It says which adapters exist and which one each environment class routes to. The
 | Field | Type | Rule |
 |---|---|---|
 | `schema` | integer | `1` |
-| `deadline_ms` | integer | 5,000 to 25,000: the whole request's deadline, counted from arrival. It must be at least the primary's `request_ms`, plus the fallback's `request_ms` × (1 + `retry.max`), plus `retry.backoff_ms`, plus 500. The ceiling stays under edge's 30 s read timeout ([gateway-http.md §6](gateway-http.md#6-edges-body-when-the-gateway-cant-answer-api_unavailable)). |
+| `deadline_ms` | integer | 5,000 to 25,000: the whole request's deadline, counted from arrival. It must be at least the primary's `request_ms`, plus the fallback's `request_ms` × (1 + `retry.max`), plus `retry.backoff_ms`, plus 500; and, amended by spec 007's plan, D43, at least the primary's `request_ms`, plus 500, plus the fallback's `twin_request_ms`, a twin turn's one attempt (the committed file: 10,000 + 500 + 9,000 = 19,500). The ceiling stays under edge's 30 s read timeout ([gateway-http.md §6](gateway-http.md#6-edges-body-when-the-gateway-cant-answer-api_unavailable)). |
 | `adapters` | map | key: an adapter ID matching `^[a-z][a-z0-9-]{0,31}$`; value: an adapter, below |
 | `adapters.<id>.type` | string | a registered type: `openai-compatible`, `bedrock-converse`, or `synthetic` ([provider-adapter.md §4](provider-adapter.md#4-the-registry-and-adding-an-adapter)) |
 | `adapters.<id>.kind` | string | `local`, `paid`, or `synthetic`, and only a kind the type allows: `openai-compatible` → `local` (in spec 000); `bedrock-converse` → `paid`; `synthetic` → `synthetic` |
@@ -68,6 +68,7 @@ Settings by type:
 | | `temperature` | string, optional | `as_requested`, the default when absent, sends the request's temperature; `model_default` sends none, whatever the request carries, so the model's default applies. The committed file sets `model_default`, since Claude Haiku 5.5 "takes no temperature but its default, 1" ([provider-adapter.md §5.4](provider-adapter.md#54-the-live-cases)). Spec 007's plan, D22, which builds spec 010's FR-017 early for spec 007's live runs; spec 010 gives `anthropic-messages` the same setting |
 | | `timeouts.connect_ms` | integer | 100 to 2,000 |
 | | `timeouts.request_ms` | integer | 1,000 to 4,000. Connect plus request must stay within SC-005's 5 s. |
+| | `twin_request_ms` | integer, optional | **Spec 007's plan, D43 (the Author's decision of 2026-11-09).** 1,000 to 15,000, and at least `timeouts.request_ms` (R8): a twin turn's one attempt (`purpose: twin`), with no retry, on the visitor's route and on `POST /admin/twin/turn`. Every other purpose keeps `timeouts.request_ms` and the retry policy, so SC-005's 5 s holds for hello. R9 holds it to the deadline. The committed file: 9,000 |
 | | `retry.on` | list | ProviderError kinds; spec 000 uses `[rate_limited]` |
 | | `retry.max` | integer | 0 or 1 |
 | | `retry.backoff_ms` | integer | 0 to 2,000 |
@@ -87,6 +88,7 @@ Settings by type:
 | `thinking` | string | `disabled`, its only value |
 | `temperature` | string, optional | `as_requested` (the default when absent) or `model_default`, as on `bedrock-converse` |
 | `timeouts.connect_ms`, `timeouts.request_ms` | integer | 100 to 2,000; 1,000 to 4,000; their sum at most 5,000 (R8) |
+| `twin_request_ms` | integer, optional | as on `bedrock-converse` (spec 007's plan, D43): 1,000 to 15,000, at least `timeouts.request_ms` (R8), a twin turn's one attempt; the committed file: 9,000 |
 | `retry.on`, `retry.max`, `retry.backoff_ms` | list, integer, integer | ProviderError kinds; 0 or 1; 0 to 2,000 |
 | `circuit.failures`, `circuit.open_s` | integer | 1 to 10; 5 to 600 |
 | `health.interval_ms` | integer | 10,000 to 600,000 |
@@ -116,6 +118,7 @@ adapters:
     model: "<inference-profile ID the Author confirms>"   # aws bedrock list-inference-profiles
     additional_request_fields: {}           # what keeps extended thinking off for that model, if anything
     timeouts: { connect_ms: 1000, request_ms: 4000 }
+    twin_request_ms: 9000                   # a twin turn's one attempt (spec 007's plan, D43)
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
     health: { interval_ms: 10000 }
@@ -149,8 +152,8 @@ envs:
 | R5 | `adapters.<id>.kind: "<kind>" isn't allowed for type "<type>"` | FR-031 (no paid service declared local) |
 | R6 | `adapters.<id>.type: "<type>" isn't a registered adapter type` | FR-021 |
 | R7 | `adapters.<id>.region: must be us-east-1, the region docs/data-flow-disclosure.md lists` | FR-040 |
-| R8 | `adapters.<id>.timeouts: connect_ms + request_ms must be at most 5000` (paid adapters) | SC-005 |
-| R9 | `deadline_ms: <n> is shorter than the route's timeouts allow (<m>)` | |
+| R8 | `adapters.<id>.timeouts: connect_ms + request_ms must be at most 5000` (paid adapters); and, amended by spec 007's plan, D43, `adapters.<id>.twin_request_ms: must be at least timeouts.request_ms, hello's limit` | SC-005 |
+| R9 | `deadline_ms: <n> is shorter than the route's timeouts allow (<m>)`, where `<m>` is the larger of hello's sum and, amended by spec 007's plan, D43, a twin turn's: the primary's `request_ms` + 500 + the fallback's `twin_request_ms` | |
 | R10 | `envs: must have exactly the keys prod and dev` | |
 | R11 | any unknown key, wrong type, or out-of-range value, named by its path | |
 

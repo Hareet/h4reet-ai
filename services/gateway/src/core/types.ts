@@ -30,6 +30,9 @@ export interface CompletionRequest {
   temperature?: number; // 0 to 1; absent means the provider's default
   deadline: number; // epoch milliseconds, real clock: complete() settles by then
   signal: AbortSignal; // aborts at the deadline, or when the caller goes away
+  // The request limit for this call, when its purpose has one of its own: a twin turn's twin_request_ms on a paid
+  // adapter (spec 007's plan, D43). Absent, the adapter bounds the request by its settings' timeouts.request_ms.
+  requestMs?: number;
 }
 
 export interface Usage {

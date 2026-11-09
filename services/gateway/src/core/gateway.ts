@@ -90,6 +90,8 @@ export interface AttemptContext {
   payloadSampling: boolean;
   /** The adapter's request timeout, from routing.yaml: a retry needs its backoff plus this before the deadline. */
   requestTimeoutMs: number;
+  /** Retries in place of the adapter's `retry.max`: a twin turn on a paid adapter gets none (spec 007's plan, D43). */
+  retryMax?: number;
   realNow?: () => number;
   metrics?: GatewayMetrics;
   /** Called on each failed attempt: health tracking counts unavailable and timeout as a failed probe (§6). */
@@ -278,7 +280,7 @@ export async function attemptCall(
     const { error } = record;
     const policy = adapter.retry;
     const again =
-      attempts.length <= policy.max &&
+      attempts.length <= (ctx.retryMax ?? policy.max) &&
       policy.on.includes(error.kind) &&
       !req.signal.aborted &&
       now() + policy.backoffMs + ctx.requestTimeoutMs <= req.deadline;
@@ -701,6 +703,8 @@ interface Routed {
   built: BuiltAdapter;
   health: AdapterHealth;
   requestTimeoutMs: number;
+  /** A twin turn's one attempt on a paid adapter, routing.yaml's twin_request_ms (spec 007's plan, D43). */
+  twinRequestMs: number | undefined;
   /**
    * The SSO session end the credentials check last found within its warning lead time, real ms; whether its alert row
    * is settled, queued or found already there; and whether the dispatcher is still answering for it.
@@ -761,6 +765,7 @@ export class Gateway {
         ...circuitOf(built),
       }),
       requestTimeoutMs: built.config.spec.timing(built.config.settings).requestMs,
+      twinRequestMs: built.config.spec.timing(built.config.settings).twinRequestMs,
     });
     const primary = opts.adapters.find((a) => a.role === "primary");
     if (primary === undefined) throw new Error("the route has no primary adapter");
@@ -1251,6 +1256,9 @@ export class Gateway {
       }
       const a = admit.admitted;
       span.setAttribute("h4.meter.attribution", attribution);
+      // A twin turn on a paid adapter with twin_request_ms: one attempt of that length, on the visitor's route and the
+      // admin route alike; every other call keeps the adapter's request_ms and retry policy (spec 007's plan, D43).
+      const twinMs = call.purpose === "twin" ? routed.twinRequestMs : undefined;
       const req: CompletionRequest = {
         requestId: call.requestId,
         purpose: call.purpose,
@@ -1259,6 +1267,7 @@ export class Gateway {
         ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
         deadline: call.arrivedAt + this.opts.routing.deadlineMs,
         signal: call.signal,
+        ...(twinMs === undefined ? {} : { requestMs: twinMs }),
       };
       const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
       // The call, then its settlement, on every way out: the meter prices it from how it ended (data-model.md §7.3),
@@ -1275,7 +1284,8 @@ export class Gateway {
           attribution,
           maxMicro: a.maxMicro,
           payloadSampling: this.opts.payloadSampling,
-          requestTimeoutMs: routed.requestTimeoutMs,
+          requestTimeoutMs: twinMs ?? routed.requestTimeoutMs,
+          ...(twinMs === undefined ? {} : { retryMax: 0 }),
           realNow: this.realNow,
           metrics: this.opts.metrics,
           // A caller that went away ends the call with timeout too, and that says nothing about the adapter.

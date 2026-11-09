@@ -63,6 +63,8 @@ export interface AnthropicSettings {
   /** FR-017: `model_default` sends no temperature; absent, it is `as_requested`. */
   temperature?: PaidTemperature;
   timeouts: { connect_ms: number; request_ms: number };
+  /** A twin turn's one attempt (spec 007's plan, D43); the gateway passes it as the call's requestMs. */
+  twin_request_ms?: number;
   retry: { on: ProviderErrorKind[]; max: number; backoff_ms: number };
   circuit: { failures: number; open_s: number };
   health: { interval_ms: number };
@@ -245,7 +247,8 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
     const remaining = req.deadline - started;
     if (req.signal.aborted || remaining <= 0) throw timeout();
     const own = new AbortController();
-    const limitMs = Math.max(1, Math.floor(Math.min(this.settings.timeouts.request_ms, remaining)));
+    const requestMs = req.requestMs ?? this.settings.timeouts.request_ms;
+    const limitMs = Math.max(1, Math.floor(Math.min(requestMs, remaining)));
     const signal = AbortSignal.any([req.signal, own.signal, AbortSignal.timeout(limitMs)]);
     this.inFlight.add(own);
     try {
@@ -253,7 +256,7 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
         this.deps.client.messages.create(this.body(req), {
           signal,
           maxRetries: 0,
-          timeout: this.settings.timeouts.request_ms,
+          timeout: requestMs,
         }),
         signal,
       );

@@ -67,6 +67,8 @@ export interface BedrockSettings {
   /** Spec 007's plan, D22; spec 010 FR-017: `model_default` sends no temperature; absent, it is `as_requested`. */
   temperature?: PaidTemperature;
   timeouts: { connect_ms: number; request_ms: number };
+  /** A twin turn's one attempt (spec 007's plan, D43); the gateway passes it as the call's requestMs. */
+  twin_request_ms?: number;
   retry: { on: ProviderErrorKind[]; max: number; backoff_ms: number };
   circuit: { failures: number; open_s: number };
   health: { interval_ms: number };
@@ -220,7 +222,8 @@ export function bedrockDeps(settings: BedrockSettings): BedrockDeps {
   const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 50, lookup: aresLookup });
   const requestHandler = new NodeHttpHandler({
     connectionTimeout: settings.timeouts.connect_ms,
-    requestTimeout: settings.timeouts.request_ms,
+    // The longer of hello's limit and a twin turn's (spec 007's plan, D43): each call's abort signal cuts it at its own.
+    requestTimeout: Math.max(settings.timeouts.request_ms, settings.twin_request_ms ?? 0),
     // Without it the handler only logs a warning at requestTimeout; with it, it destroys the socket and throws.
     throwOnRequestTimeout: true,
     httpsAgent,
@@ -265,7 +268,7 @@ export class BedrockConverseAdapter implements ProviderAdapter {
     const remaining = req.deadline - started;
     if (req.signal.aborted || remaining <= 0) throw timeout();
     const own = new AbortController();
-    const limitMs = Math.max(1, Math.floor(Math.min(this.settings.timeouts.request_ms, remaining)));
+    const limitMs = Math.max(1, Math.floor(Math.min(req.requestMs ?? this.settings.timeouts.request_ms, remaining)));
     const signal = AbortSignal.any([req.signal, own.signal, AbortSignal.timeout(limitMs)]);
     this.inFlight.add(own);
     try {
