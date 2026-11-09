@@ -68,7 +68,9 @@ export function createViewport(win: Window, doc: Document = win.document): Viewp
     const fontSize = typeof win.getComputedStyle === "function" ? number(win.getComputedStyle(root).fontSize) : 0;
     const vv = win.visualViewport;
     const h = win.innerHeight;
-    const inset = vv ? Math.max(0, h - vv.height - vv.offsetTop) : 0;
+    // What the visual viewport loses at its foot, while the visitor hasn't pinch-zoomed: a zoom shrinks it too, and is
+    // no keyboard.
+    const inset = vv && vv.scale <= 1.01 ? Math.max(0, h - vv.height - vv.offsetTop) : 0;
     return {
       w: root.clientWidth || win.innerWidth,
       h,
