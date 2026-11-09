@@ -1,6 +1,6 @@
 # ADR 0001: Local-first routing with Bedrock as capped fallback
 
-Status: proposed, 2026-10-08 · Spec: 000 (FR-021, FR-022, FR-023, FR-024, FR-030, FR-031, FR-033, FR-034, FR-036; SC-005, SC-006; User Stories 2 and 5) · Amended by [ADR 0043](0043-ec2-as-prods-default-host.md) (2026-11-09)
+Status: proposed, 2026-10-08 · Spec: 000 (FR-021, FR-022, FR-023, FR-024, FR-030, FR-031, FR-033, FR-034, FR-036; SC-005, SC-006; User Stories 2 and 5) · Amended by [ADR 0044](0044-ec2-as-prods-default-host.md) (2026-11-09)
 
 ## Context
 
