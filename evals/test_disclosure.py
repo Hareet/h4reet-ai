@@ -507,8 +507,10 @@ def placeholder_gate(routing_text: str, disclosure_text: str) -> list[str]:
     from_to = [c.strip() for c in f3.strip().strip("|").split("|")][1]
     if PLACEHOLDER in from_to:
         return [
-            "config/routing.yaml names the Anthropic API as prod's fallback while F3 holds the placeholder for the "
-            "Author's words about what Anthropic keeps (spec 010, FR-039)"
+            (
+                "config/routing.yaml names the Anthropic API as prod's fallback while F3 holds the placeholder for "
+                "the Author's words about what Anthropic keeps (spec 010, FR-039)"
+            )
         ]
     return []
 
@@ -520,7 +522,9 @@ def test_the_route_waits_for_the_authors_words_in_f3() -> None:
 
 
 def test_the_placeholder_gate_fails_a_switch_made_before_the_authors_words() -> None:
-    routing = yaml.safe_load((REPO / "config" / "routing.yaml").read_text(encoding="utf-8"))
+    routing = yaml.safe_load(
+        (REPO / "config" / "routing.yaml").read_text(encoding="utf-8")
+    )
     assert routing["adapters"]["anthropic"]["type"] == "anthropic-messages"
     assert PLACEHOLDER in rows()["F3"][0]
     routing["envs"]["prod"]["fallback"] = "anthropic"

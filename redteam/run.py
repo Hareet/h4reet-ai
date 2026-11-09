@@ -491,7 +491,10 @@ STACKS = ("prod", "dev", "dev-cpu")
 # The gateway's guard value for an answer it delivered without its opening agreement (services/gateway's guards,
 # spec 007's plan, D34): a pass the runner prints for the Author's read (D36).
 REPAIRED = "repair_opener"
-LIVE_ADAPTERS = ("local", "bedrock")
+LIVE_ADAPTERS = ("local", "bedrock", "anthropic")
+# Each live adapter's provider (spec 010, FR-025); the paid ones run on prod alone.
+PROVIDERS = {"local": "local", "bedrock": "aws.bedrock", "anthropic": "anthropic"}
+PAID = ("bedrock", "anthropic")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -511,6 +514,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         raise UsageError("--live needs --stack and --adapter")
     if not args.live and (args.stack is not None or args.adapter is not None):
         raise UsageError("--stack and --adapter go with --live")
+    if args.adapter in PAID and args.stack != "prod":
+        raise UsageError(
+            f"{args.adapter} is prod's adapter: --adapter {args.adapter} needs --stack prod (spec 010, FR-025)"
+        )
     return args
 
 
@@ -611,6 +618,7 @@ def live_run(
     record = {
         "suite": "redteam",
         "adapter": adapter,
+        "provider": PROVIDERS.get(adapter, adapter),
         "stack": stack,
         "started": started.isoformat(timespec="seconds"),
         "finished": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),

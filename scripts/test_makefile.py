@@ -767,12 +767,22 @@ def test_assets_scrub_passes_record_on_from_the_command_line(tmp_path: Path) -> 
 # Spec 010 (FR-024): the live runs take ADAPTER=anthropic as they take ADAPTER=bedrock. A stand-in PY_HOST, `echo`,
 # prints each runner's command line instead of running it, so nothing reaches a stack or a model.
 # --------------------------------------------------------------------------------------------------
-def _live(target: str, tmp_path: Path, *args: str, sandbox: bool = False) -> subprocess.CompletedProcess[str]:
+def _live(
+    target: str, tmp_path: Path, *args: str, sandbox: bool = False
+) -> subprocess.CompletedProcess[str]:
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(tmp_path), "LC_ALL": "C"}
     if sandbox:
         env["SANDBOX_RUNTIME"] = "1"
     return subprocess.run(
-        ["make", "--no-print-directory", "-C", str(ROOT), target, *args, "PY_HOST=echo RUNNER"],
+        [
+            "make",
+            "--no-print-directory",
+            "-C",
+            str(ROOT),
+            target,
+            *args,
+            "PY_HOST=echo RUNNER",
+        ],
         env=env,
         capture_output=True,
         text=True,
@@ -782,16 +792,24 @@ def _live(target: str, tmp_path: Path, *args: str, sandbox: bool = False) -> sub
 
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
-def test_the_evals_target_hands_anthropic_to_the_runner_outside_the_sandbox(tmp_path: Path) -> None:
+def test_the_evals_target_hands_anthropic_to_the_runner_outside_the_sandbox(
+    tmp_path: Path,
+) -> None:
     done = _live("evals", tmp_path, "ADAPTER=anthropic", "ENV=dev")
     assert done.returncode == 0, done.stderr
-    runner = [ln for ln in done.stdout.splitlines() if "--suite product" in ln]
+    runner = [
+        ln
+        for ln in done.stdout.splitlines()
+        if ln.startswith("RUNNER ") and "--suite product" in ln
+    ]
     # The paid adapter's cases go to prod whatever ENV says: the runner gets no --stack for it.
     assert runner == ["RUNNER evals/run.py --suite product --adapter anthropic"]
 
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
-def test_the_evals_target_refuses_anthropic_in_the_sandbox_and_an_unknown_adapter_anywhere(tmp_path: Path) -> None:
+def test_the_evals_target_refuses_anthropic_in_the_sandbox_and_an_unknown_adapter_anywhere(
+    tmp_path: Path,
+) -> None:
     inside = _live("evals", tmp_path, "ADAPTER=anthropic", sandbox=True)
     assert inside.returncode == 2
     assert "ADAPTER=anthropic runs in the Author's terminal" in inside.stderr
@@ -802,10 +820,14 @@ def test_the_evals_target_refuses_anthropic_in_the_sandbox_and_an_unknown_adapte
 
 
 @pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
-def test_the_redteam_live_target_takes_a_paid_adapter_on_prod_alone(tmp_path: Path) -> None:
+def test_the_redteam_live_target_takes_a_paid_adapter_on_prod_alone(
+    tmp_path: Path,
+) -> None:
     done = _live("redteam-live", tmp_path, "ADAPTER=anthropic", "ENV=prod")
     assert done.returncode == 0, done.stderr
-    assert "RUNNER redteam/live.py --live --stack prod --adapter anthropic" in done.stdout
+    assert (
+        "RUNNER redteam/live.py --live --stack prod --adapter anthropic" in done.stdout
+    )
     for adapter in ("anthropic", "bedrock"):
         off = _live("redteam-live", tmp_path, f"ADAPTER={adapter}", "ENV=dev")
         assert off.returncode == 2, adapter
@@ -815,5 +837,7 @@ def test_the_redteam_live_target_takes_a_paid_adapter_on_prod_alone(tmp_path: Pa
     other = _live("redteam-live", tmp_path, "ADAPTER=fake", "ENV=prod")
     assert other.returncode == 2
     assert "ADAPTER must be local, bedrock, or anthropic" in other.stderr
-    inside = _live("redteam-live", tmp_path, "ADAPTER=anthropic", "ENV=prod", sandbox=True)
+    inside = _live(
+        "redteam-live", tmp_path, "ADAPTER=anthropic", "ENV=prod", sandbox=True
+    )
     assert inside.returncode == 2 and "RUNNER" not in inside.stdout

@@ -1308,7 +1308,9 @@ def build_parser() -> Parser:
         help="the live contract run's recording (make contract-live)",
     )
     record.add_argument(
-        "--adapter", required=True, help="the adapter: local, or bedrock on prod"
+        "--adapter",
+        required=True,
+        help="the adapter: local, or bedrock or anthropic on prod",
     )
     record.add_argument("--out", required=True, help="the recording, a new file")
     record.add_argument("--reason", required=True, help="why: 10 to 500 characters")
@@ -1534,9 +1536,10 @@ def record_command(
         )
     if not ADAPTER_ID_RE.fullmatch(args.adapter):
         raise Usage("an adapter ID is lowercase letters, digits, - and _")
-    if args.adapter == "bedrock" and stack != "prod":
+    # A paid adapter is prod's alone: Bedrock, and the Anthropic API since spec 010 (its FR-025).
+    if args.adapter in ("bedrock", "anthropic") and stack != "prod":
         raise Usage(
-            "bedrock is prod's adapter: --adapter bedrock needs --stack prod (operator-admin.md §5)"
+            f"{args.adapter} is prod's adapter: --adapter {args.adapter} needs --stack prod (operator-admin.md §5)"
         )
     reason = check_reason(args.reason)
     cases = read_cases(Path(args.cases))

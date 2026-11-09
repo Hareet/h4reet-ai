@@ -126,7 +126,12 @@ def history(
     if folder.startswith("redteam"):
         for case_id in LIVE:
             results.append(
-                {"id": case_id, "verdict": "pass", "feature": "fx-bike", "pack_sha256": pack}
+                {
+                    "id": case_id,
+                    "verdict": "pass",
+                    "feature": "fx-bike",
+                    "pack_sha256": pack,
+                }
             )
     else:
         for path in ("engineer", "non-engineer"):
@@ -179,6 +184,9 @@ def evidence(
             "2026-11-08T010000Z-bedrock.json",
             pack=pack,
             prompt=prompt,
+            # The paid run holds the same golden cases, all passing: a complete run (spec 010, FR-027).
+            passed=total,
+            total=total,
         ),
         history(
             tree,
@@ -195,6 +203,17 @@ def evidence(
             prompt=prompt,
         ),
     ]
+
+
+def golden_cases(tree: Path, total: int) -> None:
+    """The committed golden cases of 04, q1 to q<total> on each path, in place of the fixture's two: a complete run
+    holds every committed case (spec 010, FR-027), so the bar's tests commit the cases their runs hold."""
+    cases = tree / "evals" / "product" / "cases"
+    for old in cases.glob("twin-04-hobbies-and-travel-q*.yaml"):
+        old.unlink()
+    for path in ("engineer", "non-engineer"):
+        for i in range(1, total + 1):
+            product_case(tree, f"twin-04-hobbies-and-travel-q{i}-{path}")
 
 
 def ready_entry(pack: str, prompt: str, files: list[str]) -> str:
@@ -279,6 +298,7 @@ def test_a_path_under_ten_golden_cases_may_miss_one_and_ten_or_more_keep_the_sha
     passed: int,
     ready: bool,
 ) -> None:
+    golden_cases(tree, total)
     files = evidence(
         tree, pack=h("topic"), prompt=prompt_sha(tree), passed=passed, total=total
     )
@@ -313,6 +333,7 @@ def test_each_path_counts_its_own_golden_cases(
 ) -> None:
     # Every "-non-engineer" ID ends "-engineer" too, so the engineer path once counted both paths' cases: its one
     # failed case beside the other path's passing one read as one of two, which the bar of one passes (plan.md D30).
+    golden_cases(tree, 1)
     files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
     product = tree / files[0]
     record = json.loads(product.read_text(encoding="utf-8"))
@@ -336,6 +357,11 @@ def test_each_path_counts_its_own_golden_cases(
 def test_a_gap_case_and_a_red_team_result_still_must_all_pass(
     tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    golden_cases(tree, 8)
+    gap = "twin-04-hobbies-and-travel-gap-1-engineer"
+    product_case(
+        tree, gap, kind="gap"
+    )  # committed, so the run that holds it is complete (spec 010, FR-027)
     files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=7, total=8)
     product = tree / files[0]
     record = json.loads(product.read_text(encoding="utf-8"))
@@ -353,6 +379,7 @@ def test_a_gap_case_and_a_red_team_result_still_must_all_pass(
     assert report.main(["--root", str(tree)]) == 0
     assert "a safety case failed" in capsys.readouterr().out
 
+    (tree / "evals" / "product" / "cases" / f"{gap}.yaml").unlink()
     files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=7, total=8)
     redteam = tree / files[2]
     record = json.loads(redteam.read_text(encoding="utf-8"))
@@ -468,18 +495,34 @@ def runs(tree: Path, paid: str | None, *, product: str = "product") -> list[str]
     files = []
     for adapter in ["local", *([] if paid is None else [paid])]:
         files.append(
-            history(tree, f"evals/{product}/history", f"2026-11-09T0000{len(files)}0Z-{adapter}.json", pack=pack, prompt=prompt)
+            history(
+                tree,
+                f"evals/{product}/history",
+                f"2026-11-09T0000{len(files)}0Z-{adapter}.json",
+                pack=pack,
+                prompt=prompt,
+            )
         )
         files.append(
-            history(tree, "redteam/history", f"2026-11-09T0100{len(files)}0Z-{adapter}.json", pack=pack, prompt=prompt)
+            history(
+                tree,
+                "redteam/history",
+                f"2026-11-09T0100{len(files)}0Z-{adapter}.json",
+                pack=pack,
+                prompt=prompt,
+            )
         )
     return files
 
 
 def line(tree: Path, capsys: pytest.CaptureFixture[str], files: list[str]) -> str:
     readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
-    assert report.main(["--root", str(tree)]) == 0  # information: never a failure, in every row
-    (out,) = [ln for ln in capsys.readouterr().out.splitlines() if "hobbies-and-travel:" in ln]
+    assert (
+        report.main(["--root", str(tree)]) == 0
+    )  # information: never a failure, in every row
+    (out,) = [
+        ln for ln in capsys.readouterr().out.splitlines() if "hobbies-and-travel:" in ln
+    ]
     return out
 
 
@@ -489,7 +532,9 @@ def drop(tree: Path, rel: str, keep) -> None:
     write_record(tree, rel, record)
 
 
-def test_the_route_naming_anthropic_needs_anthropic_runs(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_the_route_naming_anthropic_needs_anthropic_runs(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     route(tree, "anthropic")
     out = line(tree, capsys, runs(tree, "bedrock"))
     assert "evidence missing" in out
@@ -498,13 +543,17 @@ def test_the_route_naming_anthropic_needs_anthropic_runs(tree: Path, capsys: pyt
     assert "ready, its evidence" in line(tree, capsys, runs(tree, "anthropic"))
 
 
-def test_the_route_naming_bedrock_needs_bedrock_runs(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_the_route_naming_bedrock_needs_bedrock_runs(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     out = line(tree, capsys, runs(tree, "anthropic"))
     assert "a product run on bedrock, the paid adapter prod's route names" in out
     assert "ready, its evidence" in line(tree, capsys, runs(tree, "bedrock"))
 
 
-def test_the_route_naming_no_fallback_needs_local_runs_only(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_the_route_naming_no_fallback_needs_local_runs_only(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     route(tree, None)
     assert "ready, its evidence" in line(tree, capsys, runs(tree, None))
 
@@ -531,16 +580,27 @@ def test_a_product_run_holding_one_paths_cases_is_missing_evidence(
     tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     files = runs(tree, "bedrock")
-    drop(tree, files[2], lambda r: r["id"].endswith("-engineer") and not r["id"].endswith("-non-engineer"))
+    drop(
+        tree,
+        files[2],
+        lambda r: (
+            r["id"].endswith("-engineer") and not r["id"].endswith("-non-engineer")
+        ),
+    )
     out = line(tree, capsys, files)
     assert f"evidence missing: {files[2]} lacks 2 of hobbies-and-travel's cases" in out
     assert "0 engineer golden, 2 non-engineer golden, 0 gap" in out
 
 
-def test_a_product_run_missing_a_gap_case_is_missing_evidence(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_a_product_run_missing_a_gap_case_is_missing_evidence(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     product_case(tree, "twin-04-hobbies-and-travel-gap-1-engineer", kind="gap")
     out = line(tree, capsys, runs(tree, "bedrock"))
-    assert "lacks 1 of hobbies-and-travel's cases: 0 engineer golden, 0 non-engineer golden, 1 gap" in out
+    assert (
+        "lacks 1 of hobbies-and-travel's cases: 0 engineer golden, 0 non-engineer golden, 1 gap"
+        in out
+    )
 
 
 def test_a_red_team_run_missing_a_live_case_is_missing_evidence(
@@ -566,8 +626,20 @@ def test_a_run_whose_record_names_another_adapter_doesnt_count(
     assert "a product run on bedrock, the paid adapter prod's route names" in out
 
 
-def test_the_thresholds_are_over_the_complete_set(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_the_thresholds_are_over_the_complete_set(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     pack, prompt = h("topic"), prompt_sha(tree)
     files = runs(tree, "bedrock")
-    files[0] = history(tree, "evals/product/history", "2026-11-09T090000Z-local.json", pack=pack, prompt=prompt, passed=1)
-    assert "misses the thresholds" in line(tree, capsys, files)
+    # Two golden cases on each path need one (FR-031 as the Author amended it, golden_bar), so none of two misses it.
+    files[0] = history(
+        tree,
+        "evals/product/history",
+        "2026-11-09T090000Z-local.json",
+        pack=pack,
+        prompt=prompt,
+        passed=0,
+    )
+    out = line(tree, capsys, files)
+    assert "misses the thresholds" in out
+    assert "golden cases passed 0 of 2, under the bar of 1" in out

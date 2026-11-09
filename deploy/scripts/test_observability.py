@@ -279,7 +279,9 @@ def test_the_redaction_processor_holds_the_contracts_patterns() -> None:
     redaction = PROCESSORS["redaction"]
     assert redaction["allow_all_keys"] is True and redaction["summary"] == "info"
     assert sorted(BLOCKED) == sorted(contract_patterns())
-    assert len(BLOCKED) == len(set(BLOCKED)) == 10  # spec 010 adds the Anthropic API key's shape
+    assert (
+        len(BLOCKED) == len(set(BLOCKED)) == 10
+    )  # spec 010 adds the Anthropic API key's shape
     # The PEM block first, as in the gateway's redactor: it spans lines and holds text the others would split.
     assert BLOCKED[0].startswith("-----BEGIN ")
 

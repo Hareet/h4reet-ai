@@ -1346,12 +1346,17 @@ def test_p3_allows_the_anthropic_key_empty_until_prods_route_names_the_adapter(
     assert prod.results()["P3"].status == "PASS"
     prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
     result = prod.results()["P3"]
-    assert result.status == "FAIL" and "empty: GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    assert (
+        result.status == "FAIL" and "empty: GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    )
     prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
     assert prod.results()["P3"].status == "PASS"
 
 
-@pytest.mark.parametrize("value", ["short", "x" * 257, "'with a space here and there'", "p\u00e4ss" + "x" * 30])
+@pytest.mark.parametrize(
+    "value",
+    ["short", "x" * 257, "'with a space here and there'", "p\u00e4ss" + "x" * 30],
+)
 def test_p7_checks_the_anthropic_keys_shape_while_routed_never_printing_it(
     prod: Stage, value: str
 ) -> None:

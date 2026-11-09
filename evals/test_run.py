@@ -518,6 +518,8 @@ def test_a_fake_only_case_is_skipped_on_a_live_adapter_counted_and_said(
 
     monkeypatch.setattr(run, "local_adapter", adapter_factory)
     monkeypatch.setattr(run, "bedrock_adapter", adapter_factory)
+    # Spec 010 (FR-025): main reaches a paid adapter through paid_adapter, by its ID, which bedrock_adapter wraps.
+    monkeypatch.setattr(run, "paid_adapter", adapter_factory)
     argv = ["--suite", "demo", "--adapter", adapter]
     assert run.main(argv + (["--stack", "dev"] if adapter == "local" else [])) == 0
     assert sent == ["a"]

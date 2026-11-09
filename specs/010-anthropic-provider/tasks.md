@@ -125,10 +125,10 @@ description: "Task list for spec 010, the Anthropic API as a second paid adapter
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Change the `Makefile`'s `evals`, `redteam-live`, and `contract-live` targets and their help lines (plan §6). Check: T034 passes (feat/010-anthropic-provider)
-- [ ] T038 [US2] Change `evals/run.py`, `redteam/run.py`, and `scripts/operator.py` (plan §6). Check: T035 passes; `make evals` on the fake adapter passes unchanged; the note lists `scripts/operator.py` and `evals/run.py` first under what runs in the Author's terminal (ADR 0017) (feat/010-anthropic-provider)
-- [ ] T039 [US2] Change `evals/twin_readiness.py` by plan §7's six rules, its docstring naming the amended rule. Check: T036 passes; `make evals` prints the report's lines and its exit status is unchanged by them (feat/010-anthropic-provider)
-- [ ] T040 [US2] Document the live runs on either paid adapter and the evidence rule where the live runs are documented (spec 007's places: the gateway's README and the evals' documentation). Check: `make test`'s docs checks pass (feat/010-anthropic-provider)
+- [X] T037 [US2] Change the `Makefile`'s `evals`, `redteam-live`, and `contract-live` targets and their help lines (plan §6). Check: T034 passes (feat/010-anthropic-provider)
+- [X] T038 [US2] Change `evals/run.py`, `redteam/run.py`, and `scripts/operator.py` (plan §6). Check: T035 passes; `make evals` on the fake adapter passes unchanged; the note lists `scripts/operator.py` and `evals/run.py` first under what runs in the Author's terminal (ADR 0017) (feat/010-anthropic-provider)
+- [X] T039 [US2] Change `evals/twin_readiness.py` by plan §7's six rules, its docstring naming the amended rule. Check: T036 passes; `make evals` prints the report's lines and its exit status is unchanged by them (feat/010-anthropic-provider)
+- [X] T040 [US2] Document the live runs on either paid adapter and the evidence rule where the live runs are documented (spec 007's places: the gateway's README and the evals' documentation). Check: `make test`'s docs checks pass (feat/010-anthropic-provider)
 
 **Checkpoint**: the Author can run every live run on the Anthropic API once his route names it, and readiness counts only complete runs on the adapters the route would use.
 

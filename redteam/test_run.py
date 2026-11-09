@@ -1188,8 +1188,9 @@ def test_the_prompt_names_no_canary_a_red_team_case_plants() -> None:
 
 # Spec 010 (FR-025): live mode takes the Anthropic API, on prod alone, and names the adapter's provider in the history.
 def test_live_mode_takes_anthropic_on_prod_and_names_its_provider(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.delenv("SANDBOX_RUNTIME", raising=False)
     calls = []
 
     class Client:

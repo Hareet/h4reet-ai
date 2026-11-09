@@ -4,6 +4,7 @@
     python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter fake   # what `make evals` runs
     ... --adapter local --stack dev     # hello on the stack, answered by its local model and nothing else
     ... --adapter bedrock               # the Author only: prod's admin endpoint, charged to prod's meter
+    ... --adapter anthropic             # the Author only, likewise, once prod's route names it (spec 010)
     ... --suite narration --adapter fake   # spec 002's narration scripts, which run on the fake adapter only
 
 Standard library plus PyYAML. A case is one YAML file in evals/<suite>/cases/:
@@ -23,9 +24,10 @@ The adapters reach models only through the gateway:
   - local: POST /hello on the stack's api port (contracts/gateway-http.md §2). Only the local route counts. A fallback
     answer stops the run, so the local model is never scored on another provider's answer, and the run spends no more
     of the sub-budget. A 429 waits out its Retry-After, except the daily cap.
-  - bedrock: POST /admin/adapters/bedrock/complete on prod, through scripts/operator.py's AdminClient
-    (contracts/operator-admin.md §5, §6), which never fails over. It sends the prompt as the only message, without
-    hello's fixed system prompt. Its cost is §5's decimal string of micro-USD, read as an integer.
+  - bedrock, and anthropic (spec 010, FR-025): POST /admin/adapters/<id>/complete on prod, through
+    scripts/operator.py's AdminClient (contracts/operator-admin.md §5, §6), which never fails over. It sends the prompt
+    as the only message, without hello's fixed system prompt. Its cost is §5's decimal string of micro-USD, read as an
+    integer. A paid adapter runs on prod whatever --stack says, and its history names the adapter and its provider.
 Only real runs write history, to evals/<suite>/history/: per case, the verdict, the route, provider, model, tokens,
 cost, trace ID, and a hash of the answer, never its text; per run, the stack, the commit it runs, and the totals.
 The history folder is untracked, so the file is created without following a link and never replaces one.
@@ -120,6 +122,10 @@ def fold(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
     return "".join(c for c in text if unicodedata.category(c) != "Cf").translate(_FOLD)
 
+
+# The paid adapters, prod's alone, by their routing.yaml ID, and each one's provider (spec 010, FR-025): nothing infers
+# a provider from a file's name.
+PAID = {"bedrock": "aws.bedrock", "anthropic": "anthropic"}
 
 Reply = dict[str, Any]
 Adapter = Callable[[dict[str, Any]], Reply]
@@ -429,7 +435,7 @@ def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
         out = reply(
             answer.get("text"),
             answer.get("route"),
-            "aws.bedrock" if adapter_id == "bedrock" else adapter_id,
+            PAID.get(adapter_id, adapter_id),
             answer.get("model"),
             answer.get("usage"),
             answer.get("cost_micro_usd"),
@@ -458,14 +464,16 @@ def micro_usd(cost: Any) -> Any:
     return cost
 
 
-def bedrock_adapter(suite: str) -> Adapter:
-    """Prod's admin endpoint, with the operator token, through scripts/operator.py's AdminClient (plan §14)."""
+def paid_adapter(suite: str, adapter_id: str) -> Adapter:
+    """Prod's admin endpoint for one paid adapter, by its ID, with the operator token, through scripts/operator.py's
+    AdminClient (plan §14; spec 010, FR-025)."""
     client = admin_client("prod")
+    provider = PAID[adapter_id]
 
     def call(case: dict[str, Any]) -> Reply:
         try:
             answer = client.adapter_complete(
-                "bedrock",
+                adapter_id,
                 messages=[{"role": "user", "content": case["prompt"]}],
                 max_output_tokens=HELLO_MAX_OUTPUT_TOKENS,
                 purpose="eval",
@@ -476,18 +484,18 @@ def bedrock_adapter(suite: str) -> Adapter:
         ) as exc:  # AdminError carries a status and an error code, never the token (§6)
             status = getattr(exc, "status", None)
             raise AdapterError(
-                f"bedrock: {exc.__class__.__name__}"
+                f"{adapter_id}: {exc.__class__.__name__}"
                 + (f", HTTP {status}" if status else "")
             ) from exc
         result = answer.get("result") if isinstance(answer, dict) else None
         if not isinstance(result, dict):
             raise AdapterError(
-                "bedrock: the reply has no result (operator-admin.md §5)"
+                f"{adapter_id}: the reply has no result (operator-admin.md §5)"
             )
         return reply(
             result.get("text"),
             "admin",  # the admin endpoint calls the named adapter and never fails over
-            "aws.bedrock",
+            provider,
             result.get("response_model"),
             result.get("usage"),
             micro_usd(answer.get("cost_micro_usd")),
@@ -495,6 +503,11 @@ def bedrock_adapter(suite: str) -> Adapter:
         )
 
     return call
+
+
+def bedrock_adapter(suite: str) -> Adapter:
+    """Bedrock's: paid_adapter with its ID, as before spec 010."""
+    return paid_adapter(suite, "bedrock")
 
 
 def stack_ref(stack: str) -> str | None:
@@ -564,9 +577,7 @@ def twin_readiness(root: Path = REPO) -> None:
 def main(argv: list[str], *, readiness: bool = False) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--suite", required=True)
-    parser.add_argument(
-        "--adapter", choices=["fake", "local", "bedrock"], default="fake"
-    )
+    parser.add_argument("--adapter", choices=["fake", "local", *PAID], default="fake")
     parser.add_argument("--stack", choices=["prod", "dev"], default="dev")
     args = parser.parse_args(argv)
     if args.suite in FAKE_ONLY_SUITES and args.adapter != "fake":
@@ -575,7 +586,7 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
             file=sys.stderr,
         )
         return 2
-    stack = "prod" if args.adapter == "bedrock" else args.stack
+    stack = "prod" if args.adapter in PAID else args.stack
     started = dt.datetime.now(dt.UTC)
     try:
         loaded = load_cases(args.suite)
@@ -604,14 +615,14 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
                 return fake_adapter
             if "twin" in case:
                 if twin_call is None:
-                    adapter_id = "bedrock" if args.adapter == "bedrock" else "local"
+                    adapter_id = args.adapter if args.adapter in PAID else "local"
                     twin_call = twin_adapter(args.suite, stack, adapter_id)
                 return twin_call
             if hello_call is None:
                 hello_call = (
                     local_adapter(args.stack)
                     if args.adapter == "local"
-                    else bedrock_adapter(args.suite)
+                    else paid_adapter(args.suite, args.adapter)
                 )
             return hello_call
 
@@ -686,6 +697,8 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
             record = {
                 "suite": args.suite,
                 "adapter": args.adapter,
+                # Spec 010 (FR-025): the adapter's provider, named, never inferred from the file's name.
+                "provider": PAID.get(args.adapter, args.adapter),
                 "stack": stack,
                 "stack_ref": stack_ref(stack),
                 "started": started.isoformat(timespec="seconds"),

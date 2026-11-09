@@ -276,6 +276,9 @@ def test_compose_passes_the_anthropic_key_to_the_gateway_alone() -> None:
             environment = dict(item.split("=", 1) for item in environment)
         assert not [k for k in environment if k.startswith("ANTHROPIC_")], name
         if name == "gateway":
-            assert environment.get("GATEWAY_ANTHROPIC_API_KEY") == "${GATEWAY_ANTHROPIC_API_KEY:-}"
+            assert (
+                environment.get("GATEWAY_ANTHROPIC_API_KEY")
+                == "${GATEWAY_ANTHROPIC_API_KEY:-}"
+            )
         else:
             assert "GATEWAY_ANTHROPIC_API_KEY" not in environment, name
