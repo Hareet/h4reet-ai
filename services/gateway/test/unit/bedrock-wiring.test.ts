@@ -63,6 +63,22 @@ describe("the Bedrock adapter's client and chain (§3.2)", () => {
     expect(init.clientConfig?.requestHandler).toBe(deps.client.config.requestHandler);
   });
 
+  // Spec 007's plan, D43: a twin turn's request may run to twin_request_ms, so the handler's own timeout allows the
+  // longer of the two; each call's abort signal still cuts hello at request_ms.
+  it("let the handler wait for a twin turn's limit when the adapter has one", async () => {
+    for (const [settings, expected] of [
+      [SETTINGS, 4_000],
+      [{ ...SETTINGS, twin_request_ms: 9_000 }, 9_000],
+    ] as const) {
+      const deps = bedrockDeps(settings);
+      built.push(deps);
+      const handler = deps.client.config.requestHandler as unknown as {
+        configProvider: Promise<{ requestTimeout: number }>;
+      };
+      expect((await handler.configProvider).requestTimeout).toBe(expected);
+    }
+  });
+
   it("make one attempt, in us-east-1, with the chain as its credentials", async () => {
     const deps = bedrockDeps(SETTINGS);
     built.push(deps);
