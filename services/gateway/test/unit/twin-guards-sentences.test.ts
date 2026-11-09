@@ -306,11 +306,10 @@ describe("a restated claim in a turn that asks the twin to confirm one (D38)", (
       text: NOT_SAID,
       redacted: ["restated_claim"],
     });
-    expect(run("He has ridden 4321 trails. I won't confirm that it always runs fully offline.", asked)).toEqual({
-      kind: "pass",
-      text: NOT_SAID,
-      redacted: ["numbers", "restated_claim"],
-    });
+    // In a turn that asks the twin to confirm a claim, G1 withholds the whole answer (the review of bc25bee2).
+    expect(run("He has ridden 4321 trails. I won't confirm that it always runs fully offline.", asked)).toEqual(
+      withheldLine("numbers"),
+    );
     expect(run("He has ridden 4321 trails. Truly, always.", asked)).toEqual(withheldLine("numbers"));
   });
 });
@@ -503,7 +502,7 @@ describe("claim tags (D40)", () => {
   });
 });
 
-describe("sentences removed, not whole answers withheld, by G1, G2 in a cost question, G9, and the agents' share (D41)", () => {
+describe("sentences removed, not whole answers withheld, by G1, G2 in a cost question, and G9 (D41)", () => {
   it("removes G1's sentence and keeps the rest", () => {
     const c = turnCtx("What kind of biking do you do?");
     const a = "He rides a one-wheel around the city. He has ridden 4321 trails.";
@@ -533,14 +532,21 @@ describe("sentences removed, not whole answers withheld, by G1, G2 in a cost que
     });
   });
 
-  it("removes a sentence on the agents' share without the corpus's span, keeping the rest of a Golden answer", () => {
+  // The review of bc25bee2: FR-014's "Guard G8 SHALL replace … one that speaks about the agents' share without the
+  // corpus's span with its Golden Q&A 4, … verbatim" holds whole, so the agents' share is out of D41.
+  it("replaces an answer on the agents' share without the corpus's span with 08's Golden Q&A 4, whole", () => {
     const q2 = golden("08", 2);
     const span = pack.quotes.agents_share.answer;
     expect(q2.answer).toContain(span);
     const reworded = q2.answer.replace(span, "AI agents do most of the typing, and I merge what they write.");
-    const out = run(reworded, turnCtx(q2.question));
-    expect(out).toEqual({ kind: "pass", text: q2.answer.replace(` ${span}`, ""), redacted: ["agents_share"] });
-    expect(out.text).toContain("real-time");
+    const replaced = { kind: "withheld", guard: "agents_share", text: span };
+    expect(run(reworded, turnCtx(q2.question))).toEqual(replaced);
+    expect(
+      run(
+        "Hareet wrote most of the code himself. Claude Code only helped with merging.",
+        turnCtx("Who wrote the code for this site?"),
+      ),
+    ).toEqual(replaced);
   });
 
   it("withholds an answer left with fewer than three words, and replaces one about the agents' share alone", () => {
@@ -568,13 +574,9 @@ describe("sentences removed, not whole answers withheld, by G1, G2 in a cost que
       text: "He rides a one-wheel around the city.",
       redacted: ["numbers", "seva"],
     });
+    // In a turn that asks the twin to confirm a claim, G1 withholds the whole answer (the review of bc25bee2).
     const pressed = turnCtx(caseOf("twin-other-deployments").prompt);
-    expect(run("Yes, he was involved there. He led 4321 of them.", pressed)).toEqual({
-      kind: "repaired",
-      guard: "repair_opener",
-      text: "He was involved there.",
-      redacted: ["numbers"],
-    });
+    expect(run("Yes, he was involved there. He led 4321 of them.", pressed)).toEqual(withheldLine("numbers"));
   });
 
   it("judges the answer as written, whole, for every other guard, before any sentence is removed", () => {
@@ -607,11 +609,45 @@ describe("sentences removed, not whole answers withheld, by G1, G2 in a cost que
       "address",
       "address_repair",
       "restated_claim",
-      "agents_share",
       "claim_tags",
     ]);
     expect([...TWIN_REDACTIONS]).toEqual([...REDACTION_NAMES]);
     expect(GUARD_NAMES).toEqual(expect.arrayContaining(["address", "restated_claim"]));
+  });
+});
+
+// The review of bc25bee2: D41 delivered a confirmation main withheld. The three-word floor was read before the opener
+// repair, and a turn that asks no confirmation gets no repair, so "Yes, he did." went out once its neighbour came off.
+// FR-018: "SHALL never assert a 'Do not claim' item, even when a visitor offers it". Now, in a turn that asks the twin to
+// confirm a claim, a sentence G1, G2, or G9 fails withholds the whole answer, and in every turn the floor counts what's
+// left without its opening agreement.
+describe("a confirmation never survives a removed sentence (the review of bc25bee2)", () => {
+  const CONFIRMED = "Yes, he did. He won it in 2019, ahead of 12 other finalists.";
+
+  it("withholds the whole answer in a turn that asks to confirm a claim when G1, G2, or G9 fails a sentence", () => {
+    for (const id of ["twin-won-personally", "twin-implemented-stp"]) {
+      const c = turnCtx(caseOf(id).prompt);
+      expect(run(CONFIRMED, c), id).toEqual(withheldLine("numbers"));
+    }
+    const won = turnCtx(caseOf("twin-won-personally").prompt);
+    expect(run("Yes, he did. Seva drove him to win it.", won)).toEqual(withheldLine("seva"));
+    const priced = turnCtx("This site costs a few dollars a day to run, right?");
+    expect(run("It runs local models first. Its cap is a few dollars a day.", priced)).toEqual(withheldLine("amounts"));
+  });
+
+  it("counts the floor without the opening agreement, so 'Yes, he did.' is withheld once a sentence came off", () => {
+    expect(run("Yes, he did. He built Seva from scratch.", turnCtx("Did he build Seva?"))).toEqual(
+      withheldLine("seva"),
+    );
+    const c = turnCtx("What kind of biking do you do?");
+    expect(run("Yes, he did. He has ridden 4321 trails.", c)).toEqual(withheldLine("numbers"));
+    expect(run("Yes, he rides daily. He has ridden 4321 trails.", c)).toEqual({
+      kind: "pass",
+      text: "Yes, he rides daily.",
+      redacted: ["numbers"],
+    });
+    const won = turnCtx(caseOf("twin-won-personally").prompt);
+    expect(run("Yes, he did. His home address is on the site.", won)).toEqual(withheldLine("address"));
   });
 });
 
