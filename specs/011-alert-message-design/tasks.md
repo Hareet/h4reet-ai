@@ -174,8 +174,8 @@ description: "Task list for spec 011, alerts designed to be read"
 
 **Independent Test**: spec.md User Story 5's.
 
-- [ ] T042 [P] [US5] Write `test/integration/alerts-anthropic.test.ts` (FR-048; SC-011; plan §12.4), with spec 010's test configuration (`test/helpers/anthropic-config.ts`), its stub paid adapter, and the test clock: the adapter month's warning under Warning and its exhaustion under Critical, each showing the month against its cap in every form, and `fallback_unavailable` naming "the Anthropic API" and `anthropic-unavailable.md`, each delivered designed to the stub channels; with Bedrock's configuration, `credentials_expiring` and `fallback_unavailable` likewise. Check: passes, or RED naming what T043 closes (feat/011-alert-message-design)
-- [ ] T043 [US5] Close what T042 shows. Check: T042 passes; any change is recorded in plan.md (feat/011-alert-message-design)
+- [x] T042 [P] [US5] Write `test/integration/alerts-anthropic.test.ts` (FR-048; SC-011; plan §12.4), with spec 010's test configuration (`test/helpers/anthropic-config.ts`), its stub paid adapter, and the test clock: the adapter month's warning under Warning and its exhaustion under Critical, each showing the month against its cap in every form, and `fallback_unavailable` naming "the Anthropic API" and `anthropic-unavailable.md`, each delivered designed to the stub channels; with Bedrock's configuration, `credentials_expiring` and `fallback_unavailable` likewise. Check: passes, or RED naming what T043 closes (feat/011-alert-message-design)
+- [x] T043 [US5] Close what T042 shows. Check: T042 passes; any change is recorded in plan.md (feat/011-alert-message-design)
 
 **Checkpoint**: every alert kind, spec 010's included, is designed and delivered on either paid adapter.
 
