@@ -597,3 +597,55 @@ def test_every_f3_check_passes_once_the_authors_words_replace_the_placeholder() 
     for fallback in ("anthropic", "bedrock"):
         routing["envs"]["prod"]["fallback"] = fallback
         assert placeholder_gate(yaml.safe_dump(routing), worded) == [], fallback
+
+
+# Spec 011 (FR-051; its plan §12.3): rows A1, A2, S12, and S13 gain the spec's words, each entry cell's addition
+# after the row's own words, and `spec 011 FR-051` in their FR cells; no row is added. The existing tests on A1 (the
+# fingerprint in its Carries, the SIGKILL in its switch), the alert rows' FRs, and S12's and S13's pointers to S11
+# stand above.
+SPEC_011 = REPO / "specs" / "011-alert-message-design" / "spec.md"
+# The words an entry cell opens with before its addition, longest first.
+JOINS = (
+    "as before, and (spec 011): ",
+    "as before, and: ",
+    "as before; and ",
+    "as before, and ",
+    "as before; ",
+)
+
+
+def spec_011_entry(row_id: str) -> list[str]:
+    """specs/011-alert-message-design/spec.md's Data-Flow Disclosure Entries row: its eight cells."""
+    lines = SPEC_011.read_text(encoding="utf-8").splitlines()
+    (entry,) = [ln for ln in lines if ln.startswith(f"| {row_id} (")]
+    return [c.strip() for c in entry.strip().strip("|").split("|")]
+
+
+def spec_011_addition(row_id: str, column: int) -> str | None:
+    """An entry cell's addition, its "as before" and joining words stripped; "as A1" is A1's; None for "as before"."""
+    cell = spec_011_entry(row_id)[column]
+    if cell == "as before":
+        return None
+    if cell == "as A1":
+        return spec_011_addition("A1", column)
+    for join in JOINS:
+        if cell.startswith(join):
+            return cell.removeprefix(join)
+    raise AssertionError(f"spec 011's {row_id} entry, column {column}, doesn't read as this test reads it: {cell}")
+
+
+def test_the_alert_rows_add_spec_011s_words() -> None:
+    found = rows()
+    checked = 0
+    for row_id in ("A1", "A2", "S12", "S13"):
+        for column in range(1, 8):
+            words = spec_011_addition(row_id, column)
+            if words is None:
+                continue
+            assert words in found[row_id][column - 1], (row_id, column, words)
+            checked += 1
+        assert "spec 011 FR-051" in found[row_id][-1], row_id
+    # A1's trigger, carries, never carries, why, and switch; A2's five; S12's and S13's trigger and carries.
+    assert checked == 14
+    # No row is added: spec 011's entries change four rows that exist.
+    assert {"A1", "A2", "S12", "S13"} <= set(found)
