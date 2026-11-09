@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this data model is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Data model: the meter of record's changes, and the records spec 001 adds
 
 Phase 1 output of `/speckit-plan`. This file defines:

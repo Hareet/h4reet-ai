@@ -1,14 +1,98 @@
-# Feature Specification: Cloud Elevation — Terraform, One Account, Same Compose Stack
+# Feature Specification: Cloud Elevation — Terraform, One Account, EC2 as Prod's Default Host
 
-**Feature Branch**: `001-cloud-elevation`
+**Feature Branch**: `001-cloud-elevation` (this rework on `spec/001-cloud-elevation`)
 
-**Created**: 2026-09-07 · **Revised**: 2026-10-12
+**Created**: 2026-09-07 · **Revised**: 2026-10-12 · **Reworked**: 2026-11-09
 
-**Status**: Draft, from a full specify pass on 2026-10-10, made ahead of spec 000's completion. Clarified with the Author on 2026-10-11 and 2026-10-12: all twelve open questions are answered (Clarifications), and no needs-clarification marker remains. Spec 000 must be implemented, and pass its success criteria, before this spec is planned (Assumptions).
+**Status**: Draft, reworked 2026-11-09.
 
-**Input**: `intent.md` in this folder (accepted). Its proposed outcome, in the Author's words: "Terraform in one AWS account stands up the thin, cheap, always-on control plane — DNS and TLS for h4reet.ai, the static site at the edge, the relay, the kill-switch state, budgets and anomaly detection, the alert path — and a VM that runs the very same compose definition from spec 000. The local tier reaches the cloud through an outbound tunnel and pulls its deployments. The public dashboard stays up when the machine is off." Its constraints: "One account; environments by VM, IAM role, tag, budget. Plan in PR, human apply. Idle cloud cost must leave headroom for the Bedrock fallback. No inbound ports on the local tier; no self-hosted runners." Four decisions that changed scope carried needs-clarification markers: the group FR-014 to FR-016, then FR-017, FR-020, and FR-033. The clarify session answered them and the eight other open questions (Clarifications). Everything else the intent leaves open is stated as an assumption.
+**The rework.** On 2026-11-09 the Author decided where prod runs (Clarifications, Session 2026-11-09). [ADR 0044](../../docs/adr/0044-ec2-as-prods-default-host.md) records the decisions; it is proposed, on branch `docs/001-ec2-default`, not yet on `main`. In short: EC2 runs prod by default, without the local model server, with the Anthropic API answering first and Bedrock second, both inside the $5 and $20 ceilings and the adapter caps. The laptop serves, local-first, when the Author runs it, with its $2-a-day fallback sub-budget. One host serves at a time. DNS moves visitors between the two, and the laptop reaches the site through an outbound tunnel. One meter, held in the cloud, counts model spend from both hosts. The server has a budget of its own, outside the model ceilings. This replaces the design of September and October, in which the laptop served and the cloud was a thin control plane. The September plan, research, data model, tasks, and quickstart are marked superseded and wait for a re-plan. Five questions remain for the Author, each marked in the requirement it blocks (questions 13 to 17). The constitution change this design needs, version 1.1.0, is proposed, not applied ([the 1.1.0 patch](../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch), on the same branch as the ADR); this spec is planned only after the Author applies it (Assumptions).
+
+**Input**: `intent.md` in this folder (accepted), and the Author's decisions and answers of 2026-11-09, quoted in full under Clarifications. The intent's proposed outcome, in the Author's words: "Terraform in one AWS account stands up the thin, cheap, always-on control plane — DNS and TLS for h4reet.ai, the static site at the edge, the relay, the kill-switch state, budgets and anomaly detection, the alert path — and a VM that runs the very same compose definition from spec 000. The local tier reaches the cloud through an outbound tunnel and pulls its deployments. The public dashboard stays up when the machine is off." Its constraints: "One account; environments by VM, IAM role, tag, budget. Plan in PR, human apply. Idle cloud cost must leave headroom for the Bedrock fallback. No inbound ports on the local tier; no self-hosted runners." The intent's cost lines ("All of it must fit the same $5/day, $20/month ceiling"; "Idle infrastructure target ≤ $10/month") are superseded by the Author's later words, "The server size and budget is outside the $20 model spend cost". The intent stays his to revise; this spec doesn't edit it (Assumptions, "The intents' lines").
 
 ## Clarifications
+
+### Session 2026-11-09
+
+The Author's decisions and answers, verbatim, as ADR 0044 records them. Multiple-choice answers are quoted as the October sessions quote them: the option he chose, then that option's text as it was offered. Each reading is this spec's. It sits beside his words, never in their place, and he can overturn it.
+
+- **Where prod runs, and what answers first.**
+
+  > "On the ec2 server, anthropic api will answer first. That ec2 server will end up being the main server running, I will rarely be running the stack from my laptop other than a demo to showcase or talk about, but it should be the local-first primary scenario we built for."
+
+  Reading: EC2 is prod's default host, and there the Anthropic API answers first (FR-063, FR-067). The laptop serves when he runs it, local-first, in ADR 0001's order (FR-064, FR-067). "it should be the local-first primary scenario we built for" is read as the laptop's stack. It stays a production tier that runs the whole topology with one command (FR-045), as Principle I requires; "a demo" is read as how often he runs it, not what it is (ADR 0044, decision 2). ADR 0044 notes that "it" could also mean the stack's design as a whole (its open item 9).
+
+- **The ceilings.**
+
+  > "Keep the cap as-is at $20 a month, $5 a day."
+
+  Reading: the model-spend ceilings stay $5 a day and $20 a month, with spec 000's warnings at 70%, and spec 010's $20 monthly cap on the Anthropic adapter (`config/budgets.yaml`). They count on one meter across both hosts (FR-017, FR-020).
+
+- **His first picture of the workflow.**
+
+  > "Here is how we are imagining the move to ec2 workflow: That is the default, and if i run the stack locally, the bootup should ask me what my ip address is, and a script that can configure route53 etc to point to my IP, and the necessary router / firewall settings that would need to change. If i am running locally, then the ec2 should be shut off and not incurring costs. The kill-switch monitor should turn the ec2 on if it detects that the laptop is not present or the local ip address route is offline, then a lambda function can update route53 back to the ec2."
+
+  Reading: these parts stand. EC2 is the default. While the laptop serves, EC2 is stopped (FR-063, FR-064). When the laptop goes, EC2 starts without a person (FR-065). The approved points below replaced three parts: the address prompt, the router and firewall changes, and a function that rewrites Route 53. "not incurring costs" is read as no running hours. A stopped instance still bills for its storage and any public address, and the server budget counts those (FR-020, FR-021).
+
+- **The server's budget, and Bedrock.**
+
+  > "The server size and budget is outside the $20 model spend cost. Yes, bedrock stays as the ec2 second paid route."
+
+  Reading: the server's cost is outside the model ceilings and has a budget of its own (FR-020 to FR-022). "The server" is read as every cost of the account that isn't a model call: EC2, running or stopped, and the edge, DNS, the shared state, the health check, the start function, and the rest. Bedrock is EC2's second paid route, after the Anthropic API (FR-067).
+
+- **The five points, and his approval.** The session put five points to him, as ADR 0044 records them (decisions 5 to 9). Their words are the session's, not his:
+  1. "Route 53 can switch DNS by itself." "Failover" records plus a health check on the laptop move DNS in both directions automatically, with no Lambda for DNS. You'd still want a Lambda, fired when that health check fails, to start EC2. Your local startup script would stop EC2 when the laptop takes over.
+  2. "I'd avoid pointing DNS at your home IP." The site needs to stay reachable while you're running it locally, and pointing hareet.ai at your home IP has costs: "Anyone who looks up hareet.ai gets your home IP, and from it a rough location." "It needs port 443 forwarded on your router, plus Windows firewall and port-forwarding rules to reach WSL." "Some internet providers block incoming 443 or share one public IP among customers, so it may not work at all." "The constitution says the laptop is "exposed only through an outbound tunnel"." With a tunnel, the laptop dials out instead, so there's no IP prompt and no router changes. I recommend that. Spec 001 decides it with you.
+  3. "The budget needs one counter." Each machine has its own database, so if each counts spend separately, both could spend the $20. The budget and kill-switch state need to live in one place in the cloud that both read. Spec 001's design already plans for that.
+  4. "There's a gap at switchover." When the laptop drops, EC2 has to start and the stack has to boot, which takes a few minutes. Visitors see the twin's "resting" message in the meantime.
+  5. "Server size." Even without the model server, the stack runs a database, Langfuse with ClickHouse, Grafana and Prometheus. That's probably about 8 GB of memory, roughly $50 a month on demand if it's always on, less if spec 001 trims the stack. That's the figure to compare against the separate server budget you'll set.
+
+  ADR 0044 adds: "The 8 GB and the $50 a month are the main session's unmeasured estimates, not figures from the repository or the Author." This spec uses neither as an estimate.
+
+  His reply:
+
+  > "Okay, all of your feedback is approved. for server size, we will try to use spot instances, or only keep the server online for 8-12 hours a day."
+
+  Reading: point 1 is FR-054, FR-064, and FR-065. DNS moves between the hosts by health, and nothing writes Route 53's records at run time (FR-072). Point 2 is FR-052; which tunnel is question 13. Point 3 is FR-017 and FR-019. Point 4 is FR-066. Point 5's figures are estimates the re-plan measures and prices before anything is applied (question 14). "we will try to use spot instances, or only keep the server online for 8-12 hours a day" leaves the choice, and the hours, open (question 15).
+
+- Q: EC2 answering first with an API is a question for Principle I's "The system MUST prefer on-device or self-hosted inference where it meets the quality bar." "How should the amendment handle that?" → A: "Record the reason (Recommended)", which read: "Principle I stays as written. ADR 0044 records why EC2 complies: within the server budget EC2 has no GPU, and a model run on its CPU wouldn't meet the twin's quality bar, which your laptop's GPU model does. So the API is what meets the bar there, and the laptop stays self-hosted-first." Reading: EC2 runs no model server (FR-044; ADR 0044, decision 1), and Principle I is unchanged (Constitution Check).
+- Q: "Which version?" → A: "1.1.0, MINOR", which read: "Principle V's rules stay (the meter, the kill switch, degrading). Only its reason changes. This follows general semantic versioning rather than the rule's text." Reading: ADR 0044 records that the drafts' reviewer read the changed Principle V sentence as a redefinition, and so as MAJOR, and that the Author chose 1.1.0. This spec cites the amendment as 1.1.0.
+- Q: "What should limit paid spend on EC2?" → A: "The $5 and $20 ceilings (Recommended)", which read: "On EC2, the daily $5 and monthly $20 ceilings and the adapter caps limit the Anthropic API and Bedrock. When a ceiling trips, the twin rests until you reset it, as today. The $2-a-day sub-budget stays the laptop's fallback rule." Reading: neither of EC2's paid routes counts against the $2-a-day sub-budget. Both count against the ceilings, and each against its adapter cap if it has one; today only the Anthropic adapter has one, $20 (FR-017, FR-067). Spec 000's FR-030, whose sub-budget "limits the calls routed to Bedrock as fallback", is amended by name to the laptop's fallback (Scope). When a ceiling trips, the room shows `cannot_talk.budget`, spec 002's class for a tripped kill switch.
+
+**What these decisions change in the earlier answers.** The answers of 2026-10-11 and 2026-10-12 below stand as given. These are superseded, in whole or in part:
+- Question 2, production's meter of record and the split between the local path and the fallback gateway: replaced by EC2 as the default host, one host at a time, and the shared meter (FR-017, FR-063). The laptop keeps its paid fallback (ADR 0044, decision 2), so "Your machine's production drops its own paid route" no longer holds.
+- Question 3, infrastructure cost booked on the meter inside the same ceiling: replaced by "The server size and budget is outside the $20 model spend cost" (FR-020).
+- Question 6, the idle target "≤ $10/month": replaced by the server budget, whose figure is question 14 (FR-021). Its reading's options (always on, on demand or spot, or started only while the local tier is down) are now question 15, with the Author's scenario of 2026-10-12 as the design.
+- Question 8, the AWS-side breach: still automatic and still provider-side, now for Bedrock on both hosts. The server budget gets its own action (FR-023).
+- Question 11, where the tunnel ends: "on the cloud VM, which is always on" no longer holds, since EC2 is stopped while the laptop serves (question 13).
+- Questions 1, 4, 5, 7, 9, 10, and 12 stand. Question 10's snapshot is refreshed by whichever host serves (FR-057).
+
+**ADR 0044's conflicts and open items, and where this spec settles each.** ADR 0044 cites spec 001 by the 2026-09-07 outline's numbers, which this spec's traceability table maps (Assumptions). Its quotes, such as "a cloud store replicated from the stack", are the outline's words.
+
+| ADR 0044 names | In this spec | Settled by |
+|---|---|---|
+| US2 AS2: hello through the relay "routes exactly as spec 000 defines" | User Story 6 (EC2); the routing is User Story 3's scenarios 2 and 3 | FR-067: a route per host; EC2's paid routes inside the ceilings and adapter caps |
+| US3 AS2: "the relay routes to the fallback within the sub-budget or returns the degraded response" | User Story 3, scenarios 2 and 3 | FR-067; "fallback" and the sub-budget belong to the laptop's route only |
+| US4 AS2: "routing falls back within 5 seconds" when the tunnel drops | User Story 4, scenarios 5 and 6 | FR-054's failover window, FR-066's degraded body during the gap, SC-007 |
+| US5 AS2: the meter in the stack; the relay sees its state "within 10 seconds" | User Story 2, scenario 4; SC-008 | FR-017, FR-019, FR-030: the shared state is the one record both hosts use |
+| FR-007: "a cloud store replicated from the stack" | FR-017, FR-030 | FR-017, FR-019: the cloud store is the record, not a replica |
+| SC-003: 5 seconds with the local tier off | SC-001 | SC-001's exception for a window with no host |
+| SC-002: "≤ $10/month" | SC-002 | FR-021, SC-002: the server budget (question 14) |
+| Assumptions: the full stack in the cloud "for demonstration only" | Assumptions | FR-044 |
+| The Cloud standard's "Infrastructure exclusively via Terraform" | FR-001 | FR-001, FR-072: run-time actions change state only; the IAM is question 16 |
+| Rule R1, "every primary must be local" (spec 000's contracts/config-files.md; `services/gateway/src/config/validate.ts`) | Scope | FR-067: R1 holds for the laptop's route; EC2's route names paid adapters only |
+| The route selected by `H4_ENV` (`config/routing.yaml`'s header) | Scope | FR-067: selected by host, since both hosts run prod |
+| Spec 000's FR-031, a meter per stack | Scope | FR-017 |
+| Open item 1, the tunnel | FR-052 | question 13 |
+| Open item 2, the shared state | FR-017, FR-019 | its properties here; the store's product is the re-plan's; unreachable is degraded |
+| Open item 3, spot interruption | FR-071 | question 17 |
+| Open item 4, the schedule | FR-069 | question 15 |
+| Open item 5, the instance type, the budget figure, and the server's limits | FR-021, FR-023 | question 14 for the figure and the type; FR-023 for the response (EC2 stops) |
+| Open item 6, the IAM to start and stop EC2, and Terraform | FR-070, FR-072 | question 16; FR-072 for Terraform |
+| Open item 7, what serves while EC2 is stopped and the laptop is off | FR-075 | nothing calls a model; the edge, the site, the snapshot, the shared state, the budgets, and alerting stay up |
+| Open item 8, the sub-budget's wording on each host | FR-067; Scope | the Author's answer: the laptop's rule only; spec 000's FR-030 amended by name |
+| Open item 9, what "it" refers to | Clarifications | recorded per host, as ADR 0044 does; still his to say |
+| Open item 10, a stopped instance's charges | FR-021 | inside the server budget |
 
 ### Session 2026-10-11
 
@@ -41,60 +125,92 @@ Questions 3 to 12 were answered together. The Author read them in this spec's li
 - Q: Where does the tunnel end? (FR-052) → A: "A (recommended)", which read: "inside the project's AWS account." Reading: on the cloud VM, which is always on, beside the relay and the fallback gateway.
 - Q: Who runs the real `terraform plan` before publication? (FR-005) → A: "A (recommended)", which read: "the Author's terminal, while agent sessions run offline checks against a provider cache the Author seeds."
 
-## Scope: what spec 001 reuses from spec 000, and what it adds
+## Scope: what spec 001 reuses, and what it adds
 
 Spec 000 hands this spec a named list (its Assumptions): "AWS Budgets, Terraform, the domain, edge protection, the public dashboard snapshot, and the outbound tunnel are spec 001."
 
-**Terms.** **The edge** is the cloud edge that serves h4reet.ai over TLS (the constitution's "the static site and edge"). Spec 000's nginx proxy is called **the stack's `edge` service**. **The relay** is the new thin public API in front of the gateways: CLAUDE.md's `services/relay`, which doesn't exist yet. **The cloud VM** is the Terraform-provisioned VM that runs the compose definition with a cloud environment file. **The local tier** is the stacks on the Author's RTX 5090 machine. **The local path** is the route from the relay through the tunnel to the local tier's production stack: its `edge` service, gateway, and model. **The fallback gateway** is the gateway on the cloud VM that answers while the local path can't, through the paid fallback or the degraded response. **The meter of record** is the one spec 000 meter, with its kill switch, that all production spend counts against: the fallback gateway's (FR-017). **A release** is a commit on `main` with its images pinned by digest (Key Entities). **Before publication** is ADR 0013's local phase; **after publication** starts once the Author has published the repository on GitHub.
+**Terms.**
+- **hareet.ai** is the public domain. The repository keeps the name h4reet.ai, and quotes keep the spelling they were written in (Assumptions, "The domain").
+- **The edge** is the cloud edge that serves hareet.ai over TLS: the static site, and the door for dynamic requests. Spec 000's nginx proxy is called **the stack's `edge` service**.
+- **The laptop** is the Author's RTX 5090 machine, the constitution's local tier. The Author's words call it his laptop.
+- **EC2** is the one EC2 instance that runs prod's stack by default, without the local model server.
+- **The serving host** is whichever of the two answers visitors' dynamic requests now: EC2 or the laptop, one at a time.
+- **The relay** is the thin public API in each host's stack, in front of its gateway: CLAUDE.md's `services/relay`, which doesn't exist yet.
+- **The shared state** is prod's one meter and kill switch, held in the cloud, read and written by whichever host serves (point 3).
+- **The failover** is the Route 53 failover records for the name the edge sends dynamic requests to, with a health check on the laptop's path. The laptop is the primary, EC2 the secondary.
+- **The start function** is the function that starts EC2 when the laptop goes (point 1's "a Lambda").
+- **A handover** is the move of visitors from one host to the other. **The start-up gap** is the time from the laptop's last answer until EC2 passes its health check.
+- **The model ceilings** are $5 a day and $20 a month, counting model calls only, on both hosts. **The fallback sub-budget** is $2 a day per grant, the laptop's fallback rule only. **The adapter caps** are `config/budgets.yaml`'s `adapter_monthly_usd`: today $20 a month on the Anthropic adapter.
+- **The server budget** is the AWS-side budget for everything else the account costs.
+- **A release** is a commit on `main` with its images pinned by digest (Key Entities). **Before publication** is ADR 0013's local phase; **after publication** starts once the Author has published the repository on GitHub.
 
 **Reused from spec 000.** Each piece runs as spec 000 built it, with only configuration differing, as spec 000's FR-017 allows. The exceptions are listed under "has to change" below.
 
 | Spec 000 piece | In this spec | Note |
 |---|---|---|
-| The one compose definition, `deploy/compose.yaml` (ADR 0002) | reused; extended in place | The cloud VM runs it with a cloud environment file (FR-043). New services and profiles go into the same file, never an override or a fork (FR-043, FR-045). |
-| The gateway (`services/gateway`): adapters, the FR-022 routing order, the per-client cap, the meter and kill switch, the operator interface, alerts, incident drafts, telemetry | reused; configured per environment | Production runs two instances (FR-017). The local tier's answers on the local path and has no paid route. The fallback gateway on the cloud VM holds the meter of record, which also books infrastructure cost (FR-020). |
-| `config/routing.yaml`, `prices.yaml`, `budgets.yaml`, `alerts.yaml` | reused | The ceilings stay $5/day and $20/month, and the fallback sub-budget stays $2/day. The human-only files change only by the Author's hand, with an ADR. |
-| The local tier's heavy services: the model server on the GPU, Langfuse and its stores, Prometheus, Loki, Grafana, the collector | reused unchanged | They stay on the local tier (FR-044). |
-| The degraded response and its causes, and the `api_unavailable` body that the stack's `edge` service returns | reused | The relay and the edge answer in the same shape (FR-030, FR-034). |
-| Alerts through Telegram first and SMTP second (ADR 0005) | reused unchanged | AWS-side alerts go to the same channels (FR-022). |
-| The agents' engine (spec 000 FR-039) | reused unchanged | Agents build and test the relay, the tunnel's ends, and the deployer CPU-only, with stand-ins for AWS and for the tunnel's peer. |
+| The one compose definition, `deploy/compose.yaml` (ADR 0002) | reused; extended in place | EC2 runs it with a cloud environment file that selects no model server (FR-043, FR-044). New services and profiles go into the same file, never an override or a fork. |
+| The gateway (`services/gateway`): adapters, routing, the per-client cap, the meter and kill switch, the operator interface, alerts, incident drafts, telemetry | reused; configured per host | Each host's gateway meters against the shared state (FR-017). Each host has its own route (FR-067). |
+| `config/routing.yaml`, `prices.yaml`, `budgets.yaml`, `alerts.yaml` | reused | The ceilings, the sub-budget's figure, and the Anthropic cap don't change. Routing gains a route per host. The server budget is AWS-side, in Terraform. The human-only files change only by the Author's hand, with an ADR. |
+| The heavy services: the model server on the GPU, Langfuse and its stores, Prometheus, Loki, Grafana, the collector | reused | The laptop runs them all. EC2 runs them all but the model server (FR-044). |
+| The degraded response and its causes, and the `api_unavailable` body | reused; one cause added | `no_host_serving`, for a window in which no host serves (FR-066). |
+| Alerts through Telegram first and SMTP second (ADR 0005) | reused | AWS-side alerts and handover alerts go to the same channels (FR-022, FR-065). |
+| The agents' engine (spec 000 FR-039) | reused unchanged | Agents build and test the relay, the tunnel, the handover, and the deployer CPU-only, with stand-ins for AWS, the shared state, and the tunnel's peer. |
 | The local gate, the forbidden-action matrix, the breach test (dev only), rollback by `REF` | reused; the matrix and the breach test grow | FR-005, FR-006, FR-011, FR-012, FR-025 |
-| The data-flow disclosure (spec 000 FR-040) | reused; rows added; published on the site | FR-040, FR-041 |
+| The data-flow disclosure (spec 000 FR-040) | reused; rows changed and added; published on the site | FR-040, FR-041 |
 
 **Added by this spec.**
-- `infra/`: Terraform for one AWS account. It covers the state backend; the budgets, the anomaly monitor, and the budget action; the DNS zone and the certificate; the edge and the static site's storage; the cloud VM, its network, and its roles; and the secrets store's entries. (CI's OIDC roles moved to the publication spec; Clarifications, 2026-10-11.)
-- The relay, a new container in the one compose definition. It sends each request on the local path or to the fallback gateway (FR-017).
-- The outbound tunnel: a client on the local tier, and its end on the cloud VM (FR-052).
-- The pull-based deployer, for the cloud VM and the local tier, and the releases it pulls.
-- A cloud environment file. Production's environment splits into a cloud file and a local file (FR-017), as spec 000's plan interview anticipated: "Spec 001 can split prod into cloud and local files later."
-- The public dashboard view and its cloud-hosted snapshot.
-- A placeholder static site, which publishes the disclosure.
+- `infra/`: Terraform for one AWS account. It covers:
+  - the state backend;
+  - the model-spend budgets, the server budget, the anomaly monitor, and the budget actions;
+  - the hareet.ai zone in Route 53, the failover records, the health check, and the certificate;
+  - the edge, the static site's storage, and the public view's storage;
+  - EC2, its network, its role, and its running pattern;
+  - the start function, its role, and its pause switch;
+  - the shared state's store;
+  - the secrets store's entries;
+  - the tunnel's far end, if question 13 puts it in the account.
+  (CI's OIDC roles moved to the publication spec; Clarifications, 2026-10-11.)
+- The relay, a new container in the one compose definition, on both hosts.
+- The outbound tunnel's client on the laptop, and its far end (question 13).
+- The handover in `make up ENV=prod` on the laptop: open the tunnel, wait for the failover, stop EC2.
+- The pull-based deployer for both hosts, and the releases it pulls.
+- A cloud environment file for EC2's stack.
+- The public view and its cloud-hosted snapshot.
+- Publishing spec 002's site, with the disclosure, at the edge.
 - Runbooks, uptime probes, and ADRs.
 
-**Spec 000 pieces this spec has to change.** Each is named so that none changes silently:
-- Production's meter of record and kill switch move from the local tier's gateway to the fallback gateway on the cloud VM (FR-017). The move carries their values over through an operator initialization (FR-019). Production's local environment file drops its paid route: the Bedrock route that spec 000's T105 adds to prod moves to the cloud file.
-- The meter also books infrastructure cost (FR-020), with an ADR. Spec 000's data model has no room for it yet: its reservations accept only `CHECK (attribution IN ('fallback','metered','test'))` (data-model.md §2.4), and the ledger's check is the same plus `none`.
-- The routing schema. `config/routing.yaml` says its schema "keeps every primary local, a paid adapter in prod's route only". The fallback gateway's route has no local primary, so the schema needs a class for it, and the relay's choice of path joins the routing configuration (FR-017, FR-035).
-- The operator CLI. Its `--url` accepts only "`127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other" for prod (contracts/operator-admin.md §6). Resets and renewals on the fallback gateway, reached through FR-050's short-lived session, need it to accept the cloud stack.
-- The stack names. The environment contract has three stacks, and the gateway checks that `H4_STACK` is "one of the three, and agrees with `H4_ENV` (exit 78)" (contracts/env-files.md). The cloud stack needs a name of its own, or a reading of `prod`.
-- How the gateway learns a client's address. Spec 000's gateway believes `X-Forwarded-For` only from the stack's `edge` service (contracts/gateway-http.md §2.3). With the relay in front, that chain of trust has to end at a hop the edge reached, on both paths, without letting any caller choose its own identity (FR-032).
-- The tunnel and the stack's `edge` service. Spec 000's plan left the model server with "no `--api-key`, because only containers in the same project reach it (revisited when spec 001's tunnel exists)" (plan §3). The local path reaches the stack's `edge` service, not the model server (FR-017), so that setup stands. `edge` takes on the authentication instead: through the tunnel it accepts only the callers the disclosure names (FR-053).
-- Spec 000 binds every published port to the literal `127.0.0.1`, which no environment file can change (plan §1). The cloud VM has to accept the edge's requests without loosening that binding on the local tier (FR-032, FR-052).
-- Spec 000's preflight assumes a model-server profile in every stack (plan §4: it refuses when "not exactly one of `gpu` and `cpu` is selected"). A cloud stack without a model server needs that rule extended for the cloud class only.
-- The hand-made Bedrock runtime identity moves under Terraform, as the fallback gateway's identity (FR-013).
-- Disclosure rows S1, S2, F1, F2, A1, and A2 change. The tunnel attaches at the stack's `edge` service (spec 000 research R-06: "Spec 001's tunnel attaches to `edge`"), the cloud VM's egress gets an allowlist (FR-051), the paid route takes rows F1 and F2 from the local tier to the fallback gateway (FR-017), and visitors' messages can now reach Bedrock (FR-040).
+**Pieces of other specs and files this spec has to change.** Each is named so that none changes silently. Specs change by amendment, by name, in their own lifecycle; the Author's files change by his hand.
+- **Spec 000's FR-031**, "Each stack has its own meter": for prod, one shared meter in the cloud that both hosts' gateways use (FR-017). Dev's and dev-cpu's meters stay local. FR-031's rule that "A store that is unreachable counts as unknown, which is `degraded`" applies to the shared state, on each host (FR-019).
+- **Spec 000's FR-030**, whose sub-budget "limits the calls routed to Bedrock as fallback": it limits the laptop's fallback only, Bedrock or the Anthropic API. On EC2 no route is a fallback in FR-030's sense; both paid routes count against the ceilings and the adapter caps (the Author's answer of 2026-11-09).
+- **Spec 000's FR-022 and ADR 0001**, the routing order: set per host. The laptop keeps ADR 0001's order. EC2's is the Anthropic API, then Bedrock (FR-067). ADR 0044 amends ADR 0001.
+- **Rule R1**, "every primary must be local" (spec 000's contracts/config-files.md, R1; enforced in `services/gateway/src/config/validate.ts`), the routing file's header ("its schema keeps every primary local, a paid adapter in prod's route only"), and spec 010's FR-001 ("every route's primary SHALL be local (rule R1)", and "prod's route SHALL name at most one paid fallback"): R1 holds for the laptop's route. EC2's route names a paid first route and a second paid route (FR-067). Spec 010's Out list ("a paid primary", "a chain of two paid fallbacks") changes with it.
+- **The route selector.** `config/routing.yaml` selects the route by `H4_ENV`: "prod for prod". Both hosts run prod, so the route is selected by host (FR-067). With it, **spec 000's environment contract**: its three stack names, and the gateway's check that `H4_STACK` is "one of the three, and agrees with `H4_ENV` (exit 78)". EC2's stack needs a name of its own, or a reading of `prod`.
+- **Spec 000's data model**: prod's meter rows, reservations, call records, and audit log move from the stack's `gateway-state` to the shared state. The September plan's `infra` attribution isn't needed: the meter books no infrastructure cost (FR-020).
+- **Spec 010's FR-026 and spec 007's FR-031**, the readiness evidence: a ready topic needs runs on every adapter that can answer it on either host: the laptop's local model and its fallback, and EC2's Anthropic API and Bedrock (FR-039).
+- **Spec 010's FR-003 and FR-024**, the live runs: the admin routes call only the route's adapters, so a live run on the Anthropic API needs a route that names it, on EC2 or the laptop.
+- **Spec 002's room-conversation contract §3**: `no_host_serving` joins the "local tier off" class, so the room shows `cannot_talk.resting` (FR-066). The message's words name the laptop (Assumptions, "The resting message").
+- **The operator CLI**: its `--url` accepts only "`127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other" (contracts/operator-admin.md §6). The Author acts on the shared state from his terminal, whichever host serves (FR-074).
+- **The client address**: spec 000's gateway believes `X-Forwarded-For` only from the stack's `edge` service (contracts/gateway-http.md §2.3). With the relay in front, that chain of trust has to end at a hop the edge reached, on both hosts, without letting any caller choose its own identity (FR-032).
+- **The tunnel and the stack's `edge` service**: spec 000's plan left the model server with "no `--api-key`, because only containers in the same project reach it (revisited when spec 001's tunnel exists)" (plan §3). The tunnel reaches `edge`, not the model server, so that setup stands, and `edge` authenticates the tunnel's callers (FR-053).
+- **The published ports**: spec 000 binds every published port to the literal `127.0.0.1`, which no environment file can change (plan §1). EC2 has to accept the edge's requests without loosening that binding on the laptop (FR-032).
+- **Spec 000's preflight**: it refuses when "not exactly one of `gpu` and `cpu` is selected" (plan §4). EC2's class runs no model server, so the rule is extended for that class only.
+- **The hand-made Bedrock runtime identity** comes under Terraform (FR-013).
+- **CLAUDE.md's routing sentence**, "local-first, then the one paid fallback prod's route names (Bedrock or the Anthropic API) within its sub-budget and caps, then degraded", becomes per host. It is the Author's file.
+- **The constitution**: the 1.1.0 patch, proposed (Assumptions). The Author's hand.
+- **Intent 000 and this folder's intent**: their cost and hosting lines. The Author's to revise (Assumptions).
+- **The data-flow disclosure**: rows S1, S2, V1, V2, V4, F1, F3, A1, A2, and D1 change, and rows are added (Data-Flow Disclosure Entries).
 
 ## User Scenarios & Testing *(mandatory)*
 
-The users of this spec are three groups. Visitors reach h4reet.ai for the first time. The Author is the operator and the builder. The agents plan the infrastructure but never apply it.
+The users of this spec are three groups. Visitors reach hareet.ai, often for the first time. The Author is the operator and the builder. The agents plan the infrastructure but never apply it.
 
 ### User Story 1 - Infrastructure Changes Are Planned by Machines and Applied by a Human (Priority: P1)
 
 As the Author, I want all cloud infrastructure in Terraform in one AWS account. Environments are separated by VM, IAM role, tag, and budget, and only short-lived identity-based credentials exist anywhere. Until publication (ADR 0013) there are no pull requests and no CI, so the plan goes in the branch's merge-request note, and apply is my own terminal action, recorded. The plan posted on every PR and the apply gated behind a protected environment I approve moved to the publication spec (Clarifications, 2026-10-11).
 
-**Why this priority**: Principle III says only a human "applies infrastructure", and Principle IV says "`apply` and `destroy` are human actions". Every other story needs cloud resources, and none may come into existence any other way.
+**Why this priority**: Principle III says only a human "applies infrastructure", and Principle IV says "`apply` and `destroy` are human actions". Every other story needs cloud resources, and none may come into existence any other way. The failover, the start function, and their IAM are infrastructure too.
 
-**Independent Test**: Take a branch that changes `infra/`. The local gate refuses it until its note carries the redacted plan. Every apply-class command from an agent session is refused. After the Author merges, the Author's apply creates exactly what the plan showed and leaves an apply record. The credential audit finds zero access keys, and the tag check finds no untagged resource.
+**Independent Test**: Take a branch that changes `infra/`. The local gate refuses it until its note carries the redacted plan. Every apply-class command from an agent session is refused. After the Author merges, the Author's apply creates exactly what the plan showed and leaves an apply record. The credential audit finds zero access keys, and the tag check finds no untagged resource. After a handover, a fresh plan shows no change.
 
 **Acceptance Scenarios**:
 
@@ -103,143 +219,173 @@ As the Author, I want all cloud infrastructure in Terraform in one AWS account. 
 3. **Given** a merged infrastructure change before publication, **When** the Author applies it from their own terminal, **Then** the apply uses the Author's short-lived SSO session and runs only a saved plan that matches the reviewed one. It leaves an apply record with no secrets or account IDs (FR-007).
 4. **Given** resources exist, **When** costs are reported, **Then** every resource carries project, environment, and component tags under the correct environment budget (FR-002).
 5. **Given** any identity in the account, **When** the credential audit runs, **Then** it finds no IAM user access key and no other long-lived credential (FR-008).
-6. **Given** the Terraform that defines IAM, budgets, alert routing, edge rate limits, or the kill switch, **When** an agent session tries to change it, **Then** the write is refused. A change can arrive only as a patch the Author applies, with an ADR (FR-012).
+6. **Given** the Terraform that defines IAM, budgets, alert routing, edge rate limits, the kill switch, the failover, the start function, its pause switch, or EC2's running pattern, **When** an agent session tries to change it, **Then** the write is refused. A change can arrive only as a patch the Author applies, with an ADR (FR-012).
+10. **Given** a handover has happened (the failover answered another host, the start function started EC2, or the laptop stopped it), **When** the Author plans from the same commit, **Then** the plan shows no change (FR-072).
 
-Scenarios 7 to 9 (the plan on pull requests, the protected apply, and CI's OIDC roles) moved to the publication spec with FR-014 to FR-016 (Clarifications, 2026-10-11; `publication-carryover.md`). Their numbers aren't reused.
+Scenarios 7 to 9 (the plan on pull requests, the protected apply, and CI's OIDC roles) moved to the publication spec with FR-014 to FR-016 (Clarifications, 2026-10-11; `publication-carryover.md`). Their numbers aren't reused, so the new scenario is 10.
 
 ---
 
-### User Story 2 - One Ceiling for Everything, With a Cloud Safety Net (Priority: P1)
+### User Story 2 - Two Budgets: the Model Ceilings on One Shared Meter, and the Server's Own (Priority: P1)
 
-As the operator, I want AWS Budgets and Cost Anomaly Detection on the account, routed to the same Telegram and email channels. I want the kill-switch state where the relay can read it. And I want every dollar of production spend counted against one set of ceilings, so that non-model costs and meter failures are also bounded. The intent puts it this way: "the cost safety net needs AWS-side budgets. All of it must fit the same $5/day, $20/month ceiling."
+As the operator, I want every model call from either host counted on one meter against the ceilings I set, so that two hosts can never each spend them. I want the server's cost under a budget of its own, outside those ceilings. And I want AWS Budgets and Cost Anomaly Detection on the account, routed to the same Telegram and email channels, as the lagging safety net.
 
-**Why this priority**: This story was P2 in the 2026-09-07 outline. Principle V raises it: "Budgets, alerts, and the automated kill switch ship before the first feature and are tested by deliberately tripping them." Spec 000's research also leaves to this spec the cap on Bedrock calls made with a stolen session: "spec 000 has no AWS Budgets to cap that (spec 001 does)".
+**Why this priority**: Principle V: "Budgets, alerts, and the automated kill switch ship before the first feature and are tested by deliberately tripping them." The Author's words: "Keep the cap as-is at $20 a month, $5 a day", and "The server size and budget is outside the $20 model spend cost." On EC2 every admitted turn is a paid call, so the meter matters more than it did on the laptop.
 
-**Independent Test**: Apply the budgets on their own, then trip a rehearsal budget. Both channels alert, and the automated action takes effect. Run the breach test on dev: the relay follows the trip within 10 seconds. Start a second production-class stack whose paid route bypasses the meter of record: it refuses to start.
+**Independent Test**: Run a handover with both hosts serving for a moment, sending paid calls from both: the shared meter's day and month never pass the ceilings beyond spec 000's in-flight overshoot. Make the shared state unreachable from one host: that host answers degraded. Apply the budgets on their own, then trip a rehearsal budget of each kind: both channels alert, and each automated action takes effect on its rehearsal target. Run the breach test on dev: the relay follows the trip within 10 seconds.
 
 **Acceptance Scenarios**:
 
-1. **Given** this spec's first apply, **When** it completes, **Then** the account's budgets, the anomaly monitor, and their alert routes exist, created no later than any other resource that costs money (FR-022).
-2. **Given** AWS billing data updates, **When** it crosses the budget thresholds, **Then** alerts arrive on both channels (lagging safety net, not the control) (FR-022, FR-024).
-3. **Given** a rehearsal budget set below the month's actual spend, **When** AWS evaluates it, **Then** both channels get the alert and the automated action takes effect on its rehearsal target. The record says how long AWS took (FR-026).
-4. **Given** AWS's billing data shows the account at the $20 ceiling, **When** the budget action runs, **Then** production can no longer call paid models at the provider, and local answers continue. Only the Author can restore the permission (FR-023).
-5. **Given** production spend from any stack, **When** it is metered, **Then** it lands on the one meter of record. A production-class stack that would spend outside that meter refuses to start (FR-017, FR-018).
-6. **Given** the meter in the stack sets `degraded`, **When** the relay reads state, **Then** it sees the same state within 10 seconds. **Given** the state store is unreachable, **Then** the relay treats it as `degraded` (FR-030).
-7. **Given** the breach test on dev, **When** the ceiling trips, **Then** the relay answers degraded within 10 seconds, and after the operator's reset it forwards again (FR-025).
-8. **Given** the meter of record moves to another stack or loses its store, **When** that stack starts, **Then** it stays degraded until the operator initializes it with the carried-over values. Nothing restarts at zero (FR-019).
+1. **Given** this spec's first apply, **When** it completes, **Then** the model-spend budgets, the server budget, the anomaly monitor, and their alert routes exist, created no later than any other resource that costs money (FR-022).
+2. **Given** model calls on either host, **When** they are metered, **Then** they land on the one shared meter. A production-class stack that would spend outside it refuses to start (FR-017, FR-018).
+3. **Given** both hosts serving during a handover, **When** both admit paid calls, **Then** the day's and the month's model spend, together, never pass $5 and $20 beyond spec 000's in-flight overshoot (FR-017).
+4. **Given** a host can't read the shared state, or can't confirm it within 10 seconds, **When** a request arrives there, **Then** that host answers with the degraded response (FR-019, FR-030).
+5. **Given** the shared state is new or was lost, **When** prod starts on either host, **Then** it stays degraded until the operator initializes it with the carried-over values. Nothing restarts at zero (FR-019).
+6. **Given** AWS's billing data shows Bedrock's month at $20, **When** the budget action runs, **Then** neither host can call Bedrock until the Author restores the permission. Local answers on the laptop and the Anthropic API on EC2 continue, inside the meter (FR-023).
+7. **Given** AWS's billing data shows the server's month at its budget, **When** the budget action runs, **Then** EC2 stops, and the start function won't start it until the Author restores it (FR-023).
+8. **Given** a rehearsal budget set below the month's actual spend, **When** AWS evaluates it, **Then** both channels get the alert and the automated action takes effect on its rehearsal target. The record says how long AWS took (FR-026).
+9. **Given** the breach test on dev, **When** the ceiling trips, **Then** the relay answers degraded within 10 seconds, and after the operator's reset it forwards again (FR-025).
 
 ---
 
-### User Story 3 - h4reet.ai Answers Whether or Not My Machine Is Awake (Priority: P1)
+### User Story 3 - hareet.ai Answers From EC2 by Default (Priority: P1)
 
-As a visitor, I want h4reet.ai to load over TLS from the edge and the hello endpoint to respond, degraded if necessary, regardless of the local tier's state.
+As a visitor, I want hareet.ai to load over TLS from the edge, and hello and the twin to answer, whether or not the Author's laptop is on.
 
-**Why this priority**: It is the intent's first problem: "Visitors need h4reet.ai to answer whether or not the machine is awake".
+**Why this priority**: The Author's words: "That ec2 server will end up being the main server running". The intent's first problem stands: "Visitors need h4reet.ai to answer whether or not the machine is awake".
 
-**Independent Test**: With the local tier off, the site loads, hello answers via Bedrock or degraded within 5 seconds, and the site says the local tier can't be reached. With the local tier on, hello answers locally with a full trace. With the cloud VM stopped, the site still loads and hello gets the degraded body.
+**Independent Test**: With the laptop off and EC2 up, the site loads, and hello and a twin turn are answered by the Anthropic API, each with a full trace and its cost. With a stand-in that makes the Anthropic API fail, Bedrock answers inside the ceilings. With both failing, the answer is degraded with its cause. With EC2 stopped and the laptop off, the site still loads and dynamic requests get the degraded body.
 
 **Acceptance Scenarios**:
 
-1. **Given** h4reet.ai, **When** requested, **Then** the static site is served over TLS from the edge with DNS managed in Terraform (FR-027).
-2. **Given** the local tier is healthy, **When** a visitor calls hello, **Then** the local tier's stack answers on the local path, and the call has a complete trace (FR-017, FR-035).
-3. **Given** the local tier is unreachable, **When** hello is called, **Then** it is answered by the fallback within the sub-budget or with the degraded response, in spec 000's routing order, and the reason is visible on the dashboard (FR-035, FR-036).
-4. **Given** the cloud VM is down, **When** h4reet.ai is requested, **Then** the static site still loads, and hello gets the degraded body with its cause (FR-028, FR-034).
-5. **Given** the kill switch is `degraded`, unknown, or unreadable, **When** hello is called, **Then** the relay answers with the degraded response without forwarding (FR-030).
-6. **Given** public exposure, **When** a client exceeds the public request cap, **Then** the relay limits it before either path (FR-033).
-7. **Given** a request that reaches the cloud stack without passing through the edge, **When** it arrives, **Then** it is refused (FR-032).
-8. **Given** a release that makes hello public, **When** it is about to deploy, **Then** hello's red-team cases must pass first, or the release is refused (FR-039).
+1. **Given** hareet.ai, **When** requested, **Then** the static site is served over TLS from the edge, with DNS managed in Terraform (FR-027).
+2. **Given** the laptop isn't serving and EC2 is healthy, **When** a visitor calls hello or sends a twin turn, **Then** the Anthropic API answers first, inside the ceilings and its adapter cap, and the call carries provider, model, tokens, and cost (FR-035, FR-067).
+3. **Given** the Anthropic API can't answer (it is down, its circuit is open, or its key is refused), **When** a call arrives on EC2, **Then** Bedrock answers inside the ceilings, or else the answer is degraded with its cause. Neither call counts against the $2-a-day sub-budget (FR-036, FR-067).
+4. **Given** the kill switch is `degraded`, unknown, or unreadable, **When** a request arrives, **Then** the relay answers with the degraded response without forwarding (FR-030).
+5. **Given** public exposure, **When** a client exceeds the public request cap, **Then** the relay limits it before the gateway (FR-033).
+6. **Given** a request that reaches either host's stack without passing through the edge, **When** it arrives, **Then** it is refused (FR-032).
+7. **Given** a release that makes hello or the twin's turns reachable from the internet, **When** it is about to deploy, **Then** red-team cases must pass first on every adapter that can answer them, or the release is refused (FR-039).
+8. **Given** EC2's route names the Anthropic API but its price, cap, key, or the Author's words in row F3 are missing, **When** EC2's stack starts, **Then** it refuses, or the gate fails, before any visitor's turn can reach Anthropic (FR-068).
+9. **Given** EC2 is stopped and the laptop is off, **When** hareet.ai is requested, **Then** the static site still loads, and dynamic requests get the degraded body with `no_host_serving` (FR-028, FR-066).
 
 ---
 
-### User Story 4 - A Visitor Can See What Leaves Their Device (Priority: P1)
+### User Story 4 - The Laptop Serves When the Author Runs It, and EC2 Takes Back Over When It Goes (Priority: P1)
 
-As a visitor, I want the site to tell me exactly what my visit sends, where it goes, and why, before I send anything.
+As the Author, I want to start prod on my laptop and have visitors move to it, local-first, without opening a port, typing an address, or touching my router. While it serves, EC2 should be stopped. When the laptop goes, EC2 should start and take visitors back without me.
 
-**Why this priority**: Principle I: "Every byte that leaves a visitor's device MUST be enumerated in a public data-flow disclosure with a stated reason." This spec carries the project's first visitor bytes. In the intent's words: "Visitor requests now traverse the edge and relay; the relay carries no payload it does not need to route. Disclosed on the site." So the disclosure has to be live before hello is.
+**Why this priority**: The Author's words: "it should be the local-first primary scenario we built for", and "If i am running locally, then the ec2 should be shut off and not incurring costs." Principle IV: "the local tier accepts no inbound connections and pulls its deployments rather than receiving pushes."
 
-**Independent Test**: Open every page with the browser's network log on, and call hello and the status request. Compare every host the browser contacted with the published disclosure. After the run, scan the stores for visitor addresses and messages.
+**Independent Test**: Start prod on the laptop. Nothing asks for an address, and no router or firewall setting changes. The failover moves visitors to the laptop once its health check passes, and then EC2 stops. Cut the tunnel: the health check fails, DNS answers EC2, the start function starts EC2, visitors see the resting message during the gap, and then EC2 answers. An external scan of the laptop finds no open port.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Author runs `make up ENV=prod` on the laptop, **When** it starts, **Then** the whole topology starts as before, it asks for no address, it changes no router or firewall setting, and the laptop dials out its tunnel (FR-045, FR-052, FR-064).
+2. **Given** the laptop's stack and tunnel are healthy, **When** the failover's health check passes the required number of times, **Then** DNS answers with the laptop, and visitors' requests are answered local-first, with the laptop's paid fallback inside the $2-a-day sub-budget (FR-054, FR-067).
+3. **Given** visitors have moved to the laptop, **When** the handover completes, **Then** the laptop stops EC2, which runs no longer than the handover window (FR-063, FR-064).
+4. **Given** the laptop can't stop EC2 (it has no session, or the call fails), **When** `make up` finishes, **Then** it succeeds, says why, and alerts. The shared meter keeps both hosts inside the ceilings (FR-017, FR-064).
+5. **Given** the laptop serves, **When** it sleeps, shuts down, or loses its tunnel, **Then** the health check fails, DNS answers with EC2, and the start function starts EC2 without a person (FR-054, FR-065).
+6. **Given** EC2 is starting, **When** a visitor sends a dynamic request, **Then** the edge answers with the degraded body and `no_host_serving`, the room shows its resting message, and the site keeps loading (FR-066).
+7. **Given** the Author has paused the automatic start, **When** the laptop goes, **Then** EC2 stays stopped, and visitors get the degraded body until the Author starts a host (FR-065).
+8. **Given** the tunnel flaps while the laptop runs, **When** the failover answers the laptop again, **Then** the laptop stops EC2 again (FR-064).
+9. **Given** the laptop is running, **When** it is scanned from the internet, **Then** no inbound port is open, with the tunnel up or down (FR-052).
+10. **Given** a call through the tunnel, **When** it doesn't come from a caller the disclosure names, **Then** the stack's `edge` service refuses it. Langfuse, the admin listener, and Grafana are not reachable through the tunnel at all (FR-052, FR-053).
+11. **Given** a new release, **When** the laptop's deployer polls, **Then** it pulls the release. Nothing pushes to the laptop, and no CI runner runs there (FR-046, FR-055).
+12. **Given** the Author started prod by hand from a commit, **When** the deployer polls, **Then** it leaves that stack running until the Author hands control back. The dashboard shows the commit and who started it (FR-049).
+13. **Given** the host slept or WSL2 restarted, **When** the Author follows the laptop's runbook, **Then** it rejoins production (FR-056).
+
+---
+
+### User Story 5 - A Visitor Can See What Leaves Their Device (Priority: P1)
+
+As a visitor, I want the site to tell me exactly what my visit sends, where it goes, who answers, and why, before I send anything.
+
+**Why this priority**: Principle I: "Every byte that leaves a visitor's device MUST be enumerated in a public data-flow disclosure with a stated reason." This spec carries the project's first visitor bytes over the internet, and on EC2 every turn goes to a paid API. So the disclosure has to be live, and say so, before hello and the twin are.
+
+**Independent Test**: Open every page with the browser's network log on, and call hello, the status request, and a twin turn. Compare every host the browser contacted with the published disclosure. Read rows V2 and F3 and check that they say what EC2 sends to the Anthropic API. After the run, scan both hosts' stores and the shared state for visitor addresses and messages.
 
 **Acceptance Scenarios**:
 
 1. **Given** any page of the site, **When** a visitor opens it, **Then** it links the data-flow disclosure. The disclosure lists every flow the visit can cause, with what each carries, what it never carries, and why (FR-040, FR-041).
-2. **Given** a browser that loads every page and calls hello and the status request, **When** its network requests are recorded, **Then** every request goes to a host the disclosure lists, and none goes to a third party (FR-038, FR-041).
-3. **Given** a visit, **When** it ends, **Then** nothing is stored on the visitor's device, and no cookie was set (FR-042).
-4. **Given** a test run of visitor calls, **When** logs, traces, metrics, alerts, the ledger, and the other stores are scanned, **Then** no visitor address, message, or answer is found (FR-031, FR-042).
-5. **Given** a change that adds a service, a tunnel route, or an egress destination, **When** the local gate runs, **Then** it fails unless the disclosure lists the new flow in the same change (FR-040).
+2. **Given** EC2 serves, **When** a visitor reads the disclosure, **Then** it says that every hello and twin turn goes to the Anthropic API first, and to Bedrock when it can't answer, with what each carries and what Anthropic keeps, in the Author's words (FR-040, FR-068).
+3. **Given** a browser that loads every page and calls hello, the status request, and a twin turn, **When** its network requests are recorded, **Then** every request goes to a host the disclosure lists, and none goes to a third party (FR-038, FR-041).
+4. **Given** a visit, **When** it ends, **Then** nothing is stored on the visitor's device, and no cookie was set (FR-042).
+5. **Given** a test run of visitor calls on each host, **When** logs, traces, metrics, alerts, the ledger, the shared state, and the other stores are scanned, **Then** no visitor address, message, or answer is found (FR-031, FR-042).
+6. **Given** a change that adds a service, a tunnel route, or an egress destination, **When** the local gate runs, **Then** it fails unless the disclosure lists the new flow in the same change (FR-040).
 
 ---
 
-### User Story 5 - The Same Compose Stack Runs on a Cloud VM (Priority: P1)
+### User Story 6 - The Same Compose Stack Runs on EC2 (Priority: P1)
 
-As the Author, I want the very same compose definition from spec 000 to run on a Terraform-provisioned VM with a different environment file, so that "one topology, many environments" is demonstrated rather than claimed. The 2026-09-07 outline said "unchanged". This spec adds services to the one file, so it uses the intent's words, "the very same compose definition".
+As the Author, I want the very same compose definition from spec 000 to run on a Terraform-provisioned EC2 instance with a different environment file, so that "one topology, many environments" is demonstrated rather than claimed. The 2026-09-07 outline said "unchanged". This spec adds services to the one file, so it uses the intent's words, "the very same compose definition".
 
-**Why this priority**: It is the intent's "a VM that runs the very same compose definition from spec 000". The constitution's Compute standard asks the same: "One compose definition describes the production topology and is what runs in every environment". The VM is also the always-on home for the relay and the paid fallback path.
+**Why this priority**: It is the intent's "a VM that runs the very same compose definition from spec 000", and now the host that serves most of the time. The constitution's Compute standard asks the same: "One compose definition describes the production topology and is what runs in every environment".
 
-**Independent Test**: `terraform apply` (human) creates the VM. The deployer pulls the release, and hello answers via the relay with a full trace. Destroying and recreating the VM yields the same digests and the same meter values. On the local tier, `make up ENV=prod` still starts the whole topology.
+**Independent Test**: `terraform apply` (human) creates EC2. The deployer pulls the release, and hello answers through the relay with a full trace. Destroying and recreating EC2 yields the same digests, and the shared state's values don't change. On the laptop, `make up ENV=prod` still starts the whole topology, calling local models.
 
 **Acceptance Scenarios**:
 
-1. **Given** the VM is provisioned, **When** the deployer runs, **Then** the stack from `deploy/compose.yaml` starts with the cloud environment file and no other change (FR-043).
-2. **Given** the VM runs the stack, **When** hello is called through the relay, **Then** it follows spec 000's order: the local path while it's healthy, then the fallback gateway's Bedrock route within the sub-budget, else degraded (FR-017, FR-035).
-3. **Given** a new release, **When** the deployer polls, **Then** it pulls and restarts only the affected service and records the deployment (FR-046, FR-047). The outline's "a new image on `main`" became "a new release", because images built on `main` need CI.
+1. **Given** EC2 is provisioned, **When** the deployer runs, **Then** the stack from `deploy/compose.yaml` starts with the cloud environment file, which selects no model server, and no other change (FR-043, FR-044).
+2. **Given** EC2 starts after being stopped, **When** its deployer runs, **Then** it checks for a new release before the stack takes visitors (FR-046).
+3. **Given** a new release, **When** a deployer polls, **Then** it pulls and restarts only the affected services and records the deployment (FR-046, FR-047). The outline's "a new image on `main`" became "a new release", because images built on `main` need CI.
 4. **Given** a new release fails its health checks, **When** the deployer sees it, **Then** it returns to the previous release and alerts (FR-047).
-5. **Given** the same release, **When** it runs on the cloud VM and on the local tier, **Then** their images match by digest, and only their environment files differ (FR-043, FR-048).
-6. **Given** the VM is destroyed and recreated, **When** the deployer finishes, **Then** the stack's digests match the release, and the meter of record's values are unchanged (FR-019, FR-048).
-7. **Given** this spec's changes to the compose definition, **When** the Author runs `make up ENV=prod` on the local tier, **Then** the whole topology still starts with one command, calling local models (FR-045).
-8. **Given** a cloud stack, **When** its operator interface is probed from the internet, **Then** it is unreachable. The Author reaches it only through an identity-based, short-lived session (FR-050).
+5. **Given** the same release, **When** it runs on EC2 and on the laptop, **Then** their images match by digest, and only their environment files differ (FR-043, FR-048).
+6. **Given** EC2 is destroyed and recreated, **When** the deployer finishes, **Then** the stack's digests match the release, and the shared state's values are unchanged (FR-019, FR-048).
+7. **Given** this spec's changes to the compose definition, **When** the Author runs `make up ENV=prod` on the laptop, **Then** the whole topology still starts with one command, calling local models (FR-045).
+8. **Given** EC2's stack, **When** its operator interface is probed from the internet, **Then** it is unreachable. The Author reaches it only through an identity-based, short-lived session (FR-050).
 
 ---
 
-### User Story 6 - The Local Tier Joins Production Without Opening a Port (Priority: P2)
+### User Story 7 - The Server Runs Only When It Must (Priority: P2)
 
-As the operator, I want the RTX 5090 tier reachable from the cloud only through an outbound tunnel. I want deployments to it to be pull-based, and a runbook for wake, restart, and tunnel recovery.
+As the Author, I want EC2 to run only while it serves: stopped while my laptop serves, and on spot capacity or a daily schedule, so that the server stays inside its own budget.
 
-**Why this priority**: Principle IV: "the local tier accepts no inbound connections and pulls its deployments rather than receiving pushes." Visitors are still served when the tunnel is down (User Story 3), so this follows the P1 stories. The tunnel is what keeps answers local and the bill near zero.
+**Why this priority**: The Author's words: "If i am running locally, then the ec2 should be shut off and not incurring costs", and "we will try to use spot instances, or only keep the server online for 8-12 hours a day." It follows the P1 stories, since visitors are served either way.
 
-**Independent Test**: An external scan finds no open port. Cutting the tunnel makes hello fall back within 5 seconds, and restoring it brings local answers back. After a WSL2 restart, the runbook's steps bring the tier back. A new release arrives by pull only.
+**Independent Test**: Over a month in which the laptop serves at least once, EC2's running hours while the laptop serves are no more than its handover windows. Under the chosen pattern, EC2 runs as the pattern says. Simulate a spot interruption: the Author is alerted, and visitors get the outcome question 17 chooses. The dashboard shows the server's month beside its budget.
 
 **Acceptance Scenarios**:
 
-1. **Given** the local tier is running, **When** scanned from the internet, **Then** no inbound port is open, and the cloud reaches it only via the tunnel (FR-052).
-2. **Given** the tunnel drops, **When** health checks fail, **Then** routing falls back within 5 seconds, and the runbook's restart procedure recovers it (FR-054, FR-056).
-3. **Given** the tunnel is back, **When** the local model passes three checks in a row, **Then** routing returns to local (FR-054).
-4. **Given** a call through the tunnel, **When** it doesn't come from an authenticated cloud caller that the disclosure names, **Then** the stack's `edge` service refuses it. Langfuse and the admin listener are not reachable through the tunnel at all (FR-052, FR-053).
-5. **Given** a new release, **When** the local tier's deployer polls, **Then** it pulls the release. Nothing pushes to the local tier, and no CI runner runs there (FR-046, FR-055).
-6. **Given** the Author started prod by hand from a commit, **When** the deployer polls, **Then** it leaves that stack running until the Author hands control back. The dashboard shows the commit and who started it (FR-049).
-7. **Given** the host slept or WSL2 restarted, **When** the Author follows the local-tier runbook, **Then** the tier rejoins production (FR-056).
+1. **Given** the laptop serves, **When** a month is measured, **Then** EC2's running time while the failover answers the laptop is at most the handover windows (FR-063, SC-016).
+2. **Given** the running pattern the Author chose, **When** a day passes, **Then** EC2 runs as the pattern says, and the start function never starts it outside the pattern (FR-065, FR-069).
+3. **Given** AWS reclaims EC2's spot capacity, **When** the interruption notice arrives, **Then** the Author is alerted on both channels, and visitors get the handover question 17 chooses (FR-071).
+4. **Given** a month of operation, **When** the dashboard is opened, **Then** the server's cost shows beside its budget, and model spend beside the ceilings (FR-059).
 
 ---
 
-### User Story 7 - The Public Dashboard Never Goes Dark (Priority: P2)
+### User Story 8 - The Public Dashboard Never Goes Dark (Priority: P2)
 
-As a visitor, I want to watch the system run: spend next to latency and errors, and whether the Author's machine is up. I want that view to stay up when the machine is off.
+As a visitor, I want to watch the system run: spend next to latency and errors, and which host serves. I want that view to stay up when no host is running.
 
 **Why this priority**: Principle VI makes operational dashboards public. The constitution's Observability standard asks for "Grafana for public read-only dashboards, with a cloud-hosted last-known snapshot so the public view never goes dark", and the intent says: "The public dashboard stays up when the machine is off." Spec 000's FR-028 left the dashboard's public exposure to this spec.
 
-**Independent Test**: Turn the local tier off for an hour. The public view keeps answering with last-known values, the time they were taken, and the tier's status. Turn the local tier back on, and the values are fresh again within 5 minutes.
+**Independent Test**: Turn both hosts off for an hour. The public view keeps answering with last-known values, the time they were taken, and "no host serving". Start a host, and the values are fresh again within 5 minutes.
 
 **Acceptance Scenarios**:
 
-1. **Given** the local tier is unreachable, **When** the public dashboard is viewed, **Then** a cloud-hosted snapshot shows last-known values and the tier's current status; it does not go dark (FR-057).
-2. **Given** the local tier is up, **When** the public view is opened, **Then** its values are at most 5 minutes old, and it says when they were taken (FR-058).
+1. **Given** no host serves, **When** the public dashboard is viewed, **Then** the cloud-hosted snapshot shows last-known values and says that no host serves; it does not go dark (FR-057, FR-075).
+2. **Given** a host serves, **When** the public view is opened, **Then** its values are at most 5 minutes old, and it says when they were taken and which host serves (FR-058).
 3. **Given** the public view, **When** inspected, **Then** it shows the listed panels with no payload, client identifier, operator reason, or secret, and it offers no write action (FR-059).
-4. **Given** a month of operation, **When** the public view is opened, **Then** idle cloud cost appears next to metered spend (FR-059, SC-002).
 
 ---
 
 ### Edge Cases
 
-- **The machine sleeps mid-request.** The call on the local path fails or times out, and the relay falls back in spec 000's FR-022 order, as the gateway does on `local_failed`. The next requests find the local path unhealthy (FR-054).
-- **The local stack answers degraded while the tunnel is up**, because its store is unreachable, say. The relay counts that as a failed local path and falls back in FR-022's order. Only the meter of record's kill switch stops every answer (FR-017, FR-030).
-- **The tunnel flaps.** Spec 000's recovery rule, three passing checks in a row, keeps routing from bouncing. Each drop shows on the dashboard.
-- **The cloud VM is replaced while visitors are on the site.** Static pages keep loading from the edge. Hello gets the edge's degraded body until the new stack is healthy. The meter of record's store outlives the VM (FR-019, FR-028, FR-034).
-- **Both the local tier and the fallback are gone.** The degraded response names its cause, and the site says the local tier can't be reached (FR-036).
-- **AWS's billing data lags by hours.** The meter stays the control. The provider-side cut-off may fire after the ceiling has already passed (FR-023, FR-024).
-- **A visitor floods hello.** The public cap acts first, then spec 000's per-client cap and global metered limits, then the meter. The budgets catch the edge's request charges, late (FR-033).
-- **A request reaches the cloud VM without passing through the edge.** It is refused (FR-032).
+- **The laptop sleeps mid-request.** The call fails, and the room shows `cannot_talk.unavailable`, as spec 007's FR-036 does for a network failure. The next requests get the degraded body with `no_host_serving` until EC2 answers (FR-066).
+- **The tunnel flaps.** The failover needs several passing checks in a row before it answers the laptop again (FR-054). Each failure may start EC2; each return makes the laptop stop it again (FR-064). Each flip is recorded and shown.
+- **Both hosts serve for a moment** during a handover, or because the laptop couldn't stop EC2. Both meter against the shared state, so together they can't pass a ceiling beyond spec 000's in-flight overshoot (FR-017). EC2's running hours count against the server budget, and the alert says so (FR-064).
+- **The laptop loses its network while running.** Its tunnel drops, so the failover moves visitors to EC2 and the start function starts it. The laptop can't read the shared state, so its own prod answers degraded (FR-019). When the network returns, the laptop passes its checks, takes visitors back, and stops EC2.
+- **The Author shows prod on the laptop with no network.** Prod answers degraded, because the shared state is unreachable and unknown state is degraded. An offline showing runs `make up ENV=dev`, whose meter stays local and spends nothing (Assumptions, "The laptop without a network").
+- **EC2 starts, but its stack fails its health checks.** Visitors keep getting `no_host_serving`. The deployer returns to the previous release if a new one failed (FR-047), and the Author is alerted. The start function doesn't retry in a loop (FR-065).
+- **The start function can't start EC2**: it is paused, the server budget's action stopped EC2, the running pattern says off, spot capacity is short, or the call fails. The site loads, dynamic requests get `no_host_serving`, and the Author is alerted (FR-065, FR-066).
+- **A cached DNS answer outlives a host.** The edge, not visitors' resolvers, looks up the dynamic origin's name, so only the edge's cache matters. While it lasts, requests to a host that is gone get the edge's degraded body (FR-066).
 - **The kill switch flips while a request is in flight.** The request completes, because the state is read at request start (spec 000).
-- **A second production-class stack with a paid route starts.** An example is the local tier's production stack started with the paid route that FR-017 takes away from it. It is refused unless it meters against the meter of record (FR-018).
-- **An uptime probe runs while the local tier is down.** It checks the status request, which makes no model call, so it never spends (FR-061).
+- **The Anthropic adapter's month is spent.** Its cap is $20, the whole monthly ceiling (spec 010), so the month's ceiling trips first. Every answer on both hosts is then degraded until the Author's reset (spec 000 FR-033).
+- **A visitor floods EC2.** The public cap acts first, then spec 000's per-client cap and global metered limits, then the meter. Every admitted call is paid on EC2, so a long flood can reach the $5 day ceiling, which degrades every answer until the Author's reset (Expected Cost Impact). On the laptop, local answers cost nothing.
+- **A request reaches either host's stack without passing through the edge.** It is refused (FR-032).
+- **A second production-class stack with a paid route starts outside the shared meter.** It is refused (FR-018).
+- **An uptime probe runs while no host serves.** It checks the status request, which makes no model call, so it never spends (FR-061).
+- **The schedule ends while EC2 serves** (if question 15 chooses one). EC2 stops; visitors get the laptop if it runs, and otherwise `no_host_serving` (FR-069).
 - **An apply fails halfway.** The state lock holds, the apply record says what changed, and the Author re-plans. Only the Author force-unlocks (FR-006, FR-007).
 - **A secret rotates.** The Author updates the secrets store, and the stack picks the new value up on restart. The value never passes through the repository or agent context (FR-009).
 - **A release fails its health checks.** The deployer returns to the previous release and alerts (FR-047).
@@ -247,15 +393,16 @@ As a visitor, I want to watch the system run: spend next to latency and errors, 
 - **An edge cache holds a degraded answer.** It can't happen: dynamic responses are never cached (FR-029).
 - **The certificate fails to renew.** An alert fires before expiry, and the runbook covers recovery (FR-027, FR-056).
 - **The domain's delegation is wrong or lapses.** That happens outside Terraform. The uptime probe catches it, and the runbook covers it (FR-056, FR-061).
-- **The fallback gateway's telemetry can't reach the local tier.** Answers continue, and the dashboard shows what was delayed or lost (FR-060).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
+Numbers from the October draft are kept where the requirement survives, rewritten where it changed, and never reused. New requirements start at FR-063.
+
 **Infrastructure as code, in one account (User Story 1)**
 
-- **FR-001**: THE SYSTEM SHALL define every cloud resource in Terraform, in one AWS account. Terraform's state SHALL be remote, encrypted, versioned, never public, and locked during every plan and apply.
+- **FR-001**: THE SYSTEM SHALL define every cloud resource in Terraform, in one AWS account, among them the failover records and their health check, the start function, its role, and its pause switch, EC2's running pattern, the shared state's store, and the budgets. Terraform's state SHALL be remote, encrypted, versioned, never public, and locked during every plan and apply.
 - **FR-002**: THE SYSTEM SHALL separate environments by VM, IAM role, cost-allocation tag, and budget, never by account. Every taggable resource SHALL carry project, environment, and component tags, and the local gate SHALL fail any change that would create or keep an untagged taggable resource.
 - **FR-003**: THE SYSTEM SHALL define the state backend in Terraform too. Its one-time bootstrap SHALL be an apply by the Author, recorded like any other (FR-007).
 - **FR-004**: THE SYSTEM SHALL pin Terraform and every provider by version and lockfile, as spec 000's FR-014 pins every other dependency. The devcontainer SHALL carry the pinned Terraform, which spec 000's plan left to this spec.
@@ -265,124 +412,199 @@ As a visitor, I want to watch the system run: spend next to latency and errors, 
 - **FR-008**: THE SYSTEM SHALL let no identity hold a long-lived credential. No IAM user access key exists, humans use SSO, and workloads use roles with short-lived credentials. No CI identity SHALL exist in the account before publication. A committed audit SHALL check all of this before every apply and at least weekly.
 - **FR-009**: THE SYSTEM SHALL keep secret values out of the repository, the Terraform configuration, its state, its plan output, and agent context. The Author fills each secret by hand in a managed secrets store, and Terraform refers to the secret without reading its value.
 - **FR-010**: THE SYSTEM SHALL keep the AWS account ID, the alert recipients' addresses, and the Telegram chat ID out of the repository. They SHALL be supplied at run time, and recorded plans and apply records SHALL be redacted of them.
-- **FR-011**: WHEN this spec introduces a secret, a credential, a Terraform state file, or a paid route, THE SYSTEM SHALL deny it to agent sessions by name and by path, with a forbidden-action matrix row. The deny SHALL land in the same patch that creates the item or an earlier one (CLAUDE.md; spec 000 FR-007).
-- **FR-012**: THE SYSTEM SHALL protect the Terraform that defines IAM, budgets, alert routing, edge rate limits, and the kill switch the way spec 000 protects `config/budgets*` and `config/alert*`. An agent may propose a change to it only as a patch the Author applies, with an ADR, and the forbidden-action matrix SHALL prove the protection. The sources are the constitution's "Prohibited without a human" list and `.claude/agents/ops.md`.
-- **FR-013**: THE SYSTEM SHALL bring production's Bedrock runtime identity under Terraform as the identity the fallback gateway uses (FR-017), either by importing spec 000's hand-made identity or by replacing it with an environment-scoped role. The identity SHALL still be allowed only to invoke the one configured model. This ends spec 000's deviation "the runtime identity is made by hand".
+- **FR-011**: WHEN this spec introduces a secret, a credential, a Terraform state file, a tunnel credential, or a paid route, THE SYSTEM SHALL deny it to agent sessions by name and by path, with a forbidden-action matrix row. The deny SHALL land in the same patch that creates the item or an earlier one (CLAUDE.md; spec 000 FR-007).
+- **FR-012**: THE SYSTEM SHALL protect the Terraform that defines IAM, budgets (the model-spend budgets and the server budget), alert routing, edge rate limits, the kill switch, the failover and its health check, the start function and its pause switch, and EC2's running pattern, the way spec 000 protects `config/budgets*` and `config/alert*`. An agent may propose a change to it only as a patch the Author applies, with an ADR, and the forbidden-action matrix SHALL prove the protection. The pause switch's value SHALL be set only by the Author, from his terminal, with an audit record. The sources are the constitution's "Prohibited without a human" list and `.claude/agents/ops.md`.
+- **FR-013**: THE SYSTEM SHALL bring both hosts' Bedrock identities under Terraform: the laptop's, by importing spec 000's hand-made runtime identity or replacing it with an environment-scoped one, and EC2's, as its instance role. Each SHALL be allowed only to invoke the one configured model. This ends spec 000's deviation "the runtime identity is made by hand".
 
 **Moved to the publication spec: FR-014 to FR-016 (User Story 1)**
 
 The plan posted on pull requests (FR-014), the apply from a protected environment (FR-015), and CI's OIDC roles (FR-016) need GitHub, so they moved to the publication spec (Clarifications, 2026-10-11; ADR 0008). Their text is word for word in `publication-carryover.md` in this folder, where the publication spec's intent starts, as spec 000's moved text is in its folder. Their numbers aren't reused. Until publication, FR-005 and FR-007 stand in, and FR-008 keeps CI identities out of the account.
 
-**One ceiling for all spend (User Story 2)**
+**The model ceilings on one shared meter, and the server budget (User Story 2)**
 
-- **FR-017**: THE SYSTEM SHALL count every production metered call, from every production-class stack, against one meter of record: the fallback gateway's, on the cloud VM (Clarifications, 2026-10-12). That meter holds spec 000's ceilings ($5 a day and $20 a month, each with a warning at 70%) and the fallback sub-budget ($2 a day, inside the daily ceiling). WHILE the local tier is healthy, the relay SHALL send visitors' requests on the local path, through the tunnel to the local tier's `edge` service, gateway, and model. WHILE it isn't, the relay SHALL send them to the fallback gateway. The local tier's production environment SHALL have no paid route. The relay SHALL read the meter of record's kill switch at request start, before it forwards on either path.
-- **FR-018**: IF a production-class stack with a paid route would spend outside the meter of record, THEN THE SYSTEM SHALL refuse to start it.
-- **FR-019**: THE SYSTEM SHALL keep the meter of record's store and journal on storage that survives the replacement of the VM that runs them. WHEN the meter of record moves to another stack, or its store is lost, THE SYSTEM SHALL keep that stack degraded until the operator initializes it under spec 000's FR-031 and FR-034. The initialization SHALL carry over the month's spend, the day's spend, today's fallback spend, the crossed ceilings, and the renewal flag. Nothing SHALL start at zero silently.
-- **FR-020**: THE SYSTEM SHALL fit cloud infrastructure cost and metered spend inside the same ceiling. In the intent's words: "All of it must fit the same $5/day, $20/month ceiling." The meter of record SHALL also book infrastructure cost, as a daily share of the month's estimate, corrected when AWS's billing data arrives. Metered calls SHALL stop when metered spend plus infrastructure reaches $5 for the day or $20 for the month (Clarifications, 2026-10-12).
-- **FR-021**: THE SYSTEM SHALL keep idle cloud infrastructure at or under the intent's "Idle infrastructure target ≤ $10/month". Before the first apply, the plan SHALL estimate each component's idle cost from published prices.
-- **FR-022**: THE SYSTEM SHALL create the AWS budgets and a cost-anomaly monitor on the account in this spec's first apply, no later than any other resource that costs money. The budgets cover the account and production's tag at the ceilings, with warnings at 70% ($3.50 a day, $14 a month), and any other environment's tag at the amount the Author sets before that environment exists. Each budget and the monitor SHALL alert through Telegram (primary) and email (secondary), never by SMS (ADR 0005).
-- **FR-023**: WHEN AWS's billing data shows the account's month-to-date cost at or above the $20 ceiling, THE SYSTEM SHALL, without a human, revoke production's permission to call paid models at the provider and alert on both channels. The permission SHALL stay revoked until the Author restores it, and the breach SHALL get the constitution's seven-day incident note.
-- **FR-024**: THE SYSTEM SHALL keep the in-stack meter as the enforcement point and treat AWS-side budgets as the lagging safety net. No automated degradation SHALL wait on an AWS-side alert being delivered (Principle V; the constitution's Alerting standard).
-- **FR-025**: WHEN the breach test runs on dev, THE SYSTEM SHALL also assert the relay's side. Within 10 seconds of the trip the relay answers with the degraded response, and after the operator's reset it forwards again. This extends spec 000's FR-036, and it stays dev only.
-- **FR-026**: THE SYSTEM SHALL rehearse the AWS-side path by deliberately tripping a rehearsal budget set below the month's actual spend. The record SHALL show that both channels received the alert, that the automated action took effect on a rehearsal target, and how long AWS took.
+- **FR-017**: THE SYSTEM SHALL count every production metered call, from either host, against one meter: the shared state in the cloud (point 3, approved; ADR 0044, decision 7). It SHALL hold:
+  - spec 000's ceilings, $5 a day and $20 a month, each with a warning at 70%, for both hosts;
+  - the fallback sub-budget, $2 a day per grant inside the daily ceiling, with its renewal, for the laptop's fallback only;
+  - the adapter caps' months: today spec 010's $20 a month on the Anthropic adapter;
+  - the kill switch, and the audit log.
+  Admission and commit SHALL be atomic across hosts, so that two hosts serving at once can't together pass a ceiling beyond spec 000's in-flight overshoot. Each host's relay and gateway SHALL read the kill switch from it at request start. Dev and dev-cpu SHALL keep their own local meters, which never spend (spec 000 FR-031).
+- **FR-018**: IF a production-class stack with a paid route would spend outside the shared meter, THEN THE SYSTEM SHALL refuse to start it.
+- **FR-019**: THE SYSTEM SHALL keep the shared state in a store in the account that runs whether or not either host does, and that outlives both: stopping, losing, or replacing either host SHALL lose none of it. It SHALL hold the call records that initialization rebuilds from. WHEN prod's meter first moves into it, or the store is found empty, THE SYSTEM SHALL keep prod degraded on both hosts until the operator initializes it under spec 000's FR-031 and FR-034. The initialization SHALL carry over the month's spend, the day's spend, today's fallback spend, the crossed ceilings, the renewal flag, and the adapter caps' months, and nothing SHALL start at zero silently. IF a host can't read the shared state, or can't confirm it within 10 seconds, THEN that host SHALL count it as unknown and answer degraded (spec 000 FR-031; CLAUDE.md: "unknown state = degraded").
+- **FR-020**: THE model ceilings SHALL count model calls only: every metered call from either host, at its estimated cost, against $5 a day and $20 a month (spec 000 FR-030, FR-031; spec 010 FR-020). THE meter SHALL book no infrastructure cost. The server's cost SHALL sit outside the ceilings, under the server budget (FR-021, FR-022), in the Author's words: "The server size and budget is outside the $20 model spend cost." This replaces the October FR-020, which booked infrastructure on the meter inside the same ceiling.
+- **FR-021**: THE SYSTEM SHALL keep the server's monthly cost, meaning every cost of the account that isn't a model call, EC2's while stopped included, at or under the server budget, with EC2 on an instance type that fits it: [NEEDS CLARIFICATION: the server budget's monthly figure, and EC2's instance type (question 14)]. Before the first apply that creates EC2, the plan SHALL measure the stack's memory without the model server, rather than rely on the session's estimate, and SHALL estimate each line from AWS's published prices for the running pattern of FR-069.
+- **FR-022**: THE SYSTEM SHALL create these in this spec's first apply, no later than any other resource that costs money:
+  - the model-spend budgets on Bedrock's cost, at the ceilings, with warnings at 70% ($3.50 a day, $14 a month);
+  - the server budget, on every other cost of the account, at the figure of FR-021, with a warning at 70%;
+  - a cost-anomaly monitor on the account;
+  - a budget for any other environment's tag, at the amount the Author sets before that environment exists.
+  Each budget and the monitor SHALL alert through Telegram (primary) and email (secondary), never by SMS (ADR 0005).
+- **FR-023**: WHEN AWS's billing data shows Bedrock's month-to-date cost at or above $20, THE SYSTEM SHALL, without a human, revoke both hosts' permission to call Bedrock, and alert on both channels. WHEN it shows the server's month-to-date cost at or above the server budget, THE SYSTEM SHALL, without a human, stop EC2, keep the start function from starting it, and alert on both channels. Each SHALL stay in force until the Author restores it, and each breach SHALL get the constitution's seven-day incident note.
+- **FR-024**: THE SYSTEM SHALL keep the shared meter as the enforcement point for model spend, and treat AWS-side budgets as the lagging safety net. No automated degradation SHALL wait on an AWS-side alert being delivered (Principle V; the constitution's Alerting standard).
+- **FR-025**: WHEN the breach test runs on dev, THE SYSTEM SHALL also assert the relay's side. Within 10 seconds of the trip the relay answers with the degraded response, and after the operator's reset it forwards again. This extends spec 000's FR-036, and it stays dev only, on dev's local meter.
+- **FR-026**: THE SYSTEM SHALL rehearse the AWS-side paths by deliberately tripping a rehearsal model-spend budget and a rehearsal server budget, each set below the month's actual spend. The record SHALL show that both channels received each alert, that each automated action took effect on a rehearsal target (a rehearsal identity's permission, and a rehearsal instance), and how long AWS took.
 
 **The edge, the site, and the relay (User Story 3)**
 
-- **FR-027**: THE SYSTEM SHALL manage the h4reet.ai DNS zone in Terraform and serve the static site from the edge only over TLS. The certificate SHALL be issued and renewed automatically, with an alert before it expires. Plain HTTP SHALL redirect to HTTPS.
-- **FR-028**: WHILE the cloud VM, the local tier, or both are down, THE SYSTEM SHALL keep serving the static site from the edge.
-- **FR-029**: THE SYSTEM SHALL send visitors' dynamic requests from the edge to the relay, which SHALL be a container in the one compose definition (the constitution: "everything runs as a container"). THE SYSTEM SHALL never cache a dynamic response at the edge.
-- **FR-030**: WHEN a request reaches the relay, THE SYSTEM SHALL read the kill-switch state of record at request start. IF that state is `degraded`, unknown, unreadable, or not confirmed within the last 10 seconds, THEN the relay SHALL return spec 000's degraded response with its cause, without forwarding.
+- **FR-027**: THE SYSTEM SHALL manage the hareet.ai zone in Route 53, through Terraform, and serve the static site from the edge only over TLS. The certificate SHALL be issued and renewed automatically, with an alert before it expires. Plain HTTP SHALL redirect to HTTPS.
+- **FR-028**: WHILE EC2, the laptop, or both are down, THE SYSTEM SHALL keep serving the static site from the edge.
+- **FR-029**: THE SYSTEM SHALL send visitors' dynamic requests from the edge to the serving host's relay, through the failover's name for the dynamic origin. The relay SHALL be a container in the one compose definition, on both hosts (the constitution: "everything runs as a container"). THE SYSTEM SHALL never cache a dynamic response at the edge.
+- **FR-030**: WHEN a request reaches a relay, THE SYSTEM SHALL read the shared kill-switch state at request start. IF that state is `degraded`, unknown, unreadable, or not confirmed within the last 10 seconds, THEN the relay SHALL return spec 000's degraded response with its cause, without forwarding.
 - **FR-031**: WHEN the relay forwards a request, THE SYSTEM SHALL forward only the fields the gateway's contract accepts, plus the client identity of FR-032. The relay SHALL keep no copy of the message or the answer after responding, and SHALL log neither. In the intent's words, "the relay carries no payload it does not need to route".
-- **FR-032**: THE SYSTEM SHALL identify each client by the address the edge observed, accept that address only from the edge, and pass it to the gateway that answers, on either path, so that spec 000's per-client cap (FR-025) applies per visitor. Spec 000's contract expected this: "Spec 001's relay will set a verified identity." IF a request reaches the cloud stack other than through the edge, THEN THE SYSTEM SHALL refuse it.
-- **FR-033**: WHEN a client exceeds the public request cap, THE SYSTEM SHALL refuse its requests before they reach the gateway, with spec 000's 429 refusal shape, and SHALL count the refusals. The relay SHALL enforce the cap, from the address the edge supplies, before it forwards on either path (Clarifications, 2026-10-12). Capped requests still reach the edge and the relay and are billed there, which the budgets bound.
-- **FR-034**: IF the relay can reach neither the local path nor the fallback gateway, THEN THE SYSTEM SHALL return the degraded response with a cause that names this. IF the edge can't reach the relay, THEN the edge SHALL return the same degraded body itself, as the stack's `edge` service does with `api_unavailable` in spec 000.
-- **FR-035**: THE SYSTEM SHALL answer hello in spec 000's FR-022 order: on the local path while the local tier's gateway and model are healthy, then through the fallback gateway's paid fallback within the sub-budget, otherwise with the degraded response (FR-017). No new component SHALL call a model provider.
-- **FR-036**: WHILE neither the local tier nor the paid fallback can answer, THE SYSTEM SHALL answer hello with spec 000's degraded response, naming its cause. The site SHALL say that the local tier, the Author's machine, can't be reached. This takes the "degraded page" side of the intent's open question, "degraded page vs. static answers" (Clarifications, 2026-10-12). Static answers wait for the twin's spec (Assumptions).
-- **FR-037**: THE SYSTEM SHALL answer a public status request at the relay, without a model call. The answer gives the local tier's current status, the kill-switch state, and the cause a hello would get now.
-- **FR-038**: THE static site in this spec SHALL name hello as a test of the model gateway, not the twin. It SHALL state nothing about the Author that isn't in the corpus or a filled `facts/` slot, and it SHALL load nothing from any host other than h4reet.ai.
-- **FR-039**: WHEN a release would make hello reachable from the internet, THE SYSTEM SHALL first run red-team cases against hello: attempts to make it claim to be the Author or the twin, to disparage, or to reveal its configuration. THE SYSTEM SHALL refuse the release if any case fails (Principle VIII).
+- **FR-032**: THE SYSTEM SHALL identify each client by the address the edge observed, accept that address only from the edge, and pass it to the gateway that answers, on either host, so that spec 000's per-client cap (FR-025) applies per visitor. Spec 000's contract expected this: "Spec 001's relay will set a verified identity." IF a request reaches either host's stack other than through the edge, THEN THE SYSTEM SHALL refuse it.
+- **FR-033**: WHEN a client exceeds the public request cap, THE SYSTEM SHALL refuse its requests before they reach the gateway, with spec 000's 429 refusal shape, and SHALL count the refusals. The relay SHALL enforce the cap, from the address the edge supplies, before it forwards (Clarifications, 2026-10-12). Capped requests still reach the edge and the relay and are billed there, which the server budget bounds.
+- **FR-034**: IF a relay can't reach its own gateway, THEN THE SYSTEM SHALL return the degraded response with a cause that names this. IF the edge can't reach any relay, THEN FR-066 SHALL apply.
+- **FR-035**: THE SYSTEM SHALL answer hello and the twin's turns in the serving host's routing order (FR-067). No new component SHALL call a model provider, and every model call SHALL go through the gateway with provider, model, tokens, and cost.
+- **FR-036**: WHILE no route on the serving host can answer, THE SYSTEM SHALL answer with spec 000's degraded response, naming its cause, and the room SHALL show its fixed message for the cause's class (spec 002 FR-039). This keeps the "degraded page" side of the intent's open question, "degraded page vs. static answers" (Clarifications, 2026-10-12).
+- **FR-037**: THE SYSTEM SHALL answer a public status request without a model call: at the relay while a host serves, and at the edge, from the last snapshot and the fixed cause `no_host_serving`, while none does. The answer gives which host serves (EC2, the laptop, or none), whether EC2 is starting, the kill-switch state, and the cause a hello would get now.
+- **FR-038**: THE site this spec publishes at the edge SHALL be the one `apps/web` builds (spec 002), with the disclosure and the status. WHERE it offers hello, it SHALL name hello as a test of the model gateway, not the twin. It SHALL state nothing about the Author that isn't in the corpus or a filled `facts/` slot, and it SHALL load nothing from any host other than hareet.ai.
+- **FR-039**: WHEN a release would make hello or the twin's turns reachable from the internet, THE SYSTEM SHALL first run red-team cases against them on every adapter that can answer on either host: the laptop's local model and its paid fallback, and EC2's Anthropic API and Bedrock. The cases include attempts to make it claim to be the Author, to disparage, or to reveal its configuration. THE SYSTEM SHALL refuse the release if any case fails (Principle VIII).
 
-**Data flows that leave the visitor's device or the local tier (User Story 4)**
+**Data flows that leave the visitor's device, the laptop, or EC2 (User Story 5)**
 
-- **FR-040**: WHEN this spec adds a flow that leaves a visitor's device or the local tier, THE SYSTEM SHALL list it in the data-flow disclosure, in the change that creates the flow and before the flow first happens. Each row uses spec 000's columns: from → to, trigger, what the flow carries, what it never carries, why, its default, how to switch it off, and the FR. The local gate SHALL fail a change that adds a service, a tunnel route, or an egress destination without its row. The flows are those in "Data Flows This Spec Adds". Spec 000's row F1 SHALL say that visitors' messages can now reach the paid fallback.
+- **FR-040**: WHEN this spec adds or changes a flow that leaves a visitor's device, the laptop, or EC2, THE SYSTEM SHALL list it in the data-flow disclosure, in the change that creates the flow and before the flow first happens. Each row uses spec 000's columns: from → to, trigger, what the flow carries, what it never carries, why, its default, how to switch it off, and the FR. The local gate SHALL fail a change that adds a service, a tunnel route, or an egress destination without its row. The rows are those in "Data-Flow Disclosure Entries". Rows V2 and F3 SHALL say that on EC2 every hello and twin turn goes to the Anthropic API first, and to Bedrock when it can't answer.
 - **FR-041**: THE SYSTEM SHALL publish the disclosure on the site, linked from every page and built from the repository's disclosure, so that the two can't differ.
-- **FR-042**: THE SYSTEM SHALL set no cookie and store nothing on the visitor's device. It SHALL hold a visitor's address only in memory, and only for as long as the request caps need it: at most one UTC day, as spec 000's per-client cap does. The address SHALL be written to no log, trace, metric, alert, ledger, or other store.
+- **FR-042**: THE SYSTEM SHALL set no cookie and store nothing on the visitor's device. It SHALL hold a visitor's address only in memory, on either host, and only for as long as the request caps need it: at most one UTC day, as spec 000's per-client cap does. The address SHALL be written to no log, trace, metric, alert, ledger, the shared state, or any other store.
 
-**The cloud VM and deployments (User Story 5)**
+**EC2 and deployments (User Story 6)**
 
-- **FR-043**: THE SYSTEM SHALL run the very same compose definition from spec 000 on a Terraform-provisioned cloud VM, with only a cloud environment file differing. This follows spec 000's FR-017, including what an environment file may select. Any service or profile this spec adds SHALL go into that one definition, with no override file and no fork (ADR 0002).
-- **FR-044**: THE SYSTEM SHALL host in the cloud only what the constitution lists: "the static site and edge, the thin API/relay, the kill-switch state, budgets and alerting, and the Bedrock fallback path". The heavy services SHALL stay on the local tier. The whole topology SHALL run on a cloud VM only for a demonstration the Author applies, within budget.
-- **FR-045**: WHEN this spec changes the compose definition, THE SYSTEM SHALL keep `make up ENV=prod` on the local tier starting the whole production topology with one command, calling local models (Principle I; spec 000 FR-018).
-- **FR-046**: THE SYSTEM SHALL deploy to the cloud VM and to the local tier only by pull. Each host's deployer polls the release source and takes only a release made from `main`: by the Author's terminal before publication, by CI after it. The deployer SHALL check the release's images against its recorded digests before starting them. It SHALL record each deployment, with the release, its digests, the time, who started it, and the outcome, where the dashboard shows it.
+- **FR-043**: THE SYSTEM SHALL run the very same compose definition from spec 000 on a Terraform-provisioned EC2 instance, with only a cloud environment file differing; that file selects no model-server profile. This follows spec 000's FR-017, including what an environment file may select. Any service or profile this spec adds SHALL go into that one definition, with no override file and no fork (ADR 0002).
+- **FR-044**: WHERE the constitution's amendment 1.1.0 is applied (ADR 0044), THE SYSTEM SHALL run prod's stack, without the local model server, on one EC2 instance, as prod's default host. The rest of the cloud SHALL be what the Cloud standard lists. THE SYSTEM SHALL run no GPU instance and no model server in the cloud. The reason is the Author's: "within the server budget EC2 has no GPU, and a model run on its CPU wouldn't meet the twin's quality bar, which your laptop's GPU model does" (Clarifications, 2026-11-09).
+- **FR-045**: WHEN this spec changes the compose definition, THE SYSTEM SHALL keep `make up ENV=prod` on the laptop starting the whole production topology with one command, calling local models (Principle I; spec 000 FR-018).
+- **FR-046**: THE SYSTEM SHALL deploy to EC2 and to the laptop only by pull. Each host's deployer polls the release source and takes only a release made from `main`: by the Author's terminal before publication, by CI after it. EC2's deployer SHALL also check for a new release each time EC2 starts, before its stack takes visitors. The deployer SHALL check the release's images against its recorded digests before starting them. It SHALL record each deployment, with the release, its digests, the time, who started it, and the outcome, where the dashboard shows it.
 - **FR-047**: WHEN a deployer takes a new release, THE SYSTEM SHALL restart only the services whose image or configuration changed. IF the new release fails its health checks, THEN the deployer SHALL return to the previous release and alert. The previous release SHALL also be one command away for the Author (Development Workflow step 6).
-- **FR-048**: THE SYSTEM SHALL run the same images for a release on every host, by digest. The local tier and a destroyed-and-recreated cloud VM SHALL both show the release's digests.
+- **FR-048**: THE SYSTEM SHALL run the same images for a release on both hosts, by digest. The laptop and a destroyed-and-recreated EC2 SHALL both show the release's digests.
 - **FR-049**: WHEN the Author starts a stack by hand (spec 000's `make up ENV=… REF=…`), THE SYSTEM SHALL keep the deployer from replacing it until the Author hands control back. The dashboard SHALL show the running commit and who started it.
-- **FR-050**: THE SYSTEM SHALL keep a cloud stack's operator interface (spec 000's admin listener) unreachable from the internet. The Author SHALL reach it only through an identity-based, short-lived session.
-- **FR-051**: THE SYSTEM SHALL limit the cloud VM's outbound traffic to the destinations the disclosure lists, and refuse all others. Spec 000's research deferred the gateway's egress allowlist "to spec 001, where the relay and edge get their own controls".
+- **FR-050**: THE SYSTEM SHALL keep EC2's operator interface (spec 000's admin listener) unreachable from the internet. The Author SHALL reach it only through an identity-based, short-lived session.
+- **FR-051**: THE SYSTEM SHALL limit EC2's outbound traffic to the destinations the disclosure lists, among them the Anthropic API (F3), Bedrock (F1), the alert channels (A1, A2), and the shared state (C2), and refuse all others. Spec 000's research deferred the gateway's egress allowlist "to spec 001, where the relay and edge get their own controls".
 
-**The local tier (User Story 6)**
+**The laptop, the tunnel, and the handover (User Story 4)**
 
-- **FR-052**: THE local tier SHALL accept no inbound connection from outside its host. It SHALL be reachable from the cloud only through an outbound tunnel that it opens itself. The tunnel SHALL end on the cloud VM, inside the project's AWS account (Clarifications, 2026-10-12), and SHALL carry only the flows the disclosure lists. Visitors' requests SHALL enter the local tier only at the stack's `edge` service, and only for the gateway's public routes (FR-017; spec 000 research R-06: "Spec 001's tunnel attaches to `edge`"). The tunnel SHALL NOT reach Langfuse, the admin listener, or any part of Grafana.
-- **FR-053**: WHERE the tunnel reaches a local service, THE SYSTEM SHALL authenticate every call through it and accept only the cloud callers the disclosure names. Visitors' requests reach the stack's `edge` service, not the model server (FR-017). So the model server keeps spec 000's setup, which its plan said would be "revisited when spec 001's tunnel exists": no API key, and reachable only from its own stack.
-- **FR-054**: WHEN the tunnel drops or the local path's gateway or model fails its health check, THE SYSTEM SHALL route new requests in spec 000's FR-022 order within 5 seconds of the first failed check. It SHALL return to local only after spec 000's recovery rule: three passing checks in a row.
-- **FR-055**: THE local tier SHALL host no CI runner and receive no pushed deployment. The tunnel's credential SHALL be scoped to the tunnel alone, revocable by the Author in one action, and kept outside the repository and agent context.
-- **FR-056**: THE SYSTEM SHALL include a local-tier runbook that covers wake, WSL2 restart, tunnel recovery, the deployer, and `make up`, and a runbook entry for every alert this spec adds. The constitution asks for "a runbook entry if it can page a human", and spec 000 left wake, restart, and the tunnel to this runbook.
+- **FR-052**: THE laptop SHALL accept no inbound connection from outside its host. It SHALL be reachable from the cloud only through an outbound tunnel that it opens itself, so that its network address never appears in public DNS, nothing asks for an address at start, and no router or firewall setting changes (point 2, approved; ADR 0044, decision 6). The tunnel's far end: [NEEDS CLARIFICATION: which tunnel, and where it ends, now that EC2 is stopped while the laptop serves: a small always-on end inside the account, a managed tunnel service, or EC2 kept on (question 13)]. The tunnel SHALL carry only the flows the disclosure lists. Visitors' requests SHALL enter the laptop only at the stack's `edge` service, and only for the relay's public routes (spec 000 research R-06: "Spec 001's tunnel attaches to `edge`"). The tunnel SHALL NOT reach Langfuse, the admin listener, or any part of Grafana.
+- **FR-053**: WHERE the tunnel reaches a local service, THE SYSTEM SHALL authenticate every call through it and accept only the callers the disclosure names: the edge's requests and the failover's health checks. Visitors' requests reach the stack's `edge` service, not the model server, so the model server keeps spec 000's setup, which its plan said would be "revisited when spec 001's tunnel exists": no API key, and reachable only from its own stack.
+- **FR-054**: WHEN the laptop's health path, probed through its tunnel, fails the failover's health check, THE SYSTEM SHALL answer the dynamic origin's name with EC2 within the failover window: the check's detection time plus the record's time to live, which the plan sets and the dashboard shows. THE SYSTEM SHALL answer with the laptop again only after the check passes several times in a row, a count the plan sets. The health path SHALL answer healthy only while the laptop's relay and gateway are up and the shared state is readable.
+- **FR-055**: THE laptop SHALL host no CI runner and receive no pushed deployment. The tunnel's credential SHALL be scoped to the tunnel alone, revocable by the Author in one action, and kept outside the repository and agent context.
+- **FR-056**: THE SYSTEM SHALL include runbooks for:
+  - the laptop: wake, WSL2 restart, tunnel recovery, the deployer, and `make up`;
+  - handovers: to the laptop and back, a stop of EC2 that failed, and the pause switch;
+  - EC2: a start that failed, a spot interruption or the schedule, and restoring EC2 after the server budget's action;
+  - every alert this spec adds.
+  The constitution asks for "a runbook entry if it can page a human", and spec 000 left wake, restart, and the tunnel to this runbook.
 
-**The public dashboard (User Story 7)**
+**The public dashboard (User Story 8)**
 
-- **FR-057**: WHEN the local tier is unreachable, THE SYSTEM SHALL serve a cloud-hosted dashboard snapshot with last-known values and the local tier's current status. The snapshot SHALL be kept in the project's own account, with no third-party snapshot service; spec 000 switched Grafana's external snapshots off.
-- **FR-058**: WHILE the local tier is up, THE SYSTEM SHALL keep the public view's values at most 5 minutes old. Every public view SHALL show when its values were taken.
-- **FR-059**: THE public view SHALL show spec 000's FR-028 panels: request count, latency p50 and p95, error rate, spend today and month to date, fallback remaining, kill-switch state, model-server health, and why responses are degraded. It SHALL also show the local tier's status, the tunnel's state, idle cloud cost next to metered spend, and the running release. The view SHALL be read-only, and it SHALL show no payload, client identifier, operator reason, or secret.
+- **FR-057**: THE SYSTEM SHALL serve the public view as a cloud-hosted snapshot that the serving host refreshes. WHEN no host serves, the snapshot SHALL keep showing the last-known values and say that no host serves. The snapshot SHALL be kept in the project's own account, with no third-party snapshot service; spec 000 switched Grafana's external snapshots off.
+- **FR-058**: WHILE a host serves, THE SYSTEM SHALL keep the public view's values at most 5 minutes old. Every public view SHALL show when its values were taken.
+- **FR-059**: THE public view SHALL show spec 000's FR-028 panels: request count, latency p50 and p95, error rate, spend today and month to date, fallback remaining, kill-switch state, model-server health, and why responses are degraded. It SHALL also show:
+  - which host serves, the handovers, and each start-up gap's length;
+  - EC2's state and the tunnel's state;
+  - the server's month against its budget, next to model spend against the ceilings;
+  - the adapter caps' months (spec 010 FR-036);
+  - the running release.
+  The view SHALL be read-only, and it SHALL show no payload, client identifier, operator reason, or secret.
 
 **Observability and records**
 
-- **FR-060**: THE SYSTEM SHALL emit telemetry for every new path: relay requests with the path each took, their outcome, latency, refusals, and degraded causes; tunnel state; deployer actions; edge requests and errors; and AWS-side alerts. The telemetry SHALL carry no payloads or client identifiers (spec 000 FR-026, FR-029), and the dashboard SHALL show each path next to spend. IF the local tier's telemetry backends are unreachable, THEN the cloud stack SHALL keep answering, and the dashboard SHALL show how much telemetry was delayed or lost.
-- **FR-061**: THE SYSTEM SHALL probe the site and the relay's status from outside the cloud VM at a fixed interval. Each probe SHALL be marked so it never reaches traces (spec 000 reserves `h4.probe` for "spec 001's uptime checks") and SHALL cause no metered call. THE SYSTEM SHALL alert on both channels after 5 minutes of failure.
+- **FR-060**: THE SYSTEM SHALL emit telemetry for every new path:
+  - relay requests, with the host, their outcome, latency, refusals, and degraded causes;
+  - the failover's health state, its changes, and each handover;
+  - EC2's starts and stops, with who or what made each, and each start-up gap's length;
+  - spot interruptions and schedule actions;
+  - the shared state's latency and errors from each host;
+  - tunnel state, deployer actions, edge requests and errors, and AWS-side alerts.
+  The telemetry SHALL carry no payloads or client identifiers (spec 000 FR-026, FR-029), and the dashboard SHALL show each path next to spend. IF the serving host's telemetry backends are unreachable, THEN its stack SHALL keep answering, and the dashboard SHALL show how much telemetry was delayed or lost.
+- **FR-061**: THE SYSTEM SHALL probe the site and the status request from outside both hosts at a fixed interval. Each probe SHALL be marked so it never reaches traces (spec 000 reserves `h4.probe` for "spec 001's uptime checks") and SHALL cause no metered call. THE SYSTEM SHALL alert on both channels after 5 minutes of failure.
 - **FR-062**: WHEN a decision in this spec is made, THE SYSTEM SHALL record it as an ADR in the same change. The decisions are:
   - one account separated by VM, IAM role, tag, and budget (0007);
   - Terraform with reviewed plans and human apply, including the stand-in until publication and the move of the GitHub-side half to the publication spec (0008);
-  - pull-based deployment to the local tier, with no inbound ports and no self-hosted runners (0009);
+  - pull-based deployment to the laptop, with no inbound ports and no self-hosted runners (0009);
   - the public request cap's mechanism: the relay (FR-033);
-  - production's split: the local path, and the fallback gateway that holds the meter of record (FR-017);
-  - how infrastructure cost counts against the ceiling: booked on the meter (FR-020);
-  - the tunnel, which ends inside the account (FR-052);
-  - how the cloud VM runs within the idle target (FR-021).
+  - EC2 as prod's default host, the per-host routing, one host at a time, the shared meter, and the server budget outside the model ceilings (ADR 0044, proposed);
+  - the tunnel (question 13);
+  - the shared state's store (the re-plan);
+  - EC2's running pattern and its spot handover (questions 15 and 17);
+  - the failover and the start function, with their IAM (question 16).
+  The October list's "production's split" and "how infrastructure cost counts against the ceiling" are superseded by ADR 0044.
+
+**One host at a time (User Stories 3, 4, and 7)**
+
+- **FR-063**: THE SYSTEM SHALL serve prod's dynamic requests from one host at a time: EC2 by default, and the laptop WHILE the Author runs prod there and it passes the failover's health check. WHILE the laptop serves, THE SYSTEM SHALL keep EC2 stopped, except during a handover, which SHALL last at most 5 minutes from the failover answering the laptop to EC2's stop.
+- **FR-064**: WHEN the Author runs `make up ENV=prod` on the laptop, THE SYSTEM SHALL start the whole topology as before (FR-045), open the tunnel, and, once the failover answers with the laptop, stop EC2. WHILE the laptop serves and the failover answers with it, THE SYSTEM SHALL stop EC2 whenever it finds it running, as after a flap. IF it can't stop EC2, THEN `make up` SHALL still succeed, say why, and alert on both channels. The start SHALL ask for no network address and change no router or firewall setting.
+- **FR-065**: WHEN the failover stops answering with the laptop, THE SYSTEM SHALL start EC2 through the start function, without a person, unless the Author has paused it, the server budget's action has stopped EC2 (FR-023), or the running pattern says EC2 is off (FR-069). The start function SHALL make one start attempt per failover, not a loop. The pause SHALL be one switch the Author sets and the dashboard shows, as the Author asked on 2026-10-12: "I should be able to configure whether this lamda checking pipeline should even run, as in does it check hourly, or i can keep it off for days at a time if I am aware that no one is visiting or checking for the website." Each start, and each start refused, SHALL be recorded, alerted on both channels, and shown on the dashboard.
+- **FR-066**: WHILE no host can answer dynamic requests, THE edge SHALL answer each itself with spec 000's degraded body and the cause `no_host_serving`. Spec 002's room-conversation contract SHALL map that cause to the "local tier off" class, so that the room shows its resting message, `cannot_talk.resting` (point 4, approved; ADR 0044, decision 8). The static site SHALL keep loading. This covers the start-up gap, a paused or stopped EC2 with the laptop off, and a spot interruption (FR-071).
+- **FR-067**: THE SYSTEM SHALL route each host's prod by configuration, in `config/routing.yaml`, with the route selected by host, since both hosts run `H4_ENV=prod`:
+  - **the laptop**: ADR 0001's order. Degraded while the kill switch is `degraded` or unknown; the local model while it is healthy; then the one paid fallback the laptop's route names (Bedrock today, or the Anthropic API), inside the $2-a-day sub-budget, the ceilings, and the adapter caps; otherwise degraded. Rule R1, "every primary must be local", SHALL hold for this route.
+  - **EC2**: degraded while the kill switch is `degraded` or unknown; the Anthropic API while it is healthy and admitted inside the ceilings and its adapter cap; then Bedrock, its second paid route, inside the ceilings and any cap it has; otherwise degraded. EC2's route SHALL name no local adapter. Neither of its calls SHALL count against the $2-a-day sub-budget, which stays the laptop's fallback rule (the Author's answer of 2026-11-09).
+  Each degraded response SHALL record which condition applied, as spec 000's FR-022 does.
+- **FR-068**: BEFORE EC2's route names the Anthropic API, THE SYSTEM SHALL hold spec 010's preconditions:
+  - the price entry (spec 010 FR-019);
+  - the adapter's monthly cap, $20 (spec 010 FR-021);
+  - the key: on EC2, in the managed secrets store, filled by the Author's hand and passed to EC2's gateway alone (FR-009);
+  - the Author's words in row F3 (spec 010 FR-039).
+  IF the price, the cap, or the key is missing, THEN EC2's stack SHALL refuse to start, naming the reason first, as spec 010's preflight does. WHILE F3 holds its placeholder and a route names the Anthropic API, `make test` SHALL fail (spec 010 FR-039).
+- **FR-069**: THE SYSTEM SHALL run EC2 in the running pattern the Author chooses, to keep it inside the server budget: [NEEDS CLARIFICATION: spot around the clock, a daily schedule of 8 to 12 hours and which hours, or both (question 15)]. WHERE the pattern includes a schedule, outside its hours THE start function SHALL NOT start EC2, and visitors get the laptop if the Author runs it, or otherwise FR-066's degraded body.
+- **FR-070**: THE start function SHALL be allowed to start only EC2's one instance, and the laptop's startup to stop only that instance, each with a short-lived, identity-based credential, and nothing SHALL change IAM at run time: [NEEDS CLARIFICATION: which identities hold the start and the stop, and whether Terraform defines them (question 16)]. Their IAM SHALL change only by the Author's apply (FR-012).
+- **FR-071**: WHEN AWS reclaims EC2's spot capacity, THE SYSTEM SHALL alert on both channels and hand visitors over as the Author chooses: [NEEDS CLARIFICATION: the start-up gap of FR-066 until capacity returns or he starts the laptop, or an on-demand stand-in (question 17)]. The shared state SHALL lose nothing (FR-019).
+- **FR-072**: WHEN the failover changes its answer, the start function starts EC2, the laptop stops it, the running pattern or a spot interruption changes its state, or the server budget's action stops it, THE SYSTEM SHALL change only EC2's running state and which record DNS answers with, never a resource's configuration, so that the next plan from the same commit shows no change. The records, the health check, the start function, and their roles SHALL be Terraform's alone (FR-001). This settles ADR 0044's conflict with "Infrastructure exclusively via Terraform": the Author's "a lambda function can update route53" becomes failover records that answer by health, and a function that only starts EC2, as point 1 put it.
+- **FR-073**: THE shared meter SHALL bound the Anthropic API's spend in real time on both hosts (spec 010 FR-020 to FR-023). AWS-side budgets can't see that spend, so WHERE the Anthropic account offers a monthly spend limit, the Author SHALL set it at or under $20, and the runbook SHALL record that it is set, with no account details.
+- **FR-074**: THE SYSTEM SHALL let the Author reset, renew, and initialize the shared state from his own terminal, with the operator credential, a reason, and an audit row (spec 000 FR-034), whichever host serves, or none, and without a public port (FR-050).
+- **FR-075**: WHILE no host serves, THE SYSTEM SHALL call no model: no relay, gateway, or Bedrock path runs in the cloud. THE SYSTEM SHALL keep up, without either host: the edge and the static site, the public view's last snapshot (FR-057), the status answer at the edge (FR-037), the degraded body (FR-066), the shared state, the budgets and their actions, the failover, the start function, and AWS-side alerting. This settles ADR 0044's open item 7.
 
 ### Key Entities
 
-- **Environment**: a deployment target: cloud production, the local tier, or an ephemeral cloud dev or staging VM. Environments are separated by VM, IAM role, cost-allocation tag, and budget. Each runs the one compose definition with its own environment file.
+- **Environment**: a deployment target: prod on EC2, prod on the laptop, the laptop's dev and dev-cpu, or an ephemeral cloud dev or staging VM. Environments are separated by VM, IAM role, cost-allocation tag, and budget. Each runs the one compose definition with its own environment file.
+- **Host**: EC2 or the laptop. At most one is the serving host, except during a handover.
+- **Shared state**: prod's meter and kill switch in the cloud: the ceilings' meters, reservations, the laptop's fallback sub-budget and its renewal flag, the adapter caps' months, the call records, and the audit log. Both hosts' gateways and relays use it.
+- **Failover**: the records for the dynamic origin's name, the health check on the laptop's path, the start function, and its pause switch.
+- **Handover record**: when, which way, why (the laptop's start, a failed check, a spot interruption, the schedule, a budget action), the start-up gap's length, and whether EC2 stopped.
 - **Release**: a commit on `main`, with its images pinned by digest and its configuration. The Author's terminal makes releases before publication, and CI makes them after. Deployers pull releases.
 - **Deployment record**: which release runs on which host, who started it (a deployer or the Author), when, and the outcome.
 - **Plan record**: a redacted Terraform plan for one environment at one commit. It is carried in the merge-request note. (Posting it on the pull request moved to the publication spec.)
 - **Apply record**: who applied which plan (by its hash), at which commit, when, which resources changed, and the outcome.
-- **Meter of record**: spec 000's meter, with its kill-switch state, in the one stack that all production spend counts against: the fallback gateway's, on the cloud VM (FR-017). It also books infrastructure cost (FR-020).
-- **Cloud budget**: an AWS-side budget for the account or for one environment's tag. It has thresholds and alert routes, and the account budget carries FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
-- **Tunnel**: the outbound connection from the local tier to the cloud, its credential, and the local services it reaches.
-- **Public view**: the read-only dashboard visitors see, its values, and the time those values were taken.
+- **Model-spend budget**: an AWS-side budget on Bedrock's cost at the ceilings, with FR-023's automated action. The Anthropic API's spend is outside AWS and bounded by the meter (FR-073).
+- **Server budget**: an AWS-side budget on every other cost of the account, with FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
+- **Tunnel**: the laptop's outbound connection, its credential, its far end, and the local services it reaches.
+- **Public view**: the read-only dashboard visitors see, its values, the time those values were taken, and which host serves.
 - **Data-flow disclosure entry**: a row in spec 000's format, published on the site.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: With the local tier off, h4reet.ai loads and hello answers (fallback or degraded) within 5 seconds.
-- **SC-002**: Idle cloud cost is at or under the confirmed target over the first full month after the first apply. The target is the intent's "≤ $10/month", confirmed on 2026-10-12 (Clarifications). The cost is measured from AWS's cost data with model calls excluded, and it is shown on the dashboard.
-- **SC-003**: Each month's cost for the account in AWS's cost data, model calls and infrastructure together, is at or under $20, and no UTC day's cost is over $5.
+- **SC-001**: With the laptop off and EC2 serving, hareet.ai loads and hello answers (from any route, or degraded) within 5 seconds in 100% of probes over a day. The exception is a window in which no host serves (a start-up gap, a spot interruption, or EC2 stopped on purpose). In such a window the site loads, and every dynamic request gets the degraded body with `no_host_serving`, both within 5 seconds.
+- **SC-002**: Over the first full month after EC2's first apply, the account's cost other than model calls is at or under the server budget (FR-021), measured from AWS's cost data and shown on the dashboard.
+- **SC-003**: Each month's model spend across both hosts is at or under $20 on the shared meter, and no UTC day's is over $5. AWS's cost data for Bedrock, and the Anthropic account's usage for the month, are each at or under what the meter counted for that provider.
 - **SC-004**: Zero long-lived credentials for any identity, verified weekly by a committed audit script.
-- **SC-005**: Destroy-and-recreate of the VM yields an identical stack, verified by image digests, and the meter of record's values are unchanged.
-- **SC-006**: An external scan of the local tier's public address finds zero open inbound ports, both with the tunnel up and with it down.
-- **SC-007**: With the tunnel cut, hello falls back within 5 seconds of the first failed check. Once the tunnel is restored, hello answers locally again after three passing checks.
-- **SC-008**: A kill-switch change on the meter of record reaches the relay within 10 seconds. While the state can't be read, 100% of the relay's answers are degraded.
-- **SC-009**: A deliberately tripped rehearsal budget alerts on both channels, and its automated action takes effect. AWS's delay is recorded.
-- **SC-010**: When every page is loaded and hello and the status request are called, 100% of the browser's requests go to hosts the published disclosure lists, and the site sets zero cookies.
-- **SC-011**: After a test run, a scan finds a visitor's address, message, or answer in zero logs, traces, metrics, alerts, ledger rows, or other stores.
+- **SC-005**: Destroy-and-recreate of EC2 yields an identical stack, verified by image digests, and the shared state's values are unchanged.
+- **SC-006**: An external scan of the laptop's public address finds zero open inbound ports, both with the tunnel up and with it down.
+- **SC-007**: In 10 rehearsed handovers each way:
+  - laptop to EC2: the move needs no person, and 100% of dynamic requests in the gap get an answer or the degraded body with `no_host_serving`, with none getting a DNS, TLS, or gateway error page;
+  - EC2 to the laptop: no dynamic request goes unanswered, and EC2 is stopped within 5 minutes of the failover answering with the laptop.
+  Each gap's length is recorded and shown on the dashboard.
+- **SC-008**: A kill-switch change in the shared state reaches the serving host's relay within 10 seconds. While the state can't be read, 100% of that relay's answers are degraded.
+- **SC-009**: A deliberately tripped rehearsal model-spend budget and a rehearsal server budget each alert on both channels, and each automated action takes effect on its rehearsal target. AWS's delay is recorded.
+- **SC-010**: When every page is loaded and hello, the status request, and a twin turn are called, 100% of the browser's requests go to hosts the published disclosure lists, and the site sets zero cookies.
+- **SC-011**: After a test run on each host, a scan finds a visitor's address, message, or answer in zero logs, traces, metrics, alerts, ledger rows, shared-state rows, or other stores.
 - **SC-012**: Until publication, 100% of infrastructure changes carry a redacted plan in their merge-request note and an apply record that matches it, and zero applies come from an agent session.
-- **SC-013**: With the local tier off for one hour, the public view answers 100% of the time with last-known values, the time they were taken, and the local tier's current status.
+- **SC-013**: With both hosts off for one hour, the public view answers 100% of the time with last-known values, the time they were taken, and "no host serving".
 - **SC-014**: Every decision FR-062 lists has an ADR reachable from the README in two clicks.
+- **SC-016**: Over a month in which the laptop serves at least once, EC2's running time while the failover answers with the laptop is at most 5 minutes per handover.
+- **SC-017**: In a recorded run of at least 100 turns on EC2's stack, with stand-ins for both paid APIs: with both healthy, 100% of answered turns come from the Anthropic adapter; with it failing, 100% of admitted turns come from Bedrock, inside the ceilings, with nothing counted against the sub-budget. Each call carries provider, model, tokens, and cost on its span and its ledger row.
+
+SC-015 moved to the publication spec (`publication-carryover.md`); its number isn't reused.
 
 ## Assumptions
 
-- **Spec 000 first.** Spec 000 is implemented, and its stack passes its success criteria, before this spec is planned. This specify pass ran earlier, on 2026-10-10, ahead of START-HERE §3's "Spec 001 is specified in full only after spec 000's success criteria pass on your machine". Its references to spec 000's plan, research, contracts, and disclosure are to those files as they stood on 2026-10-10 across spec 000's feature branches through US5, not all of which had reached `main`. The clarify session of 2026-10-11 re-checked each reference against `main` at f20be52, after spec 000's US1 to US6 and its closing enforcement patch had merged. Every quote still matches its source, and the merge-request note lists the wording this spec corrected. On that date spec 000 wasn't done. Among its open tasks were T105 ("set up Bedrock and fill `config/prices.yaml` and `config/routing.yaml`") and T119 ("fill the success-criteria table"). T105 has since landed (6c6b23e, merged before 58bd232), and prod's route now names Bedrock as its fallback. `config/routing.yaml` on main says T105 "sets the model the Author confirmed, Claude Haiku 5.5's US inference profile, and adds prod's fallback". This spec moves that fallback to the cloud stack (FR-017). The plan of 2026-10-18 was drafted while SC-001's re-run, SC-002, SC-005's dashboard timing, and SC-007 were still open; the plan's interview asks whether to approve it before those runs.
+- **The constitution first.** This design needs the amendment ADR 0044 proposes ([2026-11-09-constitution-1.1.0.patch](../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch)), version 1.1.0, as the Author chose. Under 1.0.1, three standards conflict with it. EC2 running the stack conflicts with the Cloud standard's "The cloud hosts only what must be always-on and cheap". EC2's paid first route conflicts with the Model access standard's "the initial policy is local-first with Bedrock as fallback inside a capped sub-budget". A server budget outside the ceilings conflicts with Principle V's "the local tier exists so the cloud bill stays near zero". The constitution changes only by the Author's hand. Until he applies the patch, this spec is a draft and is not planned. Principle I stays as written, with his recorded reason (Clarifications). Two sentences the patch leaves as they are bear on this design (Constitution Check): the Observability standard's "Langfuse, self-hosted on the local tier", and the Cloud standard's list of always-on pieces, which still names "the thin API/relay" and "the Bedrock fallback path".
+- **Spec 000 first.** Spec 000 is implemented, and its stack passes its success criteria, before this spec is planned (START-HERE §3: "Spec 001 is specified in full only after spec 000's success criteria pass on your machine"). Spec 000's T105 has landed, and prod's route names Bedrock as its fallback. Spec 010 is on `main`: `config/routing.yaml` defines the `anthropic` adapter, and `config/budgets.yaml` caps it at $20 a month.
+- **ADR 0044's numbering.** ADR 0044 cites spec 001 by the 2026-09-07 outline's numbers (its "FR-005 to FR-008", "FR-007", "FR-009", "SC-002, SC-003", "US2 AS2" to "US5 AS2"), which this spec's traceability table maps. Where this spec cites ADR 0044, it cites the ADR's own decision and open-item numbers. The table under Clarifications maps each conflict the ADR names to this spec.
+- **The domain is hareet.ai.** The merge-request note of 2026-10-30 records it: "The domain: hareet.ai stays. Spec 001's FR-004 and the constitution still name h4reet.ai: spec 001 changes through its lifecycle, the constitution by your hand." This rework makes the change in spec 001; quotes keep their own spelling. The zone moves to Route 53, which the failover needs and which the Author's words name ("configure route53"). The change of the registration's name servers is a human action outside Terraform, recorded like an apply. That settles the October assumption about keeping another DNS provider.
+- **The memory estimate.** "About 8 GB" is the session's estimate, not a measured figure, and the re-plan measures the stack's memory without the model server before it picks an instance type (FR-021). Point 5's "$50 a month" is the session's unmeasured estimate too, and this spec uses it nowhere.
+- **The server budget's scope.** This is a reading of "The server size and budget is outside the $20 model spend cost". The server budget covers every cost of the account that isn't a model call: EC2 running, EC2 stopped (its volumes and any public address), the edge, DNS and the health check, the shared state, the start function, storage, the registry, and the tunnel's far end if it is in the account (ADR 0044, open item 10).
+- **What serves while no host does.** This spec decides ADR 0044's open item 7 (FR-075). The relay and the gateway run in each host's stack, so when neither host serves, no relay, gateway, or Bedrock path runs, and nothing calls a model. The cloud keeps the edge, the site, the snapshot, the shared state, the budgets, the failover, the start function, and alerting. The Author's approved point 4 already accepts that the twin rests in such a window.
+- **The laptop without a network.** The shared state is in the cloud, and unknown state is degraded (CLAUDE.md; spec 000 FR-031). So prod on a laptop that can't reach the network answers degraded, local answers included. Visitors can't reach it then anyway, since the tunnel is down. An offline showing runs `make up ENV=dev`, whose meter stays local and spends nothing. Principle I's "the entire production topology MUST be runnable on it, calling local models, with one command" holds whenever the laptop has a network. Offline, prod still starts with one command but answers degraded. This is named here so the Author can weigh it.
+- **The resting message.** During a window with no host, the room shows `cannot_talk.resting`, whose words in `apps/web/content/messages.yaml` are: "The twin can't talk right now. The local tier, the computer it runs on, is resting." Those words name the laptop, though in the start-up gap EC2 is the host that is starting. The words are spec 002's content, and they change, if the Author wants, through spec 002's lifecycle and his approval, not here.
+- **The intents' lines.** Intent 000's constraints read "$5/day and $20/month cloud ceiling. Local models on my own hardware are how the cloud bill stays near zero, and that is part of the story, not a workaround", and "Everything containerized; the entire production stack runs on my local machine calling local models." This folder's intent reads "All of it must fit the same $5/day, $20/month ceiling" and "Idle infrastructure target ≤ $10/month; the rest of the ceiling is fallback inference and burst." Under the Author's words of 2026-11-09, the $5 and $20 are model spend, the server is outside them, and EC2 is the default host. The laptop still runs the whole production stack, calling local models (FR-045), but it is no longer where prod runs by default. The intents are the Author's words, and they stay his to revise; this spec reads them under his later words and doesn't edit them.
+- **The Anthropic account's limit.** FR-073 assumes the Anthropic account may offer a monthly spend limit. Whether it does is the Author's to confirm, in the account; no agent sees it.
 - **Deviation for the local phase: no pull requests and no protected environment for infrastructure** (ADR 0013, accepted).
   - The constitution's Cloud standard asks for "plan output posted on every PR; apply from a protected environment requiring human approval". CLAUDE.md's infra line says "apply is a human action in the protected CI environment".
   - Until publication there are no pull requests and no CI. The plan goes in the merge-request note (FR-005), and apply is the Author's terminal action, recorded (FR-007).
@@ -395,47 +617,48 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
   - FR-008 still allows no CI identity in the account before publication.
   - ADR 0003 (proposed) already says this of the protected environment: "That environment belongs to the publication spec (ADR 0014)."
 - **Carried deviation: CI-side supply-chain controls** (ADR 0014). This spec's new services and its Terraform get no SBOM, no vulnerability scan, no automated updates, and no CI-built releases until the publication spec. Lockfile and version pins (FR-004), digest checks (FR-046), and the local gate stand in. Spec 000's publication carry-over already notes that Dependabot doesn't cover Terraform providers.
-- **Carried deviations on identical images** (spec 000's Assumptions, "Deviation: image variants" and "Deviation, pending the Author's decision: one gateway build per stack", which is tasks.md T184; ADR 0015). The cloud environment file selects which services run, and spec 000's FR-017 counts that as configuration. FR-048 asks for the same digests on every host for a release, and the answer on releases (Clarifications, 2026-10-12) builds each release once. Spec 000's own T184, one gateway build for prod and dev, stays the Author's decision for spec 000.
+- **Carried deviations on identical images** (spec 000's Assumptions, "Deviation: image variants" and "Deviation, pending the Author's decision: one gateway build per stack", which is tasks.md T184; ADR 0015). EC2's environment file selects which services run, and spec 000's FR-017 counts that as configuration. FR-048 asks for the same digests on both hosts for a release, and the answer on releases (Clarifications, 2026-10-12) builds each release once. If EC2's processor architecture differs from the laptop's, a release is one multi-architecture image index.
 - **Ending a deviation.** Spec 000's "the runtime identity is made by hand" ends with FR-013.
 - **Enforcement points change by the Author's hand.** FR-005, FR-006, FR-011, and FR-012 change hooks, deny lists, the matrix, and the local gate, which only the Author changes (`.claude/**`, `tools/gates/**`). They arrive as patches the Author applies, each before the risk it guards (spec 000 plan §15).
-- **Who runs the real plan before publication** (Clarifications, 2026-10-12). Agent sessions have no AWS credentials, and their sandbox doesn't allow the Terraform registry. The Author's terminal makes the plan that goes in the note. Agent sessions run formatting, validation, and policy checks offline, against a provider cache the Author seeds, the way the agents' engine's images are seeded. Opening the sandbox would be the Author's decision ("Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.").
-- **Hello is public** (Clarifications, 2026-10-12). The intent's visitor story and the 2026-09-07 outline both have visitors calling hello. So hello is reachable through the relay, capped, as a test endpoint with spec 000's fixed prompt; it is not the twin.
-- **When neither the local tier nor the fallback can answer** (the intent's open question; Clarifications, 2026-10-12). Spec 000's degraded response, plus the site's notice (FR-036). Static answers would be content about the Author, which only the corpus may supply (Principle VIII), so they wait for the twin's spec.
-- **The idle target** (Clarifications, 2026-10-12). The intent says: "Idle infrastructure target ≤ $10/month; the rest of the ceiling is fallback inference and burst." START-HERE §5 listed it as open ("proposed ≤ $10/month"), and the Author confirmed it. How the cloud VM runs is the plan's choice within the target (FR-021). The relay is on the VM (FR-017), and so is the tunnel's end (FR-052), so the VM must be up whenever visitors are served. That leaves two options: always on and on demand, or always on as spot. A VM started only while the local tier is down, the Author's scenario under question 2, would need those two answers revisited. The session's rough figures put an always-on, on-demand VM with its public IPv4 address near the target before any other line, and the same VM on spot well under it. The Author can still stop the VM on purpose, for days if no one is visiting. While it's stopped, the site loads and the edge answers hello and the status request with its degraded body (FR-034).
-- **What an AWS-side breach does** (Clarifications, 2026-10-12). FR-023 revokes paid-model calls at the provider automatically, by removing the fallback gateway's Bedrock permission. Local answers continue. Principle V: "When spend crosses a threshold the system degrades itself without waiting for a human, and a human must consciously restore it." The Author's apply sets the action up, just as the kill switch's trip is set up in advance.
-- **Releases before publication** (Clarifications, 2026-10-12). The Author's terminal builds each release once and publishes it, with its digests, to a private registry in the account, and both deployers pull from there. If the cloud VM's processor architecture differs from the local tier's, a release is one multi-architecture image index; the plan picks the instance type. After publication, CI publishes releases. That depends on the publication spec's half of spec 000's FR-016, "built in CI and promoted unchanged".
-- **The public view** (Clarifications, 2026-10-12). The public view is always the cloud-hosted snapshot, refreshed so its values are at most 5 minutes old (FR-058), and the operator's Grafana never faces the internet. This reads the constitution's "Grafana for public read-only dashboards" as Grafana's dashboards served as snapshots. The snapshot leaves the local tier outbound (flow C4), so the tunnel never reaches Grafana (FR-052).
-- **The tunnel** (Clarifications, 2026-10-12). It ends inside the project's AWS account, on the cloud VM, so no third party can read what it carries (FR-052).
-- **Default intervals.** The 5 minutes for the public view and the uptime probe reuse spec 000's 5-minute alert window. The relay's 10 seconds and the 5-second failover come from the 2026-09-07 outline. These are defaults, not facts about the Author.
-- **Only production lives in the cloud.** Cloud dev/staging VMs, if used, are ephemeral; dev and staging otherwise remain on the local host. Each ephemeral VM gets its own role, tag, and budget, and the Author sets the budget's amount before the VM is created.
-- **The heavy tiers stay on the local machine.** The cloud VM runs the thin services and can run the full stack for demonstration only within budget (FR-044).
-- **The domain.** The Author holds h4reet.ai's registration (to confirm), and already has a DNS provider: "we already have a dns provider" (2026-10-12). FR-027 needs the zone managed in Terraform. That provider can keep the zone if Terraform can manage its records; otherwise the zone moves. Any change to the registration's name servers is a human action outside Terraform, recorded like an apply.
-- **The site.** `apps/web` is Phase 1 (spec 000's plan). This spec ships a placeholder page with what h4reet.ai is, the disclosure, the status, and a way to call hello.
-- **Alerts.** SMTP stays the email channel. Spec 000's answer allowed that "spec 001 can swap in SES by configuration", but nothing here needs it. No mail is received on h4reet.ai; the publication spec may add an address for the code of conduct, with its own disclosure row.
-- **The local tier's egress.** Spec 000 left the local gateway's open egress route to the Author. Its disclosure row S2 says: "The `egress` network has no destination allowlist in spec 000: the Author decides whether to accept that or ask for one (plan, Complexity Tracking)". That decision is still open, and this spec doesn't make it: FR-051 limits only the cloud VM's egress.
+- **Who runs the real plan before publication** (Clarifications, 2026-10-12). Agent sessions have no AWS credentials, and their sandbox doesn't allow the Terraform registry. The Author's terminal makes the plan that goes in the note. Agent sessions run formatting, validation, and policy checks offline, against a provider cache the Author seeds. Opening the sandbox would be the Author's decision ("Widening `permissions.allow` or sandbox domains to make a task easier. Ask instead.").
+- **Hello is public** (Clarifications, 2026-10-12): through the relay, capped, as a test endpoint with spec 000's fixed prompt; it is not the twin. On EC2 its calls are paid, at spec 010's estimate of under $0.0002 a call.
+- **When no route can answer** (Clarifications, 2026-10-12). Spec 000's degraded response, and the room's fixed message by the cause's class (FR-036, FR-066). Static answers would be content about the Author, which only the corpus may supply (Principle VIII).
+- **What an AWS-side breach does** (Clarifications, 2026-10-12, re-read on 2026-11-09). FR-023 revokes Bedrock on both hosts automatically. The Anthropic API isn't on AWS's bill, so the meter and spec 010's cap bound it, and the account's own limit is its safety net (FR-073). The server budget's action stops EC2. Principle V: "When spend crosses a threshold the system degrades itself without waiting for a human, and a human must consciously restore it." The Author's apply sets each action up, as the kill switch's trip is set up in advance.
+- **Releases before publication** (Clarifications, 2026-10-12). The Author's terminal builds each release once and publishes it, with its digests, to a private registry in the account, and both deployers pull from there. After publication, CI publishes releases. That depends on the publication spec's half of spec 000's FR-016, "built in CI and promoted unchanged".
+- **The public view** (Clarifications, 2026-10-12). The public view is always the cloud-hosted snapshot, refreshed by the serving host so its values are at most 5 minutes old (FR-058), and no operator's Grafana faces the internet. This reads the constitution's "Grafana for public read-only dashboards" as Grafana's dashboards served as snapshots.
+- **Default intervals.** The 5 minutes for the public view, the uptime probe, and the handover window reuse spec 000's 5-minute alert window. The relay's 10 seconds come from the 2026-09-07 outline. The failover's check count and the records' time to live are the plan's. These are defaults, not facts about the Author.
+- **Only production lives in the cloud.** Cloud dev or staging VMs, if used, are ephemeral; dev and staging otherwise remain on the laptop. Each ephemeral VM gets its own role, tag, and budget, and the Author sets the budget's amount before the VM is created.
+- **The site.** `apps/web` builds spec 002's room, which this spec publishes at the edge with the disclosure and the status. What the site says about the Author goes public only with the Author's approvals (ADR 0034) and the readiness of each topic (spec 007).
+- **Alerts.** SMTP stays the email channel. Spec 000's answer allowed that "spec 001 can swap in SES by configuration", but nothing here needs it. No mail is received on hareet.ai.
+- **The laptop's egress.** Spec 000 left the local gateway's open egress route to the Author. Its disclosure row S2 says: "The `egress` network has no destination allowlist in spec 000: the Author decides whether to accept that or ask for one (plan, Complexity Tracking)". That decision is still open, and this spec doesn't make it: FR-051 limits only EC2's egress.
 - **The clock.** Every budget day and month is UTC, as in spec 000 and AWS billing.
-- **Agents and the cloud.** No agent session reaches AWS. The agents' engine is reused unchanged, with stand-ins for AWS and for the tunnel's peer.
+- **Agents and the cloud.** No agent session reaches AWS. The agents' engine is reused unchanged, with stand-ins for AWS, the shared state, the failover, and the tunnel's peer.
 - **Development-time spend** stays on the Team plan (spec 000 FR-037).
-- **Changes that need a human.** IAM, budgets, alert routing, edge rate limits, and the kill switch change only with the Author and an ADR (FR-012). The same holds for `config/budgets.yaml`, `config/alerts.yaml`, and `config/prices.yaml` (ADR 0017). This spec changes them only if the plan puts FR-020's infrastructure estimate in one of them, and then only by the Author's hand, with an ADR.
+- **Changes that need a human.** IAM, budgets, alert routing, edge rate limits, the kill switch, the failover, the start function and its pause switch, and EC2's running pattern change only with the Author and an ADR (FR-012). The same holds for `config/budgets.yaml`, `config/alerts.yaml`, and `config/prices.yaml` (ADR 0017). This spec changes none of those files' figures: the ceilings, the sub-budget, and the cap stay as they are, and the server budget lives in Terraform. Saying in `config/budgets.yaml` that the sub-budget applies to the laptop's route only, if the re-plan puts it there, is the Author's patch.
 - **Out of scope**:
-  - the twin, the corpus, voice, avatars, and the room (Phases 1 to 3);
+  - the twin's behavior, the corpus, voice, avatars, and the room (specs 002 to 011);
   - the publication spec's own work: branch protection, CI workflows, Dependabot, and the code of conduct;
   - more than one AWS region for the stack;
-  - a standing cloud staging environment.
+  - a standing cloud staging environment;
+  - a GPU or a model server in the cloud;
+  - both hosts serving at once beyond a handover.
 
 **Dependencies**:
 - Spec 000, implemented and passing its success criteria.
+- The constitution's amendment 1.1.0, applied by the Author, and ADR 0044, accepted.
+- Spec 010 on `main`, and the Author's preconditions for the Anthropic route: his price, his cap, his key, and his words in row F3 (FR-068).
+- An amendment to spec 002's room-conversation contract for `no_host_serving` (FR-066).
 - The publication spec, which has no intent yet. It takes FR-014 to FR-016 and SC-015 (`publication-carryover.md`), and CI-built releases depend on it.
-- The Author's terminal, for every apply, the domain's delegation, the secrets, and releases before publication.
+- The Author's terminal, for every apply, the domain's delegation, the secrets, releases before publication, and the pause switch.
 
 **Traceability to the 2026-09-07 outline**:
 
 | Outline | This draft |
 |---|---|
 | User Story 1 | User Story 1; its scenarios 1 to 3 became scenarios 7 to 9, which moved to the publication spec (`publication-carryover.md`) |
-| User Story 2 | User Story 5 ("unchanged" became the intent's "the very same"; "a new image on `main`" became "a new release") |
-| User Story 3 | User Story 3; its dashboard scenario moved to User Story 7 |
-| User Story 4 | User Story 6 |
+| User Story 2 | User Story 6 ("unchanged" became the intent's "the very same"; "a new image on `main`" became "a new release") |
+| User Story 3 | User Story 3; its dashboard scenario moved to User Story 8 |
+| User Story 4 | User Story 4 |
 | User Story 5 | User Story 2, now P1 |
 | FR-001 | FR-001, FR-002 |
 | FR-002 | FR-005 and FR-007 until publication; after it, FR-014 and FR-015, which moved to the publication spec |
@@ -449,29 +672,51 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
 | FR-010 | FR-033 |
 | FR-011 | FR-056 |
 | SC-001 | SC-004 |
-| SC-002 | SC-002; the target is the intent's, confirmed on 2026-10-12 |
-| SC-003 | SC-001 |
+| SC-002 | SC-002; the target is now the server budget (question 14) |
+| SC-003 | SC-001, with the window in which no host serves |
 | SC-004 | SC-005 |
 | SC-005 | SC-014 |
 
 ## Expected Cost Impact
 
-The intent sets the budget in two lines: "All of it must fit the same $5/day, $20/month ceiling", and "Idle infrastructure target ≤ $10/month; the rest of the ceiling is fallback inference and burst." The fallback sub-budget stays spec 000's: $2 a day per grant, inside the $5 daily ceiling. Warnings stay at 70%: $3.50 a day, $14 a month, and $1.40 of each fallback grant (`config/budgets.yaml`; spec 000 FR-030).
+Two budgets, kept apart, in the Author's words: "Keep the cap as-is at $20 a month, $5 a day", and "The server size and budget is outside the $20 model spend cost."
 
-| Component | Kind of cost | Expected |
+**Model spend, on the shared meter.** Nothing changes in the figures (`config/budgets.yaml`; spec 000 FR-030; spec 010 FR-021). What changes is where each applies:
+
+| Item | Figure | Where it applies |
 |---|---|---|
-| The cloud VM with the thin services (the relay, the fallback gateway with the meter of record and its kill switch, the tunnel's end), its disk, and its public address | fixed, all month | The largest idle line. The plan sizes the VM from the services it runs and prices it, on demand or as spot (Assumptions: the idle target); spec 000's plan puts the gateway and its store at about 0.6 GB of memory. |
-| The DNS zone and the certificate | fixed, small | — |
-| The edge and the static site's storage | per request and per byte | Close to zero at a portfolio's traffic. The caps bound a flood (FR-033), and the budgets catch it, late (FR-022, FR-023). |
-| Terraform state, the secrets store, the release registry, the public snapshot | storage, small | — |
-| AWS budgets, the anomaly monitor, the budget action, and the bridge that carries AWS-side alerts to Telegram | small or none | — |
+| The daily ceiling, and its warning | $5 a day; $3.50 | both hosts |
+| The monthly ceiling, and its warning | $20 a month; $14 | both hosts |
+| The fallback sub-budget, per grant, inside the daily ceiling, and its warning | $2 a day; $1.40 | the laptop's fallback only |
+| The Anthropic adapter's monthly cap | $20, the whole monthly ceiling | both hosts |
+
+What changes is how often a turn is paid:
+- **On EC2, every admitted turn is a paid call**, since EC2 has no local model. Spec 010's estimate, at the price its brief gave (marked est. until the Author confirms it), is about $0.0007 to $0.00095 a twin turn, and under $0.0002 a hello. At that estimate, the $20 month covers about 21,000 to 28,000 twin turns, and the $5 day about 5,200 to 7,100, before hello, the Author's live runs, and reservations. These are derived from spec 010's estimate, not measured.
+- **On EC2, the $5 day is the only daily limit** on paid calls; the sub-budget doesn't apply there. The option the Author chose on 2026-11-09 says: "When a ceiling trips, the twin rests until you reset it, as today."
+- **A flood on EC2 now spends.** The global limit admits up to 60 metered calls a minute (`config/budgets.yaml`). At spec 010's high estimate, that reaches the $5 day ceiling in roughly an hour and a half. The kill switch then degrades every answer until the Author's reset (spec 000 FR-033). The public cap and the per-client cap slow this, but a flood from many addresses can still reach it.
+- **On the laptop, local answers cost nothing**, as before, and its paid fallback stays inside the sub-budget.
+- **The Anthropic account's credits**: the meter counts list price either way (spec 010).
+
+**The server budget.** No estimate yet. The figure and the instance type are question 14, and the running pattern is question 15. Before the first apply that creates EC2, the plan prices each line below from AWS's published pages and measures the stack's memory. The September research priced an instance for the thin services only (research.md R-04 and R-05, superseded), so its totals don't carry over to a stack of about 8 GB.
+
+| Line | Kind of cost | Expected |
+|---|---|---|
+| EC2 while running | per hour, on spot or on a schedule | The largest line. Sized from the measured stack (question 14), priced for the running pattern (question 15). |
+| EC2 while stopped: its volumes, and any public address | storage, and the public IPv4 charge, which AWS bills in use or not (research.md R-05) | Paid whether EC2 runs or not, and counted in the server budget. |
+| The tunnel's far end | depends on question 13 | A small always-on instance and its address in the account, or a vendor's plan, or nothing new if EC2 stays on. |
+| The shared state's store | per request and storage | Small at a portfolio's traffic. The re-plan picks the store. |
+| The hareet.ai zone, its queries, the failover's health check | fixed, small | Priced by the re-plan. |
+| The start function | per invocation | A few starts a month. |
+| The edge, the static site's storage, and the public view's storage | per request and per byte | Small at a portfolio's traffic. The caps bound a flood (FR-033), and the server budget catches it, late (FR-022, FR-023). |
+| Terraform state, the secrets store, the release registry | storage, small | — |
+| AWS budgets, the anomaly monitor, the budget actions, and the bridge that carries AWS-side alerts to Telegram | small or none | — |
 | The uptime probe | per check | Never a metered call (FR-061). |
-| Bedrock fallback | metered, per call | Spec 000's sub-budget. At worst the ceilings, less the infrastructure cost the meter books (FR-020). |
 | Telegram and SMTP alerts | none | Both are free (ADR 0005). |
-| The local tier | none in the cloud | — |
 | Development time | the Team plan (spec 000 FR-037) | Agent sessions reach no cloud. |
 
-Before the first apply, the plan prices every line from the published pricing pages and sums the idle lines against "≤ $10/month" (FR-021). It also states how much of each ceiling FR-020's booking of infrastructure cost leaves for fallback and burst. The public request cap adds no fixed line: it runs in the relay (FR-033). SC-002 and SC-003 measure the result. The worst case comes from AWS's billing lag: a non-model overrun can pass the ceiling before the budgets react. The meter bounds model spend in real time, and FR-023 then cuts paid model calls off at the provider.
+**Worst cases.** AWS's billing data lags by hours, so a server overrun can pass the budget before its action stops EC2. The meter bounds model spend in real time on both hosts. FR-023 then cuts off Bedrock at the provider. The Anthropic API's spend is outside AWS's data, bounded by the meter, spec 010's cap, and the account's own limit (FR-073).
+
+**Measurement.** SC-002 and SC-003; the ledger's rows by provider and host; the server's month against its budget on the dashboard (FR-059); each start-up gap's length.
 
 ## Degraded Modes
 
@@ -479,90 +724,189 @@ This table gives every new path's behavior when something it needs is gone. Prin
 
 | What is gone | What a visitor gets | What the operator gets | Requirements |
 |---|---|---|---|
-| The local tier (asleep, off, or WSL2 restarting), or its tunnel | The site. Hello is answered by the paid fallback inside the sub-budget, or with the degraded response and its cause. The site says the local tier can't be reached, and the public view shows last-known values and the tier's current status. | Tier and tunnel status, fallback spend, a probe alert after 5 minutes, and the local-tier runbook | FR-028, FR-035, FR-036, FR-054, FR-056, FR-057 |
-| Both the local tier and the paid fallback (the sub-budget is spent or awaiting renewal, a ceiling was reached, the provider is down, or its permission was revoked) | The degraded response naming its cause, and the site's notice | Spec 000's alerts, renewal, and reset | FR-036 |
-| The kill-switch state is unreadable, unknown, or not confirmed in 10 seconds | The degraded response (fail closed) | Spec 000's store alert | FR-030 |
-| The fallback gateway, seen from the relay, while the local path is down too | The degraded response naming it | The relay panel, a probe alert | FR-034 |
-| The relay or the whole cloud VM, down or being replaced | The site, plus the edge's own degraded body for hello and status | A probe alert and a deployment record; the meter of record's store survives the VM | FR-019, FR-028, FR-034, FR-061 |
-| The edge or the DNS service itself | Nothing loads. There is no second host: one account, and no second vendor. | The probe alerts | FR-061 |
+| The laptop (asleep, off, or WSL2 restarting), or its tunnel, while it served | The site. The resting message for dynamic requests (`no_host_serving`) until EC2 answers, then EC2's answers. | A handover alert, the start record, the gap's length, and the runbook | FR-054, FR-065, FR-066 |
+| EC2, while it starts | The site, and the resting message | The gap's length on the dashboard | FR-066 |
+| Both hosts: EC2 paused, stopped by the server budget, outside its schedule, reclaimed, or failed to start, and the laptop off | The site; the resting message; the public view's last-known values with "no host serving". Nothing calls a model. | An alert, a probe alert after 5 minutes, and the runbook | FR-028, FR-057, FR-065, FR-066, FR-075 |
+| The Anthropic API on EC2: down, circuit open, or key refused | Bedrock's answer inside the ceilings, or else `cannot_talk.resting` | Spec 010's alerts and runbook | FR-067 |
+| Both paid routes on EC2: a provider down, or Bedrock revoked | The degraded response naming its cause | Spec 000's and spec 010's alerts | FR-036 |
+| The laptop's local model, and its paid fallback: the sub-budget spent or awaiting renewal, or the provider down | The degraded response naming its cause | Spec 000's alerts and renewal | FR-036, FR-067 |
+| A model ceiling reached, or the kill switch tripped | `cannot_talk.budget`, on both hosts, local answers included | Spec 000's alerts and reset | FR-017, FR-030 |
+| The shared state, unreadable or unconfirmed from a host | The degraded response on that host (`cannot_talk.unavailable`); on the laptop, the failover moves visitors to EC2 | A store alert | FR-019, FR-030, FR-054 |
+| The laptop's stop of EC2, failed | Nothing changes: the laptop serves, and the shared meter bounds model spend | An alert; EC2's running hours count against the server budget until it stops | FR-064 |
+| The start function, failed or refused | The site, and the resting message | An alert and a probe alert | FR-065 |
+| The failover's health check (AWS-side) | DNS answers as the check last decided | Probe alerts | FR-061 |
+| The edge or the DNS service itself | Nothing loads. There is no second host: one account, and no second vendor. | Probe alerts | FR-061 |
 | A client's share of the caps | A 429 refusal | Refusal counts | FR-033 |
-| Paid-model permission, after an AWS-side breach | Local answers continue; the fallback is refused | An alert and the seven-day incident note | FR-023 |
+| Bedrock's permission, after an AWS-side breach | On the laptop, local answers continue; on EC2, the Anthropic API continues, inside the meter | An alert and the seven-day incident note | FR-023 |
+| The server budget, crossed | EC2 stops. The laptop serves if the Author runs it, and otherwise the resting message. | An alert and the seven-day incident note | FR-023 |
 | AWS's billing data, arriving late | Nothing changes | The safety net acts late; the meter is unaffected | FR-024 |
 | A new release that fails its health checks | The previous release keeps answering | An alert and a deployment record | FR-047 |
-| The release source | Nothing changes | The deployer's last poll, on the dashboard | FR-046 |
-| The local tier's telemetry backends | Nothing changes | Delayed or lost telemetry, shown on the dashboard; enforcement is unaffected | FR-060 |
-| The snapshot's refresh, while the local tier is up | Older values, with their time | The freshness panel | FR-058 |
+| The release source | Nothing changes; EC2 starts on its last release | The deployer's last poll, on the dashboard | FR-046 |
+| The serving host's telemetry backends | Nothing changes | Delayed or lost telemetry, shown on the dashboard; enforcement is unaffected | FR-060 |
+| The snapshot's refresh, while a host serves | Older values, with their time | The freshness panel | FR-058 |
 | The uptime probe | Nothing changes | Missing probe results on the dashboard | FR-061 |
 | One alert channel | Nothing changes | The other channel (spec 000 FR-032) | FR-022 |
 | The state backend or its lock | Nothing changes | Plan and apply refuse to run; only the Author may force-unlock | FR-001, FR-006 |
-| The secrets store, when a cloud stack starts | The edge's degraded body | The stack refuses to start (spec 000's startup refusals), and a probe alert | FR-009 |
+| The secrets store, when EC2's stack starts | The resting message | The stack refuses to start (spec 000's startup refusals), and a probe alert | FR-009 |
 | The certificate's renewal | Browser warnings once it expires | An alert before expiry, and the runbook | FR-027, FR-056 |
+| The laptop's network, while the Author shows prod there | No visitors reach it (the tunnel is down), and EC2 takes over; on the laptop itself, degraded | The runbook: an offline showing runs `ENV=dev` | FR-019 |
 
 The row for CI after publication moved to the publication spec with FR-014 and FR-015 (`publication-carryover.md`).
 
-## Data Flows This Spec Adds
+## Data-Flow Disclosure Entries
 
-Each row below becomes a row of `docs/data-flow-disclosure.md`, with spec 000's columns, in the change that creates the flow (FR-040). The site publishes the result (FR-041). This is the list the spec commits to; the disclosure itself is authoritative.
+These are for `docs/data-flow-disclosure.md`, each in the change that creates or changes its flow (FR-040). The site publishes the result (FR-041). This is the list the spec commits to; the disclosure itself is authoritative. The rows below use the disclosure's existing IDs. Spec 002 holds V1, V2, and V4, and reserves V3 and V5 ("Rows V3 and V5 come with the work that creates each flow"), so this spec's new visitor rows start at V6. The October draft's own V and C numbers are replaced; C12 stays reserved for the publication spec.
 
-| Flow | From → to | Carries | Never carries | Why |
-|---|---|---|---|---|
-| V1 | the visitor's browser → the edge, for the static site and the disclosure | the path, the IP address, the user agent, standard headers, the TLS server name | cookies (none are set); requests to third parties (none are made, FR-038) | to serve the site (FR-027) |
-| V2 | the visitor's browser → the edge → the relay, for hello and the status request; the relay sends hello on the local path (C1) or to the fallback gateway (FR-017) | hello's message (at most 500 characters) and its answer; the IP address, held in memory for the caps; the user agent | the message or the answer in any log, trace, or store; the address in any log, trace, metric, alert, ledger, or store (FR-031, FR-042) | to answer hello and to show whether the machine is awake (FR-030 to FR-037) |
-| V3 | the visitor's resolver → the DNS service for h4reet.ai | the lookup, as the resolver sends it | — | to find the site |
-| V4 | the visitor's browser → the public view | the IP address, the user agent | — | to watch the system run (FR-057 to FR-059) |
-| V5 | the visitor's browser's own checks, such as a certificate's status | what the browser sends | — | listed because the site can't switch them off |
-| C1 | the relay → the local tier's `edge` service, through the tunnel: the local path (FR-017) | hello's message and its answer back; the client identity of FR-032, held in memory only (FR-042) | the operator token and secrets; the message, the answer, or the address in any log, trace, or store | local-first answers (FR-035) |
-| C2 | the fallback gateway → Bedrock: spec 000's row F1, moved to the cloud, which visitors' messages can now reach | as F1, with a visitor's message | as F1 | the capped fallback (FR-035) |
-| C3 | the cloud stack → the local tier's collector, through the tunnel | spans, metrics, logs | payloads, client identifiers, secrets (spec 000 FR-029) | observability (FR-060) |
-| C4 | the local tier → the cloud: the public snapshot | dashboard values and their time | payloads, client identifiers, operator reasons, secrets | so the public view never goes dark (FR-057) |
-| C5 | the local tier → the tunnel's cloud end: the tunnel itself | the tunnel credential, keep-alives | — | FR-052 |
-| C6 | both deployers → the release source; the cloud VM → image registries | release IDs, image names and digests, the host's address | credentials beyond pull access | pull-based deployment (FR-046) |
-| C7 | the fallback gateway → Telegram and the alerts mailbox: spec 000's rows A1 and A2, now also sent from the cloud | as A1 and A2 | as A1 and A2 | alerts (spec 000 FR-032) |
-| C8 | AWS's budgets and anomaly monitor → Telegram and the alerts mailbox | the budget or monitor, the threshold, the amounts, the time | payloads, client identifiers | the safety net (FR-022) |
-| C9 | the Author's terminal → AWS's APIs: Terraform plans and applies, and the state | resource configuration, the state, the Author's short-lived session | secrets' values (FR-009) | infrastructure as code (FR-001, FR-007) |
-| C10 | the Author's terminal → the release source, before publication | release images and their digests | — | releases (Clarifications, 2026-10-12) |
-| C11 | the uptime probe → the site and the relay's status | probe requests, marked as probes | — | detection (FR-061) |
+### Changed rows
 
-Flow C12, from CI to AWS's APIs after publication, moved to the publication spec with FR-016 (`publication-carryover.md`). Its number isn't reused.
+The headline change: **on EC2, every hello and twin turn goes to the Anthropic API.** Rows V2, F3, and S2 change for that, and the others for the edge, the tunnel, and EC2.
+
+| Row | Cell | The change |
+|---|---|---|
+| V2 | From → To | "after spec 001, through its edge and relay" becomes "after spec 001, through hareet.ai's edge to the serving host's relay: EC2's by default, or the laptop's through its tunnel (C3) while the Author runs it". |
+| V2 | Why | After "On prod, that fallback is the paid adapter prod's route names: Bedrock (F1) or the Anthropic API (F3) (spec 010)", add: "On EC2, prod's default host, there is no local model: every turn goes to the Anthropic API first (F3), and to Bedrock (F1) when it can't answer. In the Author's words: "On the ec2 server, anthropic api will answer first." (2026-11-09; spec 001)". |
+| V2 | Default | Add: "On EC2, every turn the meter admits is a paid call." |
+| V2 | How to switch it off | Add: "Stop EC2 and pause its start (spec 001, FR-065)." |
+| F3 | From → To | "`gateway`, on prod only" becomes "`gateway`, on prod only: on EC2 as its first route, and on the laptop while its route names the Anthropic API as the fallback". The endpoint, the model, and the placeholder for the Author's words don't change. |
+| F3 | Trigger | Add, before the laptop's trigger: "On EC2: every `POST /hello` and room turn that the kill switch and admission let through, inside the ceilings and the adapter's monthly cap, with no local model before it and no sub-budget; and the health check, once a minute while EC2 runs." |
+| F3 | Why | Add: "On EC2 it answers first: "On the ec2 server, anthropic api will answer first." (the Author, 2026-11-09)". |
+| F3 | Default | "off: on only once the Author changes prod's route to `fallback: anthropic`" becomes "On EC2: on, once its route names the Anthropic API first, which waits on his price, his cap, his key, and his words in this row (spec 010, FR-002 and FR-039; spec 001, FR-068). On the laptop: off until his route names it as the fallback." |
+| F3 | How to switch it off | Add: "On EC2, change its route, or stop EC2 and pause its start." On EC2 the meter's bound is the $5 daily and $20 monthly ceilings and the adapter's cap; "$2 of fallback a day" stays the laptop's. |
+| F3 | The Author's words | No change in what is asked. They are still his, and still required before any visitor's turn can reach Anthropic. Under this spec they describe every turn on EC2, not only a fallback's. Before EC2's route names the Anthropic API, he weighs them against intent 000's "Nothing is retained beyond the session without explicit consent" and the corpus's "their conversation is not saved" (spec 010, FR-039). |
+| S2 | From → To | Add: "On EC2, the same, through the instance's egress allowlist (spec 001, FR-051), which admits only the destinations listed in their own rows." |
+| S2 | Trigger | Add: "On EC2: F3 first, then F1. On prod, on either host: the shared state, C2." |
+| S2 | Carries | "what A1, A2, F1, F2, and F3 say" becomes "what A1, A2, C2, F1, F2, and F3 say (F2 on the laptop only)". |
+| S2 | How to switch it off | Add: "On EC2, stop EC2. The laptop's `egress` network still has no destination allowlist, the Author's open decision." |
+| S1 | Why | "(spec 001's tunnel will attach here)" becomes "spec 001's tunnel attaches here, on the laptop (S16)". Add: "On EC2, `edge` also takes the cloud edge's requests (spec 001, FR-032), without loosening the laptop's `127.0.0.1` binding." |
+| V1 | From → To, Default | Add: "After spec 001, hareet.ai's edge, which serves the built site from the account's storage." Default "loopback only until spec 001" becomes "on, at the edge". |
+| V4 | From → To | Add: "After spec 001, through hareet.ai's edge to the serving host's relay." |
+| F1 | From → To, Trigger | Add: "On EC2, as its second route, when the Anthropic API can't answer, inside the $5 daily and $20 monthly ceilings, with no sub-budget. EC2's credentials come from its instance role, not F2's session." |
+| A1, A2 | From → To | Add: "and EC2's `gateway`, while EC2 serves". |
+| D1 | one sentence | "the stack's only calls to Anthropic are F3's, prod's gateway with its own key, while prod's route names the Anthropic API (spec 010)" becomes "the stack's only calls to Anthropic are F3's, prod's gateway with its own key: on EC2 always, and on the laptop while its route names the Anthropic API (spec 010; spec 001)". |
+
+### New rows
+
+| ID | From → To | Trigger | Carries | Never carries | Why | Default | How to switch it off |
+|---|---|---|---|---|---|---|---|
+| S15 | `relay`, on each host's prod → nothing beyond its stack and the shared state (C2). It takes the edge's requests (C1) and forwards to its own `gateway`. | each dynamic request | the gateway's request fields and the client address, in memory | the message, the answer, or the address in any log or store (FR-031, FR-042) | the public request cap and the kill-switch read before the gateway (FR-030, FR-033) | on, with prod on either host | `make down ENV=prod` |
+| S16 | `tunnel`, on the laptop's prod only → the tunnel's far end (C3) | `make up ENV=prod` on the laptop | as C3 | as C3 | the laptop serves without an inbound port (FR-052) | on, with the laptop's prod | `make down ENV=prod`; the Author revokes its credential in one action (FR-055) |
+| V6 | the visitor's browser → hareet.ai's edge → the serving host's relay: hello and the status request | a visitor calls hello or opens the status | hello's message (at most 500 characters) and its answer; the IP address, held in memory for the caps; the user agent | the message or the answer in any log, trace, or store; the address in any log, trace, metric, alert, ledger, the shared state, or any store (FR-031, FR-042) | to test the model gateway, and to show which host serves (FR-030 to FR-037) | on, once hello is public (FR-039) | the Author takes hello off the site, or stops both hosts |
+| V7 | the visitor's resolver → Route 53, for hareet.ai | opening the site | the lookup, as the resolver sends it | — | to find the site | on | — |
+| V8 | the visitor's browser → the public view, at the edge | opening the dashboard | the IP address, the user agent | — | to watch the system run (FR-057 to FR-059) | on | — |
+| V9 | the visitor's browser's own checks, such as a certificate's status | the browser's choice | what the browser sends | — | listed because the site can't switch them off | the browser's | the browser's settings |
+| C1 | hareet.ai's edge → the serving host's relay: EC2's directly, inside the account, or the laptop's through the tunnel (C3) | each dynamic request (V2, V4, V6) | the request's fields and the answer back; the client address the edge saw, held in memory only; the edge's credential for the origin | cookies; the operator token; the message, the answer, or the address in any log, trace, or store | to answer visitors from the serving host (FR-029, FR-032) | on | stop both hosts; the edge then answers itself (FR-066) |
+| C2 | each host's `gateway` and `relay`, on prod → the shared state, in the account | each admission, commit, and kill-switch read; operator actions | meter amounts, reservations, call records (provider, model, tokens, cost, attribution, times, request IDs), the kill-switch state, the renewal and cap flags, and audit rows (the action, the operator's fingerprint, and the reason the Author types) | payloads; client identifiers; secrets | one meter for both hosts (FR-017, FR-019) | on, with prod on either host | `make down ENV=prod`; without it, prod answers degraded |
+| C3 | the laptop's `tunnel` → the tunnel's far end (question 13) | while the laptop's prod runs | the tunnel's credential; keep-alives; C1's and C5's traffic inside it; the laptop's network address, to the far end only | any route to Langfuse, the admin listener, or Grafana (FR-052) | the laptop serves without an inbound port, and its address stays out of public DNS (FR-052) | on, with the laptop's prod | `make down ENV=prod`; revoke the credential |
+| C4 | the serving host → the public view's storage, in the account | every few minutes | dashboard values and their time; which host serves | payloads, client identifiers, operator reasons, secrets | so the public view never goes dark (FR-057) | on | stop both hosts; the view keeps its last values |
+| C5 | Route 53's health checkers → the laptop's health path, through the far end and the tunnel | at the check's interval, while the failover exists | probe requests, marked as probes (`h4.probe`); the health answer | anything else from the stack | the failover (FR-054) | on | the Author's Terraform |
+| C6 | the laptop's `make up ENV=prod` → AWS's EC2 API | each takeover, and each time it finds EC2 running while it serves | the request to stop EC2's instance; the short-lived session's signature; the laptop's network address | a long-lived key (FR-008) | one host at a time (FR-064) | on, with the laptop's prod | the Author's IAM (question 16) |
+| C7 | both deployers → the release source; EC2 → the registries and the account's endpoints it uses (the secrets store, Systems Manager) | polls, EC2's start, deployments | release IDs, image names and digests, the host's address; EC2's requests for its secrets | credentials beyond pull access; secret values outside EC2 | pull-based deployment (FR-046); the Anthropic key on EC2 (FR-068) | on | stop the deployer; stop EC2 |
+| C8 | AWS's budgets and anomaly monitor → Telegram and the alerts mailbox | a threshold crossed | the budget or monitor, the threshold, the amounts, the time | payloads, client identifiers | the safety net (FR-022) | on | the Author's Terraform |
+| C9 | the Author's terminal → AWS's APIs: Terraform plans and applies, and the state | the Author's plan or apply | resource configuration, the state, the Author's short-lived session | secret values (FR-009) | infrastructure as code (FR-001, FR-007) | off; only the Author | — |
+| C10 | the Author's terminal → the release source, before publication | the Author's release | release images and their digests | — | releases (Clarifications, 2026-10-12) | off; only the Author | — |
+| C11 | the uptime probe → the site and the status request | at its interval | probe requests, marked as probes | — | detection (FR-061) | on | the Author's Terraform |
+| C13 | the Author's terminal → the shared state | the Author's reset, renewal, or initialization | the operator credential's proof, the action, the reason, the values he states | — | operator actions whichever host serves (FR-074) | off; only the Author | — |
+
+Not new rows: EC2's gateway takes its role credentials from the instance's metadata service, which never leaves the host. The start function's call to EC2's API runs inside the account, from no host and no visitor.
 
 ## Constitution Check
 
-This applies the `constitution-check` skill against `.specify/memory/constitution.md` 1.0.1.
+This applies the `constitution-check` skill's eight questions against `.specify/memory/constitution.md` 1.0.1, the version in force. The 1.1.0 amendment ADR 0044 proposes is not applied, and where this spec needs it, the row says so.
 
 | Principle or standard | Touched | How this spec complies, or the named deviation |
 |---|---|---|
-| I. Data-local by default | Yes | This spec carries the project's first visitor bytes, and every flow is in the public disclosure, on the site, before it happens (FR-040 to FR-042). There are no cookies, no device storage, and no stored visitor address. Routing stays local-first: the local tier's stack answers visitors while it's up (FR-017, FR-035), and it still runs the whole topology with one command (FR-045). Every new path has a degraded mode (Degraded Modes). No biometrics: the only visitor input is hello's text. |
-| II. Production-grade or not shipped | Yes | Tests come from the acceptance scenarios and the matrix, and hello's red-team cases are the evals (FR-039). Every new path gets telemetry and panels (FR-060). There is a cost estimate (Expected Cost Impact) with measurements (SC-002, SC-003), runbooks for every new alert (FR-056), and ADRs (FR-062). |
-| III. Intent → spec → code; humans merge | Yes | The accepted intent is in this folder, no code comes before an approved plan, and decisions get ADRs. Deviation for the local phase: merge-request notes and the local gate stand in for pull requests (ADR 0013; FR-005, FR-007). The GitHub-side half moved to the publication spec (Clarifications, 2026-10-11; ADR 0008). |
-| IV. Least privilege | Yes | Apply, destroy, and state writes are human-only, and agents are refused in every spelling (FR-006). Access is only short-lived and identity-based (FR-008; CI's OIDC roles moved to the publication spec). No secret is in the repository, the state, plans, or agent context (FR-009 to FR-011). The Terraform for IAM, budgets, alert routing, edge rate limits, and the kill switch is human-only (FR-012). The local tier takes no inbound connection, pulls its releases, and runs no CI runner (FR-046, FR-052, FR-055). The cloud operator interface isn't public (FR-050), and the cloud VM's egress is allowlisted (FR-051). No new sandbox domain is added (Assumptions). The spec touches enforcement points (the bash gate, the deny lists, the matrix, and the local gate) through the Author's patches. Deviation for the local phase: apply runs from the Author's terminal, not a protected environment (Assumptions). |
-| V. Cost is a first-class signal | Yes | One meter of record, the fallback gateway's (FR-017, FR-018). Infrastructure cost sits inside the same ceiling, booked on that meter (FR-020), under the idle target (FR-021). AWS budgets and anomaly detection come first (FR-022), with an automated provider-side cut-off (FR-023); both paths are rehearsed by tripping them (FR-025, FR-026). The meter stays the control (FR-024), model calls go only through the gateway (FR-035), and spend is on every public view (FR-059). |
-| VI. Build in public | Yes | The public dashboard never goes dark (FR-057 to FR-059), the disclosure is on the site (FR-041), apply records are committed (FR-007), and decisions get ADRs (FR-062). Deviation, already recorded in ADR 0013: the repository stays private until publication, although the site may go live before it (Clarifications, 2026-10-11). |
-| VII. Say exactly what you owned | Lightly | The placeholder site states nothing about the Author that isn't in the corpus or a filled `facts/` slot (FR-038). The product reasoning shows where visitors look: whether the machine is awake, what leaves their device, and what the system spends. |
-| VIII. Honest AI | Yes | Hello is named as a test, not the twin (FR-038; spec 000's fixed prompt), and it passes red-team cases before it goes public (FR-039). There is no twin in this spec. |
-| Prohibited without a human | Yes | IAM, budgets, alert routing, edge rate limits, and the kill switch change only through the Author's apply or the operator credential (FR-007, FR-012), and agents plan only. The provider-side cut-off (FR-023) is the system's own degradation, set up by the Author's apply, as the kill switch's trip is. |
-| Secrets and supply chain | Yes | Terraform and its providers are pinned (FR-004), and plan and apply records are redacted (FR-010). The CI-side controls stay with the publication spec (ADR 0014; Assumptions). |
-| Incidents | Yes | An AWS-side breach gets the seven-day incident note (FR-023). Meter breaches keep spec 000's drafts. |
-| Cloud standard | Yes | One account, with environments separated by VM, role, tag, and budget (FR-001, FR-002). Remote state with locking (FR-001). The cloud hosts only the constitution's list (FR-044). The plan on every PR and the protected apply moved to the publication spec (Clarifications, 2026-10-11), with the local-phase deviation above. |
-| Compute standard | Yes | One compose definition runs on the cloud VM and on the local tier (FR-043). The relay is a container (FR-029). Hosts run the same images by digest (FR-048), and spec 000's image deviations carry over (Assumptions). |
-| Local tier standard | Yes | Heavy containers stay local, behind an outbound tunnel, and answer visitors through it while the machine is up (FR-017). Deployment is pull-based. Production works while the local tier is off, through the fallback or degraded mode (FR-028, FR-044, FR-052 to FR-055). |
-| Model access standard | Yes | Gateway-only, local-first, with Bedrock inside its capped sub-budget (FR-035). Production runs two instances of the one gateway: the local tier's, and the fallback gateway, which alone has the paid route (FR-017). |
-| Observability standard | Yes | Public read-only dashboards with a cloud-hosted last-known snapshot (FR-057 to FR-059). This reads them as snapshots of Grafana's dashboards (Clarifications, 2026-10-12). Payloads are never exported (spec 000 FR-029). |
-| Alerting standard | Yes | AWS-side alerts go to Telegram, then email, never SMS (FR-022). Degradation never waits on delivery (FR-024). |
+| I. Data-local by default | Yes | Every flow is in the public disclosure, on the site, before it happens (FR-040 to FR-042). Rows V2 and F3 say that on EC2 every turn goes to the Anthropic API, with what Anthropic keeps in the Author's words (FR-068). There are no cookies, no device storage, and no stored visitor address. Principle I stays as written. The Author's recorded reason why EC2 complies with "MUST prefer on-device or self-hosted inference where it meets the quality bar": "within the server budget EC2 has no GPU, and a model run on its CPU wouldn't meet the twin's quality bar, which your laptop's GPU model does. So the API is what meets the bar there, and the laptop stays self-hosted-first." The laptop stays a production tier that runs the whole topology with one command, calling local models (FR-045). Offline, its prod answers degraded (Assumptions). Every new path has a degraded mode (Degraded Modes). No biometrics. |
+| II. Production-grade or not shipped | Yes | Tests come from the acceptance scenarios and the matrix; red-team cases run on every adapter that can answer (FR-039). Every new path gets telemetry and panels (FR-059, FR-060). Runbooks cover every new alert (FR-056), and decisions get ADRs (FR-062). Missing: the server's cost estimate, which waits on questions 14 and 15. The model-spend estimate is spec 010's (Expected Cost Impact). |
+| III. Intent → spec → code; humans merge | Yes | The intent in this folder is accepted, but its cost lines are superseded by the Author's later words, which ADR 0044 records. The intents stay his to revise (Assumptions). No code comes before an approved plan, and the plan waits on his constitution patch. Deviation for the local phase: merge-request notes and the local gate stand in for pull requests (ADR 0013; FR-005, FR-007). |
+| IV. Least privilege | Yes | Apply, destroy, and state writes are human-only, and agents are refused in every spelling (FR-006). Access is only short-lived and identity-based (FR-008). The start function may start only EC2's one instance, and the laptop may stop only that one (FR-070, question 16). No secret is in the repository, the state, plans, or agent context (FR-009 to FR-011). The Terraform for IAM, budgets, alert routing, edge rate limits, the kill switch, the failover, the start function, and the running pattern is human-only (FR-012). The laptop takes no inbound connection, pulls its releases, and runs no CI runner (FR-046, FR-052, FR-055). EC2's operator interface isn't public (FR-050), and its egress is allowlisted (FR-051). No sandbox domain or permission is widened. Deviation for the local phase: apply runs from the Author's terminal, not a protected environment (Assumptions). |
+| V. Cost is a first-class signal | Yes | The model ceilings don't change, and one shared meter counts both hosts against them (FR-017, FR-020). On EC2 the ceilings and the adapter caps limit the paid routes, and on the laptop the sub-budget limits the fallback (FR-067). The server has its own budget, with its own automatic action (FR-021 to FR-023). AWS budgets and anomaly detection come first (FR-022), and both actions are rehearsed by tripping them (FR-026). The meter stays the control (FR-024). Model calls go only through the gateway with cost attributes (FR-035), and spend shows on every public view (FR-059). Deviation under 1.0.1: "the local tier exists so the cloud bill stays near zero" no longer describes the default host; 1.1.0 changes its reason to "the model spend", and the Author chose MINOR for it. |
+| VI. Build in public | Yes | The public dashboard never goes dark (FR-057 to FR-059, FR-075), the disclosure is on the site (FR-041), apply records are committed (FR-007), and decisions get ADRs (FR-062). A schedule's hours, if question 15 chooses one, would be public too. Deviation, already recorded in ADR 0013: the repository stays private until publication, although the site may go live before it. |
+| VII. Say exactly what you owned | Lightly | The site states nothing about the Author that isn't in the corpus or a filled `facts/` slot (FR-038). The product reasoning is visible: why EC2 is the default, in his words; and the trade it makes, every turn paid on EC2 and free on the laptop, shown on the dashboard. |
+| VIII. Honest AI | Yes | The twin stays disclosed as AI, and hello is named as a test (FR-038). Red-team cases pass on every adapter that can answer before anything goes public (FR-039), and readiness evidence covers each one (Scope, spec 010's FR-026). |
+| Prohibited without a human | Yes | IAM, budgets, alert routing, edge rate limits, and the kill switch change only through the Author's apply or the operator credential (FR-007, FR-012). The start function, the laptop's stop, and the budget actions are the system's own actions, set up by the Author's apply, as the kill switch's trip is (FR-023, FR-065, FR-072). |
+| Secrets and supply chain | Yes | Terraform and its providers are pinned (FR-004). The Anthropic key lives in the secrets store on EC2 and in prod's env file on the laptop, denied to agents before it exists (spec 010 FR-032; FR-011). The tunnel credential is scoped and revocable (FR-055). The CI-side controls stay with the publication spec (ADR 0014). |
+| Incidents | Yes | A model-spend or server-budget breach gets the seven-day incident note (FR-023). Meter breaches keep spec 000's drafts. |
+| Cloud standard | Yes, with the 1.1.0 patch, and one tension | One account, with environments separated by VM, role, tag, and budget (FR-001, FR-002). Remote state with locking (FR-001). Infrastructure only through Terraform, the failover and the start function included; run-time actions change state, never configuration (FR-072). Under 1.0.1, "The cloud hosts only what must be always-on and cheap" rules out EC2 running the stack; 1.1.0's "The cloud may also host the production stack on one VM, without the local model server, as the default production host (ADR 0044)" allows it (FR-044). The tension: 1.1.0's list of what the cloud hosts as always-on still names "the thin API/relay" and "the Bedrock fallback path". In this design both run in the serving host's stack, so they are down while no host serves (FR-075). This spec reads the list as what the cloud may host; the Author may prefer the patch to say so. |
+| Compute standard | Yes | One compose definition runs on EC2 and on the laptop (FR-043). The relay is a container (FR-029). Both hosts run the same images by digest (FR-048), and spec 000's image deviations carry over (Assumptions). |
+| Local tier standard | Yes, with the 1.1.0 patch | Heavy containers run on the laptop, "exposed only through an outbound tunnel", which stays as written (FR-052). Deployment is pull-based (FR-046). 1.1.0's "Production MUST function when it is off, via the cloud host and its paid routes within the ceilings and adapter caps, or via degraded mode": EC2 serves, or the site answers degraded (FR-028, FR-063, FR-066). |
+| Model access standard | Yes, with the 1.1.0 patch | One gateway; routing as configuration, per host (FR-067). Under 1.0.1, "the initial policy is local-first with Bedrock as fallback inside a capped sub-budget" doesn't allow EC2's paid first route. 1.1.0's sentence does: "on the laptop, the initial policy is local-first with one paid fallback, Bedrock or the Anthropic API, inside its capped $2-a-day sub-budget; on the cloud VM, the Anthropic API answers first, with Bedrock as its second paid route, inside the $5-a-day and $20-a-month ceilings and the adapter caps (ADR 0044)." |
+| Observability standard | Yes, with a gap | Public read-only dashboards with a cloud-hosted last-known snapshot (FR-057 to FR-059). The standard says "Langfuse, self-hosted on the local tier"; EC2's stack runs its own Langfuse, self-hosted, but in the cloud. The 1.1.0 patch doesn't amend this sentence. Its Cloud sentence, "may also host the production stack on one VM", arguably covers it; the Author may prefer to amend the sentence too. |
+| Alerting standard | Yes | AWS-side alerts and handover alerts go to Telegram, then email, never SMS (FR-022, FR-065). Degradation never waits on delivery (FR-024). |
 | Development Workflow step 6 | Yes | Releases are pulled by digest and restarted per service. A release that fails its health checks rolls back automatically, and the previous release is one command away (FR-046, FR-047). Building once and promoting in CI waits for the publication spec (ADR 0014). |
 
 ## Open questions for /speckit-clarify
 
-All twelve were answered on 2026-10-11 and 2026-10-12. Clarifications records each answer, with its reading. The numbers stay because the readings cite them.
+Questions 1 to 12 were answered on 2026-10-11 and 2026-10-12 (Clarifications), and their numbers stay because the readings cite them. Questions 13 to 17 are new. Each is marked in the requirement it blocks, and each offers a recommended option. What the Author settled on 2026-11-09 is not asked again: Principle I and its reason, the amendment's version, and what limits paid spend on EC2.
+
+### Question 13: Which outbound tunnel does the laptop use, and where does it end? (FR-052)
+
+The laptop dials out, so visitors reach it through a tunnel. The failover's health check also needs a public name to probe, one that fails when the laptop or its tunnel fails (ADR 0044, open item 1). On 2026-10-12 the tunnel was to end "inside the project's AWS account", on the cloud VM, so that no third party reads what it carries. EC2 is now stopped while the laptop serves, so the tunnel can't end there.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | A small, always-on tunnel end inside the account, separate from EC2. September's OpenSSH reverse forward (research.md R-11) fits, on the smallest instance. The health check probes the laptop's health path through it. | No third party in the visitor's path, as the 2026-10-12 answer chose. The check sees the whole path. One more small server runs all month, counted in the server budget: research.md R-05 priced a t4g.micro spot instance and its public address at about $2.20 and $3.65 a month on 2026-10-18, to re-price. It is a second machine to patch. |
+| B | A managed tunnel service from a third party, which gives the laptop a public name. | Nothing of ours runs in the cloud while the laptop serves, and the check probes the vendor's name. But a third party carries visitors' messages, and may read them where it ends TLS. That needs a disclosure row with what the vendor keeps, in your words, as F3 does, and it reverses the 2026-10-12 answer. Some services want the name in their own DNS zone, which would put a second DNS vendor in front of the site. |
+| C | The tunnel ends on EC2, as in September. | Nothing new to run, but EC2 must stay on while the laptop serves, which your "If i am running locally, then the ec2 should be shut off and not incurring costs" rules out. Listed so the trade is visible. |
+
+Recommendation: A. It keeps the 2026-10-12 promise, adds no third party to the laptop's path, which is the local-first story's point, and costs little against the server budget.
+
+### Question 14: What is the server's monthly budget, and which instance type? (FR-021)
+
+The response when the budget is crossed is FR-023's: EC2 stops until you restore it, and the laptop serves if you run it (ADR 0044, open item 5). Say so if you want a different response.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Measure, price, then set. The re-plan's first step measures the stack's memory without the model server, picks the smallest instance types that hold it with headroom, and prices them from AWS's published pages, for spot and for an 8-to-12-hour day. You set the figure from those prices before the first apply that creates EC2, and the budget exists before the instance (FR-022). | The figure rests on a measured stack and real prices. "About 8 GB" and "$50 a month" are the session's estimates, not measurements. Nothing that costs money is applied until you set it. |
+| B | You set a figure now, and the re-plan picks the largest instance and running pattern that fit under it. | Quicker to plan, but the figure comes before anyone knows what the stack needs. |
+| C | Reuse the September target, "≤ $10/month" (this folder's intent), for the server alone. | It was set for a VM running only the thin services. Whether a stack of about 8 GB fits under it is unknown until priced. |
+
+Recommendation: A.
+
+### Question 15: Spot, or a daily schedule, and which hours? (FR-069)
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Spot, around the clock: a persistent spot request that stops on interruption, so EC2 comes back when capacity returns. The schedule stays in reserve: if a measured month passes the server budget, your patch adds one. | One mechanism, and the twin can answer at any hour. Interruptions cause gaps (question 17). |
+| B | A daily schedule of 8 to 12 hours, at an on-demand price, in hours you set in UTC. Outside them, the laptop serves if you run it; otherwise visitors get the resting message, and the start function doesn't start EC2. | A predictable cost, but the twin rests 12 to 16 hours a day unless the laptop runs. The hours sit in a public repository, so set them from visitors' traffic on the dashboard. |
+| C | Both: spot, and only inside the schedule's hours. | The lowest cost, with both kinds of gap. |
+
+Recommendation: A. It is your first choice ("we will try to use spot instances"), and it keeps one way of starting and stopping EC2, so a schedule never fights the start function.
+
+### Question 16: Which IAM do the start function and the laptop's stop use? (FR-070)
+
+This is a human act: the constitution makes IAM changes the Author's.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | All in Terraform, human-only (FR-012). The start function's role may start only EC2's one instance, by its tag. The laptop's stop runs under a permission set of its own in IAM Identity Center, which may stop only that instance, taken through a short-lived SSO session at `make up ENV=prod`. You apply both; nothing changes IAM at run time. | Least privilege, recorded in plans and apply records. `make up` needs a live SSO session to stop EC2; without one it still starts and alerts (FR-064). |
+| B | The laptop's existing Bedrock runtime identity also gets the stop permission. | One identity fewer, but a model-calling identity gains power over infrastructure. |
+| C | You make both by hand in the console, recorded like an apply. | A named deviation from "Infrastructure exclusively via Terraform", as spec 000's hand-made runtime identity was. |
+
+Recommendation: A.
+
+### Question 17: When AWS reclaims the spot instance, what happens? (FR-071)
+
+The laptop takes no inbound connection, so nothing can wake it from outside. A handover to the laptop is always your own start. This question doesn't arise if question 15's answer is B.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | The same gap you accepted for EC2's start. The interruption notice alerts you on both channels. Visitors see the resting message until capacity returns and the persistent request starts EC2 again, or until you start the laptop. | Nothing new to run. The shared state loses nothing, since it lives off EC2. Gaps last as long as capacity is short. |
+| B | An on-demand stand-in: the start function starts an on-demand instance from the same release, and hands back when spot returns. | Shorter gaps, at on-demand prices, with a second instance and its storage to keep in step. |
+| C | Nothing beyond the persistent request, and no alert. | The simplest, but you learn of gaps only from the dashboard. |
+
+Recommendation: A.
+
+### Answered earlier
 
 1. **The GitHub-side requirements and ADRs 0013 and 0014** (FR-014 to FR-016; SC-015). Answered on 2026-10-11: B. They moved to the publication spec, and spec 001 closes on local criteria (Clarifications; `publication-carryover.md`).
-2. **Production's meter of record** (FR-017). Answered on 2026-10-12: D, from a reframed set of options. The local tier's stack answers visitors on the local path while it's up, and the fallback gateway on the cloud VM holds the meter of record.
-3. **Infrastructure cost and the ceiling** (FR-020). Answered on 2026-10-12: A. The meter of record books infrastructure cost.
+2. **Production's meter of record** (FR-017). Answered on 2026-10-12: D. Superseded on 2026-11-09 by the shared meter and EC2 as the default host.
+3. **Infrastructure cost and the ceiling** (FR-020). Answered on 2026-10-12: A. Superseded on 2026-11-09: the server is outside the model ceilings.
 4. **The public request cap** (FR-033). Answered on 2026-10-12: A. The relay enforces it.
 5. **Is hello public in spec 001?** (FR-030 to FR-039). Answered on 2026-10-12: A. Yes, capped, as a test endpoint with spec 000's fixed prompt.
-6. **The idle target** (FR-021; SC-002). Answered on 2026-10-12: A. "≤ $10/month". How the cloud VM runs within it is the plan's choice (Assumptions).
-7. **When neither the local tier nor the fallback can answer** (FR-036). Answered on 2026-10-12: A. Spec 000's degraded response and a notice on the site.
-8. **What an AWS-side breach does on its own** (FR-023). Answered on 2026-10-12: A. Paid-model calls are revoked at the provider until the Author restores them.
+6. **The idle target** (FR-021; SC-002). Answered on 2026-10-12: A, "≤ $10/month". Superseded on 2026-11-09 by the server budget (question 14) and the running pattern (question 15).
+7. **When neither the local tier nor the fallback can answer** (FR-036). Answered on 2026-10-12: A. Spec 000's degraded response and a notice on the site, now the room's fixed message.
+8. **What an AWS-side breach does on its own** (FR-023). Answered on 2026-10-12: A. Re-read on 2026-11-09: Bedrock is revoked on both hosts, and the server budget gets its own action.
 9. **Releases before publication** (FR-046, FR-048). Answered on 2026-10-12: A. The Author's terminal builds each release once, into a private registry in the account, and both deployers pull it by digest.
-10. **The public view** (FR-057 to FR-059). Answered on 2026-10-12: A. Always the cloud-hosted snapshot.
-11. **Where the tunnel ends** (FR-052). Answered on 2026-10-12: A. Inside the project's AWS account, on the cloud VM.
+10. **The public view** (FR-057 to FR-059). Answered on 2026-10-12: A. Always the cloud-hosted snapshot, refreshed by the serving host.
+11. **Where the tunnel ends** (FR-052). Answered on 2026-10-12: A, inside the account, on the cloud VM. Superseded on 2026-11-09, since EC2 is stopped while the laptop serves (question 13).
 12. **Who runs the real `terraform plan` before publication** (FR-005). Answered on 2026-10-12: A. The Author's terminal; agent sessions run offline checks.

@@ -3,6 +3,8 @@
 description: "Task list for spec 001, Cloud Elevation (a draft, with the plan, for the Author's approval)"
 ---
 
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); these tasks are the September design's (the laptop serves, the cloud is a thin control plane) and wait for a re-plan, kept unedited below as the record.
+
 # Tasks: Cloud Elevation — Terraform, One Account, Same Compose Stack
 
 **Status**: **A draft, generated on 2026-10-18 from the draft plan, before the Author's approval.** It assumes each recommended answer of the plan interview ([research.md](research.md#the-plan-interview-to-ask)). A task an answer could change carries that question's tag, **[Q1]** to **[Q9]**: a different answer changes those tasks and no others. No task starts before the Author approves the plan (CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`").

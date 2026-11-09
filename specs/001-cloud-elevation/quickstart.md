@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this quickstart is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Quickstart: validating spec 001
 
 Phase 1 output of `/speckit-plan`. These are the runs that prove each task group, and each success criterion, against real AWS and the Author's machine. They're a validation guide, not an implementation: the commands are the plan's, and the contracts hold the details this file links instead of repeating.

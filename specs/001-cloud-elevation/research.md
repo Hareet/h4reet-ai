@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this research is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Research: Cloud Elevation (spec 001)
 
 Phase 0 output of `/speckit-plan`, **drafted on 2026-10-18 for the Author's approval**. One entry per decision the plan rests on: the decision, why, and what else was weighed. Entries marked **(to ask)** are the plan interview's questions, gathered in [The plan interview, to ask](#the-plan-interview-to-ask); their recommended answers are what the plan assumes until the Author answers. Spec 000's plan was settled in an interview of this kind ([spec 000 research.md](../000-local-foundations/research.md#the-plan-interview-word-for-word)).

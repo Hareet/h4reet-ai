@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this plan is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Implementation Plan: Cloud Elevation — Terraform, One Account, Same Compose Stack
 
 **Branch**: `spec/001-cloud-elevation` (this plan; the work runs on one feature branch per task group, [§14](#14-order-of-work-risks-and-proof)) | **Date**: 2026-10-18 | **Spec**: [spec.md](spec.md)
