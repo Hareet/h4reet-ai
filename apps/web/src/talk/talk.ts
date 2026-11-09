@@ -22,6 +22,7 @@
 import "./talk.css";
 
 import type { Turn, VisitPath } from "../choice/visit";
+import { PDF_HREF, pdfFileName } from "../resume/download";
 import type { Clock } from "../room/clock";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
@@ -165,7 +166,7 @@ export function renderTalk(
     if (pointsToResume(id)) {
       const resume = h(doc, "button", { type: "button", class: "talk-link" }, "Read the resume");
       resume.addEventListener("click", () => options.openResume());
-      const pdf = h(doc, "a", { href: "./resume.pdf", download: true }, "Download the resume (PDF)");
+      const pdf = h(doc, "a", { href: PDF_HREF, download: pdfFileName() }, "Download the resume (PDF)");
       pdf.addEventListener("click", () => options.pdfFollowed());
       message.append(" ", resume, " ", pdf);
     }

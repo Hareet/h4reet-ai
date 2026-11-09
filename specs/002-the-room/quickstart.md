@@ -38,6 +38,7 @@ Spec 000's conventions hold ([its quickstart](../000-local-foundations/quickstar
    - with either empty, the two headers match (FR-017).
 4. **The PDF by hand (the Author):** open it in a reader with a screen reader. **Expected:** the title is shown as the window's title; the headings, the list, and the reading order are announced; the text selects; and the document properties show only the title and the name (FR-019).
 5. **Staleness:** change one character in a cited corpus file, on a scratch branch. **Expected:** `make test` fails with `corpus changed since the lock: <file>` (FR-016).
+6. **The Author's designed PDF** (spec.md's amendment of 2026-11-09; [contracts/resume-source.md §7](contracts/resume-source.md#7-the-authors-designed-pdf)): he commits it as `apps/web/content/resume-author.pdf` on a branch, gates and merges it, then commits its SHA-256 in `assets/policy/content-approvals.json` on `main`. **Expected after the next `make up ENV=prod`:** `curl -s http://127.0.0.1:18005/resume.pdf | sha256sum` prints that SHA-256; the room's links save it under the file name his request gives, `main`'s full name hyphenated, then "-Resume-hareet-ai.pdf"; the interactive resume is still the cited one. Before the approval, the build runs PDF1 to PDF9 on the file and serves the render.
 
 ## 4. Group 4: the room (User Stories 2 and 5; SC-001, SC-003, SC-004, SC-005, SC-012)
 

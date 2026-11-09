@@ -7,8 +7,9 @@
 // as the usage event item_selected (and narration, Phase 5, will hear). Nothing is stored, and nothing is fetched but
 // room-data.json from the site's own origin.
 import { ABSENT, asRoomResume, type RoomResume } from "./data";
+import { PDF_HREF, pdfFileName } from "./download";
 
-export const PDF_HREF = "./resume.pdf";
+export { PDF_HREF };
 export const DRAFT_NOTICE = "Draft, not approved";
 /** When room-data.json can't be read: the resume isn't shown, and the PDF link beside this may still work. */
 export const LOAD_FAILED = "The resume couldn't be loaded. The PDF may still be available.";
@@ -39,7 +40,7 @@ export function resumePanel(doc: Document, data: RoomResume): HTMLElement {
   const bar = el(doc, "div", { class: "resume-bar" });
   bar.append(
     el(doc, "h2", { id: "resume-title", tabindex: "-1" }, "Resume"),
-    el(doc, "a", { class: "resume-pdf", href: PDF_HREF, download: "" }, "Download (PDF)"),
+    el(doc, "a", { class: "resume-pdf", href: PDF_HREF, download: pdfFileName() }, "Download (PDF)"),
     el(doc, "button", { type: "button", class: "resume-close" }, "Close"),
   );
   panel.append(bar);

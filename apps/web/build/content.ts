@@ -10,6 +10,9 @@
 //                                  when one changed (FR-016); `npm run content:lock -w apps/web` rewrites it
 //   room-data.json, resume.pdf     what the build publishes: the source's items when main approves its hash, its
 //                                  items under a banner in a drafts build, and otherwise only "Draft, not approved"
+//   apps/web/content/resume-author.pdf   the Author's designed PDF, held to PDF1–PDF9 (build/resume-pdf.ts) with C9's
+//                                  list, and served as resume.pdf in the render's place when main approves its hash
+//                                  and fills the PDF's header (spec 002's amendment of 2026-11-09; contract §7)
 //
 // The check runs on every build, published or withheld, and in make test (test/content/source.test.ts). A problem
 // is reported as `<item-id>: <reason>`, at each item's first, and a private denylist phrase never by its words.
@@ -25,10 +28,19 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml, parseDocument, visit } from "yaml";
 
 import type { RoomResumeHeader, RoomResumeSection } from "../src/resume/data";
-import { publication, readPolicy, type RoomData, type RoomDataContext } from "./approvals";
+import {
+  pdfHeader,
+  publication,
+  readPolicy,
+  stateOf,
+  type PdfHeader,
+  type RoomData,
+  type RoomDataContext,
+} from "./approvals";
 import { readScripts } from "./narration-source";
 import { pdfInput, pdfText, renderPdf } from "./pdf";
 import { DEFAULT_POLICY_DIR } from "./policy";
+import { AUTHOR_PDF_PATH, pdfProblems, readPdf, type PdfRules } from "./resume-pdf";
 
 export const RESUME_PATH = "apps/web/content/resume.yaml";
 export const LOCK_PATH = "apps/web/content/resume.lock.json";
@@ -907,12 +919,90 @@ export function writeLock(root: string, lock: Lock): void {
   writeFileSync(join(root, LOCK_PATH), `${JSON.stringify({ files }, null, 2)}\n`);
 }
 
-// ---- What the build publishes (contracts/resume-source.md §4 and §5) ----
+// ---- The Author's PDF's checks (spec 002's amendment of 2026-11-09; contracts/resume-source.md §7) ----
 
-/** room-data.json's resume part, and resume.pdf beside it. The check runs whether or not the source is published. */
+/** PDF1 to PDF9's rules: main's header, C9's normalizing, and C9's list with the surname rule from main's full name
+ * and the private denylist where this checkout can read it, as checkSource builds them. */
+export function authorPdfRules(options: {
+  root: string;
+  roomName: string;
+  header: PdfHeader | null;
+  denylist?: string | undefined;
+}): { rules: PdfRules; denylist: DenylistState } {
+  const { list, denylist } = forbiddenList({
+    root: options.root,
+    roomName: options.roomName,
+    fullName: options.header?.full_name ?? null,
+    denylist: options.denylist,
+  });
+  const rules: PdfRules = {
+    header: options.header,
+    normalize,
+    forbidden: (shown) =>
+      list.filter((f) => holds(shown, f)).map((f) => ({ surname: f.source === SURNAME_RULE, source: f.source })),
+  };
+  return { rules, denylist };
+}
+
+/** The Author's PDF's problems (PDF1 to PDF9), and its text as resume.pdf.txt would hold it. */
+export async function checkAuthorPdf(
+  bytes: Uint8Array,
+  options: { root: string; roomName: string; header: PdfHeader | null; denylist?: string | undefined },
+): Promise<{ problems: string[]; text: string; denylist: DenylistState }> {
+  const { rules, denylist } = authorPdfRules(options);
+  const read = await readPdf(bytes);
+  return { problems: pdfProblems(read, bytes.length, rules), text: read?.text ?? "", denylist };
+}
+
+/** room-data.json's resume_pdf: the Author's PDF when the build serves it, a drafts build's draft marked; else null. */
+export interface ServedPdf {
+  source: string;
+  sha256: string;
+  draft?: true;
+}
+
+/** The Author's PDF, when the tree holds it: checked whether or not it's served, failing the build at a problem, and
+ * served when main approves it, or a drafts build shows it, and main's header fills both slots (FR-017). */
+async function authorPdf(
+  context: RoomDataContext,
+  roomName: string,
+): Promise<{ bytes: Buffer; text: string; served: ServedPdf | null } | null> {
+  const path = join(context.root, AUTHOR_PDF_PATH);
+  const stat = lstatSync(path, { throwIfNoEntry: false });
+  if (stat === undefined) return null;
+  if (!stat.isFile()) throw new ContentError(`${AUTHOR_PDF_PATH}: must be a regular file, not a link`);
+  const bytes = readFileSync(path);
+  const header = pdfHeader(context.policy);
+  const { problems, text, denylist } = await checkAuthorPdf(bytes, { root: context.root, roomName, header });
+  if (problems.length > 0) {
+    throw new ContentError(
+      `${AUTHOR_PDF_PATH}: the PDF check failed (contracts/resume-source.md §7):\n${problems.join("\n")}`,
+    );
+  }
+  const applied =
+    denylist === "applied"
+      ? "the private denylist was applied"
+      : `the private denylist is ${denylist} here, so PDF4 checked the public list only`;
+  const state = stateOf(bytes, context.policy);
+  const { publish, banner } = publication(state, context.drafts);
+  if (!publish || header === null) {
+    const why = !publish ? "main doesn't approve it" : "main's resume-header.json doesn't fill both slots";
+    context.info?.(`resume: ${AUTHOR_PDF_PATH} passed PDF1 to PDF9; ${why}, so the PDF is the render (${applied})`);
+    return { bytes, text, served: null };
+  }
+  const how = banner ? "a draft this drafts build shows" : "which main approves";
+  context.info?.(`resume: the PDF is ${AUTHOR_PDF_PATH}, ${how} (PDF1 to PDF9 passed; ${applied})`);
+  const served: ServedPdf = { source: AUTHOR_PDF_PATH, sha256: sha256(bytes), ...(banner ? { draft: true } : {}) };
+  return { bytes, text, served };
+}
+
+// ---- What the build publishes (contracts/resume-source.md §4, §5, and §7) ----
+
+/** room-data.json's resume part, and resume.pdf beside it: the Author's PDF when it's served, else the render. The
+ * checks run whether or not the source, or the Author's PDF, is published. */
 export async function resumePart(data: RoomData, context: RoomDataContext): Promise<RoomData> {
   const path = join(context.root, RESUME_PATH);
-  if (!existsSync(path)) return { ...data, resume_state: "absent", header: null, sections: [] };
+  if (!existsSync(path)) return { ...data, resume_state: "absent", header: null, sections: [], resume_pdf: null };
   const source = parseResume(readFileSync(path, "utf8"));
   const { problems, denylist } = checkSource(source, {
     root: context.root,
@@ -931,14 +1021,21 @@ export async function resumePart(data: RoomData, context: RoomDataContext): Prom
     context.warn(`${problem} (${LOCK_HINT})`);
   }
 
+  const authored = await authorPdf(context, source.header.room.name);
+
   const file = context.files.find((f) => f.path === RESUME_PATH);
   const { publish, banner } = publication(file?.state ?? "draft", context.drafts);
   const state = !publish ? "withheld" : banner ? "draft" : "approved";
   const rendered = renderResume(source, readFacts(context.root));
-  const pdf = await renderPdf(pdfInput(publish ? rendered : null, context.policy, state));
-  context.emit("resume.pdf", pdf);
-  // The PDF's text, for the gate's scan of dist/: the embedded font stores glyph codes, not text.
-  context.emit("resume.pdf.txt", `${await pdfText(pdf)}\n`);
+  if (authored?.served) {
+    context.emit("resume.pdf", authored.bytes);
+    context.emit("resume.pdf.txt", `${authored.text}\n`);
+  } else {
+    const pdf = await renderPdf(pdfInput(publish ? rendered : null, context.policy, state));
+    context.emit("resume.pdf", pdf);
+    // The PDF's text, for the gate's scan of dist/: the embedded font stores glyph codes, not text.
+    context.emit("resume.pdf.txt", `${await pdfText(pdf)}\n`);
+  }
 
   const stamp = { source: RESUME_PATH, sha256: file?.sha256 ?? sha256(readFileSync(path)) };
   const lockPath = join(context.root, LOCK_PATH);
@@ -952,6 +1049,7 @@ export async function resumePart(data: RoomData, context: RoomDataContext): Prom
     resume_state: state,
     header,
     sections,
+    resume_pdf: authored?.served ?? null,
   };
 }
 
