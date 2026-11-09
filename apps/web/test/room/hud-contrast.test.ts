@@ -138,24 +138,35 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(failing(1)).toEqual([]);
   });
 
+  // In the HUD's layouts: in the stacked layout the bar and the panels keep spec 004's page buttons.
+  const HUD = 'html[data-hud="column"]';
+  const DOCK = 'html[data-hud="dock"]';
+
   it("draws the HUD from the palette: the glass, the tiles, their borders, the focus ring, and the pressed mark", () => {
     const GLASS = "rgb(var(--glass) / var(--glass-alpha))";
-    expect(declared(".hud-glass", "background")).toBe(GLASS);
-    expect(declared(".hud-glass", "color")).toBe("var(--hud-text)");
-    expect(declared(".hud-tile", "background")).toBe("var(--tile-face)");
-    expect(declared(".hud-tile", "color")).toBe("var(--hud-text)");
-    expect(declared(".hud-tile", "border")).toBe("1px solid var(--tile-border)");
-    expect(declared(".hud-glass button:focus-visible", "outline")).toBe("2px solid var(--hud-focus)");
-    expect(declared(".hud-glass a:focus-visible", "outline")).toBe("2px solid var(--hud-focus)");
-    expect(declared('.hud-tile[aria-pressed="true"]', "box-shadow")).toBe("inset 0 0 0 2px var(--hud-text)");
-    expect(declared('.hud-tile[aria-pressed="true"]', "text-decoration")).toBe("underline");
+    for (const at of [HUD, DOCK]) {
+      expect(declared(`${at} .hud-glass`, "background"), at).toBe(GLASS);
+      expect(declared(`${at} .hud-glass`, "color"), at).toBe("var(--hud-text)");
+      expect(declared(`${at} .hud-tile`, "background"), at).toBe("var(--tile-face)");
+      expect(declared(`${at} .hud-tile`, "color"), at).toBe("var(--hud-text)");
+      expect(declared(`${at} .hud-tile`, "border"), at).toBe("1px solid var(--tile-border)");
+      expect(declared(`${at} .hud-glass button:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
+      expect(declared(`${at} .hud-glass a:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
+      expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "box-shadow"), at).toBe(
+        "inset 0 0 0 2px var(--hud-text)",
+      );
+      expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "text-decoration"), at).toBe("underline");
+      // The walking control, over the scene with no panel behind it, is glass of its own.
+      expect(declared(`${at} .room-walk`, "background"), at).toBe(GLASS);
+      expect(declared(`${at} .room-walk`, "color"), at).toBe("var(--hud-text)");
+    }
   });
 
   it("blurs behind the glass only under data-blur on, in both its forms, and never relies on it (PD-17)", () => {
     const on = 'html[data-blur="on"] .hud-glass';
     expect(declared(on, "backdrop-filter")).toBe("var(--hud-blur)");
     expect(declared(on, "-webkit-backdrop-filter")).toBe("var(--hud-blur)");
-    expect(declared(".hud-glass", "backdrop-filter")).toBeUndefined();
+    expect(declared(`${HUD} .hud-glass`, "backdrop-filter")).toBeUndefined();
     expect(palette().get("--hud-blur")).toBe("blur(12px)");
   });
 });

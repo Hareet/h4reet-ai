@@ -25,6 +25,7 @@ import type { Turn, VisitPath } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
+import { icon } from "../room/hud/icons";
 import type { EventSink } from "../room/events";
 import type { TurnResult } from "../room/signals/turn-cost";
 import { cannotTalkFor, fill, pointsToResume } from "./messages";
@@ -105,15 +106,42 @@ export function renderTalk(
     onTurnOutcome?(result: TurnResult): void;
     /** The per-turn limits, from the build; FR-027's defaults when absent. */
     limits?: TalkLimits;
+    /** Spec 005's words for the log's header (FR-023, FR-028): its toggle, hud.log_toggle, and the larger view's two,
+     *  talk.larger and talk.smaller, from the bundle's index; English defaults without them. */
+    words?: { readonly logToggle: string; readonly larger: string; readonly smaller: string };
+    /** Each change of the log's state, for a drafts build's frame log (spec 005, FR-063). */
+    onPanel?(part: "log" | "larger", state: "open" | "collapsed"): void;
   },
 ): TalkPanel {
   const limits = options.limits ?? DEFAULT_TALK_LIMITS;
   const log = h(doc, "div", {
+    id: "talk-log",
     class: "talk-log",
     role: "log",
     "aria-live": "polite",
     "aria-labelledby": "talk-heading",
   });
+  // Spec 005 (FR-023, FR-028; plan.md §6.4, §6.5): the log's header, a toggle that collapses the log, which stays in the
+  // accessibility tree visually hidden so its answers are still announced, and the larger view's toggle, which opens
+  // the log over the scene only when asked and never re-frames the room. Neither moves focus but to itself.
+  const words = options.words ?? {
+    logToggle: "Conversation",
+    larger: "Larger conversation",
+    smaller: "Smaller conversation",
+  };
+  const header = (text: string, cls: string): HTMLButtonElement =>
+    h(
+      doc,
+      "button",
+      { type: "button", class: `hud-toggle ${cls}`, "aria-expanded": "true", "aria-controls": "talk-log" },
+      icon(doc, "chevron"),
+      h(doc, "span", {}, text),
+    );
+  const logToggle = header(words.logToggle, "talk-log-toggle");
+  const largerToggle = header(words.larger, "talk-larger");
+  largerToggle.setAttribute("aria-expanded", "false");
+  const largerWords = largerToggle.querySelector("span") as HTMLElement;
+  const head = h(doc, "div", { class: "talk-head" }, logToggle, largerToggle);
   // The waiting status, outside the log, so it is announced once and never kept as a line of the conversation: a polite
   // live region of its own, beside the room's announcer, which is the page's one role="status".
   const status = h(doc, "p", { class: "talk-status", "aria-live": "polite" });
@@ -147,11 +175,11 @@ export function renderTalk(
   );
   // Spec 005 (FR-020, FR-028; plan.md §6.5): the log and the waiting status are the conversation's sheet, which the
   // dock layout lays above the dock once the log holds a line (data-log), and the column layout keeps in the column.
-  const sheet = h(doc, "div", { class: "talk-sheet" }, log, status);
+  const sheet = h(doc, "div", { class: "talk-sheet" }, head, log, status);
   const element = h(
     doc,
     "section",
-    { class: "talk", "aria-labelledby": "talk-heading", "data-log": "empty" },
+    { class: "talk", "aria-labelledby": "talk-heading", "data-log": "empty", "data-larger": "off" },
     h(doc, "h2", { id: "talk-heading", class: "visually-hidden" }, "Talk to the twin"),
     sheet,
     form,
@@ -303,6 +331,31 @@ export function renderTalk(
       event.preventDefault();
       stop();
     }
+  });
+
+  let collapsed = false;
+  logToggle.addEventListener("click", () => {
+    collapsed = !collapsed;
+    if (collapsed && log.contains(doc.activeElement)) logToggle.focus();
+    log.classList.toggle("visually-hidden", collapsed);
+    logToggle.setAttribute("aria-expanded", String(!collapsed));
+    options.onPanel?.("log", collapsed ? "collapsed" : "open");
+  });
+  let larger = false;
+  const setLarger = (on: boolean): void => {
+    larger = on;
+    largerToggle.setAttribute("aria-expanded", String(on));
+    largerWords.textContent = on ? words.smaller : words.larger;
+    element.setAttribute("data-larger", on ? "on" : "off");
+    options.onPanel?.("larger", on ? "open" : "collapsed");
+  };
+  largerToggle.addEventListener("click", () => setLarger(!larger));
+  // Escape closes the larger view, focus back on its toggle, unless the form's Escape stopped a turn first.
+  element.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !larger) return;
+    event.preventDefault();
+    setLarger(false);
+    largerToggle.focus();
   });
 
   // One press is one gesture, however long it's held. A pointer press ends in the click it fires, which belongs to

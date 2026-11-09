@@ -181,14 +181,14 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Tests for User Story 2 (first)
 
-- [ ] T019 [P] [US2] Write `apps/web/test/room/hud-contrast.test.ts` (FR-006, FR-024, FR-025; SC-003; plan §6.7):
+- [x] T019 [P] [US2] Write `apps/web/test/room/hud-contrast.test.ts` (FR-006, FR-024, FR-025; SC-003; plan §6.7):
   - it reads `room.css`'s palette properties, composites the glass over white and black, and the tile face over that, in sRGB;
   - every text pair is at least 4.5:1, and every border, focus ring, and pressed mark at least 3:1;
   - the glass's alpha is the lowest 5% step at which all pass, so the step below fails at least one pair;
   - the fallback rules set the alpha to 1.
 
   Check: RED before T023 (feat/005-full-window-room)
-- [ ] T020 [P] [US2] Write `apps/web/test/ui/hud.test.ts` (FR-019 to FR-023, FR-026 to FR-028, FR-066):
+- [x] T020 [P] [US2] Write `apps/web/test/ui/hud.test.ts` (FR-019 to FR-023, FR-026 to FR-028, FR-066):
   - **Places**: in the column layout, the bar is the room's foot panel holding the toolbar's tiles in order, and the column holds the list then the conversation; in the dock layout, the dock holds the list's strip, the text box's row, then the bar; the strip is `index.html`'s header, fixed in the room, and the stand-in line sits in the clear box's top left.
   - **Toggles**: the list's header button (`list.heading`) and the log's (`hud.log_toggle`) have `aria-expanded` and `aria-controls` and toggle in one press. A collapsed list keeps every selectable one press away; a collapsed log keeps `role="log"` in the accessibility tree and still announces an answer once.
   - **Always in view**: neither the strip nor the stand-in line can be collapsed, made inert, or hidden in any state.
@@ -199,13 +199,13 @@ description: "Task list for spec 005, the room fills the browser window"
   - **Styles**: `layout.ts` sets properties only through `style.setProperty`, by spy, never `setAttribute("style", …)`.
 
   Check: RED before T024 (feat/005-full-window-room)
-- [ ] T021 [P] [US2] Change `apps/web/test/ui/a11y.test.ts` and `test/ui/narration-room.test.ts` (FR-021, FR-043, FR-048, FR-051): the 320 × 568 cases read `hud-model.ts`; the AI disclosure in the room is the fixed strip, never inert or hidden; the walking control is in the clear box's bottom-right corner; axe reports 0 violations in each layout and panel state, in 3D and 2D. Check: RED before T024 (feat/005-full-window-room)
-- [ ] T022 [P] [US2] Extend `apps/web/test/room/vocabulary.test.ts` and the fixture room's words (FR-065): `hud.log_toggle`, `talk.larger`, and `talk.smaller` join the closed list with no slot, and pass RT3 and RT12. Check: RED before T024 (feat/005-full-window-room)
+- [x] T021 [P] [US2] Change `apps/web/test/ui/a11y.test.ts` and `test/ui/narration-room.test.ts` (FR-021, FR-043, FR-048, FR-051): the 320 × 568 cases read `hud-model.ts`; the AI disclosure in the room is the fixed strip, never inert or hidden; the walking control is in the clear box's bottom-right corner; axe reports 0 violations in each layout and panel state, in 3D and 2D. Check: RED before T024 (feat/005-full-window-room)
+- [x] T022 [P] [US2] Extend `apps/web/test/room/vocabulary.test.ts` and the fixture room's words (FR-065): `hud.log_toggle`, `talk.larger`, and `talk.smaller` join the closed list with no slot, and pass RT3 and RT12. Check: RED before T024 (feat/005-full-window-room)
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Write the look in `room.css` (the palette's properties at the plan's starting values; the glass; the tiles; the focus ring `#ffd23f`; the pressed and expanded marks; the blur under `[data-blur="on"]` with its `-webkit-` form; 150 ms transitions) and `apps/web/src/room/hud/icons.ts` by plan §6.2, §6.6, and §6.7. Adjust the starting values until T019 passes, and record the final ones in plan.md §6.7 as a departure if they differ. Check: T019 passes (feat/005-full-window-room)
-- [ ] T024 [US2] Build the HUD's parts:
+- [x] T023 [US2] Write the look in `room.css` (the palette's properties at the plan's starting values; the glass; the tiles; the focus ring `#ffd23f`; the pressed and expanded marks; the blur under `[data-blur="on"]` with its `-webkit-` form; 150 ms transitions) and `apps/web/src/room/hud/icons.ts` by plan §6.2, §6.6, and §6.7. Adjust the starting values until T019 passes, and record the final ones in plan.md §6.7 as a departure if they differ. Check: T019 passes (feat/005-full-window-room)
+- [x] T024 [US2] Build the HUD's parts:
   - `layout.ts`: the bar's tiles, the column and the dock, the toggles;
   - `a11y.ts`: the list's header button;
   - `talk.ts` and `talk.css`: the log's toggle, its sheet in the dock layout, and the larger view;

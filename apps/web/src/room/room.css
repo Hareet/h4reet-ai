@@ -480,6 +480,188 @@ html[data-hud="dock"] .talk[data-log="empty"] .talk-sheet {
   overflow: hidden;
 }
 
+/* The HUD's look (spec 005, FR-024 to FR-026; plan.md §6.2, §6.6, §6.7; the Author's "Use the dark glass recommendation
+   and just go ahead with putting everything in instead of approval at lookdev first"): dark glass panels, game-style
+   tiles of an icon over their words, the highlight's yellow for focus, and a pressed mark beyond colour. Every colour
+   is the palette's, which test/room/hud-contrast.test.ts holds to WCAG's floors over white and black beneath. The blur
+   draws only at quality levels 0 and 1 (data-blur), and the tint alone carries the contrast. */
+html[data-hud="column"] .hud-glass,
+html[data-hud="dock"] .hud-glass {
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+html[data-blur="on"] .hud-glass {
+  -webkit-backdrop-filter: var(--hud-blur);
+  backdrop-filter: var(--hud-blur);
+}
+
+html[data-hud="column"] .hud-tile,
+html[data-hud="dock"] .hud-tile {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--hud-text);
+  background: var(--tile-face);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition:
+    transform 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+html[data-hud="column"] .hud-tile:active,
+html[data-hud="dock"] .hud-tile:active {
+  transform: translateY(1px);
+}
+
+/* A pressed tile, "Pause the room": an inset ring in the text's colour and its words underlined, beyond colour. */
+html[data-hud="column"] .hud-tile[aria-pressed="true"],
+html[data-hud="dock"] .hud-tile[aria-pressed="true"] {
+  color: var(--hud-text);
+  background: var(--tile-face);
+  box-shadow: inset 0 0 0 2px var(--hud-text);
+  text-decoration: underline;
+}
+
+html[data-hud="column"] .hud-tile[aria-disabled="true"],
+html[data-hud="dock"] .hud-tile[aria-disabled="true"] {
+  color: var(--hud-text);
+  opacity: 0.75;
+  text-decoration: line-through;
+}
+
+.hud-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+/* Focus on the glass: the highlight's yellow, 2 pixels, at 3:1 over the glass and over a tile. */
+html[data-hud="column"] .hud-glass button:focus-visible,
+html[data-hud="column"] .hud-glass a:focus-visible,
+html[data-hud="dock"] .hud-glass button:focus-visible,
+html[data-hud="dock"] .hud-glass a:focus-visible,
+html[data-hud="column"] .hud-glass.room-walk:focus-visible,
+html[data-hud="dock"] .hud-glass.room-walk:focus-visible {
+  outline: 2px solid var(--hud-focus);
+  outline-offset: 2px;
+}
+
+/* The walking control over the scene: a glass tile of its own, where no panel lies behind it. */
+html[data-hud="column"] .room-walk,
+html[data-hud="dock"] .room-walk {
+  flex-direction: row;
+  gap: 0.25rem;
+  padding: 0 0.5rem;
+  white-space: normal;
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+  border: 1px solid var(--tile-border);
+}
+
+/* The links and link-like buttons on the glass take the text's colour, underlined. */
+html[data-hud="column"] .hud-glass .talk-link,
+html[data-hud="column"] .hud-glass .talk-message a,
+html[data-hud="dock"] .hud-glass .talk-link,
+html[data-hud="dock"] .hud-glass .talk-message a {
+  color: var(--hud-text);
+  text-decoration: underline;
+}
+
+/* The header buttons, the list's and the log's (FR-023): a chevron down while open, turned while collapsed. */
+.hud-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hud-toggle[aria-expanded="false"] .hud-icon {
+  transform: rotate(-90deg);
+}
+
+.room-list-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* The list's header button floats beside its first row, as compose/hud.ts's table counts it. */
+html[data-hud="column"] .room-list,
+html[data-hud="dock"] .room-list {
+  display: flow-root;
+}
+
+html[data-hud="column"] .room-list-heading,
+html[data-hud="dock"] .room-list-heading {
+  float: left;
+  margin: 0 0.25rem 0.25rem 0;
+}
+
+html[data-hud="column"] .room-list ul,
+html[data-hud="dock"] .room-list ul {
+  display: block;
+}
+
+html[data-hud="column"] .room-list li,
+html[data-hud="dock"] .room-list li {
+  display: inline-block;
+  margin: 0 0.25rem 0.25rem 0;
+  vertical-align: top;
+}
+
+.talk-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* The column's larger conversation view (FR-028): the sheet beside the column, over the scene, up to half the window's
+   width, its foot clear of the walking control; never a re-fit. */
+html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 3.75rem;
+  width: 50vw;
+  max-width: calc(100vw - var(--column-w));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+html[data-hud="column"] .talk[data-larger="on"] .talk-log {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+/* The dock's larger view: the log up to three quarters of the window's height above the dock. */
+html[data-hud="dock"] .talk[data-larger="on"] .talk-log {
+  max-height: calc(75dvh - var(--dock-h) - var(--bar-h));
+}
+
+/* While the walking control is offered, the dock's sheet stops short of its corner, so no sheet covers it (spec 005,
+   plan.md's departure B7), and the resume's foot stops above its row. */
+html[data-hud="dock"][data-walk="on"] .talk-sheet {
+  right: calc(9rem + var(--safe-right));
+}
+
+html[data-hud="column"][data-walk="on"] .resume-panel,
+html[data-hud="dock"][data-walk="on"] .resume-panel {
+  height: calc(var(--clear-h) - 3.75rem);
+}
+
 /* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
    outside the stage, open to every visitor; a Tab stop after the conversation (layout.ts), its focus ring the room's.
    Below the room block in the HUD, in a reading column. */

@@ -45,6 +45,9 @@ words:
   walk.left: Walking stopped.
   walk.target: "{name}: press Enter to open."
   twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  hud.log_toggle: Conversation
+  talk.larger: Larger conversation
+  talk.smaller: Smaller conversation
   label.desk: Desk
   label.monitor: Monitor
   label.neon-sign: Neon sign

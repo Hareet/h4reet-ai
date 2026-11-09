@@ -178,6 +178,12 @@ describe("keyboard", () => {
       await intoRoom(v);
       // Spec 008's Amendment M6: in 3D, the walking control comes after the toolbar, in the stage.
       const walk = webgl ? [roomIndex().ui["walk.enter"] ?? "Walk around"] : [];
+      // Spec 005's FR-043: each collapsible panel's header button first in its panel, the list's and the log's, with the
+      // larger view's beside the log's.
+      const HEADS = {
+        list: [roomIndex().ui["list.heading"] ?? ""],
+        talk: [roomIndex().ui["hud.log_toggle"] ?? "", roomIndex().ui["talk.larger"] ?? ""],
+      };
       const stops = tabOrder(v.doc);
       expect(stops.map(nameOf)).toEqual([
         "Resume",
@@ -185,7 +191,9 @@ describe("keyboard", () => {
         "Pause the room",
         "How data flows",
         ...walk,
+        ...HEADS.list,
         ...OBJECT_BUTTONS,
+        ...HEADS.talk,
         "Your message",
         "Send",
         "Hold to talk",
@@ -202,14 +210,16 @@ describe("keyboard", () => {
       const order = tabOrder(v.doc).map(nameOf);
       // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, the conversation
       // panel's three, and "Around the room" come first.
-      const room = 4 + walk.length + OBJECT_BUTTONS.length + 3 + 1;
+      const room = 4 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
       expect(order.slice(0, room)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
         ...walk,
+        ...HEADS.list,
         ...OBJECT_BUTTONS,
+        ...HEADS.talk,
         "Your message",
         "Send",
         "Hold to talk",
@@ -297,7 +307,7 @@ describe("assistive technology", () => {
     // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
     const count = roomIndex().selectables.length;
     expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
-    expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
+    expect(v.doc.querySelectorAll(".room-list li button")).toHaveLength(count);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {
@@ -334,7 +344,7 @@ describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
     const select = vi.fn<(id: string) => void>();
     const list = renderObjectList(doc, index, select);
     doc.body.append(list);
-    const buttons = [...list.querySelectorAll("button")];
+    const buttons = [...list.querySelectorAll<HTMLButtonElement>("li button")];
     expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual([
       "fx-workstation",
       "fx-board",

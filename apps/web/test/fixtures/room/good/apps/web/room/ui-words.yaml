@@ -42,6 +42,9 @@ words:
   walk.left: Walking stopped.
   walk.target: "{name}: press Enter to open."
   twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  hud.log_toggle: Conversation
+  talk.larger: Larger conversation
+  talk.smaller: Smaller conversation
   label.fx-desk: fixture desk
   label.fx-monitor: fixture monitor
   label.fx-laptop: fixture laptop

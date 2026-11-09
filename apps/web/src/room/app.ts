@@ -176,7 +176,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const open = (): boolean => visit.stage === "room" && !offering;
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
-  const hudState: HudState = OPENING;
+  let hudState: HudState = OPENING;
+  /** The glass's blur, at quality levels 0 and 1 alone (spec 005, FR-025; PD-17). */
+  const blurAt = (level: number): boolean => level <= 1;
+  /** A docked or collapsible panel's change, in a drafts build's frame log (FR-063). */
+  const panel = (part: string, state: string): void => log?.record("panel", { part, state });
   /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
   let viewport: Viewport | null = null;
   /** The clear area the 3D stage frames the room into, in the canvas's CSS pixels, with the window it was computed for;
@@ -211,6 +215,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       clear: boxes.clear,
       keyboard: m.keyboard,
     });
+    layout.setBlur(blurAt(visit.quality));
     if (what === "keyboard") return;
     clear = fits ? { area: boxes.clear, window: screen } : null;
     if (controller) {
@@ -414,7 +419,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   async function arrive(choice: Choice): Promise<void> {
-    const list = renderObjectList(doc, deps.room, selectObject, (id) => targetInput("focus", id));
+    // The list's header button collapses it; in the dock layout the room re-frames into what it frees (spec 005).
+    const list = renderObjectList(
+      doc,
+      deps.room,
+      selectObject,
+      (id) => targetInput("focus", id),
+      (collapsed) => {
+        hudState = { list: collapsed ? "collapsed" : "open" };
+        refit();
+        panel("list", hudState.list);
+      },
+    );
     talk = renderTalk(doc, {
       messages: content.messages,
       clock,
@@ -430,6 +446,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
       // The twin's per-turn limits, from the build (spec 007, FR-027, FR-041); FR-027's defaults without them.
       ...(content.twin ? { limits: content.twin.limits } : {}),
+      // Spec 005's header words for the log and its larger view (FR-023, FR-028, FR-065).
+      words: {
+        logToggle: uiWord(deps.room.ui, "hud.log_toggle") ?? "Conversation",
+        larger: uiWord(deps.room.ui, "talk.larger") ?? "Larger conversation",
+        smaller: uiWord(deps.room.ui, "talk.smaller") ?? "Smaller conversation",
+      },
+      onPanel: (part, state) => panel(part, state),
     });
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
@@ -484,6 +507,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     refit();
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
+    // The AI disclosure's header is the HUD's strip in the room: dark glass, blurred where the glass is (spec 005).
+    doc.querySelector("header.disclosure")?.classList.add("hud-glass");
     layout.heading.focus();
     // Enter (contracts/tier-signal.md §5.4): the tier reduced, and shown in the text copy, before the stage is drawn.
     live.enter();
@@ -605,6 +630,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         visit.quality = level;
         visit.mode = "reduced";
         scene3d.setQuality(level);
+        room?.setBlur(blurAt(level));
       },
       onFlat: toFlat,
     });

@@ -24,6 +24,8 @@
 // window.
 import type { Box, HudLayout, HudMetrics, HudState } from "./compose/hud";
 import { h } from "./dom";
+import { icon } from "./hud/icons";
+import type { IconName } from "./hud/icons";
 
 /** The layout the room applies: the HUD's boxes in their layout, or the stacked layout. */
 export interface HudApplied {
@@ -76,6 +78,26 @@ export interface RoomLayout {
   applyHud(applied: HudApplied): void;
   /** What the stage's view holds: loading, the 3D canvas, or the 2D drawing (or flat-failed's line). */
   setStage(what: "loading" | "3d" | "2d"): void;
+  /** The glass's blur, on at quality levels 0 and 1 and off from 2 (spec 005, FR-025; PD-17). */
+  setBlur(on: boolean): void;
+}
+
+/** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
+function tile<K extends "button" | "a">(
+  doc: Document,
+  tag: K,
+  attributes: Record<string, string | number | boolean>,
+  name: IconName,
+  words: string,
+): HTMLElementTagNameMap[K] {
+  const cls = typeof attributes.class === "string" ? `${attributes.class} hud-tile` : "hud-tile";
+  return h(
+    doc,
+    tag,
+    { ...attributes, class: cls },
+    icon(doc, name),
+    h(doc, "span", { class: "hud-tile-words" }, words),
+  ) as HTMLElementTagNameMap[K];
 }
 
 export function renderRoom(
@@ -96,9 +118,9 @@ export function renderRoom(
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
-  const resumeButton = h(doc, "button", { type: "button" }, "Resume");
-  const flatButton = h(doc, "button", { type: "button" }, "2D view");
-  const pauseButton = h(doc, "button", { type: "button", "aria-pressed": "false" }, parts.pause);
+  const resumeButton = tile(doc, "button", { type: "button" }, "resume", "Resume");
+  const flatButton = tile(doc, "button", { type: "button" }, "flat", "2D view");
+  const pauseButton = tile(doc, "button", { type: "button", "aria-pressed": "false" }, "pause", parts.pause);
   const toolbar = h(
     doc,
     "div",
@@ -106,7 +128,7 @@ export function renderRoom(
     resumeButton,
     flatButton,
     pauseButton,
-    h(doc, "a", { href: "./disclosure/" }, "How data flows"),
+    tile(doc, "a", { href: "./disclosure/" }, "data", "How data flows"),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
   const view = h(
@@ -117,7 +139,14 @@ export function renderRoom(
   );
   const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
   const walkWords = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
-  const walkButton = h(doc, "button", { type: "button", class: "room-walk", hidden: true }, walkWords.enter);
+  const walkButton = tile(
+    doc,
+    "button",
+    { type: "button", class: "room-walk hud-glass", hidden: true },
+    "walk",
+    walkWords.enter,
+  );
+  const walkLabel = walkButton.querySelector(".hud-tile-words") as HTMLElement;
   // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
   const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
   const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
@@ -184,7 +213,7 @@ export function renderRoom(
       root.setAttribute("data-walk", walkButton.hidden ? "off" : "on");
     },
     setWalking(on) {
-      walkButton.textContent = on ? walkWords.leave : walkWords.enter;
+      walkLabel.textContent = on ? walkWords.leave : walkWords.enter;
       walkHelp.hidden = !on;
       // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
       // the canvas inside it, which stays aria-hidden (R-13).
@@ -223,6 +252,9 @@ export function renderRoom(
     },
     setStage(what) {
       view.setAttribute("data-stage", what);
+    },
+    setBlur(on) {
+      root.setAttribute("data-blur", on ? "on" : "off");
     },
   };
 }

@@ -37,7 +37,9 @@ export type FrameEvent =
   | "figure"
   | "clip"
   // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, and the buffer's ratio.
-  | "refit";
+  | "refit"
+  // A collapsible part's change (`part`, `state`): the list, the log, and the larger view.
+  | "panel";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;
