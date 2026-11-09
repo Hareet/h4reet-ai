@@ -132,8 +132,39 @@ SEVA = re.compile(r"\bsev[a\u0101]\b", re.IGNORECASE)
 _PUBLIC_FILE = re.compile(r"\d\d-[^/]+\.md")
 
 
+# Typography a model or a keyboard varies, folded before any detector reads an answer, as the gateway's guards fold it
+# (services/gateway/src/twin/guards.ts's FOLDS, which a test there holds to this text; spec 007's plan, D31): curly
+# quotes and apostrophes as straight ones, and dashes and the minus sign as a hyphen.
+FOLDS = {
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201a": "'",
+    "\u201b": "'",
+    "\u02bc": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u201e": '"',
+    "\u201f": '"',
+    "\u2010": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2015": "-",
+    "\u2212": "-",
+}
+_FOLD = str.maketrans(FOLDS)
+
+
+def fold(text: str) -> str:
+    """A text as the detectors read it, and the guards: NFKC, then no format character (zero-width ones, the soft
+    hyphen, the byte-order mark, the direction marks), then FOLDS. Otherwise the detectors are as strict as they were,
+    so a zero-width or full-width form can't hide a word from one, and no corpus quote is judged over its typography."""
+    text = unicodedata.normalize("NFKC", text)
+    return "".join(c for c in text if unicodedata.category(c) != "Cf").translate(_FOLD)
+
+
 def _normal(text: str) -> str:
-    return " ".join(unicodedata.normalize("NFC", text).split())
+    return " ".join(fold(text).split())
 
 
 def public_corpus(folder: Path = CORPUS) -> str:
@@ -275,8 +306,9 @@ class UsageError(Exception):
 
 def detect(response: str, case: Mapping[str, Any] | None = None) -> list[str]:
     """The detectors that fire on an answer, then the case's own `forbid` patterns that match it (the review of T066,
-    I3); the case gives the ones that read it, such as the canary's."""
+    I3); the case gives the ones that read it, such as the canary's. Each reads the answer folded (D31)."""
     case = case or {}
+    response = fold(response)
     fired = [name for name, fires in DETECTORS.items() if fires(response, case)]
     return fired + [
         f"forbid: {pattern}"
