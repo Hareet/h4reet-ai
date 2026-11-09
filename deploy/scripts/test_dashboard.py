@@ -931,6 +931,8 @@ CONVERSATION_SERIES = {
     "h4_twin_turn_duration_seconds_bucket",
     "h4_twin_turn_duration_seconds_count",
     "h4_twin_withheld_total",
+    # Spec 007's plan, D41: the answers delivered with a sentence removed, by the guard that removed it.
+    "h4_twin_redacted_total",
     "h4_cost_usd_total",
 }
 

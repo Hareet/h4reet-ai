@@ -30,6 +30,7 @@ import {
   movedFiles,
   packJson,
   packReport,
+  renderSection,
   topicHashInput,
   wholeHashInput,
 } from "../build/twin-pack";
@@ -365,6 +366,26 @@ describe("the committed pack (FR-007's freshness check)", () => {
     expect(pack.topics.map((t) => t.id)).toEqual([...new Set(topics.selectables.map((s) => s.topic))].sort());
     for (const s of pack.sections) expect(s.file).toMatch(/^corpus\/\d{2}-[a-z0-9-]+\.md$/);
     for (const s of pack.sections) expect(s.text).not.toContain("{{slot");
+  });
+});
+
+// Round 7 (spec 007's plan, D40): the gateway's prompt writes a Golden Q&A without its trailing claim tags, which the
+// local model copied into an answer, so the fit check counts the same characters. The pack keeps every tag.
+describe("a section as the prompt writes it (D40)", () => {
+  it("writes a Golden Q&A without its claim tags, and any other section as the pack holds it", () => {
+    const { pack } = buildPack(mapReader(FIXTURE));
+    const goldens = pack.sections.filter((s) => s.golden !== null);
+    expect(goldens.length).toBeGreaterThan(0);
+    for (const s of goldens) {
+      const g = s.golden;
+      if (g === null) continue;
+      expect(s.text.endsWith(` ${g.tags.join("")}`)).toBe(true);
+      expect(renderSection(s)).toBe(
+        `[${s.file.slice(7, -3)} — ${s.heading}]\n${g.n}. *${g.question}* — ${g.answer}\n\n`,
+      );
+    }
+    for (const s of pack.sections.filter((x) => x.golden === null))
+      expect(renderSection(s)).toBe(`[${s.file.slice(7, -3)} — ${s.heading}]\n${s.text}\n\n`);
   });
 });
 

@@ -143,6 +143,37 @@ describe("a turn's spans (FR-043)", () => {
     expect(await collect()).toContain("repair_opener");
   });
 
+  // Round 7 (spec 007's plan, D41): an answer delivered with a sentence removed is the visitor's, with the outcome ok,
+  // and each guard that removed one is counted in h4.twin.redacted, never in h4.twin.withheld.
+  it("counts a redacted answer by the guard that removed its sentence, and delivers the rest with the outcome ok", async () => {
+    const t = await twinStack({
+      twin: twinWith(READY),
+      metrics: new GatewayMetrics(meterProvider.getMeter("twin-redact")),
+    });
+    stacks.push(t);
+    t.stub.next({
+      ok: {
+        text: "He has built 4321 agents. The corpus says he was involved there.",
+        inputTokens: 900,
+        outputTokens: 12,
+        finish: "stop",
+      },
+    });
+    const res = await t.turn({
+      feature: "free_talk",
+      path: "engineer",
+      turns: [{ role: "visitor", text: "How much of it did he build?" }],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ text: "The corpus says he was involved there." });
+    const server = exporter
+      .getFinishedSpans()
+      .find((s) => s.kind === SpanKind.SERVER && s.attributes["http.route"] === "/room/turn");
+    expect(server?.attributes).toMatchObject({ "h4.outcome": "ok" });
+    expect(server?.attributes["h4.twin.guard"]).toBeUndefined();
+    expect(await collect()).toContain('["h4.twin.redacted",[{"h4.twin.guard":"numbers"}]]');
+  });
+
   it("names the degraded cause on a degraded turn", async () => {
     const t = await twinStack({ twin: twinWith(READY), healthy: false });
     stacks.push(t);

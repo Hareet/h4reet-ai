@@ -667,6 +667,30 @@ def test_a_failing_twin_case_names_the_guard_that_withheld_its_answer(
     )
 
 
+# Round 7 (spec 007's plan, D41, D42): the gateway removes a failing sentence and delivers the rest, so a failing twin
+# case names the guards that removed one, as it names a guard that withheld the answer; a passing case names none.
+def test_a_failing_twin_case_names_the_guards_that_redacted_its_answer(
+    twin_suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = next((twin_suite.parent / "repo" / "scripts").iterdir())
+    redacted = STAND_IN_CLIENT.replace(
+        "'text': 'Every winter, on the mountain.'", "'text': 'On the mountain.'"
+    ).replace("'guard': None", "'guard': None, 'redacted': ['numbers', 'seva']")
+    assert redacted != STAND_IN_CLIENT
+    client.write_text(redacted, encoding="utf-8")
+    assert run.main(["--suite", "demo", "--adapter", "local", "--stack", "dev"]) == 1
+    out = capsys.readouterr().out
+    assert (
+        "FAIL  twin-04-hobbies-and-travel-q1-engineer  (missing 'winter'; redacted by numbers, seva)\n"
+        in out
+    )
+    [record] = [
+        json.loads(p.read_text(encoding="utf-8"))
+        for p in (twin_suite / "demo" / "history").glob("*.json")
+    ]
+    assert record["results"][0]["redacted"] == ["numbers", "seva"]
+
+
 # Round 5's nit (spec 007's plan, D35): the scorer reads an answer, and a case's words beside it, as the red-team's
 # detectors read an answer (redteam/run.py's fold), so typography a model varies fails no check, and a zero-width
 # character hides no forbidden word. A reason still names the case's words as written.

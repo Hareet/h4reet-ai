@@ -345,7 +345,7 @@ describe("an answered turn (T037; User Story 1)", () => {
 // depth line, whatever the two depth lines' lengths; a question about an empty slot gets its fallback, no value.
 describe("free talk and a follow-up's ranked sections (T048; User Story 2)", () => {
   type Sent = { messages: { role: string; content: string }[] };
-  type Section = { id: string; file: string; heading: string; text: string };
+  type Section = { id: string; file: string; heading: string; text: string; golden: { tags: string[] } | null };
   const PROFILE = "corpus/00-profile.md";
   const { sections } = JSON.parse(committed("corpus.json")) as { sections: Section[] };
   const header = (s: Section): string => `[${short(s.file)} — ${s.heading}]`;
@@ -438,7 +438,10 @@ describe("free talk and a follow-up's ranked sections (T048; User Story 2)", () 
     expect(res.statusCode).toBe(200);
     const [system = ""] = systems(t);
     expect(gap).toBeDefined();
-    expect(system).toContain(`${header(gap as Section)}\n${gap?.text ?? "~"}\n`);
+    // A Golden Q&A is written without the claim tags that end it (spec 007's plan, D40); the pack keeps them.
+    const tags = ` ${(gap?.golden?.tags ?? []).join("")}`;
+    expect(gap?.text.endsWith(tags)).toBe(true);
+    expect(system).toContain(`${header(gap as Section)}\n${gap?.text.slice(0, -tags.length) ?? "~"}\n\n`);
     expect(system).not.toContain("{{slot");
   });
 });
