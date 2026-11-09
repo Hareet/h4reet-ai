@@ -126,6 +126,32 @@ async function points(r: Rig, name: string): Promise<{ attributes: Rec; value: u
 
 const ENTRIES = 19;
 
+/**
+ * A message's data with its transfer encodings undone, beside the data itself: quoted-printable and base64 bodies, and
+ * encoded-word headers, so a search finds what the parts and the subject say however nodemailer encoded them.
+ */
+function readable(data: string): string {
+  const hex = (s: string) =>
+    s.replace(/(?:=[0-9A-Fa-f]{2})+/g, (run) => Buffer.from(run.replace(/=/g, ""), "hex").toString("utf8"));
+  const quoted = hex(data.replace(/=\r?\n/g, ""));
+  const blocks: string[] = [];
+  let block: string[] = [];
+  for (const line of data.split(/\r?\n/)) {
+    if (/^[A-Za-z0-9+/]{16,}={0,2}$/.test(line)) {
+      block.push(line);
+    } else if (block.length > 0) {
+      blocks.push(block.join(""));
+      block = [];
+    }
+  }
+  if (block.length > 0) blocks.push(block.join(""));
+  const base64 = blocks.map((b) => Buffer.from(b, "base64").toString("utf8"));
+  const words = data.replace(/=\?utf-8\?([QB])\?([^?]*)\?=/gi, (_, encoding: string, text: string) =>
+    encoding.toUpperCase() === "B" ? Buffer.from(text, "base64").toString("utf8") : hex(text.replace(/_/g, " ")),
+  );
+  return [data, quoted, ...base64, words].join("\n");
+}
+
 describe("POST /admin/alert-samples (FR-033; operator-admin.md §2.4)", () => {
   it("answers at once with every entry's key and the delivery mode, and writes one audit row, nothing else", async () => {
     const r = await rig();
@@ -367,7 +393,24 @@ describe("the samples' delivery (FR-034 to FR-039; SC-006, SC-007)", () => {
     expect(String(r.telegram.requests[2]?.body.text)).toMatch(/^🧪 SAMPLE/);
   });
 
-  it("counts a sample's fallback under sample, and its failure too, as a channel's down", async () => {
+  it("never sends the operator's reason on either channel, in any form or header (FR-042, FR-043)", async () => {
+    const r = await rig();
+    const canary = "QX7reasonCanary";
+    expect((await samples(r, { reason: `Looking for ${canary} in every sample.` })).statusCode).toBe(200);
+    await deliverAll(r);
+    expect(r.telegram.requests).toHaveLength(ENTRIES);
+    expect(r.smtp.messages).toHaveLength(ENTRIES);
+    expect(JSON.stringify(r.telegram.requests)).not.toContain(canary);
+    for (const message of r.smtp.messages) {
+      const text = readable(message.data);
+      // The decoding reaches the parts: each message's plain text names the requester by fingerprint, never the reason.
+      expect(text).toContain("A sample, sent by operator #");
+      expect(text).not.toContain(canary);
+      expect(JSON.stringify([message.from, message.to])).not.toContain(canary);
+    }
+  });
+
+  it("counts a sample's fallback under sample, and sends its plain text at once", async () => {
     const r = await rig();
     await samples(r, { reason: REASON, kind: "trip" });
     r.telegram.next.push({
