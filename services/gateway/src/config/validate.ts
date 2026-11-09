@@ -914,6 +914,11 @@ export interface AlertsConfig {
   readonly authFailed: { readonly threshold: number; readonly windowS: number };
   readonly prefixes: Readonly<Record<StackName, string>>;
   readonly standin: { readonly telegramBase: string; readonly smtpHost: string; readonly smtpPort: number };
+  /**
+   * Each channel's form (spec 011, FR-031; rule A8): designed where the file says nothing. plain sends every alert in
+   * its plain form, today's, with no fallback recorded: the Author's switch.
+   */
+  readonly formats: { readonly telegram: "designed" | "plain"; readonly email: "designed" | "plain" };
 }
 
 /** A stand-in is an in-network service: one label starting with a letter, never an address in any notation. */
@@ -931,12 +936,16 @@ const ALERTS_TOP = z.strictObject({
   auth_failed: z.strictObject({ threshold: int(1, 100), window_s: int(60, 3_600) }),
   prefixes: z.record(z.string(), filled()),
   standin: z.strictObject({ telegram_base: z.string(), smtp_host: z.string(), smtp_port: int(1, 65_535) }),
+  // Spec 011 (Amendment 0-10; rule A8): each channel designed or plain, and no other key.
+  formats: z
+    .strictObject({ telegram: z.enum(["designed", "plain"]).optional(), email: z.enum(["designed", "plain"]).optional() })
+    .optional(),
 });
 
 export function validateAlerts(parsed: ParsedYaml): { value?: AlertsConfig; issues: ConfigIssue[] } {
   if (parsed.issues.length > 0) return { issues: parsed.issues };
   const out = new Findings(parsed.file);
-  const doc = check(out, ALERTS_TOP, parsed.data, [], () => "A7");
+  const doc = check(out, ALERTS_TOP, parsed.data, [], (path) => (/^formats\b/.test(path) ? "A8" : "A7"));
   if (doc === undefined) return { issues: out.issues };
 
   const order = doc.channels.order;
@@ -949,13 +958,15 @@ export function validateAlerts(parsed: ParsedYaml): { value?: AlertsConfig; issu
   }
   const giveUp = doc.retry.give_up_after_s;
   if (giveUp > 300) out.error("retry.give_up_after_s", "A3", "at most 300", "FR-032: within 5 minutes");
+  // Spec 011 (Amendment 0-10): an attempt that falls back to the plain form makes two sends, so the slowest timeout
+  // counts twice.
   const lastStart = schedule.reduce((a, b) => a + b, 0);
-  const slowest = Math.max(doc.channels.telegram.timeout_ms, doc.channels.email.timeout_ms) / 1_000;
-  if (lastStart + slowest > giveUp) {
+  const lastRun = (2 * Math.max(doc.channels.telegram.timeout_ms, doc.channels.email.timeout_ms)) / 1_000;
+  if (lastStart + lastRun > giveUp) {
     out.error(
       "retry",
       "A2",
-      `the last attempt starts at ${lastStart} s and can run ${slowest} s; both must fit in give_up_after_s (${giveUp} s)`,
+      `the last attempt starts at ${lastStart} s and can run ${lastRun} s; both must fit in give_up_after_s (${giveUp} s)`,
     );
   }
   const reminder = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(doc.reminder.at_utc);
@@ -996,6 +1007,7 @@ export function validateAlerts(parsed: ParsedYaml): { value?: AlertsConfig; issu
         smtpHost: doc.standin.smtp_host,
         smtpPort: doc.standin.smtp_port,
       },
+      formats: { telegram: doc.formats?.telegram ?? "designed", email: doc.formats?.email ?? "designed" },
     },
     issues: out.issues,
   };

@@ -15,6 +15,7 @@
 import type { EnvClass, StackName } from "../config/validate.js";
 import { rfc3339Seconds } from "../core/router.js";
 import type { AuthFailureClass } from "../telemetry/metrics.js";
+import { factsOf } from "./facts.js";
 
 const MAX_CHARS = 1_000;
 
@@ -161,7 +162,7 @@ export type AlertSpec =
 export interface RenderedAlert {
   subject: string;
   body: string;
-  /** What the text was rendered from, in micro-USD: the outbox row's `facts`. */
+  /** What the text was rendered from, in micro-USD: the outbox row's `facts`, version 2 (facts.ts). */
   facts: Record<string, unknown>;
 }
 
@@ -184,11 +185,6 @@ const SOURCE_WORDS: Record<InitSource, string> = {
   journal: "the journal",
   stated: "the stated values",
 };
-
-/** An adapter month's facts, as numbers and IDs: never text a person wrote. */
-function adapterMonthFacts(a: AdapterMonthFacts): Record<string, unknown> {
-  return { adapter: a.adapter, month: a.month, spent_micro: Number(a.spentMicro), cap_micro: Number(a.capMicro) };
-}
 
 /** A label at a sentence's start: "the Anthropic API" as "The Anthropic API". */
 const capitalized = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -360,64 +356,6 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
   }
 }
 
-/** What each kind adds to `facts`, beyond the common ones: numbers, states, times, IDs; never text from a person. */
-function specFacts(spec: AlertSpec): Record<string, unknown> {
-  const iso = (ms: number): string => new Date(ms).toISOString();
-  switch (spec.kind) {
-    case "warn":
-      if (spec.meter === "adapter_month") {
-        return { meter: spec.meter, warn_ratio_bp: Number(spec.warnRatioBp), ...adapterMonthFacts(spec.adapterMonth) };
-      }
-      return {
-        meter: spec.meter,
-        warn_ratio_bp: Number(spec.warnRatioBp),
-        ...(spec.grantNo === undefined ? {} : { grant_no: spec.grantNo }),
-      };
-    case "trip":
-      return { ceiling: spec.ceiling };
-    case "fallback_exhausted":
-      return "adapterMonth" in spec ? adapterMonthFacts(spec.adapterMonth) : { grant_no: spec.grantNo };
-    case "operator_action":
-      if (spec.action === "reset") {
-        return { action: "reset", fingerprint: spec.fingerprint, meters_at_ceiling: [...spec.metersAtCeiling] };
-      }
-      if (spec.action === "renew") {
-        return {
-          action: "renew",
-          fingerprint: spec.fingerprint,
-          grant_no: spec.grantNo,
-          grant_micro: Number(spec.grantMicro),
-        };
-      }
-      if (spec.action === "studio_window") {
-        return spec.state === "start"
-          ? { action: "studio_window", fingerprint: spec.fingerprint, state: "start" }
-          : {
-              action: "studio_window",
-              fingerprint: spec.fingerprint,
-              state: "end",
-              fallback_micro: Number(spec.fallbackMicro),
-              fallback_calls: spec.fallbackCalls,
-            };
-      }
-      return { action: spec.action, fingerprint: spec.fingerprint, sources: spec.sources, renewed: spec.renewed };
-    case "credentials_expiring":
-      return { adapter: spec.adapter, ends_at: iso(spec.endsAt) };
-    case "fallback_unavailable":
-      return { adapter: spec.adapter, reason: spec.reason };
-    case "auth_failed":
-      return { count: spec.count, window_minutes: spec.windowMinutes, last_class: spec.lastClass };
-    case "store_unreachable":
-      return { since: iso(spec.since), after_s: spec.afterS };
-    case "reminder":
-      return {
-        degraded_since: spec.degradedSince === undefined ? null : iso(spec.degradedSince),
-        awaiting_since: spec.awaitingSince === undefined ? null : iso(spec.awaitingSince),
-        crossed: [...spec.crossed],
-      };
-  }
-}
-
 export function renderAlert(ctx: AlertContext, spec: AlertSpec): RenderedAlert {
   const time = (ms: number): string => `${rfc3339Seconds(ms)}${ctx.testClock ? " (test clock)" : ""}`;
   const runtime = (): string => {
@@ -470,30 +408,8 @@ export function renderAlert(ctx: AlertContext, spec: AlertSpec): RenderedAlert {
   lines.push(`Runbook: docs/runbooks/${runbook}`);
   const body = lines.join("\n").slice(0, MAX_CHARS);
 
-  const facts: Record<string, unknown> = {
-    kind: spec.kind,
-    stack: ctx.stack,
-    at: new Date(ctx.at).toISOString(),
-    test_clock: ctx.testClock,
-    runtime: ctx.runtime.state,
-    fallback: ctx.fallback.state,
-    ...(m === undefined
-      ? {}
-      : {
-          meters: {
-            day_micro: Number(m.dayMicro),
-            day_ceiling_micro: Number(m.dayCeilingMicro),
-            day_warn_micro: Number(m.dayWarnMicro),
-            month_micro: Number(m.monthMicro),
-            month_ceiling_micro: Number(m.monthCeilingMicro),
-            month_warn_micro: Number(m.monthWarnMicro),
-            fallback_micro: Number(m.fallbackMicro),
-            fallback_allowance_micro: Number(m.fallbackAllowanceMicro),
-            ...(m.fallbackWarnMicro === undefined ? {} : { fallback_warn_micro: Number(m.fallbackWarnMicro) }),
-            grant_no: m.grantNo,
-          },
-        }),
-    ...specFacts(spec),
-  };
+  // The facts, version 2 (facts.ts; spec 011, plan §2.2): every value the forms show, from which the designed
+  // forms render at each delivery attempt.
+  const facts = factsOf(ctx, spec);
   return { subject, body, facts };
 }

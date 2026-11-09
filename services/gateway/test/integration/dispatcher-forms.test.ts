@@ -48,7 +48,7 @@ const tripCtx = (key = TRIP_KEY): AlertContext =>
     runtime: { state: "degraded", since: T("2026-10-29T16:40:03Z") },
     meters: meters(5_000_000, 8_500_000, 2_000_000),
   });
-const TRIP: AlertSpec = { kind: "trip", ceiling: "day" };
+const TRIP: Exclude<AlertSpec, { kind: "store_unreachable" }> = { kind: "trip", ceiling: "day" };
 
 interface Rig {
   s: TestStack;

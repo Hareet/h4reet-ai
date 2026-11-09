@@ -191,6 +191,7 @@ describe("delivery on both channels (alerts.md §4.1)", () => {
           attempt: 1,
           lag_s: 1.5,
           provider_ref: "1",
+          form: "plain", // spec 011 (FR-044): each attempt's form; no design is registered for this test's rows
         },
         expect.objectContaining({ channel: "email", provider_ref: "250 ABC123" }),
       ]),
@@ -230,6 +231,7 @@ describe("the retry schedule (alerts.md §4.2)", () => {
       attempt: 1,
       error_class: "http_500",
       next_in_s: 5,
+      form: "plain",
     });
     expect(events(r, "alert.failed")).toEqual([
       {
@@ -238,6 +240,7 @@ describe("the retry schedule (alerts.md §4.2)", () => {
         channel: "telegram",
         attempts: 6,
         error_class: "http_500",
+        form: "plain",
       },
     ]);
   });

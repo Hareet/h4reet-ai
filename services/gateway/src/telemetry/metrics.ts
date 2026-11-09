@@ -5,6 +5,7 @@
 // closed list, so nothing request-specific, and no client address or label, can become a metric attribute (§1).
 import { ValueType, type Attributes, type Meter, type ObservableResult } from "@opentelemetry/api";
 
+import { FALLBACK_REASONS, type FallbackReason } from "../alerts/forms.js";
 import type { Attribution, DegradedCause } from "../core/types.js";
 
 /** Every `s` histogram the gateway records (§4.1), up to 120 s. */
@@ -42,6 +43,11 @@ export type AlertKind =
   | "store_unreachable"
   | "reminder";
 export type AlertOutcome = "delivered" | "retry" | "failed";
+/** h4.alert.kind's values: the real kinds, and a sample's attempts, counted apart (spec 011, FR-037). */
+export type AlertMetricKind = AlertKind | "sample";
+/** Each attempt's form (spec 011, FR-044): none for a channel marked failed at its window's end, with no attempt. */
+export type AlertFormAttribute = "designed" | "plain" | "none";
+const ALERT_FORMS: readonly AlertFormAttribute[] = ["designed", "plain", "none"];
 export type OperatorAction =
   | "init"
   | "reset"
@@ -52,7 +58,9 @@ export type OperatorAction =
   // spec 003's studio GPU window (its contracts/gpu-window.md §1, §5)
   | "studio_window"
   // spec 007's evaluation calls (its Amendment 0-4; contracts/operator-admin.md §8)
-  | "twin_call";
+  | "twin_call"
+  // spec 011's alert samples (its Amendment 0-8; contracts/operator-admin.md §2.4)
+  | "alert_samples";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
 /** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
 export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";
@@ -145,6 +153,7 @@ export class GatewayMetrics {
   private readonly costUsd;
   private readonly degradedResponses;
   private readonly alerts;
+  private readonly alertFallbacks;
   private readonly deliveryLag;
   private readonly operatorActions;
   private readonly authFailures;
@@ -164,6 +173,8 @@ export class GatewayMetrics {
     this.costUsd = meter.createCounter("h4.cost.usd", { unit: "{USD}", valueType: ValueType.DOUBLE });
     this.degradedResponses = meter.createCounter("h4.degraded.responses", { unit: "{response}" });
     this.alerts = meter.createCounter("h4.alerts", { unit: "{attempt}" });
+    // Spec 011 (plan §9.1): each attempt that sent the plain form in the designed one's place.
+    this.alertFallbacks = meter.createCounter("h4.alert.fallbacks", { unit: "{fallback}" });
     this.deliveryLag = meter.createHistogram("h4.alert.delivery_lag", {
       unit: "s",
       advice: { explicitBucketBoundaries: [...DELIVERY_LAG_BUCKETS] },
@@ -289,8 +300,23 @@ export class GatewayMetrics {
     this.degradedResponses.add(1, { "h4.cause": cause });
   }
 
-  alertAttempt(a: { channel: AlertChannel; kind: AlertKind; outcome: AlertOutcome }): void {
-    this.alerts.add(1, { "h4.channel": a.channel, "h4.alert.kind": a.kind, "h4.outcome": a.outcome });
+  /** Once per attempt, and once for a channel marked failed at its window's end (form none). */
+  alertAttempt(a: { channel: AlertChannel; kind: AlertMetricKind; outcome: AlertOutcome; form: AlertFormAttribute }): void {
+    this.alerts.add(1, {
+      "h4.channel": a.channel,
+      "h4.alert.kind": a.kind,
+      "h4.outcome": a.outcome,
+      "h4.alert.form": oneOf(ALERT_FORMS, a.form, "none"),
+    });
+  }
+
+  /** Once per attempt that sent the plain form in the designed one's place, by its reason (spec 011, FR-045). */
+  alertFallback(a: { channel: AlertChannel; kind: AlertMetricKind; reason: FallbackReason }): void {
+    this.alertFallbacks.add(1, {
+      "h4.channel": a.channel,
+      "h4.alert.kind": a.kind,
+      "h4.alert.fallback_reason": oneOf(FALLBACK_REASONS, a.reason, "render_failed"),
+    });
   }
 
   alertDeliveryLag(seconds: number): void {

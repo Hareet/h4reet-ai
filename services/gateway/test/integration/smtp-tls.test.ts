@@ -312,6 +312,7 @@ describe("a TLS failure is recorded as its class alone (alerts.md §4.1, §5)", 
           attempt: 1,
           error_class: "tls",
           next_in_s: 5,
+          form: "plain", // spec 011 (FR-044): each attempt's form
         },
       ]);
       const logged = JSON.stringify(s.logged);

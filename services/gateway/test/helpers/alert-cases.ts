@@ -187,7 +187,7 @@ export function moreShapes(): [AlertContext, AlertSpec][] {
       { kind: "operator_action", action: "reset", fingerprint: FP, metersAtCeiling: [] },
     ],
     [
-      ctx({ key: "prod:fallback_unavailable:bedrock:2026-10-29T16Z", at }),
+      ctx({ key: "prod:fallback_unavailable:bedrock:2026-10-29T17Z", at }),
       { kind: "fallback_unavailable", adapter: "bedrock", label: "Bedrock", reason: "circuit_open" },
     ],
     [
