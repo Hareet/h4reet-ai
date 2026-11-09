@@ -37,7 +37,7 @@
 //   stays, "take" doesn't play, and the clips change by cuts at the start and the end. `settled` resolves once both
 //   figures show their avatars or keep their fallbacks for good: what the room waits for, at most wait_ms.
 import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Quaternion, Vector3 } from "three";
-import type { AnimationAction, AnimationClip, Euler, Object3D } from "three";
+import type { AnimationAction, AnimationClip, Bone, Euler, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { AVATAR_SHAPES } from "../../choice/avatars";
@@ -156,8 +156,9 @@ function binds(instance: Object3D, clip: AnimationClip): boolean {
 
 const worldOf = (node: Object3D): Vector3 => new Vector3().setFromMatrixPosition(node.matrixWorld);
 
-/** One hand in one pose (R-08): its hand bone's world position, and the hand bone's and every node's under it, in the
- *  tree's order, so two poses of one instance list the same nodes alike. */
+/** One hand in one pose (R-08): its hand bone's world position, and the hand bone's and every bone's under it, in the
+ *  tree's order, so two poses of one instance list the same bones alike. Bones alone (`isBone`): the kept sheet, which
+ *  the holding hand carries once the hand-off ends, is no bone, so a later "idle-holding" never counts it. */
 interface HandPose {
   readonly at: Vector3;
   readonly bones: readonly Vector3[];
@@ -292,7 +293,7 @@ export function createAvatarFigures(
 
   /** Each hand in the instance's pose under one clip's first frame (none: the rest pose), sampled on a mixer of its
    *  own, which restores the pose it found when its action stops: the hand bone's world position, and its own and every
-   *  node's under it, its fingers, in the tree's order; null for a hand the skeleton lacks. */
+   *  bone's under it, its fingers, in the tree's order; null for a hand the skeleton lacks. */
   function handsAt(f: Figure, clip: AnimationClip | null): { right: HandPose | null; left: HandPose | null } {
     const instance = f.instance as Object3D;
     const sampler = new AnimationMixer(instance);
@@ -303,8 +304,11 @@ export function createAvatarFigures(
     const at = (name: string): HandPose | null => {
       const bone = instance.getObjectByName(name);
       if (!bone) return null;
+      // The hand bone, then the bones under it alone, as FR-018 says: never the kept sheet or another object it holds.
       const bones: Vector3[] = [];
-      bone.traverse((node) => void bones.push(worldOf(node)));
+      bone.traverse((node) => {
+        if (node === bone || (node as Partial<Bone>).isBone === true) bones.push(worldOf(node));
+      });
       return { at: worldOf(bone), bones };
     };
     const out = { right: at(HANDS.right), left: at(HANDS.left) };
