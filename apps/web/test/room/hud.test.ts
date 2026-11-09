@@ -92,16 +92,19 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
       { w: 844, h: 390 },
     ])
       expect(clearArea(s, COLLAPSED)).toEqual(clearArea(s, OPENING));
+    // Where the list's strip takes two rows, collapsing it to its header button's row frees one.
     for (const s of [
       { w: 320, h: 568 },
       { w: 390, h: 844 },
-      { w: 1024, h: 1366 },
+      { w: 560, h: 900 },
     ]) {
       const open = clearArea(s, OPENING);
       const collapsed = clearArea(s, COLLAPSED);
-      expect(collapsed.h, `${s.w} × ${s.h}`).toBeGreaterThan(open.h);
+      expect(collapsed.h, `${s.w} × ${s.h}`).toBe(open.h + LIST_ROW);
       expect(collapsed.w).toBe(open.w);
     }
+    // Where it takes one, its header button's row is all it ever takes.
+    expect(clearArea({ w: 1024, h: 1366 }, COLLAPSED)).toEqual(clearArea({ w: 1024, h: 1366 }, OPENING));
   });
 
   it("never gives a collapsed state a clear area smaller than the open one's", () => {
@@ -144,7 +147,7 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
 
 describe("the minimum (compose/hud.ts's fitsHud)", () => {
   it("holds the HUD where the clear area is at least 304 × 196 on a window at least 20rem wide", () => {
-    expect(HUD_PLACEMENTS.minimum).toEqual({ w: 304, h: 196 });
+    expect(HUD_PLACEMENTS.minimum).toEqual({ w: 304, h: 196, windowRem: 20 });
     expect(fitsHud({ w: 320, h: 568 })).toBe(true);
     expect(fitsHud({ w: 568, h: 320 })).toBe(true);
     expect(fitsHud({ w: 1920, h: 1200 })).toBe(true);

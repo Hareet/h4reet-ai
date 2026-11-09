@@ -1,91 +1,49 @@
 // The supported stages, as code (spec 004; FR-009, FR-052, FR-054, FR-064; R-18, R-19; contracts/room-data-files.md
-// §13.3): spec 002's six framing aspects, the two reference stages, the two smallest stages, and a sweep of screens,
-// each stage computed from its screen by room.css's own formulas. `test/room/stages.test.ts` pins these constants to
-// room.css's rules, so a data edit can't weaken the checks that run here (RG5 to RG7), and a change to the layout's CSS
-// fails the test until this file follows it. Sizes are CSS pixels.
+// §13.3), as spec 005 changes them (its FR-052 to FR-054; plan.md §3.1, PD-9, PD-10): each stage is the clear area the
+// HUD's placements (`compose/hud.ts`) leave a screen, so the checks that run here (RG5 to RG7) judge the room where it
+// is framed. `test/room/stages.test.ts` pins these and the placements to room.css's rules, and
+// `test/room/stages-floor.test.ts` holds every screen of spec 004's sweep to its stage before spec 005, frozen in
+// `test/room/legacy-stages.ts`, so a data edit can't weaken the checks and a layout edit can't shrink a stage. Sizes are
+// CSS pixels.
+import { DEFAULT_METRICS, OPENING, clearArea, layoutFor } from "./hud";
 
 /** A screen: the browser's viewport, in CSS pixels. */
-import type { Rect } from "./pick";
-
 export interface Screen {
   readonly w: number;
   readonly h: number;
 }
 
-/** The room's stage: the box the 3D canvas or the 2D drawing fills, in CSS pixels. */
+/** The room's stage: the clear area the 3D room is framed into or the 2D drawing fills, in CSS pixels. */
 export interface Stage {
   readonly w: number;
   readonly h: number;
 }
 
-/** Spec 002's six framing aspects, width over height, from a 320-pixel phone in portrait to a wide desktop (FR-009). */
-export const ASPECTS = [0.45, 0.6, 0.8, 1.15, 1.5, 2.4] as const;
+/** Spec 002's six framing aspects, width over height (FR-009). */
+const SPEC_002_ASPECTS = [0.45, 0.6, 0.8, 1.15, 1.5, 2.4] as const;
 
-/**
- * room.css's stage rules (spec 002, T044): the page in the room (`body.in-room`), the room's grid (`.room`), its
- * landscape layout (`@media (orientation: landscape) and (min-width: 32rem)`), its portrait reserve rule (spec 004,
- * T171 and the review of T171, B1: `@media (orientation: portrait) and (max-width: 34.99rem)`), and the stage
- * (`.room-stage`). The toolbar's type drop below 25rem (R-40) doesn't move the stage.
- */
-export const ROOM_CSS = {
-  /** The root font size every rem is counted in: the browser's default. */
-  rem: 16,
-  /** `body.in-room`: `max-width: 72rem` on its content box, and `padding: 0.5rem`. */
-  bodyMaxWidthRem: 72,
-  bodyPaddingRem: 0.5,
-  /** `.room`'s `gap: 0.5rem` between its columns. */
-  gapRem: 0.5,
-  /** The two-column layout's media query: landscape, and at least this wide. */
-  landscapeMinWidthRem: 32,
-  /** `.room-stage`'s `height: calc(100dvh - 20rem)`, in portrait. */
-  portraitReserveRem: 20,
-  /** The reserve grows below this width, in portrait: room.css writes the bound as `max-width: 34.99rem`, which a
-   *  screen of a whole number of pixels is under exactly when it is under 35rem. */
-  reserveMaxWidthRem: 35,
-  /** There, `.room-stage`'s `height: calc(100dvh - 23.25rem)`: the portrait reserve and one toolbar row, a 44 px control
-   *  and the toolbar's 0.5rem gap (spec 004, FR-065; spec 002's FR-047; R-40; the review of T171, B1). */
-  narrowReserveRem: 23.25,
-  /** Its `height: calc(100dvh - 7rem)`, in landscape. */
-  landscapeReserveRem: 7,
-  /** Its `min-height: 9rem` and `max-height: 40rem`. */
-  stageMinHeightRem: 9,
-  stageMaxHeightRem: 40,
-  /** Landscape's `grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr)`: the stage beside the list. */
-  stageFr: 3,
-  listFr: 2,
-  listMinRem: 15,
-} as const;
+/** The aspect series' factor outward from spec 002's six, and how many steps it takes each way to cover the supported
+ *  stages' narrowest aspect (about 0.30, a tall portrait screen's) and widest (about 9.4, 5120 × 576's): PD-10. The
+ *  stages test pins the cover, and that it stops one step past each end. */
+const ASPECT_STEP = 1.25;
+const STEPS_DOWN = 2;
+const STEPS_UP = 7;
 
-/**
- * The stage for a screen, by room.css's formulas. In portrait (a screen at least as tall as it is wide, or narrower
- * than 32rem) the stage fills the page's width less its padding; in landscape it takes the grid's first column, three
- * parts of five after the gap, unless the list's two parts would fall under its 15rem minimum, when the list keeps 15rem
- * and the stage takes the rest. Its height is the screen's less the layout's reserve, clamped between 9rem and 40rem;
- * the reserve grows by one toolbar row on a screen held upright (at least as tall as it is wide) and narrower than
- * 35rem, where the toolbar's five controls wrap at 1rem. Scroll bars are left out: a phone's overlay the page, and on a desktop the page stops at 72rem first.
- */
+/** The framing aspects RG5 checks: spec 002's six, and the series by ×1.25 outward (FR-053; PD-10). */
+export const ASPECTS: readonly number[] = [
+  ...Array.from({ length: STEPS_DOWN }, (_, i) => SPEC_002_ASPECTS[0] / ASPECT_STEP ** (STEPS_DOWN - i)),
+  ...SPEC_002_ASPECTS,
+  ...Array.from({ length: STEPS_UP }, (_, i) => SPEC_002_ASPECTS[5] * ASPECT_STEP ** (i + 1)),
+];
+
+/** The stage for a screen: the clear area the HUD leaves it with every panel open, at the compositor's metrics (a
+ *  16-pixel root, no safe areas). Its name stays spec 004's, since lookdev and the tests call it. */
 export function stageFor(screen: Screen): Stage {
-  const c = ROOM_CSS;
-  const content = Math.min(c.bodyMaxWidthRem * c.rem, screen.w - 2 * c.bodyPaddingRem * c.rem);
-  // CSS's orientation: landscape when the viewport is wider than it is tall.
-  const landscape = screen.w > screen.h && screen.w >= c.landscapeMinWidthRem * c.rem;
-  let w = content;
-  if (landscape) {
-    const space = content - c.gapRem * c.rem;
-    const fr = space / (c.stageFr + c.listFr);
-    w =
-      c.listFr * fr < c.listMinRem * c.rem
-        ? space - c.listMinRem * c.rem
-        : (space * c.stageFr) / (c.stageFr + c.listFr);
-  }
-  // CSS's orientation: portrait when the viewport is at least as tall as it is wide.
-  const narrow = screen.h >= screen.w && screen.w < c.reserveMaxWidthRem * c.rem;
-  const reserve = (landscape ? c.landscapeReserveRem : narrow ? c.narrowReserveRem : c.portraitReserveRem) * c.rem;
-  const h = Math.max(c.stageMinHeightRem * c.rem, Math.min(c.stageMaxHeightRem * c.rem, screen.h - reserve));
-  return { w, h };
+  const clear = clearArea(screen, OPENING, DEFAULT_METRICS);
+  return { w: clear.w, h: clear.h };
 }
 
-/** A screen and the stage room.css gives it. */
+/** A screen and the stage it gets. */
 export interface ScreenStage {
   readonly screen: Screen;
   readonly stage: Stage;
@@ -99,42 +57,58 @@ export interface ReferenceStage extends ScreenStage {
 const reference = (screen: Screen, dpr: number): ReferenceStage => ({ screen, dpr, stage: stageFor(screen) });
 
 /**
- * The reference desktop (spec 002's FR-048): a 1920 × 1200 window at a pixel ratio of 1, whose stage is ≈ 686 × 640.
- * Re-measured in the first lookdev run (R-18).
+ * The reference desktop (spec 002's FR-048): a 1920 × 1200 window at a pixel ratio of 1, whose stage is its clear area,
+ * 1472 × 1120.5 (≈ 686 × 640 before spec 005).
  */
 export const REFERENCE_DESKTOP: ReferenceStage = reference({ w: 1920, h: 1200 }, 1);
 
 /**
  * The reference phone (ADR 0010's Galaxy A54 class): a 384 × 740 CSS-pixel viewport in portrait, the browser's bars
- * taken off its 384 × 832 screen, at a pixel ratio of 2.8125, whose stage is 368 × 368 (≈ 368 × 420 before T171's
- * portrait reserve rule: 384 is under 35rem). Re-measured in the first lookdev run, and set here from that measure in
- * Polish (R-18).
+ * taken off its 384 × 832 screen, at a pixel ratio of 2.8125, whose stage is its clear area in the dock layout,
+ * 384 × 422 (368 × 368 before spec 005).
  */
 export const REFERENCE_PHONE: ReferenceStage = reference({ w: 384, h: 740 }, 2.8125);
 
 /**
- * The smallest supported stages (R-19, approved with the plan): a 320 × 568 screen in portrait (304 × 196: R-19's
- * 304 × 248 less T171's toolbar row) and the same screen in landscape (304 × 208: the list's column keeps its 15rem, so
- * the stage gets 552 − 8 − 240 px).
+ * The smallest supported screens (R-19): 320 × 568 in portrait, whose stage is 320 × 250 (304 × 196 before spec 005),
+ * and the same screen in landscape, 328 × 240.5 (304 × 208 before).
  */
 export const SMALLEST: readonly ScreenStage[] = [
   { screen: { w: 320, h: 568 }, stage: stageFor({ w: 320, h: 568 }) },
   { screen: { w: 568, h: 320 }, stage: stageFor({ w: 568, h: 320 }) },
 ];
 
-/** The sweep's step between screens, in CSS pixels. */
+/** The sweep's step between screens, in CSS pixels, from 320 × 568 to 1920 × 1200: spec 004's grid. */
 export const SWEEP_STEP = 16;
+/** The coarser step beyond it (PD-9). */
+export const COARSE_STEP = 64;
 
 const SWEEP_MIN = 320;
 const SWEEP_MAX_W = 1920;
 const SWEEP_MAX_H = 1200;
 /** The smallest screen's long side: 568, its height in portrait and its width in landscape. */
 const LONG_MIN = 568;
+/** The coarse grid's bounds: landscape screens from 576 tall to 5120 × 2160; portrait from 1080 × 1920 to
+ *  2160 × 3840. */
+const COARSE = { landscapeMinH: 576, maxW: 5120, maxH: 2160, portraitMinW: 1080, portraitMinH: 1920 } as const;
+const PORTRAIT_MAX = { w: 2160, h: 3840 } as const;
+
+/** Screens the sweep holds by name (PD-9): the common large monitors and ultrawides, and the grid's corners. */
+export const NAMED_SCREENS: readonly Screen[] = [
+  { w: 2560, h: 1440 },
+  { w: 3440, h: 1440 },
+  { w: 3840, h: 2160 },
+  { w: 5120, h: 1440 },
+  { w: 5120, h: 2160 },
+  { w: 1080, h: 1920 },
+  { w: 2160, h: 3840 },
+];
 
 /**
- * The sweep of screens from 320 × 568 to 1920 × 1200 (R-19): every screen in SWEEP_STEP steps from 320 to 1920 wide
- * and 320 to 1200 tall that is at least the smallest screen in its orientation (portrait at least 568 tall, landscape
- * at least 568 wide), with the smallest and the reference screens, once each, sorted by width and then height.
+ * The sweep of screens (R-19; PD-9): spec 004's, every screen in SWEEP_STEP steps from 320 to 1920 wide and 320 to 1200
+ * tall that is at least the smallest screen in its orientation, with the smallest and the reference screens; then,
+ * beyond it, every screen on a COARSE_STEP grid wider than tall from 576 tall up to 5120 × 2160, and held upright from
+ * 1080 × 1920 up to 2160 × 3840; then the named screens. Once each, sorted by width and then height.
  */
 export function sweepScreens(): Screen[] {
   const seen = new Map<string, Screen>();
@@ -147,35 +121,38 @@ export function sweepScreens(): Screen[] {
     }
   }
   for (const r of [...SMALLEST, REFERENCE_DESKTOP, REFERENCE_PHONE]) add(r.screen);
+  const first = (min: number): number => Math.ceil(min / COARSE_STEP) * COARSE_STEP;
+  for (let w = first(COARSE.landscapeMinH); w <= COARSE.maxW; w += COARSE_STEP)
+    for (let h = first(COARSE.landscapeMinH); h <= COARSE.maxH && h < w; h += COARSE_STEP)
+      if (w > SWEEP_MAX_W || h > SWEEP_MAX_H) add({ w, h });
+  for (let w = first(COARSE.portraitMinW); w <= PORTRAIT_MAX.w; w += COARSE_STEP)
+    for (let h = first(COARSE.portraitMinH); h <= PORTRAIT_MAX.h; h += COARSE_STEP) add({ w, h });
+  for (const s of NAMED_SCREENS) add(s);
   return [...seen.values()].sort((a, b) => a.w - b.w || a.h - b.h);
 }
 
 /**
- * Every supported stage, once, sorted by width and then height: the reference stages, the smallest, and the sweep's.
- * The spacing check (RG6) runs at each; in 3D a pick area's size at one aspect grows with the stage's height, so a
- * check may keep only the smallest stage of each aspect.
+ * Every supported stage, once, sorted by width and then height: the reference stages, the smallest, and each sweep
+ * screen's, with its list open and, in the dock layout, collapsed (FR-052). The spacing check (RG6) runs at each; in 3D
+ * a pick area's size at one aspect grows with the stage's height, so a check may keep only the smallest stage of each
+ * aspect.
  */
 export function supportedStages(): Stage[] {
   const seen = new Map<string, Stage>();
-  for (const r of [REFERENCE_DESKTOP, REFERENCE_PHONE, ...SMALLEST]) seen.set(`${r.stage.w}x${r.stage.h}`, r.stage);
+  const add = (s: Stage): void => {
+    seen.set(`${s.w}x${s.h}`, { w: s.w, h: s.h });
+  };
+  for (const r of [REFERENCE_DESKTOP, REFERENCE_PHONE, ...SMALLEST]) add(r.stage);
   for (const screen of sweepScreens()) {
-    const s = stageFor(screen);
-    seen.set(`${s.w}x${s.h}`, s);
+    add(stageFor(screen));
+    if (layoutFor(screen) === "dock") add(clearArea(screen, { list: "collapsed" }, DEFAULT_METRICS));
   }
   return [...seen.values()].sort((a, b) => a.w - b.w || a.h - b.h);
 }
 
-/** The walking control's box (spec 008, FR-021; plan.md R-09): `.room-walk`'s width, height, and inset from the
- *  stage's bottom-right corner, in rem, which room.css sets and test/room/stages.test.ts pins. */
-export const WALK_CONTROL = { widthRem: 8, heightRem: 2.75, insetRem: 0.5 } as const;
-
-/** The walking control's box on a stage, in CSS pixels from the stage's top left: what RG6 reserves in 3D, and the
- *  room's picker with it (spec 008, FR-021, FR-058). */
-export function walkControlBox(stage: Stage): Rect {
-  const rem = ROOM_CSS.rem;
-  const [w, h, inset] = [WALK_CONTROL.widthRem * rem, WALK_CONTROL.heightRem * rem, WALK_CONTROL.insetRem * rem];
-  return [stage.w - inset - w, stage.h - inset - h, w, h];
-}
+/** The walking control's box (spec 008, FR-021; plan.md R-09), in the clear area's bottom-right corner: compose/hud.ts
+ *  holds it with the HUD's other places, and RG6 reserves it (its reservedBoxes). */
+export { WALK_CONTROL, walkControlBox } from "./hud";
 
 /** The 2D drawing's view box, 320 × 200: room.css keeps its 8:5 shape inside the stage (`.flat`). */
 export const FLAT_VIEW = { w: 320, h: 200 } as const;
@@ -190,8 +167,8 @@ let supported: readonly Stage[] | null = null;
 const everyStage = (): readonly Stage[] => (supported ??= supportedStages());
 
 let flatSmallest: Stage | null = null;
-/** The supported stage that gives the 2D drawing its smallest scale, the first in supportedStages()'s order (304 × 196:
- *  0.95). Computed once. */
+/** The supported stage that gives the 2D drawing its smallest scale, the first in supportedStages()'s order (320 × 250:
+ *  1, since spec 005; 304 × 196 at 0.95 before). Computed once. */
 export function smallestFlatStage(): Stage {
   flatSmallest ??= everyStage().reduce((a, b) => (flatScale(b) < flatScale(a) ? b : a));
   return flatSmallest;
