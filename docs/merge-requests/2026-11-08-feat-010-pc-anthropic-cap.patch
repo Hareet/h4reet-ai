@@ -1,18 +1,18 @@
 diff --git a/config/budgets.yaml b/config/budgets.yaml
-index d692ff1..7d2578d 100644
+index d692ff1..3ff5e33 100644
 --- a/config/budgets.yaml
 +++ b/config/budgets.yaml
 @@ -10,11 +10,13 @@ envs:
      monthly_usd: 20.00
      fallback_daily_usd: 2.00  # per grant; a renewal grants a fresh $2 inside the daily ceiling (FR-030)
      warn_ratio: 0.70
-+    adapter_monthly_usd: { anthropic: 10.00 } # the Anthropic API's month, inside the $20 ceiling (spec 010, FR-021)
++    adapter_monthly_usd: { anthropic: 20.00 } # the whole $20 ceiling, the Author's "$20 a month" (spec 010, FR-021)
    dev:                        # dev and dev-cpu: the same thresholds, applied to synthetic spend (FR-036)
      daily_usd: 5.00
      monthly_usd: 20.00
      fallback_daily_usd: 2.00
      warn_ratio: 0.70
-+    adapter_monthly_usd: { anthropic: 10.00 } # rule B8: dev equals prod; inert, since dev builds no paid adapter
++    adapter_monthly_usd: { anthropic: 20.00 } # rule B8: dev equals prod; inert, since dev builds no paid adapter
  
  limits:
    per_client:  { requests_per_minute: 20, burst: 5, requests_per_day: 500, metered_in_flight: 1 }

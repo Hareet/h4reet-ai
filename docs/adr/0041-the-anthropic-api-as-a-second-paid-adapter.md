@@ -1,6 +1,6 @@
 # ADR 0041: The Anthropic API as a second paid adapter, prod's fallback one at a time (spec 010)
 
-Status: proposed, 2026-11-08 · Spec: 010 (FR-001 to FR-041; its Clarifications Q1 to Q6, each provisional; plan §1, D1 to D9, departures B1 to B6) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its Decision item 3 and its "Bedrock model" line; replaces nothing · Number: the next free one on `main` at a5eb05b8, when the branch's task T003 ran
+Status: proposed, 2026-11-08 · Spec: 010 (FR-001 to FR-041; its Clarifications Q1 to Q6, taken provisionally and approved by the Author as taken on 2026-11-08; plan §1, D1 to D9, departures B1 to B13) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its Decision item 3 and its "Bedrock model" line; replaces nothing · Number: the next free one on `main` at a5eb05b8, when the branch's task T003 ran
 
 ## Context
 
@@ -10,7 +10,7 @@ The Author, on 2026-11-08, as the main session's brief relays it:
 
 Prod's gateway had one paid adapter, Bedrock, as ADR 0001 decided: "Bedrock, if local is unhealthy, the stack has a paid route (prod only, `H4_ENV=prod`), no meter is at its ceiling, today's fallback is below its allowance, and no renewal is pending." The constitution's Model access standard names "direct vendor APIs" among the gateway's adapters, and keeps "Routing policy is configuration; the initial policy is local-first with Bedrock as fallback inside a capped sub-budget." Spec 000's FR-021 asked for direct vendor APIs and shipped none.
 
-Spec 010 reads "run everything pointing to aws bedrock" as the live runs on Bedrock, which exist, and "an option of using the anthropic api directly" as a second paid adapter he can choose in Bedrock's place. Both readings are provisional (its Q1 and Q2) and his to overturn; his credits stay his words, and the meter reads no balance (Q3).
+Spec 010 reads "run everything pointing to aws bedrock" as the live runs on Bedrock, which exist, and "an option of using the anthropic api directly" as a second paid adapter he can choose in Bedrock's place. Both readings were taken provisionally (its Q1 and Q2), and he approved them as taken; his credits stay his words, and the meter reads no balance (Q3).
 
 ## Decision
 
@@ -18,14 +18,14 @@ Spec 010 reads "run everything pointing to aws bedrock" as the live runs on Bedr
 2. **ADR 0001's Decision item 3 reads "the paid fallback prod's route names"**: Bedrock, as today, or the Anthropic API. Prod's route names one paid fallback at a time, as `envs.prod.fallback` in `config/routing.yaml`; dev's stays synthetic. Choosing the Anthropic API is the one line `fallback: anthropic`, the Author's, and only after his price, his cap, his key, and his words in the disclosure's row F3 (spec 010, FR-002, FR-039). At this decision's merge the route still names Bedrock.
 3. **ADR 0001's "Bedrock model" line gains a sibling**: the Anthropic model is Claude Haiku 5.5 through the Messages API at `https://api.anthropic.com`, an endpoint fixed in the adapter's code, never configuration or an environment variable (FR-005). Its price is a new version of `config/prices.yaml`, the Author's, marked "est." until he confirms it (FR-019).
 4. **Every client option explicit, and a transport of the adapter's own** (D3, D4; B2, B3): the key from `GATEWAY_ANTHROPIC_API_KEY` alone, the fixed base URL, `maxRetries: 0`, the settings' timeout, the SDK's logging and OpenTelemetry off, and a `fetch` that resolves through c-ares, times the connect, locks the origin, tells an unreached call from a possibly billed one, and sets every header itself. The gateway's retry, circuit, deadline, meter, and kill switch govern the adapter as they govern Bedrock.
-5. **The same ceilings, and a monthly cap of the adapter's own** (Q3, Q4; D7): every Anthropic call counts at its list-price estimate toward prod's $5 daily and $20 monthly ceilings, and a fallback call toward the $2-a-day sub-budget, whatever credits the account holds. `config/budgets.yaml`'s `adapter_monthly_usd`, the Author's, caps the adapter's month inside the monthly ceiling ($10 proposed). At the cap the adapter's calls are refused with the cause `adapter_month_spent`, the paid fallback awaits his renewal, as the sub-budget's exhaustion makes it do, and the adapter stays refused until the next UTC month or his patch raising the cap. Local answers go on.
+5. **The same ceilings, and a monthly cap of the adapter's own** (Q3, Q4; D7): every Anthropic call counts at its list-price estimate toward prod's $5 daily and $20 monthly ceilings, and a fallback call toward the $2-a-day sub-budget, whatever credits the account holds. `config/budgets.yaml`'s `adapter_monthly_usd`, the Author's, caps the adapter's month inside the monthly ceiling: $20, the whole ceiling, his answer ("$20 a month"). At the cap the adapter's calls are refused with the cause `adapter_month_spent`, the paid fallback awaits his renewal, as the sub-budget's exhaustion makes it do, and the adapter stays refused until the next UTC month or his patch raising the cap. Local answers go on. With the cap at the ceiling, the ceiling's own trip, which stops local answers too, comes first, and the cap stands as a backstop should the ceiling be raised (spec 010's plan §4.3).
 6. **The temperature as a setting** (D9): a paid adapter's `temperature` is `as_requested` or `model_default`; both paid adapters set `model_default`, since Haiku 5.5 "takes no temperature but its default, 1". Bedrock's is on `main` already, from spec 007's plan, D22.
 7. **The key's name** (Q5; D8): `GATEWAY_ANTHROPIC_API_KEY`, in prod's env file only, passed by compose to the gateway alone; no `ANTHROPIC_*` variable in any container.
 8. **The live runs and readiness** (Q6): `make evals`, `make redteam-live`, and `make contract-live` take `ADAPTER=anthropic`; readiness asks for evidence on prod's local model and on the paid adapter prod's route names, and only complete runs count. A switch of the fallback closes no topic; the report names what the newly routed adapter lacks.
 
 ## Alternatives considered
 
-The spec's six questions, each taken with its recommended option while the Author was away, each his to overturn:
+The spec's six questions, each taken with its recommended option while the Author was away, and approved by him as taken:
 
 | Question | Taken | The others |
 |---|---|---|

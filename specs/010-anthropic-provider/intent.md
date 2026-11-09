@@ -1,5 +1,5 @@
 # Intent: The Anthropic API as a second paid adapter, and the live runs on Bedrock or on it
-Author: the Author (drafted by Claude from the Author's words of 2026-11-08, as the main session's brief relays them, and from intent 000). Status: draft. Specified the same night while he was away, at the main session's direction ("take the recommended answer for each clarification, record each as provisional and his to overturn"); he accepts or closes it. Created: 2026-11-08, in the spec's folder rather than `intent/`, as the intents of specs 008 and 009 were, so it moves nowhere when accepted.
+Author: the Author (drafted by Claude from the Author's words of 2026-11-08, as the main session's brief relays them, and from intent 000). Status: accepted, 2026-11-08, with the spec built from it: asked whether he approved spec 010 "with the six provisional answers as taken", the Author answered "Approve as taken (Recommended)" (tasks.md T000). Specified the same night while he was away, at the main session's direction ("take the recommended answer for each clarification, record each as provisional and his to overturn"). Created: 2026-11-08, in the spec's folder rather than `intent/`, as the intents of specs 008 and 009 were, so it moves nowhere when accepted.
 
 ## The Author's words
 

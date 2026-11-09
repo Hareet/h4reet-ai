@@ -37,10 +37,10 @@ sys.modules[SPEC.name] = probe
 SPEC.loader.exec_module(probe)
 
 
-def rows() -> dict[str, list[str]]:
+def rows(text: str = TEXT) -> dict[str, list[str]]:
     """Each table row by its ID: its cells, the From → To first."""
     found = {}
-    for line in TEXT.splitlines():
+    for line in text.splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if (
             line.startswith("| ")
@@ -466,13 +466,9 @@ def test_the_anthropic_apis_row_is_in_its_own_section_in_the_specs_words() -> No
     assert lead, "spec 010's entries don't read as this test reads them"
     assert lead.group(1) in section
     assert "| F3 |" in section
-    entry = spec_010_entry("F3")
-    row = rows()["F3"]
-    assert row[:7] == entry[1:8]
-    assert row[7] == (
-        "spec 010 FR-038, FR-039; spec 000 FR-021, FR-022, FR-023, FR-030, FR-031, FR-040"
-    )
-    assert named(row[0].split("→", 1)[0]) == {"gateway"}
+    # The entry's row, the From → To's placeholder aside: F3 holds it, or the Author's words in its place.
+    assert f3_departures(TEXT) == []
+    assert named(rows()["F3"][0].split("→", 1)[0]) == {"gateway"}
 
 
 def test_f3s_host_is_the_adapters_own_constant() -> None:
@@ -522,16 +518,82 @@ def test_the_route_waits_for_the_authors_words_in_f3() -> None:
 
 
 def test_the_placeholder_gate_fails_a_switch_made_before_the_authors_words() -> None:
+    # F3 as it reads before T059 is built from spec 010's entry, so this holds whatever the committed F3 says: the
+    # committed row keeps the placeholder only until the Author's words replace it (FR-039).
     routing = yaml.safe_load(
         (REPO / "config" / "routing.yaml").read_text(encoding="utf-8")
     )
     assert routing["adapters"]["anthropic"]["type"] == "anthropic-messages"
-    assert PLACEHOLDER in rows()["F3"][0]
+    before = before_the_authors_words(TEXT)
+    assert PLACEHOLDER in rows(before)["F3"][0]
     routing["envs"]["prod"]["fallback"] = "anthropic"
     switched = yaml.safe_dump(routing)
-    assert placeholder_gate(switched, TEXT) != []
-    worded = TEXT.replace(
-        rows()["F3"][0][rows()["F3"][0].index(PLACEHOLDER) :].split(">", 1)[0] + ">",
-        "the Author's words, read from Anthropic's terms on a given day",
+    assert placeholder_gate(switched, before) != []
+    assert placeholder_gate(switched, with_the_authors_words(before)) == []
+
+
+def f3_line(text: str) -> str:
+    (line,) = [ln for ln in text.splitlines() if ln.startswith("| F3 |")]
+    return line
+
+
+def before_the_authors_words(text: str) -> str:
+    """The disclosure as it reads before T059: F3's From → To as spec 010's entry gives it, the placeholder in place."""
+    line = f3_line(text)
+    return text.replace(
+        line, line.replace(rows(text)["F3"][0], spec_010_entry("F3")[1], 1), 1
     )
-    assert placeholder_gate(switched, worded) == []
+
+
+def with_the_authors_words(text: str) -> str:
+    """The disclosure as T059 leaves it: words of the Author's in place of F3's placeholder, the rest as it was."""
+    line = f3_line(text)
+    start = line.index(PLACEHOLDER)
+    end = line.index(">", start) + 1
+    worded = (
+        line[:start]
+        + "his words, read from Anthropic's commercial terms on a given day"
+        + line[end:]
+    )
+    return text.replace(line, worded, 1)
+
+
+def f3_departures(text: str) -> list[str]:
+    """Where F3 departs from spec 010's entry (FR-038), the placeholder aside: the entry keeps it, and F3 holds it or,
+    once T059 writes them, the Author's words in its place (FR-039, SC-010). Nothing else in the row may differ."""
+    entry = spec_010_entry("F3")
+    row = rows(text)["F3"]
+    found = []
+    start = entry[1].index(PLACEHOLDER)
+    before, after = entry[1][:start], entry[1][entry[1].index(">", start) + 1 :]
+    words = row[0][len(before) : len(row[0]) - len(after)]
+    if not (
+        row[0].startswith(before)
+        and row[0].endswith(after)
+        and len(row[0]) > len(before) + len(after)
+        and words.strip()
+    ):
+        found.append(
+            "F3's From → To isn't spec 010's entry with the placeholder, or words in its place"
+        )
+    if row[1:7] != entry[2:8]:
+        found.append("F3's other cells aren't spec 010's entry")
+    if row[7] != (
+        "spec 010 FR-038, FR-039; spec 000 FR-021, FR-022, FR-023, FR-030, FR-031, FR-040"
+    ):
+        found.append("F3's requirements cell isn't spec 010's")
+    return found
+
+
+def test_every_f3_check_passes_once_the_authors_words_replace_the_placeholder() -> None:
+    # SC-010's second half: T059's commit, his words in F3 and prod's route on the Anthropic API, passes every F3
+    # check, and so does a later switch back to Bedrock that keeps his words (the merge note's "To go back to Bedrock").
+    worded = with_the_authors_words(before_the_authors_words(TEXT))
+    assert PLACEHOLDER not in rows(worded)["F3"][0]
+    assert f3_departures(worded) == []
+    routing = yaml.safe_load(
+        (REPO / "config" / "routing.yaml").read_text(encoding="utf-8")
+    )
+    for fallback in ("anthropic", "bedrock"):
+        routing["envs"]["prod"]["fallback"] = fallback
+        assert placeholder_gate(yaml.safe_dump(routing), worded) == [], fallback

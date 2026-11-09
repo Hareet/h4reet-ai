@@ -48,9 +48,9 @@ or `anthropic`, the Author's choice. Dev and dev-cpu never route a paid adapter.
   and `make test` fails while the disclosure's row F3 holds the placeholder for the Author's words about what
   Anthropic keeps.
 - **The Author's order**: P-A (the denies for both key names, the bash gate's `anthropic` rules, the compose policy,
-  and `CLAUDE.md`'s routing sentence) on his branch cut from spec 010's tip, gated with it, and merged; then
-  `make init-env ENV=prod SYNC=1`; then P-C (the cap) and P-B (the price); then, if he chooses the Anthropic API, his
-  words in F3, the key in prod's env file, the one line, and `make up ENV=prod`. The patches are in
+  and `CLAUDE.md`'s routing sentence) on his branch cut from a tip that holds spec 010's, gated with it, and merged;
+  then `make init-env ENV=prod SYNC=1`; then P-C (the cap, $20 a month, his answer) and P-B (the price); then, if he
+  chooses the Anthropic API, his words in F3, the key in prod's env file, the one line, and `make up ENV=prod`. The patches are in
   `docs/merge-requests/`, beside spec 010's note.
 
 ## The live runs, on either paid adapter (spec 010)

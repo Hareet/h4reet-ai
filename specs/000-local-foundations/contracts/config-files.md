@@ -306,7 +306,7 @@ It sets the ceilings, the fallback sub-budget, the warning ratio, the request li
 - a day or month warning = the ceiling × `warn_ratio`, rounded down, so a warning never comes later than the ratio says;
 - a fallback grant's warning = its allowance − (`fallback_daily` − `fallback_daily` × `warn_ratio`): the allowance minus $0.60 here.
 
-**`envs.<env>.adapter_monthly_usd` (spec 010, Amendment 0-4).** Optional: a map from a paid adapter's ID in `config/routing.yaml` to its monthly cap in USD, counted inside the monthly ceiling as the sub-budget counts inside the daily one. Derived: the cap's warning, the cap × `warn_ratio`, rounded down to the micro-dollar. Its cap stops that adapter alone (data-model.md §7.2, the cause `adapter_month_spent`). The Author's patch P-C sets `anthropic: 10.00` in both envs, after spec 010's merge, since the schema accepts the key only from then.
+**`envs.<env>.adapter_monthly_usd` (spec 010, Amendment 0-4).** Optional: a map from a paid adapter's ID in `config/routing.yaml` to its monthly cap in USD, counted inside the monthly ceiling as the sub-budget counts inside the daily one. Derived: the cap's warning, the cap × `warn_ratio`, rounded down to the micro-dollar. Its cap stops that adapter alone (data-model.md §7.2, the cause `adapter_month_spent`). The Author's patch P-C sets `anthropic: 20.00` in both envs, his answer ("$20 a month", the whole monthly ceiling, so the ceiling's own trip comes first), after spec 010's merge, since the schema accepts the key only from then.
 
 ### 3.2 Example (the plan's values)
 
