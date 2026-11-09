@@ -504,6 +504,8 @@ describe("when the twin can't answer (T060; FR-036, FR-054)", () => {
       "fallback_spent_today",
       "fallback_awaiting_renewal",
       "kill_switch_tripped",
+      // Spec 010's Amendment 2-1 (its T047): the paid fallback's monthly cap.
+      "adapter_month_spent",
     ],
     "cannot_talk.unavailable": [
       "store_unreachable",

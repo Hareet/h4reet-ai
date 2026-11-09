@@ -161,9 +161,9 @@ description: "Task list for spec 010, the Anthropic API as a second paid adapter
 
 **Independent Test**: spec.md User Story 4's.
 
-- [ ] T046 [P] [US4] Write `test/integration/anthropic-degraded.test.ts` (FR-011, SC-006): on prod's configuration naming `anthropic`, with the local model down, each row of the spec's Degraded-Mode Behavior table: 529, 502, and 503 `unavailable`; an unreachable host; 429 retried once when the deadline allows, then degraded; the request timeout charged its reserved maximum; `refusal` withheld; `max_tokens` trimmed or withheld; each with its cause or line, and the stub's request count as the row says. Check: passes, or RED naming the row T048 fixes (feat/010-anthropic-provider)
-- [ ] T047 [P] [US4] Extend `apps/web/test/ui/talk-turns.test.ts` (User Story 4): a 503 with `adapter_month_spent` shows `cannot_talk.budget` with the resume and the PDF, the words back in an empty box; a fallback answer still shows the sign's "est." and the laptop's cloud pose. Check: passes, or RED naming what T048 fixes (feat/010-anthropic-provider)
-- [ ] T048 [US4] Close what T046 and T047 show. Check: both pass; any change is recorded in plan.md (feat/010-anthropic-provider)
+- [X] T046 [P] [US4] Write `test/integration/anthropic-degraded.test.ts` (FR-011, SC-006): on prod's configuration naming `anthropic`, with the local model down, each row of the spec's Degraded-Mode Behavior table: 529, 502, and 503 `unavailable`; an unreachable host; 429 retried once when the deadline allows, then degraded; the request timeout charged its reserved maximum; `refusal` withheld; `max_tokens` trimmed or withheld; each with its cause or line, and the stub's request count as the row says. Check: passes, or RED naming the row T048 fixes (feat/010-anthropic-provider)
+- [X] T047 [P] [US4] Extend `apps/web/test/ui/talk-turns.test.ts` (User Story 4): a 503 with `adapter_month_spent` shows `cannot_talk.budget` with the resume and the PDF, the words back in an empty box; a fallback answer still shows the sign's "est." and the laptop's cloud pose. Check: passes, or RED naming what T048 fixes (feat/010-anthropic-provider)
+- [X] T048 [US4] Close what T046 and T047 show. Check: both pass; any change is recorded in plan.md (feat/010-anthropic-provider)
 
 **Checkpoint**: every degraded condition is proven end to end.
 
