@@ -13,7 +13,11 @@ import {
   type RuntimeFacts,
 } from "../../src/alerts/format.js";
 import { attemptOffsets, channelsFrom, nextAttemptAt, reminderDue } from "../../src/alerts/dispatcher.js";
+import { designEmail } from "../../src/alerts/email-design.js";
 import { dedupeKey } from "../../src/alerts/outbox.js";
+import { designTelegram } from "../../src/alerts/telegram-design.js";
+import { AWKWARD } from "../helpers/alert-cases.js";
+import { entryCases, furtherCases, longestCases } from "../helpers/golden-cases.js";
 
 const T = (iso: string): number => Date.parse(iso);
 const FP = "1a2b3c4d";
@@ -594,6 +598,39 @@ describe("§5: what never appears", () => {
       "trip",
       "warn",
     ]);
+  });
+
+  it("holds in every form of every entry, further case, and sample (spec 011, FR-042, FR-043; SC-003)", () => {
+    // The same canaries, where a careless renderer might pick them up; every form renders from the typed facts alone.
+    const canaries = ["canary-client-label", "canary hello message", "Canary reason: breach rehearsal", "h4op_prod_"];
+    const cases = [...entryCases(), ...furtherCases(), ...longestCases()];
+    expect(cases.filter((c) => c.sample !== undefined)).toHaveLength(19); // every entry as a sample, at its longest
+    for (const c of cases) {
+      const plain = renderAlert(c.ctx, c.spec, c.sample);
+      const telegram = designTelegram(c.ctx, c.spec, c.sample);
+      const email = designEmail(c.ctx, c.spec, c.sample);
+      const forms = {
+        plain: `${plain.subject}\n${plain.body}`,
+        subject: email.subject,
+        telegram: `${telegram.text}\n${JSON.stringify(telegram.entities)}`,
+        html: email.html,
+        facts: JSON.stringify(plain.facts),
+      };
+      for (const [form, text] of Object.entries(forms)) {
+        for (const canary of canaries) expect(text, `${c.name} ${form}`).not.toContain(canary);
+        // Only the 8-hex fingerprint, never more of the token's hash.
+        expect(text, `${c.name} ${form}`).not.toMatch(/[0-9a-f]{9,}/);
+      }
+    }
+  });
+
+  it("escapes a value in the HTML, and carries it as itself in Telegram's text (spec 011, FR-017, FR-043)", () => {
+    const c = ctx({ key: "prod:warn:day:2026-10-29", at: "2026-10-29T16:00:00Z", meters: meters(0, 0, 0) });
+    const awkward = { ...c, prefix: `[${AWKWARD}]` };
+    const spec: AlertSpec = { kind: "warn", meter: "day", warnRatioBp: WARN_70 };
+    expect(designEmail(awkward, spec).html).toContain("[&amp;&lt;&gt;&quot;&#39;*_`🧪]");
+    expect(designEmail(awkward, spec).html).not.toContain(AWKWARD);
+    expect(designTelegram(awkward, spec).text).toContain(`[${AWKWARD}]`);
   });
 
   it("accepts no unknown field: a spec with a payload or a reason doesn't type-check", () => {

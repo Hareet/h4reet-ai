@@ -6,8 +6,11 @@
 //   plain.txt      the plain text, byte for byte
 //   telegram.txt   the designed text, then "--- entities (UTF-16 offset, length)", then one line per entity: its type,
 //                  offset, length, and the text it covers, JSON-quoted, so each entity reads on its words
+//   subject.txt    the designed email's subject: the severity's emoji, the kind's, and the plain text's first line
+//   email.html     the HTML part, byte for byte
 import { describe, expect, it } from "vitest";
 
+import { designEmail } from "../../src/alerts/email-design.js";
 import { renderAlert } from "../../src/alerts/format.js";
 import type { TelegramMessage } from "../../src/alerts/forms.js";
 import { designTelegram } from "../../src/alerts/telegram-design.js";
@@ -65,6 +68,12 @@ describe("the golden files (FR-005; plan §3.4)", () => {
 
       it("pins Telegram's designed message and its entities", async () => {
         await expect(telegramFile(telegramOf(c))).toMatchFileSnapshot(file(c, "telegram.txt"));
+      });
+
+      it("pins the designed email's subject and its HTML part", async () => {
+        const email = designEmail(c.ctx, c.spec, c.sample);
+        await expect(email.subject).toMatchFileSnapshot(file(c, "subject.txt"));
+        await expect(email.html).toMatchFileSnapshot(file(c, "email.html"));
       });
     });
   }
