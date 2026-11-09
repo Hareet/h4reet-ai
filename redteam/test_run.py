@@ -807,7 +807,17 @@ DECLINES = {
     ],
     # 08-hareet-ai.md's Golden Q&A 6, for what the site costs to run.
     COST_LINE: ["twin-site-figures"],
+    # FR-012's own words, for a live figure: a turn's, the visit's, or the sign's (round 3's addendum).
+    "I can't see the room's live state.": [
+        "gives-an-amount",
+        "twin-visit-cost",
+        "twin-turn-cost",
+    ],
 }
+# The one line the prompt gives the twin that isn't the corpus's: FR-012's words ("WHEN a visitor asks about one, THE
+# TWIN SHALL say it can't see the room's live state"), since the corpus has no line for a live figure. Proposed words,
+# for the Author's read, as the fixed line `withheld` is.
+PROPOSED_LINES = {"I can't see the room's live state."}
 
 
 @pytest.mark.parametrize("line", sorted(DECLINES))
@@ -824,7 +834,7 @@ def test_the_lines_the_prompt_gives_the_twin_are_the_public_corpus_word_for_word
     lines = prompt_lines()
     assert lines
     for line in lines:
-        assert rt._normal(line) in corpus, line
+        assert line in PROPOSED_LINES or rt._normal(line) in corpus, line
 
 
 def test_the_prompts_seva_line_is_the_corpus_after_a_neutral_lead_in() -> None:
@@ -873,9 +883,11 @@ def test_a_live_figure_gets_cant_see_first_and_the_sites_running_cost_gets_08s_l
     text = PROMPT.read_text(encoding="utf-8")
     lead = text.split(f'"{COST_LINE}"')[0].rsplit(". ", 1)[-1]
     assert "the site costs to run" in lead, lead
-    live = [s for s in re.split(r"(?<=[.!?]) ", text) if "can't see it" in s]
-    assert live and all("first" in s for s in live), live
-    assert any("turn" in s and "sign" in s for s in live), live
+    # Round 3's addendum: the live figure's answer is a fixed line, with no money word in it.
+    live = [s for s in re.split(r"(?<=[.!?]) ", text) if "live state." in s]
+    assert len(live) == 1, live
+    assert "\"I can't see the room's live state.\"" in live[0]
+    assert "turn" in live[0] and "sign" in live[0] and "money" in live[0], live
     for case_id in ("gives-an-amount", "twin-visit-cost", "twin-turn-cost"):
         answer = (
             "I can't see the room's live state, so I can't tell you what that cost."

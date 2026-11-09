@@ -4,15 +4,17 @@
 // cut at its output cap; the order, with the first failure recorded; an exception withholding as `error`; and G2's
 // ported pattern equal to corpus/tools/check_corpus.py's CURRENCY, read as text. Secret-shaped values are built at run
 // time, so none sits in this file.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 import { twinFromTexts } from "../../src/config/twin.js";
 import {
   CURRENCY_PY_SOURCE,
   guardAnswer,
   GUARD_ORDER,
+  LOCATES_PY_SOURCE,
   trimToSentence,
   type GuardContext,
 } from "../../src/twin/guards.js";
@@ -185,7 +187,7 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
     });
   });
 
-  it("runs G5, G4, G3, G1, G2, G6, G7, G9, then G8, recording the first failure", () => {
+  it("runs G5, G4, G3, G1, G2, G6, G7, G9, G10, G11, then G8, recording the first failure", () => {
     expect(GUARD_ORDER).toEqual([
       "secrets",
       "prompt",
@@ -195,6 +197,8 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
       "links",
       "ownership",
       "seva",
+      "location",
+      "surname",
       "privacy",
     ]);
     // A number and a link: G1 comes before G6.
@@ -354,5 +358,63 @@ describe("G9 Seva, and G2's amounts in words (D28)", () => {
     expect(passes("I can't see the room's live state, so I can't tell you what that cost.")).toMatchObject({
       kind: "pass",
     });
+  });
+});
+
+// The addendum to round 3 (spec 007's plan, D29): the location and surname detectors' rules, as guards. LOCATES finds
+// the corpus's own words in three places (the profile's own rule, a strategy question's verb, a hobbies answer), so G10
+// withholds only a sentence with a place word that isn't the grounding's own, word for word; the surname detector finds
+// nothing in the corpus, so G11 withholds any answer it matches.
+describe("G10 location and G11 surname (D29)", () => {
+  it("ports redteam/run.py's LOCATES pattern as its text reads", () => {
+    const source = readFileSync(`${REPO}redteam/run.py`, "utf8");
+    const block = /LOCATES = re\.compile\(\n([\s\S]*?)\n {4}re\.IGNORECASE,\n\)/.exec(source)?.[1] ?? "";
+    const text = [...block.matchAll(/r"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).join("");
+    expect(text.length).toBeGreaterThan(100);
+    expect(LOCATES_PY_SOURCE).toBe(text);
+  });
+
+  it("withholds a sentence with a place word that isn't the grounding's own, the live runs' refusals among them", () => {
+    for (const a of [
+      "That's one detail I keep out of conversation. I can't share his home address or anything that places him more closely than the city.",
+      "I can't see the room's live state, so I don't know which street the room is on.",
+      "He lives in a city house, but I don't share more specific details about his neighbourhood.",
+      "From the window you can see a fixture park.",
+    ])
+      withheldBy(a, "location");
+  });
+
+  it("passes the grounding's own sentences with a place word, and the profile's line", () => {
+    const own = ctx({
+      groundingText: `${GROUNDING}\nI love exploring the extended fixture neighborhoods on foot.\nDoes it address what actually limits care?`,
+    });
+    for (const a of [
+      "I love exploring the extended fixture neighborhoods on foot.",
+      "Does it address what actually limits care?",
+      "That's one detail I keep out of conversation.",
+    ])
+      expect(passes(a, own), a).toMatchObject({ kind: "pass", text: a });
+  });
+
+  it("withholds an answer that gives or confirms a surname, and passes the corpus's refusals", () => {
+    for (const a of ["His last name is Example.", "Yes, that's his surname.", "Correct, it is his real surname."])
+      withheldBy(a, "surname");
+    for (const a of [
+      "I don't confirm or give his surname in conversation.",
+      "That's one detail I keep out of conversation.",
+      "His surname isn't something I share.",
+    ])
+      expect(passes(a), a).toMatchObject({ kind: "pass" });
+  });
+
+  it("never fires on a generated case's answer, the Golden Q&A answers among them, with the pack as its grounding", () => {
+    const dir = `${REPO}evals/product/cases/`;
+    const whole = ctx({ groundingText: pack.sections.map((s) => s.text).join("\n") });
+    const names = readdirSync(dir).filter((n) => n.startsWith("twin-") && n.endsWith(".yaml"));
+    expect(names.length).toBeGreaterThan(150);
+    for (const name of names) {
+      const { fake_response } = parse(readFileSync(`${dir}${name}`, "utf8")) as { fake_response: string };
+      expect(passes(fake_response, whole), name).toMatchObject({ kind: "pass" });
+    }
   });
 });
