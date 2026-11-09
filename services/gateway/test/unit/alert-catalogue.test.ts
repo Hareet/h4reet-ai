@@ -54,6 +54,27 @@ describe("the catalogue (FR-004)", () => {
     ]);
     for (const unknown of ["sample", "page", "", "Trip", "warn "]) expect(entriesFor(unknown), unknown).toBeUndefined();
   });
+
+  it("shows the adapter month at the Author's $20.00 cap, as prod's samples will (T048's decision D-2)", () => {
+    const facts = (name: string) => {
+      const e = CATALOGUE.find((x) => x.name === name);
+      if (e === undefined) throw new Error(name);
+      return e.facts({
+        stack: "prod",
+        envClass: "prod",
+        prefix: "[h4reet.ai prod]",
+        key: e.key("prod"),
+        fingerprint: FP,
+      });
+    };
+    const warn = facts("warn-adapter-month");
+    expect(warn.spec).toMatchObject({ adapterMonth: { capMicro: 20_000_000n, spentMicro: 14_400_000n } });
+    // The warning's month meter holds the adapter's spend, which is part of it.
+    expect(warn.ctx.meters?.monthMicro).toBeGreaterThanOrEqual(14_400_000n);
+    expect(facts("exhausted-adapter-month").spec).toMatchObject({
+      adapterMonth: { capMicro: 20_000_000n, spentMicro: 20_000_000n },
+    });
+  });
 });
 
 describe("the samples' keys (FR-035)", () => {
