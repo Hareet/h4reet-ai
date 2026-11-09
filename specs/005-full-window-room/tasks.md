@@ -298,7 +298,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Tests for User Story 6 (first)
 
-- [ ] T033 [P] [US6] Write `apps/web/test/room/fullscreen.test.ts` (FR-036, FR-041, FR-042; plan §8.1), with a stubbed document:
+- [x] T033 [P] [US6] Write `apps/web/test/room/fullscreen.test.ts` (FR-036, FR-041, FR-042; plan §8.1), with a stubbed document:
   - `supported` is true from the unprefixed or WebKit-prefixed names, and false from neither;
   - `toggle()` asks for the root element's full screen with `navigationUI: "hide"`, or leaves it;
   - a rejected request or a `fullscreenerror` calls `onRefused`;
@@ -307,7 +307,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - spies on `navigator.keyboard.lock`, `screen.orientation.lock`, and `requestPointerLock` see 0 calls.
 
   Check: RED before T036 (feat/005-full-window-room)
-- [ ] T034 [P] [US6] Write `apps/web/test/ui/fullscreen.test.ts` (FR-005, FR-036 to FR-040; SC-007):
+- [x] T034 [P] [US6] Write `apps/web/test/ui/fullscreen.test.ts` (FR-005, FR-036 to FR-040; SC-007):
   - **The control**: it is the bar's tile after "Pause the room" where supported, absent where not (Q4, provisional), and its words follow every change.
   - **The shortcut**: Alt+Enter from every focus place, the text box included, toggles, sends no turn, and moves no figure; nothing happens during the hand-off and its offer.
   - **A refusal** says `fullscreen.refused` once and leaves focus where it was.
@@ -327,9 +327,9 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Implementation for User Story 6
 
-- [ ] T036 [US6] Write `apps/web/src/room/fullscreen.ts`. In `app.ts`: the control, the shortcut's listener, `onRefused`, and the event once a visit. Add the guard to `walk/input.ts`, `talk.ts`, `app.ts`'s resume panel, and the larger view. Add the `fullscreen.*` and `walk.*_fullscreen` words to `ui-keys.ts`, `ui-words.yaml`, and the fixture, and `fullscreen` entries to the frame log. All by plan §8. Check: T033 and T034 pass (feat/005-full-window-room)
-- [ ] T037 [US6] Add `fullscreen_entered` to `apps/web/src/room/events.ts`, run `npm run manifest` to regenerate `config/room-events.yaml` and the manifest, and mark spec 002's room-events.md §1 and data-model.md §8 "(spec 005)" (H7). In the same commit, change `docs/data-flow-disclosure.md`'s row V4 (T038). Check: T035's web and gateway cases pass (feat/005-full-window-room)
-- [ ] T038 [US6] Row V4's Trigger gains ", the visitor first entering full screen in a visit" before spec 009's closing clause (H9), in T037's commit, so the room never sends the kind without the row (FR-064). Check: T035's disclosure case passes (feat/005-full-window-room)
+- [x] T036 [US6] Write `apps/web/src/room/fullscreen.ts`. In `app.ts`: the control, the shortcut's listener, `onRefused`, and the event once a visit. Add the guard to `walk/input.ts`, `talk.ts`, `app.ts`'s resume panel, and the larger view. Add the `fullscreen.*` and `walk.*_fullscreen` words to `ui-keys.ts`, `ui-words.yaml`, and the fixture, and `fullscreen` entries to the frame log. All by plan §8. Check: T033 and T034 pass (feat/005-full-window-room)
+- [x] T037 [US6] Add `fullscreen_entered` to `apps/web/src/room/events.ts`, run `npm run manifest` to regenerate `config/room-events.yaml` and the manifest, and mark spec 002's room-events.md §1 and data-model.md §8 "(spec 005)" (H7). In the same commit, change `docs/data-flow-disclosure.md`'s row V4 (T038). Check: T035's web and gateway cases pass (feat/005-full-window-room)
+- [x] T038 [US6] Row V4's Trigger gains ", the visitor first entering full screen in a visit" before spec 009's closing clause (H9), in T037's commit, so the room never sends the kind without the row (FR-064). Check: T035's disclosure case passes (feat/005-full-window-room)
 - [ ] T039 [US6] In one commit: spec 000's contracts/telemetry.md §7.8 gains "Visits in full screen" with the spec's query, marked "(spec 005)"; `deploy/grafana/dashboards/h4-runtime.json` gains the panel beside "Visits that walked" (H8). Check: T035's dashboard case passes (feat/005-full-window-room)
 
 **Checkpoint**: full screen works where the browser offers it, Escape stays the browser's, and its one event is counted, graphed, and disclosed.

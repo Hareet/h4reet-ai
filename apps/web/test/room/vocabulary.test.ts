@@ -144,8 +144,14 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "hud.log_toggle": [],
       "talk.larger": [],
       "talk.smaller": [],
+      // Spec 005's full screen (its FR-005, FR-036, FR-039; T036).
+      "fullscreen.enter": [],
+      "fullscreen.leave": [],
+      "fullscreen.refused": [],
+      "walk.help_fullscreen": [],
+      "walk.entered_fullscreen": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(44);
+    expect(Object.keys(UI_KEYS)).toHaveLength(49);
   });
 
   // T022 (spec 005; FR-065): the HUD's words join the closed list with no slot, and every room holds them: the

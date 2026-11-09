@@ -67,6 +67,7 @@ import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
 import { renderFlat } from "./flat";
+import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
 import { ROOM_TEXT_RETRY_MS, roomTextOf } from "./faces/words";
@@ -257,6 +258,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /** Whether this visit has walked: walk_started goes once a visit (FR-051). */
   let walked = false;
+  /** Whether this visit has entered spec 005's full screen: fullscreen_entered goes once a visit (FR-060). */
+  let fullscreenEntered = false;
   /** The stage, where it's the 3D one, which walks. */
   const walker = (s: Stage | null): Stage3D | null => (s?.mode === "3d" && "walk" in s ? (s as Stage3D) : null);
   /** Into the walking view: focus on it, walk_started the first time, and the frame log's entry (FR-022, FR-054). */
@@ -267,6 +270,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!scene3d.walk.walking) return;
     layout.setWalking(true);
     layout.view.focus();
+    // Spec 008's FR-043 entry announcement, which spec 005's FR-039 words for full screen, where Escape is the browser's.
+    const said = uiWord(deps.room.ui, browserOwnsEscape(doc) ? "walk.entered_fullscreen" : "walk.entered");
+    if (said) announcer.say(said);
     if (!walked) {
       walked = true;
       emit({ kind: "walk_started" });
@@ -454,6 +460,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       },
       onPanel: (part, state) => panel(part, state),
     });
+    // Spec 005's full screen of the page's root (FR-036 to FR-042), its support read as the room is built.
+    const fullscreen = createFullscreen(doc);
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
     around.setCost(cost.state);
@@ -469,7 +477,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",
         region: uiWord(deps.room.ui, "walk.region") ?? "",
         help: uiWord(deps.room.ui, "walk.help") ?? "",
+        helpFullscreen: uiWord(deps.room.ui, "walk.help_fullscreen") ?? "",
       },
+      // Spec 005's full-screen control, where the browser offers full screen (Q4, provisional).
+      ...(fullscreen.supported
+        ? {
+            fullscreen: {
+              enter: uiWord(deps.room.ui, "fullscreen.enter") ?? "Full screen",
+              leave: uiWord(deps.room.ui, "fullscreen.leave") ?? "Leave full screen",
+            },
+          }
+        : {}),
       // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
       standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
         ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
@@ -503,9 +521,39 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       layout.flatButton.focus();
     });
     layout.resumePanel.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
+      // In full screen the browser takes Escape to leave it, and the resume stays open (spec 005, FR-039).
+      if (event.key !== "Escape" || browserOwnsEscape(doc)) return;
       event.preventDefault();
       closeResume();
+    });
+    // Spec 005's full screen (FR-036 to FR-042; plan.md §8): the control, Alt+Enter from anywhere in the room, a
+    // refusal said once, every change re-fitting the room and wording the control, and the event once a visit.
+    layout.fullscreenButton?.addEventListener("click", () => {
+      if (open()) fullscreen.toggle();
+    });
+    doc.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        if (!open() || !fullscreen.supported) return;
+        event.preventDefault();
+        event.stopPropagation();
+        fullscreen.toggle();
+      },
+      true,
+    );
+    fullscreen.onRefused(() => {
+      announcer.say(uiWord(deps.room.ui, "fullscreen.refused") ?? "");
+      log?.record("fullscreen", { state: "refused" });
+    });
+    fullscreen.onChange((on) => {
+      layout.setFullscreen(on);
+      refit();
+      log?.record("fullscreen", { state: on ? "entered" : "left" });
+      if (on && !fullscreenEntered) {
+        fullscreenEntered = true;
+        emit({ kind: "fullscreen_entered" });
+      }
     });
     viewport = (deps.viewport ?? ((w: Window): Viewport => createViewport(w)))(win);
     viewport.subscribe((what) => refit(what));

@@ -80,6 +80,12 @@ export interface RoomLayout {
   setStage(what: "loading" | "3d" | "2d"): void;
   /** The glass's blur, on at quality levels 0 and 1 and off from 2 (spec 005, FR-025; PD-17). */
   setBlur(on: boolean): void;
+  /** Spec 005's full-screen control (FR-036; Q4, provisional), after "Pause the room", where the browser offers full
+   *  screen; null where it doesn't. */
+  readonly fullscreenButton: HTMLButtonElement | null;
+  /** Whether the page is in full screen: the control's words and icon, and the walking view's instructions, which then
+   *  say that Escape first leaves full screen (FR-039, FR-040). */
+  setFullscreen(on: boolean): void;
 }
 
 /** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
@@ -113,14 +119,43 @@ export function renderRoom(
     standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
-    /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help. */
-    walk?: { readonly enter: string; readonly leave: string; readonly region: string; readonly help: string };
+    /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help; and spec 005's helpFullscreen,
+     *  walk.help_fullscreen. */
+    walk?: {
+      readonly enter: string;
+      readonly leave: string;
+      readonly region: string;
+      readonly help: string;
+      readonly helpFullscreen?: string;
+    };
+    /** Spec 005's full-screen control's words, fullscreen.enter and fullscreen.leave, where the browser offers full
+     *  screen; absent, no control. */
+    fullscreen?: { readonly enter: string; readonly leave: string };
   },
 ): RoomLayout {
   const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
   const resumeButton = tile(doc, "button", { type: "button" }, "resume", "Resume");
   const flatButton = tile(doc, "button", { type: "button" }, "flat", "2D view");
   const pauseButton = tile(doc, "button", { type: "button", "aria-pressed": "false" }, "pause", parts.pause);
+  // Spec 005's full-screen control, its shortcut named to assistive technology and in its description (FR-037).
+  const fs = parts.fullscreen;
+  const fullscreenButton = fs
+    ? tile(
+        doc,
+        "button",
+        { type: "button", "aria-keyshortcuts": "Alt+Enter", "aria-describedby": "room-fullscreen-help" },
+        "fullscreen",
+        fs.enter,
+      )
+    : null;
+  const fullscreenHelp = fs
+    ? h(
+        doc,
+        "span",
+        { id: "room-fullscreen-help", class: "visually-hidden" },
+        "Shortcut: Alt+Enter, or Option+Return on a Mac.",
+      )
+    : null;
   const toolbar = h(
     doc,
     "div",
@@ -128,7 +163,9 @@ export function renderRoom(
     resumeButton,
     flatButton,
     pauseButton,
+    ...(fullscreenButton ? [fullscreenButton] : []),
     tile(doc, "a", { href: "./disclosure/" }, "data", "How data flows"),
+    ...(fullscreenHelp ? [fullscreenHelp] : []),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
   const view = h(
@@ -138,7 +175,7 @@ export function renderRoom(
     h(doc, "p", { class: "room-loading" }, "Loading the room…"),
   );
   const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
-  const walkWords = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
+  const walkWords: NonNullable<typeof parts.walk> = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
   const walkButton = tile(
     doc,
     "button",
@@ -255,6 +292,16 @@ export function renderRoom(
     },
     setBlur(on) {
       root.setAttribute("data-blur", on ? "on" : "off");
+    },
+    fullscreenButton,
+    setFullscreen(on) {
+      if (fullscreenButton && fs) {
+        const words = fullscreenButton.querySelector(".hud-tile-words");
+        if (words) words.textContent = on ? fs.leave : fs.enter;
+        fullscreenButton.querySelector("svg")?.replaceWith(icon(doc, on ? "fullscreen-exit" : "fullscreen"));
+      }
+      const extra = walkWords.helpFullscreen ?? "";
+      walkHelp.textContent = on && extra !== "" ? `${walkWords.help} ${extra}` : walkWords.help;
     },
   };
 }

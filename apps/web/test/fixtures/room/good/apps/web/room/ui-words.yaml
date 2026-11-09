@@ -45,6 +45,11 @@ words:
   hud.log_toggle: Conversation
   talk.larger: Larger conversation
   talk.smaller: Smaller conversation
+  fullscreen.enter: Full screen
+  fullscreen.leave: Leave full screen
+  fullscreen.refused: Full screen isn't available here. The room still fills the window.
+  walk.help_fullscreen: In full screen, Escape first leaves full screen. Press it again to stop walking.
+  walk.entered_fullscreen: Walking. Escape leaves full screen first, then stops walking.
   label.fx-desk: fixture desk
   label.fx-monitor: fixture monitor
   label.fx-laptop: fixture laptop

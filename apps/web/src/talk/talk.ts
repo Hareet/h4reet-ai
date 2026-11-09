@@ -25,6 +25,7 @@ import type { Turn, VisitPath } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
+import { browserOwnsEscape } from "../room/fullscreen";
 import { icon } from "../room/hud/icons";
 import type { EventSink } from "../room/events";
 import type { TurnResult } from "../room/signals/turn-cost";
@@ -327,7 +328,8 @@ export function renderTalk(
     stop();
   });
   form.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && flight !== null) {
+    // In full screen the browser takes Escape to leave it, and the turn goes on (spec 005, FR-039).
+    if (event.key === "Escape" && flight !== null && !browserOwnsEscape(doc)) {
       event.preventDefault();
       stop();
     }
@@ -352,7 +354,7 @@ export function renderTalk(
   largerToggle.addEventListener("click", () => setLarger(!larger));
   // Escape closes the larger view, focus back on its toggle, unless the form's Escape stopped a turn first.
   element.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || event.defaultPrevented || !larger) return;
+    if (event.key !== "Escape" || event.defaultPrevented || !larger || browserOwnsEscape(doc)) return;
     event.preventDefault();
     setLarger(false);
     largerToggle.focus();

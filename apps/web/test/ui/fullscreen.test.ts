@@ -91,11 +91,13 @@ describe("the full-screen control (FR-036, FR-040, FR-042)", () => {
     expect(control.getAttribute("aria-keyshortcuts")).toBe("Alt+Enter");
     const described = v.doc.getElementById(control.getAttribute("aria-describedby") ?? "");
     expect(textOf(described)).toMatch(/Alt\+Enter/);
+    control.focus();
     control.click();
     await flush();
     expect(fs.asked).toEqual([{ navigationUI: "hide" }]);
     expect(textOf(control.querySelector(".hud-tile-words"))).toBe(LEAVE);
-    expect(v.doc.activeElement === control || v.doc.activeElement === v.doc.body).toBe(true);
+    // Focus stays where it was, on the control (FR-038).
+    expect(v.doc.activeElement).toBe(control);
     // The browser's own exit: the words follow.
     fs.exit();
     expect(textOf(control.querySelector(".hud-tile-words"))).toBe(ENTER);

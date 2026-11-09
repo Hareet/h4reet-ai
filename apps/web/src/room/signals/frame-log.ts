@@ -39,7 +39,9 @@ export type FrameEvent =
   // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, and the buffer's ratio.
   | "refit"
   // A collapsible part's change (`part`, `state`): the list, the log, and the larger view.
-  | "panel";
+  | "panel"
+  // Full screen's changes and refusals (`state`: entered, left, or refused).
+  | "fullscreen";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;

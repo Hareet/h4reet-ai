@@ -66,6 +66,13 @@ export const UI_KEYS = {
   "hud.log_toggle": [],
   "talk.larger": [],
   "talk.smaller": [],
+  // Spec 005's full screen (its FR-005, FR-036, FR-039): the control's two words, a refusal, and the walking view's
+  // words while in full screen.
+  "fullscreen.enter": [],
+  "fullscreen.leave": [],
+  "fullscreen.refused": [],
+  "walk.help_fullscreen": [],
+  "walk.entered_fullscreen": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;
