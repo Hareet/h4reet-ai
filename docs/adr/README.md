@@ -8,7 +8,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0002](0002-one-compose-topology-for-every-environment.md) | Everything containerized; one compose topology for every environment | proposed | 000 |
 | [0003](0003-local-compose-first-then-terraform-elevation.md) | Local-compose-first delivery, then Terraform elevation to AWS | proposed | 000, 001 |
 | [0004](0004-langfuse-and-grafana-over-opentelemetry.md) | Langfuse (self-hosted, in the stack) + Grafana dashboards | proposed | 000 |
-| [0005](0005-telegram-and-smtp-alerting.md) | Telegram primary / email secondary alerting; no SNS SMS | proposed | 000 |
+| [0005](0005-telegram-and-smtp-alerting.md) | Telegram primary / email secondary alerting; no SNS SMS (one Decision extended by 0042) | proposed | 000, 011 |
 | [0006](0006-artifact-chain-and-hooks.md) | intent.md + Spec Kit + REVIEW.md as the artifact chain; hooks as the deterministic layer | proposed | 000 |
 | 0007 | One AWS account; environments separated by VM, IAM role, tag, and budget | proposed | 001 |
 | 0008 | Terraform, plan-in-PR, human-gated apply | proposed | 001 |
@@ -37,3 +37,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0039](0039-the-walking-view.md) | The walking view: a third-person follow camera entered by a control beside the production framing, solid furniture from the frame boxes, reach targeting, the highlight as look data, and one figure driver an avatar takes over | proposed | 008 |
 | [0040](0040-the-twins-conversation-core.md) | The twin's conversation core: a gateway route, a committed grounding pack, deterministic guards, and readiness by hash in a human-only file (0039 is allocated to spec 008's walking view) | proposed | 007 |
 | [0041](0041-the-anthropic-api-as-a-second-paid-adapter.md) | The Anthropic API as a second paid adapter, prod's fallback one at a time: the official SDK pinned and vetted behind a transport of its own, the same ceilings and a monthly cap of its own, and its flow disclosed in the Author's words before any call (extends 0001's Decision item 3 and its model line) | proposed | 010 |
+| [0042](0042-alerts-designed-to-be-read.md) | Alerts designed to be read: Telegram's message entities and a hand-written HTML email, each with its plain form as the fallback, and a marked sample of each (extends one Decision of 0005) | proposed | 011 |

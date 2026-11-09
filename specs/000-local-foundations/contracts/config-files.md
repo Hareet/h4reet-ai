@@ -367,7 +367,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `channels.telegram.timeout_ms` | integer | 1,000 to 10,000 |
 | `channels.email.timeout_ms` | integer | 1,000 to 30,000 |
 | `retry.schedule_s` | list of integers | 1 to 8 entries, each 1 to 300, never decreasing: the waits between attempts |
-| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. |
+| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. **(spec 011, Amendment 0-10)** The timeout counts twice, since an attempt that falls back to the plain form makes two sends: the sum of `schedule_s` plus twice the slowest timeout (230 + 20 = 250 for the committed file). |
 | `reminder.at_utc` | string | `HH:MM`, 24-hour, UTC |
 | `store_unreachable_after_s` | integer | 10 to 600: how long the store must be unreachable before its in-memory alert |
 | `auth_failed.threshold` | integer | 1 to 100 |
@@ -376,6 +376,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `standin.telegram_base` | string | `http://<single-label host>[:port]`, the in-network Telegram stand-in |
 | `standin.smtp_host` | string | a single-label host, the in-network Mailpit |
 | `standin.smtp_port` | integer | 1 to 65,535 |
+| `formats` **(spec 011, Amendment 0-10)** | map, optional | `telegram` and `email`, each optional, each `designed` or `plain`; `designed` where absent, and no other key. A channel at `plain` sends every alert in its plain form, today's, recorded as the form `plain` with no fallback ([alerts.md §4.1](alerts.md#41-the-dispatcher)): the Author's switch, added only when he wants a channel kept plain. |
 
 The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service: a label that starts with a letter, under the same rule as `local_url_not_in_stack` (§1.4), so no IPv4 address in any notation passes.
 
@@ -421,6 +422,9 @@ standin:                             # ALERT_DELIVERY=standin: dev's default, ne
 | A5 | `prefixes: needs prod, dev, and dev-cpu, each distinct` |
 | A6 | `standin.<field>: must be an in-network host (a single-label name)` |
 | A7 | any unknown key, wrong type, or out-of-range value, named by its path |
+| A8 **(spec 011, Amendment 0-10)** | `formats.<field>`: any value but `designed` or `plain`, or any key but `telegram` and `email`, named by its path |
+
+**(spec 011, Amendment 0-10)** Rule A2's `<t>` is twice the slowest channel's timeout, since an attempt that falls back makes two sends: `retry: the last attempt starts at 291 s and can run 20 s; both must fit in give_up_after_s (300 s)`.
 
 ### 4.4 Startup refusals (exit 78) that combine this file with the environment
 

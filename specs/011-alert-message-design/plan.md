@@ -589,3 +589,25 @@ A read-only consistency pass in the form of `/speckit-analyze`, made after tasks
 **Metrics**: 53 FRs, 12 SCs, 55 tasks (T000 to T054), 5 of them the Author's (one optional), and one review by an agent that wrote none of the work (T048); FR coverage 100%; 0 critical; 2 high, both resolved in the documents; 6 medium (A3, A4, A6 to A8 resolved; A5 open until T001); 9 low (A13 and A15 open, the rest resolved or accepted).
 
 **Next actions**: the Author's approval of the spec and this plan (T000); then T001, which settles A5 and A15.
+
+## What T001 read, and the departures while building
+
+### T001's record (2026-11-08, on `feat/010-anthropic-provider` at 911df96f)
+
+- **The base.** `git rev-parse HEAD` at the cut printed 3ce910b4, which is 911df96f, that branch's tip, with `spec/011-alert-message-design`'s four commits cherry-picked; the worktree's `npm ci --ignore-scripts` used the session's npm cache.
+- **nodemailer 10.0.16**, read in its own code under `node_modules/nodemailer/dist/esm/`. `mail-composer/index.js`'s `getAlternatives` orders the parts `text`, `watchHtml`, `amp`, then `html`, so the text part comes first in `multipart/alternative` (§5.5 as planned). In `smtp-connection/index.js`, `_formatError(message, type, response, command)` sets `err.command`, and `err.responseCode` from the reply's leading digits: a refused `DATA` command is `_actionDATA`'s `('Data command failed', 'EENVELOPE', str, 'DATA')`; a refused message end is `_actionSMTPStream`'s `('Message failed', 'EMESSAGE', str, 'DATA')`; a refused recipient is `'RCPT TO'`, and a refused sender `'MAIL FROM'`. So §5.5's reading holds without its fallback clause: a 5xx whose `command` is `DATA` is `message_refused`, and a refused recipient keeps the schedule (A5, R-2: settled).
+- **Spec 010's alert variants as built at the base** (`src/alerts/format.ts`): `warn` with `meter: "adapter_month"` and `fallback_exhausted` with `adapterMonth`, each carrying `AdapterMonthFacts` with the adapter's ID and label, its month, spend, and cap; and `fallback_unavailable` with an optional `label`. As §2.2 assumed.
+- **The newest migration** is `0005_adapter_month.sql`, which doesn't touch the audit log; the newest that does is `0004_twin.sql`, whose two action lists are §2.3's without `alert_samples`. So the number is 0006 and the lists stand (A12: settled).
+- **The next free ADR** on the base is 0042: `docs/adr/README.md` ends at 0041 (D14).
+- **The Bot API's facts.** This session has no route to telegram.org (the sandbox refuses it), and no installed package holds the reference, so each is recorded as an assumption that the Author's first prod samples confirm (T053), not as read:
+  - `sendMessage` takes `entities`, a list of `MessageEntity` objects of `type`, `offset`, and `length` (and `url`, `user`, `language`, `custom_emoji_id`, which no form sends), the offset and length in UTF-16 code units; the text is at most 4,096 characters after entities parsing.
+  - The link-preview field: since Bot API 7.0 the reference documents `link_preview_options` where it documented `disable_web_page_preview`. This branch keeps `disable_web_page_preview: true` on both forms (§4.4's first case): it is the body every alert has sent since spec 000, which the plain form must keep exactly (FR-013, FR-016), on the understanding that the Bot API still accepts the field it replaced. T053's check: no sample on his phone shows a link preview, the prefix's `h4reet.ai` being the likeliest trigger (R-13).
+  - The FAQ's advice for one chat: about one message a second, which §7.4's pacing keeps under.
+  - Whether Telegram makes a link of text inside a `code` entity: assumed not; T053's check is that no key or runbook path shows as a link (A15, R-8). No form carries a link either way.
+
+### Departures
+
+| ID | Task | Departure | Why |
+|---|---|---|---|
+| B1 | T009, T015 | Rules A2's and A8's tests are in `test/unit/config.test.ts`, which tests `validateAlerts`; `test/unit/validate-config.test.ts` tests the `validate-config` command, and gains nothing, since its pass over the committed files stands. Two existing assertions there change with the rule: `[5, 15, 30, 60, 180]` (290 + 10 = 300, which fit) now fails A2 (290 + 20 = 310), and "accepts the plan's values" gains `formats` | tasks.md named the file that runs the command, not the one that tests the rules |
+| B2 | T018, T025 (§3.5) | The longest adapter ID is 32 characters: `validate.ts`'s `ADAPTER_ID`, `^[a-z][a-z0-9-]{0,31}$`, which migration 0005's period key repeats; `case-longest` uses 32, not 64 | §3.5 named 64 from a misreading of the routing rule |

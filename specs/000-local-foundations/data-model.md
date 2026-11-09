@@ -196,6 +196,7 @@ One row per provider attempt. A request that fails over from local to Bedrock wr
 
 - **Readers:** Grafana's audit panel reads this table through `grafana_ro` (FR-034; [research.md R-10](research.md#r-10-grafanas-audit-panel-reads-the-store-not-telemetry)), so it still works when telemetry is down.
 - **Metrics and logs:** each accepted operator write increments `h4.operator.actions` (`h4.action`) and logs a record with `event.name=h4.audit` ([telemetry.md](contracts/telemetry.md)).
+- **(spec 011, Amendment 0-7)** Migration `0006_alert_forms.sql` adds the action `alert_samples` to the `CHECK` and to the actions that require a reason: an operator's request for alert samples ([operator-admin.md §2.4](contracts/operator-admin.md#24-post-adminalert-samples-spec-011)). Its row: actor the operator; `before` and `after` null, since nothing changes state; `detail` the kind asked for (or null for every entry), the entries, the samples' keys, and the delivery mode, `real` or `standin`. Its ID is taken from the identity's sequence first, so the keys, `<stack>:sample:<entry>:<audit id>`, are in the row it writes.
 
 ### 2.7 `alert_outbox`: alerts committed with their cause
 
@@ -219,6 +220,15 @@ One row per provider attempt. A request that fails over from local to Bedrock wr
 - **Indexes:** partial indexes on `telegram_next_at WHERE telegram_status = 'pending'` and on `email_next_at WHERE email_status = 'pending'`.
 - **Writes:** `INSERT … ON CONFLICT (dedupe_key) DO NOTHING`, so a crossing alerts once. A row is written in the same transaction as the crossing, trip, exhaustion, or operator action that caused it, and that transaction ends with `NOTIFY alert_outbox`.
 - **Metrics:** `h4.alerts` (`h4.channel`, `h4.alert.kind`, `h4.outcome`) and `h4.alert.delivery_lag` ([telemetry.md](contracts/telemetry.md)).
+- **(spec 011, Amendment 0-7) Each channel's form, and the facts' version 2.** Migration `0006_alert_forms.sql` adds four nullable columns, NULL until the channel's first attempt, each attempt writing what it sent:
+
+  | Column | Type | Constraints |
+  |---|---|---|
+  | `telegram_form`, `email_form` | `text` | `CHECK (… IN ('designed','plain'))` |
+  | `telegram_fallback` | `text` | `CHECK (telegram_fallback IN ('entities_refused','render_failed','over_limit','not_rendered'))`; NULL unless `telegram_form = 'plain'` (a `CHECK`) |
+  | `email_fallback` | `text` | `CHECK (email_fallback IN ('message_refused','render_failed','over_limit','not_rendered'))`; NULL unless `email_form = 'plain'` (a `CHECK`) |
+
+  No column holds a designed form: the dispatcher renders it at each attempt from `facts`, which from this change hold version 2 (`src/alerts/facts.ts`): `facts_version` 2, and, beside the values above, the stack's `prefix`, its `env_class`, `runtime_since` and `fallback_since`, an adapter's `label`, and an initialization's `confirm_zero`, so a strict decoder gives back the typed context and spec the plain text was rendered from. A row whose facts don't decode, as every row written before the change, is sent in its plain form, recorded as `not_rendered`. An older gateway after a rollback ignores the new columns and keys.
 
 ### 2.8 `incidents`: drafts queued by a trip (FR-035)
 
