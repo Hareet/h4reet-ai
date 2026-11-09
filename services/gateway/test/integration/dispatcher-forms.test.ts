@@ -257,6 +257,30 @@ describe("Telegram refuses the entities (FR-026, FR-028)", () => {
     expect((await points(r, "h4.alert.fallbacks")).map((p) => p.value)).toEqual([1]);
   });
 
+  it("names the fallback's reason on alert.retry and alert.failed too, as on alert.delivered (FR-044)", async () => {
+    const r = await rig();
+    await queue(r);
+    r.telegram.next.push({ status: 400, body: REFUSED_ENTITIES }, { status: 500, body: { ok: false } });
+    await r.d.tick();
+    expect(events(r, "alert.retry")).toEqual([
+      expect.objectContaining({ channel: "telegram", form: "plain", fallback_reason: "entities_refused" }),
+    ]);
+    // Every later attempt fails too, until the channel gives up after the schedule's last (0, 5, 20, 50, 110, 230 s).
+    for (const offset of [5, 20, 50, 110, 230]) {
+      r.clock.now = T0 + offset * 1_000;
+      r.telegram.next.push({ status: 500, body: { ok: false } });
+      await r.d.tick();
+    }
+    expect(await row(r)).toMatchObject({
+      telegram_status: "failed",
+      telegram_form: "plain",
+      telegram_fallback: "entities_refused",
+    });
+    expect(events(r, "alert.failed")).toEqual([
+      expect.objectContaining({ channel: "telegram", form: "plain", fallback_reason: "entities_refused" }),
+    ]);
+  });
+
   for (const status of [429, 503]) {
     it(`keeps the designed form on the schedule after a ${status} (FR-029)`, async () => {
       const r = await rig();
