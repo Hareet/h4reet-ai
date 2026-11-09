@@ -62,7 +62,8 @@ export type TwinOutcome = (typeof TWIN_OUTCOMES)[number];
 /** A turn's cause: spec 000's nine, the turn route's own twin_unavailable, or none. */
 export const TWIN_CAUSES = [...DEGRADED_CAUSES, "twin_unavailable", "none"] as const;
 export type TwinCause = (typeof TWIN_CAUSES)[number];
-/** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9). */
+/** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9): each answer withheld, replaced, or
+ *  repaired (`repair_opener`, D34), by guard. */
 export const TWIN_GUARDS = [
   "length",
   "numbers",
@@ -77,6 +78,7 @@ export const TWIN_GUARDS = [
   "surname",
   "privacy",
   "agents_share",
+  "repair_opener",
   "error",
 ] as const;
 export type TwinGuard = (typeof TWIN_GUARDS)[number];

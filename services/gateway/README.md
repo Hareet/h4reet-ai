@@ -51,12 +51,15 @@ prompt as quoted data, never as instructions or as the model's own turns (`src/t
 
 The guards (`src/twin/guards.ts`) run on every answer, in code, with no model judging another: a `length` finish
 trimmed to its last sentence, then secret-shaped text, the instructions or their canary, a claim to be human or the
-Author, a number or an amount the grounding doesn't hold (in words too), a link it doesn't hold, an ownership verb the
-rulings don't give, a sentence naming Seva that isn't the turn's sections' own, word for word, a place word in the
+Author, a number or an amount the grounding doesn't hold (in words too), and any amount in the answer to a turn that
+asks what a turn, the visit, the site, or the room's sign costs, a link the grounding doesn't hold, an ownership verb
+the rulings don't give, a sentence naming Seva that isn't the turn's sections' own, word for word, a place word in the
 answer to a turn that asks where the Author or the room is, a surname given or confirmed, and the privacy promise or
-the agents' share without the corpus's own words. Each reads the answer folded, as the red-team's detectors do (NFKC,
-no format character, curly quotes and dashes as straight ones). An answer that fails one is replaced whole by the
-fixed line, its cost still counted.
+the agents' share without the corpus's own words. The guards that port a red-team detector read the answer folded, as
+the detectors do (NFKC, no format character, curly quotes and dashes as straight ones); the gateway's own read it
+plain, dashes and the ellipsis as written. An answer that fails one is replaced whole by the fixed line, its cost still
+counted. In a turn that asks the twin to confirm a claim, an answer that passes them all loses its opening agreement
+("Yes, ..."), and what's left meets them again before it's delivered.
 
 `POST /admin/twin/turn` (operator-admin.md §8) runs the same pipeline on one named adapter, never failing over and
 never checking readiness, for the Author's live product and red-team runs (`make evals ADAPTER=…`,

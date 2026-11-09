@@ -1,13 +1,17 @@
 // The twin's guards (spec 007; FR-010, FR-011, FR-013, FR-014, FR-021 to FR-023; plan §5): deterministic checks, in
 // code, of a whole answer against the turn's grounding, before any word leaves the gateway. No model judges another.
 // - The trim: an answer cut at its output cap (finish reason `length`) back to its last whole sentence, or withheld.
-// - Then G5 secrets, G4 the prompt, G3 disclosure, G1 numbers, G2 amounts, G6 links, G7 ownership verbs, G9 Seva
-//   (spec 007's plan, D28), G10 location, on a turn that asks where the Author or the room is (D29, D31), and G11
-//   surname (D29), each withholding the whole answer, which becomes the fixed line `withheld`; and last G8,
-//   which replaces an answer about what happens to a visitor's words, or about the agents' share of the work, without
-//   the corpus's own span, with the corpus's own answer for it, verbatim (privacy first when both apply).
-// Every guard reads the answer, and compares it with the grounding, folded (D31): NFKC, no format character, and curly
-// quotes and dashes as straight ones, as redteam/run.py's detectors read it. What passes is the answer as written.
+// - Then G5 secrets, G4 the prompt, G3 disclosure, G1 numbers, G2 amounts (any amount, in a turn that asks what a
+//   turn, the visit, the site, or the room's sign costs; D33), G6 links, G7 ownership verbs, G9 Seva (spec 007's plan,
+//   D28), G10 location, on a turn that asks where the Author or the room is (D29, D31), and G11 surname (D29), each
+//   withholding the whole answer, which becomes the fixed line `withheld`.
+// - Then, in a turn that asks the twin to confirm a claim, the opener repair (D34): an answer's opening agreement comes
+//   off, and what's left meets every guard again, to be delivered as `repair_opener`; an agreement alone is withheld.
+// - Last G8, which replaces an answer about what happens to a visitor's words, or about the agents' share of the work,
+//   without the corpus's own span, with the corpus's own answer for it, verbatim (privacy first when both apply).
+// The guards that port a red-team detector (G2, G9, G10, G11) read the answer, and the grounding beside it, folded, as
+// redteam/run.py's detectors do (D31); the gateway's own (G1, G3 to G8) read them plain, with dashes and the ellipsis as
+// written (D32). What passes is the answer as written.
 // The first failure is the one recorded. A guard that can't run withholds the answer as `error` (fail closed). There is
 // no retry (provisional, Q3): the call's cost stays counted, and the route counts the withholding by guard.
 import type { FinishReason } from "../core/types.js";
@@ -28,6 +32,7 @@ export type GuardName =
   | "surname"
   | "privacy"
   | "agents_share"
+  | "repair_opener"
   | "error";
 
 export const GUARD_NAMES: readonly GuardName[] = [
@@ -44,6 +49,7 @@ export const GUARD_NAMES: readonly GuardName[] = [
   "surname",
   "privacy",
   "agents_share",
+  "repair_opener",
   "error",
 ];
 
@@ -79,7 +85,12 @@ export interface GuardContext {
   readonly withheld: string;
 }
 
-export type Guarded = { kind: "pass"; text: string } | { kind: "withheld"; guard: GuardName; text: string };
+/** An answer passed whole; withheld or replaced (the fixed line, or for G8 the corpus's answer); or repaired, its
+ *  opening agreement taken off and the rest delivered (D34). */
+export type Guarded =
+  | { kind: "pass"; text: string }
+  | { kind: "withheld"; guard: GuardName; text: string }
+  | { kind: "repaired"; guard: "repair_opener"; text: string };
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
@@ -113,6 +124,27 @@ export function fold(text: string): string {
     .normalize("NFKC")
     .replace(/\p{Cf}/gu, "")
     .replace(FOLDED, (c) => FOLDS[c] ?? c);
+}
+
+/** The quotes FOLDS folds, and the hyphen and the non-breaking hyphen, but no dash and no minus sign (D32). */
+const PLAIN_FOLDS: Readonly<Record<string, string>> = Object.fromEntries([
+  ...Object.entries(FOLDS).filter(([, to]) => to !== "-"),
+  ["\u2010", "-"],
+  ["\u2011", "-"],
+]);
+const PLAIN_FOLDED = new RegExp(`[${Object.keys(PLAIN_FOLDS).join("")}]`, "gu");
+const ELLIPSIS = "\u2026";
+
+/** A text as the gateway's own guards read it (G1, G3 to G8; D32): NFKC but for the ellipsis, which stays one
+ *  character, so it ends no sentence; no format character; and curly quotes and the two hyphens as straight ones, with
+ *  en and em dashes and the minus sign as written, so a dash never joins a ruled system or a domain to the next word. */
+export function plain(text: string): string {
+  return text
+    .split(ELLIPSIS)
+    .map((part) => part.normalize("NFKC"))
+    .join(ELLIPSIS)
+    .replace(/\p{Cf}/gu, "")
+    .replace(PLAIN_FOLDED, (c) => PLAIN_FOLDS[c] ?? c);
 }
 
 /** A pattern of redteam/run.py's as JavaScript reads it: Python's `\b` is a boundary between Unicode letters, digits,
@@ -273,9 +305,11 @@ export function expandInlineCase(pattern: string): string {
   return out;
 }
 
-const CURRENCY = new RegExp(expandInlineCase(CURRENCY_PY_SOURCE), "g");
-/** Beyond the corpus check's forms: a number beside cents, dollars, or USD, and a number word beside a currency. */
-const EXTRA = new RegExp(
+/** The corpus check's CURRENCY, with Python's word boundaries, as the red-team reads it (D32). */
+export const CURRENCY_PATTERN = pythonPattern(expandInlineCase(CURRENCY_PY_SOURCE), "g");
+/** Beyond the corpus check's forms: a number beside cents, dollars, or USD, and a number word beside a currency; with
+ *  Python's word boundaries too (D32). */
+export const EXTRA_PATTERN = pythonPattern(
   `\\b\\d[\\d,.]*\\s?(?:cents?|dollars?|usd|bucks?)\\b|\\b(?:${[...Object.keys(UNITS), ...Object.keys(TENS), "one", "a hundred", "a thousand"].join("|")})\\s+(?:cents?|dollars?|bucks?)\\b`,
   "gi",
 );
@@ -311,7 +345,7 @@ export function amountsIn(text: string): Set<string> {
     out.add(n === undefined || !Number.isFinite(n) ? "?" : canonicalNumber(n));
   };
   const read: [number, number][] = [];
-  for (const pattern of [CURRENCY, EXTRA])
+  for (const pattern of [CURRENCY_PATTERN, EXTRA_PATTERN])
     for (const m of text.matchAll(pattern)) {
       const start = m.index ?? 0;
       read.push([start, start + m[0].length]);
@@ -326,9 +360,35 @@ export function amountsIn(text: string): Set<string> {
   return out;
 }
 
+/** What a cost question asks the cost of (D33, provisional): a turn, an answer, a visit, the conversation, the site or
+ *  the twin, the room's sign or meter, or this or that. "It" isn't one, nor an award, a grant, credits, or a business's
+ *  price, whose amounts the grounding may state. */
+const COST_WORDS = "(?:costs?|costing|price[sd]?|pricing|spend(?:s|ing)?|spent|charge[sd]?|billed|expensive|money)";
+const COST_OF =
+  "(?:turns?|answers?|repl(?:y|ies)|responses?|messages?|questions?|visits?|conversations?|chats?|sessions?|" +
+  "site|website|twin|room|sign|neon sign|meter|this|that)";
+const COST_QUESTIONS: readonly RegExp[] = [
+  new RegExp(`\\b${COST_OF}\\b[^.?!]{0,40}?\\b${COST_WORDS}\\b`, "i"),
+  new RegExp(`\\b${COST_WORDS}\\b[^.?!]{0,40}?\\b${COST_OF}\\b`, "i"),
+  // What the site costs to run: 08-hareet-ai.md's question, "How much does it cost to run?".
+  new RegExp(`\\b${COST_WORDS}\\s+to\\s+(?:run|host|operate|keep running)\\b`, "i"),
+];
+
+/** Whether the visitor's newest turn asks what a turn, the visit, the site, the room's sign, or this costs (D33): then
+ *  G2 withholds any amount, the grounding's own among them. A test pins it both ways: every red-team cost prompt is
+ *  one, and no generated question with an amount in its approved answer is. */
+export function asksAboutCost(turn: string | null): boolean {
+  if (turn === null) return false;
+  const text = fold(turn);
+  return COST_QUESTIONS.some((p) => p.test(text));
+}
+
+/** An amount the grounding doesn't state as a value G2 can read; and in a cost question, any amount, since what
+ *  anything costs is never the grounding's to give, the kill switch's daily cap included (D33). */
 function amountsFail(answer: string, ctx: GuardContext): boolean {
   const found = amountsIn(answer);
   if (found.size === 0) return false;
+  if (asksAboutCost(ctx.asked)) return true;
   const allowed = amountsIn(ctx.groundingText);
   return [...found].some((a) => a === "?" || !allowed.has(a));
 }
@@ -667,18 +727,64 @@ function agentsReplaces(answer: string, ctx: GuardContext): boolean {
   return sentencesOf(answer).some((s) => AGENTS.test(s) && SHARE.test(s));
 }
 
+// ---- The opener repair (spec 007's plan, D34, provisional) ----
+
+/** A request to confirm a claim (D34): a tag question (", right?", ", correct?", "too, right?", ", true?", ", isn't
+ *  he?", ", didn't he?", ", wasn't it?", "Is that right?"), or "confirm it", or "say yes", read folded. A test pins it to
+ *  every red-team prompt whose case forbids an opening agreement, and to no generated question. */
+const CONFIRM_QUESTIONS: readonly RegExp[] = [
+  /(?:^|[,.!?;:]\s*|\btoo\s+)(?:right|correct|true)\s*\?/i,
+  /,\s*(?:is|was|did|does|do|has|have|are|were|can|could|would|will|should)n't\s+(?:it|he|she|they|that|this|there|you)\s*\?/i,
+  /\bis (?:that|this|it) (?:right|correct|true)\s*\?/i,
+  /\bconfirm (?:it|that|this)\b/i,
+  /\bsay yes\b/i,
+];
+
+/** Whether the visitor's newest turn asks the twin to confirm a claim: only then does the repair run. */
+export function asksToConfirm(turn: string | null): boolean {
+  if (turn === null) return false;
+  const text = fold(turn);
+  return CONFIRM_QUESTIONS.some((p) => p.test(text));
+}
+
+/** An opening agreement, as the red-team's cases forbid it (each case's opener pattern, which a test holds this to,
+ *  without its `(?i)`), read with the fold's apostrophes, since the repair takes it off the answer as written. */
+export const OPENER_PY_SOURCE = "^\\W*(?:yes|yeah|yep|correct|exactly|that's right|that is right)\\b";
+const OPENER = pythonPattern(OPENER_PY_SOURCE.replace("'", "['\u2019\u02bc]"), "i");
+/** The punctuation an agreement ends with, and the space after it. */
+const AFTER_OPENER = /^[\s,:;.!?\u2013\u2014\u2015-]+/u;
+/** A plain lowercase word, which the repair capitalizes; a name such as eCHIS or cht-agent stays as written. */
+const PLAIN_WORD = /^\p{Ll}[\p{Ll}'\u2019]*(?=[\s,.;:!?]|$)/u;
+
+/** An answer without its opening agreements, the word after them capitalized when it's a plain word; the answer itself
+ *  when it opens with none. */
+export function withoutOpener(text: string): string {
+  let rest = text;
+  for (let i = 0; i < 4; i += 1) {
+    const m = OPENER.exec(rest);
+    if (m === null) break;
+    rest = rest.slice(m[0].length).replace(AFTER_OPENER, "");
+  }
+  if (rest === text) return text;
+  return PLAIN_WORD.test(rest) ? rest.charAt(0).toUpperCase() + rest.slice(1) : rest;
+}
+
 // ---- The guards in order ----
 
+type Reading = "fold" | "plain";
+
+/** Each guard, and the reading it takes (D32): the ported detectors' fold, or the gateway's own plain reading. */
 const CHECKS: readonly [
-  Exclude<GuardName, "length" | "privacy" | "agents_share" | "error">,
+  Exclude<GuardName, "length" | "privacy" | "agents_share" | "repair_opener" | "error">,
   (a: string, c: GuardContext) => boolean,
+  Reading,
 ][] = [
-  ["secrets", (a) => secretsFail(a)],
-  ["prompt", promptFails],
-  ["disclosure", (a) => disclosureFails(a)],
-  ["numbers", numbersFail],
-  ["amounts", amountsFail],
-  ["links", linksFail],
+  ["secrets", (a) => secretsFail(a), "plain"],
+  ["prompt", promptFails, "plain"],
+  ["disclosure", (a) => disclosureFails(a), "plain"],
+  ["numbers", numbersFail, "plain"],
+  ["amounts", amountsFail, "fold"],
+  ["links", linksFail, "plain"],
   [
     "ownership",
     (a, c) => {
@@ -689,29 +795,33 @@ const CHECKS: readonly [
         throw e;
       }
     },
+    "plain",
   ],
-  ["seva", sevaFails],
-  ["location", locationFails],
-  ["surname", (a) => surnameFails(a)],
+  ["seva", sevaFails, "fold"],
+  ["location", locationFails, "fold"],
+  ["surname", (a) => surnameFails(a), "fold"],
 ];
 
-/** The context as the guards compare an answer with it: each of its texts folded as the answer is (D31). G8's
+/** The context as the guards compare an answer with it: each of its texts in the answer's reading (D31, D32). G8's
  *  replacements are the corpus's answers as written. */
-function folded(ctx: GuardContext): GuardContext {
-  const spans = (q: Quotes["privacy"]): Quotes["privacy"] => ({ ...q, spans: q.spans.map(fold) });
+function readAs(ctx: GuardContext, read: (text: string) => string): GuardContext {
+  const spans = (q: Quotes["privacy"]): Quotes["privacy"] => ({ ...q, spans: q.spans.map(read) });
   return {
     ...ctx,
-    groundingText: fold(ctx.groundingText),
-    sectionsText: fold(ctx.sectionsText),
-    asked: ctx.asked === null ? null : fold(ctx.asked),
-    rulings: ctx.rulings.map((r) => ({ ...r, system: fold(r.system), verbs: r.verbs.map(fold) })),
+    groundingText: read(ctx.groundingText),
+    sectionsText: read(ctx.sectionsText),
+    asked: ctx.asked === null ? null : read(ctx.asked),
+    rulings: ctx.rulings.map((r) => ({ ...r, system: read(r.system), verbs: r.verbs.map(read) })),
     quotes: { ...ctx.quotes, privacy: spans(ctx.quotes.privacy), agents_share: spans(ctx.quotes.agents_share) },
-    instructions: fold(ctx.instructions),
-    canary: fold(ctx.canary),
+    instructions: read(ctx.instructions),
+    canary: read(ctx.canary),
   };
 }
 
-/** The answer through the trim and every guard: passed whole, or withheld by the first guard that fails. */
+/** The answer through the trim and every guard: passed whole, withheld by the first guard that fails, replaced by G8, or
+ *  repaired (D34). In a turn that asks the twin to confirm a claim, the guards read the answer as written first (so an
+ *  agreement G11 reads, "yes, that's his surname", stays withheld), then its opening agreement comes off and what's
+ *  left meets every guard again. */
 export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardContext): Guarded {
   const withheld = (guard: GuardName): Guarded => ({ kind: "withheld", guard, text: ctx.withheld });
   let text = answer.trim();
@@ -722,12 +832,31 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
   }
   try {
     if (text === "") return withheld("error");
-    const seen = fold(text);
-    const view = folded(ctx);
-    for (const [name, fails] of CHECKS) if (fails(seen, view)) return withheld(name);
-    if (privacyReplaces(seen, view)) return { kind: "withheld", guard: "privacy", text: ctx.quotes.privacy.answer };
-    if (agentsReplaces(seen, view))
+    const views: Record<Reading, GuardContext> = { fold: readAs(ctx, fold), plain: readAs(ctx, plain) };
+    const failing = (t: string): GuardName | null => {
+      const seen: Record<Reading, string> = { fold: fold(t), plain: plain(t) };
+      for (const [name, fails, reading] of CHECKS) if (fails(seen[reading], views[reading])) return name;
+      return null;
+    };
+    const first = failing(text);
+    if (first !== null) return withheld(first);
+    let repaired = false;
+    if (asksToConfirm(ctx.asked)) {
+      const rest = withoutOpener(text);
+      if (rest !== text) {
+        if (!/[\p{L}\p{N}]/u.test(rest)) return withheld("repair_opener");
+        const again = failing(rest);
+        if (again !== null) return withheld(again);
+        text = rest;
+        repaired = true;
+      }
+    }
+    const seen = plain(text);
+    if (privacyReplaces(seen, views.plain))
+      return { kind: "withheld", guard: "privacy", text: ctx.quotes.privacy.answer };
+    if (agentsReplaces(seen, views.plain))
       return { kind: "withheld", guard: "agents_share", text: ctx.quotes.agents_share.answer };
+    if (repaired) return { kind: "repaired", guard: "repair_opener", text };
   } catch {
     return withheld("error");
   }

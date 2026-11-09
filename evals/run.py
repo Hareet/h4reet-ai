@@ -43,6 +43,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -91,6 +92,34 @@ GOLDEN_SHARE_DEFAULT = 0.9
 # scripts, not a model: a local run would send them to a stack's /hello, and the other adapter would charge prod's meter.
 FAKE_ONLY_SUITES = {"narration"}
 EXPECT_KEYS = {"contains", "not_contains", "regex"}
+# The red-team detectors' fold (redteam/run.py's FOLDS and fold, which a test holds these to; spec 007's plan, D35): the
+# scorer reads an answer, and a case's words beside it, as the detectors read an answer, so typography a model varies
+# (a non-breaking hyphen, a curly apostrophe, a dash) fails no check, and a zero-width character hides no word.
+FOLDS = {
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201a": "'",
+    "\u201b": "'",
+    "\u02bc": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u201e": '"',
+    "\u201f": '"',
+    "\u2010": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2015": "-",
+    "\u2212": "-",
+}
+_FOLD = str.maketrans(FOLDS)
+
+
+def fold(text: str) -> str:
+    """A text as the red-team's detectors read it: NFKC, then no format character, then FOLDS."""
+    text = unicodedata.normalize("NFKC", text)
+    return "".join(c for c in text if unicodedata.category(c) != "Cf").translate(_FOLD)
+
 
 Reply = dict[str, Any]
 Adapter = Callable[[dict[str, Any]], Reply]
@@ -220,16 +249,22 @@ def golden_line(topic: str, path: str, passed: int, total: int, share: float) ->
 
 
 def score(case: dict[str, Any], answer: str) -> list[str]:
-    """The reasons a case failed; an empty list means it passed."""
+    """The reasons a case failed; an empty list means it passed. The answer, and each of the case's words beside it,
+    are read folded (D35); a regex reads the folded answer as written, and a reason names the case's words as written."""
     expect = case.get("expect") or {}
-    low = answer.lower()
+    seen = fold(answer)
+    low = seen.lower()
     reasons = [
-        f"missing {s!r}" for s in expect.get("contains", []) if s.lower() not in low
+        f"missing {s!r}"
+        for s in expect.get("contains", [])
+        if fold(s).lower() not in low
     ]
     reasons += [
-        f"contains {s!r}" for s in expect.get("not_contains", []) if s.lower() in low
+        f"contains {s!r}"
+        for s in expect.get("not_contains", [])
+        if fold(s).lower() in low
     ]
-    if expect.get("regex") and not re.search(expect["regex"], answer):
+    if expect.get("regex") and not re.search(expect["regex"], seen):
         reasons.append(f"doesn't match /{expect['regex']}/")
     return reasons
 

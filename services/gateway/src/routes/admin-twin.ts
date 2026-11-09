@@ -122,7 +122,8 @@ export function registerAdminTwin(admin: FastifyInstance, deps: AdminTwinDeps): 
         const guarded = outcome.ok
           ? guardFor(files, built.grounding(), outcome.result.text, outcome.result.finishReason)
           : null;
-        const guard = guarded?.kind === "withheld" ? guarded.guard : null;
+        // The guard that withheld, replaced, or repaired the answer (D34), for the runners' history.
+        const guard = guarded === null || guarded.kind === "pass" ? null : guarded.guard;
         const detail = {
           adapter: a.adapter,
           feature: input.feature,
