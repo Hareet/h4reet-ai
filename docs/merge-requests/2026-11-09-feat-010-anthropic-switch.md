@@ -71,7 +71,8 @@ Authorized by:
 | 46731f8c | test: the committed config test brings its budgets and keys, and a new test starts prod on either paid adapter |
 | 80680a52 | config: the switch. Prod's fallback, F3's placeholder replaced by your words, and the paragraph below F3 |
 | 5f9eb812 | this note, first written |
-| this commit | this note, with the checks on the branch as it now stands |
+| fcf71182 | this note, after the rebase onto ada55c98 (a save point: one line of it still read `PYTEST_TOTALS`) |
+| this commit | this note, with pytest's totals, `make check`, gitleaks, and the rehearsal on the branch as it now stands |
 
 ## What changed and why
 
@@ -310,7 +311,7 @@ AssertionError: expected 503 to be 200 // Object.is equality
 make: *** [Makefile:246: test] Error 1
 
 (pytest on its own: corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts)
-PYTEST_TOTALS
+4095 passed in 429.65s (0:07:09)
 ```
 
 **None of the failures is this branch's**, and it touches none of
@@ -358,6 +359,85 @@ exit=0
 The three INFO lines are the readiness window (For the Author). The
 WARN is main's recorded behavioral-tier run, information that fails
 nothing (spec 006, FR-002).
+
+### make check ENGINE_MODE=none-yet
+
+On fcf71182's tree, with the one line that still read `PYTEST_TOTALS`
+already fixed and unstaged. Its summary, whole:
+
+```text
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+FAIL     lint
+FAIL     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-f…
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 9 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 3 FAIL; failing: lint FAIL, test FAIL, matrix FAIL
+make: *** [Makefile:159: check] Error 1
+```
+
+What fails, and whose it is:
+
+- **lint**: main's four history files, as under make lint above.
+- **test**: the web workspace's 8, main's, as under make test above.
+  In the gateway, one test (`Tests  1 failed | 1652 passed | 13
+  skipped (1666)`), and this time not the clock-bound one but another
+  timing bound under load. `dispatcher-forms.test.ts`'s "sends the
+  plain text at once…" got "expected 82.39192700000058 to be less
+  than 50", a 50 ms bound. It is main's file, on its fixtures, and
+  reads no route. Alone, it passed three times in three: `Tests  16
+  passed (16)` each time. Make stopped before pytest, which passed on
+  its own above.
+- **matrix**: E10 and E14 alone, for the environment. The hook
+  layer's line was `forbidden-actions (hook layer): 853 passed, 2
+  failed, 57 known gaps`.
+
+  ```text
+  E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows …
+  E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+  ```
+
+### gitleaks on a fresh export
+
+A `git archive` export of fcf71182 into a new, empty folder, scanned
+from inside it, as the gate scans. It used the export's own
+`.gitleaks.toml`, an empty folder as the ignore path (so no
+`.gitleaksignore` entry applies), and `--ignore-gitleaks-allow` (so
+no inline allow does either):
+
+```text
+export of fcf711825a1910e015a20fbcc8bc804da3cc719f into a new folder: 1892 files
+v8.30.1
+exit=0
+4:59PM INF scanned ~40210849 bytes (40.21 MB) in 4.11s
+4:59PM INF no leaks found
+```
+
+Scanned by the export's absolute path instead, gitleaks finds the two
+public dummies in `deploy/env.agents/dev-cpu.vars`, a file this
+branch doesn't touch. Their allowlist is a path relative to the
+scan's root, as `fix/007-live-runs-2`'s note found too.
+
+### The rehearsal
+
+`git merge-tree` against `refs/heads/main`, which writes no worktree.
+Main is the tip's ancestor, so a `--no-ff` merge's tree is the tip's:
+
+```text
+$ git merge-tree --write-tree --name-only refs/heads/main fcf711825a1910e015a20fbcc8bc804da3cc719f
+cebdf4aec6b12451c8b90b006d22f75140436e47 (exit 0)
+tip tree: cebdf4aec6b12451c8b90b006d22f75140436e47
+main: ada55c982ed759e10d511b9b9d9cf44c463a46a4
+main is an ancestor of the tip: a --no-ff merge's tree is the tip's
+```
 
 ## Cost and data-flow impact
 
