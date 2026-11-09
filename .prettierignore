@@ -14,6 +14,11 @@ evals/agent-config/history/
 # Spec 011's golden files: the alert renderers' exact bytes, written by vitest alone (its plan §3.4, D13), never by
 # hand; Prettier would reformat the HTML and every case would fail.
 services/gateway/test/fixtures/alerts/
+# The eval and red-team runners' history records (evals/run.py's evals/<suite>/history/, redteam/run.py's
+# redteam/history/): machine-written JSON, kept as each run wrote it, which config/twin-readiness.yaml, the Author's
+# file, names as evidence. Prettier would rewrap every run's short arrays (spec 009's intake gate, F1).
+evals/*/history/
+redteam/history/
 .specify/
 .claude/
 .github/
