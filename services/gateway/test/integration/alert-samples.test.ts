@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { FastifyOtelInstrumentation } from "@fastify/otel";
 import { SpanKind, context, trace } from "@opentelemetry/api";
 import { metrics as sdkMetrics, node, tracing } from "@opentelemetry/sdk-node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Channels } from "../../src/alerts/dispatcher.js";
 import { enqueueAlert } from "../../src/alerts/outbox.js";
@@ -220,6 +220,27 @@ describe("POST /admin/alert-samples (FR-033; operator-admin.md §2.4)", () => {
     expect((await samples(r, { reason: "Once they are all out." })).statusCode).toBe(200);
   });
 
+  it("refuses the second of two requests that overlap: one audit row, one set of samples (T048's review)", async () => {
+    const r = await rig();
+    // PGlite answers within the same turn of the event loop; a real store's round trip doesn't, and lets a second
+    // request in while the first one's audit row is being written. One timer's wait stands for that round trip.
+    const transaction = r.s.store.transaction.bind(r.s.store);
+    const spy = vi.spyOn(r.s.store, "transaction").mockImplementation((async (fn: never) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return transaction(fn);
+    }) as never);
+    const [a, b] = await Promise.all([samples(r), samples(r, { reason: "And at the same moment, please." })]);
+    spy.mockRestore();
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+    expect((a.statusCode === 409 ? a : b).json()).toMatchObject({ error: "samples_in_flight" });
+    expect((await r.s.db.pg.query("SELECT 1 FROM gateway.audit_log WHERE action = 'alert_samples'")).rows).toHaveLength(
+      1,
+    );
+    await deliverAll(r);
+    expect(r.telegram.requests).toHaveLength(ENTRIES);
+    expect(r.smtp.messages).toHaveLength(ENTRIES);
+  });
+
   it("answers 503 store_unreachable when the store can't take the audit row, and queues nothing", async () => {
     const r = await rig();
     r.s.db.hook = () => {
@@ -230,6 +251,8 @@ describe("POST /admin/alert-samples (FR-033; operator-admin.md §2.4)", () => {
     expect(res.json()).toMatchObject({ error: "store_unreachable" });
     r.s.db.hook = undefined;
     expect(r.s.services.dispatcher.samplesPending()).toBe(false);
+    // A request that failed holds nothing back: the next one goes through.
+    expect((await samples(r)).statusCode).toBe(200);
   });
 
   it("counts the request as alert_samples, and puts h4.action on its server span", async () => {
