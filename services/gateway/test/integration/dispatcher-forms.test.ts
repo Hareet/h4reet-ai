@@ -11,13 +11,19 @@
 // - the claim's lease covers two sends, so a second dispatcher can't claim the row between them;
 // - each fallback logs alert.fallback, adds to h4.alert.fallbacks, and raises no alert row; each attempt's span,
 //   alert.deliver, holds no text, URL, or token.
+import { readFileSync } from "node:fs";
+
 import { metrics as sdkMetrics, node, tracing } from "@opentelemetry/sdk-node";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Dispatcher, type Channels } from "../../src/alerts/dispatcher.js";
+import { designEmail } from "../../src/alerts/email-design.js";
 import type { AlertContext, AlertSpec } from "../../src/alerts/format.js";
-import type { DesignedRenderers } from "../../src/alerts/forms.js";
+import { HTML_MAX_BYTES, RENDERERS, TELEGRAM_MAX_UNITS, type DesignedRenderers } from "../../src/alerts/forms.js";
 import { enqueueAlert, queueAlert } from "../../src/alerts/outbox.js";
+import { designTelegram } from "../../src/alerts/telegram-design.js";
+import { parseYaml } from "../../src/config/load.js";
+import { validateAlerts, type AlertsConfig } from "../../src/config/validate.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { ctx, meters, T } from "../helpers/alert-cases.js";
 import { stubSmtp, type StubSmtp } from "../helpers/stub-smtp.js";
@@ -70,7 +76,7 @@ afterEach(async () => {
   }
 });
 
-async function rig(o: { renderers?: DesignedRenderers } = {}): Promise<Rig> {
+async function rig(o: { renderers?: DesignedRenderers; alerts?: AlertsConfig } = {}): Promise<Rig> {
   const clock = { now: T0 };
   const exporter = new sdkMetrics.InMemoryMetricExporter(sdkMetrics.AggregationTemporality.CUMULATIVE);
   const reader = new sdkMetrics.PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 3_600_000 });
@@ -102,7 +108,7 @@ async function rig(o: { renderers?: DesignedRenderers } = {}): Promise<Rig> {
       stack: "dev",
       envClass: "dev",
       store: s.store,
-      alerts: s.services.alerts,
+      alerts: o.alerts ?? s.services.alerts,
       budgets: s.services.budgets,
       channels,
       hasFallback: true,
@@ -409,5 +415,123 @@ describe("each attempt's span, alert.deliver (FR-044; plan §9.3)", () => {
     for (const never of ["made-for-this-test", "http", "/bot", "KILL SWITCH", "DESIGNED", "operator@", "127.0.0.1"]) {
       expect(all).not.toContain(never);
     }
+  });
+});
+
+describe("with the real designs registered (User Story 3; SC-004; tasks.md T030)", () => {
+  const plainBody = async (r: Rig): Promise<string> => String((await row(r)).body);
+
+  it("sends the plain text at once when Telegram refuses the real design's entities", async () => {
+    const r = await rig({ renderers: RENDERERS });
+    await queue(r);
+    r.telegram.next.push({ status: 400, body: REFUSED_ENTITIES });
+    await r.d.tick();
+    const [designed, plain] = r.telegram.requests;
+    expect(String(designed?.body.text).split("\n").slice(0, 2)).toEqual([
+      "🔴 Critical · [dev]",
+      "🛑 KILL SWITCH TRIPPED: daily ceiling reached",
+    ]);
+    expect(designed?.body.entities).toEqual(designTelegram(tripCtx(), TRIP).entities);
+    expect(plain?.body).toEqual({ chat_id: "0", text: await plainBody(r), disable_web_page_preview: true });
+    expect(await row(r)).toMatchObject({
+      telegram_status: "delivered",
+      telegram_attempts: 1,
+      telegram_form: "plain",
+      telegram_fallback: "entities_refused",
+      email_form: "designed",
+    });
+    // The email went designed: one multipart/alternative message under the designed subject, its HTML the real one.
+    const data = r.smtp.messages[0]?.data ?? "";
+    expect(data).toMatch(/multipart\/alternative/);
+    expect(data).toMatch(/text\/html/);
+  });
+
+  it("sends today's message at once when the mail server refuses the real design's message", async () => {
+    const r = await rig({ renderers: RENDERERS });
+    await queue(r);
+    r.smtp.refuse("END", 554);
+    await r.d.tick();
+    expect(await row(r)).toMatchObject({
+      email_status: "delivered",
+      email_form: "plain",
+      email_fallback: "message_refused",
+    });
+    const data = r.smtp.messages[0]?.data ?? "";
+    expect(data).toMatch(/^Subject: \[dev\] KILL SWITCH TRIPPED: daily ceiling reached\r$/m);
+    expect(data).not.toMatch(/text\/html/);
+  });
+
+  it("sends plain as render_failed when a design throws, and as over_limit when it passes its bound", async () => {
+    const r = await rig({
+      renderers: {
+        telegram: () => {
+          throw new Error("a design bug");
+        },
+        email: (c, sp, sa) => {
+          const email = designEmail(c, sp, sa);
+          return { ...email, html: `${email.html}${" ".repeat(HTML_MAX_BYTES)}` };
+        },
+      },
+    });
+    await queue(r);
+    await r.d.tick();
+    expect(await row(r)).toMatchObject({
+      telegram_status: "delivered",
+      telegram_form: "plain",
+      telegram_fallback: "render_failed",
+      email_status: "delivered",
+      email_form: "plain",
+      email_fallback: "over_limit",
+    });
+    expect(r.telegram.requests).toHaveLength(1);
+    expect(r.telegram.requests[0]?.body).not.toHaveProperty("entities");
+    const long = await rig({
+      renderers: {
+        ...RENDERERS,
+        telegram: (c, sp, sa) => ({ ...designTelegram(c, sp, sa), text: "x".repeat(TELEGRAM_MAX_UNITS + 1) }),
+      },
+    });
+    await queue(long);
+    await long.d.tick();
+    expect(await row(long)).toMatchObject({
+      telegram_form: "plain",
+      telegram_fallback: "over_limit",
+      email_form: "designed",
+    });
+    // Never cut: the plain text went whole in the long form's place.
+    expect(long.telegram.requests[0]?.body.text).toBe(await plainBody(long));
+  });
+
+  it("keeps a channel plain with no fallback while the switch says so, from the switch's fixture (FR-031)", async () => {
+    const parsed = validateAlerts(
+      parseYaml(
+        "config/alerts.yaml",
+        readFileSync(new URL("../fixtures/config/alerts-formats.yaml", import.meta.url), "utf8"),
+      ),
+    );
+    expect(parsed.value?.formats).toEqual({ telegram: "plain", email: "designed" });
+    const r = await rig({ renderers: RENDERERS, alerts: parsed.value as AlertsConfig });
+    await queue(r);
+    await r.d.tick();
+    expect(r.telegram.requests[0]?.body).toEqual({
+      chat_id: "0",
+      text: await plainBody(r),
+      disable_web_page_preview: true,
+    });
+    expect(await row(r)).toMatchObject({
+      telegram_form: "plain",
+      telegram_fallback: null,
+      email_form: "designed",
+      email_fallback: null,
+    });
+    expect(events(r, "alert.fallback")).toEqual([]);
+    const both = await rig({
+      renderers: RENDERERS,
+      alerts: { ...(parsed.value as AlertsConfig), formats: { telegram: "designed", email: "plain" } },
+    });
+    await queue(both);
+    await both.d.tick();
+    expect(await row(both)).toMatchObject({ telegram_form: "designed", email_form: "plain", email_fallback: null });
+    expect(both.smtp.messages[0]?.data).not.toMatch(/text\/html/);
   });
 });

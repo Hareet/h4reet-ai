@@ -199,8 +199,9 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     assert expected["Spend today (stat)"][0] == "stat"
     assert expected["Fallback sub-budget remaining (time series)"][0] == "time series"
     assert expected["Store state (authoritative)"][1][0].startswith("SELECT stack, env")
+    # Spec 011 (FR-046; its plan §9.4): the log panel gains the fallback record.
     assert expected["Alert log"][1] == [
-        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
+        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed|fallback)"'
     ]
     # The collector's "and the same for" shorthand, spelled out with its pushed names (T185).
     assert expected["Export failures"][1] == [
@@ -210,6 +211,40 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     ]
     for _, found in expected.values():
         assert found, "a panel parsed with no query"
+
+
+def test_the_alert_panels_show_each_form_and_every_fallback() -> None:
+    # Spec 011 (FR-046; its plan §9.4): the outcomes table gains the form, and the fallback panel sits beside it, by
+    # channel, kind, and reason, in the audit-and-alerts row, in the contract and on the dashboard alike.
+    expected = contract_panels("7.5")
+    assert expected["Alerts by channel and outcome"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) "
+                "(increase(h4_alerts_total[$__range]))"
+            )
+        ],
+    )
+    assert expected["Alerts sent as plain text by fallback"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) "
+                "(increase(h4_alert_fallbacks_total[$__range]))"
+            )
+        ],
+    )
+    found = by_title()
+    outcomes = found["Alerts by channel and outcome"]
+    fallbacks = found["Alerts sent as plain text by fallback"]
+    assert fallbacks["type"] == "table"
+    assert queries(fallbacks) == expected["Alerts sent as plain text by fallback"][1]
+    # Beside each other: the same row's height, the fallback panel to the outcomes table's right.
+    assert fallbacks["gridPos"]["y"] == outcomes["gridPos"]["y"]
+    assert (
+        fallbacks["gridPos"]["x"] >= outcomes["gridPos"]["x"] + outcomes["gridPos"]["w"]
+    )
 
 
 def test_the_dashboard_itself() -> None:
