@@ -489,6 +489,8 @@ export interface SceneOptionsForTest {
   /** The drafts build's frame log (spec 004, T246): the factory main.ts gives a drafts build, which the room makes its
    *  log with and puts h4FrameLog() on the window; absent, as in a release build, the room keeps no log. */
   frameLog?: RoomDeps["frameLog"];
+  /** Spec 005: the window's measures and their changes (hud/viewport.ts), which a test stubs; by default the page's. */
+  viewport?: RoomDeps["viewport"];
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -538,6 +540,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     wall,
     ...(options.sendTurn ? { sendTurn: options.sendTurn } : {}),
     ...(options.frameLog ? { frameLog: options.frameLog } : {}),
+    ...(options.viewport ? { viewport: options.viewport } : {}),
     loadScene: () => {
       scene.loads += 1;
       if (options.loadScene) return options.loadScene();
