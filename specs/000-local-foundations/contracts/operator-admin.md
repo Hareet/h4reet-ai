@@ -210,7 +210,7 @@ with one object for each entry, in the catalogue's order, and `delivery` the sta
 
 | Status | `error` | When |
 |---|---|---|
-| 409 | `samples_in_flight` | an earlier request's samples are still pending on a channel |
+| 409 | `samples_in_flight` | an earlier request's samples are still pending on a channel, or its audit row is still being written: the check holds from before that row's transaction until the samples are queued or the request fails |
 | 400 | `invalid_request` | a reason outside §1.2's rule, a kind outside the catalogue's, or any other key |
 | 503 | `store_unreachable` | the store can't take the audit row; nothing is queued |
 | 401, 415 | as in §1 | |

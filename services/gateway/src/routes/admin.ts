@@ -501,6 +501,9 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
   // Spec 011's samples (operator-admin.md §2.4): served on every stack, behind the same authentication.
   const samples = deps.samples;
   if (samples !== undefined) {
+    // A request in flight, set before its audit row's transaction and cleared once its samples are queued or it
+    // fails, so a second request that arrives meanwhile is refused as one whose samples are pending (FR-039).
+    let requesting = false;
     admin.post("/admin/alert-samples", async (req, reply) => {
       const operator = operatorOf(req);
       noteAction(req, "alert_samples");
@@ -511,52 +514,58 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
       if (!parsed.ok) {
         return reply.code(400).send({ error: "invalid_request", field: parsed.field, detail: parsed.detail });
       }
-      if (samples.pending()) return reply.code(409).send({ error: "samples_in_flight" });
+      if (requesting || samples.pending()) return reply.code(409).send({ error: "samples_in_flight" });
       if (deps.store.status !== "ready") return unreachable(req, reply);
-      let auditId: number;
+      requesting = true;
       try {
-        // The row's ID first, from its identity's sequence, so the samples' keys are in the row it writes; the
-        // table is append-only, so nothing is updated after.
-        auditId = await deps.store.transaction(async (q) => {
-          const { rows } = await q.query<{ id: unknown }>(
-            "SELECT nextval(pg_get_serial_sequence('gateway.audit_log', 'id')) AS id",
-          );
-          const id = Number(toBigInt(rows[0]?.id));
-          const detail = {
-            kind: parsed.kind,
-            entries: parsed.entries.map((e) => e.name),
-            keys: parsed.entries.map((e) => sampleKey(deps.stack, e.name, id)),
-            delivery: samples.delivery,
-          };
-          await q.query(
-            `INSERT INTO gateway.audit_log (id, ts, stack, actor, action, reason, before, after, detail)
-             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'alert_samples', $5, NULL, NULL, $6::jsonb)`,
-            [id, toRfc3339(deps.clock.now()), deps.stack, operator.actor, parsed.reason, JSON.stringify(detail)],
-          );
-          return id;
-        });
-      } catch (err) {
-        // A lost COMMIT answer counts too (isStoreFailure): nothing is queued, and the operator asks again.
-        if (isStoreFailure(err)) return unreachable(req, reply);
-        throw err;
+        let auditId: number;
+        try {
+          // The row's ID first, from its identity's sequence, so the samples' keys are in the row it writes; the
+          // table is append-only, so nothing is updated after.
+          auditId = await deps.store.transaction(async (q) => {
+            const { rows } = await q.query<{ id: unknown }>(
+              "SELECT nextval(pg_get_serial_sequence('gateway.audit_log', 'id')) AS id",
+            );
+            const id = Number(toBigInt(rows[0]?.id));
+            const detail = {
+              kind: parsed.kind,
+              entries: parsed.entries.map((e) => e.name),
+              keys: parsed.entries.map((e) => sampleKey(deps.stack, e.name, id)),
+              delivery: samples.delivery,
+            };
+            await q.query(
+              `INSERT INTO gateway.audit_log (id, ts, stack, actor, action, reason, before, after, detail)
+               OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'alert_samples', $5, NULL, NULL, $6::jsonb)`,
+              [id, toRfc3339(deps.clock.now()), deps.stack, operator.actor, parsed.reason, JSON.stringify(detail)],
+            );
+            return id;
+          });
+        } catch (err) {
+          // A lost COMMIT answer counts too (isStoreFailure): nothing is queued, and the operator asks again.
+          if (isStoreFailure(err)) return unreachable(req, reply);
+          throw err;
+        }
+        const queued = samples.queue(parsed.entries, auditId, operator.fingerprint);
+        deps.metrics.operatorAction("alert_samples");
+        deps.logger.info(
+          {
+            event: "operator.alert_samples",
+            "event.name": "h4.audit",
+            audit_id: auditId,
+            actor: operator.actor,
+            action: "alert_samples",
+            reason: parsed.reason,
+            after: { kind: parsed.kind, samples: queued.length, delivery: samples.delivery },
+          },
+          "An operator asked for alert samples.",
+        );
+        return reply
+          .code(200)
+          .send({ action: "alert_samples", audit_id: auditId, delivery: samples.delivery, samples: queued });
+      } finally {
+        // Queued or failed, the request is over; its samples, if any, hold the 409 from here (samples.pending()).
+        requesting = false;
       }
-      const queued = samples.queue(parsed.entries, auditId, operator.fingerprint);
-      deps.metrics.operatorAction("alert_samples");
-      deps.logger.info(
-        {
-          event: "operator.alert_samples",
-          "event.name": "h4.audit",
-          audit_id: auditId,
-          actor: operator.actor,
-          action: "alert_samples",
-          reason: parsed.reason,
-          after: { kind: parsed.kind, samples: queued.length, delivery: samples.delivery },
-        },
-        "An operator asked for alert samples.",
-      );
-      return reply
-        .code(200)
-        .send({ action: "alert_samples", audit_id: auditId, delivery: samples.delivery, samples: queued });
     });
   }
 
