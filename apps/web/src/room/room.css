@@ -441,6 +441,25 @@ html[data-hud="dock"] .hud-panels {
   background: rgb(var(--glass) / var(--glass-alpha));
 }
 
+/* One place for each press (spec 005, FR-030 to FR-033; plan.md §7): the strip, the bar, and the panels take their own
+   pointer over the canvas, so the scene sees none of it; the column, the dock, and the log keep a wheel at their end to
+   themselves, so it never scrolls the page under them; the notes and the clear box let a pointer through. */
+html[data-hud="column"] .disclosure,
+html[data-hud="dock"] .disclosure,
+html[data-hud="column"] .hud-bar,
+html[data-hud="dock"] .hud-bar,
+html[data-hud="column"] .hud-panels,
+html[data-hud="dock"] .hud-panels {
+  pointer-events: auto;
+}
+
+html[data-hud="column"] .hud-panels,
+html[data-hud="dock"] .hud-panels,
+html[data-hud="column"] .talk-log,
+html[data-hud="dock"] .talk-log {
+  overscroll-behavior: contain;
+}
+
 /* The column: the list above the conversation, the list scrolling inside it, and the conversation's text box at the
    column's foot (FR-022). */
 html[data-hud="column"] .room-list {

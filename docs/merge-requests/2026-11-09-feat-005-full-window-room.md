@@ -99,3 +99,5 @@ Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), 8re
 ```
 
 Its side-wall table at the new stages: `snowboard` (left-wall) list-only in 2D at 320 × 250 and 225 others; `chalkboard` (left-wall) list-only in 3D at 320 × 250 and 410 others and in 2D at 320 × 250 and 801 others. `test/room/stages-checks.test.ts` holds every one of those to a screen whose old stage listed it too (FR-057).
+
+**Phase 6 (User Story 4), RED and GREEN** (T029, then T030): 2 of 5 failed first. Passing at once, as plan.md §7 expected: no press, drag, wheel, or hover on a panel reaches the scene (the panels are siblings over the canvas), a hover leaving the canvas clears its target (`objects.ts`'s `pointerleave`), and a drag that starts on the scene selects nothing and presses no panel's button (the captured press stays the canvas's). Failing first: the panels' explicit `pointer-events: auto` and `overscroll-behavior: contain`, and the walking view's focus on a press on the scene. After T030, the UI suite and the HUD's CSS tests: all pass (`npx vitest run test/ui test/room/stages.test.ts test/room/hud-contrast.test.ts`, 21 files).

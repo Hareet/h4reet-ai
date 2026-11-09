@@ -476,6 +476,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         : "",
     });
     room = layout;
+    // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
+    // go there and not to a panel the visitor typed in.
+    layout.view.addEventListener("pointerdown", () => {
+      if (walker(stage)?.walk.walking && doc.activeElement !== layout.view) layout.view.focus({ preventScroll: true });
+    });
     // Spec 008's walking control (FR-020 to FR-022, FR-051): it enters and leaves the 3D stage's walking view.
     layout.walkButton.addEventListener("click", () => {
       const scene3d = walker(stage);

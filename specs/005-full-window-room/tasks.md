@@ -251,7 +251,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 **Independent Test**: spec.md User Story 4's.
 
-- [ ] T029 [P] [US4] Write `apps/web/test/ui/hud-pointer.test.ts` (FR-030 to FR-034; SC-004), with spies on the target store, the selection, and the walking input:
+- [x] T029 [P] [US4] Write `apps/web/test/ui/hud-pointer.test.ts` (FR-030 to FR-034; SC-004), with spies on the target store, the selection, and the walking input:
   - a press, drag, wheel, and hover on each panel reach none of them;
   - a hover that moves from the canvas onto a panel clears the pointer's target;
   - a drag from the scene across the conversation panel keeps turning the camera and releases over it with nothing activated;
@@ -261,7 +261,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - a tap through the stand-in line selects the piece under it.
 
   Check: the cases that already hold pass at once (the note says which); the rest are RED before T030 (feat/005-full-window-room)
-- [ ] T030 [US4] Add what T029 finds missing, by plan §7: `pointer-events: auto` and `overscroll-behavior: contain` on the panels and the strip in `room.css`; the walking view's focus on a scene press in `app.ts`. Check: T029 passes (feat/005-full-window-room)
+- [x] T030 [US4] Add what T029 finds missing, by plan §7: `pointer-events: auto` and `overscroll-behavior: contain` on the panels and the strip in `room.css`; the walking view's focus on a scene press in `app.ts`. Check: T029 passes (feat/005-full-window-room)
 
 **Checkpoint**: a press reaches one place.
 
