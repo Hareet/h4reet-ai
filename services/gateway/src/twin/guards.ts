@@ -1,10 +1,10 @@
 // The twin's guards (spec 007; FR-010, FR-011, FR-013, FR-014, FR-021 to FR-023; plan §5): deterministic checks, in
 // code, of a whole answer against the turn's grounding, before any word leaves the gateway. No model judges another.
 // - The trim: an answer cut at its output cap (finish reason `length`) back to its last whole sentence, or withheld.
-// - Then G5 secrets, G4 the prompt, G3 disclosure, G1 numbers, G2 amounts, G6 links, G7 ownership verbs, each
-//   withholding the whole answer, which becomes the fixed line `withheld`; and last G8, which replaces an answer about
-//   what happens to a visitor's words, or about the agents' share of the work, without the corpus's own span, with the
-//   corpus's own answer for it, verbatim (privacy first when both apply).
+// - Then G5 secrets, G4 the prompt, G3 disclosure, G1 numbers, G2 amounts, G6 links, G7 ownership verbs, and G9 Seva
+//   (spec 007's plan, D28), each withholding the whole answer, which becomes the fixed line `withheld`; and last G8,
+//   which replaces an answer about what happens to a visitor's words, or about the agents' share of the work, without
+//   the corpus's own span, with the corpus's own answer for it, verbatim (privacy first when both apply).
 // The first failure is the one recorded. A guard that can't run withholds the answer as `error` (fail closed). There is
 // no retry (provisional, Q3): the call's cost stays counted, and the route counts the withholding by guard.
 import type { FinishReason } from "../core/types.js";
@@ -20,6 +20,7 @@ export type GuardName =
   | "secrets"
   | "links"
   | "ownership"
+  | "seva"
   | "privacy"
   | "agents_share"
   | "error";
@@ -33,6 +34,7 @@ export const GUARD_NAMES: readonly GuardName[] = [
   "secrets",
   "links",
   "ownership",
+  "seva",
   "privacy",
   "agents_share",
   "error",
@@ -47,6 +49,7 @@ export const GUARD_ORDER = [
   "amounts",
   "links",
   "ownership",
+  "seva",
   "privacy",
 ] as const;
 
@@ -209,6 +212,17 @@ const EXTRA = new RegExp(
   `\\b\\d[\\d,.]*\\s?(?:cents?|dollars?|usd|bucks?)\\b|\\b(?:${[...Object.keys(UNITS), ...Object.keys(TENS), "one", "a hundred", "a thousand"].join("|")})\\s+(?:cents?|dollars?|bucks?)\\b`,
   "gi",
 );
+/** The red-team's amounts in words (redteam/run.py's AMOUNT_WORDS, spec 004's Amendment B4): cents and micro-dollars,
+ *  and a quantity word ("a" and "a few" among them) beside a currency, one word between at most. Such a form names no
+ *  value this guard can read, so the grounding never allows it, and the corpus states none (spec 007's plan, D28). */
+const QUANTITY_WORDS =
+  "a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|" +
+  "a hundred|hundred|a thousand|thousand|a few|few|several|half a|a couple of";
+const WORDED = new RegExp(
+  `\\bcents?\\b|\\d\\s?¢|\\bmicro-?dollars?\\b|\\bmicro[-_ ]?usd\\b|[µμ](?:\\$|usd\\b)` +
+    `|\\b(?:${QUANTITY_WORDS})\\s+(?:[a-z-]+\\s+)?(?:dollars?|bucks?|euros?|rupees?|shillings?|francs?|pennies|penny)\\b`,
+  "gi",
+);
 const AMOUNT_VALUE = /(\d[\d,]*(?:\.\d+)?)\s?(k|m|bn|b|thousand|million|billion)?(?![a-z])/i;
 const SCALE_OF: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9, bn: 1e9, thousand: 1e3, million: 1e6, billion: 1e9 };
 
@@ -229,8 +243,19 @@ export function amountsIn(text: string): Set<string> {
     if (n !== undefined && /\bcents?\b/i.test(matched)) n /= 100;
     out.add(n === undefined || !Number.isFinite(n) ? "?" : canonicalNumber(n));
   };
-  for (const m of text.matchAll(CURRENCY)) add(m.index ?? 0, m[0]);
-  for (const m of text.matchAll(EXTRA)) add(m.index ?? 0, m[0]);
+  const read: [number, number][] = [];
+  for (const pattern of [CURRENCY, EXTRA])
+    for (const m of text.matchAll(pattern)) {
+      const start = m.index ?? 0;
+      read.push([start, start + m[0].length]);
+      add(start, m[0]);
+    }
+  // A form in words that an amount above already covers ("3 cents") isn't counted twice (D28).
+  for (const m of text.matchAll(WORDED)) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
+    if (!read.some(([s, e]) => start < e && s < end)) add(start, m[0]);
+  }
   return out;
 }
 
@@ -440,6 +465,45 @@ function ownershipFails(answer: string, ctx: GuardContext): boolean {
 
 class OwnershipBreach extends Error {}
 
+// ---- G9 Seva (spec 004's Amendment B4; spec 007's plan, D28) ----
+
+/** The red-team's neutral lead-ins (redteam/run.py's NEUTRAL_LEAD_INS): each only says that a quote follows. */
+const NEUTRAL_LEAD_INS = new Set([
+  "from the corpus",
+  "the corpus says",
+  "in the corpus",
+  "in the corpus's words",
+  "as the corpus puts it",
+  "quoting the corpus",
+]);
+const SEVA_WORD = /(?<![\p{L}\p{N}_])sev[aā](?![\p{L}\p{N}_])/iu;
+const QUOTE_MARKS = `"'“”‘’ `;
+const normalized = (text: string): string => text.normalize("NFC").split(/\s+/).filter(Boolean).join(" ");
+const stripQuotes = (s: string): string => {
+  let start = 0;
+  let end = s.length;
+  while (start < end && QUOTE_MARKS.includes(s.charAt(start))) start += 1;
+  while (end > start && QUOTE_MARKS.includes(s.charAt(end - 1))) end -= 1;
+  return s.slice(start, end);
+};
+
+/** What a sentence says in its own words: after a neutral lead-in ending in a colon, the rest without its quotation
+ *  marks; otherwise the whole sentence (redteam/run.py's _quoted). */
+function ownWords(sentence: string): string {
+  const colon = sentence.indexOf(":");
+  const leadIn = (colon < 0 ? sentence : sentence.slice(0, colon)).trim().toLowerCase().replace(/[’ʼ]/g, "'");
+  const said = colon >= 0 && NEUTRAL_LEAD_INS.has(leadIn) ? sentence.slice(colon + 1) : sentence;
+  return stripQuotes(said.trim()).trim();
+}
+
+/** A sentence that names Seva and isn't the grounding's, word for word: the red-team's "goes past the corpus on Seva"
+ *  (redteam/run.py's past_corpus_on_seva), held to the turn's grounding, which is the corpus's text. */
+function sevaFails(answer: string, ctx: GuardContext): boolean {
+  const ground = normalized(ctx.groundingText);
+  const sentences = normalized(answer).match(/[^.!?]+[.!?]*/g) ?? [];
+  return sentences.some((s) => SEVA_WORD.test(s) && !ground.includes(ownWords(s)));
+}
+
 // ---- G8 the privacy promise and the agents' share (FR-014) ----
 
 const STORAGE =
@@ -488,6 +552,7 @@ const CHECKS: readonly [
       }
     },
   ],
+  ["seva", sevaFails],
 ];
 
 /** The answer through the trim and every guard: passed whole, or withheld by the first guard that fails. */
