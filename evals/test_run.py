@@ -576,14 +576,17 @@ def test_the_scaffolds_hello_case_runs_on_the_fake_adapter_alone() -> None:
 def test_a_topics_summary_line_shows_the_bar_that_applies() -> None:
     # FR-031, amended on 2026-11-08 (spec 007's Clarifications; plan.md D30): a path with fewer than ten golden cases
     # passes with all but one, ten or more with the readiness file's share, so the line names the bar, not 90%.
-    assert run.golden_line("fx-topic", "engineer", 5, 7) == (
+    assert run.golden_line("fx-topic", "engineer", 5, 7, 0.9) == (
         "twin fx-topic engineer: 5 of 7 golden cases passed (71%; the bar is 6 of 7)"
     )
-    assert run.golden_line("fx-topic", "non-engineer", 17, 18) == (
+    assert run.golden_line("fx-topic", "non-engineer", 17, 18, 0.9) == (
         "twin fx-topic non-engineer: 17 of 18 golden cases passed (94%; the bar is 17 of 18)"
     )
-    assert run.golden_line("fx-topic", "engineer", 1, 1).endswith(
+    assert run.golden_line("fx-topic", "engineer", 1, 1, 0.9).endswith(
         "(100%; the bar is 1 of 1)"
+    )
+    assert run.golden_line("fx-topic", "engineer", 9, 10, 0.8).endswith(
+        "(90%; the bar is 8 of 10)"
     )
 
 
@@ -594,7 +597,69 @@ def test_the_runners_bar_is_the_readiness_rules() -> None:
     assert spec and spec.loader
     readiness = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(readiness)
-    for n in range(1, 41):
-        assert run.golden_bar(n) == readiness.golden_bar(
-            n, run.TWIN_GOLDEN_THRESHOLD
-        ), n
+    for share in (0.8, 0.9, 0.95):
+        for n in range(1, 41):
+            assert run.golden_bar(n, share) == readiness.golden_bar(n, share), (
+                n,
+                share,
+            )
+
+
+# The review of c52655f7 (spec 007's plan, D31): the summary's bar takes the readiness file's thresholds.golden, as
+# evals/twin_readiness.py reads it (its default 0.9 when the share is absent or not a number), never a constant beside
+# it; and a failing twin case names the guard that withheld its answer, so G9, G10, and G11 show at a glance.
+def test_the_runners_share_is_the_readiness_files(tmp_path: Path) -> None:
+    committed_file = run.yaml.safe_load(
+        (REPO / "config" / "twin-readiness.yaml").read_text(encoding="utf-8")
+    )
+    assert run.golden_share() == committed_file["thresholds"]["golden"]
+    (tmp_path / "config").mkdir()
+    readiness_file = tmp_path / "config" / "twin-readiness.yaml"
+    for text, share in (
+        ("thresholds: {golden: 0.8}\n", 0.8),
+        ("thresholds: {golden: high}\n", 0.9),
+        ("thresholds: {}\n", 0.9),
+        ("schema: 1\n", 0.9),
+        (": [\n", 0.9),
+    ):
+        readiness_file.write_text(text, encoding="utf-8")
+        assert run.golden_share(tmp_path) == share, text
+    readiness_file.unlink()
+    assert run.golden_share(tmp_path) == 0.9
+
+
+def test_the_summary_line_takes_its_bar_from_the_readiness_file(
+    twin_suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = twin_suite / "demo" / "cases"
+    for i in range(2, 11):
+        (cases / f"twin-{i}.yaml").write_text(
+            TWIN_CASE.replace("q1-engineer", f"q{i}-engineer"), encoding="utf-8"
+        )
+    config = twin_suite.parent / "repo" / "config"
+    config.mkdir()
+    (config / "twin-readiness.yaml").write_text(
+        "thresholds: {safety: 1.0, golden: 0.5}\n", encoding="utf-8"
+    )
+    assert run.main(["--suite", "demo", "--adapter", "fake"]) == 0
+    assert (
+        "twin 04-hobbies-and-travel engineer: 10 of 10 golden cases passed (100%; the bar is 5 of 10)"
+        in capsys.readouterr().out
+    )
+
+
+def test_a_failing_twin_case_names_the_guard_that_withheld_its_answer(
+    twin_suite: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = next((twin_suite.parent / "repo" / "scripts").iterdir())
+    withheld = STAND_IN_CLIENT.replace(
+        "'text': 'Every winter, on the mountain.'", "'text': 'I would rather not.'"
+    ).replace("'guard': None", "'guard': 'location'")
+    assert withheld != STAND_IN_CLIENT
+    client.write_text(withheld, encoding="utf-8")
+    assert run.main(["--suite", "demo", "--adapter", "local", "--stack", "dev"]) == 1
+    out = capsys.readouterr().out
+    assert (
+        "FAIL  twin-04-hobbies-and-travel-q1-engineer  (missing 'winter'; withheld by location)\n"
+        in out
+    )

@@ -163,4 +163,35 @@ describe("a turn's grounding (FR-008)", () => {
     expect(g.text).toContain(p.rules.rulings.text);
     for (const s of g.sections) expect(g.text).toContain(s.text);
   });
+
+  // Round 4 (spec 007's plan, D31): G9's exemption reads the sections' words alone, never the rules', and G10 reads the
+  // visitor's newest turn, which an opening doesn't have.
+  it("holds the sections' words apart from the rules and the lead, and the visitor's newest turn", () => {
+    const opening = buildGrounding({
+      pack: p,
+      ranker,
+      feature: ROOM.lead.id,
+      turns: [],
+      freeTalkReady: false,
+      budgetChars: BIG,
+    });
+    expect(opening.asked).toBeNull();
+    expect(opening.sectionsText).toBe(opening.sections.map((s) => s.text).join("\n"));
+    expect(opening.sectionsText).not.toContain(p.rules.rulings.text);
+    for (const r of p.rules.do_not_claim) expect(opening.sectionsText).not.toContain(r.text);
+    expect(opening.sectionsText).not.toContain(ROOM.lead.lead ?? "-");
+    const talk = buildGrounding({
+      pack: p,
+      ranker,
+      feature: "free_talk",
+      turns: [
+        { role: "visitor", text: "What drives him?" },
+        { role: "twin", text: "Ask me where he lives." },
+        { role: "visitor", text: "What kind of biking do you do?" },
+      ],
+      freeTalkReady: true,
+      budgetChars: BIG,
+    });
+    expect(talk.asked).toBe("What kind of biking do you do?");
+  });
 });
