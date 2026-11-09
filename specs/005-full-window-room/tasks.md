@@ -367,7 +367,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - that the response headers' tests are unchanged (FR-066).
 
   Check: all pass; `make up ENV=dev-cpu`'s compose config is unchanged (FR-067) (feat/005-full-window-room)
-- [ ] T043 Write `apps/web/room/README.md`'s "The HUD and the window" (plan §13), and finish ADR 0043 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/005-full-window-room)
+- [x] T043 Write `apps/web/room/README.md`'s "The HUD and the window" (plan §13), and finish ADR 0043 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/005-full-window-room)
 - [ ] T044 Draft the merge-request note, `docs/merge-requests/<date>-feat-005-full-window-room.md`, and commit it as a save point. It holds:
   - what changed and why, with the Author's words quoted;
   - each FR's status;
