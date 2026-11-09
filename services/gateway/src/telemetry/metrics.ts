@@ -118,7 +118,6 @@ export const TWIN_REDACTIONS = [
   "address",
   "address_repair",
   "restated_claim",
-  "agents_share",
   "claim_tags",
 ] as const;
 export type TwinRedaction = (typeof TWIN_REDACTIONS)[number];

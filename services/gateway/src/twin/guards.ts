@@ -6,11 +6,13 @@
 // - Then the answer as written, whole: G5 secrets, G4 the prompt, G3 disclosure (in a turn that asks who or what the
 //   twin is, replaced by the profile's disclosure line; D37), G2 amounts outside a cost question, G6 links, G7
 //   ownership verbs, G10 location on a turn that asks where the Author or the room is (D29, D31), G11 surname (D29),
-//   and G8's privacy promise. The first failure withholds the answer, which becomes the fixed line `withheld`, or for
-//   G3 in an identity turn and for G8 the corpus's own answer, verbatim.
-// - Then, sentence by sentence (D41): G1 numbers, G2 amounts in a cost question (D33), G9 Seva (D28), "address" as a
-//   noun (D39), a claim restated in a sentence that declines to confirm it (D38), and G8's agents' share remove only
-//   their failing sentences. An answer left with fewer than three words is withheld (the agents' share: replaced).
+//   and G8, the privacy promise and the agents' share (FR-014). The first failure withholds the answer, which becomes
+//   the fixed line `withheld`, or for G3 in an identity turn and for G8 the corpus's own answer, verbatim.
+// - Then, sentence by sentence (D41): G1 numbers, G2 amounts in a cost question (D33), and G9 Seva (D28), outside a
+//   turn that asks the twin to confirm a claim, where they judge the answer whole (the review of bc25bee2), and in any
+//   turn "address" as a noun (D39) and a claim restated in a sentence that declines to confirm it (D38), remove only
+//   their failing sentences. An answer whose rest, without its opening agreement, has fewer than three words is
+//   withheld.
 // - Then, in a turn that asks the twin to confirm a claim, the opener repair (D34): an answer's opening agreement comes
 //   off, to be delivered as `repair_opener`; an agreement alone is withheld.
 // - Last, what's left meets every guard again, whole.
@@ -86,7 +88,7 @@ export const GUARD_ORDER = [
 /** The guards that can remove a sentence from a delivered answer, in the order they're named (D41), and the claim tags'
  *  strip (D40): the route counts each in h4.twin.redacted, and the admin route lists them for the runners. */
 export type RedactionName =
-  "numbers" | "amounts" | "seva" | "address" | "address_repair" | "restated_claim" | "agents_share" | "claim_tags";
+  "numbers" | "amounts" | "seva" | "address" | "address_repair" | "restated_claim" | "claim_tags";
 export const REDACTION_NAMES: readonly RedactionName[] = [
   "numbers",
   "amounts",
@@ -94,7 +96,6 @@ export const REDACTION_NAMES: readonly RedactionName[] = [
   "address",
   "address_repair",
   "restated_claim",
-  "agents_share",
   "claim_tags",
 ];
 /** The guards that remove a sentence, in the order they're named: every redaction but the two that remove a word or a
@@ -945,6 +946,9 @@ interface Check {
   readonly redacts?: (ctx: GuardContext) => boolean;
 }
 const always = (): boolean => true;
+/** Outside a turn that asks the twin to confirm a claim: there, a sentence G1, G2, or G9 fails withholds the whole
+ *  answer, since what's left could agree with the claim (FR-018; the review of bc25bee2). */
+const unpressed = (c: GuardContext): boolean => !asksToConfirm(c.asked);
 
 function ownershipCheck(answer: string, ctx: GuardContext): boolean {
   try {
@@ -961,11 +965,11 @@ const CHECKS: readonly Check[] = [
   { name: "prompt", reading: "plain", fails: promptFails },
   { name: "disclosure", reading: "plain", fails: (a) => disclosureFails(a) },
   { name: "disclosure", reading: "fold", fails: (a) => claimsAuthor(a) },
-  { name: "numbers", reading: "plain", fails: numbersFail, redacts: always },
-  { name: "amounts", reading: "fold", fails: amountsFail, redacts: (c) => asksAboutCost(c.asked) },
+  { name: "numbers", reading: "plain", fails: numbersFail, redacts: unpressed },
+  { name: "amounts", reading: "fold", fails: amountsFail, redacts: (c) => asksAboutCost(c.asked) && unpressed(c) },
   { name: "links", reading: "plain", fails: linksFail },
   { name: "ownership", reading: "plain", fails: ownershipCheck },
-  { name: "seva", reading: "fold", fails: sevaFails, redacts: always },
+  { name: "seva", reading: "fold", fails: sevaFails, redacts: unpressed },
   { name: "location", reading: "fold", fails: locationFails },
   { name: "surname", reading: "fold", fails: (a) => surnameFails(a) },
   { name: "address", reading: "fold", fails: addressFails, redacts: always },
@@ -1033,7 +1037,8 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
         if (c.fails(seen[c.reading], views[c.reading])) return c.name;
       }
       if (privacyReplaces(seen.plain, views.plain)) return "privacy";
-      if (every && agentsReplaces(seen.plain, views.plain)) return "agents_share";
+      // G8's agents' share replaces the whole answer, as FR-014 says (the review of bc25bee2), never one sentence.
+      if (agentsReplaces(seen.plain, views.plain)) return "agents_share";
       return null;
     };
 
@@ -1041,11 +1046,9 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
     const first = failing(text, false);
     if (first !== null) return outcome(first);
 
-    // Sentence by sentence (D41): each sentence a guard that redacts in this turn fails comes off, and so does a
-    // sentence on the agents' share in an answer without the corpus's span. "email address" loses its "address" first
-    // and keeps its sentence (D39), and the first sentence that declined a claim by restating it becomes the Author's
-    // line, unless the answer holds it already (D38; his decisions of 2026-11-09).
-    const agentsQuoted = holdsSpan(plain(text), views.plain.quotes.agents_share.spans);
+    // Sentence by sentence (D41): each sentence a guard that redacts in this turn fails comes off. "email address"
+    // loses its "address" first and keeps its sentence (D39), and the first sentence that declined a claim by restating
+    // it becomes the Author's line, unless the answer holds it already (D38; his decisions of 2026-11-09).
     const sentences = sentencesOf(text);
     const notSaid = collapse(fold(ctx.notSaid));
     let lineGiven = sentences.some((s) => fold(s) === notSaid);
@@ -1058,7 +1061,6 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
       const hits: RedactionName[] = CHECKS.filter(
         (c) => redacting(c) && c.fails(seen[c.reading], views[c.reading]),
       ).map((c) => c.name as RedactionName);
-      if (!agentsQuoted && AGENTS.test(seen.plain) && SHARE.test(seen.plain)) hits.push("agents_share");
       if (hits.length === 0) {
         kept.push(sentence);
         repairedAddress ||= sentence !== written;
@@ -1073,8 +1075,10 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
     let rest = text;
     if (removed.size > 0 || repairedAddress) {
       rest = kept.join(" ");
-      // Too little left to be an answer: the first guard that removed a sentence withholds it, or replaces it.
-      if (removed.size > 0 && (rest.match(/[\p{L}\p{N}]+/gu) ?? []).length < MIN_KEPT_WORDS)
+      // Too little left to be an answer, counted without its opening agreement, so "Yes, he did." is never all that's
+      // left of one (the review of bc25bee2): the first guard that removed a sentence withholds it.
+      const words = withoutOpener(rest).match(/[\p{L}\p{N}]+/gu) ?? [];
+      if (removed.size > 0 && words.length < MIN_KEPT_WORDS)
         return outcome(SENTENCE_GUARDS.find((r) => removed.has(r)) ?? "error");
       for (const r of removed) redacted.add(r);
       if (repairedAddress) redacted.add("address_repair");
