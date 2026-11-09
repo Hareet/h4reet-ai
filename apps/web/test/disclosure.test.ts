@@ -112,6 +112,23 @@ describe("the disclosure page", () => {
     expect(rows.get("V4")?.[2]).toContain("the visitor first entering the walking view in a visit");
   });
 
+  it("names full screen's first entry in row V4's trigger, before spec 009's closing clause (spec 005, H9)", () => {
+    const rows = new Map(
+      markdownTables(SOURCE)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    const trigger = rows.get("V4")?.[2] ?? "";
+    const words = ", the visitor first entering full screen in a visit";
+    expect(trigger).toContain(words);
+    expect(trigger.indexOf(words)).toBeLessThan(
+      trigger.indexOf(", and a figure's avatar failing to load, once a visit"),
+    );
+    expect(trigger.indexOf(words)).toBeGreaterThan(
+      trigger.indexOf("the visitor first entering the walking view in a visit"),
+    );
+  });
+
   it("names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)", () => {
     const rows = new Map(
       markdownTables(SOURCE)
