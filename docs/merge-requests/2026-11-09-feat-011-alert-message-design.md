@@ -71,6 +71,11 @@ between the two bases (no change under `services/gateway/src/alerts/`,
 tests pass on the re-stacked tip. Nor did the lockfile, so the
 worktree's `node_modules` stands.
 
+**Recorded before the last re-stack, 2026-11-09:**
+`feat/011-alert-message-design was ee91a95a`, on
+`feat/010-anthropic-provider` at 538ca869: its code 9135ecb2, then
+T050's note commit.
+
 ## Decisions while you were away
 
 The main session's, under the relaxed lifecycle: provisional,
