@@ -219,3 +219,27 @@ describe("the SDK's own variables change nothing (FR-007; departure B3)", () => 
     expect(logged.join("\n")).not.toContain(KEY);
   });
 });
+
+describe("the adapter's own overhead (plan's Performance Goals; tasks.md T029)", () => {
+  it("adds under 5 ms a call to an answer that is already there", async () => {
+    const message = {
+      id: "msg_bench",
+      model: "claude-haiku-5-5",
+      content: [{ type: "text", text: "A short answer." }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 900, output_tokens: 9 },
+    };
+    const client = {
+      messages: { create: async () => message },
+      models: { retrieve: async () => ({ id: "claude-haiku-5-5" }) },
+    } as unknown as ConstructorParameters<typeof AnthropicMessagesAdapter>[3]["client"];
+    const ctx = { env: { GATEWAY_ANTHROPIC_API_KEY: KEY }, logger, realNow: Date.now };
+    const a = new AnthropicMessagesAdapter("anthropic", SETTINGS, ctx, { client, release() {} });
+    const calls = 500;
+    const started = performance.now();
+    for (let i = 0; i < calls; i++) await a.complete(request());
+    const perCall = (performance.now() - started) / calls;
+    expect(perCall).toBeLessThan(5);
+    await a.close();
+  });
+});

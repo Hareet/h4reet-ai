@@ -706,7 +706,9 @@ export function thresholds(env: BudgetEnv): Thresholds {
     monthWarn: warn(env.monthlyMicro),
     fallbackGrant: env.fallbackDailyMicro,
     fallbackWarn: (allowanceMicro) => allowanceMicro - gap,
-    adapterCaps: new Map([...(env.adapterMonthly ?? new Map<string, bigint>())].map(([id, cap]) => [id, { cap, warn: warn(cap) }])),
+    adapterCaps: new Map(
+      [...(env.adapterMonthly ?? new Map<string, bigint>())].map(([id, cap]) => [id, { cap, warn: warn(cap) }]),
+    ),
   };
 }
 

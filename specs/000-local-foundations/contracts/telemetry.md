@@ -135,6 +135,8 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 - **The canonical success set** is every key above marked "always", plus the "on success" keys, plus `server.port` for an adapter that declares a port. `gen_ai.response.id` belongs to it when the provider returns an ID; both shipped providers do. A failed attempt has the "always" keys plus `error.type`.
 - The contract suite's check C8 compares these key sets with an in-memory exporter: `local-openai` and `bedrock-converse` must have identical sets, and only the values of the provider, model, and server attributes may differ (SC-006, [provider-adapter.md §5.2](provider-adapter.md#52-assertions)). The synthetic adapter's set is the same without `server.port`.
 
+**(spec 010, Amendment 0-7)** An `anthropic-messages` call's client span is `chat claude-haiku-5-5`, with `gen_ai.provider.name: anthropic`, `server.address: api.anthropic.com`, and `server.port: 443`, and the canonical key set above, which the contract suite's C8 holds equal to the local and Bedrock adapters'. The SDK's own spans and trace propagation are off, and its transport is ignored by the HTTP instrumentation like every host outside the stack (§3.1), so the call has no other span and sends no trace header.
+
 ### 3.4 The payload rule
 
 - `TELEMETRY_PAYLOAD_SAMPLING` is `off` or `on`, and `on` is allowed only when `H4_ENV=dev`. Preflight and the gateway's startup both refuse it elsewhere ([env-files.md](env-files.md), plan [§5.8](../plan.md#58-startup-refusals)).
@@ -192,6 +194,16 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 **Histogram buckets** (explicit, the same for every `s` histogram the gateway records, up to 120 s): 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120. `h4.alert.delivery_lag` uses 1, 5, 10, 20, 30, 60, 120, 180, 240, 300, 600.
 
 **What is never a metric attribute:** a client address or label, a request or trace ID, a message, a reason text, a dedupe key, or an operator's fingerprint.
+
+**(spec 010, Amendment 0-7)**
+
+| OTel name | Instrument, unit | Attributes | Prometheus name | Recorded when |
+|---|---|---|---|---|
+| `h4.adapter.month_spend_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_spend_usd` | the current UTC month's committed spend of each capped paid adapter the route names, from the snapshot |
+| `h4.adapter.month_cap_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_cap_usd` | its cap, from `config/budgets.yaml`'s `adapter_monthly_usd` |
+| `h4.adapter.month_warn_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_warn_usd` | its warning, the cap × `warn_ratio` |
+
+`h4.degraded.cause`, `h4.degraded.responses`, and `h4.twin.turns` gain the cause `adapter_month_spent`, after `meter_at_ceiling`; `h4.twin.withheld`'s `h4.twin.guard` gains `refusal`; and `h4.adapter.healthy` and `h4.cost.usd` carry the Anthropic adapter as they carry Bedrock, with `h4.cost.usd`'s zero series written at start under `fallback` and `test` for the routed paid adapter (spec 000's T191).
 
 ### 4.2 Semantic-convention metrics
 

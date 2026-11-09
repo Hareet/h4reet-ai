@@ -115,7 +115,11 @@ export async function sweepExpired(tx: MeterTx): Promise<number> {
   for (const raw of rows) {
     const r = reservationOf(raw);
     const periods = { day: r.periodDay, month: r.periodMonth };
-    const keys = rowsOf(r.attribution, periods, r.adapterMonth ? adapterMonthKey(r.adapterId, r.periodMonth) : undefined);
+    const keys = rowsOf(
+      r.attribution,
+      periods,
+      r.adapterMonth ? adapterMonthKey(r.adapterId, r.periodMonth) : undefined,
+    );
     await shiftReserved(tx.q, keys, -r.maxMicro, tx.nowIso);
     const row = expiredLedgerRow(r, randomUUID(), tx.now, tx.deps.stack);
     await insertLedgerRow(tx.q, row);

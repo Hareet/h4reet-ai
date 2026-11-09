@@ -101,11 +101,11 @@ description: "Task list for spec 010, the Anthropic API as a second paid adapter
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] Complete `src/adapters/anthropic-messages.ts`: the request, the response and usage, the options, and the health check (plan §2.3, §2.4, §2.7). Check: T023, T024, and T025 pass; the adapter's own overhead stays under 5 ms a call in the unit benchmark (feat/010-anthropic-provider)
-- [ ] T030 [US1] Add `adapters.anthropic` to `config/routing.yaml` and `temperature: model_default` to `bedrock`, keeping `envs.prod.fallback: bedrock` (plan §3), with the header comment's new step. Check: T026 and T012 pass; `validate-config` passes on the committed files (feat/010-anthropic-provider)
-- [ ] T031 [US1] Add the span values and the instruments in `src/telemetry/metrics.ts`, and amend `specs/000-local-foundations/contracts/telemetry.md` §3.3 and §4.1 in the same commit ("A name changes here first, in the same commit as the code"; Amendment 0-7). Check: T027 passes (feat/010-anthropic-provider)
-- [ ] T032 [US1] Add "## Spec 010: the Anthropic API" with its lead and row F3, and change S2, D1, and V2, in `docs/data-flow-disclosure.md`, in the spec's words (plan §10). Check: T028 passes; the room's disclosure page builds with the new table (feat/010-anthropic-provider)
-- [ ] T033 [US1] Document the adapter in `services/gateway/README.md`: its settings, the key's name and place, the cap, how the Author chooses the fallback, and the order of his patches. Check: `make test`'s docs checks pass (feat/010-anthropic-provider)
+- [X] T029 [US1] Complete `src/adapters/anthropic-messages.ts`: the request, the response and usage, the options, and the health check (plan §2.3, §2.4, §2.7). Check: T023, T024, and T025 pass; the adapter's own overhead stays under 5 ms a call in the unit benchmark (feat/010-anthropic-provider)
+- [X] T030 [US1] Add `adapters.anthropic` to `config/routing.yaml` and `temperature: model_default` to `bedrock`, keeping `envs.prod.fallback: bedrock` (plan §3), with the header comment's new step. Check: T026 and T012 pass; `validate-config` passes on the committed files (feat/010-anthropic-provider)
+- [X] T031 [US1] Add the span values and the instruments in `src/telemetry/metrics.ts`, and amend `specs/000-local-foundations/contracts/telemetry.md` §3.3 and §4.1 in the same commit ("A name changes here first, in the same commit as the code"; Amendment 0-7). Check: T027 passes (feat/010-anthropic-provider)
+- [X] T032 [US1] Add "## Spec 010: the Anthropic API" with its lead and row F3, and change S2, D1, and V2, in `docs/data-flow-disclosure.md`, in the spec's words (plan §10). Check: T028 passes; the room's disclosure page builds with the new table (feat/010-anthropic-provider)
+- [X] T033 [US1] Document the adapter in `services/gateway/README.md`: its settings, the key's name and place, the cap, how the Author chooses the fallback, and the order of his patches. Check: `make test`'s docs checks pass (feat/010-anthropic-provider)
 
 **Checkpoint**: the Anthropic API serves prod's fallback when the route names it, metered and disclosed; with the route on Bedrock, the adapter isn't built.
 

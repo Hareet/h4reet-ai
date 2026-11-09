@@ -222,7 +222,9 @@ describe("the Anthropic API answers hello while the local model can't (FR-001, F
     expect(Number(rows[0]?.cost_micro)).toBe(60);
     expect(body.cost_micro_usd).toBe(60);
     const meters = (
-      await s.db.pg.query<Rec>("SELECT meter, period_key, spent_micro::text AS spent FROM gateway.meters ORDER BY meter")
+      await s.db.pg.query<Rec>(
+        "SELECT meter, period_key, spent_micro::text AS spent FROM gateway.meters ORDER BY meter",
+      )
     ).rows;
     for (const meter of ["day", "month", "fallback_day", "adapter_month"]) {
       expect(meters.find((m) => m.meter === meter)?.spent, meter).toBe("60");

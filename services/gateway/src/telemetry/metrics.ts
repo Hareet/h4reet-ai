@@ -121,6 +121,11 @@ export interface GaugeSnapshot {
    */
   studioWindow?: boolean;
   adapters: readonly { id: string; healthy: boolean }[];
+  /**
+   * Each capped paid adapter the route names: its current UTC month's committed spend, its cap, and its warning (spec
+   * 010, FR-035). Absent while the store can't be read, as the meters are.
+   */
+  adapterMonths?: readonly { adapter: string; spentMicro: bigint; capMicro: bigint; warnMicro: bigint }[];
 }
 
 const usd = (micro: bigint): number => Number(micro) / 1_000_000;
@@ -215,6 +220,17 @@ export class GatewayMetrics {
     });
     gauge("h4.adapter.healthy", "{flag}", (r, s) => {
       for (const a of s.adapters) r.observe(a.healthy ? 1 : 0, { "h4.adapter": a.id });
+    });
+    // Spec 010 (FR-035; plan §9): each capped, routed paid adapter's month beside its cap and its warning, under names of
+    // their own, so h4.meter.* keeps its one label.
+    gauge("h4.adapter.month_spend_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.spentMicro), { "h4.adapter": a.adapter });
+    });
+    gauge("h4.adapter.month_cap_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.capMicro), { "h4.adapter": a.adapter });
+    });
+    gauge("h4.adapter.month_warn_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.warnMicro), { "h4.adapter": a.adapter });
     });
     // spec 003's studio GPU window: no attribute, since the stack is the resource's (its gpu-window.md §1).
     gauge("h4.studio.window", "{flag}", (r, s) => {

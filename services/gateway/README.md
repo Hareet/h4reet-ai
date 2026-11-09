@@ -4,14 +4,15 @@ Every model call the stack makes goes through this service: one provider-agnosti
 kill switch, and the cost meter in front of each provider (spec 000, `specs/000-local-foundations/`). Its HTTP
 contract is [gateway-http.md](../../specs/000-local-foundations/contracts/gateway-http.md), its admin listener's is
 [operator-admin.md](../../specs/000-local-foundations/contracts/operator-admin.md), and its routing is configuration,
-`config/routing.yaml`: local first, the Bedrock fallback within its sub-budget, then degraded.
+`config/routing.yaml`: local first, then the one paid fallback prod's route names (Bedrock, or the Anthropic API
+since spec 010) within its sub-budget and caps, then degraded.
 
 ## The layout
 
 - `src/core/`: the gateway itself (`gateway.ts`: the state read, the kill switch, local, then the metered fallback,
   in FR-022's order), the router, the clock, and the per-client limits.
-- `src/adapters/`: one adapter per provider (the local OpenAI-compatible model server, Bedrock's Converse, and dev's
-  synthetic fallback). No other file calls a provider.
+- `src/adapters/`: one adapter per provider (the local OpenAI-compatible model server, Bedrock's Converse, the
+  Anthropic API's Messages, and dev's synthetic fallback). No other file calls a provider, or names one.
 - `src/meter/`: the store (PostgreSQL; PGlite in tests), admission, reservations, the ledger, and the journal.
 - `src/routes/`: the public routes (`/hello`, `/room/events`, `/room/turn`) and the admin listener's.
 - `src/twin/` and `src/config/twin.ts`: the twin's conversation core (spec 007, below).
@@ -19,6 +20,53 @@ contract is [gateway-http.md](../../specs/000-local-foundations/contracts/gatewa
 - `migrations/`: the store's schema, applied in order at start.
 - `test/`: vitest, `unit/` and `integration/` (Fastify inject on PGlite, with stub providers; no test calls a real
   model or uses a credential).
+
+## The paid fallback: Bedrock or the Anthropic API (spec 010)
+
+Prod's paid fallback is one line in `config/routing.yaml`, `envs.prod.fallback`: `bedrock`, as at spec 010's merge,
+or `anthropic`, the Author's choice. Dev and dev-cpu never route a paid adapter.
+
+- **The adapter**, `src/adapters/anthropic-messages.ts`, type `anthropic-messages`, calls Claude Haiku 5.5
+  (`claude-haiku-5-5`) through Anthropic's official SDK, `@anthropic-ai/sdk`, pinned at 1.3.0 and vetted (spec 010's
+  plan, D2, B1). Every client option is explicit: the key, the fixed origin `https://api.anthropic.com` (a constant,
+  never configuration), no SDK retries, the settings' timeout, the SDK's logging and spans off. Its transport,
+  `_anthropic-transport.ts`, resolves through c-ares, times the connect, refuses any other origin, and sets every
+  header itself, so no variable the SDK reads on its own changes what is sent (plan B3).
+- **Its settings**: `model`, `api_key_env`, `thinking: disabled`, `temperature: model_default` (Haiku 5.5 takes no
+  temperature but its default), `timeouts` (connect plus request at most 5 s, rule R8), `retry`, `circuit`, and
+  `health` (the model lookup, `GET /v1/models/{model}`, once a minute, which spends no tokens).
+- **The key**: `GATEWAY_ANTHROPIC_API_KEY`, in prod's env file only, empty until the Author chooses the Anthropic
+  API. Compose passes it to the gateway alone; no container holds an `ANTHROPIC_*` variable. The registry hands the
+  adapter that one key, and the redactors know its shape.
+- **The cost**: every call counts at its list price toward prod's $5 daily and $20 monthly ceilings, and a fallback
+  call toward the $2-a-day sub-budget, whatever credits the account holds. `config/budgets.yaml`'s
+  `adapter_monthly_usd` caps the adapter's month: at the cap its calls are refused with `adapter_month_spent`, the
+  paid fallback awaits a renewal, and local answers go on; the adapter stays refused until the next UTC month or a
+  raised cap.
+- **What refuses an early switch**: with the route on `anthropic`, the gateway won't start without its key
+  (`missing_env`), its price (`price_missing`), or its cap (`adapter_cap_missing`); preflight names the same first;
+  and `make test` fails while the disclosure's row F3 holds the placeholder for the Author's words about what
+  Anthropic keeps.
+- **The Author's order**: P-A (the denies for both key names, the bash gate's `anthropic` rules, the compose policy,
+  and `CLAUDE.md`'s routing sentence) on his branch cut from spec 010's tip, gated with it, and merged; then
+  `make init-env ENV=prod SYNC=1`; then P-C (the cap) and P-B (the price); then, if he chooses the Anthropic API, his
+  words in F3, the key in prod's env file, the one line, and `make up ENV=prod`. The patches are in
+  `docs/merge-requests/`, beside spec 010's note.
+
+## The live runs, on either paid adapter (spec 010)
+
+The Author's live runs take `ADAPTER=local`, `ADAPTER=bedrock`, or `ADAPTER=anthropic`: `make evals`,
+`make redteam-live ENV=prod`, and `make contract-live ENV=prod REASON="…"`. Each refuses itself inside the agents'
+sandbox, and a paid adapter runs on prod alone, through prod's admin routes with the operator token, attributed
+`test` inside the ceilings and the adapter's cap, never failing over. A run naming a paid adapter prod's route doesn't
+name gets 404 `unknown_adapter` for each case and spends nothing, so the Anthropic runs follow the switch. Each run's
+history is `<UTC>-<adapter>.json`, naming the adapter and its provider.
+
+Readiness evidence (`evals/twin_readiness.py`, spec 010's FR-026 and FR-027): a ready topic needs a product run and a
+red-team run on prod's local model and on the paid adapter prod's route names, each complete: every Golden Q&A case of
+the topic on both paths and every gap case, and every live red-team case. A run filtered short, or holding none of a
+topic's cases, reads "evidence missing", naming the topic, the path, and how many cases are missing. The report
+informs and fails nothing.
 
 ## The twin's turn route (spec 007)
 

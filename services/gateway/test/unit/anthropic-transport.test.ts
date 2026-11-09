@@ -22,7 +22,11 @@ const KEY = `test-${randomBytes(16).toString("hex")}`;
 const VERSION = "2026-10-21";
 const PROMPT = "transport-prompt-5c1d: name a colour.";
 const UA = "Anthropic/JS 1.3.0";
-const BODY = JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 16, messages: [{ role: "user", content: PROMPT }] });
+const BODY = JSON.stringify({
+  model: "claude-haiku-5-5",
+  max_tokens: 16,
+  messages: [{ role: "user", content: PROMPT }],
+});
 
 let stub: StubAnthropic;
 const transports: AnthropicTransport[] = [];

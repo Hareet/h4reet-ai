@@ -1481,6 +1481,7 @@ export class Gateway {
     } catch {
       delete this.gauges.meters;
       delete this.gauges.studioWindow;
+      delete this.gauges.adapterMonths;
       this.meterView = undefined;
       this.opts.metrics.setSnapshot(this.gauges);
       return;
@@ -1512,6 +1513,16 @@ export class Gateway {
     };
     if (studioWindow === undefined) delete this.gauges.studioWindow;
     else this.gauges.studioWindow = studioWindow;
+    // Spec 010 (FR-035): each capped adapter the route names, its month's spend beside its cap and warning.
+    const months = this.routed().flatMap((r) => {
+      const id = r.built.config.id;
+      const cap = t.adapterCaps.get(id);
+      if (cap === undefined) return [];
+      const row = rows.find((x) => x.meter === "adapter_month" && x.periodKey === `${id}:${month}`);
+      return [{ adapter: id, spentMicro: row?.spentMicro ?? 0n, capMicro: cap.cap, warnMicro: cap.warn }];
+    });
+    if (months.length === 0) delete this.gauges.adapterMonths;
+    else this.gauges.adapterMonths = months;
     this.opts.metrics.setSnapshot(this.gauges);
   }
 

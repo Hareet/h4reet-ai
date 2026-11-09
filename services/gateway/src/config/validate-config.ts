@@ -68,7 +68,8 @@ export async function checkEnvTemplates(root: string, set: LoadedConfig, nowMs: 
     // above leaves unset, from the file or empty (spec 010, FR-030), read without naming a provider here (SC-006).
     for (const adapter of set.routing?.adapters.values() ?? []) {
       for (const [key, value] of Object.entries(adapter.settings)) {
-        if (key.endsWith("_env") && typeof value === "string" && env[value] === undefined) env[value] = vars[value] ?? "";
+        if (key.endsWith("_env") && typeof value === "string" && env[value] === undefined)
+          env[value] = vars[value] ?? "";
       }
     }
     for (const r of validateGatewayEnv(env, { template: true }))

@@ -115,7 +115,8 @@ export function crossingsOf(changes: readonly SpendChange[], t: Thresholds, awai
         if (crosses(c.before, cap.warn, c.after)) {
           out.push({ kind: "warn", meter, periodKey: c.periodKey, threshold: cap.warn });
         }
-        if (crosses(c.before, cap.cap, c.after)) out.push({ kind: "capped", periodKey: c.periodKey, capMicro: cap.cap });
+        if (crosses(c.before, cap.cap, c.after))
+          out.push({ kind: "capped", periodKey: c.periodKey, capMicro: cap.cap });
         continue;
       }
       if (meter === "day" || meter === "month") {
@@ -343,7 +344,13 @@ export class MeterTx {
   ): Promise<void> {
     const { stack } = this.deps;
     const meter: MeterName =
-      c.kind === "trip" ? c.ceiling : c.kind === "warn" ? c.meter : c.kind === "capped" ? "adapter_month" : "fallback_day";
+      c.kind === "trip"
+        ? c.ceiling
+        : c.kind === "warn"
+          ? c.meter
+          : c.kind === "capped"
+            ? "adapter_month"
+            : "fallback_day";
     const change = changes.find((x) => x.meter === meter);
     const after = change?.after ?? 0n;
     const before = change?.before ?? 0n;
@@ -355,7 +362,12 @@ export class MeterTx {
       this.crossedLog(c.meter, c.periodKey, "warn", after, c.threshold);
       this.pending.push({
         key: dedupeKey.warn(stack, c.meter, c.periodKey),
-        spec: { kind: "warn", meter: c.meter, warnRatioBp: this.deps.warnRatioBp, adapterMonth: this.adapterMonthFacts(c.periodKey, after) },
+        spec: {
+          kind: "warn",
+          meter: c.meter,
+          warnRatioBp: this.deps.warnRatioBp,
+          adapterMonth: this.adapterMonthFacts(c.periodKey, after),
+        },
         periods,
       });
       return;
