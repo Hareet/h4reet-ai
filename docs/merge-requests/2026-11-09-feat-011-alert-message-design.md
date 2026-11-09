@@ -53,9 +53,12 @@ the whole suite and `make check ENGINE_MODE=none-yet` run once and
 appended here. P-A is rebuilt in spec 010's round, so its dry run on a
 fresh export of this branch, and the combined tree's run with it, wait
 for the final tip too: checking today's P-A would prove nothing about
-the one you'll apply. Before the re-stack, record this tip:
-`feat/011-alert-message-design was c925d353` (its code), with this
-note's commit and T048's round on top.
+the one you'll apply.
+
+**Recorded before T050's re-stack, 2026-11-09:**
+`feat/011-alert-message-design was c49cbd90`, on
+`feat/010-anthropic-provider` at 911df96f: c925d353, its code, then
+this note's commit, b1b831d2, then T048's round.
 
 An early look, not that check: at c1111516, spec 010's round, P-A
 touched eight files. Seven were the same there and at this branch's
