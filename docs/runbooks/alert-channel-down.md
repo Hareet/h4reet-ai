@@ -35,16 +35,7 @@ In your own terminal.
    - **dev and dev-cpu,** in stand-in mode, deliver to the stand-ins: `make status ENV=<stack>` shows whether `telegram-standin` and `mailpit` are healthy, and `make up ENV=<stack>` starts them again.
 3. **Never** paste the bot token or the mailbox password into a terminal command, a browser's address bar, or a note.
 
-## Verify
-
-- The next alert reads `delivered` on both channels in "Alerts by channel and outcome", and "Alert delivery lag p95" falls back.
-- To try the real channels without waiting for prod's next alert, run dev's recorded breach test, which sends dev's alerts through the same bot, chat, and mailbox as prod's: `make breach-test ENV=dev DELIVERY=real` (Heavy; quickstart.md §2.2).
-
-## Undo
-
-Put back any env value you changed, and run `make up ENV=<stack>` again.
-
-## Alerts arrive as plain text
+### Alerts arrive as plain text
 
 Spec 011 (FR-046; its plan §9.5): an alert's designed form, Telegram's message with its entities or the email's HTML part, gave way to its plain form, today's text, and the alert arrived ([contracts/alerts.md §4.1](../../specs/000-local-foundations/contracts/alerts.md#41-the-dispatcher)).
 
@@ -57,6 +48,15 @@ Spec 011 (FR-046; its plan §9.5): an alert's designed form, Telegram's message 
   - `not_rendered`: expected for rows queued in the 300 s before a deploy that brought the designs, which hold facts from before them. After that, a decoding bug: open an intent with the kind and the key.
 - **Verify a fix.** Send the samples on dev-cpu, then on prod (`make operator-alert-samples` with that stack's `ENV` and a `REASON`), and read them: each arrives designed, and the panel stays at zero.
 - **Undo the switch.** Remove `formats` from `config/alerts.yaml`, and run `make up ENV=<stack>`.
+
+## Verify
+
+- The next alert reads `delivered` on both channels in "Alerts by channel and outcome", and "Alert delivery lag p95" falls back.
+- To try the real channels without waiting for prod's next alert, run dev's recorded breach test, which sends dev's alerts through the same bot, chat, and mailbox as prod's: `make breach-test ENV=dev DELIVERY=real` (Heavy; quickstart.md §2.2).
+
+## Undo
+
+Put back any env value you changed, and run `make up ENV=<stack>` again.
 
 ## Record
 

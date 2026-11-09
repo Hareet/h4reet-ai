@@ -326,8 +326,8 @@ def test_every_assertion_is_tagged_with_its_source() -> None:
     ids = [a.id for a in breach.CATALOG]
     assert len(ids) == len(set(ids))
     assert {a.source for a in breach.CATALOG} == {"T", "M", "L"}
-    # Every step of plan §8 but the last, which is the table itself, has at least one.
-    assert {a.step for a in breach.CATALOG} == set(range(1, 12))
+    # Every step of plan §8 but the last, which is the table itself, has at least one; and spec 011's step 12.
+    assert {a.step for a in breach.CATALOG} == set(range(1, 13))
     for scenario in (
         "US2-1",
         "US2-2",
@@ -639,6 +639,18 @@ PLAN_8_FIGURES = [
     f"11e {DAY_Q} = 0.1",
     f"11e {MONTH_Q} = 0.1",
     "11e max(h4_fallback_awaiting_renewal) = 1.0",
+    # 12: spec 011's samples, in stand-in mode: the status, the request, the audit row, the count of both channels'
+    # deliveries of the fake's two samples, and the meters and the state as the first status read them.
+    "s12.before GET /admin/status {'status': 200}",
+    (
+        "s12.samples POST /admin/alert-samples {'body.action': 'alert_samples', 'body.delivery': 'standin', "
+        "'status': 200}"
+    ),
+    "12b audit alert_samples {}",
+    '12c sum(h4_alerts_total{h4_alert_kind="sample"}) >= vector(4)',
+    f"12d {DAY_Q} = 0.1",
+    f"12d {MONTH_Q} = 0.1",
+    "s12.after GET /admin/status {'body.state': 'normal', 'status': 200}",
 ]
 
 
@@ -946,7 +958,13 @@ def test_step_11_asserts_the_wiped_store_in_the_call_that_rebuilds_it() -> None:
     # the store is back, with nothing between them but the probe.
     stack = FakeStack()
     run(["--stack", "dev-cpu"], stack)
-    last = json.loads(stack.stdins[-1].split("\n", 1)[1])["ops"]
+    # Step 11's last probe call: spec 011's step 12 runs after it.
+    elevens = [
+        i
+        for i, c in enumerate(stack.commands)
+        if "breach-probe" in c and c[c.index("/app/breach_probe.py") + 1] == "11"
+    ]
+    last = json.loads(stack.stdins[elevens[-1]].split("\n", 1)[1])["ops"]
     assert [op.get("id") or op.get("assert") for op in last][:3] == [
         "11c",
         "s11.empty",
@@ -954,7 +972,7 @@ def test_step_11_asserts_the_wiped_store_in_the_call_that_rebuilds_it() -> None:
     ]
     # Step 1's wipe sends the same command, so find step 11's by its place: the last one.
     back = max(i for i, c in enumerate(stack.commands) if c[-1] == "gateway-state")
-    assert stack.commands[back + 1 :] == [stack.commands[-1]]
+    assert back + 1 == elevens[-1]
 
 
 # --- the delivery overlay (contracts/env-files.md §7.2) -----------------------------------------------------------

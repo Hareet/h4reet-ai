@@ -7,6 +7,23 @@ import type { Queryable } from "../meter/store.js";
 import type { AlertKind } from "../telemetry/metrics.js";
 import { renderAlert, type AlertContext, type AlertSpec, type Ceiling } from "./format.js";
 
+/**
+ * The real alert kinds (contracts/alerts.md §2): the outbox's CHECK list, and store_unreachable, which is never stored.
+ * `sample` is none of them (spec 011, FR-035): a sample's key can never equal a real alert's, and no reader of the
+ * outbox can see one. A test holds this list to the CHECK, to h4.alert.kind's values, and to the contract's table.
+ */
+export const REAL_KINDS: readonly AlertKind[] = [
+  "warn",
+  "trip",
+  "fallback_exhausted",
+  "operator_action",
+  "credentials_expiring",
+  "fallback_unavailable",
+  "auth_failed",
+  "store_unreachable",
+  "reminder",
+];
+
 export interface OutboxRow {
   /** <stack>:<kind>:<meter or subject>:<period>, unique: each key alerts once (alerts.md §2). */
   dedupeKey: string;

@@ -31,6 +31,7 @@ import { readPeriodRows } from "../meter/rollover.js";
 import type { Store } from "../meter/store.js";
 import type { AlertChannel, AlertKind, AlertMetricKind, GatewayMetrics } from "../telemetry/metrics.js";
 import { ALERT_DELIVER_SPAN, alertDeliverAttributes } from "../telemetry/otel.js";
+import { sampleFacts, type CatalogueEntry } from "./catalogue.js";
 import { renderAlert, type AlertSpec } from "./format.js";
 import {
   formsFor,
@@ -47,6 +48,8 @@ import { sendEmail, type EmailChannel } from "./smtp.js";
 import { sendTelegram, type DeliveryResult, type TelegramChannel, type TelegramSend } from "./telegram.js";
 
 export const DISPATCH_INTERVAL_MS = 2_000;
+/** At most one sample a second on each channel (spec 011, FR-039; the Bot API's FAQ's advice for one chat). */
+export const SAMPLE_GAP_MS = 1_000;
 export const REMINDER_INTERVAL_MS = 10_000;
 /** How many due rows one tick claims per channel. */
 const CLAIM_BATCH = 20;
@@ -301,6 +304,10 @@ export class Dispatcher {
   private readonly memory: MemoryAlert[] = [];
   /** The outage whose store_unreachable alert went out: one per outage, deduplicated in memory. */
   private alertedOutage: number | undefined;
+  /** Spec 011's samples (plan §7.4): in memory, never the outbox, dropped at 300 s or a restart. */
+  private readonly samples: MemoryAlert[] = [];
+  /** When each channel last attempted a sample. */
+  private readonly lastSample: Record<AlertChannel, number> = { telegram: -Infinity, email: -Infinity };
 
   private readonly tracer: Tracer;
 
@@ -358,8 +365,13 @@ export class Dispatcher {
     if (!this.stopped && this.listening === undefined && this.deps.store.status === "ready") await this.listen();
     await this.flushUnwritten();
     this.noteOutage(now);
-    await this.deliverMemory();
-    await Promise.all(CHANNELS.map((channel) => this.deliverRows(channel).catch(() => {})));
+    const real = await this.deliverMemory();
+    const claimed = await Promise.all(CHANNELS.map((channel) => this.deliverRows(channel).catch(() => 0)));
+    // Then at most one sample a channel, only on a channel no real alert went out on in this pass (FR-039), one after
+    // the other so the two never change the list at once.
+    for (const [i, channel] of CHANNELS.entries()) {
+      if ((claimed[i] ?? 0) === 0 && !real.has(channel)) await this.deliverSample(channel).catch(() => {});
+    }
   }
 
   /**
@@ -387,9 +399,10 @@ export class Dispatcher {
   // The outbox's rows
   // -------------------------------------------------------------------------------------------------------------
 
-  private async deliverRows(channel: AlertChannel): Promise<void> {
+  /** One pass over a channel's due rows; resolves to how many it attempted. */
+  private async deliverRows(channel: AlertChannel): Promise<number> {
     const { store, alerts } = this.deps;
-    if (store.status !== "ready") return;
+    if (store.status !== "ready") return 0;
     const p = PREFIX[channel];
     const now = this.deps.realNow();
     const held = [...this.unwritten.values()].filter((u) => u.channel === channel).map((u) => u.id);
@@ -449,6 +462,7 @@ export class Dispatcher {
       const outcome = await this.attempt(channel, claimed);
       await this.write(channel, claimed.id, outcome);
     }
+    return rows.length;
   }
 
   private timeoutOf(channel: AlertChannel): number {
@@ -730,7 +744,9 @@ export class Dispatcher {
     });
   }
 
-  private async deliverMemory(): Promise<void> {
+  /** The in-memory store_unreachable alert's due attempts; resolves to the channels that made one. */
+  private async deliverMemory(): Promise<Set<AlertChannel>> {
+    const attempted = new Set<AlertChannel>();
     for (const alert of [...this.memory]) {
       await Promise.all(
         CHANNELS.map(async (channel) => {
@@ -743,11 +759,88 @@ export class Dispatcher {
             return;
           }
           c.attempts += 1;
+          attempted.add(channel);
           await this.attemptMemory(alert, channel, c);
         }),
       );
       if (CHANNELS.every((ch) => alert.channels[ch].status !== "pending"))
         this.memory.splice(this.memory.indexOf(alert), 1);
+    }
+    return attempted;
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // Spec 011's samples (FR-033 to FR-040; plan §7.4)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /**
+   * Takes a sample of each entry into memory, both channels pending, due now: each rendered from its entry's fixed
+   * facts with this stack's prefix and class, the sample's key, and the requester's fingerprint, never the store's
+   * (FR-034). Resolves to each entry's name and key, in order.
+   */
+  queueSamples(
+    entries: readonly CatalogueEntry[],
+    auditId: number,
+    fingerprint: string,
+  ): { entry: string; key: string }[] {
+    const { deps } = this;
+    const now = deps.realNow();
+    const sample = { fingerprint };
+    return entries.map((entry) => {
+      const { ctx, spec, key } = sampleFacts(entry, {
+        stack: deps.stack,
+        envClass: deps.envClass,
+        prefix: deps.alerts.prefixes[deps.stack],
+        auditId,
+        fingerprint,
+      });
+      const rendered = renderAlert(ctx, spec, sample);
+      this.samples.push({
+        dedupeKey: key,
+        kind: "sample",
+        subject: rendered.subject,
+        body: rendered.body,
+        facts: rendered.facts,
+        enqueuedAt: now,
+        sample,
+        channels: { telegram: pendingChannel(now), email: pendingChannel(now) },
+      });
+      return { entry: entry.name, key };
+    });
+  }
+
+  /** Where this stack's alerts, and so its samples, go: its channels' mode (FR-040). */
+  delivery(): "real" | "standin" {
+    return this.deps.channels.mode;
+  }
+
+  /** Whether an earlier request's samples are still pending on a channel (FR-039: 409 samples_in_flight). */
+  samplesPending(): boolean {
+    return this.samples.some((s) => CHANNELS.some((ch) => s.channels[ch].status === "pending"));
+  }
+
+  /** At most one sample on a channel, and none within a second of its last (FR-039); then the finished ones go. */
+  private async deliverSample(channel: AlertChannel): Promise<void> {
+    const now = this.deps.realNow();
+    if (now - this.lastSample[channel] >= SAMPLE_GAP_MS) {
+      for (const s of this.samples) {
+        const c = s.channels[channel];
+        if (c.status !== "pending") continue;
+        if (now > s.enqueuedAt + this.deps.alerts.retry.giveUpAfterS * 1_000) {
+          c.status = "failed";
+          this.failed(channel, s.dedupeKey, "sample", c.attempts, c.error ?? "expired", c.form ?? "none");
+          continue;
+        }
+        if (c.nextAt > now) continue;
+        this.lastSample[channel] = now;
+        c.attempts += 1;
+        await this.attemptMemory(s, channel, c);
+        break;
+      }
+    }
+    for (let i = this.samples.length - 1; i >= 0; i--) {
+      const s = this.samples[i];
+      if (s !== undefined && CHANNELS.every((ch) => s.channels[ch].status !== "pending")) this.samples.splice(i, 1);
     }
   }
 

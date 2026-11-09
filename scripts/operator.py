@@ -16,6 +16,8 @@
                POST /admin/adapters/ID/complete, /admin/status again, into a new file
     studio-window  POST /admin/studio-window (spec 003's contracts/gpu-window.md): start|end      make studio-window
                --reason TEXT; prod's, and dev-cpu's for rehearsals, never dev's
+    alert-samples  POST /admin/alert-samples (spec 011): --reason TEXT [--kind KIND]   make operator-alert-samples
+               a marked sample of each alert kind, wherever the stack's alerts go
 
 It runs in the Author's terminal with the operator token, so it is standard library only, and it runs by path
 through PY_HOST, never with -m: -I keeps out PYTHON* variables, the user's site directory, and the script's own
@@ -114,6 +116,7 @@ AUDIT_ACTIONS = (
     "adapter_call",
     "journal_failed",
     "studio_window",  # spec 003's studio GPU window (its contracts/gpu-window.md §5)
+    "alert_samples",  # spec 011's alert samples (its Amendment 0-8; operator-admin.md §2.4)
 )
 AUDIT_LIMITS = (1, 200)
 # The studio GPU window (spec 003's contracts/gpu-window.md §1, §2): its states, and the stacks whose listener serves
@@ -606,6 +609,14 @@ class AdminClient:
             "/admin/studio-window",
             {"state": state, "reason": check_reason(reason)},
         )
+
+    def alert_samples(self, reason: str, kind: str | None = None) -> dict[str, Any]:
+        """POST /admin/alert-samples (spec 011, operator-admin.md §2.4): a marked sample of each catalogue entry, or of
+        one kind's. The kind is passed as given: the gateway holds the catalogue, and checks it."""
+        body: dict[str, Any] = {"reason": check_reason(reason)}
+        if kind is not None:
+            body["kind"] = kind
+        return self.request("POST", "/admin/alert-samples", body)
 
     def audit(
         self,
@@ -1161,6 +1172,26 @@ def studio_window_lines(stack: str, body: dict[str, Any]) -> list[str]:
     return lines + journal_line(body)
 
 
+def alert_samples_lines(stack: str, body: dict[str, Any]) -> list[str]:
+    """A summary of POST /admin/alert-samples' answer (spec 011, operator-admin.md §2.4), naming the CLI's own stack:
+    the audit row, each entry and its key, where they went, and how long a full request takes to arrive."""
+    entries = [obj(s) for s in body.get("samples") or [] if isinstance(s, dict)]
+    count = f"{len(entries)} sample{'' if len(entries) == 1 else 's'}"
+    where = (
+        "your Telegram chat and alerts mailbox"
+        if body.get("delivery") == "real"
+        else "the stand-ins"
+    )
+    lines = [
+        f"{stack}  alert samples · audit #{text(body.get('audit_id'))} · {count}, to {where}"
+    ]
+    lines += [f"{text(s.get('entry'), 40):<25}{text(s.get('key'))}" for s in entries]
+    lines.append(
+        f"each arrives marked as a sample, nothing having happened on {stack}; a full catalogue takes about 40 s"
+    )
+    return lines
+
+
 def audit_lines(stack: str, body: dict[str, Any]) -> list[str]:
     """GET /admin/audit's entries, one a line, newest first: the reason is the operator's own words, shown as given."""
     entries = [e for e in body.get("entries") or [] if isinstance(e, dict)]
@@ -1329,6 +1360,18 @@ def build_parser() -> Parser:
     # --stack, so --state would refuse even dev-cpu's command (found by this command's matrix row).
     studio.add_argument("state", choices=STUDIO_STATES, help="start or end")
     studio.add_argument("--reason", required=True, help="why: 10 to 500 characters")
+    samples = commands.add_parser(
+        "alert-samples",
+        parents=[common],
+        allow_abbrev=False,
+        help="POST /admin/alert-samples: a marked sample of each alert kind, where the stack's alerts go (spec 011)",
+    )
+    # No option begins --s, which bash-gate reads as --stack on this CLI's command line (spec 011's plan, D10); the
+    # kind goes as given, since the gateway holds the catalogue's kinds and checks them.
+    samples.add_argument("--reason", required=True, help="why: 10 to 500 characters")
+    samples.add_argument(
+        "--kind", help="one alert kind's entries, such as trip; every entry without it"
+    )
     return parser
 
 
@@ -1395,12 +1438,16 @@ def run_hop(
 
 
 def forwarded(args: argparse.Namespace, reason: str | None) -> list[str]:
-    """The arguments of reset, renew, studio-window, audit, and incidents, checked already, for the CLI inside the
-    dev-cpu hop."""
+    """The arguments of reset, renew, studio-window, alert-samples, audit, and incidents, checked already, for the CLI
+    inside the dev-cpu hop."""
     if args.command in ("reset", "renew"):
         return [f"--reason={reason}"]
     if args.command == "studio-window":
         return [args.state, f"--reason={reason}"]
+    if args.command == "alert-samples":
+        return [f"--reason={reason}"] + (
+            [f"--kind={args.kind}"] if args.kind is not None else []
+        )
     out: list[str] = []
     if args.command in ("audit", "incidents") and args.limit is not None:
         out.append(f"--limit={args.limit}")
@@ -1601,7 +1648,7 @@ def main(
                 as_json=as_json,
             )
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
-        if args.command in ("reset", "renew", "studio-window"):
+        if args.command in ("reset", "renew", "studio-window", "alert-samples"):
             reason = check_reason(args.reason)
         if args.command == "studio-window" and stack not in STUDIO_STACKS:
             raise Usage(
@@ -1634,6 +1681,9 @@ def main(
             elif args.command == "studio-window":
                 body = client.studio_window(args.state, reason or "")
                 lines = studio_window_lines(stack, body)
+            elif args.command == "alert-samples":
+                body = client.alert_samples(reason or "", args.kind)
+                lines = alert_samples_lines(stack, body)
             elif args.command == "audit":
                 body = client.audit(limit=args.limit, action=args.action)
                 lines = audit_lines(stack, body)

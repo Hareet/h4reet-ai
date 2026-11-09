@@ -121,6 +121,18 @@ export function furtherCases(): GoldenCase[] {
   ];
 }
 
+/** The trip as a sample on prod (FR-036; plan §3.4): every form marked, the requester named, nothing having happened. */
+export function sampleCase(): GoldenCase {
+  const trip = entryCases().find((c) => c.name === "05-trip");
+  if (trip === undefined) throw new Error("no trip entry");
+  return {
+    name: "case-sample-trip",
+    ctx: { ...trip.ctx, dedupeKey: "prod:sample:trip:57" },
+    spec: trip.spec,
+    sample: { fingerprint: FP },
+  };
+}
+
 /** The longest of the entries at their longest facts, by its Telegram text: the golden case-longest. */
 export function caseLongest(telegramLength: (c: GoldenCase) => number): GoldenCase {
   const all = longestCases();

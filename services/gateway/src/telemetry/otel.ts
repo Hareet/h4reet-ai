@@ -46,7 +46,7 @@ import { ATTR_DB_QUERY_TEXT } from "@opentelemetry/semantic-conventions";
 
 import { isServiceHost } from "../adapters/_settings.js";
 import { aresLookup } from "../core/resolve.js";
-import { SECONDS_BUCKETS } from "./metrics.js";
+import { ALERT_KINDS, SECONDS_BUCKETS } from "./metrics.js";
 
 export const METRIC_EXPORT_INTERVAL_MS = 10_000;
 /** OTEL_EXPORTER_OTLP_TIMEOUT's value; a metric export must also finish within its interval. */
@@ -210,18 +210,8 @@ export const ALERT_DELIVER_SPAN = "alert.deliver";
 const ALERT_SPAN_CHANNELS = ["telegram", "email"] as const;
 const ALERT_SPAN_FORMS = ["designed", "plain"] as const;
 const ALERT_SPAN_OUTCOMES = ["delivered", "retry", "failed"] as const;
-const ALERT_SPAN_KINDS = [
-  "warn",
-  "trip",
-  "fallback_exhausted",
-  "operator_action",
-  "credentials_expiring",
-  "fallback_unavailable",
-  "auth_failed",
-  "store_unreachable",
-  "reminder",
-  "sample",
-] as const;
+/** h4.alert.kind on the span, as on the metric: a real kind, or sample. */
+const ALERT_SPAN_KINDS = ALERT_KINDS;
 const ALERT_SPAN_REASONS = [
   "entities_refused",
   "message_refused",

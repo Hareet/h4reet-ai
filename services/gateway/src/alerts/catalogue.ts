@@ -269,3 +269,36 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     () => ({ kind: "reminder", awaitingSince: T("2026-10-29T12:05:37Z"), crossed: [] }),
   ),
 ];
+
+/** The kinds the catalogue covers, in its order: every real kind (FR-004). */
+export const CATALOGUE_KINDS: readonly AlertKind[] = [...new Set(CATALOGUE.map((e) => e.kind))];
+
+/** Every entry, or one kind's; undefined for a kind the catalogue doesn't hold (FR-033: 400 invalid_request). */
+export function entriesFor(kind: string | undefined): readonly CatalogueEntry[] | undefined {
+  if (kind === undefined) return CATALOGUE;
+  if (!(CATALOGUE_KINDS as readonly string[]).includes(kind)) return undefined;
+  return CATALOGUE.filter((e) => e.kind === kind);
+}
+
+/** A sample's dedupe key (FR-035): `sample` is no real kind, so it never equals a real alert's. */
+export const sampleKey = (stack: StackName, entry: string, auditId: number): string =>
+  `${stack}:sample:${entry}:${auditId}`;
+
+/**
+ * A sample's facts (FR-034; plan D9): its entry's fixed facts on the stack that sends it, with the stack's own prefix
+ * and class, the test clock off, the requester's fingerprint, and the sample's key; nothing from the stack's store.
+ */
+export function sampleFacts(
+  entry: CatalogueEntry,
+  o: { stack: StackName; envClass: EnvClass; prefix: string; auditId: number; fingerprint: string },
+): { ctx: AlertContext; spec: AlertSpec; key: string } {
+  const key = sampleKey(o.stack, entry.name, o.auditId);
+  const { ctx, spec } = entry.facts({
+    stack: o.stack,
+    envClass: o.envClass,
+    prefix: o.prefix,
+    key,
+    fingerprint: o.fingerprint,
+  });
+  return { ctx, spec, key };
+}

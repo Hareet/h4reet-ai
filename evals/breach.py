@@ -152,6 +152,8 @@ class Assertion:
     real_text: str | None = (
         None  # with --delivery real, where the stand-ins' records become the providers' replies
     )
+    # Spec 011's step 12 runs in stand-in mode only: with --delivery real it is skipped, and reads SKIP, not MISS.
+    stand_in_only: bool = False
 
 
 RECEIVED = "Telegram's message_id and SMTP's 250 reply are in its delivery records, and neither stand-in holds it"
@@ -454,6 +456,39 @@ CATALOG = (
         "US2-7",
         "M",
         "the rebuilt meters read 0.10 today and this month, with renewal awaited",
+    ),
+    # Spec 011 (FR-040, SC-006; its plan §8.2, D16): the samples, in stand-in mode only.
+    Assertion(
+        "12a",
+        12,
+        "011-US4",
+        "L",
+        "every sample reaches both stand-ins in its designed form, by its key, within 120 s",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12b",
+        12,
+        "011-US4",
+        "L",
+        "one alert_samples audit row, with the reason",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12c",
+        12,
+        "011-US4",
+        "M",
+        "h4_alerts_total counts the samples under the kind sample",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12d",
+        12,
+        "011-US4",
+        "M",
+        "today's and the month's meters read as before the samples",
+        stand_in_only=True,
     ),
 )
 
@@ -814,6 +849,8 @@ class Report:
         self.outcomes.setdefault(assertion, []).append(result)
 
     def verdict(self, assertion: Assertion) -> tuple[str, str]:
+        if assertion.stand_in_only and self.delivery == "real":
+            return "SKIP", "stand-in mode only: real delivery sends no samples"
         results = self.outcomes.get(assertion.id, [])
         if not results:
             return "MISS", f"not run: {self.stopped}" if self.stopped else "not run"
@@ -823,7 +860,7 @@ class Report:
 
     def passed(self) -> bool:
         return self.stopped is None and all(
-            self.verdict(a)[0] == "PASS" for a in CATALOG
+            self.verdict(a)[0] in ("PASS", "SKIP") for a in CATALOG
         )
 
     def table(self) -> list[str]:
@@ -837,14 +874,17 @@ class Report:
                 f"{a.id:<4} {a.step:<4} {a.scenario:<8} {a.source:<6} {result:<6} {text}{f' ({detail})' if detail else ''}"
             )
         passed = sum(self.verdict(a)[0] == "PASS" for a in CATALOG)
+        skipped = sum(self.verdict(a)[0] == "SKIP" for a in CATALOG)
         by_source = []
         for source in ("T", "M", "L"):
             ones = [a for a in CATALOG if a.source == source]
             by_source.append(
                 f"{source} {sum(self.verdict(a)[0] == 'PASS' for a in ones)}/{len(ones)}"
             )
+        missed = len(CATALOG) - passed - skipped
+        skips = f", {skipped} skipped" if skipped else ""
         lines.append(
-            f"summary: {len(CATALOG)} assertions: {passed} passed, {len(CATALOG) - passed} missed; {', '.join(by_source)}"
+            f"summary: {len(CATALOG)} assertions: {passed} passed, {missed} missed{skips}; {', '.join(by_source)}"
         )
         return lines
 
@@ -965,7 +1005,8 @@ def metric(
 
 
 class Steps:
-    """Plan §8's steps 1 to 11, each as the probe's operations and the lifecycle commands between them."""
+    """Plan §8's steps 1 to 11, and spec 011's step 12 (its plan §8.2), each as the probe's operations and the
+    lifecycle commands between them."""
 
     def __init__(self, ctx: Context, report: Report) -> None:
         self.ctx, self.report, self.probe = ctx, report, ctx.probe
@@ -1036,13 +1077,15 @@ class Steps:
         # With real delivery, the stand-ins must hold nothing: the stand-in's numeric message_id and Mailpit's 250 have
         # the providers' shapes, so a gateway still on the stand-ins would pass on the references alone (round 1's
         # review). Each gateway sends a channel to one place, so once the records exist, one look settles it.
+        # Spec 011 (FR-053): in stand-in mode the stand-ins' records also say the alert went in its designed form, a check
+        # beside the existing ones, which stay as they were.
         ops += [
             {
                 "op": channel,
                 "assert": receivers,
                 "key": key,
                 "within_s": 300,
-                **({"absent": True} if real else {}),
+                **({"absent": True} if real else {"expect": {"designed": True}}),
                 **timed_from(when),
             }
             for channel in ("telegram", "mailpit")
@@ -1912,6 +1955,92 @@ class Steps:
             ],
         )
 
+    def step12(self) -> None:
+        """Spec 011's samples (FR-040, SC-006; its plan §8.2, D16), last, in stand-in mode only: the operator asks for a
+        sample of every catalogue entry; each reaches both stand-ins in its designed form, by its key, within 120 s; one
+        audit row; the kind sample counted; and the stack's state and meters as before. With real delivery it is
+        skipped, so the Author's recorded run sends nothing new to his phone. The outbox, which no admin read shows, is
+        held to no sample row by the gateway's integration test."""
+        if self.ctx.delivery == "real":
+            self.ctx.say("step 12 · spec 011's samples: skipped with real delivery")
+            return
+        self.ctx.say(
+            "step 12 · spec 011: a sample of every alert, designed, on both stand-ins; nothing else changes"
+        )
+        reason = "breach test step 12: the alert samples"
+        self.call(
+            "12",
+            [
+                self.admin("s12.before", "GET", "/admin/status"),
+                self.admin(
+                    "s12.samples",
+                    "POST",
+                    "/admin/alert-samples",
+                    {"reason": reason},
+                    **{"body.action": "alert_samples", "body.delivery": "standin"},
+                ),
+            ],
+        )
+        answered = self.ctx.results["s12.samples"].get("body") or {}
+        keys = [
+            str(s["key"])
+            for s in answered.get("samples") or []
+            if isinstance(s, dict) and isinstance(s.get("key"), str)
+        ]
+        if not keys:
+            raise Stop("s12.samples: the gateway answered no samples")
+        before = self.ctx.results["s12.before"].get("body") or {}
+        meters = before.get("meters") or {}
+
+        def spent(meter: str) -> float:
+            micro = (meters.get(meter) or {}).get("spent_micro_usd")
+            return (
+                round(float(micro) / 1_000_000, 6) if isinstance(micro, int) else -1.0
+            )
+
+        when = self.span("s12.samples")
+        ops: list[dict[str, Any]] = [
+            {
+                "op": channel,
+                "assert": "12a",
+                "key": key,
+                "within_s": 120,
+                "expect": {"designed": True},
+                **timed_from(when),
+            }
+            for key in keys
+            for channel in ("telegram", "mailpit")
+        ]
+        ops += [
+            {
+                "op": "audit",
+                "assert": "12b",
+                "action": "alert_samples",
+                "audit_id": "{{s12.samples.body.audit_id}}",
+                "reason": reason,
+                "expect": {},
+                "within_s": 10,
+                "after": "s12.samples",
+            },
+            # Each sample delivered once on each channel: the floor is a query too, a vector of that count.
+            metric(
+                "12c",
+                'sum(h4_alerts_total{h4_alert_kind="sample"})',
+                after="s12.samples",
+                at_least=f"vector({2 * len(keys)})",
+                within_s=150,
+            ),
+            metric("12d", spend("day"), after="s12.samples", value=spent("day")),
+            metric("12d", spend("month"), after="s12.samples", value=spent("month")),
+            self.admin(
+                "s12.after",
+                "GET",
+                "/admin/status",
+                **{"body.state": before.get("state")},
+            ),
+        ]
+        self.call("12", ops)
+
 
 def apply_overlay(ctx: Context) -> None:
     """contracts/env-files.md §7.2: exactly ALERT_DELIVERY=real, in a fresh 0700 directory outside the tree, as the
@@ -1986,6 +2115,7 @@ def run(ctx: Context) -> int:
             steps.step9,
             steps.step10,
             steps.step11,
+            steps.step12,
         ):
             step()
     except Stop as stop:

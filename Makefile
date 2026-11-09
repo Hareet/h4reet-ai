@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -532,6 +532,15 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR_AGENTS)
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
+
+# Spec 011's alert samples (contracts/operator-admin.md §2.4, §6.1; its plan §7.5): a marked sample of each alert kind,
+# sent wherever ENV's alerts go, prod's to the Author's phone and mailbox, dev's and dev-cpu's to their stand-ins. One
+# audit row, and no state changes. KIND narrows it to one kind's entries; the gateway checks the kind.
+operator-alert-samples: ## Send a marked sample of each alert kind through ENV's channels: REASON="..." [KIND=]
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-alert-samples needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) alert-samples --reason="$$REASON"$(call OPERATOR_VALUE,KIND,--kind)
+.PHONY: operator-alert-samples
 
 # The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
 # start records the window through the operator CLI, then stops the model server, so hello falls back within the

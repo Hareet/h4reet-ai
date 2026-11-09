@@ -15,7 +15,7 @@ import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
-import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
+import { channelsFrom, Dispatcher, type Channels } from "./alerts/dispatcher.js";
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
@@ -202,6 +202,8 @@ export interface ServiceOptions {
   roomEvents?: RoomEventsConfig | null;
   /** Spec 007's twin files, as loadTwin read them; none by default, so every turn is twin_unavailable. */
   twin?: TwinLoad;
+  /** The alert channels; ALERT_DELIVERY's by default (channelsFrom), stubs on the loopback in tests. */
+  channels?: Channels;
 }
 
 /**
@@ -276,7 +278,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     store: opts.store,
     alerts,
     budgets,
-    channels: channelsFrom(env, alerts),
+    channels: opts.channels ?? channelsFrom(env, alerts),
     hasFallback: gateway.fallbackId() !== null,
     clock,
     metrics,
@@ -392,6 +394,12 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
       onChange: () => void s.gateway.refreshGauges().catch(() => {}),
       twin: s.twin,
+      // Spec 011's samples (plan §7.2): the dispatcher's narrow interface.
+      samples: {
+        delivery: s.dispatcher.delivery(),
+        pending: () => s.dispatcher.samplesPending(),
+        queue: (entries, auditId, fingerprint) => s.dispatcher.queueSamples(entries, auditId, fingerprint),
+      },
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is

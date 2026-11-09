@@ -14,7 +14,7 @@ import { designEmail } from "../../src/alerts/email-design.js";
 import { renderAlert } from "../../src/alerts/format.js";
 import type { TelegramMessage } from "../../src/alerts/forms.js";
 import { designTelegram } from "../../src/alerts/telegram-design.js";
-import { caseLongest, entryCases, furtherCases, type GoldenCase } from "../helpers/golden-cases.js";
+import { caseLongest, entryCases, furtherCases, sampleCase, type GoldenCase } from "../helpers/golden-cases.js";
 
 const telegramOf = (c: GoldenCase): TelegramMessage => designTelegram(c.ctx, c.spec, c.sample);
 
@@ -26,7 +26,12 @@ export function telegramFile(m: TelegramMessage): string {
   return `${m.text}\n--- entities (UTF-16 offset, length)\n${lines.join("\n")}\n`;
 }
 
-const cases = (): GoldenCase[] => [...entryCases(), ...furtherCases(), caseLongest((c) => telegramOf(c).text.length)];
+const cases = (): GoldenCase[] => [
+  ...entryCases(),
+  ...furtherCases(),
+  sampleCase(),
+  caseLongest((c) => telegramOf(c).text.length),
+];
 const file = (c: GoldenCase, name: string): string => `../fixtures/alerts/${c.name}/${name}`;
 
 describe("the golden files (FR-005; plan §3.4)", () => {
@@ -56,6 +61,7 @@ describe("the golden files (FR-005; plan §3.4)", () => {
       "case-reminder-both",
       "case-reset-none-at-ceiling",
       "case-dev-test-clock",
+      "case-sample-trip",
       "case-longest",
     ]);
   });

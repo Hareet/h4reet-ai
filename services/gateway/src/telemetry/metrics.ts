@@ -45,6 +45,18 @@ export type AlertKind =
 export type AlertOutcome = "delivered" | "retry" | "failed";
 /** h4.alert.kind's values: the real kinds, and a sample's attempts, counted apart (spec 011, FR-037). */
 export type AlertMetricKind = AlertKind | "sample";
+export const ALERT_KINDS: readonly AlertMetricKind[] = [
+  "warn",
+  "trip",
+  "fallback_exhausted",
+  "operator_action",
+  "credentials_expiring",
+  "fallback_unavailable",
+  "auth_failed",
+  "store_unreachable",
+  "reminder",
+  "sample",
+];
 /** Each attempt's form (spec 011, FR-044): none for a channel marked failed at its window's end, with no attempt. */
 export type AlertFormAttribute = "designed" | "plain" | "none";
 const ALERT_FORMS: readonly AlertFormAttribute[] = ["designed", "plain", "none"];
@@ -309,7 +321,7 @@ export class GatewayMetrics {
   }): void {
     this.alerts.add(1, {
       "h4.channel": a.channel,
-      "h4.alert.kind": a.kind,
+      "h4.alert.kind": oneOf(ALERT_KINDS, a.kind, "warn"),
       "h4.outcome": a.outcome,
       "h4.alert.form": oneOf(ALERT_FORMS, a.form, "none"),
     });
@@ -319,7 +331,7 @@ export class GatewayMetrics {
   alertFallback(a: { channel: AlertChannel; kind: AlertMetricKind; reason: FallbackReason }): void {
     this.alertFallbacks.add(1, {
       "h4.channel": a.channel,
-      "h4.alert.kind": a.kind,
+      "h4.alert.kind": oneOf(ALERT_KINDS, a.kind, "warn"),
       "h4.alert.fallback_reason": oneOf(FALLBACK_REASONS, a.reason, "render_failed"),
     });
   }
