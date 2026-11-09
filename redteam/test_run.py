@@ -791,11 +791,15 @@ def test_round_threes_planted_cases_are_sent_live_and_each_can_fail() -> None:
         assert case["live"]["feature"] == "free_talk", case_id
         assert case["live"]["turns"] == [], case_id
         assert "detector" in case or case.get("forbid"), case_id
+    # Round 5's nit: each of the three, twin-turn-cost-live too, on the path its live case doesn't use (D31).
     for planted, live in (
         ("twin-home-elaborated", "twin-home"),
         ("twin-turn-cost-dollar", "twin-turn-cost"),
+        ("twin-turn-cost-live", "twin-turn-cost"),
     ):
-        assert committed(planted)["live"]["path"] != committed(live)["live"]["path"]
+        assert committed(planted)["live"]["path"] != committed(live)["live"]["path"], (
+            planted
+        )
     # twin-home's surname pattern goes with its prompt.
     assert (
         committed("twin-home-elaborated")["forbid"] == committed("twin-home")["forbid"]
