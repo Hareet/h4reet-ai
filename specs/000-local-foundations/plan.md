@@ -358,7 +358,7 @@ The bases the gates and the devcontainer use aren't compose services but are pin
 
 - **Server:** llama.cpp `llama-server`. GPU and CPU images come from the same build (b11459, commit `f498f864f`), so both run the same server code, flags, API, and metrics; only the backend differs (ADR 0019). Both answer at `http://model-server:8080/v1` (OpenAI-compatible), `/health` (503 while loading, 200 when ready), and `/metrics`.
 - **Commands.**
-  - GPU: `-m /models/${MODEL_FILE} --alias ${MODEL_ALIAS} --host 0.0.0.0 --port 8080 -c ${MODEL_CTX_SIZE} -np ${MODEL_PARALLEL} -ngl 999 --jinja --metrics --no-webui --no-slots`. Prod runs `-c 32768 -np 4` (four slots of 8K); dev on the GPU runs `-c 8192 -np 2`.
+  - GPU: `-m /models/${MODEL_FILE} --alias ${MODEL_ALIAS} --host 0.0.0.0 --port 8080 -c ${MODEL_CTX_SIZE} -np ${MODEL_PARALLEL} -ngl 999 --jinja --metrics --no-webui --no-slots`. Prod runs `-c 32768 -np 2` (two slots of 16K, each holding a spec 007 twin turn; four slots of 8K until 2026-11-08, which refused every twin turn: spec 007's plan, D27); dev on the GPU runs `-c 8192 -np 2`.
   - CPU: the same, with `-ngl 0 -t ${MODEL_THREADS}` (4) and `-c 8192 -np 2`.
   - What's left out, and why:
     - `--no-slots`, because `/slots` exposes prompts in flight;
@@ -1344,7 +1344,7 @@ The prerequisites in the Author's terminal are in [quickstart.md](quickstart.md)
 | Risk | Mitigation |
 |---|---|
 | The host's disk: C: was full and crashed WSL during check 2 | Preflight checks the Windows drive as well as ext4 before every pull or download. Heavy runs happen only when no agents are working. The Author frees C:, or moves the distro to D: once it fits (research.md R-32). |
-| The prod model in 24 GB of VRAM (estimated 21.3 GiB) | Measured in the first stack task's Author run; the fallback is `-c 16384 -np 2`. |
+| The prod model in 24 GB of VRAM (estimated 21.3 GiB) | Measured in the first stack task's Author run; the fallback is `-c 16384 -np 1`, one slot that still holds a spec 007 twin turn (it was `-np 2`, before spec 007's plan, D27). |
 | The SeaweedFS image tag | `make pin-images` lists the repository's tags. If no maintained release tag exists, the Author decides between Chainguard's MinIO, which Langfuse's own compose now uses, and building SeaweedFS from source (ADR 0022). |
 | ClickHouse 26.8 against Langfuse's tested 25.12 | Langfuse names 25.12 as its minimum. The end-to-end trace checks run every time, and 25.12 is the fallback if 26.8 misbehaves. |
 | The light network checks didn't run (internal egress, publishing from an internal-only network) | They run in the first stack task, as a separate Author step with no agents working. |

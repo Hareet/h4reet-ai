@@ -109,7 +109,7 @@ Each row gives the question as asked, the option the Author chose, and that opti
 
     That leaves about 2 GiB of headroom. The first stack task measures it. If it doesn't fit, `-c 16384 -np 2` halves the KV cache, and a q8_0 KV cache is the next step.
 - **Measured in the first stack task** (T065, 2026-10-09, the Author's terminal; tasks.md T149 records it here):
-  - **VRAM:** 21,768 of 24,463 MiB in use on the GPU after the prod model's first answer. That includes the Windows desktop's share, 524 MiB at check 2, so the model holds about 20.7 GiB, under the estimate's 21.3 GiB. With dev's stand-in loaded too, 22,558 MiB. `-c 32768 -np 4` stays.
+  - **VRAM:** 21,768 of 24,463 MiB in use on the GPU after the prod model's first answer. That includes the Windows desktop's share, 524 MiB at check 2, so the model holds about 20.7 GiB, under the estimate's 21.3 GiB. With dev's stand-in loaded too, 22,558 MiB. `-c 32768 -np 4` stays. (Revised 2026-11-08: `-np 2`, since a slot of 8,192 tokens holds no spec 007 twin turn, and the fallback is `-c 16384 -np 1`; spec 007's plan, D27.)
   - **Load:** the cold start's model server was healthy within 27 s of its container's start, at the health check's interval, with the file just written and likely in the page cache.
   - **Download:** 17.2 GiB in 4 min 34 s, an average of 64.5 MiB/s (about 540 Mbps), then 15 s for the sha256 and the rename. The images (12) and the gateway's build took 1 min 21 s, and startup to every service healthy took 47 s.
   - **SC-001:** a cold `make up ENV=prod` answered hello in 431 s, against 600. The model took longer than planned and the rest less.

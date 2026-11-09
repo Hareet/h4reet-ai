@@ -134,8 +134,9 @@ def test_the_stack_keys(stack: str) -> None:
     assert env["H4_WEB_SUFFIX"] == WEB_SUFFIX[stack]
 
 
+# Prod's two slots of 16,384 tokens each hold a spec 007 twin turn (contracts/env-files.md §3; spec 007's plan, D27).
 MODEL = {
-    "prod": ("Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "32768", "4"),
+    "prod": ("Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "32768", "2"),
     "dev": ("qwen2.5-0.5b-instruct-q4_k_m.gguf", "8192", "2"),
     "dev-cpu": ("qwen2.5-0.5b-instruct-q4_k_m.gguf", "8192", "2"),
 }
