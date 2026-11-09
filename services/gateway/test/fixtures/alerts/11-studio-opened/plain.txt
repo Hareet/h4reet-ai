@@ -1,0 +1,5 @@
+[h4reet.ai prod] OPERATOR ACTION: studio GPU window opened by operator #1a2b3c4d
+Daily: 0.40 / 5.00 USD (warning 3.50) · Month: 6.10 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 1)
+Runtime: normal · Fallback: available · 2026-11-02T20:14:03Z · id prod:operator_action:studio_window:57
+The model server stops next: hello falls back within the sub-budget, or degrades, until the window closes.
+Runbook: docs/runbooks/studio-gpu-window.md

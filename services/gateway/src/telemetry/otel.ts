@@ -222,7 +222,13 @@ const ALERT_SPAN_KINDS = [
   "reminder",
   "sample",
 ] as const;
-const ALERT_SPAN_REASONS = ["entities_refused", "message_refused", "render_failed", "over_limit", "not_rendered"] as const;
+const ALERT_SPAN_REASONS = [
+  "entities_refused",
+  "message_refused",
+  "render_failed",
+  "over_limit",
+  "not_rendered",
+] as const;
 const pick = <T extends string>(list: readonly T[], value: unknown, fallback: T): T =>
   (list as readonly unknown[]).includes(value) ? (value as T) : fallback;
 

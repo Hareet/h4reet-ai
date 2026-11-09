@@ -12,6 +12,7 @@
 // (plan D1). They are registered in RENDERERS, which the dispatcher reads unless it is handed others (tests).
 import { decodeFacts } from "./facts.js";
 import type { AlertContext, AlertSpec } from "./format.js";
+import { designTelegram } from "./telegram-design.js";
 
 export type AlertForm = "designed" | "plain";
 export const FALLBACK_REASONS = [
@@ -53,7 +54,10 @@ export interface DesignedRenderers {
 }
 
 /** The designs the gateway sends: each channel's renderer, once its user story registers it. */
-export const RENDERERS: DesignedRenderers = {};
+export const RENDERERS: DesignedRenderers = {
+  // User Story 1 (spec 011, plan §4): Telegram's message with its entities.
+  telegram: designTelegram,
+};
 
 /** The bounds (FR-023; Q3's answer): Telegram's text in UTF-16 code units, the HTML part in UTF-8 bytes. */
 export const TELEGRAM_MAX_UNITS = 2_000;

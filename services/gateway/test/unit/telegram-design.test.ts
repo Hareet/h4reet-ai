@@ -179,12 +179,8 @@ describe("found as before (FR-012), marked as on the plain text (US1 scenario 4)
   it("carries dev's synthetic-spend mark in the block and the test clock's on every time", () => {
     const dev = furtherCases().find((c) => c.name === "case-dev-test-clock") as GoldenCase;
     const m = design(dev);
-    expect(
-      covered(m)
-        .find(([t]) => t === "pre")?.[1]
-        .split("\n")
-        .at(-1),
-    ).toBe("(synthetic spend)");
+    const block = covered(m).find(([t]) => t === "pre")?.[1] ?? "";
+    expect(block.split("\n").at(-1)).toBe("(synthetic spend)");
     expect(m.text).toContain("Time: 2026-10-27T08:01:30Z (test clock)");
     for (const time of m.text.match(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ(?: \(test clock\))?/g) ?? []) {
       expect(time).toMatch(/\(test clock\)$/);

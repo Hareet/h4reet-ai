@@ -1,0 +1,17 @@
+🟠 Warning · [h4reet.ai prod]
+🔌 FALLBACK UNAVAILABLE: Bedrock is unhealthy (circuit open)
+Next: If the local model goes down, hello answers degraded with fallback_unavailable.
+Meters
+Daily      0.30 /  5.00 USD   warning  3.50
+Month     13.70 / 20.00 USD   warning 14.00
+Fallback   0.30 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-10-29T16:12:44Z
+id prod:fallback_unavailable:bedrock:2026-10-29T16Z
+Runbook: docs/runbooks/bedrock-unavailable.md
+--- entities (UTF-16 offset, length)
+bold 33 57 "FALLBACK UNAVAILABLE: Bedrock is unhealthy (circuit open)"
+pre 184 125 "Daily      0.30 /  5.00 USD   warning  3.50\nMonth     13.70 / 20.00 USD   warning 14.00\nFallback   0.30 /  2.00 USD   grant 1"
+code 376 48 "prod:fallback_unavailable:bedrock:2026-10-29T16Z"
+code 434 36 "docs/runbooks/bedrock-unavailable.md"

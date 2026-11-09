@@ -1,0 +1,17 @@
+🔵 Operator action · [h4reet.ai prod]
+🛠️ OPERATOR ACTION: store initialized by operator #1a2b3c4d
+Next: Meters rebuilt from the journal; renewal granted.
+Meters
+Daily     0.00 /  5.00 USD   warning  3.50
+Month     0.00 / 20.00 USD   warning 14.00
+Fallback  0.00 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-10-20T09:12:40Z
+id prod:operator_action:init:1
+Runbook: docs/runbooks/store-initialization.md
+--- entities (UTF-16 offset, length)
+bold 42 56 "OPERATOR ACTION: store initialized by operator #1a2b3c4d"
+pre 162 122 "Daily     0.00 /  5.00 USD   warning  3.50\nMonth     0.00 / 20.00 USD   warning 14.00\nFallback  0.00 /  2.00 USD   grant 1"
+code 351 27 "prod:operator_action:init:1"
+code 388 37 "docs/runbooks/store-initialization.md"

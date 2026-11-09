@@ -1,0 +1,17 @@
+🔵 Operator action · [h4reet.ai prod]
+🛠️ OPERATOR ACTION: fallback renewed by operator #1a2b3c4d
+Next: $2.00 more fallback is available now, within the daily ceiling (grant 2).
+Meters
+Daily     2.00 /  5.00 USD   warning  3.50
+Month     9.00 / 20.00 USD   warning 14.00
+Fallback  2.00 /  4.00 USD   grant 2
+Runtime: normal
+Fallback: available
+Time: 2026-10-28T12:30:00Z
+id prod:operator_action:renew:42
+Runbook: docs/runbooks/fallback-renewal.md
+--- entities (UTF-16 offset, length)
+bold 42 55 "OPERATOR ACTION: fallback renewed by operator #1a2b3c4d"
+pre 185 122 "Daily     2.00 /  5.00 USD   warning  3.50\nMonth     9.00 / 20.00 USD   warning 14.00\nFallback  2.00 /  4.00 USD   grant 2"
+code 374 29 "prod:operator_action:renew:42"
+code 413 33 "docs/runbooks/fallback-renewal.md"

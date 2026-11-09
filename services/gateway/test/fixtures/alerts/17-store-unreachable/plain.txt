@@ -1,0 +1,4 @@
+[h4reet.ai prod] STORE UNREACHABLE: the kill-switch store hasn't answered for 60 s
+Runtime: unknown, treated as degraded since 2026-10-29T16:01:00Z · 2026-10-29T16:02:00Z · id prod:store_unreachable:store:2026-10-29T16:01:00Z
+Every request gets 503 store_unreachable (fail closed). Meters and alerts resume when the store answers.
+Runbook: docs/runbooks/store-unreachable.md

@@ -1,0 +1,5 @@
+[h4reet.ai prod] FALLBACK UNAVAILABLE: the Anthropic API is unhealthy (credentials)
+Daily: 0.30 / 5.00 USD (warning 3.50) · Month: 13.70 / 20.00 (warning 14.00) · Fallback today: 0.30 / 2.00 (grant 1)
+Runtime: normal · Fallback: available · 2026-10-29T16:12:44Z · id prod:fallback_unavailable:anthropic:2026-10-29T16Z
+If the local model goes down, hello answers degraded with fallback_unavailable.
+Runbook: docs/runbooks/anthropic-unavailable.md

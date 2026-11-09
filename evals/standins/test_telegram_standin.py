@@ -329,9 +329,7 @@ ENTITIES_REFUSED = (
 RED = "\U0001f534"
 
 
-def send_entities(
-    base: str, text: str, entities: Any, **more: Any
-) -> tuple[int, Any]:
+def send_entities(base: str, text: str, entities: Any, **more: Any) -> tuple[int, Any]:
     return call(
         "POST",
         f"{base}/botstandin/sendMessage",
@@ -389,7 +387,9 @@ def test_an_invalid_entity_list_is_refused_as_the_bot_api_refuses_it(
     entities: Any,
 ) -> None:
     with running() as base:
-        assert send_entities(base, f"{RED} Critical · KILL", entities) == ENTITIES_REFUSED
+        assert (
+            send_entities(base, f"{RED} Critical · KILL", entities) == ENTITIES_REFUSED
+        )
         assert messages(base) == []
 
 
@@ -399,7 +399,11 @@ def test_a_texts_length_is_counted_in_utf16_code_units() -> None:
         assert send(base, RED * 2 + "x" * 4092)[0] == 200
         assert send(base, RED * 2 + "x" * 4093) == (
             400,
-            {"ok": False, "error_code": 400, "description": "Bad Request: message is too long"},
+            {
+                "ok": False,
+                "error_code": 400,
+                "description": "Bad Request: message is too long",
+            },
         )
         # Under 4,096 code points, over 4,096 units: refused, as the Bot API counts.
         assert len(RED * 2100) == 2100

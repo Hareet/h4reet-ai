@@ -301,7 +301,12 @@ export class GatewayMetrics {
   }
 
   /** Once per attempt, and once for a channel marked failed at its window's end (form none). */
-  alertAttempt(a: { channel: AlertChannel; kind: AlertMetricKind; outcome: AlertOutcome; form: AlertFormAttribute }): void {
+  alertAttempt(a: {
+    channel: AlertChannel;
+    kind: AlertMetricKind;
+    outcome: AlertOutcome;
+    form: AlertFormAttribute;
+  }): void {
     this.alerts.add(1, {
       "h4.channel": a.channel,
       "h4.alert.kind": a.kind,

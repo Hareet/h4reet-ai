@@ -343,7 +343,9 @@ describe("the designed message and the refusal of a message (spec 011, FR-015, F
         enc.toUpperCase() === "B"
           ? Buffer.from(text, "base64").toString("utf8")
           : Buffer.from(
-              text.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (_x, h: string) => String.fromCharCode(parseInt(h, 16))),
+              text
+                .replace(/_/g, " ")
+                .replace(/=([0-9A-F]{2})/gi, (_x, h: string) => String.fromCharCode(parseInt(h, 16))),
               "latin1",
             ).toString("utf8"),
       );
@@ -366,7 +368,12 @@ describe("the designed message and the refusal of a message (spec 011, FR-015, F
     const smtp = await stubSmtp();
     try {
       const subject = "🔴 🛑 [dev] KILL SWITCH TRIPPED: daily ceiling reached";
-      const sent = await sendEmail(channelFor(smtp.port), { subject, text: TEXT, html: HTML, alertId: "dev:trip:day:2026-10-29" });
+      const sent = await sendEmail(channelFor(smtp.port), {
+        subject,
+        text: TEXT,
+        html: HTML,
+        alertId: "dev:trip:day:2026-10-29",
+      });
       expect(sent).toEqual({ ok: true, ref: "250 ABC123" });
       const data = smtp.messages[0]?.data ?? "";
       expect(header(data, "Subject")).toBe(subject);
@@ -388,7 +395,9 @@ describe("the designed message and the refusal of a message (spec 011, FR-015, F
     const smtp = await stubSmtp();
     try {
       const subject = "[dev] KILL SWITCH TRIPPED: daily ceiling reached";
-      expect(await sendEmail(channelFor(smtp.port), { subject, text: TEXT, alertId: "dev:trip:day:2026-10-29" })).toEqual({
+      expect(
+        await sendEmail(channelFor(smtp.port), { subject, text: TEXT, alertId: "dev:trip:day:2026-10-29" }),
+      ).toEqual({
         ok: true,
         ref: "250 ABC123",
       });
@@ -406,9 +415,17 @@ describe("the designed message and the refusal of a message (spec 011, FR-015, F
     const mail = { subject: "s", text: "t", html: HTML, alertId: "dev:trip:day:2026-10-29" };
     try {
       smtp.refuse("DATA", 554);
-      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_554", messageRefused: true });
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({
+        ok: false,
+        errorClass: "smtp_554",
+        messageRefused: true,
+      });
       smtp.refuse("END", 552);
-      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_552", messageRefused: true });
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({
+        ok: false,
+        errorClass: "smtp_552",
+        messageRefused: true,
+      });
       // A refused recipient is no refusal of the message, and a 4xx is transient: both keep the schedule.
       smtp.refuse("RCPT", 550);
       expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_550" });

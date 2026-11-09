@@ -631,7 +631,9 @@ def spec_011_addition(row_id: str, column: int) -> str | None:
     for join in JOINS:
         if cell.startswith(join):
             return cell.removeprefix(join)
-    raise AssertionError(f"spec 011's {row_id} entry, column {column}, doesn't read as this test reads it: {cell}")
+    raise AssertionError(
+        f"spec 011's {row_id} entry, column {column}, doesn't read as this test reads it: {cell}"
+    )
 
 
 def test_the_alert_rows_add_spec_011s_words() -> None:

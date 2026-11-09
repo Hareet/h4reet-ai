@@ -1086,7 +1086,12 @@ describe("0006_alert_forms (spec 011, Amendment 0-7; FR-030, FR-033, FR-044)", (
 
   it("leaves 0001 to 0005 as they were: what 0006 adds appears in no earlier file", async () => {
     for (const m of migrations.filter((x) => x.version < 6)) {
-      for (const added of ["telegram_form", "email_fallback", "alert_samples", "alert_outbox_telegram_fallback_is_plain"]) {
+      for (const added of [
+        "telegram_form",
+        "email_fallback",
+        "alert_samples",
+        "alert_outbox_telegram_fallback_is_plain",
+      ]) {
         expect(m.sql, `${m.name} ${added}`).not.toContain(added);
       }
     }

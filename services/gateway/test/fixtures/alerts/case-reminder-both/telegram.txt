@@ -1,0 +1,17 @@
+⚪ Information · [h4reet.ai prod]
+⏰ REMINDER: still degraded since 2026-10-29T16:40:03Z (daily ceiling, 2026-10-29; monthly ceiling, 2026-10)
+Next: Only an operator reset restores service. Only a renewal restores fallback.
+Meters
+Daily      0.00 /  5.00 USD   warning  3.50
+Month     13.40 / 20.00 USD   warning 14.00
+Fallback   0.00 /  2.00 USD   grant 1
+Runtime: degraded since 2026-10-29T16:40:03Z
+Fallback: awaiting renewal since 2026-10-29T12:05:37Z
+Time: 2026-10-30T09:00:00Z
+id prod:reminder:daily:2026-10-30
+Runbook: docs/runbooks/kill-switch-trip.md
+--- entities (UTF-16 offset, length)
+bold 35 105 "REMINDER: still degraded since 2026-10-29T16:40:03Z (daily ceiling, 2026-10-29; monthly ceiling, 2026-10)"
+pre 229 125 "Daily      0.00 /  5.00 USD   warning  3.50\nMonth     13.40 / 20.00 USD   warning 14.00\nFallback   0.00 /  2.00 USD   grant 1"
+code 484 30 "prod:reminder:daily:2026-10-30"
+code 524 33 "docs/runbooks/kill-switch-trip.md"

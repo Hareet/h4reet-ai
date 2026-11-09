@@ -1,0 +1,17 @@
+🟠 Warning · [dev]
+📈 WARNING: daily meter at 70%
+Meters
+Daily     3.50 /  5.00 USD   warning  3.50
+Month     3.50 / 20.00 USD   warning 14.00
+Fallback  0.00 /  2.00 USD   grant 1
+(synthetic spend)
+Runtime: normal
+Fallback: available
+Time: 2026-10-27T08:01:30Z (test clock)
+id dev:warn:day:2026-10-27
+Runbook: docs/runbooks/cost-warning.md
+--- entities (UTF-16 offset, length)
+bold 22 27 "WARNING: daily meter at 70%"
+pre 57 140 "Daily     3.50 /  5.00 USD   warning  3.50\nMonth     3.50 / 20.00 USD   warning 14.00\nFallback  0.00 /  2.00 USD   grant 1\n(synthetic spend)"
+code 277 23 "dev:warn:day:2026-10-27"
+code 310 29 "docs/runbooks/cost-warning.md"

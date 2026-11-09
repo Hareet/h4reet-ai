@@ -1,0 +1,5 @@
+[h4reet.ai prod] OPERATOR ACTION: reset by operator #1a2b3c4d
+Daily: 1.10 / 5.00 USD (warning 3.50) · Month: 13.40 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 1)
+Runtime: normal · Fallback: available · 2026-10-30T08:15:00Z · id prod:operator_action:reset:43
+Local answers resume.
+Runbook: docs/runbooks/kill-switch-reset.md

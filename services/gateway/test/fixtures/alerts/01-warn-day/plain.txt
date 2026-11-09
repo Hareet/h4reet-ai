@@ -1,0 +1,4 @@
+[h4reet.ai prod] WARNING: daily meter at 70%
+Daily: 3.50 / 5.00 USD (warning 3.50) · Month: 9.10 / 20.00 (warning 14.00) · Fallback today: 0.40 / 2.00 (grant 1)
+Runtime: normal · Fallback: available · 2026-10-28T14:02:11Z · id prod:warn:day:2026-10-28
+Runbook: docs/runbooks/cost-warning.md

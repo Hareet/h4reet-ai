@@ -1,0 +1,18 @@
+🟠 Warning · [h4reet.ai prod]
+📈 WARNING: the Anthropic API's month at 70% of its cap
+Next: 7.20 of 10.00 USD in 2026-10. The paid fallback stops at its cap; local answers go on.
+Meters
+Daily      1.00 /  5.00 USD   warning  3.50
+Month      9.00 / 20.00 USD   warning 14.00
+Fallback   0.30 /  2.00 USD   grant 1
+anthropic  7.20 / 10.00 USD   2026-10
+Runtime: normal
+Fallback: available
+Time: 2026-10-29T16:00:00Z
+id prod:warn:adapter_month:anthropic:2026-10
+Runbook: docs/runbooks/fallback-renewal.md
+--- entities (UTF-16 offset, length)
+bold 33 52 "WARNING: the Anthropic API's month at 70% of its cap"
+pre 186 163 "Daily      1.00 /  5.00 USD   warning  3.50\nMonth      9.00 / 20.00 USD   warning 14.00\nFallback   0.30 /  2.00 USD   grant 1\nanthropic  7.20 / 10.00 USD   2026-10"
+code 416 41 "prod:warn:adapter_month:anthropic:2026-10"
+code 467 33 "docs/runbooks/fallback-renewal.md"

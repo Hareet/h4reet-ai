@@ -938,7 +938,10 @@ const ALERTS_TOP = z.strictObject({
   standin: z.strictObject({ telegram_base: z.string(), smtp_host: z.string(), smtp_port: int(1, 65_535) }),
   // Spec 011 (Amendment 0-10; rule A8): each channel designed or plain, and no other key.
   formats: z
-    .strictObject({ telegram: z.enum(["designed", "plain"]).optional(), email: z.enum(["designed", "plain"]).optional() })
+    .strictObject({
+      telegram: z.enum(["designed", "plain"]).optional(),
+      email: z.enum(["designed", "plain"]).optional(),
+    })
     .optional(),
 });
 

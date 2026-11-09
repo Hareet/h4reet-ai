@@ -563,7 +563,13 @@ describe("the alerts' instruments and span (spec 011, FR-044, FR-045, FR-047; pl
     for (const form of ["designed", "plain", "none"] as const) {
       m.alertAttempt({ channel: "telegram", kind: "sample", outcome: "delivered", form });
     }
-    for (const reason of ["entities_refused", "message_refused", "render_failed", "over_limit", "not_rendered"] as const) {
+    for (const reason of [
+      "entities_refused",
+      "message_refused",
+      "render_failed",
+      "over_limit",
+      "not_rendered",
+    ] as const) {
       m.alertFallback({ channel: "email", kind: "sample", reason });
     }
     m.operatorAction("alert_samples");
@@ -590,12 +596,25 @@ describe("the alerts' instruments and span (spec 011, FR-044, FR-045, FR-047; pl
 
   it("give alert.deliver exactly its keys: channel, kind, form, a fallback's reason when set, outcome, attempt, sample", () => {
     expect(ALERT_DELIVER_SPAN).toBe("alert.deliver");
-    const base = { channel: "telegram", kind: "trip", form: "designed", outcome: "delivered", attempt: 1, sample: false } as const;
+    const base = {
+      channel: "telegram",
+      kind: "trip",
+      form: "designed",
+      outcome: "delivered",
+      attempt: 1,
+      sample: false,
+    } as const;
     expect(Object.keys(alertDeliverAttributes(base)).sort()).toEqual(
       ["h4.alert.attempt", "h4.alert.form", "h4.alert.kind", "h4.alert.sample", "h4.channel", "h4.outcome"].sort(),
     );
     expect(
-      alertDeliverAttributes({ ...base, form: "plain", fallbackReason: "entities_refused", kind: "sample", sample: true }),
+      alertDeliverAttributes({
+        ...base,
+        form: "plain",
+        fallbackReason: "entities_refused",
+        kind: "sample",
+        sample: true,
+      }),
     ).toEqual({
       "h4.channel": "telegram",
       "h4.alert.kind": "sample",

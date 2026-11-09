@@ -1,0 +1,17 @@
+🔵 Operator action · [h4reet.ai prod]
+🛠️ OPERATOR ACTION: studio GPU window opened by operator #1a2b3c4d
+Next: The model server stops next: hello falls back within the sub-budget, or degrades, until the window closes.
+Meters
+Daily     0.40 /  5.00 USD   warning  3.50
+Month     6.10 / 20.00 USD   warning 14.00
+Fallback  0.00 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-11-02T20:14:03Z
+id prod:operator_action:studio_window:57
+Runbook: docs/runbooks/studio-gpu-window.md
+--- entities (UTF-16 offset, length)
+bold 42 63 "OPERATOR ACTION: studio GPU window opened by operator #1a2b3c4d"
+pre 226 122 "Daily     0.40 /  5.00 USD   warning  3.50\nMonth     6.10 / 20.00 USD   warning 14.00\nFallback  0.00 /  2.00 USD   grant 1"
+code 415 37 "prod:operator_action:studio_window:57"
+code 462 34 "docs/runbooks/studio-gpu-window.md"

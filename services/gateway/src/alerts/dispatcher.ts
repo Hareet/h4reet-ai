@@ -521,7 +521,12 @@ export class Dispatcher {
   }
 
   /** A fallback (FR-045): counted, and logged as alert.fallback with the refused send's class, if one was refused. */
-  private fellBack(channel: AlertChannel, a: AttemptInput, reason: FallbackReason, errorClass: string | undefined): void {
+  private fellBack(
+    channel: AlertChannel,
+    a: AttemptInput,
+    reason: FallbackReason,
+    errorClass: string | undefined,
+  ): void {
     this.deps.metrics.alertFallback({ channel, kind: a.kind, reason });
     this.deps.logger.warn(
       {
