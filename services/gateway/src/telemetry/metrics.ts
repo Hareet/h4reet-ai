@@ -63,7 +63,8 @@ export type TwinOutcome = (typeof TWIN_OUTCOMES)[number];
 export const TWIN_CAUSES = [...DEGRADED_CAUSES, "twin_unavailable", "none"] as const;
 export type TwinCause = (typeof TWIN_CAUSES)[number];
 /** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9): each answer withheld, replaced, or
- *  repaired (`repair_opener`, D34), by guard. */
+ *  repaired, by guard. `repair_opener` (D34) counts an answer delivered without its opening agreement, and one withheld
+ *  because agreement was all it said; the turn's outcome, ok or withheld, tells them apart (D36). */
 export const TWIN_GUARDS = [
   "length",
   "numbers",

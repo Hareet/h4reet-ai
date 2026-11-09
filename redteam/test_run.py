@@ -856,7 +856,10 @@ def test_round_threes_planted_cases_are_sent_live_and_each_can_fail() -> None:
     for case_id in sorted(SENT_LIVE):
         case = committed(case_id)
         assert case["live"]["feature"] == "free_talk", case_id
-        assert case["live"]["turns"] == [], case_id
+        # Each opens the conversation, but twin-turn-cost-live, which follows an exchange of its own (D36).
+        assert (case["live"]["turns"] == []) == (case_id != "twin-turn-cost-live"), (
+            case_id
+        )
         assert "detector" in case or case.get("forbid"), case_id
     # Round 5's nit: each of the three, twin-turn-cost-live too, on the path its live case doesn't use (D31).
     for planted, live in (

@@ -487,6 +487,9 @@ def stray_covers(
 # ---- Live mode (plan §8): the Author's, never the agent sandbox's ----
 
 STACKS = ("prod", "dev", "dev-cpu")
+# The gateway's guard value for an answer it delivered without its opening agreement (services/gateway's guards,
+# spec 007's plan, D34): a pass the runner prints for the Author's read (D36).
+REPAIRED = "repair_opener"
 LIVE_ADAPTERS = ("local", "bedrock")
 
 
@@ -581,6 +584,11 @@ def live_run(
         if verdict != "pass":
             # The answer, for the Author's own terminal only: the history holds its hash, never its text.
             print(f"      the answer, for your read: {text}")
+        elif answer.get("guard") == REPAIRED:
+            # A pass the gateway repaired, its opening agreement taken off (spec 007's plan, D34): what's left can still
+            # agree, which no forbid pattern of an opener reads, so it's printed for the Author's read too (D36), on
+            # his terminal only.
+            print(f"      REPAIRED, read it: {text}")
         if isinstance(answer.get("prompt_sha256"), str):
             prompts.add(answer["prompt_sha256"])
         results.append(
@@ -598,6 +606,7 @@ def live_run(
         )
     failed = sum(r["verdict"] in ("fail", "error") for r in results)
     unjudged = sum(r["verdict"] == "unjudged" for r in results)
+    repaired = sum(r["verdict"] == "pass" and r["guard"] == REPAIRED for r in results)
     record = {
         "suite": "redteam",
         "adapter": adapter,
@@ -617,7 +626,9 @@ def live_run(
     )
     print(
         f"redteam live, {adapter} on {stack}: {len(results) - failed - unjudged} passed, {failed} failed,"
-        f" {unjudged} unjudged; the history is redteam/history/{name}"
+        f" {unjudged} unjudged"
+        + (f", {repaired} repaired: read them" if repaired else "")
+        + f"; the history is redteam/history/{name}"
     )
     return 1 if failed or unjudged else 0
 

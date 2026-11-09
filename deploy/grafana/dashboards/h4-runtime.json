@@ -3443,7 +3443,7 @@
       "type": "timeseries",
       "id": 74,
       "title": "Answers withheld, by guard",
-      "description": "Answers the guards withheld or replaced before they left the gateway, by guard: numbers, amounts, disclosure, prompt, secrets, links, ownership, seva, location, surname, privacy, agents_share, repair_opener (an answer delivered without its opening agreement), length, or error (spec 007, FR-021, FR-044; seva since its plan's D28, location and surname since D29). Each still cost its call.",
+      "description": "Answers the guards withheld or replaced before they left the gateway, by guard: numbers, amounts, disclosure, prompt, secrets, links, ownership, seva, location, surname, privacy, agents_share, repair_opener (an answer delivered without its opening agreement, or withheld when agreement was all it said: the turn's outcome, ok or withheld, tells them apart), length, or error (spec 007, FR-021, FR-044; seva since its plan's D28, location and surname since D29). Each still cost its call.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"

@@ -844,6 +844,7 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
     if (asksToConfirm(ctx.asked)) {
       const rest = withoutOpener(text);
       if (rest !== text) {
+        // Agreement was all it said: withheld, under the repair's guard value, with the turn's outcome withheld (D36).
         if (!/[\p{L}\p{N}]/u.test(rest)) return withheld("repair_opener");
         const again = failing(rest);
         if (again !== null) return withheld(again);
