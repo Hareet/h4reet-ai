@@ -47,13 +47,16 @@ def make(*args: str, sandbox: bool) -> subprocess.CompletedProcess[str]:
             "make contract-live is the Author's",
         ),
         (("ENV=dev", "ADAPTER=local"), False, "needs REASON="),
-        (("ENV=dev", REASON), False, "needs ADAPTER=local or ADAPTER=bedrock"),
+        (("ENV=dev", REASON), False, "needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic"),
         (
             ("ENV=dev", "ADAPTER=other", REASON),
             False,
-            "needs ADAPTER=local or ADAPTER=bedrock",
+            "needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic",
         ),
         (("ENV=dev", "ADAPTER=bedrock", REASON), False, "bedrock is prod's adapter"),
+        # Spec 010 (FR-024): the Anthropic API is prod's adapter too.
+        (("ENV=dev", "ADAPTER=anthropic", REASON), False, "anthropic is prod's adapter"),
+        (("ENV=dev-cpu", "ADAPTER=anthropic", REASON), False, "anthropic is prod's adapter"),
     ],
 )
 def test_refuses_before_calling_anything(

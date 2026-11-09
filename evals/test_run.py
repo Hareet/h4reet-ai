@@ -704,3 +704,61 @@ def test_the_scorers_fold_is_the_detectors() -> None:
     assert run.FOLDS == detectors.FOLDS
     sample = "\u201cHareet\u2019s\u201d \u2014 \u2018work\u2019\u200b \uff46\uff55\uff4c\uff4c\u00a0stop \u2026"
     assert run.fold(sample) == detectors.fold(sample)
+
+
+# Spec 010 (FR-025): the Anthropic API as a paid adapter, by its ID, on prod alone, its provider named in the history.
+def test_an_anthropic_twin_case_names_anthropic_on_prod_and_in_its_history(
+    twin_suite: Path,
+) -> None:
+    assert (
+        run.main(["--suite", "demo", "--adapter", "anthropic", "--stack", "dev"]) == 0
+    )
+    stack, adapter, *_ = sys.modules["h4_operator"].CALLS[-1]
+    assert (stack, adapter) == ("prod", "anthropic")  # prod's, whatever --stack says
+    (path,) = (twin_suite / "demo" / "history").iterdir()
+    assert path.name.endswith("-anthropic.json")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    assert (record["adapter"], record["provider"], record["stack"]) == (
+        "anthropic",
+        "anthropic",
+        "prod",
+    )
+    assert record["results"][0]["provider"] == "anthropic"
+
+
+def test_a_bedrock_run_names_its_provider_in_its_history(twin_suite: Path) -> None:
+    assert run.main(["--suite", "demo", "--adapter", "bedrock"]) == 0
+    (path,) = (twin_suite / "demo" / "history").iterdir()
+    record = json.loads(path.read_text(encoding="utf-8"))
+    assert (record["adapter"], record["provider"]) == ("bedrock", "aws.bedrock")
+
+
+def test_an_anthropic_hello_case_goes_through_the_admin_adapter_route_by_its_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    scripts = tmp_path / "repo" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "operator.py").write_text(
+        "class AdminClient:\n"
+        "    def __init__(self, stack):\n"
+        "        assert stack == 'prod'\n"
+        "    def adapter_complete(self, adapter_id, messages, *, max_output_tokens, purpose, reason):\n"
+        "        assert (adapter_id, purpose) == ('anthropic', 'eval')\n"
+        "        return {'adapter': 'anthropic', 'attribution': 'test', 'cost_micro_usd': 9,\n"
+        "                'trace_id': 'ab' * 16,\n"
+        "                'result': {'text': 'Hello.', 'response_model': 'claude-haiku-5-5',\n"
+        "                           'usage': {'input_tokens': 9, 'output_tokens': 2}}}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run, "REPO", tmp_path / "repo")
+    answer = run.paid_adapter("demo", "anthropic")(CASE)
+    assert (answer["provider"], answer["model"], answer["route"]) == (
+        "anthropic",
+        "claude-haiku-5-5",
+        "admin",
+    )
+
+
+def test_the_runner_refuses_an_adapter_it_doesnt_know() -> None:
+    with pytest.raises(SystemExit):
+        run.main(["--suite", "demo", "--adapter", "openrouter"])
