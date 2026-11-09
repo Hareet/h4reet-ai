@@ -759,6 +759,22 @@ PHRASINGS = [
         "gives an amount",
         COST_LINE,
     ),
+    # The runs at 7ff08c96 (2026-11-09): Bedrock said the refusal line, then named what it refused; and wrote "a dollar
+    # figure" in a live figure's answer.
+    (
+        "twin-home-elaborated",
+        "twin-home-declined",
+        "twin-home",
+        "locates the Author",
+        DECLINED,
+    ),
+    (
+        "twin-turn-cost-dollar",
+        "twin-turn-cost-live",
+        "twin-turn-cost",
+        "gives an amount",
+        "can't see",
+    ),
 ]
 
 
@@ -898,6 +914,59 @@ def test_an_opening_yes_to_a_claim_the_grounding_doesnt_hold_fails() -> None:
     ]
     new = "The corpus says he was involved in Uganda's, Mali's, and Zanzibar's deployments, not that he led them."
     assert rt.detect(new, case) == []
+
+
+# The Author's live runs at 7ff08c96 (2026-11-09): both models paraphrased approved Golden Q&A answers and dropped the
+# terms the generated cases need; said "don't know" with a digit, or with a "Do not claim" phrase the visitor's words
+# held; the local model opened a claim to confirm with "Yes" again, after 02's Golden Q&A 5, whose answer opens "Yes:",
+# and added the privacy line to answers about other things.
+DONT_KNOW = "I don't know yet."
+
+
+def prompt_paragraph(start: str) -> str:
+    return next(
+        p
+        for p in PROMPT.read_text(encoding="utf-8").split("\n\n")
+        if p.startswith(start)
+    )
+
+
+def test_the_prompts_dont_know_line_is_the_corpus_and_passes_every_gap_case() -> None:
+    # "Anything not in it, I'll tell you I don't know yet." (08-hareet-ai.md's Golden Q&A 8).
+    assert f'"{DONT_KNOW}"' in PROMPT.read_text(encoding="utf-8")
+    assert DONT_KNOW in rt.public_corpus()
+    gaps = sorted((REPO / "evals" / "product" / "cases").glob("twin-*-gap-*.yaml"))
+    assert len(gaps) >= 40
+    for path in gaps:
+        expect = rt.yaml.safe_load(path.read_text(encoding="utf-8"))["expect"]
+        low = DONT_KNOW.lower()
+        assert re.search(expect["regex"], DONT_KNOW), path.name
+        assert not [p for p in expect.get("not_contains", []) if p.lower() in low]
+        assert not [p for p in expect.get("contains", []) if p.lower() not in low]
+
+
+def test_the_prompt_answers_a_golden_question_with_its_answer_word_for_word() -> None:
+    golden = prompt_paragraph("Golden Q&A:")
+    assert "word for word" in golden and "confirm" in golden
+
+
+def test_the_privacy_line_is_given_only_when_a_visitor_asks() -> None:
+    text = PROMPT.read_text(encoding="utf-8")
+    [sentence] = [
+        s for s in re.split(r"(?<=[.!?]) ", text) if "We disclose every data flow" in s
+    ]
+    assert sentence.startswith("Only when a visitor asks"), sentence
+
+
+def test_a_claim_to_confirm_never_opens_with_yes() -> None:
+    claims = prompt_paragraph("Claims to confirm:")
+    assert "right?" in claims and "never begin with yes" in claims
+    old = (
+        "Yes, he was involved in the national deployments in Uganda, Mali, and Zanzibar. He implemented and trained "
+        "DevOps practices for each of the governments, and in these three, as in Kenya, he was more hands-on, with "
+        "several in-person iterations. We disclose every data flow, your conversation is not saved."
+    )
+    assert rt.detect(old, committed("twin-other-deployments"))
 
 
 def jd_services() -> list[str]:

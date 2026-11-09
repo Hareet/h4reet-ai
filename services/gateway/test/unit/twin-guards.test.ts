@@ -185,7 +185,7 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
     });
   });
 
-  it("runs G5, G4, G3, G1, G2, G6, G7, then G8, recording the first failure", () => {
+  it("runs G5, G4, G3, G1, G2, G6, G7, G9, then G8, recording the first failure", () => {
     expect(GUARD_ORDER).toEqual([
       "secrets",
       "prompt",
@@ -194,6 +194,7 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
       "amounts",
       "links",
       "ownership",
+      "seva",
       "privacy",
     ]);
     // A number and a link: G1 comes before G6.
@@ -297,5 +298,59 @@ describe("the review's guard gaps (T066: I1, I2, N3)", () => {
     ])
       withheldBy(a, "disclosure");
     expect(passes("My name is not Hareet: I'm his AI twin."), "twin").toMatchObject({ kind: "pass" });
+  });
+});
+
+// The Author's live runs at 7ff08c96 (2026-11-09; spec 007's plan, D28): Bedrock, at its default temperature, wrote
+// Seva in its own words in two answers and "a dollar figure" in a third. A prompt can't hold every sample, and these
+// two rules hold for every answer, so guards do: G9 withholds a sentence naming Seva that isn't the grounding's own, word
+// for word (alone, or after one of the red-team's neutral lead-ins); and G2 reads the red-team's amounts in words.
+describe("G9 Seva, and G2's amounts in words (D28)", () => {
+  const SEVA =
+    "A lifelong mission to bring the cultural tradition of Seva — selfless service to humanity — into daily work.";
+  const DRIVES =
+    "Seva — selfless service — brought into daily work, and impact for underserved communities. He'd call it an all-hands-on-deck effort.";
+  const seva = ctx({
+    groundingText: `${GROUNDING}\n- \`[A-BIO]\` ${SEVA} The twin adds nothing.\n2. *What drives him?* — ${DRIVES}`,
+  });
+
+  it("withholds a sentence naming Seva that the grounding doesn't hold, word for word", () => {
+    for (const a of [
+      "What it does say is that Seva, selfless service to humanity, is a lifelong mission he brings into daily work.",
+      "What I can share is that his life's work is framed around Seva, selfless service to humanity, which he brings into daily work.",
+      "The corpus describes Seva as selfless service to humanity, a lifelong mission Hareet brings into daily work.",
+      `In other words: "${SEVA}"`,
+      `${SEVA} Seva also means more.`,
+      "SEVA runs deeper than that.",
+      "Sevā runs deeper than that.",
+    ])
+      withheldBy(a, "seva", seva);
+  });
+
+  it("passes a Seva sentence the grounding holds, alone or after a neutral lead-in, and an answer naming no Seva", () => {
+    for (const a of [
+      `From the corpus: "${SEVA}" I add nothing to it.`,
+      `The corpus says: “${SEVA}”`,
+      SEVA,
+      DRIVES,
+      "It means to show up every day with trust in your fellow peers.",
+      "I keep to the corpus's own words on that, and add nothing to them.",
+    ])
+      expect(passes(a, seva), a).toMatchObject({ kind: "pass", text: a });
+  });
+
+  it("G2 withholds an amount in words the grounding doesn't hold, the red-team's forms, 'a dollar figure' among them", () => {
+    for (const a of [
+      "I can't see the cost of any answer from inside this room, so I don't have a dollar figure for my last one.",
+      "It came to a few dollars.",
+      "That's several euros a month.",
+      "Less than a tenth of a cent.",
+    ])
+      withheldBy(a, "amounts");
+    // G1 holds the number to the grounding first; G2 then reads the unit.
+    withheldBy("It came to 950 micro-dollars.", "amounts", ctx({ groundingText: `${GROUNDING}\n950` }));
+    expect(passes("I can't see the room's live state, so I can't tell you what that cost.")).toMatchObject({
+      kind: "pass",
+    });
   });
 });
