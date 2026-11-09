@@ -70,6 +70,11 @@ export interface AdapterTypeSpec {
   circuit?(settings: Record<string, unknown>): CircuitSettings;
   /** A paid type routed only with a monthly cap in budgets.yaml's adapter_monthly_usd (spec 010, FR-021). */
   readonly monthlyCapRequired?: boolean;
+  /**
+   * The settings that name an env key holding a secret no committed file holds: an env template leaves it empty,
+   * and preflight holds the stack's own env file to it (spec 010, FR-030; contracts/env-files.md §10).
+   */
+  readonly secretEnv?: readonly string[];
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -349,6 +354,7 @@ const anthropicMessages: AdapterTypeSpec = {
   label: "the Anthropic API",
   circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
   monthlyCapRequired: true,
+  secretEnv: ["api_key_env"],
 };
 
 const synthetic: AdapterTypeSpec = {

@@ -449,6 +449,8 @@ With `ALERT_DELIVERY=standin`, the gateway uses `standin.*` and ignores the real
    - set `ALERT_DELIVERY=real`, `TELEGRAM_API_BASE=https://api.telegram.org`, and `SMTP_TLS` to `implicit` or `starttls`.
 
    The key list is in [env-files.md](env-files.md). Each file's `H4_STACK` must be the stack it's for. `dev-cpu.vars` must also have exactly the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`, hold no placeholder, and carry a dummy token whose SHA-256 is both its `OPERATOR_TOKEN_SHA256` and the hash prod refuses, a constant in `src/config/validate-env.ts` ([env-files.md §6.1](env-files.md#61-dev-cpus-dummies)). A template that is missing is an error, naming tasks.md T031, which writes them.
+
+   **(spec 010)** An adapter's secret env key, which no committed file holds (its type's `secretEnv`: `api_key_env` for `anthropic-messages`), counts as present too when a template holds it empty: the Author supplies it in his own env file, which preflight's P3 and P7 check ([env-files.md §10](env-files.md#10-make-up-preflight)). So a route that names the adapter passes here, and a template without the key fails with `missing_env`, naming it.
 3. **The append-only check** of `config/prices.yaml` against `main` (P5), when run in a git checkout.
 
 It prints one line per error or note, then a summary:
