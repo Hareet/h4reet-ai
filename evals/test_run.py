@@ -571,3 +571,30 @@ def test_the_scaffolds_hello_case_runs_on_the_fake_adapter_alone() -> None:
     # and on Bedrock, which sends it without hello's system prompt, it could never pass.
     (case,) = [c for c in run.load_cases("product") if c["id"] == "hello-fake"]
     assert case["fake_only"] is True
+
+
+def test_a_topics_summary_line_shows_the_bar_that_applies() -> None:
+    # FR-031, amended on 2026-11-08 (spec 007's Clarifications; plan.md D30): a path with fewer than ten golden cases
+    # passes with all but one, ten or more with the readiness file's share, so the line names the bar, not 90%.
+    assert run.golden_line("fx-topic", "engineer", 5, 7) == (
+        "twin fx-topic engineer: 5 of 7 golden cases passed (71%; the bar is 6 of 7)"
+    )
+    assert run.golden_line("fx-topic", "non-engineer", 17, 18) == (
+        "twin fx-topic non-engineer: 17 of 18 golden cases passed (94%; the bar is 17 of 18)"
+    )
+    assert run.golden_line("fx-topic", "engineer", 1, 1).endswith(
+        "(100%; the bar is 1 of 1)"
+    )
+
+
+def test_the_runners_bar_is_the_readiness_rules() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "evals_twin_readiness_bar", REPO / "evals" / "twin_readiness.py"
+    )
+    assert spec and spec.loader
+    readiness = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(readiness)
+    for n in range(1, 41):
+        assert run.golden_bar(n) == readiness.golden_bar(
+            n, run.TWIN_GOLDEN_THRESHOLD
+        ), n

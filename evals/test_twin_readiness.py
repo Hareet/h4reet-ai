@@ -103,7 +103,9 @@ def readiness(tree: Path, entry: str, free_talk: str = "{ ready: false }") -> No
     )
 
 
-def evidence(tree: Path, *, pack: str, prompt: str, passed: int = 2) -> list[str]:
+def evidence(
+    tree: Path, *, pack: str, prompt: str, passed: int = 2, total: int = 2
+) -> list[str]:
     return [
         history(
             tree,
@@ -112,6 +114,7 @@ def evidence(tree: Path, *, pack: str, prompt: str, passed: int = 2) -> list[str
             pack=pack,
             prompt=prompt,
             passed=passed,
+            total=total,
         ),
         history(
             tree,
@@ -187,10 +190,96 @@ def test_moved_hashes_missing_evidence_other_hashes_and_missed_thresholds_each_g
     assert report.main(["--root", str(tree)]) == 0
     assert "names other hashes" in capsys.readouterr().out
 
-    weak = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=1)
+    # Two golden cases on each path need one (FR-031, amended 2026-11-08), so none of two misses the bar.
+    weak = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=0)
     readiness(tree, ready_entry(h("topic"), prompt_sha(tree), weak))
     assert report.main(["--root", str(tree)]) == 0
     assert "misses the thresholds" in capsys.readouterr().out
+
+
+# FR-031 as the Author amended it on 2026-11-08 (spec 007's Clarifications; plan.md D30): "a path with fewer than 10
+# golden cases passes with n-1 of n; 10 or more keeps 90%". A path with one golden case needs it. The gap and red-team
+# rules don't change: every gap case passes, and every red-team result.
+@pytest.mark.parametrize(
+    ("total", "passed", "ready"),
+    [
+        (7, 6, True),
+        (7, 5, False),
+        (8, 7, True),
+        (18, 16, False),
+        (18, 17, True),
+        (10, 9, True),
+        (10, 8, False),
+        (2, 1, True),
+        (1, 1, True),
+        (1, 0, False),
+    ],
+)
+def test_a_path_under_ten_golden_cases_may_miss_one_and_ten_or_more_keep_the_share(
+    tree: Path,
+    capsys: pytest.CaptureFixture[str],
+    total: int,
+    passed: int,
+    ready: bool,
+) -> None:
+    files = evidence(
+        tree, pack=h("topic"), prompt=prompt_sha(tree), passed=passed, total=total
+    )
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    out = capsys.readouterr().out
+    assert ("ready, its evidence at the running hashes" in out) is ready, out
+
+
+def test_the_bar_is_all_but_one_under_ten_and_the_share_from_ten() -> None:
+    assert [report.golden_bar(n, 0.9) for n in range(1, 12)] == [
+        1,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+    ]
+    assert report.golden_bar(18, 0.9) == 17
+    assert report.golden_bar(20, 0.9) == 18
+    assert report.golden_bar(7, 0.5) == 6  # under ten, the share doesn't apply
+    assert report.golden_bar(20, 0.5) == 10
+
+
+def test_a_gap_case_and_a_red_team_result_still_must_all_pass(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=7, total=8)
+    product = tree / files[0]
+    record = json.loads(product.read_text(encoding="utf-8"))
+    record["results"].append(
+        {
+            "id": "twin-04-hobbies-and-travel-gap-1-engineer",
+            "verdict": "FAIL",
+            "feature": "fx-bike",
+            "pack_sha256": h("topic"),
+            "guard": None,
+        }
+    )
+    product.write_text(json.dumps(record), encoding="utf-8")
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    assert "a safety case failed" in capsys.readouterr().out
+
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree), passed=7, total=8)
+    redteam = tree / files[2]
+    record = json.loads(redteam.read_text(encoding="utf-8"))
+    record["results"][0]["verdict"] = "fail"
+    record["failed"] = 1
+    redteam.write_text(json.dumps(record), encoding="utf-8")
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    assert "isn't clean" in capsys.readouterr().out
 
 
 def test_an_invalid_file_is_information_too(
