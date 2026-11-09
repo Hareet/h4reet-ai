@@ -177,7 +177,10 @@ export function hudBoxes(
   const barH = rows * t.bar.tileRem * rem + (rows - 1) * t.bar.gapRem * rem + 2 * t.bar.padRem * rem + safe.bottom;
   const bar: Box = { x: 0, y: screen.h - barH, w: screen.w, h: barH };
   if (layout === "column") {
-    const width = Math.min(t.column.maxRem * rem, Math.max(t.column.minRem * rem, t.column.share * screen.w));
+    // Two fifths of the safe width, between 15rem and 28rem, and the right inset padded inside it, so a notched phone
+    // held sideways keeps the stage its safe viewport gave it before spec 005 (FR-009, FR-054).
+    const share = t.column.share * (screen.w - safe.left - safe.right);
+    const width = Math.min(t.column.maxRem * rem, Math.max(t.column.minRem * rem, share));
     const columnW = width + safe.right;
     const column: Box = { x: screen.w - columnW, y: strip.h, w: columnW, h: screen.h - strip.h - bar.h };
     const clear: Box = { x: safe.left, y: strip.h, w: screen.w - safe.left - columnW, h: column.h };

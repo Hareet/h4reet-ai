@@ -460,6 +460,12 @@ html[data-hud="dock"] .talk-log {
   overscroll-behavior: contain;
 }
 
+/* Focus scrolls into view inside a panel with room around it, never to its very edge (spec 005, FR-044). */
+html[data-hud="column"] .hud-panels *,
+html[data-hud="dock"] .hud-panels * {
+  scroll-margin: 0.5rem;
+}
+
 /* The column: the list above the conversation, the list scrolling inside it, and the conversation's text box at the
    column's foot (FR-022). */
 html[data-hud="column"] .room-list {

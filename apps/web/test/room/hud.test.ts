@@ -124,7 +124,9 @@ describe("the boxes and the clear area (compose/hud.ts's hudBoxes and clearArea)
     const b = hudBoxes(screen, OPENING, metrics);
     const plain = hudBoxes(screen);
     expect(b.bar.h).toBe(plain.bar.h + 21);
-    expect(b.column?.w).toBe((plain.column?.w ?? 0) + 47);
+    // The column's two fifths are of the safe width, 750, and it pads the right inset (T032).
+    expect(plain.column?.w).toBeCloseTo(337.6, 9);
+    expect(b.column?.w).toBe(0.4 * 750 + 47);
     expect(b.clear.x).toBe(47);
     expect(b.clear.w).toBe(844 - 47 - (b.column?.w ?? 0));
     expect(b.clear.h).toBe(390 - b.strip.h - b.bar.h);

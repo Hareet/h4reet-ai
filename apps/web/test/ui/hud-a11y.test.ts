@@ -186,7 +186,7 @@ describe("reduced motion, zoom, the keyboard, and the safe areas (FR-047, FR-049
     const all = rules();
     const of = (selector: string, property: string): string | undefined =>
       all
-        .filter((r) => r.selectors.includes(selector))
+        .filter((r) => r.selectors.includes(selector) && r.decls.has(property))
         .at(-1)
         ?.decls.get(property);
     expect(of('html[data-hud="dock"] .hud-bar', "bottom")).toBe("var(--keyboard)");

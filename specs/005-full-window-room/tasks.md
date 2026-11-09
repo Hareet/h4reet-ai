@@ -273,7 +273,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 **Independent Test**: spec.md User Story 5's.
 
-- [ ] T031 [P] [US5] Write `apps/web/test/ui/hud-a11y.test.ts` (FR-008, FR-009, FR-043 to FR-051; SC-005, SC-006, SC-010):
+- [x] T031 [P] [US5] Write `apps/web/test/ui/hud-a11y.test.ts` (FR-008, FR-009, FR-043 to FR-051; SC-005, SC-006, SC-010):
   - **Tab order**: Tab and Shift+Tab walk spec 002's and 008's order, in both layouts, with each part collapsed and open, in 3D and 2D, in and out of full screen (stubbed), and leave the room's last stop for the page; nothing traps.
   - **Focus return**: as plan §6.4, §6.5, and §8.
   - **Focus not obscured**: `scroll-padding-top` follows `--strip-h`, the panels carry `scroll-margin`, and no fixed element but the strip sits over the page's flow.
@@ -284,7 +284,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - **Axe**: 0 violations in every layout, panel state, mode, and full-screen state.
 
   Check: RED before T032 (feat/005-full-window-room)
-- [ ] T032 [US5] Add what T031 asks for, by plan §6.3, §6.8, §6.9, and §9: the scroll padding and margins, the keyboard's inset in `hud/viewport.ts` and `layout.ts`, the safe areas, and the focus-return wiring in `layout.ts`, `talk.ts`, and `app.ts`. Check: T031 passes (feat/005-full-window-room)
+- [x] T032 [US5] Add what T031 asks for, by plan §6.3, §6.8, §6.9, and §9: the scroll padding and margins, the keyboard's inset in `hud/viewport.ts` and `layout.ts`, the safe areas, and the focus-return wiring in `layout.ts`, `talk.ts`, and `app.ts`. Check: T031 passes (feat/005-full-window-room)
 
 **Checkpoint**: no visitor loses a way in.
 
