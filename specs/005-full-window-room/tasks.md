@@ -66,7 +66,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Tests for Foundational (first)
 
-- [ ] T005 [P] Write `apps/web/test/room/hud.test.ts` (FR-020, FR-007; plan §2):
+- [x] T005 [P] Write `apps/web/test/room/hud.test.ts` (FR-020, FR-007; plan §2):
   - `layoutFor` gives the column layout for a window wider than tall and at least 32rem wide, the dock layout otherwise, a square window among them.
   - `hudBoxes` and `clearArea` for each layout and the dock's list state: the strip at the top, the bar at the foot, the column `clamp(15rem, 40%, 28rem)` between them on the right, and the dock above the bar.
   - The column layout's clear area doesn't change when the list or the log collapses; the dock layout's grows when the list collapses.
@@ -76,7 +76,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - `reservedBoxes(clear)` is the walking control's box in the clear area's bottom-right corner.
 
   Check: RED before T011 (feat/005-full-window-room)
-- [ ] T006 [P] Extend `apps/web/test/room/stages.test.ts` (FR-052, FR-053, FR-054; plan §3.1):
+- [x] T006 [P] Extend `apps/web/test/room/stages.test.ts` (FR-052, FR-053, FR-054; plan §3.1):
   - `stageFor` is the clear area in the opening state.
   - The reference stages keep their screens and ratios; their stages are at least 686.4 × 640 and 368 × 368.
   - `SMALLEST`'s stages are at least 304 × 196 and 304 × 208.
@@ -88,15 +88,15 @@ description: "Task list for spec 005, the room fills the browser window"
   - `.flat`'s container rule and `.room-walk`'s box are unchanged.
 
   Check: RED before T011 (feat/005-full-window-room)
-- [ ] T007 [P] Write `apps/web/test/room/stages-floor.test.ts` (FR-054; SC-002): every screen of `legacy-stages.ts`'s sweep gets a new stage at least its legacy stage in width and in height, the first failure named with both stages. Check: RED before T011, then GREEN (feat/005-full-window-room)
-- [ ] T008 [P] Write `apps/web/test/ui/hud-model.ts`, moving `test/ui/a11y.test.ts`'s portrait model into it and generalizing it to the HUD (plan §3.3), and `apps/web/test/ui/hud-model.test.ts` (FR-007, FR-022, FR-054; SC-010, SC-012):
+- [x] T007 [P] Write `apps/web/test/room/stages-floor.test.ts` (FR-054; SC-002): every screen of `legacy-stages.ts`'s sweep gets a new stage at least its legacy stage in width and in height, the first failure named with both stages. Check: RED before T011, then GREEN (feat/005-full-window-room)
+- [x] T008 [P] Write `apps/web/test/ui/hud-model.ts`, moving `test/ui/a11y.test.ts`'s portrait model into it and generalizing it to the HUD (plan §3.3), and `apps/web/test/ui/hud-model.test.ts` (FR-007, FR-022, FR-054; SC-010, SC-012):
   - at every sweep screen, with the index's words and IBM Plex Sans's widths, the strip's lines, the bar's rows (six controls, "Credits" and the full-screen control counted), the list strip's rows, and the text box's row fit the table's bands;
   - every landscape screen's bar is one row;
   - on 320 × 568, the text box and the talk button are on screen and the clear area is at least 304 × 196;
   - at 320 × 256, and at a 32-pixel root, the model gives the stacked layout, with every control in the page's flow.
 
   Check: RED before T011 and T013 (feat/005-full-window-room)
-- [ ] T009 [P] Write `apps/web/test/room/fit.test.ts` (FR-010, FR-011, FR-015; plan §4.2, §5):
+- [x] T009 [P] Write `apps/web/test/room/fit.test.ts` (FR-010, FR-011, FR-015; plan §4.2, §5):
   - `bufferRatio` is `min(dpr, level ratio, √(cap ÷ area))`, never below 0.5, at the four levels and ratios of 1, 1.5, 2, and 3;
   - the buffer's aspect is within one device pixel of the canvas's;
   - `scene/levels.ts`'s caps are the plan's starting figures, falling with each level;
@@ -104,7 +104,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - `canvasToClear` maps a canvas point into the clear area's pixels, and a point outside it picks nothing.
 
   Check: RED before T012 (feat/005-full-window-room)
-- [ ] T010 [P] Extend `apps/web/test/ui/degraded.test.ts` (FR-001 to FR-007):
+- [x] T010 [P] Extend `apps/web/test/ui/degraded.test.ts` (FR-001 to FR-007):
   - in each of FR-002's states, the room block, the HUD's data attributes, and its properties are as in the happy path, and only the conversation's fixed message changes;
   - with no WebGL 2, the 2D drawing sits in the clear box, with the backdrop on the room block and no walking control;
   - with the drawing failing, `flat-failed`'s new words (D9) sit in the clear box, as text a screen reader reads;
@@ -115,9 +115,9 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Implementation for Foundational
 
-- [ ] T011 Write `apps/web/src/room/compose/hud.ts` (the table, `layoutFor`, `hudBoxes`, `clearArea`, `fitsHud`, `reservedBoxes`) by plan §2, and change `compose/stages.ts` by plan §3.1. Check: T005, T006, and T007 pass; every existing test that reads the stages passes, or names only a stage that moved, which the note lists (feat/005-full-window-room)
-- [ ] T012 Write `apps/web/src/room/fit.ts` (`bufferRatio`, `viewOffsetFor`, `canvasToClear`) and add `pixelCap` to `scene/levels.ts`'s levels at the plan's starting figures (D7). Check: T009 passes (feat/005-full-window-room)
-- [ ] T013 Build the room block and its fallbacks:
+- [x] T011 Write `apps/web/src/room/compose/hud.ts` (the table, `layoutFor`, `hudBoxes`, `clearArea`, `fitsHud`, `reservedBoxes`) by plan §2, and change `compose/stages.ts` by plan §3.1. Check: T005, T006, and T007 pass; every existing test that reads the stages passes, or names only a stage that moved, which the note lists (feat/005-full-window-room)
+- [x] T012 Write `apps/web/src/room/fit.ts` (`bufferRatio`, `viewOffsetFor`, `canvasToClear`) and add `pixelCap` to `scene/levels.ts`'s levels at the plan's starting figures (D7). Check: T009 passes (feat/005-full-window-room)
+- [x] T013 Build the room block and its fallbacks:
   - `room.css`: `body.in-room`'s frame gone; `.room` at the window; the clear box at `--clear-*`; the strip, the bar, the column, and the dock positioned from §2.3's properties; the opaque rules; today's grid under `[data-hud="stacked"]`.
   - `layout.ts`: the room's structure in Tab order (plan §6.1); `applyHud(boxes, clear, layout, state)`, which sets the data attributes and the properties through `style.setProperty`; the clear box holding the notes, the offer, the walking control, and the 2D stage.
   - `app.ts`'s `show()` and `toFlat()`: the 2D element and `flat-failed` go into the clear box.
@@ -125,7 +125,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - `apps/web/room/ui-words.yaml`'s `flat-failed` (D9), and the fixture room's words.
 
   Check: T008 and T010 pass; the existing room tests pass, or change only their layout expectations, which the note lists (feat/005-full-window-room)
-- [ ] T014 Align the compositor (plan §10.1 to §10.3):
+- [x] T014 Align the compositor (plan §10.1 to §10.3):
   - `build/room/checks/rg.ts`: RG6 reserves `reservedBoxes(stage)`, and `pickSweep` takes a stages argument;
   - `scene/bundle3d.ts`'s `selectablePicker` holds the same boxes;
   - `build/room/report.ts`: the "Stages" and "Reserved boxes" lines;

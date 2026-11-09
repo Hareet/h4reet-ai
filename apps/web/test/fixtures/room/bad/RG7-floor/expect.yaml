@@ -1,7 +1,7 @@
 rule: RG7
 file: apps/web/room/scene.yaml
 path: placements[3].faces.panel
-why: main's caps raising the floor to 11 px, over the neon panel's cap height on the phone stage
+why: main's caps raising the floor to 12 px, over the neon panel's cap height on the phone stage (11.2 px since spec 005's stages; 11 px before)
 caps:
   schema: 1
   per_asset:
@@ -11,4 +11,4 @@ caps:
       small_props: []
       small_prop_texture_px: 1024
       scene_texture_bytes: 96000000
-      legibility_floor_css_px: 11
+      legibility_floor_css_px: 12

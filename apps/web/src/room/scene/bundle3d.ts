@@ -48,7 +48,7 @@ import { listOnly, memberRect, pick, pickAreas } from "../compose/pick";
 import type { PickArea } from "../compose/pick";
 import { toStage } from "../compose/project";
 import type { Camera } from "../compose/project";
-import { walkControlBox } from "../compose/stages";
+import { reservedBoxes } from "../compose/hud";
 import type { Stage } from "../compose/stages";
 import { VISITOR_TURN, handOffset, sideOf, visitorTurnShare } from "../handoff";
 import type { Side } from "../handoff";
@@ -381,7 +381,7 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
     // The walking control's box reserved, as RG6 reserves it: a side-wall selectable whose core lies under it is held
     // here exactly where the compositor's report lists it (spec 008, FR-021; plan.md §2); and at the follow camera,
     // where the control still stands, the carve-out applied there (FR-035).
-    held = listOnly(areas, [0, 0, next.w, next.h], sideWall, [walkControlBox(next)]);
+    held = listOnly(areas, [0, 0, next.w, next.h], sideWall, reservedBoxes(next));
   };
   return {
     resize(next) {

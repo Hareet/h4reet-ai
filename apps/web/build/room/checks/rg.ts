@@ -49,6 +49,7 @@ import { dot, normalize, origin, rotation, sub, transformPoint } from "../../../
 import type { Mat4, Turn, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
+import { reservedBoxes } from "../../../src/room/compose/hud";
 import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
 import type { MemberRect, PickArea, PickProblem, Rect } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
@@ -61,7 +62,6 @@ import {
   flatScale,
   smallestFlatStage,
   supportedStages,
-  walkControlBox,
 } from "../../../src/room/compose/stages";
 import type { Stage } from "../../../src/room/compose/stages";
 import { TIER_VALUES, isSideWallAnchor } from "../../../src/room/compose/vocabulary";
@@ -568,9 +568,12 @@ const sweeps = new WeakMap<Geometry, PickSweep>();
  *  selectables; in 3D its members are its frame boxes projected on the stage, and in 2D the index's flat hits
  *  (`flatMembers`), which the 2D room picks from, their core 44 px at the stage's scale. At each stage `listOnly`
  *  holds the side-wall selectables FR-064's carve-out leaves to the list there, and `pickProblems` gives the rest. */
-export function pickSweep(g: Geometry): PickSweep {
-  const known = sweeps.get(g);
+export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
+  // The supported stages unless a test gives others (spec 005, T025: spec 004's frozen stages, for FR-057's subset);
+  // only the supported stages' sweep is kept for the compose.
+  const known = at === undefined ? sweeps.get(g) : undefined;
   if (known) return known;
+  const sweepStages = at ?? allStages();
   const s = g.scene.value;
   const selectables = s.selectables.flatMap((x, k) => {
     const boxes = x.members.flatMap((m) => {
@@ -615,7 +618,7 @@ export function pickSweep(g: Geometry): PickSweep {
   const flatInputs = selectables.map(({ id }) => ({ id, members: flat[Number(id)] ?? [] }));
   const flatAreas = new Map<number, PickArea[]>();
   const flatView: Rect = [0, 0, FLAT_VIEW.w, FLAT_VIEW.h];
-  for (const stage of allStages()) {
+  for (const stage of sweepStages) {
     const { camera } = cameraAt(g, stage.w / stage.h);
     const areas = pickAreas(
       selectables.map(({ id, boxes }) => ({
@@ -627,8 +630,9 @@ export function pickSweep(g: Geometry): PickSweep {
       })),
     );
     const view: Rect = [0, 0, stage.w, stage.h];
-    // Spec 008 (FR-021, FR-058): the walking control's box, in the stage's bottom-right corner in 3D, is reserved.
-    const reserved = [walkControlBox(stage)];
+    // Spec 008 (FR-021, FR-058): the walking control's box, in the stage's bottom-right corner in 3D, is reserved; since
+    // spec 005 every HUD control over the clear area is (its FR-055), compose/hud.ts's reservedBoxes.
+    const reserved = reservedBoxes(stage);
     const held = listOnly(areas, view, sideWall, reserved);
     note("3D", pickProblems(areas, view, held, reserved), stage);
     for (const id of held) picks.get(id)?.stages.push(stage);
@@ -647,7 +651,7 @@ export function pickSweep(g: Geometry): PickSweep {
     sideWalls: [...picks.values()],
     boxHolds: [...boxHolds.values()].filter((h) => h.stages.length > 0),
   };
-  sweeps.set(g, sweep);
+  if (at === undefined) sweeps.set(g, sweep);
   return sweep;
 }
 

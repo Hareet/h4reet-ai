@@ -95,7 +95,7 @@ function holds(prelude: string, vp: Viewport): boolean {
       if (feature === "orientation") return value === (vp.width > vp.height ? "landscape" : "portrait");
       if (feature === "prefers-reduced-motion" || feature === "pointer") return false;
       // Spec 005's preference queries, off as the default visitor has them.
-      if (["forced-colors", "prefers-contrast", "prefers-reduced-transparency"].includes(feature)) return false;
+      if (["forced-colors", "prefers-contrast", "prefers-reduced-transparency"].includes(feature ?? "")) return false;
       return true;
     }),
   );

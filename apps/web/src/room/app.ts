@@ -170,7 +170,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const open = (): boolean => visit.stage === "room" && !offering;
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
-  let hudState: HudState = OPENING;
+  const hudState: HudState = OPENING;
 
   /** The window's measures: its CSS size, its root font size, and its safe areas. */
   function measures(): { w: number; h: number; metrics: HudMetrics } {
