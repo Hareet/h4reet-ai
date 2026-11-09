@@ -82,7 +82,8 @@ TWIN_KEYS = {"feature", "path", "turns"}
 TWIN_PATHS = {"engineer", "non-engineer"}
 TWIN_KINDS = {"golden", "gap"}
 TWIN_ROLES = {"visitor", "twin"}
-# The readiness file's default threshold for Golden Q&A cases (spec 007, FR-031), which the summary reads as information.
+# The readiness file's default threshold for Golden Q&A cases (spec 007, FR-031), which the summary reads as information:
+# the share a path with ten or more golden cases needs (golden_bar).
 TWIN_GOLDEN_THRESHOLD = 0.90
 # Suites that only the fake adapter runs. Spec 002's narration cases (contracts/narration.md §2) score prepared
 # scripts, not a model: a local run would send them to a stack's /hello, and the other adapter would charge prod's meter.
@@ -178,6 +179,23 @@ def twin_topic(case_id: str) -> str:
         r"twin-(.+?)-(?:q\d+|gap-\d+)-(?:engineer|non-engineer)", case_id
     )
     return match.group(1) if match else case_id
+
+
+def golden_bar(n: int) -> int:
+    """The passes a path's n golden cases need (spec 007's FR-031, amended 2026-11-08): all but one when it has two to
+    nine, its one when it has one, and the readiness file's default share from ten. evals/twin_readiness.py's golden_bar
+    is the rule; a test holds this one to it."""
+    if n < 10:
+        return max(n - 1, 1) if n > 0 else 0
+    return next((k for k in range(n + 1) if k / n >= TWIN_GOLDEN_THRESHOLD), n)
+
+
+def golden_line(topic: str, path: str, passed: int, total: int) -> str:
+    """A topic's and path's summary line: its golden cases passed, against the bar that applies."""
+    return (
+        f"twin {topic} {path}: {passed} of {total} golden cases passed"
+        f" ({passed / total:.0%}; the bar is {golden_bar(total)} of {total})"
+    )
 
 
 def score(case: dict[str, Any], answer: str) -> list[str]:
@@ -596,13 +614,11 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
             if "twin" in case and answer.get("prompt_sha256"):
                 prompt_hashes.add(answer["prompt_sha256"])
         cost = sum(r["cost_micro_usd"] for r in results)
-        # Each topic's and path's Golden Q&A pass rate, against the readiness file's threshold: information, which
-        # fails nothing here (spec 007, FR-031; evals/twin_readiness.py reads the committed history).
+        # Each topic's and path's Golden Q&A pass rate, against the bar that applies: information, which fails nothing
+        # here, as the exit status follows every case's verdict (spec 007, FR-031 as amended on 2026-11-08;
+        # evals/twin_readiness.py reads the committed history).
         for (topic, path), (passed, total) in sorted(twin_rates.items()):
-            print(
-                f"twin {topic} {path}: {passed} of {total} golden cases passed"
-                f" ({passed / total:.0%}; the threshold is {TWIN_GOLDEN_THRESHOLD:.0%})"
-            )
+            print(golden_line(topic, path, passed, total))
         if args.adapter != "fake":
             record = {
                 "suite": args.suite,

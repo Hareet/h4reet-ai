@@ -251,6 +251,31 @@ def test_the_bar_is_all_but_one_under_ten_and_the_share_from_ten() -> None:
     assert report.golden_bar(20, 0.5) == 10
 
 
+def test_each_path_counts_its_own_golden_cases(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Every "-non-engineer" ID ends "-engineer" too, so the engineer path once counted both paths' cases: its one
+    # failed case beside the other path's passing one read as one of two, which the bar of one passes (plan.md D30).
+    files = evidence(tree, pack=h("topic"), prompt=prompt_sha(tree))
+    product = tree / files[0]
+    record = json.loads(product.read_text(encoding="utf-8"))
+    record["results"] = [
+        {
+            "id": f"twin-04-hobbies-and-travel-q1-{path}",
+            "verdict": verdict,
+            "feature": "fx-bike",
+            "pack_sha256": h("topic"),
+            "guard": None,
+        }
+        for path, verdict in (("engineer", "FAIL"), ("non-engineer", "PASS"))
+    ]
+    product.write_text(json.dumps(record), encoding="utf-8")
+    readiness(tree, ready_entry(h("topic"), prompt_sha(tree), files))
+    assert report.main(["--root", str(tree)]) == 0
+    out = capsys.readouterr().out
+    assert "engineer golden cases passed 0 of 1, under the bar of 1" in out, out
+
+
 def test_a_gap_case_and_a_red_team_result_still_must_all_pass(
     tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
