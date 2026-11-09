@@ -10,6 +10,7 @@
 //
 // The designs render from the decoded facts alone (facts.ts), here, at send time, never in a cause's transaction
 // (plan D1). They are registered in RENDERERS, which the dispatcher reads unless it is handed others (tests).
+import { designEmail } from "./email-design.js";
 import { decodeFacts } from "./facts.js";
 import type { AlertContext, AlertSpec } from "./format.js";
 import { designTelegram } from "./telegram-design.js";
@@ -57,6 +58,8 @@ export interface DesignedRenderers {
 export const RENDERERS: DesignedRenderers = {
   // User Story 1 (spec 011, plan §4): Telegram's message with its entities.
   telegram: designTelegram,
+  // User Story 2 (spec 011, plan §5): the email's HTML part, under the designed subject.
+  email: designEmail,
 };
 
 /** The bounds (FR-023; Q3's answer): Telegram's text in UTF-16 code units, the HTML part in UTF-8 bytes. */

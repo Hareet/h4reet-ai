@@ -69,6 +69,8 @@ export function marksOf(spec: AlertSpec): Marks {
 interface Scheme {
   /** Each severity's band: its colour, and the text on it. A bar's fill is the band's colour. */
   band: Readonly<Record<Severity, { background: string; text: string }>>;
+  /** Around the card: no text sits on it. */
+  page: string;
   card: string;
   /** Body text and labels on the card. */
   text: string;
@@ -88,6 +90,7 @@ export const PALETTE: Readonly<{ light: Scheme; dark: Scheme }> = {
       operator_action: { background: "#175CD3", text: "#FFFFFF" },
       information: { background: "#475467", text: "#FFFFFF" },
     },
+    page: "#F2F4F7",
     card: "#FFFFFF",
     text: "#101828",
     label: "#475467",
@@ -101,6 +104,7 @@ export const PALETTE: Readonly<{ light: Scheme; dark: Scheme }> = {
       operator_action: { background: "#84CAFF", text: "#101828" },
       information: { background: "#D0D5DD", text: "#101828" },
     },
+    page: "#0C111D",
     card: "#0C111D",
     text: "#F2F4F7",
     label: "#98A2B3",

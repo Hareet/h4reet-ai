@@ -112,7 +112,8 @@ function visibleText(source: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
 }
 
 describe("the designed subject (FR-016; Q1's answer)", () => {
@@ -240,8 +241,11 @@ describe("the layout (FR-003, FR-018)", () => {
   });
 
   it("leaves out what the plain text leaves out, and marks dev's synthetic spend and test clock", () => {
-    const store = visibleText(html(named("17-store-unreachable")));
-    expect(store).not.toContain("Meters");
+    // Its sentence says "Meters and alerts resume", so the block is looked for by its rows and its bars.
+    const storeHtml = html(named("17-store-unreachable"));
+    const store = visibleText(storeHtml);
+    expect(store).not.toMatch(/\bDaily\b/);
+    expect(storeHtml).not.toMatch(/<td class="h4-(fill|track)"/);
     expect(store).not.toMatch(/Fallback\s/);
     const dev = visibleText(html(named("case-dev-test-clock")));
     expect(dev).toContain("(synthetic spend)");
