@@ -360,7 +360,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ## Phase 10: Polish, the review, the note, and the Author's steps
 
-- [ ] T042 Run `make lint`, `make test`, and `make check ENGINE_MODE=none-yet` in the worktree, and `gitleaks dir`. Paste each whole output into the note. Also record:
+- [x] T042 Run `make lint`, `make test`, and `make check ENGINE_MODE=none-yet` in the worktree, and `gitleaks dir`. Paste each whole output into the note. Also record:
   - the entry chunk's gzip size beside T001's (SC-015);
   - `npm run room:check`'s time and stage count beside T001's;
   - that `package-lock.json`'s diff is empty (FR-029);
@@ -368,7 +368,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
   Check: all pass; `make up ENV=dev-cpu`'s compose config is unchanged (FR-067) (feat/005-full-window-room)
 - [x] T043 Write `apps/web/room/README.md`'s "The HUD and the window" (plan §13), and finish ADR 0043 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/005-full-window-room)
-- [ ] T044 Draft the merge-request note, `docs/merge-requests/<date>-feat-005-full-window-room.md`, and commit it as a save point. It holds:
+- [x] T044 Draft the merge-request note, `docs/merge-requests/<date>-feat-005-full-window-room.md`, and commit it as a save point. It holds:
   - what changed and why, with the Author's words quoted;
   - each FR's status;
   - the departures;
