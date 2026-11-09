@@ -705,3 +705,11 @@ No task lacks a requirement or a story.
 **Metrics**: 68 FRs; 15 SCs; 51 tasks (T000 to T050), 5 of them the Author's (T000, T047 to T050); one review by an agent that wrote none of the work (T045); FR coverage 100%. Findings: 0 critical. 2 high, both resolved in the documents. 6 medium: A3 to A5 resolved, A6 accepted, A7 and A8 open until T001, T007, and T008. 10 low: A9 and A16 open, the rest resolved or accepted.
 
 **Next actions**: the Author's approval of the spec and this plan (T000); then T001, which settles A8 and A9, and T007 and T008, which settle A7.
+
+## Departures (implementation)
+
+Recorded in the commits that made them, on `feat/005-full-window-room`. Each is the implementer's, the Author's to overturn; none changes a requirement of the spec unless it says so.
+
+| ID | Where | What changed | Why |
+|---|---|---|---|
+| B1 | §6.8, PD-14; T001 | A clarification, not a change of design: where a browser resizes the layout viewport for the on-screen keyboard (Firefox for Android, as T001 records it), the window got shorter, so the room re-fits as for any resize, the dock staying at the window's foot above the keyboard, and the keyboard's inset reads 0 there. Where the browser resizes the visual viewport alone (iOS Safari; Chrome for Android since 108), the keyboard lifts the HUD's foot by its inset and nothing re-fits, as planned | T001's facts; FR-050 holds either way |
