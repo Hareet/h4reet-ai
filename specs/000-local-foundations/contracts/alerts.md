@@ -280,6 +280,8 @@ Each alert, and each degraded cause, points at one page in `docs/runbooks/`, eve
 | `store_unreachable`; the cause `store_unreachable` | `store-unreachable.md` |
 | the cause `journal_unwritable` | `journal-unwritable.md` |
 | the cause `api_unavailable` | `gateway-down.md` |
+| the adapter month's `warn` and `fallback_exhausted`; the cause `adapter_month_spent` (spec 010) | `fallback-renewal.md` |
+| `fallback_unavailable` for the Anthropic API (spec 010) | `anthropic-unavailable.md` |
 
 **(spec 010)** The adapter month's warning and exhaustion map to `docs/runbooks/fallback-renewal.md`, and `fallback_unavailable` for the Anthropic API to `docs/runbooks/anthropic-unavailable.md`.
 

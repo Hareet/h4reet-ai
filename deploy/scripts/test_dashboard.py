@@ -963,3 +963,26 @@ def test_the_avatar_failure_share_reads_as_the_2d_share_reads() -> None:
     assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
     for words in ("avatar_failed", "resume_opened", "resume_kept", "stand-in"):
         assert words in panel["description"], words
+
+
+# Spec 010 (FR-036; its plan §9): the paid adapter's month beside its cap and its warning, in the Spend row, and the
+# adapters' months as the store holds them, beside the store-state panel.
+ADAPTER_MONTH_PANEL = "Paid adapter's month against its cap"
+ADAPTER_MONTHS_TABLE = "Paid adapters' months (authoritative)"
+
+
+def test_the_paid_adapters_month_has_its_panels() -> None:
+    found = by_title()
+    month = found[ADAPTER_MONTH_PANEL]
+    assert queries(month) == [
+        "max by (h4_adapter) (h4_adapter_month_spend_usd)",
+        "max by (h4_adapter) (h4_adapter_month_warn_usd)",
+        "max by (h4_adapter) (h4_adapter_month_cap_usd)",
+    ]
+    table = found[ADAPTER_MONTHS_TABLE]
+    assert queries(table) == [
+        "SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, "
+        "reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter"
+    ]
+    assert table["type"] == "table"
+    assert table["datasource"]["uid"] == "gateway"
