@@ -32,6 +32,10 @@ and refuses, in what compose rendered:
     volumes_from, cap_drop ALL with cap_add only CHOWN, SETUID, SETGID, FOWNER, and DAC_OVERRIDE,
     no-new-privileges and nothing that relaxes it, restart unless-stopped, and Docker's local log driver;
   - a dev-only switch that compose sets itself instead of taking it from the env file;
+  - the Anthropic API key (spec 010): an ANTHROPIC_* variable on any service, or a reference to one anywhere;
+    GATEWAY_ANTHROPIC_API_KEY on any service but gateway, on gateway in any form but
+    ${GATEWAY_ANTHROPIC_API_KEY:-}, or its name anywhere else (another variable, a build argument, a label, a
+    command);
   - a service with no row in docs/data-flow-disclosure.md (a row whose "From" names it in backticks).
 
 Then the files:
@@ -85,6 +89,14 @@ WRITABLE_ROOT = "${H4_STATE_DIR}/gateway"
 NETWORKS = ("internal", "edge", "egress")
 PUBLISHER = "edge"
 EGRESS_SERVICE = "gateway"
+# Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
+ANTHROPIC_KEY = "GATEWAY_ANTHROPIC_API_KEY"
+ANTHROPIC_KEY_FORM = "${GATEWAY_ANTHROPIC_API_KEY:-}"
+# The key's name anywhere else, and a reference to a variable the Anthropic SDK reads on its own.
+ANTHROPIC_KEY_NAME = re.compile(
+    r"(?<![A-Za-z0-9_])GATEWAY_ANTHROPIC_API_KEY(?![A-Za-z0-9_])"
+)
+ANTHROPIC_REFERENCE = re.compile(r"\$\{?ANTHROPIC_")
 GPU_SERVICE = "model-server-gpu"
 GPU_RESERVATION = {"driver": "nvidia", "count": 1, "capabilities": ["gpu"]}
 CAP_ADD_ALLOWED = {"CHOWN", "SETUID", "SETGID", "FOWNER", "DAC_OVERRIDE"}
@@ -340,6 +352,26 @@ def as_mapping(value: object) -> dict[str, object]:
     return {}
 
 
+def anthropic_references(value: object, path: str = "") -> list[str]:
+    """Where rendered compose names the Anthropic API key or refers to an ANTHROPIC_* variable (spec 010): each
+    path, in a mapping's keys and every string, at any depth."""
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            here = f"{path}.{key}" if path else str(key)
+            if ANTHROPIC_KEY_NAME.search(str(key)):
+                found.append(here)
+            found.extend(anthropic_references(item, here))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(anthropic_references(item, f"{path}[{index}]"))
+    elif isinstance(value, str) and (
+        ANTHROPIC_KEY_NAME.search(value) or ANTHROPIC_REFERENCE.search(value)
+    ):
+        found.append(path)
+    return found
+
+
 def volume_entries(service: dict) -> list[dict[str, object]]:
     entries = []
     for item in service.get("volumes") or []:
@@ -544,6 +576,36 @@ def check_service(
     if aws and name != EGRESS_SERVICE:
         refuse(
             "environment", f"{', '.join(aws)}: AWS settings belong to the gateway alone"
+        )
+    # The Anthropic API key (spec 010): no service holds a variable the SDK reads on its own, and the gateway alone
+    # holds prod's key, from the env file and in this one form.
+    anthropic = sorted(k for k in environment if k.startswith("ANTHROPIC_"))
+    if anthropic:
+        refuse(
+            "environment",
+            f"{', '.join(anthropic)}: no service holds a variable the Anthropic SDK reads on its own",
+        )
+    if ANTHROPIC_KEY in environment:
+        if name != EGRESS_SERVICE:
+            refuse("environment", f"{ANTHROPIC_KEY} belongs to the gateway alone")
+        elif environment[ANTHROPIC_KEY] != ANTHROPIC_KEY_FORM:
+            refuse(
+                "environment",
+                f"{ANTHROPIC_KEY} comes from the env file, as {ANTHROPIC_KEY_FORM}",
+            )
+    # Any other mention of the key, or reference to an ANTHROPIC_* variable: in another variable's value, a build
+    # argument, a label, a command, or any other field. The key reaches the gateway as its own entry alone.
+    rest = {key: value for key, value in service.items() if key != "environment"}
+    rest["environment"] = {
+        key: value
+        for key, value in environment.items()
+        if key != ANTHROPIC_KEY and not key.startswith("ANTHROPIC_")
+    }
+    for path in anthropic_references(rest):
+        refuse(
+            "anthropic key",
+            f"{path} names {ANTHROPIC_KEY} or refers to an ANTHROPIC_* variable: the key reaches the gateway as "
+            "its own entry alone",
         )
     return found
 
@@ -771,6 +833,16 @@ def check_model(
     for key, why in top_level.items():
         if model.get(key):
             found.append(Finding(COMPOSE_FILE, key, f"top-level {key} {why}"))
+    # The Anthropic key's name, or a reference to an ANTHROPIC_* variable, outside the services (spec 010).
+    outside = {key: value for key, value in model.items() if key != "services"}
+    for path in anthropic_references(outside):
+        found.append(
+            Finding(
+                COMPOSE_FILE,
+                "anthropic key",
+                f"{path} names {ANTHROPIC_KEY} or refers to an ANTHROPIC_* variable",
+            )
+        )
     return found
 
 

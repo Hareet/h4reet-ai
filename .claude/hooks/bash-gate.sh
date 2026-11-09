@@ -149,13 +149,17 @@ if [ "$engine_reads" = 0 ] && echo "$cmd" | grep -Eq "$engine_run" \
 fi
 # The Author's own targets and commands (spec 000 plan §13; tasks.md T103, T104): make contract-live calls a live
 # adapter, Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals
-# call Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md).
+# call Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md). Spec 010's paid route,
+# the Anthropic API, gets the same rules with anthropic (its FR-024, FR-032): make evals or make check, and
+# evals/run.py, its module, or an import of it, naming it. make contract-live is refused by name whatever its
+# adapter, and make redteam-live by its own SANDBOX_RUNTIME check and the operator token the sandbox can't read.
 # - A make target is two matches in one command: make (gmake, a path to either, or tools/gates/run_checks, which runs
 #   make, by path or as a module), and the target's name after any character a name or a path can't hold, so after an
 #   option or an assignment (.DEFAULT_GOAL=, --eval=), a quote, a brace, a parameter's default (${t:-…}), or a separator
-#   inside a quoted value. The evals need bedrock too, through make evals or make check, whose evals gate runs it.
-# - operator.py with contract-record, and evals/run.py, its module, or an import of it with bedrock, are the same two
-#   matches, so they hold through runpy, or a copy made in the same command.
+#   inside a quoted value. The evals need bedrock or anthropic too, through make evals or make check, whose evals
+#   gate runs it.
+# - operator.py with contract-record, and evals/run.py, its module, or an import of it with bedrock or anthropic, are
+#   the same two matches, so they hold through runpy, or a copy made in the same command.
 # - aws-login.sh matches where it runs, by the engine rule's starts and skips, and wherever a shell is started in the
 #   same command (| bash, bash <, sh -c "$(cat …)", eval), so git add, git diff, cat, and shellcheck naming it work.
 # - The AWS CLI matches as aws anywhere, with sso and login, configure and sso, or sso-oidc.
@@ -163,7 +167,8 @@ fi
 # run time or held in a variable, a glob, an ANSI-C escape, a computed import, or a copy run in a command of its own
 # does (the matrix's gap rows); the targets' own SANDBOX_RUNTIME refusals and the token and session the sandbox can't
 # read still stop those. The match is on the command's text, so a command that only names them is refused too: a
-# make target and make (git log --grep='make contract-live'), bedrock and make evals or make check, contract-record and
+# make target and make (git log --grep='make contract-live'), bedrock or anthropic and make evals or make check (not
+# anthropic-messages or @anthropic-ai/sdk, where - is a name's character: spec 010's plan, R-11), contract-record and
 # operator.py, aws-login.sh and a shell started in the same command, or aws with sso login or configure sso (a grep of
 # T105's steps). Read with the Read and Grep tools, and commit with a message file.
 author_route="the Author runs it (spec 000 plan §13); ask the Author"
@@ -193,6 +198,7 @@ ne="([^[:alnum:]_.-]|\$)"
 tb="(^|[^[:alnum:]_./-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])(\.${eq}(/${eq})+)*"
 te="([^[:alnum:]_./-]|\$)"
 bedrock_word="${nb}$(spelled bedrock)${ne}"
+anthropic_word="${nb}$(spelled anthropic)${ne}"
 make_word="${nb}(g${eq})?$(spelled make)${ne}|${nb}$(spelled run_checks)(${eq}$(spelled .py))?${ne}|$(spelled tools.gates.run_checks)${ne}"
 if has "$make_word"; then
   if has "${tb}($(spelled contract-live)|$(spelled aws-login))${te}"; then
@@ -201,6 +207,9 @@ if has "$make_word"; then
   if has "${tb}($(spelled evals)|$(spelled check))${te}" && has "$bedrock_word"; then
     block "the Bedrock evals" "make evals or make check with ADAPTER=bedrock: $author_route"
   fi
+  if has "${tb}($(spelled evals)|$(spelled check))${te}" && has "$anthropic_word"; then
+    block "the Anthropic evals" "make evals or make check with ADAPTER=anthropic: $author_route"
+  fi
 fi
 if has "${nb}$(spelled operator.py)${ne}" && has "${nb}$(spelled contract-record)${ne}"; then
   block "operator.py's contract-record" "$author_route"
@@ -208,6 +217,9 @@ fi
 evals_run="${nb}($(spelled evals/run.py)|$(spelled evals.run))${ne}|$(spelled from)[[:space:]]+$(spelled evals)[[:space:]]+$(spelled import)${ne}"
 if has "$evals_run" && has "$bedrock_word"; then
   block "the Bedrock evals" "evals/run.py --adapter bedrock: $author_route"
+fi
+if has "$evals_run" && has "$anthropic_word"; then
+  block "the Anthropic evals" "evals/run.py --adapter anthropic: $author_route"
 fi
 aws_login="${nb}$(spelled aws-login.sh)${ne}"
 shell_start="(^|[[:space:];&|(\`{]|\\\$\()(bash|sh|zsh|dash|ksh|source|eval|\.)([[:space:]]|\$)"

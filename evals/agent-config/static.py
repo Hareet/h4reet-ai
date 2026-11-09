@@ -69,6 +69,11 @@ FR007_VARIABLES = [
     "AWS_ROLE_ARN",
     "AWS_CONTAINER_CREDENTIALS_FULL_URI",
     "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+    # Spec 010 (FR-030, FR-032; contracts/env-files.md §8): the Anthropic API key, under prod's name. The name its
+    # SDK reads on its own, ANTHROPIC_API_KEY, is denied by name too, but it isn't on this list: the canary and the
+    # behavioral tier put a fake value for every name here into a Claude Code session, and that name would sign the
+    # session in with the fake. Both strip it instead (STRIPPED), and the matrix checks its deny on a row of its own.
+    "GATEWAY_ANTHROPIC_API_KEY",
 ]
 
 # The FR-007 variables the settings denied before spec 000; the early patch (T045) denies the rest.

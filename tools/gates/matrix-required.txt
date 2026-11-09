@@ -323,3 +323,23 @@ H/git-hook/update-ref refs/remotes/origin/main, a remote-tracking branch
 H/git-hook/update-ref refs/heads/topic/main, a branch
 H/git-hook/tag maintenance
 H/git-hook/tag -d main, a deletion
+
+# --- spec 010's patch P-A (FR-024, FR-032): the Anthropic key's names, and the bash gate's anthropic rules ---
+H/settings/FR-007: GATEWAY_ANTHROPIC_API_KEY is denied by name
+H/settings/spec 010: ANTHROPIC_API_KEY is denied by name
+H/bash-gate.sh/make evals ADAPTER=anthropic
+H/bash-gate.sh/ADAPTER=anthropic make check
+H/bash-gate.sh/make evals ADAPTER=${A:-anthropic}
+H/bash-gate.sh/make -C . evals ADAPTER=anthropic
+H/bash-gate.sh/bash -c 'make evals ADAPTER=anthropic'
+H/bash-gate.sh/(make evals ADAPTER=anthropic)
+H/bash-gate.sh/make evals ADAPTER=an"thro"pic
+H/bash-gate.sh/make --eval=.DEFAULT_GOAL:=evals ADAPTER=anthropic
+H/bash-gate.sh/env -u SANDBOX_RUNTIME make check ADAPTER=anthropic
+H/bash-gate.sh/python3 -m evals.run --suite product --adapter anthropic
+H/bash-gate.sh/python3 -c "from evals import run; run.main()" --adapter anthropic
+H/bash-gate.sh/make contract-live ENV=prod ADAPTER=anthropic REASON="a live run"
+H/bash-gate.sh/make evals \<newline>ADAPTER=anthropic
+H/bash-gate.sh/bash <<EOF make evals ADAPTER=anthropic EOF
+H/bash-gate.sh/make lint && pytest -q evals/test_disclosure.py -k anthropic
+H/bash-gate.sh/npm ls @anthropic-ai/sdk -w services/gateway

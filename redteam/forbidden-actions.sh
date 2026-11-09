@@ -357,6 +357,33 @@ cmd block 'make ./evals ADAPTER=bedrock'
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 cmd block 'python3 -m evals.run --suite product --adapter bedrock'
 cmd block 'python3 -c "from evals import run; run.main()" --adapter bedrock'
+# The evals with anthropic (spec 010, FR-024, FR-032; its patch P-A): bedrock's spellings, and the forms CLAUDE.md asks
+# of every bash-gate rule: make -C, bash -c, a subshell, quotes and a backslash inside the word, a parameter's default,
+# --eval=, env -u, a backslash-newline, and a heredoc. make contract-live with anthropic is refused by name, as with
+# any adapter.
+cmd block 'make evals ADAPTER=anthropic'
+cmd block 'ADAPTER=anthropic make evals'
+cmd block 'make ADAPTER="anthropic" evals'
+# shellcheck disable=SC2016
+cmd block 'make evals ADAPTER=${A:-anthropic}'
+cmd block 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=anthropic'
+cmd block 'ADAPTER=anthropic make check'
+cmd block 'make ./evals ADAPTER=anthropic'
+cmd block 'make -C . evals ADAPTER=anthropic'
+cmd block "bash -c 'make evals ADAPTER=anthropic'"
+cmd block '(make evals ADAPTER=anthropic)'
+cmd block 'make evals ADAPTER=an"thro"pic'
+cmd block 'make evals ADAPTER=anthrop\ic'
+cmd block 'make --eval=.DEFAULT_GOAL:=evals ADAPTER=anthropic'
+cmd block 'env -u SANDBOX_RUNTIME make check ADAPTER=anthropic'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter anthropic'
+cmd block 'python3 -m evals.run --suite product --adapter anthropic'
+cmd block 'python3 -c "from evals import run; run.main()" --adapter anthropic'
+cmd block 'make contract-live ENV=prod ADAPTER=anthropic REASON="a live run"'
+check bash-gate.sh block 'make evals \<newline>ADAPTER=anthropic' \
+  "$(jq -cn --arg c "$(printf 'make evals \\\nADAPTER=anthropic')" '{command:$c}')"
+check bash-gate.sh block 'bash <<EOF make evals ADAPTER=anthropic EOF' \
+  "$(jq -cn --arg c "$(printf 'bash <<EOF\nmake evals ADAPTER=anthropic\nEOF')" '{command:$c}')"
 # The commands the targets run: operator.py's contract-record, quoted whole or in part, through runpy, and copied in the
 # same command; aws-login.sh where it runs; and the AWS CLI's sign-in, through bash -c, quotes, a path, backticks, a
 # separator inside a quoted value, configure sso, and sso-oidc.
@@ -418,6 +445,10 @@ check bash-gate.sh gap "gh pr \<newline>merge 1" "$(jq -cn --arg c "$(printf 'gh
 cmd gap "make \$'aws\\x2dlogin' ENV=prod"
 cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock'
 cmd gap 'cd evals && python3 run.py --suite product --adapter bedrock'
+# shellcheck disable=SC2016
+cmd gap 'a=anthro; make evals ADAPTER="${a}pic"'
+cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter anthropic'
+cmd gap 'cd evals && python3 run.py --suite product --adapter anthropic'
 cmd gap 'python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
 cmd gap '/tmp/a sso login --profile h4reet-bedrock'
 # What the rules leave alone: other targets, the fake evals, reads that don't name make, and a file named as an
@@ -436,6 +467,10 @@ cmd allow 'cat deploy/scripts/aws-login.sh'
 cmd allow 'make check ENGINE_MODE=none-yet'
 cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
 cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
+cmd allow 'make lint && pytest -q evals/test_disclosure.py -k anthropic'
+cmd allow 'npm ls @anthropic-ai/sdk -w services/gateway'
+cmd allow 'grep -rn anthropic-messages services/gateway/src'
+cmd allow 'make test-fast 2>&1 | grep anthropic-messages'
 check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
@@ -2513,7 +2548,7 @@ has "the agents' own engine certificate stays readable" '[.sandbox.filesystem.de
 # shellcheck disable=SC2016 # $w and $p are jq variables, not shell expansions
 has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./config/twin-readiness.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
 # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
-has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
+has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN", "GATEWAY_ANTHROPIC_API_KEY"] | all(. as $v | $n | index($v) != null)'
 has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
 
 # FR-007, per secret (convergence T198): contracts/env-files.md §8's table names each variable and the file that holds
@@ -2569,6 +2604,10 @@ while read -r kind item; do
       ;;
   esac
 done <<<"$fr007"
+# ANTHROPIC_API_KEY (spec 010, FR-032; its plan's B9): denied by name, as GITHUB_TOKEN is, but not an FR-007 variable.
+# It is the name Claude Code signs in with, so the canary and the behavioral tier, which fake every FR-007 variable in
+# a session, strip it instead, and its deny gets this row of its own.
+set_has "spec 010: ANTHROPIC_API_KEY is denied by name" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] | index("ANTHROPIC_API_KEY") != null'
 
 # The closing patch (plan §15; tasks.md T117): the paths it denies, and Claude Code's own reporting switched off.
 # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions

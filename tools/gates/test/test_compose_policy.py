@@ -606,6 +606,89 @@ def test_aws_settings_belong_to_the_gateway_alone(tmp_path: Path) -> None:
     assert ("gateway-state", "environment") in rules(model, tmp_path)
 
 
+def test_no_service_holds_a_variable_the_anthropic_sdk_reads(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["ANTHROPIC_BASE_URL"] = (
+        "${ANTHROPIC_BASE_URL:-}"
+    )
+    assert ("gateway", "environment") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_belongs_to_the_gateway_alone(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway-state"]["environment"] = [
+        "GATEWAY_ANTHROPIC_API_KEY=${GATEWAY_ANTHROPIC_API_KEY:-}"
+    ]
+    assert ("gateway-state", "environment") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_comes_from_the_env_file(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_ANTHROPIC_API_KEY"] = (
+        "a-literal"
+    )
+    assert ("gateway", "environment") in rules(model, tmp_path)
+
+
+def test_the_gateway_holds_the_anthropic_key_from_the_env_file(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_ANTHROPIC_API_KEY"] = (
+        "${GATEWAY_ANTHROPIC_API_KEY:-}"
+    )
+    assert findings(model, tmp_path) == []
+
+
+def test_no_other_service_refers_to_the_anthropic_key(tmp_path: Path) -> None:
+    # The review of spec 010's branch: by key name alone, this passed.
+    model = good_model()
+    model["services"]["gateway-state"]["environment"] = {
+        "X": "${GATEWAY_ANTHROPIC_API_KEY}"
+    }
+    assert ("gateway-state", "anthropic key") in rules(model, tmp_path)
+
+
+def test_no_other_gateway_variable_refers_to_the_anthropic_key(tmp_path: Path) -> None:
+    model = good_model()
+    environment = model["services"]["gateway"]["environment"]
+    environment["GATEWAY_ANTHROPIC_API_KEY"] = "${GATEWAY_ANTHROPIC_API_KEY:-}"
+    environment["GATEWAY_EXTRA"] = "prefix-$GATEWAY_ANTHROPIC_API_KEY"
+    assert ("gateway", "anthropic key") in rules(model, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("command", ["sh", "-c", "echo $GATEWAY_ANTHROPIC_API_KEY"]),
+        ("labels", {"key": "GATEWAY_ANTHROPIC_API_KEY"}),
+        ("build", {"context": "..", "args": {"GATEWAY_ANTHROPIC_API_KEY": None}}),
+    ],
+)
+def test_the_anthropic_key_is_named_nowhere_else_in_a_service(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    model = good_model()
+    model["services"]["gateway-state"][field] = value
+    assert ("gateway-state", "anthropic key") in rules(model, tmp_path)
+
+
+def test_no_service_refers_to_a_variable_the_anthropic_sdk_reads(
+    tmp_path: Path,
+) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_EXTRA"] = (
+        "${ANTHROPIC_API_KEY:-}"
+    )
+    assert ("gateway", "anthropic key") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_is_named_nowhere_outside_the_services(
+    tmp_path: Path,
+) -> None:
+    model = good_model()
+    model["x-env"] = {"KEY": "${GATEWAY_ANTHROPIC_API_KEY:-}"}
+    assert ("deploy/compose.yaml", "anthropic key") in rules(model, tmp_path)
+
+
 def test_every_service_needs_a_disclosure_row(tmp_path: Path) -> None:
     assert ("gateway-state", "disclosure") in rules(
         good_model(), tmp_path, DISCLOSED - {"gateway-state"}
