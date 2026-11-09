@@ -22,15 +22,20 @@ and refuses, in what compose rendered:
   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
-    so the mark expires with the pin (plan §11). And one name that is no registry's: the image of SHARED_IMAGES,
-    make up's own build of the gateway (tasks.md T184), on that service alone, as written there, with pull_policy:
-    never, so compose never pulls an image by that name;
+    so the mark expires with the pin (plan §11). And two names that are no registry's: the images of SHARED_IMAGES,
+    make up's own builds of the gateway (tasks.md T184) and of the room's site (spec 002, contracts/web-serving.md
+    §1), each on its service alone, as written there, with pull_policy: never, so compose never pulls an image by
+    either name;
   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
     volumes_from, cap_drop ALL with cap_add only CHOWN, SETUID, SETGID, FOWNER, and DAC_OVERRIDE,
     no-new-privileges and nothing that relaxes it, restart unless-stopped, and Docker's local log driver;
   - a dev-only switch that compose sets itself instead of taking it from the env file;
+  - the Anthropic API key (spec 010): an ANTHROPIC_* variable on any service, or a reference to one anywhere;
+    GATEWAY_ANTHROPIC_API_KEY on any service but gateway, on gateway in any form but
+    ${GATEWAY_ANTHROPIC_API_KEY:-}, or its name anywhere else (another variable, a build argument, a label, a
+    command);
   - a service with no row in docs/data-flow-disclosure.md (a row whose "From" names it in backticks).
 
 Then the files:
@@ -84,6 +89,14 @@ WRITABLE_ROOT = "${H4_STATE_DIR}/gateway"
 NETWORKS = ("internal", "edge", "egress")
 PUBLISHER = "edge"
 EGRESS_SERVICE = "gateway"
+# Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
+ANTHROPIC_KEY = "GATEWAY_ANTHROPIC_API_KEY"
+ANTHROPIC_KEY_FORM = "${GATEWAY_ANTHROPIC_API_KEY:-}"
+# The key's name anywhere else, and a reference to a variable the Anthropic SDK reads on its own.
+ANTHROPIC_KEY_NAME = re.compile(
+    r"(?<![A-Za-z0-9_])GATEWAY_ANTHROPIC_API_KEY(?![A-Za-z0-9_])"
+)
+ANTHROPIC_REFERENCE = re.compile(r"\$\{?ANTHROPIC_")
 GPU_SERVICE = "model-server-gpu"
 GPU_RESERVATION = {"driver": "nvidia", "count": 1, "capabilities": ["gpu"]}
 CAP_ADD_ALLOWED = {"CHOWN", "SETUID", "SETGID", "FOWNER", "DAC_OVERRIDE"}
@@ -179,8 +192,14 @@ PLANNED_RULE = "planned"
 # The gateway's one image per commit (tasks.md T184): make up builds it outside compose (deploy/scripts/
 # gateway_image.py), h4reet-gateway:<commit> from a host stack's export, or h4reet-gateway:working-tree on dev-cpu, and
 # the compose file names it, exactly as written here, with pull_policy: never. No registry has it, so no lock line
-# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# pins it; never pulled, a missing one stops the stack instead of fetching another by the same name. The room's web
+# image is the same kind of name (spec 002, contracts/web-serving.md §1 and §4): deploy/scripts/web_image.py builds it
+# on every make up, its tag ending in the env file's H4_WEB_SUFFIX, empty on prod and -drafts on dev and dev-cpu.
+# x005, its publication on edge, needs nothing here: the port rule already takes any edge publication on 127.0.0.1.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
 
 
 @dataclass(frozen=True)
@@ -331,6 +350,26 @@ def as_mapping(value: object) -> dict[str, object]:
             out[key] = val if _ else None
         return out
     return {}
+
+
+def anthropic_references(value: object, path: str = "") -> list[str]:
+    """Where rendered compose names the Anthropic API key or refers to an ANTHROPIC_* variable (spec 010): each
+    path, in a mapping's keys and every string, at any depth."""
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            here = f"{path}.{key}" if path else str(key)
+            if ANTHROPIC_KEY_NAME.search(str(key)):
+                found.append(here)
+            found.extend(anthropic_references(item, here))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(anthropic_references(item, f"{path}[{index}]"))
+    elif isinstance(value, str) and (
+        ANTHROPIC_KEY_NAME.search(value) or ANTHROPIC_REFERENCE.search(value)
+    ):
+        found.append(path)
+    return found
 
 
 def volume_entries(service: dict) -> list[dict[str, object]]:
@@ -537,6 +576,36 @@ def check_service(
     if aws and name != EGRESS_SERVICE:
         refuse(
             "environment", f"{', '.join(aws)}: AWS settings belong to the gateway alone"
+        )
+    # The Anthropic API key (spec 010): no service holds a variable the SDK reads on its own, and the gateway alone
+    # holds prod's key, from the env file and in this one form.
+    anthropic = sorted(k for k in environment if k.startswith("ANTHROPIC_"))
+    if anthropic:
+        refuse(
+            "environment",
+            f"{', '.join(anthropic)}: no service holds a variable the Anthropic SDK reads on its own",
+        )
+    if ANTHROPIC_KEY in environment:
+        if name != EGRESS_SERVICE:
+            refuse("environment", f"{ANTHROPIC_KEY} belongs to the gateway alone")
+        elif environment[ANTHROPIC_KEY] != ANTHROPIC_KEY_FORM:
+            refuse(
+                "environment",
+                f"{ANTHROPIC_KEY} comes from the env file, as {ANTHROPIC_KEY_FORM}",
+            )
+    # Any other mention of the key, or reference to an ANTHROPIC_* variable: in another variable's value, a build
+    # argument, a label, a command, or any other field. The key reaches the gateway as its own entry alone.
+    rest = {key: value for key, value in service.items() if key != "environment"}
+    rest["environment"] = {
+        key: value
+        for key, value in environment.items()
+        if key != ANTHROPIC_KEY and not key.startswith("ANTHROPIC_")
+    }
+    for path in anthropic_references(rest):
+        refuse(
+            "anthropic key",
+            f"{path} names {ANTHROPIC_KEY} or refers to an ANTHROPIC_* variable: the key reaches the gateway as "
+            "its own entry alone",
         )
     return found
 
@@ -764,6 +833,16 @@ def check_model(
     for key, why in top_level.items():
         if model.get(key):
             found.append(Finding(COMPOSE_FILE, key, f"top-level {key} {why}"))
+    # The Anthropic key's name, or a reference to an ANTHROPIC_* variable, outside the services (spec 010).
+    outside = {key: value for key, value in model.items() if key != "services"}
+    for path in anthropic_references(outside):
+        found.append(
+            Finding(
+                COMPOSE_FILE,
+                "anthropic key",
+                f"{path} names {ANTHROPIC_KEY} or refers to an ANTHROPIC_* variable",
+            )
+        )
     return found
 
 

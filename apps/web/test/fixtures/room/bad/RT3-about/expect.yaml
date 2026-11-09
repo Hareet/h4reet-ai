@@ -1,0 +1,6 @@
+rule: RT3
+file: apps/web/content/room/fx-notes.yaml
+path: lines[0].text
+why: a digit in a line about the Author
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [lines, 0], set: { text: Plans 3 things, about_author: true } }

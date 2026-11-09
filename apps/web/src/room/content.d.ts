@@ -1,0 +1,37 @@
+// The modules the room's Vite plugin, build/room/plugin.ts's roomBundle(), provides, bundled at build (spec 004, T096;
+// contracts/room-bundle.md §3): `content`, spec 002's fixed messages and the manifest, now Amendment B7's, and the
+// index, in the entry chunk; the 3D part in the lazy 3D chunk; and, in a drafts build only, the fixtures and the
+// lookdev page's inputs, which a release build refuses to resolve (FR-066).
+declare module "virtual:room-content" {
+  export const content: import("../../build/manifest").RoomContent;
+  /** The bundle's index (§3.1). */
+  export const room: import("./compose/bundle").RoomIndex;
+}
+
+declare module "virtual:room-scene" {
+  /** The bundle's 3D part (§3.2), imported only by the scene module. */
+  const scene: import("./compose/bundle").RoomScene;
+  export default scene;
+}
+
+declare module "virtual:room-fixtures" {
+  /** The fixtures (§3.3), drafts builds only. */
+  const fixtures: readonly import("../../build/room/emit").RoomFixture[];
+  export default fixtures;
+}
+
+declare module "virtual:room-lookdev" {
+  /** The lookdev page's inputs (§3.3), drafts builds only. */
+  const lookdev: import("../../build/room/emit").RoomLookdev;
+  export default lookdev;
+  /** The index (§3.1), the page's own copy: importing virtual:room-content would move it out of the room's entry. */
+  export const room: import("./compose/bundle").RoomIndex;
+  /** The drafts build's room_text (§5), as room-data.json carries it, for the page's faces (spec 004, T192). */
+  export const text: import("../../build/room/emit").RoomText;
+}
+
+declare module "virtual:room-frame-log" {
+  /** The frame log's factory in a drafts build (spec 004, T246; R-70), and null in a release build, which keeps no log
+   *  and holds none of its code. */
+  export const createFrameLog: typeof import("./signals/frame-log").createFrameLog | null;
+}

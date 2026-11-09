@@ -328,6 +328,41 @@ describe("routing.yaml (§1.3)", () => {
     ]);
   });
 
+  // Spec 007's plan, D43 (the Author's decision of 2026-11-09, "9 s for twin turns (Recommended)"): a paid adapter's
+  // twin_request_ms gives a twin turn one attempt of its own length; hello keeps timeouts.request_ms and its retries.
+  it("R9: the deadline covers a twin turn's one attempt on the paid fallback, after the local model's", () => {
+    // local 10,000 + 500 + one attempt of 9,600 = 20,100
+    expect(errorLines(routing((d) => (d.adapters.bedrock.twin_request_ms = 9_600)).issues)).toEqual([
+      "config/routing.yaml: deadline_ms: 20000 is shorter than the route's timeouts allow (20100)",
+    ]);
+    // local 10,000 + 500 + 9,500 = 20,000, exactly the deadline
+    expect(errors(routing((d) => (d.adapters.bedrock.twin_request_ms = 9_500)).issues)).toEqual([]);
+  });
+
+  it("R8: hello's limit still fits SC-005's 5 s beside a twin turn's, which is never shorter", () => {
+    expect(errors(routing((d) => (d.adapters.bedrock.twin_request_ms = 9_000)).issues)).toEqual([]);
+    expect(errorLines(routing((d) => (d.adapters.bedrock.twin_request_ms = 3_000)).issues)).toEqual([
+      "config/routing.yaml: adapters.bedrock.twin_request_ms: must be at least timeouts.request_ms, hello's limit",
+    ]);
+    expect(
+      errorLines(
+        routing((d) => {
+          d.adapters.bedrock.twin_request_ms = 9_000;
+          d.adapters.bedrock.timeouts = { connect_ms: 2000, request_ms: 4000 };
+        }).issues,
+      ),
+    ).toEqual([
+      "config/routing.yaml: adapters.bedrock.timeouts: connect_ms + request_ms must be at most 5000 (SC-005)",
+    ]);
+  });
+
+  it("R11: a twin turn's limit is whole milliseconds, 1,000 to 15,000", () => {
+    for (const value of [500, 15_001, 9_000.5, "9000"])
+      expect(rulesOf(routing((d) => (d.adapters.bedrock.twin_request_ms = value)).issues), String(value)).toContain(
+        "R11",
+      );
+  });
+
   it("R10: envs has exactly prod and dev", () => {
     expect(errorLines(routing((d) => delete d.envs.dev).issues)).toEqual([
       "config/routing.yaml: envs: must have exactly the keys prod and dev",
@@ -402,6 +437,26 @@ describe("routing.yaml (§1.3)", () => {
     expect(errorLines(extra({ thinking: { type: "disabled" }, note: "<a>b" }).issues)).toEqual([]);
     expect(errorLines(routing((d) => (d.envs.prod.fallback = "local")).issues)).toEqual([
       'config/routing.yaml: envs.prod.fallback: names "local", a local adapter; prod\'s fallback must be a paid adapter',
+    ]);
+  });
+
+  it("R11: a paid adapter's temperature is as_requested, the default, or model_default (spec 010 FR-017)", () => {
+    const temperature = (value: unknown) => routing((d) => (d.adapters.bedrock.temperature = value));
+    for (const value of ["as_requested", "model_default"]) {
+      const result = temperature(value);
+      expect(errorLines(result.issues), value).toEqual([]);
+      expect(result.value?.adapters.get("bedrock")?.settings.temperature, value).toBe(value);
+    }
+    // Absent, it is as_requested: the form without it stays valid, and nothing fills it in.
+    expect(routingConfig().adapters.get("bedrock")?.settings).not.toHaveProperty("temperature");
+    for (const value of ["default", "Model_Default", 1, 0.3, true, null, ["model_default"]]) {
+      expect(errorLines(temperature(value).issues), JSON.stringify(value)).toEqual([
+        'config/routing.yaml: adapters.bedrock.temperature: must be "as_requested" or "model_default"',
+      ]);
+    }
+    // A paid adapter's setting: the local model takes the request's temperature, and its type has no such key.
+    expect(errorLines(routing((d) => (d.adapters.local.temperature = "model_default")).issues)).toEqual([
+      "config/routing.yaml: adapters.local.temperature: unknown key",
     ]);
   });
 });
@@ -968,6 +1023,8 @@ describe("alerts.yaml (§4.3)", () => {
       authFailed: { threshold: 3, windowS: 600 },
       prefixes: { prod: "[h4reet.ai prod]", dev: "[dev]", "dev-cpu": "[dev-cpu]" },
       standin: { telegramBase: "http://telegram-standin:8080", smtpHost: "mailpit", smtpPort: 1025 },
+      // Spec 011 (FR-031): with no formats key, both channels send their designed forms.
+      formats: { telegram: "designed", email: "designed" },
     });
   });
 
@@ -978,12 +1035,18 @@ describe("alerts.yaml (§4.3)", () => {
     expect(a("order: [telegram, email]", "order: [telegram]")[0]).toContain("channels.order");
   });
 
-  it("A2: every attempt fits inside the window", () => {
+  it("A2: every attempt fits inside the window, counting two sends (spec 011, Amendment 0-10)", () => {
+    // An attempt that falls back to the plain form makes two sends, so the slowest timeout counts twice.
     expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 181]")).toEqual([
-      "config/alerts.yaml: retry: the last attempt starts at 291 s and can run 10 s; both must fit in give_up_after_s (300 s)",
+      "config/alerts.yaml: retry: the last attempt starts at 291 s and can run 20 s; both must fit in give_up_after_s (300 s)",
     ]);
-    // 290 s plus the 10 s email timeout ends exactly at 300 s, which fits.
-    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180]")).toEqual([]);
+    // 290 s plus one 10 s send fitted before spec 011; with two sends it ends at 310 s.
+    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180]")).toEqual([
+      "config/alerts.yaml: retry: the last attempt starts at 290 s and can run 20 s; both must fit in give_up_after_s (300 s)",
+    ]);
+    // 280 s plus two 10 s sends ends exactly at 300 s, which fits; and the committed file's 230 + 20 = 250.
+    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 170]")).toEqual([]);
+    expect(a("schedule_s", "schedule_s")).toEqual([]);
     expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180, 2]")).toContain(
       "config/alerts.yaml: retry.schedule_s: must never decrease",
     );
@@ -1029,6 +1092,32 @@ describe("alerts.yaml (§4.3)", () => {
         "config/alerts.yaml: standin.smtp_host: must be an in-network host (a single-label name)",
       ]);
     }
+  });
+
+  it("A8: formats, each channel designed or plain, designed where absent (spec 011, FR-031)", () => {
+    const withFormats = (formats: string) => alerts(`${fixture("alerts.yaml")}\nformats: ${formats}\n`);
+    for (const [formats, value] of [
+      ["{}", { telegram: "designed", email: "designed" }],
+      ["{ telegram: plain }", { telegram: "plain", email: "designed" }],
+      ["{ email: plain }", { telegram: "designed", email: "plain" }],
+      ["{ telegram: designed, email: plain }", { telegram: "designed", email: "plain" }],
+      ["{ telegram: plain, email: plain }", { telegram: "plain", email: "plain" }],
+    ] as const) {
+      const result = withFormats(formats);
+      expect(errorLines(result.issues), formats).toEqual([]);
+      expect(result.value?.formats, formats).toEqual(value);
+    }
+    expect(errorLines(withFormats("{ telegram: html }").issues)).toEqual([
+      'config/alerts.yaml: formats.telegram: must be "designed" or "plain"',
+    ]);
+    expect(rulesOf(withFormats("{ telegram: html }").issues)).toEqual(["A8"]);
+    expect(errorLines(withFormats("{ email: true }").issues)).toEqual([
+      'config/alerts.yaml: formats.email: must be "designed" or "plain"',
+    ]);
+    expect(errorLines(withFormats("{ sms: plain }").issues)).toEqual(["config/alerts.yaml: formats.sms: unknown key"]);
+    expect(rulesOf(withFormats("{ sms: plain }").issues)).toEqual(["A8"]);
+    expect(errorLines(withFormats("plain").issues)).toEqual(["config/alerts.yaml: formats: must be a mapping"]);
+    expect(rulesOf(withFormats("plain").issues)).toEqual(["A8"]);
   });
 
   it("A7: unknown keys, wrong types, and out-of-range values", () => {
@@ -1129,6 +1218,19 @@ describe("the config directory", () => {
       const explicit = await readConfigDir(dir, { allowPlanned: true, plannedFiles: PLANNED_CONFIG_FILES });
       expect([implicit.issues, implicit.planned], names.join(" ")).toEqual([explicit.issues, explicit.planned]);
     }
+  });
+
+  // Spec 007's plan, D43: the committed file gives a twin turn 9 s on either paid adapter, and hello 4 s as before.
+  it("gives a twin turn 9 s on both paid adapters in the committed file, inside its 20 s deadline", () => {
+    const text = readFileSync(join(REPO, "config", "routing.yaml"), "utf8");
+    const doc = parseYamlText(text) as Doc;
+    for (const id of ["bedrock", "anthropic"]) {
+      expect(doc.adapters[id].twin_request_ms, id).toBe(9_000);
+      expect(doc.adapters[id].timeouts.request_ms, id).toBe(4_000);
+    }
+    // local 10,000 + 500 + one attempt of 9,000 = 19,500, inside the deadline (R9).
+    expect([doc.adapters.local.timeouts.request_ms, doc.deadline_ms]).toEqual([10_000, 20_000]);
+    expect(errorLines(validateRouting(parseYaml("config/routing.yaml", text)).issues)).toEqual([]);
   });
 
   it("validates the committed config/routing.yaml and config/prices.yaml", async () => {

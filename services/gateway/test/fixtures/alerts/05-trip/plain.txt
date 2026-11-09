@@ -1,0 +1,5 @@
+[h4reet.ai prod] KILL SWITCH TRIPPED: daily ceiling reached
+Daily: 5.00 / 5.00 USD (warning 3.50) · Month: 13.40 / 20.00 (warning 14.00) · Fallback today: 2.00 / 4.00 (grant 2)
+Runtime: degraded since 2026-10-29T16:40:03Z · Fallback: available · 2026-10-29T16:40:03Z · id prod:trip:day:2026-10-29
+Every request now gets the degraded response, local answers included. Only an operator reset restores service.
+Runbook: docs/runbooks/kill-switch-trip.md

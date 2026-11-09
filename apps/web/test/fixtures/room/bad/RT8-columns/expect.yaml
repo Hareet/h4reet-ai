@@ -1,0 +1,6 @@
+rule: RT8
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0]
+why: a terminal line of 13 characters in a grid of 12 columns
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines, 0, text], set: fx run --all! }

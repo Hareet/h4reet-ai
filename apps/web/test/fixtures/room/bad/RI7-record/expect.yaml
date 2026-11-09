@@ -1,0 +1,7 @@
+rule: RI7
+file: apps/web/room/catalog/fx-laptop.yaml
+path: model.file
+why: a model that assets/room/records.json doesn't record
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [model], set: { file: fx-laptop.glb } }
+generate: { assets/room/fx-laptop.glb: glb:desk }

@@ -1,0 +1,6 @@
+rule: RT9
+file: apps/web/content/room/fx-script.yaml
+path: words_from[0].file
+why: words from a file that isn't an intent (strict mode)
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [words_from, 0, file], set: docs/fx-notes.md }

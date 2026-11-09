@@ -1,0 +1,6 @@
+rule: RS3
+file: apps/web/room/scene.yaml
+path: switches[0].cases.cloud
+why: the cloud case showing the plugged pose, which claims local
+edits:
+  - { file: apps/web/room/scene.yaml, at: [switches, 0, cases, cloud], set: fx-plugged }

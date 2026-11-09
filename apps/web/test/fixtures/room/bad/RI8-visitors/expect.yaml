@@ -1,0 +1,9 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: placements[9].role
+why: a second placement with the role visitor
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements]
+    push:
+      { id: fx-guest, piece: fx-visitor, role: visitor, mount: { on: fx-shell, anchor: floor, offset: [0.5, 0, 0.8] } }

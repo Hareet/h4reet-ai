@@ -184,6 +184,57 @@ def test_main_exits_one_on_drift(
     assert tc.main(["toolchain_check.py", str(pins)]) == 1
 
 
+# ADR 0023: Claude Code updates itself from the Author's other projects, so its pin is a floor.
+def test_newer_compares_release_numbers() -> None:
+    assert tc.newer("2.1.294", "2.1.301")
+    assert tc.newer("2.1.294", "2.2.0")
+    assert tc.newer("2.1.294", "3.0")
+    assert not tc.newer("2.1.294", "2.1.294")
+    assert not tc.newer("2.1.294", "2.1.30")
+    assert not tc.newer("2.1.294", "2.1.293")
+    assert not tc.newer("latest", "2.1.301")
+
+
+def test_claude_codes_pin_is_a_floor(host: tuple[Path, Path]) -> None:
+    bin_dir, lint = host
+    make_tool(bin_dir, "claude", "2.1.301 (Claude Code)")
+    assert status(tc.check(PINS, lint, in_devcontainer=False), "claude code") == "WARN"
+    make_tool(bin_dir, "claude", "2.1.293 (Claude Code)")
+    assert status(tc.check(PINS, lint, in_devcontainer=False), "claude code") == "DRIFT"
+
+
+def test_only_claude_codes_pin_is_a_floor(host: tuple[Path, Path]) -> None:
+    bin_dir, lint = host
+    make_tool(bin_dir, "node", "v24.22.0")
+    make_tool(bin_dir, "gitleaks", "8.31.0")
+    rows = tc.check(PINS, lint, in_devcontainer=False)
+    assert status(rows, "node") == "DRIFT"
+    assert status(rows, "gitleaks") == "DRIFT"
+
+
+def test_main_passes_a_newer_claude_code_with_a_warn_line(
+    host: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bin_dir, lint = host
+    pins = tmp_path / "toolchain.vars"
+    pins.write_text("".join(f"{k}={v}\n" for k, v in PINS.items()), encoding="utf-8")
+    monkeypatch.setenv("H4_LINT_NODE", str(lint))
+    monkeypatch.delenv("H4_DEVCONTAINER", raising=False)
+    make_tool(bin_dir, "claude", "2.1.301 (Claude Code)")
+    assert tc.main(["toolchain_check.py", str(pins)]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    (warn,) = [ln for ln in lines if ln.startswith("WARN:")]
+    assert "claude code 2.1.301" in warn and "floor, 2.1.294" in warn
+    assert lines[-1].endswith("match their pins, 1 newer than its floor (claude code)")
+    # A drift elsewhere still fails the check.
+    make_tool(bin_dir, "jq", "jq-1.6")
+    assert tc.main(["toolchain_check.py", str(pins)]) == 1
+    assert "differ from their pins (jq)" in capsys.readouterr().out
+
+
 def test_the_repository_pins_and_the_dockerfile_agree() -> None:
     """The Dockerfile's version arguments must equal toolchain.vars, so the devcontainer installs the pins."""
     pins = tc.read_vars(REPO / ".devcontainer" / "toolchain.vars")

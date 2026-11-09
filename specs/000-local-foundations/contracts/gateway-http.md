@@ -14,6 +14,7 @@ This contract covers the api listener of `services/gateway`: the hello endpoint 
 - **Unknown routes and methods** get 404 `{"error":"not_found","request_id":"…"}`.
 - **Unexpected failures** get 500 `{"error":"internal_error","request_id":"…"}`, and the log names the error's class (`request.failed`), never its message. A body that isn't JSON gets 415, malformed JSON 400 `invalid_request`, and one over the gateway's own limit 413 `body_too_large`; each body carries the `request_id`.
 - **Health probes** (`/health/live`, `/health`) produce no spans ([plan.md §5.7](../plan.md#57-telemetry)).
+- **Spec 002's usage events,** `POST /room/events`, share this listener and its rules but two: they take `text/plain` as well as JSON, since a browser's beacon may send either, and an accepted event is 204 with no body. Edge's x000 doesn't forward them: it answers `/room/` itself with 404 `not_found`, so they arrive only through the site's x005, with its rate limit and 512-byte cap. Their contract is spec 002's [room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route).
 
 ## 2. `POST /hello`
 
@@ -214,7 +215,17 @@ This answer covers a local error that isn't about availability: `provider_error`
 | `journal_unwritable` | local is unhealthy, and the metered call's `reserve` record couldn't be fsync'd | the otherwise branch: a metered call must leave a durable record (FR-031) | when the current run of failed appends began | The local model is unavailable, and metered calls are refused because the call journal can't be written. |
 | `api_unavailable` | edge couldn't reach the gateway: connection refused, a DNS failure, or a timeout. Edge sends it, never the gateway. | outside FR-022's decision: the gateway itself is down | null | The gateway is not answering. The stack edge proxy answered instead. |
 
+**`twin_unavailable` (spec 007, Amendment 0-3)** is a cause of `POST /room/turn` alone (§10): the twin's pack, prompt, or fixed lines didn't load at start, or prod's `config/budgets.yaml` has no `limits.twin`. It answers 503 with §2.5.2's body and `X-H4-Degraded-Cause: twin_unavailable`, counts in `h4.twin.turns`, and feeds neither `h4.degraded.cause` nor `h4.degraded.responses`.
+
 Every cause except `api_unavailable` also feeds the one-hot gauge `h4.degraded.cause`, which shows the cause a hello would get now on the "why degraded" panel (FR-028). The runbooks for each cause are listed in [alerts.md §6](alerts.md#6-runbooks).
+
+**(spec 010, Amendment 0-6)**
+
+| Cause | Meaning | Condition | `since` | `detail` (fixed text) |
+|---|---|---|---|---|
+| `adapter_month_spent` | local is unhealthy, and the paid fallback's month is at or above its cap, counting reservations | the adapter's monthly cap (spec 010, FR-022) | the month row's `reached_at` | The local model is unavailable, and the paid fallback has reached its monthly cap. |
+
+It comes after `meter_at_ceiling` and before `fallback_awaiting_renewal` in every list and in `GET /health`'s dry run.
 
 ## 4. `GET /health/live`
 
@@ -371,3 +382,16 @@ HTTP 200
   …
 }
 ```
+
+## 10. `POST /room/turn` (spec 007, Amendment 0-3)
+
+The twin's conversation turn ([spec 007](../../007-twin-conversation/spec.md) FR-001 to FR-006; its [plan](../../007-twin-conversation/plan.md) §2). On the api listener, in a scope of its own with a 32 KiB body limit, JSON only. Edge's x005 forwards the site's `POST /api/room/turn` to it; x000 keeps answering `/room/` with 404, so nothing else reaches it.
+
+**Processing order,** each step passing or answering, a refused turn reaching no later step:
+1. The client's identity as hello's (§2.3), then the turn route's own per-client cap, an instance of hello's limits that hello's requests don't fill: over it, 429 `client_cap_exceeded` with `Retry-After`.
+2. Validation: 415 for a body that isn't JSON; 400 `{"error":"invalid_request","field","detail","request_id"}` for any other breach. The body is exactly `{feature, path, turns}`: `feature` a selectable that `config/room-topics.yaml` maps to a topic, or `free_talk`; `path` `engineer` or `non-engineer`; `turns` at most `limits.twin.history_max_turns` items, each exactly `{role, text}`, `role` `visitor` or `twin`, `text` trimmed and free of U+0000, a visitor turn 1 to `turn_max_chars` code points, all turns together at most `history_max_chars`; empty only for a selectable (its opening), and otherwise ending with a visitor turn. No body enters a log, a span, or a store.
+3. Readiness: 409 `{"error":"not_ready","request_id"}` for a feature whose topic, or free talk, isn't ready under `config/twin-readiness.yaml` at the running hashes (spec 007 FR-030).
+4. `twin_unavailable` (§3) when the twin's files didn't load or prod lacks `limits.twin`; otherwise `Gateway.complete` with the purpose `twin`: the state read first, with no grounding or prompt built until it passes, then §2.4's order, the reservation's input bound `limits.twin.max_input_chars` and its output cap `limits.twin.max_output_tokens`.
+5. The answer, trimmed at a `length` finish to its last whole sentence and run through the twin's eight guards, then 200 with exactly `{"text","feature","cost_micro_usd","route"}`: `cost_micro_usd` the gateway's estimated cost of the turn's call, a JSON integer at least 0; `route` `"fallback"` when the fallback answered, else `"local"`. A degraded decision is 503 with §2.5.2's body; a metered-limit refusal 429 as §2.5.3; a local error 502 `local_error` as §2.5.5. None of them carries a cost.
+
+The 200 carries no path, grounding, prompt, guard outcome, request ID, or trace ID.

@@ -1,0 +1,6 @@
+rule: RL1
+file: apps/web/room/scene.yaml
+path: live.freshness_s
+why: a freshness window under the poll interval plus the request's 5-second timeout
+edits:
+  - { file: apps/web/room/scene.yaml, at: [live, freshness_s], set: 34 }

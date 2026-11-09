@@ -7,6 +7,8 @@
 // the gateway stops accepting, lets requests in flight finish, closes the store, flushes telemetry, and exits 0.
 import { createRequire } from "node:module";
 
+import { loadRoomEvents } from "./config/room-events.js";
+import { loadTwin } from "./config/twin.js";
 import { loadConfig } from "./config/validate.js";
 import { hostOf, startTelemetry } from "./telemetry/otel.js";
 
@@ -18,6 +20,10 @@ const SHUTDOWN_GRACE_MS = 15_000;
 const env = process.env;
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 const config = await loadConfig(CONFIG_DIR, { allowPlanned: false });
+// Spec 002's usage events: config/room-events.yaml, from the same directory. Missing or invalid, it refuses no start.
+const roomEvents = await loadRoomEvents(CONFIG_DIR);
+// Spec 007's twin: config/twin/ and config/twin-readiness.yaml, from the same directory. None of them refuses a start.
+const twin = await loadTwin(CONFIG_DIR);
 const telemetry = startTelemetry({
   version,
   telegramHosts: [...hostOf(env.TELEGRAM_API_BASE), ...hostOf(config.alerts?.standin.telegramBase)],
@@ -45,6 +51,8 @@ const result = await startGateway({
   logger,
   version,
   onFatal: (code) => void exit(code, close),
+  roomEvents,
+  twin,
 });
 
 if (result.kind === "refused") {

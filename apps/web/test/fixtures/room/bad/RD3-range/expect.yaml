@@ -1,0 +1,6 @@
+rule: RD3
+file: apps/web/room/catalog/fx-monitor.yaml
+path: glows[0].level
+why: a value outside its declared range, a glow's level above 1
+edits:
+  - { file: apps/web/room/catalog/fx-monitor.yaml, at: [glows, 0, level], set: 1.5 }

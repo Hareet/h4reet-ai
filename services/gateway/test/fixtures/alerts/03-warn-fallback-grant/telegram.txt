@@ -1,0 +1,16 @@
+🟠 Warning · [h4reet.ai prod]
+📈 WARNING: fallback sub-budget at 70% of grant 1
+Meters
+Daily      2.10 /  5.00 USD   warning  3.50
+Month     11.20 / 20.00 USD   warning 14.00
+Fallback   1.40 /  2.00 USD   grant 1, warning 1.40
+Runtime: normal
+Fallback: available
+Time: 2026-10-28T11:40:52Z
+id prod:warn:fallback_day:2026-10-28:g1
+Runbook: docs/runbooks/cost-warning.md
+--- entities (UTF-16 offset, length)
+bold 33 46 "WARNING: fallback sub-budget at 70% of grant 1"
+pre 87 139 "Daily      2.10 /  5.00 USD   warning  3.50\nMonth     11.20 / 20.00 USD   warning 14.00\nFallback   1.40 /  2.00 USD   grant 1, warning 1.40"
+code 293 36 "prod:warn:fallback_day:2026-10-28:g1"
+code 339 29 "docs/runbooks/cost-warning.md"

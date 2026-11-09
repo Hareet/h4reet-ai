@@ -1,0 +1,6 @@
+rule: RD3
+file: apps/web/room/catalog/fx-desk.yaml
+path: size.w
+why: a value outside its declared type
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [size, w], set: wide }

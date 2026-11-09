@@ -536,7 +536,7 @@ describe("the commit (§7.3)", () => {
     const a = admitted(await r.meter.admit(request({ clientKey: "client" })));
     r.clock.now += 40;
     r.db.statements.length = 0;
-    expect(await r.meter.settle(a, answered(r), { clientLabel: "author-laptop" })).toEqual(COMMITTED);
+    expect(await r.meter.settle(a, answered(r), { clientLabel: "author-terminal" })).toEqual(COMMITTED);
     const [tx] = transactions(r.db.statements);
     expect(tx?.[0]).toBe(LOCK_STATE);
     expect(tx?.map((s) => s.trim().split(/\s+/).slice(0, 3).join(" "))).toEqual([
@@ -580,7 +580,7 @@ describe("the commit (§7.3)", () => {
       routing_sha: HEX64,
       period_day: DAY,
       period_month: MONTH,
-      client_label: "author-laptop", // the ledger keeps the label, and nothing else does
+      client_label: "author-terminal", // the ledger keeps the label, and nothing else does
     });
     expect((await meters(r)).map((m) => [m.meter, m.spent_micro, m.reserved_micro])).toEqual([
       ["day", 100_000, 0],
@@ -628,7 +628,7 @@ describe("the commit (§7.3)", () => {
       outcome: "ok",
       error_kind: null,
     });
-    expect(JSON.stringify(r.logged)).not.toContain("author-laptop");
+    expect(JSON.stringify(r.logged)).not.toContain("author-terminal");
     expect(r.meter.counters()).toEqual({ inFlight: 0, lastMinute: 1 });
     await invariant(r);
   });

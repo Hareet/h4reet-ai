@@ -20,15 +20,15 @@ Related contracts: [gateway-http.md](gateway-http.md) (status codes and degraded
 
 ## 2. Resource attributes
 
-Every resource the collector forwards carries these. The gateway's SDK sets them, and the collector's `resource` processor overwrites the two that identify the stack, so no client can claim another stack's name.
+Every resource the collector forwards carries these. The gateway's SDK sets them, and the collector's `resource` processor overwrites the two that identify the stack, so no client can claim another stack's name. The collector's own metrics don't pass through its pipelines: its `service.telemetry.resource` sets the same values ([§6.4](#64-exporters-and-extensions); tasks.md T185).
 
 | Attribute | Value | Set by | Notes |
 |---|---|---|---|
-| `service.name` | `gateway` for the gateway; `claude-code` for Claude Code's metrics; `h4-gate` for the eval-history metric | `OTEL_SERVICE_NAME` (the gateway); Claude Code itself; `tools/gates/gate` | Promoted to the Prometheus label `service_name` and the Loki label `service_name` |
-| `service.namespace` | `h4reet` | the SDK, then upserted by the collector | Promoted to `service_namespace` |
-| `deployment.environment.name` | the stack: `prod`, `dev`, or `dev-cpu` (`H4_STACK`) | the SDK, then upserted by the collector from its own `H4_STACK` | Promoted to `deployment_environment_name`. Claude Code's metrics arrive at prod's collector and so carry `prod`; the FR-037 panel selects them by `service_name`. |
-| `service.version` | the gateway's `package.json` version | the SDK | Goes to Prometheus's `target_info`, not a label |
-| `service.instance.id` | `<H4_STACK>-gateway` | the SDK | Stable across restarts, so a restart shows as a counter reset in the same series. Prometheus derives `instance` from it and `job` from `service.namespace/service.name` (`h4reet/gateway`). |
+| `service.name` | `gateway` for the gateway; `otel-collector` for the collector's own metrics; `claude-code` for Claude Code's metrics; `h4-gate` for the eval-history metric | `OTEL_SERVICE_NAME` (the gateway); the collector's `service.telemetry.resource`; Claude Code itself; `tools/gates/gate` | Promoted to the Prometheus label `service_name` and the Loki label `service_name` |
+| `service.namespace` | `h4reet` | the SDK, then upserted by the collector; for the collector's own metrics, its `service.telemetry.resource` | Promoted to `service_namespace` |
+| `deployment.environment.name` | the stack: `prod`, `dev`, or `dev-cpu` (`H4_STACK`) | the SDK, then upserted by the collector from its own `H4_STACK`; for the collector's own metrics, its `service.telemetry.resource`, from the same variable | Promoted to `deployment_environment_name`. Claude Code's metrics arrive at prod's collector and so carry `prod`; the FR-037 panel selects them by `service_name`. |
+| `service.version` | the gateway's `package.json` version; the collector's own build, `0.162.0` | the SDK; the collector | Goes to Prometheus's `target_info`, not a label |
+| `service.instance.id` | `<H4_STACK>-gateway`; `<H4_STACK>-otel-collector` for the collector's own metrics | the SDK; the collector's `service.telemetry.resource` | Stable across restarts, so a restart shows as a counter reset in the same series. Prometheus derives `instance` from it and `job` from `service.namespace/service.name` (`h4reet/gateway`, `h4reet/otel-collector`). |
 
 Not present on any resource: `host.*`, `process.*`, `os.*`, `container.*`, and `cloud.*`. The gateway runs with `OTEL_NODE_RESOURCE_DETECTORS=env`, so no detector runs. The cloud detectors would call instance-metadata endpoints, which would be an undisclosed data flow. The collector deletes `host.name` and every `process.*` attribute from any resource as a second layer.
 
@@ -71,7 +71,11 @@ POST /hello                      SERVER    one per request (also POST /admin/tes
 
 A request refused before routing (the per-client cap, a validation error) has a server span and no `gateway.route` span. A degraded request decided from the state alone (`store_unreachable`, `store_uninitialized`, `kill_switch_tripped`) has a `gateway.route` span and no client span.
 
+Spec 002's usage events, `POST /room/events` ([room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)), have a server span with no `gateway.route` or client span under it, only `@fastify/otel`'s own hook spans, as every route has (below). They make no model call, and their server span carries only the attributes below, with `h4.outcome` `ok` for its 204 and `invalid` for its 400 and 415. The event's body is in no span and no log record.
+
 (Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
+
+**(spec 011, Amendment 0-9) `alert.deliver`.** Each delivery attempt of an alert, on one channel, is an INTERNAL span of its own, a root started from no context, since the attempt has no request to hang under: `h4.channel`, `h4.alert.kind` (a kind, or `sample`), `h4.alert.form` (`designed` or `plain`), `h4.alert.fallback_reason` (when the plain form went in the designed one's place), `h4.outcome` (`delivered`, `retry`, `failed`), `h4.alert.attempt`, and `h4.alert.sample`. Never a text, a URL, a token, a chat ID, an address, or a response body: the attributes are built from closed lists and numbers alone ([alerts.md §4.4](alerts.md#44-outcomes-and-when-something-is-down)). In Langfuse each shows as a trace with no generation. `POST /admin/alert-samples`' server span carries `h4.action: alert_samples` ([operator-admin.md §2.4](operator-admin.md#24-post-adminalert-samples-spec-011)).
 
 Langfuse shows the tree as one trace: the server span is the trace's root, and the client spans are generations ([§3.5](#35-what-langfuse-reads)). The other `@fastify/otel` hook spans, if the instrumentation emits them, carry no attributes beyond Fastify's own and no payloads.
 
@@ -128,9 +132,12 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 | `error.type` | on failure | the `ProviderError`'s `code` when it has one (an SDK exception name such as `ThrottlingException`, or a Node error code such as `ECONNREFUSED`), otherwise its kind: `unavailable`, `timeout`, `rate_limited`, `auth`, `bad_request`, `content_filtered`, `provider_error` ([provider-adapter.md §2.5](provider-adapter.md#25-provider-errors)). The span status is ERROR, and its description is the kind, never a provider message. |
 | `gen_ai.input.messages`, `gen_ai.output.messages` | only under [§3.4](#34-the-payload-rule) | JSON, after secret redaction |
 
+- **The twin's turn (spec 007, Amendment 0-5).** The server span of `POST /room/turn` carries `h4.room.feature` (a selectable's ID, `free_talk`, or `none` for a body that didn't validate), `h4.room.topic` (a topic's ID, `free_talk`, or `none`), `h4.outcome` (`ok`, `withheld`, `degraded`, `refused`, `not_ready`, `invalid`, `error`), `h4.degraded.cause` when degraded (spec 000's causes or `twin_unavailable`), `h4.twin.guard` when an answer is withheld (the guard's name), and `h4.twin.pack_sha` and `h4.twin.prompt_sha` once the twin's files have loaded. The `gateway.route` span and each `chat {model}` client span of a twin call carry `h4.room.feature` and `h4.room.topic` too. No span carries the visitor's words, the answer, the grounding, the prompt, the path, or a client identifier, but this section's payload attributes under [§3.4](#34-the-payload-rule).
 - Plan §5.7 also lists `h4.degraded.cause` on the client span. A client span ends when its attempt ends, before the routing decision that makes a response degraded, so the cause is recorded on the routing and server spans instead. A failed attempt carries `error.type`.
 - **The canonical success set** is every key above marked "always", plus the "on success" keys, plus `server.port` for an adapter that declares a port. `gen_ai.response.id` belongs to it when the provider returns an ID; both shipped providers do. A failed attempt has the "always" keys plus `error.type`.
 - The contract suite's check C8 compares these key sets with an in-memory exporter: `local-openai` and `bedrock-converse` must have identical sets, and only the values of the provider, model, and server attributes may differ (SC-006, [provider-adapter.md §5.2](provider-adapter.md#52-assertions)). The synthetic adapter's set is the same without `server.port`.
+
+**(spec 010, Amendment 0-7)** An `anthropic-messages` call's client span is `chat claude-haiku-5-5`, with `gen_ai.provider.name: anthropic`, `server.address: api.anthropic.com`, and `server.port: 443`, and the canonical key set above, which the contract suite's C8 holds equal to the local and Bedrock adapters'. The SDK's own spans and trace propagation are off, and its transport is ignored by the HTTP instrumentation like every host outside the stack (§3.1), so the call has no other span and sends no trace header.
 
 ### 3.4 The payload rule
 
@@ -159,7 +166,7 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 |---|---|---|---|---|
 | `h4.gateway.requests` | counter, `{request}` | `h4.route.decision`: `local`, `fallback`, `metered`, `degraded`, or `none` (answered before routing: 400, 415, the per-client cap); `h4.outcome`: `ok`, `degraded`, `refused`, `invalid`, `error` | `h4_gateway_requests_total` | once per `POST /hello`, `POST /admin/test/synthetic` call, and `POST /admin/adapters/{id}/complete` call, when its response is sent |
 | `h4.gateway.request.duration` | histogram, `s` | `h4.route.decision` | `h4_gateway_request_duration_seconds` | with the counter, from arrival to response |
-| `h4.cost.usd` | counter, `{USD}` | `gen_ai.provider.name`; `gen_ai.request.model`; `h4.meter.attribution`: `none`, `fallback`, `metered`, `test` | `h4_cost_usd_total` | when a ledger row commits, by its cost (micro-USD ÷ 10⁶), including 0 for local calls and the settlement of an expired reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)); and 0 at the gateway's start on each series a routed metered adapter can be charged under (`fallback` for the fallback, `test` for a paid adapter, `metered` for the synthetic one), since Prometheus ingests no zero at a series' start and `increase()` would miss the first call (tasks.md T191) |
+| `h4.cost.usd` | counter, `{USD}` | `gen_ai.provider.name`; `gen_ai.request.model`; `h4.meter.attribution`: `none`, `fallback`, `metered`, `test`; `h4.room.feature` (spec 007, Amendment 0-5): a twin call's selectable ID or `free_talk`, from its pack, and `none` for every other call | `h4_cost_usd_total` | when a ledger row commits, by its cost (micro-USD ÷ 10⁶), including 0 for local calls and the settlement of an expired reservation ([data-model.md §2.4](../data-model.md#24-reservations-metered-calls-in-flight)); and 0 at the gateway's start on each series a routed metered adapter can be charged under (`fallback` for the fallback, `test` for a paid adapter, `metered` for the synthetic one), since Prometheus ingests no zero at a series' start and `increase()` would miss the first call (tasks.md T191) |
 | `h4.meter.spend_usd` | gauge, `{USD}` | `h4.meter`: `day`, `month`, `fallback_day` | `h4_meter_spend_usd` | the current period's committed spend (`spent_micro`) |
 | `h4.meter.ceiling_usd` | gauge, `{USD}` | `h4.meter` | `h4_meter_ceiling_usd` | 5.00 (`day`), 20.00 (`month`), and today's allowance (`fallback_day`) |
 | `h4.meter.warn_usd` | gauge, `{USD}` | `h4.meter` | `h4_meter_warn_usd` | 3.50 (`day`), 14.00 (`month`), and the allowance minus 0.60 (`fallback_day`) |
@@ -169,11 +176,18 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 | `h4.degraded.cause` | gauge, `{cause}` | `h4.cause`: `none`, `store_unreachable`, `store_uninitialized`, `kill_switch_tripped`, `no_fallback_in_stack`, `meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable` | `h4_degraded_cause` | one-hot over all ten values: the cause a hello arriving now would get, evaluated read-only in FR-022's order from the snapshot; `none` when it would be answered ([gateway-http.md §3](gateway-http.md#3-degraded-causes)) |
 | `h4.degraded.responses` | counter, `{response}` | `h4.cause`: the nine causes (not `none`) | `h4_degraded_responses_total` | once per degraded response |
 | `h4.adapter.healthy` | gauge, `{flag}` | `h4.adapter`: the adapter IDs in `config/routing.yaml`: `local`, `bedrock`, `synthetic` | `h4_adapter_healthy` | 1 or 0 per configured adapter, from its effective health (the probe combined with the circuit, [provider-adapter.md §6](provider-adapter.md#6-around-an-adapter-call-what-the-gateway-does)) |
-| `h4.alerts` | counter, `{attempt}` | `h4.channel`: `telegram`, `email`; `h4.alert.kind`: `warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`; `h4.outcome`: `delivered`, `retry` (an attempt failed and another is due), `failed` (the channel gave up at 300 s) | `h4_alerts_total` | once per delivery attempt's outcome ([alerts.md §4](alerts.md#4-channels-delivery-and-retries)) |
-| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at`; for the in-memory `store_unreachable` alert, which has no row, from the moment it was queued in memory |
-| `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call` | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
+| `h4.alerts` | counter, `{attempt}` | `h4.channel`: `telegram`, `email`; `h4.alert.kind`: `warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`; `h4.outcome`: `delivered`, `retry` (an attempt failed and another is due), `failed` (the channel gave up at 300 s) | `h4_alerts_total` | once per delivery attempt's outcome ([alerts.md §4](alerts.md#4-channels-delivery-and-retries)). **(spec 011, Amendment 0-9)** `h4.alert.kind` gains `sample`, a sample's attempts, counted apart from every real kind; and `h4.alert.form`: `designed`, `plain`, or `none` (a channel marked failed at its window's end with no attempt) |
+| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at`; for the in-memory `store_unreachable` alert, which has no row, from the moment it was queued in memory. **(spec 011)** A sample records none: the histogram has no kind to keep it apart |
+| `h4.alert.fallbacks` **(spec 011, Amendment 0-9)** | counter, `{fallback}` | `h4.channel`; `h4.alert.kind` (a kind, or `sample`); `h4.alert.fallback_reason`: `entities_refused`, `message_refused`, `render_failed`, `over_limit`, `not_rendered` | `h4_alert_fallbacks_total` | once per attempt that sent the plain form in the designed one's place, in the attempt that fell back ([alerts.md §4.1](alerts.md#41-the-dispatcher)) |
+| `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call`; and `twin_call` (spec 007, Amendment 0-4); and `alert_samples` (spec 011, Amendment 0-9) | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
 | `h4.operator.auth_failures` | counter, `{failure}` | `h4.auth.class`: `missing`, `malformed`, `wrong_prefix`, `mismatch` | `h4_operator_auth_failures_total` | once per failed admin authentication, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) |
 | `h4.test_machinery.refused` | counter, `{request}` | none | `h4_test_machinery_refused_total` | each 403 from `POST /admin/test/*` outside dev |
+| `h4.room.events` | counter, `{event}` | `kind`: the kinds in `config/room-events.yaml`; `id`: an object's or item's ID from the same file for `object_selected` and `item_selected`, `-` for the others (spec 002, [room-events.md §4](../../002-the-room/contracts/room-events.md#4-telemetry-and-the-dashboard)) | `h4_room_events_total` | each usage event the gateway accepts, with its 204 |
+| `h4.room.events.refused` | counter, `{event}` | `reason`: `content_type`, `shape`, `kind`, `id` | `h4_room_events_refused_total` | each usage event refused with 415 or 400 |
+| `h4.twin.turns` (spec 007) | counter, `{turn}` | `h4.room.feature`; `h4.outcome`: `ok`, `withheld`, `degraded`, `refused`, `not_ready`, `invalid`, `error`; `h4.cause`: spec 000's nine causes, `twin_unavailable`, or `none` | `h4_twin_turns_total` | once per `POST /room/turn`, when its response is sent |
+| `h4.twin.turn.duration` (spec 007) | histogram, `s` | `h4.room.feature`; `h4.route.decision`: `local`, `fallback`, `metered`, `degraded`, `none` | `h4_twin_turn_duration_seconds` | with the counter, from arrival to response |
+| `h4.twin.withheld` (spec 007) | counter, `{answer}` | `h4.twin.guard`: `length`, `numbers`, `amounts`, `disclosure`, `prompt`, `secrets`, `links`, `ownership`, `seva` (spec 007's plan, D28), `location`, `surname` (D29), `address` (D39), `privacy`, `agents_share`, `restated_claim` (D38), `repair_opener` (D34), `error` | `h4_twin_withheld_total` | each answer the turn route withholds, replaces, or repairs; `disclosure` counts an answer replaced by the profile's disclosure line in a turn that asks who or what the twin is (D37), and `address` and `restated_claim` an answer withheld because too little was left once their sentences came off (D38, D39); `repair_opener` counts an answer delivered without its opening agreement, with the outcome ok, and one withheld because agreement was all it said, with the outcome withheld; the admin route's go into the live runs' history instead |
+| `h4.twin.redacted` (spec 007's plan, D40, D41) | counter, `{answer}` | `h4.twin.guard`: `numbers`, `amounts`, `seva`, `address`, `address_repair`, `restated_claim`, `claim_tags` | `h4_twin_redacted_total` | once per answer the turn route delivers with a sentence removed, for each guard that removed one, with `address_repair` when "email address" lost its "address" (D39), and with `claim_tags` when the corpus's claim tags came off it; an answer withheld or replaced whole counts in `h4.twin.withheld` alone; the admin route's go into the live runs' history instead |
 
 **The gauges.**
 - They are observable gauges. Their callback reads an in-process snapshot and never touches the store.
@@ -185,6 +199,16 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 
 **What is never a metric attribute:** a client address or label, a request or trace ID, a message, a reason text, a dedupe key, or an operator's fingerprint.
 
+**(spec 010, Amendment 0-7)**
+
+| OTel name | Instrument, unit | Attributes | Prometheus name | Recorded when |
+|---|---|---|---|---|
+| `h4.adapter.month_spend_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_spend_usd` | the current UTC month's committed spend of each capped paid adapter the route names, from the snapshot |
+| `h4.adapter.month_cap_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_cap_usd` | its cap, from `config/budgets.yaml`'s `adapter_monthly_usd` |
+| `h4.adapter.month_warn_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_warn_usd` | its warning, the cap × `warn_ratio` |
+
+`h4.degraded.cause`, `h4.degraded.responses`, and `h4.twin.turns` gain the cause `adapter_month_spent`, after `meter_at_ceiling`; `h4.twin.withheld`'s `h4.twin.guard` gains `refusal`; and `h4.adapter.healthy` and `h4.cost.usd` carry the Anthropic adapter as they carry Bedrock, with `h4.cost.usd`'s zero series written at start under `fallback` and `test` for the routed paid adapter (spec 000's T191).
+
 ### 4.2 Semantic-convention metrics
 
 | OTel name | Instrument, unit | Attributes | Prometheus name | Source |
@@ -195,12 +219,12 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 
 ### 4.3 Metrics scraped by Prometheus
 
-These don't pass through the collector; Prometheus scrapes them ([§6.6](#66-prometheus-loki-and-grafana)). Names are as the targets expose them.
+These don't pass through the collector's pipelines. Prometheus scrapes the targets ([§6.6](#66-prometheus-loki-and-grafana)), and their names are as the targets expose them. The exception is the collector's own telemetry: it pushes that to Prometheus's OTLP receiver ([§6.4](#64-exporters-and-extensions)), and its scrape keeps only `up` and the `scrape_*` series Prometheus writes for every scrape (tasks.md T185).
 
 | Job (target) | Metrics the dashboard uses | Meaning |
 |---|---|---|
 | `model-server` (`model-server:8080/metrics`, every 5 s) | `up`; `llamacpp:prompt_tokens_total`; `llamacpp:tokens_predicted_total`; `llamacpp:predicted_tokens_seconds`; `llamacpp:requests_processing`; `llamacpp:requests_deferred` | `up` is 1 only when the server answers its metrics endpoint, which it does once the model is loaded. The `llamacpp:` names are build b11459's (`--metrics`); the first stack task checks them against the running server's `/metrics` and fixes this table if a name differs. Checked in T065 (2026-10-09): prod's Prometheus listed all five among its metric names. |
-| `otel-collector` (`otel-collector:8888/metrics`) | `up`; `otelcol_receiver_accepted_spans`, `otelcol_receiver_refused_spans`; `otelcol_exporter_sent_spans`, `otelcol_exporter_send_failed_spans`, `otelcol_exporter_enqueue_failed_spans`; the same three for `_metric_points` and `_log_records`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver`. Collector 0.162 names its counters without `_total` in every exposition format, so Prometheus stores them that way; this table had `_total`, and the panels found nothing (T065, 2026-10-09). A counter appears only with its first count, so the failure, drop, and refusal series exist only after something has failed. |
+| `otel-collector`: `up` from the scrape of `otel-collector:8888/metrics`; the rest pushed over OTLP every 10 s | `up`; `otelcol_receiver_accepted_spans_total`, `otelcol_receiver_refused_spans_total`; `otelcol_exporter_sent_spans_total`, `otelcol_exporter_send_failed_spans_total`, `otelcol_exporter_enqueue_failed_spans_total`; the same three for `_metric_points_total` and `_log_records_total`; `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity` | the collector's own telemetry at level `normal`, labelled by `exporter` (`otlphttp/langfuse`, `otlphttp/prometheus`, `otlphttp/loki`) and `receiver`, with job `h4reet/otel-collector` and instance `<stack>-otel-collector` ([§2](#2-resource-attributes)). **Pushed since T185.** Prometheus's OTLP translation appends `_total` to the counters, as to the gateway's ([§1](#1-rules-that-apply-to-every-signal) rule 5), and the two gauges keep their names. Each point carries its start time, so created-timestamp-zero-ingestion writes a 0 there ([§6.6](#66-prometheus-loki-and-grafana)) and a fresh collector's first batch counts. Scraped, the counters had no `_total` (T065, 2026-10-09) and no start time: on dev-cpu, `otelcol_exporter_sent_spans` went straight to 13, so the first batch read 0 (T149). On dev-cpu with the push, after a fresh collector and one hello, `otelcol_exporter_sent_spans_total{exporter="otlphttp/langfuse"}` read 0 at the collector's start, then 12, and `increase()` 12.2 (T185, 2026-10-18). The scrape drops every sample it takes, so it stores only `up` and Prometheus's own `scrape_*` series, and no `otelcol_` series is stored twice. The receivers' counters, the refusals among them, exist from the first request, at 0; an exporter's failure and drop counters appear only with their first count, so those series exist only after something has failed. |
 | `loki` (`loki:3100/metrics`), `grafana` (`grafana:3000/metrics`), `clickhouse` (`clickhouse:9363/metrics`), `prometheus` (`localhost:9090/metrics`) | `up` | the telemetry-health panel's backend row |
 
 ### 4.4 Development-time metrics (FR-037)
@@ -249,12 +273,13 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `meter.commit_pending` | warn | a metered call's commit failed on the store, and is kept for retries every 2 s until its reservation expires ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the log records the pending commit"; added by tasks.md T072) | `reservation_id`, `attribution`, `error_class` |
 | `meter.commit_gave_up` | error | a metered call's commit won't land, and the sweep settles its reservation at its maximum: the retries of a pending commit reached the reservation's expires_at; the store refused the commit's statement (a bug, 500-class, never retried); the gateway is stopping; or the call never settled at all and its reservation has expired, so the 10 s upkeep gives its slots back (added by tasks.md T072) | `reservation_id`, `attribution` |
 | `meter.sweep_failed` | error | the 10 s reservation sweep failed; it runs again at the next tick (tasks.md T068) | `error_class` (a SQLSTATE or Node error code, never a message) |
-| `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them |
+| `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call`; **(spec 011)** `operator.alert_samples` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them; **(spec 011)** `operator.alert_samples` has no `before`, and its `after` holds the kind asked for, the number of samples queued, and the delivery mode, where its audit row's `before` and `after` are NULL and its `detail` names the entries and their keys |
 | `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |
-| `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID) |
-| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
-| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class` |
+| `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID); **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
+| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s`; **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
+| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class`; **(spec 011)** `form` (`none` when no attempt was made), and `fallback_reason` when the last attempt sent the plain form in the designed one's place |
+| `alert.fallback` **(spec 011, Amendment 0-9)** | warn | an attempt sends the plain form in the designed one's place | `dedupe_key`, `kind`, `channel`, `attempt`, `reason`, and the refused designed send's `error_class` (`http_400`, `telegram_400`, `smtp_554`), none for a render's reason. No text, URL, or response body |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
 | `incident.draft_failed` | warn | a draft's write fails, when the failure starts or its class changes; it is retried every 10 s. At error, a draft that can never be written: its trip's audit row or ledger row is missing (tasks.md T078) | `incident_id`, `error_class` |
 | `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since`, `error_class` (a SQLSTATE or Node error code, never a message) |
@@ -263,6 +288,7 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `adapter.health_changed` | info | an adapter's effective health flips | `adapter`, `healthy`, `reason` |
 | `credentials.expiring` | warn | 2 h before the SSO session ends | `adapter`, `expires_at` |
 | `test.machinery_refused` | warn | a `POST /admin/test/*` outside dev | `path` |
+| `room_events.unavailable` | warn | at startup, when `config/room-events.yaml` is missing or invalid, so every usage event will be refused (spec 002, [room-events.md §3](../../002-the-room/contracts/room-events.md#3-the-gateways-route)) | `reason` (`missing`, `invalid`), `path` (where the file is invalid, as `objects[0]`, or empty; never a value) |
 
 The breach test's L assertions read `alert.delivered`, `fallback.exhausted`, `killswitch.tripped`, and the `operator.*` audit records ([plan.md §8](../plan.md#8-the-breach-test)).
 
@@ -319,6 +345,7 @@ logs             otlp         → memory_limiter → transform/payloads → reda
 |---|---|
 | Langfuse keys | `(?:sk\|pk)-lf-[0-9A-Za-z-]{8,}` |
 | AWS access key IDs | `\b(?:AKIA\|ASIA)[0-9A-Z]{16}\b` |
+| Anthropic API keys (spec 010, FR-031) | `sk-ant-[A-Za-z0-9_-]{20,}` |
 | Telegram bot tokens, alone or in a URL | `(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}` |
 | Operator tokens | `h4op_(?:prod\|dev\|devcpu)_[A-Za-z0-9_-]{43}` |
 | JWTs | `eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}` |
@@ -338,7 +365,7 @@ A unit test (`services/gateway/test/unit/redact.test.ts`) feeds each shape, buil
 | `otlphttp/loki` | `logs_endpoint: http://loki:3100/otlp/v1/logs` | `compression: gzip`; `retry_on_failure: {max_elapsed_time: 300s}`; `sending_queue: {queue_size: 300}` |
 | extension `basicauth/langfuse` | – | `client_auth: {username: ${env:LANGFUSE_PUBLIC_KEY}, password: ${env:LANGFUSE_SECRET_KEY}}` |
 | extension `health_check` | `0.0.0.0:13133` | for the breach probe and `make status`; the image has no shell, so compose has no health check for it |
-| `service.telemetry` | `metrics: {level: normal, readers: [{pull: {exporter: {prometheus: {host: 0.0.0.0, port: 8888}}}}]}`, `logs: {level: info}` | Prometheus scrapes 8888 (job `otel-collector`) |
+| `service.telemetry` | `metrics: {level: normal, readers: [{pull: {exporter: {prometheus: {host: 0.0.0.0, port: 8888}}}}, {periodic: {interval: 10000, exporter: {otlp: {protocol: http/protobuf, endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics, compression: gzip, temporality_preference: cumulative}}}}]}`; `resource: {attributes: [service.name otel-collector, service.namespace h4reet, deployment.environment.name ${env:H4_STACK}, service.instance.id ${env:H4_STACK}-otel-collector]}`, each a `{name, value}` pair; `logs: {level: info}` | The collector pushes its own metrics every 10 s, the gateway's interval, to the endpoint `otlphttp/prometheus` uses, so they carry a start time ([§4.3](#43-metrics-scraped-by-prometheus), T185). They go straight there, not through the collector's own receiver, so the counters of a refusing receiver or a full queue never wait behind what they count. They skip the `resource` processor, so the resource sets its values; 0.162 warns that the inline map form is legacy and takes the `attributes` list. The reader's exporter is `otlp` with a `protocol`; `otlp_http` panics in 0.162's `validate`. Prometheus still scrapes 8888 (job `otel-collector`) and keeps only `up` ([§6.6](#66-prometheus-loki-and-grafana)) |
 
 - **The keys exist before the first trace.** Langfuse's headless initialization creates the project `h4reet-<stack>` with exactly `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` as its API keys ([env-files.md](env-files.md)), so no UI step stands between `make up` and the first trace (SC-001).
 - **Before Langfuse is ready,** its endpoint refuses, and the queue holds the traces. After 10 minutes of refusals, the collector drops them, and the telemetry-health panel shows the drops.
@@ -363,7 +390,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 
 ### 6.6 Prometheus, Loki, and Grafana
 
-- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB --enable-feature=created-timestamp-zero-ingestion`, and neither the admin nor the lifecycle API). The feature, experimental in 3.15, writes a 0 at each series' start time, so `rate()` and `increase()` count a new counter's first increment and a histogram's first observation. Without it, one hello after a start never showed on the request and latency panels (T065, 2026-10-09). It reaches what is pushed over OTLP: on dev-cpu, one hello after a gateway restart gave its counter a 0 and then a 1, an `increase()` of 1.09, and a p50 of 0.375 s. It doesn't reach the collector's own counters, which Prometheus scrapes and which carry no start time, so a fresh collector's first batch still counts only from its second sample (tasks.md T185). It also makes Prometheus prefer protobuf scrapes; on dev-cpu's targets that renamed none of §4.3's metrics, and dropped only some of Grafana's own histograms, which no panel uses (T149):
+- **Prometheus** (`deploy/prometheus/prometheus.yml`; flags `--web.enable-otlp-receiver --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=2GB --enable-feature=created-timestamp-zero-ingestion`, and neither the admin nor the lifecycle API). The feature, experimental in 3.15, writes a 0 at each series' start time, so `rate()` and `increase()` count a new counter's first increment and a histogram's first observation. Without it, one hello after a start never showed on the request and latency panels (T065, 2026-10-09). It reaches what is pushed over OTLP: on dev-cpu, one hello after a gateway restart gave its counter a 0 and then a 1, an `increase()` of 1.09, and a p50 of 0.375 s. A scraped counter carries no start time, so it gets no 0: the collector's own counters went straight to their first value, and a fresh collector's first batch counted only from its second sample (T149). So the collector pushes its own metrics over OTLP too ([§6.4](#64-exporters-and-extensions)), and the `otel-collector` job drops every sample it scrapes, keeping `up` for the backends panel: Prometheus writes `up` for each scrape, and metric relabelling never touches it. On dev-cpu, a fresh collector's first batch to Langfuse read 0 and then 12 (tasks.md T185). The feature also makes Prometheus prefer protobuf scrapes; on dev-cpu's targets that renamed none of §4.3's metrics, and dropped only some of Grafana's own histograms, which no panel uses (T149):
 
   ```yaml
   otlp:
@@ -374,7 +401,8 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
       out_of_order_time_window: 30m
   scrape_configs:   # every 15 s, the model server every 5 s
     - {job_name: model-server,   scrape_interval: 5s, static_configs: [{targets: ["model-server:8080"]}]}
-    - {job_name: otel-collector, static_configs: [{targets: ["otel-collector:8888"]}]}
+    - {job_name: otel-collector, static_configs: [{targets: ["otel-collector:8888"]}],
+       metric_relabel_configs: [{source_labels: [__name__], regex: ".+", action: drop}]}   # up only (T185)
     - {job_name: loki,           static_configs: [{targets: ["loki:3100"]}]}
     - {job_name: grafana,        static_configs: [{targets: ["grafana:3000"]}]}
     - {job_name: clickhouse,     static_configs: [{targets: ["clickhouse:9363"]}]}
@@ -404,6 +432,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Why responses are degraded (FR-022, FR-028) | stat | `max by (h4_cause) (h4_degraded_cause) == 1` | the cause a hello would get now; `none` green |
 | Degraded responses by cause | bar chart | `sum by (h4_cause) (increase(h4_degraded_responses_total[$__rate_interval]))` | which causes answered, and when |
 | Store state (authoritative) | table (SQL) | `SELECT stack, env, state, since, crossed, fallback_awaiting_renewal, fallback_awaiting_since, day_key, month_key, day_spent_micro / 1e6 AS day_usd, month_spent_micro / 1e6 AS month_usd, fallback_spent_micro / 1e6 AS fallback_usd, fallback_allowance_micro / 1e6 AS fallback_allowance_usd, fallback_grant_no FROM gateway.v_state` | the state straight from the store, which still works when telemetry is down ([data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)) |
+| Paid adapters' months (authoritative) | table (SQL) | `SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter` | each paid adapter's month as the store holds it, its spend, reservations, and when its warning and cap were reached (spec 010, FR-036) |
 
 ### 7.2 Spend
 
@@ -413,6 +442,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Spend month-to-date (FR-028) | time series and stat | the same three with `h4_meter="month"` | against $14.00 and $20.00 |
 | Fallback sub-budget remaining (FR-028, FR-030) | stat and time series | A: `h4_fallback_allowance_usd - ignoring (h4_meter) h4_meter_spend_usd{h4_meter="fallback_day"}`; B: `max(h4_fallback_awaiting_renewal)`; C: `max(h4_meter_warn_usd{h4_meter="fallback_day"})` | what fallback can still spend today; B maps 1 to "awaiting renewal" in red |
 | Cost by provider and attribution (FR-023, SC-005) | table | `sum by (gen_ai_provider_name, gen_ai_request_model, h4_meter_attribution) (increase(h4_cost_usd_total[$__range]))` | Bedrock's fallback and test cost beside local's zero |
+| Paid adapter's month against its cap | time series and stat | A: `max by (h4_adapter) (h4_adapter_month_spend_usd)`; B: `max by (h4_adapter) (h4_adapter_month_warn_usd)`; C: `max by (h4_adapter) (h4_adapter_month_cap_usd)` | each capped paid adapter's month against its warning and its cap (spec 010, FR-036) |
 
 - Fallback remaining is the allowance minus committed fallback spend. `ignoring (h4_meter)` is needed because the spend series carries the `h4_meter` label and the allowance series doesn't. Without it the subtraction matches nothing and the panel shows no data.
 - Each panel reads the meter's own values and never re-sums the cost counter, so it agrees with the store (ADR 0004).
@@ -443,13 +473,15 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 | Panel | Type | Query |
 |---|---|---|
 | Audit log (FR-034) | table (SQL) | `SELECT recorded_at AS "time", ts AS gateway_time, actor, action, reason, before::text AS before, after::text AS after FROM gateway.audit_log WHERE $__timeFilter(recorded_at) ORDER BY recorded_at DESC LIMIT 200` |
-| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome) (increase(h4_alerts_total[$__range]))` |
+| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) (increase(h4_alerts_total[$__range]))` |
+| Alerts sent as plain text by fallback | table | `sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) (increase(h4_alert_fallbacks_total[$__range]))` |
 | Alert delivery lag p95 | time series | `histogram_quantile(0.95, sum by (le) (rate(h4_alert_delivery_lag_seconds_bucket[$__rate_interval])))` |
-| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed)"` |
+| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed\|fallback)"` |
 | Operator actions | bar chart | `sum by (h4_action) (increase(h4_operator_actions_total[$__range]))`, and `sum(increase(h4_test_machinery_refused_total[$__range]))` |
 | Audit events, from the logs | logs | `{service_name="gateway"} \| event_name="h4.audit"` |
 
 - The audit panel filters on `recorded_at`, the real time, so dev's test-clock jumps don't push rows outside the dashboard's range. It shows the gateway's own time beside it.
+- **(spec 011, Amendment 0-9)** The outcomes table shows each attempt's form, `designed`, `plain`, or `none`; "Alerts sent as plain text by fallback" sits beside it, by channel, kind, and reason, where a fallback shows though its alert arrived (FR-046); and the alert log reads `alert.fallback` too. Its runbook is `alert-channel-down.md`'s "Alerts arrive as plain text" ([alerts.md §6](alerts.md#6-runbooks)). A sample request is a rare operator write, as a reset is, so it has no panel of its own: its request is a row of the audit log (`alert_samples`), and its samples' deliveries rows of the two alert tables under the kind `sample`.
 - The table is `grafana_ro`'s: SELECT on `gateway.audit_log` and `gateway.v_state` only ([research.md R-10](../research.md#r-10-grafanas-audit-panel-reads-the-store-not-telemetry)). The two log panels are secondary; they go empty during a telemetry outage, and the table doesn't.
 
 ### 7.6 Telemetry health
@@ -458,13 +490,13 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 |---|---|---|
 | Backends up | stat, one per job | `max by (job) (up{job=~"model-server\|otel-collector\|loki\|grafana\|clickhouse\|prometheus"})` |
 | Spend freshness | stat, in seconds | `time() - max(timestamp(h4_meter_spend_usd{h4_meter="day"}))`. Green under 30, amber under 60, red at 60 or more, and red on no data. |
-| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans[5m]))`, and the same for `_metric_points` and `_log_records` |
-| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans[5m]))`, and the same for metric points and log records |
+| Export failures | time series | `sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))`, and the same for `_metric_points_total` and `_log_records_total` |
+| Dropped at the queue | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total[5m]))`, and the same for metric points and log records |
 | Queue fill | time series | `max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)` |
-| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans{exporter="otlphttp/langfuse"}[5m]))` |
-| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans[5m]))`, and the same for metric points and log records |
+| Spans to Langfuse | time series | `sum(rate(otelcol_exporter_sent_spans_total{exporter="otlphttp/langfuse"}[5m]))` |
+| Refused at the receiver | time series | `sum by (receiver) (rate(otelcol_receiver_refused_spans_total[5m]))`, and the same for metric points and log records |
 
-The collector's counters carry no `_total` ([§4.3](#43-metrics-scraped-by-prometheus)), and its failure, drop, and refusal series appear only with their first count, so "No data" in those three panels means nothing has failed yet. This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
+The collector pushes its own metrics, so its counters carry `_total` and a fresh collector's first batch counts ([§4.3](#43-metrics-scraped-by-prometheus), tasks.md T185). Its exporters' failure and drop series appear only with their first count, so "No data" in those two panels means nothing has failed yet; the receivers' refusals read 0 from the first request. This row is how a degraded telemetry pipeline shows itself ([plan.md §19](../plan.md#19-degraded-modes)): a stale freshness value, failures and drops per exporter, and backends down.
 
 ### 7.7 Development time (FR-037)
 
@@ -480,6 +512,61 @@ The row's title says what it is: "Development time on the Team plan: notional co
 
 For a month's figure, set the range to the month. Prometheus keeps 30 days; the committed history in `evals/agent-config/history/` is the long-term record (SC-008).
 
+### 7.8 The room (spec 002)
+
+The row's title is "Room": what the room's visitors use, counted with no visitor data (spec 002, FR-054 and FR-056; [room-events.md §4](../../002-the-room/contracts/room-events.md#4-telemetry-and-the-dashboard)). Each usage event the gateway accepts is one increment of `h4_room_events_total`, labelled with its `kind` and `id` alone; each one it refuses, of `h4_room_events_refused_total` by `reason`. The row sits above the development-time row.
+
+| Panel | Type | Query |
+|---|---|---|
+| Use per object per day (FR-056) | bar chart | `sum by (id) (increase(h4_room_events_total{kind="object_selected"}[1d]))` |
+| Use per item per day (FR-056) | bar chart | `sum by (id) (increase(h4_room_events_total{kind="item_selected"}[1d]))` |
+| PDF downloads per day (FR-056) | stat | `sum(increase(h4_room_events_total{kind="pdf_downloaded"}[1d]))` |
+| Visits shown the 2D mode (FR-056) | stat, as a share | `sum(increase(h4_room_events_total{kind="mode_2d"}[$__range])) / sum(increase(h4_room_events_total{kind=~"resume_opened\|resume_kept"}[$__range]))` |
+| Visits whose avatar failed | stat, as a share | `sum(increase(h4_room_events_total{kind="avatar_failed"}[$__range])) / sum(increase(h4_room_events_total{kind=~"resume_opened\|resume_kept"}[$__range]))` |
+| Turns sent and talk presses | bar chart | `sum by (kind) (increase(h4_room_events_total{kind=~"turn_sent\|voice_pressed"}[$__rate_interval]))` |
+| Events refused | bar chart | `sum by (reason) (increase(h4_room_events_refused_total[$__rate_interval]))` |
+| Visits that walked (FR-053) | stat, as a share | `sum(increase(h4_room_events_total{kind="walk_started"}[$__range])) / sum(increase(h4_room_events_total{kind=~"resume_opened\|resume_kept"}[$__range]))` |
+
+- **Per day** is the 24 hours before the range's end. The two use panels read one instant there, and the PDF stat shows its last value, so the default range shows the last 24 hours, and a range that ends at a past midnight shows that day (the dashboard is in UTC). The gateway's clock gives each event its time; the browser sends none.
+- **The 2D share** is `mode_2d` over `resume_opened` plus `resume_kept`, a stand-in for visits, since no visit is counted (FR-054). Every visit that reaches the room ends its hand-off with one of the two; one that keeps the resume and opens it later counts twice, so the share reads low rather than high. With no visit in the range it has no value.
+- **The walked share** is `walk_started`, sent once a visit at the first entry into the walking view, over the same stand-in for visits as the 2D share, `resume_opened` plus `resume_kept`, read the same way: low rather than high, and no value with no visit in the range (spec 008, Amendment M1).
+- **Visits whose avatar failed** (spec 009, FR-034; its Amendment M1) is `avatar_failed` over `resume_opened` plus `resume_kept`, read as the 2D share is read: a visit sends `avatar_failed` at most once, with no identifier, when a figure's avatar file failed to load after its retry and the figure kept its fallback; a skip, a missing file, a device below the floor, or a room in 2D sends none.
+- **Turns sent** count the text box's sends; **talk presses**, the talk button's. Both answer with a fixed message until the twin's conversation exists.
+- **Waiting for their groups** (FR-056's other panels, which have no data until their calls exist): the conversation's panels, each room feature's cost beside its latency and errors, turns per room feature, degraded turns by cause, withheld answers, and the model each turn used, are §7.10's, which spec 007 adds (its Amendment 0-5). Recognition's latency and failures come with push-to-talk (group 8), and the voice's failures with the voice (group 9).
+
+### 7.9 Room live state (spec 004)
+
+The row's title is "Room live state": the status requests behind the room's laptop, and the class of the tier the relay's status would show now (spec 004, FR-072 and SC-014; its contracts/room-live-state-telemetry.md). The series are spec 001's relay's, as spec 004's Amendment A2 amends its contracts/relay-http.md §10: `h4_relay_requests_total` and `h4_relay_cap_refusals_total` gain the label `h4_relay_route` (`hello`, `status`, or `other`), the status bucket's refusals carry `h4_cap_limit="status_per_minute"`, and the one-hot gauge `h4_relay_status_class` reports, by `h4_class`, the class FR-041's table gives the status the relay would answer now: `local`, `cloud`, `resting`, `budget`, `unavailable`, or `unknown`. Until spec 001's relay emits them, this section is in `deploy/scripts/test_dashboard.py`'s `SECTIONS` but not in its `REQUIRED`, and the dashboard has none of its panels. The change that switches the room's live source on adds the panels and makes the section required. The row sits right below "Room".
+
+| Panel | Type | Query |
+|---|---|---|
+| Status requests a minute (FR-072) | time series | `sum(rate(h4_relay_requests_total{h4_relay_route="status"}[$__rate_interval])) * 60` |
+| Status 429s a minute (FR-072) | time series | `sum(rate(h4_relay_cap_refusals_total{h4_relay_route="status"}[$__rate_interval])) * 60` |
+| Time in each class (FR-072, SC-014) | bar chart | `avg by (h4_class) (avg_over_time(h4_relay_status_class[$__range]))` |
+
+- **Status requests** are every `GET /api/status` the relay answers, on both listeners: the room's polls, at most 2 a minute per visible, unpaused room; the `/status/` page's, every 60 s while it's visible; the snapshot sink's reads; and probes. The room's polls and the `/status/` page's can't be told apart, and both panels' descriptions say so.
+- **The 429s** are the status bucket's, `status_per_minute`: 30 a minute with a burst of 10, per address, shared by every visitor behind one address. A refused poll leaves that room's laptop at unknown until its next answer.
+- **Time in each class** is the share of the range the gauge spent at 1 in each class, read once at the range's end. It's the relay's view: a room's own rows (the live source, pause, a failed or stale request, a fallback reply) aren't in it.
+
+### 7.10 Room conversation (spec 007)
+
+The row's title is "Room conversation": the twin's turns, from `h4_twin_turns_total`, `h4_twin_turn_duration_seconds`, `h4_twin_withheld_total`, `h4_twin_redacted_total` (spec 007's plan, D41), and `h4_cost_usd_total`'s `h4_room_feature`, and the model each turn used, from the store's `gateway.v_twin_models` through `grafana_ro` (spec 007, FR-045; its Amendment 0-5; its plan §9, departures D7 and D12). It sits below "Room", and below "Room live state" once that row exists. Each feature's cost sits beside its latency and its errors (Principle V). No panel reads a visitor's words, an answer, or a path: no series holds them.
+
+| Panel | Type | Query |
+|---|---|---|
+| Turns per feature, by outcome (FR-045) | bar chart | `sum by (h4_room_feature, h4_outcome) (increase(h4_twin_turns_total[$__rate_interval]))` |
+| Cost per feature, today (FR-045) | bar chart | `sum by (h4_room_feature) (increase(h4_cost_usd_total{h4_room_feature!="none", h4_meter_attribution!="test"}[1d]))` |
+| Turn latency, p95 by feature (FR-045) | time series | `histogram_quantile(0.95, sum by (le, h4_room_feature) (rate(h4_twin_turn_duration_seconds_bucket[$__rate_interval])))` |
+| Cost per feature, 30 days (FR-045) | bar chart | `sum by (h4_room_feature) (increase(h4_cost_usd_total{h4_room_feature!="none", h4_meter_attribution!="test"}[30d]))` |
+| Turn errors by feature (FR-045) | time series | `sum by (h4_room_feature) (increase(h4_twin_turns_total{h4_outcome=~"error\|degraded"}[$__rate_interval]))` |
+| Degraded turns by cause (FR-045) | bar chart | `sum by (h4_cause) (increase(h4_twin_turns_total{h4_outcome="degraded"}[$__rate_interval]))` |
+| Answers withheld, by guard (FR-045) | bar chart | `sum by (h4_twin_guard) (increase(h4_twin_withheld_total[$__rate_interval]))`, and the answers delivered with a sentence removed, by the guard that removed it (spec 007's plan, D41): `sum by (h4_twin_guard) (increase(h4_twin_redacted_total[$__rate_interval]))` |
+| Answered locally (FR-045) | stat, as a share | `sum(increase(h4_twin_turn_duration_seconds_count{h4_route_decision="local"}[$__range])) / sum(increase(h4_twin_turn_duration_seconds_count{h4_route_decision=~"local\|fallback"}[$__range]))` |
+| The model each turn used (FR-045) | table (SQL) | `SELECT request_model, room_feature, count(*) AS turns FROM gateway.v_twin_models WHERE ts > now() - interval '1 day' GROUP BY request_model, room_feature ORDER BY turns DESC` |
+
+- **Today** is the 24 hours before the range's end, and **30 days** the 30 before it: rolling windows, while the meter's own day and month stay the calendar's in UTC. The Author's evaluation calls, attributed `test`, are left out of the cost.
+- **Answered locally** is the share of answered turns the local model answered over the range; a turn that degraded or was refused counts in neither part.
+
 ## 8. What holds this contract
 
 | Check | Where | What it proves |
@@ -487,7 +574,8 @@ For a month's figure, set the range to the month. Prometheus keeps 30 days; the 
 | Instrument inventory | `services/gateway/test/unit/telemetry-names.test.ts` | After a scripted run with an in-memory metric reader, the set of `h4.*` instruments, their units, and their attribute keys equal [§4.1](#41-the-gateways-instruments). A new name fails the test until this file has it. |
 | Span keys | the contract suite's C8 ([provider-adapter.md §5.2](provider-adapter.md#52-assertions)) | [§3.3](#33-span-attributes)'s canonical success set, identical across `local-openai` and `bedrock-converse` |
 | Redaction | `services/gateway/test/unit/redact.test.ts`, and a pytest test that parses `deploy/otel/collector.yaml` | every pattern in [§6.3](#63-processors) masks its fixture, in both copies; payload keys are deleted unless sampled |
-| Dashboard queries | a pytest test, `deploy/scripts/test_dashboard.py` | every metric name in `h4-runtime.json` appears in this file; every FR-028, FR-034, and FR-037 panel exists; the datasource uids are `prom`, `loki`, and `gateway` |
+| The collector's own metrics | `deploy/scripts/test_observability.py`, and `test_dashboard.py` | the collector pushes them to `otlphttp/prometheus`'s endpoint every 10 s, with the stack's labels; the `otel-collector` job keeps only `up`; the panels read the pushed `_total` names (T185) |
+| Dashboard queries | a pytest test, `deploy/scripts/test_dashboard.py` | every metric name in `h4-runtime.json` appears in this file; every FR-028, FR-034, and FR-037 panel exists, and spec 002's FR-056 panels in §7.8; the datasource uids are `prom`, `loki`, and `gateway` |
 | End to end | the breach test's T, M, and L assertions ([plan.md §8](../plan.md#8-the-breach-test)), and [quickstart.md](../quickstart.md) | the names, the 60 s freshness, and the Langfuse trace, on a running stack |
 
 Checked once, in the first stack task, and recorded in research.md: the `llamacpp:` names of build b11459; which cost attribute Langfuse 4.54.0 reads; whether Langfuse accepts gzip; and the Prometheus names of Claude Code's two metrics.

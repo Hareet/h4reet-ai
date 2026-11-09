@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse(Edit|Write|MultiEdit|NotebookEdit): agents may not modify the enforcement layer, the constitution,
-# the review policy, git internals, cost/edge/kill-switch configuration, or test files during a fix task.
+# the review policy, git internals, cost/edge/kill-switch configuration, the asset policy, the studio's folders (its
+# photos, outputs, workflows, and blinding key), or test files during a fix task.
 set -Eeuo pipefail
 # Fail closed: in Claude Code only exit 2 blocks, so a missing dependency or an unexpected
 # error must become exit 2 — otherwise the gate silently disappears. -E carries the trap into
@@ -48,15 +49,18 @@ check() {
     .claude/* | CLAUDE.md | REVIEW.md | .specify/memory/constitution.md) block "protected governance path" ;;
     .git | .git/*) block "git internals (refs, config, and hooks change through git, and main only by the Author)" ;;
     infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/alert* | config/kill-switch*) block "cost/alert/edge/kill-switch configuration" ;;
+    config/twin-readiness*) block "the twin's readiness, which opens a topic to visitors' words, the Author's alone (spec 007 FR-029)" ;;
     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
     config/prices*) block "the price table (human-only, versioned, append-only; spec 000 FR-008)" ;;
+    assets/policy/content-approvals.json | assets/policy/resume-header.json) block "the room's content approvals or the PDF's header, which only the Author changes, on main (spec 002, contracts/resume-source.md §5)" ;;
     GNUmakefile | makefile) block "a makefile that make would run instead of the Makefile" ;;
     deploy/agents-engine | deploy/agents-engine/*) block "the agents' engine (the FR-039 boundary; parts of it run with sudo)" ;;
     .gitleaks* | */.gitleaksignore) block "the secret scanner's rules or an ignore list (research.md R-36)" ;;
     .mcp.json | */.mcp.json) block "MCP server configuration (it gives every session new tools)" ;;
     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
+    assets/policy | assets/policy/*) block "the asset policy: the license allowlist, the likeness approvals, and the caps, which only the Author changes (spec 003 FR-005)" ;;
   esac
   if [ "${FIX_TASK:-0}" = "1" ]; then
     case "$1" in
@@ -81,6 +85,41 @@ lexical_tree="$(tree_rel "$lexical")"
 physical_tree="$(tree_rel "$(realpath -m -- "$path")")"
 [ -z "$lexical_tree" ] || check "$lexical_tree"
 [ -z "$physical_tree" ] || check "$physical_tree"
+# The studio's folders (spec 003 FR-003; spec 004 FR-025, Amendment C3): no Edit or Write lands in one. The folders
+# come from tools/gates/studio-folders.txt under the project, by name; a missing or unreadable list, or a name without
+# an absolute path, blocks every edit, as any other error here does. An edit is refused when either resolution of its
+# path, the lexical one or the physical one, is a folder or lies under it, each folder taken as the list writes it and
+# resolved both ways, both sides case-folded, so a case variant is refused on any mount. No message names a folder or
+# the path; the audit log records the attempt, as it records every block.
+studio_list="$root/tools/gates/studio-folders.txt"
+studio_closed="the studio's folder list, tools/gates/studio-folders.txt, is missing, unreadable, or without an absolute path for photos, outputs, workflows, or blinding-key, so every edit is refused until it is whole (spec 004 FR-025)"
+{ [ -f "$studio_list" ] && [ -r "$studio_list" ]; } || block "$studio_closed"
+# studio_field <name>: the path on the list's line for the name, trimmed, without a trailing slash; empty when none
+studio_field() {
+  local line rest
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in "$1"[[:space:]]*) ;; *) continue ;; esac
+    rest="${line#"$1"}"
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    rest="${rest%"${rest##*[![:space:]]}"}"
+    while [ "$rest" != "${rest%/}" ]; do rest="${rest%/}"; done
+    printf '%s' "$rest"
+    return 0
+  done <"$studio_list"
+  return 0
+}
+physical="$(realpath -m -- "$path")"
+for studio_name in photos outputs workflows blinding-key; do
+  studio_dir="$(studio_field "$studio_name")"
+  case "$studio_dir" in /?*) ;; *) block "$studio_closed" ;; esac
+  for studio_form in "$studio_dir" "$(realpath -m -s -- "$studio_dir")" "$(realpath -m -- "$studio_dir")"; do
+    studio_form="${studio_form,,}"
+    for edit_form in "${lexical,,}" "${physical,,}"; do
+      case "$edit_form" in "$studio_form" | "$studio_form"/*) block "a studio folder (spec 003 FR-003; spec 004 FR-025, Amendment C3)" ;; esac
+    done
+  done
+done
 # Each role writes only where plan §13's role table says, from the hook input's agent_type: the path relative to the
 # worktree holding it, or to the project. implementer writes code anywhere the checks above allow; reviewer and
 # red-teamer write nothing; ops writes infrastructure, runbooks, and the intents its findings become (the constitution's

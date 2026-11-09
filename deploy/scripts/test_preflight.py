@@ -560,6 +560,11 @@ def test_p6_the_stack_agrees(dev: Stage) -> None:
     ("changes", "expected"),
     [
         ({"H4_API_PORT": "18100"}, "H4_API_PORT isn't prod's 18000"),
+        # x005, the room's site (spec 002, contracts/web-serving.md §4).
+        ({"H4_SITE_PORT": "18105"}, "H4_SITE_PORT isn't prod's 18005"),
+        ({"H4_SITE_PORT": "18004"}, "H4_SITE_PORT isn't prod's 18005"),
+        # prod's web image never holds the room's drafts (contracts/web-serving.md §1 and §4).
+        ({"H4_WEB_SUFFIX": "-drafts"}, "H4_WEB_SUFFIX isn't empty on prod"),
         ({"H4_TREE": "/x"}, "H4_TREE is set in a host stack's env file"),
         ({"H4_STATE_DIR": "/tmp/prod"}, "H4_STATE_DIR isn't"),
         (
@@ -1008,7 +1013,7 @@ def test_p19_prods_aws_directory(prod: Stage) -> None:
     aws.chmod(0o700)
     prod.write(
         prod.root / "config/routing.yaml",
-        "adapters:\n  local: {kind: local}\n  bedrock: {kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
+        "adapters:\n  local: {kind: local}\n  bedrock: {type: bedrock-converse, kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
     )
     assert "[profile h4reet-bedrock]" in prod.results()["P19"].reason
     # The profile's SSO region is its sso-session's, and must be us-east-1 (tasks.md T194).
@@ -1229,3 +1234,148 @@ def test_p13_never_counts_the_shared_build_as_an_image_to_pull(prod: Stage) -> N
     assert result.status == "PASS" and "0 image(s) missing locally" in result.reason
     asked = [c[-1] for c in prod.host.docker_calls if c[:2] == ("image", "inspect")]
     assert asked and not [r for r in asked if "h4reet-gateway" in r]
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 002 (T003; contracts/web-serving.md §1 and §4): x005, the room's site, is the sixth port key, fixed per stack
+# and checked free; the web service runs make up's own build, as the gateway does, and its tag suffix, which
+# carries the drafts flag, is empty on prod and -drafts on dev and dev-cpu.
+# --------------------------------------------------------------------------------------------------
+SHARED_WEB = "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}"
+
+
+@pytest.mark.parametrize(
+    ("stack", "port"), [("prod", 18005), ("dev", 18105), ("dev-cpu", 18305)]
+)
+def test_the_site_port_is_x005_of_each_stack(
+    tmp_path: Path, stack: str, port: int
+) -> None:
+    stage = Stage(tmp_path, stack)
+    assert pf.PORT_KEYS[-1] == "H4_SITE_PORT"
+    assert "H4_SITE_PORT" not in stage.results()["P7"].reason
+    stage.set(H4_SITE_PORT=str(port + 1))
+    assert f"H4_SITE_PORT isn't {stack}'s {port}" in stage.results()["P7"].reason
+
+
+def test_the_site_port_is_required(prod: Stage) -> None:
+    prod.set(H4_SITE_PORT=None)
+    results = prod.results()
+    assert results["P4"].status == "FAIL"
+    assert "missing H4_SITE_PORT (make init-env ENV=prod SYNC=1 adds them)" in (
+        results["P4"].reason
+    )
+    assert "H4_SITE_PORT isn't prod's 18005" in results["P7"].reason
+
+
+def test_p16_the_site_port_is_free_or_this_stacks_edges(prod: Stage) -> None:
+    prod.host.containers = [("h4reet-prod", "edge", "127.0.0.1:18005->8087/tcp")]
+    result = prod.results()["P16"]
+    assert result.status == "PASS" and "18000-18005" in result.reason
+    prod.host.containers = [("h4reet-dev", "edge", "127.0.0.1:18005->8087/tcp")]
+    assert "18005 is published by h4reet-dev/edge" in prod.results()["P16"].reason
+    prod.host.containers = []
+    prod.host.busy = {18005}
+    assert "18005 is held by another process" in prod.results()["P16"].reason
+
+
+def test_the_web_suffix_is_required(any_stack: Stage) -> None:
+    # The templates' values pass (test_a_valid_stack_passes); without the key, compose would read an empty suffix,
+    # which is prod's tag.
+    assert "H4_WEB_SUFFIX" not in any_stack.results()["P7"].reason
+    any_stack.set(H4_WEB_SUFFIX=None)
+    results = any_stack.results()
+    assert "missing H4_WEB_SUFFIX" in results["P4"].reason
+    assert results["P7"].status == "FAIL" and "H4_WEB_SUFFIX" in results["P7"].reason
+
+
+@pytest.mark.parametrize("value", ["", "-draft", "-x", ":latest", "-drafts-drafts"])
+def test_dev_takes_drafts_and_nothing_else(dev: Stage, value: str) -> None:
+    dev.set(H4_WEB_SUFFIX=value)
+    result = dev.results()["P7"]
+    assert (
+        result.status == "FAIL"
+        and "H4_WEB_SUFFIX isn't -drafts on dev" in result.reason
+    )
+
+
+def test_p17_takes_the_web_services_shared_build(dev: Stage) -> None:
+    web = dev.host.raw["services"]["web"]
+    assert (web["image"], web["pull_policy"]) == (SHARED_WEB, "never")
+    assert dev.results()["P17"].status == "PASS"
+    del web["pull_policy"]
+    result = dev.results()["P17"]
+    assert result.status == "FAIL"
+    assert "web: h4reet-web is make up's own build" in result.reason
+
+
+def test_p17_the_web_services_name_is_its_alone(dev: Stage) -> None:
+    dev.host.raw["services"]["edge"]["image"] = SHARED_WEB
+    dev.host.raw["services"]["edge"]["pull_policy"] = "never"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL" and "edge: not pinned by digest" in result.reason
+
+
+def test_p13_never_counts_the_web_image_as_one_to_pull(prod: Stage) -> None:
+    result = prod.results()["P13"]
+    assert result.status == "PASS"
+    asked = [c[-1] for c in prod.host.docker_calls if c[:2] == ("image", "inspect")]
+    assert asked and not [r for r in asked if "h4reet-web" in r]
+
+
+def test_p21_watches_the_room_too(prod: Stage) -> None:
+    prod.host.status_lines = [" M apps/web/src/main.ts"]
+    result = prod.results()["P21"]
+    assert result.status == "WARN" and "apps/web/src/main.ts" in result.reason
+    assert "apps" in pf.WATCHED
+
+
+# Spec 010 (FR-030, FR-040, SC-008; contracts/env-files.md §10, amended): the Anthropic API key in prod's env file, empty
+# while prod's route names no anthropic-messages adapter and checked while it does; P19's AWS checks only for a route
+# that names Bedrock. The key's value is made here, at run time, and never key-shaped.
+ANTHROPIC_ROUTE = (
+    "adapters:\n  local: {type: openai-compatible, kind: local}\n"
+    "  anthropic: {type: anthropic-messages, kind: paid}\n"
+    "envs:\n  prod: {primary: local, fallback: anthropic}\n  dev: {primary: local}\n"
+)
+
+
+def test_p3_allows_the_anthropic_key_empty_until_prods_route_names_the_adapter(
+    prod: Stage,
+) -> None:
+    assert "GATEWAY_ANTHROPIC_API_KEY=\n" in prod.env_file.read_text(encoding="utf-8")
+    assert prod.results()["P3"].status == "PASS"
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    result = prod.results()["P3"]
+    assert (
+        result.status == "FAIL" and "empty: GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    )
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
+    assert prod.results()["P3"].status == "PASS"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["short", "x" * 257, "'with a space here and there'", "p\u00e4ss" + "x" * 30],
+)
+def test_p7_checks_the_anthropic_keys_shape_while_routed_never_printing_it(
+    prod: Stage, value: str
+) -> None:
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    prod.set(GATEWAY_ANTHROPIC_API_KEY=value)
+    result = prod.results()["P7"]
+    assert result.status == "FAIL" and "GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    assert value.strip("'") not in result.reason
+
+
+def test_p7_leaves_the_anthropic_key_alone_while_unrouted(prod: Stage) -> None:
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="short")
+    assert "GATEWAY_ANTHROPIC_API_KEY" not in prod.results()["P7"].reason
+
+
+def test_p19_checks_aws_only_for_a_route_that_names_bedrock(prod: Stage) -> None:
+    aws = prod.home / ".config/h4reet-ai/aws-home/.aws"
+    assert not (aws / "config").exists()
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
+    result = prod.results()["P19"]
+    assert result.status == "PASS" and "no Bedrock adapter" in result.reason

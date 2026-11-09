@@ -1,0 +1,19 @@
+rule: RA4
+file: assets/visitors/woman/woman.glb
+path: "-"
+why: an avatar's model over main's per_asset.avatar bytes, as spec 003's F2 measures it (spec 009, FR-009)
+generate:
+  assets/visitors/woman/woman.glb: glb:avatar
+  assets/visitors/woman/records.json: visitor-records
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 9
+    avatar: { bytes: 1000, triangles: 90000, texture_bytes: 33554432 }
+    animation: { bytes: 1000000 }

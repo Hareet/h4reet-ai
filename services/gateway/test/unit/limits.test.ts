@@ -45,11 +45,11 @@ describe("the per-client cap", () => {
 
   it("keeps each client to its own bucket: the address and the label together", () => {
     const cap = new ClientCap({ requestsPerMinute: 60, burst: 1, requestsPerDay: 500 });
-    expect(clientKey("10.0.0.7", undefined)).not.toBe(clientKey("10.0.0.7", "author-laptop"));
+    expect(clientKey("10.0.0.7", undefined)).not.toBe(clientKey("10.0.0.7", "author-terminal"));
     expect(clientKey("10.0.0.7", "a")).not.toBe(clientKey("10.0.0.8", "a"));
     for (const key of [
       clientKey("10.0.0.7", undefined),
-      clientKey("10.0.0.7", "author-laptop"),
+      clientKey("10.0.0.7", "author-terminal"),
       clientKey("10.0.0.8", undefined),
     ]) {
       expect(cap.take(key, T0, T0).ok).toBe(true);

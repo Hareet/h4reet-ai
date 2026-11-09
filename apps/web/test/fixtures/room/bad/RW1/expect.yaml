@@ -1,0 +1,6 @@
+rule: RW1
+file: apps/web/room/scene.yaml
+path: placements[8].mount.offset
+why: the visitor figure standing in the desk, so the walking view would start with its footprint off the walkable floor (spec 008, FR-026, FR-058)
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 8, mount, offset], set: [0, 0, -0.6] }

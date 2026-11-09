@@ -67,7 +67,9 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 | `H4_GRAFANA_PORT` | `18002` | `18102` | `18302` | no | fixed | compose (x002); Grafana's `GF_SERVER_ROOT_URL`; the gateway's incident-draft links | the same |
 | `H4_ADMIN_PORT` | `18003` | `18103` | `18303` | no | fixed | compose (x003, the admin listener) | the same |
 | `H4_OTLP_PORT` | `18004` | `18104` | `18304` | no | fixed | compose (x004, dev-time metrics; only prod's receives any, [telemetry.md §6.1](telemetry.md#61-receivers)) | the same |
+| `H4_SITE_PORT` | `18005` | `18105` | `18305` | no | fixed | compose (x005, the room's site: spec 002, [web-serving.md §2](../../002-the-room/contracts/web-serving.md#2-the-stacks-edge)) | the same |
 | `H4_BUILD_PROXY` | empty | empty | `http://198.18.0.1:3128` | no | fixed | the `HTTP_PROXY` and `HTTPS_PROXY` build arguments of the gateway's image, which `deploy/scripts/gateway_image.py` reads from the env file as data (plan §4; tasks.md T184), and, through compose, of the `telegram-standin` and `breach-probe` images; never a container's environment | preflight: empty on host stacks; exactly this value on dev-cpu ([agents-engine.md §4](agents-engine.md#4-egress-the-proxy)) |
+| `H4_WEB_SUFFIX` | empty | `-drafts` | `-drafts` | no | fixed | the end of the room's web image tag, `h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}`, and the drafts flag of its build, which `deploy/scripts/web_image.py` reads from the env file as data (spec 002, [web-serving.md §1 and §4](../../002-the-room/contracts/web-serving.md#1-the-web-image)) | preflight: empty on `H4_ENV=prod`, `-drafts` on `H4_ENV=dev` |
 
 - The ports are fixed per stack, so the stacks never overlap (FR-020), and compose binds them to the literal `127.0.0.1`, which no env file can change (plan §1). On dev-cpu, RootlessKit publishes them on the host's `127.0.0.1` as `h4agents`: host processes reach them, and the sandbox doesn't (agents-engine.md row E14).
 - `H4_BUILD_PROXY` exists because the engine's builds reach npm only through the egress proxy. It is a build argument and not a container variable, because Python's urllib in the probe and the stand-in honours `HTTP_PROXY`, and would then send in-network calls to the proxy.
@@ -78,8 +80,8 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 |---|---|---|---|---|---|---|---|
 | `MODEL_FILE` | `Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf` | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | the same as dev | no | fixed | the model server's `-m /models/${MODEL_FILE}`; `pull-models.sh` | preflight: names a `deploy/models.lock` entry whose `stacks` include `H4_STACK`; for host stacks the file exists with the lock's size, or is fetched; on dev-cpu it must exist ("ask the Author to run deploy/agents-engine/engine.sh seed") |
 | `MODEL_ALIAS` | the lock entry's alias for the prod model | the stand-in's alias | the same as dev | no | fixed | `--alias`; the gateway's `LOCAL_MODEL_NAME` (`gen_ai.request.model`) | preflight: equals the lock entry's `alias` |
-| `MODEL_CTX_SIZE` | `32768` | `8192` | `8192` | no | fixed | `-c` | preflight: a positive integer divisible by `MODEL_PARALLEL`. The first stack task may set prod to `16384` if the model doesn't fit (plan §3). |
-| `MODEL_PARALLEL` | `4` | `2` | `2` | no | fixed | `-np` | preflight: 1 to 8 |
+| `MODEL_CTX_SIZE` | `32768` | `8192` | `8192` | no | fixed | `-c` | preflight: a positive integer divisible by `MODEL_PARALLEL`. The first stack task may set prod to `16384` if the model doesn't fit (plan §3), with `MODEL_PARALLEL` `1` since 2026-11-08, so a slot still holds a spec 007 twin turn. |
+| `MODEL_PARALLEL` | `2` | `2` | `2` | no | fixed | `-np` | preflight: 1 to 8. Prod's two slots of 16,384 tokens each hold a spec 007 twin turn: 32,000 characters in, plus 300 out. It was `4`: slots of 8,192 tokens, too small for a twin turn, so the model server refused every one (2026-11-08; spec 007's plan, D27). |
 | `MODEL_THREADS` | `4` | `4` | `4` | no | fixed | `-t`, in the `cpu` profile only | preflight: 1 to 4 on dev-cpu (the engine's cap) |
 | `LOCAL_MODEL_BASE_URL` | `http://model-server:8080/v1` | the same | the same | no | fixed | the gateway's local adapter (`base_url_env`, [config-files.md §1](config-files.md#1-configroutingyaml)) | the gateway: an `http` URL with a single-label host ([provider-adapter.md §3.1](provider-adapter.md#31-local-openai-type-openai-compatible)) |
 
@@ -113,6 +115,8 @@ Compose passes `MODEL_ALIAS` to the gateway as `LOCAL_MODEL_NAME`, the key `conf
 - **`GATEWAY_AWS_PROFILE` isn't named `AWS_PROFILE`.** Preflight refuses any template key that the calling shell also sets ([§10](#10-make-up-preflight)), and the Author's shell may well set `AWS_PROFILE`. Compose would let the shell's value win, which would point prod's gateway at the Author's own profile. Compose maps it: `AWS_PROFILE: ${GATEWAY_AWS_PROFILE:-none}`.
 
 **Set by compose on the gateway, not by the env file:** `GATEWAY_STATE_DIR=/var/lib/h4-gateway`; `GATEWAY_DB_HOST=gateway-state`, `GATEWAY_DB_PORT=5432`, `GATEWAY_DB_NAME=gateway`, `GATEWAY_DB_USER=gateway` (the password stays a separate variable, never inside a URL); `LOCAL_MODEL_NAME=${MODEL_ALIAS}`; `HOME=/home/node`; `AWS_EC2_METADATA_DISABLED=true`, so the credential chain never tries the instance-metadata address; `TZ=UTC`; `NODE_ENV=production`; the `OTEL_*` variables in [telemetry.md §3.1](telemetry.md#31-sdk-setup); and the stack keys `H4_STACK`, `H4_ENV`, `H4_LANGFUSE_PORT`, and `H4_GRAFANA_PORT`. The dev-only switches arrive as `${GATEWAY_TEST_CLOCK:-0}` and `${GATEWAY_TEST_SYNTHETIC_SPEND:-0}`, so prod's gateway sees `0`.
+
+**`GATEWAY_ANTHROPIC_API_KEY` (spec 010, Amendment 0-9).** Prod's alone: the Anthropic API key, which `deploy/compose.yaml` passes to the gateway alone as `${GATEWAY_ANTHROPIC_API_KEY:-}`, read by the adapter through its `api_key_env` setting. Prod's template lists it empty; dev's template and `dev-cpu.vars` don't hold it. The name differs from the SDK's own, `ANTHROPIC_API_KEY`, for the reason `GATEWAY_AWS_PROFILE` differs from `AWS_PROFILE`: P5 refuses a template key the calling shell also sets, and compose would let the shell's value win. No container holds an `ANTHROPIC_*` variable.
 
 ## 5. Langfuse 4.54.0's keys
 
@@ -239,6 +243,9 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 | AWS: the runtime identity's SSO session (FR-013) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (denied today), and `AWS_PROFILE`, `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, `AWS_CONTAINER_CREDENTIALS_FULL_URI`, `AWS_CONTAINER_AUTHORIZATION_TOKEN` | `~/.config/h4reet-ai/aws-home/.aws/` (`config` and the SSO cache); the Author's own `~/.aws` | `~/.aws`, and the first three names |
 | The engine's Author client key | – | `~/.config/h4reet-ai/agents-engine/` ([agents-engine.md §2](agents-engine.md#2-the-endpoint-and-the-client-configuration)) | no |
 | The engine's server key and CA key | – | `/etc/h4agents/pki/` | no |
+| The Anthropic API key (spec 010, FR-030, FR-032) | `GATEWAY_ANTHROPIC_API_KEY`, prod's name | prod's env file, as above | not before spec 010: P-A, the Author's patch, denies it, merged with spec 010 as one (its plan's B10) |
+
+**`ANTHROPIC_API_KEY` (spec 010, FR-032; its plan's B9).** P-A denies it by name in the sandbox's `credentials.envVars` as well, as `GITHUB_TOKEN` is denied, but it is not an FR-007 variable and has no row in the table above. No stack reads it: rule R12 refuses an `api_key_env` that begins `ANTHROPIC_`, and P-A's compose policy refuses any `ANTHROPIC_*` variable on any service, and any reference to one. And it is the name Claude Code signs in with. The canary (`make matrix-canary`) and the behavioral tier put a fake value for every FR-007 variable into a Claude Code session, and a fake under this name would sign that session in with it, so both strip the name instead (their `STRIPPED`). The matrix checks its deny on a row of its own, `H/settings/spec 010: ANTHROPIC_API_KEY is denied by name`.
 
 **The path rules the early patch adds or keeps:**
 - `denyRead` and `denyWrite` on `~/.config/h4reet-ai`, which covers the env files, the operator tokens, the runtime AWS identity, and the Author's engine certificate in one entry (R-31).
@@ -300,11 +307,11 @@ The operator token is not generated here. `make operator-token ENV=<stack>` mint
 |---|---|---|
 | P1 | The env file is missing or unreadable. On host stacks: its mode isn't 0600, its owner isn't the user, or its directory isn't 0700. | all; the modes on prod and dev |
 | P2 | A line breaks the grammar (§1.1), or a key appears twice. | all |
-| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`; or a value is empty. Only dev's optional channel keys, and `H4_BUILD_PROXY` on host stacks, may be empty. | all |
+| P3 | A placeholder is left: `__GENERATE__`, `__ASK__`, `__REPO__`, or `__HOME__`; or a value is empty. Only dev's optional channel keys, `H4_BUILD_PROXY` on host stacks, and `H4_WEB_SUFFIX` on prod (spec 002), may be empty. | all |
 | P4 | The keys differ from the template's (each missing and extra key is named). dev-cpu is compared with the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`. | all |
 | P5 | The calling shell sets any `COMPOSE_*` or `H4_*` variable, or any key of the template. Compose would let the shell's value silently override the file's. | all |
 | P6 | `ENV`, `H4_STACK`, `H4_ENV`, and `COMPOSE_PROJECT_NAME` disagree, or `COMPOSE_PROFILES` isn't the stack's exact value, with exactly one of `gpu` and `cpu`. | all |
-| P7 | A key's value fails the checks in §2 to §6: a port that isn't the stack's, a path in the wrong place, `H4_TREE` set in a host stack's env file, a run file whose `H4_TREE` isn't the export of its `H4_REF`, dev-cpu's `H4_TREE` not `/run/h4agents/tree`, `MODEL_FILE` or `MODEL_ALIAS` not matching `models.lock`, `ALERT_DELIVERY` or `SMTP_TLS` not allowed for the stack, prod's `GATEWAY_AWS_PROFILE`, `H4_BUILD_PROXY`, an `OPERATOR_TOKEN_SHA256` that isn't 64 lowercase hex, a missing token file (prod, dev), or a dummy token that doesn't match its hash (dev-cpu). | all |
+| P7 | A key's value fails the checks in §2 to §6: a port that isn't the stack's, a path in the wrong place, `H4_TREE` set in a host stack's env file, a run file whose `H4_TREE` isn't the export of its `H4_REF`, dev-cpu's `H4_TREE` not `/run/h4agents/tree`, `MODEL_FILE` or `MODEL_ALIAS` not matching `models.lock`, `ALERT_DELIVERY` or `SMTP_TLS` not allowed for the stack, prod's `GATEWAY_AWS_PROFILE`, `H4_BUILD_PROXY`, an `H4_WEB_SUFFIX` that isn't its stack class's (spec 002), an `OPERATOR_TOKEN_SHA256` that isn't 64 lowercase hex, a missing token file (prod, dev), or a dummy token that doesn't match its hash (dev-cpu). | all |
 | P8 | A dev-only switch is set outside `H4_ENV=dev`, or the route `config/routing.yaml` gives this `H4_ENV` names a paid adapter outside `H4_ENV=prod` (D1 to D4, FR-031, FR-036). | all |
 | P9 | A stray file exists: `deploy/.env`; a `compose.override.yaml` or `.yml`, or a `docker-compose.override.*`, beside the compose file; or an env file anywhere in the working tree (`*.env`, `.env`, `.env.*`, except `*.env.example`), including the legacy `deploy/env/`. The message names the path and says to move it to `~/.config/h4reet-ai/env/`. | all |
 | P10 | Docker is unreachable, or Compose is older than 2.30. | all |
@@ -328,6 +335,8 @@ P7's model keys, P12, and P18 read `deploy/models.lock` (one model per line, pla
 - `deploy/agents-engine/engine.sh seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
 
 pytest covers every refusal with a fixture env file and a stubbed `docker` (plan §7).
+
+**(spec 010)** P3: `GATEWAY_ANTHROPIC_API_KEY` may be empty while prod's route names no `anthropic-messages` adapter, and must not be while it does. P7: while it does, the key is printable ASCII without spaces, 20 to 256 characters, and preflight names the key, never its value. P19: the AWS profile's checks apply while prod's route names a `bedrock-converse` adapter, rather than any paid adapter.
 
 ## 11. What the gateway checks for itself
 

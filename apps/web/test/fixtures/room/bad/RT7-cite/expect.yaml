@@ -1,0 +1,9 @@
+rule: RT7
+file: apps/web/content/room/fx-notes.yaml
+path: lines[0].claims[0]
+why: a chalk line citing a corpus sentence that holds a phrase its block's exclude lists
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [exclude], push: Glowseva }
+  - file: apps/web/content/room/fx-notes.yaml
+    at: [lines, 0, claims]
+    set: [{ file: corpus/90-fx-work.md, quote: founded Glowseva for the fixture town }]

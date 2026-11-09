@@ -8,8 +8,16 @@ deploy/env
 **/secrets
 **/node_modules
 **/dist
+# The lookdev page's phone copy, a working tree's: no image ever holds it (spec 004, contracts/lookdev.md §8).
+**/dist-phone
 **/__pycache__
 **/*.py[cod]
+# The policy reaches the web image's build only through its named `policy` context, main's, read on the host (spec 004,
+# contracts/serving.md §3): never the tree's approvals or PDF header. The caps are the exception, which the install
+# stage copies for a build that names no policy context (T328); A9 holds them to main's at the commit's base. The
+# exception comes after the directory, since the last pattern that matches a file decides.
+assets/policy
+!assets/policy/caps.json
 corpus/intake/private
 .cache
 .pytest_cache

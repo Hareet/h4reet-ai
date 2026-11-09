@@ -1,0 +1,6 @@
+rule: RI11
+file: apps/web/room/ui-words.yaml
+path: words.label.fx-unused
+why: a label.<name> UI word nothing references
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, label.fx-unused], set: fixture unused label }

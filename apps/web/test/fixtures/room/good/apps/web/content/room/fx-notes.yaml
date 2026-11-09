@@ -1,0 +1,10 @@
+# The fixture chalk block: its exclude list, two drawn lines, and a pending one.
+version: 1
+block: fx-notes
+renderer: chalk
+exclude: [fixture excluded phrase]
+lines:
+  - text: Plan small
+  - text: Ship often
+  - text: Later idea
+    pending: true

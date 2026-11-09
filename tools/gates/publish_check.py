@@ -17,6 +17,11 @@ Standard library only.
      tag messages, author, committer, and tagger names and emails, and tag and ref names.
   3. Currency amounts, with corpus-check's own CURRENCY rule, in corpus/**/*.md outside corpus/intake/private/, line
      by line, in every commit.
+  4. Spec 003's arrival check over every commit reachable from any ref (its FR-004; contracts/arrival-check.md §1):
+     tools/gates/arrival_check.py --history, the copy beside this script, loaded into this process with the scan's
+     environment. Each of its findings is one here, "arrival <rule>: <reason>", at the commit and path it names; a
+     history it couldn't check, the main branch's policy missing where a studio file needs it among them, can't be
+     certified.
 A finding names the commit, the path, the line, and the rule or the denylist's line number, never the phrase or the
 matching line; a path or a ref name it shows has each phrase replaced by [denylist line N]. Each is attributed to the
 first commit (parents before children) and path that hold it, so a line that stays put through later commits is
@@ -46,6 +51,7 @@ from typing import Self
 REPO = Path(__file__).resolve().parents[2]
 TOOLCHAIN = REPO / ".devcontainer" / "toolchain.vars"
 CHECK_CORPUS = REPO / "corpus" / "tools" / "check_corpus.py"
+ARRIVAL = REPO / "tools" / "gates" / "arrival_check.py"
 # The denylist, in the main working tree: corpus/intake/private/ is gitignored, so a linked worktree has none.
 DENYLIST = Path("corpus", "intake", "private", "denylist.txt")
 PRIVATE = "corpus/intake/private/"
@@ -382,6 +388,8 @@ class Report:
     refs: int | None = None
     # gitleaks' version, and how many commits it says it scanned.
     gitleaks: tuple[str, int] | None = None
+    # How many commits the arrival check walked (spec 003).
+    arrival: int | None = None
 
     def show(self, text: str) -> str:
         return printable(self.deny.redact(text) if self.deny else text)
@@ -407,6 +415,8 @@ class Report:
                 parts.append(
                     f"denylist applied ({plural(len(self.deny.phrases), 'phrase')})"
                 )
+            if self.arrival is not None:
+                parts.append(f"arrival check over {plural(self.arrival, 'commit')}")
             parts.append(plural(len(self.findings), "problem"))
         if self.reasons:
             parts.append("; ".join(self.show(reason) for reason in self.reasons))
@@ -768,12 +778,41 @@ def certify(cwd: Path, report: Report) -> None:
         report.reasons.append(
             "gitleaks scanned no commits, though the history holds content"
         )
+    check_arrivals(top, env, report)
+
+
+def check_arrivals(top: Path, env: dict[str, str], report: Report) -> None:
+    """Spec 003's arrival check over every commit reachable from any ref: the copy beside this script, loaded into this
+    process, its git run with the scan's environment. A finding of its is one here; a reason it couldn't check is a
+    reason this can't certify."""
+    if not ARRIVAL.is_file():
+        raise CannotCertify(
+            f"{ARRIVAL} is missing (spec 003), so the history's studio files can't be checked"
+        )
+    spec = importlib.util.spec_from_file_location("h4_arrival_check", ARRIVAL)
+    if spec is None or spec.loader is None:
+        raise CannotCertify(f"can't load {ARRIVAL}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # its dataclasses look their module up here
+    spec.loader.exec_module(module)
+    checker = module.check(["--repo", str(top), "--history"], env=env)
+    for found in checker.findings:
+        report.findings.append(
+            Finding(
+                found.commit or "the history",
+                report.show(found.path),
+                report.show(f"arrival {found.rule}: {found.reason}"),
+            )
+        )
+    for reason in checker.reasons:
+        report.reasons.append(f"the arrival check couldn't check: {reason}")
+    report.arrival = checker.commits
 
 
 def main(argv: list[str] | None = None) -> int:
     argparse.ArgumentParser(
-        description="Certify the whole history for publication: secrets, denylisted phrases, and corpus amounts "
-        "(spec 000 FR-042; plan §12). Exit 0 clean, 1 findings, 3 cannot certify."
+        description="Certify the whole history for publication: secrets, denylisted phrases, corpus amounts, and the "
+        "studio's files (spec 000 FR-042; plan §12; spec 003 FR-004). Exit 0 clean, 1 findings, 3 cannot certify."
     ).parse_args(argv)
     report = Report()
     try:

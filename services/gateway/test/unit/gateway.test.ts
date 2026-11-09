@@ -22,6 +22,7 @@ import {
 import type { StateRead, Store } from "../../src/meter/store.js";
 import type { AdmitRequest, AdmitResult, Admitted, CallEnd, MeterPort } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
+import { steadyNow } from "../helpers/steady-clock.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 const T0 = Date.parse("2026-10-28T10:00:00.000Z");
@@ -146,7 +147,12 @@ describe("AdapterHealth (§3.1's cadence: unhealthy after 1 failure, healthy aft
 
   it("probes on the cadence once started, and not after stop()", async () => {
     const s = scripted();
-    const h = new AdapterHealth(s.adapter, { ...CADENCE, intervalMs: 20 }, { realNow: Date.now, onChange: () => {} });
+    // The cadence is timed on the clock AdapterHealth is handed: a steady one, which a step of the wall clock can't move.
+    const h = new AdapterHealth(
+      s.adapter,
+      { ...CADENCE, intervalMs: 20 },
+      { realNow: steadyNow(), onChange: () => {} },
+    );
     h.start();
     await new Promise((r) => setTimeout(r, 120));
     expect(h.status().healthy).toBe(true);
@@ -411,8 +417,8 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
     maxOutputTokens: 128,
     arrivedAt: Date.now(),
     signal: new AbortController().signal,
-    clientKey: "198.51.100.7\u0000author-laptop",
-    clientLabel: "author-laptop",
+    clientKey: "198.51.100.7\u0000author-terminal",
+    clientLabel: "author-terminal",
     ...o,
   });
   const spans = () => exporter.getFinishedSpans();
@@ -445,7 +451,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         },
         adapterHealthy: true,
         maxOutputTokens: 128,
-        clientKey: "198.51.100.7\u0000author-laptop",
+        clientKey: "198.51.100.7\u0000author-terminal",
         requestId: "cd".repeat(16),
         traceId: a.traceId,
         purpose: "hello",
@@ -468,7 +474,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
         }),
       ],
     });
-    expect(m.settles[0]?.label).toBe("author-laptop");
+    expect(m.settles[0]?.label).toBe("author-terminal");
     expect(routeSpan()?.attributes).toMatchObject({
       "h4.route.decision": "fallback",
       "h4.route.reason": "local_unhealthy",
@@ -485,7 +491,7 @@ describe("the fallback branch, against a fake meter (gateway-http.md §2.4 steps
       "h4.cost.basis": "usage",
     });
     // No client identifier on any span.
-    expect(JSON.stringify(spans().map((s) => s.attributes))).not.toContain("author-laptop");
+    expect(JSON.stringify(spans().map((s) => s.attributes))).not.toContain("author-terminal");
   });
 
   it("passes the meter's 429 through as a refusal, calling nothing and settling nothing", async () => {

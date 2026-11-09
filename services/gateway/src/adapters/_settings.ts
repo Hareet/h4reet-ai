@@ -54,8 +54,14 @@ export interface AdapterTypeSpec {
   provider(settings: Record<string, unknown>): string;
   /** The model the adapter sends: from its settings, or from the env key they name. */
   model(settings: Record<string, unknown>, env: Env): string | undefined;
-  /** For routing.yaml's deadline rule (R9), and for the attempt wrapper's retry rule (provider-adapter.md §6). */
-  timing(settings: Record<string, unknown>): { requestMs: number; retryMax: number; backoffMs: number };
+  /** For routing.yaml's deadline rule (R9), and for the attempt wrapper's retry rule (provider-adapter.md §6). A paid
+   *  adapter's `twinRequestMs` is a twin turn's one attempt (spec 007's plan, D43). */
+  timing(settings: Record<string, unknown>): {
+    requestMs: number;
+    retryMax: number;
+    backoffMs: number;
+    twinRequestMs?: number;
+  };
   /** How the gateway probes an adapter of this type, on the real clock (provider-adapter.md §3, §6 item 4). */
   healthCadence(settings: Record<string, unknown>): HealthCadence;
   /** The rules a schema can't say: R7, R8, and the like. Runs only on settings that passed the schema. */
@@ -68,6 +74,13 @@ export interface AdapterTypeSpec {
   credentialsWarnMs?(settings: Record<string, unknown>): number;
   /** A type with a circuit breaker, from its `circuit` settings (provider-adapter.md §6 item 5). */
   circuit?(settings: Record<string, unknown>): CircuitSettings;
+  /** A paid type routed only with a monthly cap in budgets.yaml's adapter_monthly_usd (spec 010, FR-021). */
+  readonly monthlyCapRequired?: boolean;
+  /**
+   * The settings that name an env key holding a secret no committed file holds: an env template leaves it empty,
+   * and preflight holds the stack's own env file to it (spec 010, FR-030; contracts/env-files.md §10).
+   */
+  readonly secretEnv?: readonly string[];
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -102,6 +115,24 @@ export const PROVIDER_ERROR_KINDS = Object.keys(PROVIDER_ERROR_KIND_SET) as Prov
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max);
 const envKey = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
+
+/**
+ * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 007's plan, D22;
+ * spec 010 FR-017, built early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it
+ * as given; `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku
+ * 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
+ */
+export const PAID_TEMPERATURE = ["as_requested", "model_default"] as const;
+export type PaidTemperature = (typeof PAID_TEMPERATURE)[number];
+const paidTemperature = z.enum(PAID_TEMPERATURE).optional();
+
+/** The temperature a paid adapter sends: the request's, unless its `temperature` setting is `model_default`. */
+export function sentTemperature(
+  setting: PaidTemperature | undefined,
+  requested: number | undefined,
+): number | undefined {
+  return setting === "model_default" ? undefined : requested;
+}
 
 /**
  * A compose service's name: one DNS label that starts with a letter. A label of digits, or of hex or octal digits
@@ -139,6 +170,19 @@ const get = (settings: Record<string, unknown>, ...path: string[]): unknown =>
   path.reduce<unknown>((at, key) => (at as Record<string, unknown> | undefined)?.[key], settings);
 const num = (settings: Record<string, unknown>, ...path: string[]): number => get(settings, ...path) as number;
 const str = (settings: Record<string, unknown>, ...path: string[]): string => get(settings, ...path) as string;
+
+/** A paid adapter's twin_request_ms, when it has one (spec 007's plan, D43). */
+const twinTiming = (s: Record<string, unknown>): { twinRequestMs?: number } => {
+  const ms = get(s, "twin_request_ms");
+  return typeof ms === "number" ? { twinRequestMs: ms } : {};
+};
+
+/** R8, amended by spec 007's plan, D43: a twin turn's limit is never shorter than hello's, which SC-005 bounds. */
+function twinFindings(s: Record<string, unknown>): SettingsFinding[] {
+  const ms = get(s, "twin_request_ms");
+  if (typeof ms !== "number" || ms >= num(s, "timeouts", "request_ms")) return [];
+  return [{ path: "twin_request_ms", rule: "R8", message: "must be at least timeouts.request_ms, hello's limit" }];
+}
 
 const openAICompatible: AdapterTypeSpec = {
   type: "openai-compatible",
@@ -204,7 +248,10 @@ const bedrockConverse: AdapterTypeSpec = {
     region: z.string(),
     model: z.union([z.string().regex(/^[a-z0-9][a-z0-9.:-]{2,127}$/), placeholder]),
     additional_request_fields: z.record(z.string(), z.unknown()),
+    temperature: paidTemperature,
     timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
+    // Spec 007's plan, D43: a twin turn's one attempt, which R9 holds to the deadline after the local model's.
+    twin_request_ms: int(1_000, 15_000).optional(),
     retry: z.strictObject({
       on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
       max: int(0, 1),
@@ -220,6 +267,7 @@ const bedrockConverse: AdapterTypeSpec = {
     requestMs: num(s, "timeouts", "request_ms"),
     retryMax: num(s, "retry", "max"),
     backoffMs: num(s, "retry", "backoff_ms"),
+    ...twinTiming(s),
   }),
   // §3.2: every interval_ms; one failure makes it unhealthy and one pass healthy. The probe resolves credentials and
   // never calls Bedrock, within 5 s or the interval, whichever is shorter.
@@ -247,6 +295,7 @@ const bedrockConverse: AdapterTypeSpec = {
         requirement: "SC-005",
       });
     }
+    findings.push(...twinFindings(s));
     if (Buffer.byteLength(JSON.stringify(get(s, "additional_request_fields"))) > 1_024) {
       findings.push({ path: "additional_request_fields", rule: "R11", message: "must be at most 1 KB as JSON" });
     }
@@ -259,6 +308,80 @@ const bedrockConverse: AdapterTypeSpec = {
   label: "Bedrock",
   credentialsWarnMs: (s) => num(s, "credentials_warn_before_s") * 1_000,
   circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
+};
+
+/**
+ * The Anthropic API's Messages endpoint through the official SDK (spec 010, FR-004 to FR-016; its plan §2.2). The
+ * endpoint is the adapter module's constant, never a setting: a `base_url`, a `region`, or any other key is refused
+ * by the strict schema (R11). Its key comes from the env key `api_key_env` names, never one the SDK reads on its own.
+ */
+const anthropicMessages: AdapterTypeSpec = {
+  type: "anthropic-messages",
+  kinds: ["paid"],
+  settings: z.strictObject({
+    model: z.union([z.string().regex(/^[a-z0-9][a-z0-9.:-]{2,127}$/), placeholder]),
+    api_key_env: envKey,
+    thinking: z.literal("disabled"),
+    temperature: paidTemperature,
+    timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
+    // Spec 007's plan, D43: a twin turn's one attempt, which R9 holds to the deadline after the local model's.
+    twin_request_ms: int(1_000, 15_000).optional(),
+    retry: z.strictObject({
+      on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
+      max: int(0, 1),
+      backoff_ms: int(0, 2_000),
+    }),
+    circuit: z.strictObject({ failures: int(1, 10), open_s: int(5, 600) }),
+    health: z.strictObject({ interval_ms: int(10_000, 600_000) }),
+  }),
+  provider: () => "anthropic",
+  model: (s) => str(s, "model"),
+  timing: (s) => ({
+    requestMs: num(s, "timeouts", "request_ms"),
+    retryMax: num(s, "retry", "max"),
+    backoffMs: num(s, "retry", "backoff_ms"),
+    ...twinTiming(s),
+  }),
+  // Plan §2.7: the model lookup every interval_ms, within 5 s or the interval, whichever is shorter; one failure makes
+  // it unhealthy and one pass healthy.
+  healthCadence: (s) => ({
+    intervalMs: num(s, "health", "interval_ms"),
+    timeoutMs: Math.min(5_000, num(s, "health", "interval_ms") - 1),
+    unhealthyAfter: 1,
+    healthyAfter: 1,
+  }),
+  check(s) {
+    const findings: SettingsFinding[] = [];
+    if (num(s, "timeouts", "connect_ms") + num(s, "timeouts", "request_ms") > 5_000) {
+      findings.push({
+        path: "timeouts",
+        rule: "R8",
+        message: "connect_ms + request_ms must be at most 5000",
+        requirement: "SC-005",
+      });
+    }
+    findings.push(...twinFindings(s));
+    if (str(s, "api_key_env").startsWith("ANTHROPIC_")) {
+      findings.push({
+        path: "api_key_env",
+        rule: "R12",
+        message: "must not begin ANTHROPIC_, a name the SDK reads on its own",
+        requirement: "FR-007",
+      });
+    }
+    return findings;
+  },
+  checkEnv(s, env) {
+    const key = str(s, "api_key_env");
+    const value = env[key];
+    return value === undefined || value === ""
+      ? [{ reason: "missing_env", key, message: `${key} is unset; routing.yaml's api_key_env names it` }]
+      : [];
+  },
+  label: "the Anthropic API",
+  circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
+  monthlyCapRequired: true,
+  secretEnv: ["api_key_env"],
 };
 
 const synthetic: AdapterTypeSpec = {
@@ -279,16 +402,18 @@ const synthetic: AdapterTypeSpec = {
 
 /** Every adapter type the configuration contract describes. */
 export const ADAPTER_TYPE_SPECS: ReadonlyMap<string, AdapterTypeSpec> = new Map(
-  [openAICompatible, bedrockConverse, synthetic].map((spec) => [spec.type, spec]),
+  [openAICompatible, bedrockConverse, anthropicMessages, synthetic].map((spec) => [spec.type, spec]),
 );
 
 /**
  * The types this build registers: a routing.yaml adapter of any other type fails rule R6. The file grows in steps,
  * so every adapter it defines is registered when it lands (config-files.md §1.2): the foundations branch registered
- * openai-compatible, T073 adds synthetic, and T102 adds bedrock-converse, each with its module.
+ * openai-compatible, T073 adds synthetic, T102 adds bedrock-converse, and spec 010 adds anthropic-messages, each with
+ * its module.
  */
 export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set([
   "openai-compatible",
   "synthetic",
   "bedrock-converse",
+  "anthropic-messages",
 ]);

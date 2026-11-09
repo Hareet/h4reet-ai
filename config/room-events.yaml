@@ -1,0 +1,44 @@
+# The usage events' kinds and IDs, which the gateway's POST /room/events accepts (spec 002, contracts/room-events.md
+# §3); its objects are the room's selectables (spec 004, Amendment B7). Don't edit it by hand:
+# `npm run room:generate -w apps/web` writes it from apps/web/room/scene.yaml and the resume's source, and make test
+# fails while it's stale.
+schema: 1
+kinds:
+  - "object_selected"
+  - "item_selected"
+  - "resume_opened"
+  - "resume_kept"
+  - "pdf_downloaded"
+  - "turn_sent"
+  - "voice_pressed"
+  - "mode_2d"
+  - "walk_started"
+  - "avatar_failed"
+objects:
+  - "snowboard"
+  - "bicycle"
+  - "laptop"
+  - "chalkboard"
+items:
+  - "ai-strategy"
+  - "change-management"
+  - "cht-skills"
+  - "cht-codebase"
+  - "cht-agent"
+  - "cht-agent-data-layer"
+  - "agent-watchdog"
+  - "claude-medic-aws"
+  - "agent-orchestrator"
+  - "no-code-configuration"
+  - "voice-for-cht"
+  - "smart-task-prioritization"
+  - "national-scale"
+  - "kenya-localization"
+  - "national-benchmarking"
+  - "other-deployments"
+  - "cloud-data-centers"
+  - "cht-docker-architecture"
+  - "powersync-postgres"
+  - "hareet-ai"
+  - "denver-local-ai"
+  - "tools"

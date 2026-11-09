@@ -1,0 +1,24 @@
+diff --git a/tools/gates/matrix-required.txt b/tools/gates/matrix-required.txt
+index 6afdd6b..3f830dc 100644
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -22,6 +22,19 @@ E/section
+ H/bash-gate.sh/terraform apply
+ H/bash-gate.sh/git push origin main
+ H/bash-gate.sh/git checkout main
++# Spec 011's optional P-A (its plan §11; tasks.md T051): the alert samples' target and the operator CLI's
++# subcommand, refused off dev-cpu by the operator rules that already exist, and dev-cpu's own spellings allowed.
++H/bash-gate.sh/make operator-alert-samples ENV=prod REASON="a design check"
++H/bash-gate.sh/make operator-alert-samples ENV=dev REASON="a design check"
++H/bash-gate.sh/make operator-alert-samples REASON="a design check"
++H/bash-gate.sh/make -C . operator-alert-samples ENV=prod REASON="a design check"
++H/bash-gate.sh/bash -c 'make operator-alert-samples ENV=prod REASON=x'
++H/bash-gate.sh/make "operator"-alert-samples ENV=prod REASON="a design check"
++H/bash-gate.sh/ENV=prod make operator-alert-samples REASON="a design check"
++H/bash-gate.sh/make operator-alert-samples ENV=dev-cpu ENV=prod REASON="a design check"
++H/bash-gate.sh/python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod alert-samples --reason "a design check"
++H/bash-gate.sh/make operator-alert-samples ENV=dev-cpu REASON="a design check"
++H/bash-gate.sh/python3 scripts/operator.py --stack dev-cpu alert-samples --reason "a design check"
+ # Spec 007's P-1: the twin's readiness file is refused to every agent edit, in two path forms and in a linked worktree
+ # (its FR-029); a shell write in a linked worktree is a gap, held by the arrival check's rule A10.
+ H/protected-paths.sh/config/twin-readiness.yaml

@@ -15,8 +15,10 @@ import {
   type GaugeSnapshot,
 } from "../../src/telemetry/metrics.js";
 import {
+  ALERT_DELIVER_SPAN,
   METRIC_EXPORT_INTERVAL_MS,
   SPAN_BATCH,
+  alertDeliverAttributes,
   buildResource,
   buildSdkConfiguration,
   httpIgnoreOutgoingHook,
@@ -56,7 +58,10 @@ const SNAPSHOT: GaugeSnapshot = {
     fallbackDay: { spentMicro: 1_500_000n, allowanceMicro: 2_000_000n, warnMicro: 1_400_000n },
   },
   fallbackAwaitingRenewal: false,
+  studioWindow: false,
   adapters: [{ id: "local", healthy: true }],
+  // Spec 010 (FR-035): a capped paid adapter's month, so its three gauges report.
+  adapterMonths: [{ adapter: "anthropic", spentMicro: 1_250_000n, capMicro: 10_000_000n, warnMicro: 7_000_000n }],
 };
 
 /** Every instrument once, as a request, a crossing, and an operator write would record them. */
@@ -66,11 +71,32 @@ function scriptedRun(m: GatewayMetrics): void {
   m.cost(100_000n, { provider: "synthetic", model: "metered-test", attribution: "fallback" });
   m.cost(0n, { provider: "local", model: "stand-in", attribution: "none" });
   m.degradedResponse("kill_switch_tripped");
-  m.alertAttempt({ channel: "telegram", kind: "warn", outcome: "delivered" });
+  m.alertAttempt({ channel: "telegram", kind: "warn", outcome: "delivered", form: "designed" });
   m.alertDeliveryLag(4.2);
   m.operatorAction("reset");
+  // Spec 011 (plan §9.1): the form of each attempt, a sample's attempts, a fallback, and the samples' request.
+  m.alertAttempt({ channel: "email", kind: "sample", outcome: "failed", form: "none" });
+  m.alertFallback({ channel: "telegram", kind: "trip", reason: "entities_refused" });
+  m.operatorAction("alert_samples");
   m.operatorAuthFailure("mismatch");
   m.testMachineryRefused();
+  // A synthetic ID: which objects there are is the room's data (spec 004, FR-007).
+  m.roomEvent("object_selected", "fx-desk");
+  m.roomEvent("mode_2d", "-");
+  m.roomEventRefused("kind");
+  // Spec 007's turns (its plan §9): a turn by feature, outcome, and cause, its time by routing decision, a withheld answer.
+  m.twinTurn({ feature: "fx-desk", outcome: "ok", cause: "none", decision: "local", seconds: 1.4 });
+  m.twinTurn({
+    feature: "free_talk",
+    outcome: "degraded",
+    cause: "twin_unavailable",
+    decision: "none",
+    seconds: 0.002,
+  });
+  m.twinWithheld("numbers");
+  // Round 7 (spec 007's plan, D41): an answer delivered with a sentence removed, by the guard that removed it.
+  m.twinRedacted("seva");
+  m.cost(0n, { provider: "local", model: "stand-in", attribution: "none", feature: "fx-desk" });
   m.tokenUsage(71, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "input" });
   m.tokenUsage(14, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "output" });
   m.operationDuration(0.2, {
@@ -92,8 +118,20 @@ function scriptedRun(m: GatewayMetrics): void {
 const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.gateway.requests": { unit: "{request}", keys: ["h4.outcome", "h4.route.decision"] },
   "h4.gateway.request.duration": { unit: "s", keys: ["h4.route.decision"] },
-  "h4.cost.usd": { unit: "{USD}", keys: ["gen_ai.provider.name", "gen_ai.request.model", "h4.meter.attribution"] },
+  // Spec 007's Amendment 0-5: h4.cost.usd gains the room's feature, `none` for a call that isn't a turn's.
+  "h4.cost.usd": {
+    unit: "{USD}",
+    keys: ["gen_ai.provider.name", "gen_ai.request.model", "h4.meter.attribution", "h4.room.feature"],
+  },
+  "h4.twin.turns": { unit: "{turn}", keys: ["h4.cause", "h4.outcome", "h4.room.feature"] },
+  "h4.twin.turn.duration": { unit: "s", keys: ["h4.room.feature", "h4.route.decision"] },
+  "h4.twin.withheld": { unit: "{answer}", keys: ["h4.twin.guard"] },
+  "h4.twin.redacted": { unit: "{answer}", keys: ["h4.twin.guard"] },
   "h4.meter.spend_usd": { unit: "{USD}", keys: ["h4.meter"] },
+  // Spec 010 (FR-035; plan §9): each capped, routed adapter's month, its cap, and its warning.
+  "h4.adapter.month_spend_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_cap_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_warn_usd": { unit: "{USD}", keys: ["h4.adapter"] },
   "h4.meter.ceiling_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.meter.warn_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.fallback.allowance_usd": { unit: "{USD}", keys: [] },
@@ -102,11 +140,18 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.degraded.cause": { unit: "{cause}", keys: ["h4.cause"] },
   "h4.degraded.responses": { unit: "{response}", keys: ["h4.cause"] },
   "h4.adapter.healthy": { unit: "{flag}", keys: ["h4.adapter"] },
-  "h4.alerts": { unit: "{attempt}", keys: ["h4.alert.kind", "h4.channel", "h4.outcome"] },
+  // Spec 011 (plan §9.1): each attempt's form, and the fallbacks to the plain form by channel, kind, and reason.
+  "h4.alerts": { unit: "{attempt}", keys: ["h4.alert.form", "h4.alert.kind", "h4.channel", "h4.outcome"] },
+  "h4.alert.fallbacks": { unit: "{fallback}", keys: ["h4.alert.fallback_reason", "h4.alert.kind", "h4.channel"] },
   "h4.alert.delivery_lag": { unit: "s", keys: [] },
   "h4.operator.actions": { unit: "{action}", keys: ["h4.action"] },
   "h4.operator.auth_failures": { unit: "{failure}", keys: ["h4.auth.class"] },
   "h4.test_machinery.refused": { unit: "{request}", keys: [] },
+  // Spec 002's usage events (contracts/room-events.md §4): the event's kind and ID, or a refusal's reason, and no other.
+  "h4.room.events": { unit: "{event}", keys: ["id", "kind"] },
+  "h4.room.events.refused": { unit: "{event}", keys: ["reason"] },
+  // spec 003's contracts/gpu-window.md §1 and §5: the studio window's gauge, added to §4.1's list there.
+  "h4.studio.window": { unit: "{flag}", keys: [] },
   "gen_ai.client.token.usage": {
     unit: "{token}",
     keys: [
@@ -155,10 +200,10 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
       model: "stand-in",
       attribution: "none",
       "client.address": "10.0.0.7",
-      "h4.client": "author-laptop",
+      "h4.client": "author-terminal",
     });
     const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
-    for (const forbidden of ["client.address", "10.0.0.7", "h4.client", "author-laptop", "request_id", "trace_id"]) {
+    for (const forbidden of ["client.address", "10.0.0.7", "h4.client", "author-terminal", "request_id", "trace_id"]) {
       expect(all).not.toContain(forbidden);
     }
     await h.shutdown();
@@ -204,7 +249,7 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
       [{ "h4.state": "degraded" }, 1],
     ]);
     const causes = points("h4.degraded.cause");
-    expect(causes).toHaveLength(10);
+    expect(causes).toHaveLength(11); // the ten causes (spec 010 adds adapter_month_spent) and none
     expect(causes.filter(([, v]) => v === 1)).toEqual([[{ "h4.cause": "meter_at_ceiling" }, 1]]);
     expect(points("h4.meter.spend_usd")).toEqual([
       [{ "h4.meter": "day" }, 0.3],
@@ -216,6 +261,16 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
     expect(points("h4.fallback.allowance_usd")).toEqual([[{}, 2]]);
     expect(points("h4.fallback.awaiting_renewal")).toEqual([[{}, 0]]);
     expect(points("h4.adapter.healthy")).toEqual([[{ "h4.adapter": "local" }, 1]]);
+    expect(points("h4.studio.window")).toEqual([[{}, 0]]);
+    await h.shutdown();
+  });
+
+  it("report the studio window as 1 while one is open, with no attribute: the stack is the resource's", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.setSnapshot({ ...SNAPSHOT, studioWindow: true });
+    const window = instruments(await h.collect()).find((x) => x.descriptor.name === "h4.studio.window");
+    expect(window?.dataPoints.map((p) => [p.attributes, p.value])).toEqual([[{}, 1]]);
     await h.shutdown();
   });
 
@@ -465,5 +520,151 @@ describe("the logger (telemetry.md §5)", () => {
     expect(rec.trace_flags).toBe("01");
     logger.info({ event: "gateway.started" }, "Outside any span.");
     expect(Object.keys(last())).not.toContain("trace_id");
+  });
+});
+
+// T021 (spec 007; FR-043, FR-044; plan §9): the twin's instruments take their attribute values from bounded lists.
+describe("the twin's instruments (spec 007, plan §9)", () => {
+  it("count turns by feature, outcome, and cause; time them by decision; count withheld answers by guard", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.twinTurn({ feature: "fx-piece", outcome: "withheld", cause: "none", decision: "fallback", seconds: 2 });
+    m.twinWithheld("privacy");
+    const found = instruments(await h.collect());
+    const turns = found.find((x) => x.descriptor.name === "h4.twin.turns");
+    expect(turns?.dataPoints[0]?.attributes).toEqual({
+      "h4.room.feature": "fx-piece",
+      "h4.outcome": "withheld",
+      "h4.cause": "none",
+    });
+    const withheld = found.find((x) => x.descriptor.name === "h4.twin.withheld");
+    expect(withheld?.dataPoints[0]?.attributes).toEqual({ "h4.twin.guard": "privacy" });
+    await h.shutdown();
+  });
+
+  it("refuse a value off their lists: an unknown guard, outcome, or cause reads as error, error, none", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    (m.twinTurn as (o: Record<string, unknown>) => void)({
+      feature: "fx-piece",
+      outcome: "a visitor's words",
+      cause: "<script>",
+      decision: "elsewhere",
+      seconds: 1,
+    });
+    (m.twinWithheld as (g: string) => void)("my words");
+    (m.twinRedacted as (g: string) => void)("your words");
+    const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
+    for (const leaked of ["a visitor's words", "<script>", "elsewhere", "my words", "your words"])
+      expect(all).not.toContain(leaked);
+    await h.shutdown();
+  });
+
+  // Round 7 (spec 007's plan, D41): each guard that removed a sentence from a delivered answer, counted once for it.
+  it("count redacted answers by the guard that removed a sentence, from its bounded list", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.twinRedacted("numbers");
+    m.twinRedacted("claim_tags");
+    m.twinRedacted("numbers");
+    const found = instruments(await h.collect()).find((x) => x.descriptor.name === "h4.twin.redacted");
+    expect(found?.descriptor.unit).toBe("{answer}");
+    const points = (found?.dataPoints ?? []).map((p) => [p.attributes["h4.twin.guard"], p.value]);
+    expect(points.sort()).toEqual([
+      ["claim_tags", 1],
+      ["numbers", 2],
+    ]);
+    await h.shutdown();
+  });
+});
+
+describe("the alerts' instruments and span (spec 011, FR-044, FR-045, FR-047; plan §9.1 to §9.3; tasks.md T011)", () => {
+  const values = async (name: string, key: string): Promise<string[]> => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    for (const form of ["designed", "plain", "none"] as const) {
+      m.alertAttempt({ channel: "telegram", kind: "sample", outcome: "delivered", form });
+    }
+    for (const reason of [
+      "entities_refused",
+      "message_refused",
+      "render_failed",
+      "over_limit",
+      "not_rendered",
+    ] as const) {
+      m.alertFallback({ channel: "email", kind: "sample", reason });
+    }
+    m.operatorAction("alert_samples");
+    const metric = instruments(await h.collect()).find((x) => x.descriptor.name === name);
+    await h.shutdown();
+    return [...new Set((metric?.dataPoints ?? []).map((p) => String(p.attributes[key])))].sort();
+  };
+
+  it("count each attempt's form, designed, plain, or none, and the kind sample", async () => {
+    expect(await values("h4.alerts", "h4.alert.form")).toEqual(["designed", "none", "plain"]);
+    expect(await values("h4.alerts", "h4.alert.kind")).toEqual(["sample"]);
+  });
+
+  it("count the fallbacks by their five reasons, and the samples' request as alert_samples", async () => {
+    expect(await values("h4.alert.fallbacks", "h4.alert.fallback_reason")).toEqual([
+      "entities_refused",
+      "message_refused",
+      "not_rendered",
+      "over_limit",
+      "render_failed",
+    ]);
+    expect(await values("h4.operator.actions", "h4.action")).toEqual(["alert_samples"]);
+  });
+
+  it("give alert.deliver exactly its keys: channel, kind, form, a fallback's reason when set, outcome, attempt, sample", () => {
+    expect(ALERT_DELIVER_SPAN).toBe("alert.deliver");
+    const base = {
+      channel: "telegram",
+      kind: "trip",
+      form: "designed",
+      outcome: "delivered",
+      attempt: 1,
+      sample: false,
+    } as const;
+    expect(Object.keys(alertDeliverAttributes(base)).sort()).toEqual(
+      ["h4.alert.attempt", "h4.alert.form", "h4.alert.kind", "h4.alert.sample", "h4.channel", "h4.outcome"].sort(),
+    );
+    expect(
+      alertDeliverAttributes({
+        ...base,
+        form: "plain",
+        fallbackReason: "entities_refused",
+        kind: "sample",
+        sample: true,
+      }),
+    ).toEqual({
+      "h4.channel": "telegram",
+      "h4.alert.kind": "sample",
+      "h4.alert.form": "plain",
+      "h4.alert.fallback_reason": "entities_refused",
+      "h4.outcome": "delivered",
+      "h4.alert.attempt": 1,
+      "h4.alert.sample": true,
+    });
+  });
+
+  it("put no canary, URL, or token on an alert.deliver span, whatever a caller passes", async () => {
+    const exporter = new node.InMemorySpanExporter();
+    const provider = new node.NodeTracerProvider({ spanProcessors: [new node.SimpleSpanProcessor(exporter)] });
+    const tracer = provider.getTracer("alerts");
+    const sneaky = {
+      channel: "telegram",
+      kind: "trip",
+      form: "designed",
+      outcome: "retry",
+      attempt: 2,
+      sample: false,
+      url: "https://api.telegram.org/bot123456789:made-for-this-test/sendMessage",
+      text: "canary hello message",
+    } as unknown as Parameters<typeof alertDeliverAttributes>[0];
+    tracer.startSpan(ALERT_DELIVER_SPAN, { attributes: alertDeliverAttributes(sneaky), root: true }).end();
+    const all = JSON.stringify(exporter.getFinishedSpans().map((x) => x.attributes));
+    for (const never of ["api.telegram.org", "made-for-this-test", "canary", "https"]) expect(all).not.toContain(never);
+    await provider.shutdown();
   });
 });

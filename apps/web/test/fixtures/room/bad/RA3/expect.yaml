@@ -1,0 +1,22 @@
+rule: RA3
+file: assets/visitors/man/man.glb
+path: "-"
+why: the twin's stand-in recorded as a likeness (spec 009, FR-014)
+generate:
+  assets/visitors/man/man.glb: glb:avatar
+  assets/visitors/man/records.json: visitor-records
+edits:
+  - { file: apps/web/room/scene.yaml, at: [figures], set: { twin_stand_in: man } }
+  - { file: assets/visitors/man/records.json, at: [entries, 0, likeness], set: true }
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 9
+    avatar: { bytes: 6000000, triangles: 90000, texture_bytes: 33554432 }
+    animation: { bytes: 1000000 }

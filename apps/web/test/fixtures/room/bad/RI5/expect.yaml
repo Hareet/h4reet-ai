@@ -1,0 +1,8 @@
+rule: RI5
+file: apps/web/room/scene.yaml
+path: placements[9].id
+why: a placement ID equal to a word of the closed vocabulary
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements]
+    push: { id: glow, piece: fx-sign, mount: { on: fx-desk, anchor: top, offset: [0.1, 0, 0.2] } }

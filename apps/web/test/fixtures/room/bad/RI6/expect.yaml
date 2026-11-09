@@ -1,0 +1,6 @@
+rule: RI6
+file: apps/web/room/scene.yaml
+path: selectables[0].members[2]
+why: a selectable with a repeated member
+edits:
+  - { file: apps/web/room/scene.yaml, at: [selectables, 0, members], push: fx-monitor }

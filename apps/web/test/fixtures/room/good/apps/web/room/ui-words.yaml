@@ -1,0 +1,52 @@
+# The fixture UI words: every key of src/room/ui-keys.ts with exactly its slots, and the labels the scene references.
+version: 1
+words:
+  tier.local: The fixture machine is serving
+  tier.cloud: The fixture fallback is serving
+  tier.resting: The fixture machine is resting
+  tier.budget: The fixture budget is spent
+  tier.unavailable: The fixture service is unavailable
+  tier.unknown: Fixture status unknown
+  tier.paused: The fixture room is paused
+  tier.not-live: The fixture room isn't live
+  pause.button: Pause the fixture room
+  pause.paused_at: Paused at {time}
+  sign.word: Glowword
+  sign.second_line: metered by the fixture gateway
+  sign.call_label: this call
+  sign.visit_label: this visit
+  sign.no_call_yet: no call yet
+  sign.unavailable: cost unavailable
+  sign.local: local · {amount}
+  sign.estimated: "{amount} est."
+  sign.at_least: at least {amount}
+  sign.not_affiliated: The fixture sign isn't affiliated with anyone
+  sign.test: test
+  sign.sample: Sample
+  around.heading: Around the fixture room
+  around.illustration: The fixture screen is a scripted illustration
+  around.call: The fixture call cost {amount}
+  around.visit: The fixture visit cost {amount}
+  list.heading: In the fixture room
+  list.resume_action: open the fixture resume
+  toolbar.credits: Credits
+  standin.label: "{name} (a stand-in)"
+  standin.note: Fixture shapes stand in for the pieces
+  draft.badge: Draft
+  flat-failed: This drawing of the room could not be shown. The list below still works.
+  walk.enter: Walk around
+  walk.leave: Stop walking
+  walk.region: The fixture room, walking
+  walk.help: The fixture's keys walk the figure. Escape stops walking.
+  walk.entered: Walking. Escape stops.
+  walk.left: Walking stopped.
+  walk.target: "{name}: press Enter to open."
+  twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  label.fx-desk: fixture desk
+  label.fx-monitor: fixture monitor
+  label.fx-laptop: fixture laptop
+  label.fx-screen: fixture screen
+  label.fx-neon: fixture neon panel
+  label.fx-slate: fixture slate
+  label.fx-lettering: fixture lettering
+  label.fx-power: fixture power

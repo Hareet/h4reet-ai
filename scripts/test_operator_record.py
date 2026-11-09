@@ -283,6 +283,9 @@ def test_a_refusal_other_than_a_provider_error_stops_the_run_and_writes_nothing(
             "contract-record is the Author's",
         ),
         ("", ("--stack", "dev", "--adapter", "bedrock"), "needs --stack prod"),
+        # Spec 010 (FR-025): the Anthropic API is prod's adapter too.
+        ("", ("--stack", "dev", "--adapter", "anthropic"), "needs --stack prod"),
+        ("", ("--stack", "dev-cpu", "--adapter", "anthropic"), "needs --stack prod"),
         ("exists", (), "exists"),
         ("bad-cases", (), "no cases"),
         ("too-many", (), "more than 16"),

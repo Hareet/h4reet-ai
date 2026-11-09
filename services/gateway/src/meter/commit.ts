@@ -19,7 +19,7 @@ import { costMicro, PriceTable } from "../config/validate.js";
 import { gatewayTime, toRfc3339 } from "../core/clock.js";
 import type { AdapterResult, Attribution, FinishReason, ProviderErrorKind } from "../core/types.js";
 import { lockState, MeterTx, noEffects, type LockedState, type TxDeps, type TxEffects } from "./crossings.js";
-import { rowsOf, type RowKey } from "./rollover.js";
+import { adapterMonthKey, rowsOf, type RowKey } from "./rollover.js";
 import type { Queryable } from "./store.js";
 import type { Admitted, CallEnd, MeteredAttribution, RouteReason, SettledCall } from "./types.js";
 
@@ -55,6 +55,9 @@ export interface LedgerRow {
   periodDay: string;
   periodMonth: string;
   clientLabel: string | null;
+  /** A twin call's room feature and topic (spec 007, FR-026); NULL for every other call. */
+  roomFeature?: string | null;
+  roomTopic?: string | null;
 }
 
 /** The ledger's routing decision for a metered call: fallback, or metered for dev's synthetic and prod's tests. */
@@ -92,6 +95,8 @@ const LEDGER_COLUMNS = [
   "period_day",
   "period_month",
   "client_label",
+  "room_feature",
+  "room_topic",
 ] as const;
 
 export const INSERT_LEDGER = `INSERT INTO gateway.ledger (${LEDGER_COLUMNS.join(", ")})
@@ -128,6 +133,8 @@ export async function insertLedgerRow(q: Queryable, r: LedgerRow): Promise<void>
     r.periodDay,
     r.periodMonth,
     r.clientLabel,
+    r.roomFeature ?? null,
+    r.roomTopic ?? null,
   ]);
 }
 
@@ -293,6 +300,7 @@ export function commitLedgerRow(input: CommitInput, now: number, offsetMs: numbe
     periodDay: a.periodDay,
     periodMonth: a.periodMonth,
     clientLabel: input.clientLabel,
+    ...(a.room === undefined ? {} : { roomFeature: a.room.feature, roomTopic: a.room.topic }),
   };
 }
 
@@ -313,7 +321,7 @@ export async function commitTx(q: Queryable, input: CommitInput): Promise<Commit
     return { inserted: false, ownRowFound: found.id === input.ledgerId, ledgerId: found.id, now, effects: noEffects() };
   }
   const periods = { day: a.periodDay, month: a.periodMonth };
-  const keys = rowsOf(a.attribution, periods);
+  const keys = rowsOf(a.attribution, periods, a.adapterMonth ? adapterMonthKey(a.adapterId, a.periodMonth) : undefined);
   const nowIso = toRfc3339(now);
   // 3. The reservation, released only when it was still there: the sweep may have settled it, and then step 2 has
   //    returned already; a commit never subtracts what no reservation holds (§2.3).

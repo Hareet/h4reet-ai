@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -63,6 +63,18 @@ endif
 # Where compose images can be built: relay (the sandbox, with an engine), none-yet (the sandbox, before T046),
 # direct (a docker CLI: already relayed, or outside the sandbox), or no-cli (the devcontainer).
 ENGINE_MODE := $(if $(VIA_RELAY),$(if $(and $(wildcard $(RELAY)),$(wildcard $(ENGINE_CERT))),relay,none-yet),$(if $(shell command -v docker 2>/dev/null),direct,no-cli))
+# Before image and build relay a build, the engine must answer one docker version through the relay, stopped at
+# ENGINE_PROBE_SECONDS, as engine.sh's wait_for_tls stops each of its tries (tasks.md T167). The relay has no timeout,
+# and while RootlessKit's forward took connections and never answered (T046), make check waited at image with no end.
+# timeout signals the relay's whole process group, socat and the client with it, and the relay's exit trap still runs;
+# --kill-after ends one that ignores the signal. $(1) names the target.
+ENGINE_PROBE_SECONDS := 15
+ENGINE_PROBE = rc=0; timeout --kill-after=5 $(ENGINE_PROBE_SECONDS) $(RELAY) docker version >/dev/null || rc=$$?; \
+  case $$rc in \
+    0) ;; \
+    124|137) echo "$(1): the agents' engine didn't answer within $(ENGINE_PROBE_SECONDS) s; ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1 ;; \
+    *) echo "$(1): the agents' engine didn't answer (docker version through the relay exited $$rc); ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1 ;; \
+  esac
 
 # Every Python a recipe runs: isolated, and blind to bytecode an agent could plant, by script path and never with -m
 # (research.md R-35). -I alone still loads a planted __pycache__/*.pyc. Under /dev/null, which can never hold a
@@ -105,8 +117,9 @@ PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts 
 CONTAINED = @if [ "$${SANDBOX_RUNTIME:-}" != 1 ] && [ "$${H4_DEVCONTAINER:-}" != 1 ]; then \
   echo "make $@ runs node_modules or pytest, which agents can write: run it in the devcontainer, or read the merge-request note's make check output (plan §11)" >&2; exit 2; fi
 
-# npm runs a workspace script only once a workspace exists; with none, it fails with "No workspaces found".
-WORKSPACES := $(wildcard services/*/package.json)
+# npm runs a workspace script only once a workspace exists; with none, it fails with "No workspaces found". The
+# services, then the apps (spec 002's room, apps/web), as the root package.json's workspaces list them.
+WORKSPACES := $(wildcard services/*/package.json apps/*/package.json)
 WORKSPACE_DIRS := $(patsubst %/package.json,%,$(WORKSPACES))
 NPM_WS = $(if $(WORKSPACES),npm $(1) --workspaces --if-present,@echo "npm $(1): no workspaces yet")
 # Every shell script but Spec Kit's vendored ones (ruff skips .specify/ the same way), NUL-separated, so no name is
@@ -122,7 +135,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test secrets evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -187,13 +200,14 @@ git-hooks: ## Install the git hooks that keep main the Author's, once per clone 
 	git config gc.packRefs false; \
 	echo "git hooks: installed in $$hooks"
 
-build: ## Build the workspaces, then the gateway's and the compose images on the agents' engine, where there is one; prints BUILD OK
+build: ## Build the workspaces, then the gateway's, the room's, and the compose images on the agents' engine, where there is one; prints BUILD OK
 	$(CONTAINED)
 	$(call NPM_WS,run build)
 ifeq ($(ENGINE_MODE),relay)
-	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(call ENGINE_PROBE,build)
+	@$(RELAY) make --no-print-directory gateway-image web-image compose-images ENV=dev-cpu || { echo "build: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),direct)
-	@$(MAKE) --no-print-directory gateway-image compose-images
+	@$(MAKE) --no-print-directory gateway-image web-image compose-images
 else
 	@echo "compose images: $(if $(filter none-yet,$(ENGINE_MODE)),no agents' engine yet (tasks.md T046),no docker CLI here; the Author's gate builds them on the agents' engine)"
 endif
@@ -237,6 +251,19 @@ test-fast: ## The quick subset
 	$(call NPM_WS,run test:unit)
 	$(PYTEST) $(PYTEST_ARGS) -m "not slow" $(PYTEST_DIRS)
 
+# The published-content check (spec 002, T080; contracts/resume-source.md §5): the room built without drafts, whatever
+# the shell's ROOM_DRAFTS, its prebuild reading main's policy; then tools/gates/content_check.py, human-only, which
+# reads main's approvals itself and fails when the build publishes a content file main doesn't approve, by its own
+# account in room-data.json or in the text of any file in dist/. The build's approvals code is agent-editable; the
+# check isn't. PLANNED until the approvals patch adds the script. The Author's gate runs the same check from main's
+# tree, over a build in its container phase.
+content-check: ## The room's published content against main's approvals, after a build without drafts (spec 002, T080)
+	$(CONTAINED)
+	@# One shell: the PLANNED exit must end the recipe, not only its own line.
+	@if [ ! -f tools/gates/content_check.py ]; then echo "PLANNED (T080): tools/gates/content_check.py arrives with the approvals patch"; exit 0; fi; \
+	set -x; ROOM_DRAFTS= npm run build -w apps/web && \
+	$(PY_HOST) tools/gates/content_check.py --tree . --dist apps/web/dist --repo .
+
 corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local denylist
 	$(PY_HOST) corpus/tools/check_corpus.py
 
@@ -245,15 +272,49 @@ corpus-check: ## Public-corpus gate: attested facts slots, no amounts, the local
 secrets: ## gitleaks over the unstaged and staged changes and every commit since main (plan §11)
 	bash tools/gates/secrets.sh
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the agent-config static tier, the behavioral tier's status, and the docs' links
+# The arrival check (spec 003 FR-004; contracts/arrival-check.md): the main working tree's tools/gates/arrival_check.py,
+# never this checkout's, as the pre-commit hook and the gate run it, over every commit since main, with the policy read
+# from refs/heads/main; then the credits' rendering and the records' form. Until the Author applies spec 003's Phase 2
+# patch, the main tree has no check, so the gate reads PLANNED; a clone with no main branch has no range, so SKIP.
+arrival: ## The arrival check over every commit since main, from the main tree's copy, then the credits' check (spec 003)
+	@common="$$(git rev-parse --path-format=absolute --git-common-dir)" || exit 2; \
+	check="$$(dirname -- "$$common")/tools/gates/arrival_check.py"; \
+	if [ ! -f "$$check" ]; then echo "PLANNED (T011): the main working tree has no tools/gates/arrival_check.py until the Author applies spec 003's Phase 2 patch"; \
+	elif ! git show-ref --verify --quiet refs/heads/main; then echo "SKIP: no main branch in this clone, so no commits since main to check"; \
+	else $(PY_HOST) "$$check" --repo "$(CURDIR)" --range refs/heads/main..HEAD; fi
+	$(PY_HOST) scripts/assets/credits.py --check
+
+# The tools that make a studio file pass (spec 003 research R-03, R-04): scripts/assets/, by path through PY_HOST.
+# FILE comes from the command line only and reaches the script as "$$FILE", after --, so make never splices it in.
+# RECORD, the file's records.json, comes the same way, as "$$RECORD": the mark then follows the record's steps (spec 004,
+# Amendment C1); without it, the mark is trainedAlgorithmicMedia.
+assets-scrub: ## Rewrite one studio file to what the arrival check admits, and add the mark: FILE=<path> [RECORD=<records.json>] (spec 003, 004)
+	@[ -n "$(call from_cli,FILE)" ] && [ -n "$$FILE" ] || { echo 'make assets-scrub needs FILE=<path> on the command line' >&2; exit 2; }
+	$(PY_HOST) scripts/assets/scrub.py$(if $(call from_cli,RECORD), --record "$$RECORD") -- "$$FILE"
+
+assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md from the records, in canonical form (spec 003)
+	$(PY_HOST) scripts/assets/credits.py
+
+# The credits' check alone, which writes nothing: the Author's gate runs it in its container phase, since
+# scripts/assets/ is agent-editable and the gate's host phase runs main's code only (ADR 0017). make arrival runs it too.
+credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
+	$(PY_HOST) scripts/assets/credits.py --check
+
+evals: ## The product evals (ADAPTER=fake; local, bedrock, and anthropic are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status as information (spec 006), and the docs' links
+	@# A paid adapter's cases go to prod whatever ENV says (spec 010, FR-024): evals/run.py sends them through prod's
+	@# admin routes, so the runner gets no --stack for them.
 	@case "$${ADAPTER:-fake}" in fake) ;; \
-	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
-	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
+	  local|bedrock|anthropic) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
+	  *) echo "ADAPTER must be fake, local, bedrock, or anthropic" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
+	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
+	$(PY_HOST) evals/run.py --suite narration --adapter fake
 	$(PY_HOST) evals/agent-config/static.py
-	$(PY_HOST) evals/agent-config/behavioral.py status
-	@# Every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the README (SC-009).
-	$(PY_HOST) evals/docs_links.py
+	@# The behavioral tier's status is information here, never a merge block (spec 006 FR-002): evals/behavioral_line.py
+	@# prints its PENDING and a recorded run's FAIL as a "WARN (behavioral tier):" line, which make check and the gate read
+	@# as WARN. Then every relative link in README.md, docs/, and specs/ resolves, and every ADR is two clicks from the
+	@# README (SC-009): those run whatever the tier says, and a tier file that doesn't load fails make evals after them.
+	tier=0; $(PY_HOST) evals/behavioral_line.py || tier=$$?; $(PY_HOST) evals/docs_links.py && exit $$tier
 
 # The behavioral agent-config evals (plan §14; FR-011, SC-008; tasks.md T094): real Claude Code sessions on the Team
 # plan, never the API, each in a scratch clone of the branch REF names, with the git hooks installed. The Author's,
@@ -261,9 +322,10 @@ evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), 
 # but earlier entries and __pycache__/*.pyc (untracked files elsewhere don't matter): main's behavioral.py reads the branch's cases and thresholds as
 # data, shows its diff under the human-only paths, and starts nothing until the Author types yes. It ends with the
 # commands that commit the entry on the branch from main's checkout, never switching it to the branch (review D1, 1).
-# make evals shows PENDING with this command until a passing run's entry, attested and committed, has the trigger
-# hash. ONLY= names cases to try alone, and writes no history. The closing patch's bash-gate rule refuses it to agents
-# too (§15).
+# make evals shows a WARN line with this command until a passing run's entry, attested and committed, has the trigger
+# hash, and the gate's agent-config-evals step waits (PENDING) for it only on a branch that changes CLAUDE.md,
+# REVIEW.md, .claude/, or the Claude Code pin (spec 006 FR-002, FR-004 to FR-006). ONLY= names cases to try alone, and
+# writes no history. The closing patch's bash-gate rule refuses it to agents too (§15).
 evals-agent-config: ## (the Author) The behavioral agent-config evals of a branch, from main's checkout, on the Team plan; paste the commands it prints to commit the entry on the branch: REF=<branch> [ONLY=id,...]
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make evals-agent-config is the Author's: it starts real Claude Code sessions on the Team plan, which an agent session can't (plan §14)" >&2; exit 2; }
 	$(PY_HOST) evals/agent-config/behavioral.py run$(if $(call from_cli,REF), --ref="$$REF")$(if $(call from_cli,ONLY), --only="$$ONLY")
@@ -272,6 +334,14 @@ redteam: redteam-suite matrix ## The red-team suite and the forbidden-action mat
 
 redteam-suite: ## The adversarial scaffold alone (plan §14)
 	$(PY_HOST) redteam/run.py
+
+redteam-live: ## (the Author) The twin's red-team cases live, on one adapter through the admin twin route, history under redteam/history/ (spec 007): ADAPTER=local|bedrock|anthropic [ENV=prod|dev], a paid adapter with ENV=prod
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make redteam-live runs in the Author's terminal: it calls a real model" >&2; exit 2; }
+	@# Spec 010 (FR-024): a paid adapter is prod's alone.
+	@case "$${ADAPTER:-}" in local) ;; \
+	  bedrock|anthropic) [ "$(ENV)" = prod ] || { echo "make redteam-live ADAPTER=$$ADAPTER: a paid adapter is prod's, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "ADAPTER must be local, bedrock, or anthropic" >&2; exit 2 ;; esac
+	$(PY_HOST) redteam/live.py --live --stack $(ENV) --adapter $$ADAPTER
 
 matrix: ## The forbidden-action matrix alone (plan §13)
 	bash redteam/forbidden-actions.sh
@@ -296,6 +366,12 @@ PULL_MODELS = if [ -f $(1)/deploy/scripts/pull-models.sh ]; then bash $(1)/deplo
 # gateway in compose, as its compose file says.
 GATEWAY_IMAGE = if [ -f $(1)/deploy/scripts/gateway_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/gateway_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)); \
   else echo "gateway image: the commit being run has no deploy/scripts/gateway_image.py, so its compose file builds the gateway"; fi
+# The room's image (spec 002, contracts/web-serving.md §1): deploy/scripts/web_image.py, from $(1), the tree being
+# started, builds h4reet-web:<ref><H4_WEB_SUFFIX> outside compose, on every run, with ROOM_DRAFTS only in a -drafts
+# build, and main's policy files read from this working tree (--repo, as preflight's) by refs/heads/main. A commit older
+# than the script, which a rollback can run, has no web service either.
+WEB_IMAGE = if [ -f $(1)/deploy/scripts/web_image.py ]; then $(PY_HOST) $(1)/deploy/scripts/web_image.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR); \
+  else echo "web image: the commit being run has no deploy/scripts/web_image.py, and no web service"; fi
 
 ifeq ($(VIA_RELAY),1)
 # Inside the sandbox: the same target again, through the relay, on the agents' engine. MAKEFLAGS carries the rest of
@@ -305,11 +381,12 @@ up down logs status:
 	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make $@: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
 	$(RELAY) make --no-print-directory $@ ENV=dev-cpu
 else
-up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, the gateway's image, then every service, healthy
+up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEAD), preflight, the model, the gateway's and the room's images, then every service, healthy
 	@$(if $(RUNFILE),:,[ -z "$(call from_cli,REF)" ] || { echo "make up: dev-cpu runs the working tree; REF= is for prod and dev" >&2; exit 2; })
 	$(PY_HOST) $(TREE)/deploy/scripts/preflight.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --repo $(CURDIR)$(REF_ARG)
 	@$(call PULL_MODELS,$(TREE),)
 	@$(call GATEWAY_IMAGE,$(TREE))
+	@$(call WEB_IMAGE,$(TREE))
 	@# Every service healthy, or status names the one that isn't, with its health output and error lines, redacted;
 	@# the rest keep running, and hello answers degraded (plan §4). --remove-orphans retires a service the commit dropped.
 	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
@@ -348,16 +425,18 @@ pull: ## (the Author) Pull every image by digest, Docker Hub's one at a time wit
 	@$(call PULL_MODELS,.,$(if $(filter all,$(MODELS)),--all))
 
 # The image gate (plan §11): SKIP before the agents' engine exists (tasks.md T046), and FAIL once it exists and
-# doesn't build them. The devcontainer has no docker CLI; the Author's gate builds the images on the engine.
-image: ## The image gate: the gateway's and the compose images built on the agents' engine (plan §11)
+# doesn't answer within ENGINE_PROBE_SECONDS (T167), or doesn't build them. The devcontainer has no docker CLI; the
+# Author's gate builds the images on the engine.
+image: ## The image gate: the gateway's, the room's, and the compose images built on the agents' engine (plan §11)
 ifeq ($(ENGINE_MODE),relay)
-	@$(RELAY) make --no-print-directory gateway-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
+	@$(call ENGINE_PROBE,image)
+	@$(RELAY) make --no-print-directory gateway-image web-image compose-images ENV=dev-cpu || { echo "image: the agents' engine didn't build the images; if it's down, ask the Author: deploy/agents-engine/engine.sh up" >&2; exit 1; }
 else ifeq ($(ENGINE_MODE),none-yet)
 	@echo "SKIP: no agents' engine yet: tasks.md T046"
 else ifeq ($(ENGINE_MODE),no-cli)
 	@echo "SKIP: no docker CLI here (the devcontainer); the Author's gate builds the images on the agents' engine"
 else
-	@$(MAKE) --no-print-directory gateway-image compose-images
+	@$(MAKE) --no-print-directory gateway-image web-image compose-images
 endif
 
 # The images this tree builds, on the agents' engine only: through the relay in a session (DOCKER_HOST is the relay's),
@@ -374,6 +453,12 @@ AGENTS_ENGINE_ONLY = case "$${DOCKER_HOST:-}" in \
 gateway-image:
 	@$(AGENTS_ENGINE_ONLY)
 	$(PY_HOST) deploy/scripts/gateway_image.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars
+
+# The room's image, h4reet-web:working-tree-drafts, outside compose, as make up ENV=dev-cpu builds it (spec 002), with
+# main's policy files read from this working tree.
+web-image:
+	@$(AGENTS_ENGINE_ONLY)
+	$(PY_HOST) deploy/scripts/web_image.py --stack dev-cpu --env-file deploy/env.agents/dev-cpu.vars --repo $(CURDIR)
 
 # compose's own images (the Telegram stand-in and the breach probe), in every profile, with dev-cpu's env file.
 compose-images:
@@ -448,6 +533,58 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
 
+# Spec 011's alert samples (contracts/operator-admin.md §2.4, §6.1; its plan §7.5): a marked sample of each alert kind,
+# sent wherever ENV's alerts go, prod's to the Author's phone and mailbox, dev's and dev-cpu's to their stand-ins. One
+# audit row, and no state changes. KIND narrows it to one kind's entries; the gateway checks the kind.
+operator-alert-samples: ## Send a marked sample of each alert kind through ENV's channels: REASON="..." [KIND=]
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-alert-samples needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) alert-samples --reason="$$REASON"$(call OPERATOR_VALUE,KIND,--kind)
+.PHONY: operator-alert-samples
+
+# The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
+# start records the window through the operator CLI, then stops the model server, so hello falls back within the
+# sub-budget or degrades; a refused record stops nothing. end brings the stack back at the commit its run file names
+# (make up REF=, as a rollback does), waits until the gateway sees the local model healthy, sends one hello, and records
+# the end only when that hello answers route: local; a step that fails leaves the window open and records nothing.
+# dev-cpu takes it for rehearsals: its model server is model-server-cpu, stopped through the relay inside the sandbox.
+# dev doesn't: it routes no fallback to hand hello to. Agent sessions run it on dev-cpu only, as the operator targets:
+# OPERATOR_AGENTS here, and bash-gate's operator rule once this target's patch lands. STATE and REASON come from the
+# command line only, read by the shell, as every operator value is.
+STUDIO_MODEL_SERVER = $(if $(filter dev-cpu,$(ENV)),model-server-cpu,model-server-gpu)
+STUDIO_WAIT_S := 60
+STUDIO_OPEN = the window stays open, and nothing was recorded (docs/runbooks/studio-gpu-window.md)
+
+studio-window: ## (the Author) Hand ENV's GPU to a studio job, or take it back: STATE=start|end REASON="..." (spec 003)
+	$(OPERATOR_AGENTS)
+	@[ "$(ENV)" != dev ] || { echo "make studio-window ENV=dev: the window is prod's, and dev-cpu's for rehearsals; dev has no fallback to hand hello to (specs/003-studio-assets/contracts/gpu-window.md)" >&2; exit 2; }
+	@case "$(if $(call from_cli,STATE),$$STATE)" in start|end) ;; *) echo "make studio-window needs STATE=start or STATE=end on the command line" >&2; exit 2 ;; esac
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make studio-window needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	@[ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "make studio-window ENV=$(ENV): h4reet-$(ENV) wasn't started by make up (no $(RUNFILE)), so there is no model server to hand over" >&2; exit 2; }
+	@if [ "$$STATE" = start ]; then \
+	  $(OPERATOR) studio-window start --reason="$$REASON" || exit $$?; \
+	  $(if $(VIA_RELAY),$(RELAY) )$(COMPOSE) stop $(STUDIO_MODEL_SERVER) || { echo "make studio-window: the window is open, but $(STUDIO_MODEL_SERVER) didn't stop; close it with STATE=end, which brings the stack back, then start again (docs/runbooks/studio-gpu-window.md)" >&2; exit 1; }; \
+	  echo "studio-window: $(STUDIO_MODEL_SERVER) is stopped. Hello falls back within the sub-budget, or degrades, until make studio-window ENV=$(ENV) STATE=end"; \
+	  exit 0; \
+	fi; \
+	if [ -n "$(RUNFILE)" ]; then \
+	  ref=$$(sed -n 's/^H4_REF=//p' "$(RUNFILE)"); \
+	  [[ "$$ref" =~ ^[0-9a-f]{40}$$ ]] || { echo "make studio-window: $(RUNFILE) names no commit (H4_REF), so h4reet-$(ENV) can't come back at the one it ran" >&2; exit 2; }; \
+	  $(MAKE) --no-print-directory up ENV=$(ENV) REF="$$ref" || { echo "make studio-window: make up didn't bring h4reet-$(ENV) back healthy, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	else \
+	  $(MAKE) --no-print-directory up ENV=$(ENV) || { echo "make studio-window: make up didn't bring h4reet-$(ENV) back healthy, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	fi; \
+	waited=0; \
+	until $(OPERATOR) status 2>/dev/null | grep -q 'local healthy'; do \
+	  [ "$$waited" -lt $(STUDIO_WAIT_S) ] || { echo "make studio-window: the gateway didn't see the local model healthy within $(STUDIO_WAIT_S) s, so no hello was sent; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	  sleep 2; waited=$$((waited + 2)); \
+	done; \
+	out=$$($(HELLO)) || { printf '%s\n' "$$out"; echo "make studio-window: hello didn't answer 2xx; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	printf '%s\n' "$$out"; \
+	grep -Eq '^  "route": "local",?$$' <<<"$$out" || { echo "make studio-window: hello didn't answer route: local; $(STUDIO_OPEN)" >&2; exit 1; }; \
+	$(OPERATOR) studio-window end --reason="$$REASON"
+.PHONY: studio-window
+
 # The live contract run (contracts/provider-adapter.md §5.3; tasks.md T103), the Author's: operator.py records each case
 # of live-cases.json through ENV's POST /admin/adapters/ADAPTER/complete into a 0700 temporary directory, then the
 # replay runs in tools/gates/gate's container phase, the devcontainer image with --network none on an exported tree,
@@ -455,13 +592,13 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 # recorder reads the working tree's live-cases.json and the replay HEAD's, so the target refuses, before it records, a
 # case file that differs from HEAD's (provider-adapter.md §5.4; T092). Without the gate it calls nothing, so no live
 # call is made without its replay. The gate refuses to run from a linked worktree, so this runs in the main tree.
-contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
+contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock|anthropic REASON="..." (provider-adapter.md §5.3)
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	@case "$(if $(call from_cli,ADAPTER),$$ADAPTER)" in \
 	  local) ;; \
-	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
-	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
+	  bedrock|anthropic) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=$$ADAPTER: $$ADAPTER is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "make contract-live needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic on the command line" >&2; exit 2 ;; \
 	esac
 	@[ -x tools/gates/gate ] || { echo "make contract-live replays in tools/gates/gate's container phase, and there is no gate here; nothing was called" >&2; exit 2; }
 	@cases=services/gateway/test/contract/live-cases.json; \
@@ -475,8 +612,9 @@ contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock
 .PHONY: contract-live
 
 # The history scan before the first push (spec 000 FR-042; plan §12; tasks.md T093), the Author's, in a full clone:
-# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, and the denylist and corpus-check's
-# currency rule over every blob, path, and message. It exits 0 clean, 1 with findings, and 3 when it can't certify,
+# tools/gates/publish_check.py, through PY_HOST, runs gitleaks over every commit, the denylist and corpus-check's
+# currency rule over every blob, path, and message, and, from spec 003's Phase 2 patch, the arrival check over every
+# commit (arrival_check.py --history). It exits 0 clean, 1 with findings, and 3 when it can't certify,
 # and make shows any of those as error 2, so its summary line says which. It names commits, paths, lines, and rules,
 # never a phrase or a matching line.
 publish-check: ## (the Author) Every commit's secrets, denylisted phrases, and corpus amounts, before the first push (FR-042)
@@ -537,8 +675,8 @@ endif
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
-.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast \
-	corpus-check secrets validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite matrix up up-export down logs status pull image gateway-image compose-images pin-images \
+.PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
+	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or

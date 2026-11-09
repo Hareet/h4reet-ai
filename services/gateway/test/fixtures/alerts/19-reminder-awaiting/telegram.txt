@@ -1,0 +1,17 @@
+⚪ Information · [h4reet.ai prod]
+⏰ REMINDER: fallback still awaiting renewal since 2026-10-29T12:05:37Z
+Next: Only a renewal restores fallback.
+Meters
+Daily     0.00 /  5.00 USD   warning  3.50
+Month     3.00 / 20.00 USD   warning 14.00
+Fallback  0.00 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: awaiting renewal since 2026-10-29T12:05:37Z
+Time: 2026-10-30T09:00:00Z
+id prod:reminder:daily:2026-10-30
+Runbook: docs/runbooks/fallback-renewal.md
+--- entities (UTF-16 offset, length)
+bold 35 68 "REMINDER: fallback still awaiting renewal since 2026-10-29T12:05:37Z"
+pre 151 122 "Daily     0.00 /  5.00 USD   warning  3.50\nMonth     3.00 / 20.00 USD   warning 14.00\nFallback  0.00 /  2.00 USD   grant 1"
+code 374 30 "prod:reminder:daily:2026-10-30"
+code 414 33 "docs/runbooks/fallback-renewal.md"

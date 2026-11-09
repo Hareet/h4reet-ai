@@ -1,0 +1,6 @@
+rule: RT6
+file: apps/web/content/room/fx-script.yaml
+path: lines[0].text
+why: a token opening with a prefix the repository's gitleaks rules name
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines, 0, text], set: AKIAFXFXFX }

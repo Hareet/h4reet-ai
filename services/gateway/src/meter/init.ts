@@ -30,6 +30,7 @@ import {
   type ReserveRecord,
   previousMonth,
 } from "./journal.js";
+import { adapterMonthKey } from "./rollover.js";
 import { CommitUnknownError, isStoreFailure, Rollback, toBigInt, type Queryable, type Store } from "./store.js";
 
 export type Meter = "day" | "month" | "fallback_day";
@@ -165,6 +166,43 @@ export function journalCandidates(
   };
 }
 
+/**
+ * Each capped adapter's month in the journal (spec 010, FR-022; data-model.md §3): a reserve record naming the adapter,
+ * for this month, paired with its commit as every record is, at the commit's cost, or at its maximum without one.
+ */
+export function adapterMonthsFromJournal(
+  records: readonly JournalRecord[],
+  month: string,
+  adapters: ReadonlySet<string>,
+): Map<string, bigint> {
+  const reserves = new Map<string, ReserveRecord>();
+  const commits = new Map<string, CommitRecord>();
+  for (const r of records) {
+    if (r.kind === "reserve" && !reserves.has(r.reservation_id)) reserves.set(r.reservation_id, r);
+    if (r.kind === "commit" && !commits.has(r.reservation_id)) commits.set(r.reservation_id, r);
+  }
+  const out = new Map<string, bigint>();
+  for (const [id, reserve] of reserves) {
+    if (!adapters.has(reserve.adapter) || reserve.period_month !== month) continue;
+    const cost = BigInt(commits.get(id)?.cost_micro ?? reserve.max_micro);
+    out.set(reserve.adapter, (out.get(reserve.adapter) ?? 0n) + cost);
+  }
+  return out;
+}
+
+/** Each capped adapter's month in the surviving ledger, with its reservations left at their maximum (spec 010). */
+async function adapterMonthsFromLedger(q: Queryable, month: string): Promise<Map<string, bigint>> {
+  const { rows } = await q.query<{ adapter_id: string; spent: unknown }>(
+    `SELECT adapter_id, sum(spent)::text AS spent FROM (
+       SELECT adapter_id, cost_micro AS spent FROM gateway.ledger WHERE attribution <> 'none' AND period_month = $1
+       UNION ALL
+       SELECT adapter_id, max_micro AS spent FROM gateway.reservations WHERE period_month = $1
+     ) AS calls GROUP BY adapter_id`,
+    [month],
+  );
+  return new Map(rows.map((r) => [r.adapter_id, toBigInt(r.spent)]));
+}
+
 const big = (n: bigint | null | undefined): number | null => (n === null || n === undefined ? null : Number(n));
 const max = (...values: (bigint | null | undefined)[]): bigint =>
   values.reduce<bigint>((a, v) => (v !== null && v !== undefined && v > a ? v : a), 0n);
@@ -298,6 +336,25 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
           grantNo,
         ],
       );
+      // Spec 010 (FR-022): each capped adapter's month, the larger of the ledger's and the journal's. Its reservations
+      // are counted at their maximum, as the meters' are, so reserved starts at 0.
+      const capped = new Set(t.adapterCaps.keys());
+      if (capped.size > 0) {
+        const fromLedger = await adapterMonthsFromLedger(q, now.month);
+        const fromJournalMonths = adapterMonthsFromJournal(scan.records, now.month, capped);
+        for (const id of capped) {
+          const spent = max(fromLedger.get(id), fromJournalMonths.get(id));
+          if (spent === 0n) continue;
+          await q.query(
+            `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no,
+               created_at, updated_at)
+             VALUES ('adapter_month', $1, $2, 0, NULL, NULL, $3, $3)
+             ON CONFLICT (meter, period_key) DO UPDATE SET spent_micro = EXCLUDED.spent_micro, reserved_micro = 0,
+               updated_at = EXCLUDED.updated_at`,
+            [adapterMonthKey(id, now.month), String(spent), atIso],
+          );
+        }
+      }
       await q.query("DELETE FROM gateway.reservations");
 
       const candidates = Object.fromEntries(

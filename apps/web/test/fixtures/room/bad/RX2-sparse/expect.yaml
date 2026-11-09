@@ -1,0 +1,10 @@
+rule: RX2
+file: assets/room/fx-desk.glb
+path: accessors[6].sparse.values.byteOffset
+why: a sparse substitution's values before their view's start, which the reader would read before the BIN chunk
+generate: { assets/room/fx-desk.glb: glb:rx2-sparse-values-before-their-view, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

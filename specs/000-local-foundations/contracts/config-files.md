@@ -28,6 +28,7 @@ For each file it gives every field, the rules, an example, the validation errors
   | `config/prices.yaml` | the Author only (human-only) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from the closing patch ([plan.md §15](../plan.md#15-the-enforcement-layer-patch)) |
   | `config/budgets.yaml` | the Author only (already protected by `config/budgets*`) | the same; the closing patch adds `denyWrite` |
   | `config/alerts.yaml` | the Author only (already protected by `config/alert*`) | the same; the closing patch adds `denyWrite` |
+  | `config/twin-readiness.yaml` (spec 007) | the Author only (human-only): which topics the twin may talk about, each bound to the pack's and the prompt's hashes his live runs tested ([spec 007](../../007-twin-conversation/spec.md) FR-029 to FR-031) | `protected-paths.sh`, `permissions.deny`, and sandbox `denyWrite`, from his patch P-1, which creates the file with its deny |
 
   A change to budgets, alerting, or the kill switch needs an ADR and the Author's approval (the spec's edge cases). Agents propose such changes in a merge-request note, never in the file.
 
@@ -40,7 +41,7 @@ It says which adapters exist and which one each environment class routes to. The
 | Field | Type | Rule |
 |---|---|---|
 | `schema` | integer | `1` |
-| `deadline_ms` | integer | 5,000 to 25,000: the whole request's deadline, counted from arrival. It must be at least the primary's `request_ms`, plus the fallback's `request_ms` × (1 + `retry.max`), plus `retry.backoff_ms`, plus 500. The ceiling stays under edge's 30 s read timeout ([gateway-http.md §6](gateway-http.md#6-edges-body-when-the-gateway-cant-answer-api_unavailable)). |
+| `deadline_ms` | integer | 5,000 to 25,000: the whole request's deadline, counted from arrival. It must be at least the primary's `request_ms`, plus the fallback's `request_ms` × (1 + `retry.max`), plus `retry.backoff_ms`, plus 500; and, amended by spec 007's plan, D43, at least the primary's `request_ms`, plus 500, plus the fallback's `twin_request_ms`, a twin turn's one attempt (the committed file: 10,000 + 500 + 9,000 = 19,500). The ceiling stays under edge's 30 s read timeout ([gateway-http.md §6](gateway-http.md#6-edges-body-when-the-gateway-cant-answer-api_unavailable)). |
 | `adapters` | map | key: an adapter ID matching `^[a-z][a-z0-9-]{0,31}$`; value: an adapter, below |
 | `adapters.<id>.type` | string | a registered type: `openai-compatible`, `bedrock-converse`, or `synthetic` ([provider-adapter.md §4](provider-adapter.md#4-the-registry-and-adding-an-adapter)) |
 | `adapters.<id>.kind` | string | `local`, `paid`, or `synthetic`, and only a kind the type allows: `openai-compatible` → `local` (in spec 000); `bedrock-converse` → `paid`; `synthetic` → `synthetic` |
@@ -64,8 +65,10 @@ Settings by type:
 | `bedrock-converse` | `region` | string | `us-east-1`, the region the data-flow disclosure lists (FR-040). A new region needs the disclosure changed first. |
 | | `model` | string | an inference-profile or model ID matching `^[a-z0-9][a-z0-9.:-]{2,127}$`, or a placeholder |
 | | `additional_request_fields` | map | passed to Converse as `additionalModelRequestFields`, at most 1 KB as JSON: whatever keeps extended thinking off for the confirmed model, or `{}` when off is the default |
+| | `temperature` | string, optional | `as_requested`, the default when absent, sends the request's temperature; `model_default` sends none, whatever the request carries, so the model's default applies. The committed file sets `model_default`, since Claude Haiku 5.5 "takes no temperature but its default, 1" ([provider-adapter.md §5.4](provider-adapter.md#54-the-live-cases)). Spec 007's plan, D22, which builds spec 010's FR-017 early for spec 007's live runs; spec 010 gives `anthropic-messages` the same setting |
 | | `timeouts.connect_ms` | integer | 100 to 2,000 |
 | | `timeouts.request_ms` | integer | 1,000 to 4,000. Connect plus request must stay within SC-005's 5 s. |
+| | `twin_request_ms` | integer, optional | **Spec 007's plan, D43 (the Author's decision of 2026-11-09).** 1,000 to 15,000, and at least `timeouts.request_ms` (R8): a twin turn's one attempt (`purpose: twin`), with no retry, on the visitor's route and on `POST /admin/twin/turn`. Every other purpose keeps `timeouts.request_ms` and the retry policy, so SC-005's 5 s holds for hello. R9 holds it to the deadline. The committed file: 9,000 |
 | | `retry.on` | list | ProviderError kinds; spec 000 uses `[rate_limited]` |
 | | `retry.max` | integer | 0 or 1 |
 | | `retry.backoff_ms` | integer | 0 to 2,000 |
@@ -75,6 +78,22 @@ Settings by type:
 | | `credentials_warn_before_s` | integer | 600 to 86,400: when `credentials_expiring` fires before the SSO session ends |
 | `synthetic` | `model` | string | `^[a-z0-9-]{1,64}$` |
 | | `output_tokens` | integer | 1 to 100,000: the usage every call reports |
+
+**`anthropic-messages` (spec 010, Amendment 0-3).** Kind `paid` only (R5); prod's route alone may name it (R2, `paid_route_outside_prod`).
+
+| Field | Type | Rule |
+|---|---|---|
+| `model` | string | `^[a-z0-9][a-z0-9.:-]{2,127}$`, or a placeholder (§0): `claude-haiku-5-5` |
+| `api_key_env` | string | an env key's name, never one beginning `ANTHROPIC_` (R12): `GATEWAY_ANTHROPIC_API_KEY` |
+| `thinking` | string | `disabled`, its only value |
+| `temperature` | string, optional | `as_requested` (the default when absent) or `model_default`, as on `bedrock-converse` |
+| `timeouts.connect_ms`, `timeouts.request_ms` | integer | 100 to 2,000; 1,000 to 4,000; their sum at most 5,000 (R8) |
+| `twin_request_ms` | integer, optional | as on `bedrock-converse` (spec 007's plan, D43): 1,000 to 15,000, at least `timeouts.request_ms` (R8), a twin turn's one attempt; the committed file: 9,000 |
+| `retry.on`, `retry.max`, `retry.backoff_ms` | list, integer, integer | ProviderError kinds; 0 or 1; 0 to 2,000 |
+| `circuit.failures`, `circuit.open_s` | integer | 1 to 10; 5 to 600 |
+| `health.interval_ms` | integer | 10,000 to 600,000 |
+
+Any other key, a `base_url`, a `region`, or another `*_env`, is refused (R11). The endpoint is the adapter's constant.
 
 ### 1.2 Example (the committed file)
 
@@ -99,6 +118,7 @@ adapters:
     model: "<inference-profile ID the Author confirms>"   # aws bedrock list-inference-profiles
     additional_request_fields: {}           # what keeps extended thinking off for that model, if anything
     timeouts: { connect_ms: 1000, request_ms: 4000 }
+    twin_request_ms: 9000                   # a twin turn's one attempt (spec 007's plan, D43)
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
     health: { interval_ms: 10000 }
@@ -132,10 +152,12 @@ envs:
 | R5 | `adapters.<id>.kind: "<kind>" isn't allowed for type "<type>"` | FR-031 (no paid service declared local) |
 | R6 | `adapters.<id>.type: "<type>" isn't a registered adapter type` | FR-021 |
 | R7 | `adapters.<id>.region: must be us-east-1, the region docs/data-flow-disclosure.md lists` | FR-040 |
-| R8 | `adapters.<id>.timeouts: connect_ms + request_ms must be at most 5000` (paid adapters) | SC-005 |
-| R9 | `deadline_ms: <n> is shorter than the route's timeouts allow (<m>)` | |
+| R8 | `adapters.<id>.timeouts: connect_ms + request_ms must be at most 5000` (paid adapters); and, amended by spec 007's plan, D43, `adapters.<id>.twin_request_ms: must be at least timeouts.request_ms, hello's limit` | SC-005 |
+| R9 | `deadline_ms: <n> is shorter than the route's timeouts allow (<m>)`, where `<m>` is the larger of hello's sum and, amended by spec 007's plan, D43, a twin turn's: the primary's `request_ms` + 500 + the fallback's `twin_request_ms` | |
 | R10 | `envs: must have exactly the keys prod and dev` | |
 | R11 | any unknown key, wrong type, or out-of-range value, named by its path | |
+
+**R12 (spec 010).** An `anthropic-messages` adapter's `api_key_env` never names a variable beginning `ANTHROPIC_`, which the SDK reads on its own: `config/routing.yaml: adapters.anthropic.api_key_env: must not begin ANTHROPIC_, a name the SDK reads on its own`.
 
 ### 1.4 Startup refusals (exit 78)
 
@@ -149,6 +171,8 @@ These are checked with the stack's environment:
 | `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
+
+**(spec 010)** For a routed `anthropic-messages` adapter: `missing_env` when the key `api_key_env` names is unset or empty, naming the key, never its value; `price_missing` and `placeholder_value` as for Bedrock; and `adapter_cap_missing` when `config/budgets.yaml`'s `envs.prod.adapter_monthly_usd` has no cap for it (§3.1).
 
 ## 2. `config/prices.yaml`
 
@@ -273,11 +297,19 @@ It sets the ceilings, the fallback sub-budget, the warning ratio, the request li
 | `limits.per_call.max_input_chars` | integer | 100 to 4,000: all messages of one call together, and the reservation's input bound ([data-model.md §7.2](../data-model.md#72-admission-for-a-metered-call)) |
 | `limits.per_call.hello_max_output_tokens` | integer | 1 to `max_output_tokens` |
 | `limits.per_call.max_output_tokens` | integer | 1 to 4,096 |
+| `limits.twin` (spec 007) | map, optional | the twin's per-turn limits ([spec 007](../../007-twin-conversation/spec.md) FR-027, Amendment 0-2), the five keys below and no other. Absent: prod's `POST /room/turn` answers every turn degraded with `twin_unavailable`, and dev's and dev-cpu's use the defaults in brackets, logging `twin.limits_default` once at start |
+| `limits.twin.turn_max_chars` | integer | 50 to 2,000 [600]: a visitor turn's code points after trimming |
+| `limits.twin.history_max_turns` | integer | 1 to 20 [8]: the turns one request carries |
+| `limits.twin.history_max_chars` | integer | `turn_max_chars` to 16,000 [4,000]: all of a request's turns together, the newest visitor turn included |
+| `limits.twin.max_input_chars` | integer | 4,000 to 64,000 [32,000]: a twin call's messages together, instructions, grounding, and conversation; and its reservation's input bound in place of `per_call.max_input_chars` (data-model.md §7.2, amended by spec 007) |
+| `limits.twin.max_output_tokens` | integer | 32 to `per_call.max_output_tokens` [300]: a twin call's output cap, which its reservation counts |
 
 **Derived thresholds,** in micro-USD:
 - a ceiling = the amount × 1,000,000;
 - a day or month warning = the ceiling × `warn_ratio`, rounded down, so a warning never comes later than the ratio says;
 - a fallback grant's warning = its allowance − (`fallback_daily` − `fallback_daily` × `warn_ratio`): the allowance minus $0.60 here.
+
+**`envs.<env>.adapter_monthly_usd` (spec 010, Amendment 0-4).** Optional: a map from a paid adapter's ID in `config/routing.yaml` to its monthly cap in USD, counted inside the monthly ceiling as the sub-budget counts inside the daily one. Derived: the cap's warning, the cap × `warn_ratio`, rounded down to the micro-dollar. Its cap stops that adapter alone (data-model.md §7.2, the cause `adapter_month_spent`). The Author's patch P-C sets `anthropic: 20.00` in both envs, his answer ("$20 a month", the whole monthly ceiling, so the ceiling's own trip comes first), after spec 010's merge, since the schema accepts the key only from then.
 
 ### 3.2 Example (the plan's values)
 
@@ -323,6 +355,8 @@ A unit test pins prod's derived warnings at 3,500,000, 14,000,000, and 1,400,000
 
 Any of these at startup is exit 78 (`invalid_config`).
 
+**B9 (spec 010).** Each key of `adapter_monthly_usd` names a `paid` adapter in `config/routing.yaml` (checked across the files), and each value is more than 0 and at most `monthly_usd`, with at most 6 decimal places. B8 holds the map too: `envs.dev` equals `envs.prod`.
+
 ## 4. `config/alerts.yaml`
 
 It sets the channel order, the retry schedule, the daily reminder, the subject prefixes, and the stand-in endpoints (FR-032). It is human-only, because alert routing is a prohibited-without-a-human change in the constitution. The channels' credentials and addresses are secrets, so they live in the stack's env file, never here ([env-files.md](env-files.md)).
@@ -336,7 +370,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `channels.telegram.timeout_ms` | integer | 1,000 to 10,000 |
 | `channels.email.timeout_ms` | integer | 1,000 to 30,000 |
 | `retry.schedule_s` | list of integers | 1 to 8 entries, each 1 to 300, never decreasing: the waits between attempts |
-| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. |
+| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. **(spec 011, Amendment 0-10)** The timeout counts twice, since an attempt that falls back to the plain form makes two sends: the sum of `schedule_s` plus twice the slowest timeout (230 + 20 = 250 for the committed file). |
 | `reminder.at_utc` | string | `HH:MM`, 24-hour, UTC |
 | `store_unreachable_after_s` | integer | 10 to 600: how long the store must be unreachable before its in-memory alert |
 | `auth_failed.threshold` | integer | 1 to 100 |
@@ -345,6 +379,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `standin.telegram_base` | string | `http://<single-label host>[:port]`, the in-network Telegram stand-in |
 | `standin.smtp_host` | string | a single-label host, the in-network Mailpit |
 | `standin.smtp_port` | integer | 1 to 65,535 |
+| `formats` **(spec 011, Amendment 0-10)** | map, optional | `telegram` and `email`, each optional, each `designed` or `plain`; `designed` where absent, and no other key. A channel at `plain` sends every alert in its plain form, today's, recorded as the form `plain` with no fallback ([alerts.md §4.1](alerts.md#41-the-dispatcher)): the Author's switch, added only when he wants a channel kept plain. |
 
 The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service: a label that starts with a letter, under the same rule as `local_url_not_in_stack` (§1.4), so no IPv4 address in any notation passes.
 
@@ -390,6 +425,9 @@ standin:                             # ALERT_DELIVERY=standin: dev's default, ne
 | A5 | `prefixes: needs prod, dev, and dev-cpu, each distinct` |
 | A6 | `standin.<field>: must be an in-network host (a single-label name)` |
 | A7 | any unknown key, wrong type, or out-of-range value, named by its path |
+| A8 **(spec 011, Amendment 0-10)** | `formats.<field>`: any value but `designed` or `plain`, or any key but `telegram` and `email`, named by its path |
+
+**(spec 011, Amendment 0-10)** Rule A2's `<t>` is twice the slowest channel's timeout, since an attempt that falls back makes two sends: `retry: the last attempt starts at 291 s and can run 20 s; both must fit in give_up_after_s (300 s)`.
 
 ### 4.4 Startup refusals (exit 78) that combine this file with the environment
 
@@ -418,6 +456,8 @@ With `ALERT_DELIVERY=standin`, the gateway uses `standin.*` and ignores the real
    - set `ALERT_DELIVERY=real`, `TELEGRAM_API_BASE=https://api.telegram.org`, and `SMTP_TLS` to `implicit` or `starttls`.
 
    The key list is in [env-files.md](env-files.md). Each file's `H4_STACK` must be the stack it's for. `dev-cpu.vars` must also have exactly the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`, hold no placeholder, and carry a dummy token whose SHA-256 is both its `OPERATOR_TOKEN_SHA256` and the hash prod refuses, a constant in `src/config/validate-env.ts` ([env-files.md §6.1](env-files.md#61-dev-cpus-dummies)). A template that is missing is an error, naming tasks.md T031, which writes them.
+
+   **(spec 010)** An adapter's secret env key, which no committed file holds (its type's `secretEnv`: `api_key_env` for `anthropic-messages`), counts as present too when a template holds it empty: the Author supplies it in his own env file, which preflight's P3 and P7 check ([env-files.md §10](env-files.md#10-make-up-preflight)). So a route that names the adapter passes here, and a template without the key fails with `missing_env`, naming it.
 3. **The append-only check** of `config/prices.yaml` against `main` (P5), when run in a git checkout.
 
 It prints one line per error or note, then a summary:

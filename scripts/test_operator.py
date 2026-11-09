@@ -8,6 +8,7 @@ none.
 
 from __future__ import annotations
 
+import argparse
 import base64
 import hashlib
 import http.server
@@ -2583,3 +2584,192 @@ def test_make_help_lists_the_new_operator_targets(home: Path) -> None:
         "operator-incidents",
     ):
         assert re.search(rf"^\s+{target}\s", out, re.MULTILINE), target
+
+
+# --- spec 007's evaluation calls (operator-admin.md §8, amended by spec 007; tasks.md T022) ---
+
+
+def test_twin_turn_posts_the_turn_with_its_adapter_and_reason(
+    home: Path, stub: Stub
+) -> None:
+    secret = token("prod", 7)
+    plant(home, "prod", secret + "\n")
+    answer = {
+        "text": "An opening from the corpus.",
+        "feature": "snowboard",
+        "cost_micro_usd": 0,
+        "route": "local",
+        "guard": None,
+        "model": "stand-in",
+        "usage": {"input_tokens": 900, "output_tokens": 40},
+        "trace_id": "0" * 32,
+    }
+    stub.answer("POST", "/admin/twin/turn", 200, answer)
+    client = op.AdminClient("prod", url=stub.url)
+    got = client.twin_turn(
+        "local",
+        feature="snowboard",
+        path="non-engineer",
+        turns=[],
+        reason="evals product twin-04-q1-non-engineer",
+    )
+    assert got == answer
+    assert stub.requests[0]["body"] == {
+        "feature": "snowboard",
+        "path": "non-engineer",
+        "turns": [],
+        "adapter": "local",
+        "reason": "evals product twin-04-q1-non-engineer",
+    }
+    assert secret not in repr(client)
+
+
+def test_twin_turn_refuses_an_adapter_id_or_a_path_off_its_list(
+    home: Path, stub: Stub
+) -> None:
+    plant(home, "prod", token("prod") + "\n")
+    client = op.AdminClient("prod", url=stub.url)
+    with pytest.raises(op.Usage):
+        client.twin_turn(
+            "Bedrock!",
+            feature="free_talk",
+            path="engineer",
+            turns=[],
+            reason="evals x y",
+        )
+    with pytest.raises(op.Usage):
+        client.twin_turn(
+            "local", feature="free_talk", path="manager", turns=[], reason="evals x y"
+        )
+    assert stub.requests == []
+
+
+# --- spec 011's alert samples (operator-admin.md §2.4, §6, §6.1, amended; its plan §7.5; tasks.md T035) ---
+
+SAMPLES_REASON = "A look at every alert design."
+SAMPLES_BODY: dict[str, Any] = {
+    "action": "alert_samples",
+    "audit_id": 57,
+    "delivery": "standin",
+    "samples": [
+        {"entry": "warn-day", "key": "dev:sample:warn-day:57"},
+        {"entry": "trip", "key": "dev:sample:trip:57"},
+    ],
+}
+
+
+def test_alert_samples_posts_the_reason_and_the_kind_and_says_where_they_went(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    stub.answer("POST", "/admin/alert-samples", 200, SAMPLES_BODY)
+    argv = ["--stack", "dev", "alert-samples", "--reason", f"  {SAMPLES_REASON} "]
+    code, out, err = run([*argv, "--kind", "trip"], capsys)
+    assert code == 0, err
+    assert stub.requests[0]["body"] == {"reason": SAMPLES_REASON, "kind": "trip"}
+    assert out.splitlines() == [
+        "dev  alert samples · audit #57 · 2 samples, to the stand-ins",
+        "warn-day                 dev:sample:warn-day:57",
+        "trip                     dev:sample:trip:57",
+        "each arrives marked as a sample, nothing having happened on dev; a full catalogue takes about 40 s",
+    ]
+    # With no --kind, the body holds the reason alone: every entry.
+    assert run(argv, capsys)[0] == 0
+    assert stub.requests[1]["body"] == {"reason": SAMPLES_REASON}
+    # On prod they go where its alerts go.
+    plant(home, "prod", token("prod") + "\n")
+    stub.answer(
+        "POST",
+        "/admin/alert-samples",
+        200,
+        {**SAMPLES_BODY, "delivery": "real", "samples": SAMPLES_BODY["samples"][:1]},
+    )
+    code, out, _ = run(
+        ["--stack", "prod", "alert-samples", "--reason", SAMPLES_REASON], capsys
+    )
+    assert code == 0
+    assert out.splitlines()[0] == (
+        "prod  alert samples · audit #57 · 1 sample, to your Telegram chat and alerts mailbox"
+    )
+
+
+def test_alert_samples_checks_its_reason_first_and_takes_no_option_read_as_stack(
+    home: Path, stub: Stub, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plant(home, "dev", token("dev") + "\n")
+    code, _, err = run(
+        ["--stack", "dev", "alert-samples", "--reason", "too short"], capsys
+    )
+    assert code == 2 and "10" in err
+    assert stub.requests == []
+    # bash-gate reads any --s… option on this CLI's command line as --stack (D10): the command has none.
+    parser = op.build_parser()
+    (commands,) = [
+        a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+    ]
+    options = [
+        s
+        for action in commands.choices["alert-samples"]._actions
+        for s in action.option_strings
+        if s not in ("--stack", "--json", "--url", "--token-stdin", "-h", "--help")
+    ]
+    assert sorted(options) == ["--kind", "--reason"]
+    assert not any(s.startswith("--s") for s in options)
+
+
+def test_alert_samples_is_an_audit_action_and_the_hop_forwards_it(
+    home: Path, probe: Path
+) -> None:
+    assert "alert_samples" in op.AUDIT_ACTIONS
+    runner = Runner()
+    argv = ["alert-samples", "--reason", SAMPLES_REASON, "--kind", "trip"]
+    assert op.main(["--stack", "dev-cpu", *argv], runner=runner) == 0
+    assert runner.calls[0]["command"] == hop_command(
+        ["alert-samples", f"--reason={SAMPLES_REASON}", "--kind=trip"]
+    )
+    runner = Runner()
+    argv = ["alert-samples", "--reason", SAMPLES_REASON]
+    assert op.main(["--stack", "dev-cpu", *argv], runner=runner) == 0
+    assert runner.calls[0]["command"] == hop_command(
+        ["alert-samples", f"--reason={SAMPLES_REASON}"]
+    )
+
+
+def test_make_alert_samples_needs_a_reason_and_passes_the_kind_from_the_command_line(
+    home: Path,
+) -> None:
+    target = "operator-alert-samples"
+    done = make(home, "-n", target, "ENV=prod", f"REASON={SAMPLES_REASON}")
+    assert done.returncode == 0, done.stderr
+    assert (
+        cli_line(done)
+        == f'{PY_HOST} scripts/operator.py --stack prod alert-samples --reason="$REASON"'
+    )
+    kind = make(home, "-n", target, "ENV=prod", f"REASON={SAMPLES_REASON}", "KIND=trip")
+    assert cli_line(kind) == (
+        f'{PY_HOST} scripts/operator.py --stack prod alert-samples --reason="$REASON" --kind="$KIND"'
+    )
+    # From the environment, a kind never reaches the CLI.
+    environ = make(
+        home, "-n", target, "ENV=prod", f"REASON={SAMPLES_REASON}", KIND="trip"
+    )
+    assert "--kind" not in cli_line(environ)
+    missing = make(home, target, "ENV=dev-cpu", sandbox=True)
+    assert missing.returncode == 2
+    assert f"make {target} needs REASON=" in missing.stderr
+    assert "operator.py" not in missing.stderr
+
+
+def test_make_alert_samples_keeps_agent_sessions_off_prod_and_dev_and_is_in_help(
+    home: Path,
+) -> None:
+    target = "operator-alert-samples"
+    for stack in ("prod", "dev"):
+        done = make(
+            home, target, f"ENV={stack}", f"REASON={SAMPLES_REASON}", sandbox=True
+        )
+        assert done.returncode == 2
+        assert "dev-cpu" in done.stderr
+        assert "operator.py" not in done.stderr
+    out = make(home, "help").stdout
+    assert re.search(rf"^\s+{target}\s", out, re.MULTILINE)

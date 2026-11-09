@@ -7,6 +7,23 @@ import type { Queryable } from "../meter/store.js";
 import type { AlertKind } from "../telemetry/metrics.js";
 import { renderAlert, type AlertContext, type AlertSpec, type Ceiling } from "./format.js";
 
+/**
+ * The real alert kinds (contracts/alerts.md §2): the outbox's CHECK list, and store_unreachable, which is never stored.
+ * `sample` is none of them (spec 011, FR-035): a sample's key can never equal a real alert's, and no reader of the
+ * outbox can see one. A test holds this list to the CHECK, to h4.alert.kind's values, and to the contract's table.
+ */
+export const REAL_KINDS: readonly AlertKind[] = [
+  "warn",
+  "trip",
+  "fallback_exhausted",
+  "operator_action",
+  "credentials_expiring",
+  "fallback_unavailable",
+  "auth_failed",
+  "store_unreachable",
+  "reminder",
+];
+
 export interface OutboxRow {
   /** <stack>:<kind>:<meter or subject>:<period>, unique: each key alerts once (alerts.md §2). */
   dedupeKey: string;
@@ -68,12 +85,18 @@ const minute = (ms: number): string => `${new Date(ms).toISOString().slice(0, 16
 
 /** One dedupe key per row of alerts.md §2: <stack>:<kind>:<meter or subject>:<period>, and :g<n> for a grant. */
 export const dedupeKey = {
-  warn: (stack: string, meter: "day" | "month" | "fallback_day", period: string, grantNo?: number): string =>
-    `${stack}:warn:${meter}:${period}${grantNo === undefined ? "" : `:g${grantNo}`}`,
+  warn: (
+    stack: string,
+    meter: "day" | "month" | "fallback_day" | "adapter_month",
+    period: string,
+    grantNo?: number,
+  ): string => `${stack}:warn:${meter}:${period}${grantNo === undefined ? "" : `:g${grantNo}`}`,
   trip: (stack: string, ceiling: Ceiling, period: string): string => `${stack}:trip:${ceiling}:${period}`,
   fallbackExhausted: (stack: string, day: string, grantNo: number): string =>
     `${stack}:fallback_exhausted:fallback_day:${day}:g${grantNo}`,
-  operatorAction: (stack: string, action: "init" | "reset" | "renew", auditId: number): string =>
+  /** Spec 010: a capped adapter's month at its cap, keyed <adapter id>:<YYYY-MM>, once a month. */
+  adapterMonthExhausted: (stack: string, key: string): string => `${stack}:fallback_exhausted:adapter_month:${key}`,
+  operatorAction: (stack: string, action: "init" | "reset" | "renew" | "studio_window", auditId: number): string =>
     `${stack}:operator_action:${action}:${auditId}`,
   /** At the session's end, to the minute. */
   credentialsExpiring: (stack: string, adapter: string, endsAt: number): string =>

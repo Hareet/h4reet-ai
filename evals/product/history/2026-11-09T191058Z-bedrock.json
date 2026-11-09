@@ -1,0 +1,3626 @@
+{
+  "suite": "product",
+  "adapter": "bedrock",
+  "provider": "aws.bedrock",
+  "stack": "prod",
+  "stack_ref": "fdb7ad7b83cbe7cd9fc1ce9f4819f9dd596c61ba",
+  "started": "2026-11-09T19:06:39+00:00",
+  "finished": "2026-11-09T19:10:58+00:00",
+  "cases": 186,
+  "failed": 31,
+  "skipped": [
+    "hello-fake"
+  ],
+  "cost_micro_usd": 209659,
+  "tokens": {
+    "input_tokens": 1977052,
+    "output_tokens": 23715
+  },
+  "results": [
+    {
+      "id": "twin-00-profile-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1312,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6758,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 723,
+      "trace_id": "c045e778c7ea1f57112d0f592701cf3a",
+      "answer_sha256": "5e4d84099e90f646b4f5264fb5d2f3b6302450012cdc12bac0f7214cd3e787cf",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1146,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6766,
+        "output_tokens": 95
+      },
+      "cost_micro_usd": 725,
+      "trace_id": "c7fc308cbd802ff601dfc8f77e0ce584",
+      "answer_sha256": "095c0906d7c991d48f763abc9cbc18ac98dd50cf8419520ac4a6e0d75e860677",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1310,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7190,
+        "output_tokens": 103
+      },
+      "cost_micro_usd": 771,
+      "trace_id": "ed77fc55b99113159bd72f9e15348c6e",
+      "answer_sha256": "4d4a34390cf36d7f809f89e4c4aab633d875a4ded35aa1783e64f9789de79108",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1163,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7198,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 766,
+      "trace_id": "2b6e15ff619ab25462a144501ca4dc3f",
+      "answer_sha256": "526c3cb02d306e61f3afdb7e925cbc7fcd77fc19443b770f05ea7287338a8163",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1126,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6759,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 699,
+      "trace_id": "d13d830e4ac953b03dc00b4cf3854d09",
+      "answer_sha256": "6c9865a10415b2968a10221e066f580bdf7f997816105a87b2f3ddc60e152977",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'where he was born'"
+      ],
+      "latency_ms": 1612,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6767,
+        "output_tokens": 161
+      },
+      "cost_micro_usd": 758,
+      "trace_id": "a82ddf5297e988bbfae4358a9babafed",
+      "answer_sha256": "32db30c692303434c49f3277ffb959d97199fe7294f572d3633b7edc8e93db45",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1299,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11664,
+        "output_tokens": 100
+      },
+      "cost_micro_usd": 1217,
+      "trace_id": "5d324dac96c765cd949f5cbeb5e6656f",
+      "answer_sha256": "40852c0c55b13077289bda26369870f6f0abeae853839e3298089d6a0149e3ba",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1474,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11672,
+        "output_tokens": 148
+      },
+      "cost_micro_usd": 1242,
+      "trace_id": "5bb6a11556fd5c988b537f0c97af9694",
+      "answer_sha256": "bba01f6b9b5c203248efbddba08e2dbcb3538aba059b81cdff21f02f596e7200",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1068,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7430,
+        "output_tokens": 82
+      },
+      "cost_micro_usd": 784,
+      "trace_id": "f07c0d1b4e52468c4d5161e6f5662dec",
+      "answer_sha256": "27e1f93c64efb23501f09a7f41db4b99172318aa1b2c55a19bd41ffa2a4ded28",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1377,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7438,
+        "output_tokens": 155
+      },
+      "cost_micro_usd": 822,
+      "trace_id": "af1ee3a2f011853ad347e7186374a880",
+      "answer_sha256": "acb70e1299778e1edd2b475f71a84e2335090f34bdc6734d991e5fb2d64c4e8a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1238,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11026,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 1152,
+      "trace_id": "d96c65a2c21c93893427885ee4b64825",
+      "answer_sha256": "09ed5eb677386bd269cb91c1a40fdab146816ee3d0b351c957f1dfb4ed6ed6b9",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1198,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11034,
+        "output_tokens": 89
+      },
+      "cost_micro_usd": 1148,
+      "trace_id": "51ad1fa23b07df79f1e27336d3ecac32",
+      "answer_sha256": "087fc6200ed67a5c9c30e8ae8ffc5ba4ea4c4b4c7c3d7c759c9007c325c7fdf0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1454,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10659,
+        "output_tokens": 147
+      },
+      "cost_micro_usd": 1140,
+      "trace_id": "a93739ab8de4b88aae940f142d3a1e1c",
+      "answer_sha256": "193cc4f726b119548ddba65cf90ba0bed6258e6931e8787291a606229b171368",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1544,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10667,
+        "output_tokens": 137
+      },
+      "cost_micro_usd": 1136,
+      "trace_id": "d348061f895a56bc22fc9af1e6c4969a",
+      "answer_sha256": "76547871169373dcc16d32bafe662f0b0cdaaa10c2b766dc8b030bd8fe1370be",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1411,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11374,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 1194,
+      "trace_id": "3716debe6c0eb6464c7ad02eccdfd7d9",
+      "answer_sha256": "b78a93a18f0e0ff44f6a99aff21469c7f2d9c611f492e0bc8b5cf4f20490d008",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1487,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11382,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1203,
+      "trace_id": "300cff765915955351ec52713aff3664",
+      "answer_sha256": "00396b61f40db5b036d29cd5e6b678bd670186732c4331794a28a45506e6d3c0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1542,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11397,
+        "output_tokens": 159
+      },
+      "cost_micro_usd": 1220,
+      "trace_id": "0fe337a7a9d81e6c833dc49c8124b340",
+      "answer_sha256": "52e7c54f6f5a2c56f7db28f6ee70005275b73f9afcdbc91d3e02412cf5e48697",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1411,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11405,
+        "output_tokens": 119
+      },
+      "cost_micro_usd": 1200,
+      "trace_id": "99a14c67a1c6c4c6d0977fd161bd2621",
+      "answer_sha256": "b13245780d0cda4984d4b4c0c09c7f8bc2120816cdb520971fe0481505e484dc",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1304,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11385,
+        "output_tokens": 64
+      },
+      "cost_micro_usd": 1171,
+      "trace_id": "e5afecb5654265dc354cb36b8755b7ae",
+      "answer_sha256": "5b7594be01a7f15404d545fb91bcbd71096629e4068ec3d57ca9f7cd43b1710a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1377,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11393,
+        "output_tokens": 106
+      },
+      "cost_micro_usd": 1193,
+      "trace_id": "a377e87754635c141cddfdd71bd24ca6",
+      "answer_sha256": "784afc11204d508f92e8069fbe9d078a3c30371ce328df56750918cb6bfb5180",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1291,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11732,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1235,
+      "trace_id": "a3f9b98b27c97fa23babd37f5c5a1280",
+      "answer_sha256": "47206386f761834372f058ca8c066e678303ed8ada02332f265bf4076c87fde5",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1307,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11740,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1235,
+      "trace_id": "b0ec317a3da93b3021ca6d5936ee8855",
+      "answer_sha256": "3f6b27352efcd3228512463a47ebbd58b71bf7b5d5d197a6170de444032aac1a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1289,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11223,
+        "output_tokens": 100
+      },
+      "cost_micro_usd": 1173,
+      "trace_id": "b6db735be057083f4e9f383077dbc1b2",
+      "answer_sha256": "37220ec5e944d5632baedd24ce247befab32c99069478b8249c5a64916541bff",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1123,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11231,
+        "output_tokens": 76
+      },
+      "cost_micro_usd": 1162,
+      "trace_id": "7075bc8115fa400a967f91e76e226ddb",
+      "answer_sha256": "0a9f07a931d530595f23766732339c12ca1188274fd8c3676f639ba6fa0192f3",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1393,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11709,
+        "output_tokens": 143
+      },
+      "cost_micro_usd": 1243,
+      "trace_id": "cbe4143bf1d1f1f20797087bbfcc1c93",
+      "answer_sha256": "f0ac82cd3d068961ca32ad783b9eb8b190ff379e06124636a0461371ee9cfd64",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'"
+      ],
+      "latency_ms": 1334,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11717,
+        "output_tokens": 140
+      },
+      "cost_micro_usd": 1242,
+      "trace_id": "e4d112d68ef120486d0fb20edd66067d",
+      "answer_sha256": "919fe055bf0133ef12d98d80b64106421ce8a2be4c87074bb736a541f2e274d6",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'API'",
+        "missing 'claude-medic-aws'",
+        "missing 'EKS'"
+      ],
+      "latency_ms": 1313,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10972,
+        "output_tokens": 127
+      },
+      "cost_micro_usd": 1161,
+      "trace_id": "892c9d15abdf0205b6fa2f2862b524ff",
+      "answer_sha256": "790d2c681fb79f67f49cf56ba6fd2f6bf28d7d6545524fe51d5c4302a586d210",
+      "feature": "free_talk",
+      "guard": "ownership",
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1531,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10980,
+        "output_tokens": 165
+      },
+      "cost_micro_usd": 1181,
+      "trace_id": "595e0716c0f244bdc2cbfab68ab90d11",
+      "answer_sha256": "1aff7a18eefb31db8892fee05f80c2db5548aaf71e2d5241ffa2a158f3d92734",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1309,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11929,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1257,
+      "trace_id": "89a20506bea21fd2feac4f936cbb6859",
+      "answer_sha256": "6cca375742a3d7ddec6e84581ec3f0ea80836dc5182824cbf43c9769e82b9c39",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1312,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11937,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1258,
+      "trace_id": "36293cf11d87cb76ca41e7c33267bbcb",
+      "answer_sha256": "6cca375742a3d7ddec6e84581ec3f0ea80836dc5182824cbf43c9769e82b9c39",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'"
+      ],
+      "latency_ms": 1438,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11532,
+        "output_tokens": 138
+      },
+      "cost_micro_usd": 1223,
+      "trace_id": "0c30b8e6007cb5ace9f6c3cb84f528da",
+      "answer_sha256": "20f6866b2a3c3f92d801e73cb6efb97a7f7e3c5844a1b0ba6e9119a33dc82f09",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'"
+      ],
+      "latency_ms": 1560,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11540,
+        "output_tokens": 140
+      },
+      "cost_micro_usd": 1224,
+      "trace_id": "382a91bf99bef6c12ee24b1efc72cc96",
+      "answer_sha256": "6abf836c7701aeaddd8d51b1c8485364f013182bc71c9a4ed7ab097ef0d9bf32",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1253,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11758,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1243,
+      "trace_id": "40fd4a9a1aac6ea6f6a15ae369b2db2a",
+      "answer_sha256": "b5cd25b556f1213c35d84466cc845d636022e3fee0f0c92d5d74ad8e303fc1d8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1393,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11766,
+        "output_tokens": 129
+      },
+      "cost_micro_usd": 1242,
+      "trace_id": "5d60fd23736ce867838eb75b6e0b9f3d",
+      "answer_sha256": "e9ac00657ac0accdad65c3d0176ba7adc6f433dd8a7117bb4d366d0d8ec81973",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 987,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11391,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 1163,
+      "trace_id": "3c06b88909a27b4db4fd77029a062a4e",
+      "answer_sha256": "abec826a9ba2cd979d037586d6ecb3b94b2baedae3c076f40946c67b3fa7847e",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1153,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11399,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 1164,
+      "trace_id": "492065e1ff3547c4a7a91e23b77157df",
+      "answer_sha256": "abec826a9ba2cd979d037586d6ecb3b94b2baedae3c076f40946c67b3fa7847e",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'voice-to'"
+      ],
+      "latency_ms": 1506,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11413,
+        "output_tokens": 145
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "497c1b89ee65da1acffae6d1a972c711",
+      "answer_sha256": "2992995d0bd6087ce6fdc7e7222cf93604b33f92fb420265edc4f5d75b5b6e88",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1939,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11421,
+        "output_tokens": 156
+      },
+      "cost_micro_usd": 1221,
+      "trace_id": "16d94a3e5a3a7d2ca2b9c7dc5aa3d144",
+      "answer_sha256": "ec931c17e29e10132f974a9f3bf96ec59201e063ab7971c8687e15afa79afed9",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1634,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11694,
+        "output_tokens": 184
+      },
+      "cost_micro_usd": 1262,
+      "trace_id": "5a7c869b6dab50c386961d626569151c",
+      "answer_sha256": "066a4b1dd02f5f968d555774f1890a8928006e5ca0feb298a920c8b7eec353b8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1505,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11702,
+        "output_tokens": 172
+      },
+      "cost_micro_usd": 1257,
+      "trace_id": "09f79b3b217311892f8dda0eeb4d9fcb",
+      "answer_sha256": "56c8f255f498965bba59557e5c860fe62599a32861e7d3584d4ad16123dc04cc",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1100,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11590,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 1177,
+      "trace_id": "227b6c0c5e3fa1f9c7879577bb21f445",
+      "answer_sha256": "eadf0c04de2080b073132229ac0dd2c0daeca02c5867a8edcb1898c71e39eb52",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1381,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11598,
+        "output_tokens": 96
+      },
+      "cost_micro_usd": 1208,
+      "trace_id": "4d46d65b54a0294cc44a39bb5ab79994",
+      "answer_sha256": "1d89260e06637b67fab1f76a2afb4333dccdd7776650bb8f36e791fcfecb58b3",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1230,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11182,
+        "output_tokens": 86
+      },
+      "cost_micro_usd": 1162,
+      "trace_id": "dca2e42b62d6301adc9fe4c56aedf1a9",
+      "answer_sha256": "06890f53848f4791eded90dd8b2ad015b5d9089c58272cf85cc6b7b66336d6bc",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1174,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11190,
+        "output_tokens": 86
+      },
+      "cost_micro_usd": 1162,
+      "trace_id": "d8a7f3caaa21b3c44f0b5c7b99de42f9",
+      "answer_sha256": "06890f53848f4791eded90dd8b2ad015b5d9089c58272cf85cc6b7b66336d6bc",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1176,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11459,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 1193,
+      "trace_id": "9f1727019018d1a3c8a6798f72963654",
+      "answer_sha256": "1b54c93a4e7c98e7e4994dcd5a3dd909747ae7da774bd16cb12f3212bac9b148",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1402,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11467,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1206,
+      "trace_id": "1d8e238091c1d04b393cb96a3e46472d",
+      "answer_sha256": "66266b099180e91265e45568ccb3592db3a19b32bebca5b9b72853d003afaa20",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1439,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11517,
+        "output_tokens": 123
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "6a073f49fbf0e2af66221deffedcf0c6",
+      "answer_sha256": "b32e882aa7e71050855c6835f2f445a7fce1dbcbe61d56134333028c84921dae",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'No-Code'"
+      ],
+      "latency_ms": 1688,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11525,
+        "output_tokens": 175
+      },
+      "cost_micro_usd": 1240,
+      "trace_id": "ed286092c0dc35ba7095f4ba08376970",
+      "answer_sha256": "5fed6bb35ec93d177ae99695f25492e9333413dfe11312d9118870bf08e02744",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1508,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11753,
+        "output_tokens": 146
+      },
+      "cost_micro_usd": 1249,
+      "trace_id": "f3625375ab3c67576e4f58d294b81e38",
+      "answer_sha256": "613ddf363782b1df4229a7565c83b3bdfc5601c3e7cc25904757d3176d55547a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1437,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11761,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1236,
+      "trace_id": "a4b0686672762ca48487d8a4db39a25b",
+      "answer_sha256": "104ae1a1b80802c2066ef2ed8174f97a30f1c27d0e252762d151b725ac33ca11",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1092,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11532,
+        "output_tokens": 58
+      },
+      "cost_micro_usd": 1183,
+      "trace_id": "e7116167247983a6c56b0a0cf9bc3631",
+      "answer_sha256": "46272d4d9e71c1b140c0692f67731e532fa4db4794a60814c6d72179d03b21ac",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1468,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11540,
+        "output_tokens": 145
+      },
+      "cost_micro_usd": 1227,
+      "trace_id": "9f9d7127bd199003f891cfb4de63a737",
+      "answer_sha256": "abb82513385171a1ae110f404e184e49d1fc49c97f63ffda23c2e1d58c1a7c26",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing \"CHW's\""
+      ],
+      "latency_ms": 1385,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11344,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1196,
+      "trace_id": "562b42ba44ef07172e9ecc78fec7c129",
+      "answer_sha256": "d1bebfc2bdd4a095422555dfd43114fe10a64f246bb2bb81408721ac96e5b36b",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing \"CHW's\""
+      ],
+      "latency_ms": 1453,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11352,
+        "output_tokens": 150
+      },
+      "cost_micro_usd": 1211,
+      "trace_id": "fd2024d0c6b086550356b6714e864916",
+      "answer_sha256": "42d9b5e10a5eb9201744cba23ddcaae247b4f26f82c93b0f13ea3285cc53cd7e",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1975,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11528,
+        "output_tokens": 300
+      },
+      "cost_micro_usd": 1303,
+      "trace_id": "3b16629348a60dec937d69c1ec5e9a6f",
+      "answer_sha256": "81574f7e9a1eeb3c30ff89565d3f4360cd5841ef4ba2d8c8d59114d6dbecaf50",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1645,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11536,
+        "output_tokens": 177
+      },
+      "cost_micro_usd": 1243,
+      "trace_id": "8b3323629b1d2a3d91b07f0325c2685e",
+      "answer_sha256": "358006183aacdb786b8ec79224b801c3960e2070560ac3e1937424a827e81f5a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1262,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11410,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 1187,
+      "trace_id": "b7def6eeca40393ec9d4b56807231609",
+      "answer_sha256": "5ca5fcacb417aced768fafa3f92b5641a94866d561a21793f1ed16bc019b1603",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1443,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11418,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1212,
+      "trace_id": "8b31912d813b1c48880edb04026d5016",
+      "answer_sha256": "35b97e945f1fcd204899fd1ee2d665811398c1246cbc91db699d63c746deea69",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1634,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11488,
+        "output_tokens": 168
+      },
+      "cost_micro_usd": 1233,
+      "trace_id": "fd5cb7642f038402ae9620f96596bfc8",
+      "answer_sha256": "2d9d3daafa7bb6009bc5708226e98c13436d4755fd4f2e458de9142ab21bf75f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1628,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11496,
+        "output_tokens": 191
+      },
+      "cost_micro_usd": 1246,
+      "trace_id": "43bd0d968c770ba18084969e136aa23f",
+      "answer_sha256": "ad59e7ce31f1bd298d62f69c031f2fd70b2c81397f47733aa318fbcfbcfb0547",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1523,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11308,
+        "output_tokens": 115
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "e69cdbd4062ba69c546961692b4fe0f2",
+      "answer_sha256": "c35c71a5d6edb5a08daf5e8ebdb46d2ddcb07859e9b9bb4100a5d3f0b275d854",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1489,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11316,
+        "output_tokens": 125
+      },
+      "cost_micro_usd": 1195,
+      "trace_id": "0cd54ac3433b638ce3ba875892a92464",
+      "answer_sha256": "a3bcca7eb3d9afdb9e69b886224b5d68cbcddc7ed34ae2f7eca235ac688f949d",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1654,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11283,
+        "output_tokens": 152
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "38f0ef8635853b1676639cf67f461c79",
+      "answer_sha256": "d9b342b621219eb2b3e5429f92fe7118c84a2fc2e3c1db255f822ed97a59aa15",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1476,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11291,
+        "output_tokens": 124
+      },
+      "cost_micro_usd": 1192,
+      "trace_id": "c526d1abfeef6441456b1afde46818bf",
+      "answer_sha256": "924eb84550e9f88f59bf55452122f6d9b8632ede011c3916402dd79537ba845a",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1638,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11477,
+        "output_tokens": 157
+      },
+      "cost_micro_usd": 1227,
+      "trace_id": "6cf5c0acbfac769c94e5caf69abd353d",
+      "answer_sha256": "bce1550cd7d0ad75dc90d2078de4724853d1872889578a5b0acc06e80c3414cb",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2060,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11485,
+        "output_tokens": 189
+      },
+      "cost_micro_usd": 1243,
+      "trace_id": "fe1484d2b1e2fea96856624f2b2253e5",
+      "answer_sha256": "d14998705f5104af4c14cd7aee6694904ba0e7b9057e86de8d69f50286d8c179",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1333,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11473,
+        "output_tokens": 104
+      },
+      "cost_micro_usd": 1200,
+      "trace_id": "2983b1fc6370b8dcc44fc31d510091ec",
+      "answer_sha256": "438c4fb1a1084338c9486617a2c7c44be07478359d0fe8d2a7e0abdca1a656db",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1282,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11481,
+        "output_tokens": 96
+      },
+      "cost_micro_usd": 1197,
+      "trace_id": "728c4bc3076beb554f530475685c1040",
+      "answer_sha256": "27e6af37e16a89758dcfa0d8c32bcabeb8cb5f626a11fab31c74e6c4bb193b3c",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1281,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11726,
+        "output_tokens": 65
+      },
+      "cost_micro_usd": 1206,
+      "trace_id": "d906ed8e70281974eb3f4a848aa37c23",
+      "answer_sha256": "2788fcb10bb447384112284475bb173f60aee09de22656a3d1e7019ce9bb2fd2",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1143,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11734,
+        "output_tokens": 68
+      },
+      "cost_micro_usd": 1208,
+      "trace_id": "8882045afe722b38348e5c84943ec2bd",
+      "answer_sha256": "5cfcba99bca04ae534199b801c4c03023c3f8774a5c181792e15cba96dcc3b74",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1611,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11786,
+        "output_tokens": 191
+      },
+      "cost_micro_usd": 1275,
+      "trace_id": "e510752cd36935a610d9564d7d53fd7d",
+      "answer_sha256": "be5f76f2f4b88950b5afe8e4eecc5e4eb2442af144b599d34205050663725da8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1333,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11794,
+        "output_tokens": 119
+      },
+      "cost_micro_usd": 1239,
+      "trace_id": "e38cc90a25350075179f1da26b9aa8b2",
+      "answer_sha256": "e2fbc31e7bbde0f1729ad1c9a82187005781b31a3368bb4ae5c89b80c71ee00c",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1310,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11445,
+        "output_tokens": 114
+      },
+      "cost_micro_usd": 1202,
+      "trace_id": "f291725e97ac6d22b9c0f9b9b794c533",
+      "answer_sha256": "f820066ee27de5638d820fce9bedac790fb98d6d933b926f68e8c8565a40a8aa",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1624,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11453,
+        "output_tokens": 166
+      },
+      "cost_micro_usd": 1229,
+      "trace_id": "1c48387edd070cbc36365dee088519c7",
+      "answer_sha256": "09dc7cfc7a9ed69de98fb8621cd0e6c9bd2aa293887fe861616b149bcae7f488",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1567,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11448,
+        "output_tokens": 132
+      },
+      "cost_micro_usd": 1211,
+      "trace_id": "35fe501b1875a2b935e49c30766688b7",
+      "answer_sha256": "def4aa019e0f5602bf2072d27aabd1f110e886f030b5f3ca5f47305c2729d2d8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1304,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11456,
+        "output_tokens": 170
+      },
+      "cost_micro_usd": 1231,
+      "trace_id": "227597cf92e34721269c0d2caff50237",
+      "answer_sha256": "80c0a0631bf562d8e9d5e21add69a2b9a97633e94b38ee73026f0929f6ff9de8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1433,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11450,
+        "output_tokens": 146
+      },
+      "cost_micro_usd": 1218,
+      "trace_id": "c03983c6edf5ab123b4dee2d0a3aa3b9",
+      "answer_sha256": "db74d081233c5667285c435eb57f0f83ecd6a7e889af32c3896e6667a617931d",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1394,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11458,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 1201,
+      "trace_id": "5b663fb67ad2a120ab55bb15873ea8ad",
+      "answer_sha256": "33360c1b9ab62e972bc87c75b2010d496aa8b950a355bc1ee8c72963bdd370fa",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1492,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11327,
+        "output_tokens": 165
+      },
+      "cost_micro_usd": 1216,
+      "trace_id": "68dc9a3257617651b891bb0e5957c96d",
+      "answer_sha256": "548b96853216b830be79add645cbd3dc4436bb6ee92633c65292d71db5585728",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1497,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11335,
+        "output_tokens": 158
+      },
+      "cost_micro_usd": 1213,
+      "trace_id": "d356e5a50a96b3dfab4134e596e5c86e",
+      "answer_sha256": "f336b63fbb37eec0f4d68dd3c5e7d8ba9d593e79281ce366ef450a0b4342ec5e",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1510,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11444,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "986362d9ccaa4aeb129daae305ef1164",
+      "answer_sha256": "fb715154272f227a9c88e7e84269d6dab88390eee0a1aae8695c10734cf328af",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1790,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11452,
+        "output_tokens": 205
+      },
+      "cost_micro_usd": 1248,
+      "trace_id": "4a26bf608cd54af9618c8f4e5d5ec160",
+      "answer_sha256": "a6d5986084f23b8eb1d600165fc3d775de488e4cb99bc2defa1271315f4354a0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1564,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11545,
+        "output_tokens": 181
+      },
+      "cost_micro_usd": 1245,
+      "trace_id": "8603a66892c53c278263d12da6c6816c",
+      "answer_sha256": "2e51e062684364a8c740640c8994d43ccdfe1200fb9ef63274d6b26ed01a6c39",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Medic'"
+      ],
+      "latency_ms": 1481,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11553,
+        "output_tokens": 154
+      },
+      "cost_micro_usd": 1233,
+      "trace_id": "7fed616692979df33290bdbfc25948c4",
+      "answer_sha256": "9df19e4636929c68a39a3d54b6addbb3d51689c01c5005f1ca8f6017af984e68",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1542,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9647,
+        "output_tokens": 193
+      },
+      "cost_micro_usd": 1062,
+      "trace_id": "75ef339fe5cf5b6931a1bf43660e7b64",
+      "answer_sha256": "83228bc827fec9eaec37697c02d16dc08c46dc720fd7d2c17451aac2777d9fec",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1590,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9655,
+        "output_tokens": 192
+      },
+      "cost_micro_usd": 1062,
+      "trace_id": "6dc1e79dde43303a14c25f4e032b9793",
+      "answer_sha256": "d80efe59d2f1287958dd03cfc6d283a53e8513e9679904673816037181d3f9a7",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1204,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11491,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 1199,
+      "trace_id": "0224ff59b84f310ffbc6b483bf2f8df9",
+      "answer_sha256": "472485e5f9640596d6ff08e7508a657f4adb82ab8b241689200c85d294f9c2ed",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1399,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11499,
+        "output_tokens": 96
+      },
+      "cost_micro_usd": 1198,
+      "trace_id": "362c745191e36a726c92e9968181d2f9",
+      "answer_sha256": "cd900868eb6f3d364357c09813ff8ee0b4320b33a7a59e3b022985af4cf9a712",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 952,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11330,
+        "output_tokens": 19
+      },
+      "cost_micro_usd": 1143,
+      "trace_id": "66ae8b1abf7eb6692fedebec99b3de12",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1373,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11338,
+        "output_tokens": 99
+      },
+      "cost_micro_usd": 1184,
+      "trace_id": "373700418292ef0b3f67d9152344233d",
+      "answer_sha256": "56fde9d8f73fef2306b90c93fc999c6e92d38d79a0ae60139cd9df5840393e8f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1730,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11425,
+        "output_tokens": 153
+      },
+      "cost_micro_usd": 1219,
+      "trace_id": "24f6d4ff6b09e88aba957dea7755d54d",
+      "answer_sha256": "1830de9a814dad6ef46181705071fa01a1f9ae8f619ec26f88f59d3547f05dca",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1259,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11433,
+        "output_tokens": 126
+      },
+      "cost_micro_usd": 1207,
+      "trace_id": "5f85d43ff1248834dd6c76e7dc1f3be0",
+      "answer_sha256": "705420f3c09f5e71e6e8048bb398d9d8eb311da03f173676d212b710d165bacf",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1413,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11834,
+        "output_tokens": 163
+      },
+      "cost_micro_usd": 1265,
+      "trace_id": "32f3c70d13b611f424f0580b972d6740",
+      "answer_sha256": "d0f37f0c58f269e495622e9a04421c2fa17aebb741737893aeecd3a0d4c1c2a0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1597,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11842,
+        "output_tokens": 178
+      },
+      "cost_micro_usd": 1274,
+      "trace_id": "ed30551f0f75a3c02b202b92ff7a35b6",
+      "answer_sha256": "5001fe52523f1f93fdd3a481719dcc880d1dfdcfe098085cf1c3744040c61b7f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1460,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11546,
+        "output_tokens": 111
+      },
+      "cost_micro_usd": 1211,
+      "trace_id": "2b32833c5815eaa7fe33851a032e534a",
+      "answer_sha256": "be3d3dad17557b9c50c11c653eb8abc550a0e8db7c78be6ae777b4c56be0ac48",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1400,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11554,
+        "output_tokens": 116
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "075dda57f13efcce56b0b14187c48440",
+      "answer_sha256": "141789bee3c726e40844aacab1f5b44845b3ad735f58f24da22f57b1d71a3395",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1255,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11345,
+        "output_tokens": 85
+      },
+      "cost_micro_usd": 1177,
+      "trace_id": "6898f56684724448199be0fafa3738be",
+      "answer_sha256": "87faeb85fa8cb03a1e5b6eb223b5d12d3e490eab82837b73978aca67507a56bc",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1403,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11353,
+        "output_tokens": 96
+      },
+      "cost_micro_usd": 1184,
+      "trace_id": "f9129fb1d9ee6b7e00d7f44071bd8351",
+      "answer_sha256": "fc55846281401b7f2432c5a534fabfbac3338e7fa83f251d2c5eebd2abe673a9",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1498,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10208,
+        "output_tokens": 157
+      },
+      "cost_micro_usd": 1100,
+      "trace_id": "979c0c6129b0e0f41557375652e2aadc",
+      "answer_sha256": "7f69f6f004039362418b4511c6b4e319fdbc3d86cfe64d9d8813553d98d843ca",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1461,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10216,
+        "output_tokens": 148
+      },
+      "cost_micro_usd": 1096,
+      "trace_id": "2f36c8b74a6e883ac6d50f4710869738",
+      "answer_sha256": "69b093b0f55a1bbf161d6f1ef47291008d939231b608a97c871c5221e22967e0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1305,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11741,
+        "output_tokens": 97
+      },
+      "cost_micro_usd": 1223,
+      "trace_id": "f25392e34de2e45364c633b6efbfe98d",
+      "answer_sha256": "138c4c8c9a1d4818101fc8aea5a283012544fb7ba9ef2ac13eef2f908f8c63e0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 924,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11749,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 1181,
+      "trace_id": "d70469fdc7344d61f1ec45c32fcdf832",
+      "answer_sha256": "4995897299b4cc1cd21cdb835af150f526cc4c8e9522d1bbce149d1c630e95a8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1413,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9883,
+        "output_tokens": 170
+      },
+      "cost_micro_usd": 1074,
+      "trace_id": "40a2ba12d64e66fa860b0e215bd00e17",
+      "answer_sha256": "5eb6103c12e02679b48ea52efb1699a8a10a5240f84b583259db20203da778b5",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1431,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9891,
+        "output_tokens": 150
+      },
+      "cost_micro_usd": 1065,
+      "trace_id": "7c37eb2a9995c6f8b351e8ad8ecd9348",
+      "answer_sha256": "6c353a25f463095c025f1d060f10722e5b1f3548a50b9ae8e590fbcdd279ead4",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1192,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 108
+      },
+      "cost_micro_usd": 1043,
+      "trace_id": "2b0f50e22f4621e918cc3c39b8a0531e",
+      "answer_sha256": "e32a8cad7522b19cd989b5c99f8e48edc45e30e76dd67fefc3eb9f4db1b68b8a",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'self-teach'"
+      ],
+      "latency_ms": 1343,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 90
+      },
+      "cost_micro_usd": 1035,
+      "trace_id": "cdbce773aa8758e0bc2897b696576d01",
+      "answer_sha256": "f5bcd70662709d9e2f1aefa5589bdeb5fd8d9d0295710b0973679ff762790193",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1051,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9886,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 1023,
+      "trace_id": "e87e6847499ef0a120b7db029b39efe4",
+      "answer_sha256": "1ae346d7ee8981083a7cc73cd38c4d179368352003f9adb01fa3c6272e1320fa",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1085,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9894,
+        "output_tokens": 66
+      },
+      "cost_micro_usd": 1023,
+      "trace_id": "39fb752adc189d16336c1dad76323d32",
+      "answer_sha256": "8bac8f16e3ea07a08711745b31124ee7fb88082f03ca26f5d725853f295c5ec8",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1257,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 124
+      },
+      "cost_micro_usd": 1051,
+      "trace_id": "11a09c256902641d323f1a959a30a182",
+      "answer_sha256": "712a9032d36fd286db4efb5a7480317bbe804e0736cb7b1fd054979b777d9d2b",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1252,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 160
+      },
+      "cost_micro_usd": 1070,
+      "trace_id": "e757ae949b51e618228b44bd153f2359",
+      "answer_sha256": "86ee075c35aa7a3db7d77f48ee60b7c4228fdd768e46b7ef78d9e10cb7c51bfb",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1302,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9889,
+        "output_tokens": 161
+      },
+      "cost_micro_usd": 1070,
+      "trace_id": "eed387bb1d1c3dff02dbb5e238b7204e",
+      "answer_sha256": "69a7760c0c67a6c49df67372fb5be09bef2a15fd8e0a751b7fe56d03376e18ff",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1348,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9897,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1057,
+      "trace_id": "6617985cd59cd489f667148bcf9161d8",
+      "answer_sha256": "40d2f327f52e9dbc9bff90a3d8d43b04bfa5f523bdf99e9fbd2fc9d044631d12",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1683,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9882,
+        "output_tokens": 200
+      },
+      "cost_micro_usd": 1089,
+      "trace_id": "9812bb673e6430c2780316316eebccff",
+      "answer_sha256": "cb8aa459993500c7de913b123364ba95baefd662a7b37531ba5d5bb430de6138",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1513,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9890,
+        "output_tokens": 163
+      },
+      "cost_micro_usd": 1071,
+      "trace_id": "bdd8798ad35f92c8a7fff592811797eb",
+      "answer_sha256": "ae2a406c7a126dfe54a001dd80770acfd6c7c52146ea33ee4046adbb5672e890",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1331,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9887,
+        "output_tokens": 152
+      },
+      "cost_micro_usd": 1065,
+      "trace_id": "b3d3aadacbc4aa1d91417fd2d7b7a91a",
+      "answer_sha256": "ef5f28739142fbf4f5e0cf2dd4328d51b72410e1754709f087a5213c4c62029b",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1454,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9895,
+        "output_tokens": 197
+      },
+      "cost_micro_usd": 1088,
+      "trace_id": "447f94037865822937bd8c17365854f3",
+      "answer_sha256": "17f2251c94e05697b1546c72018fa7c1fb5e6dcf9ed65e15118d2d28f84a552c",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1039,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 1022,
+      "trace_id": "fc39fdc01b1faee5bf839cb1d99016fa",
+      "answer_sha256": "2789bb4fcf9b9026ca82299b0737f45294549a827478092de0e07f323e2ab294",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1149,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 74
+      },
+      "cost_micro_usd": 1027,
+      "trace_id": "76de14687942c96c0847b40f68802433",
+      "answer_sha256": "ec7bde1066b710ff99971c5650d3c457fe528989d404a8144cd4104eaf04611c",
+      "feature": "bicycle",
+      "guard": null,
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-05-mission-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1389,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9780,
+        "output_tokens": 240
+      },
+      "cost_micro_usd": 1098,
+      "trace_id": "bceede7e8c3df392e8526bb170a84029",
+      "answer_sha256": "7009365cbd02202cd45c51d877fc3182217feae7075fd692ab39aa44dc318427",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1493,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9788,
+        "output_tokens": 216
+      },
+      "cost_micro_usd": 1087,
+      "trace_id": "eac7103fea07911f3ff19a7ec6910a26",
+      "answer_sha256": "6d5e7e89fc8f998d206179480f2b44a71ff0a88b0e479ceda365cc60ddc341c4",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1168,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9781,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1038,
+      "trace_id": "1a0b4c39cc25c9c47188114f2251ed3f",
+      "answer_sha256": "cac064e4503d39b9a27174312cbea18b4063049d8d1c1b78f5d775a08a024bca",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1160,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9789,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1038,
+      "trace_id": "b8583706da4c6167170cc6ead744e634",
+      "answer_sha256": "7b13ba60b6329105b1e9609e98f4c59e9a88472a710eade0d9421c01723cff6b",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1654,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9785,
+        "output_tokens": 249
+      },
+      "cost_micro_usd": 1103,
+      "trace_id": "e674d50299df71da13a142d88dd1760f",
+      "answer_sha256": "a740ba56e555d02dda86eeb76d7037f5a9a684189632ae94d6c6079e14726606",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1538,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9793,
+        "output_tokens": 242
+      },
+      "cost_micro_usd": 1101,
+      "trace_id": "d46af75f9af3d0d1daa88b28c8675510",
+      "answer_sha256": "12838dc033ecb8dbacb3a7fcb1a5b19afbccb11d0f9a7988e46989acd8aefc6e",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1224,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9783,
+        "output_tokens": 108
+      },
+      "cost_micro_usd": 1033,
+      "trace_id": "dc165fa1f08d50392684e0149e731890",
+      "answer_sha256": "6a910db389cd2479ca6651bf7c943d92dcb171889fdb6a65e1ff17873da85650",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1459,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9791,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 1047,
+      "trace_id": "67515422539381a10740c667a979adfb",
+      "answer_sha256": "7979b75c8a83a9cbd8834b76292e8e7684545a839707c733eae24e7db0c899c6",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1180,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9784,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 1018,
+      "trace_id": "8464dcae1638eea74118e1a6f8f3dd5f",
+      "answer_sha256": "71b22e75ed0b87d7b76c1e2151b48bc0d928d862ac9f0b92fe6427d4bdbbc64b",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1182,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9792,
+        "output_tokens": 74
+      },
+      "cost_micro_usd": 1017,
+      "trace_id": "adac6d9772d58315820878ba422b2165",
+      "answer_sha256": "9ede5bf123dde699c33fae13ecfd4b76386dbabba71c1011824260563c8acf66",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1367,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9780,
+        "output_tokens": 208
+      },
+      "cost_micro_usd": 1082,
+      "trace_id": "f77dfba6ade37a6019cd77d75bed712f",
+      "answer_sha256": "90e1f9347ed57a52ccc37b1f571da5215de946a42e47c7180a5456be63a382a4",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2065,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9788,
+        "output_tokens": 244
+      },
+      "cost_micro_usd": 1101,
+      "trace_id": "018bd99f534d27517b0c28534691d2dd",
+      "answer_sha256": "ac9650f3a9c71a9daa361b9bb0a3847caca51336aa37cb1c75a38c4ca6cd5c20",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1499,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9781,
+        "output_tokens": 145
+      },
+      "cost_micro_usd": 1051,
+      "trace_id": "8b3e1d892403d599d402d0f6c8537670",
+      "answer_sha256": "74a8aee79d3705627f3cc9dab945fd712e676a7380f88acf77f389ec2d0904bc",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1364,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9789,
+        "output_tokens": 152
+      },
+      "cost_micro_usd": 1055,
+      "trace_id": "cb5dbc55e33401951feffa6f5658cd55",
+      "answer_sha256": "c3fe17f4ed75b2f686c5f61a604dd3c9fed90ae6e04215ea33c1b72034b41fb2",
+      "feature": "chalkboard",
+      "guard": null,
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-06-work-projects-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 976,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9428,
+        "output_tokens": 63
+      },
+      "cost_micro_usd": 975,
+      "trace_id": "70e0078d03e184135e62fe5a1098629a",
+      "answer_sha256": "2282fbe112bc530b0f499c73865366f0113eb8b786a74415f4da626554d5dd4c",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1827,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9436,
+        "output_tokens": 93
+      },
+      "cost_micro_usd": 991,
+      "trace_id": "8ccf91879d96c11a28d1d67330c0e70b",
+      "answer_sha256": "4be113f6d6bc23f540126dcd3af61b172f10b902312d84e034ffc147f2e90ba8",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1761,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 209
+      },
+      "cost_micro_usd": 1048,
+      "trace_id": "49293cbcbbae91aac9f80a76bcdd0f9d",
+      "answer_sha256": "f1a026922cba2272e32ff2d2af19a94edd157eeea63fa3ec04371d81adcfa451",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1503,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 176
+      },
+      "cost_micro_usd": 1033,
+      "trace_id": "4a87081bf1e0094dc4f6deff2e6b0c36",
+      "answer_sha256": "a1575f321289e0da0f02a04ba8b5bf5f15cb83e9eb0e92124064bbc10d5753e2",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1059,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9431,
+        "output_tokens": 76
+      },
+      "cost_micro_usd": 982,
+      "trace_id": "fcc9224e16776689e0e40a140b59fdfb",
+      "answer_sha256": "c7c811ef499a67a76bc5836059213d43f1fbf40ece8333e376b2c6189ca69d5e",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1074,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9439,
+        "output_tokens": 89
+      },
+      "cost_micro_usd": 989,
+      "trace_id": "81b4e5104e09df417197577c1bc8b248",
+      "answer_sha256": "8eae97edc5040a3409bd59097c8365195e08ddafea44750ffa3995bf259f937d",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1681,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 252
+      },
+      "cost_micro_usd": 1070,
+      "trace_id": "abd582820ba10c34ca4cd0d40483218a",
+      "answer_sha256": "5886219eab553952e7c95279b588548e9a3173812d5ffaedc32bca8ffe2eeeb4",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1449,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 241
+      },
+      "cost_micro_usd": 1065,
+      "trace_id": "a784cb44046a8e18ba59b833fede4481",
+      "answer_sha256": "03c753b544776f883d5f539baa576eb623b9e5e77da694c5126218ad2e41b60b",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1028,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9449,
+        "output_tokens": 59
+      },
+      "cost_micro_usd": 975,
+      "trace_id": "ffa5214a989c06a6363e2ea2c4bed0d4",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 971,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9457,
+        "output_tokens": 59
+      },
+      "cost_micro_usd": 976,
+      "trace_id": "e305f9e50a39cab1f6dc323fe946122b",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q6-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'SRE'"
+      ],
+      "latency_ms": 1330,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 116
+      },
+      "cost_micro_usd": 1002,
+      "trace_id": "ee20975a61e6f6c1741b35f7762a9ac7",
+      "answer_sha256": "b34c0f79286945743439e246d1c6648222fd0e1b6a48dd5bcec85babbf0fe2b5",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1081,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 994,
+      "trace_id": "db27b161412283bfb934e24655fcd95b",
+      "answer_sha256": "d55584c338d79fab06bf9454faa6eb91e767b030eedb880c24a780f69b6e93d6",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1013,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9435,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 972,
+      "trace_id": "5e6eadc9d73698ee1dbdadc28261a9a3",
+      "answer_sha256": "5aa37536982981bc9c29d8ce04197cb082c0f310db6227c801938e3e494a22e3",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1353,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9443,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 973,
+      "trace_id": "d90bdd722cde3f6c8c97c2f28ba42a57",
+      "answer_sha256": "5aa37536982981bc9c29d8ce04197cb082c0f310db6227c801938e3e494a22e3",
+      "feature": "laptop",
+      "guard": null,
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains \"the co-owner's name\""
+      ],
+      "latency_ms": 1457,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11553,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 1211,
+      "trace_id": "a372934a78db18e5329845d2c4ad091d",
+      "answer_sha256": "087f5e6e9e16b335261516a875ea1b23a02090b89d668eba3fb229bc9944cc3c",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains \"the co-owner's name\"",
+        "contains \"the site's phone number\""
+      ],
+      "latency_ms": 1283,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11561,
+        "output_tokens": 104
+      },
+      "cost_micro_usd": 1209,
+      "trace_id": "74bce3168d3d21c5e9de9420e6166d05",
+      "answer_sha256": "1c3114e21b26a125ce623ab22142cfb04c1aba165832737c6afe299991c47b65",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1524,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11442,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 1194,
+      "trace_id": "82f321730315dd8e7b7d95f5e6c0b33d",
+      "answer_sha256": "3bf3affadaf942e64680a7a28e051f9147fdc660e070959aac54cade403dccc6",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1363,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11450,
+        "output_tokens": 87
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "849f1e6855c4aa1d71f28741ffa6b3b7",
+      "answer_sha256": "8559140b3bb7a3e2845c94090252ce6992a5047735f738d5873bedc1eb5d63d8",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1478,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9729,
+        "output_tokens": 138
+      },
+      "cost_micro_usd": 1042,
+      "trace_id": "9085a0950227e6baab74067339b62321",
+      "answer_sha256": "ee770a149b6ad75212933e11718c4450ab3a467518d5b57ceb3875206ae388fe",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1310,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9737,
+        "output_tokens": 95
+      },
+      "cost_micro_usd": 1022,
+      "trace_id": "135c9056d74bf85f3b7301fe1c1417e0",
+      "answer_sha256": "2ec82e09edacfa0bbf6a652a639d16907814f6cc8a29e87a751faf580260b265",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1195,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11463,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 1187,
+      "trace_id": "2a12f5c989c3dcf86b3f2b91146179ed",
+      "answer_sha256": "ff9ced53f2db1a2520b53f80ab1982bc49c358a6e244459f0a8583804b5e3be4",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1716,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11471,
+        "output_tokens": 81
+      },
+      "cost_micro_usd": 1188,
+      "trace_id": "ebb5c61a27b7e447cd83bc03ef383e0a",
+      "answer_sha256": "ff9ced53f2db1a2520b53f80ab1982bc49c358a6e244459f0a8583804b5e3be4",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1454,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11162,
+        "output_tokens": 189
+      },
+      "cost_micro_usd": 1211,
+      "trace_id": "5f3428427cd3930c13961a60666a4e12",
+      "answer_sha256": "72d5415e832390e487837a12644348377124594d4d6462cd587cad2852e80849",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1215,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11170,
+        "output_tokens": 101
+      },
+      "cost_micro_usd": 1168,
+      "trace_id": "835aff472320d184df6076fe0a9471ed",
+      "answer_sha256": "7cbbf0fa849eccc2a8cb4135d1586fdb8512ee87ee3968ed59dc0976a163d764",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 1616,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6859,
+        "output_tokens": 99
+      },
+      "cost_micro_usd": 736,
+      "trace_id": "ecfaee35078446aa08d3a3c72c1ef646",
+      "answer_sha256": "3de010578e34397d953bd85ddaef1bed68f968642931182abda7b7b7f23af6ad",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 1390,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6867,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 754,
+      "trace_id": "d09f1bf23428523ff29efa2cb37060eb",
+      "answer_sha256": "3fb6bb5ce9fee0ce4911023180236d4e0b5e7af53063cc28a1938ba6c344b2a6",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1268,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9729,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 1028,
+      "trace_id": "aae2b75322dd759a4053a990275a808b",
+      "answer_sha256": "db3159060d0785c8eaed4bbb469b4917f84fcc29d2e1523421a4bc14a23652d7",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1323,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9737,
+        "output_tokens": 95
+      },
+      "cost_micro_usd": 1022,
+      "trace_id": "b6e96a5a0f68dc95b067ec13f23c289a",
+      "answer_sha256": "e80a55829efb928f95b1a851208861716e6280ea7206742f7b14d26f874b6ed0",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2096,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10930,
+        "output_tokens": 211
+      },
+      "cost_micro_usd": 1199,
+      "trace_id": "d84da2c8f0036402f1717cb527d03a86",
+      "answer_sha256": "ebd97f90ca86f8d44cf5bf1b9c9d673fd2e65a88858530cb4b18eb56b1d9fa52",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1323,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10938,
+        "output_tokens": 130
+      },
+      "cost_micro_usd": 1159,
+      "trace_id": "247047c046d935902a4abc91ecb9c900",
+      "answer_sha256": "a177dbc0df36afa8fb69694f4c6f5e0bbc8e2375441ada7324cf54721bc9b193",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1244,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11453,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 1185,
+      "trace_id": "9496142e087e14ee6177a7fb300c66b2",
+      "answer_sha256": "30f0eaa892b92487e3e94a86b67ceb03840b2ce140bdd8629e99dd46b27d6d5e",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1190,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11461,
+        "output_tokens": 93
+      },
+      "cost_micro_usd": 1193,
+      "trace_id": "e56e749c6a2ad23816d91b33cf162d67",
+      "answer_sha256": "36d152e641a03156e9200d7bccadfb8e17f1d543a74b44214d40b3e162db4f25",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1854,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9243,
+        "output_tokens": 226
+      },
+      "cost_micro_usd": 1038,
+      "trace_id": "bb50b7752329db115177339226ab34a9",
+      "answer_sha256": "7f3e46c47de3ee105a59822140ad85b93951612f281ebe92c770e67c5e8bbf29",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1460,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9251,
+        "output_tokens": 140
+      },
+      "cost_micro_usd": 996,
+      "trace_id": "990df612c6cb98e8c4be7d36faf5f1f1",
+      "answer_sha256": "1a9cb078549fa363f61ee449b5ccee6a5555d16822b2ec6816b075164d5ea6ed",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Medic'",
+        "missing 'offline-first'"
+      ],
+      "latency_ms": 1519,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9346,
+        "output_tokens": 162
+      },
+      "cost_micro_usd": 1016,
+      "trace_id": "2be318f7aca601279b489c3800292e6f",
+      "answer_sha256": "23e64bf2048ac8ebdf2914dcc5c08b39b9b7c136a3dd4a98c416da775aacd341",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1775,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9354,
+        "output_tokens": 245
+      },
+      "cost_micro_usd": 1058,
+      "trace_id": "b5cfa72d458cace66b56ab3672a52ab8",
+      "answer_sha256": "01683781145721b7a2f561ceeb2871500980aa3a144ef2ec9cf9002dea07743d",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1028,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11265,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 1154,
+      "trace_id": "accf800061cd3fef0a5bb78e33da84b0",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1145,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11273,
+        "output_tokens": 84
+      },
+      "cost_micro_usd": 1170,
+      "trace_id": "d212fc896530fb1edf357ed045dc97ff",
+      "answer_sha256": "06a414e4913fffd5c4c94c44e96dfd9d9d2aca5832aee76000bd5cd656067587",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1387,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11240,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1194,
+      "trace_id": "757432c205e6b70ba8b49db023041f1c",
+      "answer_sha256": "e9615c8412382f72fb41cd1c66cca585485cebfd79d58b202e9251d14166f01f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1734,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11248,
+        "output_tokens": 206
+      },
+      "cost_micro_usd": 1228,
+      "trace_id": "96012bf66e9822c1e55bb83b81785e15",
+      "answer_sha256": "75a5e3ff721d041989e673b75953022e85ac41ea2bc27073f26dd72ddd5f283d",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'",
+        "missing 'real-time'"
+      ],
+      "latency_ms": 1941,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11628,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1230,
+      "trace_id": "7fa01d2935947b63df90dd2bc9a60e47",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'",
+        "missing 'real-time'"
+      ],
+      "latency_ms": 1176,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11636,
+        "output_tokens": 99
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "83fa4e84a9f19fb2ae0d9108c16e4b8d",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cost-meter'"
+      ],
+      "latency_ms": 2012,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11006,
+        "output_tokens": 204
+      },
+      "cost_micro_usd": 1203,
+      "trace_id": "3f5fb66a739687d7b5efb1f2443eb904",
+      "answer_sha256": "a7b10a7041be17d57c535e4804cd71352ecac9fdba3d719df86ece9b67bfd104",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1860,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11014,
+        "output_tokens": 217
+      },
+      "cost_micro_usd": 1210,
+      "trace_id": "7c961bdaf75bf823b346ca710632b284",
+      "answer_sha256": "bf3a863e5495b3ac673930c8a4977eb531bda9e8282e5899dd436561c90dc604",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1020,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11413,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 1153,
+      "trace_id": "f95a086b18f1213de32ce7349ed40e4a",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 957,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11421,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 1154,
+      "trace_id": "58eea7392edf9aa3876057e2936f6675",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1115,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9602,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 1006,
+      "trace_id": "d52f0c6adc1b60f4673dd2dc386dd706",
+      "answer_sha256": "6f8b36110c8ae61465c827e16422503938547fbc4582978e33b78febef7a617f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1014,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9610,
+        "output_tokens": 72
+      },
+      "cost_micro_usd": 997,
+      "trace_id": "87e312dd624abd8f6c4fbb13035b941a",
+      "answer_sha256": "781d51f0b24e70606753d8e2c809f3c5f7bc052b02b8c25e8002bf39c6e7c6ed",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1177,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11265,
+        "output_tokens": 74
+      },
+      "cost_micro_usd": 1164,
+      "trace_id": "a135e1bfc8c0eee13ee87cae3882979d",
+      "answer_sha256": "a2fe553f38cc224bfcc471058216892de8b081ba06a1f25420cc67ff443ae381",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1183,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11273,
+        "output_tokens": 86
+      },
+      "cost_micro_usd": 1171,
+      "trace_id": "0cb059960ca52963790b1af2f5212f01",
+      "answer_sha256": "536b3a325d80c790a414cd6413d0ef33c87a708c43e01cfd12358344b8d25c01",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1276,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11550,
+        "output_tokens": 107
+      },
+      "cost_micro_usd": 1209,
+      "trace_id": "ee81aabcccd3aecb891ef756da5a813f",
+      "answer_sha256": "f8db276d1f4c55708d42140bf348319dca32912dca5246b31ee51b558437086b",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'SRE'"
+      ],
+      "latency_ms": 1317,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11558,
+        "output_tokens": 75
+      },
+      "cost_micro_usd": 1194,
+      "trace_id": "6e0246333beaaa7b9ba44d9ccc6f32d8",
+      "answer_sha256": "af39e788372a755f319cbc744a8246fbd79a4286e8e4c6efe07a01cdf770b07f",
+      "feature": "free_talk",
+      "guard": null,
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Anything'"
+      ],
+      "latency_ms": 1465,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 8604,
+        "output_tokens": 149
+      },
+      "cost_micro_usd": 935,
+      "trace_id": "a5a1a4fc4af269888d08aec4fdf37274",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Anything'"
+      ],
+      "latency_ms": 1347,
+      "route": "bedrock",
+      "provider": "aws.bedrock",
+      "model": "us.anthropic.claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 8612,
+        "output_tokens": 142
+      },
+      "cost_micro_usd": 933,
+      "trace_id": "abe7d2c77c1a3257eef9227259fffd96",
+      "answer_sha256": "790d2c681fb79f67f49cf56ba6fd2f6bf28d7d6545524fe51d5c4302a586d210",
+      "feature": "free_talk",
+      "guard": "prompt",
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    }
+  ],
+  "prompt_sha256": [
+    "4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949"
+  ]
+}

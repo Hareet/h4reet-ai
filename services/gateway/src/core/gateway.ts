@@ -63,6 +63,7 @@ import {
   type HealthStatus,
   type ProviderAdapter,
   type ProviderErrorKind,
+  type RoomCall,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -89,10 +90,14 @@ export interface AttemptContext {
   payloadSampling: boolean;
   /** The adapter's request timeout, from routing.yaml: a retry needs its backoff plus this before the deadline. */
   requestTimeoutMs: number;
+  /** Retries in place of the adapter's `retry.max`: a twin turn on a paid adapter gets none (spec 007's plan, D43). */
+  retryMax?: number;
   realNow?: () => number;
   metrics?: GatewayMetrics;
   /** Called on each failed attempt: health tracking counts unavailable and timeout as a failed probe (§6). */
   onFailure?: (err: ProviderError) => void;
+  /** A twin call's room feature and topic, on each client span (spec 007, FR-026, FR-043). */
+  room?: RoomCall;
 }
 
 /** An attempt's client span as operator-admin.md §5 reports it: its name, its kind, and its attribute keys, no values. */
@@ -175,6 +180,10 @@ async function oneAttempt(
     "langfuse.observation.type": "generation",
   };
   if (adapter.server.port !== undefined) always["server.port"] = adapter.server.port;
+  if (ctx.room !== undefined) {
+    always["h4.room.feature"] = ctx.room.feature;
+    always["h4.room.topic"] = ctx.room.topic;
+  }
   if (ctx.payloadSampling) always["gen_ai.input.messages"] = redactSecrets(inputMessages(req.messages));
 
   const parent = context.active();
@@ -271,7 +280,7 @@ export async function attemptCall(
     const { error } = record;
     const policy = adapter.retry;
     const again =
-      attempts.length <= policy.max &&
+      attempts.length <= (ctx.retryMax ?? policy.max) &&
       policy.on.includes(error.kind) &&
       !req.signal.aborted &&
       now() + policy.backoffMs + ctx.requestTimeoutMs <= req.deadline;
@@ -544,7 +553,9 @@ export interface GatewayLogger {
 export interface GatewayCall {
   requestId: string;
   purpose: CallPurpose;
-  messages: ChatMessage[];
+  /** The messages, or a function that builds them, which the gateway calls once, only after its state read passes, so
+   *  a degraded turn builds nothing (spec 007, FR-025). */
+  messages: ChatMessage[] | (() => ChatMessage[]);
   maxOutputTokens: number;
   /** Real clock, epoch ms: the deadline counts from here (gateway-http.md §2.4). */
   arrivedAt: number;
@@ -554,14 +565,27 @@ export interface GatewayCall {
   temperature?: number;
   /** X-H4-Client: the ledger keeps it, and nothing else does (§2.3). */
   clientLabel?: string;
-  /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
+  /** The client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5): hello's, and a twin turn's
+   *  (spec 007, plan §3). */
   clientKey?: string;
+  /** A twin call's input bound, limits.twin.max_input_chars, which its reservation counts (spec 007, Amendment 0-2). */
+  maxInputChars?: number;
+  /** A twin call's room feature and topic (spec 007, FR-026): on its spans, in its ledger rows, on h4.cost.usd. */
+  room?: RoomCall;
   /**
    * Its own trace: a root gateway.route span, linked to the caller's span. POST /admin/test/synthetic makes one call
    * after another in one request, and each call's trace ID is its own (operator-admin.md §3.2).
    */
   newTrace?: boolean;
 }
+
+/** A call whose messages are built: what every step after the state read works with. */
+type ResolvedCall = Omit<GatewayCall, "messages"> & { messages: ChatMessage[] };
+
+const resolveCall = (call: GatewayCall): ResolvedCall => ({
+  ...call,
+  messages: typeof call.messages === "function" ? call.messages() : call.messages,
+});
 
 export type GatewayAnswer =
   | {
@@ -633,6 +657,9 @@ export interface GatewayOptions {
   testMachinery: { clock: boolean; synthetic: boolean };
   /** The result of the journal's last append (data-model.md §3); unknown before the first. */
   journalStatus?: () => JournalStatus;
+  /** Spec 007's room features, each selectable's ID and free_talk, whose cost series start at zero beside none's (plan
+   *  §3; SC-006; the review of T066, I6). None without the twin's files. */
+  roomFeatures?: readonly string[];
   /** The metered path: admission, the commit, and their upkeep. A stack with a fallback needs it. */
   meter?: MeterPort;
   realNow?: () => number;
@@ -676,6 +703,8 @@ interface Routed {
   built: BuiltAdapter;
   health: AdapterHealth;
   requestTimeoutMs: number;
+  /** A twin turn's one attempt on a paid adapter, routing.yaml's twin_request_ms (spec 007's plan, D43). */
+  twinRequestMs: number | undefined;
   /**
    * The SSO session end the credentials check last found within its warning lead time, real ms; whether its alert row
    * is settled, queued or found already there; and whether the dispatcher is still answering for it.
@@ -700,9 +729,9 @@ function traceIdOf(span: Span): string {
 const LOCAL_LEDGER_ROW = `INSERT INTO gateway.ledger (id, reservation_id, ts, started_at, stack, request_id, trace_id, purpose,
     route_decision, route_reason, attribution, adapter_id, provider, request_model, response_model, input_tokens,
     output_tokens, cache_read_tokens, latency_ms, finish_reason, outcome, error_kind, cost_micro, cost_basis,
-    price_version, routing_sha, period_day, period_month, client_label)
+    price_version, routing_sha, period_day, period_month, client_label, room_feature, room_topic)
   VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'local', NULL, 'none', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-    $18, 0, 'none', $19, $20, $21, $22, $23)`;
+    $18, 0, 'none', $19, $20, $21, $22, $23, $24, $25)`;
 
 export class Gateway {
   /** Queues the fallback_unavailable alert (app.ts sets it to the dispatcher's): a paid fallback turned unhealthy. */
@@ -736,6 +765,7 @@ export class Gateway {
         ...circuitOf(built),
       }),
       requestTimeoutMs: built.config.spec.timing(built.config.settings).requestMs,
+      twinRequestMs: built.config.spec.timing(built.config.settings).twinRequestMs,
     });
     const primary = opts.adapters.find((a) => a.role === "primary");
     if (primary === undefined) throw new Error("the route has no primary adapter");
@@ -785,6 +815,9 @@ export class Gateway {
       ];
       for (const attribution of attributions) {
         this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution });
+        for (const feature of this.opts.roomFeatures ?? []) {
+          this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution, feature });
+        }
       }
     }
   }
@@ -868,7 +901,10 @@ export class Gateway {
       cause: this.dryRun(read) ?? "none",
       ...(read.kind === "ok" ? { fallbackAwaitingRenewal: read.fallbackAwaitingRenewal } : {}),
     };
-    if (read.kind !== "ok") delete this.gauges.meters;
+    if (read.kind !== "ok") {
+      delete this.gauges.meters;
+      delete this.gauges.studioWindow;
+    }
     this.opts.metrics.setSnapshot(this.gauges);
     return read;
   }
@@ -880,11 +916,12 @@ export class Gateway {
       span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined) return this.degrade(span, early, traceId);
+      const resolved = resolveCall(call);
 
       // 5.1: a healthy local adapter answers, free; one that fails as unavailable or timeout fails over (5.3).
       const localWasHealthy = this.primary.health.status().healthy;
       if (localWasHealthy) {
-        const local = await this.callLocal(call, traceId);
+        const local = await this.callLocal(resolved, traceId);
         if (local !== "failed_over") {
           span.setAttributes({ "h4.route.decision": "local", "h4.route.reason": "local_healthy" });
           return local;
@@ -901,7 +938,7 @@ export class Gateway {
         );
       }
       // 5.4–5.8: the metered fallback.
-      return this.callMetered(span, call, traceId, this.fallback, "fallback", reason);
+      return this.callMetered(span, resolved, traceId, this.fallback, "fallback", reason);
     });
   }
 
@@ -920,7 +957,7 @@ export class Gateway {
       span.setAttribute("h4.state", read.kind === "ok" ? read.state : "unknown");
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined) return this.degrade(span, early, traceId);
-      return this.callMetered(span, call, traceId, routed, o.attribution, null);
+      return this.callMetered(span, resolveCall(call), traceId, routed, o.attribution, null);
     });
   }
 
@@ -939,8 +976,9 @@ export class Gateway {
       const early = stateDecision(read, { outageSince: this.opts.store.outageStartedAt() });
       if (early !== undefined)
         return { kind: "degraded", decision: early, traceId: this.degrade(span, early, traceId).traceId };
-      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, call, traceId, routed);
-      const step = await this.meteredAttempt(span, call, traceId, routed, "test", null);
+      const resolved = resolveCall(call);
+      if (routed.built.adapter.kind === "local") return this.localAdapterCall(span, resolved, traceId, routed);
+      const step = await this.meteredAttempt(span, resolved, traceId, routed, "test", null);
       if ("early" in step) {
         if (step.early.kind === "degraded" || step.early.kind === "refused") return step.early;
         throw new Error("the metered path refused with an answer that isn't a refusal");
@@ -965,7 +1003,7 @@ export class Gateway {
    */
   private async localAdapterCall(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
   ): Promise<AdapterCallAnswer> {
@@ -996,6 +1034,7 @@ export class Gateway {
       onFailure: (err) => {
         if (!call.signal.aborted) health.callFailed(err);
       },
+      ...(call.room === undefined ? {} : { room: call.room }),
     });
     const ids: string[] = [];
     for (const attempt of outcome.attempts) {
@@ -1085,7 +1124,11 @@ export class Gateway {
 
   /** The gateway.route span of one routing decision; a call of its own trace starts a root span, linked to its caller. */
   private routeSpan<T>(call: GatewayCall, fn: (span: Span, traceId: string) => Promise<T>): Promise<T> {
-    const attributes = { "h4.stack": this.opts.stack, "h4.routing.sha": this.opts.routing.sha256 };
+    const attributes: Attributes = {
+      "h4.stack": this.opts.stack,
+      "h4.routing.sha": this.opts.routing.sha256,
+      ...(call.room === undefined ? {} : { "h4.room.feature": call.room.feature, "h4.room.topic": call.room.topic }),
+    };
     const caller = trace.getSpan(context.active())?.spanContext();
     const options =
       call.newTrace === true
@@ -1121,7 +1164,7 @@ export class Gateway {
    */
   private async callMetered(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
     attribution: MeteredAttribution,
@@ -1148,7 +1191,7 @@ export class Gateway {
    */
   private async meteredAttempt(
     span: Span,
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     routed: Routed,
     attribution: MeteredAttribution,
@@ -1190,6 +1233,8 @@ export class Gateway {
         adapterHealthy: routed.health.status().healthy && pass.allowed,
         ...(unhealthySince === undefined ? {} : { adapterUnhealthySince: unhealthySince }),
         maxOutputTokens: call.maxOutputTokens,
+        ...(call.maxInputChars === undefined ? {} : { maxInputChars: call.maxInputChars }),
+        ...(call.room === undefined ? {} : { room: call.room }),
         ...(attribution === "fallback" && call.clientKey !== undefined ? { clientKey: call.clientKey } : {}),
         requestId: call.requestId,
         traceId,
@@ -1211,6 +1256,9 @@ export class Gateway {
       }
       const a = admit.admitted;
       span.setAttribute("h4.meter.attribution", attribution);
+      // A twin turn on a paid adapter with twin_request_ms: one attempt of that length, on the visitor's route and the
+      // admin route alike; every other call keeps the adapter's request_ms and retry policy (spec 007's plan, D43).
+      const twinMs = call.purpose === "twin" ? routed.twinRequestMs : undefined;
       const req: CompletionRequest = {
         requestId: call.requestId,
         purpose: call.purpose,
@@ -1219,6 +1267,7 @@ export class Gateway {
         ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
         deadline: call.arrivedAt + this.opts.routing.deadlineMs,
         signal: call.signal,
+        ...(twinMs === undefined ? {} : { requestMs: twinMs }),
       };
       const label = call.clientLabel === undefined ? {} : { clientLabel: call.clientLabel };
       // The call, then its settlement, on every way out: the meter prices it from how it ended (data-model.md §7.3),
@@ -1235,13 +1284,15 @@ export class Gateway {
           attribution,
           maxMicro: a.maxMicro,
           payloadSampling: this.opts.payloadSampling,
-          requestTimeoutMs: routed.requestTimeoutMs,
+          requestTimeoutMs: twinMs ?? routed.requestTimeoutMs,
+          ...(twinMs === undefined ? {} : { retryMax: 0 }),
           realNow: this.realNow,
           metrics: this.opts.metrics,
           // A caller that went away ends the call with timeout too, and that says nothing about the adapter.
           onFailure: (err) => {
             if (!call.signal.aborted) routed.health.callFailed(err);
           },
+          ...(call.room === undefined ? {} : { room: call.room }),
         });
         callerGone = call.signal.aborted;
       } finally {
@@ -1258,7 +1309,7 @@ export class Gateway {
   }
 
   /** The local call (§2.4 step 5.1): free, unmetered, within its own timeouts and the request's deadline. */
-  private async callLocal(call: GatewayCall, traceId: string): Promise<GatewayAnswer | "failed_over"> {
+  private async callLocal(call: ResolvedCall, traceId: string): Promise<GatewayAnswer | "failed_over"> {
     const { built, health, requestTimeoutMs } = this.primary;
     const adapter = built.adapter;
     const version = this.opts.prices.active(this.opts.clock.now());
@@ -1287,6 +1338,7 @@ export class Gateway {
       onFailure: (err) => {
         if (!call.signal.aborted) health.callFailed(err);
       },
+      ...(call.room === undefined ? {} : { room: call.room }),
     });
     for (const attempt of outcome.attempts) await this.recordLocal(attempt, call, traceId, version);
     if (outcome.ok) {
@@ -1312,7 +1364,7 @@ export class Gateway {
    */
   private async recordLocal(
     attempt: Awaited<ReturnType<typeof attemptCall>>["attempts"][number],
-    call: GatewayCall,
+    call: ResolvedCall,
     traceId: string,
     version: PriceVersion,
   ): Promise<string | null> {
@@ -1350,8 +1402,15 @@ export class Gateway {
         periods.day,
         periods.month,
         call.clientLabel ?? null,
+        call.room?.feature ?? null,
+        call.room?.topic ?? null,
       ]);
-      this.opts.metrics.cost(0n, { provider: adapter.provider, model: adapter.model, attribution: "none" });
+      this.opts.metrics.cost(0n, {
+        provider: adapter.provider,
+        model: adapter.model,
+        attribution: "none",
+        ...(call.room === undefined ? {} : { feature: call.room.feature }),
+      });
       written = true;
     } catch {
       // Logged by the store as state.unknown, at most once a minute (telemetry.md §5.2).
@@ -1411,7 +1470,11 @@ export class Gateway {
   /** The current periods' meters, read now: spend plus reservations, as admission counts them. */
   private async readMeterView(): Promise<MeterView> {
     const { day, month } = this.opts.clock.periodKeys();
-    return meterViewOf(await this.opts.store.readMeters(day, month), this.opts.budgets.envs[this.opts.envClass]);
+    return meterViewOf(
+      await this.opts.store.readMeters(day, month),
+      this.opts.budgets.envs[this.opts.envClass],
+      this.fallback?.built.config.id,
+    );
   }
 
   /**
@@ -1427,11 +1490,21 @@ export class Gateway {
       rows = await this.opts.store.readMeters(day, month);
     } catch {
       delete this.gauges.meters;
+      delete this.gauges.studioWindow;
+      delete this.gauges.adapterMonths;
       this.meterView = undefined;
       this.opts.metrics.setSnapshot(this.gauges);
       return;
     }
-    this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass]);
+    // spec 003's studio GPU window, from the store, so a gateway restarted inside one still reads it open. A read that
+    // fails leaves its series stale, as the meters' do, and the meters as read.
+    let studioWindow: boolean | undefined;
+    try {
+      studioWindow = await this.opts.store.readStudioWindow();
+    } catch {
+      studioWindow = undefined;
+    }
+    this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass], this.fallback?.built.config.id);
     this.gauges = { ...this.gauges, cause: this.dryRun(read) ?? "none" };
     const t = thresholds(this.opts.budgets.envs[this.opts.envClass]);
     const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
@@ -1448,6 +1521,18 @@ export class Gateway {
         },
       },
     };
+    if (studioWindow === undefined) delete this.gauges.studioWindow;
+    else this.gauges.studioWindow = studioWindow;
+    // Spec 010 (FR-035): each capped adapter the route names, its month's spend beside its cap and warning.
+    const months = this.routed().flatMap((r) => {
+      const id = r.built.config.id;
+      const cap = t.adapterCaps.get(id);
+      if (cap === undefined) return [];
+      const row = rows.find((x) => x.meter === "adapter_month" && x.periodKey === `${id}:${month}`);
+      return [{ adapter: id, spentMicro: row?.spentMicro ?? 0n, capMicro: cap.cap, warnMicro: cap.warn }];
+    });
+    if (months.length === 0) delete this.gauges.adapterMonths;
+    else this.gauges.adapterMonths = months;
     this.opts.metrics.setSnapshot(this.gauges);
   }
 
@@ -1472,15 +1557,22 @@ export class Gateway {
   }
 }
 
-/** The current periods' levels, spend plus reservations, for the dry run; a period with no row yet is 0 and a full grant. */
-function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv): MeterView {
+/**
+ * The current periods' levels, spend plus reservations, for the dry run; a period with no row yet is 0 and a full
+ * grant. With a capped fallback adapter, its month's level and cap too (spec 010, FR-022).
+ */
+function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv, fallbackId?: string): MeterView {
   const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
   const level = (r: MeterRow | undefined): bigint => (r === undefined ? 0n : r.spentMicro + r.reservedMicro);
+  const t = thresholds(env);
+  const cap = fallbackId === undefined ? undefined : t.adapterCaps.get(fallbackId);
+  const month = rows.find((r) => r.meter === "adapter_month" && r.periodKey.startsWith(`${fallbackId}:`));
   return {
     dayLevel: level(row("day")),
     monthLevel: level(row("month")),
     fallbackLevel: level(row("fallback_day")),
-    allowance: row("fallback_day")?.allowanceMicro ?? thresholds(env).fallbackGrant,
+    allowance: row("fallback_day")?.allowanceMicro ?? t.fallbackGrant,
+    ...(cap === undefined ? {} : { adapterMonth: { level: level(month), cap: cap.cap } }),
   };
 }
 

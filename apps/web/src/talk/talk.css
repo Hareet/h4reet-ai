@@ -1,0 +1,87 @@
+/* The conversation panel (spec 002, T045; contracts/room-scene.md §6). Targets and focus are room.css's. */
+
+.talk {
+  grid-area: talk;
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* The log keeps a few lines in view, so the text box and the talk button stay on screen in portrait (FR-047). */
+.talk-log {
+  max-height: 4.75rem;
+  overflow-y: auto;
+}
+
+.talk-message {
+  margin: 0 0 0.25rem;
+}
+
+.talk-message a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.room .talk-link {
+  padding: 0 0.25rem;
+  color: #0b4f9c;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+}
+
+.talk-form {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.talk-form label {
+  font-size: 0.875rem;
+}
+
+.talk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.talk-row input {
+  flex: 1 1 6rem;
+  padding: 0 0.5rem;
+  font: inherit;
+  border: 1px solid #555555;
+  border-radius: 4px;
+}
+
+/* Spec 007 (FR-034 to FR-042): the conversation's lines, each under its speaker's label; the waiting status, outside the
+   log; and the characters left once a visitor has used 80% of the limit. */
+.talk-entry {
+  margin: 0 0 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.talk-speaker {
+  font-weight: 700;
+}
+
+.talk-status {
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.talk-counter {
+  font-size: 0.875rem;
+}
+
+/* A gentle pulse while the twin answers; none under reduced motion, where the words alone carry the state. */
+@media (prefers-reduced-motion: no-preference) {
+  .talk-status:not(:empty) {
+    animation: talk-waiting 1.6s ease-in-out infinite;
+  }
+
+  @keyframes talk-waiting {
+    50% {
+      opacity: 0.6;
+    }
+  }
+}

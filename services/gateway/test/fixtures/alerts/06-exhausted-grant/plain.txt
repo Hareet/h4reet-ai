@@ -1,0 +1,5 @@
+[h4reet.ai prod] FALLBACK EXHAUSTED: grant 1 of today's sub-budget is spent
+Daily: 3.60 / 5.00 USD (warning 3.50) · Month: 12.10 / 20.00 (warning 14.00) · Fallback today: 2.00 / 2.00 (grant 1)
+Runtime: normal · Fallback: awaiting renewal since 2026-10-28T12:05:37Z · 2026-10-28T12:05:37Z · id prod:fallback_exhausted:fallback_day:2026-10-28:g1
+Fallback stays refused, across days and restarts, until the operator renews it.
+Runbook: docs/runbooks/fallback-renewal.md

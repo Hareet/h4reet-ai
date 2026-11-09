@@ -1,0 +1,8 @@
+rule: RT4
+file: apps/web/content/room/fx-notes.yaml
+path: lines[0].claims[0]
+why: a citation whose quote isn't in its corpus file (spec 002's C2)
+edits:
+  - file: apps/web/content/room/fx-notes.yaml
+    at: [lines, 0, claims]
+    set: [{ file: corpus/90-fx-work.md, quote: a sentence the corpus never holds }]

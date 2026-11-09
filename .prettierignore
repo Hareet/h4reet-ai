@@ -6,7 +6,14 @@ dist/
 coverage/
 package-lock.json
 **/package-lock.json
+# Spec 007's twin files: the generated grounding pack, and the instructions and fixed lines, whose bytes are hashed as
+# the prompt hash, so reformatting them would close every topic (FR-030). The product cases are generated beside it.
+config/twin/
+evals/product/cases/twin-*.yaml
 evals/agent-config/history/
+# Spec 011's golden files: the alert renderers' exact bytes, written by vitest alone (its plan §3.4, D13), never by
+# hand; Prettier would reformat the HTML and every case would fail.
+services/gateway/test/fixtures/alerts/
 .specify/
 .claude/
 .github/
@@ -14,6 +21,13 @@ corpus/
 # Human-only configuration, kept exactly as contracts/config-files.md gives it (tasks.md T022).
 config/budgets.yaml
 config/alerts.yaml
+config/twin-readiness.yaml
+# Human-only policy files, kept as the Author writes them: spec 002's content approvals and PDF header, and spec
+# 003's asset policy beside them.
+assets/policy/
+# The desk signs' outline files (spec 004, FR-032; R-06): their approved SHA-256 is of their bytes as they arrived, so
+# reformatting one would make it a draft again.
+apps/web/content/room/outlines/
 docs/
 intent/
 specs/

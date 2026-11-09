@@ -57,17 +57,25 @@ KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 DEVCPU_TOKEN_RE = re.compile(r"h4op_devcpu_[A-Za-z0-9_-]{43}")
-# The gateway's one image per commit (tasks.md T184): make up builds it outside compose, after preflight
-# (deploy/scripts/gateway_image.py), and compose names it, as written here, with pull_policy: never and no build. No
-# registry has it, so no lock line pins it, and it is no image to pull.
-SHARED_IMAGES = {"gateway": "h4reet-gateway:${H4_REF:-working-tree}"}
+# The gateway's one image per commit (tasks.md T184), and the room's web image (spec 002, contracts/web-serving.md
+# §1): make up builds each outside compose, after preflight (deploy/scripts/gateway_image.py, web_image.py), and
+# compose names it, as written here, with pull_policy: never and no build. No registry has either, so no lock line
+# pins them, and neither is an image to pull.
+SHARED_IMAGES = {
+    "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
+    "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+}
+# x000 to x005, in order: the sixth, x005, is the room's site (spec 002, contracts/web-serving.md §4).
 PORT_KEYS = (
     "H4_API_PORT",
     "H4_LANGFUSE_PORT",
     "H4_GRAFANA_PORT",
     "H4_ADMIN_PORT",
     "H4_OTLP_PORT",
+    "H4_SITE_PORT",
 )
+# The web image's tag suffix per H4_ENV, which carries its drafts flag: prod's never holds drafts (web-serving.md §4).
+WEB_SUFFIX = {"prod": "", "dev": "-drafts"}
 CHANNELS = (
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
@@ -94,7 +102,7 @@ DOCKER_ENV = (
     "BUILDX_CONFIG",
     "XDG_RUNTIME_DIR",
 )
-WATCHED = ("config", "deploy", "services", "evals", "scripts")  # P21
+WATCHED = ("config", "deploy", "services", "apps", "evals", "scripts")  # P21
 
 
 @dataclass(frozen=True)
@@ -330,7 +338,7 @@ def active(service: dict, profiles: set[str]) -> bool:
 
 
 def shared_build(name: str, service: dict) -> bool:
-    """The service runs make up's own build of the gateway, which compose never pulls (SHARED_IMAGES)."""
+    """The service runs make up's own build, the gateway's or the room's, which compose never pulls (SHARED_IMAGES)."""
     return (
         SHARED_IMAGES.get(name) == service.get("image")
         and service.get("pull_policy") == "never"
@@ -521,6 +529,13 @@ def p3(ctx: Context) -> Result:
     if not ctx.readable:
         return fail("P3", "needs a readable env file (P1)")
     allowed_empty = {"H4_BUILD_PROXY"} if ctx.stack.host else set()
+    if ctx.stack.name == "prod":
+        allowed_empty.add(
+            "H4_WEB_SUFFIX"
+        )  # prod's web image carries no suffix: it holds no drafts (P7 checks it)
+        # Spec 010 (FR-030, FR-040): the Anthropic API key may be empty until prod's route names the adapter.
+        if routed_type(ctx, "prod", "anthropic-messages") is None:
+            allowed_empty.add("GATEWAY_ANTHROPIC_API_KEY")
     if ctx.stack.name == "dev":
         allowed_empty |= set(CHANNELS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
@@ -608,6 +623,13 @@ def p7(ctx: Context) -> Result:
     for i, key in enumerate(PORT_KEYS):
         if v.get(key) != str(s.base_port + i):
             problems.append(f"{key} isn't {s.name}'s {s.base_port + i}")
+    suffix = WEB_SUFFIX[s.env]
+    if v.get("H4_WEB_SUFFIX") != suffix:
+        problems.append(
+            "H4_WEB_SUFFIX isn't empty on prod, whose web image never holds the room's drafts"
+            if s.env == "prod"
+            else f"H4_WEB_SUFFIX isn't {suffix} on dev, whose web image shows the room's drafts"
+        )
     if s.host:
         if "H4_TREE" in v:
             problems.append(
@@ -727,6 +749,16 @@ def value_shape_problems(ctx: Context) -> list[str]:
             )
         if v.get("GATEWAY_AWS_PROFILE") != "h4reet-bedrock":
             problems.append("GATEWAY_AWS_PROFILE isn't h4reet-bedrock")
+        # Spec 010 (FR-030): the key's shape while prod's route names the adapter, never its value; empty is P3's.
+        key = v.get("GATEWAY_ANTHROPIC_API_KEY", "")
+        if (
+            key
+            and routed_type(ctx, "prod", "anthropic-messages") is not None
+            and not ANTHROPIC_KEY_RE.fullmatch(key)
+        ):
+            problems.append(
+                "GATEWAY_ANTHROPIC_API_KEY isn't 20 to 256 printable ASCII characters without spaces"
+            )
     elif "GATEWAY_AWS_PROFILE" in v:
         problems.append("GATEWAY_AWS_PROFILE is set outside prod")
     sha = v.get("OPERATOR_TOKEN_SHA256", "")
@@ -826,6 +858,24 @@ def routing(ctx: Context) -> tuple[dict | None, str | None]:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}, None
     except yaml.YAMLError:
         return None, "config/routing.yaml doesn't parse"
+
+
+# Spec 010 (FR-030): an Anthropic API key's shape, without assuming a prefix: printable ASCII, no spaces, 20 to 256.
+ANTHROPIC_KEY_RE = re.compile(r"[\x21-\x7e]{20,256}")
+
+
+def routed_type(ctx: Context, env: str, adapter_type: str) -> str | None:
+    """The adapter of this type env's route names, if any (spec 010)."""
+    config, _ = routing(ctx)
+    if not isinstance(config, dict):
+        return None
+    adapters = config.get("adapters") or {}
+    route = (config.get("envs") or {}).get(env) or {}
+    for role in ("primary", "fallback"):
+        adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
+        if isinstance(adapter, dict) and adapter.get("type") == adapter_type:
+            return str(route.get(role))
+    return None
 
 
 def paid_route(ctx: Context, env: str) -> str | None:
@@ -1313,11 +1363,12 @@ def p19(ctx: Context) -> Result:
         return fail("P19", f"{aws} is missing: make init-env ENV=prod creates it")
     if stat.S_IMODE(aws.stat().st_mode) != 0o700:
         return fail("P19", f"{aws} isn't mode 0700")
-    adapter = paid_route(ctx, "prod")
+    # Spec 010 (Amendment 0-9): the AWS profile matters only to a route that names Bedrock.
+    adapter = routed_type(ctx, "prod", "bedrock-converse")
     if adapter is None:
         return ok(
             "P19",
-            f"{aws} is 0700; prod routes to no paid adapter yet, so it may be empty",
+            f"{aws} is 0700; prod routes to no Bedrock adapter, so it may be empty",
         )
     config = aws / "config"
     try:

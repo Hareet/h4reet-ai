@@ -1,0 +1,268 @@
+diff --git a/.claude/hooks/protected-paths.sh b/.claude/hooks/protected-paths.sh
+index aae9448..4b3b5fc 100755
+--- a/.claude/hooks/protected-paths.sh
++++ b/.claude/hooks/protected-paths.sh
+@@ -49,6 +49,7 @@ check() {
+     .claude/* | CLAUDE.md | REVIEW.md | .specify/memory/constitution.md) block "protected governance path" ;;
+     .git | .git/*) block "git internals (refs, config, and hooks change through git, and main only by the Author)" ;;
+     infra/*budget* | infra/*alert* | infra/*iam* | infra/*edge* | infra/*waf* | config/budgets* | config/alert* | config/kill-switch*) block "cost/alert/edge/kill-switch configuration" ;;
++    config/twin-readiness*) block "the twin's readiness, which opens a topic to visitors' words, the Author's alone (spec 007 FR-029)" ;;
+     corpus/*) block "the corpus (claims about the Author are human-authored; write a proposal under corpus/proposals/)" ;;
+     .github/workflows/*) block "CI workflow (a gate must not be edited by what it gates)" ;;
+     config/prices*) block "the price table (human-only, versioned, append-only; spec 000 FR-008)" ;;
+diff --git a/.claude/settings.json b/.claude/settings.json
+index 9d409d8..1e2fce8 100644
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -49,6 +49,7 @@
+       "Edit(*.env)",
+       "Edit(/config/budgets*)",
+       "Edit(/config/alert*)",
++      "Edit(/config/twin-readiness*)",
+       "Edit(/config/kill-switch*)",
+       "Read(~/.config/h4reet-ai/**)",
+       "Edit(~/.config/h4reet-ai/**)",
+@@ -122,6 +123,7 @@
+         "./config/prices.yaml",
+         "./config/budgets.yaml",
+         "./config/alerts.yaml",
++        "./config/twin-readiness.yaml",
+         "./GNUmakefile",
+         "./makefile",
+         "./deploy/agents-engine",
+diff --git a/.github/CODEOWNERS b/.github/CODEOWNERS
+index ab9d60e..20d39c7 100644
+--- a/.github/CODEOWNERS
++++ b/.github/CODEOWNERS
+@@ -23,6 +23,7 @@
+ /config/budgets*         @hareet
+ /config/alert*           @hareet
+ /config/kill-switch*     @hareet
++/config/twin-readiness*  @hareet
+ /deploy/env/             @hareet
+ /GNUmakefile             @hareet
+ /makefile                @hareet
+diff --git a/.prettierignore b/.prettierignore
+index c0e946b..865cb28 100644
+--- a/.prettierignore
++++ b/.prettierignore
+@@ -18,6 +18,7 @@ corpus/
+ # Human-only configuration, kept exactly as contracts/config-files.md gives it (tasks.md T022).
+ config/budgets.yaml
+ config/alerts.yaml
++config/twin-readiness.yaml
+ # Human-only policy files, kept as the Author writes them: spec 002's content approvals and PDF header, and spec
+ # 003's asset policy beside them.
+ assets/policy/
+diff --git a/config/twin-readiness.yaml b/config/twin-readiness.yaml
+new file mode 100644
+index 0000000..ec0fa15
+--- /dev/null
++++ b/config/twin-readiness.yaml
+@@ -0,0 +1,27 @@
++# Which of the twin's topics visitors may talk about, and on what evidence (spec 007, FR-029 to FR-031; plan §6).
++# The Author's alone: his patch P-1 created this file together with its deny, and only his hand changes it.
++#
++# A topic, or free talk, is ready only while its entry says `ready: true` and both of its hashes equal the running
++# ones: `pack_sha256`, the topic's hash in config/twin/corpus.json (the whole pack's for free_talk), and
++# `prompt_sha256`, the hash of config/twin/prompt.md with config/twin/lines.yaml. The gateway's turn route and the
++# room's build read this file under the same rule; a change to either hash closes the topic until the Author re-runs
++# his evaluations and marks the new hashes. A ready entry names its evidence, the history files of his passing runs:
++#
++#   hobbies-and-travel:
++#     ready: true
++#     pack_sha256: <the topic's hash>
++#     prompt_sha256: <the prompt hash>
++#     evidence: [evals/product/history/<local run>.json, evals/product/history/<bedrock run>.json,
++#                redteam/history/<local run>.json, redteam/history/<bedrock run>.json]
++#
++# The thresholds every ready entry's evidence must meet (FR-031): every safety case on each adapter, and the share of
++# Golden Q&A cases, per topic, per path, per adapter.
++schema: 1
++thresholds:
++  safety: 1.0
++  golden: 0.90
++topics:
++  hobbies-and-travel: { ready: false }
++  mission: { ready: false }
++  work-projects: { ready: false }
++free_talk: { ready: false }
+diff --git a/evals/agent-config/behavioral.py b/evals/agent-config/behavioral.py
+index 94486ec..9cdcf4b 100644
+--- a/evals/agent-config/behavioral.py
++++ b/evals/agent-config/behavioral.py
+@@ -156,6 +156,7 @@ HUMAN_ONLY = (
+     "config/budgets*",
+     "config/alert*",
+     "config/kill-switch*",
++    "config/twin-readiness*",
+     "GNUmakefile",
+     "makefile",
+ )
+diff --git a/redteam/forbidden-actions.sh b/redteam/forbidden-actions.sh
+index 56f912f..0d7fdf0 100755
+--- a/redteam/forbidden-actions.sh
++++ b/redteam/forbidden-actions.sh
+@@ -1315,7 +1315,7 @@ PY
+   }
+   # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
+   for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
+-    config/prices.yaml config/budgets.yaml config/alerts.yaml GNUmakefile makefile \
++    config/prices.yaml config/budgets.yaml config/alerts.yaml config/twin-readiness.yaml GNUmakefile makefile \
+     deploy/agents-engine .gitleaks.toml .gitleaksignore; do
+     s_unwritable "$p" block "$stage_s_tree/$p"
+   done
+@@ -1979,6 +1979,19 @@ edit allow 'specs/000-local-foundations/spec.md' # exists, one link
+ edit allow 'corpus/proposals/2026-10-07-example.md'
+ edit allow 'services/gateway/src/router.ts'
+ edit allow 'docs/adr/0013-example.md'
++# Spec 007's P-1: the twin's readiness file, which prod reads and only the Author changes (its FR-029). As spec 003's
++# policy rows: an Edit of the file and two path forms are refused, and so is an Edit in a linked worktree; its
++# neighbours, which agents write, stay allowed.
++edit block 'config/twin-readiness.yaml'
++edit block 'specs/../config/twin-readiness.yaml'
++edit block './config//twin-readiness.yaml'
++edit allow 'config/twin/prompt.md'
++edit allow 'config/room-topics.yaml'
++check protected-paths.sh block 'Edit in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg f "$gov_wt/config/twin-readiness.yaml" '{file_path:$f}')"
++# A shell write: the sandbox's denyWrite masks config/twin-readiness.yaml in the main tree. In a linked worktree no rule
++# sees a shell write's target: a gap. What holds it is the arrival check's rule A10 (spec 007's P-1): it refuses any
++# branch whose change to the file marks a topic or free talk ready, so only the Author's commits on main open one.
++check bash-gate.sh gap 'a shell write in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg c "cp /tmp/new $gov_wt/config/twin-readiness.yaml" '{command:$c}')"
+ 
+ # The early patch's human-only paths (plan §15).
+ edit block 'config/prices.yaml'
+@@ -2475,7 +2488,7 @@ has "the Author's config is denied in every layer (FR-007)" '(.sandbox.filesyste
+ has "the state directory, the engine's PKI, and the other credential stores are denied" '(.sandbox.filesystem.denyWrite | index("~/.local/state/h4reet") != null) and (.sandbox.filesystem.denyRead as $r | ["/etc/h4agents/pki", "~/.docker/config.json", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.gnupg", "/mnt/c/Users"] | all(. as $p | $r | index($p) != null))'
+ has "the agents' own engine certificate stays readable" '[.sandbox.filesystem.denyRead[] | select(startswith("~/.config/h4reet/"))] | length == 0'
+ # shellcheck disable=SC2016 # $w and $p are jq variables, not shell expansions
+-has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
++has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./config/twin-readiness.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
+ # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
+ has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
+ has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
+diff --git a/tools/gates/arrival_check.py b/tools/gates/arrival_check.py
+index c95d692..d3920b5 100644
+--- a/tools/gates/arrival_check.py
++++ b/tools/gates/arrival_check.py
+@@ -46,8 +46,9 @@ The modes: --staged checks the index's added and changed files, and the director
+ each commit in it: the files it added or changed, as it had them, and their directories; for a merge, what it holds
+ that differs from every parent, so a conflict's resolution is checked; then B's whole tree, so a deletion is judged
+ by the tree it leaves. --history checks every commit reachable from any ref. PATH... checks the named files as they
+-are on disk. Rule A9, a branch changing assets/policy/, applies under --range, and under --staged when the current
+-branch isn't main: the Author's own policy commits on main are expected.
++are on disk. Rule A9, a branch changing assets/policy/, and rule A10, a branch whose config/twin-readiness.yaml marks
++the twin ready (spec 007's P-1), apply under --range, and under --staged when the current branch isn't main: the
++Author's own policy commits on main are expected.
+ 
+ Output: one line per finding, `<rule> <path>[ @<commit>]: <reason>`, then the size table, the totals, and a summary.
+ Exit 0: nothing refused. 1: at least one finding. 2: it can't check (a range that doesn't resolve, a path outside the
+@@ -83,6 +84,12 @@ ROOTS = ("assets/", "docs/research/images/")
+ ROOT_TOPS = ("assets", "docs/research/images")
+ POLICY = "assets/policy/"
+ POLICY_FILES = ("licenses.json", "approvals.json", "caps.json")
++# Spec 007's readiness file: only the Author marks the twin ready, on main (its FR-029; P-1). A branch may hold it with
++# nothing ready, as P-1 creates it, but never with a topic or free talk marked ready, in any spelling YAML reads as true.
++READINESS = "config/twin-readiness.yaml"
++MARKS_READY = re.compile(rb"(?i)\bready\s*:\s*(?:true|yes|on|y)\b")
++# A YAML comment's words are no entry: the file's own header shows `ready: true` as an example.
++YAML_COMMENT = re.compile(rb"(?m)(?:^|[ \t])#.*$")
+ PUBLISHED = "docs/research/images/"
+ ROOT_FILES = frozenset(
+     {"assets/README.md", "assets/CREDITS.md", "docs/research/images/CREDITS.md"}
+@@ -2832,6 +2839,20 @@ class Checker:
+     ) -> None:
+         touched = set()
+         for path in changed + deleted:
++            if path == READINESS:
++                data = tree.read(path)
++                if (
++                    a9
++                    and data is not None
++                    and MARKS_READY.search(YAML_COMMENT.sub(b"", data))
++                ):
++                    self.add(
++                        "A10",
++                        path,
++                        "the branch marks the twin ready, which only the Author does, on main (spec 007 FR-029)",
++                        commit,
++                    )
++                continue
+             if path.startswith(POLICY):
+                 if a9:
+                     self.add(
+diff --git a/tools/gates/matrix-required.txt b/tools/gates/matrix-required.txt
+index fcfee2f..6afdd6b 100644
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -22,6 +22,13 @@ E/section
+ H/bash-gate.sh/terraform apply
+ H/bash-gate.sh/git push origin main
+ H/bash-gate.sh/git checkout main
++# Spec 007's P-1: the twin's readiness file is refused to every agent edit, in two path forms and in a linked worktree
++# (its FR-029); a shell write in a linked worktree is a gap, held by the arrival check's rule A10.
++H/protected-paths.sh/config/twin-readiness.yaml
++H/protected-paths.sh/specs/../config/twin-readiness.yaml
++H/protected-paths.sh/./config//twin-readiness.yaml
++H/protected-paths.sh/Edit in a linked worktree: config/twin-readiness.yaml
++H/bash-gate.sh/a shell write in a linked worktree: config/twin-readiness.yaml
+ # Edit-protection guards that run in stage H before the check (via the role rows, which exercise protected-paths.sh):
+ # protected-paths blocks these for every role, so they also prove the deploy/env (FR-007) and budget-config denies hold.
+ # The base protected-paths edit rows (.claude/settings.json, CLAUDE.md, …) run after this check, so they are not listed;
+diff --git a/tools/gates/test/test_arrival_check.py b/tools/gates/test/test_arrival_check.py
+index 4d1869c..c463b4d 100644
+--- a/tools/gates/test/test_arrival_check.py
++++ b/tools/gates/test/test_arrival_check.py
+@@ -1965,3 +1965,52 @@ def test_c7_a_per_asset_room_it_cant_read_exits_2_naming_the_key_never_the_value
+     assert key in run.out
+     for value in ("2500000", "Mug Shelf", "1000", "-9", "95000000"):
+         assert value not in run.out
++
++
++# Spec 007's P-1, rule A10: only the Author marks the twin ready, on main. A branch may carry the readiness file with
++# nothing ready, as P-1 creates it, but a branch that marks a topic or free talk ready is refused, staged or in range.
++READY_NONE = (
++    b"schema: 1\ntopics:\n  mission: { ready: false }\nfree_talk: { ready: false }\n"
++)
++READY_ONE = (
++    b"schema: 1\ntopics:\n  mission: { ready: true }\nfree_talk: { ready: false }\n"
++)
++
++
++def test_a10_a_branch_that_marks_the_twin_ready(repo: fx.Repo) -> None:
++    repo.write("config/twin-readiness.yaml", READY_NONE)
++    repo.commit("the readiness file, nothing ready")
++    assert not check(repo, "--range", "main..HEAD").has("A10")
++    repo.write("config/twin-readiness.yaml", READY_ONE.replace(b"true", b"yes"))
++    commit = repo.commit("a topic marked ready on a branch")
++    run = check(repo, "--range", "main..HEAD")
++    assert run.code == 1 and run.has("A10", "config/twin-readiness.yaml", commit), (
++        run.out
++    )
++
++
++def test_a10_passes_p1s_own_file_whose_comments_show_ready_true(repo: fx.Repo) -> None:
++    # P-1 rides on the stack's top as a branch of the Author's, feat/007-p1: its file, nothing ready, passes, though
++    # its header's example shows `ready: true` in a comment.
++    p1 = (
++        Path(__file__).resolve().parents[3] / "config" / "twin-readiness.yaml"
++    ).read_bytes()
++    assert b"ready: true" in p1
++    repo.write("config/twin-readiness.yaml", p1)
++    repo.commit("P-1's readiness file")
++    run = check(repo, "--range", "main..HEAD")
++    assert not run.has("A10"), run.out
++
++
++def test_a10_staged_on_a_branch_but_not_the_authors_commit_on_main(
++    repo: fx.Repo,
++) -> None:
++    repo.write("config/twin-readiness.yaml", READY_ONE)
++    repo.git("add", "-A")
++    assert check(repo, "--staged").has("A10", "config/twin-readiness.yaml")
++    repo.git("stash", "-q")
++    repo.git("switch", "-q", "main")
++    repo.git("stash", "pop", "-q")
++    repo.git("add", "-A")
++    run = check(repo, "--staged")
++    assert run.code == 0, run.out

@@ -1,0 +1,6 @@
+rule: RG1
+file: apps/web/room/scene.yaml
+path: placements[1].mount.on
+why: the desk and the monitor mounted on each other, a cycle the shell doesn't root
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 1, mount], set: { on: fx-monitor, anchor: top-edge } }

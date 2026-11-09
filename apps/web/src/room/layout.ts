@@ -1,0 +1,170 @@
+// The room's screen (spec 002, T044; contracts/room-scene.md §1, §5, §6): its heading, the toolbar ("Resume", "2D view",
+// "Pause the room", the data-flow disclosure link), the stage, the "In the room" list, the conversation panel, "Around
+// the room" (spec 004, FR-063), and the resume's panel, in that order, which is the Tab order: "Around the room" is a
+// Tab stop of its own after the conversation (FR-065; Amendment B8; text-copy.ts). While the hand-off plays, every part
+// a visitor acts on is inert; the offer of "Read the resume now" and "Keep it for later" comes when it ends. The
+// layout's CSS (room.css) frames it from 320 CSS pixels wide, with the stage, the list, the text box, and the talk
+// button on screen in portrait: its grid's areas run toolbar, stage, list, talk, around, resume, and in landscape
+// "around" spans both columns before the resume; below a portrait width of 35rem, where five controls (spec 003's
+// "Credits" among them once it lands) wrap to two rows, the stage gives up one toolbar row, and below 25rem the
+// toolbar's type drops to 0.875rem, so the text box and the talk button stay on screen, a 320 × 568 one included
+// (FR-047, FR-065; R-40; the review of T171, B1). The stage's placeholder note, the UI word standin.note, shows only
+// while stand-ins are in use. Spec 009's stand-in line, the UI word twin.stand_in, is a paragraph of its own beside it
+// (its FR-013; plan.md R-13), in 3D and 2D alike, since the note sits in the stage beside the view: the two stack at the
+// stage's top left, over the view, taking no room in the layout and letting a pointer or a touch through to the scene.
+// "Pause the room" (spec 004, FR-060, FR-065; Amendment B8; R-34), the UI word pause.button, is a toggle whose state
+// is in aria-pressed; the room's motion store holds what it sets (motion.ts).
+import { h } from "./dom";
+
+export interface RoomLayout {
+  readonly element: HTMLElement;
+  /** The room's h1, which holds focus while the hand-off plays. */
+  readonly heading: HTMLElement;
+  readonly resumeButton: HTMLButtonElement;
+  readonly flatButton: HTMLButtonElement;
+  /** "Pause the room", a toggle: its state in aria-pressed (spec 004, FR-060). */
+  readonly pauseButton: HTMLButtonElement;
+  /** Where the canvas or the 2D drawing goes. */
+  readonly view: HTMLElement;
+  readonly resumePanel: HTMLElement;
+  readonly resumeHeading: HTMLElement;
+  /** Where the resume view renders. */
+  readonly resumeBody: HTMLElement;
+  /** Makes the toolbar, the stage, the list, the conversation, and the resume inert, or not. */
+  setInteractive(on: boolean): void;
+  /** Offers the resume now or later, with focus on "Read the resume now"; returns what removes the offer. */
+  offer(now: () => void, later: () => void): () => void;
+  /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
+  markFlat(): void;
+  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. */
+  setPlaceholders(on: boolean): void;
+  /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
+  setPaused(on: boolean): void;
+  /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
+  readonly walkButton: HTMLButtonElement;
+  /** Offers the walking control, in 3D after the hand-off's offer, or takes it away, in 2D. */
+  setWalkOffered(on: boolean): void;
+  /** The walking view on or off: the control's words, and the view's name, role, and focus while walking (R-13). */
+  setWalking(on: boolean): void;
+}
+
+export function renderRoom(
+  doc: Document,
+  parts: {
+    list: HTMLElement;
+    talk: HTMLElement;
+    /** "Around the room", after the conversation panel and outside the stage (spec 004, FR-063). */
+    around: HTMLElement;
+    /** The placeholder note's words: the UI word standin.note. */
+    note: string;
+    /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
+    standIn?: string;
+    /** "Pause the room": the UI word pause.button. */
+    pause: string;
+    /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help. */
+    walk?: { readonly enter: string; readonly leave: string; readonly region: string; readonly help: string };
+  },
+): RoomLayout {
+  const heading = h(doc, "h1", { class: "visually-hidden", tabindex: -1 }, "The Author's work area");
+  const resumeButton = h(doc, "button", { type: "button" }, "Resume");
+  const flatButton = h(doc, "button", { type: "button" }, "2D view");
+  const pauseButton = h(doc, "button", { type: "button", "aria-pressed": "false" }, parts.pause);
+  const toolbar = h(
+    doc,
+    "div",
+    { class: "room-toolbar", role: "group", "aria-label": "The room's controls" },
+    resumeButton,
+    flatButton,
+    pauseButton,
+    h(doc, "a", { href: "./disclosure/" }, "How data flows"),
+  );
+  // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
+  const view = h(doc, "div", { class: "room-stage-view" }, h(doc, "p", { class: "room-loading" }, "Loading the room…"));
+  const note = h(doc, "p", { class: "room-note", hidden: true }, parts.note);
+  const walkWords = parts.walk ?? { enter: "", leave: "", region: "", help: "" };
+  const walkButton = h(doc, "button", { type: "button", class: "room-walk", hidden: true }, walkWords.enter);
+  // The walking keys' instructions, read only while walking: hidden otherwise, which aria-describedby still reads.
+  const walkHelp = h(doc, "p", { id: "room-walk-help", class: "visually-hidden", hidden: true }, walkWords.help);
+  const standIn = h(doc, "p", { class: "room-note room-stand-in", hidden: !parts.standIn }, parts.standIn ?? "");
+  const notes = h(doc, "div", { class: "room-notes" }, note, standIn);
+  const stage = h(doc, "div", { class: "room-stage" }, view, notes, walkButton, walkHelp);
+  const resumeHeading = h(doc, "h2", { id: "resume-heading", tabindex: -1 }, "The resume");
+  const resumeBody = h(doc, "div", { class: "resume-body" });
+  const resumePanel = h(
+    doc,
+    "section",
+    { class: "resume-panel", "aria-labelledby": "resume-heading", hidden: true },
+    resumeHeading,
+    resumeBody,
+  );
+  const element = h(
+    doc,
+    "div",
+    { class: "room" },
+    heading,
+    toolbar,
+    stage,
+    parts.list,
+    parts.talk,
+    parts.around,
+    resumePanel,
+  );
+  const controls = [toolbar, view, walkButton, parts.list, parts.talk, resumePanel];
+
+  return {
+    element,
+    heading,
+    resumeButton,
+    flatButton,
+    pauseButton,
+    view,
+    resumePanel,
+    resumeHeading,
+    resumeBody,
+    setInteractive(on) {
+      for (const part of controls) part.toggleAttribute("inert", !on);
+    },
+    offer(now, later) {
+      const nowButton = h(doc, "button", { type: "button" }, "Read the resume now");
+      const laterButton = h(doc, "button", { type: "button" }, "Keep it for later");
+      nowButton.addEventListener("click", now);
+      laterButton.addEventListener("click", later);
+      const panel = h(
+        doc,
+        "div",
+        { class: "room-offer", role: "group", "aria-labelledby": "room-offer-text" },
+        h(doc, "p", { id: "room-offer-text" }, "The twin handed you the Author's resume."),
+        nowButton,
+        laterButton,
+      );
+      stage.append(panel);
+      nowButton.focus();
+      return () => panel.remove();
+    },
+    markFlat() {
+      flatButton.setAttribute("aria-disabled", "true");
+    },
+    setPlaceholders(on) {
+      note.hidden = !on || parts.note === "";
+    },
+    setPaused(on) {
+      pauseButton.setAttribute("aria-pressed", String(on));
+    },
+    walkButton,
+    setWalkOffered(on) {
+      walkButton.hidden = !on || walkWords.enter === "";
+    },
+    setWalking(on) {
+      walkButton.textContent = on ? walkWords.leave : walkWords.enter;
+      walkHelp.hidden = !on;
+      // The view takes focus while walking: its name, its instructions, and a role that passes the keys through, never
+      // the canvas inside it, which stays aria-hidden (R-13).
+      if (on) {
+        view.setAttribute("tabindex", "0");
+        view.setAttribute("role", "application");
+        view.setAttribute("aria-label", walkWords.region);
+        view.setAttribute("aria-describedby", "room-walk-help");
+      } else for (const name of ["tabindex", "role", "aria-label", "aria-describedby"]) view.removeAttribute(name);
+    },
+  };
+}

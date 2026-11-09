@@ -1,0 +1,32 @@
+# The room's fixed messages (spec 002, FR-023, FR-039–FR-041; data-model.md §7; contracts/room-conversation.md §3).
+# Written in advance and never generated: the room shows them wherever the twin can't answer. build/manifest.ts checks
+# this file against src/talk/messages.ts's IDs and bundles it into the page at build, so showing one makes no request.
+# `{topic}` is the selected selectable's topic, by the topic's own phrase from the room's bundle (its index, composed
+# from apps/web/room/topics.yaml), never the visitor's words.
+# Every cannot_talk message is followed, on screen, by "Read the resume" and "Download the resume (PDF)".
+messages:
+  - id: topic_not_ready
+    text: The twin can't talk about {topic} yet.
+  - id: cannot_talk.resting
+    text: The twin can't talk right now. The local tier, the computer it runs on, is resting.
+  - id: cannot_talk.budget
+    text: The twin can't talk right now. Today's budget for its answers is used.
+  - id: cannot_talk.unavailable
+    text: The twin can't talk right now. The service is unavailable.
+  - id: voice_unavailable
+    text: Voice isn't available yet. Type to the twin in the text box instead.
+  - id: voice_output_unavailable
+    text: The twin's voice is unavailable, so its words are shown as text only.
+  - id: didnt_catch
+    text: The room didn't catch that. Try again, or type instead.
+  - id: utterance_limit
+    text: That's the longest one recording can be, so the room stopped listening and used what it heard.
+  # Spec 007's four (its FR-038, Amendment 2-2; plan §7): proposed words, for the Author's read.
+  - id: twin_answering
+    text: The twin is answering.
+  - id: turn_refused.slow_down
+    text: You're sending messages faster than the twin can answer. Wait a moment, then try again.
+  - id: turn_refused.unreadable
+    text: The twin couldn't read that message. Try a shorter one.
+  - id: turn_stopped
+    text: Stopped. Ask again whenever you like.

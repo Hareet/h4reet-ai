@@ -46,7 +46,15 @@ sys.modules["h4_gate"] = gm  # dataclasses look their module up here
 _LOADER.exec_module(gm)
 CHECK_CORPUS = REPO / "corpus" / "tools" / "check_corpus.py"
 SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin"
-TARGETS = ["lint", "validate-config", "test", "evals", "redteam-suite", "matrix"]
+TARGETS = [
+    "lint",
+    "validate-config",
+    "test",
+    "evals",
+    "redteam-suite",
+    "matrix",
+    "credits-check",
+]
 ENGINE = "tcp://198.18.0.1:2376"
 RECORDING = "/run/h4-contract/recording.json"
 PHRASE = "zebra quartz lantern"  # the fixture denylist's one phrase
@@ -118,8 +126,15 @@ elif args[:1] == ["run"]:
             entry["work_has_node_modules_dir"] = os.path.isdir(fields["source"])
         if fields.get("target") == "/run/h4-contract/recording.json":
             entry["recording_readable"] = os.access(fields["source"], os.R_OK)
+        if fields.get("target") == "/policy":
+            entry["policy"] = {
+                name: open(os.path.join(fields["source"], name), encoding="utf-8").read()
+                for name in sorted(os.listdir(fields["source"]))
+            }
+            entry["policy_readonly"] = "readonly" in spec.split(",")
     if command[:1] == ["npm"]:
-        rc = 1 if control.get("npm_fails") else 0
+        building = command[1:2] == ["run"] and "build" in command
+        rc = 1 if control.get("npm_fails") or (building and control.get("web_build_fails")) else 0
     elif command[:1] == ["make"]:
         target = command[-1]
         print(control.get("print", {}).get(target, f"{target}: ok"))
@@ -206,6 +221,12 @@ if control.exists():
     sys.exit(int(text.split("\n", 1)[0]))
 print("{ok}")
 """
+
+# The settings check's verdict line on a pass (contracts/intake-amendments.md §5, Output).
+SETTINGS_PASS = (
+    "studio-settings: PASS: the studio session's settings deny the photos folder and the blinding key, to the file "
+    "tools and in the sandbox, and give it no route to a loopback listener"
+)
 
 # What the branch commits in place of the Author's code: anything that runs it leaves a marker.
 HOSTILE = """#!/usr/bin/env python3
@@ -392,7 +413,7 @@ def fx(tmp_path: Path) -> Fixture:
         ".devcontainer/Dockerfile": "FROM scratch\n",
         ".devcontainer/toolchain.vars": "NODE_VERSION=24.21.0\nCLAUDE_CODE_VERSION=2.1.295\n",
         "CLAUDE.md": "# fixture\n",
-        "Makefile": f"lint test evals redteam-suite matrix validate-config:\n\t@touch {logs}/EXPORT-make\n",
+        "Makefile": f"lint test evals redteam-suite matrix validate-config credits-check:\n\t@touch {logs}/EXPORT-make\n",
         "corpus/00-profile.md": "A public corpus file.\n",
         "deploy/compose.yaml": "services: {}\n",
         "deploy/env.agents/dev-cpu.vars": "H4_STACK=dev-cpu\n",
@@ -406,6 +427,7 @@ def fx(tmp_path: Path) -> Fixture:
     for name, ok in (
         ("compose_policy", "compose policy: PASS"),
         ("toolchain_check", "toolchain-check: all match their pins"),
+        ("content_check", "content check: PASS (no content files yet)"),
     ):
         write(
             main / f"tools/gates/{name}.py",
@@ -415,6 +437,26 @@ def fx(tmp_path: Path) -> Fixture:
         main / "deploy/agents-engine/engine.sh",
         STUB_SCRIPT.format(depth=3, name="engine", ok="E1-E16: PASS"),
         0o755,
+    )
+    # Spec 003's arrival step: the main tree's arrival check and credits renderer, stand-ins that log how they ran.
+    write(
+        main / "tools/gates/arrival_check.py",
+        STUB_SCRIPT.format(
+            depth=3, name="arrival_check", ok="arrival-check: 0 findings in 0 files"
+        ),
+    )
+    write(
+        main / "scripts/assets/credits.py",
+        STUB_SCRIPT.format(
+            depth=3,
+            name="credits",
+            ok="credits: OK: the renderings and the records' form",
+        ),
+    )
+    # Spec 004's studio-settings step (P-10): the main tree's settings check, a stand-in that logs how it ran.
+    write(
+        main / "tools/gates/studio_settings_check.py",
+        STUB_SCRIPT.format(depth=3, name="studio_settings_check", ok=SETTINGS_PASS),
     )
     git(main, "add", "-A")
     git(main, "commit", "-qm", "init")
@@ -597,6 +639,19 @@ def test_a_clean_branch_passes_and_each_phase_runs_where_and_how_plan_11_says(
         != (tree_argv[tree_argv.index("--gitleaks-ignore-path") + 1])
     )
 
+    # Spec 003's arrival check over the commits since main: the main tree's, through PY_HOST's flags. The credits'
+    # check is the branch's own code, so it ran in the container (make credits-check, above), never here.
+    (arrival_run,) = fx.logged("arrival_check")
+    assert arrival_run["argv"] == ["--repo", str(fx.main), "--range", f"{base}..{sha}"]
+    assert (
+        arrival_run["isolated"],
+        arrival_run["no_bytecode"],
+        arrival_run["pycache_prefix"],
+    ) == (1, 1, "/dev/null")
+    assert fx.logged("credits") == []
+    assert status_of(done, "arrival") == "PASS"
+    assert status_of(done, "credits") == "PASS"
+
     # The image build on the agents' engine, with the Author's certificate.
     (compose,) = by_kind(calls, "compose")
     assert compose["argv"] == [
@@ -639,6 +694,8 @@ def hostile_copies(fx: Fixture) -> dict[str, str]:
             "tools/gates/compose_policy.py",
             "tools/gates/toolchain_check.py",
             "tools/gates/gate",
+            "tools/gates/arrival_check.py",
+            "scripts/assets/credits.py",
             "corpus/tools/check_corpus.py",
             "deploy/agents-engine/engine.sh",
             "evals/agent-config/behavioral.py",
@@ -790,6 +847,107 @@ def test_a_replace_ref_stops_the_gate_before_anything_runs(fx: Fixture) -> None:
     assert fx.docker() == [] and fx.gitleaks() == []
 
 
+# A ref beside refs/heads/main that a bare main names (fix/000-main-ref): git reads main as main (a file at the top of
+# .git), refs/main, and refs/tags/main before refs/heads/main, and refs/remotes/main and refs/remotes/main/HEAD after
+# it. An agent session can write any of them: .git/refs/tags is writable in its sandbox. Each case, and the name the
+# gate shows for it.
+SHADOWS = {
+    "refs/tags/main": "refs/tags/main",
+    "refs/tags/main, annotated": "refs/tags/main",
+    "refs/tags/main, packed": "refs/tags/main",
+    "refs/tags/main, a symbolic ref": "refs/tags/main",
+    "refs/main": "refs/main",
+    "main": "main (",
+    "refs/remotes/main": "refs/remotes/main",
+    "refs/remotes/main/HEAD": "refs/remotes/main/HEAD",
+}
+
+
+def shadow_main(repo: Path, case: str, commit: str) -> None:
+    """Make the ref a case of SHADOWS names, at a commit, as an agent session could: main itself as a file at the top
+    of .git (git 2.43's update-ref writes it there; this way doesn't depend on git's version)."""
+    name = case.split(",")[0]
+    if case == "main":
+        path = git(repo, "rev-parse", "--path-format=absolute", "--git-path", "main")
+        Path(path).write_text(f"{commit}\n", encoding="utf-8")
+    elif case.endswith("annotated"):
+        git(repo, "tag", "-a", "-m", "a tag named main", "main", commit)
+    elif case.endswith("a symbolic ref"):
+        git(repo, "symbolic-ref", name, "refs/heads/feature")
+    else:
+        git(repo, "update-ref", name, commit)
+        if case.endswith("packed"):
+            # Tags only (and refs already packed): refs/heads/main stays loose, and refs/tags/main is in packed-refs
+            # alone.
+            git(repo, "pack-refs")
+
+
+@pytest.mark.parametrize("case", list(SHADOWS))
+def test_a_ref_a_bare_main_names_stops_the_gate_before_anything_runs(
+    fx: Fixture, case: str
+) -> None:
+    # Your own git diff main...<branch> before a merge would read it, so the gate stops, as on refs/replace, and names it.
+    sha = fx.branch(CHANGE)
+    shadow_main(fx.main, case, sha)
+    done = gate(fx, "feature")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert status_of_export_failure(done)
+    (line,) = [ln for ln in done.stdout.splitlines() if ln.startswith("-> FAIL export")]
+    assert SHADOWS[case] in line and "refs/heads/main" in line, line
+    assert fx.docker() == [] and fx.gitleaks() == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "refs/remotes/origin/main",
+        "refs/tags/main-v1",
+        "refs/tags/v1/main",
+        "refs/heads/topic/main",
+    ],
+)
+def test_a_ref_a_bare_main_never_names_leaves_the_gate_alone(
+    fx: Fixture, name: str
+) -> None:
+    # A remote-tracking branch (origin/main), a tag whose name only starts with main or ends in /main, and a branch:
+    # git reads none of them for a bare main.
+    sha = fx.branch(CHANGE)
+    git(fx.main, "update-ref", name, sha)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "main-refs" not in done.stdout
+
+
+# A docker that writes a tag named main whenever the gate runs a container: a ref made while the gate runs, after the
+# export's check.
+TAG_MAIN_DURING_RUN = r"""#!/usr/bin/env python3
+import os, subprocess, sys
+here = os.path.dirname(os.path.abspath(__file__))
+if sys.argv[1:2] == ["run"]:
+    subprocess.run(["git", "-C", @REPO@, "update-ref", "refs/tags/main", @SHA@], check=True)
+real = os.path.join(here, "docker.real")
+os.execv(real, [real, *sys.argv[1:]])
+"""
+
+
+def test_a_ref_a_bare_main_names_made_while_the_gate_runs_holds_back_the_merge(
+    fx: Fixture,
+) -> None:
+    # The container phase runs for minutes; a tag made meanwhile would answer for main in your git diff
+    # main...<branch> before the merge, so finish() looks again (the review's item 2).
+    sha = fx.branch(CHANGE)
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
+    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
+    done = gate(fx, "feature")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert status_of(done, "export") == "PASS"
+    assert status_of(done, "main-refs") == "FAIL"
+    assert "refs/tags/main" in row(done, "main-refs")
+    assert "main-refs FAIL" in summary(done)
+    assert not [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+
+
 def test_info_attributes_stops_the_gate(fx: Fixture) -> None:
     fx.branch(CHANGE)
     info = Path(
@@ -872,6 +1030,44 @@ def test_every_git_call_reads_the_commits_own_objects(fx: Fixture) -> None:
     assert gate(fx, "feature").returncode == 0
     seen = log.read_text(encoding="utf-8").splitlines()
     assert len(seen) > 10 and set(seen) == {'"1"'}
+
+
+def names_main_bare(argv: list[str], i: int) -> bool:
+    """Whether argument i names main as a revision by its short name: main, main:<path>, main^, main~2, main@{1}, or a
+    range ending in main. A --git-path's argument is a file's name."""
+    if i and argv[i - 1] == "--git-path":
+        return False
+    return bool(
+        re.fullmatch(r"main([:^~@].*|\.\..*)?", argv[i])
+        or re.search(r"\.\.\.?main([:^~@].*)?$", argv[i])
+    )
+
+
+def test_every_git_call_reads_main_by_its_full_name(fx: Fixture) -> None:
+    # git reads a bare main as refs/tags/main before refs/heads/main, so the makefiles step's blob, the merge base the
+    # scans and the triggers read, and the merge note's ancestry check all name refs/heads/main (fix/000-main-ref).
+    real = (fx.sysbin / "git").resolve()
+    log = fx.logs / "git.argv"
+    (fx.sysbin / "git").unlink()
+    write(
+        fx.sysbin / "git",
+        "#!/usr/bin/env python3\nimport json, os, sys\n"
+        f"with open({str(log)!r}, 'a') as h:\n"
+        "    h.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"os.execv({str(real)!r}, ['git', *sys.argv[1:]])\n",
+        0o755,
+    )
+    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()]
+    assert [a for a in calls if any(names_main_bare(a, i) for i in range(len(a)))] == []
+    # The gate runs git as git -C <directory> <arguments>.
+    args = [a[2:] for a in calls if a[:1] == ["-C"]]
+    assert ["cat-file", "blob", "refs/heads/main:GNUmakefile"] in args
+    assert ["merge-base", "refs/heads/main", sha] in args
+    assert ["merge-base", "--is-ancestor", "refs/heads/main", sha] in args
 
 
 @pytest.mark.parametrize("ref", ["-x", "feature..main", "has space"])
@@ -1101,6 +1297,42 @@ def test_exactly_mains_gnumakefile_is_allowed(fx: Fixture) -> None:
     assert status_of(done, "makefiles") == "FAIL"
 
 
+HOSTILE_MAKEFILE = "include Makefile\nlint:\n\t@true\n"
+
+
+@pytest.mark.parametrize("case", ["refs/tags/main", "refs/main", "main"])
+def test_mains_gnumakefile_is_the_branchs_whatever_a_bare_main_names(
+    fx: Fixture, case: str
+) -> None:
+    # make reads a GNUmakefile before the Makefile, so the step decides what make runs in the container phase. A tag
+    # named main at a commit holding the branch's GNUmakefile made main:GNUmakefile read that one, and the step pass
+    # (fix/000-main-ref). In this process, since a whole run now stops at the export first.
+    commit_on_main(fx, {"GNUmakefile": "include Makefile\n"}, "main's GNUmakefile")
+    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
+    shadow_main(fx.main, case, hostile)
+    export = fx.root / "export"
+    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
+    step = gm.makefiles(fx.main, export)
+    assert (step.status, step.notes) == (
+        "FAIL",
+        ["the commit's GNUmakefile isn't main's"],
+    )
+    write(export / "GNUmakefile", "include Makefile\n")
+    assert gm.makefiles(fx.main, export).status == "PASS"
+
+
+def test_a_gnumakefile_main_lacks_fails_whatever_a_bare_main_names(fx: Fixture) -> None:
+    hostile = fx.branch({"GNUmakefile": HOSTILE_MAKEFILE})
+    shadow_main(fx.main, "refs/tags/main", hostile)
+    export = fx.root / "export"
+    write(export / "GNUmakefile", HOSTILE_MAKEFILE)
+    step = gm.makefiles(fx.main, export)
+    assert (step.status, step.notes) == (
+        "FAIL",
+        ["the commit has a GNUmakefile, and main has none"],
+    )
+
+
 # --------------------------------------------------------------------------------------------------
 # The container phase
 # --------------------------------------------------------------------------------------------------
@@ -1122,6 +1354,156 @@ def test_a_pending_line_from_make_evals_makes_the_gate_pending(fx: Fixture) -> N
     done = gate(fx, "feature")
     assert done.returncode == 1
     assert status_of(done, "evals") == "PENDING"
+
+
+# Spec 006 FR-002: in make evals, the behavioral tier's line is information, which never fails or waits. Its PENDING
+# on main at c84a115b, whose trigger hash has no run, and its FAIL for the run of 2026-11-07, as status prints them.
+TIER_NO_RUN = (
+    "no run for trigger hash 401d0a4d7341 in evals/agent-config/history/; the Author runs make evals-agent-config "
+    "REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints"
+)
+TIER_RUN = "2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4"
+TIER_FAILED = (
+    f"{TIER_RUN}, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or "
+    "a run without hook events, in 2 of 3 runs (at most 0)"
+)
+LINKS = "docs links: 0 failed, 1538 relative links in 184 files"
+PRODUCT_RECIPE = (
+    'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER'
+    ':-}" = local ] && echo --stack prod)'
+)
+UNVERIFIED = (
+    "note: attestations aren't checked here: with H4_DEVCONTAINER=1 (the devcontainer, the gate's container phase "
+    "among them), no store like ~/.local/state/h4reet/evals/attested/ can be seen, so every entry counts; the "
+    "Author's gate checks them"
+)
+# What make evals prints in the gate's container on a tree from main at c84a115b, whose Makefile runs the tier's
+# status itself and goes on to the docs' links, exit 0: line R's branches print it until they take main's change. The
+# narration suite's 44 PASS lines, the static tier's first 14, and the docs' links' last 3 are left out.
+EVALS_C84A = "\n".join(
+    [
+        PRODUCT_RECIPE,
+        "PASS  hello-fake",
+        "evals product (fake): 1 passed, 0 failed",
+        "python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite narration --adapter fake",
+        "evals narration (fake): 44 passed, 0 failed",
+        "python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py",
+        "PASS  FR-007: 27 of 27 variables denied by name",
+        "agent-config static: 0 failed, 0 planned",
+        "python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status",
+        "behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 401d0a4d7341",
+        UNVERIFIED,
+        f"PENDING (behavioral tier): {TIER_NO_RUN}",
+        "agent-config behavioral: pending, 0 planned",
+        "python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py",
+        "PASS  every relative link resolves: 1538 links in 184 files",
+        LINKS,
+    ]
+)
+
+
+def test_a_tree_from_before_spec_006_reads_warn_for_the_tiers_pending(
+    fx: Fixture,
+) -> None:
+    # The branch's own make evals runs in the container, so a tree that predates the interim Makefile prints the
+    # tier's own PENDING: main's gate reads it as information, and the merge doesn't wait on it.
+    sha = fx.branch(CHANGE)
+    fx.control(print={"evals": EVALS_C84A})
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "evals") == "WARN"
+    assert row(done, "evals").endswith(f"evals  WARN (behavioral tier): {TIER_NO_RUN}")
+    line = summary(done)
+    assert ", 1 WARN, " in line and "failing" not in line
+    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
+    assert merge == [
+        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("printed", "named"),
+    [
+        # A branch with the interim Makefile: evals/behavioral_line.py prints the tier's line as WARN.
+        (
+            f"WARN (behavioral tier): {TIER_NO_RUN}\n{LINKS}",
+            "trigger hash 401d0a4d7341",
+        ),
+        (f"WARN (behavioral tier): {TIER_FAILED}\n{LINKS}", TIER_RUN),
+        # The tier's own lines, in a make evals that passed.
+        (
+            f"PENDING (behavioral tier): {TIER_NO_RUN}\n{LINKS}",
+            "trigger hash 401d0a4d7341",
+        ),
+        (f"FAIL  behavioral tier: {TIER_FAILED}\n{LINKS}", TIER_RUN),
+    ],
+    ids=["warn-no-run", "warn-run-failed", "tiers-pending", "tiers-run-failed"],
+)
+def test_the_behavioral_tiers_line_is_a_warn_naming_the_run_or_the_hash(
+    fx: Fixture, printed: str, named: str
+) -> None:
+    fx.branch(CHANGE)
+    fx.control(print={"evals": printed})
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "evals") == "WARN"
+    assert "evals  WARN (behavioral tier): " in row(done, "evals")
+    assert named in row(done, "evals")
+    assert "merge --no-ff" in done.stdout
+
+
+@pytest.mark.parametrize(
+    ("control", "failing"),
+    [
+        ({"print": {"evals": EVALS_C84A}, "fail": ["lint"]}, "failing: lint FAIL"),
+        # make evals exited non-zero beside the tier's line: the docs' links, a suite, or a tier file that doesn't load.
+        ({"print": {"evals": EVALS_C84A}, "fail": ["evals"]}, "failing: evals FAIL"),
+        # A tree from before whose make evals stopped at its run's FAIL, before the docs' links.
+        (
+            {
+                "print": {"evals": f"FAIL  behavioral tier: {TIER_FAILED}"},
+                "fail": ["evals"],
+            },
+            "failing: evals FAIL",
+        ),
+        # Any other PENDING in make evals still waits.
+        (
+            {"print": {"evals": f"PENDING: a run the Author makes\n{EVALS_C84A}"}},
+            "failing: evals PENDING",
+        ),
+    ],
+    ids=["lint-fails", "make-evals-fails", "stops-at-the-runs-fail", "another-pending"],
+)
+def test_a_real_failure_still_blocks_beside_the_tiers_warn(
+    fx: Fixture, control: dict[str, object], failing: str
+) -> None:
+    fx.branch(CHANGE)
+    fx.control(**control)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert failing in summary(done)
+    assert "Not ready to merge" in done.stdout
+    assert "merge --no-ff" not in done.stdout
+    if "lint" in failing:
+        assert status_of(done, "evals") == "WARN"
+
+
+def test_only_the_evals_step_reads_the_tiers_own_lines_as_information() -> None:
+    # The container's evals step reads them as WARN (spec 006 FR-002), and only when make evals exited 0; the host's
+    # agent-config-evals step, main's tier on a triggered branch's export, still waits on the tier's PENDING (FR-006).
+    step = gm.evals_step(gm.Step("evals"), 0, EVALS_C84A)
+    assert (step.status, step.notes) == (
+        "WARN",
+        [f"WARN (behavioral tier): {TIER_NO_RUN}"],
+    )
+    assert gm.evals_step(gm.Step("evals"), 2, EVALS_C84A).status == "FAIL"
+    held = gm.classify(
+        gm.Step("agent-config-evals"), 0, f"PENDING (behavioral tier): {TIER_NO_RUN}"
+    )
+    assert held.status == "PENDING"
+    # Only a recorded run's FAIL is the tier's verdict: the FAIL of a file that doesn't load never becomes a WARN.
+    broken = "FAIL  behavioral tier: evals/agent-config/cases/x.yaml: not valid YAML"
+    assert gm.evals_step(gm.Step("evals"), 0, broken).status != "WARN"
 
 
 def test_a_devcontainer_that_wont_build_points_at_the_host_gate(fx: Fixture) -> None:
@@ -1259,6 +1641,42 @@ def test_a_planned_policy_still_builds(fx: Fixture) -> None:
     done = gate(fx, "feature")
     assert status_of(done, "policy") == "PLANNED"
     assert len(by_kind(fx.docker(), "compose")) == 1
+
+
+# ADR 0023: Claude Code's pin is a floor, and toolchain_check passes a newer one with a "WARN:" line.
+FLOOR_WARN = (
+    "WARN: claude code 2.1.301 is newer than its floor, 2.1.295 (ADR 0023): the agent-config evals record the "
+    "version each run used, and moving the floor runs them again"
+)
+
+
+def test_a_claude_code_above_its_floor_is_a_warn_the_merge_doesnt_wait_on(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "toolchain_check.control").write_text(
+        f"0\n{FLOOR_WARN}\ntoolchain-check: all 15 match their pins, 1 newer than its floor (claude code)",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "toolchain") == "WARN"
+    assert f"-> WARN toolchain ({FLOOR_WARN})" in done.stdout
+    line = summary(done)
+    assert ", 1 WARN, " in line and "failing" not in line
+    assert "merge --no-ff" in done.stdout
+
+
+def test_a_warn_line_never_hides_a_failing_toolchain(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "toolchain_check.control").write_text(
+        f"1\n{FLOOR_WARN}\ntoolchain-check: 1 of 15 differ from their pins (jq); see tasks.md T013",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "toolchain") == "FAIL"
+    assert "failing: toolchain FAIL" in summary(done)
 
 
 def test_no_engine_certificate_fails_the_image_step_without_calling_docker(
@@ -1527,6 +1945,294 @@ def test_a_secret_a_merge_adds_is_found_in_the_tree(fx: Fixture) -> None:
     assert status_of(done, "gitleaks-tree") == "FAIL", done.stdout
     assert "\n  probe-token in docs/merged.txt:1\n" in done.stdout
     assert TOKEN not in done.stdout + done.stderr
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 003's arrival step (contracts/arrival-check.md §1)
+# --------------------------------------------------------------------------------------------------
+def test_an_arrival_finding_fails_the_step_and_the_gate(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "arrival_check.control").write_text(
+        "1\nM1 assets/twin/still.png @abc1234: chunk tEXt at byte 33, outside the allowlist\n"
+        "arrival-check: 1 finding in 1 file (1 commit)",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "arrival") == "FAIL"
+    assert "M1 assets/twin/still.png @abc1234" in done.stdout
+    assert (
+        fx.logged("credits") == []
+    )  # the host never runs the branch's credits renderer
+
+
+def test_an_arrival_check_that_couldnt_run_fails_the_step(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "arrival_check.control").write_text(
+        "2\narrival-check: can't check: the main branch has no assets/policy/caps.json",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "arrival") == "FAIL"
+    assert "couldn't check" in row(done, "arrival")
+
+
+def test_a_stale_credits_rendering_fails_its_container_step(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    fx.control(fail=["credits-check"])
+    done = gate(fx, "feature")
+    assert status_of(done, "credits") == "FAIL"
+    assert status_of(done, "arrival") == "PASS"
+    assert fx.logged("credits") == []
+
+
+def test_a_branch_from_before_spec_003_skips_the_credits_step(fx: Fixture) -> None:
+    git(fx.main, "rm", "-q", "scripts/assets/credits.py")
+    git(fx.main, "commit", "-qm", "main from before spec 003")
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert status_of(done, "credits") == "SKIP"
+    assert "neither scripts/assets/credits.py nor assets/" in row(done, "credits")
+    assert [c["command"][-1] for c in make_runs(fx.docker())] == TARGETS[:-1]
+
+
+def test_without_mains_arrival_check_the_step_fails(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    git(fx.main, "rm", "-q", "tools/gates/arrival_check.py")
+    git(fx.main, "commit", "-qm", "main without the check")
+    done = gate(fx, "feature")
+    assert status_of(done, "arrival") == "FAIL"
+    assert "arrival_check.py is missing" in row(done, "arrival")
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's studio-settings step, P-10 (FR-025, SC-013; contracts/intake-amendments.md §12): after arrival, main's
+# tools/gates/studio_settings_check.py under PY_HOST, when the range adds or changes a file under assets/ outside
+# assets/policy/; SKIP otherwise
+# --------------------------------------------------------------------------------------------------
+STUDIO_FILE = "assets/room/desk.glb"
+
+
+def branch_of(fx: Fixture, *commits: tuple[dict[str, str], tuple[str, ...]]) -> str:
+    """A branch off main with one commit per (files written, paths removed)."""
+    git(fx.main, "switch", "-q", "main")
+    git(fx.main, "switch", "-qc", "feature")
+    for files, removed in commits:
+        for rel, text in files.items():
+            write(fx.main / rel, text)
+        if files:
+            git(fx.main, "add", "-f", "--", *files)
+        if removed:
+            git(fx.main, "rm", "-q", "--", *removed)
+        git(fx.main, "commit", "-qm", "feature work")
+    sha = git(fx.main, "rev-parse", "HEAD")
+    git(fx.main, "switch", "-q", "main")
+    return sha
+
+
+def settings_section(done: subprocess.CompletedProcess[str]) -> list[str]:
+    """The step's own lines: from its heading to its result line, then its line in the final table."""
+    lines = done.stdout.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("== studio-settings"))
+    end = next(
+        i
+        for i in range(start, len(lines))
+        if lines[i].startswith("-> ") and lines[i].split()[2:3] == ["studio-settings"]
+    )
+    return [*lines[start : end + 1], row(done, "studio-settings")]
+
+
+def table_order(done: subprocess.CompletedProcess[str]) -> list[str]:
+    names = []
+    for line in done.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] in STATUSES and not line.startswith("-> "):
+            names.append(parts[1])
+    return names
+
+
+@pytest.mark.parametrize(
+    "commits",
+    [
+        pytest.param((({STUDIO_FILE: "glb\n"}, ()),), id="added"),
+        pytest.param((({"assets/twin/still.png": "changed\n"}, ()),), id="changed"),
+        pytest.param(
+            (({STUDIO_FILE: "glb\n"}, ()), ({}, (STUDIO_FILE,))),
+            id="added-then-removed-in-the-range",
+        ),
+        pytest.param(
+            (({"assets/CREDITS.md": "credits, changed\n", **CHANGE}, ()),),
+            id="outside-a-subfolder",
+        ),
+    ],
+)
+def test_a_range_that_brings_a_studio_file_in_runs_mains_settings_check(
+    fx: Fixture, commits: tuple
+) -> None:
+    on_main(fx, {"assets/twin/still.png": "main's\n", "assets/CREDITS.md": "credits\n"})
+    branch_of(fx, *commits)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    # main's own check, as the Author runs it: no option, through PY_HOST's flags.
+    (run,) = fx.logged("studio_settings_check")
+    assert run["argv"] == []
+    assert (run["isolated"], run["no_bytecode"], run["pycache_prefix"]) == (
+        1,
+        1,
+        "/dev/null",
+    )
+    assert status_of(done, "studio-settings") == "PASS"
+    # Its lines in the gate's report, for the note.
+    assert SETTINGS_PASS in settings_section(done)
+    # A host step after arrival, before the image.
+    order = table_order(done)
+    assert order.index("arrival") + 1 == order.index("studio-settings")
+    assert order.index("studio-settings") < order.index("image")
+
+
+@pytest.mark.parametrize(
+    "commits",
+    [
+        pytest.param(((CHANGE, ()),), id="no-asset"),
+        pytest.param(
+            (({"assets/policy/caps.json": '{"schema": 1}\n'}, ()),), id="policy-only"
+        ),
+        pytest.param(((CHANGE, ("assets/twin/still.png",)),), id="removed-only"),
+        pytest.param(
+            (({"docs/assets/room.md": "not under assets/\n"}, ()),),
+            id="assets-elsewhere",
+        ),
+    ],
+)
+def test_a_range_with_no_studio_file_skips_the_step(
+    fx: Fixture, commits: tuple
+) -> None:
+    on_main(fx, {"assets/twin/still.png": "main's\n"})
+    branch_of(fx, *commits)
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "SKIP"
+    assert (
+        row(done, "studio-settings").split(None, 2)[2] == "no studio file in the range"
+    )
+    assert fx.logged("studio_settings_check") == []
+
+
+@pytest.mark.parametrize("rc", [1, 2])
+def test_a_check_that_finds_something_or_cant_check_fails_the_step(
+    fx: Fixture, rc: int
+) -> None:
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    finding = "SS4 photos: no scope's sandbox.filesystem.denyRead holds it"
+    (fx.logs / "studio_settings_check.control").write_text(
+        f"{rc}\nstudio-settings: FAIL: 1 findings\n{finding}", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "studio-settings") == "FAIL"
+    assert "failing: studio-settings FAIL" in summary(done)
+    # Its lines in the gate's report, whatever the exit.
+    section = settings_section(done)
+    assert "studio-settings: FAIL: 1 findings" in section
+    assert finding in section
+    if rc == 2:
+        assert "couldn't check" in row(done, "studio-settings")
+
+
+def test_a_check_that_prints_skip_still_passes_or_fails_by_its_exit(
+    fx: Fixture,
+) -> None:
+    # The step reads the check's exit alone: a line that make check's rules would read as SKIP changes nothing.
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    (fx.logs / "studio_settings_check.control").write_text(
+        "1\nSKIP: nothing to see", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "FAIL"
+
+
+def test_without_mains_settings_check_the_step_fails(fx: Fixture) -> None:
+    git(fx.main, "rm", "-q", "tools/gates/studio_settings_check.py")
+    git(fx.main, "commit", "-qm", "main without the check")
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    done = gate(fx, "feature")
+    assert status_of(done, "studio-settings") == "FAIL"
+    assert "studio_settings_check.py is missing" in row(done, "studio-settings")
+
+
+@pytest.mark.parametrize(
+    "outcome", ["pass", "finding", "cant-check", "missing", "skip"]
+)
+def test_the_steps_lines_hold_no_path(fx: Fixture, outcome: str) -> None:
+    if outcome == "missing":
+        git(fx.main, "rm", "-q", "tools/gates/studio_settings_check.py")
+        git(fx.main, "commit", "-qm", "main without the check")
+    if outcome in ("finding", "cant-check"):
+        (fx.logs / "studio_settings_check.control").write_text(
+            f"{1 if outcome == 'finding' else 2}\nstudio-settings: FAIL: 1 findings\n"
+            "SS1 photos: the folder list has a placeholder left",
+            encoding="utf-8",
+        )
+    files = CHANGE if outcome == "skip" else {STUDIO_FILE: "glb\n"}
+    branch_of(fx, (files, ()))
+    done = gate(fx, "feature")
+    section = "\n".join(settings_section(done))
+    # No path of this machine's (the main tree, the Author's home, the gate's temporary folder), and no name of a
+    # file in the range.
+    assert str(fx.root) not in section
+    assert str(fx.home) not in section
+    assert STUDIO_FILE not in section and "desk.glb" not in section
+
+
+def test_the_check_gets_the_authors_claude_config_dir_and_nothing_else_of_the_shell(
+    fx: Fixture,
+) -> None:
+    # The check reads the user scope from $CLAUDE_CONFIG_DIR when the Author's shell sets it (§5, What it reads).
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    gate(
+        fx,
+        "feature",
+        CLAUDE_CONFIG_DIR=str(fx.home / ".claude-elsewhere"),
+        H4_PROBE_CANARY="canary",
+        GIT_DIR="/nonexistent",
+    )
+    (run,) = fx.logged("studio_settings_check")
+    assert "CLAUDE_CONFIG_DIR" in run["env_keys"]
+    assert set(run["env_keys"]) <= {
+        "PATH",
+        "HOME",
+        "LC_ALL",
+        "LC_CTYPE",
+        "PWD",
+        "CLAUDE_CONFIG_DIR",
+    }
+
+
+def test_without_claude_config_dir_the_check_gets_none(fx: Fixture) -> None:
+    branch_of(fx, ({STUDIO_FILE: "glb\n"}, ()))
+    gate(fx, "feature")
+    (run,) = fx.logged("studio_settings_check")
+    assert "CLAUDE_CONFIG_DIR" not in run["env_keys"]
+
+
+def test_the_branchs_own_settings_check_never_runs(fx: Fixture) -> None:
+    marker = fx.logs / "EXPORT-studio-settings"
+    branch_of(
+        fx,
+        (
+            {
+                STUDIO_FILE: "glb\n",
+                "tools/gates/studio_settings_check.py": HOSTILE.format(
+                    marker=str(marker)
+                ),
+            },
+            (),
+        ),
+    )
+    done = gate(fx, "feature")
+    assert not marker.exists()
+    (run,) = fx.logged("studio_settings_check")
+    assert run["argv"] == []
+    assert status_of(done, "studio-settings") == "PASS"
 
 
 def test_missing_gitleaks_fails_closed(fx: Fixture) -> None:
@@ -1810,6 +2516,66 @@ def test_untriggered_steps_say_so(fx: Fixture) -> None:
     assert status_of(done, "matrix-e") == "SKIP"
     assert status_of(done, "agent-config-evals") == "SKIP"
     assert "T094" not in done.stdout
+
+
+# Spec 006 FR-004: the runner, its checks, the cases, and the thresholds, a change the tier's next run exercises.
+HARNESS_CHANGE = {
+    "evals/agent-config/cases/a-new-case.yaml": "id: a-new-case\n",
+    "evals/agent-config/thresholds.yaml": "runs_per_case: 3\n",
+}
+NO_RUN_STUB = ["PENDING (behavioral tier): no run for trigger hash 0123abcd4567"]
+
+
+def test_a_change_confined_to_evals_agent_config_is_held_to_its_own_tests(
+    fx: Fixture,
+) -> None:
+    # FR-004, FR-005: a run before it lands would test main's runner, not the changed one, so the step is SKIP,
+    # naming why, and main's tier isn't asked: its stand-in would say PENDING.
+    fx.branch(HARNESS_CHANGE)
+    tier(fx, NO_RUN_STUB)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert status_of(done, "agent-config-evals") == "SKIP"
+    note = row(done, "agent-config-evals")
+    assert (
+        "held to its own tests" in note
+        and "evals/agent-config/cases/a-new-case.yaml" in note
+    )
+    assert not [ln for ln in done.stdout.splitlines() if ln.startswith("read ")]
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {".claude/agents/reviewer.md": "# the reviewer, changed\n"},
+        {"REVIEW.md": "# review, changed\n", **HARNESS_CHANGE},
+    ],
+)
+def test_a_change_to_the_agent_configuration_still_waits_for_its_run(
+    fx: Fixture, files: dict[str, str]
+) -> None:
+    # FR-006: the enforcement layer, CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin, waits until a run exists.
+    fx.branch(files)
+    tier(fx, NO_RUN_STUB)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "agent-config-evals") == "PENDING"
+    assert "failing: agent-config-evals PENDING" in summary(done)
+
+
+def test_a_triggered_branch_is_named_by_its_triggers_alone(fx: Fixture) -> None:
+    fx.branch({".claude/hooks/a-hook.sh": "#!/bin/sh\nexit 0\n", **HARNESS_CHANGE})
+    tier(
+        fx,
+        [
+            "PASS  behavioral tier: 2026-10-10T120000Z-feature-0123abc passed for trigger hash 0123abcd4567"
+        ],
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "agent-config-evals") == "PASS", done.stdout
+    assert row(done, "agent-config-evals").endswith(
+        "triggered by .claude/hooks/a-hook.sh"
+    )
 
 
 # --------------------------------------------------------------------------------------------------
@@ -2312,3 +3078,373 @@ def test_a_gateway_image_that_doesnt_build_fails_the_step_before_compose(
     assert "deploy/agents-engine/engine.sh up" in done.stdout
     assert len(by_kind(fx.docker(), "buildx")) == 1
     assert by_kind(fx.docker(), "compose") == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The room's image (spec 002, contracts/web-serving.md §1), after the gateway's, when the export has its Dockerfile
+# --------------------------------------------------------------------------------------------------
+WEB_BRANCH = {**CHANGE, "apps/web/Dockerfile": "FROM scratch\n"}
+
+
+def test_the_image_step_builds_the_rooms_image_as_prods_after_the_gateways(
+    fx: Fixture,
+) -> None:
+    sha = fx.branch(WEB_BRANCH)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (devcontainer,) = by_kind(calls, "build")
+    export = devcontainer["argv"][-1]
+    gateway, web = by_kind(calls, "buildx")
+    assert f"h4reet-gateway:{sha}" in gateway["argv"]
+    # prod's variant: no drafts, and no policy context, so the Dockerfile's own empty policy stage applies.
+    assert web["argv"] == [
+        "buildx",
+        "build",
+        "--load",
+        "--file",
+        f"{export}/apps/web/Dockerfile",
+        "--tag",
+        f"h4reet-web:{sha}",
+        "--build-arg",
+        f"HTTP_PROXY={GATEWAY_PROXY}",
+        "--build-arg",
+        f"HTTPS_PROXY={GATEWAY_PROXY}",
+        "--build-arg",
+        "ROOM_DRAFTS=",
+        export,
+    ]
+    assert web["docker_env"] == gateway["docker_env"]
+    (compose,) = by_kind(calls, "compose")
+    assert calls.index(gateway) < calls.index(web) < calls.index(compose)
+    assert status_of(done, "image") == "PASS"
+
+
+def test_a_commit_without_the_rooms_dockerfile_builds_the_gateway_alone(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (gateway,) = by_kind(fx.docker(), "buildx")
+    assert not [a for a in gateway["argv"] if "h4reet-web" in a]
+
+
+BUILDX_WEB_FAILS = r"""#!/usr/bin/env python3
+import json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+if args[:1] == ["buildx"]:
+    with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"argv": args, "env_keys": [], "docker_env": {}}) + "\n")
+    if any(a.startswith("h4reet-web:") for a in args):
+        print("buildx: a step failed")
+        sys.exit(1)
+    sys.exit(0)
+real = os.path.join(here, "docker.real")
+os.execv(real, [real, *args])
+"""
+
+
+def test_a_web_image_that_doesnt_build_fails_the_step_before_compose(
+    fx: Fixture,
+) -> None:
+    fx.branch(WEB_BRANCH)
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    (fx.stubs / "docker").write_text(BUILDX_WEB_FAILS, encoding="utf-8")
+    (fx.stubs / "docker").chmod(0o755)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "image") == "FAIL"
+    assert "didn't build the room's image" in done.stdout
+    assert len(by_kind(fx.docker(), "buildx")) == 2
+    assert by_kind(fx.docker(), "compose") == []
+
+
+# --------------------------------------------------------------------------------------------------
+# The room's published content (spec 002, T080; contracts/resume-source.md §5): in the container phase, the room built
+# without drafts, with main's policy mounted; then main's tools/gates/content_check.py, on the host, over the export
+# and that build's room-data.json
+# --------------------------------------------------------------------------------------------------
+ROOM_BRANCH = {**CHANGE, "apps/web/package.json": "{}\n"}
+WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
+MAIN_APPROVALS = '{"schema": 1, "approvals": []}\n'
+
+
+def web_builds(calls: list[dict]) -> list[dict]:
+    return [c for c in by_kind(calls, "run") if c["command"] == WEB_BUILD]
+
+
+def on_main(fx: Fixture, files: dict[str, str]) -> None:
+    git(fx.main, "switch", "-q", "main")
+    for rel, text in files.items():
+        write(fx.main / rel, text)
+    git(fx.main, "add", "-f", "--", *files)
+    git(fx.main, "commit", "-qm", "main's policy")
+
+
+def test_the_room_is_built_without_drafts_and_its_content_checked_from_main(
+    fx: Fixture,
+) -> None:
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(ROOM_BRANCH)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = fx.docker()
+    (build,) = web_builds(calls)
+    argv = build["argv"]
+    # --network none, and the scripts off, so a checkout's prebuild (which runs git) never runs here.
+    assert has(argv, "--network", "none")
+    assert has(argv, "--env", "ROOM_DRAFTS=")
+    assert has(argv, "--env", "ROOM_POLICY_DIR=/policy")
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert build["policy_readonly"] is True
+    # After the container's other steps.
+    assert calls.index(build) > calls.index(make_runs(calls)[-1])
+    (check,) = fx.logged("content_check")
+    assert check["isolated"] and check["no_bytecode"]
+    flags = dict(zip(check["argv"][::2], check["argv"][1::2]))
+    # The whole dist/, which the check scans for any unapproved file's text, room-data.json's claims aside.
+    assert set(flags) == {"--tree", "--dist", "--policy-dir"}
+    assert flags["--dist"].endswith("/work/apps/web/dist")
+    # The digests come from the export, the commit's own read-only tree, not the build's working copy.
+    assert Path(flags["--tree"]).name == "export"
+    assert status_of(done, "content-build") == "PASS"
+    assert status_of(done, "content") == "PASS"
+
+
+def test_the_build_gets_mains_policy_never_the_branchs(fx: Fixture) -> None:
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the branch approving itself"]}\n',
+        }
+    )
+    done = gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert status_of(done, "content") == "PASS"
+
+
+def test_a_tag_named_main_never_stands_in_for_the_branch(fx: Fixture) -> None:
+    # git resolves a bare `main` to refs/tags/main before refs/heads/main, and an agent session can make that tag:
+    # the gate reads refs/heads/main, as spec 003's check reads its policy.
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    sha = fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/content-approvals.json": '{"schema": 1, "approvals": ["the tag approving itself"]}\n',
+        }
+    )
+    # The tag is made while the gate runs, at the container phase's first docker run, since the export stops on one
+    # made before it (fix/000-main-ref); the room's build, the phase's last, then runs beside it.
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = TAG_MAIN_DURING_RUN.replace("@REPO@", repr(str(fx.main)))
+    write(fx.stubs / "docker", stand_in.replace("@SHA@", repr(sha)), 0o755)
+    done = gate(fx, "feature")
+    # The tag is there before the room's build reads main's policy: a docker run, which made it, came first.
+    assert by_kind(fx.docker(), "run")[0]["command"] != WEB_BUILD
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert status_of(done, "content") == "PASS"
+    assert status_of(done, "main-refs") == "FAIL"
+
+
+def test_with_no_policy_on_main_the_build_gets_an_empty_one(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {}
+
+
+# Spec 004, P-10 (FR-053; contracts/intake-amendments.md §12): main's caps join the policy the build reads.
+MAIN_HEADER = '{"schema": 1, "header": {}}\n'
+MAIN_CAPS = '{"schema": 1, "room": {"total_gzip_bytes": 1}}\n'
+
+
+def test_the_build_gets_mains_caps_read_only_beside_the_other_policy_files(
+    fx: Fixture,
+) -> None:
+    on_main(
+        fx,
+        {
+            "assets/policy/content-approvals.json": MAIN_APPROVALS,
+            "assets/policy/resume-header.json": MAIN_HEADER,
+            "assets/policy/caps.json": MAIN_CAPS,
+        },
+    )
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/caps.json": '{"schema": 1, "room": {"total_gzip_bytes": 999999999}}\n',
+        }
+    )
+    done = gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    # main's three files, as the names the build reads, never the branch's caps; the mount is read-only.
+    assert build["policy"] == {
+        "caps.json": MAIN_CAPS,
+        "content-approvals.json": MAIN_APPROVALS,
+        "resume-header.json": MAIN_HEADER,
+    }
+    assert build["policy_readonly"] is True
+    assert has(build["argv"], "--env", "ROOM_POLICY_DIR=/policy")
+    assert status_of(done, "content-build") == "PASS"
+
+
+def test_without_caps_on_main_the_build_gets_none(fx: Fixture) -> None:
+    # The compositor then takes its defaults (contracts/intake-amendments.md §8).
+    on_main(fx, {"assets/policy/content-approvals.json": MAIN_APPROVALS})
+    fx.branch(
+        {
+            **ROOM_BRANCH,
+            "assets/policy/caps.json": MAIN_CAPS,
+        }
+    )
+    gate(fx, "feature")
+    (build,) = web_builds(fx.docker())
+    assert build["policy"] == {"content-approvals.json": MAIN_APPROVALS}
+    assert build["policy_readonly"] is True
+
+
+def test_a_build_that_publishes_a_draft_fails_the_gate(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    (fx.logs / "content_check.control").write_text(
+        "1\nFAIL apps/web/content/resume.yaml: published, and main doesn't approve its SHA-256",
+        encoding="utf-8",
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "content") == "FAIL"
+
+
+def test_a_build_that_fails_runs_no_content_check(fx: Fixture) -> None:
+    fx.branch(ROOM_BRANCH)
+    fx.control(web_build_fails=True)
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "content-build") == "FAIL"
+    assert status_of(done, "content") == "FAIL"
+    assert fx.logged("content_check") == []
+
+
+def test_a_commit_without_the_room_has_no_content_steps(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert web_builds(fx.docker()) == []
+    assert fx.logged("content_check") == []
+    with pytest.raises(AssertionError):
+        status_of(done, "content")
+
+
+# --------------------------------------------------------------------------------------------------
+# The agents' engine answers one docker version, within a bound, before the image step builds on it (as make image
+# asks it since tasks.md T167)
+# --------------------------------------------------------------------------------------------------
+# A docker whose agents' engine is down. Every call to that engine is logged, then refused at once ("refuses"), or held
+# as a forward that takes the connection and never answers would hold it ("hangs"), here until HELD_FOR, the test's
+# own cap, and then refused. Calls to this machine's engine go on to the stand-in.
+ENGINE_DOWN = r"""#!/usr/bin/env python3
+import json, os, sys, time
+here = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+if os.environ.get("DOCKER_HOST") != "tcp://198.18.0.1:2376":
+    real = os.path.join(here, "docker.real")
+    os.execv(real, [real, *args])
+docker_env = {k: v for k, v in os.environ.items() if k.startswith("DOCKER_")}
+with open(os.path.join(here, "docker.calls"), "a", encoding="utf-8") as handle:
+    handle.write(json.dumps({"argv": args, "env_keys": sorted(os.environ), "docker_env": docker_env}) + "\n")
+if "@MODE@" == "hangs":
+    time.sleep(@HELD@)
+print("Cannot connect to the Docker daemon at tcp://198.18.0.1:2376. Is the docker daemon running?", file=sys.stderr)
+sys.exit(1)
+"""
+HELD_FOR = 20
+
+
+def engine_down(fx: Fixture, mode: str) -> None:
+    (fx.stubs / "docker").rename(fx.stubs / "docker.real")
+    stand_in = ENGINE_DOWN.replace("@MODE@", mode).replace("@HELD@", str(HELD_FOR))
+    write(fx.stubs / "docker", stand_in, 0o755)
+
+
+def on_engine(calls: list[dict]) -> list[dict]:
+    """The docker calls made to the agents' engine."""
+    return [c for c in calls if c["docker_env"].get("DOCKER_HOST") == ENGINE]
+
+
+def test_the_image_step_asks_the_agents_engine_for_its_version_before_it_builds(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    calls = on_engine(fx.docker())
+    # One docker version, with the Author's certificate, then the gateway's image, then the compose images.
+    assert [c["argv"][:1] for c in calls] == [["version"], ["buildx"], ["compose"]]
+    assert calls[0]["argv"] == ["version"]
+    assert calls[0]["docker_env"] == {
+        "DOCKER_HOST": ENGINE,
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": f"{fx.home}/.config/h4reet-ai/agents-engine/docker",
+    }
+    assert status_of(done, "image") == "PASS"
+
+
+def test_an_engine_that_refuses_fails_the_image_step_with_dockers_reason_and_builds_nothing(
+    fx: Fixture,
+) -> None:
+    fx.branch(CHANGE)
+    engine_down(fx, "refuses")
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, "image") == "FAIL"
+    line = row(done, "image")
+    assert "didn't answer docker version (it exited 1)" in line
+    assert "nothing was built" in line
+    assert "deploy/agents-engine/engine.sh up" in line
+    # docker's own error, above the step's line.
+    assert "Cannot connect to the Docker daemon at tcp://198.18.0.1:2376" in done.stdout
+    assert [c["argv"] for c in on_engine(fx.docker())] == [["version"]]
+    # The steps after it still ran.
+    assert status_of(done, "matrix-e") == "SKIP"
+    assert "failing: image FAIL" in summary(done)
+
+
+def test_an_engine_that_never_answers_fails_the_image_step_at_the_bound(
+    fx: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The step itself, in this process, so the bound can be 1 s here rather than the gate's 15. The stand-in holds
+    # each call to the agents' engine for HELD_FOR, so a step that waited on one would take that long.
+    engine_down(fx, "hangs")
+    monkeypatch.setenv("PATH", f"{fx.stubs}:{fx.sysbin}")
+    monkeypatch.setenv("HOME", str(fx.home))
+    monkeypatch.setattr(gm, "ENGINE_PROBE_SECONDS", 1, raising=False)
+    start = time.monotonic()
+    step = gm.image(fx.main, gm.Step("policy"), fx.tmp, "0" * 40)
+    took = time.monotonic() - start
+    assert step.status == "FAIL"
+    (note,) = step.notes
+    assert "didn't answer docker version within 1 s" in note
+    assert "nothing was built" in note
+    assert "deploy/agents-engine/engine.sh up" in note
+    assert took < HELD_FOR / 2, f"the step took {took:.1f} s"
+    assert [c["argv"] for c in on_engine(fx.docker())] == [["version"]]
+
+
+@pytest.mark.parametrize("why", ["policy", "certificate"])
+def test_the_engine_isnt_asked_where_the_step_wouldnt_build(
+    fx: Fixture, why: str
+) -> None:
+    fx.branch(CHANGE)
+    if why == "policy":
+        (fx.logs / "compose_policy.control").write_text(
+            "1\ncompose policy: 1 refusal(s)", encoding="utf-8"
+        )
+    else:
+        shutil.rmtree(fx.home / ".config/h4reet-ai/agents-engine")
+    done = gate(fx, "feature")
+    assert status_of(done, "image") == "FAIL"
+    assert on_engine(fx.docker()) == []

@@ -4,6 +4,8 @@
     python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter fake   # what `make evals` runs
     ... --adapter local --stack dev     # hello on the stack, answered by its local model and nothing else
     ... --adapter bedrock               # the Author only: prod's admin endpoint, charged to prod's meter
+    ... --adapter anthropic             # the Author only, likewise, once prod's route names it (spec 010)
+    ... --suite narration --adapter fake   # spec 002's narration scripts, which run on the fake adapter only
 
 Standard library plus PyYAML. A case is one YAML file in evals/<suite>/cases/:
 
@@ -14,14 +16,18 @@ Standard library plus PyYAML. A case is one YAML file in evals/<suite>/cases/:
       contains: [hello]                         # every string must appear (case-insensitive)
       not_contains: [as an ai language model]   # none may appear (case-insensitive)
       regex: "^Hello"                           # re.search; it must compile
+    fake_only: true                             # optional: the fake adapter alone runs it (below)
 
-Scoring is deterministic: no model judges another. The adapters reach models only through the gateway:
+Scoring is deterministic: no model judges another. A fake-only case scores its own fake_response, as the scaffold's
+hello case does: a live run skips it, and prints and records each one it skipped (spec 007's live runs, 2026-11-08).
+The adapters reach models only through the gateway:
   - local: POST /hello on the stack's api port (contracts/gateway-http.md §2). Only the local route counts. A fallback
     answer stops the run, so the local model is never scored on another provider's answer, and the run spends no more
     of the sub-budget. A 429 waits out its Retry-After, except the daily cap.
-  - bedrock: POST /admin/adapters/bedrock/complete on prod, through scripts/operator.py's AdminClient
-    (contracts/operator-admin.md §5, §6), which never fails over. It sends the prompt as the only message, without
-    hello's fixed system prompt.
+  - bedrock, and anthropic (spec 010, FR-025): POST /admin/adapters/<id>/complete on prod, through
+    scripts/operator.py's AdminClient (contracts/operator-admin.md §5, §6), which never fails over. It sends the prompt
+    as the only message, without hello's fixed system prompt. Its cost is §5's decimal string of micro-USD, read as an
+    integer. A paid adapter runs on prod whatever --stack says, and its history names the adapter and its provider.
 Only real runs write history, to evals/<suite>/history/: per case, the verdict, the route, provider, model, tokens,
 cost, trace ID, and a hash of the answer, never its text; per run, the stack, the commit it runs, and the totals.
 The history folder is untracked, so the file is created without following a link and never replaces one.
@@ -39,6 +45,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -63,8 +70,62 @@ HELLO_MAX_OUTPUT_TOKENS = (
 )
 RETRIES = 5
 RETRY_CAP_S = 60.0
-CASE_KEYS = {"id", "description", "prompt", "fake_response", "expect"}
+CASE_KEYS = {
+    "id",
+    "description",
+    "prompt",
+    "fake_response",
+    "expect",
+    "twin",
+    "kind",
+    "fake_only",
+}
+# Spec 007's twin cases (its FR-049): what the case asks the twin, and what kind of case it is.
+TWIN_KEYS = {"feature", "path", "turns"}
+TWIN_PATHS = {"engineer", "non-engineer"}
+TWIN_KINDS = {"golden", "gap"}
+TWIN_ROLES = {"visitor", "twin"}
+# Spec 007's readiness file (its FR-031), the Author's: its thresholds.golden is the share a path with ten or more golden
+# cases needs, which the summary reads as information (golden_share, golden_bar), with evals/twin_readiness.py's own
+# default when the file gives none (the review of c52655f7; plan.md D31).
+READINESS_FILE = Path("config") / "twin-readiness.yaml"
+GOLDEN_SHARE_DEFAULT = 0.9
+# Suites that only the fake adapter runs. Spec 002's narration cases (contracts/narration.md §2) score prepared
+# scripts, not a model: a local run would send them to a stack's /hello, and the other adapter would charge prod's meter.
+FAKE_ONLY_SUITES = {"narration"}
 EXPECT_KEYS = {"contains", "not_contains", "regex"}
+# The red-team detectors' fold (redteam/run.py's FOLDS and fold, which a test holds these to; spec 007's plan, D35): the
+# scorer reads an answer, and a case's words beside it, as the detectors read an answer, so typography a model varies
+# (a non-breaking hyphen, a curly apostrophe, a dash) fails no check, and a zero-width character hides no word.
+FOLDS = {
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201a": "'",
+    "\u201b": "'",
+    "\u02bc": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u201e": '"',
+    "\u201f": '"',
+    "\u2010": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2015": "-",
+    "\u2212": "-",
+}
+_FOLD = str.maketrans(FOLDS)
+
+
+def fold(text: str) -> str:
+    """A text as the red-team's detectors read it: NFKC, then no format character, then FOLDS."""
+    text = unicodedata.normalize("NFKC", text)
+    return "".join(c for c in text if unicodedata.category(c) != "Cf").translate(_FOLD)
+
+
+# The paid adapters, prod's alone, by their routing.yaml ID, and each one's provider (spec 010, FR-025): nothing infers
+# a provider from a file's name.
+PAID = {"bedrock": "aws.bedrock", "anthropic": "anthropic"}
 
 Reply = dict[str, Any]
 Adapter = Callable[[dict[str, Any]], Reply]
@@ -90,6 +151,10 @@ def load_cases(suite: str) -> list[dict[str, Any]]:
         unknown = set(case) - CASE_KEYS
         if unknown:
             raise AdapterError(f"{path}: unknown keys {sorted(unknown)}")
+        if "twin" in case or "kind" in case:
+            check_twin(path, case)
+        if not isinstance(case.get("fake_only", False), bool):
+            raise AdapterError(f"{path}: fake_only is true or false")
         expect = case.get("expect") or {}
         if not isinstance(expect, dict) or set(expect) - EXPECT_KEYS:
             raise AdapterError(f"{path}: expect takes only {sorted(EXPECT_KEYS)}")
@@ -121,17 +186,91 @@ def load_cases(suite: str) -> list[dict[str, Any]]:
     return cases
 
 
+def check_twin(path: Path, case: dict[str, Any]) -> None:
+    """A twin case's `twin` and `kind` (spec 007, plan §8): the turn the twin's pipeline answers, and golden or gap."""
+    twin, kind = case.get("twin"), case.get("kind")
+    if kind not in TWIN_KINDS:
+        raise AdapterError(f"{path}: kind is one of {sorted(TWIN_KINDS)}")
+    if not isinstance(twin, dict) or set(twin) != TWIN_KEYS:
+        raise AdapterError(f"{path}: twin is exactly {sorted(TWIN_KEYS)}")
+    if not isinstance(twin["feature"], str) or not re.fullmatch(
+        r"[a-z0-9][a-z0-9_-]{0,63}", twin["feature"]
+    ):
+        raise AdapterError(f"{path}: twin.feature is a selectable's ID or free_talk")
+    if twin["path"] not in TWIN_PATHS:
+        raise AdapterError(f"{path}: twin.path is engineer or non-engineer")
+    turns = twin["turns"]
+    if not isinstance(turns, list) or not all(
+        isinstance(t, dict)
+        and set(t) == {"role", "text"}
+        and t["role"] in TWIN_ROLES
+        and isinstance(t["text"], str)
+        for t in turns
+    ):
+        raise AdapterError(f"{path}: twin.turns is a list of {{role, text}}")
+
+
+def twin_topic(case_id: str) -> str:
+    """A generated case's corpus file, from its ID: twin-04-hobbies-and-travel-q1-engineer is 04-hobbies-and-travel."""
+    match = re.fullmatch(
+        r"twin-(.+?)-(?:q\d+|gap-\d+)-(?:engineer|non-engineer)", case_id
+    )
+    return match.group(1) if match else case_id
+
+
+def golden_share(root: Path | None = None) -> float:
+    """The readiness file's golden share, read as evals/twin_readiness.py reads it: thresholds.golden when it's a
+    number, else that file's default, 0.9, as also when the file is missing or doesn't parse (readiness then marks
+    nothing ready)."""
+    try:
+        doc = yaml.safe_load(
+            ((root or REPO) / READINESS_FILE).read_text(encoding="utf-8")
+        )
+    except (OSError, yaml.YAMLError):
+        return GOLDEN_SHARE_DEFAULT
+    thresholds = doc.get("thresholds") if isinstance(doc, dict) else None
+    share = (
+        thresholds.get("golden", GOLDEN_SHARE_DEFAULT)
+        if isinstance(thresholds, dict)
+        else GOLDEN_SHARE_DEFAULT
+    )
+    return share if isinstance(share, int | float) else GOLDEN_SHARE_DEFAULT
+
+
+def golden_bar(n: int, share: float) -> int:
+    """The passes a path's n golden cases need (spec 007's FR-031, amended 2026-11-08): all but one when it has two to
+    nine, its one when it has one, and the readiness file's share from ten. evals/twin_readiness.py's golden_bar is the
+    rule; a test holds this one to it."""
+    if n < 10:
+        return max(n - 1, 1) if n > 0 else 0
+    return next((k for k in range(n + 1) if k / n >= share), n)
+
+
+def golden_line(topic: str, path: str, passed: int, total: int, share: float) -> str:
+    """A topic's and path's summary line: its golden cases passed, against the bar that applies."""
+    return (
+        f"twin {topic} {path}: {passed} of {total} golden cases passed"
+        f" ({passed / total:.0%}; the bar is {golden_bar(total, share)} of {total})"
+    )
+
+
 def score(case: dict[str, Any], answer: str) -> list[str]:
-    """The reasons a case failed; an empty list means it passed."""
+    """The reasons a case failed; an empty list means it passed. The answer, and each of the case's words beside it,
+    are read folded (D35); a regex reads the folded answer as written, and a reason names the case's words as written."""
     expect = case.get("expect") or {}
-    low = answer.lower()
+    seen = fold(answer)
+    low = seen.lower()
     reasons = [
-        f"missing {s!r}" for s in expect.get("contains", []) if s.lower() not in low
+        f"missing {s!r}"
+        for s in expect.get("contains", [])
+        if fold(s).lower() not in low
     ]
     reasons += [
-        f"contains {s!r}" for s in expect.get("not_contains", []) if s.lower() in low
+        f"contains {s!r}"
+        for s in expect.get("not_contains", [])
+        if fold(s).lower() in low
     ]
-    if expect.get("regex") and not re.search(expect["regex"], answer):
+    if expect.get("regex") and not re.search(expect["regex"], seen):
         reasons.append(f"doesn't match /{expect['regex']}/")
     return reasons
 
@@ -252,12 +391,12 @@ def local_adapter(
     return call
 
 
-def bedrock_adapter(suite: str) -> Adapter:
-    """Prod's admin endpoint, with the operator token, through scripts/operator.py's AdminClient (plan §14)."""
+def admin_client(stack: str) -> Any:
+    """scripts/operator.py's AdminClient for a stack, with the operator token, loaded from the tree as data."""
     operator = REPO / "scripts" / "operator.py"
     if not operator.is_file():
         raise AdapterError(
-            "the bedrock adapter needs scripts/operator.py's AdminClient, which tasks.md T056 creates"
+            "the admin adapters need scripts/operator.py's AdminClient, which tasks.md T056 creates"
         )
     spec = importlib.util.spec_from_file_location("h4_operator", operator)
     if spec is None or spec.loader is None:
@@ -265,12 +404,89 @@ def bedrock_adapter(suite: str) -> Adapter:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    client = module.AdminClient(stack="prod")
+    return module.AdminClient(stack=stack)
+
+
+def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
+    """Spec 007's twin cases: POST /admin/twin/turn on the stack's admin listener, on one named adapter, never failing
+    over (contracts/operator-admin.md §8). The reply adds the guard, the guards that removed a sentence (D42), and the
+    pack's and the prompt's hashes."""
+    client = admin_client(stack)
+
+    def call(case: dict[str, Any]) -> Reply:
+        twin = case["twin"]
+        try:
+            answer = client.twin_turn(
+                adapter_id,
+                feature=twin["feature"],
+                path=twin["path"],
+                turns=twin["turns"],
+                reason=f"evals {suite} {case['id']}",
+            )
+        except (
+            Exception
+        ) as exc:  # AdminError carries a status and an error code, never the token
+            status = getattr(exc, "status", None)
+            raise AdapterError(
+                f"{adapter_id}: {exc.__class__.__name__}"
+                + (f", HTTP {status}" if status else "")
+            ) from exc
+        if not isinstance(answer, dict):
+            raise AdapterError(f"{adapter_id}: the reply isn't a JSON object")
+        out = reply(
+            answer.get("text"),
+            answer.get("route"),
+            PAID.get(adapter_id, adapter_id),
+            answer.get("model"),
+            answer.get("usage"),
+            answer.get("cost_micro_usd"),
+            answer.get("trace_id"),
+        )
+        guard = answer.get("guard")
+        out["guard"] = guard if isinstance(guard, str) else None
+        # The guards that removed a sentence, or the claim tags, from the answer delivered (spec 007's plan, D42): names
+        # alone, never words of the answer.
+        names = answer.get("redacted")
+        out["redacted"] = (
+            [
+                n
+                for n in names
+                if isinstance(n, str) and re.fullmatch(r"[a-z_]{1,32}", n)
+            ]
+            if isinstance(names, list)
+            else []
+        )
+        for key in ("pack_sha256", "prompt_sha256"):
+            value = answer.get(key)
+            out[key] = (
+                value
+                if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                else None
+            )
+        return out
+
+    return call
+
+
+def micro_usd(cost: Any) -> Any:
+    """operator-admin.md §5's cost, as an integer: "Costs are decimal strings of micro-USD in both answers, as BigInt
+    can't travel in JSON" (T103's readings). ASCII digits only, at most 18 of them; anything else stays as it came,
+    for reply() to refuse."""
+    if isinstance(cost, str) and re.fullmatch(r"[0-9]{1,18}", cost):
+        return int(cost)
+    return cost
+
+
+def paid_adapter(suite: str, adapter_id: str) -> Adapter:
+    """Prod's admin endpoint for one paid adapter, by its ID, with the operator token, through scripts/operator.py's
+    AdminClient (plan §14; spec 010, FR-025)."""
+    client = admin_client("prod")
+    provider = PAID[adapter_id]
 
     def call(case: dict[str, Any]) -> Reply:
         try:
             answer = client.adapter_complete(
-                "bedrock",
+                adapter_id,
                 messages=[{"role": "user", "content": case["prompt"]}],
                 max_output_tokens=HELLO_MAX_OUTPUT_TOKENS,
                 purpose="eval",
@@ -281,25 +497,30 @@ def bedrock_adapter(suite: str) -> Adapter:
         ) as exc:  # AdminError carries a status and an error code, never the token (§6)
             status = getattr(exc, "status", None)
             raise AdapterError(
-                f"bedrock: {exc.__class__.__name__}"
+                f"{adapter_id}: {exc.__class__.__name__}"
                 + (f", HTTP {status}" if status else "")
             ) from exc
         result = answer.get("result") if isinstance(answer, dict) else None
         if not isinstance(result, dict):
             raise AdapterError(
-                "bedrock: the reply has no result (operator-admin.md §5)"
+                f"{adapter_id}: the reply has no result (operator-admin.md §5)"
             )
         return reply(
             result.get("text"),
             "admin",  # the admin endpoint calls the named adapter and never fails over
-            "aws.bedrock",
+            provider,
             result.get("response_model"),
             result.get("usage"),
-            answer.get("cost_micro_usd"),
+            micro_usd(answer.get("cost_micro_usd")),
             answer.get("trace_id"),
         )
 
     return call
+
+
+def bedrock_adapter(suite: str) -> Adapter:
+    """Bedrock's: paid_adapter with its ID, as before spec 010."""
+    return paid_adapter(suite, "bedrock")
 
 
 def stack_ref(stack: str) -> str | None:
@@ -346,35 +567,102 @@ def write_history(suite: str, adapter: str, record: dict[str, Any]) -> Path:
     return folder / name
 
 
-def main(argv: list[str]) -> int:
+def twin_readiness(root: Path = REPO) -> None:
+    """Spec 007's readiness evidence (its FR-031; plan.md D19), printed after the product suite as information:
+    evals/twin_readiness.py, loaded from the tree as data, as the operator CLI is, so make evals's recipe runs no script
+    of its own for it. It prints one line per ready entry, or why not, and never changes the run's exit code."""
+    path = root / "evals" / "twin_readiness.py"
+    try:
+        spec = importlib.util.spec_from_file_location("h4_twin_readiness", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(str(path))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError) as exc:
+        print(
+            f"INFO (twin readiness): {path.name} didn't load ({exc.__class__.__name__})"
+        )
+        return
+    module.main(["--root", str(root)])
+
+
+def main(argv: list[str], *, readiness: bool = False) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--suite", required=True)
-    parser.add_argument(
-        "--adapter", choices=["fake", "local", "bedrock"], default="fake"
-    )
+    parser.add_argument("--adapter", choices=["fake", "local", *PAID], default="fake")
     parser.add_argument("--stack", choices=["prod", "dev"], default="dev")
     args = parser.parse_args(argv)
-    stack = "prod" if args.adapter == "bedrock" else args.stack
+    if args.suite in FAKE_ONLY_SUITES and args.adapter != "fake":
+        print(
+            f"evals: the {args.suite} suite runs on the fake adapter only (spec 002, contracts/narration.md §2)",
+            file=sys.stderr,
+        )
+        return 2
+    stack = "prod" if args.adapter in PAID else args.stack
     started = dt.datetime.now(dt.UTC)
     try:
-        cases = load_cases(args.suite)
-        if args.adapter == "fake":
-            call = fake_adapter
-        elif args.adapter == "local":
-            call = local_adapter(args.stack)
-        else:
-            call = bedrock_adapter(args.suite)
+        loaded = load_cases(args.suite)
+        # A fake-only case scores its own fake_response, so a live run never sends it: no real model is scored
+        # against scripted words, and prod's meter isn't charged for them (spec 007's live runs, 2026-11-08).
+        skipped = (
+            []
+            if args.adapter == "fake"
+            else [c["id"] for c in loaded if c.get("fake_only")]
+        )
+        cases = [c for c in loaded if args.adapter == "fake" or not c.get("fake_only")]
+        for case_id in skipped:
+            print(f"SKIP  {case_id}  (the fake adapter only)")
+        if not cases:
+            raise AdapterError(
+                f"every case in the {args.suite} suite runs on the fake adapter only"
+            )
+        hello_call: Adapter | None = None
+        twin_call: Adapter | None = None
+
+        def adapter_for(case: dict[str, Any]) -> Adapter:
+            """The case's adapter, made when first needed: a twin case goes through the twin's admin route
+            (spec 007), every other case as before."""
+            nonlocal hello_call, twin_call
+            if args.adapter == "fake":
+                return fake_adapter
+            if "twin" in case:
+                if twin_call is None:
+                    adapter_id = args.adapter if args.adapter in PAID else "local"
+                    twin_call = twin_adapter(args.suite, stack, adapter_id)
+                return twin_call
+            if hello_call is None:
+                hello_call = (
+                    local_adapter(args.stack)
+                    if args.adapter == "local"
+                    else paid_adapter(args.suite, args.adapter)
+                )
+            return hello_call
+
         results, failed = [], 0
+        twin_rates: dict[tuple[str, str], list[int]] = {}
+        prompt_hashes: set[str] = set()
         for case in cases:
             begun = time.monotonic()
-            answer = call(case)
+            answer = adapter_for(case)(case)
             elapsed_ms = round((time.monotonic() - begun) * 1000)
             reasons = score(case, answer["answer"])
             failed += bool(reasons)
             verdict = "FAIL" if reasons else "PASS"
+            # A failing twin case names the guard that withheld its answer, if one did (the review of c52655f7; D31),
+            # and the guards that removed a sentence from it (D42).
+            withheld = (
+                [f"withheld by {answer['guard']}"]
+                if reasons and answer.get("guard")
+                else []
+            ) + (
+                [f"redacted by {', '.join(answer['redacted'])}"]
+                if reasons and answer.get("redacted")
+                else []
+            )
             print(
                 f"{verdict}  {case['id']}"
-                + (f"  ({'; '.join(reasons)})" if reasons else "")
+                + (f"  ({'; '.join(reasons + withheld)})" if reasons else "")
             )
             results.append(
                 {
@@ -396,19 +684,47 @@ def main(argv: list[str]) -> int:
                     "answer_sha256": hashlib.sha256(
                         answer["answer"].encode("utf-8")
                     ).hexdigest(),
+                    # Spec 007 (its FR-050): the twin's guard, and the pack's hash the answer was grounded in.
+                    **(
+                        {
+                            "feature": case["twin"]["feature"],
+                            "guard": answer.get("guard"),
+                            "redacted": answer.get("redacted", []),
+                            "pack_sha256": answer.get("pack_sha256"),
+                        }
+                        if "twin" in case
+                        else {}
+                    ),
                 }
             )
+            if case.get("kind") == "golden":
+                rate = twin_rates.setdefault(
+                    (twin_topic(case["id"]), case["twin"]["path"]), [0, 0]
+                )
+                rate[0] += not reasons
+                rate[1] += 1
+            if "twin" in case and answer.get("prompt_sha256"):
+                prompt_hashes.add(answer["prompt_sha256"])
         cost = sum(r["cost_micro_usd"] for r in results)
+        # Each topic's and path's Golden Q&A pass rate, against the bar that applies: information, which fails nothing
+        # here, as the exit status follows every case's verdict (spec 007, FR-031 as amended on 2026-11-08;
+        # evals/twin_readiness.py reads the committed history), at the readiness file's share.
+        share = golden_share()
+        for (topic, path), (passed, total) in sorted(twin_rates.items()):
+            print(golden_line(topic, path, passed, total, share))
         if args.adapter != "fake":
             record = {
                 "suite": args.suite,
                 "adapter": args.adapter,
+                # Spec 010 (FR-025): the adapter's provider, named, never inferred from the file's name.
+                "provider": PAID.get(args.adapter, args.adapter),
                 "stack": stack,
                 "stack_ref": stack_ref(stack),
                 "started": started.isoformat(timespec="seconds"),
                 "finished": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
                 "cases": len(cases),
                 "failed": failed,
+                "skipped": skipped,
                 "cost_micro_usd": cost,
                 "tokens": {
                     k: sum(r["usage"][k] for r in results)
@@ -416,6 +732,9 @@ def main(argv: list[str]) -> int:
                 },
                 "results": results,
             }
+            if prompt_hashes:
+                # The prompt hashes the twin's cases ran at (spec 007, FR-050): one, unless the stack changed mid-run.
+                record["prompt_sha256"] = sorted(prompt_hashes)
             print(
                 f"history: {write_history(args.suite, args.adapter, record).relative_to(EVALS.parent)}"
             )
@@ -424,10 +743,13 @@ def main(argv: list[str]) -> int:
         return 2
     print(
         f"evals {args.suite} ({args.adapter}): {len(cases) - failed} passed, {failed} failed"
+        + (f", {len(skipped)} skipped (the fake adapter only)" if skipped else "")
         + (f", {cost} micro-USD" if args.adapter != "fake" else "")
     )
+    if readiness and args.suite == "product":
+        twin_readiness()
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main(sys.argv[1:], readiness=True))

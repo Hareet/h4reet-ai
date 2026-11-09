@@ -1,0 +1,6 @@
+rule: RT3
+file: apps/web/room/ui-words.yaml
+path: words.sign.no_call_yet
+why: a digit outside a slot in a UI word
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, sign.no_call_yet], set: no call in 24 hours }

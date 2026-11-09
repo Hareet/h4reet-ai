@@ -1,0 +1,6 @@
+rule: RG3
+file: apps/web/room/catalog/fx-sign.yaml
+path: stylized_scale
+why: a stylized scale over 4, which the loader refuses as it reads the file
+edits:
+  - { file: apps/web/room/catalog/fx-sign.yaml, at: [stylized_scale], set: 5 }

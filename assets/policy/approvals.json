@@ -1,0 +1,467 @@
+{
+  "schema": 1,
+  "approvals": [
+    {
+      "id": "A-20261107-bag",
+      "sha256": "635cd52f0e4e359a7d8d191ead08b92781faf411a7cc54b39c82a06f400ba7d7",
+      "path_when_approved": "assets/room/bag.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-bicycle",
+      "sha256": "a135f413f356b57a2330057330e25851b565137bf0800be317aff6e218387e83",
+      "path_when_approved": "assets/room/bicycle.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-busy-sign",
+      "sha256": "5b004a8d57b31aeb7cb2549d4e4796e63e5c8eac5c9fc39d280c4f40dfb66834",
+      "path_when_approved": "assets/room/busy-sign.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-chalkboard",
+      "sha256": "ead06b65eb1da86a9a531f2dba76caaa31807dcb4336292d408183fb0e0887a6",
+      "path_when_approved": "assets/room/chalkboard.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-charger",
+      "sha256": "847444b98e04a2a2086fe3d2991c870d26756ae6bc21ae1fb8ac27df2c7a7e65",
+      "path_when_approved": "assets/room/charger.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-desk-screen",
+      "sha256": "e9cf3a7dcc44cd55859dcbebf918ed5b4f38ec659c025e3c3294d5fa2107a3b1",
+      "path_when_approved": "assets/room/desk-screen.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": true,
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-dog-sign",
+      "sha256": "e45123bc258b1c20ce82bcaa077e2c9f598008084a08ab0c422a0446982fec7a",
+      "path_when_approved": "assets/room/dog-sign.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-helmet",
+      "sha256": "a458798f92cb556ea1ad31f865a83e811d18e2184e9ea4f57e3b4cfafd10f9e2",
+      "path_when_approved": "assets/room/helmet.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-laptop-stand",
+      "sha256": "869193ea7baff8d87b8603d92a5d847dce8a5fa33c500c682b9190f2b8447198",
+      "path_when_approved": "assets/room/laptop-stand.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-laptop",
+      "sha256": "3a3a4084224495356d6fd3cd75c826bebf75fee02e3958a7bbe8446b638f0fe9",
+      "path_when_approved": "assets/room/laptop.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": true,
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-neon-sign",
+      "sha256": "6a3f066de44a5bb0fa41b02fa565b0e2c20047746e48f671422e30e70269cf58",
+      "path_when_approved": "assets/room/neon-sign.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-notebook",
+      "sha256": "eae2e0d6ad05fe539659ed6e28ef847a7c9a4036b41843992de8644da1e8d1a8",
+      "path_when_approved": "assets/room/notebook.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-room-shell",
+      "sha256": "7ef950f7dea73f9c64e724375aa1568dbed4e12b9e137e37029b26f227c71846",
+      "path_when_approved": "assets/room/room-shell.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-snowboard",
+      "sha256": "f04dd193ad29f07babd22db35b7361d9ee3b3d514b00a40b5192d302c11e3c6b",
+      "path_when_approved": "assets/room/snowboard.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-split-keyboard",
+      "sha256": "5c987d38380d61cbc88806d32534aad38f55e7760d09615eb212b6d6fcd27930",
+      "path_when_approved": "assets/room/split-keyboard.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-vertical-mouse",
+      "sha256": "ac009724b3b7f534fcb65727a3f65d06be75e678a61b058aaae39e22a0e7155b",
+      "path_when_approved": "assets/room/vertical-mouse.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-wall-art",
+      "sha256": "dfbad1fc0a7b5ddcb05ee3f700e38996124a0c56d48c7f44cb2a4aa6034a7e01",
+      "path_when_approved": "assets/room/wall-art.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-wall-outlet",
+      "sha256": "ec3c6384ed77b696dcbf1d38cfe19a746b28097f798d3a19ef0669ce4b741915",
+      "path_when_approved": "assets/room/wall-outlet.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-wall-window",
+      "sha256": "2657859b32185b45c0faf5ad0049e75e300531a557db3d44eefa6917ff083fbf",
+      "path_when_approved": "assets/room/wall-window.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-window-view",
+      "sha256": "d030f41e7a98e3fd87338467456dab4c1f182e168408add7906f7e1bdd18b1e9",
+      "path_when_approved": "assets/room/window-view.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": true,
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-work-desk",
+      "sha256": "1568a2917a8d9e4238cd810f92cb11469bb9c67c83ab174eed39b2bc10aaf22c",
+      "path_when_approved": "assets/room/work-desk.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261107-chalkboard-2",
+      "sha256": "24482ceb903c46fa0e116347651f0d09b40330172d4240dc9c97277acf3c137d",
+      "path_when_approved": "assets/room/chalkboard.glb",
+      "kind": "room",
+      "date": "2026-11-07",
+      "confirms": {
+        "likeness_accepted": "not_applicable",
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "room": {
+        "window_view_recreated": "not_applicable",
+        "screens_plain_live_face": "not_applicable",
+        "artwork_original_or_absent": true
+      },
+      "disclosure_line": null,
+      "reason": "Judged on the lookdev page on 2026-11-07"
+    }
+  ]
+}

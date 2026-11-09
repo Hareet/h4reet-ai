@@ -289,11 +289,13 @@ CLAUDE.md                        [P] the lines §15 lists
   - The compose project name `h4reet-<stack>` prefixes every container, network, and volume.
   - Each stack has its own port range, bound to the literal `127.0.0.1`, which no env file can change:
 
-    | Stack | x000 api | x001 Langfuse | x002 Grafana | x003 admin | x004 OTLP |
-    |---|---|---|---|---|---|
-    | prod | 18000 | 18001 | 18002 | 18003 | 18004 |
-    | dev | 18100 | 18101 | 18102 | 18103 | 18104 |
-    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 |
+    | Stack | x000 api | x001 Langfuse | x002 Grafana | x003 admin | x004 OTLP | x005 site |
+    |---|---|---|---|---|---|---|
+    | prod | 18000 | 18001 | 18002 | 18003 | 18004 | 18005 |
+    | dev | 18100 | 18101 | 18102 | 18103 | 18104 | 18105 |
+    | dev-cpu | 18300 | 18301 | 18302 | 18303 | 18304 | 18305 |
+
+    x005, the room's site, is spec 002's ([its web-serving contract](../002-the-room/contracts/web-serving.md)).
 
     Dev-cpu's ports are published on the host's 127.0.0.1 by RootlessKit, running as `h4agents`. Only the Author's own processes can open them, which lets the Author look at dev-cpu's Grafana and Langfuse. The sandbox's proxy refuses loopback, so agent sessions can't, and engine containers can't reach the host's stacks either ([contracts/agents-engine.md](contracts/agents-engine.md) rows E4, E9, E14).
 
@@ -356,7 +358,7 @@ The bases the gates and the devcontainer use aren't compose services but are pin
 
 - **Server:** llama.cpp `llama-server`. GPU and CPU images come from the same build (b11459, commit `f498f864f`), so both run the same server code, flags, API, and metrics; only the backend differs (ADR 0019). Both answer at `http://model-server:8080/v1` (OpenAI-compatible), `/health` (503 while loading, 200 when ready), and `/metrics`.
 - **Commands.**
-  - GPU: `-m /models/${MODEL_FILE} --alias ${MODEL_ALIAS} --host 0.0.0.0 --port 8080 -c ${MODEL_CTX_SIZE} -np ${MODEL_PARALLEL} -ngl 999 --jinja --metrics --no-webui --no-slots`. Prod runs `-c 32768 -np 4` (four slots of 8K); dev on the GPU runs `-c 8192 -np 2`.
+  - GPU: `-m /models/${MODEL_FILE} --alias ${MODEL_ALIAS} --host 0.0.0.0 --port 8080 -c ${MODEL_CTX_SIZE} -np ${MODEL_PARALLEL} -ngl 999 --jinja --metrics --no-webui --no-slots`. Prod runs `-c 32768 -np 2` (two slots of 16K, each holding a spec 007 twin turn; four slots of 8K until 2026-11-08, which refused every twin turn: spec 007's plan, D27); dev on the GPU runs `-c 8192 -np 2`.
   - CPU: the same, with `-ngl 0 -t ${MODEL_THREADS}` (4) and `-c 8192 -np 2`.
   - What's left out, and why:
     - `--no-slots`, because `/slots` exposes prompts in flight;
@@ -631,7 +633,7 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
     - query strings, which are stripped from `url.full`.
 
     The `authorization` and `cookie` attributes are deleted.
-  - The collector's own metrics are on 8888, and Prometheus scrapes them.
+  - The collector's own metrics are pushed every 10 s to Prometheus's OTLP receiver, where the gateway's arrive, with the stack's labels from the collector's telemetry resource, so they carry a start time and a fresh collector's first batch counts (tasks.md T185). They go straight there, not through the collector's own receiver, because the counters that report a refusing receiver or a full queue mustn't wait in that same pipeline. 8888 still serves them, and Prometheus scrapes it for `up` and its own `scrape_*` series, keeping none of the collector's samples ([contracts/telemetry.md](contracts/telemetry.md) §4.3, §6.4, §6.6).
 - **Langfuse v4** (ADR 0004), web and worker on one tag:
   - **Postgres:** `DATABASE_URL` to `langfuse-db`.
   - **ClickHouse:** `CLICKHOUSE_URL` (HTTP 8123), `CLICKHOUSE_MIGRATION_URL` (native 9000), user and password, `CLICKHOUSE_CLUSTER_ENABLED=false`.
@@ -653,8 +655,8 @@ Integration tests prove each case ([§7](#7-tests-unit-contract-integration-live
 - **SeaweedFS** (ADR 0022): `weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json`. `deploy/seaweedfs/entrypoint.sh` renders `s3.json` from `SEAWEEDFS_S3_ACCESS_KEY` and `SEAWEEDFS_S3_SECRET_KEY`, starts the server, waits for the master, creates the `langfuse` bucket idempotently with `weed shell`, and waits. Usage reporting is off where the pinned version has a switch for it.
 - **Prometheus 3:**
   - `--web.enable-otlp-receiver`, with `otlp.promote_resource_attributes: [service.name, service.namespace, deployment.environment.name]` and `out_of_order_time_window: 30m`.
-  - `--enable-feature=created-timestamp-zero-ingestion` (experimental in 3.15): a 0 at each series' start time, so a new counter's first increment and a histogram's first observation count in `rate()` and `increase()`. T065's §1.5 found one hello after a start invisible without it (tasks.md T149). It covers what is pushed over OTLP, not the collector's scraped counters (T185).
-  - Scrapes every 15 s (the model server every 5 s): the model server, the collector, Loki, Grafana, ClickHouse (its Prometheus endpoint turned on), and itself.
+  - `--enable-feature=created-timestamp-zero-ingestion` (experimental in 3.15): a 0 at each series' start time, so a new counter's first increment and a histogram's first observation count in `rate()` and `increase()`. T065's §1.5 found one hello after a start invisible without it (tasks.md T149). It covers what is pushed over OTLP, not scraped series, which carry no start time; so the collector pushes its own metrics too (T185).
+  - Scrapes every 15 s (the model server every 5 s): the model server, the collector (keeping only `up`, since the collector pushes its metrics), Loki, Grafana, ClickHouse (its Prometheus endpoint turned on), and itself.
   - Retention 30 days or 2 GB. No admin or lifecycle API.
 - **Loki 3:** single binary on the filesystem, TSDB schema v13, structured metadata on, 30-day retention through the compactor, `analytics.reporting_enabled: false`. Third-party services' logs stay in Docker's `local` driver (`make logs`): shipping them would mount the host's container-log directory into the collector, which crosses stacks (FR-020).
 - **Grafana** (ADR 0004):
@@ -769,7 +771,7 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
     - gitleaks 8.30.1, from its pinned image;
     - pytest 9.1.1 and pyyaml 6.0.3, from `requirements-tools.txt` with hashes, into `/opt/tools`;
     - the lint toolchain in `/opt/h4reet/lint-node`.
-  - **Behind build arguments that default to off:** Claude Code 2.1.296, the host's version (`WITH_CLAUDE=0`). It updated itself from 2.1.294 during Phase 1, so its pin moved as T013 says. The early patch's `DISABLE_AUTOUPDATER` reaches only this project's sessions, and the host's copy moved again, to 2.1.296, before the gate's first run on main (2026-10-11), so the pin followed. And Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
+  - **Behind build arguments that default to off:** Claude Code 2.1.296, the host's version (`WITH_CLAUDE=0`). It updated itself from 2.1.294 during Phase 1, so its pin moved as T013 says. The early patch's `DISABLE_AUTOUPDATER` reaches only this project's sessions, and the host's copy moved again, to 2.1.296, before the gate's first run on main (2026-10-11), so the pin followed. It moved again, to 2.1.301, by 2026-10-17, and the Author won't pin the global install their other projects share, so [ADR 0023](../../docs/adr/0023-claude-code-pin-is-a-floor.md) (proposed) makes this pin a floor, below. And Terraform (`WITH_TERRAFORM=0`; spec 001 pins it).
   - **`devcontainer.json`:**
     - no features (they are fetched unpinned), no `initializeCommand`, no Docker socket, no home mounts;
     - `runArgs: ["--cap-drop=ALL", "--security-opt=no-new-privileges"]`;
@@ -783,6 +785,12 @@ The steps, each asserted from a trace (T), a metric (M), or a log (L). Every met
     - gitleaks via `docker cp` from the pinned image into `~/.local/bin`;
     - the lint toolchain in `~/.local/share/h4reet/lint-node`.
   - `make toolchain-check` (`tools/gates/toolchain_check.py`) fails on any version drift, Claude Code included. A pin matches its exact version, or a release in its series (`3.12` matches 3.12.3). Claude Code is required on the host, where agent sessions run, and not in the devcontainer, which builds without it. `DISABLE_AUTOUPDATER=1` keeps Claude Code still, since the sandbox's behavior lives in that binary. The Author runs `make tools` on the setup branch before its note is written (tasks.md T013), so the check passes from Phase 1 on; until then it fails, and saying so is its job.
+  - **Proposed: Claude Code's pin is a floor** ([ADR 0023](../../docs/adr/0023-claude-code-pin-is-a-floor.md), 2026-10-18; its code is a patch, `docs/merge-requests/2026-10-18-docs-000-claude-pin-rule.patch`, applied once the Author accepts it). `DISABLE_AUTOUPDATER` holds only this project's sessions, and Claude Code updates itself from the Author's other projects. So `CLAUDE_CODE_VERSION` would name the oldest Claude Code that sessions and the behavioral evals may run:
+    - in `make toolchain-check`, a newer Claude Code is WARN, a row and a line starting `WARN:` that don't fail the check, and an older one is DRIFT. Every other pin stays exact;
+    - the gate's `toolchain` step is WARN then, which its summary line counts and the merge doesn't wait on;
+    - the evals take a Claude Code at the floor or newer, and record the version that ran (§14).
+
+    Until the patch is applied, a newer Claude Code fails the check, as above.
 - **Dependencies:**
   - **npm:** `package-lock.json` is committed, and installs use `npm ci --ignore-scripts`.
   - **Python:** no repository `.venv` and no `pyproject.toml`. pytest comes from the toolchain, or from the Makefile's existing fallback `uv run --no-project --no-config --python "$(command -v python3)" --with-requirements .devcontainer/requirements-tools.txt`, which installs the devcontainer's six pinned packages.
@@ -859,7 +867,7 @@ Every gate this spec adds that can run locally has a make target, and `make chec
 | Evals | `evals` | the product scaffold on `fake`; the agent-config static tier; the behavioral tier when triggered ([§14](#14-evals-and-red-team-scaffolds-agent-configuration-evals)) | PENDING when triggered; PLANNED for a case or a check whose enforcement waits for a patch |
 | Red-team suite | `redteam` | `redteam/run.py` | runs |
 | Forbidden-action matrix | `matrix` | `redteam/forbidden-actions.sh`: stage H everywhere; stage S inside the sandbox | runs |
-| Image build | `image` | the gateway's image, outside compose as `make up` builds it (tasks.md T184), then `docker compose build` (the Telegram stand-in, the probe), on the agents' engine only (any other is refused), and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down. The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
+| Image build | `image` | the gateway's image, outside compose as `make up` builds it (tasks.md T184), then `docker compose build` (the Telegram stand-in, the probe), on the agents' engine only (any other is refused), and the devcontainer image outside the sandbox | the compose images on the agents' engine; SKIP before the engine exists (tasks.md T046), and FAIL "ask the Author: deploy/agents-engine/engine.sh up" once it exists and is down, or doesn't answer. Before it builds, `image`, like `build`, asks the engine for one `docker version` through the relay, stopped at 15 s (`ENGINE_PROBE_SECONDS`; 20 s when `--kill-after` has to end a relay that ignores the stop), as `engine.sh`'s `wait_for_tls` stops each of its tries: the relay has no timeout, and while the forward took connections without answering, `make check` waited at `image` with no end (tasks.md T167). The devcontainer image is built by the Author's gate on the host's engine, because its build needs Ubuntu's mirrors, and the allowlist stays as it is |
 
 `make check` keeps going after a failure and prints PASS, FAIL, SKIP (always with a reason), PENDING, or PLANNED per target, then a summary line. It exits non-zero on any FAIL or PENDING. PLANNED marks enforcement that a patch adds and the Author hasn't applied yet, such as the `pre-commit` hook or an FR-007 name. It works like the matrix's planned rows ([§13](#13-the-forbidden-action-matrix)): the line names the task that writes the patch, the patch clears the mark when it adds the enforcement, and a PLANNED line doesn't fail the run. Spec 000's acceptance requires none (tasks.md T118). Inside the sandbox it sets `npm_config_cache` to `$TMPDIR`, as it already does for `UV_CACHE_DIR`. Its output, pasted whole, goes into every merge-request note (FR-041).
 
@@ -888,6 +896,7 @@ The runner is `tools/gates/run_checks.py`. The Makefile passes it the gates as `
    - the commit object is rehashed against its SHA, and the expected tree is read from it;
    - no `.git/info/attributes` exists;
    - no ref exists under `refs/replace` (`git for-each-ref refs/replace` prints nothing), because the Author's merge and checkouts honor one;
+   - no ref beside `refs/heads/main` exists that a bare `main` names: `main` (a file at the top of `.git`), `refs/main`, or `refs/tags/main`, which git reads before the branch, or `refs/remotes/main` or `refs/remotes/main/HEAD`, which make the name ambiguous. The Author's own `git diff main...<branch>` would read one, so the gate stops, naming it, and looks again before it prints the merge command, since one can be made while it runs (a `main-refs` step fails); and the gate itself reads main only as `refs/heads/main`: its `GNUmakefile`, the merge base, and the ancestry check (fix/000-main-ref). Inside Claude Code, the `reference-transaction` git hook refuses creating or changing any of them, or another ref outside `refs/heads` whose last component is `main` but a remote-tracking branch, and `bash-gate.sh` refuses the spellings it can read (§13);
    - extraction uses tarfile's data filter;
    - the export hashes to that tree.
 
@@ -916,7 +925,7 @@ Every call passes `--config` with the main working tree's `.gitleaks.toml`, `--g
 - the container phase also runs `make validate-config`;
 - the export proof and the makefiles check follow fix/000-agents-make's newer T092 text: one SHA, replace objects off, a refusal of any ref under `refs/replace`, of `info/attributes`, and of a submodule, and a proof that the exported tree's hash is the commit's;
 - the export also refuses, from `git ls-tree -r -t`, any path git takes for its own directory, anywhere in the tree and whether a file, a folder, or a link: `.git` in any case, or as NTFS spells it (trailing dots or spaces, `git~1`, a stream), as git's own verify_path reads a name with `core.protectNTFS` on. The behavioral step's `status` runs git in a tree that holds `.git`, and git would read that tree's config and index. git archive refuses these names too, but only as git's version and `core.protectNTFS` have it (US3 review A, finding 1);
-- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images;
+- the image build runs only after the policy passes or is PLANNED; since T184 it builds the gateway's image first, outside compose, as `make up` does (`h4reet-gateway:<SHA>`, with the engine's proxy), then the compose images. Before it builds, the agents' engine must answer one `docker version` within 15 s (`ENGINE_PROBE_SECONDS`), as `make image` asks it (tasks.md T167), or the step fails, naming the timeout or docker's exit status and `deploy/agents-engine/engine.sh up`, and builds nothing. docker's client sets no limit of its own, so an engine that took the connection and never answered would have held the gate at `image` with no end, as it held `make check` before T167 (2026-10-18, `docs/merge-requests/2026-10-18-fix-000-gate-image-probe.patch`);
 - a WARN status, for an eval-history push prod's collector didn't take;
 - `--contract-replay` adds `--reporter=verbose`, and passes only when a test passed under "recorded live: <adapter>", with the recording's own adapter name, whole, and the contract's " (" after it, so a test under another adapter's name, or one the name only begins, doesn't count (US3 review A, a nit);
 - stage E runs when the branch touches `deploy/agents-engine/` or `.claude/settings.json`, and stays PENDING until `--prove`;
@@ -1061,6 +1070,7 @@ A known gap: gitleaks doesn't see a change made inside a merge commit, so a secr
     - **Thresholds** (`thresholds.yaml`): the forbidden effect happens in 0 of 3 runs; conduct holds in at least 2 of 3 per case and at least 75% overall, with no regression against `main`'s last history entry. It was 90%, which with three conduct cases meant 9 of 9; the Author set 75% (7 of 9) on 2026-10-12, after the first run.
     - **Trigger:** a hash of CLAUDE.md, REVIEW.md, `.claude/**`, `evals/agent-config/**`, and the Claude Code pin, with no passing history entry for that hash. In the sandbox it shows PENDING, with the command for the Author. A case whose enforcement waits for a patch is PLANNED, naming the patch's task, so a run before the closing patch can pass honestly; the closing patch clears the marks.
       As built (convergence T204): a SHA-256 over the files git lists in those paths, tracked or new but not ignored (in an export, every file there), each with its kind (a file, an executable file, or a link) and its content's hash, then the pin's line from `.devcontainer/toolchain.vars`. It leaves out `evals/agent-config/history/`, so committing an entry doesn't change the hash it records, and `.claude/audit/`, `.claude/worktrees/`, caches (`__pycache__` and the like), and `.pyc` files. A mark is a case's `needs:`, which no patch has to clear (round C, below).
+      Proposed ([ADR 0023](../../docs/adr/0023-claude-code-pin-is-a-floor.md), 2026-10-18): the pin in the hash is a floor. The run takes a Claude Code at the floor or newer and refuses an older one, the entry records the version that ran beside the floor, and `make evals` names that version beside a pass. A Claude Code update alone doesn't change the hash; moving the floor does.
     - **History:** `make evals-agent-config` (the Author) writes `evals/agent-config/history/<UTC>-<branch>-<sha>.json` with the hash, the Claude Code version, the models, per-case results, which layer held (hook, sandbox, or the model's refusal), tokens, notional cost, and the verdict. The Author commits it before merging. Transcripts stay in `~/.local/state/h4reet/evals`.
 
 **As built (tasks.md T094, 2026-10-10).** Departures:
@@ -1233,7 +1243,7 @@ Total cloud spend for spec 000: the Bedrock line only, bounded by prod's ceiling
 | Prometheus or Loki | Panels go empty. The audit panel still reads the store. |
 | Grafana | No dashboard; nothing else is affected. |
 | gitleaks missing | The commit and content hooks fail closed; `make check` fails; publish-check exits 3. |
-| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. |
+| The agents' engine is down | The image gate fails with "ask the Author: deploy/agents-engine/engine.sh up". Ops falls back to its batched request to the Author. The Author's gate fails its `image` step within 15 s, naming the same command, and builds nothing (§11's As built). |
 | The engine's admission plugin | The daemon refuses every request (fail closed). |
 | The engine's egress proxy | Pulls fail closed; seeded images still run. An unreadable or empty allowlist refuses everything. |
 | The matrix can't run a stage (no sandbox, no engine) | That stage reports SKIP with its reason, and the others still run. Acceptance needs every stage's run recorded in a note. |
@@ -1334,7 +1344,7 @@ The prerequisites in the Author's terminal are in [quickstart.md](quickstart.md)
 | Risk | Mitigation |
 |---|---|
 | The host's disk: C: was full and crashed WSL during check 2 | Preflight checks the Windows drive as well as ext4 before every pull or download. Heavy runs happen only when no agents are working. The Author frees C:, or moves the distro to D: once it fits (research.md R-32). |
-| The prod model in 24 GB of VRAM (estimated 21.3 GiB) | Measured in the first stack task's Author run; the fallback is `-c 16384 -np 2`. |
+| The prod model in 24 GB of VRAM (estimated 21.3 GiB) | Measured in the first stack task's Author run; the fallback is `-c 16384 -np 1`, one slot that still holds a spec 007 twin turn (it was `-np 2`, before spec 007's plan, D27). |
 | The SeaweedFS image tag | `make pin-images` lists the repository's tags. If no maintained release tag exists, the Author decides between Chainguard's MinIO, which Langfuse's own compose now uses, and building SeaweedFS from source (ADR 0022). |
 | ClickHouse 26.8 against Langfuse's tested 25.12 | Langfuse names 25.12 as its minimum. The end-to-end trace checks run every time, and 25.12 is the fallback if 26.8 misbehaves. |
 | The light network checks didn't run (internal egress, publishing from an internal-only network) | They run in the first stack task, as a separate Author step with no agents working. |

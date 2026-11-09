@@ -1,0 +1,23 @@
+# The fixture plug: the piece the switch places, one pose per case. No placement places it; its claims name each pose.
+version: 1
+id: fx-plug
+name: Fixture plug
+size: { w: 0.04, h: 0.02, d: 0.06 }
+stylized_scale: 2
+origin:
+  point: Fixture point at the centre of the plug's base
+  bounds: { min: [-0.02, 0, -0.03], max: [0.02, 0.02, 0.03] }
+anchors:
+  lead: { at: [0, 0.01, 0.03] }
+claims:
+  signal: tier
+  poses: { fx-plugged: local, fx-cloud: cloud, fx-resting: null }
+standin:
+  - { shape: box, size: [0.04, 0.02, 0.06], at: [0, 0.01, 0], color: fx-ink }
+drawing: { from: standin }
+budget: { gzip_bytes: 100000, triangles: 1000, texture_px: 128, texture_bytes: 87381 }
+work_order:
+  method: Fixture method for the plug
+  shots: [Fixture shot of the plug and its lead]
+  measurements: [Fixture measure of the plug]
+  studio_notes: Fixture studio notes for the plug

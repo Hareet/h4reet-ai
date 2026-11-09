@@ -510,6 +510,52 @@ def test_each_unique_blob_is_read_once(repo: Fixture) -> None:
 
 
 # --------------------------------------------------------------------------------------------------
+# Spec 003's arrival check over every commit (its FR-004; contracts/arrival-check.md §1)
+# --------------------------------------------------------------------------------------------------
+# A JPEG's signature and an EXIF APP1 segment with a GPS directory tag, built here: a committed image would be refused.
+PHOTO = (
+    b"\xff\xd8\xff\xe1\x00\x1eExif\x00\x00II*\x00\x08\x00\x00\x00\x01\x00\x25\x88\x04\x00\x01\x00\x00\x00"
+    b"\x1a\x00\x00\x00\xff\xd9"
+)
+
+
+def test_a_photo_in_an_old_commit_meets_the_arrival_check(
+    repo: Fixture, tmp_path: Path
+) -> None:
+    (repo.root / "docs").mkdir()
+    (repo.root / "docs" / "IMG_0001.jpg").write_bytes(PHOTO)
+    photo = repo.commit("a photo")
+    repo.commit("drop it", {"docs/IMG_0001.jpg": None})
+    done, _ = run_fake(repo.root, tmp_path)
+    assert done.returncode == 1, done.stdout + done.stderr
+    found = [
+        ln
+        for ln in lines(done)
+        if ln.startswith(f"{photo[:12]} docs/IMG_0001.jpg: arrival A1:")
+    ]
+    assert found, done.stdout
+    assert any(" arrival A4: camera metadata" in ln for ln in lines(done)), done.stdout
+    assert "arrival check over 3 commits" in summary(done)
+
+
+def test_a_clean_history_passes_the_arrival_check(
+    repo: Fixture, tmp_path: Path
+) -> None:
+    repo.commit("notes", {"notes/plain.md": "Nothing here.\n"})
+    done, _ = run_fake(repo.root, tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "arrival check over 2 commits" in summary(done)
+
+
+def test_without_the_arrival_check_it_cannot_certify(
+    repo: Fixture, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pc, "ARRIVAL", tmp_path / "no-such" / "arrival_check.py")
+    with pytest.raises(pc.CannotCertify, match="arrival_check.py is missing"):
+        pc.check_arrivals(repo.root, pc.scan_env(), pc.Report())
+
+
+# --------------------------------------------------------------------------------------------------
 # What can't hide a finding: replace refs, GIT_* variables, a linked worktree's own config
 # --------------------------------------------------------------------------------------------------
 def test_a_replace_ref_cant_hide_a_commit(repo: Fixture, tmp_path: Path) -> None:

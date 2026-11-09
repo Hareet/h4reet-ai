@@ -1,6 +1,6 @@
 # Runbooks
 
-One page for each alert, degraded cause, and operator action of spec 000's stack, and one each for the agents' engine and the local gate (plan §16). Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
+One page for each alert, degraded cause, and operator action of spec 000's stack, one each for the agents' engine and the local gate (plan §16), and spec 003's for the studio's GPU window and its assets. Every page has the same six sections: Symptoms · Impact · Act, with the make targets · Verify · Undo · Record.
 
 How to find yours:
 - **An alert** names its page on its last line, `Runbook: docs/runbooks/<page>.md` ([contracts/alerts.md §3](../../specs/000-local-foundations/contracts/alerts.md#3-message-format)).
@@ -15,7 +15,7 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [cost-warning.md](cost-warning.md) | the `warn` alert: a meter crossed 70% of its limit |
 | [kill-switch-trip.md](kill-switch-trip.md) | the `trip` alert; the cause `kill_switch_tripped`; the daily `reminder` while degraded |
 | [kill-switch-reset.md](kill-switch-reset.md) | restoring `normal` after a trip: the `operator_action` alert for a `reset`; the cause `meter_at_ceiling`, which can follow one |
-| [fallback-renewal.md](fallback-renewal.md) | the `fallback_exhausted` alert; the `operator_action` alert for a `renew`; the causes `fallback_awaiting_renewal` and `fallback_spent_today`; the daily `reminder` while renewal is awaited |
+| [fallback-renewal.md](fallback-renewal.md) | the `fallback_exhausted` alert; the `operator_action` alert for a `renew`; the causes `fallback_awaiting_renewal` and `fallback_spent_today`; the daily `reminder` while renewal is awaited; the paid adapter's monthly cap, its `warn` and `fallback_exhausted`, and the cause `adapter_month_spent` (spec 010) |
 
 ## The store and the journal
 
@@ -31,6 +31,7 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 |---|---|
 | [model-server-down.md](model-server-down.md) | the local model server not answering: the cause `no_fallback_in_stack`, or prod answering from its fallback |
 | [bedrock-unavailable.md](bedrock-unavailable.md) | the `fallback_unavailable` alert, and the cause `fallback_unavailable` |
+| [anthropic-unavailable.md](anthropic-unavailable.md) | the `fallback_unavailable` alert for the Anthropic API, and the cause `fallback_unavailable` while prod's route names it (spec 010) |
 | [bedrock-credentials-expiring.md](bedrock-credentials-expiring.md) | the `credentials_expiring` alert: the Bedrock SSO session is near its end |
 
 ## The gateway, the alerts, and the operator
@@ -41,6 +42,13 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [alert-channel-down.md](alert-channel-down.md) | failed deliveries on the dashboard's alert panel: Telegram, email, or both can't deliver |
 | [operator-auth-failures.md](operator-auth-failures.md) | the `auth_failed` alert: calls to the admin listener with a missing, malformed, or wrong token |
 | [rollback.md](rollback.md) | a new commit misbehaving on prod or dev: back to the previous one, in one command |
+
+## The studio (spec 003)
+
+| Runbook | Use it for |
+|---|---|
+| [studio-gpu-window.md](studio-gpu-window.md) | handing prod's GPU to a studio job and taking it back (spec 003 FR-035): `make studio-window`; the `operator_action` alert for a `studio_window` |
+| [asset-withdrawal.md](asset-withdrawal.md) | a merged asset or published image that locates the Author or breaks a license: the pre-publication cleanup, or off the site within a day and an incident note |
 
 ## Development: the agents' engine and the local gate
 

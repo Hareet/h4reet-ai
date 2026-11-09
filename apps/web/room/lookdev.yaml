@@ -1,0 +1,12 @@
+# The lookdev page's two lists (FR-067, FR-070; R-44; data-model.md §8; contracts/room-data-files.md §12), drafts only:
+# RI10 holds each name to the scene's placements. The vignette is the intent's: "the desk, the monitor and its
+# terminal, the cost glow, the laptop's cable states, one sign, a corner of the chalkboard, and a bicycle wheel", shown
+# at their world positions at the production framing, every other placement hidden but still resolving the mounts. The
+# laptop's switch shows its cases where the placements its poses mount on are shown, the stand and the desk here. The
+# one sign is the busy sign; the room scene shows both. The close-up frames the desk and what stands on it, a
+# secondary view that judges nothing.
+version: 1
+vignette:
+  show: [work-desk, desk-screen, neon-sign, laptop-stand, laptop, busy-sign, chalkboard, bicycle]
+close_up:
+  frame: [work-desk, desk-screen, neon-sign, laptop-stand, laptop, busy-sign, dog-sign]

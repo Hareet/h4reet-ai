@@ -1,0 +1,396 @@
+/* The room's layout (spec 002, T044; FR-046, FR-047; contracts/room-scene.md §5 and §6). From the site's own origin,
+   classes only: the CSP's style-src 'self' refuses inline styles. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Every target is at least 44 by 44 CSS pixels (FR-046). */
+.room button,
+.room a,
+.room input,
+.choice button,
+.choice a,
+.choice-option {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Focus is always visible: a 2-pixel outline at 3:1 contrast or better (§5). */
+.room button:focus-visible,
+.room a:focus-visible,
+.room input:focus-visible,
+.room [tabindex]:focus-visible,
+.choice button:focus-visible,
+.choice a:focus-visible,
+.choice input:focus-visible {
+  outline: 2px solid #0b4f9c;
+  outline-offset: 2px;
+}
+
+.room button,
+.choice button {
+  font: inherit;
+  color: #1a1a1a;
+  background: #ffffff;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  padding: 0 0.75rem;
+  cursor: pointer;
+}
+
+.room button[aria-disabled="true"] {
+  color: #555555;
+  cursor: default;
+}
+
+/* A pressed toggle, "Pause the room" (spec 004, FR-060), inverted as lookdev.css's toggles are, and shown by more than
+   colour (WCAG 1.4.1): an inset ring inside its border, and its words underlined. */
+.room button[aria-pressed="true"] {
+  color: #ffffff;
+  background: #1a1a1a;
+  box-shadow: inset 0 0 0 2px #ffffff;
+  text-decoration: underline;
+}
+
+/* The AI disclosure, index.html's header, stays in view on every screen, from the choice to the end of the visit
+   (FR-004; contracts/room-scene.md §1): sticky and opaque. The scroll padding keeps a focused control from scrolling
+   under it (WCAG 2.4.11). */
+html {
+  scroll-padding-top: 5rem;
+}
+
+.disclosure {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff;
+}
+
+/* In the room, the page uses the screen's height: the AI disclosure stays on top, smaller. */
+body.in-room {
+  max-width: 72rem;
+  padding: 0.5rem;
+}
+
+body.in-room .disclosure p {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+/* Portrait first: the toolbar, the stage, the list, the conversation, "Around the room" (spec 004, FR-063), then the
+   resume when it's open. */
+.room {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "toolbar" "stage" "list" "talk" "around" "resume";
+}
+
+.room-toolbar {
+  grid-area: toolbar;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.room-toolbar a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+/* The stage leaves room, on a 320 by 568 screen, for the disclosure, the toolbar, the list, the text box, and the
+   talk button without scrolling (FR-047); dvh follows a phone's browser bars. Below a portrait width of 35rem the
+   reserve grows by one toolbar row (below). */
+.room-stage {
+  grid-area: stage;
+  position: relative;
+  height: calc(100vh - 20rem);
+  height: calc(100dvh - 20rem);
+  min-height: 9rem;
+  max-height: 40rem;
+  container-type: size;
+  overflow: hidden;
+  background: #20252b;
+  border-radius: 4px;
+}
+
+.room-stage-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-loading,
+.room-flat-failed {
+  margin: 0;
+  color: #ffffff;
+}
+
+/* The stage's line when the 2D drawing can't be drawn (FR-081): centred, clear of the stage's sides. */
+.room-flat-failed {
+  padding: 0 1rem;
+  text-align: center;
+}
+
+.room-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+}
+
+.room-canvas.over-object {
+  cursor: pointer;
+}
+
+/* Spec 008's walking control (FR-020, FR-021; plan.md R-09 and §10): a fixed box in the stage's bottom-right corner,
+   8rem by 2.75rem, 0.5rem in, which compose/stages.ts's WALK_CONTROL pins (test/room/stages.test.ts), so RG6 keeps
+   every selectable's exclusive core clear of it at every supported stage. Its words wrap inside it. */
+.room-walk {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: 8rem;
+  height: 2.75rem;
+  z-index: 1;
+  padding: 0 0.5rem;
+  font: inherit;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  color: #1a1a1a;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+}
+
+/* The walking view (spec 008, FR-042; R-13): the stage's view takes focus while walking, its ring the room's, inside
+   its edge so the stage's frame doesn't clip it; and the canvas shows it can be dragged. */
+.room-stage-view[role="application"]:focus-visible {
+  outline: 3px solid #0b4f9c;
+  outline-offset: -3px;
+}
+
+.room-stage-view[role="application"] .room-canvas {
+  cursor: grab;
+}
+
+/* The stage's notes, over the view's top left: the placeholder note and spec 009's stand-in line, each its own
+   paragraph. They take no room in the layout and let a pointer or a touch through to the scene (spec 009, FR-029). */
+.room-notes {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.room-note {
+  margin: 0;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  color: #1a1a1a;
+  background: #ffffff;
+  border-radius: 3px;
+}
+
+/* The offer after the hand-off, over the stage's foot. */
+.room-offer {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #555555;
+  border-radius: 4px;
+}
+
+.room-offer p {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+/* While the hand-off plays, what can't be used yet is dimmed (and inert). */
+.room-toolbar[inert],
+.room-list[inert],
+.talk[inert] {
+  opacity: 0.6;
+}
+
+.room-list {
+  grid-area: list;
+}
+
+.room-list ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.room-list button {
+  padding: 0 0.5rem;
+}
+
+/* The 2D drawing keeps its 8:5 shape inside the stage, the view box's, so a pointer's place maps onto the drawing's
+   pick areas at its scale (spec 004, R-20, R-39). */
+.flat {
+  position: relative;
+  width: min(100cqw, 160cqh);
+  height: min(100cqh, 62.5cqw);
+  touch-action: manipulation;
+}
+
+.flat.over-object {
+  cursor: pointer;
+}
+
+.flat svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Each selectable's cue in the 2D drawing: a dashed rectangle around its pick area, with its name tag at the foot.
+   Classes, never per ID, so a selectable added as data is cued with no change here. */
+.flat-cue {
+  fill: none;
+  stroke: #0b4f9c;
+  stroke-width: 2px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.flat-cue-name {
+  fill: #ffffff;
+  stroke: #1a1a1a;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* Spec 008's highlight in the 2D drawing (FR-046; plan.md R-08): the target's border, an edge and a band around its
+   hit rectangles' union, their tones and widths the index's, as attributes; no fill, and widths in CSS pixels. */
+.flat-highlight-edge,
+.flat-highlight-band {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A stand-in's label: its ink haloed, so it reads over any piece. */
+.flat-label {
+  stroke: #ffffff;
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* "Around the room" (spec 004, FR-063; R-40): the drawn words and states as text, after the conversation panel and
+   outside the stage, open to every visitor, its own area of the grid; a Tab stop after the conversation (layout.ts),
+   its focus ring the room's. */
+.room-around {
+  grid-area: around;
+}
+
+.room-around h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.room-around ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.resume-panel {
+  grid-area: resume;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #555555;
+  border-radius: 4px;
+}
+
+.resume-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.resume-actions a {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A phone held upright, below a portrait width of 35rem (spec 004, FR-065; spec 002's FR-047, as Amendment B8 extends
+   it; the review of T171, B1): the toolbar's five controls, spec 003's "Credits" link among them once it lands, wrap to
+   two rows at 1rem, so the stage gives up one toolbar row, a 44 px control and the toolbar's 0.5rem gap, 3.25rem, and
+   the text box and the talk button stay on screen. The bound follows the toolbar, code and UI words, never the list's
+   names, which are data. compose/stages.ts follows this rule (test/room/stages.test.ts pins it). max-width, not range
+   syntax, which Safari reads only from 16.4. */
+@media (orientation: portrait) and (max-width: 34.99rem) {
+  .room-stage {
+    height: calc(100vh - 23.25rem);
+    height: calc(100dvh - 23.25rem);
+  }
+}
+
+/* Narrower still, below 25rem (R-40): the toolbar's type drops to 0.875rem, so the five controls keep to two rows on a
+   320 by 568 screen. */
+@media (orientation: portrait) and (max-width: 24.99rem) {
+  .room-toolbar {
+    font-size: 0.875rem;
+  }
+}
+
+/* Landscape, on a phone turned sideways or a desktop: the stage beside the list and the conversation, then "Around the
+   room" across both columns before the resume (FR-046; spec 004, FR-063). */
+@media (orientation: landscape) and (min-width: 32rem) {
+  .room {
+    grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
+    grid-template-areas: "toolbar toolbar" "stage list" "stage talk" "around around" "resume resume";
+    align-items: start;
+  }
+
+  .room-stage {
+    height: calc(100vh - 7rem);
+    height: calc(100dvh - 7rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room *,
+  .choice * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,7 @@
+rule: RT8
+file: apps/web/room/scene.yaml
+path: placements[2].faces.screen.regions[0]
+why: four drawn lines in a terminal grid of three rows
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines], push: { text: fx three } }
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines], push: { text: fx four } }

@@ -1,0 +1,581 @@
+diff --git a/evals/agent-config/test_behavioral.py b/evals/agent-config/test_behavioral.py
+index b7b511195c29b3db6b4b2fb42a8b4e2d86395825..ce2f8773058f7159cc819ccd35574676425c1e56 100644
+--- a/evals/agent-config/test_behavioral.py
++++ b/evals/agent-config/test_behavioral.py
+@@ -3273,17 +3273,45 @@ def recipe(target: str) -> str:
+     return found.group(1)
+ 
+ 
+-def test_make_evals_shows_the_behavioral_status_after_the_static_tier() -> None:
++def test_make_evals_shows_the_behavioral_status_after_the_static_tier(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    # Spec 006 FR-002: the status shows after the static tier, as information. evals/behavioral_line.py runs it and
++    # prints its PENDING and a recorded run's FAIL as WARN, and the docs' links run in the same shell line whatever it
++    # says; make evals fails after them only on a tier file that doesn't load.
+     lines = recipe("evals").splitlines()
+     static_line = next(
+         i for i, ln in enumerate(lines) if "evals/agent-config/static.py" in ln
+     )
+-    status_line = next(i for i, ln in enumerate(lines) if "behavioral.py status" in ln)
++    status_line = next(
++        i for i, ln in enumerate(lines) if "$(PY_HOST) evals/behavioral_line.py" in ln
++    )
+     assert status_line > static_line
+-    assert (
+-        lines[status_line].strip()
+-        == "$(PY_HOST) evals/agent-config/behavioral.py status"
++    assert lines[status_line].strip() == (
++        "tier=0; $(PY_HOST) evals/behavioral_line.py || tier=$$?; "
++        "$(PY_HOST) evals/docs_links.py && exit $$tier"
+     )
++    # The script, which agents can edit, runs this file's status by path through PY_HOST's flags (research.md R-35).
++    script = load("h4_behavioral_line", REPO / "evals" / "behavioral_line.py")
++    calls: list[list[str]] = []
++
++    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
++        calls.append(argv)
++        return subprocess.CompletedProcess(argv, 0, stdout="")
++
++    monkeypatch.setattr(script.subprocess, "run", run)
++    assert script.main() == 0
++    assert calls == [
++        [
++            sys.executable,
++            "-I",
++            "-B",
++            "-X",
++            "pycache_prefix=/dev/null",
++            str(HERE / "behavioral.py"),
++            "status",
++        ]
++    ]
+ 
+ 
+ def test_the_target_is_listed_as_the_authors() -> None:
+diff --git a/tools/gates/gate b/tools/gates/gate
+index a9b4737872bbb7d6c78d2d8a3f4c46437e7a759b..46d4c8e4b75186cd625c4ac494d9573cd96d4a46 100755
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -35,8 +35,12 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
+    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
+    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
+    validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
+-   SKIP for a branch from before them). Every container drops all capabilities, sets
+-   no-new-privileges, and runs as the Author's uid on that copy. When the export has the room (apps/web), the room is
++   SKIP for a branch from before them). In make evals the behavioral tier's line is information, never a merge block
++   (spec 006 FR-002): a "WARN (behavioral tier):" line, which a branch's make evals prints once its Makefile has spec
++   006's interim change, makes the step WARN, and so do the tier's own PENDING and its FAIL for a recorded run, which
++   a tree from before prints; a make evals that exits non-zero fails the step whatever they say. Every container
++   drops all capabilities, sets no-new-privileges, and runs as the Author's uid on that copy. When the export has the
++   room (apps/web), the room is
+    built last, without drafts, its scripts off, with main's policy files mounted read-only at /policy: the content
+    approvals, the resume header, and, since spec 004's P-10, the caps, each absent there when main lacks it
+    (content-build; spec 002, T080; spec 004, FR-053), and the host then runs main's content_check.py over the export and that build's
+@@ -83,15 +87,17 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
+      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
+    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
+      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
+-   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
+-     evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
++   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, or the Claude
++     Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
+      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
+      trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
+      only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
+      ~/.local/state/h4reet, which agent sessions can't write), and the newest attested run for the export's trigger
+      hash decides: PASS, FAIL, or PENDING when none has run (the Author runs make evals-agent-config REF=<branch> from
+      main's checkout and commits the entry). A file that doesn't load fails. Before main has the tier (T094), this
+-     step is SKIP naming it.
++     step is SKIP naming it. A branch that changes evals/agent-config/ (its history aside) and none of those is SKIP,
++     naming its change as held to its own tests, which make test runs in the container phase (FR-005): a run before it
++     lands would test main's runner, not the changed one.
+ 5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
+    (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
+    ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
+@@ -110,8 +116,8 @@ DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the
+ with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
+ recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
+ 
+-Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive and for
+-a Claude Code above its floor.
++Statuses are make check's (PASS, SKIP, WARN, PLANNED, PENDING, FAIL). WARN is information the merge doesn't wait on:
++a "WARN (" line, such as make evals' behavioral line, telemetry that didn't arrive, and a Claude Code above its floor.
+ Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
+ """
+ 
+@@ -342,23 +348,54 @@ def stream(argv: list[str], env: dict[str, str], cwd: Path) -> tuple[int, str]:
+ 
+ 
+ def classify(step: Step, rc: int, output: str) -> Step:
+-    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, or
+-    a "SKIP:" line sets that status; otherwise PASS."""
++    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, a
++    "WARN (" line, or a "SKIP:" line sets that status, in that order; otherwise PASS."""
+     lines = output.splitlines()
+     if rc != 0:
+         return step.fail(f"exited {rc}")
+     pending = [ln for ln in lines if ln.startswith("PENDING")]
+     planned = [ln for ln in lines if ln.startswith("PLANNED (")]
++    warned = [ln for ln in lines if ln.startswith("WARN (")]
+     skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
+     if pending:
+         step.status, step.notes = "PENDING", pending
+     elif planned:
+         step.status, step.notes = "PLANNED", planned
++    elif warned:
++        step.status, step.notes = "WARN", warned
+     elif skipped:
+         step.status, step.notes = "SKIP", skipped
+     return step
+ 
+ 
++# Spec 006 FR-002: in make evals, the behavioral tier's verdict is information, never a merge block. A branch whose
++# Makefile has the interim change prints it as a "WARN (behavioral tier): ..." line (evals/behavioral_line.py). A
++# tree from before runs the tier's status itself, so its make evals prints the tier's own lines: the PENDING when no
++# attested run has the tree's trigger hash, and the FAIL for the newest run that has it, on which that make evals
++# stops before the docs' links, exiting non-zero. Line R's branches, from main at c84a115b, print the PENDING.
++TIER_PENDING = "PENDING (behavioral tier): "
++TIER_RUN_FAILED = re.compile(
++    r"FAIL  behavioral tier: (?=[^\s,]+, the newest run for trigger hash [0-9a-f]{12}, failed: )"
++)
++TIER_WARN = "WARN (behavioral tier): "
++
++
++def evals_step(step: Step, rc: int, output: str) -> Step:
++    """The container's evals step: classify's rules, with the tier's own PENDING and its recorded run's FAIL read as
++    its WARN line. Only what a make evals that exited 0 printed can count that way: classify fails the step on any
++    other exit first, so a tree from before whose make evals stopped at its run's FAIL still fails, since its docs'
++    links never ran. The agent-config-evals step reads the tier with classify alone, where its PENDING still waits."""
++    lines = []
++    for line in output.splitlines():
++        found = TIER_RUN_FAILED.match(line)
++        if line.startswith(TIER_PENDING):
++            line = TIER_WARN + line[len(TIER_PENDING) :]
++        elif found:
++            line = TIER_WARN + line[found.end() :]
++        lines.append(line)
++    return classify(step, rc, "\n".join(lines))
++
++
+ def py_host(script: Path, *args: str) -> list[str]:
+     return [
+         sys.executable,
+@@ -964,7 +1001,8 @@ def container_phase(
+             host_engine_env(),
+             tmp,
+         )
+-        report.add(classify(Step(name), rc, out))
++        read = evals_step if target == "evals" else classify
++        report.add(read(Step(name), rc, out))
+     content(report, repo, docker, image, work, export_dir, tmp)
+ 
+ 
+@@ -1610,20 +1648,24 @@ def pin(text: str) -> str | None:
+ def agent_config_evals(
+     repo: Path, export_dir: Path, base: str | None, paths: list[str] | None
+ ) -> Step:
+-    begin("agent-config-evals", "the behavioral tier, when triggered (plan §14)")
++    begin(
++        "agent-config-evals",
++        "the behavioral tier, when triggered (plan §14; spec 006 FR-004 to FR-006)",
++    )
+     step = Step("agent-config-evals")
+     if paths is None or base is None:
+         return step.fail(
+             "no merge base with main, so the branch's changes can't be read"
+         )
+     touched = sorted(
++        p for p in paths if p in ("CLAUDE.md", "REVIEW.md") or p.startswith(".claude/")
++    )
++    # Spec 006 FR-004: a change to the runner, its checks, the cases, or the thresholds alone is held to its own tests,
++    # and the tier's next run exercises it. The trigger hash still covers it, so each entry names what it tested.
++    harness = sorted(
+         p
+         for p in paths
+-        if (
+-            p in ("CLAUDE.md", "REVIEW.md")
+-            or p.startswith((".claude/", "evals/agent-config/"))
+-        )
+-        and not p.startswith(HISTORY)
++        if p.startswith("evals/agent-config/") and not p.startswith(HISTORY)
+     )
+     if ".devcontainer/toolchain.vars" in paths:
+         before = git(repo, "cat-file", "blob", f"{base}:.devcontainer/toolchain.vars")
+@@ -1632,10 +1674,16 @@ def agent_config_evals(
+         if pin(before.stdout if before.returncode == 0 else "") != pin(after):
+             touched.append("the Claude Code pin")
+     if not touched:
++        held = (
++            f"; its change to evals/agent-config/ ({some(harness)}) is held to its own tests (spec 006 FR-004, "
++            "FR-005)"
++            if harness
++            else ""
++        )
+         return step.set(
+             "SKIP",
+-            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, "
+-            "the Claude Code pin",
++            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the Claude Code pin"
++            + held,
+         )
+     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
+     tier = repo / "evals" / "agent-config" / "behavioral.py"
+diff --git a/tools/gates/run_checks.py b/tools/gates/run_checks.py
+index 278eb19a94443b471d6cd6456747fb2bea1b782d..5ca38873dcdcf59b7910d5f51a9e353f0923f6bb 100644
+--- a/tools/gates/run_checks.py
++++ b/tools/gates/run_checks.py
+@@ -11,13 +11,16 @@ failure. A gate's status:
+              or its @Tnnn mark is stale, because the target exists now (the task that adds it removes the mark);
+     PENDING  it passed but printed a line starting "PENDING": a run the Author must make (the merge waits);
+     PLANNED  it passed but printed "PLANNED (Tnnn): ...": enforcement a patch adds, which the patch clears;
++    WARN     it passed but printed a line starting "WARN (": information the merge doesn't wait on, such as make
++             evals' line for the behavioral tier, its PENDING or a recorded run's FAIL (spec 006 FR-002);
+     SKIP     it printed "SKIP: <reason>", or its target doesn't exist yet and a task is named to add it;
+     PASS     otherwise.
+ 
+ Every gate is a .PHONY target. A file or directory with a gate's name, and no .PHONY rule claiming it, makes make
+ print "Nothing to be done" and exit 0, which would otherwise read as PASS.
+-Exit 1 when any gate is FAIL or PENDING; PLANNED and SKIP don't fail the run. Spec 000's acceptance requires
+-no PLANNED line and no SKIP that names a task (tasks.md T118).
++Exit 1 when any gate is FAIL or PENDING; PLANNED, WARN, and SKIP don't fail the run. Spec 000's acceptance requires
++no PLANNED line and no SKIP that names a task (tasks.md T118). Other lines that start with WARN, such as the toolchain
++check's "WARN:" and the arrival check's "WARN <path>:", read as PASS here, as before.
+ """
+ 
+ from __future__ import annotations
+@@ -31,7 +34,8 @@ from dataclasses import dataclass, field
+ GATE_RE = re.compile(
+     r"(?P<label>[a-z][a-z0-9-]*)(?:=(?P<target>[a-z][a-z0-9-]*))?(?:@(?P<task>T\d{3}))?"
+ )
+-ORDER = ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"]
++# Most severe first. The summary counts them in reverse, the order of the gate's summary line (tools/gates/gate).
++ORDER = ["FAIL", "PENDING", "PLANNED", "WARN", "SKIP", "PASS"]
+ 
+ 
+ @dataclass
+@@ -123,11 +127,14 @@ def classify(gate: Gate, returncode: int, output: str) -> None:
+         return
+     pending = [ln for ln in lines if ln.startswith("PENDING")]
+     planned = [ln for ln in lines if ln.startswith("PLANNED (")]
++    warned = [ln for ln in lines if ln.startswith("WARN (")]
+     skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
+     if pending:
+         gate.status, gate.notes = "PENDING", pending
+     elif planned:
+         gate.status, gate.notes = "PLANNED", planned
++    elif warned:
++        gate.status, gate.notes = "WARN", warned
+     elif skipped:
+         gate.status, gate.notes = "SKIP", skipped
+ 
+diff --git a/tools/gates/test/test_gate.py b/tools/gates/test/test_gate.py
+index b5690f6901924c0b1c218d98282ed670f7ed33ff..a8ad43bd890f9059ba01304918769df17b59e5b8 100644
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -1356,6 +1356,156 @@ def test_a_pending_line_from_make_evals_makes_the_gate_pending(fx: Fixture) -> N
+     assert status_of(done, "evals") == "PENDING"
+ 
+ 
++# Spec 006 FR-002: in make evals, the behavioral tier's line is information, which never fails or waits. Its PENDING
++# on main at c84a115b, whose trigger hash has no run, and its FAIL for the run of 2026-11-07, as status prints them.
++TIER_NO_RUN = (
++    "no run for trigger hash 401d0a4d7341 in evals/agent-config/history/; the Author runs make evals-agent-config "
++    "REF=<branch> from main's checkout, and commits its entry on the branch with the commands it prints"
++)
++TIER_RUN = "2026-11-07T004715Z-feat-004-setup-e5b1dd3749f4"
++TIER_FAILED = (
++    f"{TIER_RUN}, the newest run for trigger hash 788771dbb186, failed: reads-studio-folder: the forbidden effect, or "
++    "a run without hook events, in 2 of 3 runs (at most 0)"
++)
++LINKS = "docs links: 0 failed, 1538 relative links in 184 files"
++PRODUCT_RECIPE = (
++    'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER'
++    ':-}" = local ] && echo --stack prod)'
++)
++UNVERIFIED = (
++    "note: attestations aren't checked here: with H4_DEVCONTAINER=1 (the devcontainer, the gate's container phase "
++    "among them), no store like ~/.local/state/h4reet/evals/attested/ can be seen, so every entry counts; the "
++    "Author's gate checks them"
++)
++# What make evals prints in the gate's container on a tree from main at c84a115b, whose Makefile runs the tier's
++# status itself and goes on to the docs' links, exit 0: line R's branches print it until they take main's change. The
++# narration suite's 44 PASS lines, the static tier's first 14, and the docs' links' last 3 are left out.
++EVALS_C84A = "\n".join(
++    [
++        PRODUCT_RECIPE,
++        "PASS  hello-fake",
++        "evals product (fake): 1 passed, 0 failed",
++        "python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite narration --adapter fake",
++        "evals narration (fake): 44 passed, 0 failed",
++        "python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py",
++        "PASS  FR-007: 27 of 27 variables denied by name",
++        "agent-config static: 0 failed, 0 planned",
++        "python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status",
++        "behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 401d0a4d7341",
++        UNVERIFIED,
++        f"PENDING (behavioral tier): {TIER_NO_RUN}",
++        "agent-config behavioral: pending, 0 planned",
++        "python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py",
++        "PASS  every relative link resolves: 1538 links in 184 files",
++        LINKS,
++    ]
++)
++
++
++def test_a_tree_from_before_spec_006_reads_warn_for_the_tiers_pending(
++    fx: Fixture,
++) -> None:
++    # The branch's own make evals runs in the container, so a tree that predates the interim Makefile prints the
++    # tier's own PENDING: main's gate reads it as information, and the merge doesn't wait on it.
++    sha = fx.branch(CHANGE)
++    fx.control(print={"evals": EVALS_C84A})
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "evals") == "WARN"
++    assert row(done, "evals").endswith(f"evals  WARN (behavioral tier): {TIER_NO_RUN}")
++    line = summary(done)
++    assert ", 1 WARN, " in line and "failing" not in line
++    merge = [ln for ln in done.stdout.splitlines() if ln.startswith("merge: ")]
++    assert merge == [
++        f"merge: git --no-replace-objects merge --no-ff -m 'Merge feature ({sha[:12]})' -m '{line}' {sha}"
++    ]
++
++
++@pytest.mark.parametrize(
++    ("printed", "named"),
++    [
++        # A branch with the interim Makefile: evals/behavioral_line.py prints the tier's line as WARN.
++        (
++            f"WARN (behavioral tier): {TIER_NO_RUN}\n{LINKS}",
++            "trigger hash 401d0a4d7341",
++        ),
++        (f"WARN (behavioral tier): {TIER_FAILED}\n{LINKS}", TIER_RUN),
++        # The tier's own lines, in a make evals that passed.
++        (
++            f"PENDING (behavioral tier): {TIER_NO_RUN}\n{LINKS}",
++            "trigger hash 401d0a4d7341",
++        ),
++        (f"FAIL  behavioral tier: {TIER_FAILED}\n{LINKS}", TIER_RUN),
++    ],
++    ids=["warn-no-run", "warn-run-failed", "tiers-pending", "tiers-run-failed"],
++)
++def test_the_behavioral_tiers_line_is_a_warn_naming_the_run_or_the_hash(
++    fx: Fixture, printed: str, named: str
++) -> None:
++    fx.branch(CHANGE)
++    fx.control(print={"evals": printed})
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "evals") == "WARN"
++    assert "evals  WARN (behavioral tier): " in row(done, "evals")
++    assert named in row(done, "evals")
++    assert "merge --no-ff" in done.stdout
++
++
++@pytest.mark.parametrize(
++    ("control", "failing"),
++    [
++        ({"print": {"evals": EVALS_C84A}, "fail": ["lint"]}, "failing: lint FAIL"),
++        # make evals exited non-zero beside the tier's line: the docs' links, a suite, or a tier file that doesn't load.
++        ({"print": {"evals": EVALS_C84A}, "fail": ["evals"]}, "failing: evals FAIL"),
++        # A tree from before whose make evals stopped at its run's FAIL, before the docs' links.
++        (
++            {
++                "print": {"evals": f"FAIL  behavioral tier: {TIER_FAILED}"},
++                "fail": ["evals"],
++            },
++            "failing: evals FAIL",
++        ),
++        # Any other PENDING in make evals still waits.
++        (
++            {"print": {"evals": f"PENDING: a run the Author makes\n{EVALS_C84A}"}},
++            "failing: evals PENDING",
++        ),
++    ],
++    ids=["lint-fails", "make-evals-fails", "stops-at-the-runs-fail", "another-pending"],
++)
++def test_a_real_failure_still_blocks_beside_the_tiers_warn(
++    fx: Fixture, control: dict[str, object], failing: str
++) -> None:
++    fx.branch(CHANGE)
++    fx.control(**control)
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert failing in summary(done)
++    assert "Not ready to merge" in done.stdout
++    assert "merge --no-ff" not in done.stdout
++    if "lint" in failing:
++        assert status_of(done, "evals") == "WARN"
++
++
++def test_only_the_evals_step_reads_the_tiers_own_lines_as_information() -> None:
++    # The container's evals step reads them as WARN (spec 006 FR-002), and only when make evals exited 0; the host's
++    # agent-config-evals step, main's tier on a triggered branch's export, still waits on the tier's PENDING (FR-006).
++    step = gm.evals_step(gm.Step("evals"), 0, EVALS_C84A)
++    assert (step.status, step.notes) == (
++        "WARN",
++        [f"WARN (behavioral tier): {TIER_NO_RUN}"],
++    )
++    assert gm.evals_step(gm.Step("evals"), 2, EVALS_C84A).status == "FAIL"
++    held = gm.classify(
++        gm.Step("agent-config-evals"), 0, f"PENDING (behavioral tier): {TIER_NO_RUN}"
++    )
++    assert held.status == "PENDING"
++    # Only a recorded run's FAIL is the tier's verdict: the FAIL of a file that doesn't load never becomes a WARN.
++    broken = "FAIL  behavioral tier: evals/agent-config/cases/x.yaml: not valid YAML"
++    assert gm.evals_step(gm.Step("evals"), 0, broken).status != "WARN"
++
++
+ def test_a_devcontainer_that_wont_build_points_at_the_host_gate(fx: Fixture) -> None:
+     fx.branch(CHANGE)
+     fx.control(build_fails=True)
+@@ -2368,6 +2518,66 @@ def test_untriggered_steps_say_so(fx: Fixture) -> None:
+     assert "T094" not in done.stdout
+ 
+ 
++# Spec 006 FR-004: the runner, its checks, the cases, and the thresholds, a change the tier's next run exercises.
++HARNESS_CHANGE = {
++    "evals/agent-config/cases/a-new-case.yaml": "id: a-new-case\n",
++    "evals/agent-config/thresholds.yaml": "runs_per_case: 3\n",
++}
++NO_RUN_STUB = ["PENDING (behavioral tier): no run for trigger hash 0123abcd4567"]
++
++
++def test_a_change_confined_to_evals_agent_config_is_held_to_its_own_tests(
++    fx: Fixture,
++) -> None:
++    # FR-004, FR-005: a run before it lands would test main's runner, not the changed one, so the step is SKIP,
++    # naming why, and main's tier isn't asked: its stand-in would say PENDING.
++    fx.branch(HARNESS_CHANGE)
++    tier(fx, NO_RUN_STUB)
++    done = gate(fx, "feature")
++    assert done.returncode == 0, done.stdout + done.stderr
++    assert status_of(done, "agent-config-evals") == "SKIP"
++    note = row(done, "agent-config-evals")
++    assert (
++        "held to its own tests" in note
++        and "evals/agent-config/cases/a-new-case.yaml" in note
++    )
++    assert not [ln for ln in done.stdout.splitlines() if ln.startswith("read ")]
++
++
++@pytest.mark.parametrize(
++    "files",
++    [
++        {".claude/agents/reviewer.md": "# the reviewer, changed\n"},
++        {"REVIEW.md": "# review, changed\n", **HARNESS_CHANGE},
++    ],
++)
++def test_a_change_to_the_agent_configuration_still_waits_for_its_run(
++    fx: Fixture, files: dict[str, str]
++) -> None:
++    # FR-006: the enforcement layer, CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin, waits until a run exists.
++    fx.branch(files)
++    tier(fx, NO_RUN_STUB)
++    done = gate(fx, "feature")
++    assert done.returncode == 1
++    assert status_of(done, "agent-config-evals") == "PENDING"
++    assert "failing: agent-config-evals PENDING" in summary(done)
++
++
++def test_a_triggered_branch_is_named_by_its_triggers_alone(fx: Fixture) -> None:
++    fx.branch({".claude/hooks/a-hook.sh": "#!/bin/sh\nexit 0\n", **HARNESS_CHANGE})
++    tier(
++        fx,
++        [
++            "PASS  behavioral tier: 2026-10-10T120000Z-feature-0123abc passed for trigger hash 0123abcd4567"
++        ],
++    )
++    done = gate(fx, "feature")
++    assert status_of(done, "agent-config-evals") == "PASS", done.stdout
++    assert row(done, "agent-config-evals").endswith(
++        "triggered by .claude/hooks/a-hook.sh"
++    )
++
++
+ # --------------------------------------------------------------------------------------------------
+ # The pieces, one at a time
+ # --------------------------------------------------------------------------------------------------
+diff --git a/tools/gates/test/test_run_checks.py b/tools/gates/test/test_run_checks.py
+index dd1570b39225f06ffd4d5981b0b23e0cf801730d..a78c1d30030a6e33085ca5be8968dbc019465d35 100644
+--- a/tools/gates/test/test_run_checks.py
++++ b/tools/gates/test/test_run_checks.py
+@@ -28,8 +28,22 @@ pending:
+ \t@echo "PENDING: the Author runs make evals-agent-config"
+ skip:
+ \t@echo "SKIP: no engine in CI"
+-.PHONY: pass fail planned pending skip
++warn:
++\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567 in evals/agent-config/history/"
++warnfail:
++\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567"; echo "docs links: 1 failed"; exit 1
++warnpending:
++\t@echo "WARN (behavioral tier): no run for trigger hash 0123abcd4567"; echo "PENDING: a run the Author makes"
++.PHONY: pass fail planned pending skip warn warnfail warnpending
+ """
++# make evals' line for the behavioral tier, as information (spec 006 FR-002; evals/behavioral_line.py).
++WARN_LINE = "WARN (behavioral tier): no run for trigger hash 0123abcd4567 in evals/agent-config/history/"
++# The toolchain check's lines for a Claude Code above its floor (ADR 0023), whose "WARN:" make check reads as PASS.
++FLOOR_WARN = (
++    "WARN: claude code 2.1.312 is newer than its floor, 2.1.296 (ADR 0023): the agent-config evals record the version "
++    "each run used, and moving the floor runs them again\n"
++    "toolchain-check: all 15 match their pins, 1 newer than its floor (claude code)\n"
++)
+ 
+ 
+ @pytest.fixture
+@@ -53,7 +67,52 @@ def test_each_status(project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+     assert "-> PASS pass" in out
+     assert "-> PLANNED planned (PLANNED (T045): waits for the early patch)" in out
+     assert "-> SKIP skip (no engine in CI)" in out
+-    assert "make check: 1 PASS, 1 SKIP, 1 PLANNED, 0 PENDING, 0 FAIL" in out
++    # The summary counts WARN too, in the gate's own order (spec 006 FR-002, FR-010).
++    assert "make check: 1 PASS, 1 SKIP, 0 WARN, 1 PLANNED, 0 PENDING, 0 FAIL" in out
++
++
++def test_a_warn_line_is_a_warn_that_fails_nothing(
++    project: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    # Spec 006 FR-002: make evals prints the behavioral tier's PENDING and a recorded run's FAIL as a "WARN (" line,
++    # information that make check counts and doesn't fail on.
++    assert rc.main(["pass", "warn"]) == 0
++    out = capsys.readouterr().out
++    assert f"-> WARN warn ({WARN_LINE})" in out
++    assert f"WARN     warn  {WARN_LINE}" in out.splitlines()
++    assert "make check: 1 PASS, 0 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL" in out
++    assert "failing" not in out
++
++
++def test_a_warn_line_never_hides_a_failure_or_a_wait(
++    project: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    assert rc.main(["warnfail", "warnpending", "warn"]) == 1
++    out = capsys.readouterr().out
++    assert "-> FAIL warnfail" in out
++    assert "-> PENDING warnpending (PENDING: a run the Author makes)" in out
++    assert "failing: warnfail FAIL, warnpending PENDING" in out
++
++
++@pytest.mark.parametrize(
++    ("output", "status"),
++    [
++        (
++            f"PLANNED (T117): 1 case waits for the closing patch\n{WARN_LINE}\n",
++            "PLANNED",
++        ),
++        (f"{WARN_LINE}\nSKIP: no engine here\n", "WARN"),
++        # The toolchain's "WARN:" line still reads PASS here, as before.
++        (FLOOR_WARN, "PASS"),
++    ],
++    ids=["planned-over-warn", "warn-over-skip", "toolchains-warn-colon"],
++)
++def test_a_warn_line_ranks_below_planned_and_above_skip(
++    output: str, status: str
++) -> None:
++    gate = rc.parse("evals")
++    rc.classify(gate, 0, output)
++    assert gate.status == status
+ 
+ 
+ def test_fail_and_pending_fail_the_run_but_it_keeps_going(

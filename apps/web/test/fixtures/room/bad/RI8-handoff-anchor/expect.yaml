@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: handoff.to.anchor
+why: a hand-off to an anchor the visitor's piece lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [handoff, to, anchor], set: fx-nohand }

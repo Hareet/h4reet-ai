@@ -9,9 +9,14 @@ import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
+import type { AdapterFactory } from "../../src/adapters/registry.js";
+import type { Channels } from "../../src/alerts/dispatcher.js";
 import { buildApp, createServices, type GatewayServices } from "../../src/app.js";
+import type { RoomEventsConfig } from "../../src/config/room-events.js";
+import type { TwinLoad } from "../../src/config/twin.js";
 import { loadConfig } from "../../src/config/validate.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
+import type { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { testDatabase, type TestDatabase } from "./pglite.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -70,6 +75,16 @@ export async function testStack(
     fallback?: boolean;
     /** A configuration directory of the test's own, such as prod's route with a Bedrock fallback; the test removes it. */
     configDir?: string;
+    /** The room's event list (config/room-events.yaml, spec 002); none by default, so every event is refused. */
+    roomEvents?: RoomEventsConfig | null;
+    /** The instruments, on a meter the test reads; the global meter by default. */
+    metrics?: GatewayMetrics;
+    /** The twin's files (spec 007), as loadTwin reads them; none by default, so every turn is twin_unavailable. */
+    twin?: TwinLoad;
+    /** The adapter factories, such as anthropic-messages built against a stub's origin (spec 010); the build's own by default. */
+    factories?: ReadonlyMap<string, AdapterFactory>;
+    /** The alert channels, such as stubs on the loopback (spec 011's samples); ALERT_DELIVERY's by default. */
+    channels?: Channels;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -114,6 +129,11 @@ export async function testStack(
     logger,
     version: "0.1.0",
     ...(o.realNow === undefined ? {} : { realNow: o.realNow }),
+    ...(o.roomEvents === undefined ? {} : { roomEvents: o.roomEvents }),
+    ...(o.metrics === undefined ? {} : { metrics: o.metrics }),
+    ...(o.twin === undefined ? {} : { twin: o.twin }),
+    ...(o.factories === undefined ? {} : { factories: o.factories }),
+    ...(o.channels === undefined ? {} : { channels: o.channels }),
   });
   const { api, admin } = buildApp({ stack, logger, services });
   await Promise.all([api.ready(), admin.ready()]);

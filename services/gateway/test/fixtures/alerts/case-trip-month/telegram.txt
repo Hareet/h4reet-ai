@@ -1,0 +1,17 @@
+🔴 Critical · [h4reet.ai prod]
+🛑 KILL SWITCH TRIPPED: monthly ceiling reached
+Next: Every request now gets the degraded response, local answers included. Only an operator reset restores service.
+Meters
+Daily      1.20 /  5.00 USD   warning  3.50
+Month     20.00 / 20.00 USD   warning 14.00
+Fallback   0.40 /  2.00 USD   grant 1
+Runtime: degraded since 2026-10-29T16:40:03Z
+Fallback: available
+Time: 2026-10-29T16:40:03Z
+id prod:trip:month:2026-10
+Runbook: docs/runbooks/kill-switch-trip.md
+--- entities (UTF-16 offset, length)
+bold 34 44 "KILL SWITCH TRIPPED: monthly ceiling reached"
+pre 203 125 "Daily      1.20 /  5.00 USD   warning  3.50\nMonth     20.00 / 20.00 USD   warning 14.00\nFallback   0.40 /  2.00 USD   grant 1"
+code 424 23 "prod:trip:month:2026-10"
+code 457 33 "docs/runbooks/kill-switch-trip.md"

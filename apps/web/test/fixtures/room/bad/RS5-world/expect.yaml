@@ -1,0 +1,8 @@
+rule: RS5
+file: apps/web/room/scene.yaml
+path: switches[0].poses.fx-resting.mount
+why: the pose that claims nothing mounted on the desk's top where the world places the plugged pose, in the port
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [switches, 0, poses, fx-resting, mount]
+    set: { on: fx-desk, anchor: top, offset: [0.357113, 0.01, 0.032993], turn: { y: 80 } }

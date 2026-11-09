@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: look
+why: a scene whose look doesn't exist
+edits:
+  - { file: apps/web/room/scene.yaml, at: [look], set: fx-nolook }

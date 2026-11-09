@@ -69,8 +69,13 @@ describe("loadFactories", () => {
   it("finds exactly the types this build registers, the ones validate-config checks rule R6 against", async () => {
     const factories = await loadFactories();
     expect([...factories.keys()].sort()).toEqual([...REGISTERED_ADAPTER_TYPES].sort());
-    // T073 added synthetic, and T102 adds bedrock-converse.
-    expect([...REGISTERED_ADAPTER_TYPES].sort()).toEqual(["bedrock-converse", "openai-compatible", "synthetic"]);
+    // T073 added synthetic, T102 bedrock-converse, and spec 010 anthropic-messages.
+    expect([...REGISTERED_ADAPTER_TYPES].sort()).toEqual([
+      "anthropic-messages",
+      "bedrock-converse",
+      "openai-compatible",
+      "synthetic",
+    ]);
     expect(factories.get("openai-compatible")).toBe(localFactory);
     expect(factories.get("synthetic")).toBe(syntheticFactory);
   });

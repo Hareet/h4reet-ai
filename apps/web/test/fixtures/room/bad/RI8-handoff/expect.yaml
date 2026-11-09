@@ -1,0 +1,6 @@
+rule: RI8
+file: apps/web/room/scene.yaml
+path: handoff.from.placement
+why: a hand-off from a placement other than the twin's
+edits:
+  - { file: apps/web/room/scene.yaml, at: [handoff, from, placement], set: fx-monitor }

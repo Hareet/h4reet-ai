@@ -1,0 +1,6 @@
+rule: RI7
+file: apps/web/room/catalog/fx-laptop.yaml
+path: model.file
+why: a model that isn't directly under assets/room/
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [model], set: { file: extra/fx-laptop.glb } }

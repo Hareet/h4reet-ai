@@ -1,0 +1,6 @@
+rule: RD2
+file: apps/web/room/catalog/fx-desk.yaml
+path: origin.colour
+why: a key the catalog's schema doesn't define, below the top level
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [origin, colour], set: fx-wood }

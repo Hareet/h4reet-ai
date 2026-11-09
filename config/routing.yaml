@@ -2,9 +2,12 @@
 # reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
 # synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
 #
-# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the fourth
-# step: tasks.md T073 added the synthetic adapter and dev's fallback, T102 added bedrock with a placeholder model, and
-# T105 sets the model the Author confirmed, Claude Haiku 5.5's US inference profile, and adds prod's fallback.
+# It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the fifth step:
+# tasks.md T073 added the synthetic adapter and dev's fallback, T102 added bedrock with a placeholder model, T105 set
+# the model the Author confirmed, Claude Haiku 5.5's US inference profile, and added prod's fallback, and spec 010
+# adds anthropic, the Anthropic API, beside bedrock. Prod's fallback stays bedrock: choosing the Anthropic API is the
+# Author's one line, `fallback: anthropic`, after his price, his cap, his key, and his words in the disclosure's row F3
+# (spec 010, FR-002, FR-039), each of which the gateway, preflight, or the test suite holds him to.
 schema: 1
 deadline_ms: 20000
 
@@ -28,11 +31,35 @@ adapters:
     # Haiku 5.5 thinks by default, and its thinking counts against the cap: hello's 128 tokens could end in thinking
     # with no text. Off, which this model accepts at its default effort, medium.
     additional_request_fields: { thinking: { type: disabled } }
+    # Haiku 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), so the twin's 0.3 reaches the
+    # local model alone, and Bedrock gets none (spec 007 D22; spec 010 FR-017).
+    temperature: model_default
     timeouts: { connect_ms: 1000, request_ms: 4000 }
+    # A twin turn's one attempt (spec 007's plan, D43, the Author's "9 s for twin turns"): ~9k tokens in and up to 300
+    # out ran past 4 s in about 7% of his Bedrock turns. Hello keeps 4 s and its retry (SC-005); R9 holds the twin turn
+    # to the deadline: local 10,000 + 500 + 9,000 = 19,500.
+    twin_request_ms: 9000
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
     health: { interval_ms: 10000 }
     credentials_warn_before_s: 7200
+
+  anthropic:
+    type: anthropic-messages
+    kind: paid
+    # Claude Haiku 5.5 through Anthropic's own API (spec 010), the model bedrock's profile names. The endpoint is the
+    # adapter's constant, https://api.anthropic.com; prod's env file holds the key, which compose passes to the gateway.
+    model: claude-haiku-5-5
+    api_key_env: GATEWAY_ANTHROPIC_API_KEY
+    thinking: disabled # as on bedrock: hello's 128 tokens could end in thinking with no text
+    # "it takes no temperature but its default, 1" (provider-adapter.md §5.4), as on bedrock (spec 010 FR-017).
+    temperature: model_default
+    timeouts: { connect_ms: 1000, request_ms: 4000 }
+    twin_request_ms: 9000 # as on bedrock (spec 007's plan, D43)
+    retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
+    circuit: { failures: 3, open_s: 30 }
+    # The model lookup spends no tokens; once a minute, since each one is a request to Anthropic (plan D6).
+    health: { interval_ms: 60000 }
 
   synthetic:
     type: synthetic

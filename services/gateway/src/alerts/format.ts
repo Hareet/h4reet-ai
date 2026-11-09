@@ -12,9 +12,15 @@
 //
 // Nothing here names a provider (SC-006): an adapter-specific alert takes the adapter's ID, which also names its
 // runbook, and the label it gives itself.
+//
+// Spec 011 (FR-001 to FR-003; plan §3.2): the designed forms (telegram-design.ts, email-design.ts) take their words
+// from alertParts here, the same parts this text is built from, so no word drifts between forms; and a sample's marks
+// (FR-036) are added here too: `[SAMPLE] ` before line 1, and a last line naming the requester, nothing having
+// happened. The cut at 1,000 units, a last resort, never splits a surrogate pair, since a prefix may hold an emoji.
 import type { EnvClass, StackName } from "../config/validate.js";
 import { rfc3339Seconds } from "../core/router.js";
 import type { AuthFailureClass } from "../telemetry/metrics.js";
+import { factsOf } from "./facts.js";
 
 const MAX_CHARS = 1_000;
 
@@ -61,6 +67,18 @@ export interface AlertContext {
 export type InitSource = "ledger" | "journal" | "stated";
 export type Ceiling = "day" | "month";
 
+/**
+ * A capped paid adapter's month at a crossing (spec 010, FR-023, FR-037): the adapter by its routing.yaml ID and its
+ * type's label ("the Anthropic API"), the UTC month, and its spend and cap as the crossing commit leaves them.
+ */
+export interface AdapterMonthFacts {
+  adapter: string;
+  label: string;
+  month: string;
+  spentMicro: bigint;
+  capMicro: bigint;
+}
+
 export type AlertSpec =
   | {
       kind: "warn";
@@ -70,8 +88,12 @@ export type AlertSpec =
       /** budgets.yaml's warn_ratio in basis points: 0.70 is 7000. */
       warnRatioBp: bigint;
     }
+  /** Spec 010: a capped adapter's month at its cap × warn_ratio. */
+  | { kind: "warn"; meter: "adapter_month"; warnRatioBp: bigint; adapterMonth: AdapterMonthFacts }
   | { kind: "trip"; ceiling: Ceiling }
   | { kind: "fallback_exhausted"; grantNo: number }
+  /** Spec 010: a capped adapter's month at its cap; the paid fallback awaits a renewal when it is the route's. */
+  | { kind: "fallback_exhausted"; adapterMonth: AdapterMonthFacts }
   | {
       kind: "operator_action";
       action: "init";
@@ -98,6 +120,22 @@ export type AlertSpec =
       grantMicro: bigint;
     }
   | {
+      // spec 003's studio GPU window (its contracts/gpu-window.md §1): opened, then closed with its fallback spend.
+      kind: "operator_action";
+      action: "studio_window";
+      fingerprint: string;
+      state: "start";
+    }
+  | {
+      kind: "operator_action";
+      action: "studio_window";
+      fingerprint: string;
+      state: "end";
+      /** The ledger's fallback spend inside the window, and its calls. */
+      fallbackMicro: bigint;
+      fallbackCalls: number;
+    }
+  | {
       kind: "credentials_expiring";
       /** The adapter's ID: its dedupe key, and its runbook's name. */
       adapter: string;
@@ -106,7 +144,8 @@ export type AlertSpec =
       /** When the session ends. */
       endsAt: number;
     }
-  | { kind: "fallback_unavailable"; adapter: string; reason: "credentials" | "circuit_open" }
+  /** label (spec 010, FR-037): how the adapter's type names it, "Bedrock" or "the Anthropic API"; its ID without one. */
+  | { kind: "fallback_unavailable"; adapter: string; label?: string; reason: "credentials" | "circuit_open" }
   | { kind: "auth_failed"; count: number; windowMinutes: number; lastClass: AuthFailureClass }
   | {
       kind: "store_unreachable";
@@ -128,7 +167,7 @@ export type AlertSpec =
 export interface RenderedAlert {
   subject: string;
   body: string;
-  /** What the text was rendered from, in micro-USD: the outbox row's `facts`. */
+  /** What the text was rendered from, in micro-USD: the outbox row's `facts`, version 2 (facts.ts). */
   facts: Record<string, unknown>;
 }
 
@@ -151,6 +190,9 @@ const SOURCE_WORDS: Record<InitSource, string> = {
   journal: "the journal",
   stated: "the stated values",
 };
+
+/** A label at a sentence's start: "the Anthropic API" as "The Anthropic API". */
+const capitalized = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 function list(words: readonly string[]): string {
   if (words.length <= 1) return words.join("");
@@ -196,6 +238,14 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
   switch (spec.kind) {
     case "warn": {
       const pct = percent(spec.warnRatioBp);
+      if (spec.meter === "adapter_month") {
+        const a = spec.adapterMonth;
+        return {
+          headline: `WARNING: ${a.label}'s month at ${pct}% of its cap`,
+          sentence: `${usd(a.spentMicro)} of ${usd(a.capMicro)} USD in ${a.month}. The paid fallback stops at its cap; local answers go on.`,
+          runbook: "fallback-renewal.md",
+        };
+      }
       const headline =
         spec.meter === "day"
           ? `WARNING: daily meter at ${pct}%`
@@ -212,6 +262,16 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
         runbook: "kill-switch-trip.md",
       };
     case "fallback_exhausted":
+      if ("adapterMonth" in spec) {
+        const a = spec.adapterMonth;
+        return {
+          headline: `PAID FALLBACK CAPPED: ${a.label}'s month reached its cap`,
+          sentence:
+            `${usd(a.spentMicro)} of ${usd(a.capMicro)} USD in ${a.month}. ${capitalized(a.label)} is refused until the ` +
+            "month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.",
+          runbook: "fallback-renewal.md",
+        };
+      }
       return {
         headline: `FALLBACK EXHAUSTED: grant ${spec.grantNo} of today's sub-budget is spent`,
         sentence: "Fallback stays refused, across days and restarts, until the operator renews it.",
@@ -236,6 +296,22 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
           runbook: "fallback-renewal.md",
         };
       }
+      if (spec.action === "studio_window") {
+        if (spec.state === "start") {
+          return {
+            headline: `OPERATOR ACTION: studio GPU window opened by operator #${spec.fingerprint}`,
+            sentence:
+              "The model server stops next: hello falls back within the sub-budget, or degrades, until the window closes.",
+            runbook: "studio-gpu-window.md",
+          };
+        }
+        const calls = `${spec.fallbackCalls} call${spec.fallbackCalls === 1 ? "" : "s"}`;
+        return {
+          headline: `OPERATOR ACTION: studio GPU window closed by operator #${spec.fingerprint}`,
+          sentence: `Hello answers from the local model again. The window's fallback spend: $${usd(spec.fallbackMicro)} in ${calls}.`,
+          runbook: "studio-gpu-window.md",
+        };
+      }
       return {
         headline: `OPERATOR ACTION: store initialized by operator #${spec.fingerprint}`,
         sentence: initSentence(spec.sources, spec.confirmZero, spec.renewed),
@@ -249,7 +325,7 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
       };
     case "fallback_unavailable":
       return {
-        headline: `FALLBACK UNAVAILABLE: ${spec.adapter} is unhealthy (${spec.reason === "circuit_open" ? "circuit open" : "credentials"})`,
+        headline: `FALLBACK UNAVAILABLE: ${spec.label ?? spec.adapter} is unhealthy (${spec.reason === "circuit_open" ? "circuit open" : "credentials"})`,
         sentence: "If the local model goes down, hello answers degraded with fallback_unavailable.",
         runbook: `${spec.adapter}-unavailable.md`,
       };
@@ -285,51 +361,48 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
   }
 }
 
-/** What each kind adds to `facts`, beyond the common ones: numbers, states, times, IDs; never text from a person. */
-function specFacts(spec: AlertSpec): Record<string, unknown> {
-  const iso = (ms: number): string => new Date(ms).toISOString();
-  switch (spec.kind) {
-    case "warn":
-      return {
-        meter: spec.meter,
-        warn_ratio_bp: Number(spec.warnRatioBp),
-        ...(spec.grantNo === undefined ? {} : { grant_no: spec.grantNo }),
-      };
-    case "trip":
-      return { ceiling: spec.ceiling };
-    case "fallback_exhausted":
-      return { grant_no: spec.grantNo };
-    case "operator_action":
-      if (spec.action === "reset") {
-        return { action: "reset", fingerprint: spec.fingerprint, meters_at_ceiling: [...spec.metersAtCeiling] };
-      }
-      if (spec.action === "renew") {
-        return {
-          action: "renew",
-          fingerprint: spec.fingerprint,
-          grant_no: spec.grantNo,
-          grant_micro: Number(spec.grantMicro),
-        };
-      }
-      return { action: spec.action, fingerprint: spec.fingerprint, sources: spec.sources, renewed: spec.renewed };
-    case "credentials_expiring":
-      return { adapter: spec.adapter, ends_at: iso(spec.endsAt) };
-    case "fallback_unavailable":
-      return { adapter: spec.adapter, reason: spec.reason };
-    case "auth_failed":
-      return { count: spec.count, window_minutes: spec.windowMinutes, last_class: spec.lastClass };
-    case "store_unreachable":
-      return { since: iso(spec.since), after_s: spec.afterS };
-    case "reminder":
-      return {
-        degraded_since: spec.degradedSince === undefined ? null : iso(spec.degradedSince),
-        awaiting_since: spec.awaitingSince === undefined ? null : iso(spec.awaitingSince),
-        crossed: [...spec.crossed],
-      };
-  }
+/** A sample's marks in the plain text and every form (FR-036). */
+export const SAMPLE_PREFIX = "[SAMPLE] ";
+export const sampleSentence = (fingerprint: string, stack: StackName): string =>
+  `A sample, sent by operator #${fingerprint}: nothing happened on ${stack}.`;
+
+/** One meter of a designed form's block or bar, with the values the plain text shows for it (FR-003, FR-021). */
+export interface MeterRow {
+  /** Daily, Month, Fallback, or an adapter month's adapter ID. */
+  label: string;
+  spentMicro: bigint;
+  /** The ceiling, the allowance, or the cap: the bar's full length. */
+  ceilingMicro: bigint;
+  /** The warning the plain text shows for this meter, where it shows one. */
+  warnMicro?: bigint;
+  /** The fallback's grant. */
+  grantNo?: number;
+  /** An adapter month's month, YYYY-MM. */
+  month?: string;
 }
 
-export function renderAlert(ctx: AlertContext, spec: AlertSpec): RenderedAlert {
+/** Every part of an alert's text, as each form shows it: the plain text's words, never others (FR-002). */
+export interface AlertParts {
+  /** Line 1: `[SAMPLE] ` for a sample, the prefix, and the headline. */
+  firstLine: string;
+  headline: string;
+  /** The kind's fixed sentence, where it has one. */
+  sentence?: string;
+  /** docs/runbooks/<page>.md */
+  runbookPath: string;
+  runtime: string;
+  /** Absent where the plain text leaves it out: the flag's store can't be read. */
+  fallback?: string;
+  /** The event's time, with " (test clock)" in dev on a test clock. */
+  time: string;
+  meters: MeterRow[];
+  /** dev's mark on the meters: their spend is synthetic. */
+  synthetic: boolean;
+  /** A sample's last line. */
+  sampleLine?: string;
+}
+
+export function alertParts(ctx: AlertContext, spec: AlertSpec, sample?: { fingerprint: string }): AlertParts {
   const time = (ms: number): string => `${rfc3339Seconds(ms)}${ctx.testClock ? " (test clock)" : ""}`;
   const runtime = (): string => {
     switch (ctx.runtime.state) {
@@ -355,9 +428,53 @@ export function renderAlert(ctx: AlertContext, spec: AlertSpec): RenderedAlert {
         return undefined;
     }
   };
-
   const { headline, sentence, runbook } = partsOf(spec, time);
-  const subject = `${ctx.prefix} ${headline}`;
+  const meters: MeterRow[] = [];
+  const m = ctx.meters;
+  if (m !== undefined) {
+    const grantWarn = spec.kind === "warn" && spec.meter === "fallback_day" ? m.fallbackWarnMicro : undefined;
+    meters.push(
+      { label: "Daily", spentMicro: m.dayMicro, ceilingMicro: m.dayCeilingMicro, warnMicro: m.dayWarnMicro },
+      { label: "Month", spentMicro: m.monthMicro, ceilingMicro: m.monthCeilingMicro, warnMicro: m.monthWarnMicro },
+      {
+        label: "Fallback",
+        spentMicro: m.fallbackMicro,
+        ceilingMicro: m.fallbackAllowanceMicro,
+        grantNo: m.grantNo,
+        ...(grantWarn === undefined ? {} : { warnMicro: grantWarn }),
+      },
+    );
+  }
+  // Spec 010's adapter month, against its cap, where its alert carries it (FR-003).
+  if ((spec.kind === "warn" || spec.kind === "fallback_exhausted") && "adapterMonth" in spec) {
+    const a = spec.adapterMonth;
+    meters.push({ label: a.adapter, spentMicro: a.spentMicro, ceilingMicro: a.capMicro, month: a.month });
+  }
+  const fallbackState = fallback();
+  return {
+    firstLine: `${sample === undefined ? "" : SAMPLE_PREFIX}${ctx.prefix} ${headline}`,
+    headline,
+    ...(sentence === undefined || sentence === "" ? {} : { sentence }),
+    runbookPath: `docs/runbooks/${runbook}`,
+    runtime: runtime(),
+    ...(fallbackState === undefined ? {} : { fallback: fallbackState }),
+    time: time(ctx.at),
+    meters,
+    synthetic: ctx.envClass === "dev",
+    ...(sample === undefined ? {} : { sampleLine: sampleSentence(sample.fingerprint, ctx.stack) }),
+  };
+}
+
+/** At most `max` UTF-16 code units, cut where no surrogate pair is split (FR-023's last resort). */
+function cut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
+export function renderAlert(ctx: AlertContext, spec: AlertSpec, sample?: { fingerprint: string }): RenderedAlert {
+  const p = alertParts(ctx, spec, sample);
+  const subject = p.firstLine;
   const lines = [subject];
   const m = ctx.meters;
   if (m !== undefined) {
@@ -369,42 +486,20 @@ export function renderAlert(ctx: AlertContext, spec: AlertSpec): RenderedAlert {
       `Daily: ${usd(m.dayMicro)} / ${usd(m.dayCeilingMicro)} USD (warning ${usd(m.dayWarnMicro)}) · ` +
         `Month: ${usd(m.monthMicro)} / ${usd(m.monthCeilingMicro)} (warning ${usd(m.monthWarnMicro)}) · ` +
         `Fallback today: ${usd(m.fallbackMicro)} / ${usd(m.fallbackAllowanceMicro)} (grant ${m.grantNo}${grantWarn})` +
-        (ctx.envClass === "dev" ? " (synthetic spend)" : ""),
+        (p.synthetic ? " (synthetic spend)" : ""),
     );
   }
-  const fallbackState = fallback();
   lines.push(
-    `Runtime: ${runtime()}${fallbackState === undefined ? "" : ` · Fallback: ${fallbackState}`} · ` +
-      `${time(ctx.at)} · id ${ctx.dedupeKey}`,
+    `Runtime: ${p.runtime}${p.fallback === undefined ? "" : ` · Fallback: ${p.fallback}`} · ` +
+      `${p.time} · id ${ctx.dedupeKey}`,
   );
-  if (sentence !== undefined && sentence !== "") lines.push(sentence);
-  lines.push(`Runbook: docs/runbooks/${runbook}`);
-  const body = lines.join("\n").slice(0, MAX_CHARS);
+  if (p.sentence !== undefined) lines.push(p.sentence);
+  lines.push(`Runbook: ${p.runbookPath}`);
+  if (p.sampleLine !== undefined) lines.push(p.sampleLine);
+  const body = cut(lines.join("\n"), MAX_CHARS);
 
-  const facts: Record<string, unknown> = {
-    kind: spec.kind,
-    stack: ctx.stack,
-    at: new Date(ctx.at).toISOString(),
-    test_clock: ctx.testClock,
-    runtime: ctx.runtime.state,
-    fallback: ctx.fallback.state,
-    ...(m === undefined
-      ? {}
-      : {
-          meters: {
-            day_micro: Number(m.dayMicro),
-            day_ceiling_micro: Number(m.dayCeilingMicro),
-            day_warn_micro: Number(m.dayWarnMicro),
-            month_micro: Number(m.monthMicro),
-            month_ceiling_micro: Number(m.monthCeilingMicro),
-            month_warn_micro: Number(m.monthWarnMicro),
-            fallback_micro: Number(m.fallbackMicro),
-            fallback_allowance_micro: Number(m.fallbackAllowanceMicro),
-            ...(m.fallbackWarnMicro === undefined ? {} : { fallback_warn_micro: Number(m.fallbackWarnMicro) }),
-            grant_no: m.grantNo,
-          },
-        }),
-    ...specFacts(spec),
-  };
+  // The facts, version 2 (facts.ts; spec 011, plan §2.2): every value the forms show, from which the designed
+  // forms render at each delivery attempt.
+  const facts = factsOf(ctx, spec);
   return { subject, body, facts };
 }

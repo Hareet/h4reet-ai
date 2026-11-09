@@ -1,0 +1,5 @@
+rule: RD5
+file: apps/web/room/catalog/README.md
+path: "-"
+why: a README anywhere but apps/web/room/README.md
+copy: { intent/900-fx-room.md: apps/web/room/catalog/README.md }

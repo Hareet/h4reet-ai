@@ -20,7 +20,10 @@ check in it can stop, so the Author runs main's. --contract-replay is held to th
 contract-live reaches it through the checkout's own Makefile and operator.py, which have run by then.
 
 1. Export. REF resolves once to a commit SHA, which every later step and the merge use. Every git call runs with
-   GIT_NO_REPLACE_OBJECTS=1. A ref under refs/replace stops the gate, since the Author's merge would honor it. So do
+   GIT_NO_REPLACE_OBJECTS=1, and reads main as refs/heads/main, never bare. A ref under refs/replace stops the gate,
+   since the Author's merge would honor it. So does a ref beside refs/heads/main that a bare main names: main (a file
+   at the top of .git), refs/main, or refs/tags/main, which git reads first, or refs/remotes/main or
+   refs/remotes/main/HEAD, which make the name ambiguous; anything the Author writes as main would read it. So do
    .git/info/attributes and submodules, which git archive would apply or skip, and any path git takes for its own
    directory (.git in any case, or as NTFS spells it: a file, a folder, or a link, anywhere in the tree), which git
    would read as a repository if anything ran it in the export. `git archive` exports the commit, tarfile's data
@@ -31,17 +34,28 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
 3. Container phase, on this machine's engine (plan §11: the devcontainer build needs Ubuntu's mirrors). The
    devcontainer image is built from the export's .devcontainer/ and tagged by that directory's tree hash. A copy of
    the export gets `npm ci --ignore-scripts`, with the network. Then, each with `--network none`: make lint,
-   validate-config, test, evals, redteam-suite, and matrix (stage H). Every container drops all capabilities, sets
-   no-new-privileges, and runs as the Author's uid on that copy.
+   validate-config, test, evals, redteam-suite, matrix (stage H), and credits-check (spec 003's credits and records,
+   SKIP for a branch from before them). In make evals the behavioral tier's line is information, never a merge block
+   (spec 006 FR-002): a "WARN (behavioral tier):" line, which a branch's make evals prints once its Makefile has spec
+   006's interim change, makes the step WARN, and so do the tier's own PENDING and its FAIL for a recorded run, which
+   a tree from before prints; a make evals that exits non-zero fails the step whatever they say. Every container
+   drops all capabilities, sets no-new-privileges, and runs as the Author's uid on that copy. When the export has the
+   room (apps/web), the room is
+   built last, without drafts, its scripts off, with main's policy files mounted read-only at /policy: the content
+   approvals, the resume header, and, since spec 004's P-10, the caps, each absent there when main lacks it
+   (content-build; spec 002, T080; spec 004, FR-053), and the host then runs main's content_check.py over the export and that build's
+   dist/ (content): it fails when the build publishes a content file main doesn't approve, by its own account or in
+   any file's text. main's policy is read by the branch's full ref, refs/heads/main, never a tag of that name.
 4. Host phase:
    - githooks: the installed hooks match the main tree's .claude/git-hooks/, core.hooksPath is unset,
      gc.packRefs is false, and main is a loose ref, as `make githooks-check` has it;
-   - toolchain: tools/gates/toolchain_check.py against the export's pins;
+   - toolchain: tools/gates/toolchain_check.py against the export's pins; a Claude Code newer than its pin, a floor
+     (ADR 0023), passes the check with a "WARN:" line, which makes the step WARN;
    - policy: tools/gates/compose_policy.py --root <export>;
    - corpus: corpus/tools/check_corpus.py over the export's corpus, with the Author's denylist, which must exist;
      loaded into this process, which runs with PY_HOST's flags, since the script reads only its own tree;
-   - gitleaks over $(git merge-base main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh empty
-     --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
+   - gitleaks over $(git merge-base refs/heads/main SHA)..SHA, with the main tree's .gitleaks.toml (--config), a fresh
+     empty --gitleaks-ignore-path, and --ignore-gitleaks-allow, and git log's --text, without which git shows no diff for
      what it takes for binary: a NUL byte, or a -diff attribute in any .gitattributes in the work tree. It refuses
      while a .gitleaksignore at the main tree could hold an entry (research.md R-36). gitleaks exits 0 when git
      fails beneath it, and only logs the error, so findings exit 99 (--exit-code) and a scan passes only when
@@ -53,28 +67,46 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      git log shows no diff for. Anything at the export's root named .gitleaksignore refuses it first, since dir mode
      obeys one at the folder it scans (R-36). Its log is read as the range scan's, and a "WRN skipping" line, a file
      it couldn't read, fails it too; it must say how many bytes it scanned, more than none of a tree with content;
+   - arrival: spec 003's arrival check, the main tree's tools/gates/arrival_check.py, over $(git merge-base main
+     SHA)..SHA: each commit's added and changed files as it had them, what each merge's resolution adds, and SHA's
+     whole tree, read as git data, with the license allowlist, the approvals, and the caps read from refs/heads/main
+     (contracts/arrival-check.md). The branch's credits renderer is agent-editable, so its check, make credits-check,
+     runs in the container phase;
+   - studio-settings: spec 004's step (FR-025, SC-013; its contracts/intake-amendments.md §12). When the range adds
+     or changes a file under assets/ outside assets/policy/, in any of its commits or in the tree it ends at, the
+     main tree's tools/gates/studio_settings_check.py runs with no option, as the Author runs it, on the settings the
+     studio's session loads, with the shell's CLAUDE_CONFIG_DIR when set: PASS on exit 0, FAIL on any other, its
+     lines in the report. Otherwise SKIP: no studio file in the range. The step names no path or file of the range;
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
-     only after the policy passed, because an unvetted build could read host files into the engine: first the
-     gateway's, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's
-     proxy; then the compose images;
+     only after the policy passed, because an unvetted build could read host files into the engine. First the engine
+     must answer one docker version within ENGINE_PROBE_SECONDS (15), as make image asks it (tasks.md T167), or the
+     step fails, naming the timeout or docker's exit status, and builds nothing: docker's client sets no limit of its
+     own, so an engine that takes the connection and never answers would hold the gate there. Then the gateway's
+     image, outside compose, as make up builds it (tasks.md T184), as h4reet-gateway:<SHA> with the engine's proxy;
+     then, when the export has apps/web/Dockerfile, the room's, as make up builds prod's (spec 002), as
+     h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
-   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/,
-     evals/agent-config/ (its history aside), or the Claude Code pin: the main tree's evals/agent-config/behavioral.py,
+   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, or the Claude
+     Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
      trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
      only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
      ~/.local/state/h4reet, which agent sessions can't write), and the newest attested run for the export's trigger
      hash decides: PASS, FAIL, or PENDING when none has run (the Author runs make evals-agent-config REF=<branch> from
      main's checkout and commits the entry). A file that doesn't load fails. Before main has the tier (T094), this
-     step is SKIP naming it.
+     step is SKIP naming it. A branch that changes evals/agent-config/ (its history aside) and none of those is SKIP,
+     naming its change as held to its own tests, which make test runs in the container phase (FR-005): a run before it
+     lands would test main's runner, not the changed one.
 5. eval-history: each history entry the branch adds is posted once to prod's x004 as the h4.devtime.eval.* gauges
    (contracts/telemetry.md §4.4): OTLP/JSON, stdlib, no proxy, timestamped at the post. An entry needs "verdict"
    ("pass" or "fail"), "cost_usd" (a number), and "tokens" with "input", "output", "cache_read", and
    "cache_creation" (integers), and a "run" that is its file's name. Only an entry this machine attests is posted;
    the rest wait (PENDING). The history is append-only: a branch that changes or removes an entry fails, and so does
    a malformed entry or a link. A collector that doesn't answer is a WARN.
-6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off.
+6. Summary. One line for the merge commit's message, and the merge command, by SHA, with replace objects off. First
+   the export's check on refs a bare main names runs again, since one can be made while the gate runs: if one is
+   there, a main-refs step fails, and no merge command is printed.
 
 --host skips the container phase (plan §19: the devcontainer image won't build), and every summary line says
 DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the host.
@@ -84,7 +116,8 @@ DEGRADED. Lint, tests, the scaffolds, and stage H then run nowhere: never on the
 with H4_CONTRACT_RECORDING set and --network none. It passes only when the replay passed tests under the
 recording's own name ("recorded live: <adapter>"), so a replay that never read FILE can't pass.
 
-Statuses are make check's (PASS, SKIP, PLANNED, PENDING, FAIL), plus WARN for telemetry that didn't arrive.
+Statuses are make check's (PASS, SKIP, WARN, PLANNED, PENDING, FAIL). WARN is information the merge doesn't wait on:
+a "WARN (" line, such as make evals' behavioral line, telemetry that didn't arrive, and a Claude Code above its floor.
 Exit 0 with no FAIL or PENDING; 1 otherwise, or when the export's proof fails; 2 when the gate refuses to start.
 """
 
@@ -144,6 +177,10 @@ HOST_ENGINE = "unix:///var/run/docker.sock"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
 # The agents' engine's egress proxy, which its builds reach npm through (contracts/agents-engine.md §4).
 AGENTS_PROXY = "http://198.18.0.1:3128"
+# How long the agents' engine has to answer one docker version before the image step builds on it, as make image and
+# make build give it (tasks.md T167). docker's client sets no limit of its own, so a forward that takes connections and
+# never answers (T046) would hold the gate at image with no end.
+ENGINE_PROBE_SECONDS = 15
 OTLP_URL = "http://127.0.0.1:18004/v1/metrics"
 DEVCONTAINER = "h4reet-devcontainer"
 RECORDING = "/run/h4-contract/recording.json"
@@ -155,8 +192,25 @@ CONTAINER_TARGETS = (
     ("evals", "evals"),
     ("redteam", "redteam-suite"),
     ("matrix-h", "matrix"),
+    # Spec 003: the branch's own credits renderer, scripts/assets/credits.py --check, which is agent-editable, so it
+    # runs here and never on the host. SKIP for a branch from before spec 003, with neither the script nor assets/.
+    ("credits", "credits-check"),
 )
 STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
+# The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
+# the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080). Spec 004
+# adds main's caps, so the release-like build applies main's caps and legibility floor, as prod's image does; a file
+# main lacks is absent there, and the compositor takes its defaults (FR-053; contracts/intake-amendments.md §8, §12).
+POLICY_FILES = (
+    ("assets/policy/content-approvals.json", "content-approvals.json"),
+    ("assets/policy/resume-header.json", "resume-header.json"),
+    ("assets/policy/caps.json", "caps.json"),
+)
+# Spec 004's studio-settings step (FR-025, SC-013; contracts/intake-amendments.md §12): a range that adds or changes a
+# file under STUDIO_ROOT, outside STUDIO_POLICY, brings studio files in, so main's settings check runs.
+STUDIO_ROOT = "assets/"
+STUDIO_POLICY = "assets/policy/"
+WEB_BUILD = ["npm", "run", "--ignore-scripts", "build", "-w", "apps/web"]
 # gitleaks exits 1 on its own errors, and 0 when git fails beneath it (it only logs git's error), so findings get an
 # exit code of their own, and its log is read: a line at any level but these means the scan may be partial.
 LEAKS = 99
@@ -181,6 +235,18 @@ CODE_PATHS = (
 )
 TOKEN_TYPES = ("input", "output", "cache_read", "cache_creation")
 COUNTED = ("PASS", "SKIP", "WARN", "PLANNED", "PENDING", "FAIL")
+# main, by its full name. git reads a bare main through its rules (refs.c's ref_rev_parse_rules) as main, refs/main,
+# refs/tags/main, refs/heads/main, refs/remotes/main, and refs/remotes/main/HEAD, in that order, so a tag named main,
+# which an agent session can write, would answer for main:GNUmakefile and git merge-base main (fix/000-main-ref).
+MAIN = "refs/heads/main"
+# The rest of those names: while any of them is a ref, the gate stops, as it does on refs/replace.
+MAIN_SHADOWS = (
+    "main",
+    "refs/main",
+    "refs/tags/main",
+    "refs/remotes/main",
+    "refs/remotes/main/HEAD",
+)
 
 
 class Refusal(Exception):
@@ -282,21 +348,52 @@ def stream(argv: list[str], env: dict[str, str], cwd: Path) -> tuple[int, str]:
 
 
 def classify(step: Step, rc: int, output: str) -> Step:
-    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, or
-    a "SKIP:" line sets that status; otherwise PASS."""
+    """make check's rules (tools/gates/run_checks.py): non-zero is FAIL; then a PENDING line, a "PLANNED (" line, a
+    "WARN (" line, or a "SKIP:" line sets that status, in that order; otherwise PASS."""
     lines = output.splitlines()
     if rc != 0:
         return step.fail(f"exited {rc}")
     pending = [ln for ln in lines if ln.startswith("PENDING")]
     planned = [ln for ln in lines if ln.startswith("PLANNED (")]
+    warned = [ln for ln in lines if ln.startswith("WARN (")]
     skipped = [ln[len("SKIP:") :].strip() for ln in lines if ln.startswith("SKIP:")]
     if pending:
         step.status, step.notes = "PENDING", pending
     elif planned:
         step.status, step.notes = "PLANNED", planned
+    elif warned:
+        step.status, step.notes = "WARN", warned
     elif skipped:
         step.status, step.notes = "SKIP", skipped
     return step
+
+
+# Spec 006 FR-002: in make evals, the behavioral tier's verdict is information, never a merge block. A branch whose
+# Makefile has the interim change prints it as a "WARN (behavioral tier): ..." line (evals/behavioral_line.py). A
+# tree from before runs the tier's status itself, so its make evals prints the tier's own lines: the PENDING when no
+# attested run has the tree's trigger hash, and the FAIL for the newest run that has it, on which that make evals
+# stops before the docs' links, exiting non-zero. Line R's branches, from main at c84a115b, print the PENDING.
+TIER_PENDING = "PENDING (behavioral tier): "
+TIER_RUN_FAILED = re.compile(
+    r"FAIL  behavioral tier: (?=[^\s,]+, the newest run for trigger hash [0-9a-f]{12}, failed: )"
+)
+TIER_WARN = "WARN (behavioral tier): "
+
+
+def evals_step(step: Step, rc: int, output: str) -> Step:
+    """The container's evals step: classify's rules, with the tier's own PENDING and its recorded run's FAIL read as
+    its WARN line. Only what a make evals that exited 0 printed can count that way: classify fails the step on any
+    other exit first, so a tree from before whose make evals stopped at its run's FAIL still fails, since its docs'
+    links never ran. The agent-config-evals step reads the tier with classify alone, where its PENDING still waits."""
+    lines = []
+    for line in output.splitlines():
+        found = TIER_RUN_FAILED.match(line)
+        if line.startswith(TIER_PENDING):
+            line = TIER_WARN + line[len(TIER_PENDING) :]
+        elif found:
+            line = TIER_WARN + line[found.end() :]
+        lines.append(line)
+    return classify(step, rc, "\n".join(lines))
 
 
 def py_host(script: Path, *args: str) -> list[str]:
@@ -526,6 +623,46 @@ def remove(top: Path) -> None:
     shutil.rmtree(top, ignore_errors=True)
 
 
+def main_shadows(repo: Path) -> list[str]:
+    """The names in MAIN_SHADOWS that are refs: each that for-each-ref lists, loose or packed, and each with a file or a
+    link at its path, which finds main itself, at the top of .git, where for-each-ref never looks, and a loose ref git
+    couldn't read. main is shown with its path, since git won't delete it by that name. The paths come relative to the
+    repository: --path-format=absolute resolves each, and fails where refs/remotes/main is a file and so can't hold
+    refs/remotes/main/HEAD."""
+    listed = git(repo, "for-each-ref", "--format=%(refname)")
+    located = git(
+        repo,
+        "rev-parse",
+        *(arg for name in MAIN_SHADOWS for arg in ("--git-path", name)),
+    )
+    paths = [repo / line for line in located.stdout.splitlines()]
+    if listed.returncode or located.returncode or len(paths) != len(MAIN_SHADOWS):
+        raise Stop(
+            "git couldn't list the refs, so a ref that a bare main names can't be ruled out"
+        )
+    refs = set(listed.stdout.splitlines())
+    return [
+        f"{name} ({path})" if name == "main" else name
+        for name, path in zip(MAIN_SHADOWS, paths)
+        if name in refs or path.is_symlink() or path.is_file()
+    ]
+
+
+def shadow_problem(repo: Path) -> str | None:
+    """Why a bare main might not read refs/heads/main, or None: the refs main_shadows finds. The export stops on one,
+    and finish() looks again, since one can be made while the gate runs."""
+    shadows = main_shadows(repo)
+    if not shadows:
+        return None
+    return (
+        f"{', '.join(shadows)}: {'a ref' if len(shadows) == 1 else 'refs'} beside {MAIN} that a bare main "
+        "names. git reads main, refs/main, and refs/tags/main before the branch, so your own git diff "
+        "main...<branch>, git log main, or main:<path> could read another commit. The gate reads main only as "
+        f"{MAIN}, but stops while one is there: remove each (git update-ref -d --no-deref <ref>; for main, rm "
+        "the path shown) and run the gate again"
+    )
+
+
 def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
     """Resolve REF once, export that commit, and prove the export is the commit's own tree (plan §11)."""
     replaced = git(repo, "for-each-ref", "--format=%(refname)", "refs/replace/")
@@ -537,6 +674,9 @@ def export(repo: Path, ref: str, tmp: Path) -> tuple[str, Path, bytes]:
             "replace ref, so the gate would vouch for a commit other than the one the merge writes: remove them "
             "(git replace -l, git replace -d) and run the gate again"
         )
+    problem = shadow_problem(repo)
+    if problem:
+        raise Stop(problem)
     sha = resolve(repo, ref)
     expected = commit_tree(repo, sha)
     attributes = git(
@@ -603,7 +743,7 @@ def makefiles(repo: Path, export_dir: Path) -> Step:
     gnu = export_dir / "GNUmakefile"
     if not os.path.lexists(gnu):
         return step.set("PASS", "no GNUmakefile and no makefile")
-    mains = git(repo, "cat-file", "blob", "main:GNUmakefile", binary=True)
+    mains = git(repo, "cat-file", "blob", f"{MAIN}:GNUmakefile", binary=True)
     if mains.returncode:
         return step.fail("the commit has a GNUmakefile, and main has none")
     if gnu.is_symlink() or not gnu.is_file() or gnu.read_bytes() != mains.stdout:
@@ -738,7 +878,92 @@ def prepare(
     return docker, image, work
 
 
-def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) -> None:
+def content(
+    report: Report,
+    repo: Path,
+    docker: str,
+    image: str,
+    work: Path,
+    export_dir: Path,
+    tmp: Path,
+) -> None:
+    """The room's published content (spec 002, T080; contracts/resume-source.md §5), when the export has the room.
+
+    The build runs in the container, as a release builds it: no drafts, no pre- or post-scripts (a checkout's prebuild
+    reads main with git, and there is none here), and main's policy, read here from the main tree by the branch's full
+    ref, refs/heads/main, never a bare "main", which a tag of that name would answer, in a fresh directory mounted
+    read-only. Then main's content_check.py, on the host, recomputes each content file's digest from the export, the
+    commit's own read-only tree, and fails when the build says it published a file main doesn't approve, or when any
+    such file's text is anywhere in the build's dist/. The build's approvals code is the branch's; the check is main's.
+    """
+    if not (export_dir / "apps" / "web" / "package.json").is_file():
+        return  # a commit from before spec 002: no room, nothing published
+    try:
+        policy_dir = fresh_dir(tmp)
+        for path, name in POLICY_FILES:
+            shown = git(
+                repo, "cat-file", "blob", f"refs/heads/main:{path}", binary=True
+            )
+            if shown.returncode == 0:
+                (policy_dir / name).write_bytes(shown.stdout)
+    except OSError as exc:
+        report.add(
+            Step("content-build").fail(f"main's policy couldn't be written: {exc}")
+        )
+        report.add(Step("content").fail("not run: no policy directory"))
+        return
+    begin(
+        "content-build",
+        "npm run build -w apps/web without drafts, main's policy at /policy, --network none",
+    )
+    rc, out = stream(
+        container(
+            docker,
+            image,
+            work,
+            WEB_BUILD,
+            network=False,
+            extra=(
+                "--mount",
+                f"type=bind,source={policy_dir},target=/policy,readonly",
+                "--env",
+                "ROOM_DRAFTS=",
+                "--env",
+                "ROOM_POLICY_DIR=/policy",
+            ),
+        ),
+        host_engine_env(),
+        tmp,
+    )
+    build = report.add(classify(Step("content-build"), rc, out))
+    begin(
+        "content",
+        "main's content check over the export and that build's dist/",
+    )
+    if build.status != "PASS":
+        report.add(
+            Step("content").fail("not run: the build without drafts didn't pass")
+        )
+        return
+    rc, out = stream(
+        py_host(
+            repo / "tools" / "gates" / "content_check.py",
+            "--tree",
+            str(export_dir),
+            "--dist",
+            str(work / "apps" / "web" / "dist"),
+            "--policy-dir",
+            str(policy_dir),
+        ),
+        tool_env(),
+        tmp,
+    )
+    report.add(classify(Step("content"), rc, out))
+
+
+def container_phase(
+    report: Report, repo: Path, data: bytes, export_dir: Path, tmp: Path
+) -> None:
     names = [name for name, _ in CONTAINER_TARGETS]
     if report.status("makefiles") != "PASS":
         for name in ["devcontainer", "npm-ci", *names]:
@@ -753,6 +978,17 @@ def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) ->
         return
     docker, image, work = ready
     for name, target in CONTAINER_TARGETS:
+        if target == "credits-check" and not (
+            (export_dir / "scripts" / "assets" / "credits.py").is_file()
+            or (export_dir / "assets").is_dir()
+        ):
+            report.add(
+                Step(name).set(
+                    "SKIP",
+                    "the branch has neither scripts/assets/credits.py nor assets/ (spec 003)",
+                )
+            )
+            continue
         begin(name, f"make {target}, --network none")
         rc, out = stream(
             container(
@@ -765,7 +1001,9 @@ def container_phase(report: Report, data: bytes, export_dir: Path, tmp: Path) ->
             host_engine_env(),
             tmp,
         )
-        report.add(classify(Step(name), rc, out))
+        read = evals_step if target == "evals" else classify
+        report.add(read(Step(name), rc, out))
+    content(report, repo, docker, image, work, export_dir, tmp)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -847,7 +1085,13 @@ def toolchain(repo: Path, export_dir: Path, tmp: Path) -> Step:
         env,
         tmp,
     )
-    return classify(Step("toolchain"), rc, out)
+    step = classify(Step("toolchain"), rc, out)
+    # A Claude Code newer than its floor passes the check with a WARN line (ADR 0023): the step is WARN, which the
+    # summary line counts, so the merge commit records it, and which the merge doesn't wait on.
+    warned = [ln for ln in out.splitlines() if ln.startswith("WARN:")]
+    if step.status == "PASS" and warned:
+        step.status, step.notes = "WARN", warned
+    return step
 
 
 def policy(repo: Path, export_dir: Path, tmp: Path) -> Step:
@@ -1100,8 +1344,145 @@ def gitleaks_tree(repo: Path, export_dir: Path, tmp: Path) -> Step:
     return scan_verdict(step, findings, problems)
 
 
+def arrival(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    """Spec 003's arrival check over the branch's commits: the main tree's own code, the commits read as git data
+    (contracts/arrival-check.md §1). The branch's credits renderer runs in the container phase, never here."""
+    begin(
+        "arrival",
+        "the studio's files in every commit since main, against the main branch's policy",
+    )
+    step = Step("arrival")
+    checker = repo / "tools" / "gates" / "arrival_check.py"
+    if not checker.is_file():
+        return step.fail(f"{checker} is missing (spec 003, Phase 2)")
+    if base is None:
+        return step.fail(
+            "no merge base with main, so the commits since main can't be named"
+        )
+    rc, out = stream(
+        py_host(checker, "--repo", str(repo), "--range", f"{base}..{sha}"),
+        tool_env(GIT_NO_REPLACE_OBJECTS="1"),
+        tmp,
+    )
+    if rc not in (0, 1):
+        return step.fail(
+            f"the arrival check exited {rc}: it couldn't check, which counts as a failure"
+        )
+    return classify(step, rc, out)
+
+
+def studio_files(repo: Path, base: str, sha: str) -> list[str] | None:
+    """The files under STUDIO_ROOT, outside STUDIO_POLICY, that the range adds or changes, or None when git can't say:
+    in any of its commits, so a file a later commit removes still counts, since it stays in the history the merge
+    brings in; and in the tree it ends at, which holds what a merge's resolution adds."""
+    net = changed_paths(repo, base, sha, "--diff-filter=d", under=STUDIO_ROOT)
+    each = git(
+        repo,
+        "log",
+        "--no-renames",
+        "--name-only",
+        "-z",
+        "--format=",
+        "--diff-filter=d",
+        f"{base}..{sha}",
+        "--",
+        STUDIO_ROOT,
+        binary=True,
+    )
+    if net is None or each.returncode:
+        return None
+    found = set(net) | {
+        p.decode("utf-8", "surrogateescape") for p in each.stdout.split(b"\0") if p
+    }
+    return sorted(
+        p
+        for p in found
+        if p.startswith(STUDIO_ROOT) and not p.startswith(STUDIO_POLICY)
+    )
+
+
+def studio_settings(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    """Spec 004's studio-settings step (FR-025, SC-013; contracts/intake-amendments.md §12): when the range brings a
+    studio file in, main's tools/gates/studio_settings_check.py, as the Author runs it, with no option, under PY_HOST,
+    on the settings the studio's session loads on this machine. PASS on exit 0, FAIL on any other; its lines go into
+    the report above the step's, for the note. The step names no path and no file of the range: the check prints
+    folder and scope names and hashes only (§5), and the step adds a count."""
+    begin(
+        "studio-settings",
+        "main's studio settings check, when the range brings a studio file in",
+    )
+    step = Step("studio-settings")
+    if base is None:
+        return step.fail(
+            "no merge base with main, so the range's studio files can't be named"
+        )
+    files = studio_files(repo, base, sha)
+    if files is None:
+        return step.fail("git couldn't name the range's files under assets/")
+    if not files:
+        return step.set("SKIP", "no studio file in the range")
+    checker = repo / "tools" / "gates" / "studio_settings_check.py"
+    if not checker.is_file():
+        return step.fail(
+            "main's tools/gates/studio_settings_check.py is missing (spec 004, P-3)"
+        )
+    count = f"{len(files)} studio file{'s' if len(files) != 1 else ''}"
+    say(f"{count} in the range, so main's check runs")
+    # The Author's own CLAUDE_CONFIG_DIR, when the shell sets it: the check reads the user scope there (§5).
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    extra = {"CLAUDE_CONFIG_DIR": config_dir} if config_dir else {}
+    rc, _ = stream(py_host(checker), tool_env(**extra), tmp)
+    if rc == 0:
+        return step.set("PASS", f"{count}; the check's lines are above, for the note")
+    if rc == 1:
+        return step.fail(
+            f"{count}; the check found what its lines above name, for the note"
+        )
+    return step.fail(
+        f"the studio settings check exited {rc}: it couldn't check, which counts as a failure; its lines are above"
+    )
+
+
+def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None:
+    """Why the image step can't build on the agents' engine, or None when the engine answered one docker version
+    within ENGINE_PROBE_SECONDS, as make image asks it (tasks.md T167). At the bound, subprocess.run kills the client
+    and waits for it alone, not for its output, so nothing holding that pipe can hold the step. What docker printed,
+    its own error included, goes above the step's line."""
+    say(f"docker version, on the agents' engine, stopped at {ENGINE_PROBE_SECONDS} s")
+    try:
+        done = subprocess.run(
+            [docker, "version"],
+            env=engine,
+            cwd=tmp,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=ENGINE_PROBE_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output, why = exc.stdout, f"within {ENGINE_PROBE_SECONDS} s"
+    except OSError as exc:
+        return f"can't run {docker}: {exc.strerror or exc}"
+    else:
+        output = done.stdout
+        why = f"(it exited {done.returncode})" if done.returncode else None
+    text = (output or b"").decode("utf-8", "replace").rstrip("\n")
+    if text:
+        say(text)
+    if why is None:
+        return None
+    return (
+        f"the agents' engine didn't answer docker version {why}, so nothing was built: "
+        "deploy/agents-engine/engine.sh up"
+    )
+
+
 def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
-    begin("image", "the gateway's and the compose images, built on the agents' engine")
+    begin(
+        "image",
+        "the gateway's, the room's, and the compose images, built on the agents' engine",
+    )
     step = Step("image")
     if policy_step.status not in ("PASS", "PLANNED"):
         return step.fail(
@@ -1121,6 +1502,10 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
         DOCKER_TLS_VERIFY="1",
         DOCKER_CERT_PATH=str(certs),
     )
+    # The engine answers first, within its bound, or the step fails rather than holds the gate.
+    problem = engine_problem(docker, engine, tmp)
+    if problem is not None:
+        return step.fail(problem)
     # The gateway's image is make up's own build, outside compose (deploy/scripts/gateway_image.py; tasks.md T184),
     # built here as it builds it, from the export.
     rc, out = stream(
@@ -1146,6 +1531,38 @@ def image(export_dir: Path, policy_step: Step, tmp: Path, sha: str) -> Step:
         return step.fail(
             "the agents' engine didn't build the gateway's image; if it's down: deploy/agents-engine/engine.sh up"
         )
+    # The room's image (spec 002, contracts/web-serving.md §1), as make up builds prod's: h4reet-web:<SHA>, with no
+    # drafts. The gate names no `policy` context, so the Dockerfile's own empty policy stage applies: every content
+    # file builds as a draft, which a build without drafts leaves out. That proves the image builds; what main
+    # approves is make up's to read. A commit from before spec 002 has no apps/web/Dockerfile and no web image.
+    web_dockerfile = export_dir / "apps" / "web" / "Dockerfile"
+    if web_dockerfile.is_file():
+        rc, web = stream(
+            [
+                docker,
+                "buildx",
+                "build",
+                "--load",
+                "--file",
+                str(web_dockerfile),
+                "--tag",
+                f"h4reet-web:{sha}",
+                "--build-arg",
+                f"HTTP_PROXY={AGENTS_PROXY}",
+                "--build-arg",
+                f"HTTPS_PROXY={AGENTS_PROXY}",
+                "--build-arg",
+                "ROOM_DRAFTS=",
+                str(export_dir),
+            ],
+            engine,
+            tmp,
+        )
+        if rc != 0:
+            return step.fail(
+                "the agents' engine didn't build the room's image; if it's down: deploy/agents-engine/engine.sh up"
+            )
+        out += web
     rc, more = stream(
         [
             docker,
@@ -1231,20 +1648,24 @@ def pin(text: str) -> str | None:
 def agent_config_evals(
     repo: Path, export_dir: Path, base: str | None, paths: list[str] | None
 ) -> Step:
-    begin("agent-config-evals", "the behavioral tier, when triggered (plan §14)")
+    begin(
+        "agent-config-evals",
+        "the behavioral tier, when triggered (plan §14; spec 006 FR-004 to FR-006)",
+    )
     step = Step("agent-config-evals")
     if paths is None or base is None:
         return step.fail(
             "no merge base with main, so the branch's changes can't be read"
         )
     touched = sorted(
+        p for p in paths if p in ("CLAUDE.md", "REVIEW.md") or p.startswith(".claude/")
+    )
+    # Spec 006 FR-004: a change to the runner, its checks, the cases, or the thresholds alone is held to its own tests,
+    # and the tier's next run exercises it. The trigger hash still covers it, so each entry names what it tested.
+    harness = sorted(
         p
         for p in paths
-        if (
-            p in ("CLAUDE.md", "REVIEW.md")
-            or p.startswith((".claude/", "evals/agent-config/"))
-        )
-        and not p.startswith(HISTORY)
+        if p.startswith("evals/agent-config/") and not p.startswith(HISTORY)
     )
     if ".devcontainer/toolchain.vars" in paths:
         before = git(repo, "cat-file", "blob", f"{base}:.devcontainer/toolchain.vars")
@@ -1253,10 +1674,16 @@ def agent_config_evals(
         if pin(before.stdout if before.returncode == 0 else "") != pin(after):
             touched.append("the Claude Code pin")
     if not touched:
+        held = (
+            f"; its change to evals/agent-config/ ({some(harness)}) is held to its own tests (spec 006 FR-004, "
+            "FR-005)"
+            if harness
+            else ""
+        )
         return step.set(
             "SKIP",
-            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, evals/agent-config/, "
-            "the Claude Code pin",
+            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the Claude Code pin"
+            + held,
         )
     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
     tier = repo / "evals" / "agent-config" / "behavioral.py"
@@ -1509,6 +1936,14 @@ def summary_line(
 
 
 def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> int:
+    # The export's check on refs a bare main names, again: the container phase runs for minutes, and one made meanwhile
+    # would answer for main in your git diff main...<branch> before the merge. A step only when one is there.
+    try:
+        late = shadow_problem(repo)
+    except Stop as exc:
+        late = str(exc)
+    if late:
+        report.add(Step("main-refs").fail(late))
     say()
     for step in report.steps:
         note = f"  {'; '.join(step.notes)}" if step.notes else ""
@@ -1525,7 +1960,7 @@ def finish(report: Report, repo: Path, sha: str, ref: str, degraded: bool) -> in
         f"-m {shlex.quote(line)} {sha}"
     )
     say(f"merge: {merge}")
-    if git(repo, "merge-base", "--is-ancestor", "main", sha).returncode != 0:
+    if git(repo, "merge-base", "--is-ancestor", MAIN, sha).returncode != 0:
         say(
             f"note: main has commits {ref} doesn't, so the merge writes a tree this run didn't check; to merge "
             "exactly what it checked, merge main into the branch and run the gate again"
@@ -1558,8 +1993,8 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(Step("export").set("PASS", f"{sha}, the commit's own tree"))
         report.add(makefiles(repo, export_dir))
         if not host_only:
-            container_phase(report, data, export_dir, tmp)
-        found = git(repo, "merge-base", "main", sha)
+            container_phase(report, repo, data, export_dir, tmp)
+        found = git(repo, "merge-base", MAIN, sha)
         base = (
             found.stdout.strip()
             if found.returncode == 0 and SHA_RE.fullmatch(found.stdout.strip())
@@ -1572,6 +2007,8 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(corpus(repo, export_dir))
         report.add(gitleaks(repo, sha, base, tmp))
         report.add(gitleaks_tree(repo, export_dir, tmp))
+        report.add(arrival(repo, sha, base, tmp))
+        report.add(studio_settings(repo, sha, base, tmp))
         report.add(image(export_dir, policy_step, tmp, sha))
         report.add(stage_e(repo, paths, prove, ref))
         report.add(agent_config_evals(repo, export_dir, base, paths))

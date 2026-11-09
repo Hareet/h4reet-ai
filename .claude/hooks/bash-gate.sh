@@ -96,9 +96,10 @@ echo "$cmd" | grep -Eq '\bgit\b[^;&|]*(-c[[:space:]]*|[[:space:]]config\b[^;&|]*
 echo "$cmd" | grep -Eq '\bgh\b[^;&|]*[[:space:]]api\b.*createRepository' \
   && block "creating a GitHub repository" "$local_route"
 # Git internals change through git, never by writing the files directly. The backtick in the
-# pattern is a literal (a command started inside backticks), not an expansion.
+# pattern is a literal (a command started inside backticks), not an expansion. .git/main is a ref git reads for a bare
+# main before refs/heads/main (fix/000-main-ref).
 # shellcheck disable=SC2016
-echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/)' \
+echo "$cmd" | grep -Eq '(>|(^|[;&|(`[:space:]])(tee|cp|mv|ln|install|truncate|rm|sed[[:space:]]+-i)[[:space:]])[^;&|]*\.git/(config|HEAD|refs/|hooks/|packed-refs|info/|main([^[:alnum:]_.-]|$))' \
   && block "writing git internals" "$main_route"
 # The git hook that guards main (.claude/git-hooks/reference-transaction) keys on CLAUDECODE and runs
 # from .git/hooks, so agents may not unset or clear that variable or point git at other hooks or config.
@@ -148,13 +149,17 @@ if [ "$engine_reads" = 0 ] && echo "$cmd" | grep -Eq "$engine_run" \
 fi
 # The Author's own targets and commands (spec 000 plan §13; tasks.md T103, T104): make contract-live calls a live
 # adapter, Bedrock's paid, with an operator token; make aws-login starts prod's Bedrock session; and the Bedrock evals
-# call Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md).
+# call Bedrock through prod's paid endpoint. A paid route gets its deny with it (CLAUDE.md). Spec 010's paid route,
+# the Anthropic API, gets the same rules with anthropic (its FR-024, FR-032): make evals or make check, and
+# evals/run.py, its module, or an import of it, naming it. make contract-live is refused by name whatever its
+# adapter, and make redteam-live by its own SANDBOX_RUNTIME check and the operator token the sandbox can't read.
 # - A make target is two matches in one command: make (gmake, a path to either, or tools/gates/run_checks, which runs
 #   make, by path or as a module), and the target's name after any character a name or a path can't hold, so after an
 #   option or an assignment (.DEFAULT_GOAL=, --eval=), a quote, a brace, a parameter's default (${t:-…}), or a separator
-#   inside a quoted value. The evals need bedrock too, through make evals or make check, whose evals gate runs it.
-# - operator.py with contract-record, and evals/run.py, its module, or an import of it with bedrock, are the same two
-#   matches, so they hold through runpy, or a copy made in the same command.
+#   inside a quoted value. The evals need bedrock or anthropic too, through make evals or make check, whose evals
+#   gate runs it.
+# - operator.py with contract-record, and evals/run.py, its module, or an import of it with bedrock or anthropic, are
+#   the same two matches, so they hold through runpy, or a copy made in the same command.
 # - aws-login.sh matches where it runs, by the engine rule's starts and skips, and wherever a shell is started in the
 #   same command (| bash, bash <, sh -c "$(cat …)", eval), so git add, git diff, cat, and shellcheck naming it work.
 # - The AWS CLI matches as aws anywhere, with sso and login, configure and sso, or sso-oidc.
@@ -162,7 +167,8 @@ fi
 # run time or held in a variable, a glob, an ANSI-C escape, a computed import, or a copy run in a command of its own
 # does (the matrix's gap rows); the targets' own SANDBOX_RUNTIME refusals and the token and session the sandbox can't
 # read still stop those. The match is on the command's text, so a command that only names them is refused too: a
-# make target and make (git log --grep='make contract-live'), bedrock and make evals or make check, contract-record and
+# make target and make (git log --grep='make contract-live'), bedrock or anthropic and make evals or make check (not
+# anthropic-messages or @anthropic-ai/sdk, where - is a name's character: spec 010's plan, R-11), contract-record and
 # operator.py, aws-login.sh and a shell started in the same command, or aws with sso login or configure sso (a grep of
 # T105's steps). Read with the Read and Grep tools, and commit with a message file.
 author_route="the Author runs it (spec 000 plan §13); ask the Author"
@@ -192,6 +198,7 @@ ne="([^[:alnum:]_.-]|\$)"
 tb="(^|[^[:alnum:]_./-]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])(\.${eq}(/${eq})+)*"
 te="([^[:alnum:]_./-]|\$)"
 bedrock_word="${nb}$(spelled bedrock)${ne}"
+anthropic_word="${nb}$(spelled anthropic)${ne}"
 make_word="${nb}(g${eq})?$(spelled make)${ne}|${nb}$(spelled run_checks)(${eq}$(spelled .py))?${ne}|$(spelled tools.gates.run_checks)${ne}"
 if has "$make_word"; then
   if has "${tb}($(spelled contract-live)|$(spelled aws-login))${te}"; then
@@ -200,6 +207,9 @@ if has "$make_word"; then
   if has "${tb}($(spelled evals)|$(spelled check))${te}" && has "$bedrock_word"; then
     block "the Bedrock evals" "make evals or make check with ADAPTER=bedrock: $author_route"
   fi
+  if has "${tb}($(spelled evals)|$(spelled check))${te}" && has "$anthropic_word"; then
+    block "the Anthropic evals" "make evals or make check with ADAPTER=anthropic: $author_route"
+  fi
 fi
 if has "${nb}$(spelled operator.py)${ne}" && has "${nb}$(spelled contract-record)${ne}"; then
   block "operator.py's contract-record" "$author_route"
@@ -207,6 +217,9 @@ fi
 evals_run="${nb}($(spelled evals/run.py)|$(spelled evals.run))${ne}|$(spelled from)[[:space:]]+$(spelled evals)[[:space:]]+$(spelled import)${ne}"
 if has "$evals_run" && has "$bedrock_word"; then
   block "the Bedrock evals" "evals/run.py --adapter bedrock: $author_route"
+fi
+if has "$evals_run" && has "$anthropic_word"; then
+  block "the Anthropic evals" "evals/run.py --adapter anthropic: $author_route"
 fi
 aws_login="${nb}$(spelled aws-login.sh)${ne}"
 shell_start="(^|[[:space:];&|(\`{]|\\\$\()(bash|sh|zsh|dash|ksh|source|eval|\.)([[:space:]]|\$)"
@@ -227,7 +240,9 @@ fi
 # - The breach test inits, resets, and renews the stack it runs on, which outside the agents' own engine takes "a
 #   pre-execution hook with a reason and an audit record" (FR-008); make's and breach.py's own SANDBOX_RUNTIME checks are
 #   one unset away. The operator targets and CLI change or read the stack's state through its admin listener, whose
-#   ports for prod and dev, 18003 and 18103, are refused by name wherever they appear.
+#   ports for prod and dev, 18003 and 18103, are refused by name wherever they appear. make studio-window is one of
+#   them (spec 003's contracts/gpu-window.md §2): it records a window on that listener and stops or restarts the
+#   stack's model server.
 # - The Author's other targets: make publish-check, make tools, make matrix-canary, and make evals-agent-config.
 # - git's --no-verify (and the prefixes git accepts), and git commit -n, skip the pre-commit scan.
 # - claude mcp add gives sessions a new tool server.
@@ -265,8 +280,9 @@ breach_script="($(spelled breach.py)|$(spelled evals.breach)|$(spelled evals)[[:
 if runs_script "$breach_script" && ! only_dev_cpu "$stack_opt"; then
   block "the breach test outside dev-cpu" "evals/breach.py: $dev_cpu_route"
 fi
-if has "$make_word" && has "${tb}$(spelled operator-)[[:alnum:]_\"'\\\$-]*${te}" && ! only_dev_cpu "$env_opt"; then
-  block "an operator target outside dev-cpu" "make operator-*: $dev_cpu_route"
+if has "$make_word" && has "${tb}($(spelled operator-)[[:alnum:]_\"'\\\$-]*|$(spelled studio-window))${te}" \
+  && ! only_dev_cpu "$env_opt"; then
+  block "an operator target outside dev-cpu" "make operator-* and make studio-window: $dev_cpu_route"
 fi
 operator_script="($(spelled operator.py)|$(spelled scripts.operator)|$(spelled scripts)[[:space:]]+$(spelled import)[[:space:]]+$(spelled operator))"
 if runs_script "$operator_script" && ! only_dev_cpu "$stack_opt"; then
@@ -283,6 +299,33 @@ no_verify="${nb}$(spelled --no-veri)(${eq}f(${eq}y)?)?(${eq}=|${ne})"
 if has "$git_word" && { has "$no_verify" \
   || has "${git_word}([^;&|]*[[:space:]])?$(spelled commit)([^[:alnum:]_.-][^;&|]*)?[[:space:]][\"'\\]*-[[:alpha:]\"'\\]*n"; }; then
   block "skipping git's hooks" "commit without --no-verify or -n; the pre-commit scan runs on every commit (FR-008)"
+fi
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref). git reads main as main (a file at the top of .git),
+# refs/main, and refs/tags/main before refs/heads/main, so a tag named main would answer for main:<path>, git diff
+# main...<branch>, and git merge-base main wherever they're written bare. The reference-transaction git hook refuses
+# them inside Claude Code; these rules name the spellings: git tag whose tag name is main (after the options that create
+# one: -a, -f, -s, -e, and -m, -F, -u with their values; never -l, -d, -v, or --contains, which only read or delete),
+# and update-ref, symbolic-ref, or a fetch refspec's destination naming refs/main, refs/tags/main, refs/remotes/main, or
+# refs/remotes/main/HEAD. Quotes, backslashes, and $ inside the name don't hide it; a name held in a variable or built
+# at run time, update-ref --stdin, and fast-import do (the matrix's gap rows), and the git hook and the gate's check
+# hold those.
+q="[\"'\\\\]*"
+shell_word="(\"[^\"]*\"|'[^']*'|[^[:space:];&|\"']+)+"
+tag_value="(-[afse]*[mFu]|--(message|file|local-user|cleanup|trailer))(=|[[:space:]]+)${shell_word}|-[afse]*[mFu][^[:space:]]+"
+tag_flag="-[afse]+|--(force|annotate|sign|no-sign|edit|no-edit|create-reflog|no-create-reflog)?"
+if has "${git_cmd}tag${q}([[:space:]]+${q}(${tag_value}|${tag_flag})${q})*[[:space:]]+${q}$(spelled main)${q}([^[:alnum:]_./-]|\$)"; then
+  block "a tag named main" "$main_route; name the tag anything else"
+fi
+main_shadow="${q}($(spelled refs/main)|$(spelled refs/tags/main)|$(spelled refs/remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)"
+# A fetch refspec's destination is read as git reads it: git puts refs/ before one starting tags/ or remotes/, and a glob
+# at refs/* or refs/remotes/* (or remotes/*) lands a source branch feature/main at refs/main or refs/remotes/main. The
+# refspec may follow fetch, or sit in a remote's fetch setting (git -c remote.<name>.fetch=…, git config). A glob at
+# refs/tags/* stays allowed, since it is how tags are fetched: a gap row.
+fetch_dst="(${main_shadow}|${q}($(spelled refs/)${eq})?($(spelled tags/main)|$(spelled remotes/main)(${eq}/${eq}$(spelled HEAD))?)${q}([^[:alnum:]_./-]|\$)|${q}($(spelled refs/)${eq}($(spelled remotes/)${eq})?|$(spelled remotes/)${eq})\*)"
+if has "${git_cmd}(update-ref|symbolic-ref)\b[^;&|]*[[:space:]]${main_shadow}" \
+  || has "${git_cmd}fetch\b[^;&|]*:${fetch_dst}" \
+  || has "$(spelled remote)${eq}\.[^[:space:]=]*\.${eq}$(spelled fetch)${q}(=|[[:space:]]+)[^;&|[:space:]]*:${fetch_dst}"; then
+  block "a ref a bare main names" "$main_route; name the ref anything else"
 fi
 # claude, or npx's claude-code, where a command starts, then mcp and add in the same command: naming the three in a
 # grep, a commit message, or a comment isn't running it (the closing patch's review).

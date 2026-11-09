@@ -402,6 +402,32 @@ describe("startup", () => {
     );
   });
 
+  // Spec 007 (FR-054, FR-027, FR-030): the twin's files never stop the gateway; each reason the twin can't answer, as
+  // server.ts read them, is logged once at start.
+  it("starts whatever the twin's files hold, and logs twin.unavailable, the missing readiness file, and the defaults once", async () => {
+    const db = await freshDatabase();
+    const { logged, logger } = capture();
+    const result = await startGateway({
+      env: DEV_ENV,
+      config,
+      logger,
+      version: "0.1.0",
+      database: db,
+      migrations,
+      listen: LOCAL,
+      onFatal: () => {},
+      twin: { available: false, reason: "pack_invalid", readiness: { ok: false, reason: "missing" } },
+    });
+    expect(result.kind).toBe("running");
+    if (result.kind === "running") running.push(result);
+    const twin = logged.filter((l) => String(l.record.event).startsWith("twin."));
+    expect(twin.map((l) => l.record)).toEqual([
+      { event: "twin.unavailable", reason: "pack_invalid" },
+      { event: "twin.readiness_unavailable", reason: "missing" },
+      { event: "twin.limits_default" },
+    ]);
+  });
+
   it("exits 78 schema_newer_than_code before any listener starts", async () => {
     const db = await freshDatabase();
     await runMigrations(db, migrations);

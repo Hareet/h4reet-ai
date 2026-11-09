@@ -1,0 +1,8 @@
+rule: RS2
+file: apps/web/room/scene.yaml
+path: placements[9].piece
+why: a placement of the piece the switch places
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [placements]
+    push: { id: fx-spare-plug, piece: fx-plug, mount: { on: fx-desk, anchor: top, offset: [-0.5, 0, 0.2] } }

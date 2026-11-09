@@ -1,0 +1,6 @@
+rule: RI1
+file: apps/web/room/scene.yaml
+path: placements[1].id
+why: a placement ID outside the ID grammar
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 1, id], set: Fx-Desk }

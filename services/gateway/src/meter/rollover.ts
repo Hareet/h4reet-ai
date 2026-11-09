@@ -23,14 +23,43 @@ export interface RowKey {
   periodKey: string;
 }
 
-/** The rows a call counts toward (data-model.md §2.3): fallback all three; metered and test day and month. */
-export function rowsOf(attribution: MeteredAttribution, periods: Periods): RowKey[] {
+/** A capped adapter's month row's key (spec 010, data-model.md §2.3): <adapter id>:<YYYY-MM>. */
+export const adapterMonthKey = (adapterId: string, month: string): string => `${adapterId}:${month}`;
+
+/**
+ * The rows a call counts toward (data-model.md §2.3): fallback all three; metered and test day and month; and, for a
+ * call that reserved against its adapter's month (spec 010), that month's row, named by its key.
+ */
+export function rowsOf(attribution: MeteredAttribution, periods: Periods, adapterMonth?: string): RowKey[] {
   const rows: RowKey[] = [
     { meter: "day", periodKey: periods.day },
     { meter: "month", periodKey: periods.month },
   ];
   if (attribution === "fallback") rows.push({ meter: "fallback_day", periodKey: periods.day });
+  if (adapterMonth !== undefined) rows.push({ meter: "adapter_month", periodKey: adapterMonth });
   return rows;
+}
+
+/**
+ * §7.2 step 4 for a capped adapter (spec 010, FR-022): its month's row, created at zero when the month is new, then
+ * locked FOR UPDATE after the period rows. A rollover is lazy: a new month's row starts at zero, and nothing touches
+ * stack_state.
+ */
+export async function upsertAdapterMonth(q: Queryable, key: string, nowIso: string): Promise<LockedRow> {
+  await q.query(
+    `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no, created_at,
+       updated_at)
+     VALUES ('adapter_month', $1, 0, 0, NULL, NULL, $2, $2)
+     ON CONFLICT (meter, period_key) DO NOTHING`,
+    [key, nowIso],
+  );
+  const { rows } = await q.query<RawRow>(
+    `SELECT ${ROW_COLUMNS} FROM gateway.meters WHERE meter = 'adapter_month' AND period_key = $1 FOR UPDATE`,
+    [key],
+  );
+  const row = rows[0];
+  if (row === undefined) throw new Error("the adapter_month row is missing after its upsert");
+  return lockedRowOf(row);
 }
 
 /** A meter row under the transaction's lock. */

@@ -1,0 +1,40 @@
+# The window's view: spec 002's placeholder, a sky, a fence of slats, and a tree, all unlit (src/room/scene.ts),
+# mounted inside the window and sized to fill the large window's opening. A generic fence and a generic tree, which
+# locate nothing (FR-028): recreated, so there is nothing to measure. Its size is the studio's hand-back of 2026-11-07,
+# 1.92 × 1.22 m, for the 2.0 × 1.3 m window; the stand-in keeps spec 002's 1.72 × 1.17 m sky, inside the new bounds.
+version: 1
+id: window-view
+name: Window view, a fence and a tree
+size: { w: 1.92, h: 1.22, d: 0.01 }
+stylized_scale: 1
+origin:
+  point: the centre of the sky behind the fence, just inside the window's opening.
+  bounds: { min: [-0.96, -0.61, 0], max: [0.96, 0.61, 0.01] }
+standin:
+  - { shape: plane, size: [1.72, 1.17], at: [0, 0, 0], color: sky, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [-0.795, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [-0.636, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [-0.477, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [-0.318, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [-0.159, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0.159, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0.318, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0.477, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0.636, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.12, 0.44], at: [0.795, -0.365, 0.01], color: fence, lit: false }
+  - { shape: plane, size: [0.07, 0.36], at: [0.75, -0.15, 0.008], color: bark, lit: false }
+  - { shape: circle, radius: 0.11, at: [0.75, 0.1, 0.009], color: leaf, lit: false }
+drawing: { from: standin }
+budget: { gzip_bytes: 500000, triangles: 6000, texture_px: 2048, texture_bytes: 11184810 }
+model: { file: window-view.glb }
+work_order:
+  method: >-
+    Recreate the view as a flat backdrop from the Author's typed description: a sky, a plain wooden fence, and one
+    tree, in the look's flat colours.
+  shots: []
+  measurements: []
+  studio_notes: >-
+    A generic fence and a generic tree: no building, skyline, landmark, sign, street, vehicle, or person, and nothing
+    that could locate the room (FR-028). The view is recreated, never taken or traced from a photo (spec 003's window
+    confirmation).

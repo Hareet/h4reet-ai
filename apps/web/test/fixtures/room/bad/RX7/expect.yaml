@@ -1,0 +1,10 @@
+rule: RX7
+file: assets/room/fx-desk.glb
+path: "-"
+why: a misplaced origin, so the model's bounds lie off the catalog's expected bounds
+generate: { assets/room/fx-desk.glb: glb:rx7-misplaced-origin, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

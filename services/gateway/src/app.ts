@@ -1,6 +1,7 @@
 // The gateway's two listeners and its startup order (plan §5.1; contracts/gateway-http.md §1; operator-admin.md §1).
 //
-// - The api listens on 8080: POST /hello, GET /health, and GET /health/live.
+// - The api listens on 8080: POST /hello, GET /health, and GET /health/live; and spec 002's POST /room/events, the
+//   room's usage events, which reads config/room-events.yaml as server.ts loaded it (routes/room-events.ts).
 // - The admin listener listens on 8081. Authentication comes first, before anything else (operator-admin.md §1.1),
 //   and until it exists (tasks.md T055) every request there is unauthenticated, so every answer is 401.
 // - Startup: validate the environment and the configuration (exit 78 on failure), build the route's adapters
@@ -14,7 +15,7 @@ import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
-import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
+import { channelsFrom, Dispatcher, type Channels } from "./alerts/dispatcher.js";
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
@@ -30,6 +31,8 @@ import {
   type StartupRefusal,
 } from "./config/validate.js";
 import { validateGatewayEnv } from "./config/validate-env.js";
+import type { RoomEventsConfig, RoomEventsLoad } from "./config/room-events.js";
+import type { TwinLoad } from "./config/twin.js";
 import { GatewayClock } from "./core/clock.js";
 import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
@@ -47,9 +50,17 @@ import {
 import { registerAdmin } from "./routes/admin.js";
 import { registerHealth, registerHealthLive } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
+import { registerRoomEvents } from "./routes/room-events.js";
+import { registerRoomTurn } from "./routes/room-turn.js";
 import { edgePeer, type ForwardedBy } from "./core/edge.js";
 import { GatewayMetrics } from "./telemetry/metrics.js";
 import { annotateServerSpan, noteErrorType } from "./telemetry/otel.js";
+import { NO_TWIN, twinRuntime, type TwinRuntime } from "./twin/turn.js";
+import { FREE_TALK } from "./twin/pack.js";
+
+/** The room features a turn can be charged under: each selectable the pack names, and free talk (spec 007). */
+const roomFeaturesOf = (twin: TwinLoad): string[] =>
+  twin.available ? [...twin.files.pack.selectable.keys(), FREE_TALK].sort() : [];
 
 export const API_BODY_LIMIT = 16_384;
 export const ADMIN_BODY_LIMIT = 4_096;
@@ -163,6 +174,10 @@ export interface GatewayServices {
   forwardedBy: ForwardedBy;
   /** GATEWAY_STATE_DIR: the journal and the incident drafts. */
   stateDir: string;
+  /** Spec 002's event list, config/room-events.yaml; null when it was missing or invalid: every event is refused. */
+  roomEvents: RoomEventsConfig | null;
+  /** Spec 007's twin: its files, its per-turn limits, its ranking, and the turn route's own per-client cap. */
+  twin: TwinRuntime;
 }
 
 /** GATEWAY_STATE_DIR, which compose sets (env-files.md §4): the journal and the incident drafts live under it. */
@@ -183,6 +198,12 @@ export interface ServiceOptions {
   realNow?: () => number;
   /** Which peer is edge; by default the `edge` service's addresses, looked up on the stack's network. */
   forwardedBy?: ForwardedBy;
+  /** Spec 002's event list; none by default, so every usage event is refused. */
+  roomEvents?: RoomEventsConfig | null;
+  /** Spec 007's twin files, as loadTwin read them; none by default, so every turn is twin_unavailable. */
+  twin?: TwinLoad;
+  /** The alert channels; ALERT_DELIVERY's by default (channelsFrom), stubs on the loopback in tests. */
+  channels?: Channels;
 }
 
 /**
@@ -223,6 +244,10 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
     hasFallback: adapters.some((a) => a.role === "fallback"),
+    // Spec 010 (FR-023, FR-037): an adapter month's cap sets the renewal flag only for the route's fallback, and its
+    // alerts name each adapter by its type's label.
+    fallbackAdapterId: adapters.find((a) => a.role === "fallback")?.config.id ?? null,
+    adapterLabels: new Map(adapters.map((a) => [a.config.id, a.config.spec.label ?? a.config.id] as [string, string])),
   });
   const gateway = new Gateway({
     stack,
@@ -243,6 +268,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     journalStatus: () => journal.status(),
     meter,
     realNow,
+    roomFeatures: roomFeaturesOf(opts.twin ?? NO_TWIN),
   });
   // A committed change to a meter or the state replaces the gauges' snapshot at once (telemetry.md §4.1).
   meter.onChange = () => void gateway.refreshGauges().catch(() => {});
@@ -252,7 +278,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     store: opts.store,
     alerts,
     budgets,
-    channels: channelsFrom(env, alerts),
+    channels: opts.channels ?? channelsFrom(env, alerts),
     hasFallback: gateway.fallbackId() !== null,
     clock,
     metrics,
@@ -260,7 +286,10 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
   });
   // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
-  gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
+  // Spec 010 (FR-037): the alert names the adapter by its type's label, "Bedrock" or "the Anthropic API".
+  const labels = new Map(adapters.map((a) => [a.config.id, a.config.spec.label] as [string, string | undefined]));
+  gateway.onFallbackUnavailable = (adapter, reason) =>
+    void dispatcher.fallbackUnavailable(adapter, reason, labels.get(adapter));
   // A paid adapter whose SSO session ends soon: the dispatcher queues its credentials_expiring alert (alerts.md §2).
   gateway.onCredentialsExpiring = (adapter, label, endsAt) => dispatcher.credentialsExpiring(adapter, label, endsAt);
   const drafts = new IncidentDrafts({
@@ -299,6 +328,8 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
     forwardedBy: opts.forwardedBy ?? edgePeer(),
     stateDir,
+    roomEvents: opts.roomEvents ?? null,
+    twin: twinRuntime(opts.twin ?? NO_TWIN, budgets, envClass),
   };
 }
 
@@ -328,6 +359,17 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       realNow: s.realNow,
       forwardedBy: s.forwardedBy,
     });
+    registerRoomEvents(api, { events: s.roomEvents, metrics: s.metrics });
+    registerRoomTurn(api, {
+      stack: s.stack,
+      gateway: s.gateway,
+      twin: s.twin,
+      clock: s.clock,
+      metrics: s.metrics,
+      logger: s.logger,
+      realNow: s.realNow,
+      forwardedBy: s.forwardedBy,
+    });
   }
   api.setNotFoundHandler(async (req, reply) => reply.code(404).send({ error: "not_found", request_id: req.id }));
 
@@ -351,6 +393,13 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       stateDir: s.stateDir,
       testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
       onChange: () => void s.gateway.refreshGauges().catch(() => {}),
+      twin: s.twin,
+      // Spec 011's samples (plan §7.2): the dispatcher's narrow interface.
+      samples: {
+        delivery: s.dispatcher.delivery(),
+        pending: () => s.dispatcher.samplesPending(),
+        queue: (entries, auditId, fingerprint) => s.dispatcher.queueSamples(entries, auditId, fingerprint),
+      },
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is
@@ -386,6 +435,14 @@ export interface StartOptions {
   /** The adapter factories; every module in adapters/ by default. */
   factories?: ReadonlyMap<string, AdapterFactory>;
   now?: () => number;
+  /**
+   * Spec 002's config/room-events.yaml, as server.ts read it from the config directory. Missing or invalid, the
+   * gateway still starts, logs room_events.unavailable, and refuses every usage event; absent, it refuses them too.
+   */
+  roomEvents?: RoomEventsLoad;
+  /** Spec 007's twin files, as server.ts read them from the config directory. Missing or invalid, the gateway still
+   *  starts, logs twin.unavailable once, and answers every turn twin_unavailable (FR-054). */
+  twin?: TwinLoad;
 }
 
 export interface RunningGateway {
@@ -438,6 +495,15 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
   const envClass = ENV_CLASSES.find((c) => c === env.H4_ENV);
   if (!routing || !prices || !envClass) throw new Error("validated configuration is incomplete");
 
+  // Spec 002's event list never stops the gateway: without it, every usage event is refused (room-events.md §3).
+  const roomEvents = opts.roomEvents;
+  if (roomEvents !== undefined && !roomEvents.ok) {
+    logger.warn(
+      { event: "room_events.unavailable", reason: roomEvents.reason, path: roomEvents.path },
+      "The room's event list is missing or invalid, so every usage event is refused.",
+    );
+  }
+
   // 2. The route's adapters, and the services around them; then the store: the first attempt now, retries in the
   //    background while it is down.
   const store = new Store({
@@ -461,6 +527,8 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
       logger,
       version: opts.version,
       ...(opts.factories === undefined ? {} : { factories: opts.factories }),
+      roomEvents: roomEvents?.ok === true ? roomEvents.config : null,
+      ...(opts.twin === undefined ? {} : { twin: opts.twin }),
     });
   } catch (err) {
     await store.close();
@@ -476,6 +544,35 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     if (!(err instanceof FatalStoreError)) throw err;
     logFatal(logger, err.exitCode, err.reason);
     return { kind: "refused", exitCode: err.exitCode, lines: [`${err.message} (${err.reason})`] };
+  }
+
+  // Spec 007's twin never stops the gateway: each reason it can't answer is logged once, here, when server.ts read the
+  // files (FR-054, FR-030, FR-027); a caller that passes none, as the tests do, has nothing to report.
+  const twin = services.twin;
+  if (opts.twin !== undefined) {
+    if (!twin.load.available) {
+      logger.warn(
+        { event: "twin.unavailable", reason: twin.load.reason },
+        "The twin's files are missing or invalid, so every turn is twin_unavailable.",
+      );
+    }
+    if (!twin.load.readiness.ok) {
+      logger.info(
+        { event: "twin.readiness_unavailable", reason: twin.load.readiness.reason },
+        "The twin's readiness file is missing or invalid, so nothing is ready.",
+      );
+    }
+    if (twin.limits === null) {
+      logger.warn(
+        { event: "twin.unavailable", reason: "limits_missing" },
+        "config/budgets.yaml has no limits.twin, so every turn is twin_unavailable on prod.",
+      );
+    } else if (twin.limitsDefault) {
+      logger.info(
+        { event: "twin.limits_default" },
+        "config/budgets.yaml has no limits.twin, so the twin uses FR-027's defaults.",
+      );
+    }
   }
 
   // 3. The listeners, then the background work.

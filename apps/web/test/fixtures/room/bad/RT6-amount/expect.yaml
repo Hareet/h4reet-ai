@@ -1,0 +1,6 @@
+rule: RT6
+file: apps/web/content/room/fx-script.yaml
+path: lines[1].text
+why: an amount, a currency sign beside a number, on the monitor's script
+edits:
+  - { file: apps/web/content/room/fx-script.yaml, at: [lines, 1, text], set: fx $5 ok }

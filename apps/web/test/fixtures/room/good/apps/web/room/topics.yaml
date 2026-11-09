@@ -1,0 +1,8 @@
+# The fixture topics: one, opened by the workstation. Its corpus file needn't exist; the topic then stays unready.
+version: 1
+topics:
+  - id: fx-work
+    phrase: fixture work
+    words_from:
+      - { file: intent/900-fx-room.md, quote: the fixture room holds a desk }
+    corpus: [corpus/90-fx-work.md]

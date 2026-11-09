@@ -15,6 +15,7 @@ export const DEGRADED_DETAIL: Readonly<Record<DegradedCause, string>> = {
   no_fallback_in_stack: "The local model is unavailable, and this stack has no fallback.",
   meter_at_ceiling:
     "The local model is unavailable, and metered calls are refused while a meter is at or above its ceiling.",
+  adapter_month_spent: "The local model is unavailable, and the paid fallback has reached its monthly cap.",
   fallback_awaiting_renewal:
     "The local model is unavailable, and the fallback sub-budget ran out. It stays refused until the operator renews it.",
   fallback_spent_today:
@@ -77,6 +78,8 @@ export interface MeterView {
   fallbackLevel: bigint;
   /** Today's fallback_day allowance: the full grant until a renewal changes it. */
   allowance: bigint;
+  /** The routed paid fallback's month, when it has a cap (spec 010, FR-022): its level and its cap. */
+  adapterMonth?: { level: bigint; cap: bigint };
 }
 
 export interface RouteView {
@@ -97,8 +100,8 @@ export interface RouteView {
 /**
  * The cause a hello arriving now would get, from a dry run of §2.4 step 4 onward with no reservation and no provider
  * call; null when it would be answered (gateway-http.md §5; the h4.degraded.cause gauge, telemetry.md §4.1). The
- * fallback branch's causes come in admission's precedence: the ceilings, the renewal flag, today's allowance, the
- * adapter's health, then the journal. Meters that couldn't be read leave their two checks out.
+ * fallback branch's causes come in admission's precedence: the ceilings, the paid fallback's monthly cap (spec 010),
+ * the renewal flag, today's allowance, the adapter's health, then the journal. Meters that couldn't be read leave their two checks out.
  */
 export function wouldDegrade(view: RouteView): DegradedCause | null {
   const early = stateDecision(view.read, {});
@@ -110,6 +113,7 @@ export function wouldDegrade(view: RouteView): DegradedCause | null {
   if (f !== undefined && m !== undefined && (m.dayLevel >= f.ceilings.day || m.monthLevel >= f.ceilings.month)) {
     return "meter_at_ceiling";
   }
+  if (m?.adapterMonth !== undefined && m.adapterMonth.level >= m.adapterMonth.cap) return "adapter_month_spent";
   if (view.read.kind === "ok" && view.read.fallbackAwaitingRenewal) return "fallback_awaiting_renewal";
   if (m !== undefined && m.fallbackLevel >= m.allowance) return "fallback_spent_today";
   if (f !== undefined && !f.healthy) return "fallback_unavailable";

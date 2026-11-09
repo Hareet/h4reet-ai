@@ -135,6 +135,24 @@ class FakeStack:
                 body = {"gateway_time": self.stamp(), "offset_ms": self.offset_ms}
             self.audit_id += 1
             body["audit_id"] = self.audit_id
+            if op["path"] == "/admin/alert-samples":
+                # Spec 011's samples (operator-admin.md §2.4): two of the catalogue's entries stand for the 19.
+                body |= {
+                    "action": "alert_samples",
+                    "delivery": "standin",
+                    "samples": [
+                        {"entry": e, "key": f"dev-cpu:sample:{e}:{self.audit_id}"}
+                        for e in ("warn-day", "trip")
+                    ],
+                }
+            if op["path"] == "/admin/status":
+                body |= {
+                    "state": "normal",
+                    "meters": {
+                        m: {"spent_micro_usd": 100_000}
+                        for m in ("day", "month", "fallback_day")
+                    },
+                }
             answer = {"status": 200, "error": None, "body": body}
             for path, value in (op.get("expect") or {}).items():
                 set_path(answer, path, value)
@@ -289,7 +307,7 @@ def rows(text: str) -> dict[str, tuple[str, str, str]]:
     found = {}
     for line in text.splitlines():
         match = re.match(
-            r"^(\d+[a-z])\s+(\d+)\s+(\S+)\s+([TML])\s+(PASS|MISS)\s+(.*)$", line
+            r"^(\d+[a-z])\s+(\d+)\s+(\S+)\s+([TML])\s+(PASS|MISS|SKIP)\s+(.*)$", line
         )
         if match:
             found[match.group(1)] = (match.group(4), match.group(5), match.group(6))
@@ -308,8 +326,8 @@ def test_every_assertion_is_tagged_with_its_source() -> None:
     ids = [a.id for a in breach.CATALOG]
     assert len(ids) == len(set(ids))
     assert {a.source for a in breach.CATALOG} == {"T", "M", "L"}
-    # Every step of plan §8 but the last, which is the table itself, has at least one.
-    assert {a.step for a in breach.CATALOG} == set(range(1, 12))
+    # Every step of plan §8 but the last, which is the table itself, has at least one; and spec 011's step 12.
+    assert {a.step for a in breach.CATALOG} == set(range(1, 13))
     for scenario in (
         "US2-1",
         "US2-2",
@@ -621,6 +639,18 @@ PLAN_8_FIGURES = [
     f"11e {DAY_Q} = 0.1",
     f"11e {MONTH_Q} = 0.1",
     "11e max(h4_fallback_awaiting_renewal) = 1.0",
+    # 12: spec 011's samples, in stand-in mode: the status, the request, the audit row, the count of both channels'
+    # deliveries of the fake's two samples, and the meters and the state as the first status read them.
+    "s12.before GET /admin/status {'status': 200}",
+    (
+        "s12.samples POST /admin/alert-samples {'body.action': 'alert_samples', 'body.delivery': 'standin', "
+        "'status': 200}"
+    ),
+    "12b audit alert_samples {}",
+    '12c sum(h4_alerts_total{h4_alert_kind="sample"}) >= vector(4)',
+    f"12d {DAY_Q} = 0.1",
+    f"12d {MONTH_Q} = 0.1",
+    "s12.after GET /admin/status {'body.state': 'normal', 'status': 200}",
 ]
 
 
@@ -928,7 +958,13 @@ def test_step_11_asserts_the_wiped_store_in_the_call_that_rebuilds_it() -> None:
     # the store is back, with nothing between them but the probe.
     stack = FakeStack()
     run(["--stack", "dev-cpu"], stack)
-    last = json.loads(stack.stdins[-1].split("\n", 1)[1])["ops"]
+    # Step 11's last probe call: spec 011's step 12 runs after it.
+    elevens = [
+        i
+        for i, c in enumerate(stack.commands)
+        if "breach-probe" in c and c[c.index("/app/breach_probe.py") + 1] == "11"
+    ]
+    last = json.loads(stack.stdins[elevens[-1]].split("\n", 1)[1])["ops"]
     assert [op.get("id") or op.get("assert") for op in last][:3] == [
         "11c",
         "s11.empty",
@@ -936,7 +972,7 @@ def test_step_11_asserts_the_wiped_store_in_the_call_that_rebuilds_it() -> None:
     ]
     # Step 1's wipe sends the same command, so find step 11's by its place: the last one.
     back = max(i for i, c in enumerate(stack.commands) if c[-1] == "gateway-state")
-    assert stack.commands[back + 1 :] == [stack.commands[-1]]
+    assert back + 1 == elevens[-1]
 
 
 # --- the delivery overlay (contracts/env-files.md §7.2) -----------------------------------------------------------
@@ -1566,3 +1602,113 @@ def test_real_run_starts_each_command_in_its_own_session(
         without_input["stdin"] is subprocess.DEVNULL and without_input["input"] is None
     )
     assert with_input["stdin"] is None and with_input["input"] == "ops\n"
+
+
+# --- spec 011: the designed forms on the stand-ins, and step 12's samples (FR-040, FR-053; SC-006, SC-012) ---------
+
+
+# Each alert's receivers' check, and the check of its designed form beside it (FR-053; T048's review).
+DESIGNED_BESIDE = {"3b": "3d", "4c": "4f", "5d": "5f", "7d": "7g", "10b": "10i"}
+
+
+def test_the_stand_in_checks_stay_as_they_were_with_the_designed_forms_checked_beside_them() -> (
+    None
+):
+    # FR-053: the existing stand-in assertions unchanged, and the checks of the designed forms beside them, each an
+    # assertion of its own, on the same alert's key, in the same step.
+    stack = FakeStack()
+    code, text = run(["--stack", "dev-cpu"], stack)
+    assert code == 0, text
+    by_id = {a.id: a for a in breach.CATALOG}
+    for receivers, designed in DESIGNED_BESIDE.items():
+        held = [
+            o
+            for o in stack.ops_seen
+            if o.get("assert") == receivers and o["op"] in ("telegram", "mailpit")
+        ]
+        assert sorted(o["op"] for o in held) == ["mailpit", "telegram"], receivers
+        # As before spec 011: found by key within 300 s, nothing asked of the form.
+        assert all("expect" not in o and o["within_s"] == 300 for o in held), receivers
+        beside = [o for o in stack.ops_seen if o.get("assert") == designed]
+        assert sorted(o["op"] for o in beside) == ["mailpit", "telegram"], designed
+        assert all(
+            o["expect"] == {"designed": True}
+            and o["key"] == held[0]["key"]
+            and o["within_s"] == 300
+            for o in beside
+        ), designed
+        assert by_id[designed].stand_in_only, designed
+        assert by_id[designed].step == by_id[receivers].step, designed
+        assert by_id[designed].source == "L", designed
+
+
+def test_a_miss_of_the_designed_form_leaves_the_receivers_check_passing() -> None:
+    stack = FakeStack(miss={"3d"})
+    code, text = run(["--stack", "dev-cpu"], stack)
+    assert code == 1
+    table = rows(text)
+    assert [aid for aid, (_, result, _) in table.items() if result != "PASS"] == ["3d"]
+
+
+def test_step_12_sends_the_samples_and_finds_each_designed_on_both_stand_ins() -> None:
+    stack = FakeStack()
+    code, text = run(["--stack", "dev-cpu"], stack)
+    assert code == 0, text
+    (request,) = [o for o in stack.ops_seen if o.get("path") == "/admin/alert-samples"]
+    assert request["method"] == "POST"
+    assert request["body"] == {"reason": "breach test step 12: the alert samples"}
+    found = [o for o in stack.ops_seen if o.get("assert") == "12a"]
+    assert sorted(o["op"] for o in found) == [
+        "mailpit",
+        "mailpit",
+        "telegram",
+        "telegram",
+    ]
+    keys = {o["key"] for o in found}
+    assert len(keys) == 2
+    assert all(re.fullmatch(r"dev-cpu:sample:(warn-day|trip):\d+", k) for k in keys)
+    assert all(
+        o["within_s"] == 120 and o["expect"] == {"designed": True} for o in found
+    )
+    (audit,) = [o for o in stack.ops_seen if o.get("assert") == "12b"]
+    assert audit["op"] == "audit" and audit["action"] == "alert_samples"
+    (counted,) = [o for o in stack.ops_seen if o.get("assert") == "12c"]
+    assert counted["op"] == "metric" and 'h4_alert_kind="sample"' in counted["query"]
+    unchanged = [o for o in stack.ops_seen if o.get("assert") == "12d"]
+    assert {o["op"] for o in unchanged} == {"metric"} and len(unchanged) == 2
+    # The stack's state as before, read again after the samples went out.
+    reads = [
+        o
+        for o in stack.ops_seen
+        if o.get("path") == "/admin/status" and str(o.get("id", "")).startswith("s12.")
+    ]
+    assert [o["id"] for o in reads] == ["s12.before", "s12.after"]
+    assert reads[1]["expect"]["body.state"] == "normal"
+    table = rows(text)
+    assert all(table[a][1] == "PASS" for a in ("12a", "12b", "12c", "12d"))
+
+
+def test_step_12_is_skipped_with_real_delivery_so_the_authors_run_sends_nothing_new(
+    dev_files: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    home, env_file, run_file = dev_files
+    stack = FakeStack()
+    scratch = tmp_path / "tmp"
+    scratch.mkdir()
+    argv = ["--stack", "dev", "--env-file", str(env_file), "--run-file", str(run_file)]
+    code, text = run(
+        [*argv, "--delivery", "real"],
+        stack,
+        environ=author(TMPDIR=str(scratch)),
+        home=home,
+    )
+    assert code == 0, text
+    assert not [o for o in stack.ops_seen if o.get("path") == "/admin/alert-samples"]
+    assert not [o for o in stack.ops_seen if str(o.get("assert", "")).startswith("12")]
+    table = rows(text)
+    assert all(table[a][1] == "SKIP" for a in ("12a", "12b", "12c", "12d"))
+    # The designed forms' checks beside the receivers' read SKIP too: real delivery leaves the stand-ins empty.
+    assert not [
+        o for o in stack.ops_seen if o.get("assert") in DESIGNED_BESIDE.values()
+    ]
+    assert all(table[a][1] == "SKIP" for a in DESIGNED_BESIDE.values())

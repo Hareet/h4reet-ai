@@ -152,6 +152,9 @@ class Assertion:
     real_text: str | None = (
         None  # with --delivery real, where the stand-ins' records become the providers' replies
     )
+    # Spec 011's step 12, and its checks of the designed forms beside the receivers' (FR-053), run in stand-in mode
+    # only: with --delivery real they are skipped, and read SKIP, not MISS.
+    stand_in_only: bool = False
 
 
 RECEIVED = "Telegram's message_id and SMTP's 250 reply are in its delivery records, and neither stand-in holds it"
@@ -193,6 +196,16 @@ CATALOG = (
         f"the daily warning: {RECEIVED}",
     ),
     Assertion("3c", 3, "US2-2", "M", "Spend today shows 3.50 at its 3.50 warning"),
+    # Spec 011 (FR-053): beside each receivers' check (3b, 4c, 5d, 7d, 10b), which stays as it was, the same alert in its
+    # designed form on both stand-ins; stand-in mode only.
+    Assertion(
+        "3d",
+        3,
+        "US2-2",
+        "L",
+        "both stand-ins hold the daily warning in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion(
         "4a",
         4,
@@ -219,6 +232,14 @@ CATALOG = (
         "4d", 4, "US2-2", "M", "the fallback panel shows 1.40 spent at its 1.40 warning"
     ),
     Assertion("4e", 4, "US5-7", "M", "fallback today reads 1.50"),
+    Assertion(
+        "4f",
+        4,
+        "US2-2",
+        "L",
+        "both stand-ins hold grant 1's warning in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion(
         "5a",
         5,
@@ -250,6 +271,14 @@ CATALOG = (
         "US5-3",
         "M",
         "renewal is awaited, and Why responses are degraded shows fallback_awaiting_renewal",
+    ),
+    Assertion(
+        "5f",
+        5,
+        "US5-7",
+        "L",
+        "both stand-ins hold the fallback_exhausted alert in its designed form (spec 011)",
+        stand_in_only=True,
     ),
     Assertion(
         "6a",
@@ -346,6 +375,14 @@ CATALOG = (
         "L",
         "a hello's call.degraded record names kill_switch_tripped: local is refused too",
     ),
+    Assertion(
+        "7g",
+        7,
+        "US2-3",
+        "L",
+        "both stand-ins hold the trip alert in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion("8a", 8, "US2-6", "L", "incident.drafted for the daily ceiling"),
     Assertion(
         "8b",
@@ -427,6 +464,14 @@ CATALOG = (
         "after the reset: normal, and one metered call reads 0.10 today and this month",
     ),
     Assertion(
+        "10i",
+        10,
+        "US2-5",
+        "L",
+        "both stand-ins hold the monthly warning in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
+    Assertion(
         "11a",
         11,
         "US2-7",
@@ -454,6 +499,39 @@ CATALOG = (
         "US2-7",
         "M",
         "the rebuilt meters read 0.10 today and this month, with renewal awaited",
+    ),
+    # Spec 011 (FR-040, SC-006; its plan §8.2, D16): the samples, in stand-in mode only.
+    Assertion(
+        "12a",
+        12,
+        "011-US4",
+        "L",
+        "every sample reaches both stand-ins in its designed form, by its key, within 120 s",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12b",
+        12,
+        "011-US4",
+        "L",
+        "one alert_samples audit row, with the reason",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12c",
+        12,
+        "011-US4",
+        "M",
+        "h4_alerts_total counts the samples under the kind sample",
+        stand_in_only=True,
+    ),
+    Assertion(
+        "12d",
+        12,
+        "011-US4",
+        "M",
+        "today's and the month's meters read as before the samples",
+        stand_in_only=True,
     ),
 )
 
@@ -814,6 +892,8 @@ class Report:
         self.outcomes.setdefault(assertion, []).append(result)
 
     def verdict(self, assertion: Assertion) -> tuple[str, str]:
+        if assertion.stand_in_only and self.delivery == "real":
+            return "SKIP", "stand-in mode only: real delivery sends no samples"
         results = self.outcomes.get(assertion.id, [])
         if not results:
             return "MISS", f"not run: {self.stopped}" if self.stopped else "not run"
@@ -823,7 +903,7 @@ class Report:
 
     def passed(self) -> bool:
         return self.stopped is None and all(
-            self.verdict(a)[0] == "PASS" for a in CATALOG
+            self.verdict(a)[0] in ("PASS", "SKIP") for a in CATALOG
         )
 
     def table(self) -> list[str]:
@@ -837,14 +917,17 @@ class Report:
                 f"{a.id:<4} {a.step:<4} {a.scenario:<8} {a.source:<6} {result:<6} {text}{f' ({detail})' if detail else ''}"
             )
         passed = sum(self.verdict(a)[0] == "PASS" for a in CATALOG)
+        skipped = sum(self.verdict(a)[0] == "SKIP" for a in CATALOG)
         by_source = []
         for source in ("T", "M", "L"):
             ones = [a for a in CATALOG if a.source == source]
             by_source.append(
                 f"{source} {sum(self.verdict(a)[0] == 'PASS' for a in ones)}/{len(ones)}"
             )
+        missed = len(CATALOG) - passed - skipped
+        skips = f", {skipped} skipped" if skipped else ""
         lines.append(
-            f"summary: {len(CATALOG)} assertions: {passed} passed, {len(CATALOG) - passed} missed; {', '.join(by_source)}"
+            f"summary: {len(CATALOG)} assertions: {passed} passed, {missed} missed{skips}; {', '.join(by_source)}"
         )
         return lines
 
@@ -965,7 +1048,8 @@ def metric(
 
 
 class Steps:
-    """Plan §8's steps 1 to 11, each as the probe's operations and the lifecycle commands between them."""
+    """Plan §8's steps 1 to 11, and spec 011's step 12 (its plan §8.2), each as the probe's operations and the
+    lifecycle commands between them."""
 
     def __init__(self, ctx: Context, report: Report) -> None:
         self.ctx, self.report, self.probe = ctx, report, ctx.probe
@@ -1000,10 +1084,16 @@ class Steps:
         return op
 
     def delivered(
-        self, aid: str, receivers: str, key: str, when: Anchor
+        self,
+        aid: str,
+        receivers: str,
+        key: str,
+        when: Anchor,
+        designed: str | None = None,
     ) -> list[dict[str, Any]]:
         """L: both channels' alert.delivered records within 300 s (FR-032); then the receivers: the stand-ins' own
-        records, or with real delivery Telegram's message_id and SMTP's 250 in the same records (plan §8)."""
+        records, or with real delivery Telegram's message_id and SMTP's 250 in the same records (plan §8); and, in
+        stand-in mode, `designed`: the stand-ins' records of the same alert in its designed form (spec 011, FR-053)."""
         expect = {"each": {"channel": ["telegram", "email"]}, "max": {"lag_s": 300}}
         fields = ("channel", "attempt", "lag_s")
         ops = [
@@ -1047,6 +1137,20 @@ class Steps:
             }
             for channel in ("telegram", "mailpit")
         ]
+        # Spec 011 (FR-053): beside those checks, which stay as they were, an assertion of its own that the stand-ins'
+        # records say the alert went in its designed form; stand-in mode only, so it reads SKIP with real delivery.
+        if designed is not None and not real:
+            ops += [
+                {
+                    "op": channel,
+                    "assert": designed,
+                    "key": key,
+                    "within_s": 300,
+                    "expect": {"designed": True},
+                    **timed_from(when),
+                }
+                for channel in ("telegram", "mailpit")
+            ]
         return ops
 
     def span(self, op_id: str) -> tuple[float, float]:
@@ -1283,7 +1387,7 @@ class Steps:
                     "breach test step 3: metered calls to 3.50 USD today",
                     meters={"day": 3.5, "month": 3.5},
                 ),
-                *self.delivered("3a", "3b", keys["warn_day"], "s3.spend"),
+                *self.delivered("3a", "3b", keys["warn_day"], "s3.spend", "3d"),
                 metric("3c", spend("day"), after="s3.spend", value=3.5),
                 metric("3c", spend("day"), after="s3.spend", at_least=warn("day")),
             ],
@@ -1330,7 +1434,7 @@ class Steps:
                     "breach test step 4: fallback calls to grant 1's warning",
                     meters={"fallback_day": 1.4, "day": 1.4, "month": 4.9},
                 ),
-                *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend"),
+                *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend", "4f"),
                 metric("4d", spend("fallback_day"), after="s4.spend", value=1.4),
                 metric("4d", warn("fallback_day"), after="s4.spend", value=1.4),
                 self.spend(
@@ -1394,7 +1498,7 @@ class Steps:
                     grant_no=1,
                     allowance_micro=2000000,
                 ),
-                *self.delivered("5c", "5d", keys["exhausted_g1"], "s5.spend"),
+                *self.delivered("5c", "5d", keys["exhausted_g1"], "s5.spend", "5f"),
                 metric("5e", AWAITING, after="s5.spend", value=1.0),
                 metric(
                     "5e", CAUSE, after="s5.spend", labels=["fallback_awaiting_renewal"]
@@ -1580,7 +1684,7 @@ class Steps:
                     "s7.spend",
                     expect={"gap": {"from": "s7.crossing", "max_s": 60}},
                 ),
-                *self.delivered("7c", "7d", keys["trip_day"], "s7.spend"),
+                *self.delivered("7c", "7d", keys["trip_day"], "s7.spend", "7g"),
                 {
                     "op": "hello",
                     "id": "s7.hello",
@@ -1717,7 +1821,7 @@ class Steps:
                     "breach test step 10: the month to 14.00 USD",
                     meters={"day": 1.5, "month": 14.0},
                 ),
-                *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1"),
+                *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1", "10i"),
                 metric("10c", spend("month"), after="s10.spend1", value=14.0),
                 metric(
                     "10c", spend("month"), after="s10.spend1", at_least=warn("month")
@@ -1912,6 +2016,92 @@ class Steps:
             ],
         )
 
+    def step12(self) -> None:
+        """Spec 011's samples (FR-040, SC-006; its plan §8.2, D16), last, in stand-in mode only: the operator asks for a
+        sample of every catalogue entry; each reaches both stand-ins in its designed form, by its key, within 120 s; one
+        audit row; the kind sample counted; and the stack's state and meters as before. With real delivery it is
+        skipped, so the Author's recorded run sends nothing new to his phone. The outbox, which no admin read shows, is
+        held to no sample row by the gateway's integration test."""
+        if self.ctx.delivery == "real":
+            self.ctx.say("step 12 · spec 011's samples: skipped with real delivery")
+            return
+        self.ctx.say(
+            "step 12 · spec 011: a sample of every alert, designed, on both stand-ins; nothing else changes"
+        )
+        reason = "breach test step 12: the alert samples"
+        self.call(
+            "12",
+            [
+                self.admin("s12.before", "GET", "/admin/status"),
+                self.admin(
+                    "s12.samples",
+                    "POST",
+                    "/admin/alert-samples",
+                    {"reason": reason},
+                    **{"body.action": "alert_samples", "body.delivery": "standin"},
+                ),
+            ],
+        )
+        answered = self.ctx.results["s12.samples"].get("body") or {}
+        keys = [
+            str(s["key"])
+            for s in answered.get("samples") or []
+            if isinstance(s, dict) and isinstance(s.get("key"), str)
+        ]
+        if not keys:
+            raise Stop("s12.samples: the gateway answered no samples")
+        before = self.ctx.results["s12.before"].get("body") or {}
+        meters = before.get("meters") or {}
+
+        def spent(meter: str) -> float:
+            micro = (meters.get(meter) or {}).get("spent_micro_usd")
+            return (
+                round(float(micro) / 1_000_000, 6) if isinstance(micro, int) else -1.0
+            )
+
+        when = self.span("s12.samples")
+        ops: list[dict[str, Any]] = [
+            {
+                "op": channel,
+                "assert": "12a",
+                "key": key,
+                "within_s": 120,
+                "expect": {"designed": True},
+                **timed_from(when),
+            }
+            for key in keys
+            for channel in ("telegram", "mailpit")
+        ]
+        ops += [
+            {
+                "op": "audit",
+                "assert": "12b",
+                "action": "alert_samples",
+                "audit_id": "{{s12.samples.body.audit_id}}",
+                "reason": reason,
+                "expect": {},
+                "within_s": 10,
+                "after": "s12.samples",
+            },
+            # Each sample delivered once on each channel: the floor is a query too, a vector of that count.
+            metric(
+                "12c",
+                'sum(h4_alerts_total{h4_alert_kind="sample"})',
+                after="s12.samples",
+                at_least=f"vector({2 * len(keys)})",
+                within_s=150,
+            ),
+            metric("12d", spend("day"), after="s12.samples", value=spent("day")),
+            metric("12d", spend("month"), after="s12.samples", value=spent("month")),
+            self.admin(
+                "s12.after",
+                "GET",
+                "/admin/status",
+                **{"body.state": before.get("state")},
+            ),
+        ]
+        self.call("12", ops)
+
 
 def apply_overlay(ctx: Context) -> None:
     """contracts/env-files.md §7.2: exactly ALERT_DELIVERY=real, in a fresh 0700 directory outside the tree, as the
@@ -1986,6 +2176,7 @@ def run(ctx: Context) -> int:
             steps.step9,
             steps.step10,
             steps.step11,
+            steps.step12,
         ):
             step()
     except Stop as stop:

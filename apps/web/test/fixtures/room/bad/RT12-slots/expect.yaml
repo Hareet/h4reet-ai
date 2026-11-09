@@ -1,0 +1,6 @@
+rule: RT12
+file: apps/web/room/ui-words.yaml
+path: words.pause.paused_at
+why: a UI word with another slot than its key's
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, pause.paused_at], set: "Paused at {amount}" }

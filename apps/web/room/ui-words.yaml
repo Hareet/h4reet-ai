@@ -1,0 +1,64 @@
+# The room's UI words: every key of the code's closed list (src/room/ui-keys.ts) with exactly its slots, and the
+# labels the scene references. The tier's sentences speak about the machine (FR-035): three are FR-035's own words,
+# and the rest follow contracts/tier-signal.md §2. The sign's words are contracts/turn-cost.md §5's. A stand-in's
+# label is standin.label with {name} filled by its placement's label, as spec 002's scene labelled its placeholders.
+version: 1
+words:
+  tier.local: The Author's machine is serving
+  tier.cloud: The cloud fallback is serving
+  tier.resting: "Nothing is serving: the Author's machine is resting, and the cloud fallback isn't available"
+  tier.budget: "Nothing is serving: today's budget is used"
+  tier.unavailable: "Nothing is serving: the service is unavailable"
+  tier.unknown: Status unknown
+  tier.paused: The status isn't checked while the room is paused or out of view
+  tier.not-live: The live status isn't connected yet
+  pause.button: Pause the room
+  pause.paused_at: Paused at {time}
+  sign.word: Langfuse
+  sign.second_line: metered by the gateway · traced in Langfuse
+  sign.call_label: this call
+  sign.visit_label: this visit
+  sign.no_call_yet: no call yet
+  sign.unavailable: cost unavailable
+  sign.local: local · {amount}
+  sign.estimated: "{amount} est."
+  sign.at_least: at least {amount}
+  sign.not_affiliated: This project isn't affiliated with or endorsed by Langfuse or its owner.
+  sign.test: test
+  sign.sample: Sample
+  around.heading: Around the room
+  around.illustration: The monitor's screen is a scripted illustration
+  around.call: "This call: {amount}"
+  around.visit: "This visit: {amount}"
+  list.heading: In the room
+  list.resume_action: the resume
+  toolbar.credits: Credits
+  standin.label: "{name} (placeholder)"
+  standin.note: Placeholder shapes stand in for the room's pieces until their models arrive
+  draft.badge: Draft
+  flat-failed: This drawing of the room could not be shown. The list below still works.
+  walk.enter: Walk around
+  walk.leave: Stop walking
+  walk.region: The room, walking
+  walk.help: W, A, S, D or the arrow keys walk. Q and E turn the view, R and F tilt it, plus and minus zoom. Enter opens what's highlighted. Escape stops walking.
+  walk.entered: Walking. Escape stops.
+  walk.left: Walking stopped.
+  walk.target: "{name}: press Enter to open."
+  twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  label.desk: Desk
+  label.monitor: Monitor
+  label.neon-sign: Neon sign
+  label.neon-word: Neon sign
+  label.neon-call: This call
+  label.neon-visit: This visit
+  label.neon-line: The neon sign's second line
+  label.stand: Laptop stand
+  label.laptop: Laptop
+  label.charger: Laptop charger
+  label.busy-sign: Desk sign, busy
+  label.dog-sign: Desk sign, dog
+  label.chalkboard: Chalkboard
+  label.snowboard: Snowboard
+  label.bicycle: Bicycle
+  label.window: Window
+  label.artwork: Artwork

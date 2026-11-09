@@ -68,6 +68,10 @@ export interface MeterDeps {
   realNow: () => number;
   /** Whether this stack routes a fallback adapter: the alerts' Fallback line says none without one. */
   hasFallback: boolean;
+  /** The route's fallback adapter's ID: an adapter month's cap sets the renewal flag only for it (spec 010, FR-023). */
+  fallbackAdapterId?: string | null;
+  /** How an alert names each routed adapter: its type's label, by its ID (spec 010, FR-037). */
+  adapterLabels?: ReadonlyMap<string, string>;
   sweepIntervalMs?: number;
   commitRetryMs?: number;
 }
@@ -117,6 +121,8 @@ export class Meter implements MeterPort {
       warnRatioBp: env.warnRatioBp,
       alerts: this.deps.alerts,
       hasFallback: this.deps.hasFallback,
+      fallbackAdapterId: this.deps.fallbackAdapterId ?? null,
+      ...(this.deps.adapterLabels === undefined ? {} : { adapterLabels: this.deps.adapterLabels }),
       realNow: this.deps.realNow,
     };
   }
@@ -208,7 +214,7 @@ export class Meter implements MeterPort {
     const entry = PriceTable.lookup(price, request.adapter.provider, request.adapter.model);
     if (entry === undefined) throw new Error("the adapter has no price"); // startup refuses this too (price_missing)
     const maxMicro = maxMicroOf(entry, {
-      maxInputChars: deps.budgets.limits.perCall.maxInputChars,
+      maxInputChars: request.maxInputChars ?? deps.budgets.limits.perCall.maxInputChars,
       maxOutputTokens: request.maxOutputTokens,
       ...(request.adapter.fixedUsage === undefined ? {} : { fixedUsage: request.adapter.fixedUsage }),
     });
@@ -356,7 +362,12 @@ export class Meter implements MeterPort {
       const done = !out.inserted && out.ownRowFound ? this.pending.get(a.reservationId)?.lost : out;
       if (done === undefined || !done.inserted) return;
       this.emit(done.effects);
-      this.deps.metrics.cost(call.costMicro, { provider: a.provider, model: a.model, attribution: a.attribution });
+      this.deps.metrics.cost(call.costMicro, {
+        provider: a.provider,
+        model: a.model,
+        attribution: a.attribution,
+        ...(a.room === undefined ? {} : { feature: a.room.feature }),
+      });
       this.deps.logger.info(completedRecord(a, call), "A provider attempt completed.");
       // 8. The commit record. A failed append doesn't undo the commit: the next reserve's append fails too, and
       //    metered calls stop until the journal is writable again.

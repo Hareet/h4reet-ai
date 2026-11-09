@@ -18,7 +18,7 @@
 import type { AgentOptions } from "node:http";
 
 import { FastifyOtelInstrumentation } from "@fastify/otel";
-import type { Context, Span as ApiSpan } from "@opentelemetry/api";
+import type { Attributes, Context, Span as ApiSpan } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -46,7 +46,7 @@ import { ATTR_DB_QUERY_TEXT } from "@opentelemetry/semantic-conventions";
 
 import { isServiceHost } from "../adapters/_settings.js";
 import { aresLookup } from "../core/resolve.js";
-import { SECONDS_BUCKETS } from "./metrics.js";
+import { ALERT_KINDS, SECONDS_BUCKETS } from "./metrics.js";
 
 export const METRIC_EXPORT_INTERVAL_MS = 10_000;
 /** OTEL_EXPORTER_OTLP_TIMEOUT's value; a metric export must also finish within its interval. */
@@ -184,6 +184,70 @@ const errorTypes = new WeakMap<object, string>();
 /** error.type for a request whose outcome is error: local_error, or the class of an unexpected error. */
 export function noteErrorType(request: object, errorType: string): void {
   errorTypes.set(request, errorType);
+}
+
+/**
+ * spec 003's studio GPU window (its contracts/gpu-window.md §1): the request's state, start or end, on its server
+ * span, once the body has a valid one. The reason never goes on a span.
+ */
+export function noteStudioWindowState(request: { raw: object }, state: "start" | "end"): void {
+  serverSpanOf(request)?.setAttribute("h4.studio_window.state", state);
+}
+
+/**
+ * The operator write a request made, as its server span's h4.action (spec 011, FR-047): `alert_samples`, once the
+ * request reached its route. The reason never goes on a span.
+ */
+export function noteAction(request: { raw: object }, action: "alert_samples"): void {
+  serverSpanOf(request)?.setAttribute("h4.action", action);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// alert.deliver (spec 011, plan §9.3; telemetry.md §3.2): one INTERNAL root span per delivery attempt
+// ---------------------------------------------------------------------------------------------------------------
+
+export const ALERT_DELIVER_SPAN = "alert.deliver";
+const ALERT_SPAN_CHANNELS = ["telegram", "email"] as const;
+const ALERT_SPAN_FORMS = ["designed", "plain"] as const;
+const ALERT_SPAN_OUTCOMES = ["delivered", "retry", "failed"] as const;
+/** h4.alert.kind on the span, as on the metric: a real kind, or sample. */
+const ALERT_SPAN_KINDS = ALERT_KINDS;
+const ALERT_SPAN_REASONS = [
+  "entities_refused",
+  "message_refused",
+  "render_failed",
+  "over_limit",
+  "not_rendered",
+] as const;
+const pick = <T extends string>(list: readonly T[], value: unknown, fallback: T): T =>
+  (list as readonly unknown[]).includes(value) ? (value as T) : fallback;
+
+/**
+ * An attempt's attributes, each from its closed list or a number: the channel, the kind, the form, a fallback's reason
+ * when one applies, the outcome, the attempt, and whether it is a sample. Never a text, a URL, a token, a chat ID, an
+ * address, or a response body (FR-044): nothing a caller passes beside these reaches the span.
+ */
+export function alertDeliverAttributes(o: {
+  channel: string;
+  kind: string;
+  form: string;
+  fallbackReason?: string | null;
+  outcome: string;
+  attempt: number;
+  sample: boolean;
+}): Attributes {
+  const attributes: Attributes = {
+    "h4.channel": pick(ALERT_SPAN_CHANNELS, o.channel, "telegram"),
+    "h4.alert.kind": pick(ALERT_SPAN_KINDS, o.kind, "warn"),
+    "h4.alert.form": pick(ALERT_SPAN_FORMS, o.form, "plain"),
+    "h4.outcome": pick(ALERT_SPAN_OUTCOMES, o.outcome, "failed"),
+    "h4.alert.attempt": Number.isSafeInteger(o.attempt) ? o.attempt : 0,
+    "h4.alert.sample": o.sample === true,
+  };
+  if (o.fallbackReason !== undefined && o.fallbackReason !== null) {
+    attributes["h4.alert.fallback_reason"] = pick(ALERT_SPAN_REASONS, o.fallbackReason, "render_failed");
+  }
+  return attributes;
 }
 
 /** Sets the server span's h4 attributes as the response goes out. */

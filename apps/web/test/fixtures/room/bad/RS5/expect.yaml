@@ -1,0 +1,8 @@
+rule: RS5
+file: apps/web/room/scene.yaml
+path: switches[0].poses.fx-resting.mount
+why: the pose that claims nothing mounted on the port the local pose plugs into
+edits:
+  - file: apps/web/room/scene.yaml
+    at: [switches, 0, poses, fx-resting, mount]
+    set: { on: fx-laptop, anchor: port, offset: [0.08, 0, 0] }

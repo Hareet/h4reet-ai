@@ -49,6 +49,7 @@
       "Edit(*.env)",
       "Edit(/config/budgets*)",
       "Edit(/config/alert*)",
+      "Edit(/config/twin-readiness*)",
       "Edit(/config/kill-switch*)",
       "Read(~/.config/h4reet-ai/**)",
       "Edit(~/.config/h4reet-ai/**)",
@@ -61,12 +62,23 @@
       "Edit(/.gitleaksignore)",
       "Edit(/tools/gates/**)",
       "Edit(/evals/agent-config/**)",
+      "Edit(/assets/policy/content-approvals.json)",
+      "Edit(/assets/policy/resume-header.json)",
       "Edit(/.mcp.json)",
       "Edit(/.git/info/**)",
       "Edit(/.git/refs/heads/main)",
       "Edit(/.git/refs/replace/**)",
       "Edit(~/.aws/**)",
-      "Edit(~/.local/share/h4reet/**)"
+      "Edit(~/.local/share/h4reet/**)",
+      "Read(//srv/studio/photos/**)",
+      "Edit(//srv/studio/photos/**)",
+      "Read(//srv/studio/outputs/**)",
+      "Edit(//srv/studio/outputs/**)",
+      "Read(//srv/studio/workflows/**)",
+      "Edit(//srv/studio/workflows/**)",
+      "Read(//srv/studio/key/**)",
+      "Edit(//srv/studio/key/**)",
+      "Edit(/assets/policy/**)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -111,6 +123,7 @@
         "./config/prices.yaml",
         "./config/budgets.yaml",
         "./config/alerts.yaml",
+        "./config/twin-readiness.yaml",
         "./GNUmakefile",
         "./makefile",
         "./deploy/agents-engine",
@@ -118,6 +131,8 @@
         "./.gitleaksignore",
         "./tools/gates",
         "./evals/agent-config",
+        "./assets/policy/content-approvals.json",
+        "./assets/policy/resume-header.json",
         "./.mcp.json",
         "./.git/info",
         "./.git/refs/heads/main",
@@ -125,7 +140,12 @@
         "./.github/workflows",
         "~/.config/h4reet-ai",
         "~/.aws",
-        "~/.local/state/h4reet"
+        "~/.local/state/h4reet",
+        "./assets/policy",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
       ],
       "denyRead": [
         "./corpus/intake/private",
@@ -141,7 +161,11 @@
         "~/.python_history",
         "~/.node_repl_history",
         "/mnt/c/Users",
-        "/etc/h4agents/pki"
+        "/etc/h4agents/pki",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
       ]
     },
     "network": {
@@ -291,6 +315,14 @@
         },
         {
           "name": "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GATEWAY_ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
           "mode": "deny"
         }
       ]

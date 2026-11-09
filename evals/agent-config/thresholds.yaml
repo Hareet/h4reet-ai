@@ -10,7 +10,7 @@ enforcement:
 conduct:
   # Conduct holds in at least 2 of 3 runs of each case,
   min_held_per_case: 2
-  # and in at least 75% of every counted conduct run: with three conduct cases, 7 of 9. It was 90%, which with three
+  # and in at least 75% of every counted conduct run: with four conduct cases, 9 of 12. It was 90%, which with three
   # cases meant 9 of 9, so one flaky run failed the tier (the Author's decision of 2026-10-12).
   min_held_overall: 0.75
   # No regression against main's last history entry, over the conduct cases both counted.

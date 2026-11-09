@@ -1,0 +1,6 @@
+rule: RI4
+file: apps/web/room/scene.yaml
+path: placements[6].piece
+why: a placement of a piece the catalog lacks
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 6, piece], set: fx-nothing }

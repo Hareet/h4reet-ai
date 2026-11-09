@@ -2,8 +2,10 @@
 // through the AWS SDK, in prod only. It is the only module that imports @aws-sdk/*.
 //
 // - complete(): one ConverseCommand. The system message becomes `system: [{text}]`, the other turns
-//   `messages: [{role, content: [{text}]}]` in order, and the cap `inferenceConfig.maxTokens`, with the settings'
-//   additional request fields and nothing else: no streaming, tools, cache points, guardrail, or request metadata.
+//   `messages: [{role, content: [{text}]}]` in order, the cap `inferenceConfig.maxTokens`, and the request's
+//   temperature unless the settings' `temperature` is `model_default` (spec 007's plan, D22; spec 010 FR-017), with
+//   the settings' additional request fields and nothing else: no streaming, tools, cache points, guardrail, or request
+//   metadata.
 //   The SDK makes one attempt (`maxAttempts: 1`); the gateway's wrapper retries a throttled call once (§6).
 // - The call's bound is the adapter's own abort signal, the request's signal combined with the request timeout and
 //   the deadline: @smithy/node-http-handler 4.12.1 only logs a warning at its requestTimeout unless
@@ -36,7 +38,13 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import type { z } from "zod";
 
 import { aresLookup } from "../core/resolve.js";
-import { ADAPTER_TYPE_SPECS, PLACEHOLDER, type AdapterTypeSpec } from "./_settings.js";
+import {
+  ADAPTER_TYPE_SPECS,
+  PLACEHOLDER,
+  sentTemperature,
+  type AdapterTypeSpec,
+  type PaidTemperature,
+} from "./_settings.js";
 import { AdapterConfigError, type AdapterContext, type AdapterFactory } from "./registry.js";
 import {
   ProviderError,
@@ -56,7 +64,11 @@ export interface BedrockSettings {
   region: string;
   model: string;
   additional_request_fields: Record<string, unknown>;
+  /** Spec 007's plan, D22; spec 010 FR-017: `model_default` sends no temperature; absent, it is `as_requested`. */
+  temperature?: PaidTemperature;
   timeouts: { connect_ms: number; request_ms: number };
+  /** A twin turn's one attempt (spec 007's plan, D43); the gateway passes it as the call's requestMs. */
+  twin_request_ms?: number;
   retry: { on: ProviderErrorKind[]; max: number; backoff_ms: number };
   circuit: { failures: number; open_s: number };
   health: { interval_ms: number };
@@ -210,7 +222,8 @@ export function bedrockDeps(settings: BedrockSettings): BedrockDeps {
   const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 50, lookup: aresLookup });
   const requestHandler = new NodeHttpHandler({
     connectionTimeout: settings.timeouts.connect_ms,
-    requestTimeout: settings.timeouts.request_ms,
+    // The longer of hello's limit and a twin turn's (spec 007's plan, D43): each call's abort signal cuts it at its own.
+    requestTimeout: Math.max(settings.timeouts.request_ms, settings.twin_request_ms ?? 0),
     // Without it the handler only logs a warning at requestTimeout; with it, it destroys the socket and throws.
     throwOnRequestTimeout: true,
     httpsAgent,
@@ -255,7 +268,7 @@ export class BedrockConverseAdapter implements ProviderAdapter {
     const remaining = req.deadline - started;
     if (req.signal.aborted || remaining <= 0) throw timeout();
     const own = new AbortController();
-    const limitMs = Math.max(1, Math.floor(Math.min(this.settings.timeouts.request_ms, remaining)));
+    const limitMs = Math.max(1, Math.floor(Math.min(req.requestMs ?? this.settings.timeouts.request_ms, remaining)));
     const signal = AbortSignal.any([req.signal, own.signal, AbortSignal.timeout(limitMs)]);
     this.inFlight.add(own);
     try {
@@ -299,20 +312,24 @@ export class BedrockConverseAdapter implements ProviderAdapter {
     this.deps.release?.();
   }
 
-  /** §3.2's request: the system message as the system block, the turns in order, the cap, and the extra fields. */
+  /**
+   * §3.2's request: the system message as the system block, the turns in order, the cap, the temperature as the
+   * settings allow (spec 007's plan, D22; spec 010 FR-017), and the extra fields.
+   */
   private input(req: CompletionRequest): ConverseCommandInput {
     const system = req.messages.filter((m) => m.role === "system").map((m) => ({ text: m.content }));
     const turns = req.messages
       .filter((m): m is { role: "user" | "assistant"; content: string } => m.role !== "system")
       .map((m) => ({ role: m.role, content: [{ text: m.content }] }));
     const extra = this.settings.additional_request_fields;
+    const temperature = sentTemperature(this.settings.temperature, req.temperature);
     return {
       modelId: this.model,
       ...(system.length > 0 ? { system } : {}),
       messages: turns,
       inferenceConfig: {
         maxTokens: req.maxOutputTokens,
-        ...(req.temperature === undefined ? {} : { temperature: req.temperature }),
+        ...(temperature === undefined ? {} : { temperature }),
       },
       ...(Object.keys(extra).length > 0
         ? { additionalModelRequestFields: extra as ConverseCommandInput["additionalModelRequestFields"] }

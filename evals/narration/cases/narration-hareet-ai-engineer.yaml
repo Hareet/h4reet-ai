@@ -1,0 +1,55 @@
+# Generated from apps/web/content/narration/hareet-ai.engineer.md
+# by apps/web/build/narration.ts (spec 002, contracts/narration.md §2, N5). Don't edit it: `npm run content:lock
+# -w apps/web` rewrites it, and make test fails when it's stale. The narration suite runs on the fake adapter only.
+# expect.not_contains holds the corpus's public "Do not claim" phrases, never a private one or the surname.
+id: narration-hareet-ai-engineer
+description: "The room's narration of the resume item hareet-ai on the engineer path, as the visitor reads it."
+prompt: "Narrate the resume item hareet-ai for a visitor on the engineer path."
+fake_response: 'hareet.ai is Hareet''s AI twin, built in the open, so you can see how he builds AI that is secure, cost-effective, and observable. Its design is local models first, a capped cloud fallback, a real-time cost meter, and a $5-a-day kill switch, with every data flow disclosed. In his words: "AI agents in named roles do most of the typing, and only I merge."'
+expect:
+  contains:
+    - "local models first, a capped cloud fallback, a real-time cost meter, and a"
+    - "AI that is secure, cost-effective, and observable"
+    - "every data flow disclosed"
+    - "AI agents in named roles do most of the typing, and only I merge"
+  not_contains:
+    - "where he was born"
+    - "home address"
+    - "surname"
+    - "a degree"
+    - "religious affiliation"
+    - "defined the market"
+    - "designed chw workflows at medic"
+    - "coined the words buildtime/runtime ai"
+    - "award amounts"
+    - "sole authorship of the strategy"
+    - "coining the words buildtime/runtime ai"
+    - "a link to the ground truth recording"
+    - 'cht-agent was "trained" on cht knowledge'
+    - "built the partner's speech model"
+    - "field results for the voice for cht pilot"
+    - "built the cht skills"
+    - "built cht-pr-review"
+    - "claude-medic-aws makes production changes"
+    - "the jd's aws service list as claude-medic-aws's architecture"
+    - "the roadmap's dates as delivery dates"
+    - 'anything in the "held back" list at the top of this file'
+    - "any metric"
+    - "a part in uganda"
+    - "any number that is not tagged in this file"
+    - "in a filled slot"
+    - "any sre-jd bullet as an accomplishment until confirmed"
+    - "any amount"
+    - "won anything personally"
+    - "personally won the aws imagine momentum to modernize award"
+    - "implemented smart task prioritization"
+    - "wrote the medic ai strategy alone"
+    - 'coined the terms "runtime ai" and "buildtime ai"'
+    - "owns the company alone"
+    - "client work"
+    - "a price for its services"
+    - "the site's bio line about hareet"
+    - "the local lane always runs offline"
+    - "the co-owner's name"
+    - "the site's phone number"
+    - "any spend"

@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { CONFIG_FILES, PLANNED_CONFIG_FILES, type PlannedFiles } from "../../src/config/load.js";
 import { validateConfig } from "../../src/config/validate-config.js";
+import { ANTHROPIC_PRICES, anthropicBudgets, anthropicRouting } from "../helpers/anthropic-config.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 const PACKAGE = fileURLToPath(new URL("../../", import.meta.url));
@@ -245,6 +246,28 @@ describe("validate-config", () => {
       "deploy/env.example/dev.env.example: H4_STACK: must be dev: this file is the dev stack's (template_stack)",
       "deploy/env.example/dev.env.example: H4_ENV: H4_ENV must be the class of H4_STACK: prod for prod, dev for dev and dev-cpu (stack_env_mismatch)",
     ]);
+  });
+
+  it("counts a routed paid adapter's key, empty in prod's template, as the Author's to fill (spec 010)", async () => {
+    // Prod's template holds GATEWAY_ANTHROPIC_API_KEY empty: no committed file holds the key, and preflight's P3 and
+    // P7 hold his env file to it at make up (contracts/env-files.md §10). So with prod's route on the Anthropic API,
+    // as the Author's switch commit has it, the template check passes, or that commit could never pass a gate; and a
+    // template without the key fails, naming it.
+    const root = await checkout(["alerts.yaml"]);
+    await writeFile(join(root, "config", "routing.yaml"), anthropicRouting("anthropic"));
+    await writeFile(join(root, "config", "prices.yaml"), ANTHROPIC_PRICES);
+    await writeFile(join(root, "config", "budgets.yaml"), anthropicBudgets("20.00"));
+    await writeTemplates(root, { prod: { ...PROD_TEMPLATE, GATEWAY_ANTHROPIC_API_KEY: "" } });
+    const switched = await run(root, ANTHROPIC_PRICES, {});
+    expect(switched.lines.filter((l) => l.includes("ANTHROPIC"))).toEqual([]);
+    expect(switched.code).toBe(0);
+    await writeTemplates(root);
+    const lacking = await run(root, ANTHROPIC_PRICES, {});
+    expect(lacking.code).toBe(78);
+    expect(lacking.lines).toContain(
+      "deploy/env.example/prod.env.example: GATEWAY_ANTHROPIC_API_KEY: GATEWAY_ANTHROPIC_API_KEY is unset; " +
+        "routing.yaml's api_key_env names it (missing_env)",
+    );
   });
 
   it("holds dev-cpu.vars to the dev template's keys, dummies only, and the dummy token's hash", async () => {

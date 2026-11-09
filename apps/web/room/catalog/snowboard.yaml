@@ -1,0 +1,38 @@
+# The snowboard (W1's left side; Amendment B1): spec 002's placeholder, a flattened capsule with two bindings
+# (src/room/scene.ts), hung flat and upright on its tail on the cube's left wall, beside the chalkboard (the Author,
+# 2026-10-23: "The snowboard would hang on the left side brick wall, next to the chalkboard"). Its size and where it
+# hangs are estimates until measured; the bounds hold the bindings, which stand 16 cm proud of the board in the Author's
+# lookdev design, as the studio's hand-back of 2026-11-07 gives it.
+version: 1
+id: snowboard
+name: Snowboard
+size: { w: 0.32, h: 1.55, d: 0.198, estimated: true }
+stylized_scale: 1
+origin:
+  point: the centre of the board, midway along its length and across its width, in the middle of its thickness.
+  bounds: { min: [-0.16, -0.775, -0.035], max: [0.16, 0.775, 0.163] }
+standin:
+  - { shape: capsule, radius: 0.15, length: 1.25, at: [0, 0, 0], scale: [1, 1, 0.1], color: board-blue }
+  - { shape: box, size: [0.24, 0.07, 0.03], at: [0, 0.3, 0.02], color: ink }
+  - { shape: box, size: [0.24, 0.07, 0.03], at: [0, -0.3, 0.02], color: ink }
+drawing:
+  primitives:
+    - { primitive: rect, x: -0.16, y: -0.662, w: 0.32, h: 1.324, fill: board-blue }
+    - { primitive: ellipse, cx: 0, cy: 0.662, rx: 0.16, ry: 0.113, fill: board-blue }
+    - { primitive: ellipse, cx: 0, cy: -0.662, rx: 0.16, ry: 0.113, fill: board-blue }
+    - { primitive: rect, x: -0.12, y: 0.211, w: 0.24, h: 0.085, fill: ink }
+    - { primitive: rect, x: -0.12, y: -0.268, w: 0.24, h: 0.085, fill: ink }
+budget: { gzip_bytes: 1000000, triangles: 60000, texture_px: 4096, texture_bytes: 22369620 }
+model: { file: snowboard.glb }
+work_order:
+  method: Model the board and its bindings from the dimension sheet and the Author's description.
+  shots:
+    - The board flat, its top face square on, the whole board in frame.
+    - The board from its side, showing its camber and the bindings' height.
+  measurements:
+    - The board's length, its width at the widest point, and its thickness.
+    - Each binding's footprint, height, and position along the board.
+    - Where the board hangs, from the floor and from the back wall.
+  studio_notes: >-
+    The graphic is original, or a plain finish: never the board's own printed graphic (FR-028). No logo, word, digit,
+    or sticker on the board or the bindings (FR-016).

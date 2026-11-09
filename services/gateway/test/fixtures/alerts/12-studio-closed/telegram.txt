@@ -1,0 +1,17 @@
+🔵 Operator action · [h4reet.ai prod]
+🛠️ OPERATOR ACTION: studio GPU window closed by operator #1a2b3c4d
+Next: Hello answers from the local model again. The window's fallback spend: $0.00 in 1 call.
+Meters
+Daily     0.40 /  5.00 USD   warning  3.50
+Month     6.10 / 20.00 USD   warning 14.00
+Fallback  0.00 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-11-02T21:02:40Z
+id prod:operator_action:studio_window:58
+Runbook: docs/runbooks/studio-gpu-window.md
+--- entities (UTF-16 offset, length)
+bold 42 63 "OPERATOR ACTION: studio GPU window closed by operator #1a2b3c4d"
+pre 207 122 "Daily     0.40 /  5.00 USD   warning  3.50\nMonth     6.10 / 20.00 USD   warning 14.00\nFallback  0.00 /  2.00 USD   grant 1"
+code 396 37 "prod:operator_action:studio_window:58"
+code 443 34 "docs/runbooks/studio-gpu-window.md"

@@ -1,0 +1,6 @@
+rule: RD5
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: sign
+why: an outline whose sign differs from its file's stem
+edits:
+  - { file: apps/web/content/room/outlines/fx-sign-words.outline.json, at: [sign], set: fx-other-sign }

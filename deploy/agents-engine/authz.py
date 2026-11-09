@@ -368,11 +368,12 @@ def _refuse(rule: str, field: str, value: object) -> Decision:
 
 
 LOOPBACK_PUBLISH = ("127.0.0.1", "::1")
-# The host ports the engine may publish on: dev-cpu's x000-x004 (deploy/env.agents/dev-cpu.vars) and the one
+# The host ports the engine may publish on: dev-cpu's x000-x005 (deploy/env.agents/dev-cpu.vars; x005 is the room's
+# site, spec 002) and the one
 # prove-limits.sh's row E15 runs on. Any other loopback port may be another stack's while it is down: prod's and
 # dev's 18000-18004 and 18100-18104 hold their admin listeners and the Author's Langfuse and Grafana logins, so a
 # container squatting there would be handed the Author's token or password (A21; T056's review, round 2).
-PUBLISH_PORTS = frozenset((*range(18300, 18305), 18999))
+PUBLISH_PORTS = frozenset((*range(18300, 18306), 18999))
 
 
 def _publish_port_ok(value: object) -> bool:

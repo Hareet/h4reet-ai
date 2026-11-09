@@ -1,0 +1,5 @@
+[h4reet.ai prod] OPERATOR ACTION: reset by operator #1a2b3c4d
+Daily: 5.00 / 5.00 USD (warning 3.50) · Month: 13.40 / 20.00 (warning 14.00) · Fallback today: 2.00 / 4.00 (grant 2)
+Runtime: normal · Fallback: available · 2026-10-29T17:05:12Z · id prod:operator_action:reset:41
+Local answers resume. Metered calls stay refused while a meter is at or above its ceiling: day.
+Runbook: docs/runbooks/kill-switch-reset.md

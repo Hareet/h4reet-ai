@@ -1,0 +1,6 @@
+rule: RG2
+file: apps/web/room/catalog/fx-laptop.yaml
+path: standin[1]
+why: a stand-in shape whose top rises out of its piece's bounds
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [standin, 1, at], set: [0, 0.2, -0.105] }

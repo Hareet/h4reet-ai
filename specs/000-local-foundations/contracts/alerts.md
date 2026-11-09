@@ -34,6 +34,10 @@ Notes:
 - **Outside prod.** `credentials_expiring` and `fallback_unavailable` can only fire in prod, because only prod routes a paid adapter.
 - **When `fallback_unavailable` fires** (tasks.md T152). The paid fallback's effective health enters one of the two reasons: `credentials`, or `circuit_open`. That happens on a flip to unhealthy, at the first probe that finds it so after startup's `not_ready`, or on a change to one of them while unhealthy. A timeout or a refused connection alerts through the circuit, once it opens. The row isn't queued while the store is empty or down, since the store's own state answers for the stack then. The hourly dedupe key, on the gateway clock, holds it to one an hour per adapter.
 
+**(spec 010, Amendment 0-8)** The adapter month's two kinds reuse `warn` and `fallback_exhausted`: the warning, keyed `<stack>:warn:adapter_month:<adapter>:<YYYY-MM>`, when committed spend on a capped adapter's month crosses the cap × `warn_ratio`; the exhaustion, keyed `<stack>:fallback_exhausted:adapter_month:<adapter>:<YYYY-MM>`, when it crosses the cap. `fallback_unavailable` names an `anthropic-messages` adapter by its type's label, "the Anthropic API".
+
+**(spec 011, Amendment 0-4)** A sample ([operator-admin.md §2.4](operator-admin.md#24-post-adminalert-samples-spec-011)) is keyed `<stack>:sample:<entry>:<audit id>`, as `prod:sample:trip:57`. `sample` is no real kind, so a sample's key can never equal a real alert's: `src/alerts/outbox.ts`'s `REAL_KINDS`, which a test holds to the outbox's `CHECK` list with `store_unreachable`, to `h4.alert.kind`'s values but `sample`, and to this table, never holds it. A sample is never written to the outbox (§4.4). A fallback to the plain form (§4.1) raises no alert of its own, as a failed delivery raises none.
+
 ## 3. Message format
 
 Plain text, UTF-8, at most 1,000 characters:
@@ -183,6 +187,52 @@ Runtime: normal · Fallback: available · 2026-10-27T08:01:30Z (test clock) · i
 Runbook: docs/runbooks/cost-warning.md
 ```
 
+**(spec 010)** The adapter month's texts name the adapter by its type's label ("the Anthropic API's month"), the month, its spend, and its cap, and say what stops: the warning, "the paid fallback stops at its cap; local answers go on"; the exhaustion, "the Anthropic API is refused until the month rolls over or the cap is raised, and the paid fallback awaits a renewal". The meters line and the canary rules are unchanged.
+
+### 3.1 Three forms from the same facts (spec 011, Amendment 0-1)
+
+Every alert has three forms, each rendered from the same typed facts (§5), none from another form's output:
+
+| Form | What it is | Bound | Rendered |
+|---|---|---|---|
+| The plain text | the text above, byte for byte: email's `text/plain` part, and each channel's fallback | 1,000 UTF-16 code units, the cut kept as a last resort and never splitting a surrogate pair | with its cause, in the cause's transaction, stored in `subject` and `body` |
+| Telegram's designed message | the text in short labelled lines, with message entities: `bold`, `italic`, `code`, and `pre`, their offsets and lengths in UTF-16 code units | 2,000 UTF-16 code units | at each delivery attempt, from the row's facts |
+| The email's HTML part | table HTML with inline styles that loads nothing, under the designed subject, beside the plain text | 32 KiB of UTF-8 | at each delivery attempt, from the row's facts |
+
+- **The order**, in every designed form: the severity's marks; the headline and the prefix; what to do next, the kind's fixed sentence, where it has one; the meters against their ceilings, with spec 010's adapter month against its cap where its alert carries it; the runtime state, and the fallback state where the plain text shows it; the time; the alert's ID; and the runbook path, as text, never a link.
+- **No fact or sentence of their own**: the designed forms arrange the plain text's content and add only the severity's name and emoji, the kind's emoji, labels, the email's meter bars, and a sample's marks.
+- **The severities**, each shown in words and emoji, and in the email by its colour too:
+
+  | Severity | Kinds and variants | Emoji |
+  |---|---|---|
+  | Critical | `trip`, both `fallback_exhausted` variants, `store_unreachable` | 🔴 |
+  | Warning | every `warn`, `credentials_expiring`, `fallback_unavailable`, `auth_failed` | 🟠 |
+  | Operator action | every `operator_action` | 🔵 |
+  | Information | `reminder` | ⚪ |
+
+  The kinds' emoji: `warn` 📈, `trip` 🛑, `fallback_exhausted` 💸, `operator_action` 🛠️, `credentials_expiring` 🔑, `fallback_unavailable` 🔌, `auth_failed` 🔐, `store_unreachable` 🗄️, `reminder` ⏰; a sample's mark is 🧪. Each is one code point, or one and U+FE0F.
+- **Telegram** gets the designed message: the bold headline, the key and the runbook path in `code`, the meters in one `pre` block in aligned columns, and `id <dedupe key>` as a token, as the plain text has it. No entity links, mentions, or hides text, none overlaps or nests, and none has a `language`.
+- **Email** gets one `multipart/alternative` message: the plain text, then the HTML part, which draws each meter as a bar to its ceiling with a mark at its warning, in light and dark palettes. Its subject is the severity's emoji, a space, the kind's emoji, a space, and line 1, as `🔴 🛑 [h4reet.ai prod] KILL SWITCH TRIPPED: daily ceiling reached`. The email's plain form, its fallback, is today's message exactly: line 1 as its subject, the plain text as its only part.
+- **A sample's marks**: the plain text's line 1 begins with `[SAMPLE] ` and its last line reads "A sample, sent by operator #<8 hex>: nothing happened on <stack>."; Telegram's message begins with a line naming it a sample, and the HTML with a sample banner, each with the same sentence; the designed subject begins with 🧪 and a space.
+- **The golden files** under `services/gateway/test/fixtures/alerts/` pin every catalogue entry's four forms, and are the reference; the example below is one of them.
+
+The trip's designed Telegram message, as `services/gateway/test/fixtures/alerts/05-trip/telegram.txt` pins it, with `bold` over the headline, `pre` over the meter rows, and `code` over the key and the path:
+
+```text
+🔴 Critical · [h4reet.ai prod]
+🛑 KILL SWITCH TRIPPED: daily ceiling reached
+Next: Every request now gets the degraded response, local answers included. Only an operator reset restores service.
+Meters
+Daily      5.00 /  5.00 USD   warning  3.50
+Month     13.40 / 20.00 USD   warning 14.00
+Fallback   2.00 /  4.00 USD   grant 2
+Runtime: degraded since 2026-10-29T16:40:03Z
+Fallback: available
+Time: 2026-10-29T16:40:03Z
+id prod:trip:day:2026-10-29
+Runbook: docs/runbooks/kill-switch-trip.md
+```
+
 ## 4. Channels, delivery, and retries
 
 ### 4.1 The dispatcher
@@ -197,6 +247,12 @@ Runbook: docs/runbooks/cost-warning.md
 | Email | nodemailer 10.0.16 to `SMTP_HOST:SMTP_PORT`, over a connection the gateway makes through c-ares: implicit TLS on 465 (`secure: true`) or STARTTLS on 587 (`requireTLS: true`), certificates verified, AUTH with `SMTP_USER` and `SMTP_PASSWORD`. From `ALERT_EMAIL_FROM` to `ALERT_EMAIL_TO`, `text/plain` only, with the headers `Auto-Submitted: auto-generated` and `X-H4-Alert-Id: <dedupe key>`. | 10 s | a 250 reply to the message | the reply code and the server's queue ID |
 
 **The Telegram URL contains the bot token.** The dispatcher never logs a request URL, never stores one, and records only an error class: `timeout`, `connect`, `tls`, `http_<status>`, `telegram_<error_code>`, `smtp_<reply code>`, `smtp_<nodemailer code>`.
+
+**(spec 011, Amendment 0-2) The forms, and the fallbacks.** Each attempt sends each channel's form as `src/alerts/forms.ts` chooses it (§3.1), rendered then from the row's facts:
+- **Telegram's designed form** is JSON `{chat_id, text, entities, disable_web_page_preview: true}`, and its plain form exactly the row above; neither ever carries `parse_mode`.
+- **Email's designed form** is one `multipart/alternative` message under the designed subject, its `text/plain` part first, then its `text/html` part, both UTF-8, with the same headers and no other part; its plain form is exactly the row above.
+- **A refusal sends the plain form at once, in the same attempt**: a Telegram 400, as `http_400` or `telegram_400`, to a designed message (`entities_refused`), or a 5xx reply to the message's data, whose nodemailer error names `DATA` in its `command` (`message_refused`). A designed form that can't be rendered or fails its check (`render_failed`), passes its bound (`over_limit`), or has no version 2 facts to render from (`not_rendered`) goes plain too. `config/alerts.yaml`'s `formats` (config-files.md §4.1) keeps a channel plain, with no fallback.
+- **One attempt, one lease.** The claim's lease covers two sends, `2 × timeout + 5 s`, so no other pass can claim the row between them; the attempt counts once in §4.2's schedule, and its outcome is the plain send's. Once a channel has fallen back for an alert, every later attempt of it on that channel sends the plain form. Every other failure keeps §4.2's handling in the form last sent: a timeout, a refused connection, a 429 or 5xx from Telegram, and a 4xx reply from the mail server.
 
 (Tasks.md T156.) The email reference comes from the server's own reply line: its 2xx code and, when the reply names one, its queue ID. A message nodemailer reports accepted with a reply that can't be read is delivered with no reference: `email_ref` and `alert.delivered`'s `provider_ref` are null, never an assumed `250`.
 
@@ -214,7 +270,7 @@ Runbook: docs/runbooks/cost-warning.md
 ### 4.2 The retry schedule
 
 - **When attempts are due.** Attempt k of a channel is due at `enqueued_at` plus the k-th offset: 0, 5, 20, 50, 110, and 230 s. Those are the running sums of `retry.schedule_s` (5, 15, 30, 60, 120). An attempt that would start before the previous one ended starts right after it.
-- **Every attempt starts within 300 s.** The last starts at 230 s and runs at most 10 s, so all fall within FR-032's 5 minutes.
+- **Every attempt starts within 300 s.** The last starts at 230 s and runs at most 10 s, so all fall within FR-032's 5 minutes. **(spec 011, Amendment 0-2)** An attempt that falls back runs at most two sends, 20 s, so the last ends by 250 s, inside 300; rule A2 counts two sends (config-files.md §4.3).
 - **Giving up.** A channel still undelivered when the next attempt would pass `give_up_after_s` (300 s) is marked `failed` for that alert.
 - **Real time.** The schedule uses real time, so a dev test-clock jump neither speeds it up nor stalls it.
 
@@ -243,6 +299,11 @@ In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`)
 | The gateway process | Pending rows wait in the outbox. After a restart the dispatcher resumes them. A channel whose 300 s window has passed is marked `failed` without another attempt. |
 | The collector | Delivery is unaffected. Only the metrics and logs about delivery are lost. |
 
+**(spec 011, Amendment 0-3) Forms, fallbacks, and samples in the outcomes.**
+- **Each attempt records the form it sent**, `designed` or `plain`, and a fallback's reason: in the row's `telegram_form`, `email_form`, `telegram_fallback`, and `email_fallback` ([data-model.md §2.7](../data-model.md#27-alert_outbox-alerts-committed-with-their-cause)); in `alert.delivered`, `alert.retry`, and `alert.failed`; as `h4.alert.form` on `h4.alerts` (`none` for a channel marked failed at its window's end with no attempt); and on the attempt's `alert.deliver` span. A fallback also adds to `h4.alert.fallbacks` and logs `alert.fallback`, once, in the attempt that fell back.
+- **The in-memory alerts:** the `store_unreachable` alert and the samples hold their plain text and facts in memory, with the same per-channel form state, and go through the same choice of form, senders, schedule, and fallbacks.
+- **Samples** (operator-admin.md §2.4) are held in the dispatcher's memory, never in the outbox, and dropped at 300 s or a restart. Each pass ends with at most one sample a channel, only on a channel that had no due row and no in-memory alert attempt in that pass, and no sample attempt in the last 1,000 ms, so a real alert that falls due is always attempted first. A sample's attempts count under the kind `sample` alone, and record no `h4.alert.delivery_lag`.
+
 ## 5. What never appears
 
 These never appear in an alert's text, its `facts`, its delivery columns, or the logs about its delivery:
@@ -257,6 +318,8 @@ How this is enforced:
 - A unit test renders every kind from facts while canaries sit in the ledger, the client label, and the audit reason. It asserts that no canary appears in the output.
 - pino's redaction and the collector's redaction processor mask token shapes as a further layer (FR-029, [plan.md §6](../plan.md#6-observability)).
 
+**(spec 011, Amendment 0-5)** What never appears holds unchanged for every form and every sample: the plain text, the Telegram text and its entities, the subject, the HTML, the facts, the delivery columns, and the logs, metrics, and spans about delivery. The facts also hold the stack's prefix and an adapter's ID and label, which come from configuration and code, never from a request, and a sample's facts come from its catalogue entry alone. The unit test renders every catalogue entry, every further case, and every sample in all three forms while the canaries sit in the client label, the hello message, the operator's reason, and a token, and asserts that none appears in any form, in the serialized entities, in the subject, or in the facts, and that no run of nine or more hex digits does. A second case puts characters that need escaping into the prefix and a label: the HTML escapes them, and the Telegram text carries them as themselves, every entity still on its words.
+
 ## 6. Runbooks
 
 Each alert, and each degraded cause, points at one page in `docs/runbooks/`, every one listed in [plan.md §16](../plan.md#16-documentation-deliverables).
@@ -269,13 +332,17 @@ Each alert, and each degraded cause, points at one page in `docs/runbooks/`, eve
 | `fallback_exhausted`; `operator_action` (`renew`); the causes `fallback_awaiting_renewal` and `fallback_spent_today`; `reminder` while awaiting renewal | `fallback-renewal.md` |
 | `operator_action` (`init`); the cause `store_uninitialized` | `store-initialization.md` |
 | `credentials_expiring` | `bedrock-credentials-expiring.md` |
-| failed deliveries (the alert panel) | `alert-channel-down.md` |
+| failed deliveries (the alert panel); **(spec 011, Amendment 0-6)** and alerts sent as plain text by fallback (the same row's fallback panel) | `alert-channel-down.md` |
 | the cause `no_fallback_in_stack`; local down in prod | `model-server-down.md` |
 | `fallback_unavailable`; the cause `fallback_unavailable` | `bedrock-unavailable.md` |
 | `auth_failed` | `operator-auth-failures.md` |
 | `store_unreachable`; the cause `store_unreachable` | `store-unreachable.md` |
 | the cause `journal_unwritable` | `journal-unwritable.md` |
 | the cause `api_unavailable` | `gateway-down.md` |
+| the adapter month's `warn` and `fallback_exhausted`; the cause `adapter_month_spent` (spec 010) | `fallback-renewal.md` |
+| `fallback_unavailable` for the Anthropic API (spec 010) | `anthropic-unavailable.md` |
+
+**(spec 010)** The adapter month's warning and exhaustion map to `docs/runbooks/fallback-renewal.md`, and `fallback_unavailable` for the Anthropic API to `docs/runbooks/anthropic-unavailable.md`.
 
 ## 7. Incident drafts (FR-035)
 

@@ -7,8 +7,13 @@
 //   of retry.schedule_s; an attempt due before the previous one ended starts right after it. A channel still
 //   undelivered when its next attempt would pass give_up_after_s (300 s) is marked failed. Real time throughout, so a
 //   dev test-clock jump neither speeds the schedule up nor stalls it.
-// - A claimed row's next_at moves past its attempt's timeout first (a lease), so a stalled process can't send it twice
-//   at once; after a restart, a channel whose 300 s window has passed is marked failed without another attempt.
+// - A claimed row's next_at moves past two sends' timeouts first (a lease), so a stalled process can't send it twice
+//   at once, and an attempt that falls back to the plain form makes both sends inside it (spec 011, FR-028); after a
+//   restart, a channel whose 300 s window has passed is marked failed without another attempt.
+// - Each attempt sends each channel's form as forms.ts chooses it, rendered then from the row's facts (spec 011, plan
+//   D1): the designed form, or the plain text. A Telegram 400 or a mail server's 5xx to the message's data sends the
+//   plain form at once, in the same attempt; the attempt counts once, and the channel stays plain for that alert.
+//   Each attempt records its form, and a fallback its reason, counted and logged, with an alert.deliver span.
 // - The outcome of each attempt is written back as a status, a reference, and an error class only: the Telegram URL
 //   holds the bot token, and response bodies stay out. An outcome the store can't take is kept and written later.
 // - When the store has been unreachable for 60 s, it sends one in-memory store_unreachable alert on both channels, with
@@ -16,19 +21,35 @@
 // - Every 10 s, the daily reminder: at or after 09:00 UTC on the gateway clock, while degraded or awaiting renewal,
 //   one reminder row a day, for a condition that began before that day's reminder time.
 // Degradation never waits on any of this: the rows were committed with their cause.
+import { SpanKind, trace, type Tracer } from "@opentelemetry/api";
+
 import type { AlertsConfig, Budgets, EnvClass, StackName } from "../config/validate.js";
 import { thresholds } from "../config/validate.js";
 import { dayKey, gatewayTime, periodKeys, type GatewayClock } from "../core/clock.js";
 import { meterFactsOf } from "../meter/crossings.js";
 import { readPeriodRows } from "../meter/rollover.js";
 import type { Store } from "../meter/store.js";
-import type { AlertChannel, AlertKind, GatewayMetrics } from "../telemetry/metrics.js";
+import type { AlertChannel, AlertKind, AlertMetricKind, GatewayMetrics } from "../telemetry/metrics.js";
+import { ALERT_DELIVER_SPAN, alertDeliverAttributes } from "../telemetry/otel.js";
+import { sampleFacts, type CatalogueEntry } from "./catalogue.js";
 import { renderAlert, type AlertSpec } from "./format.js";
+import {
+  formsFor,
+  RENDERERS,
+  type AlertForm,
+  type DesignedEmail,
+  type DesignedRenderers,
+  type FallbackReason,
+  type SampleMark,
+  type TelegramMessage,
+} from "./forms.js";
 import { dedupeKey, queueAlert } from "./outbox.js";
 import { sendEmail, type EmailChannel } from "./smtp.js";
-import { sendTelegram, type DeliveryResult, type TelegramChannel } from "./telegram.js";
+import { sendTelegram, type DeliveryResult, type TelegramChannel, type TelegramSend } from "./telegram.js";
 
 export const DISPATCH_INTERVAL_MS = 2_000;
+/** At most one sample a second on each channel (spec 011, FR-039; the Bot API's FAQ's advice for one chat). */
+export const SAMPLE_GAP_MS = 1_000;
 export const REMINDER_INTERVAL_MS = 10_000;
 /** How many due rows one tick claims per channel. */
 const CLAIM_BATCH = 20;
@@ -180,12 +201,16 @@ export interface DispatcherDeps {
   realNow: () => number;
   /** The channels' senders; the real ones by default, stubs in tests. */
   send?: {
-    telegram?: (channel: TelegramChannel, text: string) => Promise<DeliveryResult>;
+    telegram?: (channel: TelegramChannel, message: string | TelegramSend) => Promise<DeliveryResult>;
     email?: (
       channel: EmailChannel,
-      mail: { subject: string; text: string; alertId: string },
+      mail: { subject: string; text: string; html?: string; alertId: string },
     ) => Promise<DeliveryResult>;
   };
+  /** The designed renderers (spec 011); the registered ones by default (forms.ts), stubs in tests. */
+  renderers?: DesignedRenderers;
+  /** alert.deliver's tracer; the global one by default. */
+  tracer?: Tracer;
   intervalMs?: number;
   reminderIntervalMs?: number;
 }
@@ -194,15 +219,27 @@ const CHANNELS: readonly AlertChannel[] = ["telegram", "email"];
 /** The outbox's columns of each channel: a fixed name, never one a caller supplies. */
 const PREFIX: Readonly<Record<AlertChannel, "telegram" | "email">> = { telegram: "telegram", email: "email" };
 
-interface Claimed {
-  id: number;
+/** What one attempt sends from: an outbox row, the in-memory store_unreachable alert, or a sample. */
+interface AttemptInput {
   dedupeKey: string;
-  kind: AlertKind;
+  /** h4.alert.kind: the alert's kind, or sample. */
+  kind: AlertMetricKind;
   subject: string;
   body: string;
+  /** The facts the designed forms render from (facts.ts). */
+  facts: unknown;
   enqueuedAt: number;
   /** Attempts made, this one included. */
   attempts: number;
+  /** The form and fallback reason the channel's last attempt recorded, or null before its first. */
+  form: AlertForm | null;
+  fallback: FallbackReason | null;
+  sample?: SampleMark;
+}
+
+interface Claimed extends AttemptInput {
+  id: number;
+  kind: AlertKind;
 }
 
 interface Outcome {
@@ -211,6 +248,9 @@ interface Outcome {
   deliveredAt: number | null;
   ref: string | null;
   error: string | null;
+  /** The form this attempt sent, and the reason when it was the plain form in the designed one's place. */
+  form: AlertForm;
+  fallback: FallbackReason | null;
 }
 
 interface MemoryChannel {
@@ -218,17 +258,34 @@ interface MemoryChannel {
   attempts: number;
   nextAt: number;
   error: string | null;
+  form: AlertForm | null;
+  fallback: FallbackReason | null;
 }
 
 interface MemoryAlert {
   dedupeKey: string;
+  kind: AlertMetricKind;
   subject: string;
   body: string;
+  facts: unknown;
   enqueuedAt: number;
+  sample?: SampleMark;
   channels: Record<AlertChannel, MemoryChannel>;
 }
 
+const DESIGNED: { telegram: AlertForm; email: AlertForm } = { telegram: "designed", email: "designed" };
+/** A Telegram answer that refuses a designed message's entities (FR-026): its HTTP status, or its error_code. */
+const ENTITIES_REFUSED = new Set(["http_400", "telegram_400"]);
+
 const iso = (ms: number): string => new Date(ms).toISOString();
+const pendingChannel = (now: number): MemoryChannel => ({
+  status: "pending",
+  attempts: 0,
+  nextAt: now,
+  error: null,
+  form: null,
+  fallback: null,
+});
 
 /** What asking for an alert row came to: queued now, already there, or not now (the store was empty, down, or failed). */
 export type QueueAnswer = "queued" | "present" | "retry";
@@ -247,8 +304,16 @@ export class Dispatcher {
   private readonly memory: MemoryAlert[] = [];
   /** The outage whose store_unreachable alert went out: one per outage, deduplicated in memory. */
   private alertedOutage: number | undefined;
+  /** Spec 011's samples (plan §7.4): in memory, never the outbox, dropped at 300 s or a restart. */
+  private readonly samples: MemoryAlert[] = [];
+  /** When each channel last attempted a sample. */
+  private readonly lastSample: Record<AlertChannel, number> = { telegram: -Infinity, email: -Infinity };
 
-  constructor(private readonly deps: DispatcherDeps) {}
+  private readonly tracer: Tracer;
+
+  constructor(private readonly deps: DispatcherDeps) {
+    this.tracer = deps.tracer ?? trace.getTracer("h4-gateway");
+  }
 
   start(): void {
     if (!this.stopped) return;
@@ -300,8 +365,13 @@ export class Dispatcher {
     if (!this.stopped && this.listening === undefined && this.deps.store.status === "ready") await this.listen();
     await this.flushUnwritten();
     this.noteOutage(now);
-    await this.deliverMemory();
-    await Promise.all(CHANNELS.map((channel) => this.deliverRows(channel).catch(() => {})));
+    const real = await this.deliverMemory();
+    const claimed = await Promise.all(CHANNELS.map((channel) => this.deliverRows(channel).catch(() => 0)));
+    // Then at most one sample a channel, only on a channel no real alert went out on in this pass (FR-039), one after
+    // the other so the two never change the list at once.
+    for (const [i, channel] of CHANNELS.entries()) {
+      if ((claimed[i] ?? 0) === 0 && !real.has(channel)) await this.deliverSample(channel).catch(() => {});
+    }
   }
 
   /**
@@ -329,37 +399,54 @@ export class Dispatcher {
   // The outbox's rows
   // -------------------------------------------------------------------------------------------------------------
 
-  private async deliverRows(channel: AlertChannel): Promise<void> {
+  /** One pass over a channel's due rows; resolves to how many it attempted. */
+  private async deliverRows(channel: AlertChannel): Promise<number> {
     const { store, alerts } = this.deps;
-    if (store.status !== "ready") return;
+    if (store.status !== "ready") return 0;
     const p = PREFIX[channel];
     const now = this.deps.realNow();
     const held = [...this.unwritten.values()].filter((u) => u.channel === channel).map((u) => u.id);
     // A window that has passed (a restart, a long outage): failed, with no attempt more.
-    const expired = await store.query<{ dedupe_key: string; kind: AlertKind; attempts: unknown; error: string | null }>(
+    const expired = await store.query<{
+      dedupe_key: string;
+      kind: AlertKind;
+      attempts: unknown;
+      error: string | null;
+      form: AlertForm | null;
+      fallback: FallbackReason | null;
+    }>(
       `UPDATE gateway.alert_outbox SET ${p}_status = 'failed', ${p}_next_at = NULL, ${p}_error = coalesce(${p}_error, 'expired')
        WHERE ${p}_status = 'pending' AND enqueued_at <= $1 AND NOT (id = ANY ($2::bigint[]))
-       RETURNING dedupe_key, kind, ${p}_attempts AS attempts, ${p}_error AS error`,
+       RETURNING dedupe_key, kind, ${p}_attempts AS attempts, ${p}_error AS error, ${p}_form AS form,
+         ${p}_fallback AS fallback`,
       [iso(now - alerts.retry.giveUpAfterS * 1_000), held],
     );
-    for (const r of expired.rows) this.failed(channel, r.dedupe_key, r.kind, Number(r.attempts), r.error ?? "expired");
-    // The due rows, leased past their attempt's timeout.
-    const lease = now + this.timeoutOf(channel) + 5_000;
+    for (const r of expired.rows) {
+      // A channel marked failed with no attempt has no form; after attempts, it keeps the last one's.
+      const attempts = Number(r.attempts);
+      this.failed(channel, r.dedupe_key, r.kind, attempts, r.error ?? "expired", r.form ?? "none", r.fallback);
+    }
+    // The due rows, leased past two sends' timeouts: an attempt that falls back makes both inside it (FR-028).
+    const lease = now + 2 * this.timeoutOf(channel) + 5_000;
     const { rows } = await store.query<{
       id: unknown;
       dedupe_key: string;
       kind: AlertKind;
       subject: string;
       body: string;
+      facts: unknown;
       enqueued_at: Date | string;
       attempts: unknown;
+      form: AlertForm | null;
+      fallback: FallbackReason | null;
     }>(
       `UPDATE gateway.alert_outbox SET ${p}_attempts = ${p}_attempts + 1, ${p}_next_at = $2
        WHERE id IN (
          SELECT id FROM gateway.alert_outbox
          WHERE ${p}_status = 'pending' AND ${p}_next_at <= $1 AND NOT (id = ANY ($3::bigint[]))
          ORDER BY ${p}_next_at, id LIMIT ${CLAIM_BATCH} FOR UPDATE SKIP LOCKED)
-       RETURNING id, dedupe_key, kind, subject, body, enqueued_at, ${p}_attempts AS attempts`,
+       RETURNING id, dedupe_key, kind, subject, body, facts, enqueued_at, ${p}_attempts AS attempts,
+         ${p}_form AS form, ${p}_fallback AS fallback`,
       [iso(now), iso(lease), held],
     );
     for (const r of rows) {
@@ -369,29 +456,124 @@ export class Dispatcher {
         kind: r.kind,
         subject: r.subject,
         body: r.body,
+        facts: r.facts,
         enqueuedAt: new Date(r.enqueued_at).getTime(),
         attempts: Number(r.attempts),
+        form: r.form,
+        fallback: r.fallback,
       };
       const outcome = await this.attempt(channel, claimed);
       await this.write(channel, claimed.id, outcome);
     }
+    return rows.length;
   }
 
   private timeoutOf(channel: AlertChannel): number {
     return channel === "telegram" ? this.deps.channels.telegram.timeoutMs : this.deps.channels.email.timeoutMs;
   }
 
-  /** One attempt on one channel, its metrics and its log; resolves to the outcome to record. */
-  private async attempt(
+  /**
+   * One attempt on one channel: its form, chosen and rendered now (forms.ts); the send, and at once the plain form's
+   * after a refusal of the designed one (FR-026, FR-027); its metrics, its log, and its alert.deliver span. Resolves to
+   * the outcome to record, which is the last send's.
+   */
+  private async attempt(channel: AlertChannel, a: AttemptInput): Promise<Outcome> {
+    const span = this.tracer.startSpan(ALERT_DELIVER_SPAN, { kind: SpanKind.INTERNAL, root: true });
+    try {
+      const outcome = await this.attemptForms(channel, a);
+      const result = outcome.status === "delivered" ? "delivered" : outcome.status === "failed" ? "failed" : "retry";
+      span.setAttributes(
+        alertDeliverAttributes({
+          channel,
+          kind: a.kind,
+          form: outcome.form,
+          fallbackReason: outcome.fallback,
+          outcome: result,
+          attempt: a.attempts,
+          sample: a.sample !== undefined,
+        }),
+      );
+      return outcome;
+    } finally {
+      span.end();
+    }
+  }
+
+  private async attemptForms(channel: AlertChannel, a: AttemptInput): Promise<Outcome> {
+    const input = {
+      facts: a.facts,
+      dedupeKey: a.dedupeKey,
+      form: a.form,
+      fallback: a.fallback,
+      ...(a.sample === undefined ? {} : { sample: a.sample }),
+    };
+    const opts = { formats: this.deps.alerts.formats ?? DESIGNED, renderers: this.deps.renderers ?? RENDERERS };
+    const chosen = channel === "telegram" ? formsFor("telegram", input, opts) : formsFor("email", input, opts);
+    let form: AlertForm = chosen.form;
+    let fallback: FallbackReason | null = chosen.form === "plain" ? chosen.reason : null;
+    let result: DeliveryResult;
+    if (chosen.form === "designed") {
+      result = await this.sendDesigned(channel, a, chosen.designed);
+      const refused = this.refusalOf(channel, result);
+      if (refused !== undefined) {
+        // The plain form at once, in the same attempt and under the same lease (FR-026 to FR-028).
+        this.fellBack(channel, a, refused, result.ok ? undefined : result.errorClass);
+        form = "plain";
+        fallback = refused;
+        result = await this.sendPlain(channel, a);
+      }
+    } else {
+      // A fallback decided now is counted now; one kept from an earlier attempt was counted then.
+      if (chosen.reason !== null && !chosen.kept) this.fellBack(channel, a, chosen.reason, undefined);
+      result = await this.sendPlain(channel, a);
+    }
+    return this.settle(channel, a, result, form, fallback);
+  }
+
+  /** A refusal of the designed form that the plain one goes at once after: Telegram's 400, a mail server's 5xx. */
+  private refusalOf(channel: AlertChannel, result: DeliveryResult): FallbackReason | undefined {
+    if (result.ok) return undefined;
+    if (channel === "telegram") return ENTITIES_REFUSED.has(result.errorClass) ? "entities_refused" : undefined;
+    return result.messageRefused === true ? "message_refused" : undefined;
+  }
+
+  /** A fallback (FR-045): counted, and logged as alert.fallback with the refused send's class, if one was refused. */
+  private fellBack(
     channel: AlertChannel,
-    a: { dedupeKey: string; kind: AlertKind; subject: string; body: string; enqueuedAt: number; attempts: number },
-  ): Promise<Outcome> {
-    const result = await this.send(channel, a);
+    a: AttemptInput,
+    reason: FallbackReason,
+    errorClass: string | undefined,
+  ): void {
+    this.deps.metrics.alertFallback({ channel, kind: a.kind, reason });
+    this.deps.logger.warn(
+      {
+        event: "alert.fallback",
+        dedupe_key: a.dedupeKey,
+        kind: a.kind,
+        channel,
+        attempt: a.attempts,
+        reason,
+        ...(errorClass === undefined ? {} : { error_class: errorClass }),
+      },
+      "An alert went in its plain form in place of the designed one.",
+    );
+  }
+
+  /** The attempt's outcome from its last send: delivered, another attempt due, or failed; with its metrics and log. */
+  private settle(
+    channel: AlertChannel,
+    a: AttemptInput,
+    result: DeliveryResult,
+    form: AlertForm,
+    fallback: FallbackReason | null,
+  ): Outcome {
     const end = this.deps.realNow();
+    const formFields = { form, ...(fallback === null ? {} : { fallback_reason: fallback }) };
     if (result.ok) {
       const lag = Math.max(0, end - a.enqueuedAt) / 1_000;
-      this.deps.metrics.alertAttempt({ channel, kind: a.kind, outcome: "delivered" });
-      this.deps.metrics.alertDeliveryLag(lag);
+      this.deps.metrics.alertAttempt({ channel, kind: a.kind, outcome: "delivered", form });
+      // Lag is an alert's alone: a sample has no kind to keep it apart (plan §7.4).
+      if (a.sample === undefined) this.deps.metrics.alertDeliveryLag(lag);
       this.deps.logger.info(
         {
           event: "alert.delivered",
@@ -401,17 +583,18 @@ export class Dispatcher {
           attempt: a.attempts,
           lag_s: Math.round(lag * 1_000) / 1_000,
           provider_ref: result.ref,
+          ...formFields,
         },
         "An alert was delivered.",
       );
-      return { status: "delivered", nextAt: null, deliveredAt: end, ref: result.ref, error: null };
+      return { status: "delivered", nextAt: null, deliveredAt: end, ref: result.ref, error: null, form, fallback };
     }
     const next = nextAttemptAt(a.enqueuedAt, a.attempts, end, this.deps.alerts.retry);
     if (next === undefined) {
-      this.failed(channel, a.dedupeKey, a.kind, a.attempts, result.errorClass);
-      return { status: "failed", nextAt: null, deliveredAt: null, ref: null, error: result.errorClass };
+      this.failed(channel, a.dedupeKey, a.kind, a.attempts, result.errorClass, form, fallback);
+      return { status: "failed", nextAt: null, deliveredAt: null, ref: null, error: result.errorClass, form, fallback };
     }
-    this.deps.metrics.alertAttempt({ channel, kind: a.kind, outcome: "retry" });
+    this.deps.metrics.alertAttempt({ channel, kind: a.kind, outcome: "retry", form });
     this.deps.logger.warn(
       {
         event: "alert.retry",
@@ -420,24 +603,40 @@ export class Dispatcher {
         attempt: a.attempts,
         error_class: result.errorClass,
         next_in_s: Math.max(0, Math.round((next - end) / 1_000)),
+        ...formFields,
       },
       "An alert's delivery attempt failed; another is due.",
     );
-    return { status: "pending", nextAt: next, deliveredAt: null, ref: null, error: result.errorClass };
+    return { status: "pending", nextAt: next, deliveredAt: null, ref: null, error: result.errorClass, form, fallback };
   }
 
-  private failed(channel: AlertChannel, key: string, kind: AlertKind, attempts: number, errorClass: string): void {
-    this.deps.metrics.alertAttempt({ channel, kind, outcome: "failed" });
+  private failed(
+    channel: AlertChannel,
+    key: string,
+    kind: AlertMetricKind,
+    attempts: number,
+    errorClass: string,
+    form: AlertForm | "none",
+    fallback: FallbackReason | null,
+  ): void {
+    this.deps.metrics.alertAttempt({ channel, kind, outcome: "failed", form });
     this.deps.logger.error(
-      { event: "alert.failed", dedupe_key: key, channel, attempts, error_class: errorClass },
+      {
+        event: "alert.failed",
+        dedupe_key: key,
+        channel,
+        attempts,
+        error_class: errorClass,
+        form,
+        // As alert.delivered and alert.retry have it, when the last attempt sent the plain form by fallback (FR-044).
+        ...(fallback === null ? {} : { fallback_reason: fallback }),
+      },
       "An alert's channel gave up.",
     );
   }
 
-  private send(
-    channel: AlertChannel,
-    a: { dedupeKey: string; subject: string; body: string },
-  ): Promise<DeliveryResult> {
+  /** The plain form: the stored text on Telegram, and today's message on email, line 1 as its subject. */
+  private sendPlain(channel: AlertChannel, a: AttemptInput): Promise<DeliveryResult> {
     const send = this.deps.send ?? {};
     if (channel === "telegram") return (send.telegram ?? sendTelegram)(this.deps.channels.telegram, a.body);
     return (send.email ?? sendEmail)(this.deps.channels.email, {
@@ -447,12 +646,32 @@ export class Dispatcher {
     });
   }
 
+  /** The designed form: Telegram's text with its entities; the email's HTML beside the plain text, its subject. */
+  private sendDesigned(
+    channel: AlertChannel,
+    a: AttemptInput,
+    designed: TelegramMessage | DesignedEmail,
+  ): Promise<DeliveryResult> {
+    const send = this.deps.send ?? {};
+    if (channel === "telegram") {
+      const m = designed as TelegramMessage;
+      return (send.telegram ?? sendTelegram)(this.deps.channels.telegram, { text: m.text, entities: m.entities });
+    }
+    const e = designed as DesignedEmail;
+    return (send.email ?? sendEmail)(this.deps.channels.email, {
+      subject: e.subject,
+      text: a.body,
+      html: e.html,
+      alertId: a.dedupeKey,
+    });
+  }
+
   private async write(channel: AlertChannel, id: number, outcome: Outcome): Promise<void> {
     const p = PREFIX[channel];
     try {
       await this.deps.store.query(
         `UPDATE gateway.alert_outbox SET ${p}_status = $2, ${p}_next_at = $3, ${p}_delivered_at = $4, ${p}_ref = $5,
-           ${p}_error = $6
+           ${p}_error = $6, ${p}_form = $7, ${p}_fallback = $8
          WHERE id = $1`,
         [
           id,
@@ -461,6 +680,8 @@ export class Dispatcher {
           outcome.deliveredAt === null ? null : iso(outcome.deliveredAt),
           outcome.ref,
           outcome.error,
+          outcome.form,
+          outcome.fallback,
         ],
       );
       this.unwritten.delete(`${channel}:${id}`);
@@ -472,6 +693,27 @@ export class Dispatcher {
 
   private async flushUnwritten(): Promise<void> {
     for (const u of [...this.unwritten.values()]) await this.write(u.channel, u.id, u.outcome);
+  }
+
+  /** One attempt of an in-memory alert on one channel, its outcome kept in memory, its form state too. */
+  private async attemptMemory(alert: MemoryAlert, channel: AlertChannel, c: MemoryChannel): Promise<void> {
+    const outcome = await this.attempt(channel, {
+      dedupeKey: alert.dedupeKey,
+      kind: alert.kind,
+      subject: alert.subject,
+      body: alert.body,
+      facts: alert.facts,
+      enqueuedAt: alert.enqueuedAt,
+      attempts: c.attempts,
+      form: c.form,
+      fallback: c.fallback,
+      ...(alert.sample === undefined ? {} : { sample: alert.sample }),
+    });
+    c.status = outcome.status;
+    c.error = outcome.error;
+    c.form = outcome.form;
+    c.fallback = outcome.fallback;
+    if (outcome.nextAt !== null) c.nextAt = outcome.nextAt;
   }
 
   /** The in-memory alerts not yet final on both channels. */
@@ -504,17 +746,20 @@ export class Dispatcher {
       },
       { kind: "store_unreachable", since: gatewayTime(since, offset), afterS },
     );
-    const channel = (): MemoryChannel => ({ status: "pending", attempts: 0, nextAt: now, error: null });
     this.memory.push({
       dedupeKey: key,
+      kind: "store_unreachable",
       subject: rendered.subject,
       body: rendered.body,
+      facts: rendered.facts,
       enqueuedAt: now,
-      channels: { telegram: channel(), email: channel() },
+      channels: { telegram: pendingChannel(now), email: pendingChannel(now) },
     });
   }
 
-  private async deliverMemory(): Promise<void> {
+  /** The in-memory store_unreachable alert's due attempts; resolves to the channels that made one. */
+  private async deliverMemory(): Promise<Set<AlertChannel>> {
+    const attempted = new Set<AlertChannel>();
     for (const alert of [...this.memory]) {
       await Promise.all(
         CHANNELS.map(async (channel) => {
@@ -523,18 +768,93 @@ export class Dispatcher {
           if (c.status !== "pending" || c.nextAt > now) return;
           if (now > alert.enqueuedAt + this.deps.alerts.retry.giveUpAfterS * 1_000) {
             c.status = "failed";
-            this.failed(channel, alert.dedupeKey, "store_unreachable", c.attempts, c.error ?? "expired");
+            const error = c.error ?? "expired";
+            this.failed(channel, alert.dedupeKey, alert.kind, c.attempts, error, c.form ?? "none", c.fallback);
             return;
           }
           c.attempts += 1;
-          const outcome = await this.attempt(channel, { ...alert, kind: "store_unreachable", attempts: c.attempts });
-          c.status = outcome.status;
-          c.error = outcome.error;
-          if (outcome.nextAt !== null) c.nextAt = outcome.nextAt;
+          attempted.add(channel);
+          await this.attemptMemory(alert, channel, c);
         }),
       );
       if (CHANNELS.every((ch) => alert.channels[ch].status !== "pending"))
         this.memory.splice(this.memory.indexOf(alert), 1);
+    }
+    return attempted;
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // Spec 011's samples (FR-033 to FR-040; plan §7.4)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /**
+   * Takes a sample of each entry into memory, both channels pending, due now: each rendered from its entry's fixed
+   * facts with this stack's prefix and class, the sample's key, and the requester's fingerprint, never the store's
+   * (FR-034). Resolves to each entry's name and key, in order.
+   */
+  queueSamples(
+    entries: readonly CatalogueEntry[],
+    auditId: number,
+    fingerprint: string,
+  ): { entry: string; key: string }[] {
+    const { deps } = this;
+    const now = deps.realNow();
+    const sample = { fingerprint };
+    return entries.map((entry) => {
+      const { ctx, spec, key } = sampleFacts(entry, {
+        stack: deps.stack,
+        envClass: deps.envClass,
+        prefix: deps.alerts.prefixes[deps.stack],
+        auditId,
+        fingerprint,
+      });
+      const rendered = renderAlert(ctx, spec, sample);
+      this.samples.push({
+        dedupeKey: key,
+        kind: "sample",
+        subject: rendered.subject,
+        body: rendered.body,
+        facts: rendered.facts,
+        enqueuedAt: now,
+        sample,
+        channels: { telegram: pendingChannel(now), email: pendingChannel(now) },
+      });
+      return { entry: entry.name, key };
+    });
+  }
+
+  /** Where this stack's alerts, and so its samples, go: its channels' mode (FR-040). */
+  delivery(): "real" | "standin" {
+    return this.deps.channels.mode;
+  }
+
+  /** Whether an earlier request's samples are still pending on a channel (FR-039: 409 samples_in_flight). */
+  samplesPending(): boolean {
+    return this.samples.some((s) => CHANNELS.some((ch) => s.channels[ch].status === "pending"));
+  }
+
+  /** At most one sample on a channel, and none within a second of its last (FR-039); then the finished ones go. */
+  private async deliverSample(channel: AlertChannel): Promise<void> {
+    const now = this.deps.realNow();
+    if (now - this.lastSample[channel] >= SAMPLE_GAP_MS) {
+      for (const s of this.samples) {
+        const c = s.channels[channel];
+        if (c.status !== "pending") continue;
+        if (now > s.enqueuedAt + this.deps.alerts.retry.giveUpAfterS * 1_000) {
+          c.status = "failed";
+          this.failed(channel, s.dedupeKey, "sample", c.attempts, c.error ?? "expired", c.form ?? "none", c.fallback);
+          continue;
+        }
+        if (c.nextAt > now) continue;
+        this.lastSample[channel] = now;
+        c.attempts += 1;
+        await this.attemptMemory(s, channel, c);
+        break;
+      }
+    }
+    for (let i = this.samples.length - 1; i >= 0; i--) {
+      const s = this.samples[i];
+      if (s !== undefined && CHANNELS.every((ch) => s.channels[ch].status !== "pending")) this.samples.splice(i, 1);
     }
   }
 
@@ -547,7 +867,7 @@ export class Dispatcher {
    * most one an hour per adapter. While the store is empty or down, its own state answers for the stack and nothing is
    * queued. Resolves true when this call queued it.
    */
-  async fallbackUnavailable(adapter: string, reason: "credentials" | "circuit_open"): Promise<boolean> {
+  async fallbackUnavailable(adapter: string, reason: "credentials" | "circuit_open", label?: string): Promise<boolean> {
     const { deps } = this;
     if (deps.store.status !== "ready") return false;
     const read = await deps.store.readStackState();
@@ -576,7 +896,7 @@ export class Dispatcher {
                 : { state: "available" },
             meters: meterFactsOf(await readPeriodRows(q, periods), t),
           },
-          { kind: "fallback_unavailable", adapter, reason },
+          { kind: "fallback_unavailable", adapter, reason, ...(label === undefined ? {} : { label }) },
           deps.realNow(),
         ),
       );

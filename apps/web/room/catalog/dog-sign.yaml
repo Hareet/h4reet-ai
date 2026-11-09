@@ -1,0 +1,43 @@
+# The desk sign "my dog thinks i'm cool" (FR-032; answer 4): the Author's own design, a plate on a foot whose lettering
+# area is a readable live face, drawn live from its approved outline once the outline arrives (T202); until then it
+# stays plain. The face is the card's, leaning back 4°, as the studio's hand-back of 2026-11-07 gives it: its facing and
+# up are (0, sin 4°, cos 4°) and (0, cos 4°, −sin 4°) to 7 places, since the hand-back's 4 places miss a unit vector by
+# 3.9e-5 and RG2 holds one within 1e-6. The stand-in stays a plate on a foot, which the leaning face stands inside
+# until a model is set. Its size and where it stands are estimates until measured; the stylized scale is lookdev's to
+# set.
+version: 1
+id: dog-sign
+name: "Desk sign: my dog thinks i'm cool"
+size: { w: 0.16, h: 0.12, d: 0.05, estimated: true }
+stylized_scale: 1.5
+origin:
+  point: on the desk, below the centre of the sign's foot.
+  bounds: { min: [-0.08, 0, -0.025], max: [0.08, 0.12, 0.025] }
+live_faces:
+  - role: lettering
+    at: [0, 0.0645, 0.0004]
+    size: [0.1307, 0.0893]
+    facing: [0, 0.0697565, 0.9975641]
+    up: [0, 0.9975641, -0.0697565]
+    px: [1024, 700]
+    readable: true
+standin:
+  - { shape: box, size: [0.16, 0.02, 0.05], at: [0, 0.01, 0], color: sign-wood }
+  - { shape: box, size: [0.16, 0.1, 0.008], at: [0, 0.07, 0], color: sign-cream }
+drawing: { from: standin }
+budget: { gzip_bytes: 150000, triangles: 1500, texture_px: 2048, texture_bytes: 11184810 }
+model: { file: dog-sign.glb }
+work_order:
+  method: >-
+    Model the sign's shape from the Author's own design and the dimension sheet. The lettering area is one quad, the
+    live face named for its role, in one plain colour: the room draws the words from their approved outline.
+  shots:
+    - The sign from the front, square on.
+    - The sign from its side, showing its foot and thickness.
+  measurements:
+    - The sign's width, height, and thickness, and its foot's depth.
+    - The lettering area's width and height, and its position on the face.
+    - Where the sign stands on the desk, from the desk's front-left corner.
+  studio_notes: >-
+    The Author's own design (answer 4): its non-word graphics may stay in the texture, but no letter of its lettering
+    may (FR-016, FR-032). The lettering's outline comes to the room separately, never through the studio's textures.

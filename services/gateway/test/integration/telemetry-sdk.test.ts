@@ -155,7 +155,7 @@ describe("the started SDK", () => {
   });
 
   it("exports a request's spans on both listeners without the query string or the client's attributes", async () => {
-    const hello = await fetch(`${apiUrl}/hello?message=hello-payload&label=author-laptop`, {
+    const hello = await fetch(`${apiUrl}/hello?message=hello-payload&label=author-terminal`, {
       method: "POST",
       headers: { "content-type": "application/json", "user-agent": "curl/8.0-test" },
       body: "{}",
@@ -173,7 +173,7 @@ describe("the started SDK", () => {
       expect(path(s), s.name).not.toContain("?");
     }
     expect(JSON.stringify(got.map((s) => [s.name, s.attributes, s.events]))).not.toMatch(
-      /hello-payload|author-laptop|curl\/8\.0-test/,
+      /hello-payload|author-terminal|curl\/8\.0-test/,
     );
     expect(servers[0]?.resource.attributes).toMatchObject({
       "service.name": "gateway",
@@ -413,6 +413,73 @@ describe("the started SDK", () => {
       await hello.close();
       await services.gateway.close();
       await store.close();
+    }
+  });
+
+  it("gives POST /admin/studio-window the admin listener's SERVER span: route, stack, outcome, and state, never the reason", async () => {
+    // spec 003's contracts/gpu-window.md §1 (tasks.md T034): the window's endpoint has the span every admin route
+    // has (telemetry.md §3.3), annotated by the listener's onSend. Loaded here, after the SDK started, as app.js is.
+    const { testStack } = await import("../helpers/stack.js");
+    const st = await testStack({ stack: "dev-cpu" });
+    await st.admin.listen({ host: "127.0.0.1", port: 0 });
+    const url = `http://127.0.0.1:${(st.admin.server.address() as AddressInfo).port}`;
+    const post = (route: string, body: unknown) =>
+      fetch(`${url}${route}`, {
+        method: "POST",
+        headers: { ...st.auth(), "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    try {
+      const init = await post("/admin/init", { reason: "span test: a fresh store", confirm_zero: true, renew: true });
+      expect(init.status).toBe(200);
+      spans.got.length = 0;
+      expect((await post("/admin/studio-window", { state: "start", reason: "span-reason: a studio job" })).status).toBe(
+        200,
+      );
+      expect((await post("/admin/studio-window", { state: "start", reason: "span-reason: once more" })).status).toBe(
+        409,
+      );
+      expect(
+        (await post("/admin/studio-window", { state: "pause", reason: "span-reason: no such state" })).status,
+      ).toBe(400);
+      const windows = (x: tracing.ReadableSpan[]) =>
+        x.filter(
+          (y) =>
+            y.kind === SpanKind.SERVER &&
+            scope(y) === "@opentelemetry/instrumentation-http" &&
+            path(y) === "/admin/studio-window",
+        );
+      const got = await exported((x) => windows(x).length === 3);
+      const byStatus = windows(got)
+        .map((x) => x.attributes)
+        .sort((a, b) => Number(a["http.response.status_code"]) - Number(b["http.response.status_code"]));
+      expect(byStatus).toEqual([
+        expect.objectContaining({
+          "http.route": "/admin/studio-window",
+          "http.response.status_code": 200,
+          "h4.stack": "dev-cpu",
+          "h4.outcome": "ok",
+          "h4.studio_window.state": "start",
+        }),
+        expect.objectContaining({
+          "http.route": "/admin/studio-window",
+          "http.response.status_code": 400,
+          "h4.stack": "dev-cpu",
+          "h4.outcome": "invalid",
+        }),
+        expect.objectContaining({
+          "http.route": "/admin/studio-window",
+          "http.response.status_code": 409,
+          "h4.stack": "dev-cpu",
+          "h4.outcome": "refused",
+          "h4.studio_window.state": "start",
+        }),
+      ]);
+      // A body with no valid state gives no state: the attribute only ever holds start or end.
+      expect(byStatus[1]).not.toHaveProperty(["h4.studio_window.state"]);
+      expect(JSON.stringify(got.map((x) => [x.name, x.attributes, x.events]))).not.toMatch(/span-reason/);
+    } finally {
+      await st.close();
     }
   });
 });

@@ -1,0 +1,34 @@
+# The laptop's charger, a plug and a short lead (FR-020): the piece the laptop's switch places, one pose per state,
+# never a placement of its own. The plug's tip is the origin, pointing along +X, so the plugged pose puts the tip in
+# the laptop's port; the room draws the rest of the cable at run time from the lead's free end. Each pose claims the
+# tier value it may show, or nothing (FR-043). Enlarged as a readable prop (FR-051); lookdev sets the scale.
+version: 1
+id: charger
+name: Laptop charger, plug and lead
+size: { w: 0.083, h: 0.012, d: 0.012, estimated: true }
+stylized_scale: 2
+origin:
+  point: the tip of the plug, where it meets the laptop's port.
+  bounds: { min: [-0.085, -0.006, -0.006], max: [0, 0.006, 0.006] }
+anchors:
+  lead-end: { at: [-0.083, 0, 0], estimated: true }
+claims: { signal: tier, poses: { plugged: local, unplugged: cloud, resting: null } }
+standin:
+  - { shape: box, size: [0.008, 0.003, 0.008], at: [-0.004, 0, 0], color: graphite-light }
+  - { shape: box, size: [0.025, 0.007, 0.012], at: [-0.0205, 0, 0], color: ink }
+  - { shape: tube, from: [-0.033, 0, 0], to: [-0.083, 0, 0], radius: 0.002, at: [0, 0, 0], color: ink }
+drawing: { from: standin }
+budget: { gzip_bytes: 100000, triangles: 5500, texture_px: 1, texture_bytes: 1 }
+model: { file: charger.glb }
+work_order:
+  method: >-
+    Model the plug and a short stub of its lead from the dimension sheet and the Author's description, in flat
+    colours. Only the stub: the room draws the rest of the cable live, so moving the laptop needs no new model.
+  shots:
+    - The plug from its side, square on, beside a ruler.
+  measurements:
+    - The plug's length, width, and thickness, from its tip to where the lead leaves it.
+    - The lead's thickness.
+  studio_notes: >-
+    One model for every state: the plugged and unplugged states are placements of it, never an animation (FR-020). No
+    brand, label, or regulatory print (FR-016).

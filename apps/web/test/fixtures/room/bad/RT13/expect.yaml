@@ -1,0 +1,6 @@
+rule: RT13
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: tool.name
+why: an outline naming its tool by a file name
+edits:
+  - { file: apps/web/content/room/outlines/fx-sign-words.outline.json, at: [tool, name], set: fx-tracer.exe }

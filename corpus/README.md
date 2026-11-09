@@ -9,7 +9,12 @@ The twin speaks about the Author's work only from these files (Constitution VIII
 | `00-profile.md` | Who the twin represents; loads first |
 | `01-ai-strategy-and-cht.md` | Priority 1: the AI strategy and every AI system, with ownership rulings |
 | `02-production-infrastructure-national-scale.md` | Priorities 2–3: the SRE years, teams and localization, systems designed since |
-| `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts |
+| `03-grants-and-credits.md` | Priority 4: awards and credits, without amounts but one: the Anthropic credits', in a facts slot |
+| `04-hobbies-and-travel.md` | No priority yet: snowboarding, biking, Arya, and travel, from his interview of 2026-11-06; the snowboard and the bicycle open it |
+| `05-mission.md` | No priority yet: what he wants his work to do, Seva day to day, and when new technology is worth it, from the same interview; the chalkboard opens it |
+| `06-work-projects.md` | No priority yet: what he's building now, the infrastructure agents, and the work from his travels, from the same interview; the laptop and its screen open it |
+| `07-denver-local-ai.md` | Priority 6: Denver Local AI Solutions, the company he co-owns |
+| `08-hareet-ai.md` | Priority 7: this project, hareet.ai, the AI twin built in the open |
 | `facts/*.yaml` | Plug-in slots for numbers and held-back details |
 | `intake/` | Public source material; `intake/private/` (gitignored) for anything not cleared |
 | `proposals/` | Where agents propose corpus changes; a human applies them |
@@ -20,7 +25,7 @@ Priority 5, Artificial Indian Games, has no file yet.
 ## Claim tags (every factual sentence carries one)
 
 - `[A date]` The Author's statement in this project, with the date. Sufficient for the twin to say it as the Author's account.
-- `[A-DOC <name>]` A document the Author authored or co-authored and supplied (the strategy, the Voice for CHT brief).
+- `[A-DOC <name>]` A document the Author authored or co-authored and supplied (the strategy, the Voice for CHT brief). `07`'s `[A-DOC site]` is the Denver Local AI site, which he wrote; `07` quotes the draft of it he supplied on 2026-10-28.
 - `[A-CHAT]` A statement in another chat, filed in `intake/`. `[A-BIO]` the Author's own bio. `[A-NOTES]` attributed notes from a recording the Author supplied.
 - `[A-JD]` / `[A-SRE-JD]` Role scope from a job description — describes the role, never a verified accomplishment.
 - `[P]` Public artifact, with URL. Enough for facts about systems and organizations; never enough on its own for a claim about the Author's role.
@@ -29,7 +34,7 @@ Priority 5, Artificial Indian Games, has no file yet.
 
 ## Role precision (Constitution VII)
 
-Every role claim carries an ownership verb: *built · designed · co-authored · sourced (a partner) · sponsored · AI system architect · led · was part of a team that.* The rulings for each system sit at the top of `01`. "We" is always expanded to who.
+Every role claim carries an ownership verb: *built · designed · architected · configured · co-authored · co-owns · sourced (a partner) · sponsored · AI system architect · led · was part of a team that.* The rulings for each system sit at the top of `01`. "We" is always expanded to who.
 
 ## Public safety
 

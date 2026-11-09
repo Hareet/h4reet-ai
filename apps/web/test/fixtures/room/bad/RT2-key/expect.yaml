@@ -1,0 +1,7 @@
+rule: RT2
+file: apps/web/room/catalog/fx-shell.yaml
+path: anchors
+why: an anchor whose name is the surname, a map key, left out of the path it would print in
+full_name: Fixture Quillfeather
+edits:
+  - { file: apps/web/room/catalog/fx-shell.yaml, at: [anchors, quillfeather], set: { at: [0, 0, 0] } }

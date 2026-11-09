@@ -1,0 +1,6 @@
+rule: RT8
+file: apps/web/room/scene.yaml
+path: placements[3].faces.panel.regions[0]
+why: a neon word of 11 characters in a panel of 10
+edits:
+  - { file: apps/web/room/ui-words.yaml, at: [words, sign.word], set: Glowwordsss }

@@ -1,0 +1,6 @@
+rule: RD4
+file: apps/web/content/room/outlines/fx-sign-words.outline.json
+path: schema
+why: an outline's schema other than 1
+edits:
+  - { file: apps/web/content/room/outlines/fx-sign-words.outline.json, at: [schema], set: 2 }

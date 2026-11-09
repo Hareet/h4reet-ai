@@ -1,6 +1,7 @@
-// The store's schema and its migrations, on PGlite (tasks.md T024, T025; data-model.md §2.1–§2.9): both migrations
-// apply, the SHA-256 check stops a changed file (exit 1), a schema newer than the code fails closed (exit 78), the
-// audit trigger refuses UPDATE, DELETE, and TRUNCATE, and grafana_ro reads two objects and nothing else.
+// The store's schema and its migrations, on PGlite (tasks.md T024, T025; data-model.md §2.1–§2.9): every migration
+// applies, the SHA-256 check stops a changed file (exit 1), a schema newer than the code fails closed (exit 78), the
+// audit trigger refuses UPDATE, DELETE, and TRUNCATE, and grafana_ro reads three objects and nothing else (the third,
+// spec 003's gateway.v_studio_windows, came with 0003_studio_window: its contracts/gpu-window.md §3).
 import { createHash, createHmac, pbkdf2Sync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
@@ -30,7 +31,7 @@ beforeAll(async () => {
   migrations = await readMigrations();
 });
 
-/** A database with both migrations applied. */
+/** A database with every migration applied. */
 async function migrated(): Promise<TestDatabase> {
   const db = await testDatabase();
   await runMigrations(db, migrations);
@@ -47,10 +48,14 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state and 0002_grafana_ro, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, 0005_adapter_month, and 0006_alert_forms, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
+      [3, "0003_studio_window"],
+      [4, "0004_twin"],
+      [5, "0005_adapter_month"],
+      [6, "0006_alert_forms"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -67,8 +72,8 @@ describe("applying them", () => {
     await db.close();
   });
 
-  it("applies both, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2]);
+  it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5, 6]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -108,23 +113,23 @@ describe("applying them", () => {
   });
 
   it("refuses to apply a migration older than one already applied (exit 1)", async () => {
-    const third: Migration = { version: 3, name: "0003_test", sql: "SELECT 1;", sha256: sha256("SELECT 1;") };
+    const later: Migration = { version: 4, name: "0004_test", sql: "SELECT 1;", sha256: sha256("SELECT 1;") };
     await runMigrations(db, migrations.slice(0, 1));
-    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (3, '0003_test', $1, now())", [third.sha256]);
-    const err = await fatal(runMigrations(db, [...migrations, third]));
+    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (4, '0004_test', $1, now())", [later.sha256]);
+    const err = await fatal(runMigrations(db, [...migrations, later]));
     expect([err.exitCode, err.reason]).toEqual([1, "migration_gap"]);
   });
 
   it("rolls back a migration that fails, and records nothing for it", async () => {
     const broken: Migration = {
-      version: 3,
-      name: "0003_broken",
+      version: 7, // spec 011's 0006_alert_forms is the newest real one
+      name: "0007_broken",
       sql: "CREATE TABLE gateway.half_done (id int); SELECT no_such_function();",
       sha256: sha256("x"),
     };
     await expect(runMigrations(db, [...migrations, broken])).rejects.toThrow(/no_such_function/);
     const { rows } = await db.pg.query<{ version: number }>("SELECT version FROM gateway.schema_migrations");
-    expect(rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
     expect((await db.pg.query("SELECT to_regclass('gateway.half_done') AS t")).rows[0]).toEqual({ t: null });
   });
 });
@@ -182,6 +187,37 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
        VALUES ($1, $2, $3, $4, now(), now())`,
       [meter, key, allowance, grant],
     );
+
+  it("meters (spec 010, 0005): the adapter_month kind, keyed <adapter>:<YYYY-MM>, with no allowance or grant", async () => {
+    await runMigrations(db, migrations);
+    const insert = (meter: string, key: string, allowance: number | null = null, grant: number | null = null) =>
+      db.pg.query(
+        `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no,
+           created_at, updated_at) VALUES ($1, $2, 0, 0, $3, $4, now(), now())`,
+        [meter, key, allowance, grant],
+      );
+    await insert("adapter_month", "anthropic:2026-11");
+    for (const bad of ["anthropic:2026-13", "anthropic", "Anthropic:2026-11", "2026-11", "anthropic:2026-11-01"]) {
+      await expect(insert("adapter_month", bad)).rejects.toThrow();
+    }
+    await expect(insert("adapter_month", "bedrock:2026-11", 2_000_000, 1)).rejects.toThrow();
+    await expect(insert("someone", "x:2026-11")).rejects.toThrow();
+    await db.pg.query(
+      "UPDATE gateway.meters SET spent_micro = 250000, reserved_micro = 1000 WHERE meter = 'adapter_month'",
+    );
+    const { rows } = await db.pg.query<Record<string, unknown>>(
+      "SELECT adapter, month, spent_micro::text AS spent, reserved_micro::text AS reserved FROM gateway.v_adapter_months",
+    );
+    expect(rows).toEqual([{ adapter: "anthropic", month: "2026-11", spent: "250000", reserved: "1000" }]);
+    const grants = await db.pg.query<{ privilege_type: string }>(
+      "SELECT privilege_type FROM information_schema.role_table_grants WHERE grantee = 'grafana_ro' AND table_name = 'v_adapter_months'",
+    );
+    expect(grants.rows.map((r) => r.privilege_type)).toEqual(["SELECT"]);
+    const flag = await db.pg.query<{ column_default: string; is_nullable: string }>(
+      "SELECT column_default, is_nullable FROM information_schema.columns WHERE table_name = 'reservations' AND column_name = 'adapter_month'",
+    );
+    expect(flag.rows).toEqual([{ column_default: "false", is_nullable: "NO" }]);
+  });
 
   it("meters: one row per (meter, period_key), and the allowance and grant on fallback_day only", async () => {
     await expect(meter("day", "2026-10-08", null, null)).resolves.toBeDefined();
@@ -326,8 +362,8 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
     );
     await expect(ledger({ ...metered })).rejects.toThrow(/ledger_reservation_iff_metered/);
     await expect(ledger({ route_reason: "local_failed" })).rejects.toThrow(/ledger_route_reason_fallback_only/);
-    await expect(ledger({ client_label: "Author's Laptop" })).rejects.toThrow(/client_label/);
-    await expect(ledger({ client_label: "author-laptop" })).resolves.toBeDefined();
+    await expect(ledger({ client_label: "Author's Terminal" })).rejects.toThrow(/client_label/);
+    await expect(ledger({ client_label: "author-terminal" })).resolves.toBeDefined();
     await expect(ledger({ trace_id: HEX32.toUpperCase() })).rejects.toThrow(/trace_id/);
     await expect(ledger({ routing_sha: "abc" })).rejects.toThrow(/routing_sha/);
     await expect(ledger({ purpose: "chat" })).rejects.toThrow(/purpose/);
@@ -412,6 +448,10 @@ describe("the schema (data-model.md §2.2–§2.9)", () => {
     ).resolves.toBeDefined();
     await expect(audit({ action: "shutdown", actor: "gateway" })).rejects.toThrow(/action/);
     await expect(audit({ action: "trip", actor: "someone" })).rejects.toThrow(/actor/);
+    // 0003_studio_window: the studio's GPU window is an operator write, with its reason (spec 003's gpu-window.md §1).
+    await expect(audit({ action: "studio_window", reason: "studio: a portrait batch" })).resolves.toBeDefined();
+    await expect(audit({ action: "studio_window" })).rejects.toThrow(/audit_log_reason_iff_operator_write/);
+    await expect(audit({ action: "studio_window", reason: "too short" })).rejects.toThrow(/audit_log_reason_length/);
     const { rows } = await db.pg.query<{ recorded_at: Date; detail: unknown }>(
       "SELECT recorded_at, detail FROM gateway.audit_log WHERE action = 'trip'",
     );
@@ -515,7 +555,7 @@ describe("grafana_ro (§2.9)", () => {
     });
   });
 
-  it("reads audit_log and v_state, and is refused on every other table", async () => {
+  it("reads audit_log, v_state, and v_studio_windows, and is refused on every other table", async () => {
     const { rows: tables } = await db.pg.query<{ name: string }>(
       "SELECT tablename AS name FROM pg_tables WHERE schemaname = 'gateway' ORDER BY tablename",
     );
@@ -533,6 +573,7 @@ describe("grafana_ro (§2.9)", () => {
     try {
       await expect(db.pg.query("SELECT count(*) FROM gateway.audit_log")).resolves.toBeDefined();
       await expect(db.pg.query("SELECT * FROM gateway.v_state")).resolves.toBeDefined();
+      await expect(db.pg.query("SELECT * FROM gateway.v_studio_windows")).resolves.toBeDefined();
       for (const { name } of tables.filter((t) => t.name !== "audit_log")) {
         await expect(db.pg.query(`SELECT 1 FROM gateway.${name} LIMIT 1`), name).rejects.toThrow(/permission denied/);
       }
@@ -684,7 +725,7 @@ describe("the store", () => {
     ]);
     expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "ECONNREFUSED" });
     expect(JSON.stringify(logged)).not.toContain("10.0.0.1");
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2] });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4, 5, 6] });
     await store.close();
   });
 
@@ -792,7 +833,7 @@ describe("the store", () => {
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
     expect(store.status).toBe("ready");
     expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
-      [1, 2],
+      [1, 2, 3, 4, 5, 6],
       [],
     ]);
     expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
@@ -820,10 +861,14 @@ describe("the store", () => {
     expect((await db.pg.query("SELECT version FROM gateway.schema_migrations ORDER BY version")).rows).toEqual([
       { version: 1 },
       { version: 2 },
+      { version: 3 },
+      { version: 4 },
+      { version: 5 },
+      { version: 6 },
     ]);
     // One run, for both reads, and no outage: the store answered throughout.
     expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
-      ["info", "migrations.applied", [1, 2]],
+      ["info", "migrations.applied", [1, 2, 3, 4, 5, 6]],
     ]);
     expect(store.outageStartedAt()).toBeUndefined();
     await store.close();
@@ -897,5 +942,160 @@ describe("the store", () => {
       "SELECT rolpassword AS v FROM pg_authid WHERE rolname = 'grafana_ro'",
     );
     expect(rows[0]?.v).toMatch(/^SCRAM-SHA-256\$4096:/);
+  });
+});
+
+// T012 (spec 007; FR-026; Amendment 0-1): 0004_twin admits the purpose `twin` on the ledger and the reservations, adds
+// the ledger's two nullable columns for the room's feature and topic, each a bounded ID, admits the audit action
+// `twin_call`, and leaves 0001_state.sql as it was: an append-only migration, never an edit.
+describe("0004_twin (spec 007, Amendment 0-1)", () => {
+  let db: TestDatabase;
+  beforeEach(async () => {
+    db = await migrated();
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  const ledgerRow = (o: { purpose?: string; feature?: string | null; topic?: string | null } = {}) =>
+    db.pg.query(
+      `INSERT INTO gateway.ledger (id, reservation_id, ts, started_at, stack, request_id, trace_id, purpose,
+         route_decision, route_reason, attribution, adapter_id, provider, request_model, response_model, input_tokens,
+         output_tokens, cache_read_tokens, latency_ms, finish_reason, outcome, error_kind, cost_micro, cost_basis,
+         price_version, routing_sha, period_day, period_month, client_label, room_feature, room_topic)
+       VALUES (gen_random_uuid(), NULL, now(), now(), 'dev', 'r1', $1, $2, 'local', NULL, 'none', 'local', 'local',
+         'stand-in', 'stand-in', 10, 5, NULL, 12, 'stop', 'ok', NULL, 0, 'none', '2026-10-08.1', $3, '2026-11-07',
+         '2026-11', NULL, $4, $5)`,
+      [
+        HEX32,
+        o.purpose ?? "twin",
+        HEX64,
+        o.feature === undefined ? "fx-piece" : o.feature,
+        o.topic === undefined ? "fx-topic" : o.topic,
+      ],
+    );
+
+  it("admits a twin call's ledger row with its feature and topic", async () => {
+    await ledgerRow();
+    const { rows } = await db.pg.query<{ purpose: string; room_feature: string; room_topic: string }>(
+      "SELECT purpose, room_feature, room_topic FROM gateway.ledger",
+    );
+    expect(rows).toEqual([{ purpose: "twin", room_feature: "fx-piece", room_topic: "fx-topic" }]);
+  });
+
+  it("leaves both columns null for every other call, and admits free talk's topic", async () => {
+    await ledgerRow({ purpose: "hello", feature: null, topic: null });
+    await ledgerRow({ feature: "free_talk", topic: "free_talk" });
+    const { rows } = await db.pg.query<{ room_feature: string | null }>(
+      "SELECT room_feature FROM gateway.ledger ORDER BY purpose",
+    );
+    expect(rows.map((r) => r.room_feature).sort()).toEqual(["free_talk", null].sort());
+  });
+
+  it("refuses a feature or a topic outside their pattern, and a purpose outside the list", async () => {
+    await expect(ledgerRow({ feature: "Not An ID" })).rejects.toThrow();
+    await expect(ledgerRow({ topic: "x".repeat(65) })).rejects.toThrow();
+    await expect(ledgerRow({ purpose: "chat" })).rejects.toThrow();
+  });
+
+  it("admits a reservation for a twin call, and the audit action twin_call with its reason", async () => {
+    const constraint = await db.pg.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'reservations' AND pg_get_constraintdef(c.oid) LIKE '%purpose%'`,
+    );
+    expect(constraint.rows.map((r) => r.def).join(" ")).toContain("twin");
+    const audit = await db.pg.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'audit_log'`,
+    );
+    expect(audit.rows.map((r) => r.def).join(" ")).toContain("twin_call");
+  });
+
+  it("leaves 0001_state.sql byte for byte as recorded", async () => {
+    const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
+    expect(text).not.toContain("twin");
+    expect(migrations.find((m) => m.name === "0004_twin")?.sql).toContain("ADD COLUMN room_feature");
+  });
+});
+
+describe("0006_alert_forms (spec 011, Amendment 0-7; FR-030, FR-033, FR-044)", () => {
+  let db: TestDatabase;
+  beforeEach(async () => {
+    db = await migrated();
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  const outboxRow = (key: string, o: Record<string, string | null> = {}) =>
+    db.pg.query(
+      `INSERT INTO gateway.alert_outbox (dedupe_key, kind, stack, created_at, subject, body, facts, telegram_status,
+         email_status, telegram_form, email_form, telegram_fallback, email_fallback)
+       VALUES ($1, 'warn', 'dev', now(), 's', 'b', '{}', 'pending', 'pending', $2, $3, $4, $5)`,
+      [key, o.telegram_form ?? null, o.email_form ?? null, o.telegram_fallback ?? null, o.email_fallback ?? null],
+    );
+
+  it("adds each channel's form and fallback reason, NULL until the channel's first attempt", async () => {
+    await outboxRow("dev:warn:day:2026-11-01");
+    const { rows } = await db.pg.query<Record<string, unknown>>(
+      "SELECT telegram_form, email_form, telegram_fallback, email_fallback FROM gateway.alert_outbox",
+    );
+    expect(rows).toEqual([{ telegram_form: null, email_form: null, telegram_fallback: null, email_fallback: null }]);
+    await outboxRow("dev:warn:day:2026-11-02", { telegram_form: "designed", email_form: "designed" });
+    await outboxRow("dev:warn:day:2026-11-03", {
+      telegram_form: "plain",
+      telegram_fallback: "entities_refused",
+      email_form: "plain",
+      email_fallback: "message_refused",
+    });
+    for (const reason of ["render_failed", "over_limit", "not_rendered"]) {
+      await outboxRow(`dev:warn:day:t-${reason}`, { telegram_form: "plain", telegram_fallback: reason });
+      await outboxRow(`dev:warn:day:e-${reason}`, { email_form: "plain", email_fallback: reason });
+    }
+  });
+
+  it("refuses a form or a reason off its list, and a fallback whose form isn't plain", async () => {
+    await expect(outboxRow("k1", { telegram_form: "html" })).rejects.toThrow();
+    await expect(outboxRow("k2", { email_form: "fancy" })).rejects.toThrow();
+    // Each channel's own reasons: Telegram refuses entities, a mail server refuses a message.
+    await expect(outboxRow("k3", { telegram_form: "plain", telegram_fallback: "message_refused" })).rejects.toThrow();
+    await expect(outboxRow("k4", { email_form: "plain", email_fallback: "entities_refused" })).rejects.toThrow();
+    await expect(outboxRow("k5", { telegram_form: "designed", telegram_fallback: "render_failed" })).rejects.toThrow(
+      /alert_outbox_telegram_fallback_is_plain/,
+    );
+    await expect(outboxRow("k6", { email_fallback: "over_limit" })).rejects.toThrow(
+      /alert_outbox_email_fallback_is_plain/,
+    );
+  });
+
+  const audit = (action: string, reason: string | null) =>
+    db.pg.query(
+      `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+       VALUES (now(), 'dev', 'operator:dev#1a2b3c4d', $1, $2, '{}')`,
+      [action, reason],
+    );
+
+  it("admits alert_samples among the audit actions, with its reason, and refuses it without one", async () => {
+    await audit("alert_samples", "A look at every alert design.");
+    await expect(audit("alert_samples", null)).rejects.toThrow(/audit_log_reason_iff_operator_write/);
+    // Every earlier action keeps its rule.
+    await audit("twin_call", "An evaluation call, as before.");
+    await expect(audit("trip", "A gateway write has no reason.")).rejects.toThrow();
+    await expect(audit("alert_sample", "Not quite the action's name.")).rejects.toThrow(/audit_log_action_check/);
+  });
+
+  it("leaves 0001 to 0005 as they were: what 0006 adds appears in no earlier file", async () => {
+    for (const m of migrations.filter((x) => x.version < 6)) {
+      for (const added of [
+        "telegram_form",
+        "email_fallback",
+        "alert_samples",
+        "alert_outbox_telegram_fallback_is_plain",
+      ]) {
+        expect(m.sql, `${m.name} ${added}`).not.toContain(added);
+      }
+    }
+    const text = await readFile(new URL("../../migrations/0006_alert_forms.sql", import.meta.url), "utf8");
+    expect(migrations.find((m) => m.name === "0006_alert_forms")?.sha256).toBe(sha256(text));
   });
 });

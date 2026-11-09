@@ -101,6 +101,7 @@ processors:
       - '-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----'
       - "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}"
       - '\b(?:AKIA|ASIA)[0-9A-Z]{16}\b'
+      - "sk-ant-[A-Za-z0-9_-]{20,}"
       - "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}"
       - "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}"
       - 'eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}'
@@ -117,6 +118,7 @@ processors:
           - 'replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -126,6 +128,7 @@ processors:
           - 'replace_pattern(status.message, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(status.message, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(status.message, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(status.message, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(status.message, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(status.message, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(status.message, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -138,6 +141,7 @@ processors:
           - 'replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")'
           - 'replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")'
           - 'replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")'
+          - 'replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")'
           - 'replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")'
           - 'replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")'
           - 'replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")'
@@ -150,6 +154,7 @@ processors:
           - 'replace_pattern(body, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****") where IsString(body)'
           - 'replace_pattern(body, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****") where IsString(body)'
           - 'replace_pattern(body, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****") where IsString(body)'
+          - 'replace_pattern(body, "sk-ant-[A-Za-z0-9_-]{20,}", "****") where IsString(body)'
           - 'replace_pattern(body, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****") where IsString(body)'
           - 'replace_pattern(body, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****") where IsString(body)'
           - 'replace_pattern(body, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****") where IsString(body)'
@@ -242,7 +247,19 @@ service:
   telemetry:
     logs:
       level: info
-    # The collector's own metrics, which Prometheus scrapes as job otel-collector (telemetry.md §4.3).
+    # The collector's own metrics carry the stack's labels, as the gateway's do (telemetry.md §2), and a stable
+    # instance, so a restart reads as a counter reset in the same series.
+    resource:
+      attributes:
+        - { name: service.name, value: otel-collector }
+        - { name: service.namespace, value: h4reet }
+        - { name: deployment.environment.name, value: "${env:H4_STACK}" }
+        - { name: service.instance.id, value: "${env:H4_STACK}-otel-collector" }
+    # The collector's own metrics (telemetry.md §4.3, T185). Pushed every 10 s to Prometheus's OTLP receiver, where
+    # the gateway's metrics arrive, so each series carries its start time and Prometheus writes the 0 there: a fresh
+    # collector's first batch counts in rate() and increase(). Straight to Prometheus, not through this collector's
+    # own pipelines, so the counters that report a refusing receiver or a full queue never wait in either. The pull
+    # reader on 8888 stays for the scrape, which keeps only up (deploy/prometheus/prometheus.yml).
     metrics:
       level: normal
       readers:
@@ -251,6 +268,14 @@ service:
               prometheus:
                 host: 0.0.0.0
                 port: 8888
+        - periodic:
+            interval: 10000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics
+                compression: gzip
+                temporality_preference: cumulative
   pipelines:
     traces:
       receivers: [otlp]

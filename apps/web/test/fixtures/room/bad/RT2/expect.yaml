@@ -1,0 +1,7 @@
+rule: RT2
+file: apps/web/room/scene.yaml
+path: selectables[0].name
+why: a selectable's visible name holding the surname of main's full name
+full_name: Fixture Quillfeather
+edits:
+  - { file: apps/web/room/scene.yaml, at: [selectables, 0, name], set: Quillfeather workstation }

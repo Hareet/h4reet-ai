@@ -33,6 +33,7 @@ describe("redactSecrets", () => {
       "PEM block",
       "Langfuse key",
       "AWS access key ID",
+      "sk-ant- API key", // spec 010, FR-031
       "Telegram bot token",
       "operator token",
       "JWT",

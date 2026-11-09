@@ -26,8 +26,8 @@ An agent can commit a file here, so a well-formed entry proves nothing by itself
 | `branch` | the branch the run tested |
 | `commit` | its tip: the commit every scratch clone held |
 | `main` | `main`'s commit at the time, or `null` |
-| `claude_code_version` | the Claude Code that ran |
-| `claude_code_pin` | `CLAUDE_CODE_VERSION` in `.devcontainer/toolchain.vars`; the run refuses a version off it |
+| `claude_code_version` | the Claude Code that ran: the pin or a later release; `make evals` names it beside a pass |
+| `claude_code_pin` | `CLAUDE_CODE_VERSION` in `.devcontainer/toolchain.vars`, a floor (ADR 0023); the run refuses an older version |
 | `started`, `finished` | UTC, ISO 8601 |
 | `models` | every model the sessions reported |
 | `thresholds` | `thresholds.yaml`, as the run read it |

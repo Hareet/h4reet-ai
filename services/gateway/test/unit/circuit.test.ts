@@ -23,6 +23,7 @@ import {
 import type { StateRead, Store } from "../../src/meter/store.js";
 import type { AdmitRequest, AdmitResult, MeterPort } from "../../src/meter/types.js";
 import { GatewayMetrics } from "../../src/telemetry/metrics.js";
+import { steadyNow } from "../helpers/steady-clock.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
 const T0 = Date.parse("2026-10-29T16:00:00.000Z");
@@ -44,10 +45,12 @@ const failed = (kind: ProviderErrorKind): AttemptOutcome => ({
   attempts: [],
 });
 
-/** One AdapterHealth on a clock the test moves (or the real one), its flips and its unhealthy reasons recorded. */
+/**
+ * One AdapterHealth on a clock the test moves, or on one at the real clock's rate ("real") or half of it ("slow"), each
+ * a steady clock that a step of the wall clock can't move, its flips and its unhealthy reasons recorded.
+ */
 function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: number; clock?: "real" | "slow" } = {}) {
   const clock = { now: T0 };
-  const slowStart = Date.now();
   let next: HealthStatus = { healthy: true, checkedAt: new Date(T0).toISOString() };
   const adapter: ProviderAdapter = {
     id: o.kind === "local" ? "local" : "bedrock",
@@ -66,12 +69,7 @@ function healthRig(o: { kind?: "paid" | "local"; circuit?: boolean; openMs?: num
   const reasons: string[] = [];
   const h = new AdapterHealth(adapter, CADENCE, {
     // "slow" runs at half the real clock's speed, so a timer fires before this clock says its time is up.
-    realNow:
-      o.clock === "real"
-        ? Date.now
-        : o.clock === "slow"
-          ? () => slowStart + (Date.now() - slowStart) / 2
-          : () => clock.now,
+    realNow: o.clock === "real" ? steadyNow() : o.clock === "slow" ? steadyNow(1 / 2) : () => clock.now,
     onChange: (x) => flips.push(x.status().healthy ? "healthy" : `unhealthy ${String(x.status().reason)}`),
     onUnhealthy: (x) => reasons.push(String(x.status().reason)),
     ...(o.circuit === false ? {} : { circuit: { failures: 3, openMs: o.openMs ?? 30_000 } }),

@@ -309,7 +309,7 @@ host_stack_targets() {
 		"${ids[@]}" 2>/dev/null |
 		while IFS='|' read -r ips ports; do
 			for ip in $ips; do
-				for port in $ports 8080/tcp 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8090/tcp 5432/tcp; do
+				for port in $ports 8080/tcp 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8087/tcp 8090/tcp 5432/tcp; do
 					case "$port" in */tcp) echo "$ip:${port%/tcp}" ;; esac
 				done
 			done
@@ -1258,13 +1258,13 @@ e14_ports() {
 	# With dev-cpu up, every port answers on the host's loopback: RootlessKit publishes them there for the
 	# Author's browser (contracts/agents-engine.md §7). Any HTTP answer counts, whatever its status; a refused
 	# or timed-out connection fails the row. The sandbox half (refused there) is row E9's stage S.
-	for port in 18300 18301 18302 18303 18304; do
+	for port in 18300 18301 18302 18303 18304 18305; do
 		if ! curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null; then
 			ok=false
 			silent="$silent $port"
 		fi
 	done
-	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18304)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
+	record E14 "$(verdict $ok)" "dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305)${silent:+; no answer on$silent}; the sandbox cannot reach them (stage S)"
 }
 
 e15_published_ports() {

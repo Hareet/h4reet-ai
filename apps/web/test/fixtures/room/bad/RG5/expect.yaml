@@ -1,0 +1,6 @@
+rule: RG5
+file: apps/web/room/scene.yaml
+path: placements[5]
+why: a framed placement a hundred metres back, past the camera's far plane at every aspect
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 5, mount, offset], set: [0, 0.35, -100] }

@@ -8,6 +8,7 @@ import type {
   FinishReason,
   ProviderError,
   ProviderErrorKind,
+  RoomCall,
   Usage,
 } from "../core/types.js";
 
@@ -26,6 +27,10 @@ export interface AdmitRequest {
   adapterUnhealthySince?: number;
   /** The request's output cap: 128 for hello. */
   maxOutputTokens: number;
+  /** A twin call's input bound, limits.twin.max_input_chars (spec 007, Amendment 0-2); absent, per_call's. */
+  maxInputChars?: number;
+  /** A twin call's room feature and topic (spec 007, FR-026), for its ledger row and h4.cost.usd. */
+  room?: RoomCall;
   /** hello only: the client, which may have one metered call in flight (gateway-http.md §2.4 step 5.5). */
   clientKey?: string;
   requestId: string;
@@ -58,6 +63,10 @@ export interface Admitted {
   purpose: CallPurpose;
   routeReason: RouteReason | null;
   routingSha: string;
+  /** Whether the call reserved against its adapter's month, which then releases and charges it (spec 010, B7). */
+  adapterMonth?: boolean;
+  /** A twin call's room feature and topic (spec 007, FR-026). */
+  room?: RoomCall;
 }
 
 /** A 429 from the in-memory limits (gateway-http.md §2.5.3): a refusal, not a degraded state. */

@@ -12,7 +12,14 @@ export interface ChatMessage {
   content: string;
 }
 
-export type CallPurpose = "hello" | "contract" | "eval" | "synthetic";
+export type CallPurpose = "hello" | "contract" | "eval" | "synthetic" | "twin";
+// "twin" (spec 007, Amendment 0-1): the twin's conversation turns, POST /room/turn and POST /admin/twin/turn.
+
+/** A twin call's room feature (a selectable's ID, or free_talk) and topic (spec 007, FR-026): bounded IDs from its pack. */
+export interface RoomCall {
+  feature: string;
+  topic: string;
+}
 
 export interface CompletionRequest {
   requestId: string; // the HTTP request's ID, for logs only; never sent to a provider
@@ -23,6 +30,9 @@ export interface CompletionRequest {
   temperature?: number; // 0 to 1; absent means the provider's default
   deadline: number; // epoch milliseconds, real clock: complete() settles by then
   signal: AbortSignal; // aborts at the deadline, or when the caller goes away
+  // The request limit for this call, when its purpose has one of its own: a twin turn's twin_request_ms on a paid
+  // adapter (spec 007's plan, D43). Absent, the adapter bounds the request by its settings' timeouts.request_ms.
+  requestMs?: number;
 }
 
 export interface Usage {
@@ -74,6 +84,7 @@ export type DegradedCause =
   | "kill_switch_tripped"
   | "no_fallback_in_stack"
   | "meter_at_ceiling"
+  | "adapter_month_spent" // spec 010: the paid fallback's monthly cap
   | "fallback_awaiting_renewal"
   | "fallback_spent_today"
   | "fallback_unavailable"

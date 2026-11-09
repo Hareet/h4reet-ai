@@ -1,0 +1,23 @@
+# The split keyboard, the studio's own model at the Author's word ("Lets do split keyboard and vertical mouse"), as the
+# studio's hand-back of 2026-11-07 gives its entry. Its ID isn't the hand-back's `keyboard`: the source scan (FR-007)
+# finds that word in a test, and the fix is a more distinctive ID, a data edit (contracts/room-data-files.md §16), so
+# its model file is `split-keyboard.glb`.
+version: 1
+id: split-keyboard
+name: Split keyboard
+size: { w: 0.447, h: 0.05, d: 0.265, estimated: true }
+stylized_scale: 1
+origin:
+  point: on the desk, below the centre between the two halves.
+  bounds: { min: [-0.2235, 0, -0.1469], max: [0.2235, 0.0501, 0.1182] }
+standin:
+  - { shape: box, size: [0.2, 0.03, 0.24], at: [-0.112, 0.015, -0.014], color: ink }
+  - { shape: box, size: [0.2, 0.03, 0.24], at: [0.112, 0.015, -0.014], color: ink }
+drawing: { from: standin }
+budget: { gzip_bytes: 150000, triangles: 10500, texture_px: 1, texture_bytes: 1 }
+model: { file: split-keyboard.glb }
+work_order:
+  method: Model the split keyboard from the dimension sheet and the Author's description, two tented halves with palm rests, as plain solid parts in flat colours.
+  shots: []
+  measurements: []
+  studio_notes: No brand, key legend, or label (FR-016).

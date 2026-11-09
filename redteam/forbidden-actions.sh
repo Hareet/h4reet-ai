@@ -27,6 +27,13 @@ git -C "$project" branch main
 git -C "$project" switch -q main && git -C "$project" switch -q feature/matrix # @{-1} is now main
 git -C "$project" config alias.co checkout # an alias already in place, as in a user's git config
 log="$project/.claude/audit/hooks.log"
+# The studio's folder list (spec 004, Amendment C3): from the guard's second patch on, protected-paths.sh reads it under
+# CLAUDE_PROJECT_DIR and refuses every edit without it, so the scratch project holds this checkout's copy, as a
+# session's project does. Untracked there, so the worktrees made from the scratch project don't carry it.
+if [ -f "$repo/tools/gates/studio-folders.txt" ]; then
+  mkdir -p "$project/tools/gates"
+  cp -- "$repo/tools/gates/studio-folders.txt" "$project/tools/gates/studio-folders.txt"
+fi
 
 # Row-ID registry (tasks.md T088): every row records its ID here as it runs, and the required-row check at the end
 # fails the matrix when any ID listed in the human-only tools/gates/matrix-required.txt went unseen, so a row can't
@@ -182,6 +189,91 @@ cmd allow 'git log --oneline main..HEAD'
 cmd allow 'git commit -m wip'
 cmd allow 'git merge main'
 cmd allow 'git rebase main'
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref). git reads main as main (a file at the top of .git),
+# refs/main, and refs/tags/main before refs/heads/main, so a tag named main would answer for main:<path>, git diff
+# main...<branch>, and git merge-base main wherever they're written bare. bash-gate.sh refuses git tag naming main as the
+# tag, update-ref, symbolic-ref, or a fetch refspec naming refs/main, refs/tags/main, refs/remotes/main, or
+# refs/remotes/main/HEAD, and a write to .git/main; the git hook's rows below refuse them in any spelling git runs it
+# for, and tools/gates/gate stops while one exists. The rules came with
+# docs/merge-requests/2026-10-18-fix-000-main-ref.patch.
+cmd block 'git tag main'
+cmd block 'git tag main HEAD~1'
+cmd block 'git tag -f main'
+cmd block 'git tag --force main HEAD'
+cmd block 'git tag -a -m "a release" main'
+cmd block 'git tag -fam x main'
+cmd block 'git tag --message=x -s main'
+cmd block 'git tag "main"'
+cmd block "git tag 'main' HEAD"
+cmd block "git tag ma''in"
+cmd block 'git tag \main'
+cmd block 'git -C . tag main'
+cmd block 'git -c tag.gpgSign=false tag -f main'
+cmd block "bash -c 'git tag main'"
+cmd block '(git tag -f main)'
+cmd block 'git status; git tag main'
+cmd block 'git update-ref refs/tags/main HEAD'
+cmd block 'git update-ref refs/main HEAD'
+cmd block 'git update-ref "refs/tags/main" HEAD~1'
+cmd block "git update-ref 'refs/main' HEAD"
+cmd block 'git -C . update-ref refs/main HEAD'
+cmd block 'git -c core.x=y update-ref refs/tags/main HEAD'
+cmd block "bash -c 'git update-ref refs/main HEAD'"
+cmd block '(git update-ref refs/tags/main HEAD)'
+cmd block 'git update-ref -m x refs/remotes/main HEAD'
+cmd block 'git update-ref refs/remotes/main/HEAD HEAD'
+cmd block 'git symbolic-ref refs/tags/main refs/heads/feature/x'
+cmd block 'git fetch . HEAD:refs/tags/main'
+cmd block 'git fetch . +HEAD:refs/main'
+# A fetch's destination as git reads it (the review): git puts refs/ before tags/ and remotes/; a glob at refs/* lands a
+# branch feature/main at refs/main; and a remote's fetch setting given with -c carries the refspec before fetch.
+cmd block 'git fetch . HEAD:tags/main'
+cmd block 'git fetch . HEAD:remotes/main'
+cmd block "git fetch . 'refs/heads/feature/*:refs/*'"
+cmd block "git fetch . '+refs/heads/*:refs/remotes/*'"
+cmd block 'git -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch x'
+cmd block "git -c remote.x.url=. -c remote.x.fetch='refs/heads/feature/*:refs/*' fetch x"
+cmd block "git fetch --refmap='+HEAD:refs/tags/main' . HEAD"
+cmd block 'printf x > .git/main'
+# Refused already: a ref file written directly, and main itself by update-ref or symbolic-ref (the rules above).
+cmd block 'printf x > .git/refs/tags/main'
+cmd block 'git update-ref main HEAD'
+cmd block 'git symbolic-ref main refs/heads/feature/x'
+cmd block "git config remote.x.fetch '+HEAD:refs/tags/main'"
+# Reads, deletions, and other names stay allowed: a message or a commit that names main isn't the tag's name.
+cmd allow 'git tag'
+cmd allow 'git tag -l'
+cmd allow 'git tag -l main'
+cmd allow 'git tag v0.1.0'
+cmd allow 'git tag -a -m "main release" v0.1.0'
+cmd allow 'git tag -m main v0.1.0'
+cmd allow 'git tag v0.1.0 main'
+cmd allow 'git tag maintenance'
+cmd allow 'git tag main-v1'
+cmd allow 'git tag -d main'
+cmd allow 'git tag --contains main'
+cmd allow 'git tag --merged main'
+cmd allow 'git log --oneline refs/tags/main'
+cmd allow 'git update-ref refs/heads/feature/main HEAD'
+cmd allow 'cat .git/main'
+cmd allow "git fetch origin '+refs/heads/*:refs/remotes/origin/*'"
+cmd allow "git fetch . 'refs/tags/*:refs/tags/*'"
+cmd allow 'git fetch . HEAD:tags/main-v1'
+cmd allow 'git fetch . HEAD:feature/tags/main'
+cmd allow 'git fetch --tags'
+# Spellings the rules can't see: a name held in a variable or built at run time, update-ref --stdin, a fast-import
+# stream (reset refs/tags/main), and a write from inside .git. The git hook refuses the first four; the gate's check
+# stops on all of them.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=main; git tag "$t"'
+# shellcheck disable=SC2016
+cmd gap 'git tag $(echo main)'
+cmd gap "printf 'create refs/tags/main HEAD\\n' | git update-ref --stdin"
+cmd gap 'git fast-import --quiet < /tmp/stream'
+cmd gap 'cd .git && printf x > main'
+# A glob at refs/tags/* is how tags are fetched, so it stays allowed, though a branch feature/main lands at
+# refs/tags/main: the git hook refuses that update, and the gate stops on the tag.
+cmd gap "git fetch . 'refs/heads/feature/*:refs/tags/*'"
 on main
 cmd block 'git commit -m wip'
 cmd block 'git -C . commit -m wip'
@@ -265,6 +357,33 @@ cmd block 'make ./evals ADAPTER=bedrock'
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter bedrock'
 cmd block 'python3 -m evals.run --suite product --adapter bedrock'
 cmd block 'python3 -c "from evals import run; run.main()" --adapter bedrock'
+# The evals with anthropic (spec 010, FR-024, FR-032; its patch P-A): bedrock's spellings, and the forms CLAUDE.md asks
+# of every bash-gate rule: make -C, bash -c, a subshell, quotes and a backslash inside the word, a parameter's default,
+# --eval=, env -u, a backslash-newline, and a heredoc. make contract-live with anthropic is refused by name, as with
+# any adapter.
+cmd block 'make evals ADAPTER=anthropic'
+cmd block 'ADAPTER=anthropic make evals'
+cmd block 'make ADAPTER="anthropic" evals'
+# shellcheck disable=SC2016
+cmd block 'make evals ADAPTER=${A:-anthropic}'
+cmd block 'SANDBOX_RUNTIME=0 make -f Makefile check ADAPTER=anthropic'
+cmd block 'ADAPTER=anthropic make check'
+cmd block 'make ./evals ADAPTER=anthropic'
+cmd block 'make -C . evals ADAPTER=anthropic'
+cmd block "bash -c 'make evals ADAPTER=anthropic'"
+cmd block '(make evals ADAPTER=anthropic)'
+cmd block 'make evals ADAPTER=an"thro"pic'
+cmd block 'make evals ADAPTER=anthrop\ic'
+cmd block 'make --eval=.DEFAULT_GOAL:=evals ADAPTER=anthropic'
+cmd block 'env -u SANDBOX_RUNTIME make check ADAPTER=anthropic'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter anthropic'
+cmd block 'python3 -m evals.run --suite product --adapter anthropic'
+cmd block 'python3 -c "from evals import run; run.main()" --adapter anthropic'
+cmd block 'make contract-live ENV=prod ADAPTER=anthropic REASON="a live run"'
+check bash-gate.sh block 'make evals \<newline>ADAPTER=anthropic' \
+  "$(jq -cn --arg c "$(printf 'make evals \\\nADAPTER=anthropic')" '{command:$c}')"
+check bash-gate.sh block 'bash <<EOF make evals ADAPTER=anthropic EOF' \
+  "$(jq -cn --arg c "$(printf 'bash <<EOF\nmake evals ADAPTER=anthropic\nEOF')" '{command:$c}')"
 # The commands the targets run: operator.py's contract-record, quoted whole or in part, through runpy, and copied in the
 # same command; aws-login.sh where it runs; and the AWS CLI's sign-in, through bash -c, quotes, a path, backticks, a
 # separator inside a quoted value, configure sso, and sso-oidc.
@@ -326,6 +445,10 @@ check bash-gate.sh gap "gh pr \<newline>merge 1" "$(jq -cn --arg c "$(printf 'gh
 cmd gap "make \$'aws\\x2dlogin' ENV=prod"
 cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter bedrock'
 cmd gap 'cd evals && python3 run.py --suite product --adapter bedrock'
+# shellcheck disable=SC2016
+cmd gap 'a=anthro; make evals ADAPTER="${a}pic"'
+cmd gap 'python3 -c "import importlib; importlib.import_module(\"evals\" + \".run\").main()" --adapter anthropic'
+cmd gap 'cd evals && python3 run.py --suite product --adapter anthropic'
 cmd gap 'python3 /tmp/o.py --stack prod contract-record --adapter bedrock --out /tmp/r.json --reason "a live run"'
 cmd gap '/tmp/a sso login --profile h4reet-bedrock'
 # What the rules leave alone: other targets, the fake evals, reads that don't name make, and a file named as an
@@ -344,6 +467,10 @@ cmd allow 'cat deploy/scripts/aws-login.sh'
 cmd allow 'make check ENGINE_MODE=none-yet'
 cmd allow 'make lint && pytest -q evals/test_runbooks.py -k bedrock'
 cmd allow 'make lint && pytest -q ./evals/test_runbooks.py -k bedrock'
+cmd allow 'make lint && pytest -q evals/test_disclosure.py -k anthropic'
+cmd allow 'npm ls @anthropic-ai/sdk -w services/gateway'
+cmd allow 'grep -rn anthropic-messages services/gateway/src'
+cmd allow 'make test-fast 2>&1 | grep anthropic-messages'
 check bash-gate.sh allow "a 50,000-byte command" "$(jq -cn --arg c "$(printf 'echo %050000d' 0)" '{command:$c}')"
 # Fix tasks may not weaken tests, evals, or the red-team suite.
 cmd block "sed -i 's/2/3/' services/gateway/router.test.ts" FIX_TASK=1
@@ -675,6 +802,61 @@ cmd block 'make operator-token ENV=prod'
 cmd block 'make ENV=prod operator-status'
 cmd block "bash -c 'make operator-reset ENV=prod REASON=x'"
 cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod status'
+# make operator-alert-samples (spec 011 FR-032; its plan §11, D11): the samples go wherever the stack's alerts go, so
+# prod's reach the Author's phone; agents send dev-cpu's alone. The existing rules cover the name, with no .claude/
+# change: make's operator-* pattern, and the CLI rule, which names no subcommand. The spellings: plain, dev, no ENV
+# (which is prod), make's -C, bash -c, a quoted part of the name, ENV in the environment, a second ENV after
+# dev-cpu's, and the CLI's own subcommand.
+cmd block 'make operator-alert-samples ENV=prod REASON="a design check"'
+cmd block 'make operator-alert-samples ENV=dev REASON="a design check"'
+cmd block 'make operator-alert-samples REASON="a design check"'
+cmd block 'make -C . operator-alert-samples ENV=prod REASON="a design check"'
+cmd block "bash -c 'make operator-alert-samples ENV=prod REASON=x'"
+cmd block 'make "operator"-alert-samples ENV=prod REASON="a design check"'
+cmd block 'ENV=prod make operator-alert-samples REASON="a design check"'
+cmd block 'make operator-alert-samples ENV=dev-cpu ENV=prod REASON="a design check"'
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod alert-samples --reason "a design check"'
+# Spellings the rule can't see, as the studio window's gap rows have them: the name built at run time, or put together
+# from parts the command holds apart. What holds them: the recipe's own OPERATOR_AGENTS refusal inside the sandbox, the
+# operator token the sandbox can't read (FR-007), and prod's admin port out of its reach (stage S).
+cmd gap "make \"\$(printf 'oper%s' ator-alert-samples)\" ENV=prod REASON=x"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=oper; make "${t}ator-alert-samples" ENV=prod REASON=x'
+# make studio-window (spec 003 FR-035; its contracts/gpu-window.md §2, §4): it records a window on the stack's admin
+# listener and stops or restarts its model server, so it is the Author's on prod, refused like operator-* for every stack
+# but dev-cpu. Planned until docs/merge-requests/2026-10-18-feat-003-us6-gpu-window.patch extends bash-gate's operator
+# rule to it; until then the recipe's own OPERATOR_AGENTS check refuses prod and dev inside the sandbox. The spellings:
+# plain, with no ENV (which is prod), make's -C, bash -c, a variable carrying the stack, a quoted part of the name, the
+# ./ make strips, ENV in the environment, and a second ENV after dev-cpu's.
+cmd planned 'make studio-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make studio-window ENV=dev STATE=end REASON="studio: the batch is done"'
+cmd planned 'make studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make -C . studio-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned "bash -c 'make studio-window ENV=dev STATE=end REASON=studio-batch-done'"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd planned 's=prod; make studio-window ENV=$s STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make "studio"-window ENV=prod STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make ENV=prod ./studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'ENV=prod make studio-window STATE=start REASON="studio: a portrait batch"'
+cmd planned 'make studio-window ENV=dev-cpu ENV=prod STATE=start REASON="studio: a portrait batch"'
+# The operator CLI's own studio-window command, called directly: the CLI rule above already refuses it off dev-cpu.
+cmd block 'python3 -I -B -X pycache_prefix=/dev/null scripts/operator.py --stack prod studio-window start --reason "studio: a portrait batch"'
+cmd block 'python3 scripts/operator.py --stack dev studio-window end --reason "studio: the batch is done"'
+# The name in a variable assigned in the same command: the rule reads the assignment's text, so it holds too.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd planned 't=studio-window; make $t ENV=prod STATE=start REASON=studio-portraits'
+# Spellings the rule can't see: the target's name built at run time, put together from parts the command holds apart,
+# or carried in from an earlier command's environment. What holds them: the recipe's own refusal of prod and dev inside
+# the sandbox, the operator token the sandbox can't read (FR-007), and prod's admin port and the host's engine out of
+# the sandbox's reach (stage S).
+cmd gap "make \$(printf 'studio-%s' window) ENV=prod STATE=start REASON=studio-portraits"
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 't=studio; make "$t-window" ENV=prod STATE=start REASON=studio-portraits'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'make "$TARGET" ENV=prod STATE=start REASON=studio-portraits'
+# dev-cpu's window stays the agents' to rehearse.
+cmd allow 'make studio-window ENV=dev-cpu STATE=start REASON="studio: a rehearsal"'
+cmd allow 'python3 scripts/operator.py --stack dev-cpu studio-window end --reason "studio: rehearsal done"'
 # The admin listeners by URL (prod's x003 is 127.0.0.1:18003, dev's 18103; plan §4's port table), from a python3 -c and
 # through operator.py's --url. curl to one is refused today, by the egress rule.
 cmd block "python3 -c \"import urllib.request as u; u.urlopen('http://127.0.0.1:18003/admin/status')\""
@@ -712,6 +894,9 @@ cmd gap "make \$(printf 'to%s' ols)"
 cmd allow 'make operator-status ENV=dev-cpu'
 cmd allow 'make operator-reset ENV=dev-cpu REASON="breach-test"'
 cmd allow 'python3 scripts/operator.py --stack dev-cpu --url http://127.0.0.1:18303 status'
+# Spec 011's samples on dev-cpu stay the agents' (its plan §11).
+cmd allow 'make operator-alert-samples ENV=dev-cpu REASON="a design check"'
+cmd allow 'python3 scripts/operator.py --stack dev-cpu alert-samples --reason "a design check"'
 cmd allow 'python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/behavioral.py status'
 cmd allow 'pytest -q tools/gates/test'
 cmd allow 'make check'
@@ -768,6 +953,283 @@ edit allow 'tools/gates-notes.md'
 edit allow 'evals/agent-configs/notes.md'
 edit allow 'evals/product/run.py'
 
+# --- Spec 003's guard patch: the studio's folders and the asset policy (spec 003, FR-003 and FR-005; plan §2) -------
+# The patch adds tools/gates/studio-folders.txt, which names the studio's four folders on the Author's machine (its
+# photos, its unstripped outputs, its workflows, and the folder holding the evaluation's blinding key), with a denyRead
+# and a Read(...) deny for each in .claude/settings.json. It makes assets/policy/ human-only: protected-paths.sh, a
+# denyWrite, and an Edit(...) deny. Until it's applied (no list in this checkout), these rows are PLANNED: reported, not
+# failing. Once it is, they must hold, and a folder whose line still holds its <STUDIO_…> placeholder fails, naming the
+# placeholder (research R-07), so the patch can't be applied half-filled unnoticed. Stage S reads each folder from
+# inside the sandbox, below. No row prints a folder's path: the matrix's output goes into merge-request notes. The paths
+# themselves are published with the two files they're in, so a path under a Windows user's folder, /mnt/<drive>/Users/,
+# fails too: it would publish the account's name, and spec 000 already denies /mnt/c/Users whole.
+studio_list="$repo/tools/gates/studio-folders.txt"
+if [ -e "$studio_list" ]; then guard_expect=block; else guard_expect=planned; fi
+studio_folders=(photos:STUDIO_PHOTOS outputs:STUDIO_OUTPUTS workflows:STUDIO_WORKFLOWS blinding-key:STUDIO_BLINDING_KEY)
+# studio_path <name>: the rest of the folder's line in the list, without trailing blanks or slash; nothing if none
+studio_path() {
+  if [ -r "$studio_list" ]; then
+    awk -v n="$1" '$1 == n { sub(/^[^[:space:]]+[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); sub(/\/+$/, ""); print; exit }' "$studio_list"
+  fi
+}
+# studio_problem <name> <placeholder>: why the folder's line can't be used, or nothing when it can
+studio_problem() {
+  local sp
+  sp="$(studio_path "$1")"
+  case "$sp" in
+    '' | "$1") echo "tools/gates/studio-folders.txt has no path for it" ;;
+    *'<STUDIO_'*) echo "placeholder not filled: <$2> (the Author writes the folder's path in its place, in .claude/settings.json and tools/gates/studio-folders.txt)" ;;
+    /*)
+      if [[ ${sp,,} =~ ^/mnt/[a-z]/users(/|$) ]]; then
+        echo "its path is under a Windows user's folder, which would publish the account's name with the two files, and spec 000 already denies /mnt/c/Users: use a neutral folder, such as /mnt/c/studio/$1"
+      fi
+      ;;
+    *) echo "its path in tools/gates/studio-folders.txt isn't absolute" ;;
+  esac
+}
+# Each folder is denied in both layers behind the sandbox's own view: a denyRead entry, and the Read tool's deny, whose
+# absolute form is Read(//<path>/**) (the path's own leading slash after the rule's).
+for entry in "${studio_folders[@]}"; do
+  sname="${entry%%:*}"
+  rid "H/settings/the studio's $sname folder is denied"
+  if [ "$guard_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s the studio's %s folder is denied: the guard patch names it\n" settings.json "$sname"
+    continue
+  fi
+  why="$(studio_problem "$sname" "${entry#*:}")"
+  if [ -z "$why" ]; then
+    # shellcheck disable=SC2016 # $p is a jq variable, not a shell expansion
+    if jq -e --arg p "$(studio_path "$sname")" '(.sandbox.filesystem.denyRead | index($p) != null) and (.permissions.deny | index("Read(/" + $p + "/**)") != null)' "$repo/.claude/settings.json" >/dev/null 2>&1; then
+      pass=$((pass + 1))
+      continue
+    fi
+    why="settings.json lacks the denyRead entry or the Read(...) deny for the path tools/gates/studio-folders.txt gives"
+  fi
+  fail=$((fail + 1))
+  printf "FAIL        %-21s the studio's %s folder is denied: %s\n" settings.json "$sname" "$why"
+done
+# The policy: the license allowlist, the approvals, and the caps change only by the Author's hand (FR-005). An Edit of
+# each file, the folder, and two path forms are refused; a neighbour whose name only starts the same, and the records
+# agents write, stay allowed.
+for f in licenses.json approvals.json caps.json; do
+  edit "$guard_expect" "assets/policy/$f"
+done
+edit "$guard_expect" 'assets/policy'
+edit "$guard_expect" 'specs/../assets/policy/caps.json'
+edit "$guard_expect" './assets//policy/licenses.json'
+edit allow 'assets/policy-notes.md'
+edit allow 'assets/twin/records.json'
+check protected-paths.sh "$guard_expect" 'Edit in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg f "$gov_wt/assets/policy/approvals.json" '{file_path:$f}')"
+# A shell write: the sandbox's denyWrite masks assets/policy in the main tree. In a linked worktree no rule sees a shell
+# write's target, as with tools/gates above: a gap. What holds it is the arrival check (spec 003, Phase 2): it reads the
+# main branch's policy (refs/heads/main), never a branch's, and its rule A9 refuses any branch that changes
+# assets/policy/.
+check bash-gate.sh gap 'a shell write in a linked worktree: assets/policy/approvals.json' "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/approvals.json" '{command:$c}')"
+# guard_has <label> <jq filter, true = pass>: a settings row the guard patch makes true, PLANNED until it's applied
+guard_has() {
+  rid "H/settings/$1"
+  if jq -e "$2" "$repo/.claude/settings.json" >/dev/null 2>&1; then
+    pass=$((pass + 1))
+  elif [ "$guard_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf 'PLANNED     %-21s %s\n' settings.json "$1"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' settings.json "$1"
+  fi
+}
+for f in licenses.json approvals.json caps.json; do
+  # shellcheck disable=SC2016 # $f and $e are jq variables, not shell expansions
+  guard_has "a shell write of assets/policy/$f is denied" '"./assets/policy/'"$f"'" as $f | [.sandbox.filesystem.denyWrite[] | select(. as $e | $f == $e or ($f | startswith(($e | rtrimstr("/")) + "/")))] | length > 0'
+done
+guard_has 'assets/policy is Edit-denied behind the hook' '.permissions.deny | index("Edit(/assets/policy/**)") != null'
+
+# --- Spec 004's guard patch, P-2: the studio's folders are write-denied too (spec 004 FR-025, Amendment C3) ----------
+# P-2 adds, for each folder the list names, an Edit(...) deny and a denyWrite entry; a check in protected-paths.sh that
+# refuses an Edit or Write whose lexical or physical path is a folder or lies under it, in any letter case; and the
+# list's marker line. Until the list holds the marker, these rows are PLANNED, reported and not failing, and run
+# nothing. Once it does, they must hold, and a folder whose line still holds its <STUDIO_…> placeholder fails, naming
+# it. Stage S proves the same folders unwritable from inside the sandbox, below. No row prints a folder's path.
+studio_marker='# writes: denied (spec 004, Amendment C3)'
+if [ -f "$studio_list" ] && grep -qxF -- "$studio_marker" "$studio_list"; then writes_expect=block; else writes_expect=planned; fi
+for entry in "${studio_folders[@]}"; do
+  sname="${entry%%:*}"
+  rid "H/settings/the studio's $sname folder is write-denied"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s the studio's %s folder is write-denied: the guard's second patch denies it\n" settings.json "$sname"
+    continue
+  fi
+  why="$(studio_problem "$sname" "${entry#*:}")"
+  if [ -z "$why" ]; then
+    # shellcheck disable=SC2016 # $p is a jq variable, not a shell expansion
+    if jq -e --arg p "$(studio_path "$sname")" '(.sandbox.filesystem.denyWrite | index($p) != null) and (.permissions.deny | index("Edit(/" + $p + "/**)") != null)' "$repo/.claude/settings.json" >/dev/null 2>&1; then
+      pass=$((pass + 1))
+      continue
+    fi
+    why="settings.json lacks the denyWrite entry or the Edit(...) deny for the path tools/gates/studio-folders.txt gives"
+  fi
+  fail=$((fail + 1))
+  printf "FAIL        %-21s the studio's %s folder is write-denied: %s\n" settings.json "$sname" "$why"
+done
+# studio_hook <path>: what protected-paths.sh does with an Edit of <path>: "block" (exit 2, with an audit record),
+# "allow" (exit 0), or what else it did. The path never reaches the output.
+studio_hook() {
+  local rc=0 before
+  before="$(blocks)"
+  jq -cn --arg p "$1" '{tool_input: {file_path: $p}}' | env CLAUDE_PROJECT_DIR="$project" "$hooks/protected-paths.sh" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ] && [ "$(blocks)" -gt "$before" ]; then
+    echo block
+  elif [ "$rc" -eq 2 ]; then
+    echo 'a block with no audit record'
+  elif [ "$rc" -eq 0 ]; then
+    echo allow
+  else
+    echo "exit $rc"
+  fi
+}
+# studio_form <form> <name> <path>: an Edit's path into the folder at <path>: "in", a file inside it; "dotdot", one that
+# reaches it only once ".." is resolved, through a sibling; "link", one through a symlink to it, made in a scratch
+# directory; "case", one through its path with the case of its last component swapped.
+studio_links="$scratch/studio-links"
+studio_form() {
+  local form="$1" name="$2" path="$3" base parent
+  base="${path##*/}"
+  parent="${path%/*}"
+  case "$form" in
+    in) printf '%s/h4-matrix-probe.txt' "$path" ;;
+    dotdot) printf '%s/h4-matrix-elsewhere/../%s/h4-matrix-probe.txt' "$parent" "$base" ;;
+    link)
+      mkdir -p "$studio_links"
+      ln -sfn -- "$path" "$studio_links/$name"
+      printf '%s/%s/h4-matrix-probe.txt' "$studio_links" "$name"
+      ;;
+    case) printf '%s/%s/h4-matrix-probe.txt' "$parent" "${base~~}" ;;
+  esac
+}
+# studio_row <label> <form> <entry...>: one row, which passes when the hook blocks the form's Edit into each folder the
+# entries (the list's name, a colon, its placeholder) name
+studio_row() {
+  local label="$1" form="$2" entry name sp base why got which bad="" same=""
+  shift 2
+  rid "H/protected-paths.sh/$label"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s %s: the guard's second patch refuses it\n" protected-paths.sh "$label"
+    return 0
+  fi
+  for entry in "$@"; do
+    name="${entry%%:*}"
+    # A row over one folder names it in its label already; a row over several names the folder each finding is about.
+    if [ "$#" -gt 1 ]; then which="the studio's $name folder: "; else which=""; fi
+    why="$(studio_problem "$name" "${entry#*:}")"
+    if [ -n "$why" ]; then
+      bad="${bad:+$bad; }$which$why"
+      continue
+    fi
+    sp="$(studio_path "$name")"
+    base="${sp##*/}"
+    if [ "$form" = case ] && [ "${base~~}" = "$base" ]; then same="${same:+$same, }$name"; fi
+    got="$(studio_hook "$(studio_form "$form" "$name" "$sp")")"
+    [ "$got" = block ] || bad="${bad:+$bad; }${which}expected block, got $got"
+  done
+  if [ -n "$bad" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %s\n' protected-paths.sh "$label" "$bad"
+  else
+    pass=$((pass + 1))
+    if [ -n "$same" ]; then
+      printf "NOTE        %-21s %s: the last part of the path of the studio's %s holds no letter, so its variant is the folder itself\n" protected-paths.sh "$label" "$same"
+    fi
+  fi
+}
+for entry in "${studio_folders[@]}"; do
+  studio_row "an Edit in the studio's ${entry%%:*} folder" in "$entry"
+done
+studio_row 'an Edit through a .. path into a studio folder' dotdot "${studio_folders[@]}"
+studio_row 'an Edit through a symlink into a studio folder' link "${studio_folders[@]}"
+studio_row 'an Edit through a case variant of a studio folder' case "${studio_folders[@]}"
+# The hook fails closed on the list itself (spec 004 FR-025): in a project whose list is missing, or holds a line with a
+# placeholder or a relative path, every edit is refused, even one far from any studio folder; and a folder the list
+# names through a symlink is refused at the link and at its target. Each row builds scratch projects of its own, whose
+# lists name scratch folders, so no row reads, or prints, the studio's own paths. Each also edits the same file in a
+# project with a whole list, which must be allowed, so a hook that refused everything for another reason can't pass.
+studio_fake="$scratch/studio-fixture"
+mkdir -p "$studio_fake/photos" "$studio_fake/outputs" "$studio_fake/workflows" "$studio_fake/key" "$studio_fake/photos-real"
+ln -sfn -- "$studio_fake/photos-real" "$studio_fake/photos-link"
+studio_whole="$(printf '%s\n' "$studio_marker" "photos $studio_fake/photos" "outputs $studio_fake/outputs" \
+  "workflows $studio_fake/workflows" "blinding-key $studio_fake/key")"
+# studio_list_hook <list text, or - for none> <path>: what protected-paths.sh does with an Edit of <path>, relative to a
+# fresh scratch project holding that list, or absolute: "block" (exit 2, with an audit record there), "allow", or else.
+# It runs in a command substitution, so each project's name comes from mktemp, never from a counter it can't keep.
+studio_list_hook() {
+  local proj rc=0 target="$2"
+  proj="$(mktemp -d "$scratch/studio-project.XXXXXX")"
+  mkdir -p "$proj/tools/gates" "$proj/src"
+  [ "$1" = - ] || printf '%s\n' "$1" >"$proj/tools/gates/studio-folders.txt"
+  case "$target" in /*) ;; *) target="$proj/$target" ;; esac
+  jq -cn --arg p "$target" '{tool_input: {file_path: $p}}' | env -u FIX_TASK CLAUDE_PROJECT_DIR="$proj" "$hooks/protected-paths.sh" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ] && grep -q "$(printf '\tBLOCK\t')" "$proj/.claude/audit/hooks.log" 2>/dev/null; then
+    echo block
+  elif [ "$rc" -eq 2 ]; then
+    echo 'a block with no audit record'
+  elif [ "$rc" -eq 0 ]; then
+    echo allow
+  else
+    echo "exit $rc"
+  fi
+}
+# studio_list_row <label> <list text, or -> <path> [<path> ...]: passes when the whole list's project allows an Edit of
+# src/app.py, and the given list's project refuses an Edit of each path
+studio_list_row() {
+  local label="$1" list="$2" got bad="" p
+  shift 2
+  rid "H/protected-paths.sh/$label"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s %s: the guard's second patch refuses it\n" protected-paths.sh "$label"
+    return 0
+  fi
+  got="$(studio_list_hook "$studio_whole" src/app.py)"
+  [ "$got" = allow ] || bad="an ordinary edit beside a whole list: expected allow, got $got"
+  for p in "$@"; do
+    got="$(studio_list_hook "$list" "$p")"
+    [ "$got" = block ] || bad="${bad:+$bad; }expected block, got $got"
+  done
+  if [ -n "$bad" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s: %s\n' protected-paths.sh "$label" "$bad"
+  else
+    pass=$((pass + 1))
+  fi
+}
+studio_list_row 'every edit while the studio list is missing' - src/app.py
+# The placeholder is built from two pieces, so no fill of a patch's placeholders ever reaches it.
+studio_list_row 'every edit while a studio line holds a placeholder' "${studio_whole/"photos $studio_fake/photos"/photos <STUDIO_""PHOTOS>}" src/app.py
+studio_list_row "every edit while a studio line's path is relative" "${studio_whole/"photos $studio_fake/photos"/photos studio/photos}" src/app.py
+studio_list_row 'an Edit in a studio folder the list names through a symlink' \
+  "${studio_whole/"photos $studio_fake/photos"/photos $studio_fake/photos-link}" \
+  "$studio_fake/photos-link/h4-matrix-probe.txt" "$studio_fake/photos-real/h4-matrix-probe.txt"
+
+# --- Spec 002's content policy (T015; contracts/resume-source.md §5): the approvals and the PDF's header -----------
+# Human-only from the approvals patch on (T016): the Author approves a content file by putting its SHA-256 on main,
+# and fills the PDF's header there, so no agent may write either file, by Edit or Write, in any path form, in the main
+# tree or a linked worktree. The content itself stays agent-editable. The patch switched these rows, stage S's, and the
+# settings row below from "planned" to "block".
+edit block 'assets/policy/content-approvals.json'
+edit block 'assets/policy/resume-header.json'
+edit block 'apps/../assets/policy/content-approvals.json'
+edit block './assets//policy/resume-header.json'
+edit allow 'apps/web/content/resume.yaml'
+edit allow 'apps/web/build/approvals.ts'
+# In a linked worktree (the governance worktree above): its Edit is the hook's to refuse; its shell write is a gap,
+# as tools/gates' is, held by the gate, which reads approvals from main, never the branch.
+mkdir -p "$gov_wt/assets/policy"
+: >"$gov_wt/assets/policy/content-approvals.json"
+check protected-paths.sh block "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
+check bash-gate.sh gap "a shell write in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/content-approvals.json" '{command:$c}')"
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -777,6 +1239,11 @@ edit allow 'evals/product/run.py'
 # worktree included, wherever the matrix was started, and outside a repository the stage still reports
 # rather than stopping the run (review B, N2).
 rid "S/section"
+# Spec 003's studio-folder rows sit inside stage S; like the section's own, their marker registers whether or not it runs.
+rid "S/studio-folders"
+# So do spec 004's: the folders' writes and case variants (P-2, Amendment C3), and ComfyUI's port (FR-025).
+rid "S/studio-folder-writes"
+rid "S/studio-listener"
 stage_s_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [ -n "$stage_s_common" ]; then stage_s_tree="$(dirname -- "$stage_s_common")"; else stage_s_tree="$repo"; fi
 git_hooks_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)"
@@ -906,7 +1373,7 @@ PY
   }
   # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
   for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
-    config/prices.yaml config/budgets.yaml config/alerts.yaml GNUmakefile makefile \
+    config/prices.yaml config/budgets.yaml config/alerts.yaml config/twin-readiness.yaml GNUmakefile makefile \
     deploy/agents-engine .gitleaks.toml .gitleaksignore; do
     s_unwritable "$p" block "$stage_s_tree/$p"
   done
@@ -928,6 +1395,9 @@ PY
   # The gates and the agent-config evals, denied by the governance patch (T098).
   s_unwritable 'tools/gates' block "$stage_s_tree/tools/gates"
   s_unwritable 'evals/agent-config' block "$stage_s_tree/evals/agent-config"
+  # Spec 002's content policy (T015, T016): the approvals patch creates and denies both files.
+  s_unwritable 'assets/policy/content-approvals.json' block "$stage_s_tree/assets/policy/content-approvals.json"
+  s_unwritable 'assets/policy/resume-header.json' block "$stage_s_tree/assets/policy/resume-header.json"
   # main can't move (plan §13): test -w on the ref's path, and nothing more. The row never runs update-ref, so the matrix
   # itself can't move main before the closing patch denies the ref.
   # A main that isn't a loose ref (packed, or no path) would make test -w say nothing, so that fails instead.
@@ -979,6 +1449,137 @@ PY
   done
   s_unreadable '/etc/h4agents/pki' /etc/h4agents/pki
   s_unreadable '/mnt/c/Users' /mnt/c/Users
+  # Spec 003's studio folders (FR-003; research R-07), from tools/gates/studio-folders.txt, which the guard patch adds
+  # (stage H's block above): PLANNED until it's there, and a FAIL naming the placeholder while a line still holds one.
+  # A path with nothing at it fails: there would be nothing to read, but a mistyped path looks the same, and the deny
+  # would guard nothing. The Author makes the folders before applying the patch. Inside the sandbox a denied folder
+  # that exists is still there, emptied, so only a path with nothing behind it on the host meets this.
+  for entry in "${studio_folders[@]}"; do
+    sname="${entry%%:*}"
+    rid "S/unreadable/the studio's $sname folder"
+    if [ "$guard_expect" = planned ]; then
+      planned=$((planned + 1))
+      printf "PLANNED     %-21s the studio's %s folder: the guard patch names it\n" stage-S-unreadable "$sname"
+      continue
+    fi
+    why="$(studio_problem "$sname" "${entry#*:}")"
+    sp="$(studio_path "$sname")"
+    if [ -n "$why" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: %s\n" stage-S-unreadable "$sname" "$why"
+    elif [ ! -e "$sp" ] && [ ! -L "$sp" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: nothing at its path from inside the sandbox: make the folder, or correct the path in .claude/settings.json and tools/gates/studio-folders.txt\n" stage-S-unreadable "$sname"
+    elif reads_blocked "$sp"; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: its contents are readable from inside the sandbox\n" stage-S-unreadable "$sname"
+    fi
+  done
+  # Spec 004's guard patch, P-2 (FR-025, Amendment C3): no write from inside the sandbox reaches a studio folder, by
+  # spec 000's rule above: the sandbox's own mask at exactly the folder's path keeps it off (a read-only mount over the
+  # folder passes with a NOTE). PLANNED until the list holds P-2's marker, like stage H's rows, and no row prints a
+  # path, so the mount's own point is left out of every line. While denyRead hides a folder, the mask at its path is the
+  # read mask, an empty stand-in, or a read-only one over contents the sandbox can't read: it refuses writes too, but
+  # denyWrite's own mount can't be observed beneath it, so the row passes with a NOTE saying so, and stage H's
+  # write-denied row is what proves the settings hold the folder's denyWrite entry (T026, I6).
+  for entry in "${studio_folders[@]}"; do
+    sname="${entry%%:*}"
+    rid "S/unwritable/the studio's $sname folder"
+    if [ "$writes_expect" = planned ]; then
+      planned=$((planned + 1))
+      printf "PLANNED     %-21s the studio's %s folder: the guard's second patch denies it\n" stage-S-unwritable "$sname"
+      continue
+    fi
+    why="$(studio_problem "$sname" "${entry#*:}")"
+    sp="$(studio_path "$sname")"
+    if [ -n "$why" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: %s\n" stage-S-unwritable "$sname" "$why"
+      continue
+    elif [ ! -e "$sp" ] && [ ! -L "$sp" ]; then
+      fail=$((fail + 1))
+      printf "FAIL        %-21s the studio's %s folder: nothing at its path from inside the sandbox: make the folder, or correct the path in .claude/settings.json and tools/gates/studio-folders.txt\n" stage-S-unwritable "$sname"
+      continue
+    fi
+    how="$(python3 -I "$mount_of" "$sp" 2>/dev/null)" || true
+    read_mask=""
+    case "$how" in
+      "mask an-empty-tmpfs "* | "mask /dev/null "*) read_mask=1 ;;
+      "mask read-only "*) if reads_blocked "$sp"; then read_mask=1; fi ;;
+    esac
+    case "$how" in
+      "mask "*)
+        pass=$((pass + 1))
+        if [ -n "$read_mask" ]; then
+          printf "NOTE        %-21s the studio's %s folder: unwritable through its read mask; denyWrite's own mount can't be observed while denyRead hides the folder, so H/settings/the studio's %s folder is write-denied is what proves the settings hold it\n" stage-S-unwritable "$sname" "$sname"
+        fi
+        ;;
+      "covered "*)
+        pass=$((pass + 1))
+        printf "NOTE        %-21s the studio's %s folder: no mask of its own, but it sits on a read-only mount\n" stage-S-unwritable "$sname"
+        ;;
+      *)
+        fail=$((fail + 1))
+        printf "FAIL        %-21s the studio's %s folder has no mask, so the sandbox's own mount doesn't refuse a create there (%s)\n" stage-S-unwritable "$sname" "${how%% /*}"
+        ;;
+    esac
+  done
+  # A case variant of each folder's path (FR-025: "with a case-variant read if the folders sit on a case-insensitive
+  # mount"): the last part of the path with its letters' case swapped. On a case-sensitive mount the variant doesn't
+  # exist, and the row passes with a NOTE. Where it does exist, its contents must be unreadable, unless it is another
+  # folder: the variant's device and inode against the folder's entry in its parent's listing, which a mask over the
+  # folder doesn't hide, tell which.
+  rid "S/a case variant of a studio folder is unreadable"
+  if [ "$writes_expect" = planned ]; then
+    planned=$((planned + 1))
+    printf "PLANNED     %-21s a case variant of a studio folder is unreadable: the guard's second patch proves it\n" stage-S-case
+  else
+    cv_bad="" cv_missing="" cv_other="" cv_same=""
+    for entry in "${studio_folders[@]}"; do
+      sname="${entry%%:*}"
+      why="$(studio_problem "$sname" "${entry#*:}")"
+      if [ -n "$why" ]; then
+        cv_bad="${cv_bad:+$cv_bad; }the studio's $sname folder: $why"
+        continue
+      fi
+      sp="$(studio_path "$sname")"
+      base="${sp##*/}"
+      if [ "${base~~}" = "$base" ]; then
+        cv_same="${cv_same:+$cv_same, }$sname"
+        continue
+      fi
+      variant="${sp%/*}/${base~~}"
+      if [ ! -e "$variant" ] && [ ! -L "$variant" ]; then
+        cv_missing="${cv_missing:+$cv_missing, }$sname"
+        continue
+      fi
+      which="$(python3 -I -c 'import os, sys
+folder, variant = sys.argv[1], sys.argv[2]
+parent, name = os.path.split(folder)
+try:
+    entry = [e for e in os.scandir(parent or "/") if e.name == name][0]
+    st, top = os.stat(variant), os.stat(parent or "/")
+    print("same" if (st.st_dev, st.st_ino) == (top.st_dev, entry.inode()) else "other")
+except (OSError, IndexError):
+    print("unknown")' "$sp" "$variant" 2>/dev/null)" || which=unknown
+      if [ "$which" = other ]; then
+        cv_other="${cv_other:+$cv_other, }$sname"
+      elif ! reads_blocked "$variant"; then
+        cv_bad="${cv_bad:+$cv_bad; }the studio's $sname folder: a case variant of its path is readable from inside the sandbox"
+      fi
+    done
+    if [ -n "$cv_bad" ]; then
+      fail=$((fail + 1))
+      printf 'FAIL        %-21s %s\n' stage-S-case "$cv_bad"
+    else
+      pass=$((pass + 1))
+      [ -z "$cv_missing" ] || printf "NOTE        %-21s no case variant of the studio's %s exists: a case-sensitive mount\n" stage-S-case "$cv_missing"
+      [ -z "$cv_other" ] || printf "NOTE        %-21s another folder sits at the case variant of the studio's %s\n" stage-S-case "$cv_other"
+      [ -z "$cv_same" ] || printf "NOTE        %-21s the last part of the path of the studio's %s holds no letter to vary\n" stage-S-case "$cv_same"
+    fi
+  fi
   # Refused: AF_UNIX sockets (EPERM), no GPU device.
   rid "S/refused/af-unix"
   if python3 -c 'import socket, sys
@@ -1073,10 +1674,174 @@ except OSError:
   fi
   s_refused_conn 'the egress proxy 198.18.0.1:3128' 198.18.0.1 3128
   # Every stack's ports on the host's loopback (plan §4: x000 api, x001 Langfuse, x002 Grafana, x003 admin, x004 OTLP,
-  # where the gate posts; review B, finding 7).
-  for port in 18000 18001 18002 18003 18004 18100 18101 18102 18103 18104 18300 18301 18302 18303 18304; do
+  # where the gate posts; review B, finding 7; and spec 002's x005, the room's site).
+  for port in 18000 18001 18002 18003 18004 18005 18100 18101 18102 18103 18104 18105 18300 18301 18302 18303 18304 18305; do
     s_refused_conn "127.0.0.1:$port" 127.0.0.1 "$port"
   done
+  # ComfyUI's port (spec 004 FR-025; research R-51). Its server serves the photos folder whatever the file denies say,
+  # its files at /view and its previews over a websocket, so no Claude session may reach it: not directly, and not
+  # through the session's proxy. The sandbox has a loopback of its own and the proxy's allowlist names hosts, so the
+  # refusal doesn't depend on the port, and the rows probe ComfyUI's default, 8188. Neither needs the studio's list:
+  # this repository's settings already keep loopback out of the sandbox, so both are in force from the commit that adds
+  # them. The proxy row sends only a CONNECT and a GET of /, never /view, so even a proxy that let it through would hand
+  # back no photo; it reads the proxy's status line alone, and prints neither the proxy's address nor its credentials.
+  # A proxy that can't be reached for any target fails the row, since that proves nothing about its allowlist.
+  s_refused_conn "ComfyUI's port" 127.0.0.1 8188
+  rid "S/proxy-refused/ComfyUI's port"
+  proxy_verdict="$(python3 -I - <<'PY' 2>/dev/null || echo 'FAIL the probe itself failed'
+import base64
+import ipaddress
+import os
+import socket
+import urllib.parse
+
+PORT = 8188
+TARGETS = ("127.0.0.1", "localhost", "[::1]", "0.0.0.0")
+NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
+
+
+def http_status(sock):
+    data = b""
+    while b"\r\n" not in data and len(data) < 8192:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    parts = data.split(b"\r\n", 1)[0].decode("latin-1").split()
+    if len(parts) >= 2 and parts[0].startswith("HTTP/") and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+
+def recv_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise ConnectionError("closed")
+        data += chunk
+    return data
+
+
+def http_probes(host, port, url, target):
+    auth = ""
+    if url.username is not None:
+        pair = f"{urllib.parse.unquote(url.username)}:{urllib.parse.unquote(url.password or '')}"
+        auth = f"Proxy-Authorization: Basic {base64.b64encode(pair.encode()).decode()}\r\n"
+    found = []
+    for request in (
+        f"CONNECT {target}:{PORT} HTTP/1.1\r\nHost: {target}:{PORT}\r\n{auth}\r\n",
+        f"GET http://{target}:{PORT}/ HTTP/1.1\r\nHost: {target}:{PORT}\r\n{auth}Connection: close\r\n\r\n",
+    ):
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.settimeout(5)
+            sock.sendall(request.encode())
+            found.append((request.split(" ", 1)[0], http_status(sock)))
+    return found
+
+
+def socks_probe(host, port, url, target):
+    name = target.strip("[]")
+    try:
+        ip = ipaddress.ip_address(name)
+        address = (b"\x01" if ip.version == 4 else b"\x04") + ip.packed
+    except ValueError:
+        address = b"\x03" + bytes([len(name)]) + name.encode()
+    with socket.create_connection((host, port), timeout=5) as sock:
+        sock.settimeout(5)
+        user = urllib.parse.unquote(url.username) if url.username is not None else None
+        sock.sendall(b"\x05\x02\x00\x02" if user is not None else b"\x05\x01\x00")
+        version, method = recv_exact(sock, 2)
+        if version != 5:
+            return [("SOCKS", "not a SOCKS5 answer")]
+        if method == 2 and user is not None:
+            u, p = user.encode(), urllib.parse.unquote(url.password or "").encode()
+            sock.sendall(b"\x01" + bytes([len(u)]) + u + bytes([len(p)]) + p)
+            if recv_exact(sock, 2)[1] != 0:
+                return [("SOCKS", "the proxy refused the credentials, so its allowlist wasn't reached")]
+        elif method != 0:
+            return [("SOCKS", "the proxy offered no method the probe can use")]
+        sock.sendall(b"\x05\x01\x00" + address + PORT.to_bytes(2, "big"))
+        return [("SOCKS", recv_exact(sock, 2)[1])]
+
+
+def judge(kind, got):
+    """None when the proxy itself refused; otherwise what it did instead."""
+    if kind == "SOCKS":
+        if isinstance(got, str):
+            return got
+        if got in (2, 7, 8):  # not allowed by its ruleset; a command or an address type it doesn't take
+            return None
+        if got == 0:
+            return "the proxy connected"
+        return f"the proxy tried to connect (SOCKS reply {got})"
+    if got in (400, 403, 405):  # its allowlist's 403, or a request it can't take
+        return None
+    if got is None:
+        return "no HTTP status line came back"
+    if got == 407:
+        return "the proxy asked for credentials, so its allowlist wasn't reached"
+    if 500 <= got <= 599:
+        return f"a gateway error ({got}): the proxy tried to connect"
+    return f"an answer from past the proxy ({got})"
+
+
+proxies = {}
+for name in NAMES:
+    value = os.environ.get(name, "").strip()
+    if value:
+        proxies.setdefault(value, []).append(name)
+if not proxies:
+    print("NOTE no proxy is named in HTTP_PROXY, HTTPS_PROXY, or ALL_PROXY")
+    raise SystemExit(0)
+bad, quiet = [], []
+for value, names in proxies.items():
+    label = "/".join(names)
+    url = urllib.parse.urlsplit(value if "://" in value else "http://" + value)
+    scheme = url.scheme.lower()
+    try:
+        host, port = url.hostname, url.port or (1080 if scheme.startswith("socks") else 3128)
+    except ValueError:
+        bad.append(f"{label}: a proxy address the probe can't read")
+        continue
+    if not host or scheme not in ("http", "socks5", "socks5h"):
+        bad.append(f"{label}: a {scheme or 'schemeless'} proxy, which the probe can't speak to")
+        continue
+    silent = []
+    for target in TARGETS:
+        try:
+            found = (http_probes if scheme == "http" else socks_probe)(host, port, url, target)
+        except OSError:
+            silent.append(f"{label} for {target}")
+            continue
+        for kind, got in found:
+            why = judge(kind, got)
+            if why:
+                bad.append(f"{label}, {kind} {target}:{PORT}: {why}")
+    # A proxy that answered no target at all couldn't be reached, so the row proved nothing about it (T026, nit 5).
+    if len(silent) == len(TARGETS):
+        bad.append(f"{label}: the proxy couldn't be reached for any target, so nothing about its allowlist was proved")
+    else:
+        quiet += silent
+if bad:
+    print("FAIL " + "; ".join(bad))
+elif quiet:
+    print("NOTE no answer from the proxy named by " + ", ".join(quiet) + ", so nothing passed through it there")
+else:
+    print("PASS")
+PY
+)"
+  case "$proxy_verdict" in
+    PASS) pass=$((pass + 1)) ;;
+    "NOTE "*)
+      pass=$((pass + 1))
+      printf 'NOTE        %-21s %s\n' stage-S-proxy "${proxy_verdict#NOTE }"
+      ;;
+    *)
+      fail=$((fail + 1))
+      printf "FAIL        %-21s ComfyUI's port through the proxy: %s\n" stage-S-proxy "${proxy_verdict#FAIL }"
+      ;;
+  esac
   rid "S/conn-control/loopback"
   if python3 -c 'import socket, sys
 srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
@@ -1272,6 +2037,19 @@ edit allow 'specs/000-local-foundations/spec.md' # exists, one link
 edit allow 'corpus/proposals/2026-10-07-example.md'
 edit allow 'services/gateway/src/router.ts'
 edit allow 'docs/adr/0013-example.md'
+# Spec 007's P-1: the twin's readiness file, which prod reads and only the Author changes (its FR-029). As spec 003's
+# policy rows: an Edit of the file and two path forms are refused, and so is an Edit in a linked worktree; its
+# neighbours, which agents write, stay allowed.
+edit block 'config/twin-readiness.yaml'
+edit block 'specs/../config/twin-readiness.yaml'
+edit block './config//twin-readiness.yaml'
+edit allow 'config/twin/prompt.md'
+edit allow 'config/room-topics.yaml'
+check protected-paths.sh block 'Edit in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg f "$gov_wt/config/twin-readiness.yaml" '{file_path:$f}')"
+# A shell write: the sandbox's denyWrite masks config/twin-readiness.yaml in the main tree. In a linked worktree no rule
+# sees a shell write's target: a gap. What holds it is the arrival check's rule A10 (spec 007's P-1): it refuses any
+# branch whose change to the file marks a topic or free talk ready, so only the Author's commits on main open one.
+check bash-gate.sh gap 'a shell write in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg c "cp /tmp/new $gov_wt/config/twin-readiness.yaml" '{command:$c}')"
 
 # The early patch's human-only paths (plan §15).
 edit block 'config/prices.yaml'
@@ -1434,6 +2212,59 @@ if env -u CLAUDECODE git -C "$gr" merge -q --no-ff --no-edit feature >/dev/null 
   fail=$((fail + 1))
   printf 'FAIL        %-21s %s\n' git-hook "the Author's merge into main did not go through"
 fi
+# A ref a bare main names beside refs/heads/main (fix/000-main-ref): inside Claude Code the hook refuses creating or
+# changing main (a file at the top of .git), refs/main, refs/tags/main, refs/remotes/main, refs/remotes/main/HEAD, and
+# any other ref outside refs/heads whose last component is main, but a remote-tracking branch (refs/remotes/<remote>/main,
+# which is <remote>/main). A deletion goes through. git 2.43 runs no reference-transaction hook for symbolic-ref, so
+# that spelling is bash-gate.sh's and the gate's alone. The refusal came with
+# docs/merge-requests/2026-10-18-fix-000-main-ref.patch.
+# ashadow <refused|planned|ok> <label> <ref the command would leave> <git arguments...>: run git in $gr as agit does,
+# then see whether the ref is there, and remove it as the Author would, so the next row starts without it.
+ashadow() {
+  local expect="$1" label="$2" ref="$3" got=ok left=""
+  rid "H/git-hook/$label"
+  shift 3
+  env CLAUDECODE=1 git -C "$gr" "$@" >/dev/null 2>&1 || got=refused
+  if [ "$ref" = main ]; then
+    # git 2.43 writes main at the top of .git, and refuses to delete it by that name ("bad name").
+    if [ -e "$gr/.git/main" ]; then left=yes; fi
+    rm -f -- "$gr/.git/main"
+  else
+    if git -C "$gr" show-ref --verify --quiet "$ref"; then left=yes; fi
+    env -u CLAUDECODE git -C "$gr" update-ref --no-deref -d "$ref" >/dev/null 2>&1 || true
+  fi
+  if [ "$got" = refused ] && [ -n "$left" ]; then got="refused, but $ref was left"; fi
+  case "$expect:$got" in
+    refused:refused | ok:ok) pass=$((pass + 1)) ;;
+    planned:ok) planned=$((planned + 1)); printf 'PLANNED     %-21s %s\n' git-hook "$label" ;;
+    planned:refused) pass=$((pass + 1)); printf 'ENFORCED    %-21s %s (a planned row: make it "refused")\n' git-hook "$label" ;;
+    *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected %s, got %s\n' git-hook "$label" "$expect" "$got" ;;
+  esac
+}
+ashadow refused 'tag main' refs/tags/main tag main HEAD
+ashadow refused 'tag -f main' refs/tags/main tag -f main HEAD
+ashadow refused 'tag -a main' refs/tags/main tag -a -m x main HEAD
+ashadow refused 'update-ref refs/tags/main' refs/tags/main update-ref refs/tags/main HEAD
+ashadow refused 'update-ref refs/main' refs/main update-ref refs/main HEAD
+ashadow refused 'update-ref main, a file at the top of .git' main update-ref main HEAD
+ashadow refused 'update-ref refs/remotes/main' refs/remotes/main update-ref refs/remotes/main HEAD
+ashadow refused 'update-ref refs/remotes/main/HEAD' refs/remotes/main/HEAD update-ref refs/remotes/main/HEAD HEAD
+ashadow refused 'update-ref refs/tags/v1/main' refs/tags/v1/main update-ref refs/tags/v1/main HEAD
+ashadow refused 'fetch . HEAD:refs/tags/main' refs/tags/main fetch -q . HEAD:refs/tags/main
+printf 'create refs/main %s\n' "$(git -C "$gr" rev-parse HEAD)" >"$scratch/create-main"
+ashadow refused 'update-ref --stdin creating refs/main' refs/main update-ref --stdin <"$scratch/create-main"
+# A fetch's destination as git reads it (the review): tags/main is refs/tags/main; a glob at refs/* lands a branch x/main
+# at refs/main; and a remote's fetch setting can come with -c, before fetch.
+ashadow refused 'fetch . HEAD:tags/main' refs/tags/main fetch -q . HEAD:tags/main
+env -u CLAUDECODE git -C "$gr" branch x/main HEAD
+ashadow refused 'fetch . refs/heads/x/*:refs/*, from a branch x/main' refs/main fetch -q . 'refs/heads/x/*:refs/*'
+env -u CLAUDECODE git -C "$gr" branch -q -D x/main
+ashadow refused 'fetch with -c remote.x.fetch=+HEAD:refs/tags/main' refs/tags/main -c remote.x.url=. -c remote.x.fetch=+HEAD:refs/tags/main fetch -q x
+ashadow ok 'update-ref refs/remotes/origin/main, a remote-tracking branch' refs/remotes/origin/main update-ref refs/remotes/origin/main HEAD
+ashadow ok 'update-ref refs/heads/topic/main, a branch' refs/heads/topic/main update-ref refs/heads/topic/main HEAD
+ashadow ok 'tag maintenance' refs/tags/maintenance tag maintenance HEAD
+env -u CLAUDECODE git -C "$gr" tag main HEAD
+ashadow ok 'tag -d main, a deletion' refs/tags/main tag -d main
 
 # --- .claude/git-hooks/pre-commit: gitleaks over the staged changes (FR-008; research.md R-36) ---------
 # Fake keys are assembled here, at run time, so this file holds none. The content-scan rows below use them too.
@@ -1446,6 +2277,14 @@ git -C "$pc" config user.name matrix
 git -C "$pc" config user.email matrix@example.invalid
 cp "$repo/.gitleaks.toml" "$pc/.gitleaks.toml"
 git -C "$pc" add .gitleaks.toml
+# Spec 003's Phase 2 patch has the hook run the main tree's tools/gates/arrival_check.py after gitleaks. This scratch
+# repository is its own main tree, so it gets the checkout's copy, when there is one.
+arrival_check="$repo/tools/gates/arrival_check.py"
+if [ -f "$arrival_check" ]; then
+  mkdir -p "$pc/tools/gates"
+  cp "$arrival_check" "$pc/tools/gates/arrival_check.py"
+  git -C "$pc" add tools/gates/arrival_check.py
+fi
 git -C "$pc" commit -q -m init
 install -m 0755 "$repo/.claude/git-hooks/pre-commit" "$pc/.git/hooks/pre-commit"
 # pcommit <ok|refused> <label> <file> <content> [VAR=value ...]: stage the file and commit through the hook
@@ -1534,6 +2373,57 @@ if [ -c "$repo/.gitleaksignore" ]; then
   fi
 fi
 pcommit refused 'gitleaks missing from PATH (fails closed)' notes3.md 'clean' PATH=/usr/bin:/bin
+
+# The arrival check before each commit (spec 003 FR-004; research R-06): the hook runs the main tree's
+# tools/gates/arrival_check.py --staged after gitleaks, and fails closed without it. PLANNED until the checkout has the
+# check and its hook calls it (spec 003, Phase 2's patch). The files are built at run time: a committed image would be
+# refused itself. The scratch repository has no main branch, so a studio file under assets/ is refused for want of the
+# policy (exit 2), and a photo outside the roots by rule A1, which needs none.
+if [ -f "$arrival_check" ] && grep -q arrival_check "$repo/.claude/git-hooks/pre-commit"; then arrival_expect=refused; else arrival_expect=planned; fi
+# arrival_row <label> <file> <python3 code writing the file's bytes to sys.argv[1]>
+arrival_row() {
+  local label="$1" file="$2" got=ok
+  rid "H/pre-commit/$label"
+  mkdir -p "$(dirname "$pc/$file")"
+  python3 -I -c "$3" "$pc/$file"
+  git -C "$pc" add -- "$file"
+  git -C "$pc" commit -q -m "$label" >/dev/null 2>&1 || got=refused
+  if [ "$got" = refused ]; then git -C "$pc" reset -q -- "$file"; fi
+  rm -f -- "$pc/$file"
+  case "$arrival_expect:$got" in
+    refused:refused) pass=$((pass + 1)) ;;
+    planned:*) planned=$((planned + 1)); printf "PLANNED     %-21s %s (spec 003, Phase 2's patch)\n" pre-commit "$label" ;;
+    *) fail=$((fail + 1)); printf 'FAIL        %-21s %s: expected refused, got %s\n' pre-commit "$label" "$got" ;;
+  esac
+}
+png_code='import struct, sys, zlib
+c = lambda t, b: struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
+ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+data = b"\x89PNG\r\n\x1a\n" + c(b"IHDR", ihdr) + c(b"tEXt", b"prompt\x00a portrait") + c(b"IDAT", zlib.compress(bytes(4))) + c(b"IEND", b"")
+open(sys.argv[1], "wb").write(data)'
+jpeg_code='import struct, sys
+exif = b"Exif\x00\x00II*\x00" + struct.pack("<IH", 8, 1) + struct.pack("<HHII", 0x8825, 4, 1, 26) + bytes(10)
+open(sys.argv[1], "wb").write(b"\xff\xd8\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif + b"\xff\xd9")'
+arrival_row 'a staged PNG with a tEXt chunk under assets/ (arrival check)' assets/visitors/dog/still.png "$png_code"
+arrival_row 'a staged JPEG with EXIF outside the asset roots (arrival A1, A4)' docs/IMG_0001.jpg "$jpeg_code"
+# Fails closed: with no check in the main tree, even a clean commit is refused.
+rid "H/pre-commit/the arrival check missing from the main tree (fails closed)"
+if [ "$arrival_expect" = refused ]; then
+  mv "$pc/tools/gates/arrival_check.py" "$scratch/arrival_check.py.aside"
+  printf 'clean\n' >"$pc/notes8.md"
+  git -C "$pc" add -- notes8.md
+  if git -C "$pc" commit -q -m 'no arrival check' >/dev/null 2>&1; then
+    fail=$((fail + 1))
+    printf 'FAIL        %-21s %s\n' pre-commit 'the arrival check missing from the main tree: expected refused, got ok'
+  else
+    pass=$((pass + 1))
+    git -C "$pc" reset -q -- notes8.md
+  fi
+  mv "$scratch/arrival_check.py.aside" "$pc/tools/gates/arrival_check.py"
+else
+  planned=$((planned + 1))
+  printf "PLANNED     %-21s %s (spec 003, Phase 2's patch)\n" pre-commit 'the arrival check missing from the main tree (fails closed)'
+fi
 
 # --- subagent-report-check.sh: a report it can't check is a warning, never silence (FR-010) ------
 # unchecked <reason>: how many "report not checked" warnings with that reason the audit log holds
@@ -1638,6 +2528,9 @@ if sort -- "$req_seen" | uniq -d | grep -q .; then
 else
   pass=$((pass + 1))
 fi
+# Spec 002's content policy (T016): both files, in both layers behind the hook, since the approvals patch.
+# shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
+set_has "the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)" '(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'
 # The planned/skipped recap (plan §13's report), beside the summary line. It sits above the blank line, so the settings
 # rows other branches add before the summary line still merge cleanly; those print nothing when they pass, and add no
 # planned or skipped row.
@@ -1653,9 +2546,9 @@ has "the Author's config is denied in every layer (FR-007)" '(.sandbox.filesyste
 has "the state directory, the engine's PKI, and the other credential stores are denied" '(.sandbox.filesystem.denyWrite | index("~/.local/state/h4reet") != null) and (.sandbox.filesystem.denyRead as $r | ["/etc/h4agents/pki", "~/.docker/config.json", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.gnupg", "/mnt/c/Users"] | all(. as $p | $r | index($p) != null))'
 has "the agents' own engine certificate stays readable" '[.sandbox.filesystem.denyRead[] | select(startswith("~/.config/h4reet/"))] | length == 0'
 # shellcheck disable=SC2016 # $w and $p are jq variables, not shell expansions
-has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
+has "the files prod reads and the code the Author runs are write-denied" '.sandbox.filesystem.denyWrite as $w | ["./config/prices.yaml", "./config/budgets.yaml", "./config/alerts.yaml", "./config/twin-readiness.yaml", "./GNUmakefile", "./makefile", "./deploy/agents-engine", "./.gitleaks.toml", "./.gitleaksignore"] | all(. as $p | $w | index($p) != null)'
 # shellcheck disable=SC2016 # $n and $v are jq variables, not shell expansions
-has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN"] | all(. as $v | $n | index($v) != null)'
+has "every FR-007 variable is denied by name (contracts/env-files.md §8)" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] as $n | ["H4_OPERATOR_TOKEN", "TELEGRAM_BOT_TOKEN", "SMTP_PASSWORD", "SMTP_USER", "GATEWAY_DB_PASSWORD", "GATEWAY_GRAFANA_RO_PASSWORD", "LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_NEXTAUTH_SECRET", "LANGFUSE_DB_PASSWORD", "LANGFUSE_INIT_USER_PASSWORD", "CLICKHOUSE_PASSWORD", "VALKEY_PASSWORD", "SEAWEEDFS_S3_SECRET_KEY", "GF_SECURITY_ADMIN_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_AUTHORIZATION_TOKEN", "GATEWAY_ANTHROPIC_API_KEY"] | all(. as $v | $n | index($v) != null)'
 has "content-scan.sh checks every Edit, Write, and MultiEdit" '[.hooks.PreToolUse[] | select(.matcher == "Edit|Write|MultiEdit") | .hooks[].command | select(endswith("/.claude/hooks/content-scan.sh"))] | length == 1'
 
 # FR-007, per secret (convergence T198): contracts/env-files.md §8's table names each variable and the file that holds
@@ -1711,6 +2604,10 @@ while read -r kind item; do
       ;;
   esac
 done <<<"$fr007"
+# ANTHROPIC_API_KEY (spec 010, FR-032; its plan's B9): denied by name, as GITHUB_TOKEN is, but not an FR-007 variable.
+# It is the name Claude Code signs in with, so the canary and the behavioral tier, which fake every FR-007 variable in
+# a session, strip it instead, and its deny gets this row of its own.
+set_has "spec 010: ANTHROPIC_API_KEY is denied by name" '[.sandbox.credentials.envVars[] | select(.mode == "deny") | .name] | index("ANTHROPIC_API_KEY") != null'
 
 # The closing patch (plan §15; tasks.md T117): the paths it denies, and Claude Code's own reporting switched off.
 # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions

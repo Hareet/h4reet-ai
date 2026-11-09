@@ -1,0 +1,7 @@
+rule: RI10
+file: apps/web/room/lookdev.yaml
+path: vignette.show[6]
+why: a vignette naming a placement the scene doesn't have, in a drafts build
+drafts: true
+edits:
+  - { file: apps/web/room/lookdev.yaml, at: [vignette, show], push: fx-nowhere }

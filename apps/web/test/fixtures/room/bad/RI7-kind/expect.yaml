@@ -1,0 +1,8 @@
+rule: RI7
+file: apps/web/room/catalog/fx-laptop.yaml
+path: model.file
+why: a model recorded with a kind other than room
+generate: { assets/room/fx-laptop.glb: glb:desk, assets/room/records.json: records }
+edits:
+  - { file: apps/web/room/catalog/fx-laptop.yaml, at: [model], set: { file: fx-laptop.glb } }
+  - { file: assets/room/records.json, at: [entries, 0, kind], set: avatar }

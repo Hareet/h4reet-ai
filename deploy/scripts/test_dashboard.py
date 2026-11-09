@@ -2,9 +2,12 @@
 FR-037).
 
 The expected panels and their exact queries are read from the contract's own tables, so a query changes in the
-contract first and here never. Each of §7's sections is all or nothing, and every one must be whole: US1's three
-(§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit and
-alerts), and US3's dev-time row (§7.7, tasks.md T094).
+contract first and here never. Each of §7's sections is all or nothing, and every required one must be whole: US1's
+three (§7.3 requests, §7.4 the model server, §7.6 telemetry health), US2's three (§7.1 state, §7.2 spend, §7.5 audit
+and alerts), US3's dev-time row (§7.7, tasks.md T094), and spec 002's room row (§7.8, its tasks.md T061). Spec 004's
+"Room live state" (§7.9, its tasks.md T007) is a section, so a partial row fails, but not yet a required one: its
+series are spec 001's relay's, and the change that switches the room's live source on adds its panels and requires it
+(spec 004, FR-072; contracts/room-live-state-telemetry.md §6).
 
 How a row of the contract becomes panels:
   - a type that names two visualizations, "time series and stat" or "stat, and a state timeline", is two panels
@@ -32,11 +35,19 @@ CONTRACT = (REPO / "specs/000-local-foundations/contracts/telemetry.md").read_te
 DASHBOARD = json.loads(
     (REPO / "deploy/grafana/dashboards/h4-runtime.json").read_text(encoding="utf-8")
 )
+# Spec 003's studio GPU window adds a row, its panel, and an annotation, in its own contract's §3 (FR-035, SC-011).
+STUDIO = (REPO / "specs/003-studio-assets/contracts/gpu-window.md").read_text(
+    encoding="utf-8"
+)
+STUDIO_ROW = "gpu-window §3"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
-REQUIRED = US1 + US2 + US3
-SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7")
+ROOM = ("7.8",)  # spec 002's usage events (contracts/room-events.md §4)
+REQUIRED = US1 + US2 + US3 + ROOM
+# §7.10, spec 007's conversation (its FR-045): whole, as its own tests below require.
+# §7.9, spec 004's "Room live state": all or nothing now, required at its User Story 8 switch-on.
+SECTIONS = ("7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8", "7.9", "7.10")
 DATASOURCES = {
     "prom": "prometheus",
     "loki": "loki",
@@ -70,13 +81,14 @@ def expand(cell: str, previous: list[str]) -> list[str]:
             codes[0],
             codes[0].replace("histogram_quantile(0.50,", "histogram_quantile(0.95,"),
         ]
-    # The collector's counters carry no _total (telemetry.md §4.3; T065 found the panels empty with it).
-    if "and the same for" in cell and re.search(r"_spans\b", codes[0]):
+    # The collector's counters are pushed over OTLP, so they carry _total, as the gateway's do (telemetry.md §4.3,
+    # T185). Scraped, they had none (T065).
+    if "and the same for" in cell and re.search(r"_spans_total\b", codes[0]):
         base = codes[0]
         return [
             base,
-            re.sub(r"_spans\b", "_metric_points", base),
-            re.sub(r"_spans\b", "_log_records", base),
+            re.sub(r"_spans_total\b", "_metric_points_total", base),
+            re.sub(r"_spans_total\b", "_log_records_total", base),
         ]
     if cell.startswith("the same three with "):
         (label,) = codes
@@ -122,7 +134,32 @@ def all_contract_panels() -> dict[str, tuple[str, list[str]]]:
     expected: dict[str, tuple[str, list[str]]] = {}
     for number in SECTIONS:
         expected.update(contract_panels(number))
+    expected.update(studio_panels())
     return expected
+
+
+def studio_section() -> str:
+    """gpu-window.md §3, the studio window's dashboard, up to its next "## " heading."""
+    start = STUDIO.index("\n## 3. ")
+    end = STUDIO.find("\n## ", start + 1)
+    return STUDIO[start : end if end > 0 else None]
+
+
+def studio_panels() -> dict[str, tuple[str, list[str]]]:
+    """gpu-window.md §3's panel table, read as contract_panels reads telemetry.md §7's."""
+    out: dict[str, tuple[str, list[str]]] = {}
+    for line in studio_section().splitlines():
+        if not line.startswith("| ") or line.startswith("| Panel"):
+            continue
+        title, kind, query = cells(line)[:3]
+        title = re.sub(r"\s*\((?:FR|SC)-[^)]*\)$", "", title)
+        out[title] = (kind, expand(query, []))
+    return out
+
+
+def row_panels(key: str) -> dict[str, tuple[str, list[str]]]:
+    """A row's panels: a section of telemetry.md §7, or the studio window's."""
+    return studio_panels() if key == STUDIO_ROW else contract_panels(key)
 
 
 def panels() -> list[dict]:
@@ -162,11 +199,52 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     assert expected["Spend today (stat)"][0] == "stat"
     assert expected["Fallback sub-budget remaining (time series)"][0] == "time series"
     assert expected["Store state (authoritative)"][1][0].startswith("SELECT stack, env")
+    # Spec 011 (FR-046; its plan §9.4): the log panel gains the fallback record.
     assert expected["Alert log"][1] == [
-        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
+        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed|fallback)"'
+    ]
+    # The collector's "and the same for" shorthand, spelled out with its pushed names (T185).
+    assert expected["Export failures"][1] == [
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))",
+        "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))",
     ]
     for _, found in expected.values():
         assert found, "a panel parsed with no query"
+
+
+def test_the_alert_panels_show_each_form_and_every_fallback() -> None:
+    # Spec 011 (FR-046; its plan §9.4): the outcomes table gains the form, and the fallback panel sits beside it, by
+    # channel, kind, and reason, in the audit-and-alerts row, in the contract and on the dashboard alike.
+    expected = contract_panels("7.5")
+    assert expected["Alerts by channel and outcome"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) "
+                "(increase(h4_alerts_total[$__range]))"
+            )
+        ],
+    )
+    assert expected["Alerts sent as plain text by fallback"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) "
+                "(increase(h4_alert_fallbacks_total[$__range]))"
+            )
+        ],
+    )
+    found = by_title()
+    outcomes = found["Alerts by channel and outcome"]
+    fallbacks = found["Alerts sent as plain text by fallback"]
+    assert fallbacks["type"] == "table"
+    assert queries(fallbacks) == expected["Alerts sent as plain text by fallback"][1]
+    # Beside each other: the same row's height, the fallback panel to the outcomes table's right.
+    assert fallbacks["gridPos"]["y"] == outcomes["gridPos"]["y"]
+    assert (
+        fallbacks["gridPos"]["x"] >= outcomes["gridPos"]["x"] + outcomes["gridPos"]["w"]
+    )
 
 
 def test_the_dashboard_itself() -> None:
@@ -230,43 +308,77 @@ def test_each_panels_type_is_the_contracts() -> None:
             pytest.fail(f"{panel['title']}: no rule for the contract's type {kind!r}")
 
 
+def metric_names(expr: str) -> set[str]:
+    """The metric names a PromQL query reads: what's left once label values, ranges, label lists, matchers' names, and
+    functions are taken out."""
+    stripped = re.sub(r'"[^"]*"', '""', expr)  # label values
+    stripped = re.sub(r"\[[^\]]*\]", "", stripped)  # ranges
+    stripped = re.sub(
+        r"\b(?:by|without|ignoring|on)\s*\([^)]*\)", "", stripped
+    )  # label lists
+    stripped = re.sub(
+        r"[A-Za-z_][A-Za-z0-9_]*\s*(?:=~|!~|!=|=)", "", stripped
+    )  # matchers' names
+    return {
+        name
+        for name in re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", stripped)
+        if name not in FUNCTIONS
+    }
+
+
 def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
-    for" names it spells with _metric_points or _log_records in place of _spans. The PromQL panels hold them all."""
+    for" names it spells with _metric_points_total or _log_records_total in place of _spans_total (the collector's
+    counters, pushed with _total since T185). The PromQL panels hold them all."""
     words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
     names = set()
     for panel in panels():
         if panel["datasource"]["uid"] != "prom":
             continue
         for expr in queries(panel):
-            stripped = re.sub(r'"[^"]*"', '""', expr)  # label values
-            stripped = re.sub(r"\[[^\]]*\]", "", stripped)  # ranges
-            stripped = re.sub(
-                r"\b(?:by|without|ignoring|on)\s*\([^)]*\)", "", stripped
-            )  # label lists
-            stripped = re.sub(
-                r"[A-Za-z_][A-Za-z0-9_]*\s*(?:=~|!~|!=|=)", "", stripped
-            )  # matchers' names
-            for name in re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", stripped):
-                if name not in FUNCTIONS:
-                    names.add(name)
+            names |= metric_names(expr)
     assert names
     for name in names:
-        spelled = re.sub(r"_(metric_points|log_records)$", "_spans", name)
+        spelled = re.sub(r"_(metric_points|log_records)_total$", "_spans_total", name)
         assert name in words or spelled in words, name
 
 
 FUNCTIONS = {
     "sum",
     "max",
+    "avg",
     "rate",
     "increase",
     "histogram_quantile",
     "time",
     "timestamp",
     "max_over_time",
+    "avg_over_time",
     "le",
 }
+
+
+# The collector's two gauges; every other otelcol_ metric a panel reads is a counter.
+COLLECTOR_GAUGES = {"otelcol_exporter_queue_size", "otelcol_exporter_queue_capacity"}
+
+
+def test_the_collectors_counters_are_the_pushed_ones() -> None:
+    """T185: the collector pushes its own metrics over OTLP, and its scrape keeps only up (telemetry.md §4.3, §6.6).
+    So each otelcol_ counter a panel reads has the _total that Prometheus's OTLP translation appends, and no otelcol_
+    query selects the scrape's job, which no longer holds one."""
+    found = set()
+    for panel in panels():
+        if panel["datasource"]["uid"] != "prom":
+            continue
+        for expr in queries(panel):
+            names = set(re.findall(r"\botelcol_[a-z_]+", expr))
+            for name in names - COLLECTOR_GAUGES:
+                assert name.endswith("_total"), (panel["title"], name)
+            assert not names or "job" not in expr, (panel["title"], expr)
+            found |= names
+    # Every panel of §7.6 that reads the collector: three failures, three drops, two gauges, one sent, three refused.
+    assert len(found) == 12, sorted(found)
+    assert COLLECTOR_GAUGES <= found
 
 
 def test_every_datasource_is_the_one_its_query_language_needs() -> None:
@@ -289,7 +401,15 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
     # The audit panel and the store's state read gateway.audit_log and gateway.v_state through grafana_ro, so they
     # still work when telemetry is down (telemetry.md §7.1, §7.5; research.md R-10).
     sql = [p for p in panels() if p["datasource"]["uid"] == "gateway"]
-    assert {p["title"] for p in sql} == {"Store state (authoritative)", "Audit log"}
+    assert {p["title"] for p in sql} == {
+        "Store state (authoritative)",
+        "Audit log",
+        "Fallback spend in studio windows",
+        # Spec 007's model panel reads gateway.v_twin_models (its departure D7).
+        "The model each turn used",
+        # Spec 010's table of the paid adapters' months reads gateway.v_adapter_months (its FR-036).
+        "Paid adapters' months (authoritative)",
+    }
     for panel in sql:
         (target,) = panel["targets"]
         assert target["format"] == "table" and target["rawQuery"] is True, panel[
@@ -306,7 +426,8 @@ def dev_time_row() -> str:
 
 
 # Each row's title and its section of §7, in §7's order: the state and spend first, next to the requests' latency and
-# errors (Principle V), and the dev-time row last, apart from the production meter (FR-037).
+# errors (Principle V), the room's use after the stack's own rows, and the dev-time row last, apart from the production
+# meter (FR-037).
 ROWS = {
     "State": "7.1",
     "Spend": "7.2",
@@ -314,6 +435,9 @@ ROWS = {
     "Model server": "7.4",
     "Audit and alerts": "7.5",
     "Telemetry health": "7.6",
+    "Room": "7.8",
+    "Room conversation": "7.10",
+    "Studio GPU windows": STUDIO_ROW,
     dev_time_row(): "7.7",
 }
 
@@ -343,7 +467,7 @@ def test_the_panels_follow_their_rows() -> None:
     for i, row in enumerate(rows):
         top = row["gridPos"]["y"]
         bottom = rows[i + 1]["gridPos"]["y"] if i + 1 < len(rows) else float("inf")
-        for title in contract_panels(ROWS[row["title"]]):
+        for title in row_panels(ROWS[row["title"]]):
             y = by_title()[title]["gridPos"]["y"]
             assert top < y < bottom, (row["title"], title)
 
@@ -405,6 +529,61 @@ def test_the_degraded_cause_reads_none_in_green() -> None:
     assert (
         panel["targets"][0]["instant"] is True
     )  # the cause now, not every cause in the range
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Fallback sub-budget remaining", "Fallback sub-budget remaining (time series)"],
+)
+def test_the_sub_budget_reads_to_the_micro_dollar(title: str) -> None:
+    # quickstart.md §4.2 (SC-005) reads a fallback call's cost off this panel, and a Bedrock call costs a fraction
+    # of a cent: at two decimals, $2.00 less 27 micro-dollars still read $2.00 (the Author's run, 2026-10-12).
+    defaults = by_title()[title]["fieldConfig"]["defaults"]
+    assert defaults["unit"] == "currencyUSD" and defaults["decimals"] == 6
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Spend today",
+        "Spend today (stat)",
+        "Spend month-to-date",
+        "Spend month-to-date (stat)",
+    ],
+)
+def test_spend_reads_to_the_micro_dollar(title: str) -> None:
+    # FR-028's spend panels read the meter, which keeps integer micro-USD, and one Bedrock fallback call cost 27
+    # micro-dollars (the Author's run, 2026-10-12): at two decimals, a day or a month of a few such calls read $0.00
+    # (docs/000-closeout's backlog). Six, as the sub-budget and the cost table read.
+    defaults = by_title()[title]["fieldConfig"]["defaults"]
+    assert defaults["unit"] == "currencyUSD" and defaults["decimals"] == 6
+
+
+def test_the_renewal_flag_reads_as_a_whole_number() -> None:
+    # The time series' B is 0 or 1, on its own right axis. The panel's 6 decimals are for dollars and would label
+    # that axis 0.000000 to 1.000000, so B's override sets its own (docs/000-closeout's review).
+    panel = by_title()["Fallback sub-budget remaining (time series)"]
+    assert overrides(panel)["B"]["decimals"] == 0
+
+
+@pytest.mark.parametrize(
+    ("title", "ref"),
+    [
+        ("Spend today", "B"),
+        ("Spend today", "C"),
+        ("Spend today (stat)", "B"),
+        ("Spend today (stat)", "C"),
+        ("Spend month-to-date", "B"),
+        ("Spend month-to-date", "C"),
+        ("Spend month-to-date (stat)", "B"),
+        ("Spend month-to-date (stat)", "C"),
+        ("Fallback sub-budget remaining (time series)", "C"),
+    ],
+)
+def test_the_warning_and_ceiling_lines_read_in_cents(title: str, ref: str) -> None:
+    # The warning and ceiling lines are whole cents ($3.50, $5, $14, $20). With the panels at 6 decimals for the
+    # meter's micro-dollars they read $3.500000, so their own overrides keep 2 (fix/000-spend-decimals's review).
+    assert overrides(by_title()[title])[ref]["decimals"] == 2
 
 
 @pytest.mark.parametrize(
@@ -517,3 +696,334 @@ def test_the_dashboards_folder_is_documented() -> None:
         "(state timeline)" in readme
     )  # how a two-visualization row becomes two panels
     assert "§7.7" in readme  # US3's dev-time row is required too
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 002's room (telemetry.md §7.8; contracts/room-events.md §4; its tasks.md T061)
+# --------------------------------------------------------------------------------------------------
+
+ROOM_SERIES = {"h4_room_events_total", "h4_room_events_refused_total"}
+
+
+def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
+    expected = contract_panels("7.8")
+    assert list(expected) == [
+        "Use per object per day",
+        "Use per item per day",
+        "PDF downloads per day",
+        "Visits shown the 2D mode",
+        # Spec 009's (its FR-034; Amendment M1).
+        "Visits whose avatar failed",
+        "Turns sent and talk presses",
+        "Events refused",
+        "Visits that walked",
+    ]
+    # After the stack's own rows and before the dev-time row. Not necessarily right above it: spec 003's studio row
+    # (its gpu-window.md §3) goes there, and asks for that place itself.
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert (
+        rows.index("Telemetry health") < rows.index("Room") < rows.index(dev_time_row())
+    )
+
+
+def test_the_room_row_reads_only_the_events_counters_by_their_own_labels() -> None:
+    # FR-054: the counters carry the kind and the ID, or a refusal's reason, and nothing about the visitor, so no panel
+    # can split them by anything else: every grouping and matcher is one of those labels.
+    for title in contract_panels("7.8"):
+        for expr in queries(by_title()[title]):
+            names = set(re.findall(r"\bh4_[a-z_]+\b", expr))
+            assert names and names <= ROOM_SERIES, (title, names)
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", expr):
+                assert {g.strip() for g in group.split(",")} <= {
+                    "id",
+                    "kind",
+                    "reason",
+                }, title
+            for label in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)", expr):
+                assert label == "kind", (title, label)
+
+
+@pytest.mark.parametrize("title", ["Use per object per day", "Use per item per day"])
+def test_the_rooms_use_reads_the_last_day_at_the_ranges_end(title: str) -> None:
+    # One bar per object or item: an instant query over the 24 hours before the range's end, named by its ID.
+    panel = by_title()[title]
+    (target,) = panel["targets"]
+    assert target["instant"] is True and target["range"] is False, title
+    assert "[1d]" in target["expr"], title
+    assert target["legendFormat"] == "{{id}}", title
+    assert "24 hours" in panel["description"], title
+
+
+def test_pdf_downloads_read_per_day() -> None:
+    panel = by_title()["PDF downloads per day"]
+    assert panel["options"]["reduceOptions"]["calcs"] == ["lastNotNull"]
+    assert "24 hours" in panel["description"]
+
+
+def test_the_2d_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    panel = by_title()["Visits shown the 2D mode"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    for words in ("resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+
+
+def test_the_walked_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    # Spec 008's Amendment M1 (FR-053): walk_started over the same stand-in for visits as the 2D share.
+    panel = by_title()["Visits that walked"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    (target,) = panel["targets"]
+    assert 'kind="walk_started"' in target["expr"]
+    for words in ("walk_started", "resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+
+
+def test_refused_events_read_by_their_reason() -> None:
+    panel = by_title()["Events refused"]
+    (target,) = panel["targets"]
+    assert target["legendFormat"] == "{{reason}}"
+    for reason in ("content_type", "shape", "kind", "id"):
+        assert reason in panel["description"], reason
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 003's studio GPU window (contracts/gpu-window.md §3; tasks.md T036)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_the_studio_windows_panel_is_whole_and_in_its_row() -> None:
+    expected = studio_panels()
+    assert list(expected) == ["Fallback spend in studio windows"]
+    (title,) = expected
+    panel = by_title()[title]
+    assert expected[title][0] == "table (SQL)"
+    assert queries(panel) == expected[title][1]
+    assert queries(panel)[0].startswith('SELECT started_at AS "time"')
+    assert "gateway.v_studio_windows" in queries(panel)[0]
+
+
+def test_the_studio_windows_spend_reads_in_dollars_to_the_micro_dollar() -> None:
+    # One Bedrock fallback call costs a few thousand micro-dollars (plan §5.4), which two decimals would show as 0.00.
+    # The columns are named by overrides, not an organize step: an override matches the field's name before its own
+    # displayName applies, where a rename would have changed the name it matches.
+    panel = by_title()["Fallback spend in studio windows"]
+    assert overrides(panel) == {
+        "time": {"displayName": "Started"},
+        "ended_at": {"displayName": "Ended"},
+        "fallback_usd": {
+            "displayName": "Fallback spend",
+            "unit": "currencyUSD",
+            "decimals": 6,
+        },
+        "fallback_calls": {"displayName": "Fallback calls"},
+    }
+    assert "transformations" not in panel
+    for words in ("SC-011", "docs/runbooks/studio-gpu-window.md", "sub-budget"):
+        assert words in panel["description"], words
+    assert (REPO / "docs/runbooks/studio-gpu-window.md").is_file()
+
+
+def studio_annotation() -> str:
+    """gpu-window.md §3's annotation query: the backticked PromQL on the annotation's line."""
+    (line,) = [x for x in studio_section().splitlines() if "**An annotation,**" in x]
+    (query,) = [c for c in re.findall(r"`([^`]+)`", line) if "h4_studio_window" in c]
+    return query
+
+
+def test_the_studio_window_is_an_annotation_from_the_gauge() -> None:
+    (annotation,) = [
+        a for a in DASHBOARD["annotations"]["list"] if a["name"] == "Studio GPU windows"
+    ]
+    assert annotation["datasource"] == {"type": "prometheus", "uid": "prom"}
+    assert annotation["enable"] is True and annotation["hide"] is False
+    assert annotation["target"]["expr"] == studio_annotation()
+    assert annotation["target"]["expr"] == "max(h4_studio_window) > 0"
+    # Its metric is the contract's: spec 003's §1 names the gauge it adds to spec 000's §4.1.
+    assert "h4_studio_window" in STUDIO
+
+
+def test_the_studio_row_sits_above_the_dev_time_row() -> None:
+    rows = [p for p in DASHBOARD["panels"] if p["type"] == "row"]
+    titles = [r["title"] for r in rows]
+    assert titles.index("Studio GPU windows") == titles.index(dev_time_row()) - 1
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 004's "Room live state" (telemetry.md §7.9; FR-072, SC-014; its contracts/room-live-state-telemetry.md §5
+# and §6; its tasks.md T007)
+# --------------------------------------------------------------------------------------------------
+
+LIVE_SERIES = {
+    "h4_relay_requests_total",
+    "h4_relay_cap_refusals_total",
+    "h4_relay_status_class",
+}
+
+
+def test_room_live_state_is_a_section_but_not_yet_required() -> None:
+    # Its series are spec 001's relay's (Amendment A2): until the room's live source is switched on, the section is
+    # held all or nothing, and the dashboard has none of it.
+    assert "7.9" in SECTIONS
+    assert REQUIRED == US1 + US2 + US3 + ROOM
+    assert "7.9" not in REQUIRED
+
+
+def test_room_live_state_parses_as_three_panels_each_with_one_query() -> None:
+    expected = contract_panels("7.9")
+    assert list(expected) == [
+        "Status requests a minute",
+        "Status 429s a minute",
+        "Time in each class",
+    ]
+    assert [kind for kind, _ in expected.values()] == [
+        "time series",
+        "time series",
+        "bar chart",
+    ]
+    assert [found for _, found in expected.values()] == [
+        [
+            'sum(rate(h4_relay_requests_total{h4_relay_route="status"}[$__rate_interval])) * 60'
+        ],
+        [
+            'sum(rate(h4_relay_cap_refusals_total{h4_relay_route="status"}[$__rate_interval])) * 60'
+        ],
+        ["avg by (h4_class) (avg_over_time(h4_relay_status_class[$__range]))"],
+    ]
+
+
+def test_room_live_states_metrics_are_named_in_the_contracts_text() -> None:
+    words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
+    names: set[str] = set()
+    for _, found in contract_panels("7.9").values():
+        (query,) = found
+        names |= metric_names(query)
+    assert names == LIVE_SERIES
+    assert names <= words
+    # Every matcher is the route, and every grouping the class: nothing about a visitor can split a series.
+    for _, found in contract_panels("7.9").values():
+        for query in found:
+            for label in re.findall(
+                r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)", query
+            ):
+                assert label == "h4_relay_route", query
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", query):
+                assert {g.strip() for g in group.split(",")} == {"h4_class"}, query
+
+
+def test_the_dashboard_holds_none_of_room_live_state_yet() -> None:
+    # The section is all or nothing (test_each_section_is_all_or_nothing), and nothing yet: no panel by its titles,
+    # no query of its series, and no row named for it.
+    assert not set(contract_panels("7.9")) & set(by_title())
+    for panel in panels():
+        for expr in queries(panel):
+            assert not LIVE_SERIES & set(re.findall(r"\bh4_[a-z_]+\b", expr)), panel[
+                "title"
+            ]
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert "Room live state" not in rows
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 007's conversation (telemetry.md §7.10; its FR-045, Amendment 0-5; tasks.md T045)
+# --------------------------------------------------------------------------------------------------
+
+CONVERSATION_SERIES = {
+    "h4_twin_turns_total",
+    "h4_twin_turn_duration_seconds_bucket",
+    "h4_twin_turn_duration_seconds_count",
+    "h4_twin_withheld_total",
+    # Spec 007's plan, D41: the answers delivered with a sentence removed, by the guard that removed it.
+    "h4_twin_redacted_total",
+    "h4_cost_usd_total",
+}
+
+
+def test_the_conversation_row_has_the_contracts_exact_queries() -> None:
+    assert contract_panels("7.10"), "no panels parsed from telemetry.md §7.10"
+    found = by_title()
+    for title, (_kind, expected) in contract_panels("7.10").items():
+        assert title in found, f"§7.10 {title}"
+        assert queries(found[title]) == expected, title
+
+
+def test_the_conversation_row_is_whole_and_sits_below_the_room_row() -> None:
+    expected = contract_panels("7.10")
+    assert list(expected) == [
+        "Turns per feature, by outcome",
+        "Cost per feature, today",
+        "Turn latency, p95 by feature",
+        "Cost per feature, 30 days",
+        "Turn errors by feature",
+        "Degraded turns by cause",
+        "Answers withheld, by guard",
+        "Answered locally",
+        "The model each turn used",
+    ]
+    rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
+    assert rows.index("Room") + 1 == rows.index("Room conversation")
+
+
+def test_the_conversation_reads_only_the_twins_series_and_never_a_visitor_label() -> (
+    None
+):
+    # FR-043: no series holds the visitor's words, the answer, the path, or a client identifier, so no panel can
+    # split by one: every grouping is the feature, the outcome, the cause, the guard, the decision, or a bucket.
+    allowed = {"h4_room_feature", "h4_outcome", "h4_cause", "h4_twin_guard", "le"}
+    for title in contract_panels("7.10"):
+        panel = by_title()[title]
+        if panel["datasource"]["uid"] != "prom":
+            continue
+        for expr in queries(panel):
+            names = metric_names(expr)
+            assert names and names <= CONVERSATION_SERIES, (title, names)
+            for group in re.findall(r"\bby\s*\(([^)]*)\)", expr):
+                assert {g.strip() for g in group.split(",")} <= allowed, title
+            assert "path" not in expr and "client" not in expr, title
+
+
+def test_each_features_cost_sits_beside_its_latency_and_errors() -> None:
+    # Principle V: "every dashboard shows spend next to latency and errors".
+    cost = by_title()["Cost per feature, today"]["gridPos"]
+    latency = by_title()["Turn latency, p95 by feature"]["gridPos"]
+    errors = by_title()["Turn errors by feature"]["gridPos"]
+    month = by_title()["Cost per feature, 30 days"]["gridPos"]
+    assert cost["y"] == latency["y"] and month["y"] == errors["y"]
+
+
+def test_the_model_panel_reads_the_view_and_no_visit() -> None:
+    (target,) = by_title()["The model each turn used"]["targets"]
+    assert "gateway.v_twin_models" in target["rawSql"]
+    for column in ("client_label", "request_id", "trace_id"):
+        assert column not in target["rawSql"]
+
+
+def test_the_avatar_failure_share_reads_as_the_2d_share_reads() -> None:
+    # Spec 009's FR-034: avatar_failed over the same stand-in for visits, as a percentage.
+    panel = by_title()["Visits whose avatar failed"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    for words in ("avatar_failed", "resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+
+
+# Spec 010 (FR-036; its plan §9): the paid adapter's month beside its cap and its warning, in the Spend row, and the
+# adapters' months as the store holds them, beside the store-state panel.
+ADAPTER_MONTH_PANEL = "Paid adapter's month against its cap"
+ADAPTER_MONTHS_TABLE = "Paid adapters' months (authoritative)"
+
+
+def test_the_paid_adapters_month_has_its_panels() -> None:
+    found = by_title()
+    month = found[ADAPTER_MONTH_PANEL]
+    assert queries(month) == [
+        "max by (h4_adapter) (h4_adapter_month_spend_usd)",
+        "max by (h4_adapter) (h4_adapter_month_warn_usd)",
+        "max by (h4_adapter) (h4_adapter_month_cap_usd)",
+    ]
+    table = found[ADAPTER_MONTHS_TABLE]
+    assert queries(table) == [
+        (
+            "SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, "
+            "reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter"
+        )
+    ]
+    assert table["type"] == "table"
+    assert table["datasource"]["uid"] == "gateway"

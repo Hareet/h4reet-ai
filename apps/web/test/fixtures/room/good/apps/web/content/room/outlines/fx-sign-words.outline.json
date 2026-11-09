@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "sign": "fx-sign-words",
+  "words": "fixture sign words",
+  "intent_ref": "intent-900",
+  "source": { "type": "design", "id": "fx-design-01" },
+  "tool": { "name": "fx-tracer", "version": "1.0.0", "license": "MIT" },
+  "view_box": [0, 0, 400, 100],
+  "cap_height": 72,
+  "advance": 380,
+  "paths": ["M 10 90 L 10 18 L 60 18 Z", "M 80 90 L 120 18 L 160 90 Z", "m 200 90 c 10 -20 30 -20 40 0 z"]
+}

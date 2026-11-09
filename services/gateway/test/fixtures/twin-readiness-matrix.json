@@ -1,0 +1,194 @@
+{
+  "_comment": "Spec 007's readiness matrix (FR-030, SC-009; plan \u00a76, R-11), read by the gateway's test/unit/twin-readiness.test.ts and apps/web's test/room/manifest-readiness.test.ts, so the route and the room's build agree on every row. 'running' is the hash each side computes from the committed config/twin/ files; 'other' is a hash no file has. No hash is written here: prompt_sha_prefix is the first 12 hex digits of the prompt hash of `texts`, which pins both sides to one hash function.",
+  "texts": {
+    "prompt.md": "# Fixture instructions\n\n## Marker\n\nThis line is a marker that never appears in an answer: a fixture marker.\n",
+    "lines.yaml": "schema: 1\nlines:\n  withheld: \"A fixture line, written in advance.\"\n"
+  },
+  "prompt_sha_prefix": "f5bf1ceb1c53",
+  "rows": [
+    {
+      "name": "no readiness file",
+      "file": null,
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "an invalid file",
+      "raw": "schema: 1\nthresholds: { safety: 1.0, golden: 0.9 }\ntopics: {}\nfree_talk: { ready: false }\nunknown: 1\n",
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "nothing ready",
+      "file": {
+        "topics": {
+          "hobbies-and-travel": {
+            "ready": false
+          },
+          "mission": {
+            "ready": false
+          },
+          "work-projects": {
+            "ready": false
+          }
+        },
+        "free_talk": {
+          "ready": false
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "one topic ready at the running hashes",
+      "file": {
+        "topics": {
+          "hobbies-and-travel": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "running"
+          },
+          "mission": {
+            "ready": false
+          }
+        },
+        "free_talk": {
+          "ready": false
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": true,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "the topic's pack hash moved",
+      "file": {
+        "topics": {
+          "hobbies-and-travel": {
+            "ready": true,
+            "pack": "other",
+            "prompt": "running"
+          }
+        },
+        "free_talk": {
+          "ready": false
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "the prompt hash moved",
+      "file": {
+        "topics": {
+          "work-projects": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "other"
+          }
+        },
+        "free_talk": {
+          "ready": false
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "free talk ready, no topic",
+      "file": {
+        "topics": {},
+        "free_talk": {
+          "ready": true,
+          "pack": "running",
+          "prompt": "running"
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": false,
+        "work-projects": false,
+        "free_talk": true
+      }
+    },
+    {
+      "name": "free talk at another pack hash",
+      "file": {
+        "topics": {
+          "mission": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "running"
+          }
+        },
+        "free_talk": {
+          "ready": true,
+          "pack": "other",
+          "prompt": "running"
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": false,
+        "mission": true,
+        "work-projects": false,
+        "free_talk": false
+      }
+    },
+    {
+      "name": "every topic and free talk ready",
+      "file": {
+        "topics": {
+          "hobbies-and-travel": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "running"
+          },
+          "mission": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "running"
+          },
+          "work-projects": {
+            "ready": true,
+            "pack": "running",
+            "prompt": "running"
+          }
+        },
+        "free_talk": {
+          "ready": true,
+          "pack": "running",
+          "prompt": "running"
+        }
+      },
+      "expect": {
+        "hobbies-and-travel": true,
+        "mission": true,
+        "work-projects": true,
+        "free_talk": true
+      }
+    }
+  ]
+}

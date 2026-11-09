@@ -1,0 +1,6 @@
+rule: RG7
+file: apps/web/room/scene.yaml
+path: placements[3].faces.panel
+why: the neon word's grid widened to 20 characters, its glyphs under the floor on the phone stage
+edits:
+  - { file: apps/web/room/scene.yaml, at: [placements, 3, faces, panel, regions, 0, grid, chars], set: 20 }

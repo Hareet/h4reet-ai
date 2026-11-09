@@ -606,6 +606,89 @@ def test_aws_settings_belong_to_the_gateway_alone(tmp_path: Path) -> None:
     assert ("gateway-state", "environment") in rules(model, tmp_path)
 
 
+def test_no_service_holds_a_variable_the_anthropic_sdk_reads(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["ANTHROPIC_BASE_URL"] = (
+        "${ANTHROPIC_BASE_URL:-}"
+    )
+    assert ("gateway", "environment") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_belongs_to_the_gateway_alone(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway-state"]["environment"] = [
+        "GATEWAY_ANTHROPIC_API_KEY=${GATEWAY_ANTHROPIC_API_KEY:-}"
+    ]
+    assert ("gateway-state", "environment") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_comes_from_the_env_file(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_ANTHROPIC_API_KEY"] = (
+        "a-literal"
+    )
+    assert ("gateway", "environment") in rules(model, tmp_path)
+
+
+def test_the_gateway_holds_the_anthropic_key_from_the_env_file(tmp_path: Path) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_ANTHROPIC_API_KEY"] = (
+        "${GATEWAY_ANTHROPIC_API_KEY:-}"
+    )
+    assert findings(model, tmp_path) == []
+
+
+def test_no_other_service_refers_to_the_anthropic_key(tmp_path: Path) -> None:
+    # The review of spec 010's branch: by key name alone, this passed.
+    model = good_model()
+    model["services"]["gateway-state"]["environment"] = {
+        "X": "${GATEWAY_ANTHROPIC_API_KEY}"
+    }
+    assert ("gateway-state", "anthropic key") in rules(model, tmp_path)
+
+
+def test_no_other_gateway_variable_refers_to_the_anthropic_key(tmp_path: Path) -> None:
+    model = good_model()
+    environment = model["services"]["gateway"]["environment"]
+    environment["GATEWAY_ANTHROPIC_API_KEY"] = "${GATEWAY_ANTHROPIC_API_KEY:-}"
+    environment["GATEWAY_EXTRA"] = "prefix-$GATEWAY_ANTHROPIC_API_KEY"
+    assert ("gateway", "anthropic key") in rules(model, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("command", ["sh", "-c", "echo $GATEWAY_ANTHROPIC_API_KEY"]),
+        ("labels", {"key": "GATEWAY_ANTHROPIC_API_KEY"}),
+        ("build", {"context": "..", "args": {"GATEWAY_ANTHROPIC_API_KEY": None}}),
+    ],
+)
+def test_the_anthropic_key_is_named_nowhere_else_in_a_service(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    model = good_model()
+    model["services"]["gateway-state"][field] = value
+    assert ("gateway-state", "anthropic key") in rules(model, tmp_path)
+
+
+def test_no_service_refers_to_a_variable_the_anthropic_sdk_reads(
+    tmp_path: Path,
+) -> None:
+    model = good_model()
+    model["services"]["gateway"]["environment"]["GATEWAY_EXTRA"] = (
+        "${ANTHROPIC_API_KEY:-}"
+    )
+    assert ("gateway", "anthropic key") in rules(model, tmp_path)
+
+
+def test_the_anthropic_key_is_named_nowhere_outside_the_services(
+    tmp_path: Path,
+) -> None:
+    model = good_model()
+    model["x-env"] = {"KEY": "${GATEWAY_ANTHROPIC_API_KEY:-}"}
+    assert ("deploy/compose.yaml", "anthropic key") in rules(model, tmp_path)
+
+
 def test_every_service_needs_a_disclosure_row(tmp_path: Path) -> None:
     assert ("gateway-state", "disclosure") in rules(
         good_model(), tmp_path, DISCLOSED - {"gateway-state"}
@@ -1180,4 +1263,83 @@ def test_the_real_gateway_is_the_shared_build() -> None:
     gateway = real_model()["services"]["gateway"]
     assert (gateway["image"], gateway["pull_policy"]) == (SHARED, "never")
     assert "build" not in gateway
-    assert cp.SHARED_IMAGES == {"gateway": SHARED}
+    assert cp.SHARED_IMAGES == {"gateway": SHARED, "web": SHARED_WEB}
+
+
+# --------------------------------------------------------------------------------------------------
+# The room's web image (spec 002, contracts/web-serving.md §1 and §4): make up builds it outside compose on every run,
+# its tag ending in the env file's H4_WEB_SUFFIX, empty on prod and -drafts on dev and dev-cpu. That one name, on web
+# alone, with pull_policy: never, is the other image no lock line pins.
+# --------------------------------------------------------------------------------------------------
+SHARED_WEB = "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}"
+
+
+def with_web(**fields: object) -> dict:
+    model = good_model()
+    web = service(image=SHARED_WEB, pull_policy="never", read_only=True, tmpfs=["/tmp"])
+    web.update(fields)
+    model["services"]["web"] = web
+    return model
+
+
+def test_the_web_services_shared_build_passes(tmp_path: Path) -> None:
+    assert findings(with_web(), tmp_path, DISCLOSED | {"web"}) == []
+
+
+@pytest.mark.parametrize("policy", [None, "missing", "always", "build"])
+def test_the_web_image_is_never_pulled(tmp_path: Path, policy: str | None) -> None:
+    model = with_web(pull_policy=policy)
+    if policy is None:
+        del model["services"]["web"]["pull_policy"]
+    assert rules(model, tmp_path, DISCLOSED | {"web"}) == {("web", "pull_policy")}
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "h4reet-web:${H4_REF:-working-tree}",  # no suffix: dev's drafts build could take prod's tag
+        "h4reet-web:${H4_REF:-working-tree}-drafts",
+        "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX:-}",
+        "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX:--drafts}",
+        "h4reet-web:latest",
+        "ghcr.io/someone/h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
+        SHARED,  # the gateway's name is the gateway's alone
+    ],
+)
+def test_any_other_spelling_of_the_web_image_is_an_unpinned_image(
+    tmp_path: Path, image: str
+) -> None:
+    assert ("web", "image") in rules(
+        with_web(image=image), tmp_path, DISCLOSED | {"web"}
+    )
+
+
+def test_the_web_name_is_the_web_services_alone(tmp_path: Path) -> None:
+    model = with_web()
+    model["services"]["gateway-state"]["image"] = SHARED_WEB
+    model["services"]["gateway-state"]["pull_policy"] = "never"
+    assert rules(model, tmp_path, DISCLOSED | {"web"}) == {("gateway-state", "image")}
+
+
+def test_the_web_service_still_meets_every_other_rule(tmp_path: Path) -> None:
+    model = with_web(
+        networks={"internal": None, "edge": None},
+        ports=["127.0.0.1:${H4_SITE_PORT}:8080"],
+    )
+    assert {("web", "networks"), ("web", "ports")} <= rules(
+        model, tmp_path, DISCLOSED | {"web"}
+    )
+    # And it needs its disclosure row, as every service does.
+    assert ("web", "disclosure") in rules(with_web(), tmp_path)
+
+
+def test_the_real_web_service_is_the_shared_build_and_x005_needs_no_exception() -> None:
+    """The committed compose file names make up's web build, and edge's sixth publication is an ordinary one."""
+    model = real_model()
+    web = model["services"]["web"]
+    assert (web["image"], web["pull_policy"]) == (SHARED_WEB, "never")
+    assert "build" not in web
+    lock = cp.parse_lock(REPO / cp.LOCK_FILE)
+    assert cp.check_service("web", web, model, lock, REPO) == []
+    assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
+    assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []

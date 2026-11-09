@@ -52,6 +52,8 @@ gitleaks version       # 8.30.1: the early patch's hooks fail closed without it
 
 This is tasks.md T013, on the setup branch, before its note is written.
 
+**Proposed: Claude Code's pin is a floor** ([ADR 0023](../../docs/adr/0023-claude-code-pin-is-a-floor.md), 2026-10-18). Claude Code updates itself from your other projects, which this project's `DISABLE_AUTOUPDATER` doesn't reach. Once you accept the ADR and apply its patch, `make toolchain-check` passes a newer Claude Code with a WARN row and a `WARN:` line, and fails only an older one. Every other tool must still match its pin exactly. Until then, a newer Claude Code fails the check.
+
 Don't make Node 24 your default (`nvm alias default`): Claude Code is installed under your default Node, and the Makefile finds the pinned one itself. Also remove from your shell profile any variable an env template uses, such as `TELEGRAM_BOT_TOKEN`, and any `COMPOSE_*` or `H4_*`. Preflight refuses to start while the shell sets one, because compose would let it override the env file ([env-files.md §10](contracts/env-files.md#10-make-up-preflight), P5).
 
 ### 0.4 The host's Docker moves to the containerd image store (Heavy)
@@ -86,6 +88,7 @@ In IAM Identity Center, with the Author's own console session. IAM is a human ac
    make aws-login
    stat -c %a ~/.config/h4reet-ai/aws-home/.aws    # 700
    ```
+5. Before the first fallback call, complete Bedrock's one-time AWS Marketplace subscription for the model, as yourself: in the console, us-east-1, Bedrock → Model catalog → the model → open it in the Playground and send one short message. Bedrock subscribes the account on a model's first use, and that needs `aws-marketplace:ViewSubscriptions` and `aws-marketplace:Subscribe`, which your own identity has and the runtime role rightly doesn't. Until then the runtime role's calls fail with `AccessDeniedException` ("Model access is denied due to IAM user or service role is not authorized to perform the required AWS Marketplace actions…"), which the gateway classes `auth`, so hello answers `fallback_unavailable`. It can take a few minutes to take effect after the Playground call (the Author's run, 2026-10-12). The Playground's message is a Bedrock call billed to the account outside the gateway's meter, a fraction of a cent. Don't add the Marketplace actions to the runtime role's permission set (tasks.md T105 records what it holds).
 
 **Record:** the inference profile ID and the price version's `id`. Not the account ID, the portal URL, or anything from the SSO cache.
 
@@ -222,7 +225,7 @@ Check 2 stopped before these ([research.md](research.md)). **Where:** the Author
    nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    ```
 
-   Expected: at most about 23.4 GiB used, the Windows desktop included; the estimate is 21.3 GiB. If the model server fails to load for lack of memory (`make logs ENV=prod SERVICE=model-server-gpu`), set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=2` in prod's env file, run `make up ENV=prod` again, and record it (plan §3).
+   Expected: at most about 23.4 GiB used, the Windows desktop included; the estimate is 21.3 GiB. If the model server fails to load for lack of memory (`make logs ENV=prod SERVICE=model-server-gpu`), set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=1` in prod's env file, run `make up ENV=prod` again, and record it (plan §3). One slot of 16,384 tokens still holds a spec 007 twin turn; two would not (spec 007's plan, D27).
 2. **An internal-only network blocks egress** (R-06):
 
    ```bash
@@ -419,7 +422,7 @@ docker start h4reet-prod-model-server-gpu-1
 ```
 
 **Expected:**
-- Both answers are 200, with `route: "fallback"`, `provider: "aws.bedrock"`, and a `time_total` under 5 s. The first has `route_reason: "local_failed"` (the call itself failed over); the second `local_unhealthy` (the health check had noticed).
+- Both answers are 200, with `route: "fallback"`, `provider: "aws.bedrock"`, and a `time_total` under 5 s. The first has `route_reason: "local_failed"` (the call itself failed over) when it lands before the model server's 1 s health check notices, and `local_unhealthy` when it lands after, as it did in the Author's run on 2026-10-12, since `docker stop` takes a few seconds; the second `local_unhealthy` (the health check had noticed). Either reason passes.
 - In Langfuse, the first trace has two client spans: the failed local attempt, with `error.type`, then Bedrock's, with its cost.
 - Within 60 s, the dashboard's "Fallback sub-budget remaining" drops by the calls' cost, and "Cost by provider and attribution" shows `aws.bedrock` with `fallback` (SC-005).
 - After the start, once the model loads and passes three checks in a row, hello is local again.

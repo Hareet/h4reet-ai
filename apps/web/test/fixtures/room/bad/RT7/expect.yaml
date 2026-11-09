@@ -1,0 +1,7 @@
+rule: RT7
+file: apps/web/content/room/fx-notes.yaml
+path: lines[1].text
+why: a chalk line holding a phrase its block's exclude lists, in another case
+edits:
+  - { file: apps/web/content/room/fx-notes.yaml, at: [exclude], push: Glowseva }
+  - { file: apps/web/content/room/fx-notes.yaml, at: [lines, 1, text], set: No GLOWSEVA }

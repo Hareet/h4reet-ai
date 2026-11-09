@@ -75,7 +75,7 @@ Each stage ends by committing the artifact the next stage reads, and decisions a
 - [Constitution](.specify/memory/constitution.md): supersedes everything else in the repository
 - [Intent inbox](intent/) · [Specs](specs/) · [ADRs](docs/adr/) · [Merge requests](docs/merge-requests/) · [Incidents](docs/incidents/)
 - [How we build](docs/how-we-build/lifecycle.md) · [Start here](docs/START-HERE.md): the Author's setup and session notes
-- [Data-flow disclosure](docs/data-flow-disclosure.md) · [Runbooks](docs/runbooks/) · [Recordings](docs/recordings/)
+- [Data-flow disclosure](docs/data-flow-disclosure.md) · [Runbooks](docs/runbooks/) · [Recordings](docs/recordings/) · [Research notes](docs/research/)
 - [Contributing](CONTRIBUTING.md): we accept intents, not pull requests, from outside
 - [Security policy](SECURITY.md)
-- [MIT license](LICENSE)
+- Licenses: the [MIT license](LICENSE) for the code. The studio's assets in [`assets/`](assets/README.md), and the images published under `docs/research/images/`, are all rights reserved, with viewing and linking welcome: each directory's `LICENSE.md` says so ([ADR 0030](docs/adr/0030-media-license-and-ai-mark.md)).

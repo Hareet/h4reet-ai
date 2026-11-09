@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { journalCandidates } from "../../src/meter/init.js";
 import { Journal, JournalWriteError } from "../../src/meter/journal.js";
 
 const STACK = "dev";
@@ -84,5 +85,46 @@ describe("the journal's durability (data-model.md §3)", () => {
     const scan = await journal.scan({ envClass: "dev", realNow: OCT_9 });
     expect(ids(scan.records)).toEqual([1, 2]);
     expect(scan.linesSkipped).toBe(1);
+  });
+});
+
+describe("the studio window's operator record (spec 003's contracts/gpu-window.md §1, §5)", () => {
+  const studio = (auditId: number, state: "start" | "end") => ({
+    kind: "operator" as const,
+    action: "studio_window" as const,
+    state,
+    audit_id: auditId,
+    actor: "operator:dev#00000000",
+    period_day: "2026-10-09",
+    period_month: "2026-10",
+  });
+
+  it("is a record a rebuild reads, not a line it skips, and it counts nothing", async () => {
+    const dir = await stateDir();
+    const journal = new Journal({ stateDir: dir, stack: STACK });
+    await journal.append(studio(7, "start"), OCT_9);
+    await journal.append(studio(8, "end"), OCT_9);
+    const scan = await journal.scan({ envClass: "dev", realNow: OCT_9 });
+    expect(ids(scan.records)).toEqual([7, 8]);
+    expect(scan.linesSkipped).toBe(0);
+    const candidates = journalCandidates(scan.records, { day: "2026-10-09", month: "2026-10" });
+    expect(candidates).toEqual({
+      calls: { day: 0n, month: 0n, fallback_day: 0n },
+      floor: { day: null, month: null, fallback_day: null },
+      callRecords: 0,
+      renewal: undefined,
+    });
+  });
+
+  it("is skipped without its state, as a record out of shape is", async () => {
+    const dir = await stateDir();
+    const journal = new Journal({ stateDir: dir, stack: STACK });
+    const { state: _state, ...stateless } = studio(9, "start");
+    void _state;
+    await journal.append(stateless as unknown as ReturnType<typeof studio>, OCT_9);
+    await journal.append({ ...studio(10, "start"), state: "paused" } as unknown as ReturnType<typeof studio>, OCT_9);
+    const scan = await journal.scan({ envClass: "dev", realNow: OCT_9 });
+    expect(ids(scan.records)).toEqual([]);
+    expect(scan.linesSkipped).toBe(2);
   });
 });

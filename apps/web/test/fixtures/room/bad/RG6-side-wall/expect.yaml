@@ -1,0 +1,14 @@
+rule: RG6
+file: apps/web/room/scene.yaml
+path: selectables[4]
+why: a sign of its own on the floor, at the lower side-wall sign's height, 0.1 m out from the left wall and 0.15 m in front of that sign's centre, its core over the side-wall sign's member, which RG6 refuses at any stage
+caps:
+  schema: 1
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 5

@@ -8,6 +8,11 @@ missing or differs from its pin.
 A pin matches its exact version, or any release in its series: "3.12" matches 3.12.3, and "1.7" matches 1.7.1.
 Claude Code is required where agent sessions run (the host), not inside the devcontainer, which sets
 H4_DEVCONTAINER=1 and builds without it by default.
+
+Claude Code's pin is a floor (ADR 0023). It updates itself from the Author's other projects, which this project's
+DISABLE_AUTOUPDATER doesn't reach, so a newer release is WARN: a row, and a line starting "WARN:", that don't fail the
+check. An older release is DRIFT. The agent-config evals record the version each run used, and a moved floor is in
+their trigger hash.
 """
 
 from __future__ import annotations
@@ -25,6 +30,8 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_VARS = REPO / ".devcontainer" / "toolchain.vars"
 DEFAULT_LINT_NODE = Path.home() / ".local" / "share" / "h4reet" / "lint-node"
 VERSION_RE = re.compile(r"(\d+(?:\.\d+)+)")
+# Pins that are floors (ADR 0023): a newer release is WARN, not DRIFT.
+FLOORS = frozenset({"CLAUDE_CODE_VERSION"})
 
 
 @dataclass
@@ -33,7 +40,7 @@ class Row:
     pinned: str
     found: str
     where: str
-    status: str  # OK, DRIFT, MISSING, or SKIP
+    status: str  # OK, WARN (newer than a floor), DRIFT, MISSING, or SKIP
 
 
 def read_vars(path: Path) -> dict[str, str]:
@@ -53,6 +60,15 @@ def read_vars(path: Path) -> dict[str, str]:
 def matches(pinned: str, found: str) -> bool:
     """True when found is the pinned version, or a release in the pinned series."""
     return found == pinned or found.startswith(pinned + ".")
+
+
+def newer(pinned: str, found: str) -> bool:
+    """True when found is a later release than pinned, number by number: 2.1.301 is newer than 2.1.296 and 2.1.30
+    isn't. A pin that isn't dotted numbers is never below anything."""
+    try:
+        return tuple(map(int, found.split("."))) > tuple(map(int, pinned.split(".")))
+    except ValueError:
+        return False
 
 
 def first_version(text: str) -> str | None:
@@ -130,16 +146,12 @@ def check(pins: dict[str, str], lint_node: Path, in_devcontainer: bool) -> list[
             rows.append(
                 Row(tool, pinned, "-", where, "MISSING" if required else "SKIP")
             )
+        elif matches(pinned, found):
+            rows.append(Row(tool, pinned, found, where, "OK"))
+        elif key in FLOORS and newer(pinned, found):
+            rows.append(Row(tool, pinned, found, where, "WARN"))
         else:
-            rows.append(
-                Row(
-                    tool,
-                    pinned,
-                    found,
-                    where,
-                    "OK" if matches(pinned, found) else "DRIFT",
-                )
-            )
+            rows.append(Row(tool, pinned, found, where, "DRIFT"))
 
     for tool, key, argv in (
         ("node", "NODE_VERSION", ["node", "--version"]),
@@ -222,6 +234,12 @@ def main(argv: list[str]) -> int:
     in_devcontainer = os.environ.get("H4_DEVCONTAINER") == "1"
     rows = check(pins, lint_node, in_devcontainer)
     print(render(rows))
+    above = [r for r in rows if r.status == "WARN"]
+    for r in above:
+        print(
+            f"WARN: {r.tool} {r.found} is newer than its floor, {r.pinned} (ADR 0023): the agent-config evals "
+            "record the version each run used, and moving the floor runs them again"
+        )
     bad = [r for r in rows if r.status in ("DRIFT", "MISSING")]
     if bad:
         names = ", ".join(r.tool for r in bad)
@@ -229,7 +247,12 @@ def main(argv: list[str]) -> int:
             f"toolchain-check: {len(bad)} of {len(rows)} differ from their pins ({names}); see tasks.md T013"
         )
         return 1
-    print(f"toolchain-check: all {len(rows)} match their pins")
+    tail = (
+        f", {len(above)} newer than its floor ({', '.join(r.tool for r in above)})"
+        if above
+        else ""
+    )
+    print(f"toolchain-check: all {len(rows)} match their pins{tail}")
     return 0
 
 

@@ -1,0 +1,6 @@
+rule: RV3
+file: apps/web/room/catalog/fx-desk.yaml
+path: drawing.primitives[0].fill
+why: a drawing's colour that is neither #rrggbb, nor none, nor a palette colour of the scene's look
+edits:
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [drawing, primitives, 0, fill], set: fx-nocolour }

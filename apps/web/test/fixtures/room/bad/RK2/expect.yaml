@@ -1,0 +1,11 @@
+rule: RK2
+file: assets/room/fx-desk.glb
+path: "-"
+why: a model of 36 triangles, over its piece's budget of 20
+generate: { assets/room/fx-desk.glb: glb:desk, assets/room/records.json: records }
+edits:
+  - file: apps/web/room/catalog/fx-desk.yaml
+    at: [origin, bounds]
+    set: { min: [-0.8, 0, -0.4], max: [0.8, 0.75, 0.4] }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [budget, triangles], set: 20 }
+  - { file: apps/web/room/catalog/fx-desk.yaml, at: [model], set: { file: fx-desk.glb } }

@@ -1,0 +1,13 @@
+# Plug-in amounts for 03-grants-and-credits.md's credits. This file is public.
+# Award amounts never come here (03's "Do not claim"). The one amount here is the Anthropic credits', "public for the
+# resume and the twin" in the Author's words (2026-10-30). The phrasing is the bare value, so his words render as he said them.
+
+topic: 03-grants-and-credits
+facts:
+  - id: credits.anthropic_amount
+    label: The Anthropic usage credits in his account of the PowerSync work, "to create custom sync-layer and pilot with a partner" (02-production-infrastructure-national-scale.md); who received them, in the answer he chose on 2026-11-06, "Medic, on my application"
+    value: "$25k"
+    tag: A
+    source: "The Author, 2026-10-30, in his words as he gave them again on 2026-11-06: 'garnered $25k usage credits from Anthropic to create custom sync-layer and pilot with a partner', and 'public for the resume and the twin'. On 2026-11-06 he chose 'The same credits' (as 03's Anthropic credits of 2026-09-14) and 'Medic, on my application'"
+    public_safe: true
+    phrasing: "{value}"

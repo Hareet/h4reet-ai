@@ -7,7 +7,8 @@ A later task's mark expires, as plan §11's do: once tasks.md marks the task don
 Bedrock pages also quote their alerts as alerts.md §3's examples give them, and hello's degraded detail as
 gateway-http.md §3 does, read from those files.
 
-From T111: the folder holds exactly the pages plan §16 lists; the index, docs/runbooks/README.md, links each and
+From T111: the folder holds exactly the pages plan §16 lists, and, from spec 003, the pages its own plan §8 lists, once
+each exists (tasks.md T022, T037); the index, docs/runbooks/README.md, links each and
 names the alerts and causes alerts.md §6 sends to it; the agents' engine's page quotes the messages the engine's code
 prints and names the Author's commands its code takes; and the local gate's page names what make check prints. From
 US6's review, it gives --host in the gate's own words, read from tools/gates/gate.
@@ -248,11 +249,47 @@ def plan_runbooks() -> list[str]:
     return names
 
 
+SPEC_003_PLAN = REPO / "specs" / "003-studio-assets" / "plan.md"
+SPEC_010_PLAN = REPO / "specs" / "010-anthropic-provider" / "plan.md"
+
+
+def spec_003_runbooks() -> set[str]:
+    """The pages spec 003's plan §8 lists in its "Runbooks" bullet, each written by the task group that needs it."""
+    text = SPEC_003_PLAN.read_text(encoding="utf-8")
+    start = text.index("\n## 8. ")
+    section = text[start : text.index("\n## 9. ", start)]
+    (line,) = [ln for ln in section.splitlines() if ln.startswith("- **Runbooks:**")]
+    return set(re.findall(r"`([a-z0-9-]+\.md)`", line))
+
+
+def spec_010_runbooks() -> set[str]:
+    """The new pages spec 010's plan §9 lists in its "Runbooks" paragraph (the Anthropic API's)."""
+    text = SPEC_010_PLAN.read_text(encoding="utf-8")
+    (line,) = [ln for ln in text.splitlines() if ln.startswith("**Runbooks**:")]
+    return set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)` \(new\)", line))
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses
     assert sorted(names) == sorted(PLAN_PAGES)
-    assert sorted(p.name for p in pages()) == sorted(PLAN_PAGES.values())
+    # Spec 003 adds its own pages, each with its task group (asset-withdrawal.md in Phase 2, studio-gpu-window.md in
+    # Phase 4); nothing else may be there.
+    later = spec_003_runbooks()
+    assert later == {
+        "asset-withdrawal.md",
+        "studio-gpu-window.md",
+    }  # not vacuous: spec 003's list parses
+    # Spec 010 adds the Anthropic API's page (its plan §9).
+    assert spec_010_runbooks() == {
+        "anthropic-unavailable.md"
+    }  # not vacuous: spec 010's list parses
+    later |= spec_010_runbooks()
+    found = {p.name for p in pages()}
+    assert set(PLAN_PAGES.values()) <= found
+    assert found - set(PLAN_PAGES.values()) <= later, (
+        found - set(PLAN_PAGES.values()) - later
+    )
 
 
 def index_line(page: str) -> str:
@@ -344,7 +381,12 @@ def test_the_gates_page_names_what_make_check_prints() -> None:
     runner = (REPO / "tools" / "gates" / "run_checks.py").read_text(encoding="utf-8")
     (order,) = re.findall(r"^ORDER = \[(.*)\]$", runner, re.MULTILINE)
     statuses = re.findall(r'"([A-Z]+)"', order)
-    assert statuses == ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"]
+    # Spec 006's interim patch adds WARN, between PLANNED and SKIP as in the gate's summary line; this branch's merge
+    # comes before the patch, so the runner reads either way here, and the page names every status it has.
+    assert statuses in (
+        ["FAIL", "PENDING", "PLANNED", "SKIP", "PASS"],
+        ["FAIL", "PENDING", "PLANNED", "WARN", "SKIP", "PASS"],
+    )
     assert 'f"make check: {parts}{tail}"' in runner
     text = (RUNBOOKS / "local-gate.md").read_text(encoding="utf-8")
     assert [s for s in statuses if f"**{s}" not in text and f"`{s}`" not in text] == []

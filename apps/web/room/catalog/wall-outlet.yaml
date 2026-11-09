@@ -1,0 +1,21 @@
+version: 1
+id: wall-outlet
+name: Wall outlet
+size: { w: 0.072, h: 0.122, d: 0.045, estimated: true }
+stylized_scale: 1
+origin:
+  point: the centre of the plate's back, against the wall.
+  bounds: { min: [-0.036, -0.061, 0], max: [0.036, 0.061, 0.0451] }
+anchors:
+  cord-end: { at: [0, -0.004, 0.04] }
+standin:
+  - { shape: box, size: [0.07, 0.12, 0.008], at: [0, 0, 0.004], color: sign-cream }
+  - { shape: box, size: [0.034, 0.05, 0.035], at: [0, 0.021, 0.027], color: paper }
+drawing: { from: standin }
+budget: { gzip_bytes: 50000, triangles: 1500, texture_px: 1, texture_bytes: 1 }
+model: { file: wall-outlet.glb }
+work_order:
+  method: Model a duplex outlet plate with blank sockets, the charger's plug in the upper one, as plain solid parts in flat colours.
+  shots: []
+  measurements: []
+  studio_notes: No brand, rating, or label (FR-016).
