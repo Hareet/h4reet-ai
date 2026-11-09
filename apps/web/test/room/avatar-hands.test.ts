@@ -4,8 +4,10 @@
 // to the figures' controllers as the room's loader gives it: the model parsed through the room's image step, with a
 // stand-in decoder, since Node has no createImageBitmap, and the clips by three's GLTFLoader. The hand it finds holds
 // the paper: where "idle-holding"'s first frame sets apart from the idle's the channels of one hand's bones alone, read
-// here from the clips by name, apart from R-08's rule, it is that hand. The studio's woman and man close only their
-// left hands' fingers on the sheet (the intake note's Facts), so the left holds for both.
+// here from the clips by name, apart from R-08's rule, it is that hand; and a rig with no hand bones has none, whatever
+// its "idle-holding" moves (FR-018), so a later intake of such a rig changes nothing here (the review of 70b3c563, nit
+// 2). The studio's woman and man close only their left hands' fingers on the sheet (the intake note's Facts), so the
+// left holds for both.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -78,7 +80,7 @@ describe("the holding hand of the tree's own avatars (FR-018; R-08; the Author's
   });
 
   for (const h of holders) {
-    it(`${h.id}: the hand whose bones alone "idle-holding" sets apart from the idle holds the paper`, async () => {
+    it(`${h.id}: the hand whose bones alone "idle-holding" sets apart from the idle holds the paper, none with no hand bone`, async () => {
       const model = (await parseModel(bytesOf(h.model), { reduced: false, decode })).gltf.scene;
       const clip = async (path: string): Promise<AnimationClip> => {
         const first = (await new GLTFLoader().parseAsync(bytesOf(path), "")).animations[0];
@@ -87,15 +89,19 @@ describe("the holding hand of the tree's own avatars (FR-018; R-08; the Author's
       };
       const [idle, holding] = [await clip(h.idle), await clip(h.holding)];
       const expected = onlyHand(model, changed(idle, holding));
+      // The hand bones the rig has (FR-018): with neither, as a dog's or a dinosaur's rig may ship, no hand holds,
+      // whatever its "idle-holding" moves; with one, that one.
+      const present = Object.values(HANDS).filter((name) => model.getObjectByName(name) !== undefined);
       const room = buildRoom(scene, { avatar: h.id, label: () => new Object3D(), index });
       const figures = createAvatarFigures(room, scene, { chosen: h.id as AvatarId });
       expect(figures.model(h.id, model)).toBe(true);
       figures.clip(h.id, "idle", [idle]);
       figures.clip(h.id, "idle-holding", [holding]);
       expect(figures.shows("visitor")).toBe(true);
-      const found = figures.handOf("visitor")?.name;
+      const found = figures.handOf("visitor")?.name ?? null;
+      if (present.length < 2) expect(found, `${h.id}'s rig has ${present.length} hand bones`).toBe(present[0] ?? null);
       // A clip that changes more than one hand's bones has no answer here but that a hand holds.
-      if (expected === null) expect([HANDS.right, HANDS.left]).toContain(found);
+      else if (expected === null) expect(present).toContain(found);
       else expect(found, `${h.id}'s "idle-holding" changes only ${expected}'s bones`).toBe(expected);
       figures.dispose();
     });
