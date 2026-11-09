@@ -61,8 +61,8 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
-import { DEFAULT_METRICS, OPENING, fitsHud, hudBoxes } from "./compose/hud";
-import type { HudMetrics, HudState } from "./compose/hud";
+import { OPENING, fitsHud, hudBoxes } from "./compose/hud";
+import type { HudState } from "./compose/hud";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -75,10 +75,13 @@ import { createMotionStore } from "./motion";
 import type { MotionStore } from "./motion";
 import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
+import { createViewport } from "./hud/viewport";
+import type { Viewport, WindowMeasures } from "./hud/viewport";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
 import {
   SCENE_WAIT_MS,
+  SETTLE_FRAMES,
   capability,
   createQualityController,
   meetsModelFloor,
@@ -94,7 +97,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
+import type { ClearArea, FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -127,6 +130,9 @@ export interface RoomDeps {
   /** A drafts build's frame log (spec 004, T246; R-70): main.ts gives `virtual:room-frame-log`'s factory in a drafts
    *  build, and nothing in a release build, which then keeps no log. */
   frameLog?: (options: FrameLogOptions) => FrameLog;
+  /** Spec 005 (plan.md §4.3): the window's measures and their changes, hud/viewport.ts's for the page; the tests give a
+   *  stand-in. */
+  viewport?: (win: Window) => Viewport;
 }
 
 export interface RoomHandle {
@@ -171,21 +177,27 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
   const hudState: HudState = OPENING;
+  /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
+  let viewport: Viewport | null = null;
+  /** The clear area the 3D stage frames the room into, in the canvas's CSS pixels, with the window it was computed for;
+   *  null in the stacked layout, where the canvas is its own stage. */
+  let clear: ClearArea | null = null;
+  /** The quality controller's hold while the window changes: released SETTLE_FRAMES frames after the last re-fit, so a
+   *  drag never steps the quality down (FR-013; PD-15). */
+  let settling: { release: () => void; frames: number } | null = null;
 
-  /** The window's measures: its CSS size, its root font size, and its safe areas. */
-  function measures(): { w: number; h: number; metrics: HudMetrics } {
-    const size = Number.parseFloat(win.getComputedStyle(doc.documentElement).fontSize);
-    const rem = Number.isFinite(size) && size > 0 ? size : DEFAULT_METRICS.rem;
-    return { w: win.innerWidth, h: win.innerHeight, metrics: { rem, safe: DEFAULT_METRICS.safe } };
-  }
-
-  /** Lays the HUD out for the window: the layout and its boxes from compose/hud.ts, or the stacked layout where it
-   *  can't fit (FR-007), applied to the page's root (plan.md §4.3). */
-  function fitRoom(): void {
+  /**
+   * Re-fits the room to the window (spec 005, FR-012; plan.md §4.3): the layout and its boxes from compose/hud.ts, or
+   * the stacked layout where the HUD can't fit (FR-007), applied to the page's root; the clear area to the stage, which
+   * frames into it on its next frame; the quality controller held; and the re-fit in a drafts build's frame log. The
+   * keyboard's inset alone ("keyboard") lifts the HUD's foot and re-frames nothing.
+   */
+  function refit(what: "refit" | "keyboard" = "refit"): void {
     const layout = room;
-    if (!layout) return;
-    const { w, h: height, metrics } = measures();
-    const screen = { w, h: height };
+    if (!layout || !viewport) return;
+    const m: WindowMeasures = viewport.read();
+    const metrics = { rem: m.rem, safe: m.safe };
+    const screen = { w: m.w, h: m.h };
     const boxes = hudBoxes(screen, hudState, metrics);
     const fits = fitsHud(screen, hudState, metrics);
     layout.applyHud({
@@ -197,7 +209,20 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       column: boxes.column?.w ?? 0,
       dock: boxes.dock?.h ?? 0,
       clear: boxes.clear,
-      keyboard: 0,
+      keyboard: m.keyboard,
+    });
+    if (what === "keyboard") return;
+    clear = fits ? { area: boxes.clear, window: screen } : null;
+    if (controller) {
+      if (settling) settling.frames = SETTLE_FRAMES;
+      else settling = { release: controller.hold(), frames: SETTLE_FRAMES };
+    }
+    log?.record("refit", {
+      w: m.w,
+      h: m.h,
+      layout: fits ? boxes.layout : "stacked",
+      clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
+      ratio: m.dpr,
     });
   }
 
@@ -368,6 +393,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   });
   const onFrame = (time: number): void => {
     log?.frame(time);
+    // A re-fit's hold ends SETTLE_FRAMES frames after the last one (spec 005, FR-013).
+    if (settling) {
+      settling.frames -= 1;
+      if (settling.frames <= 0) {
+        settling.release();
+        settling = null;
+      }
+    }
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
   };
@@ -446,7 +479,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       event.preventDefault();
       closeResume();
     });
-    fitRoom();
+    viewport = (deps.viewport ?? ((w: Window): Viewport => createViewport(w)))(win);
+    viewport.subscribe((what) => refit(what));
+    refit();
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
     layout.heading.focus();
@@ -554,6 +589,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         text,
         cost: cost.state,
         onFigure: figureSignal,
+        clear: () => clear,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.

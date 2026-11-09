@@ -123,7 +123,7 @@ function run() {
     reducedMotion: true,
     select: (id) => selected.push(id),
     onFrame: () => undefined,
-    clear: () => clear,
+    clear: () => ({ area: clear, window: { w: window.w, h: window.h } }),
   });
   Object.defineProperty(stage.canvas, "clientWidth", { configurable: true, get: () => window.w });
   Object.defineProperty(stage.canvas, "clientHeight", { configurable: true, get: () => window.h });
@@ -223,30 +223,32 @@ describe("the 3D stage at the window (spec 005, T015)", () => {
     expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);
     const o = viewOffsetFor(clear, { w: 1280, h: 720 });
     expect(camera.view).toMatchObject({ enabled: true, fullWidth: o.fullWidth, offsetY: o.y, width: 1280 });
-    // A press on the floor, in the clear area's lower part, where no selectable is: the figure walks to the floor
-    // point under it, as three's own ray through the shifted projection finds it.
+    // A press on the floor 0.4 m to the figure's right, where no selectable is: the canvas pixel the shifted camera
+    // shows that point at, which the stage must move into the clear area before its ray, so the figure walks there.
     const figure = (): Vector3 => {
       const node = r.drawn.room?.getObjectByName("cutout")?.parent;
       if (!node) throw new Error("no visitor's figure");
       return node.getWorldPosition(new Vector3());
     };
-    const [px, py] = [clear.x + clear.w * 0.35, clear.y + clear.h * 0.82];
-    const ndc = new Vector2((px / 1280) * 2 - 1, -((py / 720) * 2 - 1));
-    const caster = new Raycaster();
-    camera.updateMatrixWorld(true);
-    caster.setFromCamera(ndc, camera);
-    const goal = caster.ray.intersectPlane(new Plane(new Vector3(0, 1, 0), 0), new Vector3());
-    if (!goal) throw new Error("the press misses the floor");
     const start = figure();
-    const before = Math.hypot(start.x - goal.x, start.z - goal.z);
+    const goal = new Vector3(start.x + 0.4, 0, start.z);
+    camera.updateMatrixWorld(true);
+    const p = goal.clone().project(camera);
+    const [px, py] = [((p.x + 1) / 2) * 1280, ((1 - p.y) / 2) * 720];
+    expect(px).toBeGreaterThan(clear.x);
+    expect(py).toBeGreaterThan(clear.y);
+    expect(py).toBeLessThan(clear.y + clear.h);
+    // three's own ray through that pixel of the shifted projection meets the floor at the goal.
+    const caster = new Raycaster();
+    caster.setFromCamera(new Vector2((px / 1280) * 2 - 1, -((py / 720) * 2 - 1)), camera);
+    const hit = caster.ray.intersectPlane(new Plane(new Vector3(0, 1, 0), 0), new Vector3());
+    expect(hit?.distanceTo(goal)).toBeLessThan(1e-6);
     r.selected.length = 0;
     r.tap(px, py);
-    expect(r.selected).toEqual([]);
     for (let k = 0; k < 400; k += 1) r.clock.advance(16);
+    expect(r.selected).toEqual([]);
     const end = figure();
-    const after = Math.hypot(end.x - goal.x, end.z - goal.z);
-    expect(before).toBeGreaterThan(0.3);
-    expect(after, `from ${before.toFixed(2)} m to ${after.toFixed(2)} m`).toBeLessThan(0.15);
+    expect(Math.hypot(end.x - goal.x, end.z - goal.z), "the figure's distance from the goal").toBeLessThan(0.05);
     r.stage.dispose();
   });
 });

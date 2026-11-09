@@ -146,7 +146,7 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Tests for User Story 1 (first)
 
-- [ ] T015 [P] [US1] Extend `apps/web/test/room/scene.test.ts`, `test/room/walking.test.ts`, and `test/ui/pick.test.ts` and `test/ui/highlight.test.ts` (FR-012, FR-014 to FR-018, FR-035; SC-001, SC-014). The 3D stage, with a stub renderer, over SC-001's windows and ratios:
+- [x] T015 [P] [US1] Extend `apps/web/test/room/scene.test.ts`, `test/room/walking.test.ts`, and `test/ui/pick.test.ts` and `test/ui/highlight.test.ts` (FR-012, FR-014 to FR-018, FR-035; SC-001, SC-014). The 3D stage, with a stub renderer, over SC-001's windows and ratios:
   - `setPixelRatio(bufferRatio(…))` and `setSize(w, h, false)` at the window's CSS size;
   - the camera's aspect is the clear area's, and `setViewOffset` takes `viewOffsetFor`'s numbers;
   - `ink.setStageHeight` gets the canvas's height, and `highlight.setStage` the canvas's size (the initial `REFERENCE_DESKTOP` values are overwritten, so the look doesn't change);
@@ -156,7 +156,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - the bundle's 3D part and the scene's data are unchanged (FR-014).
 
   Check: RED before T017 (feat/005-full-window-room)
-- [ ] T016 [P] [US1] Write `apps/web/test/ui/resize.test.ts` (FR-008, FR-012, FR-013; SC-001), through the room with `hud/viewport.ts` stubbed, in 3D (stub stage) and 2D, over SC-001's steps and full screen entered and left:
+- [x] T016 [P] [US1] Write `apps/web/test/ui/resize.test.ts` (FR-008, FR-012, FR-013; SC-001), through the room with `hud/viewport.ts` stubbed, in 3D (stub stage) and 2D, over SC-001's steps and full screen entered and left:
   - the room's data attributes and properties are those of `hud.ts` at each window;
   - the conversation, the text box's text, the open resume, the target, the walking view, the quality level, the mode, the panels' states, and focus are unchanged;
   - over 10 s of 20-frame-a-second frames during a continuous resize, the controller holds and steps down 0 times;
@@ -166,8 +166,8 @@ description: "Task list for spec 005, the room fills the browser window"
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Change `scene.ts` (the resize with `bufferRatio`; `SceneOptions.clear()`; the shifted camera; `ink` and `highlight` at the canvas), `scene/bundle3d.ts` (`frameCamera(camera, clear, canvas, boxes)`; the picker's points through `canvasToClear`), and `scene/walking.ts` (the production framing at the clear area; taps moved into it) by plan §4.4 and §5. Check: T015 passes (feat/005-full-window-room)
-- [ ] T018 [US1] Write `apps/web/src/room/hud/viewport.ts` (plan §4.3) and `app.ts`'s `refit`: the layout and `fitsHud`, the boxes to `layout.ts`, the clear area to the stage, the controller held until `SETTLE_FRAMES` after the last re-fit, and `refit` entries in a drafts build's frame log (`signals/frame-log.ts` gains the event). Check: T016 passes; `test/room/live.test.ts`'s frame-log cases pass with the new event (feat/005-full-window-room)
+- [x] T017 [US1] Change `scene.ts` (the resize with `bufferRatio`; `SceneOptions.clear()`; the shifted camera; `ink` and `highlight` at the canvas), `scene/bundle3d.ts` (`frameCamera(camera, clear, canvas, boxes)`; the picker's points through `canvasToClear`), and `scene/walking.ts` (the production framing at the clear area; taps moved into it) by plan §4.4 and §5. Check: T015 passes (feat/005-full-window-room)
+- [x] T018 [US1] Write `apps/web/src/room/hud/viewport.ts` (plan §4.3) and `app.ts`'s `refit`: the layout and `fitsHud`, the boxes to `layout.ts`, the clear area to the stage, the controller held until `SETTLE_FRAMES` after the last re-fit, and `refit` entries in a drafts build's frame log (`signals/frame-log.ts` gains the event). Check: T016 passes; `test/room/live.test.ts`'s frame-log cases pass with the new event (feat/005-full-window-room)
 
 **Checkpoint**: the room fills any window and follows it; picking, walking, and the highlight hold at every size.
 

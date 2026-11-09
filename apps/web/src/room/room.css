@@ -149,6 +149,20 @@ body.in-room .disclosure p {
   }
 }
 
+/* The safe-area probe (spec 005, FR-009; hud/viewport.ts): the insets env() gives with viewport-fit=cover, read from its
+   padding; never seen and never pressed. */
+.hud-safe-probe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* The room's block (spec 005, FR-008; plan.md §4.1): the window's width and its dynamic height, 100vh first for a
    browser without dvh, with no page frame around it; the 3D canvas or the 2D drawing fills it, the HUD is laid over it,
    and "Around the room" follows below in a reading column. */

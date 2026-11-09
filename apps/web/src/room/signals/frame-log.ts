@@ -35,7 +35,9 @@ export type FrameEvent =
   | "walk"
   // Spec 009's figures (its FR-035; plan.md §3.4): a picture's change (`figure`, `shows`, `why`) and a clip's.
   | "figure"
-  | "clip";
+  | "clip"
+  // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, and the buffer's ratio.
+  | "refit";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;

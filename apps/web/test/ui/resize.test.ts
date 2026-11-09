@@ -118,7 +118,7 @@ describe("the room re-fits to the window (spec 005, T016)", () => {
         expect(laidOut(v), where).toEqual(expected(viewport.measures));
         if (webgl) {
           const b = hudBoxes({ w: step.w, h: step.h });
-          expect(v.scene.created[0]?.clear?.(), where).toEqual(b.clear);
+          expect(v.scene.created[0]?.clear?.()?.area, where).toEqual(b.clear);
         }
       }
     });
@@ -170,7 +170,7 @@ describe("the room re-fits to the window (spec 005, T016)", () => {
       const after = laidOut(v);
       expect(after["--keyboard"]).toBe("300px");
       expect({ ...after, "--keyboard": "" }).toEqual({ ...before, "--keyboard": "" });
-      if (webgl) expect(v.scene.created[0]?.clear?.()).toEqual(hudBoxes({ w: 390, h: 844 }).clear);
+      if (webgl) expect(v.scene.created[0]?.clear?.()?.area).toEqual(hudBoxes({ w: 390, h: 844 }).clear);
     });
   }
 
