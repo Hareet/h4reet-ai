@@ -2162,7 +2162,7 @@
       "type": "table",
       "id": 37,
       "title": "Alerts by channel and outcome",
-      "description": "Delivery attempts in the dashboard's time range, by channel, kind, and outcome: delivered, retry, or failed (FR-032). A failed channel is the runbook alert-channel-down.md.",
+      "description": "Delivery attempts in the dashboard's time range, by channel, kind, outcome (delivered, retry, or failed; FR-032), and form: designed, plain, or none for a channel given up with no attempt (spec 011, FR-044). A failed channel is the runbook alert-channel-down.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
@@ -2170,7 +2170,7 @@
       "gridPos": {
         "x": 0,
         "y": 74,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "targets": [
@@ -2180,7 +2180,53 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "sum by (h4_channel, h4_alert_kind, h4_outcome) (increase(h4_alerts_total[$__range]))",
+          "expr": "sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) (increase(h4_alerts_total[$__range]))",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": 82,
+      "title": "Alerts sent as plain text by fallback",
+      "description": "Attempts that sent the plain form in the designed one's place, in the dashboard's time range, by channel, kind, and reason: entities_refused, message_refused, render_failed, over_limit, or not_rendered (spec 011, FR-045, FR-046). The alert arrived in today's form; the runbook alert-channel-down.md says what each reason means.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 74,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) (increase(h4_alert_fallbacks_total[$__range]))",
           "range": false,
           "instant": true,
           "format": "table"
@@ -2214,9 +2260,9 @@
         "uid": "prom"
       },
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 74,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "targets": [
@@ -2266,9 +2312,9 @@
         "uid": "prom"
       },
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 74,
-        "w": 8,
+        "w": 6,
         "h": 7
       },
       "targets": [
@@ -2337,7 +2383,7 @@
       "type": "logs",
       "id": 40,
       "title": "Alert log",
-      "description": "The alert outbox's events from the gateway's log: queued, delivered, retry, failed. Empty while telemetry is down; the store keeps the outbox (contracts/alerts.md §4.4).",
+      "description": "The alert outbox's events from the gateway's log: queued, delivered, retry, failed, and fallback (spec 011: an attempt that sent the plain form in the designed one's place). Empty while telemetry is down; the store keeps the outbox (contracts/alerts.md §4.4).",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -2355,7 +2401,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service_name=\"gateway\"} | event=~\"alert\\\\.(queued|delivered|retry|failed)\"",
+          "expr": "{service_name=\"gateway\"} | event=~\"alert\\\\.(queued|delivered|retry|failed|fallback)\"",
           "queryType": "range"
         }
       ],

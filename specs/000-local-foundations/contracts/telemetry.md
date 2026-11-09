@@ -472,13 +472,15 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 | Panel | Type | Query |
 |---|---|---|
 | Audit log (FR-034) | table (SQL) | `SELECT recorded_at AS "time", ts AS gateway_time, actor, action, reason, before::text AS before, after::text AS after FROM gateway.audit_log WHERE $__timeFilter(recorded_at) ORDER BY recorded_at DESC LIMIT 200` |
-| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome) (increase(h4_alerts_total[$__range]))` |
+| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) (increase(h4_alerts_total[$__range]))` |
+| Alerts sent as plain text by fallback | table | `sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) (increase(h4_alert_fallbacks_total[$__range]))` |
 | Alert delivery lag p95 | time series | `histogram_quantile(0.95, sum by (le) (rate(h4_alert_delivery_lag_seconds_bucket[$__rate_interval])))` |
-| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed)"` |
+| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed\|fallback)"` |
 | Operator actions | bar chart | `sum by (h4_action) (increase(h4_operator_actions_total[$__range]))`, and `sum(increase(h4_test_machinery_refused_total[$__range]))` |
 | Audit events, from the logs | logs | `{service_name="gateway"} \| event_name="h4.audit"` |
 
 - The audit panel filters on `recorded_at`, the real time, so dev's test-clock jumps don't push rows outside the dashboard's range. It shows the gateway's own time beside it.
+- **(spec 011, Amendment 0-9)** The outcomes table shows each attempt's form, `designed`, `plain`, or `none`; "Alerts sent as plain text by fallback" sits beside it, by channel, kind, and reason, where a fallback shows though its alert arrived (FR-046); and the alert log reads `alert.fallback` too. Its runbook is `alert-channel-down.md`'s "Alerts arrive as plain text" ([alerts.md §6](alerts.md#6-runbooks)). A sample request is a rare operator write, as a reset is, so it has no panel of its own: its request is a row of the audit log (`alert_samples`), and its samples' deliveries rows of the two alert tables under the kind `sample`.
 - The table is `grafana_ro`'s: SELECT on `gateway.audit_log` and `gateway.v_state` only ([research.md R-10](../research.md#r-10-grafanas-audit-panel-reads-the-store-not-telemetry)). The two log panels are secondary; they go empty during a telemetry outage, and the table doesn't.
 
 ### 7.6 Telemetry health

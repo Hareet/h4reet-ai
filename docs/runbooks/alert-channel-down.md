@@ -1,6 +1,6 @@
 # Runbook: an alert channel is down
 
-Telegram or email, or both, can't deliver the gateway's alerts. This page covers failed deliveries, which the dashboard's alert panel shows and which send no alert of their own ([contracts/alerts.md §4.4 and §6](../../specs/000-local-foundations/contracts/alerts.md#44-outcomes-and-when-something-is-down)). Spec 000: FR-032; ADR 0005; the spec's edge case "Alert channel down".
+Telegram or email, or both, can't deliver the gateway's alerts, or they arrive as plain text where their designed form was refused or couldn't be rendered (below). This page covers failed deliveries, which the dashboard's alert panel shows and which send no alert of their own ([contracts/alerts.md §4.4 and §6](../../specs/000-local-foundations/contracts/alerts.md#44-outcomes-and-when-something-is-down)). Spec 000: FR-032; ADR 0005; the spec's edge case "Alert channel down".
 
 ## Symptoms
 
@@ -43,6 +43,20 @@ In your own terminal.
 ## Undo
 
 Put back any env value you changed, and run `make up ENV=<stack>` again.
+
+## Alerts arrive as plain text
+
+Spec 011 (FR-046; its plan §9.5): an alert's designed form, Telegram's message with its entities or the email's HTML part, gave way to its plain form, today's text, and the alert arrived ([contracts/alerts.md §4.1](../../specs/000-local-foundations/contracts/alerts.md#41-the-dispatcher)).
+
+- **Symptom.** The dashboard's "Alerts sent as plain text by fallback" counts, by channel, kind, and reason; "Alert log" shows `alert.fallback` events; an alert on your phone or in your mailbox reads as one block of text, with no emoji, bold, or HTML.
+- **Impact.** None on delivery: the plain form went in the same attempt, with no added wait, and a fallback raises no alert of its own. That alert stays plain on that channel for its remaining attempts.
+- **Act, by reason** (the `reason` of each `alert.fallback` record, with its `kind` and `dedupe_key`; `make logs ENV=<stack> SERVICE=gateway TAIL=2000`):
+  - `entities_refused`: Telegram answered the designed message with a 400 (`error_class` `http_400` or `telegram_400`). Read which kinds it refused, and the Bot API's changelog. To stop the doubled request until a fix lands, set `formats: {telegram: plain}` in `config/alerts.yaml` and run `make up ENV=<stack>`; then open an intent with the kinds and the keys.
+  - `message_refused`: the mail server refused the multipart message itself, a 5xx to its data (`error_class` `smtp_5xx`). The same, with `formats: {email: plain}`.
+  - `render_failed` or `over_limit`: a design bug: the renderer threw, failed its own check, or passed its bound. Open an intent with the kind and the key; the golden files under `services/gateway/test/fixtures/alerts/` show what each design should be.
+  - `not_rendered`: expected for rows queued in the 300 s before a deploy that brought the designs, which hold facts from before them. After that, a decoding bug: open an intent with the kind and the key.
+- **Verify a fix.** Send the samples on dev-cpu, then on prod (`make operator-alert-samples` with that stack's `ENV` and a `REASON`), and read them: each arrives designed, and the panel stays at zero.
+- **Undo the switch.** Remove `formats` from `config/alerts.yaml`, and run `make up ENV=<stack>`.
 
 ## Record
 

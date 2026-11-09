@@ -131,13 +131,13 @@ description: "Task list for spec 011, alerts designed to be read"
 
 ### Tests for User Story 3 (first)
 
-- [ ] T029 [P] [US3] Extend `deploy/scripts/test_dashboard.py` (FR-046): its pinned "Alert log" query with `fallback`, and assertions for the new panel's query and the outcomes table's form column, by plan §9.4. Check: RED before T031 (feat/011-alert-message-design)
-- [ ] T030 [P] [US3] Write the real-renderer cases of `test/integration/dispatcher-forms.test.ts` (User Story 3's scenarios; SC-004): with `telegram-design.ts` and `email-design.ts` registered, the stub Telegram server refusing entities, the stub SMTP server refusing the message's data, a renderer seam forcing a throw and a form past its bound, a version 1 row, and the switch at `plain` on each channel, each alert arriving in its plain form in the same attempt, recorded with its reason. Check: passes, or RED naming what T031 or a fix in `forms.ts` closes (feat/011-alert-message-design)
+- [x] T029 [P] [US3] Extend `deploy/scripts/test_dashboard.py` (FR-046): its pinned "Alert log" query with `fallback`, and assertions for the new panel's query and the outcomes table's form column, by plan §9.4. Check: RED before T031 (feat/011-alert-message-design)
+- [x] T030 [P] [US3] Write the real-renderer cases of `test/integration/dispatcher-forms.test.ts` (User Story 3's scenarios; SC-004): with `telegram-design.ts` and `email-design.ts` registered, the stub Telegram server refusing entities, the stub SMTP server refusing the message's data, a renderer seam forcing a throw and a form past its bound, a version 1 row, and the switch at `plain` on each channel, each alert arriving in its plain form in the same attempt, recorded with its reason. Check: passes, or RED naming what T031 or a fix in `forms.ts` closes (feat/011-alert-message-design)
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Amend `specs/000-local-foundations/contracts/telemetry.md` §7.5 by plan §9.4, and in the same commit add "Alerts sent as plain text by fallback" to `deploy/grafana/dashboards/h4-runtime.json`'s audit-and-alerts row, the form to "Alerts by channel and outcome", and `fallback` to "Alert log" (FR-046, FR-049). Check: T029 passes; T030 passes (feat/011-alert-message-design)
-- [ ] T032 [P] [US3] Add "Alerts arrive as plain text" to `docs/runbooks/alert-channel-down.md` by plan §9.5. Check: `make test`'s docs checks pass (feat/011-alert-message-design)
+- [x] T031 [US3] Amend `specs/000-local-foundations/contracts/telemetry.md` §7.5 by plan §9.4, and in the same commit add "Alerts sent as plain text by fallback" to `deploy/grafana/dashboards/h4-runtime.json`'s audit-and-alerts row, the form to "Alerts by channel and outcome", and `fallback` to "Alert log" (FR-046, FR-049). Check: T029 passes; T030 passes (feat/011-alert-message-design)
+- [x] T032 [P] [US3] Add "Alerts arrive as plain text" to `docs/runbooks/alert-channel-down.md` by plan §9.5. Check: `make test`'s docs checks pass (feat/011-alert-message-design)
 
 **Checkpoint**: every fallback is proven end to end, counted, shown, and explained.
 
