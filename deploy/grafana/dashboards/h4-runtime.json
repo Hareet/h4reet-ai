@@ -3436,6 +3436,65 @@
       }
     },
     {
+      "type": "stat",
+      "id": 83,
+      "title": "Visits in full screen",
+      "description": "The share of visits that entered full screen over the dashboard's range: fullscreen_entered events, one a visit at its first entry, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 005, FR-060, FR-062; spec 002, FR-054). A visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value. A browser that offers no full screen, as an iPhone's, shows no control, so its visits never count here.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 124,
+        "w": 5,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"fullscreen_entered\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "full-screen share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "type": "row",
       "id": 67,
       "title": "Room conversation",

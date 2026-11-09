@@ -316,7 +316,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - **The event**: `fullscreen_entered` is emitted once in a visit, on the first entry, and never for a second entry, an exit, a refusal, or a resize.
 
   Check: RED before T036 (feat/005-full-window-room)
-- [ ] T035 [P] [US6] Extend the event's tests (FR-060 to FR-064; SC-011):
+- [x] T035 [P] [US6] Extend the event's tests (FR-060 to FR-064; SC-011):
   - `apps/web/test/events.test.ts` and `test/manifest.test.ts`: the kinds' list with `fullscreen_entered` last;
   - `services/gateway/test/unit/room-events-config.test.ts`: the pinned kinds;
   - `services/gateway/test/integration/room-events.test.ts`: 204 and a count with `id="-"`, and 400 with an ID;
@@ -330,7 +330,7 @@ description: "Task list for spec 005, the room fills the browser window"
 - [x] T036 [US6] Write `apps/web/src/room/fullscreen.ts`. In `app.ts`: the control, the shortcut's listener, `onRefused`, and the event once a visit. Add the guard to `walk/input.ts`, `talk.ts`, `app.ts`'s resume panel, and the larger view. Add the `fullscreen.*` and `walk.*_fullscreen` words to `ui-keys.ts`, `ui-words.yaml`, and the fixture, and `fullscreen` entries to the frame log. All by plan §8. Check: T033 and T034 pass (feat/005-full-window-room)
 - [x] T037 [US6] Add `fullscreen_entered` to `apps/web/src/room/events.ts`, run `npm run manifest` to regenerate `config/room-events.yaml` and the manifest, and mark spec 002's room-events.md §1 and data-model.md §8 "(spec 005)" (H7). In the same commit, change `docs/data-flow-disclosure.md`'s row V4 (T038). Check: T035's web and gateway cases pass (feat/005-full-window-room)
 - [x] T038 [US6] Row V4's Trigger gains ", the visitor first entering full screen in a visit" before spec 009's closing clause (H9), in T037's commit, so the room never sends the kind without the row (FR-064). Check: T035's disclosure case passes (feat/005-full-window-room)
-- [ ] T039 [US6] In one commit: spec 000's contracts/telemetry.md §7.8 gains "Visits in full screen" with the spec's query, marked "(spec 005)"; `deploy/grafana/dashboards/h4-runtime.json` gains the panel beside "Visits that walked" (H8). Check: T035's dashboard case passes (feat/005-full-window-room)
+- [x] T039 [US6] In one commit: spec 000's contracts/telemetry.md §7.8 gains "Visits in full screen" with the spec's query, marked "(spec 005)"; `deploy/grafana/dashboards/h4-runtime.json` gains the panel beside "Visits that walked" (H8). Check: T035's dashboard case passes (feat/005-full-window-room)
 
 **Checkpoint**: full screen works where the browser offers it, Escape stays the browser's, and its one event is counted, graphed, and disclosed.
 
