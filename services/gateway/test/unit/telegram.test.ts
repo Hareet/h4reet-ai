@@ -175,3 +175,50 @@ describe("the Telegram channel's error classes (alerts.md §4.1)", () => {
     expect(requestErrorClass({ name: "TimeoutError" })).toBe("timeout");
   });
 });
+
+describe("the designed message's request (spec 011, FR-008, FR-013; plan §4.4; tasks.md T010)", () => {
+  /** A listener that keeps each request's raw body, and answers delivered. */
+  async function capturing(): Promise<{ port: number; bodies: string[] }> {
+    const bodies: string[] = [];
+    const server = createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c: Buffer) => (raw += c.toString("utf8")));
+      req.on("end", () => {
+        bodies.push(raw);
+        delivered(req, res);
+      });
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    return { port: (server.address() as AddressInfo).port, bodies };
+  }
+
+  it("writes {chat_id, text, entities, disable_web_page_preview: true} for the designed form, never parse_mode", async () => {
+    resolveHost("127.0.0.1");
+    const api = await capturing();
+    const channel = { base: `http://${HOST}:${api.port}`, token: TOKEN, chatId: "0", timeoutMs: 2_000 };
+    const entities = [
+      { type: "bold" as const, offset: 3, length: 4 },
+      { type: "code" as const, offset: 8, length: 2 },
+    ];
+    expect(await sendTelegram(channel, { text: "🔴 KILL id k1", entities })).toEqual({ ok: true, ref: "41" });
+    expect(JSON.parse(api.bodies[0] ?? "")).toEqual({
+      chat_id: "0",
+      text: "🔴 KILL id k1",
+      entities,
+      disable_web_page_preview: true,
+    });
+    expect(api.bodies[0]).not.toContain("parse_mode");
+  });
+
+  it("writes exactly today's body for the plain form: a string, or a message with no entities", async () => {
+    resolveHost("127.0.0.1");
+    const api = await capturing();
+    const channel = { base: `http://${HOST}:${api.port}`, token: TOKEN, chatId: "0", timeoutMs: 2_000 };
+    const today = JSON.stringify({ chat_id: "0", text: "[dev] WARNING", disable_web_page_preview: true });
+    await sendTelegram(channel, "[dev] WARNING");
+    await sendTelegram(channel, { text: "[dev] WARNING" });
+    await sendTelegram(channel, { text: "[dev] WARNING", entities: [] });
+    expect(api.bodies).toEqual([today, today, today]);
+  });
+});

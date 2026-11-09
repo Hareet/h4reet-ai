@@ -48,13 +48,14 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, and 0005_adapter_month, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, 0005_adapter_month, and 0006_alert_forms, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
       [3, "0003_studio_window"],
       [4, "0004_twin"],
       [5, "0005_adapter_month"],
+      [6, "0006_alert_forms"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -72,7 +73,7 @@ describe("applying them", () => {
   });
 
   it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5]);
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5, 6]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -1013,5 +1014,82 @@ describe("0004_twin (spec 007, Amendment 0-1)", () => {
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(text).not.toContain("twin");
     expect(migrations.find((m) => m.name === "0004_twin")?.sql).toContain("ADD COLUMN room_feature");
+  });
+});
+
+describe("0006_alert_forms (spec 011, Amendment 0-7; FR-030, FR-033, FR-044)", () => {
+  let db: TestDatabase;
+  beforeEach(async () => {
+    db = await migrated();
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  const outboxRow = (key: string, o: Record<string, string | null> = {}) =>
+    db.pg.query(
+      `INSERT INTO gateway.alert_outbox (dedupe_key, kind, stack, created_at, subject, body, facts, telegram_status,
+         email_status, telegram_form, email_form, telegram_fallback, email_fallback)
+       VALUES ($1, 'warn', 'dev', now(), 's', 'b', '{}', 'pending', 'pending', $2, $3, $4, $5)`,
+      [key, o.telegram_form ?? null, o.email_form ?? null, o.telegram_fallback ?? null, o.email_fallback ?? null],
+    );
+
+  it("adds each channel's form and fallback reason, NULL until the channel's first attempt", async () => {
+    await outboxRow("dev:warn:day:2026-11-01");
+    const { rows } = await db.pg.query<Record<string, unknown>>(
+      "SELECT telegram_form, email_form, telegram_fallback, email_fallback FROM gateway.alert_outbox",
+    );
+    expect(rows).toEqual([{ telegram_form: null, email_form: null, telegram_fallback: null, email_fallback: null }]);
+    await outboxRow("dev:warn:day:2026-11-02", { telegram_form: "designed", email_form: "designed" });
+    await outboxRow("dev:warn:day:2026-11-03", {
+      telegram_form: "plain",
+      telegram_fallback: "entities_refused",
+      email_form: "plain",
+      email_fallback: "message_refused",
+    });
+    for (const reason of ["render_failed", "over_limit", "not_rendered"]) {
+      await outboxRow(`dev:warn:day:t-${reason}`, { telegram_form: "plain", telegram_fallback: reason });
+      await outboxRow(`dev:warn:day:e-${reason}`, { email_form: "plain", email_fallback: reason });
+    }
+  });
+
+  it("refuses a form or a reason off its list, and a fallback whose form isn't plain", async () => {
+    await expect(outboxRow("k1", { telegram_form: "html" })).rejects.toThrow();
+    await expect(outboxRow("k2", { email_form: "fancy" })).rejects.toThrow();
+    // Each channel's own reasons: Telegram refuses entities, a mail server refuses a message.
+    await expect(outboxRow("k3", { telegram_form: "plain", telegram_fallback: "message_refused" })).rejects.toThrow();
+    await expect(outboxRow("k4", { email_form: "plain", email_fallback: "entities_refused" })).rejects.toThrow();
+    await expect(outboxRow("k5", { telegram_form: "designed", telegram_fallback: "render_failed" })).rejects.toThrow(
+      /alert_outbox_telegram_fallback_is_plain/,
+    );
+    await expect(outboxRow("k6", { email_fallback: "over_limit" })).rejects.toThrow(
+      /alert_outbox_email_fallback_is_plain/,
+    );
+  });
+
+  const audit = (action: string, reason: string | null) =>
+    db.pg.query(
+      `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+       VALUES (now(), 'dev', 'operator:dev#1a2b3c4d', $1, $2, '{}')`,
+      [action, reason],
+    );
+
+  it("admits alert_samples among the audit actions, with its reason, and refuses it without one", async () => {
+    await audit("alert_samples", "A look at every alert design.");
+    await expect(audit("alert_samples", null)).rejects.toThrow(/audit_log_reason_iff_operator_write/);
+    // Every earlier action keeps its rule.
+    await audit("twin_call", "An evaluation call, as before.");
+    await expect(audit("trip", "A gateway write has no reason.")).rejects.toThrow();
+    await expect(audit("alert_sample", "Not quite the action's name.")).rejects.toThrow(/audit_log_action_check/);
+  });
+
+  it("leaves 0001 to 0005 as they were: what 0006 adds appears in no earlier file", async () => {
+    for (const m of migrations.filter((x) => x.version < 6)) {
+      for (const added of ["telegram_form", "email_fallback", "alert_samples", "alert_outbox_telegram_fallback_is_plain"]) {
+        expect(m.sql, `${m.name} ${added}`).not.toContain(added);
+      }
+    }
+    const text = await readFile(new URL("../../migrations/0006_alert_forms.sql", import.meta.url), "utf8");
+    expect(migrations.find((m) => m.name === "0006_alert_forms")?.sha256).toBe(sha256(text));
   });
 });

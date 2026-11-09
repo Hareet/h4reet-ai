@@ -327,3 +327,96 @@ describe("a TLS failure is recorded as its class alone (alerts.md §4.1, §5)", 
     }
   });
 });
+
+describe("the designed message and the refusal of a message (spec 011, FR-015, FR-016, FR-027; plan §5.5; tasks.md T010)", () => {
+  /** A header's value as the reader sees it: folded lines joined, RFC 2047 encoded words decoded. */
+  function header(data: string, name: string): string | undefined {
+    const unfolded = data.split("\r\n\r\n")[0]?.replace(/\r\n[ \t]+/g, " ") ?? "";
+    const line = unfolded.split("\r\n").find((l) => l.toLowerCase().startsWith(`${name.toLowerCase()}:`));
+    if (line === undefined) return undefined;
+    return line
+      .slice(name.length + 1)
+      .trim()
+      .replace(/\?=\s+=\?/g, "?==?")
+      .replace(/=\?UTF-8\?([BQ])\?([^?]*)\?=/gi, (_m, enc: string, text: string) =>
+        enc.toUpperCase() === "B"
+          ? Buffer.from(text, "base64").toString("utf8")
+          : Buffer.from(
+              text.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (_x, h: string) => String.fromCharCode(parseInt(h, 16))),
+              "latin1",
+            ).toString("utf8"),
+      );
+  }
+
+  const channelFor = (port: number): EmailChannel => ({
+    host: "127.0.0.1",
+    port,
+    secure: false,
+    requireTLS: false,
+    ignoreTLS: true,
+    from: "alerts@h4reet.local",
+    to: "operator@h4reet.local",
+    timeoutMs: 2_000,
+  });
+  const TEXT = "[dev] KILL SWITCH TRIPPED: daily ceiling reached\nRunbook: docs/runbooks/kill-switch-trip.md";
+  const HTML = '<!DOCTYPE html><html lang="en"><body><table><tr><td>designed</td></tr></table></body></html>';
+
+  it("sends the designed form as one multipart/alternative message, the text part first, with today's headers", async () => {
+    const smtp = await stubSmtp();
+    try {
+      const subject = "🔴 🛑 [dev] KILL SWITCH TRIPPED: daily ceiling reached";
+      const sent = await sendEmail(channelFor(smtp.port), { subject, text: TEXT, html: HTML, alertId: "dev:trip:day:2026-10-29" });
+      expect(sent).toEqual({ ok: true, ref: "250 ABC123" });
+      const data = smtp.messages[0]?.data ?? "";
+      expect(header(data, "Subject")).toBe(subject);
+      expect(header(data, "Content-Type")).toMatch(/^multipart\/alternative; boundary=/);
+      expect(header(data, "Auto-Submitted")).toBe("auto-generated");
+      expect(header(data, "X-H4-Alert-Id")).toBe("dev:trip:day:2026-10-29");
+      const plainAt = data.search(/^Content-Type: text\/plain; charset=utf-8\r$/m);
+      const htmlAt = data.search(/^Content-Type: text\/html; charset=utf-8\r$/m);
+      expect(plainAt).toBeGreaterThan(0);
+      expect(htmlAt).toBeGreaterThan(plainAt);
+      expect(data.match(/^Content-Type: /gm)).toHaveLength(3); // the message and its two parts, nothing else
+      expect(data).not.toMatch(/multipart\/(mixed|related)|Content-Disposition|image\//i);
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("sends the plain form as today's message exactly: line 1 as its subject, text/plain only", async () => {
+    const smtp = await stubSmtp();
+    try {
+      const subject = "[dev] KILL SWITCH TRIPPED: daily ceiling reached";
+      expect(await sendEmail(channelFor(smtp.port), { subject, text: TEXT, alertId: "dev:trip:day:2026-10-29" })).toEqual({
+        ok: true,
+        ref: "250 ABC123",
+      });
+      const data = smtp.messages[0]?.data ?? "";
+      expect(data).toMatch(/^Subject: \[dev\] KILL SWITCH TRIPPED: daily ceiling reached\r$/m);
+      expect(header(data, "Content-Type")).toMatch(/^text\/plain/);
+      expect(data).not.toMatch(/multipart|text\/html/);
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("reads a 5xx to the message's data as the message refused, and keeps the class smtp_<code>", async () => {
+    const smtp = await stubSmtp();
+    const mail = { subject: "s", text: "t", html: HTML, alertId: "dev:trip:day:2026-10-29" };
+    try {
+      smtp.refuse("DATA", 554);
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_554", messageRefused: true });
+      smtp.refuse("END", 552);
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_552", messageRefused: true });
+      // A refused recipient is no refusal of the message, and a 4xx is transient: both keep the schedule.
+      smtp.refuse("RCPT", 550);
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_550" });
+      smtp.refuse("DATA", 451);
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_451" });
+      smtp.refuse("END", 452);
+      expect(await sendEmail(channelFor(smtp.port), mail)).toEqual({ ok: false, errorClass: "smtp_452" });
+    } finally {
+      await smtp.close();
+    }
+  });
+});
