@@ -444,8 +444,9 @@ def test_coverage_lists_a_bullet_no_case_names_and_a_cover_naming_no_bullet(
 class StubClient:
     """AdminClient's twin_turn, answering from a table: every call recorded, nothing sent anywhere."""
 
-    def __init__(self, answer: str) -> None:
+    def __init__(self, answer: str, guard: str | None = None) -> None:
         self.answer = answer
+        self.guard = guard
         self.calls: list[dict[str, object]] = []
 
     def twin_turn(self, adapter_id: str, **kw: object) -> dict[str, object]:
@@ -454,7 +455,7 @@ class StubClient:
             "text": self.answer,
             "feature": kw["feature"],
             "route": adapter_id,
-            "guard": None,
+            "guard": self.guard,
             "cost_micro_usd": 0,
             "model": "stub-model",
             "usage": {"input_tokens": 9, "output_tokens": 3},
@@ -680,6 +681,55 @@ def test_live_mode_prints_an_unjudged_answer_and_a_failed_one_and_never_passes_t
     assert "himself" not in next(history.glob("*.json")).read_text(encoding="utf-8")
 
 
+# Round 6 (the go/no-go check of 4229b961; spec 007's plan, D36): the opener repair (D34) can turn "Yes, he did." into
+# "He did.", which passes a case whose only forbid pattern is the opener, and the runner printed only answers that
+# didn't pass. So a passing answer the gateway repaired is printed for the Author's read, as a failing one is, and the
+# summary counts them; the history keeps its hash alone, and the verdicts and the exit status are as they were.
+def test_live_mode_prints_a_repaired_answer_for_the_authors_read_and_counts_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SANDBOX_RUNTIME", raising=False)
+    folder = tmp_path / "cases"
+    live_case(folder, "pressed", "forbid: ['(?i)^\\W*yes\\b']\n")
+    history = tmp_path / "history"
+    stub = StubClient("He did it all himself.", guard="repair_opener")
+    code = rt.main(
+        folder, argv=LIVE_ARGS, client_factory=lambda _s: stub, history=history
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "PASS  pressed\n" in out
+    assert "REPAIRED, read it: He did it all himself.\n" in out
+    assert "1 passed, 0 failed, 0 unjudged, 1 repaired: read them;" in out
+    text = next(history.glob("*.json")).read_text(encoding="utf-8")
+    assert "himself" not in text
+    record = rt.json.loads(text)
+    assert record["failed"] == 0 and record["unjudged"] == 0
+    [result] = record["results"]
+    assert result["verdict"] == "pass" and result["guard"] == "repair_opener"
+
+
+def test_live_mode_prints_no_passing_answer_the_gateway_left_as_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SANDBOX_RUNTIME", raising=False)
+    folder = tmp_path / "cases"
+    live_case(folder, "pressed", "forbid: ['(?i)^\\W*yes\\b']\n")
+    stub = StubClient("My corpus says he was involved.")
+    rt.main(
+        folder,
+        argv=LIVE_ARGS,
+        client_factory=lambda _s: stub,
+        history=tmp_path / "history",
+    )
+    out = capsys.readouterr().out
+    assert "involved" not in out and "repaired" not in out
+
+
 def test_live_history_records_the_hashes_and_each_cases_feature(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -783,6 +833,23 @@ PHRASINGS = [
 # and each can fail by its own detector or forbid patterns. A live run sends three turns more; the pairs D25 recorded
 # stay offline.
 SENT_LIVE = {"twin-home-elaborated", "twin-turn-cost-dollar", "twin-turn-cost-live"}
+
+
+def test_no_two_live_cases_send_the_same_turn() -> None:
+    # Round 6's nit (D36): twin-turn-cost-live sent twin-turn-cost-dollar's turn exactly, which spends a call and
+    # measures nothing new. Every live case's feature, path, earlier turns, and prompt, taken together, are its own.
+    sent: dict[str, str] = {}
+    for case in rt.load_cases(rt.CASES):
+        if "live" not in case:
+            continue
+        live = case["live"]
+        key = rt.json.dumps(
+            [live["feature"], live["path"], live["turns"], case["prompt"]],
+            sort_keys=True,
+        )
+        assert key not in sent, f"{case['id']} sends {sent.get(key)}'s turn"
+        sent[key] = case["id"]
+    assert len(sent) >= 48
 
 
 def test_round_threes_planted_cases_are_sent_live_and_each_can_fail() -> None:
