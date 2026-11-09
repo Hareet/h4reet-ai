@@ -91,6 +91,10 @@ context round 5 moved again. No alert text, `_samples.ts`,
 golden file did either, and no code file conflicted, so the main
 session asked for `make check` without a separate `make test`.
 
+**Recorded before the final re-stack, 2026-11-09:**
+`feat/011-alert-message-design was 3853d82d`, on
+`feat/010-anthropic-provider` at 88f073aa, checked at afea0d39.
+
 ## Decisions while you were away
 
 The main session's, under the relaxed lifecycle: provisional,
