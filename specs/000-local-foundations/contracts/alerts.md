@@ -216,7 +216,7 @@ Every alert has three forms, each rendered from the same typed facts (§5), none
 - **A sample's marks**: the plain text's line 1 begins with `[SAMPLE] ` and its last line reads "A sample, sent by operator #<8 hex>: nothing happened on <stack>."; Telegram's message begins with a line naming it a sample, and the HTML with a sample banner, each with the same sentence; the designed subject begins with 🧪 and a space.
 - **The golden files** under `services/gateway/test/fixtures/alerts/` pin every catalogue entry's four forms, and are the reference; the example below is one of them.
 
-The trip's designed Telegram message (`01`… `05-trip`'s `telegram.txt`), with `bold` over the headline, `pre` over the meter rows, and `code` over the key and the path:
+The trip's designed Telegram message, as `services/gateway/test/fixtures/alerts/05-trip/telegram.txt` pins it, with `bold` over the headline, `pre` over the meter rows, and `code` over the key and the path:
 
 ```text
 🔴 Critical · [h4reet.ai prod]
@@ -302,7 +302,7 @@ In stand-in mode, the gateway sends the stand-in a fixed dummy token (`standin`)
 **(spec 011, Amendment 0-3) Forms, fallbacks, and samples in the outcomes.**
 - **Each attempt records the form it sent**, `designed` or `plain`, and a fallback's reason: in the row's `telegram_form`, `email_form`, `telegram_fallback`, and `email_fallback` ([data-model.md §2.7](../data-model.md#27-alert_outbox-alerts-committed-with-their-cause)); in `alert.delivered`, `alert.retry`, and `alert.failed`; as `h4.alert.form` on `h4.alerts` (`none` for a channel marked failed at its window's end with no attempt); and on the attempt's `alert.deliver` span. A fallback also adds to `h4.alert.fallbacks` and logs `alert.fallback`, once, in the attempt that fell back.
 - **The in-memory alerts:** the `store_unreachable` alert and the samples hold their plain text and facts in memory, with the same per-channel form state, and go through the same choice of form, senders, schedule, and fallbacks.
-- **Samples** (operator-admin.md §2.4) are held in the dispatcher's memory, never in the outbox, and dropped at 300 s or a restart. Each pass ends with at most one sample a channel, only on a channel that had no due row in that pass and no sample attempt in the last 1,000 ms, so a real alert that falls due is always attempted first. A sample's attempts count under the kind `sample` alone, and record no `h4.alert.delivery_lag`.
+- **Samples** (operator-admin.md §2.4) are held in the dispatcher's memory, never in the outbox, and dropped at 300 s or a restart. Each pass ends with at most one sample a channel, only on a channel that had no due row and no in-memory alert attempt in that pass, and no sample attempt in the last 1,000 ms, so a real alert that falls due is always attempted first. A sample's attempts count under the kind `sample` alone, and record no `h4.alert.delivery_lag`.
 
 ## 5. What never appears
 

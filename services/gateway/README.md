@@ -113,6 +113,36 @@ counted. In a turn that asks the twin to confirm a claim, an answer that passes 
 never checking readiness, for the Author's live product and red-team runs (`make evals ADAPTER=…`,
 `make redteam-live ADAPTER=…`); each call writes an audit row with a reason.
 
+## Alerts (spec 011)
+
+Every alert has three forms, rendered from the same typed facts ([contracts/alerts.md
+§3.1](../../specs/000-local-foundations/contracts/alerts.md#31-three-forms-from-the-same-facts-spec-011-amendment-0-1);
+ADR 0042):
+
+- **The plain text** (`src/alerts/format.ts`), unchanged since spec 000: rendered with its cause, in the cause's
+  transaction, and stored in the outbox row with its facts, version 2 (`src/alerts/facts.ts`). It is the email's text
+  part, and each channel's fallback.
+- **Telegram's designed message** (`src/alerts/telegram-design.ts`): short labelled lines, the severity's and the
+  kind's emoji (`src/alerts/marks.ts`), message entities with UTF-16 offsets, and never `parse_mode`.
+- **The email's HTML part** (`src/alerts/email-design.ts`): hand-written tables that load nothing, light and dark,
+  each meter a bar, under a subject that leads with the two emoji.
+
+The designed forms render at each delivery attempt, in the dispatcher, from the row's facts; `src/alerts/forms.ts`
+chooses each channel's form, and a refusal, a failed render, a form past its bound, or a row from before the facts'
+version 2 sends the plain form at once, in the same attempt, counted on `h4.alert.fallbacks` and shown on the
+dashboard's "Alerts sent as plain text by fallback" (the runbook: `docs/runbooks/alert-channel-down.md`, "Alerts
+arrive as plain text"). `config/alerts.yaml`'s optional `formats` keeps a channel plain, the Author's switch.
+
+- **The catalogue** (`src/alerts/catalogue.ts`): 19 entries, one for each kind and variant, spec 010's included, with
+  fixed facts. **The golden files**, `test/fixtures/alerts/<case>/` (`plain.txt`, `telegram.txt`, `subject.txt`,
+  `email.html`), pin every entry's forms and the further cases; `test/unit/alert-goldens.test.ts` writes them, only
+  with vitest's `-u` in the change that alters a design. Each `email.html` opens offline in a browser.
+- **Samples**: `make operator-alert-samples ENV=<stack> REASON="…" [KIND=<kind>]` sends a marked sample of each entry
+  wherever the stack's alerts go, through `POST /admin/alert-samples`: one audit row, the samples in the dispatcher's
+  memory, never the outbox, after any real alert, one a second on each channel; agents run it on dev-cpu only.
+- **Telemetry**: each attempt is an `alert.deliver` span, a root of its own, which Langfuse shows as a trace with no
+  generation; `h4.alerts` carries `h4.alert.form`, and samples count under the kind `sample` alone.
+
 ## Commands
 
 | What | Command |

@@ -43,3 +43,7 @@ The constitution's Alerting standard holds whatever the design: "Telegram bot as
 - **A design change regenerates the golden files** with `-u`, in the change that makes it, and the diff is reviewed.
 - **Telegram's acceptance of each entity list** is checked twice before the Author's phone: by the renderer's own check and by the stand-in's Python rules on every dev-cpu run. Facts about the Bot API this branch couldn't read from its sandbox are confirmed by the Author's first prod samples (spec 011's T053).
 - **ADR 0005's own text stays**; its index row notes the extension.
+- **What building changed**: spec 011's plan records its departures, B1 to B10, in the commits that made them; none
+  changes a decision above. The nearest are the samples' pacing, which also waits for the in-memory
+  `store_unreachable` alert (B10), and the breach test's step 12, whose four assertions read SKIP with real delivery
+  (B8).
