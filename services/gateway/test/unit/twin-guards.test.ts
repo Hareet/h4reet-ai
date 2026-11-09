@@ -306,8 +306,10 @@ describe("the review's guard gaps (T066: I1, I2, N3)", () => {
 // two rules hold for every answer, so guards do: G9 withholds a sentence naming Seva that isn't the grounding's own, word
 // for word (alone, or after one of the red-team's neutral lead-ins); and G2 reads the red-team's amounts in words.
 describe("G9 Seva, and G2's amounts in words (D28)", () => {
-  const SEVA =
-    "A lifelong mission to bring the cultural tradition of Seva — selfless service to humanity — into daily work.";
+  // The profile's Seva sentence, from the pack, since spec 004's data-ID scan keeps the room's IDs out of the tests and
+  // the sentence holds one; the planted paraphrases below keep its shape in other words.
+  const SEVA = /A lifelong [^.]*\bSeva\b[^.]*\./.exec(pack.sections.map((s) => s.text).join("\n"))?.[0] ?? "";
+  if (SEVA === "") throw new Error("the profile's Seva sentence isn't in the pack");
   const DRIVES =
     "Seva — selfless service — brought into daily work, and impact for underserved communities. He'd call it an all-hands-on-deck effort.";
   const seva = ctx({
@@ -316,9 +318,9 @@ describe("G9 Seva, and G2's amounts in words (D28)", () => {
 
   it("withholds a sentence naming Seva that the grounding doesn't hold, word for word", () => {
     for (const a of [
-      "What it does say is that Seva, selfless service to humanity, is a lifelong mission he brings into daily work.",
+      "What it does say is that Seva, selfless service to humanity, is a lifelong calling he brings into daily work.",
       "What I can share is that his life's work is framed around Seva, selfless service to humanity, which he brings into daily work.",
-      "The corpus describes Seva as selfless service to humanity, a lifelong mission Hareet brings into daily work.",
+      "The corpus describes Seva as selfless service to humanity, a lifelong calling Hareet brings into daily work.",
       `In other words: "${SEVA}"`,
       `${SEVA} Seva also means more.`,
       "SEVA runs deeper than that.",
