@@ -152,7 +152,8 @@ class Assertion:
     real_text: str | None = (
         None  # with --delivery real, where the stand-ins' records become the providers' replies
     )
-    # Spec 011's step 12 runs in stand-in mode only: with --delivery real it is skipped, and reads SKIP, not MISS.
+    # Spec 011's step 12, and its checks of the designed forms beside the receivers' (FR-053), run in stand-in mode
+    # only: with --delivery real they are skipped, and read SKIP, not MISS.
     stand_in_only: bool = False
 
 
@@ -195,6 +196,16 @@ CATALOG = (
         f"the daily warning: {RECEIVED}",
     ),
     Assertion("3c", 3, "US2-2", "M", "Spend today shows 3.50 at its 3.50 warning"),
+    # Spec 011 (FR-053): beside each receivers' check (3b, 4c, 5d, 7d, 10b), which stays as it was, the same alert in its
+    # designed form on both stand-ins; stand-in mode only.
+    Assertion(
+        "3d",
+        3,
+        "US2-2",
+        "L",
+        "both stand-ins hold the daily warning in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion(
         "4a",
         4,
@@ -221,6 +232,14 @@ CATALOG = (
         "4d", 4, "US2-2", "M", "the fallback panel shows 1.40 spent at its 1.40 warning"
     ),
     Assertion("4e", 4, "US5-7", "M", "fallback today reads 1.50"),
+    Assertion(
+        "4f",
+        4,
+        "US2-2",
+        "L",
+        "both stand-ins hold grant 1's warning in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion(
         "5a",
         5,
@@ -252,6 +271,14 @@ CATALOG = (
         "US5-3",
         "M",
         "renewal is awaited, and Why responses are degraded shows fallback_awaiting_renewal",
+    ),
+    Assertion(
+        "5f",
+        5,
+        "US5-7",
+        "L",
+        "both stand-ins hold the fallback_exhausted alert in its designed form (spec 011)",
+        stand_in_only=True,
     ),
     Assertion(
         "6a",
@@ -348,6 +375,14 @@ CATALOG = (
         "L",
         "a hello's call.degraded record names kill_switch_tripped: local is refused too",
     ),
+    Assertion(
+        "7g",
+        7,
+        "US2-3",
+        "L",
+        "both stand-ins hold the trip alert in its designed form (spec 011)",
+        stand_in_only=True,
+    ),
     Assertion("8a", 8, "US2-6", "L", "incident.drafted for the daily ceiling"),
     Assertion(
         "8b",
@@ -427,6 +462,14 @@ CATALOG = (
         "US2-5",
         "M",
         "after the reset: normal, and one metered call reads 0.10 today and this month",
+    ),
+    Assertion(
+        "10i",
+        10,
+        "US2-5",
+        "L",
+        "both stand-ins hold the monthly warning in its designed form (spec 011)",
+        stand_in_only=True,
     ),
     Assertion(
         "11a",
@@ -1041,10 +1084,16 @@ class Steps:
         return op
 
     def delivered(
-        self, aid: str, receivers: str, key: str, when: Anchor
+        self,
+        aid: str,
+        receivers: str,
+        key: str,
+        when: Anchor,
+        designed: str | None = None,
     ) -> list[dict[str, Any]]:
         """L: both channels' alert.delivered records within 300 s (FR-032); then the receivers: the stand-ins' own
-        records, or with real delivery Telegram's message_id and SMTP's 250 in the same records (plan §8)."""
+        records, or with real delivery Telegram's message_id and SMTP's 250 in the same records (plan §8); and, in
+        stand-in mode, `designed`: the stand-ins' records of the same alert in its designed form (spec 011, FR-053)."""
         expect = {"each": {"channel": ["telegram", "email"]}, "max": {"lag_s": 300}}
         fields = ("channel", "attempt", "lag_s")
         ops = [
@@ -1077,19 +1126,31 @@ class Steps:
         # With real delivery, the stand-ins must hold nothing: the stand-in's numeric message_id and Mailpit's 250 have
         # the providers' shapes, so a gateway still on the stand-ins would pass on the references alone (round 1's
         # review). Each gateway sends a channel to one place, so once the records exist, one look settles it.
-        # Spec 011 (FR-053): in stand-in mode the stand-ins' records also say the alert went in its designed form, a check
-        # beside the existing ones, which stay as they were.
         ops += [
             {
                 "op": channel,
                 "assert": receivers,
                 "key": key,
                 "within_s": 300,
-                **({"absent": True} if real else {"expect": {"designed": True}}),
+                **({"absent": True} if real else {}),
                 **timed_from(when),
             }
             for channel in ("telegram", "mailpit")
         ]
+        # Spec 011 (FR-053): beside those checks, which stay as they were, an assertion of its own that the stand-ins'
+        # records say the alert went in its designed form; stand-in mode only, so it reads SKIP with real delivery.
+        if designed is not None and not real:
+            ops += [
+                {
+                    "op": channel,
+                    "assert": designed,
+                    "key": key,
+                    "within_s": 300,
+                    "expect": {"designed": True},
+                    **timed_from(when),
+                }
+                for channel in ("telegram", "mailpit")
+            ]
         return ops
 
     def span(self, op_id: str) -> tuple[float, float]:
@@ -1326,7 +1387,7 @@ class Steps:
                     "breach test step 3: metered calls to 3.50 USD today",
                     meters={"day": 3.5, "month": 3.5},
                 ),
-                *self.delivered("3a", "3b", keys["warn_day"], "s3.spend"),
+                *self.delivered("3a", "3b", keys["warn_day"], "s3.spend", "3d"),
                 metric("3c", spend("day"), after="s3.spend", value=3.5),
                 metric("3c", spend("day"), after="s3.spend", at_least=warn("day")),
             ],
@@ -1373,7 +1434,7 @@ class Steps:
                     "breach test step 4: fallback calls to grant 1's warning",
                     meters={"fallback_day": 1.4, "day": 1.4, "month": 4.9},
                 ),
-                *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend"),
+                *self.delivered("4b", "4c", keys["warn_g1"], "s4.spend", "4f"),
                 metric("4d", spend("fallback_day"), after="s4.spend", value=1.4),
                 metric("4d", warn("fallback_day"), after="s4.spend", value=1.4),
                 self.spend(
@@ -1437,7 +1498,7 @@ class Steps:
                     grant_no=1,
                     allowance_micro=2000000,
                 ),
-                *self.delivered("5c", "5d", keys["exhausted_g1"], "s5.spend"),
+                *self.delivered("5c", "5d", keys["exhausted_g1"], "s5.spend", "5f"),
                 metric("5e", AWAITING, after="s5.spend", value=1.0),
                 metric(
                     "5e", CAUSE, after="s5.spend", labels=["fallback_awaiting_renewal"]
@@ -1623,7 +1684,7 @@ class Steps:
                     "s7.spend",
                     expect={"gap": {"from": "s7.crossing", "max_s": 60}},
                 ),
-                *self.delivered("7c", "7d", keys["trip_day"], "s7.spend"),
+                *self.delivered("7c", "7d", keys["trip_day"], "s7.spend", "7g"),
                 {
                     "op": "hello",
                     "id": "s7.hello",
@@ -1760,7 +1821,7 @@ class Steps:
                     "breach test step 10: the month to 14.00 USD",
                     meters={"day": 1.5, "month": 14.0},
                 ),
-                *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1"),
+                *self.delivered("10a", "10b", keys["warn_month"], "s10.spend1", "10i"),
                 metric("10c", spend("month"), after="s10.spend1", value=14.0),
                 metric(
                     "10c", spend("month"), after="s10.spend1", at_least=warn("month")
