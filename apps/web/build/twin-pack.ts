@@ -700,10 +700,14 @@ function pushSplit(
 /** A file's short name in the prompt: `04-hobbies-and-travel` for `corpus/04-hobbies-and-travel.md`. */
 export const shortName = (file: string): string => stemOf(file);
 
-/** A section as the gateway's prompt writes it (services/gateway/src/twin/prompt.ts): its delimiter line, then its
- *  text. The fit check counts the same characters the prompt sends. */
-export const renderSection = (s: Pick<PackSection, "file" | "heading" | "text">): string =>
-  `[${shortName(s.file)} — ${s.heading}]\n${s.text}\n\n`;
+/** A section as the gateway's prompt writes it (services/gateway/src/twin/render.ts): its delimiter line, then its
+ *  text, a Golden Q&A's without the claim tags that end it (spec 007's plan, D40). The fit check counts the same
+ *  characters the prompt sends. */
+export const renderSection = (s: Pick<PackSection, "file" | "heading" | "text" | "golden">): string => {
+  const tags = s.golden === null || s.golden.tags.length === 0 ? "" : ` ${s.golden.tags.join("")}`;
+  const text = tags !== "" && s.text.endsWith(tags) ? s.text.slice(0, -tags.length) : s.text;
+  return `[${shortName(s.file)} — ${s.heading}]\n${text}\n\n`;
+};
 
 /** The rules as the prompt writes them: each file's "Do not claim" bullets under one line, then the rulings. */
 export function renderRules(pack: Pick<TwinPack, "rules">): string {

@@ -54,8 +54,14 @@ export interface AdapterTypeSpec {
   provider(settings: Record<string, unknown>): string;
   /** The model the adapter sends: from its settings, or from the env key they name. */
   model(settings: Record<string, unknown>, env: Env): string | undefined;
-  /** For routing.yaml's deadline rule (R9), and for the attempt wrapper's retry rule (provider-adapter.md §6). */
-  timing(settings: Record<string, unknown>): { requestMs: number; retryMax: number; backoffMs: number };
+  /** For routing.yaml's deadline rule (R9), and for the attempt wrapper's retry rule (provider-adapter.md §6). A paid
+   *  adapter's `twinRequestMs` is a twin turn's one attempt (spec 007's plan, D43). */
+  timing(settings: Record<string, unknown>): {
+    requestMs: number;
+    retryMax: number;
+    backoffMs: number;
+    twinRequestMs?: number;
+  };
   /** How the gateway probes an adapter of this type, on the real clock (provider-adapter.md §3, §6 item 4). */
   healthCadence(settings: Record<string, unknown>): HealthCadence;
   /** The rules a schema can't say: R7, R8, and the like. Runs only on settings that passed the schema. */
@@ -165,6 +171,19 @@ const get = (settings: Record<string, unknown>, ...path: string[]): unknown =>
 const num = (settings: Record<string, unknown>, ...path: string[]): number => get(settings, ...path) as number;
 const str = (settings: Record<string, unknown>, ...path: string[]): string => get(settings, ...path) as string;
 
+/** A paid adapter's twin_request_ms, when it has one (spec 007's plan, D43). */
+const twinTiming = (s: Record<string, unknown>): { twinRequestMs?: number } => {
+  const ms = get(s, "twin_request_ms");
+  return typeof ms === "number" ? { twinRequestMs: ms } : {};
+};
+
+/** R8, amended by spec 007's plan, D43: a twin turn's limit is never shorter than hello's, which SC-005 bounds. */
+function twinFindings(s: Record<string, unknown>): SettingsFinding[] {
+  const ms = get(s, "twin_request_ms");
+  if (typeof ms !== "number" || ms >= num(s, "timeouts", "request_ms")) return [];
+  return [{ path: "twin_request_ms", rule: "R8", message: "must be at least timeouts.request_ms, hello's limit" }];
+}
+
 const openAICompatible: AdapterTypeSpec = {
   type: "openai-compatible",
   // In spec 000 this type serves only the in-stack model server. A paid OpenAI-compatible API would add `paid`
@@ -231,6 +250,8 @@ const bedrockConverse: AdapterTypeSpec = {
     additional_request_fields: z.record(z.string(), z.unknown()),
     temperature: paidTemperature,
     timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
+    // Spec 007's plan, D43: a twin turn's one attempt, which R9 holds to the deadline after the local model's.
+    twin_request_ms: int(1_000, 15_000).optional(),
     retry: z.strictObject({
       on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
       max: int(0, 1),
@@ -246,6 +267,7 @@ const bedrockConverse: AdapterTypeSpec = {
     requestMs: num(s, "timeouts", "request_ms"),
     retryMax: num(s, "retry", "max"),
     backoffMs: num(s, "retry", "backoff_ms"),
+    ...twinTiming(s),
   }),
   // §3.2: every interval_ms; one failure makes it unhealthy and one pass healthy. The probe resolves credentials and
   // never calls Bedrock, within 5 s or the interval, whichever is shorter.
@@ -273,6 +295,7 @@ const bedrockConverse: AdapterTypeSpec = {
         requirement: "SC-005",
       });
     }
+    findings.push(...twinFindings(s));
     if (Buffer.byteLength(JSON.stringify(get(s, "additional_request_fields"))) > 1_024) {
       findings.push({ path: "additional_request_fields", rule: "R11", message: "must be at most 1 KB as JSON" });
     }
@@ -301,6 +324,8 @@ const anthropicMessages: AdapterTypeSpec = {
     thinking: z.literal("disabled"),
     temperature: paidTemperature,
     timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
+    // Spec 007's plan, D43: a twin turn's one attempt, which R9 holds to the deadline after the local model's.
+    twin_request_ms: int(1_000, 15_000).optional(),
     retry: z.strictObject({
       on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
       max: int(0, 1),
@@ -315,6 +340,7 @@ const anthropicMessages: AdapterTypeSpec = {
     requestMs: num(s, "timeouts", "request_ms"),
     retryMax: num(s, "retry", "max"),
     backoffMs: num(s, "retry", "backoff_ms"),
+    ...twinTiming(s),
   }),
   // Plan §2.7: the model lookup every interval_ms, within 5 s or the interval, whichever is shorter; one failure makes
   // it unhealthy and one pass healthy.
@@ -334,6 +360,7 @@ const anthropicMessages: AdapterTypeSpec = {
         requirement: "SC-005",
       });
     }
+    findings.push(...twinFindings(s));
     if (str(s, "api_key_env").startsWith("ANTHROPIC_")) {
       findings.push({
         path: "api_key_env",

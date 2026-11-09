@@ -354,7 +354,9 @@ export function validateRouting(
     }
   }
 
-  // R9: the deadline covers the route's timeouts.
+  // R9: the deadline covers the route's timeouts: hello's, the primary's request, 500 ms, then the fallback's attempts
+  // with their backoff; and, amended by spec 007's plan, D43, a twin turn's, the primary's request, 500 ms, then one
+  // attempt of the fallback's twin_request_ms (local 10,000 + 500 + 9,000 = 19,500 in the committed file).
   if (deadlineMs !== undefined) {
     let needed = 0;
     for (const env of ENV_CLASSES) {
@@ -362,12 +364,14 @@ export function validateRouting(
       const primary = route && adapters.get(route.primary);
       if (!route || !primary) continue;
       let n = primary.spec.timing(primary.settings).requestMs + 500;
+      let twin = n;
       const fallback = route.fallback === undefined ? undefined : adapters.get(route.fallback);
       if (fallback) {
         const t = fallback.spec.timing(fallback.settings);
         n += t.requestMs * (1 + t.retryMax) + t.backoffMs;
+        twin += t.twinRequestMs ?? t.requestMs * (1 + t.retryMax) + t.backoffMs;
       }
-      needed = Math.max(needed, n);
+      needed = Math.max(needed, n, twin);
     }
     if (deadlineMs < needed)
       out.error("deadline_ms", "R9", `${deadlineMs} is shorter than the route's timeouts allow (${needed})`);

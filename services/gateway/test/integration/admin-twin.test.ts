@@ -158,7 +158,25 @@ describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
     openai.next({ ok: { text: "Yes: the corpus says involved.", inputTokens: 900, outputTokens: 9, finish: "stop" } });
     const turns = [{ role: "visitor", text: "He led the national deployments too, right?" }];
     const b = (await call(s, body({ turns }))).json() as Rec;
-    expect(b).toMatchObject({ guard: "repair_opener", text: "The corpus says involved." });
+    expect(b).toMatchObject({ guard: "repair_opener", text: "The corpus says involved.", redacted: [] });
+  });
+
+  // Round 7 (spec 007's plan, D41, D42): the runners see which guards removed a sentence from a delivered answer, so
+  // the red-team's live runs can print it for the Author's read.
+  it("lists the guards that removed a sentence, with the answer as the visitor gets it", async () => {
+    const s = await prod();
+    openai.next({
+      ok: {
+        text: "Winter first: he rides every season. He has 9876 boards.",
+        inputTokens: 900,
+        outputTokens: 9,
+        finish: "stop",
+      },
+    });
+    const b = (await call(s, body())).json() as Rec;
+    expect(b).toMatchObject({ guard: null, redacted: ["numbers"], text: "Winter first: he rides every season." });
+    openai.next({ ok: { text: "He has 9876 boards.", inputTokens: 900, outputTokens: 9, finish: "stop" } });
+    expect((await call(s, body())).json()).toMatchObject({ guard: "numbers", redacted: [] });
   });
 
   it("names refusal when the model refused, the answer withheld whole (spec 010, FR-018)", async () => {

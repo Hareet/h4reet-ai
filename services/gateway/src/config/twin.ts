@@ -31,6 +31,8 @@ export interface PromptFile {
 
 export interface Lines {
   readonly withheld: string;
+  /** The Author's line for a sentence that declined a claim by restating it (spec 007's plan, D38). */
+  readonly notSaid: string;
 }
 
 export interface TwinFiles {
@@ -74,7 +76,10 @@ export function parsePrompt(text: string): PromptFile | null {
 
 const LINES = z.strictObject({
   schema: z.literal(1),
-  lines: z.strictObject({ withheld: z.string().trim().min(1).max(400) }),
+  lines: z.strictObject({
+    withheld: z.string().trim().min(1).max(400),
+    not_said: z.string().trim().min(1).max(400),
+  }),
 });
 
 /** lines.yaml, checked, or null. */
@@ -82,7 +87,9 @@ export function parseLines(text: string): Lines | null {
   const parsed = parseYaml(`config/${TWIN_DIR}/lines.yaml`, text);
   if (parsed.issues.length > 0) return null;
   const result = LINES.safeParse(parsed.data);
-  return result.success ? { withheld: result.data.lines.withheld.trim() } : null;
+  return result.success
+    ? { withheld: result.data.lines.withheld.trim(), notSaid: result.data.lines.not_said.trim() }
+    : null;
 }
 
 /** The twin from its files' texts: what loadTwin reads, and what the tests give. It never throws. */

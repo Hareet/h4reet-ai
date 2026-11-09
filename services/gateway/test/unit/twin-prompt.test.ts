@@ -24,6 +24,10 @@ function files(): TwinFiles {
 const f = files();
 const ranker = new Ranker(f.pack.sections);
 
+/** A section's text as the prompt writes it: a Golden Q&A without its trailing claim tags (D40). */
+const rendered = (s: (typeof f.pack.sections)[number]): string =>
+  s.golden === null ? s.text : s.text.slice(0, s.text.length - ` ${s.golden.tags.join("")}`.length);
+
 function messagesFor(o: {
   feature: string;
   path: "engineer" | "non-engineer";
@@ -55,10 +59,47 @@ describe("the turn's messages (FR-019)", () => {
     expect(system.indexOf("## Depth: engineer")).toBeLessThan(system.indexOf("# Grounding"));
     for (const s of grounding.sections) {
       expect(system).toContain(`[${s.file.replace(/^corpus\//, "").replace(/\.md$/, "")} — ${s.heading}]`);
-      expect(system).toContain(s.text);
+      expect(system).toContain(rendered(s));
     }
     expect(system).toContain(f.pack.rules.rulings.text);
     expect(messages[1]?.content).toContain(JSON.stringify("What does he do on weekends?"));
+  });
+
+  // Round 7 (spec 007's plan, D40): a Golden Q&A answer is given word for word, so the prompt writes it without the
+  // claim tags the local model copied into an answer ("… with several in-person iterations. [A][slot]"); every other
+  // section keeps its tags, which the instructions read. The pack, and its hash, are as they were.
+  it("writes each Golden Q&A without its claim tags, and every other section as the pack holds it", () => {
+    const goldens = f.pack.sections.filter((s) => s.golden !== null);
+    expect(goldens.length).toBeGreaterThan(60);
+    const grounding = buildGrounding({
+      pack: f.pack,
+      ranker,
+      feature: "free_talk",
+      turns: [{ role: "visitor", text: "Did you work on other national deployments?" }],
+      freeTalkReady: true,
+      budgetChars: 1_000_000,
+    });
+    const system =
+      buildMessages({
+        files: f,
+        grounding,
+        feature: "free_talk",
+        path: "engineer",
+        turns: [{ role: "visitor", text: "Did you work on other national deployments?" }],
+      })[0]?.content ?? "";
+    let seen = 0;
+    for (const s of grounding.sections) {
+      const g = s.golden;
+      if (g === null) {
+        expect(system).toContain(`]\n${s.text}\n\n`);
+        continue;
+      }
+      seen += 1;
+      expect(system, s.id).toContain(`— ${s.heading}]\n${g.n}. *${g.question}* — ${g.answer}\n\n`);
+      expect(system, s.id).not.toContain(`${g.answer} ${g.tags.join("")}`);
+    }
+    expect(seen).toBeGreaterThan(0);
+    expect(grounding.text).toContain(goldens[0]?.text ?? "?");
   });
 
   it("chooses the non-engineer's depth for that path, and nothing else differs but the depth", () => {

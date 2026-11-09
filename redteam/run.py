@@ -36,8 +36,8 @@ holds it). Live mode is the Author's, and refuses to run in the agent sandbox:
 redteam/live.py loads the operator CLI's AdminClient and hands it to main here, since this file imports no importlib
 (spec 004's review of T209). Each case that has `live` goes through AdminClient.twin_turn, POST /admin/twin/turn on
 that one adapter; main judges the real answer with every detector (`expect: safe` for every live case), and writes
-redteam/history/<UTC>-<adapter>.json: each case's verdict, detectors, guard, route, cost, and the answer's SHA-256,
-never its text.
+redteam/history/<UTC>-<adapter>.json: each case's verdict, detectors, guard, the guards that removed a sentence from
+the answer (spec 007's plan, D42), route, cost, and the answer's SHA-256, never its text.
 """
 
 from __future__ import annotations
@@ -491,6 +491,19 @@ STACKS = ("prod", "dev", "dev-cpu")
 # The gateway's guard value for an answer it delivered without its opening agreement (services/gateway's guards,
 # spec 007's plan, D34): a pass the runner prints for the Author's read (D36).
 REPAIRED = "repair_opener"
+# A guard's name, as the gateway lists those that removed a sentence from a delivered answer (D41, D42).
+_GUARD_NAME = re.compile(r"[a-z_]{1,32}")
+
+
+def _redacted(answer: Mapping[str, Any]) -> list[str]:
+    """The guards that removed a sentence, or the claim tags, from the answer the gateway delivered (its admin route's
+    `redacted`, spec 007's plan, D42): names alone, never words of the answer; anything else reads as none."""
+    names = answer.get("redacted")
+    if not isinstance(names, list):
+        return []
+    return [n for n in names if isinstance(n, str) and _GUARD_NAME.fullmatch(n)]
+
+
 LIVE_ADAPTERS = ("local", "bedrock", "anthropic")
 # Each live adapter's provider (spec 010, FR-025); the paid ones run on prod alone.
 PROVIDERS = {"local": "local", "bedrock": "aws.bedrock", "anthropic": "anthropic"}
@@ -573,6 +586,7 @@ def live_run(
                     "verdict": "error",
                     "detectors": [],
                     "guard": None,
+                    "redacted": [],
                     "route": None,
                     "cost_micro_usd": 0,
                     "pack_sha256": None,
@@ -597,6 +611,11 @@ def live_run(
             # agree, which no forbid pattern of an opener reads, so it's printed for the Author's read too (D36), on
             # his terminal only.
             print(f"      REPAIRED, read it: {text}")
+        redacted = _redacted(answer)
+        if verdict == "pass" and redacted:
+            # A pass the gateway delivered with a sentence removed (D41, D42): a sentence that agreed with the claim the
+            # case pressed can pass once its neighbour, the one the case's pattern read, is gone, so it's printed too.
+            print(f"      REDACTED by {', '.join(redacted)}, read it: {text}")
         if isinstance(answer.get("prompt_sha256"), str):
             prompts.add(answer["prompt_sha256"])
         results.append(
@@ -606,6 +625,7 @@ def live_run(
                 "verdict": verdict,
                 "detectors": findings,
                 "guard": answer.get("guard"),
+                "redacted": redacted,
                 "route": answer.get("route"),
                 "cost_micro_usd": answer.get("cost_micro_usd", 0),
                 "pack_sha256": answer.get("pack_sha256"),
@@ -615,6 +635,7 @@ def live_run(
     failed = sum(r["verdict"] in ("fail", "error") for r in results)
     unjudged = sum(r["verdict"] == "unjudged" for r in results)
     repaired = sum(r["verdict"] == "pass" and r["guard"] == REPAIRED for r in results)
+    redactions = sum(r["verdict"] == "pass" and bool(r["redacted"]) for r in results)
     record = {
         "suite": "redteam",
         "adapter": adapter,
@@ -637,6 +658,7 @@ def live_run(
         f"redteam live, {adapter} on {stack}: {len(results) - failed - unjudged} passed, {failed} failed,"
         f" {unjudged} unjudged"
         + (f", {repaired} repaired: read them" if repaired else "")
+        + (f", {redactions} redacted: read them" if redactions else "")
         + f"; the history is redteam/history/{name}"
     )
     return 1 if failed or unjudged else 0

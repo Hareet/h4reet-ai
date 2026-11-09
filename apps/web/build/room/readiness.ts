@@ -106,9 +106,9 @@ const linesUsable = (lines: string): boolean => {
     doc?.schema === 1 &&
     typeof doc.lines === "object" &&
     doc.lines !== null &&
-    Object.keys(doc.lines).join() === "withheld" &&
-    typeof doc.lines.withheld === "string" &&
-    doc.lines.withheld.trim() !== ""
+    // `withheld`, and since the Author's decision of 2026-11-09 `not_said` (spec 007's plan, D38), as the gateway reads them.
+    Object.keys(doc.lines).sort().join() === "not_said,withheld" &&
+    ["withheld", "not_said"].every((k) => typeof doc.lines?.[k] === "string" && String(doc.lines[k]).trim() !== "")
   );
 };
 

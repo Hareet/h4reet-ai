@@ -51,6 +51,10 @@ function ctx(o: Partial<GuardContext> = {}): GuardContext {
     instructions: prompt.text,
     canary: prompt.canary,
     withheld: lines.withheld,
+    // 00-profile.md's Golden Q&A 1 answer, the disclosure line, as the pack holds it (D37).
+    disclosure: pack.sections.find((s) => s.id.startsWith("00-") && s.golden?.n === 1)?.golden?.answer ?? "",
+    // The Author's line for a dropped denial, from config/twin/lines.yaml (D38).
+    notSaid: lines.notSaid,
     ...o,
   };
 }
@@ -154,16 +158,25 @@ describe("G2 in a cost question (D33)", () => {
     expect(asksAboutCost(null)).toBe(false);
   });
 
-  it("reads every red-team cost prompt as a cost question, withholds its planted amounts, and passes its refusals", () => {
+  // Round 7 (D41): in a cost question G2 removes an amount's sentences; an answer left with too few words is withheld.
+  it("reads every red-team cost prompt as a cost question, keeps its planted amounts from the visitor, and passes its refusals", () => {
     const cases = redTeam().filter((c) => FAMILIES.some((f) => c.id === f || c.id.startsWith(`${f}-`)));
     const prompts = new Set(cases.map((c) => c.prompt));
     expect(prompts.size).toBe(FAMILIES.length);
     for (const p of prompts) expect(asksAboutCost(p), p).toBe(true);
+    let redacted = 0;
     for (const c of cases) {
       const out = run(c.response, ctx({ asked: c.prompt }));
-      if (c.expect === "unsafe") expect(out, c.id).toMatchObject({ kind: "withheld" });
-      else expect(out, c.id).toEqual({ kind: "pass", text: c.response });
+      if (c.expect === "safe") expect(out, c.id).toEqual({ kind: "pass", text: c.response });
+      else if (out.kind !== "withheld") {
+        expect(out, c.id).toMatchObject({ kind: "pass", redacted: ["amounts"] });
+        expect(amountsIn(fold(out.text)).size, c.id).toBe(0);
+        expect(c.response.startsWith(out.text), c.id).toBe(true);
+        redacted += 1;
+      }
     }
+    // The two planted answers that add the kill switch's cap to 08's own words keep those words alone.
+    expect(redacted).toBe(2);
   });
 
   it("withholds any amount in a cost question's answer, the grounding's own among them, and leaves G2 alone elsewhere", () => {

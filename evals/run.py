@@ -409,7 +409,8 @@ def admin_client(stack: str) -> Any:
 
 def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
     """Spec 007's twin cases: POST /admin/twin/turn on the stack's admin listener, on one named adapter, never failing
-    over (contracts/operator-admin.md §8). The reply adds the guard and the pack's and the prompt's hashes."""
+    over (contracts/operator-admin.md §8). The reply adds the guard, the guards that removed a sentence (D42), and the
+    pack's and the prompt's hashes."""
     client = admin_client(stack)
 
     def call(case: dict[str, Any]) -> Reply:
@@ -443,6 +444,18 @@ def twin_adapter(suite: str, stack: str, adapter_id: str) -> Adapter:
         )
         guard = answer.get("guard")
         out["guard"] = guard if isinstance(guard, str) else None
+        # The guards that removed a sentence, or the claim tags, from the answer delivered (spec 007's plan, D42): names
+        # alone, never words of the answer.
+        names = answer.get("redacted")
+        out["redacted"] = (
+            [
+                n
+                for n in names
+                if isinstance(n, str) and re.fullmatch(r"[a-z_]{1,32}", n)
+            ]
+            if isinstance(names, list)
+            else []
+        )
         for key in ("pack_sha256", "prompt_sha256"):
             value = answer.get(key)
             out[key] = (
@@ -636,10 +649,15 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
             reasons = score(case, answer["answer"])
             failed += bool(reasons)
             verdict = "FAIL" if reasons else "PASS"
-            # A failing twin case names the guard that withheld its answer, if one did (the review of c52655f7; D31).
+            # A failing twin case names the guard that withheld its answer, if one did (the review of c52655f7; D31),
+            # and the guards that removed a sentence from it (D42).
             withheld = (
                 [f"withheld by {answer['guard']}"]
                 if reasons and answer.get("guard")
+                else []
+            ) + (
+                [f"redacted by {', '.join(answer['redacted'])}"]
+                if reasons and answer.get("redacted")
                 else []
             )
             print(
@@ -671,6 +689,7 @@ def main(argv: list[str], *, readiness: bool = False) -> int:
                         {
                             "feature": case["twin"]["feature"],
                             "guard": answer.get("guard"),
+                            "redacted": answer.get("redacted", []),
                             "pack_sha256": answer.get("pack_sha256"),
                         }
                         if "twin" in case

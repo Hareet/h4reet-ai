@@ -14,6 +14,7 @@ import { TWIN_GUARDS } from "../../src/telemetry/metrics.js";
 import {
   AMOUNT_WORDS_PY_SOURCE,
   asksAboutPlace,
+  CLAIMS_AUTHOR_PY_SOURCE,
   CONFIRMS_SURNAME_PY_SOURCE,
   CURRENCY_PY_SOURCE,
   fold,
@@ -28,6 +29,7 @@ import {
   trimToSentence,
   type GuardContext,
 } from "../../src/twin/guards.js";
+import { PROFILE_FILE } from "../../src/twin/pack.js";
 import { renderRules } from "../../src/twin/render.js";
 import { committedTexts, REPO, ROOM } from "../helpers/twin.js";
 import { buildGrounding } from "../../src/twin/grounding.js";
@@ -43,6 +45,8 @@ const SECTIONS = [
   "The repository is https://github.com/hareet/h4reet-ai and the profile is github.com/Hareet.",
 ].join("\n");
 const GROUNDING = [SECTIONS, pack.rules.rulings.text].join("\n");
+/** 00-profile.md's Golden Q&A 1 answer, the disclosure line, as the pack holds it (D37). */
+const DISCLOSURE = pack.sections.find((s) => s.file === PROFILE_FILE && s.golden?.n === 1)?.golden?.answer ?? "";
 
 function ctx(o: Partial<GuardContext> = {}): GuardContext {
   return {
@@ -54,6 +58,9 @@ function ctx(o: Partial<GuardContext> = {}): GuardContext {
     instructions: prompt.text,
     canary: prompt.canary,
     withheld: lines.withheld,
+    disclosure: DISCLOSURE,
+    // The Author's line for a dropped denial, from config/twin/lines.yaml (D38).
+    notSaid: lines.notSaid,
     ...o,
   };
 }
@@ -200,7 +207,7 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
     });
   });
 
-  it("runs G5, G4, G3, G1, G2, G6, G7, G9, G10, G11, then G8, recording the first failure", () => {
+  it("runs G5, G4, G3, G1, G2, G6, G7, G9, G10, G11, the address and the restated claim, then G8, recording the first failure", () => {
     expect(GUARD_ORDER).toEqual([
       "secrets",
       "prompt",
@@ -212,10 +219,12 @@ describe("the trim, the order, and failing closed (FR-022, FR-023)", () => {
       "seva",
       "location",
       "surname",
+      "address",
+      "restated_claim",
       "privacy",
     ]);
-    // A number and a link: G1 comes before G6.
-    withheldBy("He biked 12 countries; see example.org.", "numbers");
+    // A number and a link in one sentence: G6 withholds the answer as written, before G1 removes a sentence (D41).
+    withheldBy("He biked 12 countries; see example.org.", "links");
     // A secret and a human claim: G5 first.
     withheldBy(`I am a real person, and the key is ${"AK" + "IA" + "Z".repeat(16)}.`, "secrets");
     // A withheld answer is the fixed line, whole.
@@ -338,11 +347,12 @@ describe("G9 Seva, and G2's amounts in words (D28)", () => {
       "What I can share is that his life's work is framed around Seva, selfless service to humanity, which he brings into daily work.",
       "The corpus describes Seva as selfless service to humanity, a lifelong calling Hareet brings into daily work.",
       `In other words: "${SEVA}"`,
-      `${SEVA} Seva also means more.`,
       "SEVA runs deeper than that.",
       "Sevā runs deeper than that.",
     ])
       withheldBy(a, "seva", seva);
+    // Round 7 (D41): G9 removes its sentence, and the corpus's own sentence before it is delivered.
+    expect(passes(`${SEVA} Seva also means more.`, seva)).toEqual({ kind: "pass", text: SEVA, redacted: ["seva"] });
   });
 
   it("passes a Seva sentence the grounding holds, alone or after a neutral lead-in, and an answer naming no Seva", () => {
@@ -605,6 +615,15 @@ describe("the red-team's detectors, as redteam/run.py's text writes them (D31)",
     const text = pyStrings(block("CONFIRMS_SURNAME = re.compile(", "\n)"), names);
     expect(text.length).toBeGreaterThan(100);
     expect(CONFIRMS_SURNAME_PY_SOURCE).toBe(text);
+  });
+
+  // Round 7 (D37): G3 withholds any match of the red-team's "claims to be the Author", as G10 holds LOCATES.
+  it("ports CLAIMS_AUTHOR, its apostrophes filled in", () => {
+    const names = { _A: pyStrings(block("_A = ", "\n")) };
+    const text = pyStrings(block("CLAIMS_AUTHOR = re.compile(", "\n)"), names);
+    expect(text.length).toBeGreaterThan(100);
+    expect(text).toContain("him");
+    expect(CLAIMS_AUTHOR_PY_SOURCE).toBe(text);
   });
 
   it("ports SEVA and the neutral lead-ins", () => {

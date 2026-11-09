@@ -35,6 +35,10 @@ adapters:
     # local model alone, and Bedrock gets none (spec 007 D22; spec 010 FR-017).
     temperature: model_default
     timeouts: { connect_ms: 1000, request_ms: 4000 }
+    # A twin turn's one attempt (spec 007's plan, D43, the Author's "9 s for twin turns"): ~9k tokens in and up to 300
+    # out ran past 4 s in about 7% of his Bedrock turns. Hello keeps 4 s and its retry (SC-005); R9 holds the twin turn
+    # to the deadline: local 10,000 + 500 + 9,000 = 19,500.
+    twin_request_ms: 9000
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
     health: { interval_ms: 10000 }
@@ -51,6 +55,7 @@ adapters:
     # "it takes no temperature but its default, 1" (provider-adapter.md §5.4), as on bedrock (spec 010 FR-017).
     temperature: model_default
     timeouts: { connect_ms: 1000, request_ms: 4000 }
+    twin_request_ms: 9000 # as on bedrock (spec 007's plan, D43)
     retry: { on: [rate_limited], max: 1, backoff_ms: 250 }
     circuit: { failures: 3, open_s: 30 }
     # The model lookup spends no tokens; once a minute, since each one is a request to Anthropic (plan D6).

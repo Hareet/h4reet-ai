@@ -9,7 +9,7 @@
 //   state read passes, so a degraded turn builds no grounding and no prompt (FR-025); its input bound and output cap
 //   from limits.twin; its feature and topic.
 // - guardContext and guardFor: the answer through the guards, against the grounding the call was built with, its
-//   sections, and the visitor's newest turn (spec 007's plan, D31).
+//   sections, and the visitor's newest turn (spec 007's plan, D31), with the profile's disclosure line (D37).
 import type { TwinFiles, TwinLoad, VisitPath } from "../config/twin.js";
 import { TWIN_LIMIT_DEFAULTS, type Budgets, type EnvClass, type TwinLimits } from "../config/validate.js";
 import type { GatewayCall } from "../core/gateway.js";
@@ -17,7 +17,7 @@ import { ClientCap } from "../core/limits.js";
 import type { FinishReason } from "../core/types.js";
 import { buildGrounding, type Grounding, type Turn } from "./grounding.js";
 import { guardAnswer, type GuardContext, type Guarded } from "./guards.js";
-import { FREE_TALK, type Pack } from "./pack.js";
+import { FREE_TALK, PROFILE_FILE, type Pack } from "./pack.js";
 import { buildMessages, instructionBound, userText } from "./prompt.js";
 import { Ranker } from "./retrieve.js";
 
@@ -164,8 +164,15 @@ export function twinCall(
   };
 }
 
+/** The disclosure line (spec 007's plan, D37): 00-profile.md's Golden Q&A 1 answer as the pack holds it, never typed
+ *  here; the fixed line if the pack has none, so an identity turn's failed answer is still withheld. */
+export function disclosureLine(files: Pick<TwinFiles, "pack" | "lines">): string {
+  const first = files.pack.sections.find((s) => s.file === PROFILE_FILE && s.golden?.n === 1)?.golden;
+  return first?.answer ?? files.lines.withheld;
+}
+
 /** What the guards hold a turn's answer to: its grounding's words, its sections' words, and the visitor's newest turn,
- *  with the pack's rulings and quotes, the instructions, and the fixed line. */
+ *  with the pack's rulings and quotes, the instructions, the fixed line, and the disclosure line. */
 export function guardContext(files: TwinFiles, grounding: Grounding): GuardContext {
   return {
     groundingText: grounding.text,
@@ -176,6 +183,8 @@ export function guardContext(files: TwinFiles, grounding: Grounding): GuardConte
     instructions: files.prompt.text,
     canary: files.prompt.canary,
     withheld: files.lines.withheld,
+    disclosure: disclosureLine(files),
+    notSaid: files.lines.notSaid,
   };
 }
 

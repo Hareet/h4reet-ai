@@ -96,6 +96,8 @@ describe("the room's readiness (FR-030, FR-037)", () => {
       { "config/twin/prompt.md": null },
       { "config/twin/prompt.md": "# no marker\n" },
       { "config/twin/lines.yaml": "nope: 1\n" },
+      // The gateway refuses lines without the Author's line for a dropped denial, and so does the build (D38).
+      { "config/twin/lines.yaml": "schema: 1\nlines: { withheld: A fixture line. }\n" },
     ]) {
       const r = twinReadiness(tree({ [READINESS_PATH]: all, ...broken }));
       expect(r.freeTalk, JSON.stringify(broken)).toBe(false);

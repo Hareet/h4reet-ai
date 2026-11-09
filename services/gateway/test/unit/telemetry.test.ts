@@ -94,6 +94,8 @@ function scriptedRun(m: GatewayMetrics): void {
     seconds: 0.002,
   });
   m.twinWithheld("numbers");
+  // Round 7 (spec 007's plan, D41): an answer delivered with a sentence removed, by the guard that removed it.
+  m.twinRedacted("seva");
   m.cost(0n, { provider: "local", model: "stand-in", attribution: "none", feature: "fx-desk" });
   m.tokenUsage(71, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "input" });
   m.tokenUsage(14, { provider: "local", requestModel: "stand-in", responseModel: "stand-in", tokenType: "output" });
@@ -124,6 +126,7 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.twin.turns": { unit: "{turn}", keys: ["h4.cause", "h4.outcome", "h4.room.feature"] },
   "h4.twin.turn.duration": { unit: "s", keys: ["h4.room.feature", "h4.route.decision"] },
   "h4.twin.withheld": { unit: "{answer}", keys: ["h4.twin.guard"] },
+  "h4.twin.redacted": { unit: "{answer}", keys: ["h4.twin.guard"] },
   "h4.meter.spend_usd": { unit: "{USD}", keys: ["h4.meter"] },
   // Spec 010 (FR-035; plan §9): each capped, routed adapter's month, its cap, and its warning.
   "h4.adapter.month_spend_usd": { unit: "{USD}", keys: ["h4.adapter"] },
@@ -550,8 +553,27 @@ describe("the twin's instruments (spec 007, plan §9)", () => {
       seconds: 1,
     });
     (m.twinWithheld as (g: string) => void)("my words");
+    (m.twinRedacted as (g: string) => void)("your words");
     const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
-    for (const leaked of ["a visitor's words", "<script>", "elsewhere", "my words"]) expect(all).not.toContain(leaked);
+    for (const leaked of ["a visitor's words", "<script>", "elsewhere", "my words", "your words"])
+      expect(all).not.toContain(leaked);
+    await h.shutdown();
+  });
+
+  // Round 7 (spec 007's plan, D41): each guard that removed a sentence from a delivered answer, counted once for it.
+  it("count redacted answers by the guard that removed a sentence, from its bounded list", async () => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    m.twinRedacted("numbers");
+    m.twinRedacted("claim_tags");
+    m.twinRedacted("numbers");
+    const found = instruments(await h.collect()).find((x) => x.descriptor.name === "h4.twin.redacted");
+    expect(found?.descriptor.unit).toBe("{answer}");
+    const points = (found?.dataPoints ?? []).map((p) => [p.attributes["h4.twin.guard"], p.value]);
+    expect(points.sort()).toEqual([
+      ["claim_tags", 1],
+      ["numbers", 2],
+    ]);
     await h.shutdown();
   });
 });
