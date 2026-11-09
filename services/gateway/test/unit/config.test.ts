@@ -988,6 +988,8 @@ describe("alerts.yaml (§4.3)", () => {
       authFailed: { threshold: 3, windowS: 600 },
       prefixes: { prod: "[h4reet.ai prod]", dev: "[dev]", "dev-cpu": "[dev-cpu]" },
       standin: { telegramBase: "http://telegram-standin:8080", smtpHost: "mailpit", smtpPort: 1025 },
+      // Spec 011 (FR-031): with no formats key, both channels send their designed forms.
+      formats: { telegram: "designed", email: "designed" },
     });
   });
 
@@ -998,12 +1000,18 @@ describe("alerts.yaml (§4.3)", () => {
     expect(a("order: [telegram, email]", "order: [telegram]")[0]).toContain("channels.order");
   });
 
-  it("A2: every attempt fits inside the window", () => {
+  it("A2: every attempt fits inside the window, counting two sends (spec 011, Amendment 0-10)", () => {
+    // An attempt that falls back to the plain form makes two sends, so the slowest timeout counts twice.
     expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 181]")).toEqual([
-      "config/alerts.yaml: retry: the last attempt starts at 291 s and can run 10 s; both must fit in give_up_after_s (300 s)",
+      "config/alerts.yaml: retry: the last attempt starts at 291 s and can run 20 s; both must fit in give_up_after_s (300 s)",
     ]);
-    // 290 s plus the 10 s email timeout ends exactly at 300 s, which fits.
-    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180]")).toEqual([]);
+    // 290 s plus one 10 s send fitted before spec 011; with two sends it ends at 310 s.
+    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180]")).toEqual([
+      "config/alerts.yaml: retry: the last attempt starts at 290 s and can run 20 s; both must fit in give_up_after_s (300 s)",
+    ]);
+    // 280 s plus two 10 s sends ends exactly at 300 s, which fits; and the committed file's 230 + 20 = 250.
+    expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 170]")).toEqual([]);
+    expect(a("schedule_s", "schedule_s")).toEqual([]);
     expect(a("[5, 15, 30, 60, 120]", "[5, 15, 30, 60, 180, 2]")).toContain(
       "config/alerts.yaml: retry.schedule_s: must never decrease",
     );
@@ -1049,6 +1057,32 @@ describe("alerts.yaml (§4.3)", () => {
         "config/alerts.yaml: standin.smtp_host: must be an in-network host (a single-label name)",
       ]);
     }
+  });
+
+  it("A8: formats, each channel designed or plain, designed where absent (spec 011, FR-031)", () => {
+    const withFormats = (formats: string) => alerts(`${fixture("alerts.yaml")}\nformats: ${formats}\n`);
+    for (const [formats, value] of [
+      ["{}", { telegram: "designed", email: "designed" }],
+      ["{ telegram: plain }", { telegram: "plain", email: "designed" }],
+      ["{ email: plain }", { telegram: "designed", email: "plain" }],
+      ["{ telegram: designed, email: plain }", { telegram: "designed", email: "plain" }],
+      ["{ telegram: plain, email: plain }", { telegram: "plain", email: "plain" }],
+    ] as const) {
+      const result = withFormats(formats);
+      expect(errorLines(result.issues), formats).toEqual([]);
+      expect(result.value?.formats, formats).toEqual(value);
+    }
+    expect(errorLines(withFormats("{ telegram: html }").issues)).toEqual([
+      'config/alerts.yaml: formats.telegram: must be "designed" or "plain"',
+    ]);
+    expect(rulesOf(withFormats("{ telegram: html }").issues)).toEqual(["A8"]);
+    expect(errorLines(withFormats("{ email: true }").issues)).toEqual([
+      'config/alerts.yaml: formats.email: must be "designed" or "plain"',
+    ]);
+    expect(errorLines(withFormats("{ sms: plain }").issues)).toEqual(["config/alerts.yaml: formats.sms: unknown key"]);
+    expect(rulesOf(withFormats("{ sms: plain }").issues)).toEqual(["A8"]);
+    expect(errorLines(withFormats("plain").issues)).toEqual(["config/alerts.yaml: formats: must be a mapping"]);
+    expect(rulesOf(withFormats("plain").issues)).toEqual(["A8"]);
   });
 
   it("A7: unknown keys, wrong types, and out-of-range values", () => {

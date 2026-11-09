@@ -116,6 +116,8 @@ export const BUDGET_CAUSES: readonly string[] = [
   "fallback_spent_today",
   "fallback_awaiting_renewal",
   "kill_switch_tripped",
+  // Spec 010's Amendment 2-1: the paid fallback's monthly cap.
+  "adapter_month_spent",
 ];
 
 /** A cause's class: resting, budget, or, for any other cause, one the room doesn't know (the relay's

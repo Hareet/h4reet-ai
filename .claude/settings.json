@@ -316,6 +316,14 @@
         {
           "name": "AWS_CONTAINER_AUTHORIZATION_TOKEN",
           "mode": "deny"
+        },
+        {
+          "name": "GATEWAY_ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
         }
       ]
     }

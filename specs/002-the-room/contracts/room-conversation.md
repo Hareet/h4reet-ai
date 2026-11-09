@@ -45,6 +45,8 @@ From `content/messages.yaml`, never generated:
 
 Each `cannot_talk` message ends with a link to the resume and one to the PDF. The cause classes map spec 000's causes by name ([gateway-http.md](../../000-local-foundations/contracts/gateway-http.md)); an unknown cause is "unavailable". The kill switch's trip counts as "budget", since a trip follows a ceiling; `cannot_talk.budget` says the day's budget is used, which is the cause's class, not its detail.
 
+**(spec 010, Amendment 2-1)** `adapter_month_spent`, the paid fallback's monthly cap, is of the budget class: `cannot_talk.budget`, with the resume and the PDF (`apps/web/src/room/signals/tier.ts`'s `BUDGET_CAUSES`).
+
 ## 4. Push-to-talk (for the push-to-talk group)
 
 - **Capture:** only while the button or its held key is down, at most 30 s, stopped on `visibilitychange` to hidden (FR-026, FR-029).

@@ -50,6 +50,7 @@ Otherwise the answer is 400 `{"error":"invalid_request","field":"reason","detail
 | `POST /admin/test/clock` (dev) | `test_clock` | `clock` | none |
 | `POST /admin/test/synthetic` (dev) | `test_synthetic` | each call's `reserve` and `commit` | none of its own; its crossings alert as usual |
 | `POST /admin/adapters/{id}/complete` | `adapter_call` | for a paid adapter, the call's `reserve` and `commit` | none of its own; its crossings alert as usual |
+| `POST /admin/alert-samples` **(spec 011, Amendment 0-8)** | `alert_samples` | none: nothing changes state | none: the samples, each naming the requester's fingerprint, are its notice (§2.4) |
 
 - **Atomicity.** The audit row and the alert are written in the same transaction as the change ([data-model.md §7.5](../data-model.md#75-operator-transactions)). The journal record follows the commit. A failed append is reported as `"journal": "unwritable"` in the response and in the audit row, and doesn't undo the action.
 - **Confirmation alerts.** Only the three operator writes send one, so an unexpected reset, renewal, or initialization gets noticed. The test and adapter endpoints are audited but not confirmed. Otherwise a breach run or a contract run would send dozens of confirmations.
@@ -183,6 +184,36 @@ Request:
 | 409 | `confirm_zero_required` | no ledger rows this month, no `reserve` or `commit` record in the files read, nothing stated, and `confirm_zero` false. Nothing is zeroed silently. (This row first said "no journal records"; data-model.md §8 step 7, the procedure, counts only call records, and an `init` record's floor still applies when the operator confirms.) |
 | 409 | `journal_unreadable` | the journal directory exists but can't be read |
 | 400, 401, 503 | as in §1 | |
+
+### 2.4 `POST /admin/alert-samples` (spec 011)
+
+**(spec 011, Amendment 0-8)** A marked sample of each alert catalogue entry, or of one kind's, sent wherever the stack's alerts go ([alerts.md §3.1](alerts.md#31-three-forms-from-the-same-facts-spec-011-amendment-0-1)), so the Author sees each design before a real alert needs it. Served on every stack.
+
+Request: `{"reason": "…", "kind": "trip"}`, the reason under §1.2's rule, the kind optional: one of the catalogue's kinds (`warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`), or absent for all 19 entries. Any other key is refused.
+
+In order: authentication (§1.1); JSON (415 otherwise); the body; the in-flight check; one transaction writing the audit row (action `alert_samples`, [data-model.md §2.6](../data-model.md#26-audit_log-who-when-why-fr-034)); after the commit, the dispatcher takes the samples into its memory ([alerts.md §4.4](alerts.md#44-outcomes-and-when-something-is-down)); and the answer, at once, before any delivery:
+
+```json
+{
+  "action": "alert_samples",
+  "audit_id": 57,
+  "delivery": "standin",
+  "samples": [{ "entry": "warn-day", "key": "dev-cpu:sample:warn-day:57" }]
+}
+```
+
+with one object for each entry, in the catalogue's order, and `delivery` the stack's mode, `real` or `standin`.
+
+- **Each sample** renders its entry's fixed facts, never the stack's meters, state, or store, with the stack's own prefix, its key `<stack>:sample:<entry>:<audit id>`, and the requester's fingerprint, and goes through the same renderers, senders, schedule, and fallbacks as a real alert. Every form says it is a sample, and that nothing happened on the stack.
+- **No state changes**: no meter, flag, journal record, or real alert, and no `operator_action` alert (§1.3). `h4.operator.actions` counts `alert_samples`, and the server span carries `h4.action: alert_samples`.
+- **A real alert first:** samples go one at a time on each channel, at most one a second, and never before a real alert that is due.
+
+| Status | `error` | When |
+|---|---|---|
+| 409 | `samples_in_flight` | an earlier request's samples are still pending on a channel, or its audit row is still being written: the check holds from before that row's transaction until the samples are queued or the request fails |
+| 400 | `invalid_request` | a reason outside §1.2's rule, a kind outside the catalogue's, or any other key |
+| 503 | `store_unreachable` | the store can't take the audit row; nothing is queued |
+| 401, 415 | as in §1 | |
 
 ## 3. Dev-only test machinery
 
@@ -352,7 +383,7 @@ Request:
 |---|---|
 | `messages` | 1 to 8 messages; at most one `system` message, and first; roles `system`, `user`, `assistant`; contents together at most `per_call.max_input_chars` (2,000) code points |
 | `max_output_tokens` | 1 to `per_call.max_output_tokens` (512) |
-| `temperature` | optional, 0 to 1 |
+| `temperature` | optional, 0 to 1. A paid adapter whose `temperature` setting is `model_default` sends none, whatever the request carries, so its model applies its own default: Bedrock's, in the committed `config/routing.yaml` (spec 007's plan, D22; spec 010's FR-017). The local adapter sends it as given |
 | `purpose` | `contract` or `eval` |
 | `reason` | §1.2 |
 
@@ -455,6 +486,7 @@ Request:
 | `audit` | `[--limit N] [--action A]` | `GET /admin/audit` |
 | `incidents` | `[--limit N] [--id N] [--show]` | `GET /admin/incidents`; `--show` prints the newest draft's Markdown, ready to redirect into a file. (Added by tasks.md T075: with `--id`, that draft's; with no written draft, it prints nothing on standard output, says why, and exits 1, as for a 404.) |
 | `contract-record` | `--adapter ID --cases FILE --out FILE --reason TEXT` | `GET /admin/status`, then `POST /admin/adapters/{ID}/complete` for each case, then `GET /admin/status` again; writes the recording for the live contract run ([provider-adapter.md §5.3](provider-adapter.md#53-three-run-modes)) |
+| `alert-samples` **(spec 011, Amendment 0-8)** | `--reason TEXT [--kind KIND]` | `POST /admin/alert-samples` (§2.4); prints each entry and key and where they went. No option begins `--s`, which the bash gate reads as `--stack`; the kind is passed as given, and the gateway checks it |
 
 **`mint`**, which `make operator-token ENV=<stack>` runs:
 1. It refuses `dev-cpu` with exit 2: that token is the committed dummy. It refuses inside the sandbox (`SANDBOX_RUNTIME=1`) with exit 2 too, as `make init-env` does.
@@ -496,6 +528,7 @@ The `status` and `init` summaries name the CLI's own `--stack`, in the first lin
 | `operator-init` | `ENV`, `REASON`, `RENEW=1`, `CONFIRM_ZERO=1`, `DAY_USD=`, `MONTH_USD=`, `FALLBACK_TODAY_USD=` | `init` | the same |
 | `operator-audit` | `ENV`, `LIMIT=` | `audit` | the same |
 | `operator-incidents` | `ENV`, `ID=` | `incidents --show` | the same |
+| `operator-alert-samples` **(spec 011, Amendment 0-8)** | `ENV`, `REASON`, `KIND=` | `alert-samples` | the Author; agents for `ENV=dev-cpu` only |
 
 - **The reason.** Recipes pass it as `--reason="$$REASON"`, so make never splices the text into a shell line, and the `=` keeps a reason that starts with `-` a value. A write target without `REASON` on the command line fails before any call, with exit 2.
 - **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values, as `--day-usd="$$DAY_USD"` and so on.

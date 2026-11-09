@@ -1,0 +1,17 @@
+🔵 Operator action · [h4reet.ai prod]
+🛠️ OPERATOR ACTION: reset by operator #1a2b3c4d
+Next: Local answers resume.
+Meters
+Daily      1.10 /  5.00 USD   warning  3.50
+Month     13.40 / 20.00 USD   warning 14.00
+Fallback   0.00 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-10-30T08:15:00Z
+id prod:operator_action:reset:43
+Runbook: docs/runbooks/kill-switch-reset.md
+--- entities (UTF-16 offset, length)
+bold 42 44 "OPERATOR ACTION: reset by operator #1a2b3c4d"
+pre 122 125 "Daily      1.10 /  5.00 USD   warning  3.50\nMonth     13.40 / 20.00 USD   warning 14.00\nFallback   0.00 /  2.00 USD   grant 1"
+code 314 29 "prod:operator_action:reset:43"
+code 353 34 "docs/runbooks/kill-switch-reset.md"

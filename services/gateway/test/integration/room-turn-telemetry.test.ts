@@ -118,6 +118,31 @@ describe("a turn's spans (FR-043)", () => {
     expect(await collect()).toContain("h4.twin.withheld");
   });
 
+  // Round 5 (spec 007's plan, D34): an answer whose opening agreement the repair took off is the visitor's, delivered
+  // with the outcome ok, its guard named on the span and counted as repair_opener.
+  it("names and counts an opener repair, and delivers the repaired answer with the outcome ok", async () => {
+    const t = await twinStack({
+      twin: twinWith(READY),
+      metrics: new GatewayMetrics(meterProvider.getMeter("twin-repair")),
+    });
+    stacks.push(t);
+    t.stub.next({
+      ok: { text: "Yes, the corpus says he was involved there.", inputTokens: 900, outputTokens: 12, finish: "stop" },
+    });
+    const res = await t.turn({
+      feature: "free_talk",
+      path: "engineer",
+      turns: [{ role: "visitor", text: "He led the national deployments too, right?" }],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ text: "The corpus says he was involved there." });
+    const server = exporter
+      .getFinishedSpans()
+      .find((s) => s.kind === SpanKind.SERVER && s.attributes["http.route"] === "/room/turn");
+    expect(server?.attributes).toMatchObject({ "h4.outcome": "ok", "h4.twin.guard": "repair_opener" });
+    expect(await collect()).toContain("repair_opener");
+  });
+
   it("names the degraded cause on a degraded turn", async () => {
     const t = await twinStack({ twin: twinWith(READY), healthy: false });
     stacks.push(t);

@@ -59,6 +59,7 @@ describe("the contract's unions", () => {
       | "kill_switch_tripped"
       | "no_fallback_in_stack"
       | "meter_at_ceiling"
+      | "adapter_month_spent" // spec 010, Amendment 0-6
       | "fallback_awaiting_renewal"
       | "fallback_spent_today"
       | "fallback_unavailable"

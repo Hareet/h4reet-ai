@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
+import type { AdapterFactory } from "../../src/adapters/registry.js";
+import type { Channels } from "../../src/alerts/dispatcher.js";
 import { buildApp, createServices, type GatewayServices } from "../../src/app.js";
 import type { RoomEventsConfig } from "../../src/config/room-events.js";
 import type { TwinLoad } from "../../src/config/twin.js";
@@ -79,6 +81,10 @@ export async function testStack(
     metrics?: GatewayMetrics;
     /** The twin's files (spec 007), as loadTwin reads them; none by default, so every turn is twin_unavailable. */
     twin?: TwinLoad;
+    /** The adapter factories, such as anthropic-messages built against a stub's origin (spec 010); the build's own by default. */
+    factories?: ReadonlyMap<string, AdapterFactory>;
+    /** The alert channels, such as stubs on the loopback (spec 011's samples); ALERT_DELIVERY's by default. */
+    channels?: Channels;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -126,6 +132,8 @@ export async function testStack(
     ...(o.roomEvents === undefined ? {} : { roomEvents: o.roomEvents }),
     ...(o.metrics === undefined ? {} : { metrics: o.metrics }),
     ...(o.twin === undefined ? {} : { twin: o.twin }),
+    ...(o.factories === undefined ? {} : { factories: o.factories }),
+    ...(o.channels === undefined ? {} : { channels: o.channels }),
   });
   const { api, admin } = buildApp({ stack, logger, services });
   await Promise.all([api.ready(), admin.ready()]);

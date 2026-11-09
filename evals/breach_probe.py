@@ -459,6 +459,31 @@ def telegram_find(body: object, key: str) -> dict[str, Any] | None:
     return None
 
 
+def telegram_form(body: object, key: str) -> dict[str, Any] | None:
+    """The form of the Telegram stand-in's first message naming the alert (spec 011, FR-041; its plan §8.2): designed
+    when it carries entities, and how many. A flag and a count: the text and the entities stay in the probe."""
+    messages = body.get("messages") if isinstance(body, dict) else None
+    for message in messages if isinstance(messages, list) else []:
+        if (
+            isinstance(message, dict)
+            and isinstance(message.get("text"), str)
+            and token_match(message["text"], key)
+        ):
+            entities = message.get("entities")
+            count = len(entities) if isinstance(entities, list) else 0
+            return {"designed": count > 0, "entities": count}
+    return None
+
+
+def mailpit_designed(message: object) -> bool:
+    """A Mailpit message is in the designed form (spec 011, FR-015): a text part and an HTML part, both filled. Read
+    inside the probe; neither part is ever printed."""
+    if not isinstance(message, dict):
+        return False
+    html, text = message.get("HTML"), message.get("Text")
+    return isinstance(html, str) and html != "" and isinstance(text, str) and text != ""
+
+
 def mailpit_messages(body: object) -> list[dict[str, Any]]:
     messages = body.get("messages") if isinstance(body, dict) else None
     if not isinstance(messages, list):
@@ -1343,9 +1368,12 @@ class Probe:
             response = self.http.request("GET", f"{TELEGRAM}/messages")
             if response.status != 200:
                 raise SourceError(f"the Telegram stand-in answered {response.status}")
-            found = telegram_find(response.json(), key)
+            body = response.json()
+            found = telegram_find(body, key)
             if absent or found is None:
                 return absent and found is None, found
+            # Spec 011: the message's form, a flag and a count, beside its id and time.
+            found = {**found, **(telegram_form(body, key) or {})}
             return self.arrived_by(found.get("received_at"), cutoff), found
 
         outcome = poll(
@@ -1364,7 +1392,17 @@ class Probe:
         }
         if outcome.error:
             result["error"] = outcome.error
-        return result
+        return self.held_to(op, result)
+
+    @staticmethod
+    def held_to(op: Mapping[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        """A receiver check's expectation (spec 011: {"designed": true} in stand-in mode), once the alert is found: a
+        miss names the path, as every other check's does."""
+        expect = op.get("expect") or {}
+        if not expect or not result.get("ok") or result.get("absent"):
+            return result
+        wrong = misses(result, expect)
+        return {**result, "ok": not wrong, **({"misses": wrong} if wrong else {})}
 
     def op_mailpit(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         key = str(op["key"])
@@ -1393,6 +1431,7 @@ class Probe:
                     found = {
                         "matched_by": "header",
                         "received_at": message.get("Created"),
+                        "_id": ident,
                     }
                     break
             for message in messages if found is None else []:
@@ -1405,6 +1444,7 @@ class Probe:
                     found = {
                         "matched_by": "text",
                         "received_at": message.get("Created"),
+                        "_id": ident,
                     }
                     break
             if absent or found is None:
@@ -1417,16 +1457,28 @@ class Probe:
             every_s=EVERY_S["mailpit"],
             clock=self.clock,
         )
+        found = dict(outcome.value or {})
+        ident = found.pop("_id", None)
+        # Spec 011: when the check asks for the form, the found message's parts are read, here, and reduced to a flag.
+        if (
+            outcome.ok
+            and not absent
+            and "designed" in (op.get("expect") or {})
+            and ident is not None
+        ):
+            if ident not in texts_of:
+                texts_of[ident] = get(f"/api/v1/message/{urllib.parse.quote(ident)}")
+            found["designed"] = mailpit_designed(texts_of[ident])
         result = {
             "ok": outcome.ok,
             "key": key,
             **({"absent": True} if absent else {}),
-            **(outcome.value or {}),
+            **found,
             **self.timing(window, outcome),
         }
         if outcome.error:
             result["error"] = outcome.error
-        return result
+        return self.held_to(op, result)
 
     def op_audit(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         """The store's audit row for an operator action: its actor, time, reason, and figures (FR-034)."""

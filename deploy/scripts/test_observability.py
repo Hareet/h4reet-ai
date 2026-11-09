@@ -279,7 +279,9 @@ def test_the_redaction_processor_holds_the_contracts_patterns() -> None:
     redaction = PROCESSORS["redaction"]
     assert redaction["allow_all_keys"] is True and redaction["summary"] == "info"
     assert sorted(BLOCKED) == sorted(contract_patterns())
-    assert len(BLOCKED) == len(set(BLOCKED)) == 9
+    assert (
+        len(BLOCKED) == len(set(BLOCKED)) == 10
+    )  # spec 010 adds the Anthropic API key's shape
     # The PEM block first, as in the gateway's redactor: it spans lines and holds text the others would split.
     assert BLOCKED[0].startswith("-----BEGIN ")
 
@@ -363,7 +365,7 @@ def test_redact_text_holds_nothing_else_and_strips_query_strings() -> None:
     statements += [
         s for group in redact_text["log_statements"] for s in group["statements"]
     ]
-    assert len(statements) == 9 * 4 + 1
+    assert len(statements) == 10 * 4 + 1  # spec 010 adds the Anthropic API key's shape
     assert 'replace_pattern(attributes["url.full"], "\\\\?.*$", "")' in statements
     assert (
         re.sub(ottl_unquote("\\\\?.*$"), "", "https://h/x?token=1&a=2") == "https://h/x"

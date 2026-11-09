@@ -1,0 +1,4 @@
+[h4reet.ai prod] AUTH FAILURES: 3 failed operator authentications in 10 minutes
+Runtime: normal · Fallback: available · 2026-10-29T16:02:11Z · id prod:auth_failed:admin:2026-10-29T16:00Z
+The admin listener refused them (last: wrong prefix). No action was taken.
+Runbook: docs/runbooks/operator-auth-failures.md

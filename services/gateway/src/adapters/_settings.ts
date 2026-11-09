@@ -68,6 +68,13 @@ export interface AdapterTypeSpec {
   credentialsWarnMs?(settings: Record<string, unknown>): number;
   /** A type with a circuit breaker, from its `circuit` settings (provider-adapter.md §6 item 5). */
   circuit?(settings: Record<string, unknown>): CircuitSettings;
+  /** A paid type routed only with a monthly cap in budgets.yaml's adapter_monthly_usd (spec 010, FR-021). */
+  readonly monthlyCapRequired?: boolean;
+  /**
+   * The settings that name an env key holding a secret no committed file holds: an env template leaves it empty,
+   * and preflight holds the stack's own env file to it (spec 010, FR-030; contracts/env-files.md §10).
+   */
+  readonly secretEnv?: readonly string[];
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -104,10 +111,10 @@ const int = (min: number, max: number) => z.number().int().min(min).max(max);
 const envKey = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 
 /**
- * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 010 FR-017, built
- * early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it as given;
- * `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku 5.5
- * "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
+ * A paid adapter's `temperature` setting: whether its model takes the request's temperature (spec 007's plan, D22;
+ * spec 010 FR-017, built early for spec 007's live runs). `as_requested`, the default when the key is absent, sends it
+ * as given; `model_default` sends none, whatever the request carries, so the model's own default applies. Claude Haiku
+ * 5.5 "takes no temperature but its default, 1" (provider-adapter.md §5.4), and refuses any other with a 400.
  */
 export const PAID_TEMPERATURE = ["as_requested", "model_default"] as const;
 export type PaidTemperature = (typeof PAID_TEMPERATURE)[number];
@@ -280,6 +287,76 @@ const bedrockConverse: AdapterTypeSpec = {
   circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
 };
 
+/**
+ * The Anthropic API's Messages endpoint through the official SDK (spec 010, FR-004 to FR-016; its plan §2.2). The
+ * endpoint is the adapter module's constant, never a setting: a `base_url`, a `region`, or any other key is refused
+ * by the strict schema (R11). Its key comes from the env key `api_key_env` names, never one the SDK reads on its own.
+ */
+const anthropicMessages: AdapterTypeSpec = {
+  type: "anthropic-messages",
+  kinds: ["paid"],
+  settings: z.strictObject({
+    model: z.union([z.string().regex(/^[a-z0-9][a-z0-9.:-]{2,127}$/), placeholder]),
+    api_key_env: envKey,
+    thinking: z.literal("disabled"),
+    temperature: paidTemperature,
+    timeouts: z.strictObject({ connect_ms: int(100, 2_000), request_ms: int(1_000, 4_000) }),
+    retry: z.strictObject({
+      on: z.array(z.enum(PROVIDER_ERROR_KINDS as [ProviderErrorKind, ...ProviderErrorKind[]])),
+      max: int(0, 1),
+      backoff_ms: int(0, 2_000),
+    }),
+    circuit: z.strictObject({ failures: int(1, 10), open_s: int(5, 600) }),
+    health: z.strictObject({ interval_ms: int(10_000, 600_000) }),
+  }),
+  provider: () => "anthropic",
+  model: (s) => str(s, "model"),
+  timing: (s) => ({
+    requestMs: num(s, "timeouts", "request_ms"),
+    retryMax: num(s, "retry", "max"),
+    backoffMs: num(s, "retry", "backoff_ms"),
+  }),
+  // Plan §2.7: the model lookup every interval_ms, within 5 s or the interval, whichever is shorter; one failure makes
+  // it unhealthy and one pass healthy.
+  healthCadence: (s) => ({
+    intervalMs: num(s, "health", "interval_ms"),
+    timeoutMs: Math.min(5_000, num(s, "health", "interval_ms") - 1),
+    unhealthyAfter: 1,
+    healthyAfter: 1,
+  }),
+  check(s) {
+    const findings: SettingsFinding[] = [];
+    if (num(s, "timeouts", "connect_ms") + num(s, "timeouts", "request_ms") > 5_000) {
+      findings.push({
+        path: "timeouts",
+        rule: "R8",
+        message: "connect_ms + request_ms must be at most 5000",
+        requirement: "SC-005",
+      });
+    }
+    if (str(s, "api_key_env").startsWith("ANTHROPIC_")) {
+      findings.push({
+        path: "api_key_env",
+        rule: "R12",
+        message: "must not begin ANTHROPIC_, a name the SDK reads on its own",
+        requirement: "FR-007",
+      });
+    }
+    return findings;
+  },
+  checkEnv(s, env) {
+    const key = str(s, "api_key_env");
+    const value = env[key];
+    return value === undefined || value === ""
+      ? [{ reason: "missing_env", key, message: `${key} is unset; routing.yaml's api_key_env names it` }]
+      : [];
+  },
+  label: "the Anthropic API",
+  circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
+  monthlyCapRequired: true,
+  secretEnv: ["api_key_env"],
+};
+
 const synthetic: AdapterTypeSpec = {
   type: "synthetic",
   kinds: ["synthetic"],
@@ -298,16 +375,18 @@ const synthetic: AdapterTypeSpec = {
 
 /** Every adapter type the configuration contract describes. */
 export const ADAPTER_TYPE_SPECS: ReadonlyMap<string, AdapterTypeSpec> = new Map(
-  [openAICompatible, bedrockConverse, synthetic].map((spec) => [spec.type, spec]),
+  [openAICompatible, bedrockConverse, anthropicMessages, synthetic].map((spec) => [spec.type, spec]),
 );
 
 /**
  * The types this build registers: a routing.yaml adapter of any other type fails rule R6. The file grows in steps,
  * so every adapter it defines is registered when it lands (config-files.md §1.2): the foundations branch registered
- * openai-compatible, T073 adds synthetic, and T102 adds bedrock-converse, each with its module.
+ * openai-compatible, T073 adds synthetic, T102 adds bedrock-converse, and spec 010 adds anthropic-messages, each with
+ * its module.
  */
 export const REGISTERED_ADAPTER_TYPES: ReadonlySet<string> = new Set([
   "openai-compatible",
   "synthetic",
   "bedrock-converse",
+  "anthropic-messages",
 ]);

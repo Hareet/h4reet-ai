@@ -81,6 +81,7 @@ export type DegradedCause =
   | "kill_switch_tripped"
   | "no_fallback_in_stack"
   | "meter_at_ceiling"
+  | "adapter_month_spent" // spec 010: the paid fallback's monthly cap
   | "fallback_awaiting_renewal"
   | "fallback_spent_today"
   | "fallback_unavailable"

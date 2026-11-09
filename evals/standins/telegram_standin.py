@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The Telegram stand-in (spec 000 FR-032, FR-036; contracts/alerts.md §4.1, §4.3; plan §2, §8; tasks.md T079).
+"""The Telegram stand-in (spec 000 FR-032, FR-036; contracts/alerts.md §4.1, §4.3; plan §2, §8; tasks.md T079; spec 011
+FR-041, its plan §8.1).
 
     python3 -I -B /app/telegram_standin.py [--host 0.0.0.0] [--port 8080]      the telegram-standin service
 
@@ -7,18 +8,28 @@ A standard-library HTTP server in place of Telegram's Bot API, for dev and dev-c
 here in stand-in mode (ALERT_DELIVERY=standin, at config/alerts.yaml's standin.telegram_base). It answers the
 dispatcher's request as the Bot API would, and keeps each message in memory, so the breach test can see what arrived:
 
-    POST /bot<token>/sendMessage   JSON {"chat_id", "text", "disable_web_page_preview"}:
+    POST /bot<token>/sendMessage   JSON {"chat_id", "text", "entities", "disable_web_page_preview"}:
                                    200 {"ok": true, "result": {"message_id", "date", "chat"}}
-    GET  /messages                 200 {"messages": [{"message_id", "chat_id", "text", "received_at"}]}, oldest first
+    GET  /messages                 200 {"messages": [{"message_id", "chat_id", "text", "entities",
+                                   "disable_web_page_preview", "received_at"}]}, oldest first
     GET  /healthz                  200 {"ok": true}, for the compose health check
 
 It forwards nothing: it opens no connection of its own, and the stack's internal network, its only one, has no route
 out. It refuses what stand-in mode never sends, with the Bot API's own errors, so a gateway that sent anything else
 would show it: a token other than the dummy `standin` gets 401, a chat other than 0 gets 400 (alerts.md §4.3: "the
 gateway sends the stand-in a fixed dummy token (`standin`) and chat ID `0`, never the real bot token"), and so does a
-parse_mode, since alerts are plain text (§4.1). It keeps and logs no token: each request's log line names the route,
-with the token's place shown as <token>, and the status, never a body or a message's text. It keeps the newest
-MAX_MESSAGES messages, so its memory stays inside the container's 64 MiB.
+parse_mode, since an alert's formatting is message entities, never markup (§4.1; spec 011, FR-008).
+
+Spec 011's designed messages carry `entities` beside the text, which it checks as the Bot API does and as the
+gateway's own check does (FR-009, FR-010): a list of objects of the types bold, italic, code, and pre, each with an
+integer offset of 0 or more and a length of 1 or more and no other key (so no `language`), inside the text, neither end
+inside a surrogate pair, in order, with no overlap. Anything else is the Bot API's 400, "can't parse entities". It
+counts a text's length in UTF-16 code units, as the Bot API does, against 4,096, and keeps each message's entities
+(an empty list when none) and whether it disabled link previews.
+
+It keeps and logs no token: each request's log line names the route, with the token's place shown as <token>, and
+the status, never a body, a message's text, or its entities. It keeps the newest MAX_MESSAGES messages, so its memory
+stays inside the container's 64 MiB.
 """
 
 from __future__ import annotations
@@ -39,7 +50,11 @@ from typing import Any, TextIO
 DUMMY_TOKEN = "standin"  # stand-in mode's token (contracts/alerts.md §4.3)
 DUMMY_CHAT = 0
 MAX_BODY = 64 * 1024
-MAX_TEXT = 4096  # the Bot API's own limit for a message's text
+MAX_TEXT = 4096  # the Bot API's own limit for a message's text, in UTF-16 code units
+ENTITY_TYPES = frozenset(
+    {"bold", "italic", "code", "pre"}
+)  # spec 011, FR-009: none links, mentions, or hides
+ENTITY_KEYS = frozenset({"type", "offset", "length"})
 MAX_MESSAGES = 1000
 SEND_RE = re.compile(r"/bot([^/]+)/sendMessage")
 
@@ -52,13 +67,20 @@ class Store:
         self._messages: deque[dict[str, Any]] = deque()
         self._next_id = 1
 
-    def add(self, text: str) -> dict[str, Any]:
+    def add(
+        self,
+        text: str,
+        entities: list[dict[str, Any]] | None = None,
+        no_preview: bool = False,
+    ) -> dict[str, Any]:
         received = dt.datetime.now(dt.timezone.utc)
         with self._lock:
             message = {
                 "message_id": self._next_id,
                 "chat_id": DUMMY_CHAT,
                 "text": text,
+                "entities": list(entities or []),
+                "disable_web_page_preview": no_preview,
                 "received_at": received.isoformat(timespec="milliseconds").replace(
                     "+00:00", "Z"
                 ),
@@ -77,6 +99,40 @@ class Store:
 def refusal(status: int, description: str) -> tuple[int, dict[str, Any]]:
     """The Bot API's error shape."""
     return status, {"ok": False, "error_code": status, "description": description}
+
+
+def utf16_units(text: str) -> list[int]:
+    """The text's UTF-16 code units, as the Bot API counts a message's length and its entities' offsets."""
+    data = text.encode("utf-16-le", "surrogatepass")
+    return [int.from_bytes(data[i : i + 2], "little") for i in range(0, len(data), 2)]
+
+
+def entities_ok(entities: object, units: list[int]) -> bool:
+    """Spec 011's FR-009 and FR-010, as the Bot API reads them (its plan §8.1)."""
+    if not isinstance(entities, list):
+        return False
+
+    def low(i: int) -> bool:
+        """Whether the unit at i is a surrogate pair's second half."""
+        return 0xDC00 <= units[i] <= 0xDFFF
+
+    end = 0
+    for entity in entities:
+        if not isinstance(entity, dict) or set(entity) != ENTITY_KEYS:
+            return False
+        offset, length = entity["offset"], entity["length"]
+        if entity["type"] not in ENTITY_TYPES:
+            return False
+        if any(isinstance(v, bool) or not isinstance(v, int) for v in (offset, length)):
+            return False
+        if offset < 0 or length < 1 or offset + length > len(units):
+            return False
+        if low(offset) or (offset + length < len(units) and low(offset + length)):
+            return False
+        if offset < end:
+            return False
+        end = offset + length
+    return True
 
 
 def is_dummy_chat(chat: object) -> bool:
@@ -104,7 +160,8 @@ def send_message(
     text = body.get("text")
     if not isinstance(text, str) or not text:
         return (*refusal(400, "Bad Request: message text is empty"), "")
-    if len(text) > MAX_TEXT:
+    units = utf16_units(text)
+    if len(units) > MAX_TEXT:
         return (*refusal(400, "Bad Request: message is too long"), "")
     if "parse_mode" in body:
         return (
@@ -113,7 +170,10 @@ def send_message(
             ),
             "",
         )
-    message = store.add(text)
+    entities = body.get("entities", [])
+    if not entities_ok(entities, units):
+        return (*refusal(400, "Bad Request: can't parse entities"), "")
+    message = store.add(text, entities, body.get("disable_web_page_preview") is True)
     result = {
         "message_id": message["message_id"],
         "date": int(time.time()),

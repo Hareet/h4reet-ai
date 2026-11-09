@@ -15,8 +15,12 @@ export interface StubMessage {
 export interface StubSmtp {
   readonly port: number;
   readonly messages: StubMessage[];
-  /** Reply with this code to the next AUTH, MAIL, RCPT, or DATA command, then go on as usual. */
-  refuse(step: "AUTH" | "MAIL" | "RCPT" | "DATA", code: number): void;
+  /**
+   * Reply with this code to the next AUTH, MAIL, RCPT, or DATA command, then go on as usual. END replies with it to
+   * the next message's end, after its data (spec 011, FR-027: the server refuses the message itself), and records no
+   * message.
+   */
+  refuse(step: "AUTH" | "MAIL" | "RCPT" | "DATA" | "END", code: number): void;
   /** Accept connections and never send the greeting. */
   silent: boolean;
   close(): Promise<void>;
@@ -55,9 +59,11 @@ export async function stubSmtp(o: { advertiseAuth?: boolean } = {}): Promise<Stu
           current.data = buffer.slice(0, end + 2);
           buffer = buffer.slice(end + 5);
           inData = false;
-          messages.push(current);
+          if (!refused("END")) {
+            messages.push(current);
+            reply("250 2.0.0 Ok: queued as ABC123");
+          }
           current = { from: "", to: [], data: "" };
-          reply("250 2.0.0 Ok: queued as ABC123");
           continue;
         }
         const eol = buffer.indexOf("\r\n");

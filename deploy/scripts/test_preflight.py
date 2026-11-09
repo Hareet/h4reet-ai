@@ -1013,7 +1013,7 @@ def test_p19_prods_aws_directory(prod: Stage) -> None:
     aws.chmod(0o700)
     prod.write(
         prod.root / "config/routing.yaml",
-        "adapters:\n  local: {kind: local}\n  bedrock: {kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
+        "adapters:\n  local: {kind: local}\n  bedrock: {type: bedrock-converse, kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
     )
     assert "[profile h4reet-bedrock]" in prod.results()["P19"].reason
     # The profile's SSO region is its sso-session's, and must be us-east-1 (tasks.md T194).
@@ -1327,3 +1327,55 @@ def test_p21_watches_the_room_too(prod: Stage) -> None:
     result = prod.results()["P21"]
     assert result.status == "WARN" and "apps/web/src/main.ts" in result.reason
     assert "apps" in pf.WATCHED
+
+
+# Spec 010 (FR-030, FR-040, SC-008; contracts/env-files.md §10, amended): the Anthropic API key in prod's env file, empty
+# while prod's route names no anthropic-messages adapter and checked while it does; P19's AWS checks only for a route
+# that names Bedrock. The key's value is made here, at run time, and never key-shaped.
+ANTHROPIC_ROUTE = (
+    "adapters:\n  local: {type: openai-compatible, kind: local}\n"
+    "  anthropic: {type: anthropic-messages, kind: paid}\n"
+    "envs:\n  prod: {primary: local, fallback: anthropic}\n  dev: {primary: local}\n"
+)
+
+
+def test_p3_allows_the_anthropic_key_empty_until_prods_route_names_the_adapter(
+    prod: Stage,
+) -> None:
+    assert "GATEWAY_ANTHROPIC_API_KEY=\n" in prod.env_file.read_text(encoding="utf-8")
+    assert prod.results()["P3"].status == "PASS"
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    result = prod.results()["P3"]
+    assert (
+        result.status == "FAIL" and "empty: GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    )
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
+    assert prod.results()["P3"].status == "PASS"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["short", "x" * 257, "'with a space here and there'", "p\u00e4ss" + "x" * 30],
+)
+def test_p7_checks_the_anthropic_keys_shape_while_routed_never_printing_it(
+    prod: Stage, value: str
+) -> None:
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    prod.set(GATEWAY_ANTHROPIC_API_KEY=value)
+    result = prod.results()["P7"]
+    assert result.status == "FAIL" and "GATEWAY_ANTHROPIC_API_KEY" in result.reason
+    assert value.strip("'") not in result.reason
+
+
+def test_p7_leaves_the_anthropic_key_alone_while_unrouted(prod: Stage) -> None:
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="short")
+    assert "GATEWAY_ANTHROPIC_API_KEY" not in prod.results()["P7"].reason
+
+
+def test_p19_checks_aws_only_for_a_route_that_names_bedrock(prod: Stage) -> None:
+    aws = prod.home / ".config/h4reet-ai/aws-home/.aws"
+    assert not (aws / "config").exists()
+    prod.write(prod.root / "config/routing.yaml", ANTHROPIC_ROUTE)
+    prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
+    result = prod.results()["P19"]
+    assert result.status == "PASS" and "no Bedrock adapter" in result.reason

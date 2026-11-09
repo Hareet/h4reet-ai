@@ -5,6 +5,7 @@
 // closed list, so nothing request-specific, and no client address or label, can become a metric attribute (§1).
 import { ValueType, type Attributes, type Meter, type ObservableResult } from "@opentelemetry/api";
 
+import { FALLBACK_REASONS, type FallbackReason } from "../alerts/forms.js";
 import type { Attribution, DegradedCause } from "../core/types.js";
 
 /** Every `s` histogram the gateway records (§4.1), up to 120 s. */
@@ -21,6 +22,7 @@ export const DEGRADED_CAUSES: readonly DegradedCause[] = [
   "kill_switch_tripped",
   "no_fallback_in_stack",
   "meter_at_ceiling",
+  "adapter_month_spent",
   "fallback_awaiting_renewal",
   "fallback_spent_today",
   "fallback_unavailable",
@@ -41,6 +43,23 @@ export type AlertKind =
   | "store_unreachable"
   | "reminder";
 export type AlertOutcome = "delivered" | "retry" | "failed";
+/** h4.alert.kind's values: the real kinds, and a sample's attempts, counted apart (spec 011, FR-037). */
+export type AlertMetricKind = AlertKind | "sample";
+export const ALERT_KINDS: readonly AlertMetricKind[] = [
+  "warn",
+  "trip",
+  "fallback_exhausted",
+  "operator_action",
+  "credentials_expiring",
+  "fallback_unavailable",
+  "auth_failed",
+  "store_unreachable",
+  "reminder",
+  "sample",
+];
+/** Each attempt's form (spec 011, FR-044): none for a channel marked failed at its window's end, with no attempt. */
+export type AlertFormAttribute = "designed" | "plain" | "none";
+const ALERT_FORMS: readonly AlertFormAttribute[] = ["designed", "plain", "none"];
 export type OperatorAction =
   | "init"
   | "reset"
@@ -51,7 +70,9 @@ export type OperatorAction =
   // spec 003's studio GPU window (its contracts/gpu-window.md §1, §5)
   | "studio_window"
   // spec 007's evaluation calls (its Amendment 0-4; contracts/operator-admin.md §8)
-  | "twin_call";
+  | "twin_call"
+  // spec 011's alert samples (its Amendment 0-8; contracts/operator-admin.md §2.4)
+  | "alert_samples";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
 /** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
 export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";
@@ -62,7 +83,9 @@ export type TwinOutcome = (typeof TWIN_OUTCOMES)[number];
 /** A turn's cause: spec 000's nine, the turn route's own twin_unavailable, or none. */
 export const TWIN_CAUSES = [...DEGRADED_CAUSES, "twin_unavailable", "none"] as const;
 export type TwinCause = (typeof TWIN_CAUSES)[number];
-/** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9). */
+/** The guards' names, h4.twin.withheld's h4.twin.guard (spec 007, plan §5, §9): each answer withheld, replaced, or
+ *  repaired, by guard. `repair_opener` (D34) counts an answer delivered without its opening agreement, and one withheld
+ *  because agreement was all it said; the turn's outcome, ok or withheld, tells them apart (D36). */
 export const TWIN_GUARDS = [
   "length",
   "numbers",
@@ -72,9 +95,14 @@ export const TWIN_GUARDS = [
   "secrets",
   "links",
   "ownership",
+  "seva",
+  "location",
+  "surname",
   "privacy",
   "agents_share",
+  "repair_opener",
   "error",
+  "refusal",
 ] as const;
 export type TwinGuard = (typeof TWIN_GUARDS)[number];
 const DECISIONS: readonly RouteDecisionAttribute[] = ["local", "fallback", "metered", "degraded", "none"];
@@ -113,6 +141,11 @@ export interface GaugeSnapshot {
    */
   studioWindow?: boolean;
   adapters: readonly { id: string; healthy: boolean }[];
+  /**
+   * Each capped paid adapter the route names: its current UTC month's committed spend, its cap, and its warning (spec
+   * 010, FR-035). Absent while the store can't be read, as the meters are.
+   */
+  adapterMonths?: readonly { adapter: string; spentMicro: bigint; capMicro: bigint; warnMicro: bigint }[];
 }
 
 const usd = (micro: bigint): number => Number(micro) / 1_000_000;
@@ -132,6 +165,7 @@ export class GatewayMetrics {
   private readonly costUsd;
   private readonly degradedResponses;
   private readonly alerts;
+  private readonly alertFallbacks;
   private readonly deliveryLag;
   private readonly operatorActions;
   private readonly authFailures;
@@ -151,6 +185,8 @@ export class GatewayMetrics {
     this.costUsd = meter.createCounter("h4.cost.usd", { unit: "{USD}", valueType: ValueType.DOUBLE });
     this.degradedResponses = meter.createCounter("h4.degraded.responses", { unit: "{response}" });
     this.alerts = meter.createCounter("h4.alerts", { unit: "{attempt}" });
+    // Spec 011 (plan §9.1): each attempt that sent the plain form in the designed one's place.
+    this.alertFallbacks = meter.createCounter("h4.alert.fallbacks", { unit: "{fallback}" });
     this.deliveryLag = meter.createHistogram("h4.alert.delivery_lag", {
       unit: "s",
       advice: { explicitBucketBoundaries: [...DELIVERY_LAG_BUCKETS] },
@@ -207,6 +243,17 @@ export class GatewayMetrics {
     });
     gauge("h4.adapter.healthy", "{flag}", (r, s) => {
       for (const a of s.adapters) r.observe(a.healthy ? 1 : 0, { "h4.adapter": a.id });
+    });
+    // Spec 010 (FR-035; plan §9): each capped, routed paid adapter's month beside its cap and its warning, under names of
+    // their own, so h4.meter.* keeps its one label.
+    gauge("h4.adapter.month_spend_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.spentMicro), { "h4.adapter": a.adapter });
+    });
+    gauge("h4.adapter.month_cap_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.capMicro), { "h4.adapter": a.adapter });
+    });
+    gauge("h4.adapter.month_warn_usd", "{USD}", (r, s) => {
+      for (const a of s.adapterMonths ?? []) r.observe(usd(a.warnMicro), { "h4.adapter": a.adapter });
     });
     // spec 003's studio GPU window: no attribute, since the stack is the resource's (its gpu-window.md §1).
     gauge("h4.studio.window", "{flag}", (r, s) => {
@@ -265,8 +312,28 @@ export class GatewayMetrics {
     this.degradedResponses.add(1, { "h4.cause": cause });
   }
 
-  alertAttempt(a: { channel: AlertChannel; kind: AlertKind; outcome: AlertOutcome }): void {
-    this.alerts.add(1, { "h4.channel": a.channel, "h4.alert.kind": a.kind, "h4.outcome": a.outcome });
+  /** Once per attempt, and once for a channel marked failed at its window's end (form none). */
+  alertAttempt(a: {
+    channel: AlertChannel;
+    kind: AlertMetricKind;
+    outcome: AlertOutcome;
+    form: AlertFormAttribute;
+  }): void {
+    this.alerts.add(1, {
+      "h4.channel": a.channel,
+      "h4.alert.kind": oneOf(ALERT_KINDS, a.kind, "warn"),
+      "h4.outcome": a.outcome,
+      "h4.alert.form": oneOf(ALERT_FORMS, a.form, "none"),
+    });
+  }
+
+  /** Once per attempt that sent the plain form in the designed one's place, by its reason (spec 011, FR-045). */
+  alertFallback(a: { channel: AlertChannel; kind: AlertMetricKind; reason: FallbackReason }): void {
+    this.alertFallbacks.add(1, {
+      "h4.channel": a.channel,
+      "h4.alert.kind": oneOf(ALERT_KINDS, a.kind, "warn"),
+      "h4.alert.fallback_reason": oneOf(FALLBACK_REASONS, a.reason, "render_failed"),
+    });
   }
 
   alertDeliveryLag(seconds: number): void {

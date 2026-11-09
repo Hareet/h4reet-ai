@@ -64,10 +64,23 @@ export async function checkEnvTemplates(root: string, set: LoadedConfig, nowMs: 
       issues.push(envError(file, "H4_STACK", "template_stack", `must be ${stack}: this file is the ${stack} stack's`));
     }
     const env = gatewayEnvFromFile(vars);
+    // A paid adapter's key, as compose passes it (${KEY:-}): every *_env key routing.yaml names that the mapping
+    // above leaves unset, from the file or empty (spec 010, FR-030), read without naming a provider here (SC-006).
+    // A secret one (its type's secretEnv) that the template holds empty counts as present, as __ASK__ does: the
+    // Author supplies it in his own env file, which preflight's P3 and P7 check at make up, so a route that names
+    // its adapter passes here. A template without the key still fails, naming it.
+    for (const adapter of set.routing?.adapters.values() ?? []) {
+      for (const [key, value] of Object.entries(adapter.settings)) {
+        if (!key.endsWith("_env") || typeof value !== "string" || env[value] !== undefined) continue;
+        const secret = adapter.spec.secretEnv?.includes(key) === true && vars[value] === "";
+        env[value] = secret ? "__ASK__" : (vars[value] ?? "");
+      }
+    }
     for (const r of validateGatewayEnv(env, { template: true }))
       issues.push(envError(file, r.key, r.reason, r.message));
     if (set.routing && set.prices) {
-      for (const r of checkStartup({ routing: set.routing, prices: set.prices }, env, nowMs)) {
+      const config = { routing: set.routing, prices: set.prices, ...(set.budgets ? { budgets: set.budgets } : {}) };
+      for (const r of checkStartup(config, env, nowMs)) {
         issues.push(envError(file, r.key ?? r.path ?? "", r.reason, r.message));
       }
     }

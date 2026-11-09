@@ -68,6 +68,10 @@ export interface MeterDeps {
   realNow: () => number;
   /** Whether this stack routes a fallback adapter: the alerts' Fallback line says none without one. */
   hasFallback: boolean;
+  /** The route's fallback adapter's ID: an adapter month's cap sets the renewal flag only for it (spec 010, FR-023). */
+  fallbackAdapterId?: string | null;
+  /** How an alert names each routed adapter: its type's label, by its ID (spec 010, FR-037). */
+  adapterLabels?: ReadonlyMap<string, string>;
   sweepIntervalMs?: number;
   commitRetryMs?: number;
 }
@@ -117,6 +121,8 @@ export class Meter implements MeterPort {
       warnRatioBp: env.warnRatioBp,
       alerts: this.deps.alerts,
       hasFallback: this.deps.hasFallback,
+      fallbackAdapterId: this.deps.fallbackAdapterId ?? null,
+      ...(this.deps.adapterLabels === undefined ? {} : { adapterLabels: this.deps.adapterLabels }),
       realNow: this.deps.realNow,
     };
   }

@@ -68,7 +68,8 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
         "H4_DEVCPU_OPERATOR_TOKEN",
     }  # §6.1, P4
     assert set(ENV["prod"]) == (dev - TEST_SWITCHES) | {
-        "GATEWAY_AWS_PROFILE"
+        "GATEWAY_AWS_PROFILE",
+        "GATEWAY_ANTHROPIC_API_KEY",  # spec 010, Amendment 0-9
     }  # §4, §7.1
     assert (
         "H4_TREE" not in ENV["prod"] and "H4_TREE" not in ENV["dev"]
@@ -134,8 +135,9 @@ def test_the_stack_keys(stack: str) -> None:
     assert env["H4_WEB_SUFFIX"] == WEB_SUFFIX[stack]
 
 
+# Prod's two slots of 16,384 tokens each hold a spec 007 twin turn (contracts/env-files.md §3; spec 007's plan, D27).
 MODEL = {
-    "prod": ("Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "32768", "4"),
+    "prod": ("Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "32768", "2"),
     "dev": ("qwen2.5-0.5b-instruct-q4_k_m.gguf", "8192", "2"),
     "dev-cpu": ("qwen2.5-0.5b-instruct-q4_k_m.gguf", "8192", "2"),
 }
@@ -252,3 +254,31 @@ def test_aws_none_holds_only_its_readme() -> None:
     assert sorted(p.name for p in (REPO / "deploy" / "aws-none").iterdir()) == [
         "README.md"
     ]
+
+
+# Spec 010 (FR-030; contracts/env-files.md §4, amended): the Anthropic API key is prod's alone, empty in its template;
+# no env file holds a variable the SDK reads on its own; compose passes the key to the gateway alone, from the env file.
+def test_the_anthropic_key_is_prods_alone_and_empty_in_its_template() -> None:
+    assert ENV["prod"].get("GATEWAY_ANTHROPIC_API_KEY") == ""
+    for stack, values in ENV.items():
+        if stack != "prod":
+            assert "GATEWAY_ANTHROPIC_API_KEY" not in values, stack
+        assert not [k for k in values if k.startswith("ANTHROPIC_")], stack
+
+
+def test_compose_passes_the_anthropic_key_to_the_gateway_alone() -> None:
+    import yaml
+
+    compose = yaml.safe_load((REPO / "deploy/compose.yaml").read_text(encoding="utf-8"))
+    for name, service in compose["services"].items():
+        environment = service.get("environment") or {}
+        if isinstance(environment, list):
+            environment = dict(item.split("=", 1) for item in environment)
+        assert not [k for k in environment if k.startswith("ANTHROPIC_")], name
+        if name == "gateway":
+            assert (
+                environment.get("GATEWAY_ANTHROPIC_API_KEY")
+                == "${GATEWAY_ANTHROPIC_API_KEY:-}"
+            )
+        else:
+            assert "GATEWAY_ANTHROPIC_API_KEY" not in environment, name

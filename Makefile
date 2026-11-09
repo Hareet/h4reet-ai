@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -300,10 +300,12 @@ assets-credits: ## Render assets/CREDITS.md and docs/research/images/CREDITS.md 
 credits-check: ## Check the credits' renderings and the records' form against the records, writing nothing (spec 003)
 	$(PY_HOST) scripts/assets/credits.py --check
 
-evals: ## The product evals (ADAPTER=fake; local and bedrock are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status as information (spec 006), and the docs' links
+evals: ## The product evals (ADAPTER=fake; local, bedrock, and anthropic are the Author's), the narration suite (fake only), the agent-config static tier, the behavioral tier's status as information (spec 006), and the docs' links
+	@# A paid adapter's cases go to prod whatever ENV says (spec 010, FR-024): evals/run.py sends them through prod's
+	@# admin routes, so the runner gets no --stack for them.
 	@case "$${ADAPTER:-fake}" in fake) ;; \
-	  local|bedrock) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
-	  *) echo "ADAPTER must be fake, local, or bedrock" >&2; exit 2 ;; esac
+	  local|bedrock|anthropic) if [ "$${SANDBOX_RUNTIME:-}" = 1 ]; then echo "ADAPTER=$$ADAPTER runs in the Author's terminal" >&2; exit 2; fi ;; \
+	  *) echo "ADAPTER must be fake, local, bedrock, or anthropic" >&2; exit 2 ;; esac
 	$(PY_HOST) evals/run.py --suite product --adapter $${ADAPTER:-fake} $$([ "$${ADAPTER:-}" = local ] && echo --stack $(ENV))
 	@# Spec 002's narration scripts, one case each, on the fake adapter whatever ADAPTER says (contracts/narration.md §2).
 	$(PY_HOST) evals/run.py --suite narration --adapter fake
@@ -333,9 +335,12 @@ redteam: redteam-suite matrix ## The red-team suite and the forbidden-action mat
 redteam-suite: ## The adversarial scaffold alone (plan §14)
 	$(PY_HOST) redteam/run.py
 
-redteam-live: ## (the Author) The twin's red-team cases live, on one adapter through the admin twin route, history under redteam/history/ (spec 007): ADAPTER=local|bedrock [ENV=prod|dev]
+redteam-live: ## (the Author) The twin's red-team cases live, on one adapter through the admin twin route, history under redteam/history/ (spec 007): ADAPTER=local|bedrock|anthropic [ENV=prod|dev], a paid adapter with ENV=prod
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make redteam-live runs in the Author's terminal: it calls a real model" >&2; exit 2; }
-	@case "$${ADAPTER:-}" in local|bedrock) ;; *) echo "ADAPTER must be local or bedrock" >&2; exit 2 ;; esac
+	@# Spec 010 (FR-024): a paid adapter is prod's alone.
+	@case "$${ADAPTER:-}" in local) ;; \
+	  bedrock|anthropic) [ "$(ENV)" = prod ] || { echo "make redteam-live ADAPTER=$$ADAPTER: a paid adapter is prod's, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "ADAPTER must be local, bedrock, or anthropic" >&2; exit 2 ;; esac
 	$(PY_HOST) redteam/live.py --live --stack $(ENV) --adapter $$ADAPTER
 
 matrix: ## The forbidden-action matrix alone (plan §13)
@@ -528,6 +533,15 @@ operator-incidents: ## ENV's newest incident draft as Markdown, or one draft by 
 	$(OPERATOR) incidents --show$(call OPERATOR_VALUE,ID,--id)
 .PHONY: operator-incidents
 
+# Spec 011's alert samples (contracts/operator-admin.md §2.4, §6.1; its plan §7.5): a marked sample of each alert kind,
+# sent wherever ENV's alerts go, prod's to the Author's phone and mailbox, dev's and dev-cpu's to their stand-ins. One
+# audit row, and no state changes. KIND narrows it to one kind's entries; the gateway checks the kind.
+operator-alert-samples: ## Send a marked sample of each alert kind through ENV's channels: REASON="..." [KIND=]
+	$(OPERATOR_AGENTS)
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-alert-samples needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) alert-samples --reason="$$REASON"$(call OPERATOR_VALUE,KIND,--kind)
+.PHONY: operator-alert-samples
+
 # The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
 # start records the window through the operator CLI, then stops the model server, so hello falls back within the
 # sub-budget or degrades; a refused record stops nothing. end brings the stack back at the commit its run file names
@@ -578,13 +592,13 @@ studio-window: ## (the Author) Hand ENV's GPU to a studio job, or take it back: 
 # recorder reads the working tree's live-cases.json and the replay HEAD's, so the target refuses, before it records, a
 # case file that differs from HEAD's (provider-adapter.md §5.4; T092). Without the gate it calls nothing, so no live
 # call is made without its replay. The gate refuses to run from a linked worktree, so this runs in the main tree.
-contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock REASON="..." (provider-adapter.md §5.3)
+contract-live: ## (the Author) The live contract run: ENV= ADAPTER=local|bedrock|anthropic REASON="..." (provider-adapter.md §5.3)
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make contract-live is the Author's: it calls a live adapter with ENV's operator token (provider-adapter.md §5.3)" >&2; exit 2; }
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make contract-live needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	@case "$(if $(call from_cli,ADAPTER),$$ADAPTER)" in \
 	  local) ;; \
-	  bedrock) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=bedrock: bedrock is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
-	  *) echo "make contract-live needs ADAPTER=local or ADAPTER=bedrock on the command line" >&2; exit 2 ;; \
+	  bedrock|anthropic) [ "$(ENV)" = prod ] || { echo "make contract-live ADAPTER=$$ADAPTER: $$ADAPTER is prod's adapter, so ENV=prod" >&2; exit 2; } ;; \
+	  *) echo "make contract-live needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic on the command line" >&2; exit 2 ;; \
 	esac
 	@[ -x tools/gates/gate ] || { echo "make contract-live replays in tools/gates/gate's container phase, and there is no gate here; nothing was called" >&2; exit 2; }
 	@cases=services/gateway/test/contract/live-cases.json; \

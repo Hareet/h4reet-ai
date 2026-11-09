@@ -1460,7 +1460,11 @@ export class Gateway {
   /** The current periods' meters, read now: spend plus reservations, as admission counts them. */
   private async readMeterView(): Promise<MeterView> {
     const { day, month } = this.opts.clock.periodKeys();
-    return meterViewOf(await this.opts.store.readMeters(day, month), this.opts.budgets.envs[this.opts.envClass]);
+    return meterViewOf(
+      await this.opts.store.readMeters(day, month),
+      this.opts.budgets.envs[this.opts.envClass],
+      this.fallback?.built.config.id,
+    );
   }
 
   /**
@@ -1477,6 +1481,7 @@ export class Gateway {
     } catch {
       delete this.gauges.meters;
       delete this.gauges.studioWindow;
+      delete this.gauges.adapterMonths;
       this.meterView = undefined;
       this.opts.metrics.setSnapshot(this.gauges);
       return;
@@ -1489,7 +1494,7 @@ export class Gateway {
     } catch {
       studioWindow = undefined;
     }
-    this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass]);
+    this.meterView = meterViewOf(rows, this.opts.budgets.envs[this.opts.envClass], this.fallback?.built.config.id);
     this.gauges = { ...this.gauges, cause: this.dryRun(read) ?? "none" };
     const t = thresholds(this.opts.budgets.envs[this.opts.envClass]);
     const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
@@ -1508,6 +1513,16 @@ export class Gateway {
     };
     if (studioWindow === undefined) delete this.gauges.studioWindow;
     else this.gauges.studioWindow = studioWindow;
+    // Spec 010 (FR-035): each capped adapter the route names, its month's spend beside its cap and warning.
+    const months = this.routed().flatMap((r) => {
+      const id = r.built.config.id;
+      const cap = t.adapterCaps.get(id);
+      if (cap === undefined) return [];
+      const row = rows.find((x) => x.meter === "adapter_month" && x.periodKey === `${id}:${month}`);
+      return [{ adapter: id, spentMicro: row?.spentMicro ?? 0n, capMicro: cap.cap, warnMicro: cap.warn }];
+    });
+    if (months.length === 0) delete this.gauges.adapterMonths;
+    else this.gauges.adapterMonths = months;
     this.opts.metrics.setSnapshot(this.gauges);
   }
 
@@ -1532,15 +1547,22 @@ export class Gateway {
   }
 }
 
-/** The current periods' levels, spend plus reservations, for the dry run; a period with no row yet is 0 and a full grant. */
-function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv): MeterView {
+/**
+ * The current periods' levels, spend plus reservations, for the dry run; a period with no row yet is 0 and a full
+ * grant. With a capped fallback adapter, its month's level and cap too (spec 010, FR-022).
+ */
+function meterViewOf(rows: readonly MeterRow[], env: BudgetEnv, fallbackId?: string): MeterView {
   const row = (meter: MeterRow["meter"]) => rows.find((r) => r.meter === meter);
   const level = (r: MeterRow | undefined): bigint => (r === undefined ? 0n : r.spentMicro + r.reservedMicro);
+  const t = thresholds(env);
+  const cap = fallbackId === undefined ? undefined : t.adapterCaps.get(fallbackId);
+  const month = rows.find((r) => r.meter === "adapter_month" && r.periodKey.startsWith(`${fallbackId}:`));
   return {
     dayLevel: level(row("day")),
     monthLevel: level(row("month")),
     fallbackLevel: level(row("fallback_day")),
-    allowance: row("fallback_day")?.allowanceMicro ?? thresholds(env).fallbackGrant,
+    allowance: row("fallback_day")?.allowanceMicro ?? t.fallbackGrant,
+    ...(cap === undefined ? {} : { adapterMonth: { level: level(month), cap: cap.cap } }),
   };
 }
 

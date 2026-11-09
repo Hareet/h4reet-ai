@@ -154,6 +154,9 @@ services:
       # Bedrock's credential chain: the dedicated runtime identity's profile on prod, and a profile that exists
       # nowhere on the other stacks, whose /home/node/.aws is the empty deploy/aws-none.
       AWS_PROFILE: "${GATEWAY_AWS_PROFILE:-none}"
+      # The Anthropic API's key (spec 010, FR-030): prod's env file's, empty until the Author chooses the Anthropic API,
+      # and empty on every other stack. The gateway alone holds it; no service holds a variable the SDK reads itself.
+      GATEWAY_ANTHROPIC_API_KEY: "${GATEWAY_ANTHROPIC_API_KEY:-}"
       AWS_EC2_METADATA_DISABLED: "true"
       HOME: /home/node
       TZ: UTC

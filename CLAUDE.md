@@ -21,7 +21,7 @@ Local until the Author publishes (ADR 0013): commit on a feature branch and end 
 ## Conventions
 - TypeScript (web, services), Python (ML, evals). Everything ships as a container; images are built in CI and promoted unchanged.
 - Model calls go through `services/gateway` only. Never call a provider SDK directly. Every call carries provider, model, tokens, cost.
-- Routing is configuration (`config/routing.yaml`): local-first, Bedrock fallback within sub-budget, then degraded. Check kill-switch state at request start; unknown state = degraded.
+- Routing is configuration (`config/routing.yaml`): local-first, then the one paid fallback prod's route names (Bedrock or the Anthropic API) within its sub-budget and caps, then degraded. Check kill-switch state at request start; unknown state = degraded.
 - No payloads in telemetry unless `TELEMETRY_PAYLOAD_SAMPLING` is explicitly on. No secrets anywhere in the repo, context, or traces.
 - New endpoint or feature → also: telemetry span, dashboard panel, cost estimate in the spec, degraded-mode behavior, data-flow disclosure entry (`docs/data-flow-disclosure.md`) if a byte leaves the visitor's device.
 

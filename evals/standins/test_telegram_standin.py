@@ -311,3 +311,123 @@ def test_the_compose_health_check_passes_against_it_and_fails_without_it() -> No
         ).returncode
         != 0
     )
+
+
+# Spec 011 (FR-041; its plan §8.1, D12): the stand-in checks message entities as the Bot API does, and as the gateway's
+# own check does (FR-009, FR-010), so every dev-cpu run holds the designed messages to a second implementation of the
+# rules; it counts a text's length in UTF-16 code units, as the Bot API does, and keeps each message's entities and
+# its link-preview flag.
+ENTITIES_REFUSED = (
+    400,
+    {
+        "ok": False,
+        "error_code": 400,
+        "description": "Bad Request: can't parse entities",
+    },
+)
+# Two units each in UTF-16: the severity's emoji the designs lead with.
+RED = "\U0001f534"
+
+
+def send_entities(base: str, text: str, entities: Any, **more: Any) -> tuple[int, Any]:
+    return call(
+        "POST",
+        f"{base}/botstandin/sendMessage",
+        {"chat_id": 0, "text": text, "entities": entities, **more},
+    )
+
+
+def test_entities_are_accepted_kept_and_returned_with_the_preview_flag() -> None:
+    text = f"{RED} Critical · [dev-cpu]\nKILL SWITCH\nid dev-cpu:trip:day:2026-10-22"
+    entities = [
+        {"type": "bold", "offset": 3, "length": 8},
+        {"type": "pre", "offset": 24, "length": 11},
+        {"type": "code", "offset": 39, "length": 27},
+    ]
+    with running() as base:
+        status, body = send_entities(
+            base, text, entities, disable_web_page_preview=True
+        )
+        assert status == 200 and body["ok"] is True
+        assert send(base, "a plain alert")[0] == 200
+        kept = messages(base)
+    assert kept[0]["entities"] == entities
+    assert kept[0]["disable_web_page_preview"] is True
+    assert kept[1]["entities"] == []
+    assert kept[1]["disable_web_page_preview"] is False
+
+
+@pytest.mark.parametrize(
+    "entities",
+    [
+        "bold",  # not a list
+        [["bold", 0, 1]],  # not an object
+        [{"type": "url", "offset": 0, "length": 2}],  # a fifth type: links
+        [{"type": "text_link", "offset": 0, "length": 2, "url": "x"}],
+        [{"type": "spoiler", "offset": 0, "length": 2}],
+        [{"type": "pre", "offset": 0, "length": 2, "language": "ts"}],  # no language
+        [{"type": "bold", "offset": -1, "length": 2}],
+        [{"type": "bold", "offset": 0, "length": 0}],
+        [{"type": "bold", "offset": 0.5, "length": 2}],
+        [{"type": "bold", "offset": True, "length": 2}],
+        [{"type": "bold", "offset": 0, "length": 99}],  # past the text's UTF-16 length
+        [{"type": "bold", "offset": 1, "length": 2}],  # starts inside the emoji's pair
+        [{"type": "bold", "offset": 0, "length": 1}],  # ends inside it
+        [
+            {"type": "bold", "offset": 3, "length": 8},
+            {"type": "code", "offset": 5, "length": 2},
+        ],  # an overlap
+        [
+            {"type": "code", "offset": 12, "length": 2},
+            {"type": "bold", "offset": 3, "length": 3},
+        ],  # out of order
+    ],
+)
+def test_an_invalid_entity_list_is_refused_as_the_bot_api_refuses_it(
+    entities: Any,
+) -> None:
+    with running() as base:
+        assert (
+            send_entities(base, f"{RED} Critical · KILL", entities) == ENTITIES_REFUSED
+        )
+        assert messages(base) == []
+
+
+def test_a_texts_length_is_counted_in_utf16_code_units() -> None:
+    with running() as base:
+        # 4,096 units with emoji in them: kept; one unit more: refused.
+        assert send(base, RED * 2 + "x" * 4092)[0] == 200
+        assert send(base, RED * 2 + "x" * 4093) == (
+            400,
+            {
+                "ok": False,
+                "error_code": 400,
+                "description": "Bad Request: message is too long",
+            },
+        )
+        # Under 4,096 code points, over 4,096 units: refused, as the Bot API counts.
+        assert len(RED * 2100) == 2100
+        assert send(base, RED * 2100)[0] == 400
+        assert len(messages(base)) == 1
+
+
+def test_parse_mode_is_still_refused_beside_entities() -> None:
+    with running() as base:
+        status, body = send_entities(
+            base, "x", [{"type": "bold", "offset": 0, "length": 1}], parse_mode="HTML"
+        )
+        assert status == 400 and "parse_mode" in body["description"]
+        assert messages(base) == []
+
+
+def test_its_log_holds_no_text_or_entity_of_a_designed_message() -> None:
+    log = io.StringIO()
+    with running(log) as base:
+        send_entities(
+            base,
+            "secret-ish designed text",
+            [{"type": "bold", "offset": 0, "length": 6}],
+        )
+    written = log.getvalue()
+    assert "secret-ish" not in written and '"bold"' not in written
+    assert "POST /bot<token>/sendMessage 200" in written

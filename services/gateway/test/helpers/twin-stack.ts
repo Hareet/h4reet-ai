@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 import type { LightMyRequestResponse } from "fastify";
 import { expect } from "vitest";
 
+import type { AdapterFactory } from "../../src/adapters/registry.js";
+
 import type { TwinLoad } from "../../src/config/twin.js";
 import type { GatewayMetrics } from "../../src/telemetry/metrics.js";
 import { testStack, type TestStack } from "./stack.js";
@@ -44,6 +46,10 @@ export async function twinStack(
     storeDown?: boolean;
     env?: Record<string, string>;
     metrics?: GatewayMetrics;
+    /** The config files' texts, in place of the fixtures' (spec 010: prod's route naming the Anthropic API). */
+    files?: { routing?: string; prices?: string; budgets?: string };
+    /** The adapter factories, such as anthropic-messages built against a stub's origin (spec 010). */
+    factories?: ReadonlyMap<string, AdapterFactory>;
   } = {},
 ): Promise<TwinStack> {
   const stack = o.stack ?? "dev";
@@ -58,12 +64,16 @@ export async function twinStack(
   const budgets = await readFile(join(FIXTURES, "budgets.yaml"), "utf8");
   const limits = o.limits ?? stack === "prod";
   await writeFile(join(configDir, "budgets.yaml"), limits ? `${budgets.trimEnd()}\n${TWIN_LIMITS_BLOCK}` : budgets);
+  if (o.files?.routing !== undefined) await writeFile(join(configDir, "routing.yaml"), o.files.routing);
+  if (o.files?.prices !== undefined) await writeFile(join(configDir, "prices.yaml"), o.files.prices);
+  if (o.files?.budgets !== undefined) await writeFile(join(configDir, "budgets.yaml"), o.files.budgets);
   const s = await testStack({
     stack,
     configDir,
     twin: o.twin ?? allReady(),
     ...(o.storeDown === true ? { storeDown: true } : {}),
     ...(o.metrics === undefined ? {} : { metrics: o.metrics }),
+    ...(o.factories === undefined ? {} : { factories: o.factories }),
     env: { LOCAL_MODEL_BASE_URL: stub.baseUrl, ...o.env },
   });
   if (o.init !== false && o.storeDown !== true) {

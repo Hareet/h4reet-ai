@@ -15,7 +15,7 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 | [cost-warning.md](cost-warning.md) | the `warn` alert: a meter crossed 70% of its limit |
 | [kill-switch-trip.md](kill-switch-trip.md) | the `trip` alert; the cause `kill_switch_tripped`; the daily `reminder` while degraded |
 | [kill-switch-reset.md](kill-switch-reset.md) | restoring `normal` after a trip: the `operator_action` alert for a `reset`; the cause `meter_at_ceiling`, which can follow one |
-| [fallback-renewal.md](fallback-renewal.md) | the `fallback_exhausted` alert; the `operator_action` alert for a `renew`; the causes `fallback_awaiting_renewal` and `fallback_spent_today`; the daily `reminder` while renewal is awaited |
+| [fallback-renewal.md](fallback-renewal.md) | the `fallback_exhausted` alert; the `operator_action` alert for a `renew`; the causes `fallback_awaiting_renewal` and `fallback_spent_today`; the daily `reminder` while renewal is awaited; the paid adapter's monthly cap, its `warn` and `fallback_exhausted`, and the cause `adapter_month_spent` (spec 010) |
 
 ## The store and the journal
 
@@ -31,6 +31,7 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 |---|---|
 | [model-server-down.md](model-server-down.md) | the local model server not answering: the cause `no_fallback_in_stack`, or prod answering from its fallback |
 | [bedrock-unavailable.md](bedrock-unavailable.md) | the `fallback_unavailable` alert, and the cause `fallback_unavailable` |
+| [anthropic-unavailable.md](anthropic-unavailable.md) | the `fallback_unavailable` alert for the Anthropic API, and the cause `fallback_unavailable` while prod's route names it (spec 010) |
 | [bedrock-credentials-expiring.md](bedrock-credentials-expiring.md) | the `credentials_expiring` alert: the Bedrock SSO session is near its end |
 
 ## The gateway, the alerts, and the operator

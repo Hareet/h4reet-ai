@@ -13,7 +13,11 @@ import {
   type RuntimeFacts,
 } from "../../src/alerts/format.js";
 import { attemptOffsets, channelsFrom, nextAttemptAt, reminderDue } from "../../src/alerts/dispatcher.js";
+import { designEmail } from "../../src/alerts/email-design.js";
 import { dedupeKey } from "../../src/alerts/outbox.js";
+import { designTelegram } from "../../src/alerts/telegram-design.js";
+import { AWKWARD } from "../helpers/alert-cases.js";
+import { entryCases, furtherCases, longestCases } from "../helpers/golden-cases.js";
 
 const T = (iso: string): number => Date.parse(iso);
 const FP = "1a2b3c4d";
@@ -419,6 +423,15 @@ describe("§3: amounts and limits", () => {
   });
 });
 
+/** A capped paid adapter's month at its warning (spec 010): $7.20 of a $10 cap. */
+const ADAPTER_MONTH = {
+  adapter: "anthropic",
+  label: "the Anthropic API",
+  month: "2026-10",
+  spentMicro: 7_200_000n,
+  capMicro: 10_000_000n,
+};
+
 /** One context and spec for every kind, with the operator's fingerprint where the kind has one. */
 function everyKind(): [AlertContext, AlertSpec][] {
   const m = meters(1_000_000, 2_000_000, 300_000);
@@ -479,6 +492,19 @@ function everyKind(): [AlertContext, AlertSpec][] {
       base("prod:fallback_unavailable:bedrock:2026-10-29T16Z"),
       { kind: "fallback_unavailable", adapter: "bedrock", reason: "credentials" },
     ],
+    // Spec 010 (FR-037): the adapter month's warning and exhaustion, and the Anthropic API's unavailability.
+    [
+      base("prod:warn:adapter_month:anthropic:2026-10"),
+      { kind: "warn", meter: "adapter_month", warnRatioBp: WARN_70, adapterMonth: ADAPTER_MONTH },
+    ],
+    [
+      base("prod:fallback_exhausted:adapter_month:anthropic:2026-10", { fallback: { state: "awaiting", since } }),
+      { kind: "fallback_exhausted", adapterMonth: ADAPTER_MONTH },
+    ],
+    [
+      base("prod:fallback_unavailable:anthropic:2026-10-29T16Z"),
+      { kind: "fallback_unavailable", adapter: "anthropic", label: "the Anthropic API", reason: "credentials" },
+    ],
     [
       ctx({ key: "prod:auth_failed:admin:2026-10-29T16:00Z", at }),
       { kind: "auth_failed", count: 3, windowMinutes: 10, lastClass: "mismatch" },
@@ -498,6 +524,54 @@ function everyKind(): [AlertContext, AlertSpec][] {
     ],
   ];
 }
+
+describe("§3, amended by spec 010 (FR-037): the adapter month, and the Anthropic API", () => {
+  const m = meters(1_000_000, 9_000_000, 300_000);
+  it("warns at the adapter month's warning, naming the adapter, its spend, and its cap", () => {
+    const c = ctx({ key: "prod:warn:adapter_month:anthropic:2026-10", at: "2026-10-29T16:00:00Z", meters: m });
+    const spec: AlertSpec = { kind: "warn", meter: "adapter_month", warnRatioBp: WARN_70, adapterMonth: ADAPTER_MONTH };
+    const out = lines(c, spec);
+    expect(out[0]).toBe("[h4reet.ai prod] WARNING: the Anthropic API's month at 70% of its cap");
+    expect(out).toContain("7.20 of 10.00 USD in 2026-10. The paid fallback stops at its cap; local answers go on.");
+    expect(out.at(-1)).toBe("Runbook: docs/runbooks/fallback-renewal.md");
+    expect(renderAlert(c, spec).facts).toMatchObject({
+      meter: "adapter_month",
+      adapter: "anthropic",
+      month: "2026-10",
+      spent_micro: 7_200_000,
+      cap_micro: 10_000_000,
+    });
+  });
+
+  it("says, at the cap, what stops and what a renewal restores", () => {
+    const c = ctx({
+      key: "prod:fallback_exhausted:adapter_month:anthropic:2026-10",
+      at: "2026-10-29T16:00:00Z",
+      fallback: { state: "awaiting", since: T("2026-10-29T16:00:00Z") },
+      meters: m,
+    });
+    const capped = { ...ADAPTER_MONTH, spentMicro: 10_000_000n };
+    const out = lines(c, { kind: "fallback_exhausted", adapterMonth: capped });
+    expect(out[0]).toBe("[h4reet.ai prod] PAID FALLBACK CAPPED: the Anthropic API's month reached its cap");
+    expect(out).toContain(
+      "10.00 of 10.00 USD in 2026-10. The Anthropic API is refused until the month rolls over or the cap is raised, " +
+        "and the paid fallback awaits a renewal; local answers go on.",
+    );
+    expect(out.at(-1)).toBe("Runbook: docs/runbooks/fallback-renewal.md");
+  });
+
+  it("names the Anthropic API in fallback_unavailable, with its own runbook", () => {
+    const c = ctx({ key: "prod:fallback_unavailable:anthropic:2026-10-29T16Z", at: "2026-10-29T16:12:44Z", meters: m });
+    const out = lines(c, {
+      kind: "fallback_unavailable",
+      adapter: "anthropic",
+      label: "the Anthropic API",
+      reason: "credentials",
+    });
+    expect(out[0]).toBe("[h4reet.ai prod] FALLBACK UNAVAILABLE: the Anthropic API is unhealthy (credentials)");
+    expect(out.at(-1)).toBe("Runbook: docs/runbooks/anthropic-unavailable.md");
+  });
+});
 
 describe("§5: what never appears", () => {
   it("renders every kind from typed facts: no field can carry a payload, a client label, a reason, or a secret", () => {
@@ -524,6 +598,39 @@ describe("§5: what never appears", () => {
       "trip",
       "warn",
     ]);
+  });
+
+  it("holds in every form of every entry, further case, and sample (spec 011, FR-042, FR-043; SC-003)", () => {
+    // The same canaries, where a careless renderer might pick them up; every form renders from the typed facts alone.
+    const canaries = ["canary-client-label", "canary hello message", "Canary reason: breach rehearsal", "h4op_prod_"];
+    const cases = [...entryCases(), ...furtherCases(), ...longestCases()];
+    expect(cases.filter((c) => c.sample !== undefined)).toHaveLength(19); // every entry as a sample, at its longest
+    for (const c of cases) {
+      const plain = renderAlert(c.ctx, c.spec, c.sample);
+      const telegram = designTelegram(c.ctx, c.spec, c.sample);
+      const email = designEmail(c.ctx, c.spec, c.sample);
+      const forms = {
+        plain: `${plain.subject}\n${plain.body}`,
+        subject: email.subject,
+        telegram: `${telegram.text}\n${JSON.stringify(telegram.entities)}`,
+        html: email.html,
+        facts: JSON.stringify(plain.facts),
+      };
+      for (const [form, text] of Object.entries(forms)) {
+        for (const canary of canaries) expect(text, `${c.name} ${form}`).not.toContain(canary);
+        // Only the 8-hex fingerprint, never more of the token's hash.
+        expect(text, `${c.name} ${form}`).not.toMatch(/[0-9a-f]{9,}/);
+      }
+    }
+  });
+
+  it("escapes a value in the HTML, and carries it as itself in Telegram's text (spec 011, FR-017, FR-043)", () => {
+    const c = ctx({ key: "prod:warn:day:2026-10-29", at: "2026-10-29T16:00:00Z", meters: meters(0, 0, 0) });
+    const awkward = { ...c, prefix: `[${AWKWARD}]` };
+    const spec: AlertSpec = { kind: "warn", meter: "day", warnRatioBp: WARN_70 };
+    expect(designEmail(awkward, spec).html).toContain("[&amp;&lt;&gt;&quot;&#39;*_`🧪]");
+    expect(designEmail(awkward, spec).html).not.toContain(AWKWARD);
+    expect(designTelegram(awkward, spec).text).toContain(`[${AWKWARD}]`);
   });
 
   it("accepts no unknown field: a spec with a payload or a reason doesn't type-check", () => {

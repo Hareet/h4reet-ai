@@ -191,6 +191,9 @@ describe("delivery on both channels (alerts.md §4.1)", () => {
           attempt: 1,
           lag_s: 1.5,
           provider_ref: "1",
+          // Spec 011 (FR-030, FR-044): this test's rows hold facts from before version 2, so they go plain.
+          form: "plain",
+          fallback_reason: "not_rendered",
         },
         expect.objectContaining({ channel: "email", provider_ref: "250 ABC123" }),
       ]),
@@ -230,6 +233,8 @@ describe("the retry schedule (alerts.md §4.2)", () => {
       attempt: 1,
       error_class: "http_500",
       next_in_s: 5,
+      form: "plain",
+      fallback_reason: "not_rendered", // spec 011 (FR-044): facts from before version 2 go plain
     });
     expect(events(r, "alert.failed")).toEqual([
       {
@@ -238,6 +243,8 @@ describe("the retry schedule (alerts.md §4.2)", () => {
         channel: "telegram",
         attempts: 6,
         error_class: "http_500",
+        form: "plain",
+        fallback_reason: "not_rendered",
       },
     ]);
   });
@@ -324,12 +331,17 @@ describe("the in-memory store_unreachable alert (alerts.md §2, §4.4)", () => {
     r.clock.now += 1_000;
     await r.d.tick();
     expect(r.telegram.requests).toHaveLength(1);
+    // Spec 011 (plan §2.1): the in-memory alert holds its facts too, so Telegram gets its designed message.
     expect(String(r.telegram.requests[0]?.body.text).split("\n")).toEqual([
-      "[dev] STORE UNREACHABLE: the kill-switch store hasn't answered for 60 s",
-      "Runtime: unknown, treated as degraded since 2026-10-29T16:40:03Z · 2026-10-29T16:41:03Z · id dev:store_unreachable:store:2026-10-29T16:40:03Z",
-      "Every request gets 503 store_unreachable (fail closed). Meters and alerts resume when the store answers.",
+      "🔴 Critical · [dev]",
+      "🗄️ STORE UNREACHABLE: the kill-switch store hasn't answered for 60 s",
+      "Next: Every request gets 503 store_unreachable (fail closed). Meters and alerts resume when the store answers.",
+      "Runtime: unknown, treated as degraded since 2026-10-29T16:40:03Z",
+      "Time: 2026-10-29T16:41:03Z",
+      "id dev:store_unreachable:store:2026-10-29T16:40:03Z",
       "Runbook: docs/runbooks/store-unreachable.md",
     ]);
+    expect(r.telegram.requests[0]?.body.entities).toHaveLength(3);
     expect(r.smtp.messages).toHaveLength(1);
     expect(r.smtp.messages[0]?.data).toMatch(/^X-H4-Alert-Id: dev:store_unreachable:store:2026-10-29T16:40:03Z\r$/im);
     r.clock.now += 30_000;

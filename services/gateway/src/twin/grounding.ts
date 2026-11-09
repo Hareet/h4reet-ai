@@ -29,6 +29,10 @@ export interface Grounding {
   readonly chars: number;
   /** Every word the grounding holds, which the guards hold an answer to. */
   readonly text: string;
+  /** The sections' words alone, without the rules or the lead, which G9 holds a Seva sentence to (spec 007's plan, D31). */
+  readonly sectionsText: string;
+  /** The visitor's newest turn, which G10 reads for a place question; null for an opening (D31). */
+  readonly asked: string | null;
 }
 
 export function buildGrounding(o: {
@@ -79,5 +83,7 @@ export function buildGrounding(o: {
     }
   }
   const text = [rulesText, ...kept.map((s) => s.text), lead ?? ""].join("\n");
-  return { topic: topicId, lead, rules: pack.rules, sections: kept, dropped, chars, text };
+  const sectionsText = kept.map((s) => s.text).join("\n");
+  const asked = visitorTurns.at(-1)?.text ?? null;
+  return { topic: topicId, lead, rules: pack.rules, sections: kept, dropped, chars, text, sectionsText, asked };
 }

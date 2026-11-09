@@ -280,9 +280,17 @@ describe("one cause map (§4): causeClass and the talk panel's cannotTalkFor", (
     expect([...RESTING_CAUSES].sort()).toEqual(
       ["fallback_unavailable", "local_error", "local_unhealthy", "no_fallback_in_stack"].sort(),
     );
+    // Spec 010's Amendment 2-1: the paid fallback's monthly cap, adapter_month_spent, is of the budget class.
     expect([...BUDGET_CAUSES].sort()).toEqual(
-      ["fallback_awaiting_renewal", "fallback_spent_today", "kill_switch_tripped", "meter_at_ceiling"].sort(),
+      [
+        "adapter_month_spent",
+        "fallback_awaiting_renewal",
+        "fallback_spent_today",
+        "kill_switch_tripped",
+        "meter_at_ceiling",
+      ].sort(),
     );
+    expect(causeClass("adapter_month_spent")).toBe("budget");
     for (const cause of RESTING_CAUSES) expect(causeClass(cause), cause).toBe("resting");
     for (const cause of BUDGET_CAUSES) expect(causeClass(cause), cause).toBe("budget");
     for (const cause of UNAVAILABLE) expect(causeClass(cause), cause).toBe("unavailable");

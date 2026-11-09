@@ -8,14 +8,15 @@
 // - twinCall: the gateway call with the purpose `twin`, whose messages are a function the gateway calls only after its
 //   state read passes, so a degraded turn builds no grounding and no prompt (FR-025); its input bound and output cap
 //   from limits.twin; its feature and topic.
-// - guardFor: the answer through the guards, against the grounding the call was built with.
+// - guardContext and guardFor: the answer through the guards, against the grounding the call was built with, its
+//   sections, and the visitor's newest turn (spec 007's plan, D31).
 import type { TwinFiles, TwinLoad, VisitPath } from "../config/twin.js";
 import { TWIN_LIMIT_DEFAULTS, type Budgets, type EnvClass, type TwinLimits } from "../config/validate.js";
 import type { GatewayCall } from "../core/gateway.js";
 import { ClientCap } from "../core/limits.js";
 import type { FinishReason } from "../core/types.js";
 import { buildGrounding, type Grounding, type Turn } from "./grounding.js";
-import { guardAnswer, type Guarded } from "./guards.js";
+import { guardAnswer, type GuardContext, type Guarded } from "./guards.js";
 import { FREE_TALK, type Pack } from "./pack.js";
 import { buildMessages, instructionBound, userText } from "./prompt.js";
 import { Ranker } from "./retrieve.js";
@@ -163,15 +164,23 @@ export function twinCall(
   };
 }
 
-/** The answer through the trim and the guards, against the turn's grounding; with no grounding, withheld (fail closed). */
-export function guardFor(files: TwinFiles, grounding: Grounding | null, text: string, finish: FinishReason): Guarded {
-  if (grounding === null) return { kind: "withheld", guard: "error", text: files.lines.withheld };
-  return guardAnswer(text, finish, {
+/** What the guards hold a turn's answer to: its grounding's words, its sections' words, and the visitor's newest turn,
+ *  with the pack's rulings and quotes, the instructions, and the fixed line. */
+export function guardContext(files: TwinFiles, grounding: Grounding): GuardContext {
+  return {
     groundingText: grounding.text,
+    sectionsText: grounding.sectionsText,
+    asked: grounding.asked,
     rulings: files.pack.rules.rulings.entries,
     quotes: files.pack.quotes,
     instructions: files.prompt.text,
     canary: files.prompt.canary,
     withheld: files.lines.withheld,
-  });
+  };
+}
+
+/** The answer through the trim and the guards, against the turn's grounding; with no grounding, withheld (fail closed). */
+export function guardFor(files: TwinFiles, grounding: Grounding | null, text: string, finish: FinishReason): Guarded {
+  if (grounding === null) return { kind: "withheld", guard: "error", text: files.lines.withheld };
+  return guardAnswer(text, finish, guardContext(files, grounding));
 }

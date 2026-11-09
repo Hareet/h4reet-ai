@@ -1,0 +1,16 @@
+🟠 Warning · [h4reet.ai prod]
+📈 WARNING: daily meter at 70%
+Meters
+Daily     3.50 /  5.00 USD   warning  3.50
+Month     9.10 / 20.00 USD   warning 14.00
+Fallback  0.40 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-10-28T14:02:11Z
+id prod:warn:day:2026-10-28
+Runbook: docs/runbooks/cost-warning.md
+--- entities (UTF-16 offset, length)
+bold 33 27 "WARNING: daily meter at 70%"
+pre 68 122 "Daily     3.50 /  5.00 USD   warning  3.50\nMonth     9.10 / 20.00 USD   warning 14.00\nFallback  0.40 /  2.00 USD   grant 1"
+code 257 24 "prod:warn:day:2026-10-28"
+code 291 29 "docs/runbooks/cost-warning.md"

@@ -5,8 +5,13 @@
 //   startup (config-files.md §4.4).
 // - Stand-in mode: config/alerts.yaml's in-network Mailpit, plain SMTP, no AUTH, from and to addresses that exist only
 //   inside the stack (§4.3).
-// From ALERT_EMAIL_FROM to ALERT_EMAIL_TO, text/plain only, with `Auto-Submitted: auto-generated` and
-// `X-H4-Alert-Id: <dedupe key>` (nodemailer writes the name X-H4-Alert-ID; header names are case-insensitive).
+// From ALERT_EMAIL_FROM to ALERT_EMAIL_TO, with `Auto-Submitted: auto-generated` and `X-H4-Alert-Id: <dedupe key>`
+// (nodemailer writes the name X-H4-Alert-ID; header names are case-insensitive). The plain form is text/plain only,
+// today's message; the designed form (spec 011, FR-015) adds an HTML part beside the same text, which nodemailer
+// writes as one multipart/alternative message, the text part first, with no other part.
+// A 5xx reply to the message's data is a refusal of the message itself (FR-027): nodemailer 10.0.16 names the data
+// phase in its error's `command`, 'DATA', for a refused DATA command and a refused message end alike, and 'RCPT TO' or
+// 'MAIL FROM' for an envelope refusal (spec 011's plan, T001's record). The dispatcher then sends the plain form.
 // Delivered is the server's 250; the reference kept is the reply code and the queue
 // ID, read from the server's own reply line: a reply that can't be read keeps none, never an assumed 250 (tasks.md
 // T156). A failure is recorded as its class only: timeout, connect, tls, smtp_<reply code>, smtp_<nodemailer code>.
@@ -83,6 +88,13 @@ export function smtpErrorClass(err: unknown): string {
     return "connect";
   }
   return NODEMAILER_CODE.test(code) ? `smtp_${code}` : "smtp_unknown";
+}
+
+/** Whether a failed send was the server refusing the message itself: a 5xx to its data (FR-027). */
+export function messageRefused(err: unknown): boolean {
+  const e = err as { command?: unknown; responseCode?: unknown } | null;
+  const reply = e?.responseCode;
+  return e?.command === "DATA" && typeof reply === "number" && reply >= 500 && reply <= 599;
 }
 
 type TransportFactory = (options: ReturnType<typeof transportOptions>) => {
@@ -222,7 +234,8 @@ const aresTransport: TransportFactory = (options) => {
 
 export async function sendEmail(
   channel: EmailChannel,
-  mail: { subject: string; text: string; alertId: string },
+  /** html: the designed form's HTML part, beside the text (spec 011); none is the plain form, today's message. */
+  mail: { subject: string; text: string; html?: string; alertId: string },
   factory: TransportFactory = aresTransport,
 ): Promise<DeliveryResult> {
   const transport = factory(transportOptions(channel));
@@ -241,6 +254,7 @@ export async function sendEmail(
         to: channel.to,
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html === undefined ? {} : { html: mail.html }),
         headers: { "Auto-Submitted": "auto-generated", "X-H4-Alert-Id": mail.alertId },
         disableFileAccess: true,
         disableUrlAccess: true,
@@ -255,7 +269,8 @@ export async function sendEmail(
     const queueId = /queued as ([A-Za-z0-9._-]{1,64})/i.exec(response)?.[1];
     return { ok: true, ref: queueId === undefined ? code : `${code} ${queueId}` };
   } catch (err) {
-    return { ok: false, errorClass: smtpErrorClass(err) };
+    const errorClass = smtpErrorClass(err);
+    return messageRefused(err) ? { ok: false, errorClass, messageRefused: true } : { ok: false, errorClass };
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     transport.close();

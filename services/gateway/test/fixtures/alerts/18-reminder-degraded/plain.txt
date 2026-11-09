@@ -1,0 +1,5 @@
+[h4reet.ai prod] REMINDER: still degraded since 2026-10-29T16:40:03Z (daily ceiling, 2026-10-29)
+Daily: 0.00 / 5.00 USD (warning 3.50) · Month: 13.40 / 20.00 (warning 14.00) · Fallback today: 0.00 / 2.00 (grant 1)
+Runtime: degraded since 2026-10-29T16:40:03Z · Fallback: available · 2026-10-30T09:00:00Z · id prod:reminder:daily:2026-10-30
+Only an operator reset restores service.
+Runbook: docs/runbooks/kill-switch-trip.md

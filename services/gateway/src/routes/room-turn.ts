@@ -232,6 +232,12 @@ export function registerRoomTurn(api: FastifyInstance, deps: RoomTurnDeps): void
             deps.metrics.twinWithheld(guarded.guard);
           } else {
             state.outcome = "ok";
+            // A repaired answer is the visitor's, its opening agreement taken off (spec 007's plan, D34): counted, and
+            // named on the span, with the outcome ok.
+            if (guarded.kind === "repaired") {
+              state.guard = guarded.guard;
+              deps.metrics.twinWithheld(guarded.guard);
+            }
           }
           return reply.code(200).send({
             text: guarded.text,

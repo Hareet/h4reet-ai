@@ -17,12 +17,14 @@
 //   5. refuse with the first cause that applies:
 //        state <> normal                                 kill_switch_tripped
 //        day or month spent + reserved >= its ceiling    meter_at_ceiling
+//        a capped adapter: its month's level >= its cap  adapter_month_spent (spec 010; fallback and test alike)
 //        fallback only: the renewal flag                 fallback_awaiting_renewal
 //        fallback only: fb spent + reserved >= allowance fallback_spent_today
 //        fallback only: the adapter is unhealthy         fallback_unavailable
 //      metered and test calls check the state and the ceilings only (operator-admin.md §3.2, §5)
-//   6. INSERT the reservation
-//   7. reserved_micro += max_micro on day and month, and on fallback_day for a fallback call
+//   6. INSERT the reservation, with adapter_month when its adapter has a cap (spec 010, departure B7)
+//   7. reserved_micro += max_micro on day and month, on fallback_day for a fallback call, and on the adapter's month
+//      when it has a cap
 // Then the journal's `reserve` record (meter.ts), whose failure is compensated and refused as journal_unwritable.
 import { costMicro, type PriceEntry, type PriceVersion, type Thresholds } from "../config/validate.js";
 import { gatewayTime, toRfc3339 } from "../core/clock.js";
@@ -30,7 +32,15 @@ import { ceilingsOf, degraded, rfc3339Seconds, type Degraded } from "../core/rou
 import type { Usage } from "../core/types.js";
 import { shiftReserved } from "./commit.js";
 import { lockState, MeterTx, type LockedState, type TxDeps, type TxEffects } from "./crossings.js";
-import { periodsAt, rowsOf, upsertPeriodRows, type PeriodRows } from "./rollover.js";
+import {
+  adapterMonthKey,
+  periodsAt,
+  rowsOf,
+  upsertAdapterMonth,
+  upsertPeriodRows,
+  type LockedRow,
+  type PeriodRows,
+} from "./rollover.js";
 import { Rollback, type Queryable } from "./store.js";
 import { sweepExpired } from "./sweep.js";
 import type { AdmitRequest, Admitted, LimitRefusal } from "./types.js";
@@ -168,6 +178,8 @@ export function admissionRefusal(
   rows: PeriodRows,
   t: Thresholds,
   r: Pick<AdmitRequest, "attribution" | "adapterHealthy" | "adapterUnhealthySince">,
+  /** The call's adapter's month and its cap, when it has one (spec 010, FR-022). */
+  month?: { row: LockedRow; cap: bigint },
 ): Degraded | undefined {
   if (locked.state !== "normal") {
     return degraded("kill_switch_tripped", {
@@ -188,6 +200,11 @@ export function admissionRefusal(
       ceilings: atCeiling.map((m) => m.meter),
       ...(reached === undefined ? {} : { since: rfc3339Seconds(reached) }),
     });
+  }
+  // Spec 010 (FR-022): a capped adapter's month at or above its cap, counting reservations, for every attribution.
+  if (month !== undefined && month.row.spentMicro + month.row.reservedMicro >= month.cap) {
+    const reached = month.row.reachedAt?.getTime();
+    return degraded("adapter_month_spent", reached === undefined ? {} : { since: rfc3339Seconds(reached) });
   }
   if (r.attribution !== "fallback") return undefined;
   if (locked.fallbackAwaitingRenewal) {
@@ -242,8 +259,15 @@ export async function admissionTx(q: Queryable, input: AdmissionInput): Promise<
   // 4. The current periods' rows.
   const periods = periodsAt(now);
   const rows = await upsertPeriodRows(q, periods, input.txDeps.thresholds.fallbackGrant, tx.nowIso);
+  //    And the adapter's month, when it has a cap (spec 010, FR-022).
+  const cap = input.txDeps.thresholds.adapterCaps.get(r.adapter.id);
+  const monthKey = cap === undefined ? undefined : adapterMonthKey(r.adapter.id, periods.month);
+  const month =
+    cap === undefined || monthKey === undefined
+      ? undefined
+      : { row: await upsertAdapterMonth(q, monthKey, tx.nowIso), cap: cap.cap };
   // 5. The refusals, against the state as the sweep left it.
-  const refusal = admissionRefusal(tx.locked, rows, input.txDeps.thresholds, r);
+  const refusal = admissionRefusal(tx.locked, rows, input.txDeps.thresholds, r, month);
   if (refusal !== undefined) {
     if (swept === 0) throw new Rollback<AdmissionOut>({ kind: "refused", decision: refusal, effects: tx.effects });
     await tx.flushAlerts();
@@ -254,8 +278,9 @@ export async function admissionTx(q: Queryable, input: AdmissionInput): Promise<
   const routeReason = r.attribution === "fallback" ? r.routeReason : null;
   await q.query(
     `INSERT INTO gateway.reservations (id, attribution, adapter_id, provider, model, price_version, max_micro,
-       period_day, period_month, created_at, expires_at, request_id, trace_id, purpose, route_reason, routing_sha)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+       period_day, period_month, created_at, expires_at, request_id, trace_id, purpose, route_reason, routing_sha,
+       adapter_month)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
     [
       input.reservationId,
       r.attribution,
@@ -273,10 +298,11 @@ export async function admissionTx(q: Queryable, input: AdmissionInput): Promise<
       r.purpose,
       routeReason,
       input.routingSha,
+      monthKey !== undefined,
     ],
   );
   // 7. Reserved, on the rows the call counts toward.
-  await shiftReserved(q, rowsOf(r.attribution, periods), input.maxMicro, tx.nowIso);
+  await shiftReserved(q, rowsOf(r.attribution, periods, monthKey), input.maxMicro, tx.nowIso);
   await tx.flushAlerts();
   tx.effects.changed = true;
   return {
@@ -300,6 +326,7 @@ export async function admissionTx(q: Queryable, input: AdmissionInput): Promise<
       purpose: r.purpose,
       routeReason,
       routingSha: input.routingSha,
+      adapterMonth: monthKey !== undefined,
       ...(r.room === undefined ? {} : { room: r.room }),
     },
   };
@@ -315,6 +342,7 @@ export async function compensateTx(q: Queryable, a: Admitted, realNow: () => num
   const nowIso = toRfc3339(gatewayTime(realNow(), locked?.testClockOffsetMs ?? null));
   const deleted = await q.query("DELETE FROM gateway.reservations WHERE id = $1 RETURNING id", [a.reservationId]);
   if (deleted.rows.length === 0) return false;
-  await shiftReserved(q, rowsOf(a.attribution, { day: a.periodDay, month: a.periodMonth }), -a.maxMicro, nowIso);
+  const month = a.adapterMonth ? adapterMonthKey(a.adapterId, a.periodMonth) : undefined;
+  await shiftReserved(q, rowsOf(a.attribution, { day: a.periodDay, month: a.periodMonth }, month), -a.maxMicro, nowIso);
   return true;
 }

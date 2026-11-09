@@ -40,6 +40,8 @@ describe("the fixed detail texts (gateway-http.md §3)", () => {
       no_fallback_in_stack: "The local model is unavailable, and this stack has no fallback.",
       meter_at_ceiling:
         "The local model is unavailable, and metered calls are refused while a meter is at or above its ceiling.",
+      // Spec 010, Amendment 0-6.
+      adapter_month_spent: "The local model is unavailable, and the paid fallback has reached its monthly cap.",
       fallback_awaiting_renewal:
         "The local model is unavailable, and the fallback sub-budget ran out. It stays refused until the operator renews it.",
       fallback_spent_today:

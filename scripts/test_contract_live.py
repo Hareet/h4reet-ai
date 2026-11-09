@@ -47,13 +47,28 @@ def make(*args: str, sandbox: bool) -> subprocess.CompletedProcess[str]:
             "make contract-live is the Author's",
         ),
         (("ENV=dev", "ADAPTER=local"), False, "needs REASON="),
-        (("ENV=dev", REASON), False, "needs ADAPTER=local or ADAPTER=bedrock"),
+        (
+            ("ENV=dev", REASON),
+            False,
+            "needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic",
+        ),
         (
             ("ENV=dev", "ADAPTER=other", REASON),
             False,
-            "needs ADAPTER=local or ADAPTER=bedrock",
+            "needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic",
         ),
         (("ENV=dev", "ADAPTER=bedrock", REASON), False, "bedrock is prod's adapter"),
+        # Spec 010 (FR-024): the Anthropic API is prod's adapter too.
+        (
+            ("ENV=dev", "ADAPTER=anthropic", REASON),
+            False,
+            "anthropic is prod's adapter",
+        ),
+        (
+            ("ENV=dev-cpu", "ADAPTER=anthropic", REASON),
+            False,
+            "anthropic is prod's adapter",
+        ),
     ],
 )
 def test_refuses_before_calling_anything(
@@ -69,7 +84,7 @@ def test_reads_the_adapter_through_the_shell_never_splicing_it_into_a_command() 
     # make reads ADAPTER as "$ADAPTER" (the Makefile's rule for values), so quotes in it can't end the string.
     done = make("ENV=prod", 'ADAPTER=x"; echo SPLICED >&2; "', REASON, sandbox=False)
     assert done.returncode == 2
-    assert "needs ADAPTER=local or ADAPTER=bedrock" in done.stderr
+    assert "needs ADAPTER=local, ADAPTER=bedrock, or ADAPTER=anthropic" in done.stderr
     assert "SPLICED" not in done.stdout + done.stderr
 
 

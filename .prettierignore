@@ -11,6 +11,9 @@ package-lock.json
 config/twin/
 evals/product/cases/twin-*.yaml
 evals/agent-config/history/
+# Spec 011's golden files: the alert renderers' exact bytes, written by vitest alone (its plan §3.4, D13), never by
+# hand; Prettier would reformat the HTML and every case would fail.
+services/gateway/test/fixtures/alerts/
 .specify/
 .claude/
 .github/

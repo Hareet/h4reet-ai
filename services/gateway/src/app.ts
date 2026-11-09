@@ -15,7 +15,7 @@ import { metrics as otelMetrics, trace, type Tracer } from "@opentelemetry/api";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
-import { channelsFrom, Dispatcher } from "./alerts/dispatcher.js";
+import { channelsFrom, Dispatcher, type Channels } from "./alerts/dispatcher.js";
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
@@ -202,6 +202,8 @@ export interface ServiceOptions {
   roomEvents?: RoomEventsConfig | null;
   /** Spec 007's twin files, as loadTwin read them; none by default, so every turn is twin_unavailable. */
   twin?: TwinLoad;
+  /** The alert channels; ALERT_DELIVERY's by default (channelsFrom), stubs on the loopback in tests. */
+  channels?: Channels;
 }
 
 /**
@@ -242,6 +244,10 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
     hasFallback: adapters.some((a) => a.role === "fallback"),
+    // Spec 010 (FR-023, FR-037): an adapter month's cap sets the renewal flag only for the route's fallback, and its
+    // alerts name each adapter by its type's label.
+    fallbackAdapterId: adapters.find((a) => a.role === "fallback")?.config.id ?? null,
+    adapterLabels: new Map(adapters.map((a) => [a.config.id, a.config.spec.label ?? a.config.id] as [string, string])),
   });
   const gateway = new Gateway({
     stack,
@@ -272,7 +278,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     store: opts.store,
     alerts,
     budgets,
-    channels: channelsFrom(env, alerts),
+    channels: opts.channels ?? channelsFrom(env, alerts),
     hasFallback: gateway.fallbackId() !== null,
     clock,
     metrics,
@@ -280,7 +286,10 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
   });
   // A paid fallback that turns unhealthy: the dispatcher queues its fallback_unavailable alert (data-model.md §7.7).
-  gateway.onFallbackUnavailable = (adapter, reason) => void dispatcher.fallbackUnavailable(adapter, reason);
+  // Spec 010 (FR-037): the alert names the adapter by its type's label, "Bedrock" or "the Anthropic API".
+  const labels = new Map(adapters.map((a) => [a.config.id, a.config.spec.label] as [string, string | undefined]));
+  gateway.onFallbackUnavailable = (adapter, reason) =>
+    void dispatcher.fallbackUnavailable(adapter, reason, labels.get(adapter));
   // A paid adapter whose SSO session ends soon: the dispatcher queues its credentials_expiring alert (alerts.md §2).
   gateway.onCredentialsExpiring = (adapter, label, endsAt) => dispatcher.credentialsExpiring(adapter, label, endsAt);
   const drafts = new IncidentDrafts({
@@ -385,6 +394,12 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
       testMachinery: { clock: s.env.GATEWAY_TEST_CLOCK === "1", synthetic: s.env.GATEWAY_TEST_SYNTHETIC_SPEND === "1" },
       onChange: () => void s.gateway.refreshGauges().catch(() => {}),
       twin: s.twin,
+      // Spec 011's samples (plan §7.2): the dispatcher's narrow interface.
+      samples: {
+        delivery: s.dispatcher.delivery(),
+        pending: () => s.dispatcher.samplesPending(),
+        queue: (entries, auditId, fingerprint) => s.dispatcher.queueSamples(entries, auditId, fingerprint),
+      },
     });
   } else {
     // Bare listeners have no operator credential, so no request is authenticated. onRequest runs before the body is

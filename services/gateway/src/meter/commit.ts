@@ -19,7 +19,7 @@ import { costMicro, PriceTable } from "../config/validate.js";
 import { gatewayTime, toRfc3339 } from "../core/clock.js";
 import type { AdapterResult, Attribution, FinishReason, ProviderErrorKind } from "../core/types.js";
 import { lockState, MeterTx, noEffects, type LockedState, type TxDeps, type TxEffects } from "./crossings.js";
-import { rowsOf, type RowKey } from "./rollover.js";
+import { adapterMonthKey, rowsOf, type RowKey } from "./rollover.js";
 import type { Queryable } from "./store.js";
 import type { Admitted, CallEnd, MeteredAttribution, RouteReason, SettledCall } from "./types.js";
 
@@ -321,7 +321,7 @@ export async function commitTx(q: Queryable, input: CommitInput): Promise<Commit
     return { inserted: false, ownRowFound: found.id === input.ledgerId, ledgerId: found.id, now, effects: noEffects() };
   }
   const periods = { day: a.periodDay, month: a.periodMonth };
-  const keys = rowsOf(a.attribution, periods);
+  const keys = rowsOf(a.attribution, periods, a.adapterMonth ? adapterMonthKey(a.adapterId, a.periodMonth) : undefined);
   const nowIso = toRfc3339(now);
   // 3. The reservation, released only when it was still there: the sweep may have settled it, and then step 2 has
   //    returned already; a commit never subtracts what no reservation holds (§2.3).

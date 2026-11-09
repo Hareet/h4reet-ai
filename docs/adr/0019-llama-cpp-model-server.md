@@ -6,7 +6,7 @@ Status: proposed, 2026-10-08 · Spec: 000 (FR-014, FR-018, FR-019, FR-021; SC-00
 
 FR-019 asks for a local model server with an OpenAI-compatible endpoint, and for images that support the RTX 5090's GPU architecture. FR-039 needs the same stack on a CPU-only engine, so the server must also run on CPU with the same behavior.
 
-The prod model is Qwen3-30B-A3B-Instruct-2507, quantized to GGUF Q4_K_M. It is about 18.6 GB and needs about 22 GB of VRAM at 4 slots of 8K context. The dev and engine stand-in is Qwen2.5-0.5B-Instruct, Q4_K_M, about 0.5 GB (491,400,032 bytes).
+The prod model is Qwen3-30B-A3B-Instruct-2507, quantized to GGUF Q4_K_M. It is about 18.6 GB and needs about 22 GB of VRAM at a 32K context, however its slots divide it: 2 slots of 16K since 2026-11-08, 4 slots of 8K before. The dev and engine stand-in is Qwen2.5-0.5B-Instruct, Q4_K_M, about 0.5 GB (491,400,032 bytes).
 
 Hardware check 1 (2026-10-07) measured the download at 786 Mbps, so the 18.6 GB model takes about 3.2 minutes. That keeps SC-001's 10 minutes achievable.
 
@@ -17,7 +17,8 @@ Hardware check 1 (2026-10-07) measured the download at 786 Mbps, so the 18.6 GB 
   - CPU: `server-b11459`, profile `cpu`.
   - Both answer at `model-server:8080/v1` and expose `/health` and `/metrics`. Digests are in `deploy/images.lock`.
 - Flags for both: `--jinja --metrics --no-webui --no-slots`, and the model alias. No `-v`, because verbose logs carry prompts. Never `-hf`, because the server must not download at runtime. `--no-slots` hides the in-flight prompts that a slots endpoint would show.
-- GPU run: `-c 32768 -np 4 -ngl 999`. CPU run: `-ngl 0 -c 8192 -np 2`.
+- GPU run: `-c 32768 -np 2 -ngl 999`. CPU run: `-ngl 0 -c 8192 -np 2`.
+  - Revised 2026-11-08, for spec 007's twin turns: the GPU run was `-np 4`, whose slots of 8,192 tokens refused every twin turn the Author's first live runs sent (8,201 to 8,803 tokens). A turn needs about 9,300 tokens a slot, 32,000 characters in plus 300 out, and two slots of 16,384 hold one even at 2 characters a token. llama.cpp sizes the KV cache from `-c`, so the VRAM is the same ([spec 007's plan](../../specs/007-twin-conversation/plan.md), D27).
 - `/health` returns 503 while the model loads and 200 once it is ready. The healthcheck start period is 300 seconds on GPU and 60 seconds on CPU.
 - Models are pinned in `deploy/models.lock` by repository, revision, file, size, and sha256. The stand-in pin starts at revision `9217f5db` and is 491,400,032 bytes. The prod model comes from `unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF` at revision `eea7b2be`, 18,556,686,752 bytes, because neither `Qwen/` nor `ggml-org/` publishes it as GGUF (research.md R-03).
 - Downloads run on the host only. `deploy/scripts/pull-models.sh` fills `H4_MODEL_DIR` on ext4, verifies sha256, and mounts the cache read-only into every stack. The engine verifies and never downloads.
@@ -33,7 +34,7 @@ Hardware check 1 (2026-10-07) measured the download at 786 Mbps, so the 18.6 GB 
 
 ## Consequences
 
-- Cost: $0 cloud. Models use about 19 GB of disk, once per host. VRAM: an estimated 21.3 GiB for prod on the laptop RTX 5090's 24 GB, of which the Windows desktop holds about 0.5 GB, so about 2 GiB of headroom; and about 1.5 GB for the dev stand-in. The first stack task measures the prod figure. `-c 16384 -np 2` is the fallback (research.md R-03).
+- Cost: $0 cloud. Models use about 19 GB of disk, once per host. VRAM: an estimated 21.3 GiB for prod on the laptop RTX 5090's 24 GB, of which the Windows desktop holds about 0.5 GB, so about 2 GiB of headroom; and about 1.5 GB for the dev stand-in. The first stack task measures the prod figure. Measured on 2026-11-08 by `make status`: 21,229 MiB used of 24,463 MiB, with the model loaded at `-c 32768`. `-c 16384 -np 1` is the fallback: one slot, about half the KV cache, which still holds a twin turn. It was `-c 16384 -np 2` (research.md R-03), whose slots of 8,192 tokens would refuse twin turns again (spec 007's plan, D27).
 - Degraded mode: an unhealthy server fails the gateway's health check. Prod then falls back within the sub-budget (ADR 0001). Dev uses its synthetic fallback when enabled, and otherwise answers degraded with `no_fallback_in_stack`. The dashboard's model-server panel turns red (FR-028). `make up` names the failing service. On a host without the GPU runtime or enough VRAM, `make up` refuses at preflight.
 - The model file and alias are configuration. Swapping them changes no code (FR-021).
 - Trade-off: the prod model is 18.6 GB, so a cold start includes that download, which SC-001 counts.

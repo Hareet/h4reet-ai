@@ -1,0 +1,4 @@
+[h4reet.ai prod] WARNING: fallback sub-budget at 70% of grant 1
+Daily: 2.10 / 5.00 USD (warning 3.50) · Month: 11.20 / 20.00 (warning 14.00) · Fallback today: 1.40 / 2.00 (grant 1, warning 1.40)
+Runtime: normal · Fallback: available · 2026-10-28T11:40:52Z · id prod:warn:fallback_day:2026-10-28:g1
+Runbook: docs/runbooks/cost-warning.md

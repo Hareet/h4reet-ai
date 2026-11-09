@@ -185,10 +185,12 @@ function expectedCost(entry: PriceEntry, usage: Usage): bigint {
   );
 }
 
-/** The system text the provider received: the OpenAI `system` role, or the Converse `system` block. */
+/** The system text the provider received: the OpenAI `system` role, the Converse `system` block, or the Messages API's
+ *  `system` string (spec 010). */
 function systemSent(body: unknown): string | undefined {
-  const b = body as { messages?: { role?: unknown; content?: unknown }[]; system?: { text?: unknown }[] };
-  if (Array.isArray(b?.system)) return b.system.map((s) => String(s.text ?? "")).join("");
+  const b = body as { messages?: { role?: unknown; content?: unknown }[]; system?: unknown };
+  if (typeof b?.system === "string") return b.system;
+  if (Array.isArray(b?.system)) return (b.system as { text?: unknown }[]).map((s) => String(s.text ?? "")).join("");
   const first = Array.isArray(b?.messages) ? b.messages[0] : undefined;
   return first?.role === "system" && typeof first.content === "string" ? first.content : undefined;
 }

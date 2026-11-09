@@ -15,8 +15,10 @@ import {
   type GaugeSnapshot,
 } from "../../src/telemetry/metrics.js";
 import {
+  ALERT_DELIVER_SPAN,
   METRIC_EXPORT_INTERVAL_MS,
   SPAN_BATCH,
+  alertDeliverAttributes,
   buildResource,
   buildSdkConfiguration,
   httpIgnoreOutgoingHook,
@@ -58,6 +60,8 @@ const SNAPSHOT: GaugeSnapshot = {
   fallbackAwaitingRenewal: false,
   studioWindow: false,
   adapters: [{ id: "local", healthy: true }],
+  // Spec 010 (FR-035): a capped paid adapter's month, so its three gauges report.
+  adapterMonths: [{ adapter: "anthropic", spentMicro: 1_250_000n, capMicro: 10_000_000n, warnMicro: 7_000_000n }],
 };
 
 /** Every instrument once, as a request, a crossing, and an operator write would record them. */
@@ -67,9 +71,13 @@ function scriptedRun(m: GatewayMetrics): void {
   m.cost(100_000n, { provider: "synthetic", model: "metered-test", attribution: "fallback" });
   m.cost(0n, { provider: "local", model: "stand-in", attribution: "none" });
   m.degradedResponse("kill_switch_tripped");
-  m.alertAttempt({ channel: "telegram", kind: "warn", outcome: "delivered" });
+  m.alertAttempt({ channel: "telegram", kind: "warn", outcome: "delivered", form: "designed" });
   m.alertDeliveryLag(4.2);
   m.operatorAction("reset");
+  // Spec 011 (plan §9.1): the form of each attempt, a sample's attempts, a fallback, and the samples' request.
+  m.alertAttempt({ channel: "email", kind: "sample", outcome: "failed", form: "none" });
+  m.alertFallback({ channel: "telegram", kind: "trip", reason: "entities_refused" });
+  m.operatorAction("alert_samples");
   m.operatorAuthFailure("mismatch");
   m.testMachineryRefused();
   // A synthetic ID: which objects there are is the room's data (spec 004, FR-007).
@@ -117,6 +125,10 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.twin.turn.duration": { unit: "s", keys: ["h4.room.feature", "h4.route.decision"] },
   "h4.twin.withheld": { unit: "{answer}", keys: ["h4.twin.guard"] },
   "h4.meter.spend_usd": { unit: "{USD}", keys: ["h4.meter"] },
+  // Spec 010 (FR-035; plan §9): each capped, routed adapter's month, its cap, and its warning.
+  "h4.adapter.month_spend_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_cap_usd": { unit: "{USD}", keys: ["h4.adapter"] },
+  "h4.adapter.month_warn_usd": { unit: "{USD}", keys: ["h4.adapter"] },
   "h4.meter.ceiling_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.meter.warn_usd": { unit: "{USD}", keys: ["h4.meter"] },
   "h4.fallback.allowance_usd": { unit: "{USD}", keys: [] },
@@ -125,7 +137,9 @@ const INVENTORY: Record<string, { unit: string; keys: string[] }> = {
   "h4.degraded.cause": { unit: "{cause}", keys: ["h4.cause"] },
   "h4.degraded.responses": { unit: "{response}", keys: ["h4.cause"] },
   "h4.adapter.healthy": { unit: "{flag}", keys: ["h4.adapter"] },
-  "h4.alerts": { unit: "{attempt}", keys: ["h4.alert.kind", "h4.channel", "h4.outcome"] },
+  // Spec 011 (plan §9.1): each attempt's form, and the fallbacks to the plain form by channel, kind, and reason.
+  "h4.alerts": { unit: "{attempt}", keys: ["h4.alert.form", "h4.alert.kind", "h4.channel", "h4.outcome"] },
+  "h4.alert.fallbacks": { unit: "{fallback}", keys: ["h4.alert.fallback_reason", "h4.alert.kind", "h4.channel"] },
   "h4.alert.delivery_lag": { unit: "s", keys: [] },
   "h4.operator.actions": { unit: "{action}", keys: ["h4.action"] },
   "h4.operator.auth_failures": { unit: "{failure}", keys: ["h4.auth.class"] },
@@ -232,7 +246,7 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
       [{ "h4.state": "degraded" }, 1],
     ]);
     const causes = points("h4.degraded.cause");
-    expect(causes).toHaveLength(10);
+    expect(causes).toHaveLength(11); // the ten causes (spec 010 adds adapter_month_spent) and none
     expect(causes.filter(([, v]) => v === 1)).toEqual([[{ "h4.cause": "meter_at_ceiling" }, 1]]);
     expect(points("h4.meter.spend_usd")).toEqual([
       [{ "h4.meter": "day" }, 0.3],
@@ -539,5 +553,96 @@ describe("the twin's instruments (spec 007, plan §9)", () => {
     const all = JSON.stringify(instruments(await h.collect()).map((x) => x.dataPoints.map((p) => p.attributes)));
     for (const leaked of ["a visitor's words", "<script>", "elsewhere", "my words"]) expect(all).not.toContain(leaked);
     await h.shutdown();
+  });
+});
+
+describe("the alerts' instruments and span (spec 011, FR-044, FR-045, FR-047; plan §9.1 to §9.3; tasks.md T011)", () => {
+  const values = async (name: string, key: string): Promise<string[]> => {
+    const h = meterHarness();
+    const m = new GatewayMetrics(h.meter);
+    for (const form of ["designed", "plain", "none"] as const) {
+      m.alertAttempt({ channel: "telegram", kind: "sample", outcome: "delivered", form });
+    }
+    for (const reason of [
+      "entities_refused",
+      "message_refused",
+      "render_failed",
+      "over_limit",
+      "not_rendered",
+    ] as const) {
+      m.alertFallback({ channel: "email", kind: "sample", reason });
+    }
+    m.operatorAction("alert_samples");
+    const metric = instruments(await h.collect()).find((x) => x.descriptor.name === name);
+    await h.shutdown();
+    return [...new Set((metric?.dataPoints ?? []).map((p) => String(p.attributes[key])))].sort();
+  };
+
+  it("count each attempt's form, designed, plain, or none, and the kind sample", async () => {
+    expect(await values("h4.alerts", "h4.alert.form")).toEqual(["designed", "none", "plain"]);
+    expect(await values("h4.alerts", "h4.alert.kind")).toEqual(["sample"]);
+  });
+
+  it("count the fallbacks by their five reasons, and the samples' request as alert_samples", async () => {
+    expect(await values("h4.alert.fallbacks", "h4.alert.fallback_reason")).toEqual([
+      "entities_refused",
+      "message_refused",
+      "not_rendered",
+      "over_limit",
+      "render_failed",
+    ]);
+    expect(await values("h4.operator.actions", "h4.action")).toEqual(["alert_samples"]);
+  });
+
+  it("give alert.deliver exactly its keys: channel, kind, form, a fallback's reason when set, outcome, attempt, sample", () => {
+    expect(ALERT_DELIVER_SPAN).toBe("alert.deliver");
+    const base = {
+      channel: "telegram",
+      kind: "trip",
+      form: "designed",
+      outcome: "delivered",
+      attempt: 1,
+      sample: false,
+    } as const;
+    expect(Object.keys(alertDeliverAttributes(base)).sort()).toEqual(
+      ["h4.alert.attempt", "h4.alert.form", "h4.alert.kind", "h4.alert.sample", "h4.channel", "h4.outcome"].sort(),
+    );
+    expect(
+      alertDeliverAttributes({
+        ...base,
+        form: "plain",
+        fallbackReason: "entities_refused",
+        kind: "sample",
+        sample: true,
+      }),
+    ).toEqual({
+      "h4.channel": "telegram",
+      "h4.alert.kind": "sample",
+      "h4.alert.form": "plain",
+      "h4.alert.fallback_reason": "entities_refused",
+      "h4.outcome": "delivered",
+      "h4.alert.attempt": 1,
+      "h4.alert.sample": true,
+    });
+  });
+
+  it("put no canary, URL, or token on an alert.deliver span, whatever a caller passes", async () => {
+    const exporter = new node.InMemorySpanExporter();
+    const provider = new node.NodeTracerProvider({ spanProcessors: [new node.SimpleSpanProcessor(exporter)] });
+    const tracer = provider.getTracer("alerts");
+    const sneaky = {
+      channel: "telegram",
+      kind: "trip",
+      form: "designed",
+      outcome: "retry",
+      attempt: 2,
+      sample: false,
+      url: "https://api.telegram.org/bot123456789:made-for-this-test/sendMessage",
+      text: "canary hello message",
+    } as unknown as Parameters<typeof alertDeliverAttributes>[0];
+    tracer.startSpan(ALERT_DELIVER_SPAN, { attributes: alertDeliverAttributes(sneaky), root: true }).end();
+    const all = JSON.stringify(exporter.getFinishedSpans().map((x) => x.attributes));
+    for (const never of ["api.telegram.org", "made-for-this-test", "canary", "https"]) expect(all).not.toContain(never);
+    await provider.shutdown();
   });
 });

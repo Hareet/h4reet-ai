@@ -2,17 +2,20 @@
 // twin should give" (the corpus README), passes every guard against the grounding its generated case's feature gives:
 // its topic's selectable for 04 to 06 (the bicycle for 04, so no lead applies), and free talk, with its own question
 // as the visitor's turn, for every other file. A guard that withholds one of them would withhold the Author's words.
+// Each runs with the context the route builds (src/twin/turn.ts's guardContext), its question as the visitor's newest
+// turn, so G10 reads a place question where one is asked (D31).
 import { describe, expect, it } from "vitest";
 
 import { twinFromTexts } from "../../src/config/twin.js";
 import { buildGrounding } from "../../src/twin/grounding.js";
 import { guardAnswer } from "../../src/twin/guards.js";
 import { Ranker } from "../../src/twin/retrieve.js";
+import { guardContext } from "../../src/twin/turn.js";
 import { committedTexts } from "../helpers/twin.js";
 
 const twin = twinFromTexts(committedTexts());
 if (!twin.available) throw new Error("the committed twin files don't load");
-const { pack, prompt, lines } = twin.files;
+const { pack } = twin.files;
 const ranker = new Ranker(pack.sections);
 
 /** The feature a file's golden cases are asked under (plan §8). */
@@ -44,14 +47,7 @@ describe("the guards pass every Golden Q&A answer against its own grounding (FR-
         freeTalkReady: true,
         budgetChars: 1_000_000,
       });
-      const out = guardAnswer(g.answer, "stop", {
-        groundingText: grounding.text,
-        rulings: pack.rules.rulings.entries,
-        quotes: pack.quotes,
-        instructions: prompt.text,
-        canary: prompt.canary,
-        withheld: lines.withheld,
-      });
+      const out = guardAnswer(g.answer, "stop", guardContext(twin.files, grounding));
       expect(out, `${section.id} (${feature}): ${g.answer}`).toEqual({ kind: "pass", text: g.answer });
     });
   }

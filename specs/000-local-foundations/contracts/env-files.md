@@ -80,8 +80,8 @@ Compose and preflight read these; the gateway reads `H4_STACK`, `H4_ENV`, and tw
 |---|---|---|---|---|---|---|---|
 | `MODEL_FILE` | `Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf` | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | the same as dev | no | fixed | the model server's `-m /models/${MODEL_FILE}`; `pull-models.sh` | preflight: names a `deploy/models.lock` entry whose `stacks` include `H4_STACK`; for host stacks the file exists with the lock's size, or is fetched; on dev-cpu it must exist ("ask the Author to run deploy/agents-engine/engine.sh seed") |
 | `MODEL_ALIAS` | the lock entry's alias for the prod model | the stand-in's alias | the same as dev | no | fixed | `--alias`; the gateway's `LOCAL_MODEL_NAME` (`gen_ai.request.model`) | preflight: equals the lock entry's `alias` |
-| `MODEL_CTX_SIZE` | `32768` | `8192` | `8192` | no | fixed | `-c` | preflight: a positive integer divisible by `MODEL_PARALLEL`. The first stack task may set prod to `16384` if the model doesn't fit (plan §3). |
-| `MODEL_PARALLEL` | `4` | `2` | `2` | no | fixed | `-np` | preflight: 1 to 8 |
+| `MODEL_CTX_SIZE` | `32768` | `8192` | `8192` | no | fixed | `-c` | preflight: a positive integer divisible by `MODEL_PARALLEL`. The first stack task may set prod to `16384` if the model doesn't fit (plan §3), with `MODEL_PARALLEL` `1` since 2026-11-08, so a slot still holds a spec 007 twin turn. |
+| `MODEL_PARALLEL` | `2` | `2` | `2` | no | fixed | `-np` | preflight: 1 to 8. Prod's two slots of 16,384 tokens each hold a spec 007 twin turn: 32,000 characters in, plus 300 out. It was `4`: slots of 8,192 tokens, too small for a twin turn, so the model server refused every one (2026-11-08; spec 007's plan, D27). |
 | `MODEL_THREADS` | `4` | `4` | `4` | no | fixed | `-t`, in the `cpu` profile only | preflight: 1 to 4 on dev-cpu (the engine's cap) |
 | `LOCAL_MODEL_BASE_URL` | `http://model-server:8080/v1` | the same | the same | no | fixed | the gateway's local adapter (`base_url_env`, [config-files.md §1](config-files.md#1-configroutingyaml)) | the gateway: an `http` URL with a single-label host ([provider-adapter.md §3.1](provider-adapter.md#31-local-openai-type-openai-compatible)) |
 
@@ -115,6 +115,8 @@ Compose passes `MODEL_ALIAS` to the gateway as `LOCAL_MODEL_NAME`, the key `conf
 - **`GATEWAY_AWS_PROFILE` isn't named `AWS_PROFILE`.** Preflight refuses any template key that the calling shell also sets ([§10](#10-make-up-preflight)), and the Author's shell may well set `AWS_PROFILE`. Compose would let the shell's value win, which would point prod's gateway at the Author's own profile. Compose maps it: `AWS_PROFILE: ${GATEWAY_AWS_PROFILE:-none}`.
 
 **Set by compose on the gateway, not by the env file:** `GATEWAY_STATE_DIR=/var/lib/h4-gateway`; `GATEWAY_DB_HOST=gateway-state`, `GATEWAY_DB_PORT=5432`, `GATEWAY_DB_NAME=gateway`, `GATEWAY_DB_USER=gateway` (the password stays a separate variable, never inside a URL); `LOCAL_MODEL_NAME=${MODEL_ALIAS}`; `HOME=/home/node`; `AWS_EC2_METADATA_DISABLED=true`, so the credential chain never tries the instance-metadata address; `TZ=UTC`; `NODE_ENV=production`; the `OTEL_*` variables in [telemetry.md §3.1](telemetry.md#31-sdk-setup); and the stack keys `H4_STACK`, `H4_ENV`, `H4_LANGFUSE_PORT`, and `H4_GRAFANA_PORT`. The dev-only switches arrive as `${GATEWAY_TEST_CLOCK:-0}` and `${GATEWAY_TEST_SYNTHETIC_SPEND:-0}`, so prod's gateway sees `0`.
+
+**`GATEWAY_ANTHROPIC_API_KEY` (spec 010, Amendment 0-9).** Prod's alone: the Anthropic API key, which `deploy/compose.yaml` passes to the gateway alone as `${GATEWAY_ANTHROPIC_API_KEY:-}`, read by the adapter through its `api_key_env` setting. Prod's template lists it empty; dev's template and `dev-cpu.vars` don't hold it. The name differs from the SDK's own, `ANTHROPIC_API_KEY`, for the reason `GATEWAY_AWS_PROFILE` differs from `AWS_PROFILE`: P5 refuses a template key the calling shell also sets, and compose would let the shell's value win. No container holds an `ANTHROPIC_*` variable.
 
 ## 5. Langfuse 4.54.0's keys
 
@@ -241,6 +243,9 @@ FR-007: every secret this spec introduces is denied by name, both its variable a
 | AWS: the runtime identity's SSO session (FR-013) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (denied today), and `AWS_PROFILE`, `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, `AWS_CONTAINER_CREDENTIALS_FULL_URI`, `AWS_CONTAINER_AUTHORIZATION_TOKEN` | `~/.config/h4reet-ai/aws-home/.aws/` (`config` and the SSO cache); the Author's own `~/.aws` | `~/.aws`, and the first three names |
 | The engine's Author client key | – | `~/.config/h4reet-ai/agents-engine/` ([agents-engine.md §2](agents-engine.md#2-the-endpoint-and-the-client-configuration)) | no |
 | The engine's server key and CA key | – | `/etc/h4agents/pki/` | no |
+| The Anthropic API key (spec 010, FR-030, FR-032) | `GATEWAY_ANTHROPIC_API_KEY`, prod's name | prod's env file, as above | not before spec 010: P-A, the Author's patch, denies it, merged with spec 010 as one (its plan's B10) |
+
+**`ANTHROPIC_API_KEY` (spec 010, FR-032; its plan's B9).** P-A denies it by name in the sandbox's `credentials.envVars` as well, as `GITHUB_TOKEN` is denied, but it is not an FR-007 variable and has no row in the table above. No stack reads it: rule R12 refuses an `api_key_env` that begins `ANTHROPIC_`, and P-A's compose policy refuses any `ANTHROPIC_*` variable on any service, and any reference to one. And it is the name Claude Code signs in with. The canary (`make matrix-canary`) and the behavioral tier put a fake value for every FR-007 variable into a Claude Code session, and a fake under this name would sign that session in with it, so both strip the name instead (their `STRIPPED`). The matrix checks its deny on a row of its own, `H/settings/spec 010: ANTHROPIC_API_KEY is denied by name`.
 
 **The path rules the early patch adds or keeps:**
 - `denyRead` and `denyWrite` on `~/.config/h4reet-ai`, which covers the env files, the operator tokens, the runtime AWS identity, and the Author's engine certificate in one entry (R-31).
@@ -330,6 +335,8 @@ P7's model keys, P12, and P18 read `deploy/models.lock` (one model per line, pla
 - `deploy/agents-engine/engine.sh seed` has its own copy of the disk check in `deploy/agents-engine/engine.sh`, so the human-only boundary code never calls agent-editable code ([agents-engine.md §6](agents-engine.md#6-seeding)).
 
 pytest covers every refusal with a fixture env file and a stubbed `docker` (plan §7).
+
+**(spec 010)** P3: `GATEWAY_ANTHROPIC_API_KEY` may be empty while prod's route names no `anthropic-messages` adapter, and must not be while it does. P7: while it does, the key is printable ASCII without spaces, 20 to 256 characters, and preflight names the key, never its value. P19: the AWS profile's checks apply while prod's route names a `bedrock-converse` adapter, rather than any paid adapter.
 
 ## 11. What the gateway checks for itself
 

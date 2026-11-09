@@ -199,8 +199,9 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     assert expected["Spend today (stat)"][0] == "stat"
     assert expected["Fallback sub-budget remaining (time series)"][0] == "time series"
     assert expected["Store state (authoritative)"][1][0].startswith("SELECT stack, env")
+    # Spec 011 (FR-046; its plan §9.4): the log panel gains the fallback record.
     assert expected["Alert log"][1] == [
-        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed)"'
+        '{service_name="gateway"} | event=~"alert\\\\.(queued|delivered|retry|failed|fallback)"'
     ]
     # The collector's "and the same for" shorthand, spelled out with its pushed names (T185).
     assert expected["Export failures"][1] == [
@@ -210,6 +211,40 @@ def test_the_contract_parses_as_this_file_reads_it() -> None:
     ]
     for _, found in expected.values():
         assert found, "a panel parsed with no query"
+
+
+def test_the_alert_panels_show_each_form_and_every_fallback() -> None:
+    # Spec 011 (FR-046; its plan §9.4): the outcomes table gains the form, and the fallback panel sits beside it, by
+    # channel, kind, and reason, in the audit-and-alerts row, in the contract and on the dashboard alike.
+    expected = contract_panels("7.5")
+    assert expected["Alerts by channel and outcome"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) "
+                "(increase(h4_alerts_total[$__range]))"
+            )
+        ],
+    )
+    assert expected["Alerts sent as plain text by fallback"] == (
+        "table",
+        [
+            (
+                "sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) "
+                "(increase(h4_alert_fallbacks_total[$__range]))"
+            )
+        ],
+    )
+    found = by_title()
+    outcomes = found["Alerts by channel and outcome"]
+    fallbacks = found["Alerts sent as plain text by fallback"]
+    assert fallbacks["type"] == "table"
+    assert queries(fallbacks) == expected["Alerts sent as plain text by fallback"][1]
+    # Beside each other: the same row's height, the fallback panel to the outcomes table's right.
+    assert fallbacks["gridPos"]["y"] == outcomes["gridPos"]["y"]
+    assert (
+        fallbacks["gridPos"]["x"] >= outcomes["gridPos"]["x"] + outcomes["gridPos"]["w"]
+    )
 
 
 def test_the_dashboard_itself() -> None:
@@ -372,6 +407,8 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         "Fallback spend in studio windows",
         # Spec 007's model panel reads gateway.v_twin_models (its departure D7).
         "The model each turn used",
+        # Spec 010's table of the paid adapters' months reads gateway.v_adapter_months (its FR-036).
+        "Paid adapters' months (authoritative)",
     }
     for panel in sql:
         (target,) = panel["targets"]
@@ -963,3 +1000,28 @@ def test_the_avatar_failure_share_reads_as_the_2d_share_reads() -> None:
     assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
     for words in ("avatar_failed", "resume_opened", "resume_kept", "stand-in"):
         assert words in panel["description"], words
+
+
+# Spec 010 (FR-036; its plan §9): the paid adapter's month beside its cap and its warning, in the Spend row, and the
+# adapters' months as the store holds them, beside the store-state panel.
+ADAPTER_MONTH_PANEL = "Paid adapter's month against its cap"
+ADAPTER_MONTHS_TABLE = "Paid adapters' months (authoritative)"
+
+
+def test_the_paid_adapters_month_has_its_panels() -> None:
+    found = by_title()
+    month = found[ADAPTER_MONTH_PANEL]
+    assert queries(month) == [
+        "max by (h4_adapter) (h4_adapter_month_spend_usd)",
+        "max by (h4_adapter) (h4_adapter_month_warn_usd)",
+        "max by (h4_adapter) (h4_adapter_month_cap_usd)",
+    ]
+    table = found[ADAPTER_MONTHS_TABLE]
+    assert queries(table) == [
+        (
+            "SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, "
+            "reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter"
+        )
+    ]
+    assert table["type"] == "table"
+    assert table["datasource"]["uid"] == "gateway"

@@ -75,6 +75,8 @@ Spec 002's usage events, `POST /room/events` ([room-events.md §3](../../002-the
 
 (Departure, tasks.md T074.) `POST /admin/test/synthetic` makes its calls one after another in one request, and gives each its own trace, as operator-admin.md §3.2's answer shows a trace ID per call: each call's `gateway.route` span is a root span, linked to the request's server span. So the breach test's T assertions, and an incident draft's list of the last metered calls, can name each call by its trace.
 
+**(spec 011, Amendment 0-9) `alert.deliver`.** Each delivery attempt of an alert, on one channel, is an INTERNAL span of its own, a root started from no context, since the attempt has no request to hang under: `h4.channel`, `h4.alert.kind` (a kind, or `sample`), `h4.alert.form` (`designed` or `plain`), `h4.alert.fallback_reason` (when the plain form went in the designed one's place), `h4.outcome` (`delivered`, `retry`, `failed`), `h4.alert.attempt`, and `h4.alert.sample`. Never a text, a URL, a token, a chat ID, an address, or a response body: the attributes are built from closed lists and numbers alone ([alerts.md §4.4](alerts.md#44-outcomes-and-when-something-is-down)). In Langfuse each shows as a trace with no generation. `POST /admin/alert-samples`' server span carries `h4.action: alert_samples` ([operator-admin.md §2.4](operator-admin.md#24-post-adminalert-samples-spec-011)).
+
 Langfuse shows the tree as one trace: the server span is the trace's root, and the client spans are generations ([§3.5](#35-what-langfuse-reads)). The other `@fastify/otel` hook spans, if the instrumentation emits them, carry no attributes beyond Fastify's own and no payloads.
 
 ### 3.3 Span attributes
@@ -135,6 +137,8 @@ Langfuse shows the tree as one trace: the server span is the trace's root, and t
 - **The canonical success set** is every key above marked "always", plus the "on success" keys, plus `server.port` for an adapter that declares a port. `gen_ai.response.id` belongs to it when the provider returns an ID; both shipped providers do. A failed attempt has the "always" keys plus `error.type`.
 - The contract suite's check C8 compares these key sets with an in-memory exporter: `local-openai` and `bedrock-converse` must have identical sets, and only the values of the provider, model, and server attributes may differ (SC-006, [provider-adapter.md §5.2](provider-adapter.md#52-assertions)). The synthetic adapter's set is the same without `server.port`.
 
+**(spec 010, Amendment 0-7)** An `anthropic-messages` call's client span is `chat claude-haiku-5-5`, with `gen_ai.provider.name: anthropic`, `server.address: api.anthropic.com`, and `server.port: 443`, and the canonical key set above, which the contract suite's C8 holds equal to the local and Bedrock adapters'. The SDK's own spans and trace propagation are off, and its transport is ignored by the HTTP instrumentation like every host outside the stack (§3.1), so the call has no other span and sends no trace header.
+
 ### 3.4 The payload rule
 
 - `TELEMETRY_PAYLOAD_SAMPLING` is `off` or `on`, and `on` is allowed only when `H4_ENV=dev`. Preflight and the gateway's startup both refuse it elsewhere ([env-files.md](env-files.md), plan [§5.8](../plan.md#58-startup-refusals)).
@@ -172,16 +176,17 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 | `h4.degraded.cause` | gauge, `{cause}` | `h4.cause`: `none`, `store_unreachable`, `store_uninitialized`, `kill_switch_tripped`, `no_fallback_in_stack`, `meter_at_ceiling`, `fallback_awaiting_renewal`, `fallback_spent_today`, `fallback_unavailable`, `journal_unwritable` | `h4_degraded_cause` | one-hot over all ten values: the cause a hello arriving now would get, evaluated read-only in FR-022's order from the snapshot; `none` when it would be answered ([gateway-http.md §3](gateway-http.md#3-degraded-causes)) |
 | `h4.degraded.responses` | counter, `{response}` | `h4.cause`: the nine causes (not `none`) | `h4_degraded_responses_total` | once per degraded response |
 | `h4.adapter.healthy` | gauge, `{flag}` | `h4.adapter`: the adapter IDs in `config/routing.yaml`: `local`, `bedrock`, `synthetic` | `h4_adapter_healthy` | 1 or 0 per configured adapter, from its effective health (the probe combined with the circuit, [provider-adapter.md §6](provider-adapter.md#6-around-an-adapter-call-what-the-gateway-does)) |
-| `h4.alerts` | counter, `{attempt}` | `h4.channel`: `telegram`, `email`; `h4.alert.kind`: `warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`; `h4.outcome`: `delivered`, `retry` (an attempt failed and another is due), `failed` (the channel gave up at 300 s) | `h4_alerts_total` | once per delivery attempt's outcome ([alerts.md §4](alerts.md#4-channels-delivery-and-retries)) |
-| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at`; for the in-memory `store_unreachable` alert, which has no row, from the moment it was queued in memory |
-| `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call`; and `twin_call` (spec 007, Amendment 0-4) | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
+| `h4.alerts` | counter, `{attempt}` | `h4.channel`: `telegram`, `email`; `h4.alert.kind`: `warn`, `trip`, `fallback_exhausted`, `operator_action`, `credentials_expiring`, `fallback_unavailable`, `auth_failed`, `store_unreachable`, `reminder`; `h4.outcome`: `delivered`, `retry` (an attempt failed and another is due), `failed` (the channel gave up at 300 s) | `h4_alerts_total` | once per delivery attempt's outcome ([alerts.md §4](alerts.md#4-channels-delivery-and-retries)). **(spec 011, Amendment 0-9)** `h4.alert.kind` gains `sample`, a sample's attempts, counted apart from every real kind; and `h4.alert.form`: `designed`, `plain`, or `none` (a channel marked failed at its window's end with no attempt) |
+| `h4.alert.delivery_lag` | histogram, `s` | none | `h4_alert_delivery_lag_seconds` | on each delivery, from the outbox row's `enqueued_at`; for the in-memory `store_unreachable` alert, which has no row, from the moment it was queued in memory. **(spec 011)** A sample records none: the histogram has no kind to keep it apart |
+| `h4.alert.fallbacks` **(spec 011, Amendment 0-9)** | counter, `{fallback}` | `h4.channel`; `h4.alert.kind` (a kind, or `sample`); `h4.alert.fallback_reason`: `entities_refused`, `message_refused`, `render_failed`, `over_limit`, `not_rendered` | `h4_alert_fallbacks_total` | once per attempt that sent the plain form in the designed one's place, in the attempt that fell back ([alerts.md §4.1](alerts.md#41-the-dispatcher)) |
+| `h4.operator.actions` | counter, `{action}` | `h4.action`: the audit action of an accepted write: `init`, `reset`, `renew`, `test_clock`, `test_synthetic`, `adapter_call`; and `twin_call` (spec 007, Amendment 0-4); and `alert_samples` (spec 011, Amendment 0-9) | `h4_operator_actions_total` | once per accepted admin write ([operator-admin.md §1.3](operator-admin.md#13-what-each-write-produces)) |
 | `h4.operator.auth_failures` | counter, `{failure}` | `h4.auth.class`: `missing`, `malformed`, `wrong_prefix`, `mismatch` | `h4_operator_auth_failures_total` | once per failed admin authentication, counted in memory ([operator-admin.md §1.1](operator-admin.md#11-authentication)) |
 | `h4.test_machinery.refused` | counter, `{request}` | none | `h4_test_machinery_refused_total` | each 403 from `POST /admin/test/*` outside dev |
 | `h4.room.events` | counter, `{event}` | `kind`: the kinds in `config/room-events.yaml`; `id`: an object's or item's ID from the same file for `object_selected` and `item_selected`, `-` for the others (spec 002, [room-events.md §4](../../002-the-room/contracts/room-events.md#4-telemetry-and-the-dashboard)) | `h4_room_events_total` | each usage event the gateway accepts, with its 204 |
 | `h4.room.events.refused` | counter, `{event}` | `reason`: `content_type`, `shape`, `kind`, `id` | `h4_room_events_refused_total` | each usage event refused with 415 or 400 |
 | `h4.twin.turns` (spec 007) | counter, `{turn}` | `h4.room.feature`; `h4.outcome`: `ok`, `withheld`, `degraded`, `refused`, `not_ready`, `invalid`, `error`; `h4.cause`: spec 000's nine causes, `twin_unavailable`, or `none` | `h4_twin_turns_total` | once per `POST /room/turn`, when its response is sent |
 | `h4.twin.turn.duration` (spec 007) | histogram, `s` | `h4.room.feature`; `h4.route.decision`: `local`, `fallback`, `metered`, `degraded`, `none` | `h4_twin_turn_duration_seconds` | with the counter, from arrival to response |
-| `h4.twin.withheld` (spec 007) | counter, `{answer}` | `h4.twin.guard`: `length`, `numbers`, `amounts`, `disclosure`, `prompt`, `secrets`, `links`, `ownership`, `privacy`, `agents_share`, `error` | `h4_twin_withheld_total` | each answer the turn route withholds or replaces; the admin route's go into the live runs' history instead |
+| `h4.twin.withheld` (spec 007) | counter, `{answer}` | `h4.twin.guard`: `length`, `numbers`, `amounts`, `disclosure`, `prompt`, `secrets`, `links`, `ownership`, `seva` (spec 007's plan, D28), `location`, `surname` (D29), `privacy`, `agents_share`, `repair_opener` (D34), `error` | `h4_twin_withheld_total` | each answer the turn route withholds, replaces, or repairs; `repair_opener` counts an answer delivered without its opening agreement, with the outcome ok, and one withheld because agreement was all it said, with the outcome withheld; the admin route's go into the live runs' history instead |
 
 **The gauges.**
 - They are observable gauges. Their callback reads an in-process snapshot and never touches the store.
@@ -192,6 +197,16 @@ The canonical list. The gateway emits these and nothing else under `h4.`; the da
 **Histogram buckets** (explicit, the same for every `s` histogram the gateway records, up to 120 s): 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120. `h4.alert.delivery_lag` uses 1, 5, 10, 20, 30, 60, 120, 180, 240, 300, 600.
 
 **What is never a metric attribute:** a client address or label, a request or trace ID, a message, a reason text, a dedupe key, or an operator's fingerprint.
+
+**(spec 010, Amendment 0-7)**
+
+| OTel name | Instrument, unit | Attributes | Prometheus name | Recorded when |
+|---|---|---|---|---|
+| `h4.adapter.month_spend_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_spend_usd` | the current UTC month's committed spend of each capped paid adapter the route names, from the snapshot |
+| `h4.adapter.month_cap_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_cap_usd` | its cap, from `config/budgets.yaml`'s `adapter_monthly_usd` |
+| `h4.adapter.month_warn_usd` | gauge, `{USD}` | `h4.adapter` | `h4_adapter_month_warn_usd` | its warning, the cap × `warn_ratio` |
+
+`h4.degraded.cause`, `h4.degraded.responses`, and `h4.twin.turns` gain the cause `adapter_month_spent`, after `meter_at_ceiling`; `h4.twin.withheld`'s `h4.twin.guard` gains `refusal`; and `h4.adapter.healthy` and `h4.cost.usd` carry the Anthropic adapter as they carry Bedrock, with `h4.cost.usd`'s zero series written at start under `fallback` and `test` for the routed paid adapter (spec 000's T191).
 
 ### 4.2 Semantic-convention metrics
 
@@ -257,12 +272,13 @@ These reach prod's collector through edge's x004 port, `127.0.0.1:18004` ([§6.1
 | `meter.commit_pending` | warn | a metered call's commit failed on the store, and is kept for retries every 2 s until its reservation expires ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call): "the log records the pending commit"; added by tasks.md T072) | `reservation_id`, `attribution`, `error_class` |
 | `meter.commit_gave_up` | error | a metered call's commit won't land, and the sweep settles its reservation at its maximum: the retries of a pending commit reached the reservation's expires_at; the store refused the commit's statement (a bug, 500-class, never retried); the gateway is stopping; or the call never settled at all and its reservation has expired, so the 10 s upkeep gives its slots back (added by tasks.md T072) | `reservation_id`, `attribution` |
 | `meter.sweep_failed` | error | the 10 s reservation sweep failed; it runs again at the next tick (tasks.md T068) | `error_class` (a SQLSTATE or Node error code, never a message) |
-| `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them |
+| `operator.init`, `operator.reset`, `operator.renew`, `operator.test_clock`, `operator.test_synthetic`, `operator.adapter_call`; **(spec 011)** `operator.alert_samples` | info, with `event.name=h4.audit` | an accepted admin write | `audit_id`, `actor` (`operator:<stack>#<8 hex>`), `action`, `reason`, and `before` and `after` summaries in micro-USD as the audit row has them; **(spec 011)** `operator.alert_samples` has no `before`, and its `after` holds the kind asked for, the number of samples queued, and the delivery mode, where its audit row's `before` and `after` are NULL and its `detail` names the entries and their keys |
 | `operator.auth_failed` | warn, with `event.name=h4.audit` | a failed authentication | `class` (`missing`, `malformed`, `wrong_prefix`, `mismatch`), `route` (the route template, or `other`) |
 | `alert.queued` | info | an outbox row commits | `dedupe_key`, `kind` |
-| `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID) |
-| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s` |
-| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class` |
+| `alert.delivered` | info | a channel delivers | `dedupe_key`, `kind`, `channel`, `attempt`, `lag_s`, `provider_ref` (Telegram's `message_id`; the SMTP reply code and queue ID); **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
+| `alert.retry` | warn | an attempt fails and another is due | `dedupe_key`, `channel`, `attempt`, `error_class`, `next_in_s`; **(spec 011)** `form`, and `fallback_reason` when the plain form went in the designed one's place |
+| `alert.failed` | error | a channel gives up at 300 s | `dedupe_key`, `channel`, `attempts`, `error_class`; **(spec 011)** `form` (`none` when no attempt was made), and `fallback_reason` when the last attempt sent the plain form in the designed one's place |
+| `alert.fallback` **(spec 011, Amendment 0-9)** | warn | an attempt sends the plain form in the designed one's place | `dedupe_key`, `kind`, `channel`, `attempt`, `reason`, and the refused designed send's `error_class` (`http_400`, `telegram_400`, `smtp_554`), none for a render's reason. No text, URL, or response body |
 | `incident.drafted` | info | a draft is written | `incident_id`, `path` (relative to the state directory), `sha256` |
 | `incident.draft_failed` | warn | a draft's write fails, when the failure starts or its class changes; it is retried every 10 s. At error, a draft that can never be written: its trip's audit row or ledger row is missing (tasks.md T078) | `incident_id`, `error_class` |
 | `state.unknown` | error | the store is unreachable or empty: once when it starts, then once a minute | `condition` (`store_unreachable`, `store_uninitialized`), `since`, `error_class` (a SQLSTATE or Node error code, never a message) |
@@ -328,6 +344,7 @@ logs             otlp         → memory_limiter → transform/payloads → reda
 |---|---|
 | Langfuse keys | `(?:sk\|pk)-lf-[0-9A-Za-z-]{8,}` |
 | AWS access key IDs | `\b(?:AKIA\|ASIA)[0-9A-Z]{16}\b` |
+| Anthropic API keys (spec 010, FR-031) | `sk-ant-[A-Za-z0-9_-]{20,}` |
 | Telegram bot tokens, alone or in a URL | `(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}` |
 | Operator tokens | `h4op_(?:prod\|dev\|devcpu)_[A-Za-z0-9_-]{43}` |
 | JWTs | `eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}` |
@@ -414,6 +431,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Why responses are degraded (FR-022, FR-028) | stat | `max by (h4_cause) (h4_degraded_cause) == 1` | the cause a hello would get now; `none` green |
 | Degraded responses by cause | bar chart | `sum by (h4_cause) (increase(h4_degraded_responses_total[$__rate_interval]))` | which causes answered, and when |
 | Store state (authoritative) | table (SQL) | `SELECT stack, env, state, since, crossed, fallback_awaiting_renewal, fallback_awaiting_since, day_key, month_key, day_spent_micro / 1e6 AS day_usd, month_spent_micro / 1e6 AS month_usd, fallback_spent_micro / 1e6 AS fallback_usd, fallback_allowance_micro / 1e6 AS fallback_allowance_usd, fallback_grant_no FROM gateway.v_state` | the state straight from the store, which still works when telemetry is down ([data-model.md §2.9](../data-model.md#29-the-view-v_state-and-the-role-grafana_ro)) |
+| Paid adapters' months (authoritative) | table (SQL) | `SELECT adapter, month, spent_micro / 1e6 AS spent_usd, reserved_micro / 1e6 AS reserved_usd, warned_at, reached_at FROM gateway.v_adapter_months ORDER BY month DESC, adapter` | each paid adapter's month as the store holds it, its spend, reservations, and when its warning and cap were reached (spec 010, FR-036) |
 
 ### 7.2 Spend
 
@@ -423,6 +441,7 @@ How long a committed spend change takes to show on the dashboard (US2-1, SC-005,
 | Spend month-to-date (FR-028) | time series and stat | the same three with `h4_meter="month"` | against $14.00 and $20.00 |
 | Fallback sub-budget remaining (FR-028, FR-030) | stat and time series | A: `h4_fallback_allowance_usd - ignoring (h4_meter) h4_meter_spend_usd{h4_meter="fallback_day"}`; B: `max(h4_fallback_awaiting_renewal)`; C: `max(h4_meter_warn_usd{h4_meter="fallback_day"})` | what fallback can still spend today; B maps 1 to "awaiting renewal" in red |
 | Cost by provider and attribution (FR-023, SC-005) | table | `sum by (gen_ai_provider_name, gen_ai_request_model, h4_meter_attribution) (increase(h4_cost_usd_total[$__range]))` | Bedrock's fallback and test cost beside local's zero |
+| Paid adapter's month against its cap | time series and stat | A: `max by (h4_adapter) (h4_adapter_month_spend_usd)`; B: `max by (h4_adapter) (h4_adapter_month_warn_usd)`; C: `max by (h4_adapter) (h4_adapter_month_cap_usd)` | each capped paid adapter's month against its warning and its cap (spec 010, FR-036) |
 
 - Fallback remaining is the allowance minus committed fallback spend. `ignoring (h4_meter)` is needed because the spend series carries the `h4_meter` label and the allowance series doesn't. Without it the subtraction matches nothing and the panel shows no data.
 - Each panel reads the meter's own values and never re-sums the cost counter, so it agrees with the store (ADR 0004).
@@ -453,13 +472,15 @@ The error rate counts 5xx answers that aren't degraded: the 502 `local_error` an
 | Panel | Type | Query |
 |---|---|---|
 | Audit log (FR-034) | table (SQL) | `SELECT recorded_at AS "time", ts AS gateway_time, actor, action, reason, before::text AS before, after::text AS after FROM gateway.audit_log WHERE $__timeFilter(recorded_at) ORDER BY recorded_at DESC LIMIT 200` |
-| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome) (increase(h4_alerts_total[$__range]))` |
+| Alerts by channel and outcome (FR-032) | table | `sum by (h4_channel, h4_alert_kind, h4_outcome, h4_alert_form) (increase(h4_alerts_total[$__range]))` |
+| Alerts sent as plain text by fallback | table | `sum by (h4_channel, h4_alert_kind, h4_alert_fallback_reason) (increase(h4_alert_fallbacks_total[$__range]))` |
 | Alert delivery lag p95 | time series | `histogram_quantile(0.95, sum by (le) (rate(h4_alert_delivery_lag_seconds_bucket[$__rate_interval])))` |
-| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed)"` |
+| Alert log | logs | `{service_name="gateway"} \| event=~"alert\\.(queued\|delivered\|retry\|failed\|fallback)"` |
 | Operator actions | bar chart | `sum by (h4_action) (increase(h4_operator_actions_total[$__range]))`, and `sum(increase(h4_test_machinery_refused_total[$__range]))` |
 | Audit events, from the logs | logs | `{service_name="gateway"} \| event_name="h4.audit"` |
 
 - The audit panel filters on `recorded_at`, the real time, so dev's test-clock jumps don't push rows outside the dashboard's range. It shows the gateway's own time beside it.
+- **(spec 011, Amendment 0-9)** The outcomes table shows each attempt's form, `designed`, `plain`, or `none`; "Alerts sent as plain text by fallback" sits beside it, by channel, kind, and reason, where a fallback shows though its alert arrived (FR-046); and the alert log reads `alert.fallback` too. Its runbook is `alert-channel-down.md`'s "Alerts arrive as plain text" ([alerts.md §6](alerts.md#6-runbooks)). A sample request is a rare operator write, as a reset is, so it has no panel of its own: its request is a row of the audit log (`alert_samples`), and its samples' deliveries rows of the two alert tables under the kind `sample`.
 - The table is `grafana_ro`'s: SELECT on `gateway.audit_log` and `gateway.v_state` only ([research.md R-10](../research.md#r-10-grafanas-audit-panel-reads-the-store-not-telemetry)). The two log panels are secondary; they go empty during a telemetry outage, and the table doesn't.
 
 ### 7.6 Telemetry health

@@ -28,7 +28,7 @@ All in your own terminal. On dev-cpu, the agents' engine, an agent session runs 
 
 2. **Fix the cause the log names:**
    - **The model file is missing, the wrong size, or not mode 0444** (preflight P18 says so too): `make pull ENV=<stack>` fetches it, checks its sha256 against `deploy/models.lock`, and sets it read-only. A file of another size is never overwritten: move it aside first. On dev-cpu the engine never downloads: ask the Author to run `deploy/agents-engine/engine.sh seed`.
-   - **Out of GPU memory** (`cudaMalloc failed`, `out of memory`): check `nvidia-smi --query-gpu=memory.used,memory.total --format=csv`. With prod and dev both up, stop dev's model server, or dev itself (`make down ENV=dev`). If prod's model doesn't fit alone, set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=2` in `~/.config/h4reet-ai/env/prod.env`, which halves the KV cache (plan §3).
+   - **Out of GPU memory** (`cudaMalloc failed`, `out of memory`): check `nvidia-smi --query-gpu=memory.used,memory.total --format=csv`. With prod and dev both up, stop dev's model server, or dev itself (`make down ENV=dev`). If prod's model doesn't fit alone, set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=1` in `~/.config/h4reet-ai/env/prod.env`, which halves the KV cache (plan §3). It's `-c` that sizes the KV cache: fewer slots alone save no memory. One slot of 16,384 tokens still holds a twin turn; two would hold 8,192 each, and the model server would refuse every twin turn (spec 007's plan, D27).
    - **No GPU in the container** (`could not select device driver "" with capabilities: [[gpu]]`): the NVIDIA runtime isn't registered with Docker. Run `sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker` (quickstart.md §0.2). Preflight P12 checks for it.
    - **It never becomes ready** within its start period (300 s on the GPU, 60 s on the CPU): read the log's last lines for the load error, and check the free disk and memory figures preflight prints.
 3. **Start it again:** `make up ENV=<stack>`. It runs preflight, fetches what is missing, recreates only what changed, and waits for every health check.
@@ -50,7 +50,7 @@ On prod, while you work, watch the fallback spend: `make operator-status ENV=pro
 
 ## Undo
 
-- Put back any env value you changed, for example `MODEL_CTX_SIZE=32768` and `MODEL_PARALLEL=4` on prod, then `make up ENV=prod`.
+- Put back any env value you changed, for example `MODEL_CTX_SIZE=32768` and `MODEL_PARALLEL=2` on prod, then `make up ENV=prod`.
 - A model file you moved aside can come back once the cause is fixed. `make pull` keeps a file only if it has the lock's size and sha256.
 
 ## Record

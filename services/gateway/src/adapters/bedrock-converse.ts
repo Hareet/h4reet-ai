@@ -3,8 +3,9 @@
 //
 // - complete(): one ConverseCommand. The system message becomes `system: [{text}]`, the other turns
 //   `messages: [{role, content: [{text}]}]` in order, the cap `inferenceConfig.maxTokens`, and the request's
-//   temperature unless the settings' `temperature` is `model_default` (spec 010 FR-017), with the settings'
-//   additional request fields and nothing else: no streaming, tools, cache points, guardrail, or request metadata.
+//   temperature unless the settings' `temperature` is `model_default` (spec 007's plan, D22; spec 010 FR-017), with
+//   the settings' additional request fields and nothing else: no streaming, tools, cache points, guardrail, or request
+//   metadata.
 //   The SDK makes one attempt (`maxAttempts: 1`); the gateway's wrapper retries a throttled call once (§6).
 // - The call's bound is the adapter's own abort signal, the request's signal combined with the request timeout and
 //   the deadline: @smithy/node-http-handler 4.12.1 only logs a warning at its requestTimeout unless
@@ -63,7 +64,7 @@ export interface BedrockSettings {
   region: string;
   model: string;
   additional_request_fields: Record<string, unknown>;
-  /** Spec 010 FR-017: `model_default` sends no temperature; absent, it is `as_requested`. */
+  /** Spec 007's plan, D22; spec 010 FR-017: `model_default` sends no temperature; absent, it is `as_requested`. */
   temperature?: PaidTemperature;
   timeouts: { connect_ms: number; request_ms: number };
   retry: { on: ProviderErrorKind[]; max: number; backoff_ms: number };
@@ -310,7 +311,7 @@ export class BedrockConverseAdapter implements ProviderAdapter {
 
   /**
    * §3.2's request: the system message as the system block, the turns in order, the cap, the temperature as the
-   * settings allow (spec 010 FR-017), and the extra fields.
+   * settings allow (spec 007's plan, D22; spec 010 FR-017), and the extra fields.
    */
   private input(req: CompletionRequest): ConverseCommandInput {
     const system = req.messages.filter((m) => m.role === "system").map((m) => ({ text: m.content }));

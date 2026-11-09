@@ -1,0 +1,17 @@
+🟠 Warning · [h4reet.ai prod]
+🔑 CREDENTIALS EXPIRING: the Bedrock SSO session ends at 2026-10-29T18:00:00Z
+Next: Fallback to Bedrock stops then. Run make aws-login in your terminal.
+Meters
+Daily      0.30 /  5.00 USD   warning  3.50
+Month     13.70 / 20.00 USD   warning 14.00
+Fallback   0.30 /  2.00 USD   grant 1
+Runtime: normal
+Fallback: available
+Time: 2026-10-29T16:00:04Z
+id prod:credentials_expiring:bedrock:2026-10-29T18:00Z
+Runbook: docs/runbooks/bedrock-credentials-expiring.md
+--- entities (UTF-16 offset, length)
+bold 33 74 "CREDENTIALS EXPIRING: the Bedrock SSO session ends at 2026-10-29T18:00:00Z"
+pre 190 125 "Daily      0.30 /  5.00 USD   warning  3.50\nMonth     13.70 / 20.00 USD   warning 14.00\nFallback   0.30 /  2.00 USD   grant 1"
+code 382 51 "prod:credentials_expiring:bedrock:2026-10-29T18:00Z"
+code 443 45 "docs/runbooks/bedrock-credentials-expiring.md"

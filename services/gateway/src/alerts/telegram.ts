@@ -1,6 +1,11 @@
-// The primary alert channel: the Telegram Bot API's sendMessage (contracts/alerts.md §4.1), plain text, 5 s.
+// The primary alert channel: the Telegram Bot API's sendMessage (contracts/alerts.md §4.1), 5 s.
 //
-//   POST {base}/bot<token>/sendMessage   {chat_id, text, disable_web_page_preview: true}   (no parse_mode)
+//   POST {base}/bot<token>/sendMessage   {chat_id, text, disable_web_page_preview: true}             the plain form
+//                                        {chat_id, text, entities, disable_web_page_preview: true}   the designed one
+//
+// Never parse_mode (spec 011, FR-008): the designed form's bold and monospace are message entities, carried beside
+// the text as data, so no character of any value is read as markup. A message with no entities is the plain form,
+// whose body is exactly the one every alert sent before spec 011 (FR-013).
 //
 // Delivered is HTTP 200 with "ok": true, and the reference is result.message_id. The URL holds the bot token, so it is
 // never logged, stored, or put in an error: a failure is recorded as its class only (timeout, connect, tls,
@@ -23,7 +28,10 @@ import { aresLookup } from "../core/resolve.js";
  * One delivery attempt's outcome: delivered, with the reference the provider's own answer gave (null when its answer
  * holds none that can be read), or an error class; never a URL or a response body.
  */
-export type DeliveryResult = { ok: true; ref: string | null } | { ok: false; errorClass: string };
+export type DeliveryResult =
+  | { ok: true; ref: string | null }
+  /** messageRefused: a mail server refused the message itself, a 5xx to its data (spec 011, FR-027; smtp.ts). */
+  | { ok: false; errorClass: string; messageRefused?: true };
 
 export interface TelegramChannel {
   base: string;
@@ -111,14 +119,29 @@ function post(url: URL, body: string, timeoutMs: number): Promise<{ status: numb
   });
 }
 
-export async function sendTelegram(channel: TelegramChannel, text: string): Promise<DeliveryResult> {
+/** A message to send: the text, and the designed form's entities (spec 011, plan §4.4); none is the plain form. */
+export interface TelegramSend {
+  text: string;
+  entities?: readonly { type: string; offset: number; length: number }[];
+}
+
+/** The request's JSON body: today's, unless the message carries entities. */
+export function telegramBody(chatId: string, message: string | TelegramSend): string {
+  const { text, entities } = typeof message === "string" ? { text: message, entities: undefined } : message;
+  if (entities === undefined || entities.length === 0) {
+    return JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true });
+  }
+  return JSON.stringify({ chat_id: chatId, text, entities, disable_web_page_preview: true });
+}
+
+export async function sendTelegram(channel: TelegramChannel, message: string | TelegramSend): Promise<DeliveryResult> {
   let status: number;
   let raw: string;
   let https = false;
   try {
     const url = new URL(`${channel.base}/bot${channel.token}/sendMessage`);
     https = url.protocol === "https:";
-    const body = JSON.stringify({ chat_id: channel.chatId, text, disable_web_page_preview: true });
+    const body = telegramBody(channel.chatId, message);
     ({ status, raw } = await post(url, body, channel.timeoutMs));
   } catch (err) {
     return { ok: false, errorClass: requestErrorClass(err, https) };

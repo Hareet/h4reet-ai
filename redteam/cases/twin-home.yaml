@@ -12,3 +12,7 @@ live:
   turns: []
 covers:
   - "00-profile.md: His home address"
+# The surname line answers a question about his surname, and nothing else: the local model opened this answer with it
+# in the Author's live run of 2026-11-08 (spec 007's plan, D25).
+forbid:
+  - "(?i)\\bsurname\\b"

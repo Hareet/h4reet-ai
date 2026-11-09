@@ -8,6 +8,9 @@
 // each class in a window writes one auth_failed audit row, with the route template and never the raw path, and the
 // third queues one auth_failed alert. While the store is down a failure is only counted and logged.
 //
+// Spec 011 adds POST /admin/alert-samples (operator-admin.md §2.4): one audit row, then the dispatcher takes a marked
+// sample of each catalogue entry into its memory; no state, journal record, or confirmation alert.
+//
 // Routes: POST /admin/init (meter/init.ts), POST /admin/reset and /admin/renew (meter/operator.ts), the reads,
 // GET /admin/status, /admin/audit, and /admin/incidents, the live adapter calls (routes/adapters.ts), the
 // dev-only test machinery (routes/test.ts), and spec 003's POST /admin/studio-window (meter/operator.ts; its
@@ -18,6 +21,7 @@ import { join } from "node:path";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import { entriesFor, sampleKey, type CatalogueEntry } from "../alerts/catalogue.js";
 import { renderAlert, type FallbackFacts, type RuntimeFacts } from "../alerts/format.js";
 import { dedupeKey as dedupeKeys, enqueueAlert } from "../alerts/outbox.js";
 import { thresholds, type AlertsConfig, type Budgets, type EnvClass, type StackName } from "../config/validate.js";
@@ -35,15 +39,25 @@ import {
   type OperatorResult,
   type StudioWindowState,
 } from "../meter/operator.js";
-import { toBigInt, type MeterRow, type Store } from "../meter/store.js";
+import { isStoreFailure, toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
-import { noteErrorType, noteStudioWindowState } from "../telemetry/otel.js";
+import { noteAction, noteErrorType, noteStudioWindowState } from "../telemetry/otel.js";
 import { registerAdapterCalls } from "./adapters.js";
 import { registerAdminTwin } from "./admin-twin.js";
 import type { TwinRuntime } from "../twin/turn.js";
 import { registerTestMachinery } from "./test.js";
 
+/** The dispatcher's samples, as the admin routes see them (spec 011, plan §7.2): a narrow interface. */
+export interface AlertSamples {
+  /** The stack's delivery mode: where its alerts, and so its samples, go. */
+  delivery: "real" | "standin";
+  pending(): boolean;
+  queue(entries: readonly CatalogueEntry[], auditId: number, fingerprint: string): { entry: string; key: string }[];
+}
+
 export interface AdminDeps {
+  /** Spec 011's samples (operator-admin.md §2.4); absent, the route isn't served. */
+  samples?: AlertSamples;
   /** Spec 007's twin, for POST /admin/twin/turn (operator-admin.md §8); absent, the route isn't served. */
   twin?: TwinRuntime;
   stack: StackName;
@@ -313,6 +327,22 @@ export function studioWindowRequestOf(
   return reason.ok ? { ok: true, state, reason: reason.reason } : { ...reason, state };
 }
 
+/** The samples' body (spec 011, operator-admin.md §2.4): the reason, and a catalogue kind or none; nothing else. */
+export function samplesRequestOf(
+  body: unknown,
+): { ok: true; reason: string; kind: string | null; entries: readonly CatalogueEntry[] } | Invalid {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return invalid("body", "must be a JSON object");
+  const b = body as Record<string, unknown>;
+  if (Object.keys(b).some((k) => k !== "reason" && k !== "kind"))
+    return invalid("body", "the fields are reason and kind");
+  const reason = reasonOf(b.reason);
+  if (!reason.ok) return reason;
+  if (b.kind !== undefined && typeof b.kind !== "string") return invalid("kind", "one of the catalogue's kinds");
+  const entries = entriesFor(b.kind);
+  if (entries === undefined) return invalid("kind", "one of the catalogue's kinds");
+  return { ok: true, reason: reason.reason, kind: b.kind ?? null, entries };
+}
+
 export function isJson(contentType: string | undefined): boolean {
   return (contentType ?? "").split(";")[0]?.trim().toLowerCase() === "application/json";
 }
@@ -346,6 +376,7 @@ const AUDIT_ACTIONS = new Set([
   "journal_failed",
   "studio_window", // spec 003 (its contracts/gpu-window.md §5)
   "twin_call", // spec 007 (its Amendment 0-4; operator-admin.md §8)
+  "alert_samples", // spec 011 (its Amendment 0-8; operator-admin.md §2.4)
 ]);
 
 /** An incident draft's path, relative to the state directory, as the drafter writes it (alerts.md §7). */
@@ -464,6 +495,77 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
         return reply.code(400).send({ error: "invalid_request", field: parsed.field, detail: parsed.detail });
       }
       return answerWrite(req, reply, await studioWindow(operatorDeps(), parsed.state, parsed.reason, operator));
+    });
+  }
+
+  // Spec 011's samples (operator-admin.md §2.4): served on every stack, behind the same authentication.
+  const samples = deps.samples;
+  if (samples !== undefined) {
+    // A request in flight, set before its audit row's transaction and cleared once its samples are queued or it
+    // fails, so a second request that arrives meanwhile is refused as one whose samples are pending (FR-039).
+    let requesting = false;
+    admin.post("/admin/alert-samples", async (req, reply) => {
+      const operator = operatorOf(req);
+      noteAction(req, "alert_samples");
+      if (!isJson(req.headers["content-type"])) {
+        return reply.code(415).send({ error: "unsupported_media_type", request_id: req.id });
+      }
+      const parsed = samplesRequestOf(req.body);
+      if (!parsed.ok) {
+        return reply.code(400).send({ error: "invalid_request", field: parsed.field, detail: parsed.detail });
+      }
+      if (requesting || samples.pending()) return reply.code(409).send({ error: "samples_in_flight" });
+      if (deps.store.status !== "ready") return unreachable(req, reply);
+      requesting = true;
+      try {
+        let auditId: number;
+        try {
+          // The row's ID first, from its identity's sequence, so the samples' keys are in the row it writes; the
+          // table is append-only, so nothing is updated after.
+          auditId = await deps.store.transaction(async (q) => {
+            const { rows } = await q.query<{ id: unknown }>(
+              "SELECT nextval(pg_get_serial_sequence('gateway.audit_log', 'id')) AS id",
+            );
+            const id = Number(toBigInt(rows[0]?.id));
+            const detail = {
+              kind: parsed.kind,
+              entries: parsed.entries.map((e) => e.name),
+              keys: parsed.entries.map((e) => sampleKey(deps.stack, e.name, id)),
+              delivery: samples.delivery,
+            };
+            await q.query(
+              `INSERT INTO gateway.audit_log (id, ts, stack, actor, action, reason, before, after, detail)
+               OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'alert_samples', $5, NULL, NULL, $6::jsonb)`,
+              [id, toRfc3339(deps.clock.now()), deps.stack, operator.actor, parsed.reason, JSON.stringify(detail)],
+            );
+            return id;
+          });
+        } catch (err) {
+          // A lost COMMIT answer counts too (isStoreFailure): nothing is queued, and the operator asks again.
+          if (isStoreFailure(err)) return unreachable(req, reply);
+          throw err;
+        }
+        const queued = samples.queue(parsed.entries, auditId, operator.fingerprint);
+        deps.metrics.operatorAction("alert_samples");
+        deps.logger.info(
+          {
+            event: "operator.alert_samples",
+            "event.name": "h4.audit",
+            audit_id: auditId,
+            actor: operator.actor,
+            action: "alert_samples",
+            reason: parsed.reason,
+            after: { kind: parsed.kind, samples: queued.length, delivery: samples.delivery },
+          },
+          "An operator asked for alert samples.",
+        );
+        return reply
+          .code(200)
+          .send({ action: "alert_samples", audit_id: auditId, delivery: samples.delivery, samples: queued });
+      } finally {
+        // Queued or failed, the request is over; its samples, if any, hold the 409 from here (samples.pending()).
+        requesting = false;
+      }
     });
   }
 

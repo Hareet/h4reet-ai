@@ -152,6 +152,24 @@ describe("POST /admin/twin/turn (operator-admin.md §8)", () => {
     expect(b).toMatchObject({ guard: "numbers" });
   });
 
+  // Round 5 (spec 007's plan, D34): the runners see a repaired answer's guard, and the answer as the visitor gets it.
+  it("names the opener repair, with the answer the repair left", async () => {
+    const s = await prod();
+    openai.next({ ok: { text: "Yes: the corpus says involved.", inputTokens: 900, outputTokens: 9, finish: "stop" } });
+    const turns = [{ role: "visitor", text: "He led the national deployments too, right?" }];
+    const b = (await call(s, body({ turns }))).json() as Rec;
+    expect(b).toMatchObject({ guard: "repair_opener", text: "The corpus says involved." });
+  });
+
+  it("names refusal when the model refused, the answer withheld whole (spec 010, FR-018)", async () => {
+    const s = await prod();
+    openai.next({ ok: { text: "He has 15 boards.", inputTokens: 900, outputTokens: 9, finish: "content_filter" } });
+    const res = await call(s, body());
+    const b = res.json() as Rec;
+    expect(b).toMatchObject({ guard: "refusal" });
+    expect(res.body).not.toContain("15 boards");
+  });
+
   it("calls Bedrock as test inside the ceilings, never the sub-budget, and never fails over", async () => {
     const s = await prod();
     bedrock.next({ ok: { text: "An answer.", inputTokens: 1_000, outputTokens: 20, finish: "stop" } });

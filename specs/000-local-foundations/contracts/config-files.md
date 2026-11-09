@@ -65,7 +65,7 @@ Settings by type:
 | `bedrock-converse` | `region` | string | `us-east-1`, the region the data-flow disclosure lists (FR-040). A new region needs the disclosure changed first. |
 | | `model` | string | an inference-profile or model ID matching `^[a-z0-9][a-z0-9.:-]{2,127}$`, or a placeholder |
 | | `additional_request_fields` | map | passed to Converse as `additionalModelRequestFields`, at most 1 KB as JSON: whatever keeps extended thinking off for the confirmed model, or `{}` when off is the default |
-| | `temperature` | string, optional | `as_requested`, the default when absent, sends the request's temperature; `model_default` sends none, whatever the request carries, so the model's default applies. The committed file sets `model_default`, since Claude Haiku 5.5 "takes no temperature but its default, 1" ([provider-adapter.md §5.4](provider-adapter.md#54-the-live-cases)). Spec 010's FR-017, built early for spec 007's live runs (spec 007's plan, D22); spec 010 gives `anthropic-messages` the same setting |
+| | `temperature` | string, optional | `as_requested`, the default when absent, sends the request's temperature; `model_default` sends none, whatever the request carries, so the model's default applies. The committed file sets `model_default`, since Claude Haiku 5.5 "takes no temperature but its default, 1" ([provider-adapter.md §5.4](provider-adapter.md#54-the-live-cases)). Spec 007's plan, D22, which builds spec 010's FR-017 early for spec 007's live runs; spec 010 gives `anthropic-messages` the same setting |
 | | `timeouts.connect_ms` | integer | 100 to 2,000 |
 | | `timeouts.request_ms` | integer | 1,000 to 4,000. Connect plus request must stay within SC-005's 5 s. |
 | | `retry.on` | list | ProviderError kinds; spec 000 uses `[rate_limited]` |
@@ -77,6 +77,21 @@ Settings by type:
 | | `credentials_warn_before_s` | integer | 600 to 86,400: when `credentials_expiring` fires before the SSO session ends |
 | `synthetic` | `model` | string | `^[a-z0-9-]{1,64}$` |
 | | `output_tokens` | integer | 1 to 100,000: the usage every call reports |
+
+**`anthropic-messages` (spec 010, Amendment 0-3).** Kind `paid` only (R5); prod's route alone may name it (R2, `paid_route_outside_prod`).
+
+| Field | Type | Rule |
+|---|---|---|
+| `model` | string | `^[a-z0-9][a-z0-9.:-]{2,127}$`, or a placeholder (§0): `claude-haiku-5-5` |
+| `api_key_env` | string | an env key's name, never one beginning `ANTHROPIC_` (R12): `GATEWAY_ANTHROPIC_API_KEY` |
+| `thinking` | string | `disabled`, its only value |
+| `temperature` | string, optional | `as_requested` (the default when absent) or `model_default`, as on `bedrock-converse` |
+| `timeouts.connect_ms`, `timeouts.request_ms` | integer | 100 to 2,000; 1,000 to 4,000; their sum at most 5,000 (R8) |
+| `retry.on`, `retry.max`, `retry.backoff_ms` | list, integer, integer | ProviderError kinds; 0 or 1; 0 to 2,000 |
+| `circuit.failures`, `circuit.open_s` | integer | 1 to 10; 5 to 600 |
+| `health.interval_ms` | integer | 10,000 to 600,000 |
+
+Any other key, a `base_url`, a `region`, or another `*_env`, is refused (R11). The endpoint is the adapter's constant.
 
 ### 1.2 Example (the committed file)
 
@@ -139,6 +154,8 @@ envs:
 | R10 | `envs: must have exactly the keys prod and dev` | |
 | R11 | any unknown key, wrong type, or out-of-range value, named by its path | |
 
+**R12 (spec 010).** An `anthropic-messages` adapter's `api_key_env` never names a variable beginning `ANTHROPIC_`, which the SDK reads on its own: `config/routing.yaml: adapters.anthropic.api_key_env: must not begin ANTHROPIC_, a name the SDK reads on its own`.
+
 ### 1.4 Startup refusals (exit 78)
 
 These are checked with the stack's environment:
@@ -151,6 +168,8 @@ These are checked with the stack's environment:
 | `local_url_not_in_stack` | the URL in `base_url_env` isn't `http://<single-label host>[:port][/path]`, so it isn't an in-stack service. The label starts with a letter, as a compose service name does, and must come back unchanged and not an address from URL parsing: a label like `2852039166` or `0x7f000001` is an IPv4 address in decimal or hex. |
 | `missing_env` | a key named by `base_url_env` or `model_env` is unset |
 | `invalid_config` | any §1.3 error |
+
+**(spec 010)** For a routed `anthropic-messages` adapter: `missing_env` when the key `api_key_env` names is unset or empty, naming the key, never its value; `price_missing` and `placeholder_value` as for Bedrock; and `adapter_cap_missing` when `config/budgets.yaml`'s `envs.prod.adapter_monthly_usd` has no cap for it (§3.1).
 
 ## 2. `config/prices.yaml`
 
@@ -287,6 +306,8 @@ It sets the ceilings, the fallback sub-budget, the warning ratio, the request li
 - a day or month warning = the ceiling × `warn_ratio`, rounded down, so a warning never comes later than the ratio says;
 - a fallback grant's warning = its allowance − (`fallback_daily` − `fallback_daily` × `warn_ratio`): the allowance minus $0.60 here.
 
+**`envs.<env>.adapter_monthly_usd` (spec 010, Amendment 0-4).** Optional: a map from a paid adapter's ID in `config/routing.yaml` to its monthly cap in USD, counted inside the monthly ceiling as the sub-budget counts inside the daily one. Derived: the cap's warning, the cap × `warn_ratio`, rounded down to the micro-dollar. Its cap stops that adapter alone (data-model.md §7.2, the cause `adapter_month_spent`). The Author's patch P-C sets `anthropic: 20.00` in both envs, his answer ("$20 a month", the whole monthly ceiling, so the ceiling's own trip comes first), after spec 010's merge, since the schema accepts the key only from then.
+
 ### 3.2 Example (the plan's values)
 
 ```yaml
@@ -331,6 +352,8 @@ A unit test pins prod's derived warnings at 3,500,000, 14,000,000, and 1,400,000
 
 Any of these at startup is exit 78 (`invalid_config`).
 
+**B9 (spec 010).** Each key of `adapter_monthly_usd` names a `paid` adapter in `config/routing.yaml` (checked across the files), and each value is more than 0 and at most `monthly_usd`, with at most 6 decimal places. B8 holds the map too: `envs.dev` equals `envs.prod`.
+
 ## 4. `config/alerts.yaml`
 
 It sets the channel order, the retry schedule, the daily reminder, the subject prefixes, and the stand-in endpoints (FR-032). It is human-only, because alert routing is a prohibited-without-a-human change in the constitution. The channels' credentials and addresses are secrets, so they live in the stack's env file, never here ([env-files.md](env-files.md)).
@@ -344,7 +367,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `channels.telegram.timeout_ms` | integer | 1,000 to 10,000 |
 | `channels.email.timeout_ms` | integer | 1,000 to 30,000 |
 | `retry.schedule_s` | list of integers | 1 to 8 entries, each 1 to 300, never decreasing: the waits between attempts |
-| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. |
+| `retry.give_up_after_s` | integer | at most 300 (FR-032's 5 minutes). Also, the sum of `schedule_s` plus the slowest channel's timeout, in seconds, must be at most this value, so every attempt falls inside the window. **(spec 011, Amendment 0-10)** The timeout counts twice, since an attempt that falls back to the plain form makes two sends: the sum of `schedule_s` plus twice the slowest timeout (230 + 20 = 250 for the committed file). |
 | `reminder.at_utc` | string | `HH:MM`, 24-hour, UTC |
 | `store_unreachable_after_s` | integer | 10 to 600: how long the store must be unreachable before its in-memory alert |
 | `auth_failed.threshold` | integer | 1 to 100 |
@@ -353,6 +376,7 @@ It sets the channel order, the retry schedule, the daily reminder, the subject p
 | `standin.telegram_base` | string | `http://<single-label host>[:port]`, the in-network Telegram stand-in |
 | `standin.smtp_host` | string | a single-label host, the in-network Mailpit |
 | `standin.smtp_port` | integer | 1 to 65,535 |
+| `formats` **(spec 011, Amendment 0-10)** | map, optional | `telegram` and `email`, each optional, each `designed` or `plain`; `designed` where absent, and no other key. A channel at `plain` sends every alert in its plain form, today's, recorded as the form `plain` with no fallback ([alerts.md §4.1](alerts.md#41-the-dispatcher)): the Author's switch, added only when he wants a channel kept plain. |
 
 The stand-in endpoints must be single-label, in-network hosts, so stand-in mode can't be pointed at a real service: a label that starts with a letter, under the same rule as `local_url_not_in_stack` (§1.4), so no IPv4 address in any notation passes.
 
@@ -398,6 +422,9 @@ standin:                             # ALERT_DELIVERY=standin: dev's default, ne
 | A5 | `prefixes: needs prod, dev, and dev-cpu, each distinct` |
 | A6 | `standin.<field>: must be an in-network host (a single-label name)` |
 | A7 | any unknown key, wrong type, or out-of-range value, named by its path |
+| A8 **(spec 011, Amendment 0-10)** | `formats.<field>`: any value but `designed` or `plain`, or any key but `telegram` and `email`, named by its path |
+
+**(spec 011, Amendment 0-10)** Rule A2's `<t>` is twice the slowest channel's timeout, since an attempt that falls back makes two sends: `retry: the last attempt starts at 291 s and can run 20 s; both must fit in give_up_after_s (300 s)`.
 
 ### 4.4 Startup refusals (exit 78) that combine this file with the environment
 
@@ -426,6 +453,8 @@ With `ALERT_DELIVERY=standin`, the gateway uses `standin.*` and ignores the real
    - set `ALERT_DELIVERY=real`, `TELEGRAM_API_BASE=https://api.telegram.org`, and `SMTP_TLS` to `implicit` or `starttls`.
 
    The key list is in [env-files.md](env-files.md). Each file's `H4_STACK` must be the stack it's for. `dev-cpu.vars` must also have exactly the dev template's keys plus `H4_DEVCPU_OPERATOR_TOKEN` and `H4_TREE`, hold no placeholder, and carry a dummy token whose SHA-256 is both its `OPERATOR_TOKEN_SHA256` and the hash prod refuses, a constant in `src/config/validate-env.ts` ([env-files.md §6.1](env-files.md#61-dev-cpus-dummies)). A template that is missing is an error, naming tasks.md T031, which writes them.
+
+   **(spec 010)** An adapter's secret env key, which no committed file holds (its type's `secretEnv`: `api_key_env` for `anthropic-messages`), counts as present too when a template holds it empty: the Author supplies it in his own env file, which preflight's P3 and P7 check ([env-files.md §10](env-files.md#10-make-up-preflight)). So a route that names the adapter passes here, and a template without the key fails with `missing_env`, naming it.
 3. **The append-only check** of `config/prices.yaml` against `main` (P5), when run in a git checkout.
 
 It prints one line per error or note, then a summary:

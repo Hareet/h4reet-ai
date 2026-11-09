@@ -184,6 +184,20 @@ export class ProviderError extends Error {
 
 **A filtered answer is not an error.** An OpenAI-compatible `finish_reason: "content_filter"` and a Converse `stopReason` of `content_filtered` or `guardrail_intervened` both return a result with `finishReason: 'content_filter'`.
 
+**The Anthropic column (spec 010, Amendment 0-2).** `anthropic-messages` maps what the SDK (`@anthropic-ai/sdk` 1.3.0) or its transport (§3.4) raises; `retryable` and `possiblyBilled` are the kind's, as above:
+
+| Kind | Anthropic (`anthropic-messages`) |
+|---|---|
+| `unavailable` | 529 (overloaded), 502, 503; a connection refused, unreachable, or reset before the request's body was written; a failed lookup (c-ares's codes); the connect watchdog (`ETIMEDOUT`); the origin lock (`ORIGIN_REFUSED`) |
+| `timeout` | the request timeout or the deadline (the adapter's own signal, the SDK's `APIConnectionTimeoutError`, an abort); 504; a connection lost after the body was written (`ECONNRESET`, `EPIPE`); a connection error without the transport's mark, the side that never undercounts |
+| `rate_limited` | 429 |
+| `auth` | 401, 403 |
+| `bad_request` | 400, 404, 413, 422 |
+| `content_filtered` | none: a refusal is a stop reason, so a result whose finish reason is `content_filter` (§3.4) |
+| `provider_error` | 500 and any other 5xx not above; any other 4xx (409 among them); a 200 that doesn't parse, or lacks its content list or a token count |
+
+`code` is the SDK error's class name when it is one of the SDK's (`RateLimitError`, `AuthenticationError`, `InternalServerError`, …), else `http_<status>`, else the Node or c-ares code the transport attached; never the provider's message, the request, the key, or a URL.
+
 ## 3. The shipped adapters
 
 ### 3.1 `local-openai` (`type: openai-compatible`)
@@ -212,9 +226,9 @@ export class ProviderError extends Error {
 | Module | `src/adapters/bedrock-converse.ts`. It is the only module that imports `@aws-sdk/*`. |
 | Kind and provider | `kind: paid`, `provider: aws.bedrock` (fixed by the type) |
 | Name lookup | Through c-ares (`core/resolve.ts`), not `getaddrinfo`, as §3.1's (tasks.md T189): the request handler's `httpsAgent` is `new https.Agent({ keepAlive: true, maxSockets: 50, lookup: aresLookup })`, the SDK default's options plus the lookup. The credential chain gets the same handler as `clientConfig.requestHandler`, which the SDK passes to the SSO client and to the SSO-OIDC client a token refresh uses. |
-| Settings | `region` (`us-east-1`), `model` (the inference-profile ID the Author confirms), `additional_request_fields`, `temperature` (`model_default` in the committed file; spec 010's FR-017), `timeouts`, `retry`, `circuit`, `credentials_warn_before_s` ([config-files.md §1](config-files.md#1-configroutingyaml)) |
+| Settings | `region` (`us-east-1`), `model` (the inference-profile ID the Author confirms), `additional_request_fields`, `temperature` (`model_default` in the committed file; spec 007's plan, D22; spec 010's FR-017), `timeouts`, `retry`, `circuit`, `credentials_warn_before_s` ([config-files.md §1](config-files.md#1-configroutingyaml)) |
 | Client | `new BedrockRuntimeClient({ region, maxAttempts: 1, requestHandler: new NodeHttpHandler({ connectionTimeout: 1000, requestTimeout: 4000, throwOnRequestTimeout: true, httpsAgent }) })`, with the name-lookup row's `httpsAgent`, and `credentials: fromNodeProviderChain({ clientConfig: { requestHandler } })` with the same handler. The client's built-in chain would hand its SSO clients only its logger and app ID, so their lookups would stay on `getaddrinfo` (US2's round 9). Credentials come from that chain, the default one, with `AWS_PROFILE=h4reet-bedrock` and `HOME=/home/node`, and `~/.aws` mounted read-only from `~/.config/h4reet-ai/aws-home/.aws` ([research.md R-17](../research.md#r-17-the-runtime-aws-identity-the-author-narrowed-by-the-plan)). |
-| Request | `ConverseCommand`: system messages become `system: [{text}]`; the others become `messages: [{role, content: [{text}]}]`, in order; `inferenceConfig: {maxTokens: maxOutputTokens, temperature?}`, the temperature only while the settings' `temperature` isn't `model_default`, under which none is sent, whatever the request carries (spec 010's FR-017; spec 007's plan, D22); and `additionalModelRequestFields` from the settings, whatever keeps extended thinking off for the confirmed model. The `abortSignal` combines the request's signal with a 4 s timeout. No streaming, tools, cache points, or guardrail configuration. |
+| Request | `ConverseCommand`: system messages become `system: [{text}]`; the others become `messages: [{role, content: [{text}]}]`, in order; `inferenceConfig: {maxTokens: maxOutputTokens, temperature?}`, the temperature only while the settings' `temperature` isn't `model_default`, under which none is sent, whatever the request carries (spec 007's plan, D22; spec 010's FR-017); and `additionalModelRequestFields` from the settings, whatever keeps extended thinking off for the confirmed model. The `abortSignal` combines the request's signal with a 4 s timeout. No streaming, tools, cache points, or guardrail configuration. |
 | Response | `output.message.content[*].text`, joined, becomes `text`. `usage.inputTokens`, `outputTokens`, `cacheReadInputTokens`, and `cacheWriteInputTokens` become the usage. `stopReason`: `end_turn` and `stop_sequence` → `stop`; `max_tokens` → `length`; `content_filtered` and `guardrail_intervened` → `content_filter`; anything else → `other`. `$metadata.requestId` becomes `responseId`, and the configured model is the `responseModel`. |
 | Retries | The gateway retries once, only on `rate_limited`, after 250 ms, and only if 250 ms plus the 4 s request timeout still fits before the deadline: `retry = {on: ['rate_limited'], max: 1, backoffMs: 250}`. Throttled calls aren't billed. |
 | Billing on failure | A timeout is `possiblyBilled`: the request may have reached the model, so the meter charges the reserved maximum ([data-model.md §7.3](../data-model.md#73-commit-of-a-metered-call)). |
@@ -234,6 +248,20 @@ export class ProviderError extends Error {
 | `fixedUsage` | `{inputTokens: 0, outputTokens: 1000}`. At dev's price entry (output $100 per million tokens), every call costs and reserves exactly 100,000 micro-USD ($0.10). |
 | `health` | always healthy; `disabled` if it was configured but not built |
 | Used by | dev's FR-022 fallback, and `POST /admin/test/synthetic` ([operator-admin.md §3.2](operator-admin.md#32-post-admintestsynthetic)) |
+
+### 3.4 `anthropic-messages` (`type: anthropic-messages`, prod only) (spec 010)
+
+Spec 010's FR-004 to FR-016; its plan §2 and departures B1 to B5.
+
+| | |
+|---|---|
+| Settings | `model` (`claude-haiku-5-5`), `api_key_env` (`GATEWAY_ANTHROPIC_API_KEY`), `thinking` (`disabled`, its only value), `temperature` (`model_default` in the committed file), `timeouts`, `retry`, `circuit`, `health` ([config-files.md §1.1](config-files.md#11-fields)). The endpoint, `https://api.anthropic.com`, is the module's constant, never configuration or an environment variable |
+| Client | The official SDK, every option explicit: `apiKey` from the env key `api_key_env` names (the adapter's context holds that key alone), `authToken: null`, `webhookKey: null`, the fixed `baseURL`, `maxRetries: 0`, `timeout` from the settings, `logLevel: "off"` and a silent logger, `openTelemetry: {propagation: false, traces: {enabled: false}}`, and the transport as `fetch` |
+| Request | One `messages.create`: the system message as `system`, the other messages in order as `messages`, the cap as `max_tokens`, `thinking: {type: "disabled"}`, and the temperature only while the settings' `temperature` isn't `model_default`. Nothing else: no stream, tools, cache breakpoint, stop sequence, `metadata`, service tier, effort, or beta header |
+| Response | `text`: the `text` blocks joined, never a thinking block. Usage: input tokens plus any cache-creation tokens as `inputTokens`, `output_tokens` as `outputTokens`, cache reads as `cacheReadInputTokens`. Finish: `end_turn` and `stop_sequence` → `stop`, `max_tokens` → `length`, `refusal` → `content_filter`, any other → `other`. `responseModel` and `responseId` from the answer when short and printable |
+| Transport | `_anthropic-transport.ts`: a `fetch` over `node:https` (`node:http` for a test's origin) with an agent that resolves through c-ares; a connect watchdog; an origin lock that refuses any other origin before a socket opens; and the headers it sets itself, `authorization` (the key as a bearer token, the pinned SDK's form), `anthropic-version` (the pinned SDK's), `content-type` and `content-length`, `accept`, and `user-agent`, dropping every header the SDK passes in. It marks a failure `reached` once the body was written |
+| Health | `models.retrieve(model)`, `GET /v1/models/{model}`, every `interval_ms`, within the shorter of 5 s and the interval: healthy on a 200 naming the model or a dated snapshot of it; `credentials` on 401 or 403; `timeout`; else `unreachable`. It never calls Messages |
+| Retry and circuit | The gateway's: `retry {on: [rate_limited], max: 1, backoff_ms: 250}`, `circuit {failures: 3, open_s: 30}`; the SDK never retries |
 
 ## 4. The registry, and adding an adapter
 
@@ -276,6 +304,8 @@ export interface AdapterContext {
    - the credential's FR-007 deny-by-name and its matrix row, in an enforcement patch;
    - its endpoint as a row in `docs/data-flow-disclosure.md` (FR-040).
 5. **The live run:** `make contract-live ENV=prod ADAPTER=<id> REASON="…"` (§5.3).
+
+**(spec 010)** `anthropic-messages` is registered, with its module and its helper `_anthropic-transport.ts`, which the registry never loads as an adapter. The rule against a provider SDK outside `src/adapters/` is `test/unit/provider-names.test.ts`, which reads every string and module specifier and refuses `@aws-sdk/*` and `@anthropic-ai/sdk` there; the ESLint `no-restricted-imports` rule this section names never existed in `eslint.config.js` (Amendment 0-10).
 
 ## 5. The contract suite
 
@@ -373,6 +403,8 @@ Three additions to the first sketch of this signature (tasks.md T048, 2026-10-08
 
 This keeps the operator token inside the stdlib CLI, out of `node_modules` and `dist/` ([research.md R-16](../research.md#r-16-the-operator-credential-a-bearer-token-per-stack-the-author)). It also keeps project code out of the Author's terminal except inside a container. `make contract-live` requires `REASON`, and refuses `ADAPTER=bedrock` unless `ENV=prod`. bash-gate blocks it for agents ([plan.md §13](../plan.md#13-the-forbidden-action-matrix)).
 
+**Live, Anthropic (spec 010).** `make contract-live ENV=prod ADAPTER=anthropic REASON="…"` records and replays as Live, Bedrock does, once prod's route names the adapter; the replay reads the recording's adapter name, so `replay.test.ts` and `live-cases.json` don't change.
+
 ### 5.4 The live cases
 
 `services/gateway/test/contract/live-cases.json` is committed. The recorder reads it, and the suite imports it, so the two can't drift.
@@ -384,7 +416,7 @@ This keeps the operator token inside the stdlib CLI, out of `node_modules` and `
 | `short-stop` | system "Answer in one word.", then "Name a colour." | 16 | C1, C2 |
 | `multi-turn` | user, assistant, user | 32 | C1 |
 | `non-ascii` | a short message in Hindi and Japanese | 32 | C1, C7 |
-| `temperature-one` | "Say hello." at temperature 1. It was 0, which Claude Haiku 5.5 refuses with a 400: it takes no temperature but its default, 1. The Author's decision of 2026-10-13. The stub suite's C9 still sends 0 to both adapters | 16 | C1 |
+| `temperature-one` | "Say hello." at temperature 1. It was 0, which Claude Haiku 5.5 refuses with a 400: it takes no temperature but its default, 1. The Author's decision of 2026-10-13. The request carries the 1, and the recording keeps it as sent; a paid adapter whose `temperature` setting is `model_default` drops it before the call, as Bedrock's does in the committed file (spec 007's plan, D22; spec 010's FR-017), so the model applies its default, the same 1. The stub suite's C9 still sends 0 to both adapters, whose subjects keep `as_requested` | 16 | C1 |
 | `system-only-once` | a system message plus a long user message near the 2,000-character cap | 16 | C1, C7 (input tokens priced) |
 | `repeat-cost` | `hello-shape`, sent again | 128 | C7 |
 | `health-before`, `health-after` | the recorded `/admin/status` adapter entries | – | C3 |

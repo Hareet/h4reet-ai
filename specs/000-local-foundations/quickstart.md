@@ -225,7 +225,7 @@ Check 2 stopped before these ([research.md](research.md)). **Where:** the Author
    nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    ```
 
-   Expected: at most about 23.4 GiB used, the Windows desktop included; the estimate is 21.3 GiB. If the model server fails to load for lack of memory (`make logs ENV=prod SERVICE=model-server-gpu`), set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=2` in prod's env file, run `make up ENV=prod` again, and record it (plan §3).
+   Expected: at most about 23.4 GiB used, the Windows desktop included; the estimate is 21.3 GiB. If the model server fails to load for lack of memory (`make logs ENV=prod SERVICE=model-server-gpu`), set `MODEL_CTX_SIZE=16384` and `MODEL_PARALLEL=1` in prod's env file, run `make up ENV=prod` again, and record it (plan §3). One slot of 16,384 tokens still holds a spec 007 twin turn; two would not (spec 007's plan, D27).
 2. **An internal-only network blocks egress** (R-06):
 
    ```bash
