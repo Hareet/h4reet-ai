@@ -109,12 +109,14 @@ export const TWIN_GUARDS = [
 ] as const;
 export type TwinGuard = (typeof TWIN_GUARDS)[number];
 /** h4.twin.redacted's h4.twin.guard (spec 007's plan, D40, D41): each guard that removed a sentence from an answer the
- *  visitor got, and the claim tags' strip, counted once for each such answer. */
+ *  visitor got, the address rule's repair of "email address" (D39), and the claim tags' strip, counted once for each
+ *  such answer. */
 export const TWIN_REDACTIONS = [
   "numbers",
   "amounts",
   "seva",
   "address",
+  "address_repair",
   "restated_claim",
   "agents_share",
   "claim_tags",

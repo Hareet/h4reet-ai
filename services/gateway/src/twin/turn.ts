@@ -184,6 +184,7 @@ export function guardContext(files: TwinFiles, grounding: Grounding): GuardConte
     canary: files.prompt.canary,
     withheld: files.lines.withheld,
     disclosure: disclosureLine(files),
+    notSaid: files.lines.notSaid,
   };
 }
 

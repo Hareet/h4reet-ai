@@ -1,7 +1,10 @@
 # The twin's fixed lines (spec 007; FR-021; plan §5): written in advance and never generated. The gateway's turn route
-# sends `withheld` in place of a whole answer that fails one of its guards, without retrying. Hashed together with
+# sends `withheld` in place of a whole answer that fails one of its guards, without retrying, and `not_said` in place
+# of a sentence that declines a claim by restating it, once an answer (spec 007's plan, D38). Hashed together with
 # config/twin/prompt.md as the prompt hash, so a change here closes every topic until the Author's evaluation runs test
-# the new hash and he marks it ready again (FR-030). Proposed words, for the Author's read.
+# the new hash and he marks it ready again (FR-030). `withheld`: proposed words, for the Author's read. `not_said`: the
+# Author's own choice, 2026-11-09 (spec 007's Clarifications).
 schema: 1
 lines:
   withheld: "I'd rather not answer that one: I can't ground it in what Hareet has written for me. Ask me about his work, or read his resume."
+  not_said: "My corpus doesn't say that."

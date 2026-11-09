@@ -86,18 +86,22 @@ export const GUARD_ORDER = [
 /** The guards that can remove a sentence from a delivered answer, in the order they're named (D41), and the claim tags'
  *  strip (D40): the route counts each in h4.twin.redacted, and the admin route lists them for the runners. */
 export type RedactionName =
-  "numbers" | "amounts" | "seva" | "address" | "restated_claim" | "agents_share" | "claim_tags";
+  "numbers" | "amounts" | "seva" | "address" | "address_repair" | "restated_claim" | "agents_share" | "claim_tags";
 export const REDACTION_NAMES: readonly RedactionName[] = [
   "numbers",
   "amounts",
   "seva",
   "address",
+  "address_repair",
   "restated_claim",
   "agents_share",
   "claim_tags",
 ];
-/** The guards that remove a sentence, in the order they're named: every redaction but the claim tags' strip. */
-const SENTENCE_GUARDS = REDACTION_NAMES.filter((r): r is Exclude<RedactionName, "claim_tags"> => r !== "claim_tags");
+/** The guards that remove a sentence, in the order they're named: every redaction but the two that remove a word or a
+ *  tag and keep the sentence. */
+const SENTENCE_GUARDS = REDACTION_NAMES.filter(
+  (r): r is Exclude<RedactionName, "claim_tags" | "address_repair"> => r !== "claim_tags" && r !== "address_repair",
+);
 /** An answer left with fewer words than this, once its failing sentences are removed, is withheld whole (D41). */
 export const MIN_KEPT_WORDS = 3;
 
@@ -119,6 +123,9 @@ export interface GuardContext {
   /** The disclosure line: 00-profile.md's Golden Q&A 1 answer as the pack holds it, which replaces an answer G3 fails in
    *  a turn that asks who or what the twin is (D37). */
   readonly disclosure: string;
+  /** The Author's line that takes the place of a sentence declining a claim by restating it, once an answer: lines.yaml's
+   *  `not_said` (D38, his decision of 2026-11-09). */
+  readonly notSaid: string;
 }
 
 /** An answer passed; withheld or replaced (the fixed line, or for G3 in an identity turn and for G8 the corpus's
@@ -808,6 +815,19 @@ const claimsAuthor = (answer: string): boolean => CLAIMS_AUTHOR.test(answer);
 
 // ---- "address" as a noun (spec 007's plan, D39, provisional) ----
 
+/** "email address", whose "address" comes off and whose sentence stays, as the corpus says it, "My email is on my resume
+ *  PDF." (the Author's decision of 2026-11-09: "We can use "My email is on my resume PDF" and drop address from that
+ *  sentence."). Read on the answer as written; a form it can't read as written (full-width, a zero-width character)
+ *  is still "address" as a noun once folded, so its sentence comes off. */
+const EMAIL_ADDRESS = /\b(e-?mail)\s+address(es)?\b/gi;
+
+/** A sentence with "email address" as "email", and "email addresses" as "emails"; the sentence itself when it has none. */
+export function withoutEmailAddress(sentence: string): string {
+  return sentence.replace(EMAIL_ADDRESS, (_whole: string, mail: string, plural: string | undefined) =>
+    plural === undefined ? mail : `${mail}s`,
+  );
+}
+
 /** "address" after a word that makes it a noun: a possessive, an article or determiner, or a kind of address. The verb
  *  ("to address gaps", "tools that address it", "he addresses") follows none of these. */
 const ADDRESS_NOUN =
@@ -1022,26 +1042,42 @@ export function guardAnswer(answer: string, finish: FinishReason, ctx: GuardCont
     if (first !== null) return outcome(first);
 
     // Sentence by sentence (D41): each sentence a guard that redacts in this turn fails comes off, and so does a
-    // sentence on the agents' share in an answer without the corpus's span.
+    // sentence on the agents' share in an answer without the corpus's span. "email address" loses its "address" first
+    // and keeps its sentence (D39), and the first sentence that declined a claim by restating it becomes the Author's
+    // line, unless the answer holds it already (D38; his decisions of 2026-11-09).
     const agentsQuoted = holdsSpan(plain(text), views.plain.quotes.agents_share.spans);
+    const sentences = sentencesOf(text);
+    const notSaid = collapse(fold(ctx.notSaid));
+    let lineGiven = sentences.some((s) => fold(s) === notSaid);
     const removed = new Set<RedactionName>();
     const kept: string[] = [];
-    for (const sentence of sentencesOf(text)) {
+    let repairedAddress = false;
+    for (const written of sentences) {
+      const sentence = withoutEmailAddress(written);
       const seen: Record<Reading, string> = { fold: fold(sentence), plain: plain(sentence) };
       const hits: RedactionName[] = CHECKS.filter(
         (c) => redacting(c) && c.fails(seen[c.reading], views[c.reading]),
       ).map((c) => c.name as RedactionName);
       if (!agentsQuoted && AGENTS.test(seen.plain) && SHARE.test(seen.plain)) hits.push("agents_share");
-      if (hits.length === 0) kept.push(sentence);
+      if (hits.length === 0) {
+        kept.push(sentence);
+        repairedAddress ||= sentence !== written;
+        continue;
+      }
       for (const h of hits) removed.add(h);
+      if (hits.includes("restated_claim") && !lineGiven) {
+        kept.push(ctx.notSaid);
+        lineGiven = true;
+      }
     }
     let rest = text;
-    if (removed.size > 0) {
+    if (removed.size > 0 || repairedAddress) {
       rest = kept.join(" ");
       // Too little left to be an answer: the first guard that removed a sentence withholds it, or replaces it.
-      if ((rest.match(/[\p{L}\p{N}]+/gu) ?? []).length < MIN_KEPT_WORDS)
+      if (removed.size > 0 && (rest.match(/[\p{L}\p{N}]+/gu) ?? []).length < MIN_KEPT_WORDS)
         return outcome(SENTENCE_GUARDS.find((r) => removed.has(r)) ?? "error");
       for (const r of removed) redacted.add(r);
+      if (repairedAddress) redacted.add("address_repair");
     }
 
     // The opener repair (D34), on what's left.
