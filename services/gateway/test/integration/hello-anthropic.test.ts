@@ -48,6 +48,7 @@ async function prod(
   });
   dirs.push(configDir);
   const { factories } = await anthropicFactories(anthropic.origin);
+  openai.setHealth({ status: 503 }); // the local model stays down: every turn is the fallback's
   const s = await testStack({
     stack: "prod",
     env: { LOCAL_MODEL_BASE_URL: openai.baseUrl, GATEWAY_ANTHROPIC_API_KEY: KEY },

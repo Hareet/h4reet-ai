@@ -68,7 +68,8 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
         "H4_DEVCPU_OPERATOR_TOKEN",
     }  # §6.1, P4
     assert set(ENV["prod"]) == (dev - TEST_SWITCHES) | {
-        "GATEWAY_AWS_PROFILE"
+        "GATEWAY_AWS_PROFILE",
+        "GATEWAY_ANTHROPIC_API_KEY",  # spec 010, Amendment 0-9
     }  # §4, §7.1
     assert (
         "H4_TREE" not in ENV["prod"] and "H4_TREE" not in ENV["dev"]

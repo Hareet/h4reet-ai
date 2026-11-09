@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import type { CallPurpose } from "../core/types.js";
 import { insertLedgerRow, routeDecisionOf, shiftReserved, type LedgerRow } from "./commit.js";
 import type { MeterTx } from "./crossings.js";
-import { rowsOf } from "./rollover.js";
+import { adapterMonthKey, rowsOf } from "./rollover.js";
 import { toBigInt } from "./store.js";
 import type { MeteredAttribution, RouteReason } from "./types.js";
 
@@ -37,6 +37,8 @@ export interface Reservation {
   purpose: CallPurpose;
   routeReason: RouteReason | null;
   routingSha: string;
+  /** Whether it reserved against its adapter's month (spec 010, departure B7). */
+  adapterMonth?: boolean;
 }
 
 export function reservationOf(r: Record<string, unknown>): Reservation {
@@ -57,6 +59,7 @@ export function reservationOf(r: Record<string, unknown>): Reservation {
     purpose: r.purpose as CallPurpose,
     routeReason: (r.route_reason as RouteReason | null) ?? null,
     routingSha: String(r.routing_sha),
+    adapterMonth: r.adapter_month === true,
   };
 }
 
@@ -112,7 +115,7 @@ export async function sweepExpired(tx: MeterTx): Promise<number> {
   for (const raw of rows) {
     const r = reservationOf(raw);
     const periods = { day: r.periodDay, month: r.periodMonth };
-    const keys = rowsOf(r.attribution, periods);
+    const keys = rowsOf(r.attribution, periods, r.adapterMonth ? adapterMonthKey(r.adapterId, r.periodMonth) : undefined);
     await shiftReserved(tx.q, keys, -r.maxMicro, tx.nowIso);
     const row = expiredLedgerRow(r, randomUUID(), tx.now, tx.deps.stack);
     await insertLedgerRow(tx.q, row);

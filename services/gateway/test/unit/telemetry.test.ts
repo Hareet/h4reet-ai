@@ -232,7 +232,7 @@ describe("the gateway's instruments (telemetry.md §4.1, §4.2)", () => {
       [{ "h4.state": "degraded" }, 1],
     ]);
     const causes = points("h4.degraded.cause");
-    expect(causes).toHaveLength(10);
+    expect(causes).toHaveLength(11); // the ten causes (spec 010 adds adapter_month_spent) and none
     expect(causes.filter(([, v]) => v === 1)).toEqual([[{ "h4.cause": "meter_at_ceiling" }, 1]]);
     expect(points("h4.meter.spend_usd")).toEqual([
       [{ "h4.meter": "day" }, 0.3],

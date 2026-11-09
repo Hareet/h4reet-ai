@@ -68,6 +68,8 @@ export interface AdapterTypeSpec {
   credentialsWarnMs?(settings: Record<string, unknown>): number;
   /** A type with a circuit breaker, from its `circuit` settings (provider-adapter.md §6 item 5). */
   circuit?(settings: Record<string, unknown>): CircuitSettings;
+  /** A paid type routed only with a monthly cap in budgets.yaml's adapter_monthly_usd (spec 010, FR-021). */
+  readonly monthlyCapRequired?: boolean;
 }
 
 /** A value only the Author can supply, such as "<inference-profile ID the Author confirms>" (§0). */
@@ -346,6 +348,7 @@ const anthropicMessages: AdapterTypeSpec = {
   },
   label: "the Anthropic API",
   circuit: (s) => ({ failures: num(s, "circuit", "failures"), openMs: num(s, "circuit", "open_s") * 1_000 }),
+  monthlyCapRequired: true,
 };
 
 const synthetic: AdapterTypeSpec = {

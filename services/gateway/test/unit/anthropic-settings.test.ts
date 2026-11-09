@@ -85,7 +85,10 @@ versions:
         output: 5
 `;
 
-const budgetsText = (cap?: string, devCap: string | undefined = cap): string => `schema: 1
+/** budgets.yaml with prod's cap, and dev's: the same as prod's unless `devCap` says otherwise (null: none). */
+const budgetsText = (cap?: string, devCapGiven?: string | null): string => {
+  const devCap = devCapGiven === undefined ? cap : (devCapGiven ?? undefined);
+  return `schema: 1
 timing:
   timezone: UTC
   reservation_ttl_s: 120
@@ -105,6 +108,7 @@ ${devCap === undefined ? "" : `    adapter_monthly_usd: ${devCap}\n`}limits:
   global: { metered_in_flight: 4, metered_per_minute: 60 }
   per_call: { max_input_chars: 2000, hello_max_output_tokens: 128, max_output_tokens: 512 }
 `;
+};
 
 const errors = (issues: ConfigIssue[]): ConfigIssue[] => issues.filter((i) => i.severity === "error");
 const lines = (issues: ConfigIssue[]): string[] => errors(issues).map(formatIssue);
@@ -158,7 +162,8 @@ describe("the anthropic-messages type (FR-004, FR-005)", () => {
     expect(lines(routing().issues)).toEqual([]);
     for (const key of ["base_url", "region", "base_url_env", "organization_env"]) {
       const result = routing((d) => void (d.adapters.anthropic[key] = key.endsWith("_env") ? "SOME_KEY" : "x"));
-      expect(lines(result.issues)).toEqual([`config/routing.yaml: adapters.anthropic.${key}: unknown key [R11]`]);
+      expect(lines(result.issues)).toEqual([`config/routing.yaml: adapters.anthropic.${key}: unknown key`]);
+      expect(rules(result.issues)).toEqual(["R11"]);
     }
   });
 
@@ -217,7 +222,7 @@ describe("the adapter's monthly cap in budgets.yaml (FR-021, B8, B9)", () => {
   });
 
   it("holds dev equal to prod (B8)", () => {
-    const result = validateBudgets(parseYaml("config/budgets.yaml", budgetsText("{ anthropic: 10.00 }", undefined)));
+    const result = validateBudgets(parseYaml("config/budgets.yaml", budgetsText("{ anthropic: 10.00 }", null)));
     expect(rules(result.issues)).toContain("B8");
   });
 
@@ -230,7 +235,11 @@ describe("the adapter's monthly cap in budgets.yaml (FR-021, B8, B9)", () => {
     expect(lines(validateConfigFiles(files("{ anthropic: 10.00 }"), { registeredTypes }).issues)).toEqual([]);
     for (const cap of ["{ nobody: 10.00 }", "{ local: 10.00 }"]) {
       const set = validateConfigFiles(files(cap), { registeredTypes });
-      expect(rules(set.issues)).toEqual(["B9"]);
+      expect(rules(set.issues)).toEqual(["B9", "B9"]); // prod's and dev's, which B8 holds equal
+      expect(errors(set.issues).map((i) => i.path)).toEqual([
+        `envs.prod.adapter_monthly_usd.${cap.slice(2, cap.indexOf(":"))}`,
+        `envs.dev.adapter_monthly_usd.${cap.slice(2, cap.indexOf(":"))}`,
+      ]);
     }
   });
 });

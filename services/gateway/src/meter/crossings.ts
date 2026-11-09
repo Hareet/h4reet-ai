@@ -9,12 +9,16 @@
 //                                                gains <meter>:<period>; a trip alert; an incidents row; a trip audit row
 //   fallback_day  the allowance, while the       the exhaustion: reached_at; the renewal flag and its since; a
 //                 flag is false                  fallback_exhausted alert (:g<n>); a fallback_exhausted audit row
+//   adapter_month its cap × warn_ratio           a warn alert (:adapter_month:<adapter>:<month>), warned_at (spec 010)
+//   adapter_month its cap                        the cap: reached_at; the renewal flag and its since when the adapter is
+//                                                the route's fallback and the flag is false; a fallback_exhausted alert
+//                                                (:adapter_month:<adapter>:<month>); a fallback_exhausted audit row
 //
 // Each fires only when the old value is below the threshold and the new one is at or above it, on committed spend.
 // So spend already past a threshold never fires it again, and a reset can't trip twice on the same period. The alert
 // rows go into the transaction that crosses, so degradation is committed before any delivery is attempted (FR-032,
 // FR-033). They are rendered last, with the meters and the state as the transaction leaves them.
-import type { AlertContext, AlertSpec, MeterFacts } from "../alerts/format.js";
+import type { AdapterMonthFacts, AlertContext, AlertSpec, MeterFacts } from "../alerts/format.js";
 import { dedupeKey, queueAlert } from "../alerts/outbox.js";
 import type { AlertsConfig, EnvClass, StackName, Thresholds } from "../config/validate.js";
 import { toRfc3339 } from "../core/clock.js";
@@ -87,21 +91,33 @@ export interface SpendChange {
 export type Crossing =
   | { kind: "warn"; meter: MeterName; periodKey: string; threshold: bigint; grantNo?: number }
   | { kind: "trip"; ceiling: "day" | "month"; periodKey: string; threshold: bigint }
-  | { kind: "exhausted"; periodKey: string; allowanceMicro: bigint; grantNo: number };
+  | { kind: "exhausted"; periodKey: string; allowanceMicro: bigint; grantNo: number }
+  /** Spec 010 (FR-023): a capped adapter's month at its cap. */
+  | { kind: "capped"; periodKey: string; capMicro: bigint };
 
 /** old < threshold ≤ new: edge-triggered, on committed spend. */
 export const crosses = (before: bigint, threshold: bigint, after: bigint): boolean =>
   before < threshold && threshold <= after;
 
 /**
- * The crossings of these changes, in the order their effects are written: day, month, then fallback_day, each
- * warning before its ceiling or exhaustion. Exhaustion fires only while the renewal flag is false.
+ * The crossings of these changes, in the order their effects are written: day, month, fallback_day, then a capped
+ * adapter's month (spec 010), each warning before its ceiling, exhaustion, or cap. Exhaustion fires only while the
+ * renewal flag is false; an adapter's cap fires whatever the flag, and sets it only when it is false.
  */
 export function crossingsOf(changes: readonly SpendChange[], t: Thresholds, awaitingRenewal: boolean): Crossing[] {
-  const order: MeterName[] = ["day", "month", "fallback_day"];
+  const order: MeterName[] = ["day", "month", "fallback_day", "adapter_month"];
   const out: Crossing[] = [];
   for (const meter of order) {
     for (const c of changes.filter((x) => x.meter === meter)) {
+      if (meter === "adapter_month") {
+        const cap = t.adapterCaps.get(c.periodKey.split(":")[0] ?? "");
+        if (cap === undefined) continue;
+        if (crosses(c.before, cap.warn, c.after)) {
+          out.push({ kind: "warn", meter, periodKey: c.periodKey, threshold: cap.warn });
+        }
+        if (crosses(c.before, cap.cap, c.after)) out.push({ kind: "capped", periodKey: c.periodKey, capMicro: cap.cap });
+        continue;
+      }
       if (meter === "day" || meter === "month") {
         const warn = meter === "day" ? t.dayWarn : t.monthWarn;
         const ceiling = meter === "day" ? t.dayCeiling : t.monthCeiling;
@@ -164,6 +180,10 @@ export interface TxDeps {
   alerts: AlertsConfig;
   /** Whether this stack routes a fallback: the alerts' Fallback line says none without one. */
   hasFallback: boolean;
+  /** The route's fallback adapter's ID: an adapter month's cap sets the renewal flag only for it (spec 010, FR-023). */
+  fallbackAdapterId?: string | null;
+  /** How an alert names each adapter: its type's label ("the Anthropic API"), by its ID; the ID without one. */
+  adapterLabels?: ReadonlyMap<string, string>;
   realNow: () => number;
 }
 
@@ -322,10 +342,28 @@ export class MeterTx {
     periods: Periods,
   ): Promise<void> {
     const { stack } = this.deps;
-    const meter: MeterName = c.kind === "trip" ? c.ceiling : c.kind === "warn" ? c.meter : "fallback_day";
+    const meter: MeterName =
+      c.kind === "trip" ? c.ceiling : c.kind === "warn" ? c.meter : c.kind === "capped" ? "adapter_month" : "fallback_day";
     const change = changes.find((x) => x.meter === meter);
     const after = change?.after ?? 0n;
     const before = change?.before ?? 0n;
+    if (c.kind === "warn" && c.meter === "adapter_month") {
+      await this.q.query(
+        "UPDATE gateway.meters SET warned_at = $3, updated_at = $3 WHERE meter = $1 AND period_key = $2",
+        [c.meter, c.periodKey, this.nowIso],
+      );
+      this.crossedLog(c.meter, c.periodKey, "warn", after, c.threshold);
+      this.pending.push({
+        key: dedupeKey.warn(stack, c.meter, c.periodKey),
+        spec: { kind: "warn", meter: c.meter, warnRatioBp: this.deps.warnRatioBp, adapterMonth: this.adapterMonthFacts(c.periodKey, after) },
+        periods,
+      });
+      return;
+    }
+    if (c.kind === "capped") {
+      await this.capped(c, call, after, snapshot, periods);
+      return;
+    }
     if (c.kind === "warn") {
       await this.q.query(
         "UPDATE gateway.meters SET warned_at = $3, updated_at = $3 WHERE meter = $1 AND period_key = $2",
@@ -336,7 +374,7 @@ export class MeterTx {
         key: dedupeKey.warn(stack, c.meter, c.periodKey, c.grantNo),
         spec: {
           kind: "warn",
-          meter: c.meter,
+          meter: c.meter as "day" | "month" | "fallback_day",
           warnRatioBp: this.deps.warnRatioBp,
           ...(c.grantNo === undefined ? {} : { grantNo: c.grantNo }),
         },
@@ -440,10 +478,85 @@ export class MeterTx {
     });
   }
 
+  /** An adapter month's facts for its alert: its ID, its label, its month, its spend, and its cap. */
+  private adapterMonthFacts(periodKey: string, spentMicro: bigint): AdapterMonthFacts {
+    const [adapter = "", month = ""] = periodKey.split(":");
+    return {
+      adapter,
+      label: this.deps.adapterLabels?.get(adapter) ?? adapter,
+      month,
+      spentMicro,
+      capMicro: this.deps.thresholds.adapterCaps.get(adapter)?.cap ?? 0n,
+    };
+  }
+
+  /**
+   * An adapter month at its cap (spec 010, FR-023): reached_at; the renewal flag, when the adapter is the route's
+   * fallback and the flag is false; a fallback_exhausted audit row naming the adapter and the month; and its alert.
+   * The adapter itself stays refused by its month's level (admission's adapter_month_spent) until the month rolls over
+   * or the cap is raised: a renewal restores the paid fallback, not the capped adapter.
+   */
+  private async capped(
+    c: Extract<Crossing, { kind: "capped" }>,
+    call: CrossingCall,
+    after: bigint,
+    snapshot: Record<string, unknown> | undefined,
+    periods: Periods,
+  ): Promise<void> {
+    const facts = this.adapterMonthFacts(c.periodKey, after);
+    await this.q.query(
+      "UPDATE gateway.meters SET reached_at = $2, updated_at = $2 WHERE meter = 'adapter_month' AND period_key = $1",
+      [c.periodKey, this.nowIso],
+    );
+    const flags = facts.adapter === this.deps.fallbackAdapterId && !this.locked.fallbackAwaitingRenewal;
+    if (flags) {
+      await this.q.query(
+        `UPDATE gateway.stack_state SET fallback_awaiting_renewal = true, fallback_awaiting_since = $1, updated_at = $1
+         WHERE id = 1`,
+        [this.nowIso],
+      );
+      this.locked.fallbackAwaitingRenewal = true;
+      this.locked.fallbackAwaitingSince = new Date(this.now);
+    }
+    const state = { fallback_awaiting_renewal: this.locked.fallbackAwaitingRenewal };
+    await this.audit(
+      "fallback_exhausted",
+      flags ? { fallback_awaiting_renewal: false } : state,
+      flags ? { fallback_awaiting_renewal: true, fallback_awaiting_since: this.nowIso } : state,
+      {
+        adapter: facts.adapter,
+        month: facts.month,
+        cap_micro: Number(c.capMicro),
+        spent_micro: Number(after),
+        ledger_id: call.ledgerId,
+        trace_id: call.traceId,
+        meters: snapshot ?? null,
+      },
+    );
+    this.crossedLog("adapter_month", c.periodKey, "cap", after, c.capMicro);
+    this.log(
+      "warn",
+      {
+        event: "adapter_month.capped",
+        adapter: facts.adapter,
+        month: facts.month,
+        cap_micro: Number(c.capMicro),
+        spent_micro: Number(after),
+        fallback_awaiting_renewal: this.locked.fallbackAwaitingRenewal,
+      },
+      "A paid adapter's month reached its cap; the adapter is refused until the month rolls over or the cap is raised.",
+    );
+    this.pending.push({
+      key: dedupeKey.adapterMonthExhausted(this.deps.stack, c.periodKey),
+      spec: { kind: "fallback_exhausted", adapterMonth: facts },
+      periods,
+    });
+  }
+
   private crossedLog(
     meter: MeterName,
     period: string,
-    threshold: "warn" | "ceiling" | "allowance",
+    threshold: "warn" | "ceiling" | "allowance" | "cap",
     spent: bigint,
     thresholdMicro: bigint,
     grantNo?: number,

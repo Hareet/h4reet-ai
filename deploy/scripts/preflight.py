@@ -533,6 +533,9 @@ def p3(ctx: Context) -> Result:
         allowed_empty.add(
             "H4_WEB_SUFFIX"
         )  # prod's web image carries no suffix: it holds no drafts (P7 checks it)
+        # Spec 010 (FR-030, FR-040): the Anthropic API key may be empty until prod's route names the adapter.
+        if routed_type(ctx, "prod", "anthropic-messages") is None:
+            allowed_empty.add("GATEWAY_ANTHROPIC_API_KEY")
     if ctx.stack.name == "dev":
         allowed_empty |= set(CHANNELS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
@@ -746,6 +749,16 @@ def value_shape_problems(ctx: Context) -> list[str]:
             )
         if v.get("GATEWAY_AWS_PROFILE") != "h4reet-bedrock":
             problems.append("GATEWAY_AWS_PROFILE isn't h4reet-bedrock")
+        # Spec 010 (FR-030): the key's shape while prod's route names the adapter, never its value; empty is P3's.
+        key = v.get("GATEWAY_ANTHROPIC_API_KEY", "")
+        if (
+            key
+            and routed_type(ctx, "prod", "anthropic-messages") is not None
+            and not ANTHROPIC_KEY_RE.fullmatch(key)
+        ):
+            problems.append(
+                "GATEWAY_ANTHROPIC_API_KEY isn't 20 to 256 printable ASCII characters without spaces"
+            )
     elif "GATEWAY_AWS_PROFILE" in v:
         problems.append("GATEWAY_AWS_PROFILE is set outside prod")
     sha = v.get("OPERATOR_TOKEN_SHA256", "")
@@ -845,6 +858,24 @@ def routing(ctx: Context) -> tuple[dict | None, str | None]:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}, None
     except yaml.YAMLError:
         return None, "config/routing.yaml doesn't parse"
+
+
+# Spec 010 (FR-030): an Anthropic API key's shape, without assuming a prefix: printable ASCII, no spaces, 20 to 256.
+ANTHROPIC_KEY_RE = re.compile(r"[\x21-\x7e]{20,256}")
+
+
+def routed_type(ctx: Context, env: str, adapter_type: str) -> str | None:
+    """The adapter of this type env's route names, if any (spec 010)."""
+    config, _ = routing(ctx)
+    if not isinstance(config, dict):
+        return None
+    adapters = config.get("adapters") or {}
+    route = (config.get("envs") or {}).get(env) or {}
+    for role in ("primary", "fallback"):
+        adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
+        if isinstance(adapter, dict) and adapter.get("type") == adapter_type:
+            return str(route.get(role))
+    return None
 
 
 def paid_route(ctx: Context, env: str) -> str | None:
@@ -1332,11 +1363,12 @@ def p19(ctx: Context) -> Result:
         return fail("P19", f"{aws} is missing: make init-env ENV=prod creates it")
     if stat.S_IMODE(aws.stat().st_mode) != 0o700:
         return fail("P19", f"{aws} isn't mode 0700")
-    adapter = paid_route(ctx, "prod")
+    # Spec 010 (Amendment 0-9): the AWS profile matters only to a route that names Bedrock.
+    adapter = routed_type(ctx, "prod", "bedrock-converse")
     if adapter is None:
         return ok(
             "P19",
-            f"{aws} is 0700; prod routes to no paid adapter yet, so it may be empty",
+            f"{aws} is 0700; prod routes to no Bedrock adapter, so it may be empty",
         )
     config = aws / "config"
     try:

@@ -23,8 +23,9 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
   { name: "PEM block", pattern: /-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----/g },
   { name: "Langfuse key", pattern: /(?:sk|pk)-lf-[0-9A-Za-z-]{8,}/g },
   { name: "AWS access key ID", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
-  // Spec 010 (FR-031): an Anthropic API key, sk-ant- and its key characters; gitleaks's default rule holds the full shape.
-  { name: "Anthropic API key", pattern: /sk-ant-[A-Za-z0-9_-]{20,}/g },
+  // Spec 010 (FR-031): the paid fallback's API key, sk-ant- and its key characters; gitleaks's default rule holds the full
+  // shape. Named by its prefix: nothing outside src/adapters/ names a provider (SC-006).
+  { name: "sk-ant- API key", pattern: /sk-ant-[A-Za-z0-9_-]{20,}/g },
   { name: "Telegram bot token", pattern: /(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}/g },
   { name: "operator token", pattern: /h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}/g },
   { name: "JWT", pattern: /eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },

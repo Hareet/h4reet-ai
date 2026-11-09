@@ -1159,16 +1159,16 @@ export function checkStartup(
       });
     }
     for (const r of adapter.spec.checkEnv(adapter.settings, env)) refusals.push({ ...r });
-    // Spec 010 (FR-021): the Anthropic API is routed only with its monthly cap in budgets.yaml.
+    // Spec 010 (FR-021): a type that needs a monthly cap is routed only with its cap in budgets.yaml.
     if (
-      adapter.type === "anthropic-messages" &&
+      adapter.spec.monthlyCapRequired === true &&
       config.budgets !== undefined &&
       config.budgets.envs[envClass].adapterMonthly?.has(adapter.id) !== true
     ) {
       refusals.push({
         reason: "adapter_cap_missing",
         path: `config/budgets.yaml: envs.${envClass}.adapter_monthly_usd.${adapter.id}`,
-        message: `the ${envClass} route names "${adapter.id}", the Anthropic API, and budgets.yaml caps no month for it (spec 010, FR-021)`,
+        message: `the ${envClass} route names "${adapter.id}", ${adapter.spec.label ?? "a paid adapter"}, and budgets.yaml caps no month for it (spec 010, FR-021)`,
       });
     }
   }

@@ -64,7 +64,7 @@ async function sent(temperature: PaidTemperature | undefined, requested: number 
   } finally {
     await adapter.close();
   }
-  const [message] = stub.messages();
+  const message = stub.messages().at(-1);
   return (message?.body as Record<string, unknown>).temperature;
 }
 

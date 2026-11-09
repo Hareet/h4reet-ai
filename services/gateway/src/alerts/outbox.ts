@@ -68,11 +68,17 @@ const minute = (ms: number): string => `${new Date(ms).toISOString().slice(0, 16
 
 /** One dedupe key per row of alerts.md §2: <stack>:<kind>:<meter or subject>:<period>, and :g<n> for a grant. */
 export const dedupeKey = {
-  warn: (stack: string, meter: "day" | "month" | "fallback_day", period: string, grantNo?: number): string =>
-    `${stack}:warn:${meter}:${period}${grantNo === undefined ? "" : `:g${grantNo}`}`,
+  warn: (
+    stack: string,
+    meter: "day" | "month" | "fallback_day" | "adapter_month",
+    period: string,
+    grantNo?: number,
+  ): string => `${stack}:warn:${meter}:${period}${grantNo === undefined ? "" : `:g${grantNo}`}`,
   trip: (stack: string, ceiling: Ceiling, period: string): string => `${stack}:trip:${ceiling}:${period}`,
   fallbackExhausted: (stack: string, day: string, grantNo: number): string =>
     `${stack}:fallback_exhausted:fallback_day:${day}:g${grantNo}`,
+  /** Spec 010: a capped adapter's month at its cap, keyed <adapter id>:<YYYY-MM>, once a month. */
+  adapterMonthExhausted: (stack: string, key: string): string => `${stack}:fallback_exhausted:adapter_month:${key}`,
   operatorAction: (stack: string, action: "init" | "reset" | "renew" | "studio_window", auditId: number): string =>
     `${stack}:operator_action:${action}:${auditId}`,
   /** At the session's end, to the minute. */

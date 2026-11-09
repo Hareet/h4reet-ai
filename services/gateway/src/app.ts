@@ -242,6 +242,12 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     logger,
     realNow,
     hasFallback: adapters.some((a) => a.role === "fallback"),
+    // Spec 010 (FR-023, FR-037): an adapter month's cap sets the renewal flag only for the route's fallback, and its
+    // alerts name each adapter by its type's label.
+    fallbackAdapterId: adapters.find((a) => a.role === "fallback")?.config.id ?? null,
+    adapterLabels: new Map(
+      adapters.map((a) => [a.config.id, a.config.spec.label ?? a.config.id] as [string, string]),
+    ),
   });
   const gateway = new Gateway({
     stack,

@@ -64,10 +64,18 @@ export async function checkEnvTemplates(root: string, set: LoadedConfig, nowMs: 
       issues.push(envError(file, "H4_STACK", "template_stack", `must be ${stack}: this file is the ${stack} stack's`));
     }
     const env = gatewayEnvFromFile(vars);
+    // A paid adapter's key, as compose passes it (${KEY:-}): every *_env key routing.yaml names that the mapping
+    // above leaves unset, from the file or empty (spec 010, FR-030), read without naming a provider here (SC-006).
+    for (const adapter of set.routing?.adapters.values() ?? []) {
+      for (const [key, value] of Object.entries(adapter.settings)) {
+        if (key.endsWith("_env") && typeof value === "string" && env[value] === undefined) env[value] = vars[value] ?? "";
+      }
+    }
     for (const r of validateGatewayEnv(env, { template: true }))
       issues.push(envError(file, r.key, r.reason, r.message));
     if (set.routing && set.prices) {
-      for (const r of checkStartup({ routing: set.routing, prices: set.prices }, env, nowMs)) {
+      const config = { routing: set.routing, prices: set.prices, ...(set.budgets ? { budgets: set.budgets } : {}) };
+      for (const r of checkStartup(config, env, nowMs)) {
         issues.push(envError(file, r.key ?? r.path ?? "", r.reason, r.message));
       }
     }

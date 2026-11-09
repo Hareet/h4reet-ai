@@ -72,7 +72,7 @@ describe("applying them", () => {
   });
 
   it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4]);
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -724,7 +724,7 @@ describe("the store", () => {
     ]);
     expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "ECONNREFUSED" });
     expect(JSON.stringify(logged)).not.toContain("10.0.0.1");
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4] });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4, 5] });
     await store.close();
   });
 
@@ -832,7 +832,7 @@ describe("the store", () => {
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
     expect(store.status).toBe("ready");
     expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
-      [1, 2, 3, 4],
+      [1, 2, 3, 4, 5],
       [],
     ]);
     expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
@@ -862,10 +862,11 @@ describe("the store", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
+      { version: 5 },
     ]);
     // One run, for both reads, and no outage: the store answered throughout.
     expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
-      ["info", "migrations.applied", [1, 2, 3, 4]],
+      ["info", "migrations.applied", [1, 2, 3, 4, 5]],
     ]);
     expect(store.outageStartedAt()).toBeUndefined();
     await store.close();

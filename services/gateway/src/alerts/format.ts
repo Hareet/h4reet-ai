@@ -61,6 +61,18 @@ export interface AlertContext {
 export type InitSource = "ledger" | "journal" | "stated";
 export type Ceiling = "day" | "month";
 
+/**
+ * A capped paid adapter's month at a crossing (spec 010, FR-023, FR-037): the adapter by its routing.yaml ID and its
+ * type's label ("the Anthropic API"), the UTC month, and its spend and cap as the crossing commit leaves them.
+ */
+export interface AdapterMonthFacts {
+  adapter: string;
+  label: string;
+  month: string;
+  spentMicro: bigint;
+  capMicro: bigint;
+}
+
 export type AlertSpec =
   | {
       kind: "warn";
@@ -70,8 +82,12 @@ export type AlertSpec =
       /** budgets.yaml's warn_ratio in basis points: 0.70 is 7000. */
       warnRatioBp: bigint;
     }
+  /** Spec 010: a capped adapter's month at its cap × warn_ratio. */
+  | { kind: "warn"; meter: "adapter_month"; warnRatioBp: bigint; adapterMonth: AdapterMonthFacts }
   | { kind: "trip"; ceiling: Ceiling }
   | { kind: "fallback_exhausted"; grantNo: number }
+  /** Spec 010: a capped adapter's month at its cap; the paid fallback awaits a renewal when it is the route's. */
+  | { kind: "fallback_exhausted"; adapterMonth: AdapterMonthFacts }
   | {
       kind: "operator_action";
       action: "init";
@@ -168,6 +184,14 @@ const SOURCE_WORDS: Record<InitSource, string> = {
   stated: "the stated values",
 };
 
+/** An adapter month's facts, as numbers and IDs: never text a person wrote. */
+function adapterMonthFacts(a: AdapterMonthFacts): Record<string, unknown> {
+  return { adapter: a.adapter, month: a.month, spent_micro: Number(a.spentMicro), cap_micro: Number(a.capMicro) };
+}
+
+/** A label at a sentence's start: "the Anthropic API" as "The Anthropic API". */
+const capitalized = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
 function list(words: readonly string[]): string {
   if (words.length <= 1) return words.join("");
   return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
@@ -212,6 +236,14 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
   switch (spec.kind) {
     case "warn": {
       const pct = percent(spec.warnRatioBp);
+      if (spec.meter === "adapter_month") {
+        const a = spec.adapterMonth;
+        return {
+          headline: `WARNING: ${a.label}'s month at ${pct}% of its cap`,
+          sentence: `${usd(a.spentMicro)} of ${usd(a.capMicro)} USD in ${a.month}. The paid fallback stops at its cap; local answers go on.`,
+          runbook: "fallback-renewal.md",
+        };
+      }
       const headline =
         spec.meter === "day"
           ? `WARNING: daily meter at ${pct}%`
@@ -228,6 +260,16 @@ function partsOf(spec: AlertSpec, time: (ms: number) => string): Parts {
         runbook: "kill-switch-trip.md",
       };
     case "fallback_exhausted":
+      if ("adapterMonth" in spec) {
+        const a = spec.adapterMonth;
+        return {
+          headline: `PAID FALLBACK CAPPED: ${a.label}'s month reached its cap`,
+          sentence:
+            `${usd(a.spentMicro)} of ${usd(a.capMicro)} USD in ${a.month}. ${capitalized(a.label)} is refused until the ` +
+            "month rolls over or the cap is raised, and the paid fallback awaits a renewal; local answers go on.",
+          runbook: "fallback-renewal.md",
+        };
+      }
       return {
         headline: `FALLBACK EXHAUSTED: grant ${spec.grantNo} of today's sub-budget is spent`,
         sentence: "Fallback stays refused, across days and restarts, until the operator renews it.",
@@ -322,6 +364,9 @@ function specFacts(spec: AlertSpec): Record<string, unknown> {
   const iso = (ms: number): string => new Date(ms).toISOString();
   switch (spec.kind) {
     case "warn":
+      if (spec.meter === "adapter_month") {
+        return { meter: spec.meter, warn_ratio_bp: Number(spec.warnRatioBp), ...adapterMonthFacts(spec.adapterMonth) };
+      }
       return {
         meter: spec.meter,
         warn_ratio_bp: Number(spec.warnRatioBp),
@@ -330,7 +375,7 @@ function specFacts(spec: AlertSpec): Record<string, unknown> {
     case "trip":
       return { ceiling: spec.ceiling };
     case "fallback_exhausted":
-      return { grant_no: spec.grantNo };
+      return "adapterMonth" in spec ? adapterMonthFacts(spec.adapterMonth) : { grant_no: spec.grantNo };
     case "operator_action":
       if (spec.action === "reset") {
         return { action: "reset", fingerprint: spec.fingerprint, meters_at_ceiling: [...spec.metersAtCeiling] };

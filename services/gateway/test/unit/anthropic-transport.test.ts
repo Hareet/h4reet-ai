@@ -143,9 +143,13 @@ describe("the headers it sets (FR-016, FR-031, SC-003)", () => {
 describe("the name lookup (FR-010; T188)", () => {
   it("resolves through the lookup it is given", async () => {
     const seen: string[] = [];
-    const lookup: LookupFunction = (host, _options, callback) => {
+    const lookup: LookupFunction = (host, options, callback) => {
       seen.push(host);
-      process.nextTick(() => (callback as (e: null, a: string, f: number) => void)(null, "127.0.0.1", 4));
+      // net asks for every address (options.all) when it tries families in turn, and for one otherwise.
+      const answer = callback as (e: null, a: string | { address: string; family: number }[], f?: number) => void;
+      process.nextTick(() =>
+        options.all ? answer(null, [{ address: "127.0.0.1", family: 4 }]) : answer(null, "127.0.0.1", 4),
+      );
     };
     const t = transport({ origin: `http://anthropic-stub:${stub.port}`, lookup });
     const res = await t.fetch(`http://anthropic-stub:${stub.port}/v1/models/claude-haiku-5-5`, { method: "GET" });

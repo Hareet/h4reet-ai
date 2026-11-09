@@ -328,6 +328,7 @@ logs             otlp         → memory_limiter → transform/payloads → reda
 |---|---|
 | Langfuse keys | `(?:sk\|pk)-lf-[0-9A-Za-z-]{8,}` |
 | AWS access key IDs | `\b(?:AKIA\|ASIA)[0-9A-Z]{16}\b` |
+| Anthropic API keys (spec 010, FR-031) | `sk-ant-[A-Za-z0-9_-]{20,}` |
 | Telegram bot tokens, alone or in a URL | `(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}` |
 | Operator tokens | `h4op_(?:prod\|dev\|devcpu)_[A-Za-z0-9_-]{43}` |
 | JWTs | `eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}` |
