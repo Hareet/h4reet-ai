@@ -1,7 +1,7 @@
 # Intent: Alerts designed to be read: an HTML email and an organized Telegram message
-Author: the Author (drafted by Claude from the Author's words of 2026-11-09). Status: accepted (2026-11-09). Created: 2026-11-09.
+Author: the Author (drafted by Claude from the Author's words of 2026-11-08). Status: accepted (2026-11-08). Created: 2026-11-08.
 
-Accepted in the session, by the Author's answers to two questions (2026-11-09):
+Accepted in the session, by the Author's answers to two questions (2026-11-08):
 - "Intent 011, the alert redesign (an HTML email and an organized Telegram message with emoji): shall I move it into specs/011 and have a spec written now?" → "Accept and specify (Recommended)".
 - "How should the HTML alert email be built: hand-written email tables with no new dependency, or MJML compiled at build time?" → "Hand-written tables (Recommended)". The option read: "No new package. A small renderer writes the table-and-inline-style HTML that MJML would produce, and tests pin the output for every alert kind." This answers open question 1.
 
