@@ -1,6 +1,6 @@
 # ADR 0044: EC2 as prod's default host, with the laptop serving when the Author runs it
 
-Status: proposed, 2026-11-09 · Spec: 001, reworked at 8acc2686 (FR-017 to FR-024, FR-029, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075, FR-076; SC-001, SC-002, SC-007, SC-018; User Stories 2 to 7; Clarifications, Session 2026-11-09). The numbers of the 2026-09-07 outline, which earlier drafts of this ADR cited, are mapped under Consequences · Amends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its routing order, now set per host · The constitution change it needs is proposed, not applied: [2026-11-09-constitution-1.1.0.patch](../merge-requests/2026-11-09-constitution-1.1.0.patch) · Number: ADR 0043 is taken by `feat/005-full-window-room`, so this is 0044
+Status: accepted, 2026-11-09 · Spec: 001, reworked at 8acc2686 (FR-017 to FR-024, FR-029, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075, FR-076; SC-001, SC-002, SC-007, SC-018; User Stories 2 to 7; Clarifications, Session 2026-11-09). The numbers of the 2026-09-07 outline, which earlier drafts of this ADR cited, are mapped under Consequences · Amends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its routing order, now set per host · The constitution change it needs is proposed, not applied: [2026-11-09-constitution-1.1.0.patch](../merge-requests/2026-11-09-constitution-1.1.0.patch) · Number: ADR 0043 is taken by `feat/005-full-window-room`, so this is 0044
 
 ## Context
 
