@@ -1,0 +1,40 @@
+# ADR 0046: The room framed under the HUD: a frame area eased from the window toward the clear area only as far as keeps every pressable piece and both figures clear, compact clusters within a quarter of the window, one game look from the room's own materials, and walking from the room's view (spec 014)
+
+Status: proposed, 2026-11-10 · Spec: 014 (FR-001 to FR-068; its Clarifications, Q1 to Q5 and D1 to D12 taken under the Author's acceptance, provisionally; plan §1, PD-1 to PD-24, and its departures) · Amends [ADR 0043](0043-the-room-fills-the-window.md)'s decisions 2, 3, and 4 by name (spec 014's amendment W18); replaces no decision of [ADR 0036](0036-the-room-composed-from-data.md), [ADR 0039](0039-the-walking-view.md), or [ADR 0045](0045-the-room-loads-behind-a-loader.md) · Number: the next free one when spec 014's T002 ran (0045 is spec 012's, merged)
+
+## Context
+
+The Author ran the demo on prod after spec 005 merged and recorded what he saw. His words of 2026-11-10, as spec 014's intent records them:
+
+> "The room does get resized, but see how the actual room is smaller in the browser window size with grey area next to the brick. We can move the interface to lay over that grey area. We could make the game buttons and interface look newer, perhaps this skill could help: https://github.com/openai/plugins/tree/HEAD/plugins/game-studio/skills/game-ui-frontend . The langfuse meter did not display the cost of the current conversation when we definitely had the local model down and were using anthropic. The resume paper goes into the arm area and doesnt neatly stay in the hand. When we click walk around, the camera shifts to an angled perspective, is that necessary or can we just have walk around from the initial angle the room starts in. denverlocal.ai is not written on the chalkboard."
+
+His three answers, final: "Overlay only"; "Start from the room's view (Recommended)"; "One spec for all". His addition at acceptance: "One small change, i think the glow around the neon sign is a big circle, and the glowing part should be the actual neon letters and neon part that frames the arrow in the sign." His acceptance: "I accept the intent with your recommendations. go for it!" His approval of the spec and its plan: "You can go ahead and start the build of the spec."
+
+Under ADR 0043 the room was framed into the clear area, the window less the strip, the bar, and the column. The room's front is about square, so on a landscape window its height bound it, and the extra width showed the plain backdrop: his "grey area next to the brick".
+
+## Decision
+
+1. **The frame area** (FR-009 to FR-016; plan PD-1, PD-2; amends ADR 0043's decision 4, "Contain framing into the clear area"): the room is framed, with spec 004's contain framing and its 6% margin, into a frame area that lies between the window and spec 005's clear area. One kernel function, `compose/frame.ts`'s `frameArea`, which the room and the compositor share, tries the window first and eases each edge toward the clear area's in sixteenths, taking the first step at which every protected box lies at least 0.5rem outside every HUD box. At the last step the area is spec 005's clear area, so a frame always exists and the room is never smaller than under ADR 0043. One camera, its projection shifted, still draws the whole canvas.
+2. **The protected boxes** (FR-010; plan PD-2; D6): each selectable that is pressable at spec 005's frame keeps a 44 × 44 part of its exclusive core out from under every panel, and both figures keep their framed boxes out from under them, measured by the checks' own functions (`framing.ts`, `pick.ts`, `project.ts`) through `compose/protect.ts`. The walls, the floor, and the backdrop may lie under glass.
+3. **The stages are the frame areas** (FR-060, FR-061; amends ADR 0043's decision 3, "The clear area is the stage"): each supported stage is the frame area the kernel gives its screen and docked-panel state, with every HUD box that overlaps it reserved for RG6. Every frame area holds its clear area, which holds its stage before spec 005, so the frozen floor holds and no check weakens. The stages now depend on the scene's pieces through the protection; a data edit can change a screen's ease, never below spec 005's frame, and never with a pressable piece under a panel.
+4. **Compact clusters** (FR-017 to FR-021; plan PD-3 to PD-7; Q2; amends ADR 0043's decision 2, "The HUD's placements are kernel data"): spec 005's bands stay in the table as the floor's definition, and beside them the table holds the compact boxes the visitor sees: the AI disclosure a strip as wide as its words at the top, the bar's tiles one cluster at the foot's right, and the column sized to its content at its band's foot, with the conversation's log at a rest height that scrolls. The always-on interface covers at most 25% of every landscape window from 1280 × 720, by the layout model's real text widths. Phones keep spec 005's dock.
+5. **One game look from the room's own materials** (FR-022 to FR-029; plan PD-8, PD-9; Q3): every HUD control in the column and dock layouts is a tile on the dark glass; the notes are glass chips; headings in Patrick Hand, the chalkboard's face, words in IBM Plex Sans, figures in IBM Plex Mono, all already served; the neon's warm tube colour as the hover and selection edge; spec 005's yellow focus ring kept; transitions of at most 150 ms, none under reduced motion. The resume's panel stays spec 005's white document. The game UI guidance he pointed to is cited by its URL only.
+6. **Walking from the room's view** (FR-030 to FR-037; plan PD-10, PD-11; Q4): "Walk around" keeps the camera at the room's view until a turn, a tilt, or a zoom, or until the figure's framed box comes within 0.5rem of a HUD box or the window's edge; spec 008's follow camera then takes over from an orbit computed from where the view stands, within 500 ms, or a cut while the motion store is still.
+
+## Alternatives considered
+
+- **Framed into the whole window always** (Q1's B): a piece under a panel would be reached from the list alone, which weakens spec 005's FR-057 and would need its own ADR.
+- **The window less the strip and the bar** (Q1's C): recentres sideways, but doesn't grow on landscape windows, where the height binds.
+- **A bisection of the ease to the pixel** (plan PD-1): the protection's test isn't monotone in the ease, so a bisection can miss the least.
+- **The conversation in a drawer** (Q2's B), and **spec 005's places as they are** (Q2's C): the first hides the room's main verb; the second leaves the guidance's anti-pattern, full-width chrome and a full-height column, in place.
+- **The bar's tiles everywhere and nothing else** (Q3's B), and **diegetic panels from studio art** (Q3's C, a later intent).
+- **Replacing the bands with the compact boxes** (plan PD-3): it would move what spec 005's floor and spec 012's loader card read.
+
+## Consequences
+
+- **Cost: $0** in the cloud and in model spend. The entry chunk grows by the frame function, the protector, and the HUD's added rules, measured against spec 002's 150 KB in the branch's note.
+- **The room grows where the Author saw the bands**: on large landscape windows the panels lie over the backdrop and the room recentres and grows; on small windows the ease takes the frame back toward spec 005's, never past it.
+- **A re-fit costs at most 17 framings**, each a projection of a few boxes.
+- **The compositor's check runs per frame area**, each with its own reserved boxes, so its time grows with the stages' count; the branch's note records it beside the base's.
+- **The amended contracts** (spec 004's room-data-files.md §4, §5, §9, and §13, and its lookdev.md §6) carry passages marked "(spec 014)".
+- **What building changed**: spec 014's plan records its departures in the commits that made them.
