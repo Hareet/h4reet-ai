@@ -21,7 +21,14 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 2. Group 2: the measurement, and your figure
 
-1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64. **As built** (plan.md §16, group 2's departures): first your disk check in your terminal, at least 30 GB free on the drive under WSL's disk (`df -h /mnt/c`), with no other agent using the engine. Then the main working tree on `feat/001-measure`, since dev-cpu runs from it. Then the session runs `make up ENV=dev-cpu`, `make measure-stack ENV=dev-cpu`, and `make down ENV=dev-cpu` there. `make arch-inventory` reads the store alone and has already run (R-33's record).
+1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64. **As built** (plan.md §16, group 2's departures; the steps in full are in the group's note, `docs/merge-requests/2026-11-10-feat-001-measure.md`):
+   - Your checks in your terminal, each printing OK or nothing: at least 30 GB free on the drive under WSL's disk (`df -B1 --output=avail /mnt/c`, in bytes, since `df -h` rounds up), and at least 16 GB of memory available (`free -b`).
+   - The session checks that no other agent session uses the engine: no container runs on it, and no other group's checks are running (group 3's worktree shares it).
+   - The session frees the branch from its worktree. You put the main working tree on `feat/001-measure`, since dev-cpu runs from it.
+   - The session runs `make up ENV=dev-cpu`, then `make measure-stack ENV=dev-cpu` in the background with its output in a file (the run is over 30 minutes), then `make down ENV=dev-cpu`, and writes the record into R-33.
+   - Afterwards, park your checkout at `refs/heads/main` with `git switch -c`, never at the branch's tip, and never with `-C`.
+
+   `make arch-inventory` reads the store alone, and has already run (R-33's record).
 2. Price research.md R-05's lines from AWS's pages in your terminal: EC2's measured types on spot, and an 8-to-12-hour day as the reserve; the tunnel end on spot (plan question 2); RDS; the health check; and the "to confirm" lines.
 3. Set `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`, and record your prices on the branch before its review.
 

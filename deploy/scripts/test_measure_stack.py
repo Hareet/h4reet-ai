@@ -8,13 +8,16 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -137,17 +140,20 @@ def df(**volumes: str) -> str:
     )
 
 
+# A 30-minute run at budgets.yaml's rates: the stub answers the $2 grant's 20 calls, hello and turns together, and the
+# gateway answers the rest degraded (T018's review, finding 1: the turns are ready pieces now, not free talk's 409).
 SUMMARY = {
     "h4_measure_load": 1,
     "minutes": 30,
-    "hello_per_minute": 40,
-    "turns_per_minute": 20,
-    "sent": {"hello": 1200, "turn": 600},
+    "hello_per_minute": 44,
+    "turns_per_minute": 16,
+    "labels": 8,
+    "sent": {"hello": 1320, "turn": 480},
     "late": 0,
     "seconds": 1800,
     "outcomes": {
-        "hello": {"200 fallback": 20, "503 fallback_awaiting_renewal": 1180},
-        "turn": {"409 not_ready": 600},
+        "hello": {"200 fallback": 14, "503 fallback_awaiting_renewal": 1306},
+        "turn": {"200 fallback": 6, "503 fallback_awaiting_renewal": 474},
     },
 }
 
@@ -248,6 +254,7 @@ def run(
     argv: list[str] | None = None,
     environ: dict[str, str] | None = None,
     git=main_tree_git,
+    runner=None,
 ):
     load_ = load_ or FakeLoad()
     started: list[list[str]] = []
@@ -260,7 +267,7 @@ def run(
     out = io.StringIO()
     code = ms.main(
         argv if argv is not None else ["--stack", "dev-cpu"],
-        runner=docker,
+        runner=runner or docker,
         start_load=start_load,
         environ=SANDBOX if environ is None else environ,
         git=git,
@@ -504,7 +511,8 @@ def test_the_run_stops_the_model_server_loads_samples_and_puts_the_stack_back() 
         "--env-file",
         str(ms.DEVCPU_VARS),
     ]
-    # The load, from a one-off breach-probe container on the stack's internal network, at the rates budgets.yaml gives.
+    # The load, from a one-off breach-probe container on the stack's internal network, at the rates budgets.yaml gives
+    # for 30 minutes, by a name the run can remove it by if it's stopped (T018's review, finding 3).
     assert len(started) == 1
     assert started[0][2:9] == compose[2:9]
     assert started[0][9:] == [
@@ -514,6 +522,8 @@ def test_the_run_stops_the_model_server_loads_samples_and_puts_the_stack_back() 
         "--build",
         "--rm",
         "-T",
+        "--name",
+        f"{PROJECT}-measure-load",
         "breach-probe",
         "python3",
         "-I",
@@ -521,9 +531,11 @@ def test_the_run_stops_the_model_server_loads_samples_and_puts_the_stack_back() 
         "--minutes",
         "30",
         "--hello-per-minute",
-        "40",
+        "44",
         "--turns-per-minute",
-        "20",
+        "16",
+        "--labels",
+        "8",
     ]
     assert not load_.terminated
     record = record_of(text)
@@ -628,10 +640,16 @@ def test_the_records_shape() -> None:
         "sum_of_peaks_bytes",
         "largest_sample_bytes",
         "volumes",
+        "volumes_unread",
         "images",
         "images_bytes",
+        "images_unmatched",
+        "answered",
     }
     assert record["h4_measure_stack"] == 1 and record["stack"] == "dev-cpu"
+    # The share the stub answered, beside the peaks, so nobody reads them as a fully answered stack's (T018's
+    # review, its caveat): 20 of 1,800.
+    assert record["answered"] == {"requests": 1800, "by_the_stub": 20, "share": 0.0111}
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", record["started_utc"])
     assert record["model_server"] == {
         "service": "model-server-cpu",
@@ -660,6 +678,10 @@ def test_the_records_shape() -> None:
     } in record["images"]
     assert record["images_bytes"] == sum(row["bytes"] for row in record["images"])
     assert all("unused" not in row["image"] for row in record["images"])
+    # What docker's list didn't have is named, not dropped: every stack image but those two.
+    assert "ghcr.io/example/edge:1.0" in record["images_unmatched"]
+    assert len(record["images_unmatched"]) == len(STACK) - 2
+    assert record["volumes_unread"] == []
     # A measurement, not a price (tasks.md T016's check).
     assert not re.search(r"usd|price|cost|\$", json.dumps(record), re.IGNORECASE)
 
@@ -683,18 +705,140 @@ def test_the_table_for_the_note_and_r33() -> None:
         for line in lines
     )
     assert any(line.startswith(f"| {PROJECT}_clickhouse-data |") for line in lines)
-    assert "hello: 200 fallback 20, 503 fallback_awaiting_renewal 1180" in lines
+    assert "hello: 200 fallback 14, 503 fallback_awaiting_renewal 1306" in lines
+    # The stub's share comes before the peaks, and says what it means for them.
+    share = next(
+        i for i, line in enumerate(lines) if line.startswith("Answered by the stub:")
+    )
+    assert share < lines.index("| Service | Peak (MiB) | Limit (MiB) | Samples |")
+    assert lines[share] == (
+        "Answered by the stub: 20 of 1800 requests (1.1%). The rest were degraded or refused, so these peaks are of "
+        "a mostly degraded stack (research.md R-33)"
+    )
+    assert any(
+        line.startswith("Not in docker system df's image list: 14 images: ")
+        for line in lines
+    )
 
 
 def test_the_rates_are_budgets_yamls() -> None:
     text = (REPO / "config" / "budgets.yaml").read_text(encoding="utf-8")
-    # 60 metered calls a minute globally; turns, which come from one client, at its 20 a minute; hello the rest.
-    assert ms.load_rates(text) == (40, 20)
-    assert ms.load_rates(
-        "limits:\n  per_client: { requests_per_minute: 10 }\n  global: { metered_per_minute: 12 }\n"
-    ) == (6, 6)
-    with pytest.raises(ms.Refusal):
-        ms.load_rates("limits:\n  per_client: { requests_per_minute: 20 }\n")
+    # 60 metered calls a minute globally. Turns come from one client, so they go at its per-minute cap, and no faster
+    # than its 500 a day allows over the run (T018's review, finding 1); hello takes the rest, over enough labels that
+    # no label reaches either cap.
+    assert ms.load_rates(text, 30) == (44, 16, 8)
+    assert ms.load_rates(text, 240) == (58, 2, 28)
+    for minutes in range(1, ms.MAX_MINUTES + 1):
+        hello, turns, labels = ms.load_rates(text, minutes)
+        assert hello + turns == 60 and turns * minutes <= 500
+        assert hello <= 20 * labels and -(-hello * minutes // labels) <= 500
+        assert labels <= ms.MAX_LABELS
+    small = "limits:\n  per_client: { requests_per_minute: 10, requests_per_day: 100 }\n  global: { metered_per_minute: 12 }\n"
+    assert ms.load_rates(small, 5) == (6, 6, 8)
+    for missing in (
+        "limits:\n  per_client: { requests_per_minute: 20, requests_per_day: 500 }\n",
+        "limits:\n  per_client: { requests_per_minute: 20 }\n  global: { metered_per_minute: 60 }\n",
+    ):
+        with pytest.raises(ms.Refusal):
+            ms.load_rates(missing, 30)
+
+
+# --- a stopped run puts the stack back (T018's review, finding 3) -------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("stop", "says"),
+    [("SIGINT", "Ctrl-C"), ("SIGTERM", "SIGTERM"), ("SIGHUP", "SIGHUP")],
+)
+def test_a_stopped_run_puts_the_stack_back(stop: str, says: str) -> None:
+    # Ctrl-C, SIGTERM, and SIGHUP (a closed terminal) end the run the same way: the load's client stopped, its container
+    # removed by name, and the model server started again, with no record (as evals/breach.py does).
+    docker = FakeDocker([ps(model="running"), ps(model="exited")], [stats({})])
+    calls = {"stats": 0}
+
+    def stopping(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ):
+        if "stats" in argv:
+            calls["stats"] += 1
+            if calls["stats"] == 2:
+                if stop == "SIGINT":
+                    raise KeyboardInterrupt
+                ms.on_signal(getattr(signal, stop), None)
+        return docker(argv, stdin, env, timeout)
+
+    code, text, _, load_ = run(docker, FakeLoad(polls=10), runner=stopping)
+    assert code == 1, text
+    assert f"stopped by {says}" in text
+    assert "h4_measure_stack" not in text
+    assert load_.terminated
+    assert verbs(docker)[-2:] == [
+        f"rm --force {PROJECT}-measure-load",
+        "start model-server-cpu",
+    ]
+
+
+def test_the_run_takes_sigterm_and_sighup_and_puts_their_handlers_back() -> None:
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        with pytest.raises(ms.Interrupted):
+            ms.on_signal(signum, None)
+    before = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP))
+    during: list[object] = []
+    docker = FakeDocker([ps(model="running"), ps(model="exited")], [stats({})])
+
+    def watching(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ):
+        if "stats" in argv:
+            during.append(
+                (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP))
+            )
+        return docker(argv, stdin, env, timeout)
+
+    code, text, _, _ = run(docker, runner=watching)
+    assert code == 0, text
+    assert set(during) == {(ms.on_signal, ms.on_signal)}
+    assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP)) == before
+
+
+class Escaped(Exception):
+    """A signal the run should have ignored, caught by the test's own handler rather than ending pytest."""
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM, signal.SIGHUP])
+def test_a_signal_while_it_puts_the_stack_back_is_ignored(signum: int) -> None:
+    # A second Ctrl-C, or a SIGTERM, while the run starts the model server again would leave it stopped: it's ignored.
+    docker = FakeDocker([ps(model="running"), ps(model="exited")], [stats({})])
+    sent: list[int] = []
+
+    def signalling(
+        argv: list[str], stdin: str | None, env: dict[str, str], timeout: float
+    ):
+        if "start" in argv and "model-server-cpu" in argv and not sent:
+            sent.append(signum)
+            os.kill(os.getpid(), signum)
+        return docker(argv, stdin, env, timeout)
+
+    def escaped(number: int, frame: object) -> None:
+        raise Escaped(signal.Signals(number).name)
+
+    previous = {
+        s: signal.signal(s, escaped)
+        for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        code, text, _, _ = run(
+            docker, FakeLoad(code=1, stdout="", stderr="it failed\n"), runner=signalling
+        )
+    except Escaped as escape:
+        pytest.fail(f"{escape} reached past the restore")
+    finally:
+        for s, handler in previous.items():
+            signal.signal(s, handler)
+    assert sent == [signum]
+    assert code == 1, text
+    assert verbs(docker)[-1] == "start model-server-cpu"
+    assert "started again" in text
 
 
 # --- the load ------------------------------------------------------------------------------------------------------
@@ -712,12 +856,31 @@ def test_the_loads_requests_are_fixed_text_to_edge() -> None:
     assert ml.HELLO_URL == "http://edge:8080/hello"
     assert ml.TURN_URL == "http://edge:8087/api/room/turn"
     assert json.loads(ml.HELLO_BODY) == {}
-    assert json.loads(ml.TURN_BODY) == {
-        "feature": "free_talk",
-        "path": "engineer",
-        "turns": [{"role": "visitor", "text": "Hello."}],
-    }
-    assert ml.LABELS == tuple(f"measure-{n}" for n in range(1, 9))
+    # A piece's opening, as the room sends it when a visitor picks one ({feature, path, turns: []}): no visitor's
+    # words at all. The three ready pieces, on both paths (T018's review, finding 1: free talk answers 409).
+    assert [json.loads(body) for body in ml.TURN_BODIES] == [
+        {"feature": feature, "path": path, "turns": []}
+        for feature in ("snowboard", "laptop", "chalkboard")
+        for path in ("engineer", "non-engineer")
+    ]
+    assert ml.labels(8) == tuple(f"measure-{n}" for n in range(1, 9))
+    assert ml.labels(28)[-1] == "measure-28"
+
+
+def test_the_loads_pieces_are_ready() -> None:
+    # Each piece the load opens is a selectable whose topic config/twin-readiness.yaml marks ready, so the gateway
+    # answers it from the route rather than with 409 not_ready; free talk isn't ready, so it isn't sent.
+    readiness = yaml.safe_load(
+        (REPO / "config" / "twin-readiness.yaml").read_text(encoding="utf-8")
+    )
+    pack = json.loads(
+        (REPO / "config" / "twin" / "corpus.json").read_text(encoding="utf-8")
+    )
+    topic_of = {piece["id"]: piece["topic"] for piece in pack["selectables"]}
+    features = {json.loads(body)["feature"] for body in ml.TURN_BODIES}
+    assert features and features <= set(topic_of)
+    assert all(readiness["topics"][topic_of[f]]["ready"] is True for f in features)
+    assert "free_talk" not in features
 
 
 @pytest.mark.parametrize(
@@ -747,31 +910,39 @@ def test_an_answer_counts_by_its_status_and_code_never_its_text(
 
 def test_the_load_paces_counts_and_never_prints_an_answer() -> None:
     clock = Clock()
-    sent: list[tuple[str, str | None]] = []
+    sent: list[tuple[str, bytes, str | None]] = []
 
-    def send(kind: str, label: str | None) -> tuple[int | None, bytes]:
-        sent.append((kind, label))
+    def send(url: str, body: bytes, label: str | None) -> tuple[int | None, bytes]:
+        sent.append((url, body, label))
         if len(sent) == 4:
             clock.t += 10  # a slow answer: the next request goes out late
-        if kind == "hello":
+        if url == ml.HELLO_URL:
             return 200, b'{"text": "SECRET-ANSWER-TEXT", "route": "fallback"}'
-        return 409, b'{"error": "not_ready", "detail": "SECRET-DETAIL"}'
+        return 503, b'{"cause": "fallback_awaiting_renewal", "detail": "SECRET-DETAIL"}'
 
     summary = ml.run(
-        minutes=1, hello=40, turns=20, send=send, now=clock.now, sleep=clock.sleep
+        minutes=1,
+        hello=40,
+        turns=20,
+        labels=8,
+        send=send,
+        now=clock.now,
+        sleep=clock.sleep,
     )
     assert summary["sent"] == {"hello": 40, "turn": 20}
     assert summary["outcomes"] == {
         "hello": {"200 fallback": 40},
-        "turn": {"409 not_ready": 20},
+        "turn": {"503 fallback_awaiting_renewal": 20},
     }
-    assert summary["late"] >= 1
-    # Hello rotates the labels; the turn sends none, since edge drops it there.
-    assert [label for kind, label in sent if kind == "hello"][:9] == [
-        *ml.LABELS,
-        "measure-1",
-    ]
-    assert {label for kind, label in sent if kind == "turn"} == {None}
+    assert summary["late"] >= 1 and summary["labels"] == 8
+    # Hello rotates the labels, with its empty body; the turn sends none, since edge drops it there, and rotates the
+    # three pieces' openings on both paths.
+    hellos = [(body, label) for url, body, label in sent if url == ml.HELLO_URL]
+    assert [label for _, label in hellos][:9] == [*ml.labels(8), "measure-1"]
+    assert {body for body, _ in hellos} == {ml.HELLO_BODY}
+    turns = [(body, label) for url, body, label in sent if url == ml.TURN_URL]
+    assert {label for _, label in turns} == {None}
+    assert [body for body, _ in turns][:7] == [*ml.TURN_BODIES, ml.TURN_BODIES[0]]
     # One request a second at 60 a minute.
     assert max(clock.slept) <= 1.0 + 1e-9
     assert "SECRET" not in json.dumps(summary)
@@ -780,8 +951,17 @@ def test_the_load_paces_counts_and_never_prints_an_answer() -> None:
 def test_the_loads_one_line() -> None:
     out = io.StringIO()
     code = ml.main(
-        ["--minutes", "1", "--hello-per-minute", "2", "--turns-per-minute", "1"],
-        send=lambda kind, label: (200, b'{"route": "fallback"}'),
+        [
+            "--minutes",
+            "1",
+            "--hello-per-minute",
+            "2",
+            "--turns-per-minute",
+            "1",
+            "--labels",
+            "3",
+        ],
+        send=lambda url, body, label: (200, b'{"route": "fallback"}'),
         now=Clock().now,
         sleep=lambda s: None,
         out=out,
@@ -801,11 +981,31 @@ def test_the_loads_one_line() -> None:
         ["--minutes", "1", "--hello-per-minute", "0", "--turns-per-minute", "0"],
         ["--minutes", "1", "--hello-per-minute", "-1", "--turns-per-minute", "1"],
         ["--minutes", "1"],
+        [
+            "--minutes",
+            "1",
+            "--hello-per-minute",
+            "1",
+            "--turns-per-minute",
+            "1",
+            "--labels",
+            "0",
+        ],
+        [
+            "--minutes",
+            "1",
+            "--hello-per-minute",
+            "1",
+            "--turns-per-minute",
+            "1",
+            "--labels",
+            "65",
+        ],
     ],
 )
 def test_the_loads_usage(argv: list[str]) -> None:
     out = io.StringIO()
-    assert ml.main(argv, send=lambda k, label: (200, b"{}"), out=out) == 2
+    assert ml.main(argv, send=lambda url, body, label: (200, b"{}"), out=out) == 2
 
 
 def test_the_probes_image_holds_the_load() -> None:
