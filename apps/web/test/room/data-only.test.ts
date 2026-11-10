@@ -1019,7 +1019,8 @@ describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
 describe("the neon sign's path glow (spec 014, T037)", () => {
   it("gives the sign's tube-glow a path and a spread, no radius, and less area than the disc", () => {
     const { scene: part } = repositoryBundle();
-    const sign = part.pieces["neon-sign"];
+    // The sign by its glow's ID, the scan keeping the room's piece IDs out of code (FR-007).
+    const sign = Object.values(part.pieces).find((p) => Object.hasOwn(p.glows, "tube-glow"));
     const glow = (sign?.glows["tube-glow"] ?? {}) as {
       path?: [number, number, number][];
       spread?: number;

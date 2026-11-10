@@ -413,7 +413,7 @@ describe("build/policy.ts, a checkout's prebuild", () => {
 // from the file at run time (no digest is written down), a release build publishes the block, its one line the words
 // "denverlocal.ai", approved, so the slate's region draws it; without the entry, a release build leaves it out, the
 // slate plain, and a drafts build carries it marked as a draft.
-describe("the chalkboard's line (spec 014, T038)", () => {
+describe("the slate's line (spec 014, T038)", () => {
   const ROOT = join(__dirname, "..", "..", "..");
   const BLOCK = "apps/web/content/room/chalk-denverlocal.yaml";
   const digest = sha256(readFileSync(join(ROOT, BLOCK)));
