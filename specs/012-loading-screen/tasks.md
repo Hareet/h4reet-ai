@@ -250,8 +250,8 @@ description: "Task list for spec 012, the room's loading screen"
 
 **Independent Test**: spec.md User Story 5's.
 
-- [ ] T027 [P] [US5] Write `apps/web/test/ui/loading-faults.test.ts` (FR-001 to FR-009; SC-007), fault-injection runs over: every file slow past the ceiling; a stall with no file ending; every studio file failing; the 3D chunk late and failing; a device below ADR 0010's floor; no WebGL 2; the frame floor and a lost context while the loader shows; the view throwing; no room text; the page hidden while it shows; the stacked layout; and each server state of FR-002. Each run must end with the hand-off started within 7 seconds of "Enter", the AI disclosure in view, the stand-in line in view while it applies, the room usable, the motion hold released, and no loader left on screen; a fetch and beacon spy must see no request beyond today's but at most one `loading_cut_short`. Check: RED for any fault the code doesn't yet meet, then GREEN after T028 (feat/012-loading-screen)
-- [ ] T028 [US5] Fix what T027 finds, in the module it names. Check: T027 passes (feat/012-loading-screen)
+- [x] T027 [P] [US5] Write `apps/web/test/ui/loading-faults.test.ts` (FR-001 to FR-009; SC-007), fault-injection runs over: every file slow past the ceiling; a stall with no file ending; every studio file failing; the 3D chunk late and failing; a device below ADR 0010's floor; no WebGL 2; the frame floor and a lost context while the loader shows; the view throwing; no room text; the page hidden while it shows; the stacked layout; and each server state of FR-002. Each run must end with the hand-off started within 7 seconds of "Enter", the AI disclosure in view, the stand-in line in view while it applies, the room usable, the motion hold released, and no loader left on screen; a fetch and beacon spy must see no request beyond today's but at most one `loading_cut_short`. Check: RED for any fault the code doesn't yet meet, then GREEN after T028 (feat/012-loading-screen)
+- [x] T028 [US5] Fix what T027 finds, in the module it names. Check: T027 passes (feat/012-loading-screen)
 
 **Checkpoint**: the loader never holds the room back.
 
