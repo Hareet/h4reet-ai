@@ -51,7 +51,7 @@ The Maintain stage's pattern — deterministic detection, version-controlled res
 
 ## Development harness and product runtime are separate concerns
 
-The lifecycle above runs on Claude Code, under the permissions, hooks, and sandbox in `.claude/settings.json`. The product — the twin — runs on whatever the gateway routes to: local models on the RTX 5090 first, Bedrock as capped fallback. Nothing in the lifecycle depends on which model the product calls, and the product evals run against every adapter. Development-time model spend is tracked separately from the production budget.
+The lifecycle above runs on Claude Code, under the permissions, hooks, and sandbox in `.claude/settings.json`. The product — the twin — runs on whatever the gateway routes to: local models on the RTX 5090 first, Bedrock as capped fallback. Its default host is one EC2 VM, by the amendment of ADR 0044: there the Anthropic API answers first and Bedrock second, and the laptop serves when the Author runs it. Nothing in the lifecycle depends on which model the product calls, and the product evals run against every adapter. Development-time model spend is tracked separately from the production budget.
 
 ## Solo-developer adaptations
 
