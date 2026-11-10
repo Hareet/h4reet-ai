@@ -6,9 +6,12 @@ Opus 5.5), for the main session · Date: 2026-11-09
 
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
 `/tmp/claude-1000/wt-imgready`, cut at `fix/007-steady-clock-test`'s tip, 40624d2d (gate 1; Status). Repo hooks
-active: yes. In `.claude/audit/hooks.log`, every event in `wt-imgready` from the worktree's `git worktree add -b
-fix/007-image-readiness` at 2026-11-10T01:04:34Z on was ALLOW, but one post-edit WARN at 01:11:59Z: the lint of the new
-test between two edits (a helper not yet used), clean after the next edit.
+active: yes. In `.claude/audit/hooks.log`, every event of this session's in `wt-imgready` from the worktree's `git
+worktree add -b fix/007-image-readiness` at 2026-11-10T01:04:34Z on was ALLOW, among them step 1's `git
+--no-replace-objects merge --no-edit refs/heads/main` at 04:42:28Z, but one post-edit WARN at 01:11:59Z: the lint of
+the new test between two edits (a helper not yet used), clean after the next edit. The three BLOCKs in the same
+worktree, at 01:48:00Z ("redirecting git hooks or config", a `git config --show-origin` read), 01:48:35Z, and 01:51:44Z
+("a read-only role writing a file"), are a read-only role's, the review's by their time, not this session's.
 
 Authorized by: spec 007's FR-030 ("THE GATEWAY and THE ROOM'S BUILD SHALL read the same file under the same rule") and
 FR-037 ("THE ROOM'S BUILD SHALL write each selectable's `ready` and `free_talk.ready` into `room-manifest.json` from
@@ -16,36 +19,47 @@ FR-037 ("THE ROOM'S BUILD SHALL write each selectable's `ready` and `free_talk.r
 session's brief, which named the suspected bug and asked for it confirmed, then fixed test-first. No decision of yours
 was relayed to this session.
 
-## Status: reviewed, ready; waiting on gate 1's merge
+## Status: ready for its gate, on b0fa1d73, with step 1 done
 
-This branch is stacked on `fix/007-steady-clock-test` (gate 1; 40624d2d, reviewed: ready; its note,
-[2026-11-09-fix-007-steady-clock-test.md](2026-11-09-fix-007-steady-clock-test.md)), which already fixes `main`'s own
-`lint` and web failures under it. So **its gate comes after gate 1's merge**, once `refs/heads/main` is merged into it
-(step 1): don't gate it before. Its own `REVIEW.md` pass, over 5a28f4dc, says "Verdict: ready. Nothing blocks it."
-(Review); the commit after it changes this note alone.
+Gate 1 (`fix/007-steady-clock-test`, 40624d2d; its note,
+[2026-11-09-fix-007-steady-clock-test.md](2026-11-09-fix-007-steady-clock-test.md)) is on `main` by your hand merge,
+f76ead54. Step 1 is done: this session merged `refs/heads/main` (f76ead54) into the branch, b0fa1d73, "Merge branch
+'refs/heads/main' into fix/007-image-readiness". `main`'s tree was gate 1's own, so the merge's tree, f2f65d4f, is the
+reviewed tip's, 76c5b44f's, exactly. The branch's own `REVIEW.md` pass, over 5a28f4dc, says "Verdict: ready. Nothing
+blocks it." (Review); the commits after it are the note's and that merge. The checks below are on b0fa1d73, before this
+note's update; **gate it now, from step 2.**
+
+| Check, on b0fa1d73 | Result |
+|---|---|
+| Against `refs/heads/main` (f76ead54) | an ancestor of the tip, as are acde8b8b (the fix), 76c5b44f (the reviewed tip), and 40624d2d (gate 1); the diff from `main` is exactly this branch's four files, as step 3's guard checks |
+| `make lint` | exit 0 |
+| `make test` | exit 0: the gateway "95 passed (95)", "1652 passed \| 13 skipped (1665)"; the web "109 passed (109)", "2704 passed (2704)"; pytest "4099 passed in 407.86s (0:06:47)" |
+| `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,834; the behavioral tier's advisory WARN |
+| `make check ENGINE_MODE=none-yet` | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix` E10 and E14 alone, the environment's, as in gate 1's note; `arrival` "0 findings in 52 files (6 commits)", no warnings now that the intake is on `main` |
+| `gitleaks dir` on the tip's tree | no leaks |
+
+And before `main`'s merge, unchanged by it:
 
 | Check | Result |
 |---|---|
 | The bug, in the image built as the gate builds it, from 40624d2d | confirmed: the index's three topics `ready:!1`, each talk object's `"ready": false`; the same export's tree read by the same code: all three ready |
 | RED (1bb042eb), then GREEN (acde8b8b) | `image-inputs.test.ts`: "3 failed \| 2 passed (5)", then "5 passed (5)" |
 | The image built from acde8b8b | the three topics `ready:!0`, the four talk objects `"ready": true`, free talk `false`; nginx's root the same eight entries, and neither hash in any of its files |
-| `make lint` | exit 0 |
-| `make test` | exit 0: the gateway "95 passed (95)", "1652 passed \| 13 skipped (1665)"; the web "109 passed (109)", "2704 passed (2704)"; pytest "4099 passed in 389.64s (0:06:29)" |
-| `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,833; the behavioral tier's advisory WARN |
-| `make check ENGINE_MODE=none-yet` | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix` E10 and E14 alone, the environment's, as in gate 1's note |
-| Against `refs/heads/main` (ada55c98) | an ancestor of the tip; `gitleaks dir` on the tip's tree, no leaks |
+| `make lint`, `make test`, `make evals`, `make check`, on ea82cff9 | the same results as on b0fa1d73 but arrival's eight warnings (fix/009's intake, then in the range) and pytest's time (Verification) |
 
 ## Runs in your terminal
 
-After gate 1's steps 1 to 3 (its note). Nothing paid, and no `--prove` or behavioral tier: this branch touches neither
-`deploy/agents-engine/` nor `.claude/settings.json` (stage E), nor `CLAUDE.md`, `REVIEW.md`, `.claude/`,
-`evals/agent-config/`, or the Claude Code pin (the agent-config evals). Against gate 1's tip it changes four files:
-`apps/web/Dockerfile`, `apps/web/test/room/image-inputs.test.ts`, `specs/007-twin-conversation/plan.md`, and this note.
-Each line below is short, for your terminal's wrap.
+Gate 1 is merged (f76ead54), and step 1 is done (b0fa1d73), so start at step 2. Nothing paid, and no `--prove` or
+behavioral tier: this branch touches neither `deploy/agents-engine/` nor `.claude/settings.json` (stage E), nor
+`CLAUDE.md`, `REVIEW.md`, `.claude/`, `evals/agent-config/`, or the Claude Code pin (the agent-config evals). Against
+`main` it changes four files: `apps/web/Dockerfile`, `apps/web/test/room/image-inputs.test.ts`,
+`specs/007-twin-conversation/plan.md`, and this note. Each line below is short, for your terminal's wrap. If `main`
+moves before the gate, step 3's guard says `no`: tell the session, which merges `main` again.
 
-1. **`main` into this branch, after gate 1's merge.** A session does it in the branch's worktree and reruns the checks;
-   if its merge is refused (as the stacking merge was, in gate 1's note), these lines do it. First the check that gate
-   1 is on `main`:
+1. **`main` into this branch, after gate 1's merge. Done:** this session's merge, b0fa1d73, of `refs/heads/main` at
+   f76ead54, through the worktree's own `git --no-replace-objects merge --no-edit refs/heads/main`, which the hooks
+   and the classifier allowed. Kept as the record, the lines it gave for your hand, had the session's merge been
+   refused; first the check that gate 1 is on `main`:
 
    ```bash
    cd /tmp/claude-1000/wt-imgready
@@ -260,10 +274,138 @@ archive` export outside the worktree, with the gate's own arguments (`docker bui
 <export>/apps/web/Dockerfile --build-arg HTTP_PROXY=… --build-arg HTTPS_PROXY=… --build-arg ROOM_DRAFTS= <export>`, no
 named contexts: the Dockerfile's empty policy, room-assets, and visitor-assets stages), tagged
 `h4reet-web:imgready-before` and `h4reet-web:imgready-after`. Both images, both exports, and their logs were deleted by
-name after. `make lint`, `make test`, `make evals`, and `make check` ran on ea82cff9 (the fix and this note's draft);
-the two commits after it change this note alone.
+name after. `make lint`, `make test`, `make evals`, and `make check` ran twice: on b0fa1d73, step 1's merge of `main`
+(first below), and before it on ea82cff9 (the fix and this note's draft), whose next two commits changed this note
+alone. Each ran alone, with no other heavy run beside it.
 
-### The bug, in the image built from 40624d2d
+### On b0fa1d73, after step 1's merge of main
+
+#### The merge, and the branch against main
+
+`refs/heads/main` was f76ead54, "Merge fix/007-steady-clock-test (40624d2df922) by hand", its parents ada55c98 and
+40624d2d, and its tree gate 1's own (`git diff --stat 40624d2d f76ead54` empty). In the worktree, `git
+--no-replace-objects merge --no-edit refs/heads/main`: "Merge made by the 'ort' strategy.", exit 0, b0fa1d73. Then:
+
+```text
+HEAD^{tree}      f2f65d4f746e16adda2730d14249b54bea836d8b
+76c5b44f^{tree}  f2f65d4f746e16adda2730d14249b54bea836d8b
+ancestor: refs/heads/main
+ancestor: acde8b8b685359fe901ff8f42ea44f8a2b143bb8
+ancestor: 76c5b44f
+ancestor: 40624d2d
+--- diff vs main:
+apps/web/Dockerfile
+apps/web/test/room/image-inputs.test.ts
+docs/merge-requests/2026-11-09-fix-007-image-readiness.md
+specs/007-twin-conversation/plan.md
+four files: exactly
+```
+
+The last line is step 3's comparison, the sorted `git diff --name-only refs/heads/main HEAD` against the four names.
+
+#### make lint
+
+On b0fa1d73, exit 0:
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+461 files already formatted
+```
+
+followed by shellcheck over the repository's scripts, with no finding.
+
+#### make test
+
+On b0fa1d73, exit 0, all three suites:
+
+```text
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+ Test Files  95 passed (95)
+      Tests  1652 passed | 13 skipped (1665)
+ Test Files  109 passed (109)
+      Tests  2704 passed (2704)
+4099 passed in 407.86s (0:06:47)
+```
+
+#### make evals
+
+On b0fa1d73, exit 0:
+
+```text
+evals product (fake): 187 passed, 0 failed
+INFO (twin readiness): hobbies-and-travel: ready, its evidence at the running hashes
+INFO (twin readiness): mission: ready, its evidence at the running hashes
+INFO (twin readiness): work-projects: ready, its evidence at the running hashes
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 05cec03a74a5
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+agent-config behavioral: fail, 0 planned
+note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
+docs links: 0 failed, 1834 relative links in 262 files
+```
+
+#### make check ENGINE_MODE=none-yet
+
+On b0fa1d73, exit 2, `matrix` alone failing, on E10 and E14, as in gate 1's note:
+
+```text
+secrets: PASS (unstaged changes, staged changes, 6 commits since main)
+first visit (phase 3): 9,841,044 of 25,000,000 bytes · history: 25,459,087 of 500,000,000 bytes
+arrival-check: 0 findings in 52 files (6 commits)
+redteam: 68 passed, 0 failed
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded images are missing
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-a
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+```
+
+Its `test` step: the gateway "95 passed (95)", "1652 passed | 13 skipped (1665)"; the web "109 passed (109)", "2704
+passed (2704)"; pytest "4099 passed in 395.04s (0:06:35)". `arrival` has no warnings now: fix/009's intake is on
+`main`, out of the range. `image` is SKIP under `ENGINE_MODE=none-yet`; the gate's image step builds it.
+
+#### gitleaks
+
+`gitleaks dir` over the tip's tree, a `git --no-replace-objects archive` export of b0fa1d73 with this note's update,
+all but this paragraph, copied in, with the gate's flags (`--redact`, `--config` main's `.gitleaks.toml` shown into a
+scratch file, a fresh empty `--gitleaks-ignore-path`, `--ignore-gitleaks-allow`, `--report-format json`, `--exit-code
+99`), from inside the export, with no `.gitleaksignore` at its root; its JSON report `[]`:
+
+```text
+10:06PM INF scanned ~50812421 bytes (50.81 MB) in 2.08s
+10:06PM INF no leaks found
+exit 0
+```
+
+The export and its scratch folder (`$TMPDIR/imgready-gl-export3`, `$TMPDIR/imgready-gl3`) were deleted by name after.
+
+### Before main's merge (ea82cff9 and earlier)
+
+The records from before step 1, as they were, on the commits each names.
+
+#### The bug, in the image built from 40624d2d
 
 The entry chunk's index, `grep -o "topics:\[[^]]*\]" assets/index-*.js` in `/usr/share/nginx/html`:
 
@@ -298,7 +440,7 @@ readiness and the limits), its tree log's `config/` paths, the same in both:
 config reads ["config/twin/corpus.json","config/twin/prompt.md","config/twin/lines.yaml","config/twin-readiness.yaml","config/budgets.yaml"]
 ```
 
-### RED, then GREEN
+#### RED, then GREEN
 
 RED, 1bb042eb, `npx vitest run test/room/image-inputs.test.ts` in `apps/web`:
 
@@ -328,7 +470,7 @@ existing inputs. GREEN, acde8b8b:
 `deploy/scripts/test_web_image.py` and `test_web_nginx.py`, which read the same Dockerfile (among them: every context
 file it copies is in the context, and the runtime stage copies only `dist/` from the build stage), on acde8b8b: "99 passed in 6.90s".
 
-### The image built from acde8b8b
+#### The image built from acde8b8b
 
 The build's log, its install stage:
 
@@ -358,7 +500,7 @@ and a fixed-string search of every file under it for the pack's hash and the pro
 found neither. The one file naming `twin-readiness` is the disclosure page, from `docs/data-flow-disclosure.md`'s own
 words, the same in the image before the fix.
 
-### make lint
+#### make lint
 
 On ea82cff9, exit 0:
 
@@ -376,7 +518,7 @@ ruff format --check --no-cache --extend-exclude corpus .
 
 followed by shellcheck over the repository's scripts, with no finding.
 
-### make test
+#### make test
 
 On ea82cff9, exit 0, all three suites:
 
@@ -392,7 +534,7 @@ corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this s
 The web's one more file and five more cases, against gate 1's "108 passed (108)" and "2699 passed (2699)", are
 `image-inputs.test.ts`.
 
-### make evals
+#### make evals
 
 On ea82cff9, exit 0:
 
@@ -410,7 +552,7 @@ note: the behavioral tier's line is information in make evals, not a merge block
 docs links: 0 failed, 1833 relative links in 262 files
 ```
 
-### make check ENGINE_MODE=none-yet
+#### make check ENGINE_MODE=none-yet
 
 On ea82cff9, exit 2, `matrix` alone failing, on E10 and E14, as in gate 1's note:
 
@@ -445,7 +587,7 @@ passed (2704)"; pytest "4099 passed in 460.44s (0:07:40)". The eight arrival war
 `WARN assets/visitors/…` lines, in the range since `main`, as gate 1's note expects. `image` is SKIP under
 `ENGINE_MODE=none-yet`; the image builds above ran on the engine.
 
-### Against refs/heads/main, and gitleaks
+#### Against refs/heads/main, and gitleaks
 
 `refs/heads/main` is ada55c98, an ancestor of the tip, as are 40624d2d (gate 1) and acde8b8b (the fix), so a
 `--no-ff` merge today writes the tip's own tree. Against 40624d2d the branch changes the four files above. Nothing in
@@ -500,9 +642,9 @@ The export and its scratch folder (`$TMPDIR/imgready-gl-export`, `$TMPDIR/imgrea
 
 ## For the Author
 
-1. **The order:** gate 1's steps 1 to 3 (its note), then this note's 1 to 7. Don't gate this branch before gate 1 is
-   merged and `main` is merged into it. Gate 1's step 4 (`make up ENV=prod`) and step 6 (the park) are this note's 5
-   and 7; **gate 1's step 5, the T046 demo in the browser** (fix/009's step 5: the woman at the door, the hand-off
+1. **The order:** gate 1 is merged (f76ead54) and this note's step 1 is done (b0fa1d73), so this note's steps 2 to 7
+   are next. Gate 1's step 4 (`make up ENV=prod`) and step 6 (the park) are this note's 5 and 7; **gate 1's step 5,
+   the T046 demo in the browser** (fix/009's step 5: the woman at the door, the hand-off
    ending in her left hand, a talk with the twin, the stand-in line, and "2D view"), goes beside this note's step 6, in
    the same visit to the site.
 2. **What changes in prod:** the three topics your `config/twin-readiness.yaml` marks ready open in prod's room, so
