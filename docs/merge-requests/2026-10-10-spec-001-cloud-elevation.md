@@ -227,3 +227,95 @@ One `REVIEW.md` pass, by the reviewer agent, which wrote neither the spec nor th
 - Group 6's two measurements: the forged-header replacement and the prefix list.
 
 The reviewer couldn't re-check the spec's quote of the operator CLI's ports, because the bash gate refuses commands that contain those port numbers. The fix's session read contracts/operator-admin.md §6 on main with the Read tool instead: the quote ("`127.0.0.1` or `localhost`, at the stack's own port (18003, 18103, or 18303) and no other") is word for word.
+
+## Rework, 2026-11-09
+
+**Status: the spec, the plan, and the tasks, reworked for your review. Nothing in them is approved, and no task has started.** T000, your approval, comes first. The section below was written by the spec-writer for the main session to place in this note.
+
+### The commits
+
+| Commit | What it did |
+|---|---|
+| 9e5ac5c0 | Reworked spec.md around your decisions of 2026-11-09 (ADR 0044, proposed, on `docs/001-ec2-default`): EC2 as prod's default host, the laptop when you run it, one host at a time, one shared meter, and a server budget outside the model ceilings |
+| b2ea2765 | Recorded your answers to clarify questions 13, 14, 15, and 17; question 16 taken provisionally as the session's default |
+| 4e211e57 | Drafted the plan, with research.md, data-model.md, contracts/, and quickstart.md, replacing September's |
+| 8acc2686 | Recorded your answers to the plan's questions 1 to 4 (5 to 7 provisional), applied the spec amendments question 1 needed, and wrote tasks.md |
+| this pass | The revision after `/speckit-analyze` over 8acc2686, below |
+
+### Your answers of 2026-11-09, verbatim
+
+Your decisions:
+- "On the ec2 server, anthropic api will answer first. That ec2 server will end up being the main server running, I will rarely be running the stack from my laptop other than a demo to showcase or talk about, but it should be the local-first primary scenario we built for."
+- "Keep the cap as-is at $20 a month, $5 a day."
+- "Here is how we are imagining the move to ec2 workflow: That is the default, and if i run the stack locally, the bootup should ask me what my ip address is, and a script that can configure route53 etc to point to my IP, and the necessary router / firewall settings that would need to change. If i am running locally, then the ec2 should be shut off and not incurring costs. The kill-switch monitor should turn the ec2 on if it detects that the laptop is not present or the local ip address route is offline, then a lambda function can update route53 back to the ec2."
+- "The server size and budget is outside the $20 model spend cost. Yes, bedrock stays as the ec2 second paid route."
+- On the session's five points: "Okay, all of your feedback is approved. for server size, we will try to use spot instances, or only keep the server online for 8-12 hours a day."
+
+Your choices, each the option's title, then its text as offered:
+- Principle I: "Record the reason (Recommended)": "Principle I stays as written. ADR 0044 records why EC2 complies: within the server budget EC2 has no GPU, and a model run on its CPU wouldn't meet the twin's quality bar, which your laptop's GPU model does. So the API is what meets the bar there, and the laptop stays self-hosted-first."
+- The version: "1.1.0, MINOR": "Principle V's rules stay (the meter, the kill switch, degrading). Only its reason changes. This follows general semantic versioning rather than the rule's text."
+- EC2's paid spend: "The $5 and $20 ceilings (Recommended)": "On EC2, the daily $5 and monthly $20 ceilings and the adapter caps limit the Anthropic API and Bedrock. When a ceiling trips, the twin rests until you reset it, as today. The $2-a-day sub-budget stays the laptop's fallback rule."
+- Clarify Q13: "Tiny always-on relay (Recommended)": "A small always-on instance in your AWS account, separate from EC2, using September's OpenSSH tunnel design. No third party carries visitors' messages, and the health check sees the whole path. The repo's research priced it in October at about $2.20 a month for a t4g.micro spot instance plus $3.65 for its address; that gets re-priced in the plan."
+- Clarify Q14: "Measure, then you set it (Recommended)": "The plan measures the stack without the model server and prices the smallest instance types that fit, spot and 8 to 12 hours a day, from AWS's pages. You set the figure before the first apply."
+- Clarify Q15: "Spot, around the clock (Recommended)": "A spot instance running all day, with a schedule kept in reserve. It's your first choice, and only one mechanism then starts and stops EC2."
+- Clarify Q17: "Same gap, plus an alert (Recommended)": "Like the start-up gap you already accepted. You get an alert, and visitors see the resting message until capacity returns or you start the laptop."
+- Plan Q1: "Relay picks the host (Recommended)": "The site's edge always talks to the tiny always-on relay (your tunnel's end). The relay checks both hosts every second and sends each request to the laptop if it's up, else EC2, else the resting reply. Switching takes seconds, and neither host needs a public certificate. Route 53's health check only wakes EC2. This changes the DNS-failover design you approved, so the spec's wording changes with your OK."
+- Plan Q2: "Spot": "About $2.20 a month (October's figure). AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up."
+- Plan Q3: "Add both (Recommended)": "The patch gains two small wording changes: Langfuse self-hosted in the stack, and Bedrock called from the serving host. Still 1.1.0. The ADR's old → new list grows to match."
+- Plan Q4: "Use ENV=dev offline (Recommended)": "Prod needs the network. For an offline demo you run the dev stack, which keeps its own local counter."
+
+Your words for row F3 were adopted on `feat/010-anthropic-switch`, which quotes them in its note, with your weighing: "We can say nothing is retained when running local models. Refer to Anthropic if cloud models are on."
+
+Taken provisionally by the session, not your words, for you to confirm or overturn at T000: clarify question 16 (the IAM), and the plan's questions 5 (the resting words as a spec 002 follow-up in your words), 6 ("it" is the laptop's stack), and 7 (the IAM default and its additions).
+
+### The analysis of 8acc2686, and what this pass fixed
+
+`/speckit-analyze` said T000 should wait for one revision pass. This pass had the text of C1, C2, H1 to H9, M10, and M12. The text of M1 to M9, M11, M13, M14, L1 to L5, and the four counted nits didn't reach it; the main session holds the analysis. This pass made its own consistency fixes instead (the last list below), and maps none of them to those IDs.
+
+| ID | The finding, in short | Fixed by |
+|---|---|---|
+| C1 | Your constitution patch sat in group 2 (old T016), after group 1, and the "first `infra/` file" line named the wrong task | It is now T001, before any group, the default order you confirm at T000. Groups 3 to 9 each check it first. The first file under `infra/` is T020 (old T018), and tasks.md's Dependencies say so |
+| C2 | The "Hosts" dashboard row came in group 10, after its features, against the constitution's Development Workflow step 7 | Each panel moved into its feature's group (plan §11): the tunnel and the collector's counters (group 5, T053), the shared state (group 6, T075), the release per host (group 7, T091), the relay's panels (group 8, T110), and the handover's and the server budget's panels (group 9, T127). Group 9 now writes the sink's cloud reads as metrics (T121, T126), since those panels need them. T138 (old T109) keeps only `/status/` |
+| H1 | `placeholder_gate` reads only `envs.prod.fallback`; EC2's route line is yours (ADR 0041); your F3 words are already adopted | Group 6 gains a test-first pair, T062 and T069, that make the gate read every host route's `first`, `second`, and `fallback`, landing before schema 2 (T070). T070 writes only the laptop's line. EC2's line is your step, T095, in group 7. "Write your words into F3" is gone from the tasks and the quickstart; spec, plan, and tasks say your words reach `main` with `feat/010-anthropic-switch`, before group 6 |
+| H2 | spec.md's Degraded Modes row at :780 | Rewritten, with a row for the tunnel end down for reasons other than spot (a crash, a failed deploy, a revoked key) |
+| H3 | Rows V2, V4, V6, C2, C3, C4, and S17 described more than one relay; no row for the telemetry forward | Rewritten for one relay, on the tunnel end. New row C15: the tunnel end's collector to the serving host's, the laptop's through the reverse forward 2202 to its `edge`'s 8086 |
+| H4 | Pre-question-1 text left at spec.md :67, :458, :596, :597, :624, and research.md :138, :253; the checklist claimed none was left | Each rewritten. The checklist now says its first claim was wrong, and what a search after this pass finds |
+| H5 | The guard didn't stop EC2 while the server budget's action had run | FR-071, the handover contract, research R-15, and the alerts contract: the guard reads the action's status and stops EC2 with `ec2_stopped_server_budget`. Tests T117 and T119 |
+| H6 | Each group's order put your patches and the apply before the review | Each group is now: tests; code; your plan block on the branch; review and note; your patches, the gate, and the merge; your apply on `main`. Your plan block comes from a scratch clone with the group's patches applied, so the tree hash matches once you commit them on the branch |
+| H7 | No patch for the relay's public cap figures | P-6, `config/budgets.yaml`'s new `public` section, each figure yours: in plan §14, drafted in group 8 before the relay (T105), applied with your figures before the gate (T114). spec.md's Assumptions name it |
+| H8 | The Bedrock deny could attach to a role Identity Center manages | The deny attaches to `h4-laptop-bedrock`, an ordinary role the laptop's permission set assumes, and to `h4-prod-gateway`. The rehearsal's target is an ordinary role of the same shape. Both to confirm in group 4. Row F2 changes to match |
+| H9 | The relay runs on spot, and the Cloud standard lists it among what "must be always-on" | Not decided: it is the plan's question 8, for T000, with option A (your wording in the unapplied 1.1.0 patch) and option B (a deviation in the Assumptions, citing ADR 0044). "always-on" no longer describes the tunnel end outside quotes |
+| M10 | ADR 0044 | Left to the main session, which routes it to its branch |
+| M12 | This section | This section |
+
+**Other fixes this pass made, from its own read:**
+- spec.md: FR-017 has the relay read the kill switch; the Assumption that said the spec "is not planned" until 1.1.0 now says no task starts past T001; Clarifications list question 7's later additions and question 8.
+- plan.md: the Status, the Constitution Check, and Complexity Tracking carry T001 and question 8; §8.3 lists F2, C14, and C15, and which group adds each row; §10 has the guard's three stops, the placeholder gate, and the tunnel end's collector; §14's "His steps" drop the F3 words (adopted) and add EC2's route line; the Phases section and the documentation tree no longer say the tasks are still to write.
+- tasks.md: the laptop's route keeps `fallback: anthropic`, as `main` names it after the switch (the old T056 said `bedrock`); the tunnel end's collector configuration, which no task wrote, is T045 and T050; the disclosure rows C8 to C11, which no task added, are in T026 and T036; the sink's one-key write grant moved from group 10, which had no patch or apply for it, into group 9's P-I6; `make ec2-start` in group 7's quickstart became a start from the console, since the command arrives in group 9.
+- contracts: the credential audit checks `h4-laptop-bedrock`; the start function and the guard log one embedded-metric line per outcome, which the sink counts (to confirm); the public view's sink exports its cloud reads.
+- research.md R-15: the tunnel end's role gains its dashboard reads, all reads, under question 7.
+
+**Old task numbers to new.** The tasks were renumbered:
+- before any group: T000 stays; T016 → T001;
+- group 1: T001 to T007 → T002 to T008; T009 stays the review; T008 → T010 (your patches, gate, merge) and T011 (the mirror);
+- group 2: T010 to T015 → T012 to T017; T017 → T018; T019 new (gate, merge);
+- group 3: T018 to T023 → T020 to T025; T026 and T027 new; T025 → T028; T024 → T029 and T030;
+- group 4: T026 to T031 → T031 to T036; T037 new; T033 → T038; T032 → T039 and T040;
+- group 5: T034 to T037 → T041 to T044; T045 new; T038 to T041 → T046 to T049; T050 new; T042, T043 → T051, T052; T053 new; T044 → T054; T055 new; T046 → T056; T045 → T057 and T058;
+- group 6: T047 to T049 → T059 to T061; T062 new; T050 to T055 → T063 to T068; T069 new; T056 to T060 → T070 to T074; T075 new; T061 → T076; T077 new; T063 → T078; T079 new; T062 → T080;
+- group 7: T064 to T073 → T081 to T090; T091 new; T074 → T092; T093 new; T077 → T094; T095 new; T075, T076 → T096, T097;
+- group 8: T078 to T084 → T098 to T104; T105 new; T085 to T088 → T106 to T109; T110 new; T089 → T111; T112 new; T091 → T113; T114 new; T090 → T115;
+- group 9: T092 to T096 → T116 to T120; T121 new; T097 to T100 → T122 to T125; T126 and T127 new; T101 → T128; T129 new; T105 → T130; T131 new; T102 to T104 → T132 to T134;
+- group 10: T106 to T108 → T135 to T137; T109 → T138; T111 → T139; T140 new; T110 → T141;
+- group 11: T112 to T114 → T142 to T144; T118 → T145; T146 new; T115 to T117 → T147 to T149.
+
+### For you at T000
+
+1. Approve the spec and the plan, or say what to change.
+2. Confirm or overturn the session's provisional answers: clarify question 16, and the plan's questions 5, 6, and 7, with question 7's four additions (the start function's read of the tunnel end's state; the guard's read of the server action's status; `h4-laptop-bedrock`; the tunnel end's reads for the dashboard).
+3. Answer the plan's question 8: A, your wording in the 1.1.0 patch, or B, a deviation in the Assumptions citing ADR 0044.
+4. Confirm T001's place: the 1.1.0 patch, as amended, before any group.
+
+### Verification
+
+Documents only. No code, configuration, or infrastructure file changed. The main session runs Prettier and commits.

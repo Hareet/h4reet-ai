@@ -72,8 +72,8 @@ schema: 2
 envs:
   prod:
     hosts:
-      laptop: { primary: local, fallback: bedrock }   # or fallback: anthropic
-      ec2:    { first: anthropic, second: bedrock }
+      laptop: { primary: local, fallback: anthropic }   # as main's prod route names it (feat/010-anthropic-switch)
+      ec2:    { first: anthropic, second: bedrock }     # the Author's line, in group 7 (ADR 0041)
   dev: { primary: local, fallback: synthetic }
 ```
 
@@ -81,11 +81,11 @@ envs:
 |---|---|
 | R1 (amended) | Every `primary` names a local adapter. A route with `first` names only paid adapters, in `first` and an optional `second`, and appears only as `envs.prod.hosts.ec2`. |
 | R2 (spec 010, unchanged) | Dev's route names no paid adapter. |
-| H1 (new) | `envs.prod` has exactly the hosts `laptop` and `ec2`. |
+| H1 (new) | `envs.prod.hosts` has `laptop`, and may have `ec2`, and no other host. A gateway with `H4_HOST=ec2` refuses to start while `ec2` is missing (exit 78, `route_missing`). |
 | H2 (new) | The gateway selects `envs.<H4_ENV>.hosts.<H4_HOST>` where `hosts` exists, else `envs.<H4_ENV>`. |
 | A1 (new) | Calls on a `first` or `second` route are attributed `metered`; calls on a `fallback` route are attributed `fallback`, as today. |
 
-Spec 010's refusals hold for each named paid adapter: its price version, its cap where it is `anthropic-messages`, and its key.
+Spec 010's refusals hold for each named paid adapter: its price version, its cap where it is `anthropic-messages`, and its key. `evals/test_disclosure.py`'s `placeholder_gate` reads every host route's `first`, `second`, and `fallback` (group 6, test-first), so F3's placeholder fails `make test` whichever route names the Anthropic API.
 
 ### 2.2 The environment keys
 
@@ -160,7 +160,7 @@ The laptop wins whenever it is healthy. Each move writes a handover event; a mov
 | running | `make ec2-stop` | stopped (a user stop) | the Author |
 | running | a spot interruption | stopped (an interruption), with the warning alert | AWS |
 | stopped (an interruption) | capacity returns | running | AWS |
-| running | started while the laptop serves or the switch is off | stopped (a user stop) | `h4-ec2-guard` |
+| running | started while the laptop serves, the switch is off, or the server budget's action has run | stopped (a user stop), with `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, or `ec2_stopped_server_budget` | `h4-ec2-guard` |
 | any | the server budget's action | stopped; the start function refuses until `make server-budget-restore` | AWS Budgets |
 | stopped | the tunnel end returns while the laptop isn't serving (one run of the start function) | running | `h4-ec2-start` |
 

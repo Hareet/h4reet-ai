@@ -50,13 +50,14 @@ schema: 2
 envs:
   prod:
     hosts:
-      laptop: { primary: local, fallback: bedrock }
-      ec2:    { first: anthropic, second: bedrock }
+      laptop: { primary: local, fallback: anthropic }   # as main's prod route names it
+      ec2:    { first: anthropic, second: bedrock }     # the Author's line, in group 7
   dev: { primary: local, fallback: synthetic }
 ```
 
 The gateway selects `envs.prod.hosts.<H4_HOST>` on prod. It refuses with exit 78:
 - a route against R1 as amended;
+- `H4_HOST=ec2` while `envs.prod.hosts.ec2` is missing (`route_missing`);
 - `H4_HOST=ec2` with a `primary`;
 - `H4_HOST=laptop` with a `first`;
 - a paid adapter missing its price, cap, or key (spec 010).

@@ -6,6 +6,12 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 - **"Your terminal"** is the Author's, outside Claude Code. Agents can't run these commands.
 - **Each run's record** (outputs, times, and AWS's own timestamps) goes into the group's merge-request note, redacted of account IDs and addresses.
 - **No run reads or prints a secret value.**
+- **Each group's order** (plan §16; tasks.md): your plan block on the branch, from a scratch clone with the group's patches applied and committed there; the review and the note; then your patches on the branch, the gate, and the merge; then your apply on `main`. The runs below are the ones after the merge.
+
+## 0. Before any group
+
+1. Approve the spec and the plan (tasks.md T000), and answer the plan's question 8.
+2. Apply the constitution's 1.1.0 patch as amended on `docs/001-ec2-default`, with your question 8 wording if you chose A, and accept ADR 0044 (T001). `.specify/memory/constitution.md` reads "**Version**: 1.1.0". Groups 3 to 9 check this first.
 
 ## 1. Group 1: the guards
 
@@ -17,20 +23,20 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64.
 2. Price research.md R-05's lines from AWS's pages in your terminal: EC2's measured types on spot, and an 8-to-12-hour day as the reserve; the tunnel end on spot (plan question 2); RDS; the health check; and the "to confirm" lines.
-3. Set `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`. Apply P-2, constitution 1.1.0, so the infrastructure groups may start.
+3. Set `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`, and record your prices on the branch before its review.
 
 ## 3. Group 3: the bootstrap (SC-012 starts)
 
-1. `make plan ROOT=bootstrap`; paste the block; the gate passes; merge.
+1. `make plan ROOT=bootstrap` in a scratch clone with P-I1 applied; paste the block; after the review, apply P-I1 on the branch; the gate passes; merge.
 2. `make infra-verify ROOT=bootstrap`, apply the saved plan, `make infra-record`. Migrate the state (`terraform init -migrate-state`), and record it.
 3. Activate the cost-allocation tags in the Billing console. Confirm SNS's email subscription.
 4. Check that `h4-model-month`, `h4-model-day`, `h4-server-month`, and the anomaly monitor exist with their thresholds.
 
 ## 4. Group 4: the safety net (SC-009)
 
-1. Apply `infra/account`, and write the Telegram parameters.
+1. Apply `infra/account`, with the import of the laptop's Bedrock permission set, now narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`. Point the laptop's Bedrock profile at that role, as the runbook says, and check with `aws sts get-caller-identity` that it names `h4-laptop-bedrock`, with no paid call. Write the Telegram parameters.
 2. Set `rehearsal = true`, plan, and apply. Wait for AWS to evaluate both $0.01 budgets.
-3. Record, per action, from AWS's timestamps: when it evaluated; when Telegram and email got the alert; when the policy was attached to `h4-rehearsal-target`, and when `h4-rehearsal-instance` was stopped. Note the delay.
+3. Record, per action, from AWS's timestamps: when it evaluated; when Telegram and email got the alert; when the policy was attached to `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock` (to confirm), and when `h4-rehearsal-instance` was stopped. Note the delay.
 4. `rehearsal = false`; plan; apply.
 
 **SC-009 passes** when both channels got each alert and each action took effect on its target.
@@ -41,7 +47,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 2. `make up ENV=prod` on the laptop, with the `tunnel` profile. `h4.tunnel.up` is 1 on both ends.
 3. From a machine outside your network, scan your public address: zero open ports. Stop the tunnel and scan again: zero.
 4. Scan the tunnel end's Elastic IP: only 2222, and 8087 from Route 53's ranges, which looks closed from your scanner.
-5. `make tunnel-revoke`: the tunnel drops within a minute. Restore the key.
+5. `make tunnel-revoke`: the tunnel drops within a minute, and the dashboard's tunnel panel shows it. Restore the key.
 
 **SC-006 passes** when both scans of your address find zero open ports.
 
@@ -59,9 +65,9 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 7. Group 7: EC2 (SC-005, SC-017)
 
-1. Apply EC2, and write its secrets: the Anthropic key, Telegram's and SMTP's, the store's passwords, and its relay token.
-2. Write your words into row F3 (spec 010). `make test` passes with EC2's route naming the Anthropic API.
-3. `make release`. Start EC2 with `make ec2-start`. Its deployer checks the bucket, then the stack starts. `make cloud-session HOST=ec2`, then hello through the internal path: answered by `anthropic`, with provider, model, tokens, and cost on the span and the ledger row, `host = ec2`, attribution `metered`.
+1. Before the merge, on the branch: apply P-I4, then add EC2's route line to `config/routing.yaml`, `ec2: { first: anthropic, second: bedrock }`, in your own commit (ADR 0041; tasks.md T095). Your words in row F3 are already adopted, on `feat/010-anthropic-switch`, which reached `main` before group 6. So `make test`'s placeholder gate, which now reads every host route, passes with EC2's route naming the Anthropic API. Gate, and merge.
+2. Apply EC2, and write its secrets: the Anthropic key, Telegram's and SMTP's, the store's passwords, and its relay token. Set the Anthropic account's monthly spend limit at or under $20 where the account offers one, and record that it is set.
+3. `make release`. Start EC2 from the console (`make ec2-start` arrives in group 9). Its deployer checks the bucket, then the stack starts. `make cloud-session HOST=ec2`, then hello through the internal path: answered by `anthropic`, with provider, model, tokens, and cost on the span and the ledger row, `host = ec2`, attribution `metered`.
 4. **SC-017:** run the recorded 100-turn run on EC2's stack, with stand-ins for both paid APIs, healthy and then with the Anthropic stand-in failing:
    - with both healthy, 100% of answered turns come from the Anthropic adapter;
    - with it failing, 100% of admitted turns come from Bedrock;
@@ -88,8 +94,9 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - `h4-handover` stops EC2 within 5 minutes;
    - no request went unanswered.
 4. **Pause:** `make ec2-autostart STATE=off`, then cut the laptop. EC2 stays stopped, and `ec2_start_refused (paused)` arrives. `make ec2-autostart STATE=on`: EC2 starts.
-5. **The guard:** with the laptop serving, `make ec2-start` is refused (`laptop_serving`). Start EC2 from the console: the guard stops it and alerts.
-6. **SC-018, five times:** rehearse a spot interruption on EC2, through AWS's fault-injection service or the console's interruption test (to confirm and to price). Check each time that:
+5. **The guard:** with the laptop serving, `make ec2-start` is refused (`laptop_serving`). Start EC2 from the console: the guard stops it and alerts `ec2_stopped_laptop_serving`. Its third stop, while the server budget's action has run (`ec2_stopped_server_budget`), is proven by its tests (tasks.md T117); group 4's rehearsal of that action stops `h4-rehearsal-instance`, never EC2.
+6. **The dashboard:** the "Hosts" row shows EC2's state, each start and refusal, the guard's stops, the pause switch, the health check's status, and the handover window, from the sink's cloud reads.
+7. **SC-018, five times:** rehearse a spot interruption on EC2, through AWS's fault-injection service or the console's interruption test (to confirm and to price). Check each time that:
    - the warning's alert arrives within AWS's notice;
    - requests get `no_host_serving`;
    - EC2 serves again without you once capacity returns;
@@ -100,8 +107,8 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - the site loads, and every dynamic request gets the edge's `no_host_serving`;
    - while it is gone, cutting the laptop gives `ec2_start_refused (tunnel_end_down)`;
    - on its return, `tunnel_end_back` arrives, the laptop's tunnel reconnects, the start function runs once, and the relay serves whichever host is up.
-7. **SC-001:** over a day, with the laptop off and EC2 serving, the probe's results: 100% within 5 s; windows with no host answered `no_host_serving` within 5 s.
-8. **The first public release.** Then **SC-010:** load every page and call hello, the status, and a twin turn with the browser's network log on. 100% of requests go to hareet.ai, and no cookie is set. **SC-011:** `evals/visitor_scan.py` after a scripted visit with a marker message, on each host and the shared state: zero finds.
+8. **SC-001:** over a day, with the laptop off and EC2 serving, the probe's results: 100% within 5 s; windows with no host answered `no_host_serving` within 5 s.
+9. **The first public release.** Then **SC-010:** load every page and call hello, the status, and a twin turn with the browser's network log on. 100% of requests go to hareet.ai, and no cookie is set. **SC-011:** `evals/visitor_scan.py` after a scripted visit with a marker message, on each host and the shared state: zero finds.
 
 ## 10. Group 10: the public view (SC-013)
 

@@ -35,17 +35,20 @@ A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. 
 | 4. When invoked by hand (§7) or `from: tunnel_end_back`, read the health check's status | `laptop_serving` if healthy |
 | 5. `ec2:StartInstances` on the tagged instance | `start_failed`, with AWS's error code (for example, no spot capacity) |
 
-Each outcome, started or refused and why, is one message to `h4-alerts`. It makes one attempt per invocation and never loops (FR-065).
+Each outcome, started or refused and why, is one message to `h4-alerts`, and one log line in CloudWatch's embedded metric format, which the sink counts for the dashboard (contracts/public-view.md §2; to confirm in group 9). It makes one attempt per invocation and never loops (FR-065).
 
 ## 4. `h4-ec2-guard`
 
-The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-guard-fn`: it may stop the tagged instance and nothing else, read the parameter and the health check's status, and publish to `h4-alerts`. On `h4-ec2-running`:
+The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-guard-fn`: it may stop the tagged instance and nothing else, read the parameter, the health check's status, and the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`), and publish to `h4-alerts`. On `h4-ec2-running`:
 
 | Condition | Action |
 |---|---|
 | The health check is healthy (the laptop serves) | `ec2:StopInstances`; alert `ec2_stopped_laptop_serving` |
 | The pause switch is `off` | `ec2:StopInstances`; alert `ec2_stopped_paused` |
+| The server budget's action has run and isn't reversed | `ec2:StopInstances`; alert `ec2_stopped_server_budget` |
 | Otherwise | nothing |
+
+Each stop also writes one embedded-metric log line, as §3's.
 
 ## 5. The pause switch
 

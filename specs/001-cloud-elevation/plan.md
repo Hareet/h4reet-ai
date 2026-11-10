@@ -2,7 +2,7 @@
 
 **Branch**: `spec/001-cloud-elevation` (this plan; the work runs on one feature branch per task group, [§16](#16-order-of-work-risks-and-proof)) | **Date**: 2026-11-09 | **Spec**: [spec.md](spec.md)
 
-**Status**: **Draft for the Author's review**, written on 2026-11-09 while he was away, at the main session's direction. It replaces the September plan (`plan.md` at 00309c47). The Author answered [questions 1 to 4](#questions-for-the-author) the same day, and they are applied here and in spec.md. Questions 5 to 7 weren't asked: their recommended answers are taken provisionally, as the session's defaults, not his words. No task starts before he approves it (tasks.md T000) (CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`"), and the first task that touches infrastructure waits for his constitution patch, version 1.1.0 ([Constitution Check](#constitution-check)).
+**Status**: **Draft for the Author's review**, written on 2026-11-09 while he was away, at the main session's direction. It replaces the September plan (`plan.md` at 00309c47). The Author answered [questions 1 to 4](#questions-for-the-author) the same day, and they are applied here and in spec.md. Questions 5 to 7 weren't asked: their recommended answers are taken provisionally, as the session's defaults, not his words. No task starts before he approves it (tasks.md T000) (CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`"). His constitution patch, version 1.1.0, comes next, before any group (tasks.md T001), as the default order he confirms at T000; every infrastructure group checks it first ([Constitution Check](#constitution-check)). Revised on 2026-11-09 after `/speckit-analyze` over 8acc2686.
 
 **Input**: spec.md as reworked and clarified on 2026-11-09 (commit b2ea2765), with no needs-clarification marker left. [ADR 0044](../../docs/adr/0044-ec2-as-prods-default-host.md), proposed, on branch `docs/001-ec2-default` (4fe34783). The constitution 1.0.1 in force, and the proposed 1.1.0 patch (`docs/merge-requests/2026-11-09-constitution-1.1.0.patch` on that branch). The September research, plan, data model, and contracts at 00309c47, where this plan carries something over.
 
@@ -11,11 +11,11 @@
 **Conventions** (spec 000's, plus three):
 - **The Author's terminal**: commands only the Author runs, outside Claude Code. Hooks refuse them to agents.
 - **[A]** agent-editable, reviewed; **[H]** human-only; **[P]** delivered as a patch the Author applies.
-- **The three hosts**: **the laptop** (the local tier), **EC2** (prod's default host), and **the tunnel end** (the small always-on instance where the tunnel ends). Only the laptop and EC2 serve.
+- **The three hosts**: **the laptop** (the local tier), **EC2** (prod's default host), and **the tunnel end** (the small instance, run around the clock on spot, where the tunnel ends and the relay runs). Only the laptop and EC2 serve.
 
 ## Questions for the Author
 
-Each was something this plan would otherwise have decided past his answers. Questions 1 to 4 were put to him on 2026-11-09, in the session, in the words quoted under each. His choice and the option's text are quoted as given. The options below them are as this plan first offered them, kept as the record. Questions 5 to 7 weren't asked: the session took each recommended option provisionally, as a default that the tasks carry, not his words, and his to overturn at T000.
+Each was something this plan would otherwise have decided past his answers. Questions 1 to 4 were put to him on 2026-11-09, in the session, in the words quoted under each. His choice and the option's text are quoted as given. The options below them are as this plan first offered them, kept as the record. Questions 5 to 7 weren't asked: the session took each recommended option provisionally, as a default that the tasks carry, not his words, and his to overturn at T000. Question 8 came from the analysis of 2026-11-09, after his answers. It is open, and T000 asks it.
 
 ### Question 1: How does the edge reach whichever host serves?
 
@@ -90,16 +90,27 @@ You wrote "it should be the local-first primary scenario we built for". The spec
 
 ### Question 7: Confirm the provisional IAM, with two additions
 
-**Not asked; taken provisionally on 2026-11-09** as the session's default, not his words: option A. That is question 16's default, the guard's stop-only role, and the start function's read of the health check, plus one read that question 2's answer adds: the tunnel end's state ([What the answers change](#what-the-answers-change-in-this-plan)).
+**Not asked; taken provisionally on 2026-11-09** as the session's default, not his words: option A. That is question 16's default, the guard's stop-only role, and the start function's read of the health check. Four additions came after: the start function's read of the tunnel end's state, which question 2's answer brings ([What the answers change](#what-the-answers-change-in-this-plan)); the guard's read of the server action's status, so it also stops EC2 while that action has run (the analysis's H5); `h4-laptop-bedrock`, an ordinary role the laptop's permission set assumes, so the budget action's deny never attaches to a role Identity Center manages (H8; to confirm in group 4); and the tunnel end's reads of AWS's state for the dashboard (the pause switch, the health check's status, the server action's status, and the functions' outcome counts; §11), all reads. He confirms or overturns all of it at T000.
 
 Question 16 wasn't asked; the session took its recommended option as a default (spec FR-070): "all in Terraform, human-only. The start function's role may start only the one tagged instance; the laptop's stop uses its own permission set, which may stop only that instance, through a short-lived SSO session." This plan adds two identities in the same shape (research.md R-15, R-30):
-- `h4-ec2-guard-fn`, which may stop only that instance. It stops EC2 when AWS restarts it on its own while the laptop serves or the start is paused (spec FR-071).
+- `h4-ec2-guard-fn`, which may stop only that instance. It stops EC2 when AWS restarts it on its own while the laptop serves, the start is paused, or the server budget's action has run (spec FR-071).
 - The start function reads the health check's status, so that `make ec2-start` can't start EC2 while the laptop serves.
 
 | Option | Answer | Implications |
 |---|---|---|
-| A (recommended) | Confirm the default and the two additions. | As planned. |
+| A (recommended) | Confirm the default and the additions. | As planned. |
 | B | Change them. | Research R-15's table and the handover contract change. |
+
+### Question 8: The relay on spot, against the Cloud standard (open, for T000)
+
+The relay runs on the tunnel end (question 1), and the tunnel end runs on spot (question 2), so AWS can take the relay away for a while. The Cloud standard, in force and as amended on `docs/001-ec2-default`, lists "the thin API/relay" among what "must be always-on". Neither answer said how to square that, and this plan doesn't decide it.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Add your wording to the 1.1.0 patch, which you haven't applied yet. For example, the relay "on spot capacity where the Author accepts the gap (ADR 0044)". The words are yours. | No deviation. The patch's old → new list, and ADR 0044's, grow by one line. T001 applies the patch with it. |
+| B | Keep the standard's words, and name a deviation in spec.md's Assumptions, citing ADR 0044. | A standing deviation, which the constitution's Governance says needs an ADR; ADR 0044 is it. |
+
+Meanwhile, the plan and the spec say "around the clock, on spot" for the tunnel end, never "always-on".
 
 ### What the answers change in this plan
 
@@ -149,7 +160,7 @@ These were open before planning. Each is settled here, inside the Author's answe
 Spec 001 puts prod on EC2 by default, with the laptop serving local-first when the Author runs it, one host at a time. One AWS account in us-east-1 holds:
 - **the safety net, applied first:** budgets on Bedrock's cost at the $5 and $20 ceilings, and the server budget at the Author's figure. An anomaly monitor watches the account. Two automatic actions: one revokes Bedrock on both hosts, the other stops EC2.
 - **the shared state:** RDS for PostgreSQL with spec 000's meter and kill switch, which both hosts' gateways use with `H4_STACK=prod`;
-- **the tunnel end:** a small spot instance, always on unless AWS takes it back (question 2), with OpenSSH's server for the laptop's outbound tunnel, and the relay that CloudFront reaches privately and that picks the serving host (question 1);
+- **the tunnel end:** a small instance, run around the clock on spot, so AWS can take it back (question 2), with OpenSSH's server for the laptop's outbound tunnel, and the relay that CloudFront reaches privately and that picks the serving host (question 1);
 - **EC2:** a spot instance that stops on interruption, running the very same compose file without the model server, with the Anthropic API first and Bedrock second;
 - **the handover:** a Route 53 health check through the tunnel end, whose alarm fires `h4-ec2-start`; `h4-ec2-guard`; the laptop's `h4-handover` loop, which stops EC2 once the laptop serves; and the pause switch;
 - **the edge:** CloudFront serving spec 002's site from S3 over TLS for hareet.ai, with the zone in Route 53.
@@ -224,13 +235,13 @@ Technical approach, by area:
 
 **Dependencies on other specs**:
 - **Spec 000:** its success criteria pass before work starts (spec Assumptions). Its FR-030, FR-031, rule R1, and environment contract are amended by name ([§13](#13-the-spec-amendments-question-1s-answer-needed-applied)).
-- **Spec 010:** on `main`. Its price is confirmed ("read 2026-11-09") and its cap is $20. Still open: the Author's words in row F3, which `make test` holds back while a route names the Anthropic API.
+- **Spec 010:** on `main`. Its price is confirmed ("read 2026-11-09") and its cap is $20. The Author adopted his words for row F3 on 2026-11-09, with his weighing: "We can say nothing is retained when running local models. Refer to Anthropic if cloud models are on." They are on `feat/010-anthropic-switch`, quoted in its note, and that branch, which also makes the Anthropic API prod's fallback, reaches `main` before group 6.
 - **Spec 002:** its room-conversation contract §3 gains `no_host_serving`.
 - **Spec 007:** its readiness evidence covers both hosts' adapters.
 
 ## Constitution Check
 
-*GATE: checked before research and again after design ([below](#constitution-check-post-design)).* Against 1.0.1, in force, and the proposed 1.1.0. A deviation from 1.0.1 that 1.1.0 removes is a dependency: no infrastructure task starts until the Author applies 1.1.0.
+*GATE: checked before research and again after design ([below](#constitution-check-post-design)).* Against 1.0.1, in force, and the proposed 1.1.0. A deviation from 1.0.1 that 1.1.0 removes is a dependency: no infrastructure task starts until the Author applies 1.1.0. Tasks.md puts his patch first, as T001, before any group, and makes its check a precondition of every group that touches `infra/` (groups 3 to 9).
 
 | Principle or standard | Under 1.0.1 | Under 1.1.0 as proposed | This plan |
 |---|---|---|---|
@@ -242,7 +253,7 @@ Technical approach, by area:
 | VI. Build in public | — | — | **Complies**, with ADR 0013's recorded deviation (private until publication). |
 | VII. Whole product | — | — | **Complies**: the site states nothing outside the corpus. The trade, every turn paid on EC2 and free on the laptop, is on the dashboard. |
 | VIII. Honest AI | — | — | **Complies**: red-team cases on every adapter that can answer, before public (FR-039). |
-| Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay", and, as amended for question 3, names Bedrock called from the serving host | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`. The relay is always on in the cloud, as listed, except while AWS has taken the tunnel end back (question 2; Complexity Tracking). Terraform for everything, with one named exception: secrets (research.md R-26). |
+| Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay", and, as amended for question 3, names Bedrock called from the serving host | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`. **Open for T000 (question 8):** the relay runs around the clock on spot, so it has gaps where the standard, in force and as amended, lists it among what "must be always-on". Terraform for everything, with one named exception: secrets (research.md R-26). |
 | Compute standard | — | — | **Complies**: one compose file on three hosts, with only the env file differing; the same images by digest. Image variants carried (ADR 0015). |
 | Local tier standard | "via the cloud fallback within its sub-budget" | "via the cloud host and its paid routes within the ceilings and adapter caps" | **Deviation from 1.0.1, removed by 1.1.0.** "Exposed only through an outbound tunnel" holds. |
 | Model access standard | "local-first with Bedrock as fallback inside a capped sub-budget" | per host: local-first on the laptop; the Anthropic API first on EC2 | **Deviation from 1.0.1, removed by 1.1.0.** One gateway, routes as configuration ([§6](#6-routing-per-host)). |
@@ -279,7 +290,7 @@ specs/001-cloud-elevation/
 │   ├── aws-alerts.md          # the topic, the bridge, the probe, the budgets and their two actions, spot and start alerts
 │   └── public-view.md         # the snapshot document, the publishers, the sink, the page
 ├── checklists/requirements.md
-└── tasks.md                   # next: /speckit-tasks (the September one is superseded)
+└── tasks.md                   # T000 to T149 in eleven groups, revised after /speckit-analyze (the September one is superseded)
 ```
 
 ### Source Code (repository root)
@@ -327,7 +338,7 @@ docs/adr/                           [A] at approval (§14)
 
 - **Phase 0, research:** done; [research.md](research.md). No needs-clarification item remains in this Technical Context. What stays open is the Author's to answer (the questions above), or measured in a named task (research.md R-33's memory and architectures, R-08's error-page header, and R-29's checker addresses).
 - **Phase 1, design:** done; [data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md). The agent context file isn't updated: CLAUDE.md is the Author's, and its changes are in his guard patch (§2).
-- **Phase 2, tasks:** next, `/speckit-tasks`, after his answers. The task groups are in [§16](#16-order-of-work-risks-and-proof).
+- **Phase 2, tasks:** done; [tasks.md](tasks.md), written after his answers and revised after `/speckit-analyze`. The task groups are in [§16](#16-order-of-work-risks-and-proof).
 
 ---
 
@@ -371,7 +382,7 @@ The Author sets the server budget's figure before this first apply: the state bu
 ### 3.2 The two actions, and their rehearsals (FR-023, FR-026)
 
 In `infra/account/killswitch.tf` (protected):
-- **On `h4-model-month` at 100%:** attach `h4-deny-paid-models` to EC2's gateway role and to the laptop's Bedrock permission set's role.
+- **On `h4-model-month` at 100%:** attach `h4-deny-paid-models` to EC2's gateway role, `h4-prod-gateway`, and to `h4-laptop-bedrock`, an ordinary role that the laptop's permission set assumes. Never to a role Identity Center makes for a permission set, which Identity Center manages itself. The rehearsal's target, `h4-rehearsal-target`, is an ordinary role of the same shape. Both are to confirm in group 4 (research.md R-22, R-15).
 - **On `h4-server-month` at 100%:** run `AWS-StopEC2Instance` on the tagged instance (to confirm the action type's form). The start function refuses while it is executed.
 - **Rehearsals:** while `rehearsal = true`, two $0.01 budgets with the same actions, against a rehearsal role and a rehearsal instance. The record says when AWS evaluated, when each channel got the alert, and when each action took effect (SC-009). Then `rehearsal = false`.
 
@@ -425,17 +436,19 @@ The Author reverses either action after the seven-day incident note: `make serve
   - the relay, telemetry, and health blocks on `edge`;
   - `h4-handover`, started in the Author's session (§7).
 - **The local `gateway-state`** isn't used by prod after the move. Dev and dev-cpu keep theirs.
-- **Its Bedrock identity:** spec 000's SSO permission set, imported into Terraform (FR-013).
+- **Its Bedrock identity:** spec 000's SSO permission set, imported into Terraform and narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`, the ordinary role that holds the Bedrock permission and takes the budget action's deny (FR-013, FR-023; row F2's change).
 - **Its stop of EC2:** the `h4-ec2-stop` permission set, through the Author's SSO session (question 7). `make up` never fails because the stop fails (FR-064).
 - **No inbound port, no CI runner, no pushed deployment;** the local deployer takes releases from the Author's release directory (research.md R-17).
 
 ## 6. Routing per host (FR-035, FR-067, FR-068; research.md R-27, R-28)
 
 - **`H4_HOST`** selects the route: `envs.prod.hosts.laptop` or `envs.prod.hosts.ec2` (data-model.md §2.1).
-- **The laptop:** ADR 0001's order. The kill switch first; the local model while it is healthy; then the one paid fallback, attributed `fallback`, inside the $2-a-day sub-budget, the ceilings, and the adapter caps; otherwise degraded.
+- **The laptop:** ADR 0001's order. The kill switch first; the local model while it is healthy; then the one paid fallback its route names, attributed `fallback`, inside the $2-a-day sub-budget, the ceilings, and the adapter caps; otherwise degraded. Its route keeps what prod's route names on `main` when group 6 starts: the Anthropic API, once `feat/010-anthropic-switch` has merged.
 - **EC2:** the kill switch first; the Anthropic API while it is healthy and admitted (the ceilings, then its $20 cap); then Bedrock under the same admission; otherwise degraded. Its calls are attributed `metered`, so the sub-budget never sees them (the Author's answer, "The $2-a-day sub-budget stays the laptop's fallback rule").
 - **Rule R1, amended:** every `primary` is local; a route with `first` names only paid adapters and appears only as `envs.prod.hosts.ec2`. The validator (`services/gateway/src/config/validate.ts`), spec 000's config-files contract, and spec 010's FR-001 change together, by name.
-- **Spec 010's preconditions on EC2** (FR-068): the price (in place since 2026-11-09.1), the cap ($20, in place), the key (in Parameter Store, the Author's), and his words in row F3 (open). EC2 doesn't serve visitors until all four are in.
+- **Spec 010's preconditions on EC2** (FR-068): the price (in place since 2026-11-09.1), the cap ($20, in place), the key (in Parameter Store, the Author's, in group 7), and his words in row F3 (adopted, on `feat/010-anthropic-switch`). EC2 doesn't serve visitors until all four are in.
+- **The placeholder gate:** `evals/test_disclosure.py`'s `placeholder_gate` reads only `envs.prod.fallback` today. Group 6 makes it read every host route's `first`, `second`, and `fallback`, test-first, before schema 2 lands.
+- **EC2's route line,** `ec2: { first: anthropic, second: bedrock }`, is the Author's own step in group 7, not an agent's: ADR 0041 makes the route's change his. Group 6's agents write schema 2 with the laptop's line only, and a gateway with `H4_HOST=ec2` refuses to start until his line is in (`route_missing`).
 - **Readiness evidence** (spec 010 FR-026; spec 007 FR-031): a ready topic needs runs on the laptop's local model and its fallback, and on EC2's Anthropic API and Bedrock. The report reads both host routes from the file.
 
 ## 7. The handover (FR-063 to FR-066, FR-069 to FR-072, FR-074; research.md R-29 to R-32)
@@ -457,7 +470,7 @@ The Author reverses either action after the seven-day incident note: `make serve
 
 **The functions:**
 - **`h4-ec2-start`:** one start per alarm change, and once when the tunnel end returns. It refuses while paused, while the server action is executed, while the tunnel end isn't running (`tunnel_end_down`), or, when invoked by hand or by the tunnel end's return, while the laptop serves.
-- **`h4-ec2-guard`:** on EC2 entering `running`, stops it if the laptop serves or the switch is off.
+- **`h4-ec2-guard`:** on EC2 entering `running`, stops it if the laptop serves, the switch is off, or the server budget's action has run, and alerts which (`ec2_stopped_server_budget` for the last).
 - **The spot interruption warning:** an EventBridge rule publishes it to `h4-alerts` (FR-071).
 
 All three are in `infra/account/handover.tf` (protected).
@@ -489,9 +502,10 @@ All three are in `infra/account/handover.tf` (protected).
 ### 8.3 The disclosure (FR-040)
 
 Spec.md's Data-Flow Disclosure Entries become rows, each in the change that creates its flow:
-- **The changed rows** S1, S2, V1, V2, V4, F1, F3, A1, A2, and D1. On EC2 every hello and twin turn goes to the Anthropic API first.
-- **The new rows** S15 to S17, V6 to V9, and C1 to C11 and C13.
-- **With the relay on the tunnel end** (question 1), as spec.md now has them: C1 is "the edge → the relay on the tunnel end", and C14 is "the relay → the serving host's relay block", carrying the same fields.
+- **The changed rows** S1, S2, V1, V2, V4, F1, F2, F3, A1, A2, and D1. On EC2 every hello and twin turn goes to the Anthropic API first. F2's change is the laptop's `sts:AssumeRole` on `h4-laptop-bedrock`. F3 keeps the Author's adopted words verbatim; this spec adds only EC2's trigger, default, and switch-off beside them.
+- **The new rows** S15 to S17, V6 to V9, C1 to C11, and C13 to C15 (C12 is reserved).
+- **With the relay on the tunnel end** (question 1), as spec.md now has them: C1 is "the edge → the relay on the tunnel end", C14 is "the relay → the serving host's relay block", carrying the same fields, and C15 is the tunnel end's collector → the serving host's collector, the laptop's through the tunnel's reverse forward 2202 to its `edge`'s telemetry block, 8086.
+- **Which group adds which row:** each row lands in the commit that creates its flow (tasks.md names the commit): group 5 has S1's change, S16, S17, C3, C15, and the tunnel end's egress; group 4 has F2's change; group 6 has C2, C13, and S2's shared-state change; group 7 has S2's EC2 part, F1, F3's EC2 part, A1, A2, D1, V2's EC2 part, and C7; group 8 has V1, V2's path, V4, V6 to V9, C1, C14, and S15; group 9 has C5 and C6; group 3 has C8's email half and C9; group 4 has C8's Telegram half, C10, and C11. The tunnel end's reads of AWS's state stay inside the account, under C7's "the account's endpoints they use".
 
 `tools/gates/disclosure_check.py` fails a change that adds an outward kind of thing without its row: a compose service on `egress`, an sshd permit, an egress-proxy host, a CloudFront origin, an EventBridge rule that calls out, or a security group rule open to an outside range.
 
@@ -529,7 +543,9 @@ Spec.md's Data-Flow Disclosure Entries become rows, each in the change that crea
 | The breach test, grown | `evals/breach.py` on dev-cpu, with the relay in `dev-relay` | FR-025 |
 | The tunnel's rules | `deploy/tunnel/test_*.py`, two containers on the agents' engine | only the permitted forwards; no shell; a wrong host key refused; the forward to the store reaches only the store |
 | The hosts' firewalls and daemons | `deploy/hosts/test_hosts.py` on the rules' text | the egress chains; EC2's single inbound rule; the tunnel end's three ports |
-| The Lambda functions | `infra/lambdas/*/test_*.py`, with stub EC2, Budgets, SSM, and Route 53 | the start function's refusals and its one attempt; the guard's two stops; the alert texts; no secret logged |
+| The Lambda functions | `infra/lambdas/*/test_*.py`, with stub EC2, Budgets, SSM, and Route 53 | the start function's refusals and its one attempt; the guard's three stops (the laptop serving, the switch off, the server budget's action run); the alert texts, `ec2_stopped_server_budget` among them; no secret logged |
+| The placeholder gate | `evals/test_disclosure.py`, with schema-2 routing fixtures | `placeholder_gate` fails while F3 holds a placeholder and any host route names the Anthropic API as `first`, `second`, or `fallback`; it passes with his adopted words |
+| The tunnel end's collector | `deploy/otel/test_collector_tunnel_end.py`, on the configuration's text | `laptop` to the tunnel's 2202 forward, `ec2` and `none` to EC2's collector; the file-backed queue; spec 000's redaction |
 | The handover loop | `deploy/scripts/test_handover.py`, with a stub relay status and a stub EC2 | stop after the relay says `laptop`; stop again after a flap; alert once on an expired session; `make up` never fails on a failed stop |
 | The policy, redaction, plan note, disclosure checks | `tools/gates/test/*.py` | each rule, passing and failing |
 | The matrix | `redteam/forbidden-actions.sh` | FR-006's spellings, FR-011's paths and names, FR-012's files, and R-32's targets |
@@ -551,11 +567,13 @@ Spec.md's Data-Flow Disclosure Entries become rows, each in the change that crea
   - `h4.deploy.events` by host and outcome; `h4.release.info`;
   - the edge's request and error counts from CloudFront's default metrics;
   - the collectors' queue and drop counters.
-- **The dashboard's new row, "Hosts":**
-  - which host serves (a state timeline), the handovers and their gaps, EC2's state and interruptions, the health check's status, and the tunnel;
-  - the shared state's latency and errors per host, the relay's requests by host and outcome, and the cap's refusals;
-  - the server's month against its budget beside model spend against the ceilings, and the adapter's month (spec 010);
-  - the release on each host, and telemetry delayed or lost.
+- **The dashboard's new row, "Hosts".** Each panel lands in the group of the feature it shows, as the constitution's Development Workflow step 7 asks, so no feature ships without its panel:
+  - **group 5:** the tunnel's state and reconnects; telemetry delayed or lost (the tunnel end's collector's queue and drop counters);
+  - **group 6:** the shared state's latency and errors, per host;
+  - **group 7:** the release on each host, with who started it (FR-049);
+  - **group 8:** which host serves (a state timeline), the handovers and their gaps, the relay's requests by host and outcome, and the cap's refusals;
+  - **group 9:** EC2's state and interruptions, its starts and refusals and the guard's stops, the pause switch, the health check's status, and the handover window; and the server's month against its budget beside model spend against the ceilings and the adapter's month (spec 010; User Story 7). Their AWS-side values come from the sink's cloud reads, which group 9 writes and exports as metrics through the tunnel end's collector (C15): EC2's state and its spot request's, the pause switch, the health check's status, the server action's status, the server's month (`budgets:ViewBudget`, hourly), and each function's outcome count from its log's embedded metric (`cloudwatch:GetMetricData`, to confirm in group 9). The tunnel end's role gains those reads (research.md R-15; question 7);
+  - **group 10:** `/status/` only, with the publishers and the public document.
 - **Runbooks** (FR-056), each named by its alert:
   - the laptop's;
   - the handover's: a failed stop and the pause switch;
@@ -604,7 +622,7 @@ The Author answered question 1 with the relay on the tunnel end, and these chang
 | FR-072 | no DNS answer changes at run time |
 | SC-007, SC-016 | "the failover answering with the laptop" becomes "the relay sending to the laptop" |
 | Data-Flow Disclosure Entries | C1 to the relay on the tunnel end; new row C14, the relay to the serving host's relay block |
-| Constitution Check, Cloud standard | the relay is always on in the cloud, as listed, except while AWS has the tunnel end back |
+| Constitution Check, Cloud standard | the relay runs around the clock on spot; its gap against "must be always-on" is question 8, open for T000 |
 | Clarifications | a new entry records the answers to the plan's questions 1 to 4, and that question 1's supersedes the DNS-failover reading of point 1 |
 | New FR-076; Degraded Modes; Edge Cases | the tunnel end on spot: stop on interruption, the warning's alert, the site and the resting reply while it's gone, its return (question 2) |
 | Assumptions | the 1.1.0 patch's two added sentences (question 3); offline demos on `ENV=dev` (question 4); the tunnel end and the relay, decided |
@@ -622,12 +640,14 @@ Amendments to other specs, by name, in their own branches:
 | # | Patch | When |
 |---|---|---|
 | P-1 | The guard patch (§2) | group 1, before any `infra/` file |
-| P-2 | Constitution 1.1.0, as amended on `docs/001-ec2-default` with the two sentences he chose to add (question 3) | before group 3 |
+| P-2 | Constitution 1.1.0, as amended on `docs/001-ec2-default` with the two sentences he chose to add (question 3), and with his wording for question 8 if he chooses A | before any group, by default (tasks.md T001, confirmed at T000) |
 | P-3 | CLAUDE.md, three sentences. **The infra line,** as September drafted it, for the local phase's apply. **The routing sentence,** per host, for example: "local-first on the laptop, then its one paid fallback (Bedrock or the Anthropic API) within its sub-budget and caps; on EC2, the Anthropic API, then Bedrock, within the ceilings and caps; then degraded". **The relay's line,** "`services/relay` — thin cloud API on the tunnel end; kill-switch read; host choice; public cap". The words are his | with P-1 |
 | P-4 | The intents' lines: intent 000's cost and hosting constraints, and this folder's intent's cost lines, in his words | any time; the spec reads them under his later words until then |
 | P-5 | Spec 002's resting words, in his words (question 5, provisional) | before the first public release |
+| P-6 | `config/budgets.yaml`'s new `public` section: the relay's per-address cap (requests a minute, burst, requests a day) and its global in-flight limit, each figure his, with an ADR (FR-033). The agent drafts the section's keys with each figure left blank for him; the gateway's validator and the relay accept the section in group 8's code, tested on a copy with P-6 applied | drafted in group 8 before the relay's code; applied with the group's other patches, before its gate (tasks.md) |
+| P-I1 to P-I6 | The protected Terraform files, one patch per group that has any (tasks.md) | in their groups |
 
-**His steps** (each recorded): pricing and the server budget's figure (group 2); every apply; the state's migration; activating the cost tags; confirming the email subscription; the Telegram parameters; the secrets and the role passwords; the tunnel keys; the name servers; the move of the meter; the Anthropic account's spend limit; his words in row F3 (spec 010); the rehearsals; the red-team runs; the first public release.
+**His steps** (each recorded): pricing and the server budget's figure (group 2); every apply; the state's migration; activating the cost tags; confirming the email subscription; the Telegram parameters; the secrets and the role passwords; the tunnel keys; the name servers; the move of the meter; EC2's route line naming the Anthropic API first (group 7, ADR 0041); the Anthropic account's spend limit; the rehearsals; the red-team runs; the first public release. His words in row F3 are already adopted, on `feat/010-anthropic-switch`.
 
 **ADRs**, written in the commit that records his approval:
 
@@ -653,21 +673,25 @@ research.md R-05 has the table, each line with its repository figure and date, o
 
 ## 16. Order of work, risks, and proof
 
+**Before any group:** T000, his approval, and T001, his constitution patch (P-2, 1.1.0 as amended, with his question 8 wording if he chooses A), as the default order he confirms at T000. Every group that touches `infra/` (3 to 9) checks T001's result first.
+
 **Task groups.** Each is a feature branch with a note, merged by the Author in this order.
 
 | # | Branch | What | The Author's part |
 |---|---|---|---|
-| 1 | `feat/001-guards` | P-1; the Terraform pin; `make infra-mirror` | apply P-1 and P-3; seed the mirror |
-| 2 | `feat/001-measure` | research.md R-33: the stack's memory without the model server on dev-cpu; the tunnel end's; every image's architectures; the disks | price the lines from AWS's pages; **set the server budget's figure** (spec question 14); apply P-2 |
-| 3 | `feat/001-us1-bootstrap` | `infra/bootstrap`: state, the three budgets, the anomaly monitor, the topic; the plan and apply targets; the credential audit's script | the first plan, verify, apply; migrate the state; the cost tags; the email subscription |
-| 4 | `feat/001-us2-safety-net` | `infra/account`: the laptop's Bedrock identity imported; the model action on it, and both actions' rehearsals (the server action itself waits for EC2, group 7); the alert bridge, the probe (disabled until group 8), the credential audit; the registry and the release bucket | apply; the import; the Telegram parameters; **the rehearsals (SC-009)**; `rehearsal = false` |
-| 5 | `feat/001-tunnel-end` | `infra/prod`'s network and the tunnel end, on spot with stop, and its interruption warning's rule; the `tunnel` and `tunnel-end` images; the laptop `edge`'s three blocks; the tunnel end's deployer and egress proxy | apply; `make tunnel-keys`; start the tunnel; **SC-006** |
-| 6 | `feat/001-shared-state` | RDS; migration 0007; the gateway's `H4_HOST`, routes per host, R1, TLS to the store; the two-gateways test; `operator-* ENV=shared` | apply; the role passwords; **the move** (data-model.md §1.5); the laptop's prod on the shared state |
-| 7 | `feat/001-us6-ec2` | EC2 (spot, stop), its roles, env, host scripts, egress proxy, and deployer; the model action gains EC2's gateway role, and the server action is added; multi-architecture releases; EC2's relay block; the Anthropic route on EC2 | apply; the secrets; his F3 words (spec 010); the Anthropic account's limit; the first release; **SC-005, SC-017** |
-| 8 | `feat/001-us3-us5-edge` | the zone, the certificate, CloudFront and its VPC origin; the relay on the tunnel end; the site; the disclosure's rows; red-team on four adapters; the edge's body; spec 002's amendment branch | the name servers; apply; the red-team runs; the site stays unannounced until group 9 ends |
-| 9 | `feat/001-us4-us7-handover` | the health check, the alarm, the rules (the tunnel end's return among them), `h4-ec2-start`, `h4-ec2-guard`, the pause switch, EC2's spot warning; `h4-handover`; `make ec2-*` | apply; **10 handovers each way (SC-007); rehearsed interruptions, 5 of EC2 and 3 of the tunnel end (SC-018)**; the first public release; **SC-001, SC-010, SC-011** |
-| 10 | `feat/001-us8-public-view` | the publishers, the sink, `/status/`, the "Hosts" row | **SC-013**: both hosts off for an hour |
-| 11 | `feat/001-close` | the success-criteria table; runbooks completed; the README and the ADR index | **SC-002, SC-003, SC-016** after the first full month; **SC-004**; **SC-012**; **SC-014** |
+| 1 | `feat/001-guards` | P-1 and P-3; the ADRs; the Terraform pin | choose the pins; apply P-1 and P-3 on the branch, gate, merge; seed the mirror on `main` |
+| 2 | `feat/001-measure` | research.md R-33: the stack's memory without the model server on dev-cpu; the tunnel end's; every image's architectures; the disks | price the lines from AWS's pages and **set the server budget's figure** (spec question 14), on the branch before its review; gate, merge |
+| 3 | `feat/001-us1-bootstrap` | `infra/bootstrap`: state, the three budgets, the anomaly monitor, the topic; the plan and apply targets; the credential audit's script | the plan block; P-I1, gate, merge; on `main`, verify, apply, record; migrate the state; the cost tags; the email subscription |
+| 4 | `feat/001-us2-safety-net` | `infra/account`: the laptop's Bedrock permission set imported and narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`, the ordinary role that holds Bedrock; the model action on that role, and both actions' rehearsals against targets of the same shape (the server action itself waits for EC2, group 7); the alert bridge, the probe (disabled until group 8), the credential audit; the registry and the release bucket | the plan block; P-I2, gate, merge; on `main`, apply with the import; the laptop's Bedrock profile; the Telegram parameters; **the rehearsals (SC-009)**; `rehearsal = false` |
+| 5 | `feat/001-tunnel-end` | `infra/prod`'s network and the tunnel end, on spot with stop, and its interruption warning's rule; the `tunnel` and `tunnel-end` images; the laptop `edge`'s three blocks; the tunnel end's deployer, egress proxy, and collector; the tunnel's and the collector's panels | the plan block; P-I3, gate, merge; on `main`, apply; `make tunnel-keys`; start the tunnel; **SC-006** |
+| 6 | `feat/001-shared-state` | the placeholder gate over every host route, test-first; RDS; migration 0007; the gateway's `H4_HOST`, routes per host with the laptop's line only, R1, TLS to the store; the two-gateways test; `operator-* ENV=shared`; the shared state's panel | the plan block; gate, merge; on `main`, apply; the role passwords; **the move** (data-model.md §1.5); the laptop's prod on the shared state |
+| 7 | `feat/001-us6-ec2` | EC2 (spot, stop), its roles, env, host scripts, egress proxy, and deployer; the model action gains EC2's gateway role, and the server action is added; multi-architecture releases; EC2's relay block; the release panel | the plan block; P-I4 and **EC2's route line** (`ec2: { first: anthropic, second: bedrock }`, his own commit, ADR 0041), gate, merge; on `main`, apply; the secrets; the Anthropic account's limit; the first release; **SC-005, SC-017** |
+| 8 | `feat/001-us3-us5-edge` | P-6 drafted first; the zone, the certificate, CloudFront and its VPC origin; the relay on the tunnel end; the site; the disclosure's rows; red-team on four adapters; the edge's body; spec 002's amendment branch; the relay's panels | the plan block; P-6 with his figures, P-I5 if any, gate, merge; on `main`, the name servers; apply; the red-team runs; the site stays unannounced until group 9 ends |
+| 9 | `feat/001-us4-us7-handover` | the health check, the alarm, the rules (the tunnel end's return among them), `h4-ec2-start`, `h4-ec2-guard` (three stops), the pause switch, EC2's spot warning; `h4-handover`; `make ec2-*`; the sink's cloud reads as metrics; the handover's and the server budget's panels | the plan block; P-I6, gate, merge; on `main`, apply; **10 handovers each way (SC-007); rehearsed interruptions, 5 of EC2 and 3 of the tunnel end (SC-018)**; the first public release; **SC-001, SC-010, SC-011** |
+| 10 | `feat/001-us8-public-view` | the publishers, the sink's document, and `/status/` | gate, merge; **SC-013**: both hosts off for an hour |
+| 11 | `feat/001-close` | the success-criteria table; runbooks completed; the README and the ADR index | gate, merge; **SC-002, SC-003, SC-016** after the first full month; **SC-004**; **SC-012**; **SC-014** |
+
+**The order inside each group** (tasks.md): the tests, which fail first; the code, each feature with its span, its panel, its runbook, and its disclosure row; the Author's plan block, pasted into the note on the branch; a review by an agent that wrote none of it, and the note; then his patches, the gate, and the merge; then his apply on `main` and his other steps there. The plan block comes before his patches are on the branch, so he makes it from a scratch copy of the branch with the group's patches applied: the patched files are byte for byte the ones he then commits, so `infra/`'s tree hash is the same, and the gate's `infra-plan-note` step matches it.
 
 Hello and the twin become public only at the end of group 9, after the handover is rehearsed, so the first visitor meets the whole design, and the disclosure is live before the first visitor byte.
 
@@ -758,6 +782,7 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 | An always-on RDS instance | The shared meter must outlive both hosts and run while EC2 is stopped (FR-019) | Postgres on the tunnel end: one small instance becomes the meter's only home; DynamoDB: a second implementation of the meter |
 | The relay on the tunnel end (question 1, the Author's answer) | A private, single origin for CloudFront, and a host choice that DNS can't make for VPC origins | DNS failover with public origins (option B): certificates, a third-party authority, and a secret header |
 | The tunnel end on spot (question 2, the Author's answer) | His choice, at about $2.20 a month (research.md R-05, 2026-10-18, to confirm) | On demand, about $6.13 a month (research.md R-04, to confirm), recommended and not chosen. The risk is named in §12 and §16: while AWS has it back, the twin rests on both hosts and the site still loads |
+| The relay on spot, against the Cloud standard's "must be always-on" (open: question 8) | The relay runs on the tunnel end (question 1), which runs on spot (question 2) | Not this plan's to choose: option A puts his wording into the 1.1.0 patch, so no deviation remains; option B names a deviation in spec.md's Assumptions, citing ADR 0044. Until he answers at T000, neither is assumed |
 | Three hosts and three deployers | The tunnel end must run while both serving hosts are off | Fewer hosts: the tunnel would have nowhere to end while EC2 is stopped |
 | Host services outside compose (deployers, egress proxies, credential timers, the handover loop) | They need the Docker socket, the firewall, an instance role, or the Author's SSO session | In containers they would need `docker.sock` or host networking, which spec 000 refuses |
 | **Spec FR-032's one exception:** the Author's test client reaches the relay's internal listener through a Systems Manager session, as a fixed documentation-range identity (as September) | The relay has to be testable before the edge exists | Testing only through CloudFront: no test before group 8 |

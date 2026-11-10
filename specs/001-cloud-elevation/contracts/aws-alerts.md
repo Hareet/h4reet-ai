@@ -24,7 +24,7 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
 | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
 | `ec2_started`, `ec2_start_refused` (`paused`, `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
-| `ec2_stopped_laptop_serving`, `ec2_stopped_paused` | `h4-ec2-guard` | each stop | `handover.md` |
+| `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
 | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
 | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
 | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
@@ -50,14 +50,14 @@ The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap boun
 |---|---|---|
 | Budget, threshold | `h4-model-month`, 100% of actual | `h4-server-month`, 100% of actual |
 | Type | apply IAM policy | run an SSM document (to confirm the type's name and target form) |
-| Does | attaches `h4-deny-paid-models` (as September §3.1) to `h4-prod-gateway` and to the role behind the laptop's Bedrock permission set | `AWS-StopEC2Instance` on the tagged instance |
+| Does | attaches `h4-deny-paid-models` (as September §3.1) to `h4-prod-gateway` and to `h4-laptop-bedrock`, the ordinary role the laptop's permission set assumes. Never to a role Identity Center makes for a permission set (to confirm in group 4, research.md R-22) | `AWS-StopEC2Instance` on the tagged instance |
 | Approval | automatic | automatic |
 | Execution role | allowed only to attach and detach that one policy on those two roles | allowed only that document on that one instance |
 | Reversed by | the Author, after the incident note (the runbook's `execute-budget-action --execution-type REVERSE_BUDGET_ACTION`) | `make server-budget-restore`, after the incident note |
-| While executed | Bedrock calls fail as `auth`; spec 000's gateway answers `fallback_unavailable` on the laptop, and EC2 keeps the Anthropic API | `h4-ec2-start` refuses with `server_budget_stopped` |
+| While executed | Bedrock calls fail as `auth`. On the laptop, spec 000's gateway answers `fallback_unavailable` where Bedrock is its fallback; EC2 keeps the Anthropic API | `h4-ec2-start` refuses with `server_budget_stopped`, and `h4-ec2-guard` stops any start with `ec2_stopped_server_budget` |
 
 **Rehearsals (FR-026, SC-009):** while `rehearsal = true`, two $0.01 budgets with the same action types:
-- the model rehearsal against `h4-rehearsal-target`, a role no one assumes;
+- the model rehearsal against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes (to confirm, with the target, in group 4);
 - the server rehearsal against `h4-rehearsal-instance`, a stopped `t4g.nano` (to price).
 
 The record is as September §3.4, per action. Then `rehearsal = false`.

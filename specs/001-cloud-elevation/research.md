@@ -135,7 +135,7 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 
 ### R-07: How the edge reaches the serving host (changed; plan question 1)
 
-**The constraint.** Spec FR-054 and FR-072 move visitors between the hosts by DNS: failover records answer the dynamic origin's name with the laptop's path or EC2's. CloudFront reaches an origin either by a public name, or through a VPC origin, which is bound to one resource, not to a name. So DNS can switch between public origins only. Public origins bring three costs:
+**The constraint.** The spec as first reworked moved visitors between the hosts by DNS: failover records were to answer the dynamic origin's name with the laptop's path or EC2's. CloudFront reaches an origin either by a public name, or through a VPC origin, which is bound to one resource, not to a name. So DNS can switch between public origins only. Public origins bring three costs:
 - the visitor's request crosses the internet between CloudFront and the origin, so TLS is needed to each origin, with a certificate for the origin's name on both the tunnel end and EC2;
 - that certificate comes from a public certificate authority through a DNS challenge, which gives each host write access to a Route 53 record and adds a third party;
 - a secret header is needed to tell this distribution from any other CloudFront distribution, since CloudFront's origin-facing addresses are shared by all of them. That secret must stay out of Terraform's state (FR-009).
@@ -185,14 +185,14 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 **Decision.** `services/relay`, as September R-18 (Fastify 5 on Node 24, a second npm workspace), runs as a container on the tunnel end. Its order at each request:
 1. **The probe mark**, as September.
 2. **The client's address** from `CloudFront-Viewer-Address`, on the edge listener only; a request without it is refused (FR-032).
-3. **The public cap** (FR-033), in memory, per address. It lives on the always-on tunnel end, so it survives handovers.
+3. **The public cap** (FR-033), in memory, per address, sized by `config/budgets.yaml`'s `public` section, the Author's figures (P-6). It lives on the tunnel end, so it survives handovers; it restarts empty after a spot interruption of the tunnel end.
 4. **The kill switch**, read from the shared state (R-20) as `relay_ro`, `statement_timeout=250ms`. Degraded, unknown, unreadable, or not confirmed in 10 s: the degraded response (FR-030).
 5. **The host:** the laptop while its relay block is healthy, else EC2 while its relay block is healthy, else `no_host_serving` (spec FR-063, FR-066). Each host is checked with `GET /health` every second, with an 800 ms timeout; unhealthy after one failure, healthy after three passes in a row (spec 000's rule). A request that fails on one host before any byte of the answer is retried once on the other, if it is healthy.
 6. **The identity** goes on as `X-H4-Viewer`, which the host's relay block turns into `X-Forwarded-For` (R-12).
 
 It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state from the last read (R-29), the kill switch, and the cause a hello would get. It writes each change of serving host to the shared state's `handover_events` (data-model.md §1.3), as `relay_rw`, which may insert there and nowhere else.
 
-**Why.** The relay holds the cap, the kill switch read, and the host choice in one always-on place. The status answer stays live while no host serves, and the Cloud standard's always-on "thin API/relay" holds.
+**Why.** The relay holds the cap, the kill switch read, and the host choice in one place that runs around the clock. The status answer stays live while no host serves. The Cloud standard lists the relay among what "must be always-on", and on spot it has gaps: plan question 8 asks the Author how to carry that.
 
 
 ### R-10: Egress through an allowlisting proxy (carried, on two hosts)
@@ -209,15 +209,17 @@ It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state
 envs:
   prod:
     hosts:
-      laptop: { primary: local, fallback: bedrock }    # ADR 0001's order, the $2 sub-budget
-      ec2:    { first: anthropic, second: bedrock }    # the ceilings and the adapter caps
+      laptop: { primary: local, fallback: anthropic }  # ADR 0001's order, the $2 sub-budget; as main's prod route names it
+      ec2:    { first: anthropic, second: bedrock }    # the ceilings and the adapter caps; the Author's line (ADR 0041)
   dev: { primary: local, fallback: synthetic }
 ```
+
+The laptop's line keeps whatever prod's route names on `main` when group 6 starts. That is `anthropic` once `feat/010-anthropic-switch` has merged, which carries the Author's switch and his words in row F3, and which reaches `main` before group 6. Group 6's agents write schema 2 with the laptop's line only. The `ec2` line, which names the Anthropic API first, is the Author's own step in group 7: ADR 0041 makes the route change his.
 
 - **Rule R1** (spec 000's contracts/config-files.md, `services/gateway/src/config/validate.ts`) becomes: "every `primary` is local; a route with `first` names no local adapter, only paid ones, and exists only under `envs.prod.hosts.ec2`". Spec 010's FR-001 is amended by name to match.
 - **Attribution:** calls on the `ec2` route are attributed `metered`, which spec 000's ledger and reservations already accept (`CHECK (attribution IN ('fallback','metered','test'))`). So they count against the day and month ceilings and the adapter's month, and never against `fallback_day`, the sub-budget (the Author's answer, "The $2-a-day sub-budget stays the laptop's fallback rule"). Calls on the laptop's fallback stay `fallback`. No schema change is needed for this.
 - **The order on EC2:** the kill switch first, then the Anthropic API while it is healthy and admitted (the ceilings, then its cap, `adapter_month_spent`), then Bedrock under the same admission, then degraded with the condition that applied.
-- **Spec 010's preconditions** hold for the `ec2` route as for a `fallback: anthropic`: the price (in `config/prices.yaml` since version 2026-11-09.1, "read 2026-11-09"), the cap (`adapter_monthly_usd: { anthropic: 20.00 }`), the key (on EC2, in Parameter Store, R-26), and the Author's words in row F3, whose placeholder `make test` still refuses while a route names the adapter.
+- **Spec 010's preconditions** hold for the `ec2` route as for a `fallback: anthropic`: the price (in `config/prices.yaml` since version 2026-11-09.1, "read 2026-11-09"), the cap (`adapter_monthly_usd: { anthropic: 20.00 }`), the key (on EC2, in Parameter Store, R-26), and the Author's words in row F3, adopted on 2026-11-09 on `feat/010-anthropic-switch`. `evals/test_disclosure.py`'s `placeholder_gate` reads only `envs.prod.fallback` today; group 6 makes it read every host route's `first`, `second`, and `fallback`, test-first, so `make test` refuses F3's placeholder whichever host route names the adapter.
 
 **Why.** The smallest schema change that states the two orders, keeps local-first wherever a local model runs, and reuses the existing attributions.
 
@@ -250,7 +252,7 @@ The rules that make two writers safe are already in spec 000's code: migrations 
 
 **Alternatives.**
 - **DynamoDB:** pay per request, likely cheaper at this traffic (to price). But the meter's admission, reservations, ledger, outbox, and audit would need a second store implementation, and Grafana's panels would need rework.
-- **Postgres on the tunnel end:** no new line, but it puts the meter on one small instance that may run on spot, and the spec gives the tunnel end no part of the stack ("It runs the tunnel's far end and nothing of the stack's", spec Terms, which question 1's option A already asks to widen).
+- **Postgres on the tunnel end:** no new line, but it puts the meter on one small instance that runs on spot (plan question 2), so an interruption would take the meter away from EC2 too, and it adds a store to an instance the spec keeps to the tunnel, the relay, the sink, and a collector (spec Terms).
 - **Aurora Serverless:** a cold resume at request start, against the 10-second kill-switch rule.
 
 If the Author's price check puts RDS's line out of proportion to the server budget, DynamoDB is the alternative to return to, with its rewrite.
@@ -284,7 +286,7 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 - **EC2** is a persistent spot request with `instance_interruption_behavior = "stop"` (spec FR-069, question 15). On an interruption, AWS stops it and keeps its volumes, and starts it again when capacity returns (to confirm against AWS's guide in the first task). A stop by the laptop or the Author is a user stop, after which AWS does not restart the instance on its own (to confirm).
 - **The interruption notice:** an EventBridge rule on "EC2 Spot Instance Interruption Warning" for that instance publishes to `h4-alerts` (spec FR-071, "You get an alert"). Visitors get `no_host_serving` until EC2 serves again or the laptop does (R-18).
 - **The tunnel end** is a persistent spot request with the same interruption behavior (the Author's answer to plan question 2). Its warning publishes `tunnel_end_interruption` to `h4-alerts`, and its return publishes `tunnel_end_back`. While it is gone, the edge's own body answers (R-08), and the start function refuses (R-29). Its Elastic IP stays associated with its interface across the stop (to confirm), so the laptop's tunnel finds it again.
-- **`h4-ec2-guard`:** a second function, on "EC2 Instance State-change Notification" to `running` for that instance. If the laptop serves (the health check is healthy) or the pause switch is `off`, it calls `ec2:StopInstances` and alerts. It may stop that one instance and nothing else (spec FR-071, "IF EC2 starts again on its own…"). It is a separate function with its own role, so the start function's role stays start-only, as question 16's default says.
+- **`h4-ec2-guard`:** a second function, on "EC2 Instance State-change Notification" to `running` for that instance. If the laptop serves (the health check is healthy), the pause switch is `off`, or the server budget's action has run, it calls `ec2:StopInstances` and alerts (`ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget`). It may stop that one instance and nothing else (spec FR-071, "IF EC2 starts again on its own…"). It is a separate function with its own role, so the start function's role stays start-only, as question 16's default says.
 
 **Why.** Spot around the clock is the Author's answer. The guard makes the spec's rule hold whatever AWS's restart does, so the plan needn't depend on that behavior being exactly as documented.
 
@@ -369,9 +371,9 @@ All run in the Author's terminal only (R-16), each with an audit record:
 - **The anomaly monitor,** with an immediate subscription to `h4-alerts`, as September R-22 had it.
 
 In `infra/account/killswitch.tf` (protected):
-- **The model action:** on `h4-model-month` at 100% of actual, automatic, of type "apply IAM policy". It attaches `h4-deny-paid-models` (deny `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`) to both hosts' Bedrock identities: EC2's gateway role and the laptop's runtime permission set's role (R-15). The Author reverses it after the incident note (spec FR-023).
+- **The model action:** on `h4-model-month` at 100% of actual, automatic, of type "apply IAM policy". It attaches `h4-deny-paid-models` (deny `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`) to both hosts' Bedrock roles: EC2's `h4-prod-gateway`, and `h4-laptop-bedrock`, the ordinary role the laptop's permission set assumes (R-15). It never attaches to a role Identity Center makes for a permission set, which Identity Center manages itself; that such a role can't take the attachment, and that the assumed role works for the laptop's gateway, are to confirm in group 4. The Author reverses it after the incident note (spec FR-023).
 - **The server action:** on `h4-server-month` at 100% of actual, automatic, of type "run an SSM document", `AWS-StopEC2Instance` on the tagged instance (to confirm the action type's name and its target form). The start function reads its status and refuses while it is executed (R-29). `make server-budget-restore` reverses it.
-- **Rehearsals (spec FR-026):** while `rehearsal = true`, two $0.01 budgets with the same actions against `h4-rehearsal-target` (a role no one assumes) and `h4-rehearsal-instance` (a stopped `t4g.nano` with no volume of note; to price). Each run records when AWS evaluated, when each channel got the alert, and when the action took effect. Then `rehearsal = false`.
+- **Rehearsals (spec FR-026):** while `rehearsal = true`, two $0.01 budgets with the same actions against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes, and `h4-rehearsal-instance` (a stopped `t4g.nano` with no volume of note; to price). Each run records when AWS evaluated, when each channel got the alert, and when the action took effect. Then `rehearsal = false`.
 
 **Why.** Spec FR-022 and FR-023, as answered. The server action stops only EC2: the laptop, the tunnel end, RDS, and the safety net keep running, so the laptop can still serve and the meter stays the control.
 
@@ -389,11 +391,12 @@ September R-24 unchanged: `h4-probe`, once a minute, fetches `https://hareet.ai/
 |---|---|---|
 | `h4-prod-ec2` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; publish to `h4-alerts`; Session Manager; assume `h4-prod-gateway` | EC2's host services |
 | `h4-prod-gateway` | `bedrock:InvokeModel*` on the one inference profile and the models it routes to | EC2's gateway, through credentials a host timer writes to tmpfs (September R-15); IMDSv2 with hop limit 1 keeps containers out of the metadata |
-| `h4-prod-tunnel-end` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; write `site/status/latest.json`; `budgets:ViewBudget` on `h4-server-month`; `ec2:DescribeInstances` on the tagged instance; Session Manager | the tunnel end's host services and `snapshot-sink` |
-| The laptop's Bedrock permission set (spec 000's runtime identity) | `bedrock:InvokeModel*` on the one inference profile | the laptop's gateway, through SSO (row F2). Imported into Terraform, ending spec 000's "made by hand" (spec FR-013). Its user and its IAM user `h4reet-runtime` stay as spec 000 left them, keys gone |
+| `h4-prod-tunnel-end` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; write `site/status/latest.json`; `budgets:ViewBudget` on `h4-server-month`; `ec2:DescribeInstances` on the tagged instance. For the dashboard's panels (plan §11), all reads: the pause switch's parameter; the health check's status; the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`); and the two functions' outcome counts (`cloudwatch:GetMetricData` on their namespace, to confirm in group 9). Session Manager | the tunnel end's host services and `snapshot-sink` |
+| The laptop's Bedrock permission set (spec 000's runtime identity) | only `sts:AssumeRole` on `h4-laptop-bedrock` | the laptop's gateway, through SSO (row F2). Imported into Terraform and narrowed, ending spec 000's "made by hand" (spec FR-013) |
+| `h4-laptop-bedrock` (new, an ordinary role) | `bedrock:InvokeModel*` on the one inference profile; trusts only the permission set's role | the laptop's gateway, assumed with its SSO credentials, so the budget action's deny can attach to it (to confirm, R-22) |
 | `h4-ec2-stop` permission set (question 16's default) | `ec2:StopInstances` on the tagged instance; `ec2:DescribeInstances` | `h4-handover` and `make ec2-stop`, through the Author's SSO session |
 | `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the pause switch, the server action's status, the health check's status, and the tunnel end's state; publish to `h4-alerts` | `h4-ec2-start` |
-| `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the pause switch; read the health check's status; publish to `h4-alerts` | `h4-ec2-guard` |
+| `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the pause switch, the health check's status, and the server action's status; publish to `h4-alerts` | `h4-ec2-guard` |
 | The Author's administrator permission set | as September | Terraform, by hand |
 
 Every role and permission set is in protected Terraform (FR-012). Nothing changes IAM at run time (spec FR-070).
@@ -414,7 +417,7 @@ Rollback and the hand-started hold are as September R-17.
 
 ### R-19: The public view (changed)
 
-**Decision.** `snapshot-sink` runs on the tunnel end, which is always on. Each host's `snapshot-publisher` posts its panel values every 2 minutes while it serves: the laptop's through the tunnel's `-L 2301`, EC2's inside the VPC. The sink adds the cloud part every 2 minutes whether or not a host serves:
+**Decision.** `snapshot-sink` runs on the tunnel end, which runs around the clock, on spot. Each host's `snapshot-publisher` posts its panel values every 2 minutes while it serves: the laptop's through the tunnel's `-L 2301`, EC2's inside the VPC. The sink adds the cloud part every 2 minutes whether or not a host serves:
 - the serving host and EC2's state;
 - the kill switch and model spend, from the shared state;
 - the server's month to date against its budget, from `budgets:DescribeBudget`, read once an hour.

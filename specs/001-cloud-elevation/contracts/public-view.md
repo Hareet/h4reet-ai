@@ -1,6 +1,6 @@
 # Contract: the public view
 
-Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/public-view.md` at 00309c47). The sink moves to the always-on tunnel end, and each serving host publishes. Spec FR-057 to FR-059. Research: R-19. The document's fields are in [data-model.md §5](../data-model.md#5-the-public-views-document-sitestatuslatestjson-researchmd-r-19).
+Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/public-view.md` at 00309c47). The sink moves to the tunnel end, which runs around the clock on spot, and each serving host publishes. While AWS has the tunnel end back, the last document stays in place, with its time. Spec FR-057 to FR-059. Research: R-19. The document's fields are in [data-model.md §5](../data-model.md#5-the-public-views-document-sitestatuslatestjson-researchmd-r-19).
 
 ## 1. The publishers (each serving host)
 
@@ -20,7 +20,8 @@ A host that doesn't serve, by the relay's status, doesn't post.
   - the kill switch, today's and the month's model spend, the laptop's fallback remainder, and the adapters' months, from the shared state as `grafana_ro`;
   - the last 10 handover events;
   - the server's month to date against its budget, from `budgets:DescribeBudget` on `h4-server-month`, read once an hour.
-- **It writes** the merged document to `site/status/latest.json`, with a role that may write that one key.
+- **Its cloud reads go to the dashboard too.** Group 9 writes them first, before the document exists, and exports them as metrics through the tunnel end's collector (C15) to the serving host's Prometheus: EC2's state and its spot request's, the pause switch, the health check's status, the server action's status, the server's month against its budget, and each function's outcome count, which the start function and the guard log as one embedded-metric line per outcome (`cloudwatch:GetMetricData`, to confirm). All are reads (research.md R-15; plan §11).
+- **It writes** the merged document to `site/status/latest.json`, with a role that may write that one key (group 10).
 - **While no host serves,** it keeps the last host part, with its time, and sets `serving.host` to `none` (FR-057).
 
 ## 3. The page, `/status/`

@@ -48,4 +48,4 @@ As September §7: weekly, and before every apply. Its checks:
 - no role trusting a principal outside the account, its services, and Identity Center;
 - no OIDC provider before publication.
 
-One check changed: September's "spec 000's hand-made identity still exists" becomes "the laptop's Bedrock permission set is the one Terraform defines" (spec FR-013; research.md R-15). One check is new: the start function's, the guard's, and the `h4-ec2-stop` permission set's policies name only the tagged instance.
+One check changed: September's "spec 000's hand-made identity still exists" becomes "the laptop's Bedrock permission set, and `h4-laptop-bedrock`, the ordinary role it assumes, are the ones Terraform defines, and the permission set holds nothing but that `sts:AssumeRole`" (spec FR-013; research.md R-15). One check is new: the start function's, the guard's, and the `h4-ec2-stop` permission set's policies name only the tagged instance.
