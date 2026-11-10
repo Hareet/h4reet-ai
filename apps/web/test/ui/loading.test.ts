@@ -9,9 +9,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { assetEvent } from "../../src/asset-events";
+import { HINT_MS } from "../../src/room/loading/hints";
 import { LOADING_CEILING_MS } from "../../src/room/quality";
 import type { ExpectedFile, SceneOptions } from "../../src/room/stage";
-import { announcer, button, enter, flush, radio, start } from "../helpers/room";
+import { announcer, button, enter, flush, radio, roomIndex, start } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 afterEach(() => {
@@ -210,5 +211,121 @@ describe("the fade (FR-022; PD-19)", () => {
     v.clock.advance(LOADING_CEILING_MS);
     expect(el?.isConnected).toBe(false);
     expect(v.doc.documentElement.hasAttribute("data-loading")).toBe(false);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// T021 (spec 012; FR-028, FR-030, FR-031, FR-036; contracts/loading-progress.md §5, §6): the hint area below the bar
+// --------------------------------------------------------------------------------------------------------------------
+describe("the hint area (T021)", () => {
+  const hintsOf = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLElement>(".room-loader-hints");
+  const region = (v: Visit): HTMLElement => {
+    const el = v.doc.querySelector<HTMLElement>(".room-loader-hint");
+    if (!el) throw new Error("no hint region");
+    return el;
+  };
+  /** Everything the hint's live region was given, in order. */
+  function heard(v: Visit): () => string[] {
+    const lines: string[] = [];
+    const seen = new v.win.MutationObserver((records) => {
+      for (const r of records)
+        if (r.type === "childList" && r.addedNodes.length > 0) lines.push(text(r.target as Element));
+    });
+    seen.observe(region(v), { childList: true, characterData: true, subtree: true });
+    return () => {
+      for (const r of seen.takeRecords())
+        if (r.type === "childList" && r.addedNodes.length > 0) lines.push(text(r.target as Element));
+      return lines;
+    };
+  }
+  const HINTS = roomIndex().hints;
+
+  it("creates its polite live region empty, and gives it the first hint on the next tick", async () => {
+    const v = start({ webgl: true });
+    v.scene.expected = Promise.resolve(FILES);
+    await flush();
+    radio(v.doc, "path", "engineer").click();
+    radio(v.doc, "avatar", "dog").click();
+    button(v.doc, "Enter").click();
+    const r = region(v);
+    expect(r.getAttribute("aria-live")).toBe("polite");
+    expect(r.getAttribute("aria-atomic")).toBe("true");
+    expect(text(r)).toBe("");
+    const lines = heard(v);
+    v.clock.advance(0);
+    await flush();
+    expect(text(r)).toBe(HINTS[0]);
+    expect(lines()).toEqual([HINTS[0]]);
+    expect(HINTS[0]).toBe(
+      "Make sure to ask how this web site is built, how we evaluated outputs, designed and made it secure.",
+    );
+  });
+
+  it("names itself, says its place, and words its rotation control by its state, with no aria-pressed", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const area = hintsOf(v);
+    expect(area?.getAttribute("aria-labelledby")).toBe("loader-hints-label");
+    expect(text(v.doc.getElementById("loader-hints-label"))).toBe("Hint");
+    expect(text(area?.querySelector(".room-loader-position") ?? null)).toBe(`Hint 1 of ${HINTS.length}`);
+    const rotate = area?.querySelector<HTMLButtonElement>("button.room-loader-rotate");
+    expect(text(rotate ?? null)).toBe("Pause hints");
+    expect(rotate?.hasAttribute("aria-pressed")).toBe(false);
+    rotate?.click();
+    expect(text(rotate ?? null)).toBe("Play hints");
+    expect(rotate?.hasAttribute("aria-pressed")).toBe(false);
+    for (const name of ["Previous hint", "Next hint"])
+      expect(button(v.doc, name).closest(".room-loader-hints")).toBe(area);
+  });
+
+  it("says each new hint once as it appears, every 6 seconds", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const lines = heard(v);
+    v.clock.advance(HINT_MS);
+    await flush();
+    expect(text(region(v))).toBe(HINTS[1]);
+    expect(text(hintsOf(v)?.querySelector(".room-loader-position") ?? null)).toBe(`Hint 2 of ${HINTS.length}`);
+    expect(lines()).toEqual([HINTS[1]]);
+  });
+
+  it("steps with Previous hint and Next hint, wrapping, and never moves focus", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const next = button(v.doc, "Next hint");
+    next.focus();
+    next.click();
+    expect(text(region(v))).toBe(HINTS[1]);
+    expect(v.doc.activeElement).toBe(next);
+    const previous = button(v.doc, "Previous hint");
+    previous.focus();
+    previous.click();
+    previous.click();
+    expect(text(region(v))).toBe(HINTS.at(-1));
+    expect(v.doc.activeElement).toBe(previous);
+    // Focus entered the controls: the rotation stopped, and its control offers to play.
+    expect(text(v.doc.querySelector(".room-loader-rotate"))).toBe("Play hints");
+  });
+
+  it("puts a hint's words in as text, never as markup", async () => {
+    const index = { ...roomIndex(), hints: ["Press <b>Enter</b> & see."] };
+    const v = await entered(FILES, { room: index });
+    v.clock.advance(0);
+    expect(text(region(v))).toBe("Press <b>Enter</b> & see.");
+    expect(region(v).querySelector("b")).toBeNull();
+  });
+
+  it("shows no hint area where the index holds no hint", async () => {
+    const v = await entered(FILES, { room: { ...roomIndex(), hints: [] } });
+    expect(card(v)).not.toBeNull();
+    expect(hintsOf(v)).toBeNull();
+  });
+
+  it("leaves nothing of the hints in the room once the loader gives way", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(LOADING_CEILING_MS + 250);
+    await flush();
+    expect(v.doc.querySelector(".room-loader-hints, .room-loader-hint")).toBeNull();
+    for (const hint of HINTS) expect(v.doc.body.textContent ?? "").not.toContain(hint);
   });
 });
