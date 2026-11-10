@@ -17,7 +17,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - **T001** (the Author applies the amended constitution 1.1.0) comes next, before any group, as the default order he confirms at T000. Its check is a precondition of every group that touches `infra/` (groups 3 to 9). T020 writes the first file under `infra/`.
 - **The provisional answers:** the plan's questions 5 to 7, and the spec's question 16, were taken as the session's defaults, not his words. His approval at T000 leaves them standing. A different answer later still changes the tasks that cite that question before they start.
 - **Question 8** (the relay on spot, against the Cloud standard's "must be always-on") was asked at T000. His approval chooses neither option; the session takes option A provisionally, as it took Q5 to Q7, so T001 applies his wording in the 1.1.0 patch, on `docs/001-ec2-default`, which he writes or confirms then. Done: T001 applied it (3c89a8b0).
-- **The named deviation:** his approval directs group 1 to be built before T001 (spec.md Assumptions, "The constitution first"). Nothing merges and nothing is applied before T001, and groups 3 to 9 still check it first.
+- **The named deviation:** his approval directs group 1 to be built before T001 (spec.md Assumptions, "The constitution first"). Nothing merges and nothing is applied before T001, and groups 3 to 9 still check it first. Ended at T001 (3c89a8b0).
+- **Groups 1 to 4 land together** (2026-11-10). The Author's words: "Let's gropu them together to make them minimal and hand-merge if we have to". He merged the four branches by hand into `feat/001-cloud-elevation` (13ba1a0f), and the session merged `main` and re-applied group 1's text where `-X ours` took the later groups' (plan.md §16, "Groups 1 to 4, as one branch"). So T010, T019, T029, and T039 are one gate and one merge, of his branch `feat/001-cloud-elevation-p` with P-1, P-3, P-I1, P-I2, and both lockfiles; the open review passes are one review; T011's mirror comes before the lockfiles; and T037 waits for T030, the deviation spec.md's Assumptions name ("One gate for groups 1 to 4"; his answer: "One gate, named deviation (Recommended)"). The combined note, `docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`, holds his steps; each group's own note stays as its record.
 
 **Tests**: required. In each group the test tasks come first and must fail (RED) before the code that makes them pass (GREEN), and the branch's note records both runs. Terraform has no agent-run tests beyond the offline checks: `terraform test` is refused to agents (FR-006). Its proofs are the policy's fixtures, `make infra-check`, the redacted plan in the note, and the Author's quickstart runs.
 
@@ -63,7 +64,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - **Recorded 2026-11-10.** His words, verbatim, as he went to bed: "Let's approve the t000 and spec 001 plan. Let's have you build it out but not push or try anything in the cloud yet, i will do that in the morning, but you can have everything ready and verified by then. Use the latest dependenices adn versions for aws services, plugins"
   - **What his approval takes** (spec.md Clarifications, Session 2026-11-10; plan.md Status): the spec and the plan, with §13's amendments and its list of the other specs' amendments; plan Q5, Q6, and Q7, and question 16, at their provisional defaults, the session's answers, which his approval leaves standing; plan Q8 at option A, taken provisionally under the session's reading of his approval, as Q5 to Q7 are, with the wording in the unapplied 1.1.0 patch his to write or confirm at T001; and, as the session's reading of his approval, T001 as the default order before any group touches `infra/`, the ADRs proposed until his merges, and T008's pins at the latest releases established on 2026-11-10, confirmed by him at T011.
   - **The deviation his words name:** "build it out … you can have everything ready and verified by then" has group 1 built before T001 (spec.md Assumptions). T001 stays his. Nothing merges and nothing is applied before it. T001 is done (3c89a8b0).
-  - **Open: T000's gate and merge of the documents,** so the task stays unticked. `feat/001-guards` was cut at `spec/001-cloud-elevation`'s tip, d3c7ee02, so its merge carries them; or he merges `spec/001-cloud-elevation` first. Either way, after T001.
+  - **Open: T000's gate and merge of the documents,** so the task stays unticked. `feat/001-guards` was cut at `spec/001-cloud-elevation`'s tip, d3c7ee02, so its merge carries them; or he merges `spec/001-cloud-elevation` first. Either way, after T001. **Combined (2026-11-10):** `feat/001-cloud-elevation` holds `feat/001-guards`, so its one merge carries them.
 - [x] T001 Author: apply the constitution's amendment 1.1.0, as amended on `docs/001-ec2-default` with the two sentences he chose to add (plan Q3), and with his Q8 wording if he chose A (P-2). Accept ADR 0044. This is the default order, before any group; he confirms it at T000. Check: `.specify/memory/constitution.md` on `refs/heads/main` reads "**Version**: 1.1.0"; ADR 0044's Status reads accepted. Groups 3 to 9 each check this first (main)
   - **Done by the Author:** constitution 1.1.0 applied (3c89a8b0), with question 8's option A in the Cloud standard's words "the thin API/relay on spot capacity where the Author accepts the gap (ADR 0044)"; ADR 0044 accepted (67028747).
 
@@ -121,7 +122,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [ ] T009 Review by an agent that wrote none of the group, and the note. Check: the note holds `make check`'s and `gitleaks dir`'s whole output, and lists P-1 and P-3 first under "For the Author" (feat/001-guards)
 - [ ] T010 Author: apply P-1 and P-3 on the branch from the note's patch files, run `tools/gates/gate feat/001-guards` from main's checkout, and merge. Check: the gate passes; the matrix shows zero failures and no gap beyond the listed gap rows (feat/001-guards, then main)
+  - **Combined (2026-11-10):** one gate with groups 2 to 4, of `feat/001-cloud-elevation-p` (Prerequisites).
 - [ ] T011 Author: on `main`, run `make infra-mirror`, which seeds `~/.local/share/h4reet/terraform-providers`. Check: `make check`'s `infra-check` step reads PLANNED until `infra/` exists (quickstart §1) (main)
+  - **Combined:** the mirror is seeded before the gate, from his branch's checkout, since both lockfiles need it; the checks run on `main` after the merge, where `infra/` now exists, so `infra-check` runs its checks instead of reading PLANNED (plan.md §16, "Groups 1 to 4, as one branch", 4).
 
 ---
 
@@ -161,6 +164,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [ ] T018 Review and note. Check: as T009 (feat/001-measure)
 - [ ] T019 Author: gate and merge. Check: the gate passes (feat/001-measure, then main)
+  - **Combined (2026-11-10):** T010's one gate (Prerequisites).
 
 ---
 
@@ -170,6 +174,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 **Precondition**: T001's check holds. The branch's first commit records it.
   - **Recorded 2026-11-10: unmet.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads "**Version**: 1.0.1", not 1.1.0, and ADR 0044 reads "Status: proposed", on `docs/001-ec2-default` (a633f542). The group is built anyway, at the main session's direction, as its reading of the Author's T000 words, "build it out … you can have everything ready and verified by then": the agent work on `feat/001-us1-bootstrap` and its patch, P-I1. Nothing of it merges, and nothing is applied, before T001. That extends the deviation spec.md's Assumptions name for group 1 ("The constitution first"), which now says so; it is the session's reading, not a word of his, and his to overturn.
+  - **Met at T001** (3c89a8b0), before anything of the group merged or was applied: `refs/heads/main` reads "**Version**: 1.1.0", and ADR 0044 is accepted (67028747).
 
 ### Tests first
 
@@ -203,11 +208,13 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### The Author's plan block
 
 - [ ] T027 Author: in a scratch clone of the branch, apply P-I1 and commit it there; run `make plan ROOT=bootstrap`; paste the redacted block into the note's draft on the branch. Check: the block's `tree` is the tree hash `infra/` will have on the branch once P-I1 is committed byte for byte (T029); no account ID, address, or email in it (FR-005, FR-010) (feat/001-us1-bootstrap)
+  - **Combined (2026-11-10):** on a clone of `feat/001-cloud-elevation-p` once P-1, P-3, P-I1, P-I2, and both lockfiles are committed there, so the clone needs no patch; the block's `tree` is all of `infra/`, the account's files included (plan.md §16, "Groups 1 to 4, as one branch", 5).
 
 ### Close
 
 - [ ] T028 Review and note. Check: as T009 (feat/001-us1-bootstrap)
 - [ ] T029 Author: apply P-I1 on the branch, byte for byte as in T027; gate; merge. Check: the gate's `infra-plan-note` step passes (feat/001-us1-bootstrap, then main)
+  - **Combined (2026-11-10):** T010's one gate. Main's gate predates P-1, so its `infra-plan-note` step doesn't run for it; the session's run on a patched export stands in (spec.md Assumptions, "One gate for groups 1 to 4").
 - [ ] T030 Author: on `main`:
   1. run `make infra-verify ROOT=bootstrap`, apply the saved plan, and run `make infra-record`;
   2. migrate the state (`terraform init -migrate-state`) and record it;
@@ -225,6 +232,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 **Precondition**: T001's check holds.
   - **Recorded 2026-11-10: unmet.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads "**Version**: 1.0.1", not 1.1.0, and ADR 0044 reads "Status: proposed", on `docs/001-ec2-default` (a633f542). The group is built anyway, at the main session's direction, as its reading of the Author's T000 words, "build it out … you can have everything ready and verified by then", as group 3 was: the agent work on `feat/001-us2-safety-net`, stacked on groups 1 to 3, and its patch, P-I2. Nothing of it merges, and nothing is applied, before T001. That extends the deviation spec.md's Assumptions name for groups 1 and 3 ("The constitution first"), which now says so; it is the session's reading, not a word of his, and his to overturn.
+  - **Met at T001** (3c89a8b0), before anything of the group merged or was applied: `refs/heads/main` reads "**Version**: 1.1.0", and ADR 0044 is accepted (67028747).
 
 ### Tests first
 
@@ -255,12 +263,14 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### The Author's plan block
 
 - [ ] T037 Author: as T027, for `ROOT=account` with P-I2, the permission set's import shown in the plan. Check: as T027 (feat/001-us2-safety-net)
+  - **Combined (2026-11-10):** after the merge and T030, since the account's state is in the bucket T030 makes. Its block reaches `main` in a later merge's note, and `make infra-verify ROOT=account` refuses the apply until it does (spec.md Assumptions, "One gate for groups 1 to 4").
 
 ### Close
 
 - [ ] T038 Review and note. Check: as T009 (feat/001-us2-safety-net)
   - **The first pass, 2026-11-10,** over 5a82fcf5..af7d66be: not ready, with three blockers and two Important findings (I1 to I5) and five nits. Each is fixed on the branch, test-first for the code, in its own commits, with P-I2 rebuilt and dry-run again (the note's Review). **A second, short pass** reads what For the Author's section 2 then adds (the set's name in P-I2, the base's lock line, the Dockerfiles, P-I2 rebuilt with the bridge's), and its tip is the merge guard's anchor (T039).
 - [ ] T039 Author: apply P-I2 on the branch, as in T037; gate; merge. Check: as T029 (feat/001-us2-safety-net, then main)
+  - **Combined (2026-11-10):** T010's one gate, with P-I2 applied on `feat/001-cloud-elevation-p` before T027.
 - [ ] T040 Author: on `main`:
   1. verify, import the laptop's Bedrock permission set, apply, and record;
   2. point the laptop's Bedrock profile at `h4-laptop-bedrock`, as the runbook says;

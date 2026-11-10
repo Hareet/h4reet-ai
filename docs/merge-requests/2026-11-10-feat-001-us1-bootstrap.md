@@ -5,6 +5,8 @@ Authorized by: the Author's approval at T000, verbatim, as he went to bed on 202
 
 ## Status: built and verified; T028's review found three blockers, one Important finding, and five nits, each fixed below; the service names, the lockfile, the plan block, and P-I1 are yours; stacked on groups 1 and 2; not merged; nothing applied, nothing pushed, no cloud call
 
+**Superseded for the Author's steps** by [the combined note](2026-11-10-feat-001-cloud-elevation.md): groups 1 to 4 land together on `feat/001-cloud-elevation`, as one branch through one gate (his words, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to"). This note stays as the group's record; its own branch names, patch steps, gate, guard, and anchor no longer apply.
+
 | Commit      | What                                                                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 23242ebf    | group 3's precondition, unmet, recorded in tasks.md, with spec.md's Assumptions and plan.md naming the extension; T020's wording, the reader                                                                                                                                 |

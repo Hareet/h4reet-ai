@@ -1,6 +1,6 @@
 # ADR 0007: One AWS account; environments separated by VM, IAM role, tag, and budget
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-001, FR-002, FR-021, FR-022; plan §1, §3.1; research.md R-01, R-02) · Accepted when the Author merges spec 001's group 1, after his approval at T000 (plan §14) · Number: reserved for spec 001 since 2026-09-07
+Status: proposed, 2026-11-10 · Spec: 001 (FR-001, FR-002, FR-021, FR-022; plan §1, §3.1; research.md R-01, R-02) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 (plan §14) · Number: reserved for spec 001 since 2026-09-07
 
 ## Context
 

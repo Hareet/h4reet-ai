@@ -1,6 +1,6 @@
 # ADR 0009: Pull-based deployment; no inbound ports on the local tier; no self-hosted runners
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-046 to FR-049, FR-052, FR-055; plan §5.2, §9; research.md R-11, R-17) · Accepted when the Author merges spec 001's group 1, after his approval at T000 · Number: reserved for spec 001 since 2026-09-07
+Status: proposed, 2026-11-10 · Spec: 001 (FR-046 to FR-049, FR-052, FR-055; plan §5.2, §9; research.md R-11, R-17) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: reserved for spec 001 since 2026-09-07
 
 ## Context
 

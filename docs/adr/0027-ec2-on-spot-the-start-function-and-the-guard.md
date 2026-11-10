@@ -1,6 +1,6 @@
 # ADR 0027: EC2 on spot, stopping on interruption; the start function, the guard, and the autostart switch
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-021, FR-023, FR-063 to FR-065, FR-069 to FR-072; plan §5.1, §7; research.md R-15, R-29, R-30, R-31; contracts/handover.md) · Accepted when the Author merges spec 001's group 1, after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10 · Spec: 001 (FR-021, FR-023, FR-063 to FR-065, FR-069 to FR-072; plan §5.1, §7; research.md R-15, R-29, R-30, R-31; contracts/handover.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 

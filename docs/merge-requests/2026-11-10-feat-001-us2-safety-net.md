@@ -6,6 +6,8 @@ Authorized by: the Author's approval at T000, verbatim, as he went to bed on 202
 
 ## Status: built and verified; T038's first pass fixed (Review); three facts are yours, then the session's commits and a second, short pass, then your branch, lockfile, plan block, P-I2, gate, and the images; stacked on groups 1 to 3; not merged; nothing applied, nothing pushed, no cloud call
 
+**Superseded for the Author's steps** by [the combined note](2026-11-10-feat-001-cloud-elevation.md): groups 1 to 4 land together on `feat/001-cloud-elevation`, as one branch through one gate (his words, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to"). This note stays as the group's record; its own branch names, patch steps, gate, guard, and anchor no longer apply.
+
 | Commit      | What                                                                                                                                                                                                                                          |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 152f5ca8    | group 4's precondition, unmet, in tasks.md, with spec.md's Assumptions and plan.md naming the extension                                                                                                                                       |

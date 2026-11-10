@@ -1,6 +1,6 @@
 # ADR 0026: The tunnel: OpenSSH from the laptop, ending on the tunnel end
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-052 to FR-055; plan §4, §5.2; research.md R-11, R-12; contracts/tunnel.md) · Accepted when the Author merges spec 001's group 1, after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10 · Spec: 001 (FR-052 to FR-055; plan §4, §5.2; research.md R-11, R-12; contracts/tunnel.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 

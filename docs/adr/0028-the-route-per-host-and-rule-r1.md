@@ -1,6 +1,6 @@
 # ADR 0028: The route per host, and rule R1 amended
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-035, FR-067, FR-068; plan §6; research.md R-27, R-28; contracts/env-cloud.md §2, §4; data-model.md §2) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), whose order holds on the laptop, and sits beside [ADR 0041](0041-the-anthropic-api-as-a-second-paid-adapter.md), which makes prod's route change the Author's · Accepted when the Author merges spec 001's group 1, after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10 · Spec: 001 (FR-035, FR-067, FR-068; plan §6; research.md R-27, R-28; contracts/env-cloud.md §2, §4; data-model.md §2) · Extends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), whose order holds on the laptop, and sits beside [ADR 0041](0041-the-anthropic-api-as-a-second-paid-adapter.md), which makes prod's route change the Author's · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 

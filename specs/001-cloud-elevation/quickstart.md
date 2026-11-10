@@ -7,6 +7,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 - **Each run's record** (outputs, times, and AWS's own timestamps) goes into the group's merge-request note, redacted of account IDs and addresses.
 - **No run reads or prints a secret value.**
 - **Each group's order** (plan §16; tasks.md): your plan block on the branch, from a scratch clone with the group's patches applied and committed there; the review and the note; then your patches on the branch, the gate, and the merge; then your apply on `main`. The runs below are the ones after the merge.
+- **Groups 1 to 4 land together** (2026-11-10; tasks.md, Prerequisites): one branch, `feat/001-cloud-elevation`, and one gate of your branch of it, `feat/001-cloud-elevation-p`. The order of your steps up to the merge is the combined note's (`docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`); the account's plan block (§4) comes after §3's apply, T030.
 
 ## 0. Before any group
 
@@ -24,7 +25,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64. **As built** (plan.md §16, group 2's departures; the steps in full are in the group's note, `docs/merge-requests/2026-11-10-feat-001-measure.md`):
    - Your checks in your terminal, each printing OK or nothing: at least 30 GB free on the drive under WSL's disk (`df -B1 --output=avail /mnt/c`, in bytes, since `df -h` rounds up), and at least 16 GB of memory available (`free -b`).
    - The session checks that no other agent session uses the engine: no container runs on it, and no other group's checks are running (group 3's worktree shares it).
-   - The session frees the branch from its worktree. You put the main working tree on `feat/001-measure`, since dev-cpu runs from it.
+   - The session frees the branch from its worktree. You put the main working tree on `feat/001-cloud-elevation`, where group 2 now lands with groups 1, 3, and 4, since dev-cpu runs from it.
    - The session runs `make up ENV=dev-cpu`, then `make measure-stack ENV=dev-cpu` in the background with its output in a file (the run is over 30 minutes), then `make down ENV=dev-cpu`, and writes the record into R-33.
    - Afterwards, park your checkout at `refs/heads/main` with `git switch -c`, never at the branch's tip, and never with `-C`.
 

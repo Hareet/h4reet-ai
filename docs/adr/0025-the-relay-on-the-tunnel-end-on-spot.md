@@ -1,6 +1,6 @@
 # ADR 0025: The relay on the tunnel end, which picks the serving host; the tunnel end on spot
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-029, FR-034, FR-054, FR-066, FR-075, FR-076; plan Q1, Q2, Q8, §4, §8.1, §12; research.md R-04, R-07, R-18; contracts/relay-http.md, edge.md) · Accepted when the Author merges spec 001's group 1, after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10 · Spec: 001 (FR-029, FR-034, FR-054, FR-066, FR-075, FR-076; plan Q1, Q2, Q8, §4, §8.1, §12; research.md R-04, R-07, R-18; contracts/relay-http.md, edge.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 

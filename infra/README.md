@@ -53,7 +53,7 @@ terraform -chdir=infra/bootstrap \
   -platform=linux_amd64
 ```
 
-The bootstrap's lockfile is his step on `feat/001-us1-bootstrap`, before its plan block (the branch's note, "For the Author"), and the account's on `feat/001-us2-safety-net`, the same way with `-chdir=infra/account`.
+Both lockfiles are his steps on `feat/001-cloud-elevation-p`, his branch of `feat/001-cloud-elevation`, where groups 1 to 4 land together: the bootstrap's as above, and the account's the same way with `-chdir=infra/account`, both before the bootstrap's plan block (the branch's note, "For the Author").
 
 ## The state
 
