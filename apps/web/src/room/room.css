@@ -586,11 +586,14 @@ html[data-hud="dock"] .hud-tile[aria-disabled="true"] {
   flex: none;
 }
 
-/* Focus on the glass: the highlight's yellow, 2 pixels, at 3:1 over the glass and over a tile. */
+/* Focus on the glass: the highlight's yellow, 2 pixels, at 3:1 over the glass and over a tile, the conversation's text
+   box's ring among them (the review of 60b51de4, finding 4). */
 html[data-hud="column"] .hud-glass button:focus-visible,
 html[data-hud="column"] .hud-glass a:focus-visible,
 html[data-hud="dock"] .hud-glass button:focus-visible,
 html[data-hud="dock"] .hud-glass a:focus-visible,
+html[data-hud="column"] .hud-glass input:focus-visible,
+html[data-hud="dock"] .hud-glass input:focus-visible,
 html[data-hud="column"] .hud-glass.room-walk:focus-visible,
 html[data-hud="dock"] .hud-glass.room-walk:focus-visible {
   outline: 2px solid var(--hud-focus);
