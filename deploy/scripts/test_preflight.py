@@ -1042,6 +1042,63 @@ def test_p19_prods_aws_directory(prod: Stage) -> None:
     assert prod.results()["P19"].status == "PASS"  # a legacy profile names its own
 
 
+def test_p19_takes_the_profile_that_chains_to_h4_laptop_bedrock(prod: Stage) -> None:
+    # Spec 001's group 4 (its tasks.md T036 and T040; docs/runbooks/laptop.md): the permission set allows only
+    # sts:AssumeRole on h4-laptop-bedrock, so h4reet-bedrock assumes that role from an SSO profile in us-east-1. One hop
+    # only, to that role only.
+    aws = prod.home / ".config/h4reet-ai/aws-home/.aws"
+    prod.write(
+        prod.root / "config/routing.yaml",
+        "adapters:\n  local: {kind: local}\n  bedrock: {type: bedrock-converse, kind: paid}\nenvs:\n  prod: {primary: local, fallback: bedrock}\n  dev: {primary: local}\n",
+    )
+    account = "".join(
+        str(i % 10) for i in range(1, 13)
+    )  # built at run time, never a literal
+    sso = "[profile h4reet-bedrock-sso]\nsso_session = x\n\n[sso-session x]\nsso_region = us-east-1\n"
+
+    def chained(role: str, source: str = "h4reet-bedrock-sso", rest: str = sso) -> str:
+        return (
+            f"[profile h4reet-bedrock]\nrole_arn = arn:aws:iam::{account}:role/{role}\nsource_profile = {source}\n"
+            f"role_session_name = h4reet-laptop\nregion = us-east-1\n\n{rest}"
+        )
+
+    prod.write(aws / "config", chained("h4-laptop-bedrock"))
+    result = prod.results()["P19"]
+    assert result.status == "PASS", result.reason
+    assert account not in result.reason
+    # A legacy SSO profile as the source, which names its own region.
+    legacy = "[profile h4reet-bedrock-sso]\nsso_start_url = https://example.invalid/start\nsso_region = us-east-1\n"
+    prod.write(aws / "config", chained("h4-laptop-bedrock", rest=legacy))
+    assert prod.results()["P19"].status == "PASS"
+    # Any other role is refused, naming the one it must be and never the account.
+    prod.write(aws / "config", chained("AdministratorAccess"))
+    result = prod.results()["P19"]
+    assert result.status == "FAIL" and "h4-laptop-bedrock" in result.reason
+    assert account not in result.reason
+    # The source's SSO region is held to us-east-1, as the profile's own is.
+    prod.write(
+        aws / "config",
+        chained("h4-laptop-bedrock", rest=sso.replace("us-east-1", "eu-west-1")),
+    )
+    assert "SSO region is eu-west-1" in prod.results()["P19"].reason
+    # A source that isn't there, or that chains again, is refused.
+    prod.write(aws / "config", chained("h4-laptop-bedrock", source="nowhere"))
+    assert "source_profile" in prod.results()["P19"].reason
+    # The source itself a role profile, whose own source is an SSO profile: two hops.
+    hop = (
+        f"[profile h4reet-bedrock-sso]\nrole_arn = arn:aws:iam::{account}:role/h4-laptop-bedrock\n"
+        "source_profile = h4reet-bedrock-sso-2\n\n"
+    )
+    prod.write(
+        aws / "config",
+        chained(
+            "h4-laptop-bedrock",
+            rest=hop + sso.replace("h4reet-bedrock-sso]", "h4reet-bedrock-sso-2]"),
+        ),
+    )
+    assert "source_profile" in prod.results()["P19"].reason
+
+
 def test_p19_refuses_a_linked_aws_directory(prod: Stage, tmp_path: Path) -> None:
     # A link would put prod's mount wherever it points, the Author's own ~/.aws among them (tasks.md T194).
     aws = prod.home / ".config/h4reet-ai/aws-home/.aws"

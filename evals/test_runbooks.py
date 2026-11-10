@@ -269,6 +269,56 @@ def spec_010_runbooks() -> set[str]:
     return set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)` \(new\)", line))
 
 
+SPEC_001 = REPO / "specs" / "001-cloud-elevation"
+SPEC_001_ALERTS = SPEC_001 / "contracts" / "aws-alerts.md"
+# Spec 001's group 4 (its tasks.md T036): the pages of its alerts, and the laptop's, whose first part is the Bedrock
+# profile that chains to h4-laptop-bedrock.
+SPEC_001_GROUP_4 = (
+    "aws-budget.md",
+    "aws-budget-action.md",
+    "server-budget.md",
+    "aws-anomaly.md",
+    "credential-audit.md",
+    "laptop.md",
+)
+
+
+def spec_001_kinds() -> list[tuple[list[str], list[str]]]:
+    """contracts/aws-alerts.md §2's table: each row's kinds, the names in backticks in its first column, and its
+    pages, those in its last."""
+    text = SPEC_001_ALERTS.read_text(encoding="utf-8")
+    start = text.index("\n## 2. ")
+    rows = []
+    for line in text[start : text.index("\n## 3. ", start)].splitlines():
+        if not line.startswith("| `"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        kinds = re.findall(r"`([a-z0-9_]+)", cells[0])
+        rows.append((kinds, re.findall(r"`([a-z0-9-]+\.md)`", cells[-1])))
+    return rows
+
+
+def spec_001_runbooks() -> set[str]:
+    """The pages spec 001 writes, each with the group that needs it: those contracts/aws-alerts.md §2 names, and those
+    its tasks.md names under docs/runbooks/."""
+    tasks = (SPEC_001 / "tasks.md").read_text(encoding="utf-8")
+    named = set(re.findall(r"`docs/runbooks/([a-z0-9-]+\.md)`", tasks))
+    return named | {page for _, pages in spec_001_kinds() for page in pages}
+
+
+def test_spec_001s_group_4_pages_cover_their_alerts_and_the_index_names_them() -> None:
+    assert set(SPEC_001_GROUP_4) <= spec_001_runbooks()
+    for page in SPEC_001_GROUP_4:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_GROUP_4):
+            # A row with two pages sends its last kind to the second ("for the last").
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses
@@ -285,6 +335,11 @@ def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
         "anthropic-unavailable.md"
     }  # not vacuous: spec 010's list parses
     later |= spec_010_runbooks()
+    # Spec 001 adds its pages with the groups that need them (contracts/aws-alerts.md §2; its tasks.md).
+    assert (
+        set(SPEC_001_GROUP_4) <= spec_001_runbooks()
+    )  # not vacuous: spec 001's lists parse
+    later |= spec_001_runbooks()
     found = {p.name for p in pages()}
     assert set(PLAN_PAGES.values()) <= found
     assert found - set(PLAN_PAGES.values()) <= later, (

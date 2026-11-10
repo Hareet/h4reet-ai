@@ -330,6 +330,39 @@ describe("the SSO session's end, from the token cache (§3.2's health probe, 2)"
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, dir)).toBeUndefined();
   });
 
+  // Spec 001's group 4 (its tasks.md T036; docs/runbooks/laptop.md): the profile assumes h4-laptop-bedrock from an SSO
+  // profile, so the session's end is its source profile's, one hop away and no further.
+  const account = Array.from({ length: 12 }, (_, i) => String((i + 1) % 10)).join("");
+  const chained = (source: string): string =>
+    `[profile h4reet-bedrock]\nrole_arn = arn:aws:iam::${account}:role/h4-laptop-bedrock\nsource_profile = ${source}\n\n`;
+
+  it("follows a role profile's source_profile to its SSO session, one hop", async () => {
+    const dir = await home(`${chained("h4reet-bedrock-sso")}[profile h4reet-bedrock-sso]\nsso_session = h4reet\n`, {
+      key: "h4reet",
+      body: { accessToken: token, expiresAt: "2026-10-29T18:00:00Z" },
+    });
+    expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, dir)).toBe("2026-10-29T18:00:00.000Z");
+    const legacy = await home(
+      `${chained("h4reet-bedrock-sso")}[profile h4reet-bedrock-sso]\nsso_start_url = https://example.awsapps.com/start\n`,
+      { key: "https://example.awsapps.com/start", body: { accessToken: token, expiresAt: "2026-10-29T18:00:00Z" } },
+    );
+    expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, legacy)).toBe("2026-10-29T18:00:00.000Z");
+  });
+
+  it("is undefined for a source that chains again, or isn't there", async () => {
+    const again = chained("h4reet-bedrock-sso-2").replace("[profile h4reet-bedrock]", "[profile h4reet-bedrock-sso]");
+    const twice = await home(
+      `${chained("h4reet-bedrock-sso")}${again}[profile h4reet-bedrock-sso-2]\nsso_session = h4reet\n`,
+      { key: "h4reet", body: { accessToken: token, expiresAt: "2026-10-29T18:00:00Z" } },
+    );
+    expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, twice)).toBeUndefined();
+    const missing = await home(chained("nowhere"), {
+      key: "h4reet",
+      body: { accessToken: token, expiresAt: "2026-10-29T18:00:00Z" },
+    });
+    expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, missing)).toBeUndefined();
+  });
+
   it("is undefined with no profile, no session, no cache file, or no expiry it can read", async () => {
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, await home("[default]\n"))).toBeUndefined();
     expect(await readSsoSessionEnd({ AWS_PROFILE: "h4reet-bedrock" }, await home(config))).toBeUndefined();
