@@ -1,11 +1,15 @@
 # h4-model-day on every service's cost, not Bedrock's alone (research.md R-22).
-# expect: h4-model-day: not filtered to Bedrock's cost alone
+# expect: h4-model-day: not filtered to the service names the Author gives
 resource "aws_budgets_budget" "model_day" {
   name         = "h4-model-day"
   budget_type  = "COST"
   limit_amount = "5"
   limit_unit   = "USD"
   time_unit    = "DAILY"
+
+  cost_types {
+    include_credit = false
+  }
 
   notification {
     comparison_operator       = "GREATER_THAN"

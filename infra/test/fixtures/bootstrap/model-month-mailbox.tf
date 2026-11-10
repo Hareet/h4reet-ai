@@ -9,7 +9,11 @@ resource "aws_budgets_budget" "model_month" {
 
   cost_filter {
     name   = "Service"
-    values = ["Amazon Bedrock"]
+    values = var.bedrock_service_names
+  }
+
+  cost_types {
+    include_credit = false
   }
 
   notification {

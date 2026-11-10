@@ -11,7 +11,7 @@ resource "aws_budgets_budget" "server_month" {
     not {
       dimensions {
         key    = "SERVICE"
-        values = ["Amazon Bedrock"]
+        values = var.bedrock_service_names
       }
     }
   }
