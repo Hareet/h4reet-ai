@@ -1,149 +1,217 @@
-> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this plan is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+# Implementation Plan: Cloud Elevation — Terraform, One Account, EC2 as Prod's Default Host
 
-# Implementation Plan: Cloud Elevation — Terraform, One Account, Same Compose Stack
+**Branch**: `spec/001-cloud-elevation` (this plan; the work runs on one feature branch per task group, [§16](#16-order-of-work-risks-and-proof)) | **Date**: 2026-11-09 | **Spec**: [spec.md](spec.md)
 
-**Branch**: `spec/001-cloud-elevation` (this plan; the work runs on one feature branch per task group, [§14](#14-order-of-work-risks-and-proof)) | **Date**: 2026-10-18 | **Spec**: [spec.md](spec.md)
+**Status**: **Draft for the Author's review**, written on 2026-11-09 while he was away, at the main session's direction. It replaces the September plan (`plan.md` at 00309c47). It assumes the recommended answer to each of the [Questions for the Author](#questions-for-the-author) until he answers; each question names the sections an other answer changes. No task starts before he approves it (CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`"), and the first task that touches infrastructure waits for his constitution patch, version 1.1.0 ([Constitution Check](#constitution-check)).
 
-**Status**: **Draft for the Author's approval**, written overnight on 2026-10-18 at the Author's direction of 2026-10-17 ("trust the recommendations and keep going as far as we can!"). Nine decisions wait for the Author's answers ([research.md, The plan interview, to ask](research.md#the-plan-interview-to-ask)); the plan assumes each recommended answer until then. Spec 000 hasn't passed every success criterion yet (SC-001's re-run, SC-002, SC-005's dashboard timing, and SC-007 are open), and the spec's Assumptions put that first. Interview question 1 asks whether to approve the plan now, with the first task group that needs a stack waiting for those runs.
+**Input**: spec.md as reworked and clarified on 2026-11-09 (commit b2ea2765), with no needs-clarification marker left. [ADR 0044](../../docs/adr/0044-ec2-as-prods-default-host.md), proposed, on branch `docs/001-ec2-default` (4fe34783). The constitution 1.0.1 in force, and the proposed 1.1.0 patch (`docs/merge-requests/2026-11-09-constitution-1.1.0.patch` on that branch). The September research, plan, data model, and contracts at 00309c47, where this plan carries something over.
 
-**Input**: `specs/001-cloud-elevation/spec.md`, clarified on 2026-10-11 and 2026-10-12 (its Clarifications), and spec 000 as merged on main at 58bd232.
+**Companions**: [research.md](research.md) (each decision, why, and what else was weighed; the cost lines), [data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md) (the Author's validation runs), and the ADRs [§14](#14-the-authors-patches-steps-and-adrs) lists. Where this plan and a contract disagree on an interface detail, the contract is right and this plan is fixed.
 
-**Companions**: [research.md](research.md) (each decision, its rationale and rejected alternatives, and the idle-cost table), [data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md) (the validation runs), and the ADRs FR-062 lists, written in the commit that records the Author's approval ([§13](#13-documentation-and-adrs)). Where this plan and a contract disagree on an interface detail, the contract is right and this plan is fixed.
+**Conventions** (spec 000's, plus three):
+- **The Author's terminal**: commands only the Author runs, outside Claude Code. Hooks refuse them to agents.
+- **[A]** agent-editable, reviewed; **[H]** human-only; **[P]** delivered as a patch the Author applies.
+- **The three hosts**: **the laptop** (the local tier), **EC2** (prod's default host), and **the tunnel end** (the small always-on instance where the tunnel ends). Only the laptop and EC2 serve.
 
-**Conventions** (spec 000's, plus two):
-- **The Author's terminal**: commands only the Author runs, outside Claude Code. Hooks block them for agents.
-- **Agent-editable** files are changed by agents and reviewed by the Author. **Human-only** files change only by the Author's hand; agents deliver their changes as patches in `docs/merge-requests/`.
-- **A stack** is one running copy of the topology. Spec 000 has `prod` and `dev` on the 5090 host and `dev-cpu` on the agents' engine. This spec adds **`cloud`**, on the cloud VM.
-- **A root** is one Terraform root module under `infra/`: `bootstrap`, `account`, or `prod`.
+## Questions for the Author
+
+Each is something this plan would otherwise decide past his answers. The plan assumes the recommended option until he answers. An answer that differs changes the sections named, and nothing else.
+
+### Question 1: How does the edge reach whichever host serves?
+
+The spec moves visitors by DNS: failover records answer the dynamic origin's name with the laptop's path or EC2's (spec FR-054, FR-072; point 1). But CloudFront reaches a private origin only through a VPC origin, which is bound to one resource, not a name. So DNS can switch only between public origins, and those need TLS and a certificate on both hosts, a public certificate authority, and a secret header that tells this distribution from any other (research.md R-07).
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | **The relay runs on the tunnel end**, the always-on instance you chose for the tunnel ("Tiny always-on relay", your question 13 option). CloudFront reaches it as its one VPC origin. The relay sends each request to the laptop while it is healthy, else to EC2, else answers the resting reply. Route 53's health check stays, and still fires the start function. | Visitors' requests stay inside AWS's network and the SSH tunnel. There is no secret in Terraform's state, no certificate, and no runtime DNS change. A host's failure is seen in about a second, not after a record's time to live. The public cap and a live status answer stay up while no host serves. The tunnel end is now in EC2's path too, so its outage rests the twin (question 2). One part of point 1 changes: the relay, not DNS, moves visitors. Spec amendments: [§13](#13-the-spec-amendments-option-a-needs). |
+| B | **The spec as written:** failover records for `api-origin.hareet.ai`, with the tunnel end's and EC2's public addresses. Each host serves TLS with a certificate for that name from a public authority, through a DNS challenge. A secret origin header, which you write into a CloudFront key-value store, admits only this distribution. | Point 1 holds as approved. But visitors' requests cross the internet between CloudFront and the host, inside TLS. There are more parts: two certificates, a third-party authority, Route 53 write access from both hosts, a key-value store, and a fixed public address on EC2. Handovers take the health check's detection time plus the record's time to live. The tunnel end stays out of EC2's path. |
+| C | **CloudFront picks the origin:** a CloudFront Function reads which host serves from a key-value store that the handover writes, and selects one of two VPC origins. | Private, with no relay in EC2's path. But it rests on a function's origin selection, a feature to confirm, and the handover writes the store at run time. |
+
+Recommendation: A. It keeps September's private path, has the fewest parts, and moves visitors fastest. The title of the option you chose for the tunnel already names it. If B or C: §4, §7, §8, §12, and §13 change, with research.md R-07, R-18, and R-31, data-model.md §3 and §6.1, and the relay, edge, and handover contracts.
+
+### Question 2: The tunnel end: on demand, or spot?
+
+Your question 13 option priced it as a spot instance: "about $2.20 a month for a t4g.micro spot instance plus $3.65 for its address". With question 1's option A, every dynamic request passes through it, so a spot interruption rests the twin even while EC2 runs.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended, with question 1's A) | On demand. | Interruptions stop. The September research put an on-demand `t4g.micro` at $0.0084 an hour, $6.13 a month (research.md R-04, read 2026-10-18, to confirm), against about $2.20 on spot. |
+| B (recommended, with question 1's B) | Spot, as your option priced it. | An interruption takes only the laptop's path away; EC2 then starts. |
+
+### Question 3: Should the 1.1.0 patch amend two more sentences before you apply it?
+
+Two sentences the patch leaves strain this design (Constitution Check):
+- the Observability standard's "Langfuse, self-hosted on the local tier", while EC2 runs its own Langfuse;
+- the Cloud standard's always-on list, which names "the Bedrock fallback path", while Bedrock is called only from a host that serves.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Amend both in the patch. For example: "Langfuse, self-hosted on each host that runs production", and "the Bedrock path of whichever host serves". The words are yours. | No deviation remains. The ADR 0044 branch's patch file changes before you apply it. |
+| B | Leave them. This plan records a deviation for each in Complexity Tracking. | One permanent deviation, which the Governance section says needs an ADR. |
+
+### Question 4: The laptop without a network
+
+The shared state is in the cloud, and unknown state is degraded. So prod on a laptop with no network answers degraded, local answers included. Principle I's "runnable on it, calling local models, with one command" then holds only with a network (spec Assumptions).
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Accept it. An offline showing runs `make up ENV=dev`, whose meter is local and spends nothing. | No new rule. The runbook says so. |
+| B | An offline mode for prod: while both the shared state and the tunnel are unreachable, prod answers from the local model only, with no paid route, so nothing can spend. | Local answers keep working offline. But it departs from CLAUDE.md's "unknown state = degraded" and spec FR-019, which needs an ADR, and a ceiling tripped elsewhere wouldn't reach the laptop until it reconnects. |
+
+### Question 5: The resting message's words
+
+The room shows `cannot_talk.resting` while no host serves. Its words, "The twin can't talk right now. The local tier, the computer it runs on, is resting.", name the laptop, though in a start-up gap EC2 is the host that is away.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | A follow-up through spec 002's lifecycle, with words you write that name no host. | Spec 002's content changes by your approval, as ADR 0034 requires. |
+| B | Keep the words. | Visitors read "the local tier" while EC2 is starting. |
+
+### Question 6: Confirm the reading of "it"
+
+You wrote "it should be the local-first primary scenario we built for". The spec reads "it" as the laptop's stack (spec Clarifications; ADR 0044 open item 9).
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Yes: the laptop's stack. | Nothing changes. |
+| B | It also means EC2 should be local-first. | EC2 would need a model before the Anthropic API, which your recorded reason under Principle I rules out ("within the server budget EC2 has no GPU, and a model run on its CPU wouldn't meet the twin's quality bar"). |
+
+### Question 7: Confirm the provisional IAM, with two additions
+
+Question 16 wasn't asked; the session took its recommended option as a default (spec FR-070): "all in Terraform, human-only. The start function's role may start only the one tagged instance; the laptop's stop uses its own permission set, which may stop only that instance, through a short-lived SSO session." This plan adds two identities in the same shape (research.md R-15, R-30):
+- `h4-ec2-guard-fn`, which may stop only that instance. It stops EC2 when AWS restarts it on its own while the laptop serves or the start is paused (spec FR-071).
+- The start function reads the health check's status, so that `make ec2-start` can't start EC2 while the laptop serves.
+
+| Option | Answer | Implications |
+|---|---|---|
+| A (recommended) | Confirm the default and the two additions. | As planned. |
+| B | Change them. | Research R-15's table and the handover contract change. |
+
+### Settled in this plan, with the reason
+
+These were open before planning. Each is settled here, inside the Author's answers.
+
+| Item | Settled as | Why |
+|---|---|---|
+| Where the shared meter and kill switch live | RDS for PostgreSQL 17, single instance, private; both hosts use spec 000's schema as it is (research.md R-20) | It runs whether or not a host does, and it runs the meter's transactions and tests unchanged. Its cost is a line the Author prices before he sets the figure. DynamoDB is the fallback if that price is out of proportion. |
+| What the health check probes | The laptop's health block, at the tunnel end's public address, through the tunnel (research.md R-29) | His question 13 option: "the health check sees the whole path". |
+| Credentials on the health path | None: Route 53's checkers can't send one (to confirm). The health block answers only 200 or 503, and the tunnel end admits that port only from Route 53's checker addresses (research.md R-12) | Spec FR-053's conditional. |
+| AWS restarting EC2 on its own | The guard stops it again, whatever AWS's restart does (research.md R-30) | Spec FR-071, without relying on AWS's exact behavior. |
+| The 5-minute handover window | Kept as the spec's default; group 9 measures it | Spec FR-063, SC-016. |
+| The Anthropic account's spend limit | The Author's step, in his account ([§14](#14-the-authors-patches-steps-and-adrs)) | Spec FR-073; no agent sees the account. |
+| His files: the intents' lines, CLAUDE.md's lines | His patches, drafted in [§14](#14-the-authors-patches-steps-and-adrs) | They change only by his hand. |
+| ADR 0044 cites spec 001 by the outline's numbers | For the ADR's branch to correct; the spec's table under Clarifications maps them | The ADR is outside this folder. |
+| September's interview questions | Q1 is obsolete. Q2 is question 1 here. Q3 was answered (spec questions 14, 15). Q4 is settled by the spec: Route 53. Q5: the apply record arrives on an `ops/apply-*` branch. Q6: both hosts' Bedrock identities come under Terraform (spec FR-013). Q7: the laptop takes releases from the Author's own release directory. Q8: no breaker. Q9: research.md R-19 and R-25. | Research R-13, R-15, R-17, R-06. |
 
 ## Summary
 
-Spec 001 puts h4reet.ai on the internet without moving the heavy tier off the Author's machine. One AWS account in us-east-1 holds:
-- **the safety net, applied first:** AWS budgets at the $5 and $20 ceilings, a cost-anomaly monitor, and a budget action that revokes Bedrock at the provider when the month's bill reaches $20;
-- **the edge:** a CloudFront distribution serving the static site from S3 over TLS, with the zone in Route 53;
-- **one small Graviton spot VM** running the very same compose file as a fourth stack, `cloud`, with:
-  - the relay, which routes visitors' requests;
-  - the fallback gateway, which holds the one meter of record and its kill switch;
-  - the tunnel's end;
-  - a collector that ships telemetry home.
-
-While the Author's machine is up, the relay sends hello through an outbound OpenSSH tunnel to the local tier's own `edge`, gateway, and model. While it isn't, the fallback gateway answers within the $2 sub-budget, or with spec 000's degraded response. Releases are built once in the Author's terminal and pulled by digest by a deployer on each host. The public dashboard is a snapshot the local tier pushes up through the tunnel, so it never goes dark.
+Spec 001 puts prod on EC2 by default, with the laptop serving local-first when the Author runs it, one host at a time. One AWS account in us-east-1 holds:
+- **the safety net, applied first:** budgets on Bedrock's cost at the $5 and $20 ceilings, and the server budget at the Author's figure. An anomaly monitor watches the account. Two automatic actions: one revokes Bedrock on both hosts, the other stops EC2.
+- **the shared state:** RDS for PostgreSQL with spec 000's meter and kill switch, which both hosts' gateways use with `H4_STACK=prod`;
+- **the tunnel end:** a small always-on instance with OpenSSH's server for the laptop's outbound tunnel, and, as question 1 recommends, the relay that CloudFront reaches privately and that picks the serving host;
+- **EC2:** a spot instance that stops on interruption, running the very same compose file without the model server, with the Anthropic API first and Bedrock second;
+- **the handover:** a Route 53 health check through the tunnel end, whose alarm fires `h4-ec2-start`; `h4-ec2-guard`; the laptop's `h4-handover` loop, which stops EC2 once the laptop serves; and the pause switch;
+- **the edge:** CloudFront serving spec 002's site from S3 over TLS for hareet.ai, with the zone in Route 53.
 
 Technical approach, by area:
-- **Infrastructure** ([§1](#1-infrastructure-the-roots-the-state-and-the-records), R-02, R-03, R-13, R-14):
-  - three Terraform roots, pinned, with state in S3 under S3's own lock;
-  - the plan goes in the merge-request note, tied to the `infra/` tree it was made from, and the local gate checks it;
-  - the Author applies a saved plan that `make infra-verify` has matched to the note, and `make infra-record` writes the record. There is no `make apply`.
-- **Guards** ([§2](#2-the-guard-patch-before-any-infra-file), R-16): one patch the Author applies before the first `infra/` file. It refuses every state-changing Terraform command in every spelling, denies the state, the plans, and the new credentials by path and name, and protects the Terraform that defines IAM, budgets, alerts, edge limits, and the kill switch.
-- **Cost** ([§3](#3-cost-the-safety-net-and-the-meter-of-record), R-04, R-05, R-20–R-24):
-  - idle cloud cost about $8 a month on a t4g.micro spot instance, about $11 on a t4g.small;
-  - the meter of record books it as a daily share and corrects it from AWS's own data;
-  - the budget action and its rehearsal; AWS-side alerts reach Telegram through a Lambda bridge and email through SNS.
-- **The edge and the relay** ([§4](#4-the-edge-the-site-and-the-relay), [§5](#5-the-paths-the-local-path-the-fallback-gateway-and-the-tunnel), R-07, R-08, R-12, R-18):
-  - CloudFront reaches the relay only through a VPC origin, on the VM's private interface;
-  - the relay applies the public cap, reads the kill switch of record at request start, and picks the path.
-- **The tunnel** ([§5](#5-the-paths-the-local-path-the-fallback-gateway-and-the-tunnel), R-11): OpenSSH's reverse forwards in two unprivileged containers. The server permits exactly the forwards the disclosure lists, and the local `edge` authenticates each call.
-- **The VM and releases** ([§6](#6-the-cloud-vm), [§7](#7-releases-and-the-deployers), R-10, R-15, R-17):
-  - a host egress proxy with a hostname allowlist generated from the disclosure;
-  - credentials for the fallback gateway assumed from the instance role, out of the containers' reach;
-  - pull-only deployers, and rollback by release.
-- **Visitors** ([§8](#8-what-the-visitor-gets-the-site-the-disclosure-and-the-public-view), R-19): a placeholder site, the disclosure rendered from the repository's, a content security policy that keeps every request on h4reet.ai, and the public view.
+- **Infrastructure** ([§1](#1-infrastructure-the-roots-the-state-and-the-records)): September's three Terraform roots, plan-in-note, recorded terminal apply, and offline checks, with the new resources added to the protected files.
+- **Guards first** ([§2](#2-the-guard-patch-before-any-infra-file)): one patch before any `infra/` file.
+- **Cost** ([§3](#3-cost-the-budgets-the-actions-and-the-shared-meter)): the budgets, the two actions and their rehearsals, the shared meter, and a route per host that keeps EC2's calls out of the laptop's sub-budget.
+- **The tunnel end** ([§4](#4-the-tunnel-end-the-tunnel-the-relay-and-the-sink)): the tunnel, the relay, the snapshot sink, and a small collector.
+- **The hosts** ([§5](#5-the-hosts-ec2-and-the-laptop)): EC2's instance, network, storage, and identities; the laptop's changes.
+- **Routing** ([§6](#6-routing-per-host)): `H4_HOST`, schema 2, and rule R1 amended.
+- **The handover** ([§7](#7-the-handover)): the sequence, the windows, the functions, and the operator's commands.
+- **Visitors** ([§8](#8-the-edge-the-site-and-the-disclosure)): the edge, the site, the disclosure's rows, and the public view.
 
 ## Technical Context
 
 **Language/Version**:
-- **TypeScript 6.0.3 on Node 24 LTS** (spec 000's pins) for the new `services/relay` and the gateway's changes.
-- **Python 3.12, stdlib only,** for the tools:
-  - `deploy/scripts/deployer.py`, the snapshot sink and publisher, and the VM's egress proxy;
-  - the Lambdas (`h4-alert-bridge`, `h4-probe`, `h4-credential-audit`);
-  - the gates' new checks (`infra_policy.py` adds `python-hcl2`, pinned and hashed);
-  - `infra_redact.py` and the records.
-- **HCL for Terraform.** The Terraform version and `hashicorp/aws` are pinned in the first infra task, from the Author's terminal (R-02).
-- **Bash 5.2** for the hooks and the matrix; nginx configuration; OpenSSH configuration; SQL for one migration.
+- **TypeScript on Node 24 LTS**, at spec 000's pins, for `services/relay` (new) and the gateway's changes.
+- **Python 3.12, stdlib only**, for the host scripts (the deployer, the egress proxy, the credential timer, the handover loop, the snapshot publisher and sink), the Lambda functions, and the gates' new checks. `python-hcl2` stays the one pinned, hashed addition (September).
+- **HCL for Terraform**, with Terraform and `hashicorp/aws` pinned in the first infra task from the Author's terminal.
+- **Bash**, nginx and OpenSSH configuration, and SQL for migration 0007.
 
 **Primary Dependencies**:
-- **The relay:** fastify 5.12.5, pg 8.23.1, zod 4.6.5, and pino 10.4.0, with the OpenTelemetry set spec 000 pins (the same versions as the gateway, one lockfile).
-- **AWS** (the VM's host tools, and the Author's terminal): the AWS CLI v2, at the version the devcontainer pins, and the Session Manager plugin.
-- **OpenSSH** in Alpine's package, pinned through the base image's digest.
-- **Containers** (new images, pinned by index digest in `deploy/images.lock`):
-  - `relay`, built from `services/relay/Dockerfile` on spec 000's Node base;
-  - `tunnel` and `tunnel-end`, built from `deploy/tunnel/Dockerfile` on a pinned Alpine;
-  - `snapshot-publisher` and `snapshot-sink`, built on spec 000's Python base;
-  - the Lambda images, on AWS's Python 3.12 Lambda base;
-  - every upstream image the cloud stack runs, already pinned by spec 000.
+- **The relay:** Fastify, `pg`, zod, and pino at the gateway's pinned versions, in one lockfile.
+- **The AWS CLI v2** at the devcontainer's pin, and the Session Manager plugin, in the Author's terminal and on the hosts.
+- **OpenSSH** from Alpine, pinned by the base image's digest.
+- **The RDS certificate bundle,** pinned by SHA-256 into the gateway's and the relay's images.
+- **New images,** pinned by index digest in `deploy/images.lock`: `relay`, `tunnel` (both ends), `snapshot`, and the Lambda images on AWS's Python 3.12 Lambda base.
 
 **Storage**:
-- **Cloud:**
-  - **The meter of record:** spec 000's `gateway-state` Postgres and its journal, on a 2 GiB gp3 volume that outlives the VM (R-20).
-  - **Terraform's state:** S3, versioned and locked (R-03).
-  - **S3:** the site's bucket (the site, `/_degraded/`, `public-view/`) and the release bucket.
-  - **ECR:** one repository per service.
-  - **Parameter Store's SecureStrings,** holding values only the Author sets (FR-009).
-- **Local:**
-  - `~/.config/h4reet-ai/{infra,tunnel,release}/`: the Author's, denied to agents;
-  - `~/.local/state/h4reet/releases/`: the local release source.
-- **Memory only:** the relay's per-address caps (at most one UTC day, FR-042).
+- **RDS for PostgreSQL 17:** the shared state (data-model.md §1).
+- **S3:** Terraform's state, the site and the public view, and the releases.
+- **ECR:** one repository per service, with the upstream images copied by digest.
+- **EBS:** EC2's root and data volumes, kept while it is stopped; the tunnel end's root.
+- **Parameter Store:** the secrets the Author writes (research.md R-26), and the pause switch.
+- **The laptop:** spec 000's stores, with prod's meter moved out; `~/.config/h4reet-ai/{infra,tunnel,release}`, denied to agents.
+- **Memory only:** the relay's per-address caps and host health.
 
 **Testing**:
-- **vitest** for the relay and the gateway's changes, with the contract tests in [contracts/relay-http.md](contracts/relay-http.md).
-- **pytest** for the tools, the Lambdas (with a stub Telegram and a stub SNS event), the deployer (with a stub engine), and the gates' new checks (fixtures of HCL and plan JSON).
-- **The matrix** grows (FR-006, FR-011, FR-012).
-- **`make breach-test ENV=dev-cpu`** grows the relay's assertions (FR-025).
-- **Offline Terraform checks:** `fmt`, `validate`, and the policy, against the Author's provider mirror (R-14).
+- **vitest:** the relay's contract suite; the gateway's route per host, `H4_HOST`, and R1; and the two-gateways test on one store.
+- **pytest:** the host scripts, the Lambda functions (stub EC2, Budgets, and SSM), the deployer, and the gates' checks.
+- **The matrix:** FR-006, FR-011, FR-012, and R-32's targets.
+- **`make breach-test ENV=dev-cpu`:** grows the relay's side (FR-025), with the relay in a `dev-relay` profile.
+- **Offline Terraform checks** against the Author's provider mirror.
 - **The Author's runs** in [quickstart.md](quickstart.md), against real AWS.
 
 **Target Platform**:
-- **The local tier:** spec 000's host, unchanged.
-- **The cloud VM:** EC2 `t4g.micro` (arm64, 1 GiB) as a persistent spot request that stops on interruption, Amazon Linux 2023, Docker from its repository with the pinned Compose plugin, in us-east-1, one availability zone (R-04).
-- **The edge:** CloudFront, with S3 and a VPC origin.
-- **AWS-side functions:** Lambda container images on arm64.
+- **The laptop:** spec 000's host, unchanged.
+- **EC2:** Amazon Linux 2023. The type is the smallest that holds the measured stack, Graviton if every image has an arm64 build (research.md R-04, R-33). Spot, persistent, stopping on interruption.
+- **The tunnel end:** `t4g.micro`, Amazon Linux 2023, on demand or spot (question 2).
+- **RDS:** PostgreSQL 17, the smallest Graviton class, single-AZ.
+- **CloudFront** with S3, and a VPC origin to the tunnel end. **Lambda:** container images on arm64.
 
-**Project Type**: an extension of spec 000's multi-service system: one new web service (the relay), cloud infrastructure as code, a static placeholder site, and host services for deployment and egress.
+**Project Type**: an extension of spec 000's multi-service system. It adds one web service (the relay), infrastructure as code, host services, and Lambda functions.
 
 **Performance Goals**:
-- **Hello:** within 5 s with the local tier off, by fallback or degraded (SC-001). The fallback answers in 1–2 s (spec 000's SC-005 run: 0.86–1.21 s), plus the edge's hop.
-- **Kill-switch changes** reach the relay within 10 s (SC-008); the relay reads the store on every request.
-- **Failover** within 5 s of the first failed check (SC-007): the relay checks the local path every second, and a failed request falls back at once.
-- **The public view** is at most 5 minutes old while the local tier is up (SC-013): it's published every 2 minutes.
+- **Hello and the site:** within 5 s with the laptop off and EC2 serving. In a window with no host, the degraded body within 5 s (SC-001).
+- **Kill-switch changes** reach the relay within 10 s (SC-008); the relay reads the shared state on every request.
+- **The relay's host choice:** a host is unhealthy after one failed check, a second apart, and healthy after three passes (research.md R-18).
+- **The handover window:** EC2 stopped within 5 minutes of the relay sending to the laptop (FR-063, SC-007, SC-016).
+- **The public view:** at most 5 minutes old while a host serves (SC-013).
 
 **Constraints**:
-- **Idle cloud cost** at most $10 a month (SC-002); the estimate is about $8 (R-05).
-- **Ceilings:** every dollar inside $5 a day and $20 a month (SC-003).
-- **Credentials:** none long-lived (SC-004), and no AWS credential on the local tier or in any agent session.
-- **The local tier** takes no inbound connection (SC-006).
-- **Visitor data:** no address, message, or answer stored anywhere (SC-011), no cookie, and nothing stored on the visitor's device (SC-010).
+- **Model spend:** $5 a day and $20 a month on the shared meter, both hosts together (SC-003).
+- **Server spend:** at or under the Author's figure (SC-002), with nothing applied before he sets it.
+- **Credentials:** none long-lived. The laptop holds short-lived SSO sessions only.
+- **The laptop** takes no inbound connection (SC-006).
+- **Visitor data:** none stored, no cookie (SC-010, SC-011).
 - **Agents** plan offline only, and never apply.
 
-**Scale/Scope**:
-- **Traffic:** a portfolio's: test traffic at first, and a public cap per address in the relay (FR-033).
-- **Infrastructure:** four stacks, three Terraform roots, about 60 AWS resources.
-- **New code:** one TypeScript service, about eight Python tools, three Lambdas, and two OpenSSH images.
+**Scale/Scope**: a portfolio's traffic. Three Terraform roots, three hosts, one database. One new TypeScript service, about eight Python host scripts and tools, five Lambda functions, and two OpenSSH images.
+
+**Dependencies on other specs**:
+- **Spec 000:** its success criteria pass before work starts (spec Assumptions). Its FR-030, FR-031, rule R1, and environment contract are amended by name ([§13](#13-the-spec-amendments-option-a-needs)).
+- **Spec 010:** on `main`. Its price is confirmed ("read 2026-11-09") and its cap is $20. Still open: the Author's words in row F3, which `make test` holds back while a route names the Anthropic API.
+- **Spec 002:** its room-conversation contract §3 gains `no_host_serving`.
+- **Spec 007:** its readiness evidence covers both hosts' adapters.
 
 ## Constitution Check
 
-*GATE: passed before research and re-checked after design ([below](#constitution-check-post-design)).*
+*GATE: checked before research and again after design ([below](#constitution-check-post-design)).* Against 1.0.1, in force, and the proposed 1.1.0. A deviation from 1.0.1 that 1.1.0 removes is a dependency: no infrastructure task starts until the Author applies 1.1.0.
 
-| Principle or standard | What spec 001 does | Verdict |
-|---|---|---|
-| I. Data-local by default | **Local-first:** while the local tier is up, it answers visitors (FR-017, FR-035), and `make up ENV=prod` still starts the local tier's whole topology (FR-045; §5.4). **Disclosure:** every new flow is a disclosure row before it happens, rendered on the site from the repository's file (FR-040, FR-041; [§8](#8-what-the-visitor-gets-the-site-the-disclosure-and-the-public-view)). **No visitor data kept:** no cookies, no device storage, and visitor addresses held in memory only (FR-042). **Degraded modes:** every new path has one ([§11](#11-degraded-modes)). **No biometrics.** | PASS |
-| II. Production-grade or not shipped | Tests per contract, red-team cases before hello is public (FR-039), telemetry on every new path (FR-060), a cost estimate with its measurement (R-05; SC-002, SC-003), a runbook per new alert (FR-056), and ADRs (FR-062) | PASS |
-| III. Intent → spec → code; humans merge | The accepted intent is in the folder, this plan comes before code, and each task group is a branch with a note. **Deviation, local phase:** the plan in the note and the Author's recorded apply stand in for the plan on a pull request and the protected apply (ADR 0013; spec Assumptions; R-13) | PASS, recorded deviation |
-| IV. Least privilege | **Terraform:** apply-class commands refused to agents in every spelling (R-16); IAM, budgets, alerts, edge limits, and the kill switch in protected files (R-14). **Identities:** none long-lived, and none on the local tier (R-15, R-17). **Containers:** IMDS out of their reach; a hostname-allowlisted egress (R-10). **Tunnel:** permits only the listed forwards (R-11). **Operator:** reached only through a short-lived Systems Manager session (FR-050). **Order:** every deny lands before its risk ([§2](#2-the-guard-patch-before-any-infra-file)). **Sandbox:** no new domain | PASS |
-| V. Cost is a first-class signal | **The meter:** one meter of record (FR-017, FR-018), booking infrastructure too (FR-020, R-21). **AWS's side:** budgets and the anomaly monitor in the first apply (FR-022), and an automated revoke at the provider (FR-023), both rehearsed (FR-025, FR-026). **On view:** spend on every public view (FR-059) | PASS |
-| VI. Build in public | **The public view** never goes dark (FR-057 to FR-059); **apply records** are committed (FR-007). **Deviation, already recorded in ADR 0013:** the repository stays private until publication | PASS, recorded deviation |
-| VII. Say exactly what you owned | The placeholder site states nothing about the Author outside the corpus or a filled `facts/` slot (FR-038) | PASS |
-| VIII. Honest AI | Hello is named a test of the gateway, not the twin, and passes red-team cases before it is public (FR-038, FR-039) | PASS |
-| Prohibited without a human | Apply, destroy, state writes, IAM, budgets, alert routing, edge limits, and the kill switch: the Author's apply or the Author's patch only. The budget action is the system's own degradation, set up by the Author's apply | PASS |
-| Secrets and supply chain | **Pins:** Terraform, providers, and images, by version, lockfile, and digest (FR-004). **Secrets:** filled by the Author in Parameter Store, outside Terraform, so never in its state or plans (FR-009; a named exception to FR-001, R-26). **Deviation, ADR 0014:** the CI-side controls wait for the publication spec | PASS, recorded deviation |
-| Cloud standard | **One account,** environments by VM, role, tag, and budget (FR-001, FR-002). **Remote locked state** (FR-003). **Only the constitution's list** in the cloud (FR-044). **Deviation, as above:** "plan output posted on every PR; apply from a protected environment" waits for publication | PASS, recorded deviation |
-| Compute standard: one compose definition, identical images | The cloud stack runs `deploy/compose.yaml` with its own env file (FR-043), and each release is one image index per service on both hosts (FR-048). Spec 000's image deviations carry over (ADR 0015) | PASS, carried deviation |
-| Local tier standard | **Heavy containers local,** behind an outbound tunnel (FR-052 to FR-055). **Deployments pulled,** not pushed (FR-046). **Production works with the local tier off** (FR-028) | PASS |
-| Model access standard | **Gateway only, local first;** Bedrock within the sub-budget, from the fallback gateway alone (FR-035). **No new component calls a provider** | PASS |
-| Observability standard | Public read-only dashboards as a cloud-hosted snapshot (FR-057 to FR-059, read as the spec reads them). Payloads are never exported | PASS |
-| Alerting standard | AWS-side alerts go to Telegram first and email second, never SMS (FR-022). Degradation never waits on delivery (FR-024) | PASS |
-| Development Workflow step 6 | **Releases** are built once and pulled by digest, and roll back automatically on failed health and in one command (FR-046, FR-047). **Deviation, ADR 0014:** building in CI and promoting from there waits for publication | PASS, recorded deviation |
+| Principle or standard | Under 1.0.1 | Under 1.1.0 as proposed | This plan |
+|---|---|---|---|
+| I. Data-local by default | Prefer self-hosted inference "where it meets the quality bar" | unchanged | **Complies**, with the Author's recorded reason for EC2 (spec Clarifications). Every new flow is a disclosure row before it happens ([§8](#8-the-edge-the-site-and-the-disclosure)). No cookies, no stored address. The laptop runs the whole topology with one command (FR-045). **Named reading:** offline, the laptop's prod answers degraded (question 4). |
+| II. Production-grade | — | — | **Complies**: tests per contract, red-team on all four adapters, telemetry and panels, a cost estimate (priced by the Author before apply) and its measurement, runbooks, ADRs. |
+| III. Intent → spec → code | — | — | **Complies**, with the local-phase deviation (ADR 0013). The plan waits on approval; the spec amendments of [§13](#13-the-spec-amendments-option-a-needs) are approved with it. |
+| IV. Least privilege | — | — | **Complies**. Agents can't apply; every new target is refused to them. Each role is scoped to one instance, one key, or one action (research.md R-15). Nothing changes IAM at run time. The laptop takes no inbound connection. The tunnel end permits only the listed forwards. EC2 admits only the tunnel end. Every deny lands before its risk ([§2](#2-the-guard-patch-before-any-infra-file)). |
+| V. Cost | "the local tier exists so the cloud bill stays near zero" | "so the model spend stays near zero", with the server's budget separate | **Deviation from 1.0.1, removed by 1.1.0.** The meter is the control on both hosts. The two budgets and their two actions come first and are rehearsed. |
+| VI. Build in public | — | — | **Complies**, with ADR 0013's recorded deviation (private until publication). |
+| VII. Whole product | — | — | **Complies**: the site states nothing outside the corpus. The trade, every turn paid on EC2 and free on the laptop, is on the dashboard. |
+| VIII. Honest AI | — | — | **Complies**: red-team cases on every adapter that can answer, before public (FR-039). |
+| Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay" and "the Bedrock fallback path" | **Deviation from 1.0.1, removed by 1.1.0.** With question 1's A, the relay is always on in the cloud, as listed. **Named reading:** "the Bedrock fallback path" runs only from a host that serves (question 3). Terraform for everything, with one named exception: secrets (research.md R-26). |
+| Compute standard | — | — | **Complies**: one compose file on three hosts, with only the env file differing; the same images by digest. Image variants carried (ADR 0015). |
+| Local tier standard | "via the cloud fallback within its sub-budget" | "via the cloud host and its paid routes within the ceilings and adapter caps" | **Deviation from 1.0.1, removed by 1.1.0.** "Exposed only through an outbound tunnel" holds. |
+| Model access standard | "local-first with Bedrock as fallback inside a capped sub-budget" | per host: local-first on the laptop; the Anthropic API first on EC2 | **Deviation from 1.0.1, removed by 1.1.0.** One gateway, routes as configuration ([§6](#6-routing-per-host)). |
+| Observability standard | "Langfuse, self-hosted on the local tier" | unchanged | **Deviation under both:** EC2 runs its own Langfuse. Removed if question 3 is A. |
+| Alerting standard | — | — | **Complies**: Telegram first, email second, never SMS; degradation never waits on delivery. |
+| Security & Agent Governance | — | — | **Complies**: IAM, budgets, alert routing, edge limits, the kill switch, the failover, the start function, and the pause switch are the Author's. Agents plan only. |
+| Secrets and supply chain | — | — | **Complies**, with ADR 0014's carried deviation (the CI-side controls wait for publication). Secrets stay outside Terraform (a named exception to spec FR-001). |
+| Development Workflow step 6 | — | — | **Complies**: built once, pulled by digest, rollback in one command. Building in CI waits for publication (ADR 0014). |
 
-Gate result: **PASS**. Every deviation is justified in the spec's Assumptions and an ADR ([Complexity Tracking](#complexity-tracking)).
+Gate result: **PASS, conditional on the 1.1.0 patch** before any infrastructure task. Every remaining deviation is named in [Complexity Tracking](#complexity-tracking).
 
 ## Project Structure
 
@@ -151,576 +219,501 @@ Gate result: **PASS**. Every deviation is justified in the spec's Assumptions an
 
 ```text
 specs/001-cloud-elevation/
-├── intent.md                  # the accepted intent
-├── spec.md                    # clarified 2026-10-11 and 2026-10-12
+├── intent.md                  # the accepted intent (the Author's; its cost lines superseded by his later words)
+├── spec.md                    # reworked and clarified 2026-11-09
 ├── publication-carryover.md   # FR-014 to FR-016 and SC-015, moved word for word
 ├── plan.md                    # this file
-├── research.md                # decisions, rationale, alternatives; the idle-cost table; the interview to ask
-├── data-model.md              # the meter's new attribution, releases, deployments, plan and apply records, the public view
+├── research.md                # decisions, why, alternatives; the cost lines
+├── data-model.md              # the shared state, migration 0007, the route per host, the records, the state machines
 ├── quickstart.md              # the Author's validation runs, per group
 ├── contracts/
-│   ├── relay-http.md          # /api/hello, /api/status, the cap, the kill switch, the path, headers
-│   ├── tunnel.md              # the forwards, sshd's rules, the local edge's tunnel blocks, keys, revocation
-│   ├── edge.md                # CloudFront: behaviors, origins, headers, CSP, error responses; DNS; certificate
-│   ├── releases-deployer.md   # release.json, make release, the deployer's loop, holds, rollback, records
-│   ├── infra-records.md       # the plan block, infra-verify, the apply record, the credential audit
-│   ├── aws-alerts.md          # the SNS topic, the bridge's message, the probe, the budget action
-│   ├── public-view.md         # the snapshot document, the sink's checks, the page
-│   └── env-cloud.md           # the cloud stack's env keys, port range, profiles; changes to spec 000's env contract
+│   ├── relay-http.md          # the relay: listeners, routes, host choice, causes, headers
+│   ├── tunnel.md              # the forwards, sshd's rules, the hosts' relay, telemetry, and health blocks, keys
+│   ├── edge.md                # CloudFront, the VPC origin, error responses, DNS, the certificate, the CSP
+│   ├── shared-state.md        # RDS, roles, connections, TLS, the move, two writers, unknown is degraded
+│   ├── handover.md            # the health check, the alarm, the start function, the guard, the pause, the loop, the commands
+│   ├── env-cloud.md           # the env keys per host, H4_HOST, profiles, routing schema 2, preflight
+│   ├── releases-deployer.md   # release.json, three deployers, holds, rollback
+│   ├── infra-records.md       # the plan block, infra-verify, the apply record, the policy, the audit
+│   ├── aws-alerts.md          # the topic, the bridge, the probe, the budgets and their two actions, spot and start alerts
+│   └── public-view.md         # the snapshot document, the publishers, the sink, the page
 ├── checklists/requirements.md
-└── tasks.md                   # next: /speckit-tasks
+└── tasks.md                   # next: /speckit-tasks (the September one is superseded)
 ```
 
 ### Source Code (repository root)
 
-Ownership is marked as in spec 000: **[A]** agent-editable and reviewed; **[H]** human-only; **[P]** delivered in a patch the Author applies.
-
 ```text
-infra/                              [A] new, except the protected files
-  README.md                         how the roots, the state, the plan block, and the records work
-  bootstrap/  {main,variables,outputs,versions}.tf, budgets.tf [P], alerts.tf [P], .terraform.lock.hcl
-  account/    {main,…}.tf, killswitch.tf [P], iam.tf [P], alerts.tf [P], lambdas.tf, registry.tf
-  prod/       {main,network,vm,volumes,edge,dns,site,ssm}.tf, iam.tf [P], edge-limits.tf [P] (empty unless WAF)
+infra/                              [A] new, except the protected files [P]
+  README.md
+  bootstrap/  main, variables, versions .tf; budgets.tf [P]; alerts.tf [P]; .terraform.lock.hcl
+  account/    main.tf; killswitch.tf [P]; handover.tf [P]; iam.tf [P]; alerts.tf [P]; lambdas.tf; registry.tf
+  prod/       main, network, tunnel-end, ec2, rds, edge, dns, site, ssm .tf; ec2-market.tf [P]; failover.tf [P]; iam.tf [P]
   modules/    lambda-image/, tagged-bucket/
-  lambdas/    alert_bridge/, probe/, credential_audit/   (stdlib Python, Dockerfile, tests)
-  policy/     [P] the policy's rule list and fixtures, read by tools/gates/infra_policy.py
-services/relay/                     [A] new: the relay (§4), a second npm workspace
-services/gateway/                   [A] changed: migrations/0004_infra.sql, the cloud stack and route class,
-                                        the relay as a trusted peer on the cloud stack, the infra booking (§3.3)
-config/
-  routing.yaml                      [A] changed: prod-cloud: { fallback: bedrock }; prod loses its fallback
-  budgets.yaml                      [P] changed: infra.month_estimate_usd; a public section (the relay's cap)
+  lambdas/    alert_bridge/, probe/, credential_audit/, ec2_start/, ec2_guard/   (stdlib Python, Dockerfile, tests)
+  policy/     [P] the policy's rules and fixtures
+services/relay/                     [A] new: the relay, a second npm workspace
+services/gateway/                   [A] changed: H4_HOST; routes per host (schema 2, R1, A1); GATEWAY_DB_URL with TLS;
+                                        migrations/0007_hosts.sql; host on ledger and audit rows
+config/routing.yaml                 [A] changed: schema 2, a route per host (research.md R-27)
 deploy/
   compose.yaml                      [A] changed: relay, tunnel, tunnel-end, snapshot-publisher, snapshot-sink;
-                                        profiles cloud, tunnel, dev-relay; the cloud literal bindings (§6.2)
-  env.example/cloud.env.example     [A] new
-  edge/nginx.conf                   [A] changed: the tunnel blocks 8085 and 8086 (§5.2)
+                                        profiles tunnel-end, tunnel, dev-relay; ec2's literal bindings
+  env.example/{ec2,tunnel-end}.env.example        [A] new
+  edge/nginx.conf                   [A] changed: the relay block 8085, the telemetry block 8086, the health block 8087
   tunnel/                           [A] new: Dockerfile, ssh_config, sshd_config, entrypoint
-  otel/collector-cloud.yaml         [A] new: the cloud collector, file-backed queue, export through the tunnel
-  vm/                               [A] new: cloud-init, the systemd units (deployer, egress proxy, credentials,
-                                        aws-events), nftables rules
-  scripts/deployer.py, release.py, egress_proxy.py, assume_gateway_role.py, snapshot_{publisher,sink}.py
-                                    [A] new
-  scripts/preflight.py              [A] changed: the cloud class, its profiles, its bindings, FR-018
-apps/web/                           [A] new: the placeholder site, /status/, build.py (renders the disclosure)
-scripts/operator.py                 [A] changed: the cloud stack's port range
+  otel/collector-tunnel-end.yaml    [A] new
+  hosts/                            [A] new: cloud-init for EC2 and the tunnel end, systemd units, nftables, daemon.json
+  scripts/deployer.py, release.py, egress_proxy.py, write_env.py, handover.py, snapshot_{publisher,sink}.py   [A] new
+  scripts/preflight.py              [A] changed: H4_HOST, the ec2 and tunnel-end classes, TLS to the shared state
+scripts/operator.py                 [A] changed: ENV=shared, through the admin-only stack
+apps/web/                           [A] changed: the status page, the disclosure page's new rows
 tools/gates/                        [P] infra_policy.py, infra_redact.py, infra_plan_note.py, disclosure_check.py,
-                                        compose_policy.py's cloud rules, and their tests
-redteam/                            [A] forbidden-actions.sh rows (FR-006, FR-011, FR-012); cases/hello-*.yaml (FR-039)
-evals/visitor_scan.py               [A] new: SC-011's scan of every store
-docs/
-  data-flow-disclosure.md           [A] the new rows (§8.2)
-  infra/applies/                    [A] apply records, written by make infra-record
-  runbooks/                         [A] the local tier, and one per new alert (§12)
-  adr/0007–0009, 0024–0029          [A] written at approval (§13)
+                                        compose_policy.py's host rules, and their tests
+redteam/                            [A] forbidden-actions.sh rows; hello and twin cases on the paid adapters (FR-039)
+evals/visitor_scan.py               [A] new: SC-011 over every store, the shared state included
+docs/data-flow-disclosure.md        [A] the changed and new rows (§8)
+docs/infra/applies/                 [A] apply records
+docs/runbooks/                      [A] the hosts, the handover, and one per new alert (§11)
+docs/adr/                           [A] at approval (§14)
 .claude/**, CLAUDE.md               [P] the guard patch (§2)
-.devcontainer/toolchain.vars        [A] Terraform's and the AWS CLI's pins
+.devcontainer/toolchain.vars        [A] Terraform's and the AWS CLI's pins, travelling with the patch
 ```
 
-**Structure Decision**:
-- **The relay** is a second npm workspace beside the gateway: the same toolchain, lockfile, and image base.
-- **Terraform** gets one root per lifecycle (R-02).
-- **The Lambdas** live with the Terraform that deploys them.
-- **The VM's host services** are stdlib Python in `deploy/scripts/`, run through `PY_HOST` as spec 000's tools are.
-- **`apps/web`** starts here as a placeholder; Phase 1 replaces it.
+**Structure Decision**: September's, carried. The relay is a second npm workspace. Terraform has one root per lifecycle. The Lambda functions live with the Terraform that deploys them. Host services are stdlib Python in `deploy/scripts/`, outside compose, because they need the Docker socket, the firewall, or an instance role (spec 000 refuses `docker.sock` in any service).
+
+## Phases
+
+- **Phase 0, research:** done; [research.md](research.md). No needs-clarification item remains in this Technical Context. What stays open is the Author's to answer (the questions above), or measured in a named task (research.md R-33's memory and architectures, R-08's error-page header, and R-29's checker addresses).
+- **Phase 1, design:** done; [data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md). The agent context file isn't updated: CLAUDE.md is the Author's, and its changes are in his guard patch (§2).
+- **Phase 2, tasks:** next, `/speckit-tasks`, after his answers. The task groups are in [§16](#16-order-of-work-risks-and-proof).
 
 ---
 
 ## 1. Infrastructure: the roots, the state, and the records
 
-### 1.1 The roots
-
-| Root | State key | Holds | First applied |
-|---|---|---|---|
-| `infra/bootstrap` | `bootstrap.tfstate` (local first, then migrated) | **State:** the state bucket. **Safety net:** the budgets (`h4-account-month`, `h4-account-day`, `h4-prod-month`, `h4-prod-day`, and `h4-infra-actual`), the anomaly monitor and its subscription. **Alerts:** the `h4-alerts` topic and its email subscription | group 2, the first apply of all (FR-003, FR-022) |
-| `infra/account` | `account.tfstate` | **The kill switch:** the deny policy, the budget action, the rehearsal budget and target. **AWS-side functions:** the alert bridge, the probe and its alarm, the credential audit and its weekly schedule. **Releases:** the ECR repositories and the release bucket. **Alerts:** the EventBridge rule for ACM's expiry events | group 3 |
-| `infra/prod` | `prod.tfstate` | **Network:** the VPC, two subnets, the internet gateway, the VM's two interfaces and the Elastic IP, the security groups. **The VM:** the spot instance, its launch template, the meter's volume and its daily snapshots. **Roles:** the instance role, the gateway's role. **Parameters:** the two bucket names, as `String` parameters, and the read grant on `/h4reet/cloud/*`; never a secret parameter, which the Author creates outside Terraform (§1.4). **The edge:** the Route 53 zone, the certificate, the distribution with its VPC origin, the site's bucket | groups 4 and 6 |
-
-Every root sets `default_tags` (`project`, `environment`), and every taggable resource sets `component` (FR-002). No root reads another's state. The values one needs from another (the topic's ARN, the gateway role's name) come from `data` sources, by name, so a root can be planned alone.
-
-### 1.2 The plan, the apply, and their records (FR-005, FR-007; R-13)
-
-1. **On the branch,** agents write Terraform and run `make plan`, which runs the offline checks in an agent session. The Author runs `make plan ROOT=<root>` and pastes the redacted block it prints into the merge-request note.
-2. **The gate's `infra-plan-note` step** (in `make check` and `tools/gates/gate`) fails unless every affected root has a block whose tree hash is `HEAD:infra`'s, and which passes the redaction check.
-3. **After the merge,** on `main`:
-   - `make infra-verify ROOT=<root>` checks that the saved plan matches the note and `main`, and runs the credential audit (FR-008);
-   - the Author runs `terraform -chdir=infra/<root> apply <saved plan>`;
-   - `make infra-record ROOT=<root> OUTCOME=…` writes `docs/infra/applies/<date>-<root>.md` and commits it on `ops/apply-<root>-<date>`.
-
-[contracts/infra-records.md](contracts/infra-records.md) has the block's format, the redaction rules, and the record's fields.
-
-### 1.3 The offline checks and the policy (FR-002, FR-004, FR-012; R-14)
-
-- **`make infra-mirror`** (the Author) seeds `~/.local/share/h4reet/terraform-providers` with the pinned providers, where spec 000's lint toolchain also lives: readable by agents, outside every sandbox write root.
-- **`make infra-check`**, run by `make check`, does `terraform fmt -check -recursive`, then `init -backend=false` and `validate` for each root against the mirror, then `tools/gates/infra_policy.py` on the HCL. It is PLANNED until the mirror exists, naming its task.
-- **In the Author's terminal,** `make plan ROOT=<root>` runs the policy on the root's HCL first, before `terraform init`, and refuses on any finding, since `init` and `plan` run agent-written configuration with the Author's administrator session. Then it runs the policy again on `terraform show -json` of the saved plan ([contracts/infra-records.md §5](contracts/infra-records.md#5-the-offline-checks-make-infra-check-fr-002-fr-004-fr-012)).
-
-### 1.4 Credentials and secrets (FR-008, FR-009, FR-010)
-
-- **Who holds credentials:**
-  - **Humans:** the Author's IAM Identity Center administrator session, only from the Author's terminal.
-  - **Workloads:** the VM's instance role, the gateway's role (assumed from it), and the Lambdas' roles. Nothing else.
-  - **CI:** no identity before publication.
-- **`h4-credential-audit`** (a Lambda, weekly, plus `make infra-verify` before every apply) lists every IAM user and their access keys, and checks:
-  - that the account's root user has no access key;
-  - that no role trusts a principal outside the account's services and Identity Center.
-
-  Any finding alerts on both channels; a clean run logs its date. SC-004 reads the history.
-- **Secrets: Terraform never creates or reads one** (FR-009: "Terraform refers to the secret without reading its value"). A Terraform-managed parameter can't meet that: even with a placeholder and `ignore_changes = [value]`, every refresh reads a SecureString back, decrypted, into the state and every saved plan. So the Author creates and updates each secret parameter under `/h4reet/cloud/` with `aws ssm put-parameter --type SecureString --overwrite`, from the Author's terminal, and Terraform names that path only in IAM policies: the instance role's read grant and the alert bridge's. `make secrets-check` lists which expected names exist, by name and type only, never reading a value; the VM's `write-env.py` refuses to start the stack while one is missing ([contracts/env-cloud.md §1](contracts/env-cloud.md#1-the-files)). This is a named exception to FR-001 ([Complexity Tracking](#complexity-tracking), research.md R-26). The secret parameters:
-  - the Telegram bot token and chat ID, and the SMTP credentials;
-  - the gateway's database passwords;
-  - the tunnel's host key;
-  - the relay's and the collector's tunnel tokens, and the snapshot sink's token.
-
-  The non-secret ones the Author also writes, as `String` parameters: the operator token's hash and the tunnel client's public key. The two bucket names are `String` parameters Terraform writes, since it already knows them.
-- **Run-time values:** the account ID comes from `data.aws_caller_identity`, never a literal. The alert email address is a sensitive variable, supplied from `~/.config/h4reet-ai/infra/<root>.env` in the Author's terminal, for SNS's email subscription; the Telegram chat ID never passes through Terraform, since the bridge reads it from Parameter Store. The redaction removes both from plans and records.
+As September §1 (research.md R-02, R-03, R-13, R-14):
+- **Three roots,** each with its own state key. What each holds is in research.md R-02.
+- **The plan in the note:** `make plan ROOT=<root>` in the Author's terminal runs the policy on the HCL before `init`, then prints a redacted block tied to `HEAD:infra`'s tree hash. The gate's `infra-plan-note` step checks it.
+- **The apply:** `make infra-verify`, then the Author's `terraform -chdir=infra/<root> apply <saved plan>`, then `make infra-record`. There is no `make apply`.
+- **The offline checks:** `make infra-check` against the Author's provider mirror; the policy's rules grow with FR-012's longer list (research.md R-14).
+- **Credentials and secrets:** as September §1.4. The Author's administrator session in his terminal; workload roles only; no CI identity. Secrets are the Author's, outside Terraform (research.md R-26).
+- **Tags:** `project`, `environment` (`prod` or `account`), and `component` on every resource (FR-002).
 
 ## 2. The guard patch, before any infra file
 
-The rule from spec 000's plan §15: a deny lands in a patch applied before the risk it guards exists. Here the risks begin with the first `infra/` file, the first state, and the first key. So group 1 is the patch, and nothing under `infra/` exists until the Author has applied it.
+The rule from spec 000's plan §15: a deny lands in a patch applied before the risk it guards. Group 1 is the patch; nothing under `infra/` exists until the Author has applied it.
 
-**`docs/merge-requests/<date>-feat-001-guards.patch`:**
-- **`.claude/hooks/bash-gate.sh`:** R-16's Terraform rules (subcommands, spellings, `TF_CLI_ARGS*`), and the Author-only make targets: `infra-verify`, `infra-record`, `infra-mirror`, `infra-audit`, `secrets-check`, `release`, `tunnel-keys`, `tunnel-revoke`, `cloud-session`, `rollback ENV=cloud`, and `operator-* ENV=cloud`.
+**`docs/merge-requests/<date>-feat-001-guards.patch`** (P-1):
+- **`.claude/hooks/bash-gate.sh`:** September R-16's Terraform rules, and the Author-only targets of research.md R-32 and R-16.
 - **`.claude/settings.json`:**
-  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` denies on `*.tfstate*`, `*.tfplan`, and `*.tfvars*`. `~/.config/h4reet-ai/{infra,tunnel,release}` are already denied, as part of spec 000's deny on all of `~/.config/h4reet-ai`; the patch adds their matrix rows ([contracts/env-cloud.md §8](contracts/env-cloud.md#8-fr-011s-deny-list));
-  - `credentials.envVars` gains `TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, and the new secrets' variable names ([contracts/env-cloud.md](contracts/env-cloud.md)).
-- **`.claude/hooks/protected-paths.sh`:** `infra/**/{iam,budgets,alerts,killswitch,edge-limits}*.tf`, `infra/policy/**`, and `config/budgets*` (already protected).
-- **`tools/gates/`:** `infra_policy.py`, `infra_redact.py`, `infra_plan_note.py`, `disclosure_check.py`, their tests, the new gate steps, and `matrix-required.txt`'s new rows.
-- **`redteam/forbidden-actions.sh`:** a stage H row per spelling, and a gap row for any that gets through.
-- **`CLAUDE.md`:** the infra line keeps its sentence "There is no `make apply` on purpose" word for word, and only its ending changes for the local phase. Today it reads "Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action in the protected CI environment." The patch makes it "Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action: until publication, the Author applies a saved plan `make infra-verify` has matched to the reviewed note, from their own terminal, and `make infra-record` records it (spec 001 FR-007); after it, in the protected CI environment." The things-Claude-gets-wrong list names Terraform's state-changing commands.
-- **`.devcontainer/toolchain.vars`:** the Terraform and AWS CLI pins. This file is agent-editable, but it travels with the patch, so `make toolchain-check` and the gate agree when it lands.
+  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` on `*.tfstate*`, `*.tfplan`, and `*.tfvars*`;
+  - `credentials.envVars` gains `TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, the relay's host tokens, and the shared state's role passwords;
+  - `~/.config/h4reet-ai/{infra,tunnel,release}` get their own matrix rows; spec 000's deny already covers them.
+- **`.claude/hooks/protected-paths.sh`:** `infra/**/{iam,budgets,alerts,killswitch,handover,failover,ec2-market,edge-limits}*.tf` and `infra/policy/**`.
+- **`tools/gates/`:** the policy, redaction, plan-note, and disclosure checks, the compose policy's host rules, and the gate's new steps.
+- **`redteam/forbidden-actions.sh`:** a stage H row per spelling, with a gap row for any that gets through.
+- **`CLAUDE.md`:** three sentences, in [§14](#14-the-authors-patches-steps-and-adrs).
+- **`.devcontainer/toolchain.vars`:** the Terraform and AWS CLI pins.
+
+## 3. Cost: the budgets, the actions, and the shared meter
+
+### 3.1 The budgets (FR-021, FR-022; research.md R-22)
+
+Applied first, in `infra/bootstrap/budgets.tf`:
+- **`h4-model-month` and `h4-model-day`:** $20 and $5 on Bedrock's cost, with warnings at 70% ($14, $3.50) and alerts at 100%.
+- **`h4-server-month`:** the Author's figure, on every cost but Bedrock's, with a warning at 70% and an alert at 100%.
+- **The anomaly monitor,** with an immediate subscription to `h4-alerts`.
+
+The Author sets the server budget's figure before this first apply: the state bucket itself is a resource the server budget covers (spec FR-021). It comes from group 2's measurement and his own pricing.
 
-The patch's behavioral agent-config evals run once after it lands, as spec 000's did (its static tier at once).
+### 3.2 The two actions, and their rehearsals (FR-023, FR-026)
 
-## 3. Cost: the safety net and the meter of record
+In `infra/account/killswitch.tf` (protected):
+- **On `h4-model-month` at 100%:** attach `h4-deny-paid-models` to EC2's gateway role and to the laptop's Bedrock permission set's role.
+- **On `h4-server-month` at 100%:** run `AWS-StopEC2Instance` on the tagged instance (to confirm the action type's form). The start function refuses while it is executed.
+- **Rehearsals:** while `rehearsal = true`, two $0.01 budgets with the same actions, against a rehearsal role and a rehearsal instance. The record says when AWS evaluated, when each channel got the alert, and when each action took effect (SC-009). Then `rehearsal = false`.
 
-### 3.1 The budgets and the anomaly monitor (FR-022; R-22)
+The Author reverses either action after the seven-day incident note: `make server-budget-restore`, or the runbook's reverse command for the model action.
 
-These come in the first apply, in `infra/bootstrap`, before anything else that costs money:
-- **Account:** month $20 and day $5, warnings at 70% ($14, $3.50) and alerts at 100%.
-- **Production's tag:** the same amounts, filtered to `environment = prod`.
-- **`h4-infra-actual`,** monthly, excluding Amazon Bedrock, with no alert: it feeds R-21's correction.
-- **Anomaly detection:** a monitor on AWS services, with an immediate subscription over $1.
+### 3.3 The shared meter (FR-017 to FR-020; research.md R-20; data-model.md §1)
 
-Every notice goes to `h4-alerts`. The Author activates the cost-allocation tags in the Billing console once, a recorded step (quickstart).
+- **RDS for PostgreSQL 17,** private, TLS-only, with deletion protection and 7 days of backups. Its master password is managed by RDS in Secrets Manager.
+- **Both production gateways** connect as `gateway` with `H4_STACK=prod`, so they share the one `stack_state` row and the one set of meters.
+- **Migration 0007** adds `host` to ledger and audit rows, and `handover_events`, `relay_ro`, `relay_rw`, and `v_handovers`.
+- **Two writers:** the existing advisory locks and `SKIP LOCKED` hold; a new test proves admission and the rollover sweep with two gateways ([§10](#10-tests-and-proofs)).
+- **Unknown is degraded** on each host and in the relay.
+- **The move** follows data-model.md §1.5: nothing starts at zero.
+- **No infrastructure on the meter** (FR-020). The `infra` attribution and its correction (September R-21) are gone.
+- **The Anthropic API's own limit:** the Author sets the account's monthly spend limit at or under $20 where the account offers one, and the runbook records that it is set (FR-073; [§14](#14-the-authors-patches-steps-and-adrs)).
 
-### 3.2 The budget action and its rehearsal (FR-023, FR-026; R-22)
+## 4. The tunnel end: the tunnel, the relay, and the sink
 
-- **The action:** in `infra/account/killswitch.tf` (protected), the managed policy `h4-deny-paid-models` and a budget action on `h4-account-month` at 100% of actual. It is automatic, attaching the policy to `h4-prod-fallback-gateway`. Restoring is the Author's: `aws budgets execute-budget-action --execution-type REVERSE_BUDGET_ACTION` (the runbook), after the seven-day incident note.
-- **The rehearsal:** `rehearsal = true` adds `h4-rehearsal` at $0.01 with the same action against `h4-rehearsal-target`. The Author's run records:
-  - when AWS evaluated the budget;
-  - when each channel received the alert;
-  - when the policy was attached.
+[contracts/tunnel.md](contracts/tunnel.md), [contracts/relay-http.md](contracts/relay-http.md), [contracts/public-view.md](contracts/public-view.md).
 
-  Then `rehearsal = false`. SC-009 reads the record.
+- **The instance** (research.md R-04): `t4g.micro`, on demand or spot (question 2). It has two interfaces: a private one for CloudFront's VPC origin, and a public one with an Elastic IP for the tunnel's port and the health port. Amazon Linux 2023, IMDSv2 with hop limit 1, operator access through Systems Manager only. It runs the compose file with `H4_HOST=tunnel-end` and the `tunnel-end` profile:
 
-### 3.3 The meter of record, and infrastructure on it (FR-017 to FR-020; R-20, R-21)
+  | Service | What it does | Limit (to measure, research.md R-33) |
+  |---|---|---|
+  | `tunnel-end` | OpenSSH's server: permits exactly the forwards in research.md R-11, no shell | 32 MiB |
+  | `relay` | as question 1 recommends: the edge listener on the private interface, the host choice, the cap, the kill-switch read, the status | 96 MiB |
+  | `snapshot-sink` | merges the serving host's panels with the cloud part, and writes the public view | 48 MiB |
+  | `otel-collector` | file-backed queue; routes the relay's telemetry to the serving host's collector (research.md R-25) | 96 MiB |
 
-- **The gateway's changes** (data-model.md):
-  - the `cloud` stack name, with `H4_ENV=prod`;
-  - the route class `prod-cloud`;
-  - the relay as a trusted peer for `X-Forwarded-For`, on the cloud stack only;
-  - attribution `infra` in the ledger (an infra booking never reserves), and cost bases `estimate` and `billing_correction`;
-  - the daily booking, in the 10 s background task and at admission;
-  - the daily correction, from `budgets:DescribeBudget` on `h4-infra-actual` through the egress proxy, with the gateway's assumed role.
-- **The refusals** (FR-018): preflight and the gateway refuse a paid adapter in any route but `prod-cloud`. The `prod` class keeps `primary: local`, with no fallback.
-- **The move:** the cloud store starts `uninitialized`. The Author initializes it with local prod's meters (R-20; quickstart §4).
-- **The config change:** `config/budgets.yaml` gains `infra.month_estimate_usd` and the relay's `public` section, by the Author's patch with an ADR. Its schema version rises, and the gateway's validator learns the new keys in the same group.
+- **Its host services:** the deployer, the egress proxy, and the credential timer, as September §6.
+- **The tunnel** (research.md R-11): the laptop's `tunnel` service in the `tunnel` profile, unprivileged. Three reverse forwards: the relay block, the telemetry block, and the health block. Two local forwards: the shared state and the snapshot sink. Keys from `make tunnel-keys`; revocation in one action.
+- **The hosts' blocks** (research.md R-12): 8085, the relay block, on both hosts, behind a bearer token per host; 8086, telemetry in, on the laptop; 8087, health, on the laptop, unauthenticated and status-only.
 
-### 3.4 AWS-side alerts and probes (FR-061; R-23, R-24)
+## 5. The hosts: EC2 and the laptop
 
-- **`h4-alert-bridge`** turns each SNS notice into one Telegram message, in spec 000's format.
-- **SNS's email subscription** carries the same notice.
-- **`h4-probe`** runs once a minute; its alarm fires after 5 failed minutes.
-- **`h4-credential-audit`** runs weekly.
+### 5.1 EC2 (FR-043, FR-044, FR-050, FR-069; research.md R-04, R-30)
 
-Each is a container image in ECR, deployed by `infra/account`, with tests in `infra/lambdas/*/test_*.py`. [contracts/aws-alerts.md](contracts/aws-alerts.md) has the message formats.
-
-## 4. The edge, the site, and the relay
-
-### 4.1 CloudFront and DNS (FR-027 to FR-029, FR-034; R-07 to R-09)
-
-- **The distribution** serves `h4reet.ai` and `www.h4reet.ai`, with ACM's certificate (DNS-validated in the Route 53 zone), and redirects HTTP to HTTPS. Its behaviors:
-  - **`/api/*`:** the VPC origin, which is the relay on the VM's `eth0`. `CachingDisabled`, plus an origin request policy that forwards `CloudFront-Viewer-Address` and no cookies. CloudFront passes its full method set, and the relay answers only GET and POST.
-  - **default:** the site's bucket, through origin access control. Cached, with a response headers policy carrying the CSP, HSTS, `Referrer-Policy: no-referrer`, and `Permissions-Policy` that turns off the camera, microphone, and geolocation.
-- **Custom error responses** turn the origin's 502 and 504 into 503 with `/_degraded/api.json` (R-08). The relay's own 503s pass through, causes intact.
-- **No access logs** on the distribution: they would store visitors' addresses (FR-042). The edge's request and error counts come from CloudFront's free default metrics, read every 5 minutes (§9).
-
-[contracts/edge.md](contracts/edge.md) has the behaviors, the headers, and the CSP.
-
-### 4.2 The relay (FR-029 to FR-033, FR-035 to FR-037; R-18)
-
-`services/relay` handles `POST /api/hello` and `GET /api/status`, in R-18's order: the probe mark, the address, the cap, the kill switch of record, the path, and the identity it passes on. [contracts/relay-http.md](contracts/relay-http.md) has the rest:
-- every response code and degraded cause, and the status document;
-- the cap's defaults: 10 requests a minute per address, burst 3, 200 a day;
-- the global limit: 8 requests in flight across all addresses, so the relay can't saturate the local path.
-
-The cap's values live in `config/budgets.yaml`'s new `public` section (the Author's).
-
-**Two listeners** ([contracts/relay-http.md §1–§2](contracts/relay-http.md#1-listener-reachability-and-common-rules)):
-- **8080, the edge listener,** published at `10.42.1.10:8080` for CloudFront. The security group keeps the internet out but not the VM itself, so on the cloud stack it refuses any request whose TCP peer is loopback, in the Docker address pool the VM's daemon fixes (`172.30.0.0/16`), or one of the VM's own addresses: those are containers and host processes, which could otherwise set `CloudFront-Viewer-Address` to anything. Published-port traffic keeps its source address, since the VM's daemon runs with `"userland-proxy": false`.
-- **8081, the internal listener,** on `internal`, published only at the VM's `127.0.0.1:18505`. It serves the status document to the snapshot sink, and hello to the Author's test client through the Systems Manager session, always as the fixed documentation-range identity `192.0.2.10`, whatever the client sends. That's FR-032's one named exception: the operator's own authenticated session, told apart by the listener, never by a header.
-
-The relay never answers 502 or 504, so at the edge those always mean the relay wasn't reached (§4.1).
-
-The relay also runs on dev and dev-cpu, in the `dev-relay` profile, against the stack's own store and gateway. That's how the breach test asserts its side (FR-025), and how agents test it on the agents' engine.
-
-## 5. The paths: the local path, the fallback gateway, and the tunnel
-
-### 5.1 The tunnel (FR-052, FR-053, FR-055; R-11)
-
-- **`tunnel`** (local prod, profile `tunnel`) and **`tunnel-end`** (cloud, profile `cloud`) come from `deploy/tunnel/Dockerfile`.
-  - Both run unprivileged, with every capability dropped and read-only roots.
-  - `tunnel-end`'s configuration permits listening only on 2201 and 2202, and opening only `snapshot-sink:8080`.
-  - `tunnel` holds the forwards in R-11, and reconnects with backoff (1, 2, 5, 10, 30 s).
-  - Its keep-alive is every 10 s, and it gives up a link after 3 missed.
-- **The tunnel's state** is a metric from both ends (§9).
-- **Keys:** `make tunnel-keys`; revocation is `make tunnel-revoke` (R-11).
-
-[contracts/tunnel.md](contracts/tunnel.md) has the configurations.
-
-### 5.2 The local `edge`'s tunnel blocks (FR-052, FR-053; R-12)
-
-Two server blocks, 8085 (the local path) and 8086 (telemetry in), on unpublished ports.
-- **The token:** each requires its own bearer token from the local prod env file, which nginx's template reads at start. Only the cloud side's callers hold them: the relay for 8085, and the cloud collector for 8086.
-- **8085** accepts only `POST /hello` and `GET /health`. After the token check, it carries the client's address from `X-H4-Viewer` into `X-Forwarded-For`, and keeps the relay's trace context. (`X-H4-Client` is spec 000's client label; it is dropped.)
-
-A fixed subnet for a `tunnel` network was considered and dropped: prod and dev on one host would collide on it ([contracts/tunnel.md §5](contracts/tunnel.md#5-the-local-edges-tunnel-blocks)).
-
-### 5.3 Health, failover, and recovery (FR-054; R-12)
-
-- **The check:** the relay checks `GET /health` through `tunnel-end:2201` every second, with an 800 ms timeout. It marks the path unhealthy after one failure, and healthy again after three passes in a row.
-- **On a failed request:** a request in flight on the local path that fails or times out (the relay gives the local path 12 s of its 28 s deadline: spec 000's local adapter's 10 s, plus the tunnel's and the local `edge`'s hops, [contracts/relay-http.md §3](contracts/relay-http.md#3-post-apihello-processing-order)) is retried once on the fallback gateway. A degraded answer from the local path is treated the same way. A 502 `local_error` isn't retried: the relay answers it as a degraded 503 with that cause, so the edge never sees a 502 from the relay.
-- **The window:** the next request after the first failed check goes to the fallback, so the gap is at most one check, about one second, within the 5 s that SC-007 allows.
-
-### 5.4 The local tier's production after the move (FR-017, FR-045)
-
-- **Routing:** local prod keeps `primary: local` and no fallback. With the tunnel down, the Author's own `make hello ENV=prod` answers locally or degraded.
-- **The topology:** `make up ENV=prod` still starts the local tier's whole topology with one command: everything but the cloud-only services (the relay, `tunnel-end`, and `snapshot-sink`), which serve visitors' traffic from the cloud and have nothing to do on a machine that takes no inbound connection. FR-045 reads "the whole production topology" this way, as the local tier's; the relay still runs locally on dev and dev-cpu, in the `dev-relay` profile. The `tunnel` profile adds the tunnel and the snapshot publisher, and preflight checks that their keys exist in `~/.config/h4reet-ai/tunnel/`.
-
-## 6. The cloud VM
-
-### 6.1 The instance (FR-043, FR-044, FR-050; R-04, R-15)
-
-- **Launch template:** `t4g.micro`, a persistent spot request that stops on interruption, and the pinned Amazon Linux 2023 AMI ID (a variable, changed through a plan). Also:
-  - standard CPU credits (`credit_specification { cpu_credits = "standard" }`): T4g starts in unlimited mode, whose surplus credits could bill up to about $50 a month at full CPU, which the meter of record would see only in the next day's correction (research.md R-04). In standard mode, a busy instance slows down instead of billing;
-  - IMDSv2 required, with a hop limit of 1;
-  - the root volume (8 GiB gp3, encrypted) and the two interfaces (§6.2).
-- **cloud-init:**
-  - installs Docker and the pinned Compose plugin (by SHA-256), and the egress proxy, the deployer, and the credential timer as systemd units;
-  - attaches and mounts the meter's volume at `/var/lib/h4reet/cloud`, the cloud stack's `H4_STATE_DIR`;
-  - writes the cloud env file from Parameter Store into a 0600 file on tmpfs, so no secret touches the root volume;
-  - starts the deployer, which brings up the newest release.
-- **Operator access:** through Systems Manager only. No SSH key exists for the instance, and no port is open for administration. `make cloud-session` (the Author) opens port-forwarding sessions to the admin listener and, for the Author's tests, to the relay (FR-050; [contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy)).
-
-### 6.2 Networks and the literal bindings (FR-032, FR-051; R-07, R-10)
-
-| Interface | Subnet | Address | Inbound (security group) | Used for |
-|---|---|---|---|---|
-| `eth0` | private, no internet route | fixed (`10.42.1.10`) | the relay's port from CloudFront's origin-facing prefix list | the VPC origin |
-| `eth1` | public | fixed private (`10.42.0.10`), plus the Elastic IP | TCP 2222 from anywhere (the tunnel) | egress through the proxy; the tunnel's port |
-
-The compose file's `cloud` profile publishes:
-- the relay's edge listener at `10.42.1.10:8080`;
-- `tunnel-end` at `10.42.0.10:2222`;
-- the admin listener at `127.0.0.1:18503`, and the relay's internal listener at `127.0.0.1:18505`, for the Author's Systems Manager session.
-
-All are literals, so no environment file can move them. The compose policy allows exactly the two non-loopback literals, only in the `cloud` profile and only on those services. On any other host the addresses don't exist, so Docker refuses to start them: they fail closed.
-
-The VM's Docker daemon (`deploy/vm/daemon.json`) runs with `"userland-proxy": false`, so published ports keep the caller's source address, and with `default-address-pools` fixed to `172.30.0.0/16`, the range the relay's peer rule and the `forward` chain (§6.3) name.
-
-### 6.3 Egress (FR-051; R-10)
-
-- **The proxy:** `h4-egress-proxy` (host service, `deploy/scripts/egress_proxy.py`) on `127.0.0.1:3128` and the compose `egress` network's gateway address. Its allowlist comes from `docs/data-flow-disclosure.md`'s cloud rows by `tools/gates/disclosure_check.py`, which also fails the gate when the two differ.
-- **nftables,** in two chains, since an owner match sees only host processes, never a container's forwarded traffic ([contracts/tunnel.md §8](contracts/tunnel.md#8-the-vms-egress-allowlist)):
-  - **`output`:** only the proxy's user may open connections outside the VPC, besides the link-local endpoints host services need: instance metadata (`169.254.169.254`) for root, the Systems Manager agent, and the credential timer; Amazon Time Sync (`169.254.169.123`); and the VPC resolver;
-  - **`forward`:** containers' traffic from the Docker address pool to anything outside it is dropped, except to the proxy on the bridge gateway's address.
-
-  Group 4's tests check both: a container's direct connection to a public address fails while the proxy path works, and the credential timer and the Systems Manager agent still get the instance role's credentials.
-- **The security group's egress:** TCP 443 and the SMTP port.
-
-### 6.4 The fallback gateway's credentials (FR-013; R-15)
-
-`h4-gateway-credentials.timer` (host) assumes `h4-prod-fallback-gateway` every 30 minutes with the instance role. It writes `credentials` into `${H4_AWS_DIR}`, a tmpfs directory mounted read-only into the gateway, as spec 000's prod mounts its SSO directory. The gateway's Bedrock adapter reads it through the SDK's default chain, and its `credentials_warn_before_s` alert still fires if the timer stops. The same timer writes `snapshot-sink`'s credentials for `h4-prod-public-view-writer`, which may write one S3 key. The table is in [contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy).
-
-### 6.5 What the cloud stack runs (FR-044)
-
-| Service | Profile | Image | Limit |
-|---|---|---|---|
-| `relay` | cloud, dev-relay | `relay` (new) | 0.25 CPU, 96 MiB |
-| `gateway` (the fallback gateway) | – | spec 000's | 0.5 CPU, 256 MiB |
-| `gateway-state` | – | spec 000's Postgres, `shared_buffers=32MB` | 0.25 CPU, 128 MiB |
-| `edge` | – | spec 000's nginx and configuration; its loopback ports on the VM are reached only through the operator's session | 0.1 CPU, 32 MiB |
-| `otel-collector` | – | spec 000's, `collector-cloud.yaml` | 0.25 CPU, 96 MiB |
-| `tunnel-end` | cloud | `tunnel` (new) | 0.1 CPU, 32 MiB |
-| `snapshot-sink` | cloud | `snapshot` (new) | 0.1 CPU, 48 MiB |
-
-The cloud env file's `COMPOSE_PROFILES` is `cloud`. The heavy services (the model server, Langfuse and its stores, Prometheus, Loki, Grafana) don't run: they join a `local` profile that prod, dev, and dev-cpu select and cloud doesn't, and preflight's rule "not exactly one of `gpu` and `cpu`" becomes "exactly one, except the cloud class, which selects neither" ([contracts/env-cloud.md §3](contracts/env-cloud.md#3-profiles-and-services-by-stack)). Each service's absence is a degraded mode spec 000 already defines ([§11](#11-degraded-modes)).
-
-## 7. Releases and the deployers
-
-### 7.1 `make release` (FR-046, FR-048; R-17)
-
-`make release` runs only in the Author's terminal, on a clean `main`. It:
-1. **Gates:** checks that the release's commit passed the gate, and that hello's red-team record for that commit passed when the release makes hello public (FR-039).
-2. **Builds** the project's images once, for `linux/amd64` and `linux/arm64`, and pushes them to ECR, tagged with the commit.
-3. **Copies** every upstream image in `deploy/images.lock` into ECR by digest.
-4. **Writes** `release.json` to the release bucket and to the local release directory, and prints the record.
-
-The site's files are synced to the site bucket's `site/` prefix, with a copy kept under `releases/<commit>/`, and one invalidation follows. The distribution's configuration never changes for a release, so Terraform's state stays true. A rollback of the site syncs the previous release's copy back ([contracts/edge.md §4](contracts/edge.md#4-releases-of-the-site-and-the-public-views-path)).
-
-### 7.2 The deployer (FR-046 to FR-049; R-17)
-
-The deployer runs every minute (a systemd timer, one run at a time) on both hosts. Each run:
-- **polls** its source: the release bucket on the VM, `~/.local/state/h4reet/releases/` on the local tier;
-- **verifies** each image's index digest;
-- **exports** the commit's tree;
-- **runs** `docker compose up -d --wait` on only the services whose image or configuration changed;
-- **on failed health**, returns to the previous release and alerts;
-- **records** the deployment.
-
-It leaves a hand-started stack alone (FR-049). [contracts/releases-deployer.md](contracts/releases-deployer.md) has the loop, the record, and the hold.
-
-### 7.3 Rollback (FR-047; Development Workflow step 6)
-
-- **Cloud:** `make rollback ENV=cloud` (the Author, through the Systems Manager session) sets the VM's deployer to the previous release.
-- **Local:** `make up ENV=prod REF=<previous>`, as in spec 000, or `make rollback ENV=prod`.
-- **Schema:** the gateway still refuses a store whose schema is newer than its code (exit 78), so a rollback across a migration fails closed.
-
-## 8. What the visitor gets: the site, the disclosure, and the public view
-
-### 8.1 The site (FR-036 to FR-038, FR-041, FR-042)
-
-`apps/web` is a static placeholder, with no framework, no third-party request, and no cookie. It has:
-- **`/`:** what h4reet.ai is, in words from the corpus or `facts/` only. A hello form names hello as "a test of the model gateway, not the twin" (FR-038), and shows the status line from `/api/status` (FR-037), with the notice when the local tier can't be reached (FR-036).
-- **`/disclosure/`:** rendered by `apps/web/build.py` from `docs/data-flow-disclosure.md` at release. The gate fails if the built page's rows differ from the Markdown's (FR-041).
-- **`/status/`:** the public view (§8.3).
-
-Every page links the disclosure. The CSP (`default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`) makes the browser refuse any other host. A static scan of the built site in `make check` fails on any absolute URL to another host (SC-010's machine half).
-
-**Spec 002's room, planned on 2026-10-18 after this draft** (on branch `spec/002-the-room`; its merge-request note lists what it asks of this spec). If it merges before task group 6 starts, group 6 changes in three places, and its tasks T087 and T089 are rewritten when the group starts:
-- **The site:** spec 002 creates `apps/web` as a Vite workspace, with the disclosure page rendered from `docs/data-flow-disclosure.md` at build. This spec then serves that build from the edge instead of building its own placeholder, and keeps its own additions (the hello form, the status line, `/status/`) as pages of that workspace.
-- **Releases:** `make release` refuses a build that contains drafts or placeholders (spec 002's `-drafts` image builds and its placeholder assets), so nothing unapproved reaches the edge.
-- **The tunnel:** the local `edge`'s 8085 block also accepts spec 002's `POST /api/room/events`, to the gateway, carrying no address, beside `POST /hello` and `GET /health` ([contracts/tunnel.md §5](contracts/tunnel.md#5-the-local-edges-tunnel-blocks)).
-
-### 8.2 The disclosure's new rows (FR-040)
-
-- **The spec's flows** become rows with spec 000's columns: V1–V5 and C1–C11, the numbering kept and C12 not reused.
-- **Rows this plan adds:**
-  - **C13,** the fallback gateway and the VM's `h4-aws-poller` → AWS's Budgets, CloudWatch, and SQS APIs: the infra correction's daily read, the edge's metrics, and the AWS-side alerts' copy, carrying no visitor data;
-  - **C14,** the VM → AWS's Systems Manager, STS, and Parameter Store: the operator's session, the gateway's credentials, and the secrets at boot.
-- **Changes to spec 000's rows:**
-  - F1 and F2 move to the fallback gateway, with "a visitor's message can now reach Bedrock";
-  - S1 and S2 get the tunnel's attachment at `edge`;
-  - A1 and A2 add "also sent from the cloud stack".
-
-`tools/gates/disclosure_check.py` fails a change that adds an outward kind of thing without its row:
-- a compose service on `egress`, or in the `tunnel` or `cloud` profile;
-- an sshd `PermitListen` or `PermitOpen` entry;
-- an egress-proxy host;
-- a CloudFront origin, an SNS subscription, a Lambda that calls out.
-
-Each disclosure row carries a machine-readable tag naming its hosts and its compose or Terraform objects.
-
-### 8.3 The public view (FR-057 to FR-059; R-19)
-
-The publisher on the local tier sends the local part of the document every 2 minutes through the tunnel. The sink checks it, and adds the cloud part: the meter of record's values, which it reads itself every 2 minutes whether or not the local tier is up. It writes the merged document to `site/status/latest.json` ([contracts/public-view.md](contracts/public-view.md)). `/status/` renders:
-- **spec 000's FR-028 panels:** requests, latency p50 and p95, errors, spend today and month to date, fallback remaining, the kill switch, model-server health, and degraded causes;
-- **this spec's additions:** the local tier's status now (from `/api/status`, live, not from the snapshot), the tunnel's state, idle cloud cost beside metered spend, and the running release;
-- **when the values were taken.**
-
-It has no write action and nothing per client.
-
-## 9. Observability (FR-060)
-
-- **New spans:**
-  - `relay.request`, with `h4.relay.path` (`local` | `fallback` | `none`), `h4.relay.reason`, `h4.degraded.cause`, and `h4.cap.refused`, never an address;
-  - the gateways' spans, unchanged, now with `h4.stack=cloud` on the fallback.
-- **New metrics:**
-  - `h4.relay.requests` by path and outcome, `h4.relay.duration`, and `h4.relay.cap_refusals`;
-  - `h4.tunnel.up` from both ends, and `h4.tunnel.reconnects`;
-  - `h4.deploy.events` by host and outcome, and `h4.release.info` (the running commit and who started it);
-  - the edge's `requests` and `errors`, from CloudFront's default metrics, read every 5 minutes through `GetMetricData` (about $0.35 a month, in R-05);
-  - `h4.aws.alerts` by source, from the SNS topic's SQS copy;
-  - both come from `h4-aws-poller`, a host service with the instance role, which the cloud collector scrapes ([contracts/env-cloud.md §7](contracts/env-cloud.md#7-the-vms-host-credentials-the-operator-session-the-egress-proxy));
-  - the collector's queue and drop counters.
-- **The dashboard:** a new row, "Cloud": paths next to spend, the tunnel, the release, the probes, the edge's errors, AWS-side alerts, and telemetry delayed or lost.
-- **No payloads, no client identifiers:** spec 000's collector redaction runs on the cloud collector too.
+- **The launch template:** the type group 2 measures; spot, persistent, `instance_interruption_behavior = "stop"`; standard credits if burstable; IMDSv2, hop limit 1; encrypted gp3 root and data volumes, kept while stopped.
+- **The network:** one interface in a public subnet, with an address assigned at each start, used for egress through the proxy only (research.md R-10). The security group admits the relay block's port from the tunnel end's security group, and nothing else.
+- **cloud-init and its host script:** Docker and the pinned Compose plugin; the egress proxy, the deployer, and the credential timer. `write_env.py` writes the env file from Parameter Store to tmpfs (the Anthropic key, the role passwords, the relay's token for EC2) and checks IMDSv2's instance tag before preflight (research.md R-28).
+- **What it runs** (`H4_HOST=ec2`; data-model.md §2.2): the whole topology but the model server (`gateway`, `edge`, `web`, `otel-collector`, Prometheus, Loki, Grafana, and Langfuse and its four stores), and no local `gateway-state`, since the meter is RDS. Preflight's rule "exactly one of `gpu` and `cpu`" becomes "neither" for the `ec2` class.
+- **Its identity:** the instance role `h4-prod-ec2`, and `h4-prod-gateway` for Bedrock, assumed by the credential timer (research.md R-15).
+- **Operator access:** Systems Manager only (FR-050). `make cloud-session HOST=ec2`.
+
+### 5.2 The laptop (FR-045, FR-052 to FR-055, FR-064)
+
+- **`make up ENV=prod`** still starts the whole production topology, calling local models (FR-045). New in prod:
+  - the `tunnel` profile;
+  - `GATEWAY_DB_URL` to the tunnel's forward;
+  - `H4_HOST=laptop`;
+  - the relay, telemetry, and health blocks on `edge`;
+  - `h4-handover`, started in the Author's session (§7).
+- **The local `gateway-state`** isn't used by prod after the move. Dev and dev-cpu keep theirs.
+- **Its Bedrock identity:** spec 000's SSO permission set, imported into Terraform (FR-013).
+- **Its stop of EC2:** the `h4-ec2-stop` permission set, through the Author's SSO session (question 7). `make up` never fails because the stop fails (FR-064).
+- **No inbound port, no CI runner, no pushed deployment;** the local deployer takes releases from the Author's release directory (research.md R-17).
+
+## 6. Routing per host (FR-035, FR-067, FR-068; research.md R-27, R-28)
+
+- **`H4_HOST`** selects the route: `envs.prod.hosts.laptop` or `envs.prod.hosts.ec2` (data-model.md §2.1).
+- **The laptop:** ADR 0001's order. The kill switch first; the local model while it is healthy; then the one paid fallback, attributed `fallback`, inside the $2-a-day sub-budget, the ceilings, and the adapter caps; otherwise degraded.
+- **EC2:** the kill switch first; the Anthropic API while it is healthy and admitted (the ceilings, then its $20 cap); then Bedrock under the same admission; otherwise degraded. Its calls are attributed `metered`, so the sub-budget never sees them (the Author's answer, "The $2-a-day sub-budget stays the laptop's fallback rule").
+- **Rule R1, amended:** every `primary` is local; a route with `first` names only paid adapters and appears only as `envs.prod.hosts.ec2`. The validator (`services/gateway/src/config/validate.ts`), spec 000's config-files contract, and spec 010's FR-001 change together, by name.
+- **Spec 010's preconditions on EC2** (FR-068): the price (in place since 2026-11-09.1), the cap ($20, in place), the key (in Parameter Store, the Author's), and his words in row F3 (open). EC2 doesn't serve visitors until all four are in.
+- **Readiness evidence** (spec 010 FR-026; spec 007 FR-031): a ready topic needs runs on the laptop's local model and its fallback, and on EC2's Anthropic API and Bedrock. The report reads both host routes from the file.
+
+## 7. The handover (FR-063 to FR-066, FR-069 to FR-072, FR-074; research.md R-29 to R-32)
+
+[contracts/handover.md](contracts/handover.md) has the details.
+
+**The laptop takes over** (`make up ENV=prod`):
+1. Preflight, then the tunnel first, since the gateway needs the shared state through it.
+2. The whole topology starts.
+3. The relay sees the laptop pass three checks and sends visitors to it; Route 53's check turns healthy.
+4. `h4-handover` sees the relay's status say `laptop`, stops EC2 through the Author's SSO session, and records it. The window is at most 5 minutes.
+5. Every 60 s while the laptop serves, it stops EC2 if EC2 runs. If its session has expired, it alerts once and keeps serving.
+
+**EC2 takes over** (the laptop goes):
+1. The relay sees the laptop fail and answers `no_host_serving`, or sends to EC2 if it is already healthy.
+2. Route 53's check fails after its threshold. The alarm changes, and EventBridge invokes `h4-ec2-start`, which checks the pause switch and the server action and starts EC2.
+3. EC2 boots, its deployer checks the release, and the stack comes up.
+4. The relay sees EC2 pass three checks and sends visitors to it, recording the gap.
+
+**The functions:**
+- **`h4-ec2-start`:** one start per alarm change; refuses while paused, while the server action is executed, or, when invoked by hand, while the laptop serves.
+- **`h4-ec2-guard`:** on EC2 entering `running`, stops it if the laptop serves or the switch is off.
+- **The spot interruption warning:** an EventBridge rule publishes it to `h4-alerts` (FR-071).
+
+All three are in `infra/account/handover.tf` (protected).
+
+**The operator's commands** are research.md R-32's: `make ec2-status`, `ec2-start`, `ec2-stop`, `ec2-autostart`, `operator-* ENV=shared`, `cloud-session`, and `server-budget-restore`. Each writes an audit record. `ENV=shared` runs an admin-only stack on the laptop that can't take visitors (FR-074).
+
+**Nothing writes configuration at run time** (FR-072): the functions and the loop change EC2's running state only, and the relay's choice is in memory and in `handover_events`. A plan from the same commit after a handover shows no change (spec User Story 1, scenario 10).
+
+## 8. The edge, the site, and the disclosure
+
+### 8.1 The edge (FR-027 to FR-029, FR-034, FR-066; research.md R-07, R-08, R-09)
+
+[contracts/edge.md](contracts/edge.md).
+- **The zone and the certificate:** the hareet.ai zone in Route 53. The Author points the registrar's name servers at it, a recorded human step. ACM's certificate covers `hareet.ai` and `www.hareet.ai`, validated by DNS.
+- **The distribution** has two behaviors:
+  - `/api/*` goes to the VPC origin on the tunnel end's private interface (the relay, as question 1 recommends), with `CachingDisabled` and `CloudFront-Viewer-Address` forwarded;
+  - the default goes to the site's bucket through origin access control, with the CSP, HSTS, `Referrer-Policy: no-referrer`, and a `Permissions-Policy` that turns off the camera, microphone, and geolocation.
+- **Errors:** custom error responses turn 502 and 504 into a 503 with `/_degraded/api.json`, cause `no_host_serving`.
+- **No access logs:** they would store visitors' addresses.
+
+### 8.2 The site (FR-036 to FR-038, FR-041, FR-042)
+
+- **Spec 002's `apps/web` build,** synced to the site's bucket by `make release`. Releases refuse drafts and placeholders (spec 002's rule).
+- **Pages:** the room, the disclosure page rendered from `docs/data-flow-disclosure.md`, and `/status/` (§8.4).
+- **Fixed messages:** the room maps `no_host_serving` to `cannot_talk.resting` once spec 002's contract §3 is amended by name ([§13](#13-the-spec-amendments-option-a-needs)).
+- **Content:** what goes public about the Author needs his approvals (ADR 0034) and each topic's readiness (spec 007).
+- **The site's scan** in `make check` fails on any absolute URL to another host.
+
+### 8.3 The disclosure (FR-040)
+
+Spec.md's Data-Flow Disclosure Entries become rows, each in the change that creates its flow:
+- **The changed rows** S1, S2, V1, V2, V4, F1, F3, A1, A2, and D1. On EC2 every hello and twin turn goes to the Anthropic API first.
+- **The new rows** S15 to S17, V6 to V9, and C1 to C11 and C13.
+- **For question 1's A,** two changes: C1 becomes "the edge → the relay on the tunnel end", and a new row C14 is added, "the relay → the serving host's relay block", carrying the same fields.
+
+`tools/gates/disclosure_check.py` fails a change that adds an outward kind of thing without its row: a compose service on `egress`, an sshd permit, an egress-proxy host, a CloudFront origin, an EventBridge rule that calls out, or a security group rule open to an outside range.
+
+### 8.4 The public view (FR-057 to FR-059; research.md R-19)
+
+[contracts/public-view.md](contracts/public-view.md).
+- **The publishers:** each serving host's `snapshot-publisher` posts its panels every 2 minutes.
+- **The sink,** on the tunnel end, adds the cloud part and writes `site/status/latest.json`.
+- **`/status/`** shows:
+  - spec 000's FR-028 panels;
+  - which host serves, the handovers and their gaps, and EC2's state;
+  - the server's month against its budget, next to model spend against the ceilings;
+  - the adapter's month, the running release on each host, and when each part was taken.
+
+## 9. Releases and the deployers (FR-046 to FR-049; research.md R-17)
+
+[contracts/releases-deployer.md](contracts/releases-deployer.md).
+- **`make release`** builds once, for `linux/amd64`, and for `linux/arm64` if EC2 or the tunnel end is Graviton. It pushes to ECR, copies the upstream images the cloud hosts run, writes `release.json`, and syncs the site.
+- **Three deployers:**
+  - **EC2's** runs at boot before its stack takes visitors, and every minute while it runs;
+  - **the tunnel end's** runs every minute;
+  - **the laptop's** takes releases from the Author's release directory.
+- **Rollback and holds:**
+  - `make rollback ENV=ec2|tunnel-end|prod` rolls back;
+  - a hand-started stack is left alone until `make deployer-resume`;
+  - the gateway still refuses a store whose schema is newer than its code, so a rollback across migration 0007 fails closed.
 
 ## 10. Tests and proofs
 
 | What | Where | Proves |
 |---|---|---|
-| The relay's contract suite | `services/relay/test/**` (vitest), with a stub store, stub gateways, and a stub local path | R-18's order; the cap; the kill switch's 10 s rule; failover on unhealthy, timeout, and degraded; a local 502 answered as a degraded 503, never a 502; the edge listener's peer rule and the internal listener's fixed identity (FR-032); no body kept; no address in any log line (FR-030 to FR-035) |
-| The gateway's new cases | `services/gateway/test/**` | the `cloud` stack; `prod-cloud`; the FR-018 refusals; the infra booking and correction; the relay as a trusted peer on cloud only |
-| The breach test, grown | `evals/breach.py` on dev-cpu | FR-025: the relay answers degraded within 10 s of the trip, and forwards again after the reset |
-| The tunnel's rules | `deploy/tunnel/test_*.py`, two containers on the agents' engine | a forward that isn't permitted is refused; no shell opens; a wrong host key is refused |
-| The VM's firewall and daemon | `deploy/vm/test_vm.py` on the rules' text, and group 4's quickstart on the VM | the `output` chain admits only the proxy's user and the link-local endpoints; the `forward` chain drops a container's direct connection outside the Docker pool but not to the proxy; `daemon.json` sets `userland-proxy: false` and the fixed pool |
-| The deployer | `deploy/scripts/test_deployer.py`, with a stub engine | only changed services restart; rollback on failed health; the hold; the record |
-| The policy, redaction, plan note, and disclosure checks | `tools/gates/test/*.py` | each rule on fixtures, passing and failing |
-| The Lambdas | `infra/lambdas/*/test_*.py` | the message format, no secret in logs, the probe's header, the audit's findings |
-| The matrix | `redteam/forbidden-actions.sh` | FR-006's spellings, FR-011's paths and names, and FR-012's files |
-| Hello's red-team cases | `redteam/cases/hello-*.yaml` | FR-039: claiming to be the Author or the twin, disparaging, revealing configuration |
-| The site's scan | `apps/web/test_site.py` | no other host in the built site; the disclosure page matches the Markdown |
-| The visitor scan | `evals/visitor_scan.py` (the Author's run) | SC-011 over every store, after a scripted visit with a marker message |
+| The relay's contract suite | `services/relay/test/**`, with stub hosts and a stub store | the order; the host choice and its thresholds; the retry on the other host; `no_host_serving`; the cap; the 10 s rule; the peer rule; no body kept; no address logged |
+| Routes per host | `services/gateway/test/**` | `H4_HOST` selection; R1 amended; `metered` on EC2 and `fallback` on the laptop; the sub-budget untouched on EC2; spec 010's refusals on the `ec2` route; exit 78 on a host mismatch |
+| Two gateways on one store | `services/gateway/test/integration/shared-state.test.ts`, two gateway processes against one Postgres | admission at the global limit never passes a ceiling beyond spec 000's bound; one rollover; one alert per crossing; the kill switch seen by both within 10 s |
+| The breach test, grown | `evals/breach.py` on dev-cpu, with the relay in `dev-relay` | FR-025 |
+| The tunnel's rules | `deploy/tunnel/test_*.py`, two containers on the agents' engine | only the permitted forwards; no shell; a wrong host key refused; the forward to the store reaches only the store |
+| The hosts' firewalls and daemons | `deploy/hosts/test_hosts.py` on the rules' text | the egress chains; EC2's single inbound rule; the tunnel end's three ports |
+| The Lambda functions | `infra/lambdas/*/test_*.py`, with stub EC2, Budgets, SSM, and Route 53 | the start function's refusals and its one attempt; the guard's two stops; the alert texts; no secret logged |
+| The handover loop | `deploy/scripts/test_handover.py`, with a stub relay status and a stub EC2 | stop after the relay says `laptop`; stop again after a flap; alert once on an expired session; `make up` never fails on a failed stop |
+| The policy, redaction, plan note, disclosure checks | `tools/gates/test/*.py` | each rule, passing and failing |
+| The matrix | `redteam/forbidden-actions.sh` | FR-006's spellings, FR-011's paths and names, FR-012's files, and R-32's targets |
+| Red-team cases | `redteam/cases/` | FR-039, on the laptop's local model and fallback, and EC2's Anthropic API and Bedrock |
+| The site's scan, the visitor scan | `apps/web/test_site.py`, `evals/visitor_scan.py` | SC-010's machine half; SC-011 over every store, the shared state included |
 
-## 11. Degraded modes
+## 11. Telemetry and the dashboard (FR-059, FR-060; research.md R-25)
 
-Spec.md's Degraded Modes table holds, with the mechanisms above. This plan adds two rows:
+- **Spans:**
+  - `relay.request`, with `h4.relay.host` (`laptop`, `ec2`, `none`), `h4.relay.reason`, `h4.degraded.cause`, and `h4.cap.refused`, never an address;
+  - the gateways' spans gain `h4.host`;
+  - trace context goes from the relay to the host, so the gateway's spans are its children.
+- **Metrics:**
+  - `h4.relay.requests` by host and outcome; `h4.relay.host_healthy` by host; `h4.serving_host`;
+  - `h4.handover.events` by direction and reason; `h4.handover.gap_seconds`;
+  - `h4.ec2.state` and `h4.ec2.starts` by outcome, from the sink's reads and the functions' alerts;
+  - `h4.tunnel.up` and `h4.tunnel.reconnects`;
+  - `h4.shared_state.latency` and `h4.shared_state.errors` by host;
+  - `h4.deploy.events` by host and outcome; `h4.release.info`;
+  - the edge's request and error counts from CloudFront's default metrics;
+  - the collectors' queue and drop counters.
+- **The dashboard's new row, "Hosts":**
+  - which host serves (a state timeline), the handovers and their gaps, EC2's state and interruptions, the health check's status, and the tunnel;
+  - the shared state's latency and errors per host, the relay's requests by host and outcome, and the cap's refusals;
+  - the server's month against its budget beside model spend against the ceilings, and the adapter's month (spec 010);
+  - the release on each host, and telemetry delayed or lost.
+- **Runbooks** (FR-056), each named by its alert:
+  - the laptop's;
+  - the handover's: a failed stop and the pause switch;
+  - EC2's: a failed start, a spot interruption, and the server action;
+  - the tunnel end's: a restart, a key's revocation, and its loss;
+  - the shared state: unreachable, the move, and a restore from backup;
+  - AWS-side alerts, the public view gone stale, and the domain.
 
-| What is gone | A visitor gets | The operator gets |
+## 12. Degraded paths
+
+Spec.md's Degraded Modes table holds, with these mechanisms:
+
+| What is gone | How it is detected | A visitor gets | The operator gets |
+|---|---|---|---|
+| The laptop, while it served | the relay's check (1 s); Route 53's check (its threshold) | `no_host_serving` from the relay, then EC2's answers | the start function's alert, the gap's length |
+| EC2, starting | the relay's checks | `no_host_serving` | the gap on the dashboard |
+| Both hosts | the relay's checks | `no_host_serving`; the status answer live | the probe's alert after 5 minutes |
+| The tunnel end (with question 1's A) | CloudFront's 502 or 504; the probe | the edge's `no_host_serving` body; the site loads | the probe's alert; the runbook. EC2 starts too, since Route 53's check fails |
+| The tunnel, while the laptop runs | the relay's checks; Route 53's check | as "the laptop", above | the tunnel panel |
+| The shared state, from one host | that host's gateway read; the relay's read | degraded on that host (`cannot_talk.unavailable`); the relay moves visitors off a host whose health block reports it | the store alert |
+| The shared state, everywhere | every read | degraded (`cannot_talk.unavailable`) | the store alert; the restore runbook |
+| The Anthropic API on EC2 | the adapter's health and circuit | Bedrock's answer, inside the ceilings | spec 010's alerts |
+| A ceiling, or the kill switch | the meter | `cannot_talk.budget` on both hosts | spec 000's alerts and reset |
+| The server budget | AWS's billing data, late | EC2 stopped; the laptop if he runs it, else `no_host_serving` | the alert, and the incident note |
+| The laptop's stop of EC2 | the loop | nothing changes | an alert; EC2's hours count against the server budget |
+| The start function | its outcome | `no_host_serving` | its alert |
+| A spot interruption | AWS's warning | `no_host_serving` until capacity returns | the warning's alert |
+| The egress proxy on EC2 | the gateway's adapter errors | degraded answers (`fallback_unavailable`) | the alert-delivery panel; AWS-side alerts unaffected |
+
+## 13. The spec amendments option A needs
+
+If the Author answers question 1 with A, the spec changes in the commit that records his approval. Each change follows from the relay running on the tunnel end, and nothing else changes:
+
+| Spec text | Amended to |
+|---|---|
+| Terms: "The relay is the thin public API in each host's stack" | the thin public API on the tunnel end, in front of both hosts |
+| Terms: the tunnel end "runs the tunnel's far end and nothing of the stack's" | runs the tunnel's far end, the relay, the snapshot sink, and a collector; no gateway and no store |
+| Terms: "The failover … The laptop … is the primary; EC2 is the secondary" | the health check through the tunnel end, which fires the start function; the relay moves visitors |
+| FR-029: the relay "on both hosts" | on the tunnel end |
+| FR-034, FR-066, FR-075 | the relay answers `no_host_serving` while it is up and no host serves; the edge answers it while it can't reach the relay. Nothing calls a model while no host serves |
+| FR-037 | the relay answers the status request always |
+| FR-052 | the tunnel end's environment selects the tunnel's far end, the relay, the snapshot sink, and the collector |
+| FR-054 | the relay checks both hosts' relay blocks every second and sends each request to the laptop while healthy, else EC2 while healthy, else `no_host_serving`; Route 53's health check, through the tunnel end, fires the start function |
+| FR-063, FR-064, FR-065 | "the failover answers with the laptop" becomes "the relay sends to the laptop" |
+| FR-072 | no DNS answer changes at run time |
+| SC-007, SC-016 | "the failover answering with the laptop" becomes "the relay sending to the laptop" |
+| Data-Flow Disclosure Entries | C1 to the relay on the tunnel end; new row C14, the relay to the serving host's relay block |
+| Constitution Check, Cloud standard | the relay is always on in the cloud, as listed |
+
+Amendments to other specs, by name, in their own branches:
+- **Spec 000:** FR-030, the sub-budget is the laptop's fallback rule; FR-031, one shared meter for prod; contracts/config-files.md, R1; contracts/env-files.md, `H4_HOST` and `GATEWAY_DB_URL`.
+- **Spec 002:** contracts/room-conversation.md §3, `no_host_serving` in the "local tier off" class.
+- **Spec 007:** FR-031's evidence, per host.
+- **Spec 010:** FR-001's R1 text; FR-026's evidence; its Out list.
+
+## 14. The Author's patches, steps, and ADRs
+
+**Patches** (drafted by agents, applied by him):
+
+| # | Patch | When |
 |---|---|---|
-| The spot VM, interrupted | The site; hello and status get the edge's degraded body (R-08) until AWS has capacity again and the instance restarts on its own | The probe's alert after 5 minutes, and the deployment record when it's back |
-| The egress proxy | Hello on the local path works; the fallback answers `fallback_unavailable`; alerts from the cloud stack wait in the outbox | The cloud stack's alert-delivery panel; the AWS-side alerts keep working, because they don't pass the VM |
+| P-1 | The guard patch (§2) | group 1, before any `infra/` file |
+| P-2 | Constitution 1.1.0, with question 3's sentences if he chooses A | before group 3 |
+| P-3 | CLAUDE.md, three sentences. **The infra line,** as September drafted it, for the local phase's apply. **The routing sentence,** per host, for example: "local-first on the laptop, then its one paid fallback (Bedrock or the Anthropic API) within its sub-budget and caps; on EC2, the Anthropic API, then Bedrock, within the ceilings and caps; then degraded". **The relay's line,** "`services/relay` — thin cloud API on the tunnel end; kill-switch read; host choice; public cap". The words are his | with P-1 |
+| P-4 | The intents' lines: intent 000's cost and hosting constraints, and this folder's intent's cost lines, in his words | any time; the spec reads them under his later words until then |
+| P-5 | Spec 002's resting words, if question 5 is A | before the first public release |
 
-## 12. Runbooks (FR-056)
+**His steps** (each recorded): pricing and the server budget's figure (group 2); every apply; the state's migration; activating the cost tags; confirming the email subscription; the Telegram parameters; the secrets and the role passwords; the tunnel keys; the name servers; the move of the meter; the Anthropic account's spend limit; his words in row F3 (spec 010); the rehearsals; the red-team runs; the first public release.
 
-New in `docs/runbooks/`:
-- the local tier: wake, WSL2 restart, `make up`, the tunnel's recovery, and the local deployer;
-- the cloud VM: a spot interruption, a replacement, the egress proxy, a failed deploy and rollback;
-- AWS-side alerts: a budget warning or breach, an anomaly, the budget action executed and how to restore it after the incident note, a certificate near expiry, the probe failing, and a credential-audit finding;
-- the tunnel: down, revoked, and a key rotation;
-- the public view stale;
-- the domain's delegation.
-
-Each alert's message names its runbook, as spec 000's do.
-
-## 13. Documentation and ADRs
-
-FR-062's decisions. Each ADR is written in the commit that records the Author's approval of this plan, from its research entry:
+**ADRs**, written in the commit that records his approval:
 
 | ADR | Decision | From |
 |---|---|---|
-| 0007 | One AWS account; environments by VM, IAM role, tag, and budget (reserved) | R-01, R-02 |
-| 0008 | Terraform with reviewed plans and the Author's recorded apply until publication; the GitHub-side half moved to the publication spec (reserved) | R-13, R-16 |
-| 0009 | Pull-based deployment; no inbound ports on the local tier; no self-hosted runners (reserved) | R-17 |
-| 0024 | Production's split: the local path, and the fallback gateway holding the meter of record | R-20 |
-| 0025 | Infrastructure cost booked on the meter, corrected from AWS's own data | R-21 |
-| 0026 | The tunnel: OpenSSH reverse forwards in unprivileged containers, ending on the cloud VM | R-11, R-12 |
-| 0027 | The cloud VM: Graviton spot within the idle target; multi-architecture releases | R-04, R-05 |
-| 0028 | The public request cap in the relay | R-18 |
-| 0029 | CloudFront reaches the relay through a VPC origin on a private interface | R-07 |
+| 0007, 0008, 0009 | September's reserved three: one account; Terraform with reviewed plans and the recorded terminal apply; pull-based deployment, no inbound ports | research.md R-02, R-13, R-17 |
+| next free | The shared state in RDS for PostgreSQL | R-20 |
+| next free | The relay on the tunnel end (question 1), or DNS failover (if B) | R-07, R-18 |
+| next free | The tunnel: OpenSSH, ending on the tunnel end | R-11, R-12 |
+| next free | EC2 on spot with stop, the start function, and the guard | R-29, R-30 |
+| next free | The route per host and rule R1 | R-27, R-28 |
+| next free | The public request cap in the relay | R-18 |
 
-ADR 0023 is the Claude Code pin-rule proposal (docs/000-claude-pin-rule), so this spec's new ADRs start at 0024. The ADRs written from R-05 and R-07 carry those entries' caveat: two of their quoted AWS sentences came from web-search summaries, until the first infra task re-reads the pages.
+ADR numbers come from the index at approval: 0043 is spec 005's and 0044 is ADR 0044. ADR 0044 amends ADR 0001; the route-per-host ADR extends it.
 
-**ADR 0013's Consequence for spec 001.** The spec's Clarifications require it: "The move updates ADR 0013's Consequence for spec 001 ("in spec 001, plan-in-PR and the protected apply") the way ADR 0014 updated spec 000's." ADR 0008, written at approval, replaces that one Consequence of the accepted ADR 0013, as ADR 0014 did for spec 000: spec 001's plan-in-PR and protected apply move to the publication spec, and the plan in the note and the recorded terminal apply stand in until then. The ADR index marks 0013 "one Consequence replaced by 0014 and 0008".
+## 15. Cost lines
 
-Also written:
-- **START-HERE §3 and §5:** the idle target and the rate-limit mechanism are answered.
-- **The README:** links to the ADRs (SC-014's two clicks), the public view, and the disclosure.
-- **`infra/README.md`.**
+research.md R-05 has the table, each line with its repository figure and date, or marked to price. In short:
+- **Model spend** is spec 010's estimate and the meter's ceilings, both hosts together.
+- **The server budget** covers EC2 (running on spot; its volumes running or stopped; its address while running), the tunnel end (instance, Elastic IP, root volume), RDS (instance, storage, backups), its master password's secret, Route 53 (the zone and the health check), CloudWatch alarms, S3, ECR, and AWS's free or near-free services.
+- **The Author prices it** from group 2's measurement and sets the figure before group 3's apply.
+- **Measured** by SC-002 and SC-003, and on the dashboard.
 
-## 14. Order of work, risks, and proof
+## 16. Order of work, risks, and proof
 
 **Task groups.** Each is a feature branch with a note, merged by the Author in this order.
 
 | # | Branch | What | The Author's part |
 |---|---|---|---|
-| 1 | `feat/001-guards` | §2's patch; the Terraform pin; `make infra-mirror` | apply the patch; seed the mirror |
-| 2 | `feat/001-us1-bootstrap` | `infra/bootstrap`; §1.2's targets and gate step; the credential audit's script; `infra/README.md` | **Before:** make the administrator permission set in Identity Center if it doesn't exist. **Then:** the first plan, verify, and apply; migrate the state; activate the cost tags; confirm the email subscription |
-| 3 | `feat/001-us2-safety-net` | `infra/account`: the kill switch, the rehearsal, the three Lambdas, the registry, and the release bucket. The gateway's infra booking (migration 0004, after spec 003's 0003). The `budgets.yaml` patch | apply; the Telegram parameters; **the rehearsal (SC-009)**; `rehearsal = false` |
-| 4 | `feat/001-us5-cloud-vm` | `infra/prod`'s network, VM, volumes, roles, and parameters; the cloud stack; the relay (not yet public); the egress proxy; cloud-init; releases and the deployer; the gateway's `cloud` stack and `prod-cloud`; local prod drops its fallback; FR-013's role | **Waits for spec 000's SC-001 re-run and SC-002** (interview question 1). **Then:** apply; set the secrets; the first `make release`; `make operator-init ENV=cloud` with carried values; destroy and recreate (SC-005); delete the hand-made identity |
-| 5 | `feat/001-us6-tunnel` | the tunnel and `tunnel-end`; the local `edge`'s blocks; the relay's local path; the local deployer; the local-tier runbook | `make tunnel-keys`; start the tunnel; the external scan (SC-006); cut and restore (SC-007) |
-| 6 | `feat/001-us3-us4-public` | the zone, the certificate, the distribution and its VPC origin, the site's bucket; `apps/web` and the disclosure's rows; hello's red-team cases; the edge's degraded body; the site's scan; the visitor scan | the name servers; apply; the red-team run; the first public release; **SC-001, SC-010, SC-011** |
-| 7 | `feat/001-us7-public-view` | the publisher and sink; `/status/`; the "Cloud" dashboard row | **SC-013:** the local tier off for an hour |
-| 8 | `feat/001-close` | the success-criteria table, the runbooks completed, START-HERE and the README; the matrix with zero planned rows | **SC-002 and SC-003** after the first full month; **SC-004** from the audit's history; **SC-012** from the records |
+| 1 | `feat/001-guards` | P-1; the Terraform pin; `make infra-mirror` | apply P-1 and P-3; seed the mirror |
+| 2 | `feat/001-measure` | research.md R-33: the stack's memory without the model server on dev-cpu; the tunnel end's; every image's architectures; the disks | price the lines from AWS's pages; **set the server budget's figure** (spec question 14); apply P-2 |
+| 3 | `feat/001-us1-bootstrap` | `infra/bootstrap`: state, the three budgets, the anomaly monitor, the topic; the plan and apply targets; the credential audit's script | the first plan, verify, apply; migrate the state; the cost tags; the email subscription |
+| 4 | `feat/001-us2-safety-net` | `infra/account`: the two actions and their rehearsals; the alert bridge, the probe (disabled until group 8), the credential audit; the registry and the release bucket | apply; the Telegram parameters; **the rehearsals (SC-009)**; `rehearsal = false` |
+| 5 | `feat/001-tunnel-end` | `infra/prod`'s network and the tunnel end; the `tunnel` and `tunnel-end` images; the laptop `edge`'s three blocks; the tunnel end's deployer and egress proxy | apply; `make tunnel-keys`; start the tunnel; **SC-006** |
+| 6 | `feat/001-shared-state` | RDS; migration 0007; the gateway's `H4_HOST`, routes per host, R1, TLS to the store; the two-gateways test; `operator-* ENV=shared` | apply; the role passwords; **the move** (data-model.md §1.5); the laptop's prod on the shared state |
+| 7 | `feat/001-us5-ec2` | EC2 (spot, stop), its roles, env, host scripts, egress proxy, and deployer; multi-architecture releases; EC2's relay block; the Anthropic route on EC2 | apply; the secrets; his F3 words (spec 010); the first release; **SC-005, SC-017** |
+| 8 | `feat/001-us3-us5-edge` | the zone, the certificate, CloudFront and its VPC origin; the relay on the tunnel end; the site; the disclosure's rows; red-team on four adapters; the edge's body; spec 002's amendment branch | the name servers; apply; the red-team runs; the site stays unannounced until group 9 ends |
+| 9 | `feat/001-us4-us7-handover` | the health check, the alarm, the rules, `h4-ec2-start`, `h4-ec2-guard`, the pause switch, the spot warning; `h4-handover`; `make ec2-*` | apply; **10 handovers each way (SC-007), 5 rehearsed interruptions (SC-018)**; the first public release; **SC-001, SC-010, SC-011** |
+| 10 | `feat/001-us8-public-view` | the publishers, the sink, `/status/`, the "Hosts" row | **SC-013**: both hosts off for an hour |
+| 11 | `feat/001-close` | the success-criteria table; runbooks completed; the README and the ADR index | **SC-002, SC-003, SC-016** after the first full month; **SC-004**; **SC-012**; **SC-014** |
 
-Hello becomes public only in group 6, after the tunnel (group 5), so visitors are answered locally from the first day, and the disclosure is live before the first visitor byte (US4).
+Hello and the twin become public only at the end of group 9, after the handover is rehearsed, so the first visitor meets the whole design, and the disclosure is live before the first visitor byte.
 
 **Risks:**
 
 | Risk | Mitigation |
 |---|---|
-| The thin services don't fit in a t4g.micro's 1 GiB | Measured in group 4 under the breach test's load; a t4g.small is a configuration change, at about $11 a month idle (R-04, R-05) |
-| Spot capacity: interruptions, or none in the zone | A stop keeps the disks, and the request restarts the instance; the edge serves the site and its degraded body meanwhile. The runbook moves the request to another zone, which means a snapshot and a new meter volume there |
-| CloudFront's error response can't carry `X-H4-Degraded-Cause` | Measured in group 6. If it can't, the cause travels in the body for that one case, and the contract says so (R-08) |
-| An application-layer flood bills CloudFront past the free tier | The relay's cap stops it reaching a model; the budgets alert, late; a breaker is the Author's call (R-06) |
-| AWS's billing data lags by hours | The meter is the control (FR-024); the correction only ever books upward |
-| The VPC origin's second interface misroutes replies | Amazon Linux 2023's per-interface routing; group 4's first test is a request through the origin and a reply |
-| arm64 builds of the project's images need emulation on the Author's engine | Only `tunnel-end`'s package install runs under QEMU, installed once (R-04); the Node images copy built JavaScript |
-| A provider or Terraform version change between the mirror and the Author's plan | One pin in `toolchain.vars`, the lockfile, and the mirror, checked against each other by `make infra-check` |
-| The Author's DNS provider holds the zone | Interview question 4; moving the zone is one name-server change at the registrar |
-| Spec 000's open criteria | Interview question 1: group 4 waits for SC-001's re-run and SC-002 |
+| The stack without the model server needs more memory than the Author's figure allows | Measured in group 2, before any apply; the Author sets the figure from it. Trimming the stack on EC2 (Langfuse's stores are the largest) is a plan change he can ask for |
+| An image the stack runs has no arm64 build | Measured in group 2; EC2 is then x86-64, and releases stay single-architecture for it |
+| RDS's price is out of proportion to the server budget | Priced in group 2. DynamoDB is the alternative (research.md R-20), with its rewrite |
+| Spot capacity for EC2's type is short | The interruption's alert, `no_host_serving`, and the laptop; the runbook moves the request to another zone, with a snapshot of the data volume |
+| The tunnel end is a single point for dynamic requests (question 1's A) | On demand (question 2); the edge's own degraded body; the probe; EC2 starts too when its check fails, so service returns as soon as the tunnel end does |
+| Route 53's checkers can't reach the health port, or their address ranges change | The first infra task confirms the ranges' published form; the policy refuses any other open rule |
+| A CloudFront error response can't carry the cause's header | Measured in group 8; the cause travels in the body (research.md R-08) |
+| Two gateways race on the shared rows | The two-gateways test (§10) before group 7 |
+| The laptop's SSO session expires while it serves | The loop alerts once and keeps serving; the shared meter bounds spend; EC2's hours show on the dashboard |
+| AWS's billing data lags | The meter is the control for model spend; the server action is the safety net, late, as the spec says |
+| Spec 000's open criteria, if any | The spec puts spec 000 first; group 5 waits for them |
 
-**Proof.** [quickstart.md](quickstart.md) runs each story in the Author's terminal. Each group's note carries:
-- `make check`'s whole output from an agent session, and the gate's summary from the Author's terminal;
-- the reviewer's REVIEW.md passes;
-- the redacted plan blocks and apply records.
+**Proof.** [quickstart.md](quickstart.md) runs each story in the Author's terminal. Each group's note carries `make check`'s whole output, the gate's summary, the reviewer's passes, and the redacted plan blocks and apply records. Spec 001 is done when SC-001 to SC-018 (but SC-015, moved) pass and the matrix shows zero failures and zero planned rows.
 
-Spec 001 is done when SC-001 to SC-014 pass and the matrix shows zero failures and zero planned rows.
+## 17. Requirement coverage
 
-## 15. Requirement coverage
-
-| Requirement | Where | Group |
+| Requirements | Where | Group |
 |---|---|---|
-| FR-001, FR-003 | §1.1, R-03 | 2 |
-| FR-002 | §1.3, R-14 | 1–2 |
-| FR-004 | §1.3, §2 | 1 |
-| FR-005, FR-007 | §1.2, R-13 | 2 |
-| FR-006, FR-011, FR-012 | §2, R-14, R-16 | 1 |
-| FR-008, FR-009, FR-010 | §1.4 | 2–4 |
-| FR-013 | §6.4, R-15 | 4 |
-| FR-017, FR-018, FR-019 | §3.3, R-20 | 4 |
-| FR-020 | §3.3, R-21 | 3 |
-| FR-021 | R-04, R-05 | 4 (measured), 8 (SC-002) |
-| FR-022 | §3.1, R-22 | 2 |
-| FR-023, FR-026 | §3.2, R-22 | 3 |
-| FR-024 | §3.3 (the meter stays the control) | 3 |
-| FR-025 | §4.2, §10 | 4 |
-| FR-027, FR-028, FR-029, FR-034 | §4.1, R-07 to R-09 | 6 |
-| FR-030 to FR-033, FR-035, FR-037 | §4.2, R-18 | 4 (code), 6 (public) |
-| FR-036, FR-038 | §8.1 | 6 |
-| FR-039 | §7.1, §10 | 6 |
-| FR-040, FR-041, FR-042 | §8.1, §8.2 | 4–6 (each flow's row with its change) |
-| FR-043, FR-044, FR-045 | §6.5, §5.4 | 4–5 |
-| FR-046 to FR-049 | §7, R-17 | 4–5 |
-| FR-050 | §6.1 | 4 |
-| FR-051 | §6.3, R-10 | 4 |
-| FR-052 to FR-055 | §5, R-11, R-12 | 5 |
-| FR-056 | §12 | 2–8 |
-| FR-057 to FR-059 | §8.3, R-19 | 7 |
-| FR-060 | §9, R-25 | 4–7 |
-| FR-061 | §3.4, R-24 | 3 |
-| FR-062 | §13 | approval |
-| SC-001 | quickstart §6 | 6 |
-| SC-002, SC-003 | quickstart §8 | 8 |
-| SC-004 | §1.4 | 8 |
-| SC-005 | quickstart §4 | 4 |
-| SC-006, SC-007 | quickstart §5 | 5 |
-| SC-008 | §10 (the breach test) | 4 |
-| SC-009 | quickstart §3 | 3 |
-| SC-010, SC-011 | quickstart §6 | 6 |
-| SC-012 | §1.2 | 2–8 |
-| SC-013 | quickstart §7 | 7 |
-| SC-014 | §13 | 8 |
+| FR-001 to FR-012 | §1, §2; research.md R-02, R-03, R-13, R-14, R-16, R-26 | 1–3 |
+| FR-013 | §5; research.md R-15 | 6–7 |
+| FR-017 to FR-020 | §3.3; research.md R-20; data-model.md §1 | 6 |
+| FR-021, FR-022 | §3.1; research.md R-05, R-22, R-33 | 2–3 |
+| FR-023, FR-026 | §3.2; research.md R-22 | 4 |
+| FR-024 | §3.3 | 6 |
+| FR-025 | §10 | 8 |
+| FR-027 to FR-029, FR-034 | §8.1; research.md R-07 to R-09 | 8 |
+| FR-030 to FR-033, FR-035, FR-037 | §4, §6; research.md R-18, R-27 | 6–8 |
+| FR-036, FR-038, FR-041, FR-042 | §8.2 | 8 |
+| FR-039 | §10 | 8 |
+| FR-040 | §8.3 | 5–9, each flow with its change |
+| FR-043 to FR-045 | §5 | 5–7 |
+| FR-046 to FR-049 | §9; research.md R-17 | 5–7 |
+| FR-050, FR-051 | §5.1; research.md R-10 | 7 |
+| FR-052 to FR-055 | §4, §5.2; research.md R-11, R-12 | 5 |
+| FR-056 | §11 | 3–11 |
+| FR-057 to FR-059 | §8.4; research.md R-19 | 10 |
+| FR-060 | §11; research.md R-25 | 5–10 |
+| FR-061 | research.md R-24 | 4, enabled in 8 |
+| FR-062 | §14 | approval |
+| FR-063 to FR-066, FR-069 to FR-072 | §7; research.md R-29 to R-31 | 9 |
+| FR-067, FR-068 | §6; research.md R-27 | 6–7 |
+| FR-073 | §3.3, §14 | 7 |
+| FR-074 | §7; research.md R-32 | 6 |
+| FR-075 | §4, §12 | 8–9 |
+| SC-001, SC-010, SC-011 | quickstart §9 | 9 |
+| SC-002, SC-003, SC-016 | quickstart §11 | 11 |
+| SC-004, SC-012 | §1 | 3–11 |
+| SC-005, SC-017 | quickstart §7 | 7 |
+| SC-006 | quickstart §5 | 5 |
+| SC-007, SC-018 | quickstart §9 | 9 |
+| SC-008 | §10 | 6, 8 |
+| SC-009 | quickstart §4 | 4 |
+| SC-013 | quickstart §10 | 10 |
+| SC-014 | §14 | 11 |
 
 ## Constitution Check (post-design)
 
 Re-checked against the design above:
-- **No new violation.**
-- **Principle IV is stronger than the spec required in four places:**
-  - containers can't reach the instance's metadata;
-  - the gateway's Bedrock permission sits on a role only a host timer assumes;
-  - the tunnel's server refuses any forward it doesn't list;
-  - CloudFront is the only route to the relay.
-- **Principle I's one trade:** CloudFront to the relay runs as HTTP inside AWS's network (R-07). The disclosure says so, and interview question 2 asks the Author.
-- **The guards come first:** they land in group 1, before any `infra/` file, state, or key exists, following spec 000's rule for when a deny lands.
-- **Deviations, named in the spec's Assumptions:**
-  - the Author's terminal apply (ADR 0013), with its record;
-  - the CI-side supply chain (ADR 0014);
-  - image variants (ADR 0015), unchanged.
+- **No new violation** beyond those named before design.
+- **Principle IV is stronger than the spec requires in five places:**
+  - containers can't reach any instance's metadata;
+  - Bedrock's permission on EC2 sits on a role only a host timer assumes;
+  - the tunnel end refuses any forward it doesn't list;
+  - with question 1's A, CloudFront is the only route to the relay, and the relay the only route to EC2;
+  - the start function, the guard, and the laptop's stop each hold one action on one instance.
+- **Principle I:** visitors' requests stay inside AWS's network and the SSH tunnel with question 1's A. Every flow is a disclosure row before it happens.
+- **Principle V:** the meter stays the control on both hosts. The server budget has its own automatic action, and both actions are rehearsed.
+- **The guards come first**, before any `infra/` file, state, key, or secret exists.
 
-Verdict: **PASS**.
+Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 
 ## Complexity Tracking
 
-| Deviation or risk | Why needed | Simpler alternative rejected because |
+| Deviation or added part | Why needed | Simpler alternative rejected because |
 |---|---|---|
-| The Author applies from their own terminal, not a protected environment (ADR 0013) | No CI before publication | Waiting for publication would leave the site without its safety net |
-| Two network interfaces on the VM | A VPC origin needs a private subnet; the tunnel and the egress need a public address (R-07) | A public origin needs a shared secret in Terraform's state, or a key-value store, plus a certificate on the VM |
-| Multi-architecture releases | Graviton halves the interruption rate at the same price (R-04) | x86 everywhere: one architecture, two to three times the interruptions |
-| Host services outside compose (the deployer, the egress proxy, the credential timer) | Each needs the Docker socket, the host's firewall, or the instance role, which the compose policy keeps out of containers | Running them in containers would need `docker.sock` or host networking, which spec 000 refuses |
-| CloudFront to the relay as HTTP inside AWS's network | The VPC origin's address has no public certificate name | TLS to the origin needs a public origin (above) |
-| **Exception to FR-001** ("THE SYSTEM SHALL define every cloud resource in Terraform"): the secret parameters under `/h4reet/cloud/` are created and updated by the Author with the AWS CLI, outside Terraform (research.md R-26) | FR-009: "Terraform refers to the secret without reading its value". A Terraform-managed SecureString, even a placeholder under `ignore_changes`, is read back, decrypted, into the state and every saved plan on each refresh | Write-only provider arguments: unverified for the pinned provider, and the value still passes through Terraform at apply time. Secrets Manager with names only in Terraform: about $0.40 a secret a month, over half of R-05's idle budget |
-| **FR-032's one exception:** the Author's test client reaches the relay's internal listener through the Systems Manager session, as the fixed identity `192.0.2.10` | The relay has to be testable before the edge exists, and after it without going through the public cap | Testing only through CloudFront: no test before group 6, and every test spends a visitor's cap |
+| Deviations from constitution 1.0.1 that 1.1.0 removes: EC2 hosting the stack (Cloud standard), its paid first route (Model access standard), Principle V's reason, the Local tier standard's fallback sentence | The Author's decisions of 2026-11-09 | None: the constitution changes only by his hand, so infrastructure tasks wait for his patch |
+| The Observability standard's "Langfuse, self-hosted on the local tier", while EC2 runs its own (unless question 3 is A) | EC2 runs the whole stack but the model server; LLM traces must exist where the calls are made (Principle II) | Sending EC2's traces to the laptop's Langfuse: the laptop is usually off |
+| The Author applies from his own terminal (ADR 0013) | No CI before publication | Waiting for publication would leave the site without its safety net |
 | The CI-side supply-chain controls wait (ADR 0014) | They need GitHub | Pins, digests, and the local gate stand in |
+| Image variants, and multi-architecture releases if Graviton (ADR 0015) | Measured in group 2 | x86 everywhere: allowed if R-33 finds an image without arm64 |
+| **Exception to spec FR-001:** secrets are written by the Author outside Terraform (research.md R-26) | FR-009: "Terraform refers to the secret without reading its value" | A Terraform-managed SecureString is read back, decrypted, into the state on each refresh |
+| An always-on RDS instance | The shared meter must outlive both hosts and run while EC2 is stopped (FR-019) | Postgres on the tunnel end: one small instance becomes the meter's only home; DynamoDB: a second implementation of the meter |
+| The relay on the tunnel end (question 1's A) | A private, single origin for CloudFront, and a host choice that DNS can't make for VPC origins | DNS failover with public origins (option B): certificates, a third-party authority, and a secret header |
+| Three hosts and three deployers | The tunnel end must run while both serving hosts are off | Fewer hosts: the tunnel would have nowhere to end while EC2 is stopped |
+| Host services outside compose (deployers, egress proxies, credential timers, the handover loop) | They need the Docker socket, the firewall, an instance role, or the Author's SSO session | In containers they would need `docker.sock` or host networking, which spec 000 refuses |
+| **Spec FR-032's one exception:** the Author's test client reaches the relay's internal listener through a Systems Manager session, as a fixed documentation-range identity (as September) | The relay has to be testable before the edge exists | Testing only through CloudFront: no test before group 8 |
+| The health block answers without a credential (spec FR-053's conditional) | Route 53's checkers can't send one (to confirm) | An authenticated check: not possible with Route 53's HTTP checks; the block returns only a status |
