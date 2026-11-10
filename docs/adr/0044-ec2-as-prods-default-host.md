@@ -106,6 +106,10 @@ On 2026-11-09 the Author also approved five points on the workflow, as a set. Th
 
 12. **The amendment's two wording changes.** The question put to the Author was whether to add two wording changes to the amendment: the Observability standard's "Langfuse, self-hosted on the local tier", and the Cloud standard's always-on "Bedrock fallback path". His answer: "Add both (Recommended)". The option read: "The patch gains two small wording changes: Langfuse self-hosted in the stack, and Bedrock called from the serving host. Still 1.1.0. The ADR's old → new list grows to match." Decided: both are in the amendment, and the version stays 1.1.0.
 
+13. **The relay on spot, in the Cloud standard.** Spec 001's plan, question 8 (on `spec/001-cloud-elevation` at d3c7ee02), set two answers against the Cloud standard: the relay runs on the tunnel's end (decision 10), and the tunnel's end runs on spot (decision 11), so AWS can take the relay away for a while, while the standard lists "the thin API/relay" among what "must be always-on". Its option A, recommended, read: "Add your wording to the 1.1.0 patch, which you haven't applied yet. For example, the relay 'on spot capacity where the Author accepts the gap (ADR 0044)'. The words are yours." Its option B read: "Keep the standard's words, and name a deviation in spec.md's Assumptions, citing ADR 0044." The Author's words, on 2026-11-10: "Let's approve the t000 and spec 001 plan."
+
+    Decided, as the session's reading of that approval: option A, with the option's example words, since his approval gives no words of its own. The amendment's Cloud standard keeps the relay on the always-on list as "the thin API/relay on spot capacity where the Author accepts the gap (ADR 0044)", so no deviation remains, and the version stays 1.1.0. Option B, or other words, is his to choose instead.
+
 Not decided here: the tunnel software, the shared state store, the server's instance type and budget figure, and the IAM each piece needs. These are the open list below, with the items the reworked spec now settles marked as such.
 
 ## Alternatives considered
@@ -130,9 +134,10 @@ Each change, old → new:
 - **Principle V**, the sentence on the local tier and the cloud bill (only its reason changes):
   - old: "Budgets are small on purpose, and the local tier exists so the cloud bill stays near zero."
   - new: "Budgets are small on purpose, and the local tier exists so the model spend stays near zero. The model-spend ceilings count model calls only; the server's own budget is separate from them (ADR 0044)."
-- **Technology Standards, Cloud**, the hosting list (decision 12 removes the Bedrock fallback path from the always-on list):
+- **Technology Standards, Cloud**, the hosting list (decision 12 removes the Bedrock fallback path from the always-on list, and decision 13 qualifies the relay):
   - old: "The cloud hosts only what must be always-on and cheap: the static site and edge, the thin API/relay, the kill-switch state, budgets and alerting, and the Bedrock fallback path."
-  - new: "The cloud hosts what must be always-on and cheap: the static site and edge, the thin API/relay, the kill-switch state and the meter's state, budgets and alerting. Bedrock is called from the serving host. The cloud may also host the production stack on one VM, without the local model server, as the default production host (ADR 0044)."
+  - new: "The cloud hosts what must be always-on and cheap: the static site and edge, the thin API/relay on spot capacity where the Author accepts the gap (ADR 0044), the kill-switch state and the meter's state, budgets and alerting. Bedrock is called from the serving host. The cloud may also host the production stack on one VM, without the local model server, as the default production host (ADR 0044)."
+  - decision 13's line within it, old: "the thin API/relay"; new: "the thin API/relay on spot capacity where the Author accepts the gap (ADR 0044)".
 - **Technology Standards, Local tier**, the last two sentences:
   - old: "Deployments are pull-based. Production MUST function when it is off, via the cloud fallback within its sub-budget or via degraded mode."
   - new: "It serves production whenever the Author runs it (ADR 0044). Deployments are pull-based. Production MUST function when it is off, via the cloud host and its paid routes within the ceilings and adapter caps, or via degraded mode."
