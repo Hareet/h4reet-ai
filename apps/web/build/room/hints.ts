@@ -88,10 +88,14 @@ export function hintFigures(tree: Pick<Tree, "read">): Partial<Record<FigureSlot
   const versions = at(yamlAt(tree, PRICES_FILE), "versions");
   const last = Array.isArray(versions) ? (versions.at(-1) as unknown) : undefined;
   const entries = at(last, "entries");
-  const entry =
+  // The one entry for that model in the last version: the provider is fixed by the adapter's type in the gateway's
+  // own code, which nothing outside its adapters names, so two entries for one model leave the price unfilled (RT17)
+  // rather than one picked by the file's order.
+  const matching =
     typeof model === "string" && Array.isArray(entries)
-      ? (entries as unknown[]).find((e) => at(e, "model") === model)
-      : undefined;
+      ? (entries as unknown[]).filter((e) => at(e, "model") === model)
+      : [];
+  const entry = matching.length === 1 ? matching[0] : undefined;
   if (entry !== undefined) {
     put("price.input", at(entry, "input"));
     put("price.output", at(entry, "output"));
