@@ -221,6 +221,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 **Goal**: the alert path, the model action on the laptop's Bedrock role, both actions' rehearsals against targets of the same shape, the probe, the registry, and releases' bucket (FR-013, FR-022 to FR-026, FR-061). **Independent test**: quickstart §4.
 
 **Precondition**: T001's check holds.
+  - **Recorded 2026-11-10: unmet.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads "**Version**: 1.0.1", not 1.1.0, and ADR 0044 reads "Status: proposed", on `docs/001-ec2-default` (a633f542). The group is built anyway, at the main session's direction, as its reading of the Author's T000 words, "build it out … you can have everything ready and verified by then", as group 3 was: the agent work on `feat/001-us2-safety-net`, stacked on groups 1 to 3, and its patch, P-I2. Nothing of it merges, and nothing is applied, before T001. That extends the deviation spec.md's Assumptions name for groups 1 and 3 ("The constitution first"), which now says so; it is the session's reading, not a word of his, and his to overturn.
 
 ### Tests first
 
