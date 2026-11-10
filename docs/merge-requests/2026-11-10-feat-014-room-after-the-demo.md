@@ -8,7 +8,7 @@ Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This 
 `/tmp/claude-1000/wt-feat014`, which the main session created at 2026-11-10T16:25:49Z with `git --no-replace-objects
 worktree add -b feat/014-room-after-the-demo /tmp/claude-1000/wt-feat014 refs/heads/spec/014-room-after-the-demo`, then
 merged `refs/heads/main` at 32fb2bc3 into it (cb861c2a). Repo hooks active: yes. In `.claude/audit/hooks.log`, the events
-naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to ⟦HOOKS_END⟧ are ⟦HOOKS_COUNTS⟧; every BLOCK is listed under For the Author, the
+naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to this note's last commit are 711 ALLOW, 6 BLOCK, and 6 WARN up to 19:39:18Z (the six WARNs are the post-edit lint: once on `evals/sign_probe.py`, fixed before its commit, and five times on scratch files outside the repository, the step blocks while they were `.sh` fragments and a checker script); every BLOCK is listed under For the Author, the
 refusals.
 
 Authorized by: spec 014 and its plan, approved by the Author on 2026-11-10: "You can go ahead and start the build of
@@ -16,8 +16,9 @@ the spec." (tasks.md T000). The brief from the main session for this build is th
 
 ## Status: built, waiting for the review (T052)
 
-Every task from T001 to T051 is done but T045, the sign's check on a running stack (E21, below). The review, T052, is
-next, by a reviewer that wrote none of this; its findings go in Review, and its fixes (T053) move the anchor `rv` in
+Every task from T001 to T051 is done but T045, the sign's check on a running stack (E21, below). `tasks.md` ticks
+T001 to T050 but T045; T051, the rehearsal, ran after the anchor, so its tick waits for the next change that moves
+`rv`, and this note is its record. The review, T052, is next, by a reviewer that wrote none of this; its findings go in Review, and its fixes (T053) move the anchor `rv` in
 step 2c. Then your lookdev look (T054), the gate (T057), and your look at the live room (T058).
 
 | Check | Result |
@@ -26,10 +27,10 @@ step 2c. Then your lookdev look (T054), the gate (T057), and your look at the li
 | `make test` | exit 0 on 4b75bb5d: the gateway "1655 passed \| 13 skipped (1668)", the web "3264 passed \| 1 skipped (3265)", pytest "4118 passed in 374.06s"; whole again in `make check`'s test stage on eaf66991 |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,997; the behavioral tier's WARN, information |
 | `make check ENGINE_MODE=none-yet`, the final run, on eaf66991 | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 221 files (40 commits)" |
-| `gitleaks dir` on a fresh export | ⟦GL_ROW⟧ |
+| `gitleaks dir` on a fresh export | exit 0, "no leaks found", 2,031 files, on 5baa4469 |
 | `npm run room:check` | "room: 0 findings in 0 files", 6.91 s (5.12 s at the base); 7,678 stages (7,291) |
 | The entry chunk (SC-015) | 48,734 bytes gzipped (46,017 at the base), against 150 KB |
-| The rehearsal (T051) | ⟦RH_ROW⟧ |
+| The rehearsal (T051) | `refs/heads/main` is still 32fb2bc3, an ancestor of the tip, so there is nothing to rebase and the merge writes the tip's own tree; the note's own guard blocks give go and no where they should, under `zsh -f` and `bash --noprofile --norc` (The rehearsal) |
 
 ## Runs in your terminal
 
@@ -529,11 +530,51 @@ timing tests among them; `evals`' WARN is the behavioral tier's information line
 
 ### gitleaks on a fresh export
 
-⟦GITLEAKS⟧
+`git archive 5baa4469 | tar -x` into an empty folder under `$TMPDIR` (2,031 files, no `.pyc`), then `gitleaks dir .`
+there:
+
+```text
+INF scanned ~53455742 bytes (53.46 MB) in 1.64s
+INF no leaks found
+```
+
+Exit 0. 5baa4469 is this note's commit before its last; the last adds only these results, and the content scan
+(gitleaks over each edit's text) passed every edit.
 
 ### The rehearsal
 
-⟦REHEARSAL⟧
+T051. `refs/heads/main`, re-read at the end: 32fb2bc3, the commit this branch merged at T001, so it is an ancestor of
+the tip and there is nothing to rebase; `git merge-tree --write-tree refs/heads/main <tip>` writes the tip's own tree
+(0e93a84c). The board's patch needs no rebuild: main's `content-approvals.json` hasn't moved. `make sign-check
+ENV=dev-cpu` isn't rerun (E21).
+
+The guard: this note's own blocks, extracted from it, run in a scratch clone of the repository under `$TMPDIR` over
+made-up gate logs, 2a or 2b and then 2c, with the gated SHA 5baa4469 and `rv` eaf66991. A session can't point a ref or
+`HEAD` named `main` anywhere, so the clone's stand-in for `main` is a branch at 32fb2bc3, its `HEAD` on it, and the
+blocks ran with `refs/heads/main` spelled as that branch; nothing else changed. The same results under `zsh -f` and
+under `bash --noprofile --norc`:
+
+```text
+2a, a clean gate                                               guard: go
+2a, a failing summary with a merge: line in the log            guard: no
+2b, the timing test alone                                      guard: go
+2a on the timing test's log                                    guard: no
+2b, the timing test and another case                           guard: no
+2b, one other test failing                                     guard: no
+2b, the timing test and matrix-h failing                       guard: no
+2a, a change after rv outside the notes                        guard: no
+2a, a change after rv to the note alone                        guard: go
+2a, the branch not at the gated SHA                            guard: no
+2a, main moved: a file the branch doesn't touch                guard: go
+2a, main moved: a file the branch changed, other lines         guard: no
+2a, main moved: the ADR index, another line                    guard: go
+2a, main moved: scene.yaml, a file the branch changed          guard: no
+2a, main back where it was                                     guard: go
+```
+
+The made-up logs copy the gate's own lines: its summary (`tools/gates/gate`'s `summary_line`), its `merge: ` line, its
+step lines (`FAIL     test  exited 1`), and vitest's ` FAIL  <file> > <suite> > <case>` lines. Step 3's merge wasn't
+run anywhere; its tree is the merge-tree above.
 
 ### T001: the base's facts
 
