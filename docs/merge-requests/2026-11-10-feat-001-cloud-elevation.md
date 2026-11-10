@@ -8,7 +8,7 @@ Authorized by:
 - his direction for the groups, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to";
 - his two answers, as the coordinator relayed them: "One gate, named deviation (Recommended)", for the account root's plan; and "Keep them protected (Recommended)", for spec 000's protected names.
 
-## Status: combined and verified, with one blocker for the gate (P-1's `*.tfstate*` deny and the agents' engine, below); not reviewed yet; group 4's section 2 waits for your three facts; not merged; nothing applied, nothing pushed, no cloud call
+## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; group 4's second, short pass waits for your three facts and T016, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
 
 | Commit | What |
 |---|---|
@@ -18,9 +18,11 @@ Authorized by:
 | b7e5f6df | the session's merge of `refs/heads/main` (32fb2bc3), `git --no-replace-objects merge --no-ff --no-edit refs/heads/main`, no conflict; tree 6ac2fc86, as predicted |
 | 45d13328 | group 1's words in the five hunks `-X ours` took from groups 2 to 4 |
 | f843d182 | the combination in the documents: plan.md §16's departures, spec.md's named deviation, tasks.md, quickstart.md, the nine ADRs, `infra/README.md`, each group's note superseded for your steps, and this note's draft |
-| this commit | this note: the checks, the blocker, the guard (its anchor pending the review), and your order |
+| 8b4fd0f1 | this note: the checks, the blocker, the guard, and your order; what the combined review read |
+| eccca942 | the review's B1: P-E, `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch`, the engine's half of P-1, for your hand, test-first on a patched export; spec 000's `contracts/agents-engine.md` H8 and E7; plan.md §16's departure 7 |
+| this commit | the review's I1 to I4 and nits: the guard allows only this note under `docs/merge-requests/`, and P-E's files; the second pass anchors it; `--prove`'s preconditions; FR-005's, FR-002's, and FR-040's failures named in spec.md's deviation, with ADR 0008's first exception; sections 1, 6, and 7's steps; env-cloud.md §5 and `infra/bootstrap/variables.tf`'s stated order; the ADR rows' branch; the reruns |
 
-**The blocker.** With P-1 applied, `make test` fails one test, `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`: P-1 adds the sandbox deny `Read(*.tfstate*)`, a pattern that matches anywhere in the tree, and the agents' engine refuses to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds (its `check_tree_masks`, step 1; only the `.env` globs are exempt, by its step 3). So the gate's container `make test` would fail, and so would the engine's start after the merge. It is P-1's from group 1, not the combination's: no group ran the whole suite on a patched export before. The fix is your patch either way, since `deploy/agents-engine/` is protected (For the Author, 4).
+**The blocker, and P-E.** With P-1 applied, `make test` failed `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`. P-1 adds three in-tree read denies that are bare file-name patterns, `Read(*.tfstate*)`, `Read(*.tfplan)`, and `Read(*.tfvars*)`, and the agents' engine refused to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds: its mask check let only the `.env` globs through. It was P-1's from group 1, not the combination's. Your decision: "Derive from settings (Recommended)". P-E takes every bare file-name read deny from the settings: the check lets each through and refuses while a file one matches sits outside a mask, so a later `*.pem` or `*.key` needs no engine patch, and stage E's E7 proves it. `deploy/agents-engine/` is protected, so P-E is yours to apply, after P-1 (For the Author, 5). With all five patches the whole Python suite passes (Verification).
 
 **Nothing merges and nothing is applied before your gate,** and the account root's apply waits for its plan block in a later merged note (spec.md Assumptions, "One gate for groups 1 to 4").
 
@@ -49,64 +51,87 @@ Each group was built test-first, reviewed, and fixed on its own branch, each cut
 
 tasks.md's T020 needed nothing: group 3's wording says what group 1's did, and ticks it.
 
-**What main brought** (b335b9b2..32fb2bc3, 121 files): spec 012's loading screen, the shutdown test's fix, and the content/002 PDF merges, mostly `apps/web`. None of the four patches' files is among them. The two files both sides changed, `docs/adr/README.md` and `docs/data-flow-disclosure.md`, merged cleanly, with no ADR number and no disclosure row ID twice.
+**What main brought** (b335b9b2..32fb2bc3, 121 files): spec 012's loading screen, the shutdown test's fix, and the content/002 PDF merges, mostly `apps/web`. None of the patches' files is among them. The two files both sides changed, `docs/adr/README.md` and `docs/data-flow-disclosure.md`, merged cleanly, with no ADR number and no disclosure row ID twice.
 
-### Where the build departs from the plan (plan.md §16, "Groups 1 to 4, as one branch", in f843d182)
+### Where the build departs from the plan (plan.md §16, "Groups 1 to 4, as one branch")
 
-1. **One branch, one gate:** T010, T019, T029, and T039 are one gate and one merge of your branch `feat/001-cloud-elevation-p`, with P-1, P-3, P-I1, P-I2, and both lockfiles; the open review passes are one review.
-2. **The account's plan block comes after T030,** since the account's state is in the bootstrap's bucket: **the named deviation** (spec.md Assumptions, "One gate for groups 1 to 4"), your answer "One gate, named deviation (Recommended)". It departs from the Cloud standard's "plan output posted on every PR" and from the Verify step's "Terraform plan reviewed if infra changed". `scripts/infra/infra_verify.py` still refuses the account's apply with `no_reviewed_plan` until a merged note carries its block at `HEAD:infra`'s tree.
-3. **This gate runs main's checkers,** whose gate predates P-1, so `infra-plan-note`, `infra-check`, and `disclosure` don't run for it; the session's runs on a patched export stand in (Verification), and from the next branch on main's gate runs them.
+1. **One branch, one gate:** T010, T019, T029, and T039 are one gate and one merge of your branch `feat/001-cloud-elevation-p`, with P-1, P-E, P-3, P-I1, P-I2, and both lockfiles; the open review passes are one review, and group 4's second pass after it.
+2. **The account's plan block comes after T030,** since the account's state is in the bootstrap's bucket (group 4's departure 13): **the named deviation** (spec.md Assumptions, "One gate for groups 1 to 4"), your answer "One gate, named deviation (Recommended)". It departs from the Cloud standard's "plan output posted on every PR" and from the Verify step's "Terraform plan reviewed if infra changed", and is ADR 0008's Decision 3's first exception. `scripts/infra/infra_verify.py` still refuses the account's apply with `no_reviewed_plan` until a merged note carries its block at `HEAD:infra`'s tree.
+3. **This gate runs main's checkers,** whose gate predates P-1, so `infra-plan-note`, `infra-check`, and `disclosure` don't run for it: FR-005's, FR-002's, and FR-040's failures don't hold this merge (named in the same Assumption). What stands in: the session's runs of P-1's checkers on a patched export (Verification), T027's `make plan`, which runs `tools/gates/infra_policy.py --root` over the whole tree, and your run of `tools/gates/disclosure_check.py` on your branch before the gate (For the Author, 7). From the next branch on, main's gate runs them.
 4. **T011's mirror is seeded before the gate,** from your branch's checkout; its checks run on `main` after the merge.
 5. **The bootstrap's block is made last,** on a clone of your branch with everything under `infra/` committed, since a block's `tree` is all of `infra/`.
 6. **Spec 000's protected names stay,** your answer "Keep them protected (Recommended)": the files groups 4 and 8 create under them (`infra/lambdas/alert_bridge/`, `infra/prod/edge.tf`) stay your patches, and P-1 isn't rebuilt for them.
+7. **P-E, the agents' engine's half of P-1** (eccca942), your answer "Derive from settings (Recommended)": the engine's mask check and stage E's E7 take the bare file-name read denies from the settings; spec 000's `contracts/agents-engine.md` H8 and E7 say so.
 
-The documents follow (f843d182): the nine ADRs and their index rows are "accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`)"; groups 3 and 4's preconditions are met at T001; `infra/README.md` puts both lockfiles on your branch; quickstart.md's conventions point here; and each group's note now opens by saying this note supersedes its steps for you.
+The documents follow (f843d182 and this commit): the nine ADRs and their index rows are "accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`)"; groups 3 and 4's preconditions are met at T001; `infra/README.md` puts both lockfiles on your branch; quickstart.md's conventions point here; and each group's note now opens by saying this note supersedes its steps for you.
 
 ## Acceptance criteria
 
-The four groups' own, as each note gives them; the combination adds none and changes none (a process change). Under the named deviation, FR-005 and FR-010 hold for the account root through its later merged note, which `make infra-verify` requires before the apply.
+The four groups' own, as each note gives them; the combination adds none and changes none (a process change). Three of them are the gate's to enforce, and this merge's gate, main's, predates P-1, so none of the three holds it (the named deviation, spec.md Assumptions): FR-005's failure for a changed root without its plan in the note, FR-002's for an untagged taggable resource, and FR-040's for an outward thing without its disclosure row. What stands in: the session's patched-export runs (Verification: the policy over both roots, the disclosure check, and the plan note's check, which fails, as it should, for the blocks not yet made); T027's `make plan`, whose policy runs over the whole tree; and your `disclosure_check.py` run before the gate. FR-010's redaction of the bootstrap's block rests on `make plan`'s own redaction, and its check in the gate's plan-note step doesn't run either. The account root's FR-005 is met only by its later merged note, which `make infra-verify` requires before the apply; from the next branch on, the gate enforces all three.
 
 ## Constitution check
 
 | Article | Here |
 |---|---|
-| Lifecycle: an approved spec and plan before code; plan.md changes with a departure | holds: T000's approval; plan.md's departures in the same commit as the combination's documents (f843d182) |
+| Lifecycle: an approved spec and plan before code; plan.md changes with a departure | holds: T000's approval; plan.md's departures in the same commits as the combination's documents and P-E (f843d182, eccca942) |
 | Only a human merges to `main` and applies infrastructure | holds: you merged the group branches by hand; the session merged only `refs/heads/main` into this branch; nothing applied |
-| The agent that implements does not review | holds: the review is next, by an agent that wrote none of this |
-| Agent configuration (`.claude/`, `CLAUDE.md`) by the Author's hand, with the agent-configuration evals | holds: P-1 and P-3 stay patches for your hand; the behavioral tier runs on your branch before the gate |
+| The agent that implements does not review | holds: the combined review was by an agent that wrote none of this; group 4's second pass will be too |
+| Agent configuration (`.claude/`, `CLAUDE.md`) and the agents' engine by the Author's hand, with the agent-configuration evals | holds: P-1, P-E, and P-3 stay patches for your hand, built from plain copies; the behavioral tier runs on your branch before the gate |
 | Cloud: "plan output posted on every PR" | **deviation, named** (spec.md Assumptions): the account root's block follows T030, in a later merged note |
 | Verify: "Terraform plan reviewed if infra changed" | **deviation, named**, the same; the bootstrap's block is in this note before the gate, and `make infra-verify` refuses any apply without a reviewed block |
+| ADR 0008, Decision 3: "The gate's `infra-plan-note` step fails a branch whose changed roots have no such block" | **its first exception, named** (spec.md Assumptions): main's gate has no such step yet, and the account's block can't exist before T030 |
 | No secrets in the repository, context, or traces | holds: no value is in any file here; your values stay in `~/.config/h4reet-ai/infra/`, which agents can't read; gitleaks clean (Verification) |
 | Cost: every model call carries its cost; ceilings | unchanged: no model call here; the roots' costs are their groups' (Cost) |
 
 ## Review
 
-**Pending: one review, by an agent that wrote none of this,** of what is new against each group's reviewed tip, and of the combination:
+**The combined review, 2026-11-10, of 8b4fd0f1, by an agent that wrote none of it: not ready, with one blocker.** "The merges, the restored hunks, the group fixes, the line lengths and the guard's core logic all checked out" (the coordinator's relay). It read what was new against each group's reviewed tip, and the combination:
 
-| Part | What a reviewer reads | Why |
+| Part | What it read | Why |
 |---|---|---|
-| Group 1 | `git log --first-parent --no-merges fc36a1c4..245f4447`: P-1's two rebuilds after the review, 0ceee24e and e173a043 (`git diff fc36a1c4 e173a043 -- docs/merge-requests/2026-11-10-feat-001-p1-guards.patch`), and e2fa251c's status wording | T009 reviewed b7e45a67, and its findings were checked against fc36a1c4; the rebuilds for group 3's findings and the fourth `TF_VAR_` deny came after |
-| Group 2 | `git diff ee2d3224 b2263f94` | T018's second round, pending in its note |
-| Group 3 | `git diff 5a82fcf5 a37863c7` | T028's fixes, which its note offers for review |
-| Group 4 | `git diff af7d66be 30cd2fcd`; later, section 2's commits | T038's fixes; its second, short pass reads section 2 once you give the three facts |
-| The combination | the three merges against trees 512d5a72, 2903ebdc, and 42661625; b7e5f6df; 45d13328 against 245f4447's text; f843d182; this note, its blocker, and its guard | new here |
+| Group 1 | `git log --first-parent --no-merges fc36a1c4..245f4447`: P-1's two rebuilds after the review, 0ceee24e and e173a043, and e2fa251c's status wording | T009 reviewed b7e45a67, and its findings were checked against fc36a1c4 |
+| Group 2 | `git diff ee2d3224 b2263f94` | T018's second round |
+| Group 3 | `git diff 5a82fcf5 a37863c7` | T028's fixes |
+| Group 4 | `git diff af7d66be 30cd2fcd` | T038's fixes |
+| The combination | the three merges against trees 512d5a72, 2903ebdc, and 42661625; b7e5f6df; 45d13328 against 245f4447's text; f843d182; this note and its guard | new here |
 
-Each group's reviewed range isn't read again. The guard's anchor is the tip after the review's fixes: the session writes it into For the Author, 7, as `rv=`, and until then the guard prints `guard: no`.
+Each finding, and what was done:
+
+| Finding | What it found | Done |
+|---|---|---|
+| B1 | P-1's three bare file-name read denies (`*.tfstate*`, `*.tfplan`, `*.tfvars*`) stop the agents' engine's mask check, which exempts only the env globs, as soon as P-1 is in the main checkout's settings | eccca942: P-E, your decision "Derive from settings (Recommended)": every bare file-name `Read()` deny exempted in step 1 and scanned for in a new step 4; E7's walk and planted proof extended; spec 000's H8 and E7; tests RED, then GREEN, on a patched export; the five-patch suite passes |
+| I1 | The guard's `docs/merge-requests/` let a rebuilt patch through after the anchor | this commit: only this note there; mock-tested with a rebuilt patch after the anchor (Verification); groups 1, 3, and 4's guards' same allowance flagged (Backlog); the review's CLAUDE.md line (For the Author, 10) |
+| I2 | The anchor must follow commits a reviewer has read: P-E and T016's record came after | this commit: group 4's second pass reads section 2, P-E, T016's R-33 record, your T017 commit, and these fixes; the reviewer reads the tip after T016's and your commits, as group 2's note planned; the anchor follows it (For the Author, 4) |
+| I3 | Section 7 dropped `--prove`'s preconditions: E14 needs dev-cpu up, and no session on the engine | this commit: `make -f Makefile engine-status` and `make -f Makefile up ENV=dev-cpu` before the gate, `make -f Makefile down ENV=dev-cpu` after |
+| I4 | The deviation left out FR-005's, FR-002's, and FR-040's gate failures, which main's gate won't enforce; the Acceptance line claimed "FR-005 and FR-010 hold" | this commit: all three named in spec.md's Assumption, with ADR 0008's Decision 3's first exception and what stands in; the Acceptance line corrected; your `disclosure_check.py` line in section 7 |
+| N1 | The folder's and `bootstrap.env`'s creation came after `account.env`'s | section 1 makes both files first |
+| N2 | "Holds four lines" pointed nowhere | sections 1 and 3 write them, as group 3's note, section 5, gives them; section 6 checks `grep -c '^TF_VAR_'` prints 4 |
+| N3 | Sections 6 and 7 relied on `$pb` and `$o` from earlier blocks | each block sets them |
+| N4 | env-cloud.md §5 and `infra/bootstrap/variables.tf` said the deny lands "before the Author writes its value", against section 1's order | both say he may write it first: spec 000's `Read(~/.config/h4reet-ai/**)` already keeps the file from agents |
+| N5 | P-E's paths missing from section 5's status and the guard | both list P-E's four files |
+| small | "(departure 13 above)"; the ADR rows named `feat/001-cloud-elevation`, where `-p` merges | "group 4's departure 13"; the rows name `feat/001-cloud-elevation-p` |
+
+**Next: group 4's second, short pass,** by an agent that wrote none of it, after your three facts and T016 (For the Author, 2 to 4). It reads what came after 8b4fd0f1: P-E (eccca942), this commit's fixes, section 2's commits, T016's R-33 record, and your T017 commit. The session writes its tip, after its fixes, into section 7's guard as `rv=`; until then the guard prints `guard: no`.
 
 ## Backlog
 
-- **The blocker:** P-1's `*.tfstate*` deny and the agents' engine's masks (For the Author, 4).
-- **Group 4's section 2** (your three facts first; For the Author, 2), and its second, short review pass.
-- **T016's measurement** and **T017's prices** (For the Author, 3).
+- **Group 4's section 2** (your three facts first; For the Author, 2), **T016's measurement** and **T017's prices** (For the Author, 3), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4).
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
+- **Groups 1, 3, and 4's own guards are superseded, with the same flaw as I1:** each allowed all of `docs/merge-requests/` after its anchor, where the agent-written patches live. This note's guard allows only this note there. Don't run theirs.
 - **The behavioral tier's WARN in `make evals`:** main's newest run for main's trigger hash (2026-11-09, feat-011's denies) reads failed. It is main's, not this branch's; your branch's own run, with P-1 and P-3, is a new trigger hash (For the Author, 7).
 - **From the groups' notes, still open:** the devcontainer's Terraform (`WITH_TERRAFORM=1` refuses until the release's checksum is confirmed with the pin), and a shell write to a protected `.tf` file, a gap row until a deny on each path lands with its patch (group 1); the unix-socket test skips in the sandbox, the stub answers about 20 calls a run, a SIGKILL isn't caught, and the laptop's repeat and the tunnel end's measurement are groups 5 and 8's (group 2); the state bucket's policy in agent-editable `main.tf`, `h4-alerts` unencrypted, and the state's move (group 3); `infra/lambdas/test_images.py` PLANNED until the digest, Budgets' notices' text to confirm at the rehearsal, the probe's alarm in group 8, `h4reet-ai-cloud` left in IAM after the detach, `LAPTOP_PERMISSION_SET` after the detach, the bridge's failure queue without an alarm, `local.rehearsal` and `local.lambda_images` in `main.tf`, the trust's 16 characters to confirm at T037, and Lambda's unreserved concurrency (group 4).
-- **Resolved by the combination:** the four links to `docs/001-ec2-default`'s files (main has them: docs links, 0 failed); `TF_VAR_bedrock_service_names`'s deny (P-1 has it); the tests that skipped for want of P-1 (they run on the patched export: 5 skipped, against 71 on the branch).
+- **Resolved by the combination:** the four links to `docs/001-ec2-default`'s files (main has them: docs links, 0 failed); `TF_VAR_bedrock_service_names`'s deny (P-1 has it); the tests that skipped for want of P-1 (they run on the patched export); and the engine's mask check under P-1's denies (P-E).
 
 ## Verification
 
-Each check ran one at a time, in this worktree, on f843d182 (whose tree differs from this commit's only in this note), while another session built spec 014 on the same machine.
+Each check ran one at a time, in this worktree, while another session built spec 014 on the same machine. The first round ran on f843d182, before the combined review; after the review's fixes, the reruns below ran on the tip they name.
+
+### After the combined review: P-E and the reruns
+
+<!-- round 2: pending; the next commit fills it in -->
+
+### The first round, at f843d182
 
 ### The trees
 
@@ -1688,9 +1713,55 @@ exit=0
 
 ### The guard, against a mock
 
-The guard in For the Author, 7, taken from this note's block and run by `guard_mock_ce.py` (scratch, adapted from group 4's `guard_mock.py`) in a scratch repository whose `HOME` is a scratch folder: the session's branch with the groups and main merged in, then the review's fixes, the anchor; after it, the review's record; your branch, with the four patches, both lockfiles, your block, and the behavioral tier's entry; main moving, merged into your branch; the gate's log. Then the guard from main's checkout, in bash and in zsh. The whole sequence must print `guard: go` and merge, each of the six variants `guard: no` and merge nothing, and every case must end parked on `wip-park/11-11-2026`.
+The guard in For the Author, 7, taken from this note's block and run by `guard_mock_ce.py` (scratch, adapted from group 4's `guard_mock.py`) in a scratch repository whose `HOME` is a scratch folder: the session's branch with the groups and main merged in, then the review's fixes, the anchor; after it, the review's record in this note; your branch, with the five patches (P-E's four files among them), both lockfiles, your block in this note, and the behavioral tier's entry; main moving, merged into your branch; the gate's log. Then the guard from main's checkout, in bash and in zsh. The whole sequence must print `guard: go` and merge, each of the seven variants `guard: no` and merge nothing, and every case must end parked on `wip-park/11-11-2026`.
 
-RED, the guard without its four no-overlap lines (the files main changed since the anchor's merge base, against the files the two merges differ in): main changing a file P-1 patches, after the anchor, went through.
+**After the combined review (I1),** RED: the guard as it now stands but with all of `docs/merge-requests/` allowed, as it was at 8b4fd0f1: a rebuilt patch after the anchor went through.
+
+```text
+PASS  bash  the whole sequence             guard: go, merged, on wip-park/11-11-2026
+PASS  bash  a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+FAIL  bash  a rebuilt patch after the anchor guard: go, merged, on wip-park/11-11-2026
+PASS  bash  main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  not on main                    guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   the whole sequence             guard: go, merged, on wip-park/11-11-2026
+PASS  zsh   a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+FAIL  zsh   a rebuilt patch after the anchor guard: go, merged, on wip-park/11-11-2026
+PASS  zsh   main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   not on main                    guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
+guard mock: 2 failed
+exit 1
+```
+
+GREEN, the guard in this note, which allows only this note there:
+
+```text
+PASS  bash  the whole sequence             guard: go, merged, on wip-park/11-11-2026
+PASS  bash  a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  a rebuilt patch after the anchor guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  not on main                    guard: no, nothing merged, on wip-park/11-11-2026
+PASS  bash  the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   the whole sequence             guard: go, merged, on wip-park/11-11-2026
+PASS  zsh   a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   a rebuilt patch after the anchor guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   not on main                    guard: no, nothing merged, on wip-park/11-11-2026
+PASS  zsh   the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
+guard mock: 0 failed
+exit 0
+```
+
+**At 8b4fd0f1,** RED for the no-overlap lines: without them, main changing a file P-1 patches went through (the variants then were six; GREEN read 0 failed):
 
 ```text
 PASS  bash  the whole sequence             guard: go, merged, on wip-park/11-11-2026
@@ -1711,28 +1782,7 @@ guard mock: 2 failed
 exit 1
 ```
 
-GREEN, the guard in this note:
-
-```text
-PASS  bash  the whole sequence             guard: go, merged, on wip-park/11-11-2026
-PASS  bash  a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
-PASS  bash  a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
-PASS  bash  main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
-PASS  bash  no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
-PASS  bash  not on main                    guard: no, nothing merged, on wip-park/11-11-2026
-PASS  bash  the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   the whole sequence             guard: go, merged, on wip-park/11-11-2026
-PASS  zsh   a root file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   a spec file after the anchor   guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   main moves a patched file      guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   no merge line                  guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   not on main                    guard: no, nothing merged, on wip-park/11-11-2026
-PASS  zsh   the anchor not written in      guard: no, nothing merged, on wip-park/11-11-2026
-guard mock: 0 failed
-exit 0
-```
-
-"The anchor not written in" runs the block as it stands, with `rv=PENDING-REVIEW`: until the session writes the review's tip in, the guard fails closed.
+"The anchor not written in" runs the block as it stands, with `rv=PENDING-REVIEW`: until the session writes group 4's second pass's tip in, the guard fails closed.
 
 ### Refusals
 
@@ -1749,20 +1799,29 @@ None tonight: nothing ran in the cloud and nothing paid ran. Once you apply them
 
 ## For the Author
 
-Your part, in this order. Every command line here is 45 characters or fewer, for zsh. Your checkout stays parked except where a step switches it. Each group's note keeps its detail; where a step below says "as group N's note", the step on `main` there stands as written.
+Your part, in this order. Every command line here is 45 characters or fewer, for zsh, and each block sets what it uses, so a fresh terminal runs it as written. Your checkout stays parked except where a step switches it. Each group's note keeps its detail; where a step below says "as group N's note", the step on `main` there stands as written.
 
-### 1. Bedrock's service names in Cost Explorer
+### 1. Your two values files, and Bedrock's service names
 
-The model budgets watch Bedrock's cost by service name, and Claude on Bedrock can show under a Marketplace name of its own (group 3's review, B3). In the AWS console, as yourself: **Billing and Cost Management → Cost Explorer**; date range 2026-10-12 to today, Daily, **Group by: Service**, no filters; a day spec 000's Bedrock fallback ran. Note each service whose cost is Bedrock's, exactly as it reads: "Amazon Bedrock", and any "Claude … (Amazon Bedrock Edition)" line.
-
-Then the same line in both roots' files, mode 0600, `TF_VAR_bedrock_service_names=["<name>","<name>"]`: in `~/.config/h4reet-ai/infra/bootstrap.env`, and in `account.env`:
+The folder and both files first, each yours alone (agents can't read the folder: spec 000's `Read(~/.config/h4reet-ai/**)`):
 
 ```bash
-f=~/.config/h4reet-ai/infra/account.env
-touch "$f" && chmod 600 "$f"
+d=~/.config/h4reet-ai/infra
+mkdir -p "$d" && chmod 700 "$d"
+for f in bootstrap.env account.env; do
+  touch "$d/$f" && chmod 600 "$d/$f"
+done
 ```
 
-If no day shows any Bedrock spend, tell the session: an empty list is refused.
+Then Bedrock's service names. The model budgets watch Bedrock's cost by service name, and Claude on Bedrock can show under a Marketplace name of its own (group 3's review, B3). In the AWS console, as yourself: **Billing and Cost Management → Cost Explorer**; date range 2026-10-12 to today, Daily, **Group by: Service**, no filters; a day spec 000's Bedrock fallback ran. Note each service whose cost is Bedrock's, exactly as it reads: "Amazon Bedrock", and any "Claude … (Amazon Bedrock Edition)" line. If no day shows any Bedrock spend, tell the session: an empty list is refused.
+
+Write `bootstrap.env`'s three lines now, as group 3's note, section 5, gives them: `TF_VAR_state_bucket_suffix=<a word>`, `TF_VAR_alert_email=<the mailbox>`, and `TF_VAR_bedrock_service_names=["<name>","<name>"]`; and the same `TF_VAR_bedrock_service_names` line in `account.env`. The fourth, the server budget, is section 3's.
+
+```bash
+d=~/.config/h4reet-ai/infra
+${EDITOR:-nano} "$d/bootstrap.env"
+${EDITOR:-nano} "$d/account.env"
+```
 
 ### 2. Group 4's three facts, then the session's commits
 
@@ -1778,7 +1837,7 @@ docker buildx imagetools inspect "$i" |
   grep -m 1 '^Digest:'
 ```
 
-Tell the session a and c. On `feat/001-cloud-elevation` it commits, test-first: the set's name in P-I2's `iam.tf`; `deploy/images.lock`'s `base:lambda-python` line and its inventory row; the probe's and the credential audit's Dockerfiles; and P-I2 rebuilt from plain copies with the bridge's Dockerfile, dry-run again (group 4's note, section 2). Then group 4's second, short review pass reads them, within the review.
+Tell the session a and c. On `feat/001-cloud-elevation` it commits, test-first: the set's name in P-I2's `iam.tf`; `deploy/images.lock`'s `base:lambda-python` line and its inventory row; the probe's and the credential audit's Dockerfiles; and P-I2 rebuilt from plain copies with the bridge's Dockerfile, dry-run again (group 4's note, section 2). Group 4's second, short review pass reads them, after section 3 (section 4).
 
 ### 3. Group 2's memory run (T016), then your prices (T017)
 
@@ -1798,13 +1857,10 @@ o=--no-replace-objects
 git $o switch feat/001-cloud-elevation
 ```
 
-The session runs `make up ENV=dev-cpu`, `make measure-stack ENV=dev-cpu` in the background, and `make down ENV=dev-cpu`, and commits the record into research.md R-33 (group 2's note, section 1). Then T017: your figure, in your file, which agents can't read:
+The session runs `make up ENV=dev-cpu`, `make measure-stack ENV=dev-cpu` in the background, and `make down ENV=dev-cpu`, and commits the record into research.md R-33 (group 2's note, section 1). Then T017: your server budget's figure, `TF_VAR_server_budget_usd=<your figure>`, as `bootstrap.env`'s fourth line:
 
 ```bash
-d=~/.config/h4reet-ai/infra
-mkdir -p "$d" && chmod 700 "$d"
-f=$d/bootstrap.env
-touch "$f" && chmod 600 "$f"
+f=~/.config/h4reet-ai/infra/bootstrap.env
 ${EDITOR:-nano} "$f"
 grep -c '^TF_VAR_server_budget_usd=' "$f"
 ```
@@ -1820,24 +1876,20 @@ git commit -m "docs(001): T017, the prices"
 Then park at main, never at the branch, and never with `-C`:
 
 ```bash
+o=--no-replace-objects
 p=wip-park/11-10-2026-t016
 git $o switch -c "$p" refs/heads/main
 ```
 
 The session then takes its worktree back.
 
-### 4. The session: the blocker's fix (your choice first), the review, the anchor
+### 4. The session: the second pass, then the anchor
 
-**The blocker** (Status). P-1's `Read(*.tfstate*)` and `Edit(*.tfstate*)` denies are defence in depth: the state is kept outside the tree (`~/.config/h4reet-ai/infra/state/`), `.gitignore` names `*.tfstate`, and the infra scripts refuse one in the tree. The agents' engine refuses to start while the sandbox read-denies an in-tree pattern that no mask holds, and a pattern that can match in any folder has no folder to mask. Two ways, each your patch, since `deploy/agents-engine/` is protected:
-
-- **A (the session's recommendation):** the engine treats the `*.tfstate*` globs as it treats the `.env` globs: its step 1 lets them through, and its step 3 refuses to start while a file matching one sits in the tree outside a mask. P-1 stays as it is. A new patch to the engine's script and its test, built from plain copies and tested on a patched export, applied with P-1. It touches `deploy/agents-engine/`, which the gate's stage E covers, and `--prove` runs anyway.
-- **B:** P-1's deny narrowed to a folder, with that folder added to `tree-masks.txt`: a P-1 rebuild and a mask patch, and a folder the engine then can't read.
-
-Tell the session which. Then the review (Review), its fixes, and the anchor: the session writes the review's tip into section 7's guard as `rv=`, and records the review here.
+Your decision on the blocker, "Derive from settings (Recommended)", is built: P-E, `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch` (Verification, "P-E"). Group 4's second, short review pass, by an agent that wrote none of it, then reads what came after the combined review: section 2's commits, P-E, T016's R-33 record, your T017 commit, and the review's fixes (Review). The reviewer reads the tip after T016's and your commits, as group 2's note planned. The session writes that pass's tip, after its fixes, into section 7's guard as `rv=`, and records the pass here. Until it does, the guard prints `guard: no`.
 
 ### 5. Your branch: the patches, the mirror, both lockfiles
 
-Cut from the session's branch after section 4, so it holds the anchor; your untracked files stay as they are:
+Cut from the session's branch after section 4, so it holds the anchor; your untracked files stay as they are. P-E goes after P-1:
 
 ```bash
 o=--no-replace-objects
@@ -1845,16 +1897,17 @@ b=feat/001-cloud-elevation
 pb=feat/001-cloud-elevation-p
 git $o switch -c "$pb" "refs/heads/$b"
 d=docs/merge-requests/2026-11-10-feat-001
-for p in p1-guards p3-claude-md \
+for p in p1-guards pe-engine p3-claude-md \
   pi1-bootstrap pi2-account; do
   patch -p1 --dry-run < "$d-$p.patch"
 done
 ```
 
-It prints "checking file" for each file and no error (the preambles are skipped). Section 4's engine patch, if you chose A, goes in the list after P-1; the session names it. Then apply:
+It prints "checking file" for each file and no error (the preambles are skipped). Then apply:
 
 ```bash
-for p in p1-guards p3-claude-md \
+d=docs/merge-requests/2026-11-10-feat-001
+for p in p1-guards pe-engine p3-claude-md \
   pi1-bootstrap pi2-account; do
   patch -p1 < "$d-$p.patch"
 done
@@ -1897,22 +1950,26 @@ c="enforce(001): the patches and lockfiles"
 git commit -m "$c"
 ```
 
-The status lists P-1's nine changed files and CLAUDE.md as modified, and P-1's eight new files, P-I1's two, P-I2's, and the two lockfiles as added, and nothing else.
+The status lists as modified P-1's nine changed files, P-E's four (`deploy/agents-engine/engine.sh` and `prove-limits.sh`, and their tests under `deploy/agents-engine/test/`, `test_engine_sh.py` and `test_prove_limits_sh.py`), and CLAUDE.md; and as added P-1's eight new files, P-I1's two, P-I2's, and the two lockfiles; and nothing else.
 
 ### 6. T027: the bootstrap's plan block
 
-`~/.config/h4reet-ai/infra/bootstrap.env` holds four lines: `TF_VAR_state_bucket_suffix`, `TF_VAR_alert_email`, `TF_VAR_server_budget_usd` (section 3), and `TF_VAR_bedrock_service_names` (section 1). Your SSO session, `pf` your administrator profile's name:
+`bootstrap.env` holds its four lines from sections 1 and 3, `TF_VAR_state_bucket_suffix`, `TF_VAR_alert_email`, `TF_VAR_bedrock_service_names`, and `TF_VAR_server_budget_usd`. This prints 4, and never a value:
 
 ```bash
-pf=h4reet-admin
-make -f Makefile aws-login PROFILE="$pf"
+f=~/.config/h4reet-ai/infra/bootstrap.env
+grep -c '^TF_VAR_' "$f"
 ```
 
-A clone of your branch, which already holds the four patches and both lockfiles, so nothing is patched in it:
+Your SSO session, `pf` your administrator profile's name, and a clone of your branch, which already holds the five patches and both lockfiles, so nothing is patched in it:
 
 ```bash
+o=--no-replace-objects
+pb=feat/001-cloud-elevation-p
+pf=h4reet-admin
+make -f Makefile aws-login PROFILE="$pf"
 s=~/scratch-001ce
-git clone -q -b "$pb" . "$s"
+git $o clone -q -b "$pb" . "$s"
 cd "$s"
 v=(-f Makefile PROFILE="$pf")
 make "${v[@]}" plan ROOT=bootstrap \
@@ -1920,13 +1977,15 @@ make "${v[@]}" plan ROOT=bootstrap \
 cd -
 ```
 
-Read the block as group 3's note, section 5, says: the three budgets on your service names, the anomaly monitor and its subscription, the topic, its policy and subscription, and the bucket's six resources; no account ID, address, or email. Paste it under this note's "The plan block (T027)" heading, on your branch, and commit:
+It runs `tools/gates/infra_policy.py --root` over the whole tree before `init`, and again on the saved plan, which stands in for the gate's `infra-check` here (spec.md Assumptions). Read the block as group 3's note, section 5, says: the three budgets on your service names, the anomaly monitor and its subscription, the topic, its policy and subscription, and the bucket's six resources; no account ID, address, or email. Paste it under this note's "The plan block (T027)" heading, on your branch, and commit:
 
 ```bash
+o=--no-replace-objects
+pb=feat/001-cloud-elevation-p
 d=docs/merge-requests
 n=$d/2026-11-10-feat-001-cloud-elevation.md
 ${EDITOR:-nano} "$n"
-t=$(git rev-parse "$pb:infra")
+t=$(git $o rev-parse "$pb:infra")
 grep -c "root=bootstrap tree=$t" "$n"
 git add -- "$n"
 c="docs(001): the bootstrap's block"
@@ -1935,11 +1994,19 @@ git commit -m "$c"
 
 The count is 1: the block's tree is your branch's.
 
-### 7. The behavioral tier, the disk, one gate, the guard
+### 7. The disclosure check, the behavioral tier, the engine, one gate, the guard
 
-The behavioral tier: P-1 touches `.claude/`, and P-3 CLAUDE.md. From main's checkout, then follow the commands it prints to commit its entry on `$pb`, under `evals/agent-config/history/`:
+The disclosure check, which main's gate doesn't run for this merge (spec.md Assumptions), on your branch's checkout:
 
 ```bash
+python3 -I -B tools/gates/disclosure_check.py
+```
+
+It prints "disclosure-check: PASS, every outward thing the tree holds has its row". On anything else, stop and tell the session. Then the behavioral tier: P-1 touches `.claude/`, and P-3 CLAUDE.md. From main's checkout, then follow the commands it prints to commit its entry on `$pb`, under `evals/agent-config/history/`:
+
+```bash
+o=--no-replace-objects
+pb=feat/001-cloud-elevation-p
 git $o switch main
 make -f Makefile evals-agent-config REF="$pb"
 ```
@@ -1958,17 +2025,27 @@ ok=go
 echo "disk: $ok"
 ```
 
-Don't run `--prove` unless it prints `disk: go`. Then the one gate, from main's checkout:
+Don't run `--prove` unless it prints `disk: go`. `--prove`'s rows want the engine to themselves and dev-cpu up (E14 needs dev-cpu up; E10, its last row, resets the engine): first no agent session may be using the engine, spec 014's or any other, so tell the sessions to stop and check its containers, then bring dev-cpu up, from main's checkout:
 
 ```bash
+make -f Makefile engine-status
+make -f Makefile up ENV=dev-cpu
+```
+
+`engine-status`'s `Containers` line reads 0 running before the `up`. Then the one gate, and dev-cpu down after it:
+
+```bash
+o=--no-replace-objects
+pb=feat/001-cloud-elevation-p
 git $o switch main
 tools/gates/gate --prove "$pb" 2>&1 |
   tee ~/gate-001.log
+make -f Makefile down ENV=dev-cpu
 ```
 
-It is ready when its summary names no FAIL or PENDING step and it prints a `merge:` line. It runs main's checkers, so no `infra-plan-note`, `infra-check`, or `disclosure` step (departure 3). On anything else, don't merge: tell the session.
+It is ready when its summary names no FAIL or PENDING step and it prints a `merge:` line. It runs main's checkers, so no `infra-plan-note`, `infra-check`, or `disclosure` step (spec.md Assumptions; the disclosure check above and T027's policy stand in). On anything else, don't merge: tell the session.
 
-Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in the patches' files (P-1's, CLAUDE.md, P-I1's, P-I2's, and the engine patch's if section 4 adds one), the lockfiles, the behavioral tier's entry, and the notes under `docs/merge-requests/`; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. Until the session writes the anchor in, `rv=PENDING-REVIEW` makes it print `guard: no`:
+Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in human-only files (the patches' targets: P-1's, P-E's four, CLAUDE.md, P-I1's, and P-I2's), the two lockfiles, the behavioral tier's entry, and this one note, where your block goes; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. The patch files themselves, under `docs/merge-requests/`, are agent-writable, so the guard allows none of them after the anchor (the combined review's I1). Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. Until the session writes the anchor in, `rv=PENDING-REVIEW` makes it print `guard: no`:
 
 ```bash
 pb=feat/001-cloud-elevation-p
@@ -1991,10 +2068,15 @@ w=(merge-tree --write-tree)
 t1=$(git "${w[@]}" "$mr" "$rv") || ok=no
 t2=$(git "${w[@]}" "$mr" "$sha") || ok=no
 c=$(git diff --name-only "$t1" "$t2")
+nm=docs/merge-requests/2026-11-10-feat-001
+e=deploy/agents-engine
+t=test/test_
 x='^(\.claude/|tools/gates/|CLAUDE\.md$'
 x="$x|redteam/forbidden-actions\.sh$"
 x="$x|evals/agent-config/history/"
-x="$x|docs/merge-requests/"
+x="$x|$nm-cloud-elevation\.md$"
+x="$x|$e/(engine|prove-limits)\.sh$"
+x="$x|$e/${t}(engine|prove_limits)_sh\.py$"
 x="$x|infra/bootstrap/(budgets|alerts)\.tf$"
 x="$x|infra/account/(iam|killswitch)\.tf$"
 x="$x|infra/account/alerts\.tf$"
@@ -2016,20 +2098,24 @@ p=wip-park/11-11-2026
 git --no-replace-objects switch -c "$p" "$mr"
 ```
 
-On `guard: no`, nothing merged: tell the session. If `wip-park/11-11-2026` exists already, pick another name for `p` and run the last two lines again. If section 4 adds the engine patch, the session adds its paths to `x` before you run it. The guard ran against a mock of this whole sequence, in bash and in zsh (Verification, "The guard, against a mock").
+On `guard: no`, nothing merged: tell the session. If `wip-park/11-11-2026` exists already, pick another name for `p` and run the last two lines again. The guard ran against a mock of this whole sequence, in bash and in zsh (Verification, "The guard, against a mock").
 
 ### 8. After the merge, on `main`, in order
 
 1. **T011's checks:** `make -f Makefile toolchain-check` and `make -f Makefile infra-check`, now with the mirror seeded.
 2. **T030, the bootstrap:** as group 3's note, section 7: `make … infra-verify ROOT=bootstrap`, the one command it prints, `make … infra-record OUTCOME=ok`; gate and merge the `ops/apply-bootstrap-*` branch it names; activate the cost-allocation tags; confirm SNS's email; check the three budgets and the anomaly monitor; park.
-3. **T037, the account's plan block,** now that the bucket exists: `make … plan ROOT=account` from a scratch clone of `main`, with `account.env`, read as group 4's note, section 4, says. Hand the block to the session: it puts it in a note on the `ops/apply-bootstrap-*` branch before you gate that one, so one gate takes both, or on a branch of its own if that one has merged. That merge ends the named deviation.
+3. **T037, the account's plan block,** now that the bucket exists: `make … plan ROOT=account` from a scratch clone of `main`, with `account.env`, read as group 4's note, section 4, says. Hand the block to the session: it puts it in a note on the `ops/apply-bootstrap-*` branch before you gate that one, so one gate takes both, or on a branch of its own if that one has merged. That merge ends the named deviation for the account root.
 4. **T040, the account:** as group 4's note, section 7, a to g: verify, import, apply, record; the laptop's Bedrock profile and the detach; the Telegram parameters; the functions' images; the rehearsal's change, its records, and `rehearsal = false`.
 5. **The state's move** (group 3's departure 4), on its own branch: before step 3's block or after step 4's first apply, never between, since it changes `infra/`'s tree.
 
-### 9. Settled: spec 000's protected names
+### 9. Settled: spec 000's protected names, and the engine's patch
 
-Your answer: "Keep them protected (Recommended)". Nothing changes: `infra/lambdas/alert_bridge/` and, in group 8, `infra/prod/edge.tf` stay your patches.
+Your answers: "Keep them protected (Recommended)": nothing changes, and `infra/lambdas/alert_bridge/` and, in group 8, `infra/prod/edge.tf` stay your patches. "Derive from settings (Recommended)": P-E (section 4).
 
 ### 10. For your CLAUDE.md, in your words
 
-Groups 2 to 4 each propose a line for "Things Claude gets wrong" (their notes' last sections): handling SIGINT, SIGTERM, and SIGHUP alike in a script that changes a stack and puts it back; parking at `refs/heads/main` with `switch -c`; and a merge guard that compares merges with main instead of listing files since the anchor (the third time). CLAUDE.md is at 6143 of its 6144 bytes with P-3, so each needs something cut to fit.
+Groups 2 to 4 each propose a line for "Things Claude gets wrong" (their notes' last sections): handling SIGINT, SIGTERM, and SIGHUP alike in a script that changes a stack and puts it back; parking at `refs/heads/main` with `switch -c`; and a merge guard that compares merges with main instead of listing files since the anchor (the third time). The combined review proposes a fourth, in its words:
+
+> Letting a merge guard's allowlist cover an agent-writable path: after the anchor it names only human-only files and the one note the Author edits, never all of `docs/merge-requests/`, where the patches live.
+
+CLAUDE.md is at 6143 of its 6144 bytes with P-3, so something must be cut to fit any of them.

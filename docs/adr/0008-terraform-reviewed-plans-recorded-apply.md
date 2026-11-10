@@ -1,6 +1,6 @@
 # ADR 0008: Terraform with reviewed plans and the Author's recorded apply until publication; the GitHub-side half moves to the publication spec
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-001 to FR-012; plan §1, §2; research.md R-02, R-03, R-13, R-14, R-16; contracts/infra-records.md) · Replaces one Consequence of [ADR 0013](0013-local-until-publication.md), "in spec 001, plan-in-PR and the protected apply", as [ADR 0014](0014-github-side-requirements-to-a-publication-spec.md) did for spec 000 · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: reserved for spec 001 since 2026-09-07
+Status: proposed, 2026-11-10 · Spec: 001 (FR-001 to FR-012; plan §1, §2; research.md R-02, R-03, R-13, R-14, R-16; contracts/infra-records.md) · Replaces one Consequence of [ADR 0013](0013-local-until-publication.md), "in spec 001, plan-in-PR and the protected apply", as [ADR 0014](0014-github-side-requirements-to-a-publication-spec.md) did for spec 000 · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`), after his approval at T000 · Number: reserved for spec 001 since 2026-09-07
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0029: The public request cap, in the relay, in figures the Author sets
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-032, FR-033, FR-042; plan §4, §14 P-6; research.md R-18; contracts/relay-http.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000; its figures are his, in P-6 and in this record, in group 8 (tasks.md T114) · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10 · Spec: 001 (FR-032, FR-033, FR-042; plan §4, §14 P-6; research.md R-18; contracts/relay-http.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`), after his approval at T000; its figures are his, in P-6 and in this record, in group 8 (tasks.md T114) · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 

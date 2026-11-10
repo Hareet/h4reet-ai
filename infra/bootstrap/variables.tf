@@ -1,8 +1,9 @@
 # The bootstrap root's run-time values (contracts/infra-records.md §1). They come from the Author's
 # ~/.config/h4reet-ai/infra/bootstrap.env, which make plan ROOT=bootstrap reads as data, as TF_VAR_ lines. The guard
-# patch denies each name to agent sessions (contracts/env-cloud.md §5), so a new variable needs its deny there before
-# the Author writes its value (FR-011): TF_VAR_bedrock_service_names waits for its own. None is a secret (FR-009); the
-# alert address is kept out of the repository and the plan (FR-010).
+# patch denies each name to agent sessions (contracts/env-cloud.md §5), and a new variable gets its deny in the patch
+# that names it (FR-011): TF_VAR_bedrock_service_names's is in P-1 (e173a043). He may write a value before P-1 lands,
+# since the file sits under ~/.config/h4reet-ai/, which spec 000's Read(~/.config/h4reet-ai/**) deny already keeps
+# from agent sessions. None is a secret (FR-009); the alert address is kept out of the repository and the plan (FR-010).
 
 variable "state_bucket_suffix" {
   description = "The state bucket's suffix, a word the Author picks, in h4reet-ai-tfstate-<suffix> (research.md R-03)."

@@ -1,6 +1,6 @@
 # ADR 0024: The shared state, one meter and one kill switch for both hosts, in RDS for PostgreSQL
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-017 to FR-020, FR-074; plan §3.3; research.md R-20; data-model.md §1; contracts/shared-state.md) · Changes, for prod, [ADR 0020](0020-gateway-state-store-and-meter.md)'s store, which stays every other stack's · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September (the index's row 0033)
+Status: proposed, 2026-11-10 · Spec: 001 (FR-017 to FR-020, FR-074; plan §3.3; research.md R-20; data-model.md §1; contracts/shared-state.md) · Changes, for prod, [ADR 0020](0020-gateway-state-store-and-meter.md)'s store, which stays every other stack's · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September (the index's row 0033)
 
 ## Context
 
