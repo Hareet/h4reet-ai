@@ -7,24 +7,27 @@ implementer subagent (Claude Opus 5.5), for the main session · Date: 2026-11-10
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
 `/tmp/claude-1000/wt-shutdown`, which the main session created from `refs/heads/main` at d0fac811. Repo hooks active:
 yes. In `.claude/audit/hooks.log`, the worktree's first event is the main session's `git worktree add -b
-fix/000-shutdown-test /tmp/claude-1000/wt-shutdown refs/heads/main` at 2026-11-10T13:38:00Z. From then to 14:27:04Z
-this session's events in `wt-shutdown` are 89 ALLOW and 1 BLOCK. The ALLOWs include the test's commit at 13:50:55Z,
-main's merge into the branch at 13:51:58Z, and this note's first commit at 14:17:32Z. The BLOCK, at 14:13:51Z, is
-that same commit refused while your checkout was on `main`: "changing main (HEAD is main)". It wasn't respelled: the
-same command ran unchanged once your checkout was parked again.
+fix/000-shutdown-test /tmp/claude-1000/wt-shutdown refs/heads/main` at 2026-11-10T13:38:00Z. From then to 15:07:36Z
+the log's events in `wt-shutdown` are 158 ALLOW and 3 BLOCK. The ALLOWs include the test's commit at 13:50:55Z,
+main's merges into the branch at 13:51:58Z and 14:34:31Z, and this note's commits at 14:17:32Z, 14:34:18Z, 14:45:46Z,
+and the last one. This session's one BLOCK, at 14:13:51Z, is this note's first commit, refused while your checkout
+was on `main`: "changing main (HEAD is main)". It wasn't respelled: the same command ran unchanged at 14:17:32Z,
+once your checkout was parked again. The other two came while this session was stopped and the reviewer was reading
+the branch, and both refused read-only commands: at 14:31:05Z, `git rev-parse` and `git merge-base` lines, "changing
+main (HEAD is main)"; at 14:33:41Z, an `awk ... | sort -rn | head` over this note, "a read-only role writing a
+file".
 
 Authorized by: your answer of 2026-11-10. The question was: "Shall I fix it, so the test waits until the request has
 reached its handler instead of a fixed 50 ms? It's an edit to a test file, so it needs your OK." Your answer, verbatim:
 "okay, fix the test". That answer is the authority for editing a test file here. This isn't a fix task in the
 `FIX_TASK` sense: no gateway code changes, and no assertion's bound moves.
 
-## Status: reviewed, ready; the final checks wait
+## Status: ready for your gate
 
 The test change is 1571e069; this note is the branch's last commit. The review is in: "ready", no blockers, from a
 reviewer that wrote none of this branch (Review). Its nit 3 is applied in step 2's guard; the rest go to the Backlog,
-and the test stays as reviewed. Step 2's guard holds the gate to 1571e069, the test the review read. The rows below
-from `make check`, gitleaks, and the rehearsal are from b13e9f58, before the review; they are run again on the final
-tip, and this table is refreshed then.
+and the test stays as reviewed. Step 2's guard holds the gate to 1571e069, the test the review read. The final
+checks ran on 72fe1d0e, the tip before this last note-only commit, against `main` at b335b9b2.
 
 | Check | Result |
 |---|---|
@@ -33,11 +36,11 @@ tip, and this table is refreshed then.
 | Both under 24 busy loops, on 24 CPUs at a load average near 20 | old 10 of 10, new 10 of 10: this burner didn't reproduce the race (Verification) |
 | Mutation: `close()` drops every connection first (a scratch edit, reverted) | the new test fails, "fetch failed", "other side closed" |
 | `make lint` | exit 0 |
-| `make test` | exit 0, all three suites whole: the gateway "1653 passed \| 13 skipped (1666)"; the web "2704 passed (2704)"; pytest "4099 passed in 356.73s" |
+| `make test` | exit 0, all three suites whole: the gateway "1653 passed \| 13 skipped (1666)"; the web "2704 passed (2704)"; pytest "4099 passed in 356.73s"; on 5b69b884, and the final `make check`'s test stage is on the tip |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,850; the behavioral tier's advisory WARN |
-| `make check ENGINE_MODE=none-yet`, run twice | The second run, on b13e9f58's tree: "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL", `matrix` E10 and E14 alone, the environment's, and `test` whole (the gateway "1653 passed \| 13 skipped (1666)", the web "2704 passed (2704)", pytest "4099 passed in 453.18s"). The first run also failed `test` on one gateway case, `twin-bench.test.ts`'s 20 ms speed bound (34.07 ms, at a 5-minute load average of 33.7), not this branch's; the graceful-shutdown test passed in both |
-| `gitleaks dir` on a fresh export of b13e9f58 (this note's first commit) | exit 0, "no leaks found", 1,917 files |
-| The rehearsal into `refs/heads/main` (67028747), on b13e9f58 | `main` is an ancestor; the merge writes the tip's own tree, 8ee8626b; step 2's ancestry, merge-tree, and diff lines print `go`, and the tip differs from the merge-tree in this note alone |
+| `make check ENGINE_MODE=none-yet`, the final run, on 72fe1d0e | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix` E10 and E14 alone, the environment's; `test` whole (the gateway "1654 passed \| 13 skipped (1667)", the web "2869 passed \| 1 skipped (2870)", pytest "4100 passed in 367.11s"); `arrival` "0 findings in 50 files (6 commits)". Of the two runs before the review, the second gave the same summary on b13e9f58; the first also failed `test` on one gateway case, `twin-bench.test.ts`'s 20 ms speed bound (34.07 ms, at a 5-minute load average of 33.7), not this branch's. The graceful-shutdown test passed in all three |
+| `gitleaks dir` on a fresh export of 72fe1d0e | exit 0, "no leaks found", 1,947 files |
+| The rehearsal into `refs/heads/main` (b335b9b2), on 72fe1d0e | `main` is an ancestor; the merge writes the tip's own tree, b10779ca; step 2's ancestry, merge-tree, and diff lines print `go`, and `no` on two scratch commits with one more change each; its first part, with the `case` line, says `no` on a failing gate's log |
 
 ## Runs in your terminal
 
@@ -46,7 +49,7 @@ Every block runs from main's checkout, `~/h4reet-ai/h4reet-ai`. Each line is 45 
 this branch touches `services/gateway/test/integration/app.test.ts` and this note alone, and in `tools/gates/gate`
 stage E runs only when a branch touches `deploy/agents-engine/` or `.claude/settings.json` (line 88, and
 `STAGE_E_PATHS`, line 199), and the behavioral tier only when it touches `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin
-(line 90). The review is in (Review); hold the steps until the Status says the final checks are in.
+(line 90). The review is in (Review), and so are the final checks (Status).
 
 **1. The gate.** It exits 2 unless your checkout is on `main` (line 14), so the block starts there:
 
@@ -232,8 +235,8 @@ this session, so the findings below are in the relay's words where quoted, and s
   it; the line is 35 characters.
 - **Nit 4:** the FR-041 row's "no longer fails this case under load". **Done:** the row names the 100 ms hold as the
   evidence, since the CPU burner didn't reproduce the race, and points here.
-- **Nit 5:** the gitleaks, rehearsal, and `make check` rows describe b13e9f58. **Done after the final checks:** they
-  run again on the final tip, and the rows are refreshed in the note's last commit (Status).
+- **Nit 5:** the gitleaks, rehearsal, and `make check` rows describe b13e9f58. **Done:** they ran again on 72fe1d0e,
+  and the rows and Verification are refreshed in this note's last commit.
 - **Feed-back:** a line for your `CLAUDE.md`, which only you can add (For the Author).
 
 ## Verification
@@ -434,38 +437,98 @@ make: *** [Makefile:159: check] Error 1
 exit 2
 ```
 
-### gitleaks on a fresh export
+### make check ENGINE_MODE=none-yet, the final run
 
-A `git archive` export of b13e9f58, this note's first commit, into a new, empty folder, scanned from inside it as the
-gate scans: main's `.gitleaks.toml` (kept outside the export), an empty folder as the ignore path, and
-`--ignore-gitleaks-allow`. This revision changes this note alone.
+On 72fe1d0e, after the review's note-only commit, with `main` at b335b9b2 merged in (e5c5abbc). The gateway, web, and
+pytest totals are higher than before because feat/005's merge brought tests to all three.
 
 ```text
-export of b13e9f58 (shutdown) into a new folder: 1917 files
+The test stage, all three suites:
+ Test Files  95 passed (95)
+      Tests  1654 passed | 13 skipped (1667)
+ Test Files  126 passed (126)
+      Tests  2869 passed | 1 skipped (2870)
+4100 passed in 367.11s (0:06:07)
+
+arrival:
+arrival-check: 0 findings in 50 files (6 commits)
+
+redteam:
+redteam: 68 passed, 0 failed
+
+The matrix:
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded images are missing
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+
+The summary:
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
+exit 2
+```
+
+### gitleaks on a fresh export
+
+A `git archive` export of 72fe1d0e, the tip the final checks ran on, into a new, empty folder, scanned from inside it
+as the gate scans: main's `.gitleaks.toml` (kept outside the export), an empty folder as the ignore path, and
+`--ignore-gitleaks-allow`. This note's last commit changes this note alone. On b13e9f58, before the review, the same
+scan found no leaks in 1,917 files.
+
+```text
+export of 72fe1d0e (shutdown) into a new folder: 1947 files
 v8.30.1
-7:17AM INF scanned ~51109694 bytes (51.11 MB) in 1.74s
-7:17AM INF no leaks found
+8:07AM INF scanned ~52130576 bytes (52.13 MB) in 1.47s
+8:07AM INF no leaks found
 exit=0
 report: []
 ```
 
 ### The rehearsal
 
-`git merge-tree` against `refs/heads/main`, which writes no worktree, then step 2's ancestry, merge-tree, and diff
-lines in `zsh -f` with `sha` set to b13e9f58 (the lines that read the gate's log and your checkout's HEAD can't run
-here):
+`git merge-tree` against `refs/heads/main`, which writes no worktree, on 72fe1d0e:
 
 ```text
-$ git merge-tree --write-tree --name-only refs/heads/main b13e9f58866247880ac06d80ace07ac576682055
-8ee8626b418c68414d6218967ff2fcafbfb6db10
+$ git merge-tree --write-tree --name-only refs/heads/main 72fe1d0eacf5b8d0c77ee4aff21e50e582cfa603
+b10779cad0acd7066c7a183362917a18e43638cf
 (exit 0)
-tip tree: 8ee8626b418c68414d6218967ff2fcafbfb6db10
-main: 67028747d32e71d971c7c2e3555337b394433451
+tip tree: b10779cad0acd7066c7a183362917a18e43638cf
+main: b335b9b2ff7f241ecb04b2241b13541ec2a63367
 main is an ancestor of the tip: a --no-ff merge's tree is the tip's
-sha b13e9f58866247880ac06d80ace07ac576682055, e c45e86bce1cc30407edfda34e909c18f127a26f2
-guard (ancestry, merge-tree, diff): go
+the merge-tree of main and 1571e069: ff0506d9b4544e5fa2b7da22bd2777e0d9da50ff
 docs/merge-requests/2026-11-10-fix-000-shutdown-test.md
-(above: every file the tip differs from the merge-tree in)
+(above: every file the tip differs from it in)
+```
+
+Then step 2's lines, taken from the note at 72fe1d0e, in `zsh -f`. The ancestry, merge-tree, and diff lines ran
+with `sha` set to each commit; the two scratch commits were built with `git commit-tree` from a temporary index, on
+no ref. The first part, `s` to the `grep` of the merge line, ran on two mock logs. The lines that read your
+checkout's HEAD and the branch's ref can't run here.
+
+```text
+Step 2's ancestry, merge-tree, and diff lines (from the note at 72fe1d0e), in zsh -f, sha set to each commit:
+72fe1d0e: guard: go
+2e36f55c: guard: no     (a scratch commit on no ref: 72fe1d0e with app.test.ts replaced)
+7db3b53e: guard: no     (a scratch commit on no ref: 72fe1d0e with docs/merge-requests/zz-scratch.md added)
+
+Step 2's first part (s, sha, ok=go, the case line, the merge grep) on two mock logs:
+ready.log: ok after the first part: go
+failing.log: ok after the first part: no
+failing.log, without the case line: ok after the first part: go
+(failing.log: a stray "merge: " line from a container's output, and a summary line ending "; failing: test FAIL")
 ```
 
 Main moved three times while this branch was open: from d0fac811 (the cut) to c01545ce (your docs/001 merge), then to
