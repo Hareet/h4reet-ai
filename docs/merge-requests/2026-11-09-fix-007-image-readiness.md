@@ -16,12 +16,13 @@ FR-037 ("THE ROOM'S BUILD SHALL write each selectable's `ready` and `free_talk.r
 session's brief, which named the suspected bug and asked for it confirmed, then fixed test-first. No decision of yours
 was relayed to this session.
 
-## Status: verified; waiting on its review, and on gate 1's merge
+## Status: reviewed, ready; waiting on gate 1's merge
 
 This branch is stacked on `fix/007-steady-clock-test` (gate 1; 40624d2d, reviewed: ready; its note,
 [2026-11-09-fix-007-steady-clock-test.md](2026-11-09-fix-007-steady-clock-test.md)), which already fixes `main`'s own
 `lint` and web failures under it. So **its gate comes after gate 1's merge**, once `refs/heads/main` is merged into it
-(step 1): don't gate it before. Its own `REVIEW.md` pass hasn't run yet (Review).
+(step 1): don't gate it before. Its own `REVIEW.md` pass, over 5a28f4dc, says "Verdict: ready. Nothing blocks it."
+(Review); the commit after it changes this note alone.
 
 | Check | Result |
 |---|---|
@@ -134,12 +135,15 @@ Each line below is short, for your terminal's wrap.
    ready, the chalkboard (mission), the laptop (work projects), or the snowboard or the bicycle (hobbies and travel).
    The panel should say "The twin is answering." and then show an answer under "AI twin", where before this branch it
    gave the topic's fixed message and sent nothing. Typing with no piece selected still sends nothing: free talk isn't
-   ready in your file. Your verdict to the session, for a follow-up note.
+   ready in your file. Gate 1's step 5, the T046 demo (fix/009's step 5), goes in the same visit, on the same stack
+   (For the Author, 1). Your verdict to the session, for a follow-up note.
 
-7. **Park off `main` again,** only if the park branch has nothing `main` lacks (it has nothing today):
+7. **Park off `main` again,** only if the park branch has nothing `main` lacks (it has nothing today). It defines
+   its own `anc`, so it works in a fresh shell:
 
    ```bash
    p=wip-park/11-9-2026
+   anc=(merge-base --is-ancestor)
    sw=(--no-replace-objects switch -C "$p")
    git "${anc[@]}" "$p" HEAD && git "${sw[@]}"
    ```
@@ -165,8 +169,9 @@ COPY config/twin-readiness.yaml config/budgets.yaml config/
 COPY config/twin/corpus.json config/twin/prompt.md config/twin/lines.yaml config/twin/
 ```
 
-with a comment citing FR-030 and FR-037 and plan.md's D44. The runtime stage still copies only `dist/` (`COPY
---from=build /src/apps/web/dist /usr/share/nginx/html`, held there by `deploy/scripts/test_web_image.py`'s
+with a comment citing FR-030 and FR-037 and plan.md's D44. The runtime stage still copies only `dist/` from the build
+stage (`COPY --from=build /src/apps/web/dist /usr/share/nginx/html`; beside it only its own `nginx.conf`, from the
+context), held there by `deploy/scripts/test_web_image.py`'s
 `test_only_the_build_stage_reads_the_models`), so none of the five files reaches nginx's root.
 
 **The test** (1bb042eb, RED; `apps/web/test/room/image-inputs.test.ts`, beside the room's other build tests): it takes
@@ -201,7 +206,7 @@ stage), and the Dockerfile and the test in Project Structure.
 |---|---|
 | Spec 007 FR-030 | the gateway and the room's build now read the same file under the same rule in the image too: the image's index has the three topics your file marks ready, and free talk not ready, as the gateway reads it |
 | Spec 007 FR-037 | the image's `room-manifest.json` has each talk object's `ready` from `config/twin-readiness.yaml` (four `true`, `free_talk.ready` `false`), where it had all `false` |
-| Spec 007 FR-027, FR-041 | the image's text box takes `limits.twin` from `config/budgets.yaml`, not FR-027's defaults by absence |
+| Spec 007 FR-027 | the room's build in the image reads the per-turn limits from `config/budgets.yaml`'s `limits.twin`, as the route does, not FR-027's defaults by the file's absence |
 | Spec 007 FR-032 | with a ready topic in the index, a visitor's selection of its piece starts a conversation in prod's room; your browser check (step 6) |
 
 ## Constitution check
@@ -220,10 +225,32 @@ stage), and the Dockerfile and the test in Project Structure.
 
 ## Review
 
-Not yet: the main session runs a `REVIEW.md` pass over `40624d2d..` this branch's tip, from an agent that wrote none of
-it, and its findings and what was done about each go here. This session wrote this branch and reviews none of it. If
-the review adds commits, step 3's guard still holds: the fix's commit stays an ancestor, and the four files are the
-only ones the branch changes against `main`.
+A reviewer agent's `REVIEW.md` pass over this branch's own diff, `40624d2d..5a28f4dc`, from a session that wrote none
+of it, as the main session relayed it to this session. It read only this branch's four files, the Dockerfile, the
+test, plan.md, and this note: gate 1 and fix/009 under it have their own reviews ("ready", in their notes). This session
+wrote this branch and reviews none of it. The review's full text wasn't relayed; the nits below are in the relay's
+words where quoted, and summarized where not.
+
+- **Verdict:** "Verdict: ready. Nothing blocks it." Five nits, a wording point, and a line for your `CLAUDE.md`. As the
+  main session asked, this commit changes this note alone, and the Dockerfile and the test stay as reviewed.
+- **N1:** the Acceptance criteria claimed FR-041, but nothing in the diff touches the text box. **Done:** the row is
+  FR-027 alone, the limits from `config/budgets.yaml`'s `limits.twin`.
+- **N2:** the test's first case checks only `readiness.ts`'s reads, not `buildStart`'s; holding `compose` over
+  `fileTree(REPO_ROOT)` to `INPUTS` would close it. **Backlog:** a test change, for a later branch.
+- **N3:** step 7 used `anc`, which only step 3 defines, so in a fresh shell the park silently didn't happen.
+  **Done:** step 7 defines `anc` itself, each line still at most 45 characters.
+- **N4:** For the Author's item 1 dropped gate 1's step 5, the T046 demo in the browser. **Done:** item 1 names it
+  beside this note's step 6, and step 6 points to it.
+- **N5:** the Dockerfile reader's regex misses differently spelled builds and a `RUN --mount=type=bind,source=config`.
+  **Backlog.**
+- **Wording:** "copies only dist/" should read "only dist/ from the build stage", since the runtime stage also copies
+  `nginx.conf`. **Done** in this note; **Backlog** for the test's header and the Dockerfile's comment, for a later
+  change.
+- **Feed-back:** a `CLAUDE.md` line, for your hand only, in For the Author (item 5); the second time this has come up,
+  after T328's caps.
+
+Step 3's guard holds the gate to this branch's fix and its four files, so this note-only commit changes nothing it
+checks.
 
 ## Verification
 
@@ -234,7 +261,7 @@ archive` export outside the worktree, with the gate's own arguments (`docker bui
 named contexts: the Dockerfile's empty policy, room-assets, and visitor-assets stages), tagged
 `h4reet-web:imgready-before` and `h4reet-web:imgready-after`. Both images, both exports, and their logs were deleted by
 name after. `make lint`, `make test`, `make evals`, and `make check` ran on ea82cff9 (the fix and this note's draft);
-the commit after it changes this note alone.
+the two commits after it change this note alone.
 
 ### The bug, in the image built from 40624d2d
 
@@ -299,7 +326,7 @@ existing inputs. GREEN, acde8b8b:
 ```
 
 `deploy/scripts/test_web_image.py` and `test_web_nginx.py`, which read the same Dockerfile (among them: every context
-file it copies is in the context, and the runtime stage copies only `dist/`), on acde8b8b: "99 passed in 6.90s".
+file it copies is in the context, and the runtime stage copies only `dist/` from the build stage), on acde8b8b: "99 passed in 6.90s".
 
 ### The image built from acde8b8b
 
@@ -458,6 +485,15 @@ The export and its scratch folder (`$TMPDIR/imgready-gl-export`, `$TMPDIR/imgrea
   tidier. Not this branch.
 - **The test's Dockerfile reader** takes COPY and ADD sources as plain paths: no wildcard and no `--parents`. None of
   the Dockerfile's copies uses either today, and either would read in the safe direction: the test fails, not passes.
+- **The test's first case checks `readiness.ts`'s reads, not `buildStart`'s** (Review, N2): it holds `twinReadiness`
+  and `talkLimits` over the tree to `INPUTS`. Holding `compose` over `fileTree(REPO_ROOT)` to the same list as well
+  would catch a `config/` read the compositor gains. A test change, for a later branch.
+- **The reader's build regex** (Review, N5) finds `npm run [--ignore-scripts] build[:name] -w apps/web`; a build spelled
+  otherwise (another flag order, `--workspace`, `npx vite build`) would go unchecked, and so would a `RUN
+  --mount=type=bind,source=config`, which reads `config/` without a COPY. A test change, for a later branch.
+- **"copies only dist/"** (Review, wording): the test's header and the Dockerfile's new comment say the runtime stage
+  copies only `dist/`; it copies only `dist/` from the build stage, and its own `nginx.conf` from the context. A
+  wording change to both, for a later change; this note says it as it is.
 - **The worktree's automatic `git gc` failed** at the GREEN commit: "fatal: bad object refs/replace", "fatal: failed to
   run repack", leaving `.git/worktrees/wt-imgready/gc.log`, so automatic cleanup stops there until the file is removed.
   The commit itself landed; this session writes nothing under `.git/`. It goes with the worktree's removal.
@@ -465,9 +501,18 @@ The export and its scratch folder (`$TMPDIR/imgready-gl-export`, `$TMPDIR/imgrea
 ## For the Author
 
 1. **The order:** gate 1's steps 1 to 3 (its note), then this note's 1 to 7. Don't gate this branch before gate 1 is
-   merged and `main` is merged into it.
+   merged and `main` is merged into it. Gate 1's step 4 (`make up ENV=prod`) and step 6 (the park) are this note's 5
+   and 7; **gate 1's step 5, the T046 demo in the browser** (fix/009's step 5: the woman at the door, the hand-off
+   ending in her left hand, a talk with the twin, the stand-in line, and "2D view"), goes beside this note's step 6, in
+   the same visit to the site.
 2. **What changes in prod:** the three topics your `config/twin-readiness.yaml` marks ready open in prod's room, so
    visitors' turns reach the gateway: local first, then the paid fallback within its sub-budget and caps (Cost). That
    is your file's say, not this branch's; free talk stays closed, as your file has it.
 3. **The gate's image step** could read what the image's room shows (Backlog), by your hand.
 4. **After the merge,** the cleanup: `git worktree remove /tmp/claude-1000/wt-imgready`.
+5. **For your CLAUDE.md,** by your hand only (the review's feed-back line; the second time this has come up, after
+   T328's caps, then D44's readiness), under "Things Claude gets wrong":
+
+   ```text
+   - Adding a build-time read of a tree file without copying it into apps/web/Dockerfile's install stage: a checkout's build sees it, the image's silently falls back (T328's caps, D44's readiness).
+   ```
