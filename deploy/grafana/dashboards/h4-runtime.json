@@ -3498,7 +3498,7 @@
       "type": "stat",
       "id": 84,
       "title": "Visits whose loading was cut short",
-      "description": "The share of visits whose loading screen gave way at its 7-second ceiling with the room's files still loading, over the dashboard's range: loading_cut_short events, one a visit, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 012, FR-046, FR-048; spec 002, FR-054). It shows how often the ceiling binds, which says whether the first visit is too heavy for visitors' connections. 2D visits count in the denominator and never show the loader, and a visit that keeps the resume and opens it later counts twice, so the share reads low rather than high; with no visit in the range it has no value.",
+      "description": "The share of visits whose loading screen gave way at its 7-second ceiling with the room's files still loading, over the dashboard's range: loading_cut_short events, one a visit, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 012, FR-046, FR-048; spec 002, FR-054). It shows how often the ceiling binds, which says whether the first visit is too heavy for visitors' connections. A rough share, in both directions: 2D visits count in the denominator and never show the loader, and a visit that keeps the resume and opens it later counts twice there, which pull it low; and the event is sent before the hand-off, so a visit cut short that leaves before the hand-off's offer counts in the numerator alone, which pulls it high. With no visit in the range it has no value.",
       "datasource": {
         "type": "prometheus",
         "uid": "prom"
