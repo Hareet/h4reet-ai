@@ -8,8 +8,7 @@ Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This 
 `/tmp/claude-1000/wt-feat014`, which the main session created at 2026-11-10T16:25:49Z with `git --no-replace-objects
 worktree add -b feat/014-room-after-the-demo /tmp/claude-1000/wt-feat014 refs/heads/spec/014-room-after-the-demo`, then
 merged `refs/heads/main` at 32fb2bc3 into it (cb861c2a). Repo hooks active: yes. In `.claude/audit/hooks.log`, the events
-naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to this note's last commit are 711 ALLOW, 6 BLOCK, and 6 WARN up to 19:39:18Z (the six WARNs are the post-edit lint: once on `evals/sign_probe.py`, fixed before its commit, and five times on scratch files outside the repository, the step blocks while they were `.sh` fragments and a checker script); every BLOCK is listed under For the Author, the
-refusals.
+naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to this note's last commit are 930 ALLOW, 10 BLOCK, and 6 WARN up to 21:13:02Z. Seven BLOCKs are this session's, each listed under For the Author, the refusals; the other three, at 19:51:11Z, 19:52:28Z, and 20:00:09Z, came while the reviewer (T052) read the branch, its read-only role refused two commands and the third for its text. The six WARNs are the post-edit lint: once on `evals/sign_probe.py`, fixed before its commit (the file is gone since X1), and five times on scratch files outside the repository.
 
 Authorized by: spec 014 and its plan, approved by the Author on 2026-11-10: "You can go ahead and start the build of
 the spec." (tasks.md T000). The brief from the main session for this build is the authority for its order and checks.
@@ -25,14 +24,15 @@ your lookdev look (T054), the gate (T057), and your look at the live room (T058)
 
 | Check | Result |
 |---|---|
-| `make lint` | exit 0 on eaf66991 (ESLint, tsc, Prettier, ruff, ruff format, shellcheck) |
-| `make test` | exit 0 on 4b75bb5d: the gateway "1655 passed \| 13 skipped (1668)", the web "3264 passed \| 1 skipped (3265)", pytest "4118 passed in 374.06s"; whole again in `make check`'s test stage on eaf66991 |
+| `make lint` | exit 0 on 2d0c176b (ESLint, tsc, Prettier, ruff, ruff format, shellcheck) |
+| `make test` | on 2d0c176b: the gateway "1 failed \| 1654 passed \| 13 skipped (1668)", the one a timing case under load, `twin-paid-timeout.test.ts`, whose file alone then passed, 3 of 3; the web "3270 passed \| 1 skipped (3271)"; pytest on its own "4101 passed in 487.13s"; all three whole in `make check`'s test stage on 730f6d71 |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,997; the behavioral tier's WARN, information |
-| `make check ENGINE_MODE=none-yet`, the final run, on eaf66991 | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 221 files (40 commits)" |
-| `gitleaks dir` on a fresh export | exit 0, "no leaks found", 2,031 files, on 5baa4469 |
-| `npm run room:check` | "room: 0 findings in 0 files", 6.91 s (5.12 s at the base); 7,678 stages (7,291) |
-| The entry chunk (SC-015) | 48,734 bytes gzipped (46,017 at the base), against 150 KB |
-| The rehearsal (T051) | `refs/heads/main` is still 32fb2bc3, an ancestor of the tip, so there is nothing to rebase and the merge writes the tip's own tree; the note's own guard blocks give go and no where they should, under `zsh -f` and `bash --noprofile --norc` (The rehearsal) |
+| `make check ENGINE_MODE=none-yet`, the final run, on 730f6d71 | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 251 files (48 commits)" |
+| `gitleaks dir` on a fresh export | exit 0, "no leaks found", 2,026 files, on 730f6d71 |
+| `npm run room:check` | "room: 0 findings in 0 files", 7.61 s (5.12 s at the base); 7,678 stages (7,291) |
+| The frame at 1920 × 1200 | ease 8/16 (10/16 before T053), the room 3.5% larger than spec 005's frame (2.7%), its centre x 804 (spec 005's 693) |
+| The entry chunk (SC-015) | 48,935 bytes gzipped (46,017 at the base; 48,734 before T053), against 150 KB |
+| The rehearsal (T051) | main still 32fb2bc3, an ancestor; the note's own guard blocks give go and no where they should under `zsh -f` and `bash --noprofile --norc`, the board's patch changed after `rv` now no (I4) |
 
 ## Runs in your terminal
 
@@ -473,7 +473,7 @@ T047's measures, at the tip, beside T001's:
 
 | Measure | T001 (the base, cb861c2a) | The tip |
 |---|---|---|
-| The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,321 JS + 5,413 CSS = 48,734 bytes (+2,717), one chunk, against the 150 KB budget |
+| The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,438 JS + 5,497 CSS = 48,935 bytes (+2,918) after T053 (48,734 before), one chunk, against the 150 KB budget |
 | `npm run room:check -w apps/web` | "room: 0 findings in 0 files", 5.12 s wall clock | "room: 0 findings in 0 files", 7.61 s wall clock (7.85 s user) at T053; 6.91 s before it |
 | Supported stages | 7,291 over 7,241 sweep screens | 7,678 frame-area stages over the same screens |
 | `package-lock.json` | | `git diff 32fb2bc3 HEAD -- '*package-lock.json'`: 0 lines; no package added (FR-067) |
@@ -521,7 +521,7 @@ Each changes on purpose, for the FR or departure named:
 
 ### make lint
 
-On eaf66991, the final run; exit 0, the whole output. The first run, on b2c9312d's parent, found one file Prettier would wrap (`bad/RD7-grip`'s edit, b2c9312d); the first `make check` found one `tsc` error in T028's avatars-compose case (eaf66991).
+On 2d0c176b, after T053; exit 0, the whole output:
 
 ```text
 node_modules/.bin/eslint --max-warnings 0 .
@@ -532,56 +532,64 @@ All matched files use Prettier code style!
 ruff check .
 All checks passed!
 ruff format --check --no-cache --extend-exclude corpus .
-491 files already formatted
+488 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
-make lint  46.89s user 2.93s system 165% cpu 30.108 total
+make lint  48.88s user 4.24s system 159% cpu 33.248 total
 exit 0
 ```
 
 ### make test
 
-On 4b75bb5d, after the knock-on expectations (the first run, on b2c9312d, failed five web cases in four files, each an expectation spec 014 changes, listed above and committed as T028's). The result lines, in order: the gateway's suite, the web suite, pytest:
+On 2d0c176b, after T053. The gateway's suite failed one timing case under a load average near 31, `test/integration/twin-paid-timeout.test.ts`'s "answers a visitor's turn that the paid fallback takes 6 s over"; npm ran the web suite on, whole; `make test` stops after npm's step, so its pytest step ran on its own:
 
 ```text
 corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
-> vitest run
- RUN  v5.0.3 /tmp/claude-1000/wt-feat014/services/gateway
- Test Files  95 passed (95)
-      Tests  1655 passed | 13 skipped (1668)
-> vitest run
- RUN  v5.0.3 /tmp/claude-1000/wt-feat014/apps/web
- Test Files  150 passed (150)
-      Tests  3264 passed | 1 skipped (3265)
-4118 passed in 374.06s (0:06:14)
-make test  3359.54s user 446.04s system 641% cpu 9:52.98 total
+ FAIL  test/integration/twin-paid-timeout.test.ts > a twin turn's one 9 s attempt on a paid adapter (spec 007's plan, D43) > answers a visitor's turn that the paid fallback takes 6 s over
+ Test Files  1 failed | 94 passed (95)
+      Tests  1 failed | 1654 passed | 13 skipped (1668)
+ Test Files  149 passed (149)
+      Tests  3270 passed | 1 skipped (3271)
+make test  3554.25s user 623.52s system 1560% cpu 4:27.67 total
+exit 2
+```
+
+That file alone, once, after the run (load average 15):
+
+```text
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+The pytest step on its own (4,101 since the 17 sign-check cases went with the runner, X1):
+
+```text
+4101 passed in 487.13s (0:08:07)
 exit 0
 ```
 
+The gateway's suite passed whole in `make check`'s test stage below, that case among them. This branch changes no gateway file.
+
 ### make evals
 
-On 5f0831ab; exit 0. The result lines:
+On 2d0c176b; exit 0. The result lines:
 
 ```text
 evals product (fake): 187 passed, 0 failed
 evals narration (fake): 44 passed, 0 failed
 agent-config static: 0 failed, 0 planned
-behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 05cec03a74a5
-WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1
 agent-config behavioral: fail, 0 planned
-note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
 docs links: 0 failed, 1997 relative links in 289 files
-make evals  2.05s user 0.10s system 94% cpu 2.268 total
+make evals  3.34s user 0.26s system 94% cpu 3.828 total
 exit 0
 ```
 
-The behavioral tier's WARN is information in `make evals`, not a merge block (spec 006 FR-002); this branch changes no file that makes the gate wait for a run.
+The behavioral tier's WARN is information in `make evals`, not a merge block (spec 006 FR-002).
 
 ### make check ENGINE_MODE=none-yet
 
-Two runs. The first, on 0de3f515, gave "10 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: lint FAIL,
-matrix FAIL": `lint`'s one `tsc` error (fixed in eaf66991) and `matrix`. The second, the final run, on eaf66991 with
-this note's save point:
+The final run, on 730f6d71 (T053's GREEN with this note's save points). Earlier runs: on 0de3f515, `lint` and `matrix` failed (`lint`'s `tsc` error, fixed in eaf66991); on eaf66991, `matrix` alone.
 
 ```text
 PASS     makefiles-check
@@ -600,7 +608,7 @@ FAIL     matrix
 SKIP     image  no agents' engine yet: tasks.md T046
 make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
 make: *** [Makefile:159: check] Error 1
-make check ENGINE_MODE=none-yet  3417.88s user 449.82s system 462% cpu 13:56.98 total
+make check ENGINE_MODE=none-yet  4196.18s user 727.20s system 528% cpu 15:30.71 total
 exit 2
 ```
 
@@ -608,11 +616,11 @@ Its stages' result lines:
 
 ```text
       Tests  1655 passed | 13 skipped (1668)
-      Tests  3264 passed | 1 skipped (3265)
-4118 passed in 464.51s (0:07:44)
+      Tests  3270 passed | 1 skipped (3271)
+4101 passed in 526.10s (0:08:46)
 content check: PASS (48 content files: 1 approved by main, 47 drafts, none of whose text is in dist/)
-secrets: PASS (unstaged changes, staged changes, 40 commits since main)
-arrival-check: 0 findings in 221 files (40 commits)
+secrets: PASS (unstaged changes, staged changes, 48 commits since main)
+arrival-check: 0 findings in 251 files (48 commits)
 evals product (fake): 187 passed, 0 failed
 evals narration (fake): 44 passed, 0 failed
 agent-config static: 0 failed, 0 planned
@@ -623,36 +631,30 @@ E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 12
 forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
 ```
 
-`matrix` fails on E10 and E14 alone, the environment's, as in fix/000's final run: E10 for want of 22 GiB free on
-both drives to seed a reset engine, and E14 for dev-cpu's ports, which the sandbox can't reach. Its other hook-layer
-rows pass, and its 57 known gaps are main's. The gateway's suite passed whole in both runs and in `make test`, its
-timing tests among them; `evals`' WARN is the behavioral tier's information line.
+`matrix` fails on E10 and E14 alone, the environment's, as in every agent session's run: E10 for want of 22 GiB free on both drives to seed a reset engine, E14 for dev-cpu's ports, which the sandbox can't reach. Its other hook-layer rows pass; its 57 known gaps are main's. The gateway's suite passed whole here; `evals`' WARN is the behavioral tier's information line.
 
 ### gitleaks on a fresh export
 
-`git archive 5baa4469 | tar -x` into an empty folder under `$TMPDIR` (2,031 files, no `.pyc`), then `gitleaks dir .`
-there:
+`git archive 730f6d71 | tar -x` into an empty folder under `$TMPDIR` (2,026 files, no `.pyc`), then `gitleaks dir .` there:
 
 ```text
-INF scanned ~53455742 bytes (53.46 MB) in 1.64s
+INF scanned ~53457999 bytes (53.46 MB) in 2.15s
 INF no leaks found
 ```
 
-Exit 0. 5baa4469 is this note's commit before its last; the last adds only these results, and the content scan
-(gitleaks over each edit's text) passed every edit.
+Exit 0. 730f6d71 is this note's commit before its last, which adds only these results; the content scan passed every edit.
 
 ### The rehearsal
 
-T051. `refs/heads/main`, re-read at the end: 32fb2bc3, the commit this branch merged at T001, so it is an ancestor of
-the tip and there is nothing to rebase; `git merge-tree --write-tree refs/heads/main <tip>` writes the tip's own tree
-(0e93a84c). The board's patch needs no rebuild: main's `content-approvals.json` hasn't moved. The sign's stack
-check is withdrawn (X1).
+T051, again after T053. `refs/heads/main`, re-read: still 32fb2bc3, an ancestor of the tip, so nothing to rebase;
+`git merge-tree --write-tree refs/heads/main 730f6d71` writes the tip's own tree (f266777c). The board's patch needs
+no rebuild: main's `content-approvals.json` hasn't moved, and the block's digest is unchanged.
 
-The guard: this note's own blocks, extracted from it, run in a scratch clone of the repository under `$TMPDIR` over
-made-up gate logs, 2a or 2b and then 2c, with the gated SHA 5baa4469 and `rv` eaf66991. A session can't point a ref or
-`HEAD` named `main` anywhere, so the clone's stand-in for `main` is a branch at 32fb2bc3, its `HEAD` on it, and the
-blocks ran with `refs/heads/main` spelled as that branch; nothing else changed. The same results under `zsh -f` and
-under `bash --noprofile --norc`:
+The guard: this note's own blocks, extracted from it, run in a scratch clone under `$TMPDIR` over made-up gate logs,
+2a or 2b and then 2c, with the gated SHA 730f6d71 and `rv` 7c12a0bb. A session can't point a ref or `HEAD` named
+`main` anywhere, so the clone's stand-in for `main` is a branch at 32fb2bc3, its `HEAD` on it, and the blocks ran with
+`refs/heads/main` spelled as that branch; nothing else changed. The same results under `zsh -f` and under `bash
+--noprofile --norc`; the patch case is new, for I4, and said go with the old exclude:
 
 ```text
 2a, a clean gate                                               guard: go
@@ -664,6 +666,7 @@ under `bash --noprofile --norc`:
 2b, the timing test and matrix-h failing                       guard: no
 2a, a change after rv outside the notes                        guard: no
 2a, a change after rv to the note alone                        guard: go
+2a, a change after rv to the board's patch                     guard: no
 2a, the branch not at the gated SHA                            guard: no
 2a, main moved: a file the branch doesn't touch                guard: go
 2a, main moved: a file the branch changed, other lines         guard: no
@@ -674,7 +677,7 @@ under `bash --noprofile --norc`:
 
 The made-up logs copy the gate's own lines: its summary (`tools/gates/gate`'s `summary_line`), its `merge: ` line, its
 step lines (`FAIL     test  exited 1`), and vitest's ` FAIL  <file> > <suite> > <case>` lines. Step 3's merge wasn't
-run anywhere; its tree is the merge-tree above.
+run anywhere; its tree is the merge-tree above. Step 6's guards ran in a scratch folder (T053's GREEN, above).
 
 ### T001: the base's facts
 
