@@ -409,8 +409,10 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
       for (const key of survey) if (file.strings.has(key)) leaks.push(`${name} holds the survey's ${key}`);
     }
     expect(leaks).toEqual([]);
-    // The room is in the build: its index's digest is in the entry's script.
-    const digest = repositoryBundle({ drafts: kind === "drafts", policy: "empty" }).digest;
+    // The room is in the build: its index's digest is in the entry's script. The compose takes the tree's own twin
+    // readiness, as the build does, so the digest follows whatever the Author's readiness file marks (spec 009's
+    // intake gate, F2).
+    const digest = repositoryBundle({ drafts: kind === "drafts", policy: "empty", readiness: "tree" }).digest;
     const scripts = builtFiles(root).filter((n) => n.endsWith(".js"));
     expect(scripts.some((n) => readFileSync(join(root, n), "utf8").includes(digest))).toBe(true);
   });
@@ -420,7 +422,7 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
     expect(files.filter((n) => n.endsWith(".glb"))).toEqual([]);
     // Each model the 3D part names, by its copy's path; a piece only a switch's poses show is named by compose()'s
     // models, which list every set model once.
-    const { scene, models } = repositoryBundle({ drafts: kind === "drafts", policy: "empty" });
+    const { scene, models } = repositoryBundle({ drafts: kind === "drafts", policy: "empty", readiness: "tree" });
     const named = new Map<string, { readonly sha256: string; readonly bytes: number }>();
     for (const p of scene.placements) if (p.model) named.set(`${p.model.url}.gz`, p.model);
     for (const m of models)
