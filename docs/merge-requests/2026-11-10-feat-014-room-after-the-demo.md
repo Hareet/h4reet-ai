@@ -14,12 +14,14 @@ refusals.
 Authorized by: spec 014 and its plan, approved by the Author on 2026-11-10: "You can go ahead and start the build of
 the spec." (tasks.md T000). The brief from the main session for this build is the authority for its order and checks.
 
-## Status: built, waiting for the review (T052)
+## Status: T053 done, waiting for the short second review of its diff
 
-Every task from T001 to T051 is done but T045, the sign's check on a running stack (E21, below). `tasks.md` ticks
-T001 to T050 but T045; T051, the rehearsal, ran after the anchor, so its tick waits for the next change that moves
-`rv`, and this note is its record. The review, T052, is next, by a reviewer that wrote none of this; its findings go in Review, and its fixes (T053) move the anchor `rv` in
-step 2c. Then your lookdev look (T054), the gate (T057), and your look at the live room (T058).
+Every task from T001 to T051 is done, and T053, the review's fixes. T045 and T059 are withdrawn by your answer,
+"Drop the make target" (spec.md's X1). `tasks.md` ticks T001 to T050; T051 and T053 ran after the anchor's earlier place and are
+recorded here. The review (T052) read e40b875f, "not ready", with one blocker and four important findings; Review
+lists each and what was done. Your two answers of 2026-11-10, "Drop the make target" and "Move the walk control (Recommended)", are quoted in spec.md's amendments. A
+short second review reads T053's diff alone, since the walking control's move is new behaviour after the review. Then
+your lookdev look (T054), the gate (T057), and your look at the live room (T058).
 
 | Check | Result |
 |---|---|
@@ -103,8 +105,8 @@ why='by hand: twin-bench 20 ms bound alone'
 - your checkout is on `main`;
 - the branch is at the SHA the gate checked;
 - the reviewed content, `rv`, is an ancestor of that SHA;
-- `main` merged with that SHA and `main` merged with `rv` give the same tree outside `docs/merge-requests/`, each merge
-  clean;
+- `main` merged with that SHA and `main` merged with `rv` give the same tree but for this note, each merge clean: the
+  board's patch beside it is held to `rv` too (the review's I4);
 - the files `main` changed and the files the branch changed since their merge base are disjoint, but for
   `docs/adr/README.md`, which both may change on different lines (the clean merge above proves they don't overlap).
 
@@ -120,8 +122,9 @@ git "${anc[@]}" "$rv" "$sha" || ok=no
 mt=(merge-tree --write-tree "$mr")
 e1=$(git "${mt[@]}" "$sha") || ok=no
 e2=$(git "${mt[@]}" "$rv") || ok=no
+n=2026-11-10-feat-014-room-after-the-demo.md
 x=(diff --quiet "$e1" "$e2" -- .)
-x+=(':(exclude)docs/merge-requests')
+x+=(":(exclude)docs/merge-requests/$n")
 git "${x[@]}" || ok=no
 mb=$(git merge-base "$mr" "$sha")
 w=$(mktemp -d)
@@ -137,7 +140,7 @@ echo "guard: $ok"
 
 **Why `rv`, and why two merge-trees.** `rv` is the content the review will have read and its fixes settled; until the
 review, it is this build's last content commit, eaf66991 (the type fix make check's lint stage asked for), and the session moves it with T053. After `rv`, the branch
-changes only this note. Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content
+changes only this note; the guard lets nothing else change, the board's patch included. Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content
 to the reviewed one whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On `guard:
 no`, don't merge: tell the session.
 
@@ -176,8 +179,11 @@ at:
   each of the twelve. The left grips in `scene.yaml` are estimates (E15); a no is a data edit there, `at` and `turn`.
 - **The sign's glow** (Vignette; SC-007): along the tube that frames the arrow and the letters, with no circle. Its
   `spread` in `neon-sign.yaml` is one number.
-- **The reference desktop's window** (View): the room under the panels, its ease 10/16 (E1, below). Whether to trim
-  the frame further is yours (plan R-1).
+- **The reference desktop's window** (View): the room under the panels, its ease 8/16, the room 3.5% larger than
+  spec 005's frame (10/16 and 2.7% before the walking control moved; E1, below). Whether to go further is yours: what
+  binds next is the twin's framed box near the bar's cluster (plan R-1).
+- **"Walk around" at the column's head** (your answer, "Move the walk control (Recommended)"): above the column, at its right, on a wide window; in
+  the old corner on a short window and on a phone. Its hover over a light part of the room.
 - **The HUD's look** on the glass: the tiles, the warm edge (`#ffc8a8`, a lighter tint of the tube's colour, E11), the
   chips, Patrick Hand's headings.
 
@@ -185,26 +191,40 @@ Then on prod, in your browser (T058): resize from small to large; the room under
 around" and a turn of the view; the resume's sheet in the hand; the sign and the board; the notes with the man chosen
 and with the dog; and the lookdev page's 2-minute window runs. Record each yes or no in a follow-up note.
 
-**6. The board's line** (T056). After the merge, check the block's digest yourself, then apply the patch:
+**6. The board's line** (T056). After the merge: the block's digest, computed here, must equal the one the patch
+adds (`b68917b0e1698631bd643a4cce65e3edbb604814b81b31d0efcf861f4017686a`), and only then does the patch apply:
 
 ```bash
 git symbolic-ref HEAD
 c=apps/web/content/room
-sha256sum "$c/chalk-denverlocal.yaml"
-d=docs/merge-requests
-p=$d/2026-11-10-room-text-chalkboard.patch
-git apply --check "$p" && git apply "$p"
+d=$(sha256sum "$c/chalk-denverlocal.yaml")
+d=${d%% *}
+m=docs/merge-requests
+p=$m/2026-11-10-room-text-chalkboard.patch
+h='[0-9a-f]\{64\}'
+w=$(grep '^+ ' "$p" | grep -o "$h")
+ok=go
+[ -n "$w" ] && [ "$d" = "$w" ] || ok=no
+echo "digest: $ok"
+[ "$ok" = go ] && git apply --check "$p"
+[ "$ok" = go ] && git apply "$p"
 ```
 
-The digest must read `b68917b0e1698631bd643a4cce65e3edbb604814b81b31d0efcf861f4017686a`, the patch's. Edit the entry's two placeholders in
-`assets/policy/content-approvals.json`, `<the day you apply it>` and `<your words>`, then:
+On `digest: no`, stop and tell the session. Then edit the entry's two placeholders in
+`assets/policy/content-approvals.json`, `<the day you apply it>` and `<your words>`; the commit runs only once neither
+is left in the entry, so no placeholder reaches the loader's date check (the review's N4):
 
 ```bash
 f=assets/policy/content-approvals.json
-grep -A2 '"C-0003"' "$f"
-git add "$f"
-git commit -m 'policy: C-0003, the board'
-make up ENV=prod
+e=$(grep -A2 '"C-0003"' "$f")
+printf '%s\n' "$e"
+case $e in *'<the day'*) ok=no;; esac
+case $e in *'<your words>'*) ok=no;; esac
+echo "entry: $ok"
+[ "$ok" = go ] && git add "$f"
+t='policy: C-0003'
+[ "$ok" = go ] && git commit -m "$t"
+[ "$ok" = go ] && make up ENV=prod
 ```
 
 The second `make up ENV=prod` publishes the line. If you apply it before the gate instead, the guard still holds: the
@@ -250,8 +270,12 @@ your recommendations. go for it!"
   patch beside this note.
 - **The placeholder note** (User Story 7, FR-053 to FR-055, FR-066): it names what is missing, the pieces, your figure,
   or both; `standin.avatar` joins the closed list.
-- **The sign's check** (User Story 8, FR-056 to FR-059): `make sign-check ENV=dev` or `ENV=dev-cpu`
-  (`evals/sign_check.py`, `evals/sign_probe.py`, `build/room/sign-reading.ts`), refusing prod by name.
+- **The sign's check** (User Story 8): built, then withdrawn after the review by your answer, "Drop the make target" (X1): no stack
+  runs it, and no target, runner, probe, or page reading remains. The chain is held by the unit tests
+  (`test/room/turn-cost.test.ts`; the gateway's turn-route tests) and your live reading on prod, 2026-11-10: "Yup, it's working now! ive clicked the snowboard and the cost is changing".
+- **After the review (T053)**: the walking control at the column's head (your answer, "Move the walk control (Recommended)"; W19), the offer's
+  focus ring, the hover and selection rules scoped to the HUD's buttons and to pointers that hover, the guard's exclude
+  narrowed to this note, step 6's digest and placeholder guards.
 - **Faults** (User Story 9, FR-001, FR-002, FR-004, FR-065): every degraded state ends framed, nothing new sent.
 
 ## Acceptance criteria
@@ -263,7 +287,7 @@ your recommendations. go for it!"
 | FR-005, FR-006 | done | T031 (a grip that isn't finite keeps the anchor), T035 (a path that can't be built draws nothing) |
 | FR-007, FR-008 | done | T024, T027 |
 | FR-009 to FR-016 | done | T007, T008, T015 |
-| FR-017 to FR-021 | done | T005, T006, T023, T024, T028 |
+| FR-017 to FR-021 | done; FR-017 (c) amended by W19, the walking control at the column's head | T005, T006, T023, T024, T028, T053 |
 | FR-022 to FR-028 | done in code and tests; the look is yours (T054, T058) | T024, T025 |
 | FR-029 | for the review's search (T052) | the guidance is cited by its URL only |
 | FR-030 to FR-037 | done | T029 |
@@ -273,7 +297,8 @@ your recommendations. go for it!"
 | FR-044 to FR-049 | done; the look is yours (T054) | T035, T037 |
 | FR-050 to FR-052 | done but your approval (T056) | T038; the patch |
 | FR-053 to FR-055, FR-066 | done | T040 |
-| FR-056 to FR-059 | the check built, its refusals and steps tested; its stack run left (E21) | T042, T043 |
+| FR-056 to FR-058, SC-010 | withdrawn by X1, your answer "Drop the make target"; your live reading on prod is the evidence | T053 |
+| FR-059 | done: the sign reads only each turn's reply | `test/room/turn-cost.test.ts` |
 | FR-060, FR-061 | done | T009, T013 |
 | FR-062 | done | T046 |
 | FR-063 | done in the views; the runs are yours (T058) | T019, T020 |
@@ -286,8 +311,10 @@ your recommendations. go for it!"
 Each is in [plan.md](../../specs/014-room-after-the-demo/plan.md)'s "Departures (implementation)" table, E1 to E23,
 recorded in the commit that made it:
 
-- **E1** the reference desktop eases to 10/16, the room 2.7% larger, not the plan's 0 to 1/16 and about 7%: what binds
-  is the walking control's box over the twin's framed box at the clear area's corner. R-1's ladder isn't taken.
+- **E1** at T013 the reference desktop eased to 10/16, the room 2.7% larger, bound by the walking control's box over the
+  twin's framed box at the clear area's corner. With the control at the column's head (T053): 1920 × 1200 8/16, 3.5%;
+  1920 × 1080 5/16, 5.5%; 2560 × 1440 0, 5.8%; 1280 × 720 13/16, 2.3%. Still under about 7% at the desktop; what binds
+  next is the twin's framed box near the bar's tile cluster at the foot's right.
 - **E2** RG5's aspect series takes one more step down (`STEPS_DOWN` 3).
 - **E3** `Protect.boxes(area, clear)` gives null where a selectable pressable at spec 005's frame would be left to the
   list (T009 found the board list-only at three portrait frame areas).
@@ -305,11 +332,17 @@ recorded in the commit that made it:
   avatars' existing tests.
 - **E17** the ribbon bevels its joints. **E18** the good fixture keeps its disc glow.
 - **E19** the note joins both causes with a stop, each note held to 26rem, its band reserved.
-- **E20** the sign's probe runs from standard input; no image or compose change.
-- **E21** T045, the stack run, not run here: dev-cpu serves the main working tree, the guard refuses a linked worktree,
-  and the main tree is your parked checkout.
+- **E20** the sign's probe ran from standard input; withdrawn with the check (X1).
+- **E21** T045 wasn't run by the build session; withdrawn with the check (X1).
 - **E22** the hands view is a third lookdev scene, its drawing tested on `drawHands` with a skeleton fixture.
 - **E23** T046 passed at once; the source scan found two room piece IDs in this branch's own tests, renamed.
+- **E24** the walking control at the column's head, not the bar's cluster: measured there first, the widened cluster
+  met the twin's framed box (1920 × 1080 to 9/16, 7/16 before; 2560 × 1440 to 3/16, 0 before). Its DOM place, and so
+  the Tab order, stays spec 008's.
+- **E25** the offer's yellow ring; the hover and selection rules scoped to `.hud-panels`, `.hud-bar`, and
+  `.room-offer` buttons, every hover under `@media (hover: hover)`; the walking control's own glass hover.
+- **E26** `build/room/sign-reading.ts` and its test removed with the runner (X1): `turn-cost.test.ts` already covers
+  what they compared.
 
 ## Constitution check
 
@@ -319,7 +352,7 @@ recorded in the commit that made it:
 | II. Production-grade or not shipped | Yes | Tests first, RED then GREEN per task (Verification); the sign's chain has its end-to-end check; `make lint`, `make test`, `make evals`, `make check` pasted below |
 | III. Intent before spec, spec before code, humans merge | Yes | Built from the approved spec and plan; every departure in plan.md in its commit; you merge |
 | IV. Least privilege | Yes | Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, `deploy/`, `infra/`, `.github/`, or `.specify/`, nor `CLAUDE.md` or `REVIEW.md`; the approval is a patch for your hand, built from plain copies |
-| V. Cost is a first-class signal | Yes | $0 in the cloud and in models; the sign's check refuses prod and a gateway without synthetic spend |
+| V. Cost is a first-class signal | Yes | $0 in the cloud and in models; the sign's stack check is withdrawn (X1), its readings held by unit tests |
 | VI. Build in public | Yes | The runs, the departures, and the refusals are in this note |
 | VII. Own the whole product | Yes | Your words quoted, not paraphrased; the look is yours to judge |
 | VIII. Honest AI | Yes | The placeholder note says only what is missing at run time; `standin.avatar` states nothing about you |
@@ -327,7 +360,29 @@ recorded in the commit that made it:
 
 ## Review
 
-Pending: T052, by a reviewer that wrote none of T001 to T051. Its findings and what was done about each go here.
+T052, by a reviewer that wrote none of this, read e40b875f: "not ready", one blocker and four important findings. It
+checked the kernel, the HUD, the hold, the grips, the ribbon, the notes, C-0003, every changed test expectation, and
+that no protected path was touched. Your answers of 2026-11-10: "Drop the make target" and "Move the walk control (Recommended)". What was done, in T053's commits:
+
+- **B1** (blocker): `make sign-check ENV=dev` had no `$(CONTAINED)` guard and ran `node --import tsx` from main's
+  checkout, so agent-writable `node_modules` would have run in your terminal, and its export had no `node_modules`.
+  **Done, by your answer:** the target, its `.PHONY` word, `evals/sign_check.py`, `evals/sign_probe.py`, and their test
+  are removed; `build/room/sign-reading.ts` and its test too, since they only compared the runner's reading with the
+  room's own code, which `test/room/turn-cost.test.ts` covers (E26). The Makefile and `package.json` are `main`'s again.
+  spec.md's X1 withdraws FR-056 to FR-058, SC-010, T045, and T059, with your words and your live reading. **I1** (tsx's
+  cache with no `TMPDIR` in the runner's reading) and **N5** went with the runner.
+- **The frame** (the review's measure: at 1920 × 1200 the room grew 2.7%, eased to 10/16, off centre at x 820): **done,
+  by your answer:** the walking control at the column's head (W19; E24), remeasured (E1).
+- **I2**: the offer's buttons kept the page's `#0b4f9c` ring, about 1.7:1 over the glass. **Done:** the yellow rule
+  names `.room-offer button:focus-visible`, with a contrast case.
+- **I3**: the hover and selection rules reached the walking control and the resume. **Done:** scoped to the HUD's
+  buttons, hover only under `@media (hover: hover)`, the walking control's own glass hover (4.5:1 over white, opaque
+  under the two preferences), and the resume's restore rule removed, with `hud-look`'s `aria-current` case.
+- **I4**: guard 2c's exclude covered all of `docs/merge-requests/`, the board's patch among them. **Done:** it excludes
+  this note alone; the rehearsal's new case, a change to the patch after `rv`, said go before and says no now.
+- **N1** E1's wording; **N2** the file names below, `test/manifest.test.ts`'s header, and geometry's NARROW comment;
+  **N3** an equivalence test of the bundle's protector and the sweep's (six screens, one frame area each); **N4** step
+  6's digest guard before `git apply`, and the entry's placeholders checked before the commit. **Done.**
 
 ## Verification
 
@@ -354,8 +409,8 @@ Each phase's tests ran before its code (RED), then with it (GREEN), as the commi
 - US6 (T038): approvals.test.ts's two board cases pass at once (2 passed), proving the existing rule; T039 has nothing to fix: the board needs only the Author's approval. git diff --stat refs/heads/main -- apps/web/content/room/ corpus/ assets/ is empty.
 - US7 RED (T040): notes-causes.test.ts and bundle.test.ts's flag case: 4 failed (the flag set by the avatars' missing models; no standin.avatar; a failed model or the figure's flat shape changes nothing), 3 passed at once (no note with nothing missing; the bundle's stand-ins name the pieces; the 2D room shows no figure's words).
 - US7 GREEN (T041): notes-causes, bundle, hud-model, hud, hud-notes, loading-notes, loading-page, stages, words, hud-look, compose: 11 files, 481 of 481 once a 2D visit's skips stopped counting toward the note.
-- US8 RED (T042, T043): pytest evals/test_sign_check.py: "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/claude-1000/wt-feat014/evals/sign_check.py'", 1 error during collection; vitest sign-reading.test.ts: "Cannot find module '../../build/room/sign-reading'".
-- US8 GREEN (T044): pytest evals/test_sign_check.py 17 passed; vitest sign-reading.test.ts 4 of 4; pytest evals/test_repository_docs.py 17 passed. The Makefile's sign-check with ENV=prod: "make sign-check runs on dev or dev-cpu, never prod (spec 014, FR-057)", exit 2; the script with --stack prod: "prod is never a sign-check stack", exit 2. T045 not run (E21).
+- US8 RED (T042, T043; the files since removed, X1): pytest evals/test_sign_check.py: "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/claude-1000/wt-feat014/evals/sign_check.py'", 1 error during collection; vitest sign-reading.test.ts: "Cannot find module '../../build/room/sign-reading'".
+- US8 GREEN (T044; since removed, X1): pytest evals/test_sign_check.py 17 passed; vitest sign-reading.test.ts 4 of 4; pytest evals/test_repository_docs.py 17 passed. The Makefile's sign-check with ENV=prod: "make sign-check runs on dev or dev-cpu, never prod (spec 014, FR-057)", exit 2; the script with --stack prod: "prod is never a sign-check stack", exit 2. T045 not run (E21).
 - Polish, T046 (passing at once): test/ui/hud-a11y.test.ts gains "axe with spec 014's HUD (T046)": 4 axe cases (column and dock, 3D and 2D; note causes, aria-current target, full screen, log collapsed and larger, walking view entered and held) and 1 rule check (no compact box clips). Run with T021's faults (hud-faults.test.ts) and T031/T035's faults (grip, glows, avatars, avatar-handoff): 6 files, 91 passed (91), first run. Nothing to fix.
 - US4, T033 (RED): page.test.ts "the hands view (spec 014, T033)": 5 cases; the file fails to load, src/lookdev/hands.ts missing (Tests: no tests, 1 failed file). compose.test.ts: bad/RI10-hands fails ("expected RI10 apps/web/room/lookdev.yaml:hands.avatars[1]"), 1 failed | 244 passed.
 - US4, T034 (GREEN): page.test.ts -t T033: 5 passed. With the rest of test/lookdev, compose, report, scan, schema: 12 files, 659 passed, 1 failed: scan.test.ts's FR-007 found two room piece IDs in T038's and T037's tests (committed earlier); fixed in 4ee4f3e3 (test titles and a lookup by glow ID, nothing checked changed), then scan, approvals, data-only: 3 files, 71 passed.
@@ -391,7 +446,7 @@ T047's measures, at the tip, beside T001's:
 
 Each changes on purpose, for the FR or departure named:
 
-- `test/ui/hud.test.ts`: spec 005's pin of the column's top, `var(--strip-h)`, is `auto` (FR-017, W4).
+- `test/room/stages.test.ts:278`: spec 005's pin of the column's top, `var(--strip-h)`, is `auto` (FR-017, W4).
 - `test/room/stages.test.ts`: the aspect cover reads the frame and the clear areas (E2); a stage without a protector
   keeps `reserved` undefined.
 - `test/room/geometry.test.ts`: RG5's aspects, 0.2304 first (E2); the side-wall stages by size, 45 stages 320 px wide
@@ -399,7 +454,7 @@ Each changes on purpose, for the FR or departure named:
 - `test/room/report.test.ts`: the side-wall counts (E4) and the reference stages' caps, the counters 23.1 px and the
   panel 52.1 (E6). `test/room/legibility.test.ts`: the desktop's caps 52 and 23.1 px, its floor that catches the
   counters 22 to 24 (E6). `test/room/stages-checks.test.ts`: the reference stages (E6).
-- `test/room/pick.test.ts`: the carve-out walk over the frame areas with their reserved boxes (FR-060).
+- `test/ui/pick.test.ts`: the carve-out walk over the frame areas with their reserved boxes (FR-060).
 - `test/room/bundle.test.ts`: `flat.figures` (E7); the part's figures carry the good fixture's grips (W15, W16); the
   placeholders flag (FR-053).
 - `test/ui/degraded.test.ts`: the 2D view at `--frame-*` (W2). `test/room/scene-fit.test.ts`,
@@ -418,6 +473,11 @@ Each changes on purpose, for the FR or departure named:
 - `test/room/vocabulary.test.ts`: the closed list holds `standin.avatar`, 62 keys (FR-054, FR-066).
 - `test/approvals.test.ts`, `test/room/data-only.test.ts`, and T004's fixtures: names kept clear of the source scan
   (E23); nothing they check changed.
+- T053 (W19, I3): `test/room/hud.test.ts`'s compact boxes take the walking control by its band; `hud-contrast` and
+  `hud-look`'s hover and selection cases name `.hud-panels button` under `@media (hover: hover)`;
+  `test/room/__snapshots__/protect.test.ts.snap`, the walking control's box at 1788, 733 (1336, 1096 before);
+  `test/room/geometry.test.ts`, the 2D side-wall count 114 others (117), and its NARROW comment says 54, as it asserts;
+  `test/manifest.test.ts:11-12`'s header says what it checks.
 
 ### make lint
 
@@ -545,8 +605,8 @@ Exit 0. 5baa4469 is this note's commit before its last; the last adds only these
 
 T051. `refs/heads/main`, re-read at the end: 32fb2bc3, the commit this branch merged at T001, so it is an ancestor of
 the tip and there is nothing to rebase; `git merge-tree --write-tree refs/heads/main <tip>` writes the tip's own tree
-(0e93a84c). The board's patch needs no rebuild: main's `content-approvals.json` hasn't moved. `make sign-check
-ENV=dev-cpu` isn't rerun (E21).
+(0e93a84c). The board's patch needs no rebuild: main's `content-approvals.json` hasn't moved. The sign's stack
+check is withdrawn (X1).
 
 The guard: this note's own blocks, extracted from it, run in a scratch clone of the repository under `$TMPDIR` over
 made-up gate logs, 2a or 2b and then 2c, with the gated SHA 5baa4469 and `rv` eaf66991. A session can't point a ref or
@@ -639,8 +699,8 @@ session, which rebuilds it.
 ## Cost and data-flow impact
 
 Cloud cost: $0. Model cost: $0. No byte newly leaves the visitor's device: the fonts are the site's own, already
-served; no event, span, or panel is added (plan D9), so no data-flow disclosure entry. The sign's check runs on the dev
-stacks only, with the synthetic adapter's spend, never a paid call.
+served; no event, span, or panel is added (plan D9), so no data-flow disclosure entry. The sign's stack check is
+withdrawn (X1); nothing in this branch makes a model call.
 
 ## For the Author
 
@@ -651,16 +711,16 @@ Your decisions: the grips' estimates (a data edit), the glow's spread (a data ed
 value in `room.css`), and whether to trim the desktop's frame further (plan R-1's ladder, E1). Then T060: accept ADR
 0046 or leave it proposed, and a yes or a no to Q1 to Q5 and D1 to D12.
 
-### The sign's check on a stack (T045, T059)
+### The sign's check (T045, T059)
 
-Not run here (E21). On your dev stack, from main's checkout after the merge, `make sign-check ENV=dev` prints the
-table; the whole output goes in a follow-up note (T059, optional, since R-4 held by reading). For a session to run
-T045 on dev-cpu, its stack must serve a checkout of this branch's code, which today is your main tree.
+Withdrawn by your answer, "Drop the make target" (X1). Nothing is left to run; your live reading on prod, "Yup, it's working now! ive clicked the snowboard and the cost is changing", is the evidence.
 
 ### For your CLAUDE.md
 
-A line you may add under Commands, which only you can: "- Sign check: `make sign-check ENV=dev-cpu` (dev or dev-cpu,
-never prod): one turn with the local model stopped reaches the sign as a paid reading, with no paid call."
+The earlier offer of a `make sign-check` line is withdrawn with the target. The reviewer proposes a line for "Things
+Claude gets wrong", in its words: "A make target the Author runs that starts node, npx, or tsx from the working tree
+without `$(CONTAINED)`: node_modules is agent-writable." CLAUDE.md is nearly full, so it may displace a line or need
+shortening; only you can add it.
 
 ### The refusals
 
