@@ -36,7 +36,9 @@ description: "Task list for spec 014, the room after the demo"
 
 ## Before any phase
 
-- [ ] T000 Author: approve spec.md and plan.md, and say whether `spec/014-room-after-the-demo` merges on its own after its gate or travels at the base of `feat/014-room-after-the-demo`. Say yes or no to Q1 to Q5 and D1 to D12 as taken, or name the ones to change. Check: his answer is recorded here in his words, beside the spec's Clarifications; the spec's Status reads approved (spec/014-room-after-the-demo)
+- [x] T000 Author: approve spec.md and plan.md, and say whether `spec/014-room-after-the-demo` merges on its own after its gate or travels at the base of `feat/014-room-after-the-demo`. Say yes or no to Q1 to Q5 and D1 to D12 as taken, or name the ones to change. Check: his answer is recorded here in his words, beside the spec's Clarifications; the spec's Status reads approved (spec/014-room-after-the-demo)
+  - **Done 2026-11-10.** His words, after the session's summary of this spec and its question "Do you approve spec 014 and its plan as written, or do you want to read them first?": "You can go ahead and start the build of the spec." Q1 to Q5 and D1 to D12 stand as taken, still provisional, and T060 is where he can overturn any of them.
+  - **The spec travels at the base of `feat/014-room-after-the-demo`, one gate for both.** This is the session's reading of his words of the same day: "Let's gropu them together to make them minimal and hand-merge if we have to".
 
 ---
 
