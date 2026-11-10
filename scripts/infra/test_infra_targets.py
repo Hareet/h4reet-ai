@@ -241,3 +241,31 @@ def test_the_apply_targets_need_their_values(
     done = run_make(tree, *words, sandbox=False)
     assert done.returncode == 2 and missing in done.stderr
     assert "ran " not in done.stdout
+
+
+@pytest.mark.parametrize(
+    ("words", "script", "args"),
+    AUTHOR_TARGETS,
+    ids=[" ".join(w) for w, _, _ in AUTHOR_TARGETS],
+)
+def test_make_adds_nothing_to_what_the_script_prints(
+    tree: Path, words: tuple, script: str, args: str
+) -> None:
+    # Without -s, make echoes each recipe line it runs that doesn't start with @. make plan ROOT=…'s stdout is the block
+    # for the note, and make infra-verify's the one apply command, so make itself may add nothing to them.
+    author_stubs(tree)
+    env = {"HOME": str(tree.parent / "home"), "PATH": "/usr/bin:/bin"}
+    argv = [
+        "make",
+        "--no-print-directory",
+        "-C",
+        str(tree),
+        "-f",
+        str(REPO / "Makefile"),
+        *words,
+    ]
+    done = subprocess.run(
+        argv, capture_output=True, text=True, env=env, check=False, timeout=120
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.splitlines() == [f"ran {script} {args}"]
