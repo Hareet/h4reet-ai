@@ -18,10 +18,12 @@ the gateway's timers use (performance.now() in place of Date.now()). It's an edi
 needed." That answer is the authority for editing a test file here. This isn't a fix task in the `FIX_TASK` sense: no
 gateway code changes, and the test's bounds are as they were.
 
-## Status: stacked on fix/009-avatars-ready; the checks pass; this branch's review next, then your gate
+## Status: ready for your gate, stacked on fix/009-avatars-ready
 
-The checks below pass but for the environment's `matrix` rows. This branch's own `REVIEW.md` pass (Review) is still
-to come, from a session that wrote none of it; fix/009's is done. With that recorded, the tip is ready for your gate.
+The checks below pass but for the environment's `matrix` rows. This branch's own `REVIEW.md` pass (Review) says "ready.
+No Important findings", and fix/009's says "ready"; its nits are recorded with what was done about each, in this
+note alone, and the guard (step 2) holds the gate to the reviewed tip, 2f3c18bb, with only `docs/merge-requests/`
+changed after it.
 
 This branch is the clock fix (a63a74ea) and this note, stacked on `fix/009-avatars-ready` (2423a5a6, reviewed: ready;
 its note, [2026-11-09-fix-009-avatars-ready.md](2026-11-09-fix-009-avatars-ready.md)). That branch's F1 to F3 fix two
@@ -74,7 +76,8 @@ into the branch.
    don't merge, and tell the session.
 
 2. **The guard.** It goes only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA
-   the gate checked, and `main` has nothing that SHA lacks:
+   the gate checked, `main` has nothing that SHA lacks, and that SHA holds the reviewed tip, 2f3c18bb, with nothing
+   changed after it outside `docs/merge-requests/` (Review, N3):
 
    ```bash
    s=$(grep '^gate: ' "$log" | tail -n 1)
@@ -94,6 +97,11 @@ into the branch.
    [ "$on.$tip" = "$want" ] || ok=no
    anc=(merge-base --is-ancestor)
    git "${anc[@]}" "$mr" "$sha" || ok=no
+   rv=2f3c18bbe9ecaf9114573926b81f1b19f0b61b6b
+   git "${anc[@]}" "$rv" "$sha" || ok=no
+   x=(diff --quiet "$rv" "$sha" --)
+   x+=(':!docs/merge-requests')
+   git "${x[@]}" || ok=no
    echo "guard: $ok"
    ```
 
@@ -185,9 +193,9 @@ clock compared with a timer's length. None is left beyond this file:
 
 | ID | How this branch meets it |
 |---|---|
-| Spec 007's D43, its tests | unchanged in what they check: a visitor's turn the fallback answers at 6 s, hello cut at 4 s and retried, the admin call cut at 9 s after one attempt; now measured on the clock the cuts run on |
+| Spec 007's Clarification (spec.md:38): "9 s for twin turns (Recommended)", whose option read: "Twin turns on Bedrock or the Anthropic API get one attempt with a 9 s limit, which still fits the turn's 20 s deadline after local's 10 s; hello keeps 4 s for SC-005. Added to the fix branch with tests (a spec 000/007 amendment), then you rerun the two Bedrock runs." | its tests (plan.md's D43) unchanged in what they check: a visitor's turn the fallback answers at 6 s, hello cut at 4 s and retried, the admin call cut at 9 s after one attempt; now measured on the clock the cuts run on |
 | SC-005 (spec 000) | hello's 4 s cut and retry, as before, its bounds unchanged |
-| FR-041 (`make check`, every local gate) | the gateway's workspace passes whole again on this host, so `make test` reaches the web tests and pytest; with fix/009 stacked, `make lint` and `make test` pass whole, and `make check` fails `matrix` alone (E10 and E14, the environment's) |
+| Spec 000's FR-041 (`make check`, every local gate) | the gateway's workspace passes whole again on this host, so `make test` reaches the web tests and pytest; with fix/009 stacked, `make lint` and `make test` pass whole, and `make check` fails `matrix` alone (E10 and E14, the environment's) |
 | fix/009's own criteria (FR-018, FR-043, SC-014, User Story 7) | that branch's, as its note gives them; this branch changes none of its files |
 
 ## Constitution check
@@ -206,7 +214,31 @@ clock compared with a timer's length. None is left beyond this file:
 
 ## Review
 
-None yet. A reviewer agent's `REVIEW.md` pass, from a session that wrote none of this, goes here.
+A reviewer agent's `REVIEW.md` pass over this branch's own diff, `2423a5a6..2f3c18bb` (the clock fix, the plan's
+sentence, and this note), from a session that wrote none of it, as the main session relayed it to this session. It
+read only this branch's diff: `fix/009-avatars-ready` has its own review ("ready", in its note), and your stacking merge
+adds nothing of its own. This session wrote this branch and reviews none of it.
+
+- **Verdict:** "Verdict: ready. No Important findings", with four nits and a line for your `CLAUDE.md`. The review's
+  full text wasn't relayed to this session; the nits below are in the relay's words where quoted, and summarized where
+  not.
+- **N1:** the gateway's durations, not only its deadlines, come from `Date.now()` differences, and the Backlog's
+  wall-clock entry didn't say why a step back can't lengthen a cut. **Done:** a Backlog line names them
+  (`core/gateway.ts:197`, `:201`, `:233`, into `gen_ai.client.operation.duration` unclamped at `:215` and `:240`;
+  `hello.ts:121`, `:232`; `room-turn.ts:265`), and the wall-clock entry now says the cut stays at most `requestMs`.
+  Gateway code, so not on this branch.
+- **N2:** the Acceptance criteria cited D43 as a criterion, and FR-041 without its spec. **Done:** they quote spec
+  007's Clarification (spec.md:38), "9 s for twin turns (Recommended)", with its option text, and name spec 000's
+  FR-041.
+- **N3:** the guard didn't hold the gated SHA to the reviewed tip, so a commit after the review could pass. **Done:**
+  step 2's guard now also requires 2f3c18bb to be an ancestor of the gated SHA and nothing outside
+  `docs/merge-requests/` to differ between them, the lines as the review gave them; this commit, the note alone, is
+  the only one after it.
+- **N4:** the test's header says "Here the committed file's values: Bedrock at 4 s with a retry on a timeout", but
+  `config/routing.yaml:42` and `:59` retry paid adapters on `[rate_limited]` only. **Backlog:** a test-header edit,
+  yours to allow; this session edits no test file without your OK, and the review's own pass is on the file as it is.
+- **Feed-back:** a `CLAUDE.md` line, for your hand only, in For the Author ("For your CLAUDE.md"); the second time
+  this has come up, after c0cd58d9 and then f1f1f197.
 
 ## Verification
 
@@ -544,15 +576,27 @@ by name after.
 - **The gateway's deadline arithmetic is on the wall clock** (What changed, the gateway's clocks): each adapter's
   `remaining = req.deadline - realNow()` and the retry rule's `now() + backoff + request timeout <= deadline`. A
   forward step of the wall clock mid-request would cut an attempt short or skip a retry it had time for; a step back
-  does neither. The deadline is epoch milliseconds by contract (provider-adapter.md §2.1), so a change would pair it
-  with a monotonic twin, as the contract suite's C10 does in the tests. A spec 000 question for a later branch, not a
-  blocker.
+  does neither, because the cut is `Math.min(requestMs, remaining)` and so stays at most `requestMs` however long
+  `remaining` reads. A step back can instead let a call run past its deadline by up to the step, with a retry it had
+  less time for than it read. The deadline is epoch milliseconds by contract (provider-adapter.md §2.1), so a change
+  would pair it with a monotonic twin, as the contract suite's C10 does in the tests. A spec 000 question for a later
+  branch, not a blocker.
+- **The gateway's durations are wall-clock differences too** (Review, N1): an attempt's `startedAt` and `endedAt` are
+  `now()` (`services/gateway/src/core/gateway.ts:197`, `:201`, `:233`), and their difference feeds
+  `gen_ai.client.operation.duration` unclamped (`:215`, `:240`); the routes' latencies are `realNow() - arrivedAt`
+  (`routes/hello.ts:121`, `:232`; `routes/room-turn.ts:265`), clamped at 0. A wall-clock step inside a call makes them
+  read short, and the unclamped histogram can receive a negative value. Gateway code, for a later branch: time
+  durations on `performance.now()`, as this branch does in its test.
 - `test/unit/clock.test.ts:132`'s two `Date.now()` reads around `realNow()` (Other tests): a microsecond window, left
   as it is.
 - `services/gateway/test/integration/app.test.ts:520` to `:525`, graceful shutdown: the 50 ms wait before `close()`
   is a race with the request's arrival, which a heavily loaded host lost once (Verification, make check). Waiting for
   the request to reach the `/slow` handler, rather than for a fixed 50 ms, would remove it. A test edit, so yours to
   allow; not a blocker, since it passed every other run.
+- **The timing test's header** (Review, N4): `twin-paid-timeout.test.ts`'s header says "Here the committed file's
+  values: Bedrock at 4 s with a retry on a timeout", but `config/routing.yaml:42` and `:59` retry paid adapters on
+  `[rate_limited]` only; the test's own routing fixture is what retries on a timeout. A test-header edit, yours to
+  allow.
 
 ## For the Author
 
@@ -565,3 +609,9 @@ by name after.
 4. **The order:** steps 1 to 6 above; then the cleanup, after the merge: `git worktree remove
    /tmp/claude-1000/wt-clock`, and fix/009's own, `/tmp/claude-1000/wt-avfix` and `/tmp/claude-1000/wt-intake009`, as
    its note says.
+5. **For your CLAUDE.md,** by your hand only (the review's feed-back line; the second time this has come up, after
+   c0cd58d9 and then f1f1f197), under "Things Claude gets wrong":
+
+   ```text
+   - Timing a duration with Date.now(). Elapsed time, in tests and code, reads performance.now(); Date.now() is for instants (this host's wall clock steps).
+   ```
