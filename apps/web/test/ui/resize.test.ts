@@ -159,3 +159,15 @@ describe("the room re-fits to the window (spec 005, T016)", () => {
     }
   });
 });
+
+// The review of 60b51de4, finding 3: a strip the window measured taller than the table moves the clear area down.
+describe("a measured strip (T046, finding 3)", () => {
+  it("sets --strip-h and the clear area's top from the strip the window measured", async () => {
+    const viewport = stubViewport({ w: 1280, h: 720 });
+    const v = start({ webgl: true, viewport: viewport.factory });
+    await intoRoom(v);
+    viewport.set({ strip: 80 });
+    expect(v.doc.documentElement.style.getPropertyValue("--strip-h")).toBe("80px");
+    expect(v.doc.documentElement.style.getPropertyValue("--clear-y")).toBe("80px");
+  });
+});

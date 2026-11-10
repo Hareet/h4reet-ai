@@ -52,3 +52,21 @@ describe("the window's measures (hud/viewport.ts)", () => {
     viewport.dispose();
   });
 });
+
+// The review of 60b51de4, finding 3: the strip's natural height, its words' box and its padding, which text spacing or a
+// minimum font size can make taller than the table gives.
+describe("the strip's measured height (T046, finding 3)", () => {
+  it("reads the AI disclosure's words' height and its padding, and 0 where the page has no strip", () => {
+    const { win } = page();
+    expect(createViewport(win).read().strip).toBe(0);
+    const header = win.document.createElement("header");
+    header.className = "disclosure";
+    header.style.setProperty("padding-top", "4px");
+    header.style.setProperty("padding-bottom", "4px");
+    const words = win.document.createElement("p");
+    words.getBoundingClientRect = () => ({ height: 58.5 }) as DOMRect;
+    header.append(words);
+    win.document.body.prepend(header);
+    expect(createViewport(win).read().strip).toBe(66.5);
+  });
+});

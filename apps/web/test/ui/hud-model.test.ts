@@ -17,7 +17,7 @@ import {
 } from "../../src/room/compose/hud";
 import { sweepScreens } from "../../src/room/compose/stages";
 import { roomIndex } from "../helpers/room";
-import { hudModel, hudWords } from "./hud-model";
+import { hudModel, hudWords, textWidth } from "./hud-model";
 
 const WORDS = hudWords(roomIndex());
 const COLLAPSED = { list: "collapsed" } as const;
@@ -72,5 +72,30 @@ describe("the table's bands against the model (plan.md §3.3)", () => {
     expect(hudModel({ w: 320, h: 568 }, WORDS, OPENING, big).layout).toBe("stacked");
     // At a 32-pixel root the same words need twice the room: 640 × 1136 holds the HUD as 320 × 568 does at 16.
     expect(hudModel({ w: 640, h: 1136 }, WORDS, OPENING, big).layout).toBe("dock");
+  });
+});
+
+// The review of 60b51de4, finding 3 (FR-049; WCAG 1.4.12): with text spacing's overrides (letters 0.12em apart, words
+// 0.16em), the strip's words take a second line on windows the table gives one, which is why the room measures it.
+describe("the strip under text spacing (T046, finding 3)", () => {
+  it("takes two lines from 432 to about 535 pixels wide, over the table's one", () => {
+    const size = 13;
+    const spaced = (word: string): number => textWidth(word, size) + 0.12 * size * word.length;
+    const words = WORDS.disclosure.split(/\s+/).map(spaced);
+    for (const w of [440, 480, 520]) {
+      const inner = w - 16;
+      let lines = 1;
+      let used = 0;
+      for (const word of words) {
+        const next = used === 0 ? word : used + textWidth(" ", size) + 0.16 * size + word;
+        if (next <= inner) used = next;
+        else {
+          lines += 1;
+          used = word;
+        }
+      }
+      expect(lines, `${w} px`).toBe(2);
+      expect(stripLines({ w })).toBe(1);
+    }
   });
 });

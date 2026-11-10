@@ -179,3 +179,22 @@ describe("the reserved boxes (compose/hud.ts's reservedBoxes)", () => {
     expect(box).toEqual([1472 - 8 - 128, 1120.5 - 8 - 44, 128, 44]);
   });
 });
+
+// The review of 60b51de4, finding 3 (FR-049; WCAG 1.4.12): the strip's height the window measured, where text spacing or
+// a minimum font size makes its words take more lines than the table's band gives, is a floor the clear area follows.
+describe("a strip taller than the table (T046, finding 3)", () => {
+  it("starts the clear area below the measured strip, and keeps the table's where the measure is less", () => {
+    const tall: HudMetrics = { ...DEFAULT_METRICS, strip: 80 };
+    for (const screen of [
+      { w: 1280, h: 720 },
+      { w: 500, h: 844 },
+    ]) {
+      const b = hudBoxes(screen, OPENING, tall);
+      const plain = hudBoxes(screen);
+      expect(b.strip.h).toBe(80);
+      expect(b.clear.y).toBe(80);
+      expect(b.clear.y + b.clear.h).toBe(plain.clear.y + plain.clear.h);
+      expect(hudBoxes(screen, OPENING, { ...DEFAULT_METRICS, strip: 10 }).strip.h).toBe(plain.strip.h);
+    }
+  });
+});

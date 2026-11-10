@@ -236,8 +236,20 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
   const DOCK = 'html[data-hud="dock"]';
 
   it("size each docked box from the table's properties, and set no length of their own for one", () => {
-    expect(decl(`${COLUMN} .disclosure`, "height")).toBe("var(--strip-h)");
-    expect(decl(`${DOCK} .disclosure`, "height")).toBe("var(--strip-h)");
+    // The strip grows with its words, never clipping them (the review of 60b51de4, finding 3; FR-049).
+    expect(decl(`${COLUMN} .disclosure`, "min-height")).toBe("var(--strip-h)");
+    expect(decl(`${DOCK} .disclosure`, "min-height")).toBe("var(--strip-h)");
+    for (const at of [COLUMN, DOCK]) {
+      const strip = RULES.filter((r) => r.selector === `${at} .disclosure`);
+      expect(
+        strip.some((r) => r.decls.has("height")),
+        `${at}: no fixed height`,
+      ).toBe(false);
+      expect(
+        strip.some((r) => r.decls.get("overflow") === "hidden"),
+        `${at}: no overflow hidden`,
+      ).toBe(false);
+    }
     expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${DOCK} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
