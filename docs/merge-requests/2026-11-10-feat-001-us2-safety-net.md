@@ -4,7 +4,7 @@ Spec: [specs/001-cloud-elevation/](../../specs/001-cloud-elevation/) (its intent
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is `/tmp/claude-1000/wt-001g4`, cut at `feat/001-us1-bootstrap`'s tip 5a82fcf5 · Repo hooks active: yes (`.claude/audit/hooks.log`; refusals under Verification, "Refusals")
 Authorized by: the Author's approval at T000, verbatim, as he went to bed on 2026-11-10: "Let's approve the t000 and spec 001 plan. Let's have you build it out but not push or try anything in the cloud yet, i will do that in the morning, but you can have everything ready and verified by then. Use the latest dependenices adn versions for aws services, plugins". Building group 4 before T001 is the main session's reading of those words, not a word of his (below).
 
-## Status: built and verified; three facts, the lockfile, the plan block, P-I2, and the images are yours; stacked on groups 1 to 3; not reviewed yet (T038 comes next); not merged; nothing applied, nothing pushed, no cloud call
+## Status: built and verified; T038's first pass fixed (Review); three facts are yours, then the session's commits and a second, short pass, then your branch, lockfile, plan block, P-I2, gate, and the images; stacked on groups 1 to 3; not merged; nothing applied, nothing pushed, no cloud call
 
 | Commit      | What                                                                                                                                                                                                                                          |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -14,9 +14,12 @@ Authorized by: the Author's approval at T000, verbatim, as he went to bed on 202
 | 405b173b    | T034 to T036, GREEN: the account root, P-I2 rebuilt with the protected Terraform and the bridge, the probe, the disclosure rows and the runbooks in T034's commit, P19, the adapter, and `make aws-login`; plan.md §16's thirteen departures  |
 | 4ec3ea4f    | a fix after GREEN: the adapter's test held the room's piece ID `laptop` in a role's name, which the room's source scan refuses (`make test`'s first run, below); and the laptop runbook's login, `make aws-login ENV=prod`, never `PROFILE=…` |
 | 22b295a5    | the laptop runbook says when its Bedrock profile matters: prod's route on `main` names the Anthropic API, so P19 reads it only for a Bedrock route                                                                                            |
-| this commit | this note                                                                                                                                                                                                                                     |
+| af7d66be | the note, before T038's review |
+| ee421031 | T038's I1, I4, I5, and nits 1 and 2: their tests, RED; P-I2 rebuilt with the bridge's new tests |
+| e2420e42 | their fixes, GREEN, with nits 3 to 5 and departure 7's window; P-I2 rebuilt from plain copies |
+| this commit | the note after T038's review: its record, I2's guard and I3's order in For the Author, and the reruns |
 
-**Stacked on groups 1 to 3.** This branch is cut at `feat/001-us1-bootstrap`'s tip, 5a82fcf5, which is cut at `feat/001-measure`'s ee2d3224, which is cut at `feat/001-guards`' b7e45a67. None is reviewed or merged, so this branch holds their commits too and merges after all three. This group's own changes are `git diff 5a82fcf5 feat/001-us2-safety-net`. The patched exports below use P-1 at its newest, `git show refs/heads/feat/001-guards:docs/merge-requests/2026-11-10-feat-001-p1-guards.patch` (tip 84d0b707, SHA-256 229440218d02c62f0d5e3f5e2de0c2b046b5799cb0b559039436ae7ae68d9068): a root's plan block needed only once its folder exists, list-of-object `ingress`/`egress` read by T7, T6 treating a `Deny` as granting nothing, `.terraform/` refused, and module sources held inside `infra/`.
+**Stacked on groups 1 to 3.** This branch is cut at `feat/001-us1-bootstrap`'s tip, 5a82fcf5, which is cut at `feat/001-measure`'s ee2d3224, which is cut at `feat/001-guards`' b7e45a67. None is reviewed or merged, so this branch holds their commits too and merges after all three. This group's own changes are `git diff 5a82fcf5 feat/001-us2-safety-net`. The first round's patched exports below used P-1 as it stood at 84d0b707 (SHA-256 229440218d02c62f0d5e3f5e2de0c2b046b5799cb0b559039436ae7ae68d9068); the reruns after T038's review use it at its newest, `git show refs/heads/feat/001-guards:docs/merge-requests/2026-11-10-feat-001-p1-guards.patch` (tip eba44d9a, SHA-256 b0c1148f0d786321cc64160d9f3812dc566f3c0efbff027abacf3dce5db323ed), which adds `TF_VAR_bedrock_service_names`' deny. Both have: a root's plan block needed only once its folder exists, list-of-object `ingress`/`egress` read by T7, T6 treating a `Deny` as granting nothing, `.terraform/` refused, and module sources held inside `infra/`.
 
 **T001 isn't applied, and the group is built anyway.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads 1.0.1, and ADR 0044 is proposed (a633f542). The main session directed the build, as its reading of your T000 words ("build it out … you can have everything ready and verified by then"). spec.md's Assumptions ("The constitution first") and plan.md name it as an extension of groups 1's and 3's deviation: nothing of it merges, and nothing is applied, before T001. It is yours to overturn.
 
@@ -57,10 +60,10 @@ Group 4 writes `infra/account`: the safety net's second half (FR-013, FR-022 to 
 1. **The bridge's folder is protected** by spec 000's names, so its test, code, and Dockerfile are in P-I2.
 2. **The probe's alarm, and `h4-alerts`' CloudWatch publisher, move to group 8,** with the line that enables the schedule: an alarm reading missing data as breaching would fire while the schedule is off, and the publisher changes the bootstrap's topic policy.
 3. **The functions' images wait for their base's digest,** which can't be resolved offline: the lock line and the Dockerfiles follow your resolve (For the Author, 1c), and each function is made once its digest is set.
-4. **The rehearsal is a local, not a variable:** every apply needs its plan in a merged note, so on and off are reviewed changes.
-5. **The permission set's name** is yours to read (1a); the plan stops at the lookup until it's in.
+4. **The rehearsal is a local, not a variable:** every apply needs its plan in a merged note, so on and off are reviewed changes. After T038's I1, the rehearsal's own change sets it true beside `infra/account/rehearsal-on.txt`, naming its note, and so passes `make test` and the gate.
+5. **The permission set's name** is yours to read (1a); the plan stops at the lookup until it's in. After T038's I4, it is a local of the protected `iam.tf`, in P-I2.
 6. **The import's `id` comes from Identity Center's data sources;** that Terraform takes them there is to confirm in your plan.
-7. **Spec 000's hand-made policy on the set,** `h4reet-ai-cloud`, is detached by you once, after the chained profile works; the audit names the set only after that.
+7. **Spec 000's hand-made policy on the set,** `h4reet-ai-cloud`, is detached by you once, after the chained profile works; the audit names the set only after that. Its window: until the detach, FR-023 doesn't reach the laptop's direct SSO role, which `h4reet-ai-cloud` still lets call Bedrock.
 8. **The chained profile needed spec 000's code to follow it:** P19, the adapter's session end, and `make aws-login`, test-first.
 9. **The rehearsal budgets read `var.bedrock_service_names`,** as group 3's budgets now do; its `TF_VAR_` deny is group 3's.
 10. **The release bucket's name is AWS's,** from a prefix.
@@ -85,7 +88,7 @@ Group 4 writes `infra/account`: the safety net's second half (FR-013, FR-022 to 
 | Principle or standard     | How this branch complies                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | III. Intent → spec → code | Built on the approved spec and plan (T000). T001 isn't applied: the extension of the named deviation is in spec.md's Assumptions and tasks.md, as the session's reading, and nothing merges or is applied before T001. The departures are in plan.md §16, in the commit that makes them                                                                                                                                                                  |
-| IV. Least privilege       | Each role holds one action on one resource, or the reads its function makes: the model action's role attaches one policy to one role; the server rehearsal's runs one document on one instance; `h4-laptop-bedrock` invokes one profile; the set holds one assume; the rehearsal target trusts only the keyless root user. The protected files reach the branch only by your hand (P-I2). No permission or sandbox domain widened; no new `TF_VAR_` name |
+| IV. Least privilege       | Each role holds one action on one resource, or the reads its function makes: the model action's role attaches one policy to one role; the server rehearsal's runs one document and its reverse on one instance; `h4-laptop-bedrock` invokes one profile; the set holds one assume; the rehearsal target trusts only the keyless root user. The protected files reach the branch only by your hand (P-I2). No permission or sandbox domain widened; no new `TF_VAR_` name |
 | V. Cost                   | Nothing paid ran; no cloud call. The account root's own cost is cents: the release bucket, the registry, the logs, the free tiers' functions; the rehearsal's `t4g.nano` and its two $0.01 budgets while it runs (Cost and data-flow impact)                                                                                                                                                                                                             |
 | I. Privacy                | C8, C10, and C11 are disclosed before their flows happen, and F2's change before you switch the profile. The bridge sends no notice whole, and nothing of a secret's, an account's, or an address's shape                                                                                                                                                                                                                                                |
 | II. Production-grade      | Tests first, RED then GREEN. Each alert kind has its runbook. The functions have no dashboard panel in this group: their counts come with group 9's AWS-side panels (plan §11), and the failure queue is where a lost message waits                                                                                                                                                                                                                      |
@@ -93,7 +96,23 @@ Group 4 writes `infra/account`: the safety net's second half (FR-013, FR-022 to 
 
 ## Review
 
-Pending: T038, a reviewer that wrote none of this group, after groups 1's, 2's, and 3's (T009, T018, T028).
+**The first pass** (T038, 2026-11-10), by a reviewer that wrote none of this group, over 5a82fcf5..af7d66be: not ready, with three blockers and two Important findings, and five nits. Each is fixed on this branch, test-first for the code, in commits added after af7d66be; P-I2 is rebuilt from plain copies and dry-run again (Verification, "After T038's review").
+
+| Finding | What it found | What was done, and where |
+|---|---|---|
+| I1 | `rehearsal = true` couldn't pass the gate: the test refused it in the tree, so T040's rehearsal change would fail `make test`, and `infra-verify` would refuse its apply | ee421031, e2420e42: true is accepted only beside `infra/account/rehearsal-on.txt`, naming the change's note, whose `<!-- h4-rehearsal: on -->` line says it is the rehearsal; the marker must go when it is false; each rehearsal fixture is still found with the rehearsal on. Departure 4 stays. For the Author, 7e and 7g |
+| I2 | The merge guard could never print go: it excluded only P-I2's paths, and the review's record, your lockfile and block, and main's merge land after the anchor | this commit: group 3's guard shape, on your own branch `feat/001-us2-safety-net-p` (the session's worktree holds this one): the gated SHA against main's merge with the anchor, allowing `docs/merge-requests/`, the account's lockfile, and P-I2's files; `\|\| ok=no` on the merge-tree line; `pb` set in the block; the anchor written in by the session after the second pass, failing closed until then. Run against a mock of the whole sequence, in bash and zsh, RED then GREEN (Verification) |
+| I3 | Section 2's commits land after this review and no review reads them | this commit: For the Author puts them under a short second pass, whose tip the guard anchors on; sections 2 to 6 and the Status follow the real order |
+| I4 | `local.laptop_permission_set` sat in agent-editable `main.tf`, though it decides which set the protected `iam.tf` imports, overwrites, and provisions, and the trust's pattern | ee421031, e2420e42: the name is a `locals` block of `iam.tf`, in P-I2; the set has `prevent_destroy`; the trust matches exactly that set's role, `AWSReservedSSO_<set>_` and 16 characters, with or without a Region's segment (the 16 to confirm at T037). Fixtures first |
+| I5 | The bridge could log the bot token: `send()` caught only `OSError`, and a token with a control character makes `http.client` raise `InvalidURL` with the URL, token and all | ee421031, e2420e42: the token is stripped and held to a bot token's shape before any URL, refusing with the parameter's name alone; anything else the post raises becomes its class's name, `from None`, and isn't retried. Tests first |
+| nit 1 | The server rehearsal role's SSM resource had an empty account field, and the role couldn't run `AWS-StartEC2Instance` for `REVERSE_BUDGET_ACTION` | e2420e42: shaped as AWS's managed `AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM`, as far as the repository can say, narrowed to the one instance; to confirm at T037 |
+| nit 2 | Which paid run trips the model rehearsal, and at what cost; `cost_types { include_credit = false }` like group 3's real budgets | e2420e42: about $0.055 a red-team run on Bedrock, November already holding about $0.49 (For the Author, 7e); the budget counts no credits |
+| nit 3 | Spec 000's `contracts/env-files.md` P19 row and `provider-adapter.md` §3.2 didn't know the chained profile | e2420e42: both amended, marked "(spec 001)", as spec 010 marked its own |
+| nit 4 | F2 names `sts.amazonaws.com`; the SDK's regional default is likely `sts.us-east-1.amazonaws.com` | e2420e42: the disclosure says which is to confirm at T040b |
+| nit 5 | `aws-budget-action.md`'s Act and Undo one-liners and `server-budget.md`'s Verify line were long | e2420e42: lines of 45 characters at most, and the laptop runbook's check line too |
+| departure 7 | Its window wasn't named | e2420e42: until you detach `h4reet-ai-cloud`, FR-023 doesn't reach the laptop's direct SSO role (plan.md §16) |
+
+**The second pass:** pending, over section 2's commits once you have given the three facts (For the Author, 2). Its tip is the guard's anchor, which the session writes in here and in section 6.
 
 ## Backlog
 
@@ -105,10 +124,212 @@ Pending: T038, a reviewer that wrote none of this group, after groups 1's, 2's, 
 - **`h4reet-ai-cloud`,** the hand-made customer-managed policy, stays in IAM, unattached, after the detach; deleting it is yours, or a follow-up's import.
 - **The audit's `LAPTOP_PERMISSION_SET`** waits for the detach (7b); the session writes it when you say.
 - **The bridge's failure queue** has no alarm: a message there means Telegram refused it three times, twice over, and the mailbox still has it. An alarm on its depth is a group 9 panel's neighbour.
-- **`local.rehearsal` and `local.lambda_images` sit in `main.tf`, which agents edit.** Each change still reaches the account only through your plan, your review, and your apply, and the rehearsal's targets are its own. Moving either into `killswitch.tf` or `lambdas.tf`'s protected neighbour would make each toggle and each image a patch of yours; that tightening is yours to ask for.
+- **`local.rehearsal` and `local.lambda_images` sit in `main.tf`, which agents edit.** Each change still reaches the account only through your plan, your review, and your apply; the rehearsal's targets are its own, and it is true only beside its marker and note (I1). Moving either into a protected file would make each toggle and each image a patch of yours; that tightening is yours to ask for.
+- **The trust's 16 characters** after the set's name in its role's name are the record's (group 3's fixtures), to confirm at T037; a wrong count locks the laptop out of the role and admits no one else.
 - **Lambda's concurrency is unreserved:** a new account's 10-execution limit would refuse a reservation.
 
 ## Verification
+
+### After T038's review
+
+The first pass's fixes (Review), rerun on their own: RED at ee421031, GREEN at e2420e42, both on fresh `git archive` exports in new folders under `$TMPDIR`, with P-1 at its newest (eba44d9a) applied there, then P-I2 as that commit holds it. The first round's sections follow this one, as they ran at 405b173b to 22b295a5.
+
+**RED** (ee421031): the tests of I1, I4, I5, and nits 1 and 2, against the code as af7d66be left it. Every fixture fails too, since the root no longer passes its own checks first:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/test/test_account.py
+FAILED infra/test/test_account.py::test_the_laptops_permission_set_is_imported_and_holds_only_the_assume_role
+FAILED infra/test/test_account.py::test_h4_laptop_bedrock_is_an_ordinary_role_on_the_one_profile_trusting_the_set_alone
+FAILED infra/test/test_account.py::test_the_rehearsals_exist_only_while_rehearsal_is_true_against_targets_of_the_same_shape
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_passes_with_its_marker
+FAILED infra/test/test_account.py::test_true_needs_the_marker_and_a_note_that_says_so
+FAILED infra/test/test_account.py::test_the_marker_goes_when_the_rehearsal_ends
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-cannot-reverse]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-cent-raised]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-counts-credits]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-instance-imdsv1]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-names-bedrock-literally]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-stop-any-instance]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-target-always]
+FAILED infra/test/test_account.py::test_the_rehearsals_own_change_is_held_as_strictly[rehearsal-target-assumable]
+FAILED infra/test/test_account.py::test_the_root_has_no_problem
+FAILED infra/test/test_account.py::test_each_fixture_is_found_as_its_defect[…]   # all 37 fixtures, as the root fails first
+52 failed, 17 passed in 11.24s
+exit 1
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/lambdas/alert_bridge/test_bridge.py
+FAILED infra/lambdas/alert_bridge/test_bridge.py::test_a_token_of_another_shape_is_refused_naming_only_its_parameter
+FAILED infra/lambdas/alert_bridge/test_bridge.py::test_the_token_is_stripped_of_the_blanks_around_it
+FAILED infra/lambdas/alert_bridge/test_bridge.py::test_anything_else_the_post_raises_becomes_its_class_name_alone
+3 failed, 49 passed in 0.14s
+exit 1
+```
+
+**GREEN** (e2420e42), on P-I2's dry-run export below:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/test/test_account.py
+69 passed in 2.58s
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/lambdas
+125 passed, 4 skipped in 1.81s
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra scripts/infra evals/test_disclosure.py evals/test_runbooks.py deploy/scripts/test_preflight.py deploy/scripts/test_aws_login.py
+562 passed, 4 skipped in 14.01s
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no tools/gates/test/test_infra_policy.py tools/gates/test/test_infra_redact.py tools/gates/test/test_infra_plan_note.py tools/gates/test/test_disclosure_check.py
+132 passed in 1.03s
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/infra_policy.py
+T10 infra/account:0 no .terraform.lock.hcl
+T10 infra/bootstrap:0 no .terraform.lock.hcl
+infra-policy: 2 findings in 13 files
+exit 1
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+exit 0
+```
+
+The two T10 findings, the lockfiles, are still the policy's only ones, yours. GREEN's one change to the new tests, before GREEN, named in e2420e42's message: the rehearsal-cent-raised and rehearsal-names-bedrock-literally fixtures replace the whole budget, so each now holds the `cost_types` block too.
+
+**P-I2's dry run, on a fresh export** of e2420e42, which holds the rebuilt patch (SHA-256 1d5cfb498788099fab850086de8afcc12c8adc01b215bcef90e05bda487e1990); P-1 applied after it. The patched files are byte for byte the plain copies P-I2 was built from:
+
+```text
+$ patch -p1 --dry-run < docs/merge-requests/2026-11-10-feat-001-pi2-account.patch
+checking file infra/account/iam.tf
+checking file infra/account/killswitch.tf
+checking file infra/account/alerts.tf
+checking file infra/lambdas/alert_bridge/bridge.py
+checking file infra/lambdas/alert_bridge/test_bridge.py
+exit 0
+$ patch -p1 < docs/merge-requests/2026-11-10-feat-001-pi2-account.patch
+patching file infra/account/iam.tf
+patching file infra/account/killswitch.tf
+patching file infra/account/alerts.tf
+patching file infra/lambdas/alert_bridge/bridge.py
+patching file infra/lambdas/alert_bridge/test_bridge.py
+exit 0
+$ patch -p1 -s < 2026-11-10-feat-001-p1-guards.patch   # P-1, newest, from refs/heads/feat/001-guards (eba44d9a)
+exit 0
+$ sha256sum <the five patched files> <their plain copies>
+405ede815bafd5b0e8574ba809fdfce08bffbd43717e170bf643432f2c8d2c17  infra/account/iam.tf
+405ede815bafd5b0e8574ba809fdfce08bffbd43717e170bf643432f2c8d2c17  plain copy: infra/account/iam.tf
+644ff4807ac0564b8e10f12d807ce1854bd0d27a9357a2f722179a219d4bee17  infra/account/killswitch.tf
+644ff4807ac0564b8e10f12d807ce1854bd0d27a9357a2f722179a219d4bee17  plain copy: infra/account/killswitch.tf
+b1d64072338d5a1edf975f324128e1be6e711e6392c40747ba5110bd6270bd91  infra/account/alerts.tf
+b1d64072338d5a1edf975f324128e1be6e711e6392c40747ba5110bd6270bd91  plain copy: infra/account/alerts.tf
+232e97775234534e8a9b021c0d361be220dcfd860ae719cf9e24486ed2ee2730  infra/lambdas/alert_bridge/bridge.py
+232e97775234534e8a9b021c0d361be220dcfd860ae719cf9e24486ed2ee2730  plain copy: infra/lambdas/alert_bridge/bridge.py
+c4fc2c622e2518c40c814892b788353ad29e4bba3c382df23b16d2aa78982bc8  infra/lambdas/alert_bridge/test_bridge.py
+c4fc2c622e2518c40c814892b788353ad29e4bba3c382df23b16d2aa78982bc8  plain copy: infra/lambdas/alert_bridge/test_bridge.py
+```
+
+The plain copies were recovered from P-I2 itself, by applying it to an empty folder, since the first round's scratch folder was gone; `alerts.tf`'s hash is the first round's, unchanged.
+
+**The guard, against a mock.** I2's guard (For the Author, 6), taken from this note's block and run by `guard_mock.py` in a scratch repository: the session's branch with the group; section 2's commits, whose tip is the anchor; the review's record in the note; your branch cut from the session's; your lockfile; your plan block in the note; a commit on main, a gate tool's among its files, merged into your branch; P-I2's files; the gate's log; and the guard from main's checkout. Each shell runs it as you would paste it (`bash --noprofile --norc`, `zsh -f`). It must say `guard: go` and merge on the whole sequence, and `guard: no`, merging nothing, on each variant. RED, the guard as af7d66be had it:
+
+```text
+$ python3 -I guard_mock.py docs/merge-requests/2026-11-10-feat-001-us2-safety-net.md   # the guard at af7d66be
+FAIL  bash  the whole sequence             guard: no, nothing merged
+PASS  bash  a root file after the anchor   guard: no, nothing merged
+PASS  bash  a gate tool after the anchor   guard: no, nothing merged
+PASS  bash  no merge line                  guard: no, nothing merged
+PASS  bash  not on main                    guard: no, nothing merged
+PASS  bash  the anchor not written in      guard: no, nothing merged
+FAIL  zsh   the whole sequence             guard: no, nothing merged
+PASS  zsh   a root file after the anchor   guard: no, nothing merged
+PASS  zsh   a gate tool after the anchor   guard: no, nothing merged
+PASS  zsh   no merge line                  guard: no, nothing merged
+PASS  zsh   not on main                    guard: no, nothing merged
+PASS  zsh   the anchor not written in      guard: no, nothing merged
+guard mock: 2 failed
+exit 1
+```
+
+GREEN, the guard in this note:
+
+```text
+$ python3 -I guard_mock.py <the note>   # the guard after T038's review
+PASS  bash  the whole sequence             guard: go, merged
+PASS  bash  a root file after the anchor   guard: no, nothing merged
+PASS  bash  a gate tool after the anchor   guard: no, nothing merged
+PASS  bash  no merge line                  guard: no, nothing merged
+PASS  bash  not on main                    guard: no, nothing merged
+PASS  bash  the anchor not written in      guard: no, nothing merged
+PASS  zsh   the whole sequence             guard: go, merged
+PASS  zsh   a root file after the anchor   guard: no, nothing merged
+PASS  zsh   a gate tool after the anchor   guard: no, nothing merged
+PASS  zsh   no merge line                  guard: no, nothing merged
+PASS  zsh   not on main                    guard: no, nothing merged
+PASS  zsh   the anchor not written in      guard: no, nothing merged
+guard mock: 0 failed
+exit 0
+```
+
+"The anchor not written in" runs the block as it stands, with `rv=PENDING-SECOND-PASS`: until the session writes the second pass's tip in, the guard fails closed.
+
+**make lint and make test**, one at a time, at e2420e42; `make evals` and `make check` below are the first round's, at 22b295a5. Of what they read, only `infra/`, the specs, spec 000's two contracts, the disclosure, three runbooks, and this note changed since, and `make test` runs all of those again here.
+
+```text
+$ make lint   # at e2420e42
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+526 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+Its totals, picked from its whole log (111 lines), as the first round's: its one failure is the docs-links test, on the four inherited links. The first run under this review, with the machine's load near 30 on 24 cores from other sessions, failed two of the gateway's timing tests, the graceful shutdown and a 6 s paid timeout (which took 25 s), and stopped before pytest; alone they passed, and this run, the second, passed them:
+
+```text
+$ npx vitest run test/integration/app.test.ts test/integration/twin-paid-timeout.test.ts   # services/gateway, alone
+ Test Files  2 passed (2)
+      Tests  21 passed (21)
+exit 0
+$ make test   # at e2420e42, the second run
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+> @h4reet/gateway@0.1.0 test
+> vitest run
+ Test Files  95 passed (95)
+      Tests  1655 passed | 13 skipped (1668)
+   Duration  102.62s (tests 96%, import 3%, transform 1%)
+> @h4reet/web@0.1.0 test
+> vitest run
+ Test Files  109 passed (109)
+      Tests  2704 passed (2704)
+   Duration  78.13s (tests 74%, import 24%, transform 3%)
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra
+=================================== FAILURES ===================================
+>       assert code == 0, "\n".join(line for line in out.splitlines() if "FAIL" in line)
+E       AssertionError: FAIL  specs/001-cloud-elevation/plan.md:7: ../../docs/adr/0044-ec2-as-prods-default-host.md: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:9: ../../docs/adr/0044-ec2-as-prods-default-host.md: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:9: ../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:656: ../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch: no such file or directory
+E       assert 1 == 0
+=========================== short test summary info ============================
+FAILED evals/test_docs_links.py::test_the_repository_passes - AssertionError:...
+1 failed, 4325 passed, 67 skipped in 426.27s (0:07:06)
+make: *** [Makefile:248: test] Error 1
+exit 2
+```
+
+**gitleaks dir**, on a fresh export of e2420e42 with this note copied in (this line then still pending), as the first round's below: the export's own `.gitleaks.toml`, an empty folder as the ignore path, `--ignore-gitleaks-allow`, from inside it.
+
+```text
+export of e2420e42b47e02163c03dd61aa117878656f8f6f into a new folder, with this note copied in: 2055 files, scanned from inside it
+$ gitleaks dir --no-banner --no-color --redact --config .gitleaks.toml --gitleaks-ignore-path <an empty folder> --ignore-gitleaks-allow --exit-code 99 .
+v8.30.1
+7:22AM INF scanned ~53029499 bytes (53.03 MB) in 12.3s
+7:22AM INF no leaks found
+exit=0
+```
 
 ### RED and GREEN
 
@@ -1794,7 +2015,7 @@ exit=0
 
 ### Refusals
 
-The bash gate refused none of this session's commands. The hook log's entries for this session are the post-edit lint's warnings on files it was writing, each fixed before its commit, and the commit hook's scans, each clean. The day's two `bash BLOCK` lines before this session began, at 11:28:24Z and 11:40:58Z, are another session's, in `/tmp/claude-1000/wt-001g3` and its scratchpad.
+The bash gate refused none of this session's commands, in either round. The hook log's entries for it are the post-edit lint's warnings on files it was writing, each fixed before its commit, and the commit hook's scans, each clean. Today's other `bash BLOCK` lines are other sessions': two in `/tmp/claude-1000/wt-001g3` and its scratchpad before the first round, one in this worktree at 13:06:20Z, between the rounds, from T038's reviewer, a read-only role, and, since 14:10Z, `changing main (HEAD is main)` in other worktrees, while your checkout is on `main` for gate 5.
 
 ## Cost and data-flow impact
 
@@ -1810,21 +2031,20 @@ Its flows: C8's Telegram half, C10, and C11 (the probe's, once group 8 enables i
 
 ## For the Author
 
-Your part is three facts before T037, the lockfile, the plan block (T037), P-I2 (T039), the gate and the merge, and the steps on `main` (T040). Nothing of it is for tonight's session, and nothing here runs before T001. Each block is short lines for your terminal (zsh); `pf` is your administrator profile's name.
+Your part, in its order: three facts (section 1); the session's commits and a short second review pass over them (section 2), whose tip anchors the merge guard; your branch and its lockfile (3); the plan block (4, T037); P-I2, the gate, and the merge (6, T039); and your steps on `main` (7, T040). Nothing of it runs before T001. Each block is short lines for your terminal (zsh); `pf` is your administrator profile's name.
+
+The session's worktree holds `feat/001-us2-safety-net`, so your commits go on a branch of your own cut from it, `feat/001-us2-safety-net-p`, which the gate, the guard, and the merge then name, as group 3's do.
 
 ### 0. Before any of it
 
-In this order, each by the notes before this one:
+1. T001, and groups 1 to 3: their reviews, patches, gates, and merges; T011, your mirror; T030, the bootstrap's apply, so the state bucket exists. `main` is at 67028747 as this note is written.
+2. Tell the session: it merges `refs/heads/main` into this branch, which brings P-1 and P-I1, and the docs links resolve. Then this branch's tests that skip run, and its range holds group 4's changes alone.
 
-1. T001: `docs/001-ec2-default`'s gate and merge, and the 1.1.0 patch.
-2. Groups 1, 2, and 3: their reviews, patches, gates, and merges; T011, your mirror; T030, the bootstrap's apply, so the state bucket exists.
-3. Tell the session: it merges `refs/heads/main` into this branch, which brings P-1 and P-I1, and the docs links resolve. Then this branch's tests that skip run, and its range holds group 4's changes alone.
-
-### 1. Three facts, read only, before T037
+### 1. Three facts, read only
 
 None of these the repository holds. Each is a read; nothing changes.
 
-**a. The laptop's Bedrock permission set's name.** In the console, IAM Identity Center, Permission sets: the set whose Permissions show the customer-managed policy `h4reet-ai-cloud` (spec 000's T105). Its name goes in `infra/account/main.tf`'s `local.laptop_permission_set`; `make plan ROOT=account` stops at the lookup until it does.
+**a. The laptop's Bedrock permission set's name.** In the console, IAM Identity Center, Permission sets: the set whose Permissions show the customer-managed policy `h4reet-ai-cloud` (spec 000's T105). It goes in P-I2's `iam.tf`, as its own `local.laptop_permission_set` (T038's review, I4); `make plan ROOT=account` stops at the lookup until it does. While you are there, its role's name under IAM, Roles, `AWSReservedSSO_<the set>_…`: the trust takes exactly 16 characters after the set's name, and the count is to confirm.
 
 **b. Bedrock's service names in Cost Explorer** (group 3's review finding). Billing console, Cost Explorer, this month, Group by Service: every line Bedrock's spend shows under, for example `Amazon Bedrock`, or a `Claude … (Amazon Bedrock Edition)` line. Then write them in the account root's values, mode 0600, one line (and the same names in `bootstrap.env`, as group 3's note asks):
 
@@ -1845,17 +2065,21 @@ docker buildx imagetools inspect "$i" |
 
 If the tag isn't found, `docker buildx imagetools inspect public.ecr.aws/lambda/python:3.14` and tell the session what it lists.
 
-### 2. Tell the session the three
+### 2. The session's commits, and the second review pass
 
-It commits, test-first: the set's name in `main.tf`; `deploy/images.lock`'s `base:lambda-python` line with the digest and the inventory's row for it; the probe's and the audit's Dockerfiles; and P-I2 rebuilt with the bridge's Dockerfile, which spec 000's names protect. `infra/lambdas/test_images.py` then holds each Dockerfile to the pin.
+Tell the session the three. On `feat/001-us2-safety-net` it commits, test-first: the set's name in P-I2's `iam.tf`; `deploy/images.lock`'s `base:lambda-python` line with the digest, and the inventory's row for it; the probe's and the audit's Dockerfiles; and P-I2 rebuilt with them, the bridge's Dockerfile in it, which spec 000's names protect, dry-run again. `infra/lambdas/test_images.py` then holds each Dockerfile to the pin.
 
-### 3. The lockfile, on the branch
+Then a short second pass of T038 reads those commits, by an agent that wrote none of them. Its tip is the anchor: the session writes that SHA into section 6's guard, `rv=…`, and records the pass in the Review section. Until it does, the guard's `rv=PENDING-SECOND-PASS` makes it print `guard: no`.
 
-Needs Terraform 1.17.1 and your mirror (T011):
+### 3. Your branch, and the lockfile
+
+Cut from the session's branch after section 2, so it holds the anchor. Needs Terraform 1.17.1 and your mirror (T011); your untracked files stay as they are:
 
 ```bash
 b=feat/001-us2-safety-net
-git --no-replace-objects switch "$b"
+pb=feat/001-us2-safety-net-p
+git --no-replace-objects switch -c "$pb" \
+  "refs/heads/$b"
 m=~/.local/share/h4reet/terraform-providers
 r=infra/account
 terraform -chdir="$r" providers lock \
@@ -1863,8 +2087,6 @@ terraform -chdir="$r" providers lock \
 git add -- "$r/.terraform.lock.hcl"
 git commit -m "infra(001): account lockfile"
 ```
-
-If git says the branch is checked out in `/tmp/claude-1000/wt-001g4`, ask the session to release it first.
 
 ### 4. T037: the plan block, from a scratch clone
 
@@ -1875,12 +2097,12 @@ pf=h4reet-admin
 make -f Makefile aws-login PROFILE="$pf"
 ```
 
-The clone, with P-I2 applied and committed there:
+The clone of your branch, with P-I2 applied and committed there:
 
 ```bash
-b=feat/001-us2-safety-net
+pb=feat/001-us2-safety-net-p
 s=~/scratch-001g4
-git clone -q -b "$b" . "$s"
+git clone -q -b "$pb" . "$s"
 cd "$s"
 d=docs/merge-requests
 p=$d/2026-11-10-feat-001-pi2-account.patch
@@ -1897,51 +2119,55 @@ cd -
 It prints its steps on stderr and the block alone into `~/block-001g4.md`. Read it for:
 
 - **the import:** `aws_ssoadmin_permission_set.laptop` "will be imported", with only its tags and description changing, and its inline policy created;
-- **no function yet:** the three `aws_lambda_function`s and what invokes them are absent, since their digests aren't set (§7 makes them);
+- **no function yet:** the three `aws_lambda_function`s and what invokes them are absent, since their digests aren't set (section 7 makes them);
 - **the rest:** the model action and its role, `h4-laptop-bedrock` and its policy, the deny, the three functions' roles, log groups, and queue, the two schedules, the 16 repositories with their lifecycle rules and the functions' three pull policies, and the release bucket's six resources; no rehearsal resource;
 - **no account ID, address, or email**: each reads `<account>`, `<email>`, or `<redacted>`.
 
-If the plan fails at the import's `id`, the data sources' values aren't taken there: tell the session, which writes the set's ARN and the instance's in a local instead. Paste the block into this note's "The plan block" heading on the branch and commit, or hand the file to the session. Its `tree` is the tree `infra/` will have once you commit P-I2 on the branch (section 6).
+Three more things to confirm against it, or beside it in IAM's console: that the import's `id` takes Identity Center's data sources (if the plan fails there, tell the session, which writes the set's ARN and the instance's in `iam.tf`'s local instead); the role suffix's 16 characters (1a); and the server rehearsal's role against the managed policy `AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM`, as IAM's console shows it today (T038's review, nit 1). Paste the block into this note's "The plan block (T037)" heading on your branch and commit it there, or hand the file to the session. Its `tree` is the tree `infra/` will have once you commit P-I2 on your branch (section 6).
 
 ### 5. T038: the review
 
-The session runs it on the tip that holds your lockfile, the three facts' commit, and your block.
+The first pass is recorded under Review, with each finding's commit. The second is section 2's.
 
-### 6. T039: P-I2 on the branch, the gate, the merge
+### 6. T039: P-I2 on your branch, the gate, the merge
 
-The same patch, byte for byte:
+The same patch, byte for byte, on `feat/001-us2-safety-net-p`:
 
 ```bash
-b=feat/001-us2-safety-net
-git --no-replace-objects switch "$b"
+pb=feat/001-us2-safety-net-p
+git --no-replace-objects switch "$pb"
 d=docs/merge-requests
 p=$d/2026-11-10-feat-001-pi2-account.patch
 patch -p1 --dry-run < "$p"
 patch -p1 < "$p"
 git add -- infra/account infra/lambdas
 git commit -m "enforce(001): P-I2"
-t=$(git rev-parse "$b:infra")
+t=$(git rev-parse "$pb:infra")
 grep -c "tree=$t" "$d"/*us2-safety-net.md
 ```
 
-The count is 1. Then the gate, from main's checkout:
+The count is 1: the block's tree is your branch's. Then the gate, from main's checkout:
 
 ```bash
 git --no-replace-objects switch main
-tools/gates/gate "$b" 2>&1 |
+tools/gates/gate "$pb" 2>&1 |
   tee ~/gate-001g4.log
 ```
 
-Expect Ready, with `infra-plan-note` PASS for account. On any FAIL or PENDING, don't merge: tell the session. Then the guard, anchored on the tip the review read (replace `REVIEWED_TIP` with the SHA in the Review section). It merges only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, `main` and the reviewed tip are both its ancestors, and the gated tree is the reviewed tip merged with `main`, but for P-I2's files. Whatever it prints, it then parks your checkout off `main`:
+Expect Ready, with `infra-plan-note` PASS for account. On any FAIL or PENDING, don't merge: tell the session.
+
+Then the guard, anchored on the second pass's tip, which the session writes in as `rv=` (section 2). It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main`; `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; and that SHA differs from main's merge with the anchor only in the notes under `docs/merge-requests/` (the review's record, your block), the account's lockfile, and P-I2's files. Comparing against main's merge with the anchor keeps it right when main is merged into the branch again, and the review's record, your block and lockfile, and main's merge all land after the anchor (T038's review, I2). Whatever it prints, it then parks your checkout off `main`:
 
 ```bash
+pb=feat/001-us2-safety-net-p
 log=~/gate-001g4.log
-rv=REVIEWED_TIP
+rv=PENDING-SECOND-PASS
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
 on=$(git symbolic-ref -q HEAD)
-tip=$(git rev-parse --verify "refs/heads/$b")
+q="refs/heads/$pb"
+tip=$(git rev-parse --verify "$q")
 mr=refs/heads/main
 [ "$on.$tip" = "$mr.$sha" ] || n=0
 ok=no
@@ -1949,15 +2175,20 @@ ok=no
 a=(merge-base --is-ancestor)
 git "${a[@]}" "$mr" "$sha" || ok=no
 git "${a[@]}" "$rv" "$sha" || ok=no
-e=$(git merge-tree --write-tree "$mr" "$rv")
-x=(':!infra/account/iam.tf')
-x+=(':!infra/account/killswitch.tf')
-x+=(':!infra/account/alerts.tf')
-x+=(':!infra/lambdas/alert_bridge')
-d=(diff --quiet "$e" "$sha" -- . "${x[@]}")
-git "${d[@]}" || ok=no
+w=(merge-tree --write-tree)
+e=$(git "${w[@]}" "$mr" "$rv") || ok=no
+i=infra/account
+l=infra/lambdas/alert_bridge
+y=(":(exclude)docs/merge-requests/")
+y+=(":(exclude)$i/.terraform.lock.hcl")
+y+=(":(exclude)$i/iam.tf")
+y+=(":(exclude)$i/killswitch.tf")
+y+=(":(exclude)$i/alerts.tf")
+y+=(":(exclude)$l/")
+g=(diff --quiet "$e" "$sha" -- .)
+git "${g[@]}" "${y[@]}" || ok=no
 echo "guard: $ok"
-m="Merge $b (${sha:0:12})"
+m="Merge $pb (${sha:0:12})"
 o=(--no-replace-objects merge --no-ff)
 o+=(-m "$m" -m "$s")
 [ "$ok" = go ] && git "${o[@]}" "$sha"
@@ -1965,7 +2196,7 @@ p=wip-park/11-11-2026
 git --no-replace-objects switch -c "$p" "$mr"
 ```
 
-On `guard: no`, nothing merged: tell the session. If `wip-park/11-11-2026` exists already, pick another name for `p`.
+On `guard: no`, nothing merged: tell the session. If `wip-park/11-11-2026` exists already, pick another name for `p`. The guard ran against a mock of this whole sequence, in bash and in zsh (Verification, "The guard, against a mock").
 
 ### 7. T040, on main
 
@@ -1986,7 +2217,7 @@ make "${v[@]}" infra-record OUTCOME=ok
 
 On a failed apply, `OUTCOME=failed EXIT_STATUS=<its exit status>` instead. Gate and merge the `ops/apply-account-*` branch it names, and park off `main` as in section 6.
 
-**b. The laptop's Bedrock profile:** `docs/runbooks/laptop.md`, Act, steps 1 to 4: the profile chained to `h4-laptop-bedrock`, `make aws-login ENV=prod`, the `sts get-caller-identity` check (its role, no paid call), and `make up ENV=prod`. Then its step 5: detach `h4reet-ai-cloud` from the set, once. Tell the session afterwards: it names the set in the credential audit (`LAPTOP_PERMISSION_SET`), so the audit holds it to the one policy.
+**b. The laptop's Bedrock profile:** `docs/runbooks/laptop.md`, Act, steps 1 to 4: the profile chained to `h4-laptop-bedrock`, `make aws-login ENV=prod`, the `sts get-caller-identity` check (its role, no paid call), and `make up ENV=prod`. Then its step 5: detach `h4reet-ai-cloud` from the set, once. Until you do, the model action's deny doesn't reach the set's own role, which `h4reet-ai-cloud` still lets call Bedrock (departure 7's window); prod's route names the Anthropic API, so only a live run of yours on Bedrock would use it. Tell the session afterwards: it names the set in the credential audit (`LAPTOP_PERMISSION_SET`), so the audit holds it to the one policy, and it names the STS host the gateway called, from the gateway's span or your CLI's debug line, in row F2 (nit 4).
 
 **c. The Telegram parameters,** the bot's token and the chat ID spec 000's alerts use. Each `read` waits for you to paste a value, which never echoes:
 
@@ -2006,7 +2237,7 @@ unset t
 make -f Makefile secrets-check PROFILE="$pf"
 ```
 
-`secrets-check` lists both names as SecureString.
+`secrets-check` lists both names as SecureString. The bridge refuses a token that isn't digits, a colon, and URL-safe characters, naming only the parameter (I5).
 
 **d. The functions' images,** built on your engine (no `RUN` in them, so arm64 builds without emulation) and pushed to the account's registry:
 
@@ -2031,12 +2262,18 @@ done
 docker logout "$r"
 ```
 
-Tell the session the three digests, by function. It writes the change on a branch of its own: the digests in `local.lambda_images`, and `rehearsal = true`.
+Tell the session the three digests, by function.
 
-**e. The rehearsal:** on that branch, as sections 4 and 6 for its plan, gate, and merge (no patch: `main.tf` isn't protected), then as 7a for verify, apply, and record. Before the trip, check `h4-rehearsal-instance` is `running` (`docs/runbooks/server-budget.md`, Verify) and that Cost Explorer holds at least a cent of Bedrock's spend this month, which the model rehearsal needs. Then wait for AWS to evaluate both $0.01 budgets, hours, up to a day.
+**e. The rehearsal's change.** The session writes it on a branch of its own: the digests in `local.lambda_images`, `rehearsal = true`, the marker `infra/account/rehearsal-on.txt` naming that branch's note, and the note, which holds `<!-- h4-rehearsal: on -->` and that branch's own steps and guard, as this one's (I1). `make test` passes it only with all three. Its plan, gate, merge, verify, apply, and record go as that note says (no patch: `main.tf` isn't protected). Before the trip, check `h4-rehearsal-instance` is `running` (`docs/runbooks/server-budget.md`, Verify) and that Cost Explorer holds at least a cent of Bedrock's spend this month, which the model rehearsal needs: November's metered runs on Bedrock already hold about $0.49 (six red-team runs and one product-eval run, in your untracked `redteam/history/` and `evals/product/history/`), and if the console shows less, one `make redteam-live ADAPTER=bedrock ENV=prod` run cost about $0.055 on 2026-11-09, metered as `test` inside the ceilings (nit 2). Then wait for AWS to evaluate both $0.01 budgets, hours, up to a day.
 
 **f. Record, per action** (contracts/aws-alerts.md §4): when AWS evaluated; when Telegram and the mailbox got each alert, `model_budget_reached` and `server_budget_reached` with `- rehearsal: yes`, then each `_action_executed`; when the deny was on `h4-rehearsal-target` (`docs/runbooks/aws-budget-action.md`, Verify, with that role); and, for the server action, the SSM run's status from the action's history and the instance's state after it, `stopped`. The real notices' text: tell the session, which checks the bridge's reading of Budgets' shapes against them.
 
-**g. `rehearsal = false`:** reverse both actions (`aws-budget-action.md` and `server-budget.md`, Undo), then the session's branch with the line, and plan, gate, merge, verify, apply, record as in e.
+**g. `rehearsal = false`:** reverse both actions (`aws-budget-action.md` and `server-budget.md`, Undo; the server rehearsal's reverse runs `AWS-StartEC2Instance`), then the session's branch that sets false and removes the marker, through its note's steps as in e.
 
 SC-009 passes when both channels got each alert and each action took effect on its target.
+
+### 8. A line for CLAUDE.md, for your hand
+
+The third time a merge guard couldn't pass (group 1's B1, group 3's B1, and this group's I2), so a line for "Things Claude gets wrong", in your words; CLAUDE.md is at its 6 KB cap with P-3, so it needs something cut to fit. The coordinator's wording:
+
+> Writing a merge guard that allows only the Author's patch: the review's record, his block and lockfile, and main's merge land after the anchor; compare with main's merge of the anchor, and allow `docs/merge-requests/` and the lockfile.
