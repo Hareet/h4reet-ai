@@ -2,7 +2,7 @@
 
 Spec: [specs/002-the-room/](../../specs/002-the-room/spec.md), its Clarifications' [amendment of 2026-11-09](../../specs/002-the-room/spec.md#amendment-2026-11-09-the-authors-designed-pdf), [plan.md §2](../../specs/002-the-room/plan.md#2-the-resume-source-checks-and-two-renderings-user-story-1-fr-013-to-fr-019-r-05-r-06) ("The Author's PDF"), [contracts/resume-source.md §7](../../specs/002-the-room/contracts/resume-source.md#7-the-authors-designed-pdf), and data-model.md §5 · Intent: none new (intent 002) · Written by: implementer subagent (Claude Opus 5.5), for the main session · Date: 2026-11-09
 
-Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is `/tmp/claude-1000/wt-resume-pdf`, cut with `git worktree add -b` at e324771e and now rebased onto 67028747, `main`'s tip: your "adr 0044: accepted", after "constitution 1.1.0: EC2 default host" and gate 3's hand merge c01545ce of `docs/001-ec2-default`, on your "twin: three topics ready, local and anthropic" (d0fac811), on 787d85af, which holds `fix/009-avatars-ready` (through f76ead54), the web image's readiness fix, the Anthropic switch, and your A10 fix (e7fa53ed). Repo hooks active: yes. This session's entries in `.claude/audit/hooks.log` that weren't ALLOW:
+Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is `/tmp/claude-1000/wt-resume-pdf`, cut with `git worktree add -b` at e324771e, rebased onto 67028747, and then, after your gate 4, with `main` at b335b9b2 (your gate 5's merge of `feat/005-full-window-room`) merged in as 6293fb5b. 67028747 is your "adr 0044: accepted", after "constitution 1.1.0: EC2 default host" and gate 3's hand merge c01545ce of `docs/001-ec2-default`, on your "twin: three topics ready, local and anthropic" (d0fac811), on 787d85af, which holds `fix/009-avatars-ready` (through f76ead54), the web image's readiness fix, the Anthropic switch, and your A10 fix (e7fa53ed). Repo hooks active: yes. This session's entries in `.claude/audit/hooks.log` that weren't ALLOW:
 
 ```text
 2026-11-09T20:42:28Z	post-edit	WARN	lint failed :: /tmp/claude-1000/wt-resume-pdf/apps/web/test/content/author-pdf.test.ts
@@ -14,28 +14,50 @@ Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This 
 2026-11-10T06:40:36Z	bash	BLOCK	changing main (HEAD is main) :: cd /tmp/claude-1000/wt-resume-pdf && python3 -I - <<'EOF' … (an edit of this note)
 2026-11-10T06:41:28Z	bash	BLOCK	changing main (HEAD is main) :: cd /tmp/claude-1000/wt-resume-pdf && git add docs/merge-requests/2026-11-09-… && git commit …
 2026-11-10T13:55:09Z	bash	BLOCK	the Anthropic evals :: cd /tmp/claude-1000/wt-resume-pdf && python3 -I - <<'EOF' … (an edit of this note)
+2026-11-10T14:18:55Z	bash	BLOCK	changing main (HEAD is main) :: cd /tmp/claude-1000/wt-resume-pdf && git status --short | cat && M=$TMPDIR/p… (the fix's commit)
+2026-11-10T14:52:20Z	bash	BLOCK	moving main :: R=$TMPDIR/rh-resume-pdf; git init -q --bare "$R/repo.git" && … git fetch … (a scratch copy for the rehearsal)
 ```
 
-The four warnings were imports written one edit before their first use; every file passes lint now. The bash gate refused five commands, and in each nothing ran and nothing was respelled:
+The four warnings were imports written one edit before their first use; every file passes lint now. The bash gate refused seven commands, and in each nothing ran and nothing was respelled:
 - deleting two scratch folders that hold copies of your PDF, made for the gitleaks check (Verification). They're in "Cleanup" below;
 - a rehearsal of step 4's guard in zsh, on a scratch repository of two empty commits, which the gate read as a switch to main. So step 4 hasn't run here. Its lines are the guard you ran for `fix/007-live-runs-2`, with shorter names, and the ancestor test split over two lines;
 - after the rebase, a script editing this note, and then this note's commit, while your checkout of main was on `main` for your live runs. The note's edit was made in the editor instead, with the same words; the commit waited until your checkout was parked;
 - on 67028747, a script editing this note, which the gate read as the paid evals: its text named the Anthropic switch and `make evals` together. The edits were made in the editor instead, with the same words.
+- after your gate 4, the fix's commit, while your checkout of main was on `main` for gate 5. It waited until you parked.
+- a scratch copy of the repository for the rehearsal, whose fetch named `refs/heads/main` as a ref to write, which the gate read as moving main. The rehearsal ran read-only instead (Verification), and no copy under another ref name was tried.
 
 The two BLOCKs on this worktree at 21:26:06Z and 21:29:55Z ("a read-only role writing a file") came from the reviewer's read-only session, not this one.
 
 Authorized by: your approval of the amendment in the main session on 2026-11-09, recorded verbatim in spec.md's Clarifications, as the main session's brief relayed it; and the main session's review of 9320b778, as it relayed it.
 
-## Status: reviewed once (can merge, with changes requested), the changes made, rebased onto main 67028747 and checked there; not reviewed again, not merged
+## Status: reviewed once (can merge, with changes requested), the changes made; your gate 4 failed on a test of this branch's, now fixed; not reviewed again, not merged
 
 | Commit | What |
 |---|---|
 | 4f94a4e6 | RED: the designed PDF's tests, the download name's, and `resume_pdf` in the smoke test, the review's cases among them |
-| a2e0bed2 | GREEN: the code, spec.md's amendment, plan.md's departure, the contract's §7, data-model.md, quickstart.md, the web README. **The anchor:** step 1 holds the branch to this commit's code |
+| a2e0bed2 | GREEN: the code, spec.md's amendment, plan.md's departure, the contract's §7, data-model.md, quickstart.md, the web README |
 | d09e2591 | this note, and the approval patch beside it, `2026-11-09-feat-002-pdf-approval.patch` |
 | 11dc8121 | this note, after the rebase onto 787d85af |
 | dd96b3ef | this note on d0fac811, with its checks and the anchored guard |
-| this commit | this note on 67028747: the new anchor, step 0's result confirmed, and this tip's checks |
+| fe9039b1 | this note on 67028747: the anchor a2e0bed2, step 0's result confirmed, and that tip's checks |
+| 754e8d3e | the fix for your gate 4's failure: `pdf-download.test.ts`'s build no longer reads the tree's designed PDF |
+| 6293fb5b | the merge of `refs/heads/main` (b335b9b2, your gate 5's merge of `feat/005-full-window-room`) into this branch, with no conflict, so `main` is an ancestor of the tip your guard checks. **The anchor:** the branch's last commit that changes code; steps 1 and 4 hold the branch to it |
+| this commit | this note: your gate 4, the fix, the redo step, and the new anchor |
+
+**Your gate 4 (2026-11-10) failed on a real bug in this branch's tests,** not a flake. You ran steps 1 to 3: `content/002-resume-pdf` at 9e24a247, your PDF committed at `apps/web/content/resume-author.pdf`, then the gate (`~/gate-resume-pdf.log`). The gateway passed whole; the web suite failed one case, `test/ui/pdf-download.test.ts` › "a build under a filled header" › "writes the name into index.html's link and the scripts, and leaves no placeholder":
+
+```text
+[plugin h4-room-data]
+Error: apps/web/content/resume-author.pdf: the PDF check failed (contracts/resume-source.md §7):
+PDF3 its text doesn't hold main's full name, so the checks may not be reading its text
+PDF7 an email address other than main's contact, in its text
+PDF7 an email address other than main's contact, in its links
+```
+
+- **The cause:** that case built the whole site under a fixture header, a stand-in name and contact. The build's room-data part holds the tree's designed PDF to the header it's given, and PDF3 and PDF7 rightly refused your PDF under a header that isn't yours. On this branch the tree had no PDF, so the case passed here, and nothing in the session's runs put one there.
+- **The fix,** in the test alone (754e8d3e): the case builds with the site's own config less its room-data part (`test/helpers/site-without-room-data.config.ts`, through `buildSite`'s new `config` option). A second case holds the two configs' plugin lists to differ by that part alone, so the drop can't widen unseen. No check changed: PDF3 and PDF7 are as they were, and `author-pdf.test.ts` still holds your file to `main`'s own header whenever the tree holds it.
+- **Others:** no other test builds or checks the tree's PDF under a fixture header. The global setup's two builds run under an empty policy, so no header: the header's rules (PDF3's full-name test, PDF7, PDF8) don't run there, and the rest passed on your file in your gate. Every other test that runs the resume's part does it on a temporary tree.
+- **Why a test fix, against "fix the code, not the test":** the code did what the contract says. The test built a tree it doesn't control under a header the tree's content doesn't answer to, so it held the code to a state that can't ship.
 
 **The history was rebuilt after the review.** The first version wrote your surname into eight files the agents wrote, 20 times, and into two commit messages, and `tools/gates/publish_check.py` checks every blob in history against your denylist. These commits replace the reviewed ones (06d511c4, 0a0e3fd7, 39bb8e0a, 9320b778), which no branch or tag reaches any more. The Prettier fix that sat between them (c2011d9c) is gone: `main` carries its own, from `fix/009-avatars-ready`. Now the surname is only in spec.md's two verbatim quotes of your words, where the review kept it. The review's changes were still written test-first: their RED run against the reviewed code is in Verification.
 
@@ -80,11 +102,19 @@ sed -e '/^[[:space:]]*#/d' \
 
 The first line should print `f11f4adb6e0f5a40f14f90699cfe93011b0ffe8bbe7db4925d76601049301bc2`. **You ran this step on 2026-11-10, and it passed:** that hash, and a count of 0. It stands on this tip: the rebase onto 67028747 changed no patch, `main` changed nothing under `apps/web/`, `assets/policy/`, or `corpus/`, and PDF4's input written again from this tip's code is byte for byte that file, with the same SHA-256 (Verification). /tmp is wiped when WSL restarts: if the file is gone, ask the session to write it again. A count above 0 means a phrase is in the PDF where PDF4 reads it. Don't go on; change the PDF, and tell the session.
 
-**1. Your PDF on a branch cut from this one, held to the anchor.** `z` is a2e0bed2, the GREEN commit on 67028747: the code as this branch has it. Nothing to paste. The guard prints `anchor: go` only when `z` is a commit, the branch descends from it, and the branch's tree differs from `z`'s nowhere but under `docs/merge-requests/`. The switch runs only then, and the copy only on the new branch:
+**The redo, first.** Your gate 4's content branch still exists, and step 1's `switch -c` refuses an existing branch. From main's checkout, on `main` or parked (never on that branch):
+
+```bash
+git branch -D content/002-resume-pdf
+```
+
+`-D`, since the branch was never merged. Your PDF is still in `resume/`, and step 1 copies it again.
+
+**1. Your PDF on a branch cut from this one, held to the anchor.** `z` is 6293fb5b, the merge of `main` (b335b9b2) on top of the fix for your gate 4: the last commit that changes code, so the code as this branch has it. Nothing to paste. The guard prints `anchor: go` only when `z` is a commit, the branch descends from it, and the branch's tree differs from `z`'s nowhere but under `docs/merge-requests/`. The switch runs only then, and the copy only on the new branch:
 
 ```bash
 b=feat/002-author-resume-pdf
-z=a2e0bed2a528a48d45995433842626a25fec7ae6
+z=6293fb5b0ad3970c33ff78c8cbc01e7a92d95082
 r=$(git rev-parse --verify "refs/heads/$b")
 j=':(exclude)docs/merge-requests'
 o=go
@@ -107,7 +137,7 @@ sha256sum "$p"
 
 `echo` should print `on content/002-resume-pdf`, and the last line `5523e5327a752bc10b92538ce8e016243aa5ea22e4e79c21f439f6b877549d6d`, the file the session checked (Verification). The `ls` matches the file your request names, and not your other resume beside it. If it printed `anchor: no`, another branch, or another hash, stop, and tell the session.
 
-**Why an anchor, and why this one.** A rebase gives the reviewed commits new SHAs each time `main` moves, so a pasted tip would hold you to whatever the last rebase made. The anchor holds the content instead. `a2e0bed2` is the rebased GREEN commit, the code with the review's changes in, and the check is on trees: every file outside `docs/merge-requests/` must be byte for byte that commit's, so a later commit can only have changed the notes and the patch. `git range-diff` is the session's evidence that the rebases changed no patch (Verification): it is sound, but it prints a comparison to read, not a yes or no, so it isn't the guard. If the branch is rebased again, the anchor moves with it, and the note says so: it was f75e142e on d0fac811, and is a2e0bed2 since the rebase onto 67028747.
+**Why an anchor, and why this one.** A rebase gives the reviewed commits new SHAs each time `main` moves, so a pasted tip would hold you to whatever the last rebase made. The anchor holds the content instead. `6293fb5b` is the branch's last commit that changes code: the review's changes, the fix for your gate 4, and `main` up to b335b9b2, merged in. The check is on trees: every file outside `docs/merge-requests/` must be byte for byte that commit's, so a later commit can only have changed the notes and the patch. `git range-diff` is the session's evidence that the rebases changed no patch (Verification): it is sound, but it prints a comparison to read, not a yes or no, so it isn't the guard. If the branch is rebased again, the anchor moves with it, and the note says so: it was f75e142e on d0fac811, a2e0bed2 after the rebase onto 67028747, and is 6293fb5b since the fix for your gate 4 and the merge of `main` that followed it. This time `main` came in by a merge, not a rebase, so the commits you and the reviewers have seen keep their SHAs.
 
 **2. Commit it**, on that branch. Each line runs only there:
 
@@ -131,6 +161,7 @@ tools/gates/gate "$c" 2>&1 | tee "$log"
 Expect Ready, with `evals` WARN, the behavioral tier's line about `main`'s recorded run. If `test` fails only on the gateway's graceful-shutdown test (Status), it's the load the session saw: rerun the gate when the machine is quieter, or tell the session. The content build runs PDF1 to PDF9 on your file and serves the render, since `main` doesn't approve it yet. Where the gate shows the build's lines, one says so: "resume: apps/web/content/resume-author.pdf passed PDF1 to PDF9; main doesn't approve it, so the PDF is the render". With any other failure, don't merge; tell the session.
 
 **4. The guard and the merge.** It prints `guard: go`, and merges, only when:
+- the gate's last summary line names no failing step (the gate streams the container's output into the log, so a line that merely starts `merge: ` proves nothing alone);
 - the gate printed its merge line;
 - your checkout is on `main`;
 - the branch is at the SHA the gate checked;
@@ -141,6 +172,7 @@ Expect Ready, with `evals` WARN, the behavioral tier's line about `main`'s recor
 s=$(grep '^gate: ' "$log" | tail -n 1)
 x=$(printf '%s\n' "$s" | awk '{print $2}')
 o=go
+case $s in *failing:*) o=no;; esac
 grep -q '^merge: ' "$log" || o=no
 h=$(git symbolic-ref -q HEAD)
 [ "$h" = refs/heads/main ] || o=no
@@ -317,6 +349,54 @@ Not reviewed again.
 ## Verification
 
 All on this worktree unless noted. Each run on this tip ran alone, one after another, while another branch's checks shared the machine.
+
+**Your gate 4's failure, and its fix (754e8d3e), then `main` merged in (6293fb5b).**
+
+- **Reproduced** on a plain export of fe9039b1 (`/tmp/claude-1000/export-resume-pdf-repro`, this worktree's `node_modules` linked in) with your PDF put at `apps/web/content/resume-author.pdf` from your 9e24a247 (`git show`; SHA-256 5523e532…). `npx vitest run test/ui/pdf-download.test.ts test/content/author-pdf.test.ts`:
+
+  ```text
+   FAIL  test/ui/pdf-download.test.ts > a build under a filled header > writes the name into index.html's link and the scripts, and leaves no placeholder
+  Error: Build failed with 1 error:
+  Error: apps/web/content/resume-author.pdf: the PDF check failed (contracts/resume-source.md §7):
+  PDF3 its text doesn't hold main's full name, so the checks may not be reading its text
+  PDF7 an email address other than main's contact, in its text
+  PDF7 an email address other than main's contact, in its links
+   Test Files  1 failed | 1 passed (2)
+        Tests  1 failed | 35 passed (36)
+  ```
+
+  The same three lines as your gate's. `author-pdf.test.ts`'s case for the tree's own PDF ran on your file there, under the tree's header, and passed.
+- **GREEN on the branch,** with no PDF in the tree: the same two files, "Test Files 2 passed (2); Tests 36 passed | 1 skipped (37)". The skipped case is the one that reads the tree's PDF.
+- **GREEN on the export, with your PDF,** the fix's three files copied in: "Test Files 2 passed (2); Tests 37 passed (37)".
+- **`make -f Makefile lint`**, exit 0: "All matched files use Prettier code style!", ruff "All checks passed!", "465 files already formatted".
+- **The web suite** (`npx vitest run` in `apps/web`), on the branch: "Test Files 111 passed (111); Tests 2740 passed | 1 skipped (2741)". On the export with your PDF: "Tests 2 failed | 2739 passed (2741)". The two are `test/room/chunk.test.ts`'s "keeps zod, fontkit, pako, … out of what the room loads", release and drafts. They come from the export's linked `node_modules`: the build resolves every module through the link to this worktree, so no module path starts with `node_modules/three/` from the export's root. They fail the same with your PDF set aside, and your gate, with its own install, passed them.
+- **Step 0's result still stands:** the fix changes test files alone, and the merge of `main` changes none of `build/resume-pdf.ts`, `build/content.ts`, `build/pdf.ts`, `build/approvals.ts`, `assets/policy/`, or `corpus/`. PDF4's input written again from 6293fb5b's code has the same SHA-256, f11f4adb…01bc2, and PDF1 to PDF9 find no problem.
+- **The rehearsal of steps 1 to 4**, read-only against the repository at 57cc958b (this commit before its amends, which change only this note), with `main` at b335b9b2. A scratch copy holding `refs/heads/main` was refused (below), so the redo, the switch, the commit, the gate, and the merge didn't run. Step 1's and step 4's checks did, in zsh, with your gate 4's own log:
+  - step 1 on the branch tip: `anchor: go`;
+  - step 4 on gate 4's log: the new `case` line gives `no` on its summary line, "…; 1 FAIL; failing: test FAIL", and on a passing line of the same form ("…; 0 FAIL") it leaves `go`;
+  - gate 4's log has no `merge:` line;
+  - and its gated SHA, 9e24a247, fails the rest too: `main` isn't its ancestor, and its tree differs from the anchor outside the notes and the PDF. So the old content branch can't merge under the new anchor, which is why the redo deletes it.
+  - Step 4's content test on a new content branch reads the tip's tree with your PDF added; with the PDF and the notes excluded, that's the tip's own tree against the anchor's, which `git diff --quiet 6293fb5b 57cc958b -- . ':(exclude)docs/merge-requests'` finds the same.
+- **The merge rehearsal** into `refs/heads/main`, b335b9b2, with `git merge-tree --write-tree`: of 57cc958b, this commit before its amends, exit 0, no conflict, and the merged tree (e21d0ff0) is the tip's own, since `main` is an ancestor.
+- **gitleaks** (v8.30.1, the main tree's `.gitleaks.toml`, an empty ignore path, `--ignore-gitleaks-allow`) on a plain export of this commit as e36181c5 (`git archive` into `/tmp/claude-1000/export-resume-pdf-tip`): "scanned ~52237838 bytes (52.24 MB) … no leaks found". The commit was then amended to write this line and, in the two lines above it, to name 57cc958b as this commit before its amends: those three lines are all that differ.
+- **`make -f Makefile check ENGINE_MODE=none-yet`** on 6293fb5b, the merge (the note's text aside), with feat/012's checks running beside it:
+
+  ```text
+  make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+  ```
+
+  - `lint`: "All matched files use Prettier code style!", "471 files already formatted".
+  - `test`:
+    - corpus-check "OK — 44 slots, 26 filled, …, 0 problems";
+    - gateway "Test Files 95 passed (95); Tests 1654 passed | 13 skipped (1667)";
+    - web "Test Files 128 passed (128); Tests 2905 passed | 2 skipped (2907)";
+    - pytest "4100 passed in 533.39s (0:08:53)".
+  - `content-check`: "content check: PASS (48 content files: 1 approved by main, 47 drafts, none of whose text is in dist/)".
+  - `secrets`: "PASS 8 commits since main (b335b9b2ff7f..HEAD)".
+  - `arrival`: "arrival-check: 0 findings in 76 files (8 commits)".
+  - `evals`: product (fake) 187 passed, narration (fake) 44 passed, docs links "0 failed, 1896 relative links in 272 files"; the behavioral tier's WARN, `main`'s recorded run, as before.
+  - `redteam`: "redteam: 68 passed, 0 failed".
+  - `matrix`: "REQUIRED matrix-required every listed row ran", "forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps": stage E's E10 and E14, from the host's prove report, as on every branch here.
 
 **The rebase onto 67028747**, `git --no-replace-objects rebase refs/heads/main`, with no conflict. `main` had changed `.specify/memory/constitution.md` (1.1.0), `README.md`, two ADRs and their index, `docs/how-we-build/lifecycle.md`, and two documents in `docs/merge-requests/`, and nothing under `apps/web/`, `assets/policy/`, or `corpus/`. `git range-diff` shows every patch unchanged, through this rebase and back to the commits that took the review's changes:
 
@@ -613,7 +693,7 @@ None. No model call, no new endpoint, no new event, and no new byte leaving a vi
 ## For the Author
 
 1. **The order:** steps 0 to 7. Step 5, the approval, comes after the merge, on `main` (Status).
-2. **`main`'s red `test`** (Status) is fixed on `main` by the merges under this branch. On this tip, `make check` fails only stage E's two environmental rows. Step 1 holds the branch to its anchor, a2e0bed2: nothing to paste.
+2. **Your gate 4** failed on this branch's own test, now fixed (Status). Redo from "The redo, first": delete the content branch, then steps 1 to 7; step 0 stands. Step 1 holds the branch to its new anchor, 6293fb5b: nothing to paste.
 3. **The denylist gap:** no automated run applies your private denylist to the PDF. Step 0 is the check for this file. Any later edit to the PDF needs step 0 again (ask the session for a new `resume-pdf-pdf4.txt`), a new hash, and a new approval.
 4. **Your surname in history:** this branch holds it only in spec.md's two quotes of your words. `assets/policy/resume-header.json` already holds it, and your PDF, once committed, holds your name too, as glyph codes and properties (`publish_check.py` reads blobs as text, so it may or may not see it there). The reviewed commits that held it more widely are unreachable; `git gc` drops them once your reflog lets go of them.
 5. **Your PDF's properties** are Chromium's: its title, your full name and hareet.ai; the producer and creator; and the export's two dates (2026-10-29). The amendment allows them (FR-019 as amended). A PDF export without them would need another tool.
