@@ -138,7 +138,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Tests for User Story 1 (first)
 
-- [ ] T012 [P] [US1] Write `apps/web/test/ui/loading.test.ts` (FR-013, FR-016, FR-018, FR-022, FR-037 to FR-039, FR-052; contract §5):
+- [x] T012 [P] [US1] Write `apps/web/test/ui/loading.test.ts` (FR-013, FR-016, FR-018, FR-022, FR-037 to FR-039, FR-052; contract §5):
   - the DOM as contract §5 draws it, in its place in the room's element;
   - **the first value** (FR-013): with the scene module resolved behind the choice, the bar's first `aria-valuenow` is at least 10; with it pending, 0;
   - the progress bar's `role`, name, `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, and `aria-valuetext` ("64%: Loading the room's pieces: 12 of 21") after each end;
@@ -149,12 +149,12 @@ description: "Task list for spec 012, the room's loading screen"
   - focus on the room's heading at give-way, from anywhere in the card.
 
   Check: RED before T014 (feat/012-loading-screen)
-- [ ] T013 [P] [US1] Extend `apps/web/test/room/vocabulary.test.ts` and the fixture room's words (FR-051): the twelve keys join the closed list, `loading.pieces` with `{done}` and `{total}`, `hints.position` with `{n}` and `{total}`, the rest with no slot; RT3 and RT12 pass. Check: RED before T015 (feat/012-loading-screen)
+- [x] T013 [P] [US1] Extend `apps/web/test/room/vocabulary.test.ts` and the fixture room's words (FR-051): the twelve keys join the closed list, `loading.pieces` with `{done}` and `{total}`, `hints.position` with `{n}` and `{total}`, the rest with no slot; RT3 and RT12 pass. Check: RED before T015 (feat/012-loading-screen)
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Finish `apps/web/src/room/loading/view.ts`'s bar, stage line, and fade, and write `loading/loading.css`'s card in each layout and its bar (PD-10, PD-11, PD-19, PD-23): the card's own background and colour, its fixed place below `--clear-y` plus `--notes-h` in the column and dock layouts, its grid row in the stacked one, its focus rings, no fixed text heights, no sheen. Check: T012 passes (feat/012-loading-screen)
-- [ ] T015 [US1] Add the twelve words to `apps/web/src/room/ui-keys.ts`, `apps/web/room/ui-words.yaml` (D8's texts), and the fixture room's words; name the loader in `layout.ts`'s header (L10). Check: T013 passes (feat/012-loading-screen)
+- [x] T014 [US1] Finish `apps/web/src/room/loading/view.ts`'s bar, stage line, and fade, and write `loading/loading.css`'s card in each layout and its bar (PD-10, PD-11, PD-19, PD-23): the card's own background and colour, its fixed place below `--clear-y` plus `--notes-h` in the column and dock layouts, its grid row in the stacked one, its focus rings, no fixed text heights, no sheen. Check: T012 passes (feat/012-loading-screen)
+- [x] T015 [US1] Add the twelve words to `apps/web/src/room/ui-keys.ts`, `apps/web/room/ui-words.yaml` (D8's texts), and the fixture room's words; name the loader in `layout.ts`'s header (L10). Check: T013 passes (feat/012-loading-screen)
 
 **Checkpoint**: the bar fills from "Enter" and says when the room is ready or cut short.
 

@@ -40,12 +40,13 @@ const FILES: ExpectedFile[] = [
   { asset: "fx-c", bytes: 468 },
 ];
 
-/** Presses Enter without waiting for the stage. */
-async function press(v: Visit): Promise<void> {
+/** Presses Enter without waiting for the stage, and reads the bar's value in the same turn: its first. */
+async function pressAndRead(v: Visit): Promise<string | null> {
   await flush();
   radio(v.doc, "path", "engineer").click();
   radio(v.doc, "avatar", "dog").click();
   button(v.doc, "Enter").click();
+  return bar(v).getAttribute("aria-valuenow");
 }
 
 /** A 3D visit whose stage will load `list`, entered. */
@@ -79,8 +80,8 @@ describe("the card's DOM (contract §5)", () => {
     expect(stage?.getAttribute("aria-hidden")).toBe("true");
     // In place of the stage's "Loading the room…" (D9).
     expect(v.doc.querySelector(".room-loading")).toBeNull();
-    // The card's words are text, never markup.
-    expect(el?.querySelector("script, style, [style]")).toBeNull();
+    // The card's words are text, never markup; its one size is set through the CSS object model (FR-052).
+    expect(el?.querySelector("script, style")).toBeNull();
   });
 });
 
@@ -88,14 +89,13 @@ describe("the bar's first value (FR-013)", () => {
   it("counts the 3D code at once where it arrived behind the choice", async () => {
     const v = start({ webgl: true });
     v.scene.expected = new Promise(() => undefined);
-    await press(v);
-    expect(Number(bar(v).getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(10);
+    expect(Number(await pressAndRead(v))).toBeGreaterThanOrEqual(10);
   });
 
   it("is 0 while the 3D code is still on its way", async () => {
     const v = start({ webgl: true, sceneLate: true });
-    await press(v);
-    expect(bar(v).getAttribute("aria-valuenow")).toBe("0");
+    expect(await pressAndRead(v)).toBe("0");
+    await flush();
     expect(text(card(v)?.querySelector(".room-loader-stage") ?? null)).toBe("Loading the room's code");
   });
 });

@@ -22,6 +22,11 @@
 // (style.setProperty, which the CSP's style-src 'self' allows), never a style attribute; room.css places every docked
 // box from them. The stage's view says what it holds in data-stage: loading and 2D sit in the clear area, 3D fills the
 // window.
+// Spec 012 (its Amendment L10, which amends spec 005's FR-019; FR-018, FR-024 to FR-027): in 3D the stage's loading line,
+// "Loading the room…", gives its place to the loader, whose card insertLoader puts after the room's block and before
+// "Around the room"; setLoading sets data-loading on the page's root, which tints the room's parts (loading/loading.css),
+// and makes "Around the room" inert while the loader shows. The AI disclosure's strip and the stage's notes are never
+// tinted or covered: the card sits below the strip and the notes' reserve, or first in the page's flow when stacked.
 import type { Box, HudLayout, HudMetrics, HudState } from "./compose/hud";
 import { h } from "./dom";
 import { icon } from "./hud/icons";
