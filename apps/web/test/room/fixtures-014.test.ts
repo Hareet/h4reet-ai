@@ -48,10 +48,10 @@ describe("the protector's scene (T004)", () => {
   it("holds a selectable on each side wall, one at the desk's right, and the two figures", () => {
     expect(PROTECT_SCENE.selectables.map((s) => s.id)).toEqual(PROTECT_IDS.selectables);
     expect(PROTECT_SCENE.selectables.filter((s) => s.sideWall)).toHaveLength(2);
-    const [board, bike, laptop] = PROTECT_SCENE.selectables;
+    const [board, bike, deskRight] = PROTECT_SCENE.selectables;
     expect(board?.boxes[0]?.min[0]).toBeLessThan(-1);
     expect(bike?.boxes[0]?.max[0]).toBeGreaterThan(1);
-    expect(laptop?.boxes[0]?.min[0]).toBeGreaterThan(0.3);
+    expect(deskRight?.boxes[0]?.min[0]).toBeGreaterThan(0.3);
     expect(PROTECT_SCENE.figures).toHaveLength(2);
     for (const b of [...PROTECT_SCENE.framed, ...PROTECT_SCENE.figures])
       for (const axis of [0, 1, 2] as const) expect(b.min[axis]).toBeLessThan(b.max[axis]);
