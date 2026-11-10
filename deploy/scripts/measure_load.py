@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """The measurement's load (spec 001, tasks.md T014; research.md R-33).
 
-    python3 -I /app/measure_load.py --minutes N --hello-per-minute H --turns-per-minute T     in a breach-probe container
+    python3 -I /app/measure_load.py --minutes N --hello-per-minute H --turns-per-minute T [--labels L]
+        in a one-off breach-probe container
 
 deploy/scripts/measure_stack.py starts it in a one-off breach-probe container on dev-cpu's internal network
 (`docker compose --profile breach run --build --rm -T breach-probe`), and samples the stack's memory while it runs. For
 N minutes it sends hello at H a minute to edge's api listener, http://edge:8080/hello, and twin turns at T a minute to
-edge's site listener, http://edge:8087/api/room/turn: the path a visitor's request takes, edge first, then the gateway,
-its store, and the telemetry behind it. With the model server stopped, the gateway answers each from dev's route
-without it: the synthetic adapter, the stub of a paid one, while dev's meters allow, and degraded after.
+edge's site listener, http://edge:8087/api/room/turn: the path a visitor's request takes, edge first, then the
+gateway. With the model server stopped, the gateway answers each from dev's route without it: the synthetic adapter,
+the stub of a paid one, while dev's meters allow, and degraded after.
 
-What it sends is fixed text, never a visitor's: hello's empty body (the gateway's "Hello."), and one free-talk turn,
-"Hello.". Hello rotates eight X-H4-Client labels, measure-1 to measure-8, so the per-client cap doesn't bind before the
-global metered limit; edge drops the label on the turn, so turns come from one client. One request at a time, on a
-fixed schedule; one that goes out more than a slot late counts as late.
+What it sends is fixed, never a visitor's words: hello's empty body (the gateway's "Hello."), and a piece's opening, as
+the room sends it when a visitor picks one, {feature, path, turns: []}, for the three pieces whose topics are ready
+(config/twin-readiness.yaml): snowboard, laptop, and chalkboard, on both paths in turn. Free talk isn't ready, and
+answers 409 before the gateway (T018's review, finding 1). Hello rotates L X-H4-Client labels, measure-1 to measure-L,
+so no label reaches the per-client cap; edge drops the label on the turn, so turns come from one client, and
+measure_stack.py keeps their rate inside that client's caps. One request at a time, on a fixed schedule; one that goes
+out more than a slot late counts as late.
 
 What it prints: one JSON line at the end, marked "h4_measure_load": 1, with what it sent, how many went late, and each
 answer counted by its status and the route or cause code it names. Never an answer's text: a field that isn't a code
@@ -40,14 +44,17 @@ from typing import Any, TextIO
 HELLO_URL = "http://edge:8080/hello"
 TURN_URL = "http://edge:8087/api/room/turn"
 HELLO_BODY = b"{}"
-TURN_BODY = json.dumps(
-    {
-        "feature": "free_talk",
-        "path": "engineer",
-        "turns": [{"role": "visitor", "text": "Hello."}],
-    }
-).encode()
-LABELS = tuple(f"measure-{n}" for n in range(1, 9))
+# The ready pieces (config/twin/corpus.json's selectables, whose topics config/twin-readiness.yaml marks ready):
+# hobbies-and-travel's snowboard, work-projects' laptop, and mission's chalkboard. A test holds them to those files.
+FEATURES = ("snowboard", "laptop", "chalkboard")
+PATHS = ("engineer", "non-engineer")
+TURN_BODIES = tuple(
+    json.dumps({"feature": feature, "path": path, "turns": []}).encode()
+    for feature in FEATURES
+    for path in PATHS
+)
+DEFAULT_LABELS = 8
+MAX_LABELS = 64
 MARK = "h4_measure_load"
 # Above the gateway's 20-second deadline, and edge's 30-second read on the turn.
 TIMEOUT_S = 35
@@ -56,7 +63,15 @@ MAX_MINUTES = 240
 MAX_PER_MINUTE = 600
 CODE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
-Send = Callable[[str, "str | None"], "tuple[int | None, bytes]"]
+Send = Callable[[str, bytes, "str | None"], "tuple[int | None, bytes]"]
+
+
+def labels(n: int) -> tuple[str, ...]:
+    """Hello's client labels: measure-1 to measure-n."""
+    return tuple(f"measure-{i}" for i in range(1, n + 1))
+
+
+_client_labels = labels  # run() takes a count named labels
 
 
 def kinds(hello: int, turns: int, minutes: int) -> list[str]:
@@ -94,8 +109,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 
-def http_send(kind: str, label: str | None) -> tuple[int | None, bytes]:
-    url, body = (HELLO_URL, HELLO_BODY) if kind == "hello" else (TURN_URL, TURN_BODY)
+def http_send(url: str, body: bytes, label: str | None) -> tuple[int | None, bytes]:
     headers = {"Content-Type": "application/json"}
     if label:
         headers["X-H4-Client"] = label
@@ -115,10 +129,12 @@ def run(
     minutes: int,
     hello: int,
     turns: int,
+    labels: int,
     send: Send,
     now: Callable[[], float],
     sleep: Callable[[float], None],
 ) -> dict[str, Any]:
+    names = _client_labels(labels)
     step = 60.0 / (hello + turns)
     sent: Counter[str] = Counter()
     outcomes: dict[str, Counter[str]] = {"hello": Counter(), "turn": Counter()}
@@ -130,8 +146,14 @@ def run(
             sleep(wait)
         elif -wait > step:
             late += 1
-        label = LABELS[sent["hello"] % len(LABELS)] if kind == "hello" else None
-        status, body = send(kind, label)
+        if kind == "hello":
+            status, body = send(
+                HELLO_URL, HELLO_BODY, names[sent["hello"] % len(names)]
+            )
+        else:
+            status, body = send(
+                TURN_URL, TURN_BODIES[sent["turn"] % len(TURN_BODIES)], None
+            )
         sent[kind] += 1
         outcomes[kind][outcome(status, body)] += 1
     return {
@@ -139,6 +161,7 @@ def run(
         "minutes": minutes,
         "hello_per_minute": hello,
         "turns_per_minute": turns,
+        "labels": labels,
         "sent": {"hello": sent["hello"], "turn": sent["turn"]},
         "late": late,
         "seconds": round(now() - start),
@@ -166,6 +189,7 @@ def main(
     parser.add_argument("--minutes", type=int, required=True)
     parser.add_argument("--hello-per-minute", type=int, required=True)
     parser.add_argument("--turns-per-minute", type=int, required=True)
+    parser.add_argument("--labels", type=int, default=DEFAULT_LABELS)
     try:
         args = parser.parse_args(argv)
         if not 1 <= args.minutes <= MAX_MINUTES:
@@ -175,6 +199,8 @@ def main(
                 raise ValueError(f"--{name.replace('_', '-')} is 0 to {MAX_PER_MINUTE}")
         if args.hello_per_minute + args.turns_per_minute == 0:
             raise ValueError("nothing to send: hello and turns are both 0 a minute")
+        if not 1 <= args.labels <= MAX_LABELS:
+            raise ValueError(f"--labels is 1 to {MAX_LABELS}")
     except ValueError as problem:
         print(f"measure_load.py: {problem}", file=sys.stderr)
         return 2
@@ -182,11 +208,12 @@ def main(
         minutes=args.minutes,
         hello=args.hello_per_minute,
         turns=args.turns_per_minute,
+        labels=args.labels,
         send=send or http_send,
         now=now or time.monotonic,
         sleep=sleep or time.sleep,
     )
-    print(json.dumps(summary, sort_keys=False), file=out)
+    print(json.dumps(summary), file=out)
     return 0
 
 

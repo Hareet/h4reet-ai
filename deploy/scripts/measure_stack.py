@@ -12,18 +12,26 @@ you set it"); this file writes no price.
 How it runs, with dev-cpu already up (make up ENV=dev-cpu):
   1. it stops dev-cpu's model server, model-server-cpu, if it runs, and refuses to measure while any model server does;
   2. it starts the load, deploy/scripts/measure_load.py, in a one-off breach-probe container on the stack's internal
-     network (`docker compose --profile breach run --build --rm -T breach-probe`): hello and twin turns through edge,
-     at config/budgets.yaml's global metered limit, the most the gateway admits however the public cap is set (P-6's
-     figures are blank until group 8). Twin turns come from one client, so they go at its per-client cap; hello takes
-     the rest. With the model server stopped, the gateway answers from dev's route without it: the synthetic adapter,
-     the stub of a paid one, while dev's meters allow, then degraded, as the meter bounds EC2's paid calls;
+     network (`docker compose --profile breach run --build --rm -T --name h4reet-dev-cpu-measure-load breach-probe`):
+     hello and the ready pieces' openings through edge, at config/budgets.yaml's global metered limit, the most the
+     gateway admits however the public cap is set (P-6's figures are blank until group 8). The turns come from one
+     client, so they go no faster than its per-minute cap or its daily cap over the run allows; hello takes the rest,
+     over enough labels that none reaches either cap. With the model server stopped, the gateway answers from dev's
+     route without it: the synthetic adapter, the stub of a paid one, while dev's meters allow, then degraded. So the
+     run spends dev-cpu's $2 fallback grant for the day, in synthetic dollars, and the stub answers about 20 calls;
   3. every INTERVAL_S seconds until the load ends, `docker compose ps` and `docker stats --no-stream`: each stack
      service's resident memory (docker's MemUsage, the cgroup's usage less its inactive file cache) and its limit. The
      probe that sends the load is never one of them;
-  4. then `docker system df -v` again, and it starts the model server again if it stopped it, whether the run passed,
-     failed, or was stopped by Ctrl-C.
+  4. then `docker system df -v` again. Whether the run passed, failed, or was stopped by Ctrl-C, SIGTERM, or SIGHUP (a
+     closed terminal), it then puts the stack back: it stops the load's client, removes the load's container by its
+     name if it's still there, and starts the model server again if it stopped it. A further signal while it does is
+     ignored, as evals/breach.py's cleanup ignores one (T018's review, finding 3). Only a SIGKILL can cut it short; then
+     `make up ENV=dev-cpu` starts the model server again, and `docker rm --force h4reet-dev-cpu-measure-load` ends the
+     load.
 
 It prints a table for the note and research.md R-33, then the record as one JSON line, marked "h4_measure_stack": 1.
+The table and the record put the share of requests the stub answered beside the peaks: a run that's mostly degraded
+measures a stack that's mostly not calling a model (research.md R-33).
 
 dev-cpu only, on the agents' engine (FR-039): inside the sandbox every docker call goes through
 deploy/agents-engine/docker-relay; from the Author's terminal, only with DOCKER_HOST=tcp://198.18.0.1:2376. It runs
@@ -35,8 +43,9 @@ Standard library only, by path through PY_HOST, never with -m (research.md R-35)
 variables docker and the relay need, so no COMPOSE_* or H4_* of the shell's can change the stack's services. Nothing it
 prints carries a payload, a client identifier, or a secret: names, figures, codes, and times.
 
-Exit codes: 0 the record printed; 1 the run stopped (a docker call failed, or the load failed or ran past its time),
-with no record; 2 refused before anything changed; 3 a model server ran during the measurement, so no record.
+Exit codes: 0 the record printed; 1 the run stopped (a docker call failed, the load failed or ran past its time, or a
+signal stopped it), with no record; 2 refused before anything changed; 3 a model server ran during the measurement,
+so no record.
 """
 
 from __future__ import annotations
@@ -45,16 +54,18 @@ import argparse
 import contextlib
 import datetime as dt
 import json
+import math
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol, TextIO
+from typing import Any, NoReturn, Protocol, TextIO
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = ROOT / "deploy" / "compose.yaml"
@@ -67,12 +78,15 @@ STACK = "dev-cpu"
 PROJECT = "h4reet-dev-cpu"
 MODEL_SERVER = "model-server-cpu"  # dev-cpu's, by COMPOSE_PROFILES' cpu
 LOAD_SERVICE = "breach-probe"
+LOAD_CONTAINER = f"{PROJECT}-measure-load"  # the load's one-off container, by a name a stopped run can remove it by
 UP_SERVICES = (
     "edge",
     "gateway",
 )  # the load's path: without them there is nothing to measure
 DEFAULT_MINUTES = 30  # three of Loki's compactions (its default 10-minute interval), and ClickHouse's merges
 MAX_MINUTES = 240
+MIN_LABELS = 8
+MAX_LABELS = 64  # measure_load.py's own bound
 INTERVAL_S = 10
 GRACE_S = 600  # the probe image's build, and the load's last requests
 DOCKER_TIMEOUT_S = 120.0
@@ -133,6 +147,50 @@ class Stop(Exception):
 
 class ModelServerRunning(Exception):
     """Exit 3: a model server ran, so the record would count it."""
+
+
+# --- the signals, as evals/breach.py takes them -------------------------------------------------------------------
+
+
+class Interrupted(BaseException):
+    """SIGTERM or SIGHUP, which a closed terminal sends: the run stops, and puts the stack back, as on Ctrl-C. A
+    BaseException, like KeyboardInterrupt, so nothing on the way out takes it for an error and goes on."""
+
+
+def on_signal(signum: int, frame: object) -> NoReturn:
+    raise Interrupted(signal.Signals(signum).name)
+
+
+def restore_handlers(previous: Mapping[int, Any]) -> None:
+    # A handler that wasn't set from Python comes back as None, which signal.signal won't take: the default, then.
+    for signum, handler in previous.items():
+        signal.signal(signum, signal.SIG_DFL if handler is None else handler)
+
+
+@contextlib.contextmanager
+def interruptible() -> Iterator[None]:
+    """SIGTERM and SIGHUP stop the run the way Ctrl-C does, so it puts the stack back. The previous handlers come back
+    when the run ends."""
+    previous = {s: signal.signal(s, on_signal) for s in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        yield
+    finally:
+        restore_handlers(previous)
+
+
+@contextlib.contextmanager
+def ignoring_signals() -> Iterator[None]:
+    """While the run puts the stack back, Ctrl-C, SIGTERM, and SIGHUP are ignored by this process, so a second one
+    can't leave the model server stopped. The docker commands it starts run in their own sessions (real_run), where the
+    terminal's signals never reach them. The run's handlers come back after."""
+    previous = {
+        s: signal.signal(s, signal.SIG_IGN)
+        for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        yield
+    finally:
+        restore_handlers(previous)
 
 
 # --- docker's output ----------------------------------------------------------------------------------------------
@@ -226,29 +284,38 @@ def normalize_image(ref: str) -> str:
     return ref
 
 
-def volumes_of(df: Mapping[str, Any]) -> dict[str, int]:
-    out = {}
+def volumes_of(df: Mapping[str, Any]) -> tuple[dict[str, int], list[str]]:
+    """This stack's volumes and their sizes, and the names of those whose size docker printed in no form it knows."""
+    sizes, unread = {}, []
     for volume in df.get("Volumes") or []:
         name = str(volume.get("Name", ""))
         if name.startswith(f"{PROJECT}_"):
-            with contextlib.suppress(ValueError):
-                out[name] = parse_size(str(volume.get("Size", "")))
-    return out
+            try:
+                sizes[name] = parse_size(str(volume.get("Size", "")))
+            except ValueError:
+                unread.append(name)
+    return sizes, sorted(unread)
 
 
-def images_of(df: Mapping[str, Any], wanted: set[str]) -> dict[str, int]:
-    out = {}
+def images_of(
+    df: Mapping[str, Any], wanted: set[str]
+) -> tuple[dict[str, int], list[str]]:
+    """The images the stack runs and their sizes, and the names docker's list didn't have, or sized in no form it
+    knows: named rather than dropped (T018's review)."""
+    sizes = {}
     for image in df.get("Images") or []:
         name = f"{image.get('Repository', '')}:{image.get('Tag', '')}"
         if name in wanted:
             with contextlib.suppress(ValueError):
-                out[name] = parse_size(str(image.get("Size", "")))
-    return out
+                sizes[name] = parse_size(str(image.get("Size", "")))
+    return sizes, sorted(wanted - set(sizes))
 
 
-def load_rates(text: str) -> tuple[int, int]:
-    """(hello, turns) a minute from config/budgets.yaml's limits: the global metered limit in all, turns at the per-client
-    cap (they come from one client), hello the rest. Read by pattern, since this file runs without PyYAML."""
+def load_rates(text: str, minutes: int) -> tuple[int, int, int]:
+    """(hello, turns, labels) a minute from config/budgets.yaml's limits. The global metered limit in all. The turns
+    come from one client, so no faster than its per-minute cap, half the whole, or what its daily cap allows over the
+    run; hello takes the rest, over enough labels that none reaches the per-minute or the daily cap (T018's review,
+    finding 1). Read by pattern, since this file runs without PyYAML."""
 
     def figure(section: str, key: str) -> int:
         match = re.search(
@@ -259,8 +326,18 @@ def load_rates(text: str) -> tuple[int, int]:
         return int(match.group(1))
 
     total = figure("global", "metered_per_minute")
-    turns = min(figure("per_client", "requests_per_minute"), total // 2)
-    return total - turns, turns
+    per_minute = figure("per_client", "requests_per_minute")
+    per_day = figure("per_client", "requests_per_day")
+    turns = min(per_minute, total // 2, per_day // minutes)
+    hello = total - turns
+    labels = max(
+        MIN_LABELS, math.ceil(hello / per_minute), math.ceil(hello * minutes / per_day)
+    )
+    if labels > MAX_LABELS:
+        raise Refusal(
+            f"hello at {hello} a minute for {minutes} minutes needs {labels} labels, more than {MAX_LABELS}"
+        )
+    return hello, turns, labels
 
 
 # --- the samples --------------------------------------------------------------------------------------------------
@@ -289,6 +366,22 @@ class Peaks:
         return sum(self.peak.values())
 
 
+def answered(summary: Mapping[str, Any]) -> dict[str, Any]:
+    """How many of the load's requests the stub answered (a 200), of all it sent."""
+    requests = sum(int(n) for n in summary.get("sent", {}).values())
+    by_the_stub = sum(
+        int(n)
+        for counts in summary.get("outcomes", {}).values()
+        for key, n in counts.items()
+        if key.split(" ", 1)[0] == "200"
+    )
+    return {
+        "requests": requests,
+        "by_the_stub": by_the_stub,
+        "share": round(by_the_stub / requests, 4) if requests else 0.0,
+    }
+
+
 # --- the run ------------------------------------------------------------------------------------------------------
 
 
@@ -307,13 +400,17 @@ class Context:
     minutes: int
     hello: int
     turns: int
+    labels: int
 
     @property
     def sandboxed(self) -> bool:
         return self.environ.get("SANDBOX_RUNTIME") == "1"
 
     def say(self, text: str) -> None:
-        print(text, file=self.out, flush=True)
+        with contextlib.suppress(
+            OSError
+        ):  # a terminal closed under the run fails every write
+            print(text, file=self.out, flush=True)
 
     def docker(self) -> list[str]:
         # Inside the sandbox, the relay; it runs the command directly when a relay already answers (make's own).
@@ -336,9 +433,9 @@ class Context:
         kept = {key: self.environ[key] for key in HOP_ENV if key in self.environ}
         return {**kept, "LC_ALL": "C"}
 
-    def call(self, what: str, command: list[str]) -> str:
+    def call(self, what: str, command: list[str], *, done_if: str | None = None) -> str:
         code, out, err = self.runner(command, None, self.env(), DOCKER_TIMEOUT_S)
-        if code != 0:
+        if code != 0 and not (done_if and done_if in err):
             tail = " | ".join(line.strip() for line in err.strip().splitlines()[-2:])
             raise Stop(f"{what} failed (exit {code}){': ' + tail if tail else ''}")
         return out
@@ -378,6 +475,8 @@ class Context:
             "--build",
             "--rm",
             "-T",
+            "--name",
+            LOAD_CONTAINER,
             LOAD_SERVICE,
             "python3",
             "-I",
@@ -388,6 +487,8 @@ class Context:
             str(self.hello),
             "--turns-per-minute",
             str(self.turns),
+            "--labels",
+            str(self.labels),
         )
 
 
@@ -407,6 +508,35 @@ def load_summary(stdout: str) -> dict[str, Any] | None:
             if isinstance(doc, dict) and doc.get("h4_measure_load") == 1:
                 return doc
     return None
+
+
+def put_back(ctx: Context, load: Load | None, was_running: bool) -> None:
+    """The stack as the run found it: the load ended, its container gone, the model server started again if the run
+    stopped it. Each step is tried whatever the one before it did, with signals ignored meanwhile."""
+    with ignoring_signals():
+        if load is not None and load.poll() is None:
+            load.terminate()
+            try:
+                ctx.call(
+                    f"docker rm {LOAD_CONTAINER}",
+                    [*ctx.docker(), "rm", "--force", LOAD_CONTAINER],
+                    done_if="No such container",
+                )
+            except Stop as stop:
+                ctx.say(
+                    f"measure-stack: {stop}; end it with docker rm --force {LOAD_CONTAINER}"
+                )
+        if was_running:
+            try:
+                ctx.call(
+                    f"docker compose start {MODEL_SERVER}",
+                    ctx.compose("start", MODEL_SERVER),
+                )
+                ctx.say(
+                    f"measure-stack: {MODEL_SERVER} started again, as the run found it"
+                )
+            except Stop as stop:
+                ctx.say(f"measure-stack: {stop}; start it with make up ENV=dev-cpu")
 
 
 def measure(ctx: Context) -> dict[str, Any]:
@@ -433,10 +563,11 @@ def measure(ctx: Context) -> dict[str, Any]:
             for row in running(rows)
             if row["Service"] != LOAD_SERVICE
         }
-        before = volumes_of(ctx.df())
+        before, _ = volumes_of(ctx.df())
         ctx.say(
-            f"measure-stack: the load, {ctx.minutes} minutes of hello at {ctx.hello} a minute and twin turns at "
-            f"{ctx.turns} a minute, from a breach-probe container; a sample every {INTERVAL_S} s"
+            f"measure-stack: the load, {ctx.minutes} minutes of hello at {ctx.hello} a minute over {ctx.labels} "
+            f"labels and the ready pieces' openings at {ctx.turns} a minute, from a breach-probe container; a sample "
+            f"every {INTERVAL_S} s. The stub spends dev-cpu's $2 fallback grant for the day (synthetic)"
         )
         load = ctx.start_load(ctx.load_command(), ctx.env())
         peaks = Peaks()
@@ -461,8 +592,8 @@ def measure(ctx: Context) -> dict[str, Any]:
         if summary is None:
             raise Stop("the load printed no summary")
         after_df = ctx.df()
-        after = volumes_of(after_df)
-        sizes = images_of(after_df, images)
+        after, unread = volumes_of(after_df)
+        sizes, unmatched = images_of(after_df, images)
         return {
             "h4_measure_stack": 1,
             "stack": STACK,
@@ -473,6 +604,7 @@ def measure(ctx: Context) -> dict[str, Any]:
             "samples": peaks.count,
             "model_server": {"service": MODEL_SERVER, "running_before": was_running},
             "load": summary,
+            "answered": answered(summary),
             "services": [
                 {
                     "service": service,
@@ -492,27 +624,30 @@ def measure(ctx: Context) -> dict[str, Any]:
                 }
                 for name in sorted(set(before) | set(after))
             ],
+            "volumes_unread": unread,
             "images": [{"image": name, "bytes": sizes[name]} for name in sorted(sizes)],
             "images_bytes": sum(sizes.values()),
+            "images_unmatched": unmatched,
         }
     finally:
-        if load is not None and load.poll() is None:
-            load.terminate()
-        if was_running:
-            try:
-                ctx.call(
-                    f"docker compose start {MODEL_SERVER}",
-                    ctx.compose("start", MODEL_SERVER),
-                )
-                ctx.say(
-                    f"measure-stack: {MODEL_SERVER} started again, as the run found it"
-                )
-            except Stop as stop:
-                ctx.say(f"measure-stack: {stop}; start it with make up ENV=dev-cpu")
+        put_back(ctx, load, was_running)
 
 
 def mib(n: int) -> str:
     return f"{n / MIB:.1f}"
+
+
+def answered_line(share: Mapping[str, Any]) -> str:
+    text = f"Answered by the stub: {share['by_the_stub']} of {share['requests']} requests ({share['share'] * 100:.1f}%)."
+    if share["by_the_stub"] < share["requests"]:
+        text += " The rest were degraded or refused, so these peaks are of "
+        text += (
+            "a mostly degraded stack"
+            if share["share"] < 0.5
+            else "a partly degraded stack"
+        )
+        text += " (research.md R-33)"
+    return text
 
 
 def table(record: Mapping[str, Any]) -> list[str]:
@@ -530,6 +665,8 @@ def table(record: Mapping[str, Any]) -> list[str]:
             f"measure-stack: {record['stack']}, {record['started_utc']} to {record['ended_utc']}, "
             f"{record['samples']} samples, one every {record['interval_s']} s; {model['service']} {how}"
         ),
+        "",
+        answered_line(record["answered"]),
         "",
         "| Service | Peak (MiB) | Limit (MiB) | Samples |",
         "|---|---|---|---|",
@@ -552,10 +689,20 @@ def table(record: Mapping[str, Any]) -> list[str]:
             "(each image's size, so layers two images share count twice)"
         ),
     ]
+    if record["images_unmatched"]:
+        names = record["images_unmatched"]
+        lines.append(
+            f"Not in docker system df's image list: {len(names)} images: {', '.join(names)}"
+        )
+    if record["volumes_unread"]:
+        lines.append(
+            f"Volumes docker sized in no form this reads: {', '.join(record['volumes_unread'])}"
+        )
     load = record["load"]
     lines.append(
-        f"Load: {load['minutes']} minutes; hello {load['hello_per_minute']} a minute, turns {load['turns_per_minute']} "
-        f"a minute; sent: hello {load['sent']['hello']}, turn {load['sent']['turn']}; late: {load['late']}"
+        f"Load: {load['minutes']} minutes; hello {load['hello_per_minute']} a minute over {load.get('labels', '?')} "
+        f"labels, turns {load['turns_per_minute']} a minute; sent: hello {load['sent']['hello']}, "
+        f"turn {load['sent']['turn']}; late: {load['late']}"
     )
     for kind in ("hello", "turn"):
         counts = load["outcomes"].get(kind, {})
@@ -590,7 +737,8 @@ def real_run(
 
 class _RealLoad:
     """The load's process, its output in temporary files rather than pipes, which a long build log could fill. The
-    files outlive __init__, so no with block holds them: result() and terminate() close them."""
+    files outlive __init__, so no with block holds them: result() and terminate() close them. It runs in its own
+    session, so the terminal's signals reach only this script, which ends it."""
 
     def __init__(self, argv: list[str], env: dict[str, str]) -> None:
         self._out = tempfile.TemporaryFile(mode="w+", encoding="utf-8")  # noqa: SIM115 (closed in _close)
@@ -705,42 +853,52 @@ def main(
     parser.add_argument("--env-file", help="dev-cpu's env file (make passes it)")
     parser.add_argument("--minutes", type=int, default=DEFAULT_MINUTES)
     args = parser.parse_args(argv)
+
+    def tell(text: str) -> None:
+        with contextlib.suppress(OSError):
+            print(text, file=out, flush=True)
+
     try:
-        check(args, environ, git or real_git)
-        hello, turns = load_rates(
-            budgets_text
-            if budgets_text is not None
-            else BUDGETS.read_text(encoding="utf-8")
-        )
-        ctx = Context(
-            runner=runner or real_run,
-            start_load=start_load or _RealLoad,
-            environ=environ,
-            out=out,
-            now=now or time.time,
-            sleep=sleep or time.sleep,
-            minutes=args.minutes,
-            hello=hello,
-            turns=turns,
-        )
-        record = measure(ctx)
+        with interruptible():
+            check(args, environ, git or real_git)
+            text = (
+                budgets_text
+                if budgets_text is not None
+                else BUDGETS.read_text(encoding="utf-8")
+            )
+            hello, turns, labels = load_rates(text, args.minutes)
+            ctx = Context(
+                runner=runner or real_run,
+                start_load=start_load or _RealLoad,
+                environ=environ,
+                out=out,
+                now=now or time.time,
+                sleep=sleep or time.sleep,
+                minutes=args.minutes,
+                hello=hello,
+                turns=turns,
+                labels=labels,
+            )
+            record = measure(ctx)
     except Refusal as refusal:
-        print(f"measure_stack.py: {refusal}", file=out)
-        print("measure_stack.py: exit 2: refused before anything changed", file=out)
+        tell(f"measure_stack.py: {refusal}")
+        tell("measure_stack.py: exit 2: refused before anything changed")
         return 2
     except ModelServerRunning as problem:
-        print(f"measure_stack.py: {problem}", file=out)
-        print("measure_stack.py: exit 3", file=out)
+        tell(f"measure_stack.py: {problem}")
+        tell("measure_stack.py: exit 3")
         return 3
     except Stop as stop:
-        print(f"measure_stack.py: {stop}", file=out)
-        print("measure_stack.py: exit 1: the run stopped, with no record", file=out)
+        tell(f"measure_stack.py: {stop}")
+        tell("measure_stack.py: exit 1: the run stopped, with no record")
         return 1
-    except KeyboardInterrupt:
-        print("measure_stack.py: exit 1: stopped by Ctrl-C, with no record", file=out)
+    except (KeyboardInterrupt, Interrupted) as stopped:
+        name = "Ctrl-C" if isinstance(stopped, KeyboardInterrupt) else str(stopped)
+        # put_back() has said above what it did, and what it couldn't.
+        tell(f"measure_stack.py: exit 1: stopped by {name}, with no record")
         return 1
-    print("\n".join(table(record)), file=out)
-    print(json.dumps(record), file=out)
+    tell("\n".join(table(record)))
+    tell(json.dumps(record))
     return 0
 
 

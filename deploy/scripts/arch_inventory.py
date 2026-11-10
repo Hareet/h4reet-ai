@@ -17,8 +17,9 @@ here pulls, loads, or tags: GET is the only method it sends.
 
 Which engine: the one DOCKER_HOST names, as the docker CLI reads it. unix://… (the default, /var/run/docker.sock), or
 tcp://host:port with DOCKER_TLS_VERIFY set, whose client certificates are where the CLI finds them: DOCKER_CERT_PATH,
-else DOCKER_CONFIG, else ~/.docker. A plain tcp:// engine, a context, or any other scheme is refused, since this
-script couldn't then be sure it reads the engine the CLI would. Inside the agent sandbox, make arch-inventory runs
+else DOCKER_CONFIG, else ~/.docker. A plain tcp:// engine, any other scheme, or, without DOCKER_HOST, a context other
+than the default (DOCKER_CONTEXT, or the currentContext in the CLI's config.json) is refused, since this script doesn't
+read contexts and couldn't then be sure it reads the engine the CLI would. Inside the agent sandbox, make arch-inventory runs
 itself again through deploy/agents-engine/docker-relay, which sets those for the agents' engine.
 
 Standard library only, by path through PY_HOST, never with -m (research.md R-35). It prints names, platforms, and
@@ -263,13 +264,41 @@ def verdict(rows: Sequence[Row], host: str) -> Verdict:
 # --- the engine ---------------------------------------------------------------------------------------------------
 
 
+def current_context(environ: Mapping[str, str], home: Path) -> str:
+    """The context the CLI's config names (its currentContext), or "" for none. The config is where the CLI finds it:
+    DOCKER_CONFIG, else ~/.docker. A missing or empty file names none (the agent sandbox shows a denied file empty); one
+    that can't be read or parsed is refused, never taken for the default."""
+    path = Path(environ.get("DOCKER_CONFIG") or home / ".docker") / "config.json"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+    except (OSError, UnicodeDecodeError) as error:
+        raise Refusal(
+            f"docker's config, {path}, can't be read ({type(error).__name__}), so its context isn't known"
+        ) from None
+    if not text.strip():
+        return ""
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        raise Refusal(
+            f"docker's config, {path}, isn't JSON, so its context isn't known"
+        ) from None
+    named = doc.get("currentContext", "") if isinstance(doc, Mapping) else ""
+    return named if isinstance(named, str) else ""
+
+
 def endpoint(environ: Mapping[str, str], home: Path) -> Endpoint:
-    """The engine docker would use, from DOCKER_HOST as the CLI reads it, or a refusal."""
+    """The engine docker would use, from DOCKER_HOST as the CLI reads it, or a refusal. DOCKER_HOST wins over any
+    context, as it does for the CLI; without it, a context other than the default, named by DOCKER_CONTEXT or by the
+    CLI's config (`docker context use`), is refused, since this script doesn't read contexts (T018's review)."""
     host = environ.get("DOCKER_HOST", "")
     if not host:
-        if environ.get("DOCKER_CONTEXT"):
+        named = environ.get("DOCKER_CONTEXT") or current_context(environ, home)
+        if named and named != "default":
             raise Refusal(
-                "DOCKER_CONTEXT names a docker context, which this script doesn't read: set DOCKER_HOST"
+                f"docker's context is {named!r}, which this script doesn't read: set DOCKER_HOST to its engine"
             )
         return Endpoint("unix", path="/var/run/docker.sock")
     if host.startswith("unix://"):
