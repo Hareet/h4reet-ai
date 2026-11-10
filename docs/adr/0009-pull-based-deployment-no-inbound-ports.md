@@ -8,7 +8,7 @@ The intent's constraint, in the Author's words: "No inbound ports on the local t
 
 The Author's answer on releases, verbatim (spec.md, Clarifications, Session 2026-10-12): Q: How are releases made before publication? (FR-046, FR-048) → A: "A (recommended)", which read: "the Author's terminal builds each release once and publishes it to a private registry in the account, and both deployers pull it by digest."
 
-On 2026-11-09 the session put to him, among five points (ADR 0044, proposed, decisions 5 to 9): "I'd avoid pointing DNS at your home IP." … "With a tunnel, the laptop dials out instead, so there's no IP prompt and no router changes." His reply: "Okay, all of your feedback is approved. for server size, we will try to use spot instances, or only keep the server online for 8-12 hours a day."
+On 2026-11-09 the session put to him, among five points ([ADR 0044](0044-ec2-as-prods-default-host.md), decisions 5 to 9): "I'd avoid pointing DNS at your home IP." … "With a tunnel, the laptop dials out instead, so there's no IP prompt and no router changes." His reply: "Okay, all of your feedback is approved. for server size, we will try to use spot instances, or only keep the server online for 8-12 hours a day."
 
 ## Decision
 

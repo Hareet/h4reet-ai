@@ -29,4 +29,4 @@ The idle-cost sentence is superseded by his words of 2026-11-09: "The server siz
 ## Links
 
 - Spec: [001](../../specs/001-cloud-elevation/spec.md) · Plan: [§1](../../specs/001-cloud-elevation/plan.md#1-infrastructure-the-roots-the-state-and-the-records) · Research: [R-01, R-02](../../specs/001-cloud-elevation/research.md#account-terraform-and-the-records)
-- Related: ADR 0044 (proposed, on `docs/001-ec2-default`): EC2 as prod's default host. [ADR 0008](0008-terraform-reviewed-plans-recorded-apply.md).
+- Related: [ADR 0044](0044-ec2-as-prods-default-host.md) (accepted): EC2 as prod's default host. [ADR 0008](0008-terraform-reviewed-plans-recorded-apply.md).

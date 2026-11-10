@@ -11,7 +11,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 ## 0. Before any group
 
 1. Approve the spec and the plan (tasks.md T000), and answer the plan's question 8. Asked on 2026-11-10: your approval chose neither option, and the session takes A provisionally, as it took questions 5 to 7; the wording is yours to write or confirm at T001 (spec.md Clarifications, Session 2026-11-10).
-2. Apply the constitution's 1.1.0 patch as amended on `docs/001-ec2-default`, with your question 8 wording if you chose A, and accept ADR 0044 (T001). `.specify/memory/constitution.md` reads "**Version**: 1.1.0". Groups 3 to 9 check this first.
+2. Apply the constitution's 1.1.0 patch as amended on `docs/001-ec2-default`, with your question 8 wording if you chose A, and accept ADR 0044 (T001). Done: 3c89a8b0 and 67028747. `.specify/memory/constitution.md` reads "**Version**: 1.1.0". Groups 3 to 9 check this first.
 
 ## 1. Group 1: the guards
 
