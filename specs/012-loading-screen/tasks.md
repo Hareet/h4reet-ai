@@ -191,7 +191,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Tests for User Story 3 (first)
 
-- [ ] T018 [P] [US3] Write `apps/web/test/room/hints-compose.test.ts`, with fixtures under `apps/web/test/fixtures/room/hints/` (FR-032 to FR-035; hints §1 to §4):
+- [x] T018 [P] [US3] Write `apps/web/test/room/hints-compose.test.ts`, with fixtures under `apps/web/test/fixtures/room/hints/` (FR-032 to FR-035; hints §1 to §4):
   - the shape (RD): unknown keys, a duplicate `id`, a bad `by`, a `when` other than `free_talk_ready`, a list outside 1 to 20, `words_from` on a session hint, `sources` on an Author's;
   - RT2 over a hint's text and RT3 on a digit outside a slot, refused in both modes;
   - RT9 on a quote not in its intent and RT14 on a session hint with no source or one the tree doesn't hold: refused in strict mode, not run in lenient mode, so a lenient build of a tree with no `specs/` passes;
@@ -210,7 +210,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Build the hints in the compositor (plan §7.1 to §7.4): the schema with `when` in `build/room/schema.ts`; the read in `build/room/load.ts`; the filler, `build/room/hints.ts`, with its exported path constants and `when`; RT2, RT3, and RT9 extended and RT14 to RT17 in `build/room/checks/rt.ts`, registered in `family.ts` with their modes (PD-13); the index's `hints` in `compose/bundle.ts` and `build/room/emit.ts`. Check: T018 passes; `npm run room:check` passes on the repository's room (feat/012-loading-screen)
+- [x] T022 [US3] Build the hints in the compositor (plan §7.1 to §7.4): the schema with `when` in `build/room/schema.ts`; the read in `build/room/load.ts`; the filler, `build/room/hints.ts`, with its exported path constants and `when`; RT2, RT3, and RT9 extended and RT14 to RT17 in `build/room/checks/rt.ts`, registered in `family.ts` with their modes (PD-13); the index's `hints` in `compose/bundle.ts` and `build/room/emit.ts`. Check: T018 passes; `npm run room:check` passes on the repository's room (feat/012-loading-screen)
 - [ ] T041 [US3] The image's reads (PD-21; FR-033), once `fix/007-image-readiness` is in the base (T001 records it; until then this task waits, and the note says so): add `build/room/hints.ts`'s three path constants to that branch's list of the files the room's build reads, and to the `Dockerfile`'s build stage the copies its test then asks for: `config/routing.yaml`, `config/prices.yaml`, and `config/budgets.yaml`, each where the list doesn't already hold it. Check: that branch's test passes with the new paths; a built web image's index holds hints 12 to 14, read through the agents' engine as `make` relays it, or, where the session can't, by one batched script for the Author that returns only the index's `hints` (`CLAUDE.md`) (feat/012-loading-screen)
 - [ ] T023 [US3] Write `apps/web/room/hints.yaml` from The Hint Copy, verbatim, with each hint's slots, its `words_from` or its sources (hints §1), as T000's answers leave the copy and FR-035's `when`. Check: T019 passes; `npm run room:check` prints no RT warning for it (feat/012-loading-screen)
 - [ ] T024 [US3] Write `apps/web/src/room/loading/hints.ts` (the rotation, PD-12) and the hint area in `loading/view.ts` and `loading.css`, the live region filled on the next tick (PD-24), the clock's timer set from the machine's state. Check: T020 and T021 pass (feat/012-loading-screen)
