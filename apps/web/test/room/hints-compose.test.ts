@@ -334,6 +334,20 @@ describe("the slots, filled (contracts/hints.md §2)", () => {
     expect(r.index.hints).toContain("The fallback costs $0.075 in and $0.30 out per million tokens.");
   });
 
+  // T036's review: the price is found by its model in the last version; two entries for that model, from two providers,
+  // would leave the choice to the file's order, so the slot is left unfilled (RT17) rather than picked.
+  it("leaves the price unfilled where the last version prices prod's fallback model twice", () => {
+    const prices = (hintFiles()[PRICES_FILE] ?? "").replace(
+      "      - { provider: fx-provider, model: fx-model-a, input: 0.1, output: 0.5 }\n",
+      "      - { provider: fx-provider, model: fx-model-a, input: 0.1, output: 0.5 }\n      - { provider: fx-other, model: fx-model-a, input: 9, output: 9 }\n",
+    );
+    expect(prices).toContain("fx-other");
+    const strict = composed({ changes: { [PRICES_FILE]: prices } });
+    expect(of(strict.findings, "RT17").map((f) => f.path)).toEqual(["hints[3].text", "hints[3].text"]);
+    const lenient = composed({ changes: { [PRICES_FILE]: prices }, mode: "lenient" });
+    expect(lenient.index.hints.some((h) => h.includes("per million tokens"))).toBe(false);
+  });
+
   it("writes amounts in dollars: whole where the cents are 0, else two decimals at least, zeros past them trimmed", () => {
     expect(formatAmount(5)).toBe("$5");
     expect(formatAmount(20.0)).toBe("$20");
