@@ -58,7 +58,7 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 
 **Decision.** As September R-02: Terraform and `hashicorp/aws` pinned in `.devcontainer/toolchain.vars`, each root's `required_version`, and its lockfile; the versions chosen in the first infra task from the Author's terminal; no other provider; environments by root, not by workspace; `default_tags` with `project` and `environment`, and `component` on every resource. What each root holds changes:
 - **`infra/bootstrap`:** the state bucket; the model-spend budgets and the server budget (R-22); the anomaly monitor; the `h4-alerts` topic and its email subscription. Applied first (FR-003, FR-022).
-- **`infra/account`:** the two budget actions and their rehearsals (R-22); the alert bridge, the probe, and the credential audit (R-23, R-24); the start function and the guard, their EventBridge rules, and the pause switch's parameter (R-29, R-30); the registry and the release bucket.
+- **`infra/account`:** the two budget actions and their rehearsals (R-22); the alert bridge, the probe, and the credential audit (R-23, R-24); the start function and the guard, their EventBridge rules, and the autostart switch's parameter (R-29, R-30); the probe's and the audit's EventBridge schedules, in the protected `alerts.tf` (rule T5); the registry and the release bucket.
 - **`infra/prod`:** the VPC and its subnets; the tunnel end (R-04, R-11); RDS (R-20); EC2 and its spot request (R-04, R-30); the Route 53 zone, the certificate, the health check and its alarm (R-29); the edge and the site's bucket (R-07); the roles (R-15).
 
 **Why.** The safety net is applied first and alone, as FR-022 asks. The handover's functions sit with the account's other functions, so they don't share a root with the instances they act on, and a plan of `infra/prod` can't silently widen them.
@@ -74,17 +74,18 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 ### R-14: Offline checks and the policy (carried, grown)
 
 **Decision.** September R-14: a provider mirror the Author seeds; `make infra-check` runs `fmt`, `validate`, and `tools/gates/infra_policy.py` offline; the Author's `make plan` runs the policy on the HCL before `init` and on the saved plan's JSON after. Its rules grow with FR-012's longer list. These resource types live only in protected files:
-- IAM, budgets and budget actions, SNS, CloudWatch alarms, and EventBridge rules (as before);
+- IAM, budgets and budget actions, SNS, CloudWatch alarms, and EventBridge rules (as before), the probe's and the credential audit's schedules among them (`alerts*.tf`);
+- CloudFront's policies (`edge-limits*.tf`);
 - the Route 53 health check and the failover's alarm (`failover*.tf`);
 - the start function, the guard, and their permissions (`handover*.tf`);
-- the pause switch's parameter (`handover*.tf`);
+- the autostart switch's parameter (`handover*.tf`);
 - EC2's spot and market options (`ec2-market*.tf`).
 
 The policy also refuses an EC2 instance whose market options aren't spot with `instance_interruption_behavior = "stop"` (R-30), and any security group rule open to the world except the tunnel's port on the tunnel end (R-11). Ingress from Route 53's health checkers on the tunnel end's health port (R-29) is the one other non-AWS-service source it allows.
 
 ### R-16: Refusing Terraform's state-changing commands (carried, grown)
 
-**Decision.** September R-16's rules and spellings, unchanged. The Author-only make targets grow with R-32's: `ec2-start`, `ec2-stop`, `ec2-autostart`, `operator-* ENV=shared`, `cloud-session`, `server-budget-restore`, `shared-state-roles`, `release`, `rollback`, `tunnel-keys`, `tunnel-revoke`, `secrets-check`, `infra-verify`, `infra-record`, and `infra-mirror`. They are refused in an agent session, in every spelling the gate already covers, with matrix rows.
+**Decision.** September R-16's rules and spellings, unchanged. The Author-only make targets grow with R-32's: `ec2-start`, `ec2-stop`, `ec2-autostart`, `operator-* ENV=shared` (`operator-restore` among them), `cloud-session`, `server-budget-restore`, `shared-state-roles`, `release`, `rollback`, `tunnel-keys`, `tunnel-revoke`, `secrets-check`, `infra-verify`, `infra-record`, `infra-mirror`, and `aws-login`. They are refused in an agent session, in every spelling the gate already covers, with matrix rows.
 
 ---
 
@@ -198,8 +199,8 @@ It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state
 ### R-10: Egress through an allowlisting proxy (carried, on two hosts)
 
 **Decision.** September R-10's host proxy and nftables chains, on EC2 and on the tunnel end. Each allowlist is generated from the disclosure's rows for that host:
-- **EC2:** the Anthropic API (F3), Bedrock (F1), Telegram and the SMTP host (A1, A2), and the AWS endpoints it uses: ECR, S3, Systems Manager, STS, and Budgets. RDS is reached inside the VPC.
-- **The tunnel end:** S3, Systems Manager, STS, Budgets, and EC2's describe calls. RDS and EC2 are reached inside the VPC.
+- **EC2:** the Anthropic API (F3), Bedrock (F1), Telegram and the SMTP host (A1, A2), and the AWS endpoints it uses: ECR, S3, Systems Manager, STS, Budgets, and SNS, to publish its alerts to `h4-alerts` (C7). RDS is reached inside the VPC.
+- **The tunnel end:** ECR, which its deployer pulls from; S3; Systems Manager; STS; Budgets; EC2's describe calls; SNS, to publish its alerts to `h4-alerts` (C7); and, for the dashboard's reads, Route 53's health-check status and CloudWatch's metric reads (plan §11). RDS and EC2 are reached inside the VPC.
 
 ### R-27: The route per host, and rule R1 (new)
 
@@ -267,13 +268,13 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 - **The check:** a Route 53 health check, HTTP, on the tunnel end's Elastic IP, at the published health port, path `/health`. It reaches the laptop's health block through the tunnel (R-11, R-12), so it fails if the tunnel end, the tunnel, or the laptop's stack fails (spec FR-054). It uses Route 53's standard interval and a failure threshold of 3 (both to price and to confirm). The tunnel end's security group admits the health port only from Route 53's health-checker address ranges, as AWS publishes them (to confirm the form).
 - **The alarm:** a CloudWatch alarm on the health check's `HealthCheckStatus` (published in us-east-1), in alarm below 1, with missing data treated as failing. September R-05 priced an alarm at $0.10 a month (2026-10-18, to confirm).
 - **The trigger:** an EventBridge rule on the alarm's change into the alarm state invokes `h4-ec2-start`, a Lambda function packaged as a container image (stdlib Python, as September's Lambdas), in `infra/account`. One alarm change, one invocation: no loop (spec FR-065). The function:
-  1. reads the pause switch, the String parameter `/h4reet/prod/ec2-autostart` (`on` or `off`); off refuses;
+  1. reads the autostart switch, the String parameter `/h4reet/prod/ec2-autostart` (`on` lets EC2 start automatically, `off` doesn't); `off` refuses, with the code `paused`;
   2. reads the server budget's action status (`budgets:DescribeBudgetActionsForBudget`); executed refuses;
   3. reads the tunnel end's state (`ec2:DescribeInstances` on its tag); not running refuses with `tunnel_end_down`, since no visitor could reach EC2 (plan question 2);
   4. calls `ec2:StartInstances` on the instance tagged `h4-prod-ec2`, and nothing else;
   5. publishes the outcome, started or refused and why, to `h4-alerts`, which reaches Telegram and email (R-23).
 - **Invoked by hand too:** `make ec2-start` and `make ec2-autostart STATE=on` invoke it (R-32), with the same checks, plus one more: it refuses while the health check is healthy, since the laptop then serves.
-- **A second trigger:** an EventBridge rule on the tunnel end entering `running` invokes it once, with the health-check test too. The alarm stays in alarm through a tunnel-end outage, so it wouldn't change again; this run starts EC2 if the laptop isn't serving.
+- **A second trigger:** an EventBridge rule on the tunnel end entering `running` invokes it once, with the health-check test too. The alarm stays in alarm through a tunnel-end outage, so it wouldn't change again; this run starts EC2 if the laptop isn't serving. Its health-check read can still show the outage while the laptop's tunnel reconnects, so it may start EC2 though the laptop is about to serve. That is accepted rather than delayed: once the relay serves the laptop, the laptop's loop stops EC2 within the handover window (spec FR-063), and SC-016 counts the minutes. A delay would need a schedule or a waiting function, and a laptop that doesn't come back would leave the twin resting longer.
 - **The default state.** EC2 is the default host, so the alarm is in the alarm state whenever the laptop isn't serving, and the function fires only on the laptop's departure. EC2 is started or stopped otherwise only by the laptop's stop, the guard (R-30), AWS's interruption and restart, the server budget's action, or the Author's own `make ec2-start` and `make ec2-stop`.
 
 **Why.** Point 1's mechanism ("a Lambda, fired when that health check fails, to start EC2"), with the health check probing through the tunnel end as question 13's option said. EventBridge, rather than an SNS subscription, invokes the function with no topic to manage.
@@ -286,7 +287,7 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 - **EC2** is a persistent spot request with `instance_interruption_behavior = "stop"` (spec FR-069, question 15). On an interruption, AWS stops it and keeps its volumes, and starts it again when capacity returns (to confirm against AWS's guide in the first task). A stop by the laptop or the Author is a user stop, after which AWS does not restart the instance on its own (to confirm).
 - **The interruption notice:** an EventBridge rule on "EC2 Spot Instance Interruption Warning" for that instance publishes to `h4-alerts` (spec FR-071, "You get an alert"). Visitors get `no_host_serving` until EC2 serves again or the laptop does (R-18).
 - **The tunnel end** is a persistent spot request with the same interruption behavior (the Author's answer to plan question 2). Its warning publishes `tunnel_end_interruption` to `h4-alerts`, and its return publishes `tunnel_end_back`. While it is gone, the edge's own body answers (R-08), and the start function refuses (R-29). Its Elastic IP stays associated with its interface across the stop (to confirm), so the laptop's tunnel finds it again.
-- **`h4-ec2-guard`:** a second function, on "EC2 Instance State-change Notification" to `running` for that instance. If the laptop serves (the health check is healthy), the pause switch is `off`, or the server budget's action has run, it calls `ec2:StopInstances` and alerts (`ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget`). It may stop that one instance and nothing else (spec FR-071, "IF EC2 starts again on its own…"). It is a separate function with its own role, so the start function's role stays start-only, as question 16's default says.
+- **`h4-ec2-guard`:** a second function, on "EC2 Instance State-change Notification" to `running` for that instance. If the laptop serves (the health check is healthy), the autostart switch is `off`, or the server budget's action has run, it calls `ec2:StopInstances` and alerts (`ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget`). It may stop that one instance and nothing else (spec FR-071, "IF EC2 starts again on its own…"). It is a separate function with its own role, so the start function's role stays start-only, as question 16's default says.
 
 **Why.** Spot around the clock is the Author's answer. The guard makes the spec's rule hold whatever AWS's restart does, so the plan needn't depend on that behavior being exactly as documented.
 
@@ -307,7 +308,7 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 
 The gap runs from the relay's last answer from the laptop to its first from EC2, and the relay records it in `handover_events` (spec SC-007). How long it is depends on R-29's detection time and EC2's boot, which group 9's rehearsal measures; the spec sets no bound on it, only on what visitors get meanwhile (SC-001's exception).
 
-**When the tunnel end comes back after AWS took it** (plan question 2): its services start, the laptop's tunnel reconnects, the relay finds whichever host is up, and a rule on the tunnel end's `running` state invokes the start function once (R-29).
+**When the tunnel end comes back after AWS took it** (plan question 2): its services start, the laptop's tunnel reconnects, the relay finds whichever host is up, and a rule on the tunnel end's `running` state invokes the start function once (R-29). That run can start EC2 just before the laptop serves again; the loop then stops it, as after any handover.
 
 ### R-32: The operator's commands (new)
 
@@ -317,15 +318,15 @@ All run in the Author's terminal only (R-16), each with an audit record:
 |---|---|
 | `make plan ROOT=…`, `make infra-verify`, `make infra-record`, `make infra-mirror` | the plan and apply cycle (R-13, R-14) |
 | `make release`, `make rollback ENV=ec2\|tunnel-end\|prod` | releases and rollback (R-17) |
-| `make ec2-status` | EC2's state, its spot request's state, the pause switch, the serving host from the relay's status, the server budget's action status |
-| `make ec2-start` | invokes `h4-ec2-start` by hand, so the same rules apply: refused while the pause switch is off, the server action is executed, or the laptop serves |
+| `make ec2-status` | EC2's state, its spot request's state, the autostart switch, the serving host from the relay's status, the server budget's action status |
+| `make ec2-start` | invokes `h4-ec2-start` by hand, so the same rules apply: refused while the autostart switch is `off`, the server action is executed, or the laptop serves |
 | `make ec2-stop` | stops EC2 through the Author's SSO session (`h4-ec2-stop`) |
-| `make ec2-autostart STATE=on\|off` | sets the pause switch (spec FR-065, FR-012) and writes an audit row to the shared state. Setting it `on` also invokes `h4-ec2-start` once, since the alarm won't change again while the laptop stays away |
-| `make operator-status\|reset\|renew\|init ENV=shared` | spec 000's operator actions on the shared state, whichever host serves, or none (spec FR-074). It starts a short-lived admin-only stack on the laptop: `tunnel` with only its `-L 5432` forward, and a `gateway` with its admin listener on loopback and no public route. So it can't take visitors, and the relay never sees the laptop as healthy. It runs the operator CLI, then stops |
+| `make ec2-autostart STATE=on\|off` | sets the autostart switch: `on` lets EC2 start automatically, `off` stops that (spec FR-065, FR-012), and writes an audit row to the shared state. Setting it `on` also invokes `h4-ec2-start` once, since the alarm won't change again while the laptop stays away |
+| `make operator-status\|reset\|renew\|init\|restore ENV=shared` | spec 000's operator actions on the shared state, whichever host serves, or none (spec FR-074). While the laptop's prod runs, it uses that prod's own admin listener, `127.0.0.1:18003`, whose gateway is already on the shared state. Otherwise it starts a short-lived admin-only stack on the laptop: `tunnel` with only its `-L 5432` forward, and a `gateway` with its admin listener on the same loopback port and no public route. So the two never hold the port together, the stack can't take visitors, and the relay never sees the laptop as healthy. It runs the operator CLI, then stops. `restore` is new: it marks a store restored from a backup uninitialized, so that `init` can confirm its values (contracts/shared-state.md §8) |
 | `make cloud-session HOST=ec2\|tunnel-end` | a Systems Manager port-forwarding session to a host's admin listener (spec FR-050) |
 | `make shared-state-roles` | once, as RDS's master user: sets the shared state's role passwords from the values the Author wrote to Parameter Store (contracts/shared-state.md §2) |
 | `make server-budget-restore` | reverses the server budget's action after the seven-day incident note (spec FR-023) |
-| `make tunnel-keys`, `make tunnel-revoke`, `make secrets-check`, `make aws-login` | keys, revocation, the secrets' presence by name, and the SSO session |
+| `make tunnel-keys`, `make tunnel-revoke`, `make secrets-check`, `make aws-login` | keys, revocation, the secrets' presence by name, and the SSO session (tasks.md: `aws-login` and `infra-mirror` in group 1, `cloud-session` in group 5) |
 
 ---
 
@@ -355,7 +356,9 @@ All run in the Author's terminal only (R-16), each with an audit record:
 | ECR: the stack's images for the last three releases, two platforms | $0.10 per GB a month (September R-05) | to price the size: EC2 now runs the whole stack's images |
 | Lambda, EventBridge, SNS, Session Manager, Parameter Store standard tier | inside the always-free tier, or free (September R-05) | to confirm, with EventBridge's rules on AWS service events |
 | AWS Budgets | the first two action-enabled budgets free (September R-05; from a web-search summary) | to confirm: this design has two actions, plus their rehearsals while they run |
-| The uptime probe's alarm, `GetMetricData` | $0.10 an alarm; $0.01 per 1,000 metrics (September R-05) | to confirm |
+| The uptime probe's alarm, `GetMetricData` | $0.10 an alarm; $0.01 per 1,000 metrics (September R-05) | to confirm, with the tunnel end's dashboard reads (plan §11) |
+| AWS's fault-injection service, for SC-018's rehearsed interruptions (eight in group 9) | none | to price; the console's interruption test is the alternative (tasks.md T133) |
+| `h4-rehearsal-instance`, the server rehearsal's target: a `t4g.nano`, started for each rehearsal and stopped by it | none | to price: its running minutes per rehearsal, and its root volume while stopped |
 
 **What the Author prices from.** R-33's measurement, these lines, and spot first (question 15), with the 8-to-12-hour schedule only as the reserve. He sets the server budget's figure before the first apply, since the state bucket is already a resource the server budget covers (spec FR-021).
 
@@ -373,7 +376,7 @@ All run in the Author's terminal only (R-16), each with an audit record:
 In `infra/account/killswitch.tf` (protected):
 - **The model action:** on `h4-model-month` at 100% of actual, automatic, of type "apply IAM policy". It attaches `h4-deny-paid-models` (deny `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`) to both hosts' Bedrock roles: EC2's `h4-prod-gateway`, and `h4-laptop-bedrock`, the ordinary role the laptop's permission set assumes (R-15). It never attaches to a role Identity Center makes for a permission set, which Identity Center manages itself; that such a role can't take the attachment, and that the assumed role works for the laptop's gateway, are to confirm in group 4. The Author reverses it after the incident note (spec FR-023).
 - **The server action:** on `h4-server-month` at 100% of actual, automatic, of type "run an SSM document", `AWS-StopEC2Instance` on the tagged instance (to confirm the action type's name and its target form). The start function reads its status and refuses while it is executed (R-29). `make server-budget-restore` reverses it.
-- **Rehearsals (spec FR-026):** while `rehearsal = true`, two $0.01 budgets with the same actions against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes, and `h4-rehearsal-instance` (a stopped `t4g.nano` with no volume of note; to price). Each run records when AWS evaluated, when each channel got the alert, and when the action took effect. Then `rehearsal = false`.
+- **Rehearsals (spec FR-026):** while `rehearsal = true`, two $0.01 budgets with the same actions against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes, and `h4-rehearsal-instance` (a `t4g.nano` with no volume of note; to price). The Author starts the rehearsal instance before each server rehearsal, since stopping a stopped instance proves nothing, and records the SSM run's status from the action's history (`AWS-StopEC2Instance` succeeded, and the instance reached `stopped`). Each run records when AWS evaluated, when each channel got the alert, and when the action took effect. Then `rehearsal = false`.
 
 **Why.** Spec FR-022 and FR-023, as answered. The server action stops only EC2: the laptop, the tunnel end, RDS, and the safety net keep running, so the laptop can still serve and the meter stays the control.
 
@@ -391,12 +394,12 @@ September R-24 unchanged: `h4-probe`, once a minute, fetches `https://hareet.ai/
 |---|---|---|
 | `h4-prod-ec2` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; publish to `h4-alerts`; Session Manager; assume `h4-prod-gateway` | EC2's host services |
 | `h4-prod-gateway` | `bedrock:InvokeModel*` on the one inference profile and the models it routes to | EC2's gateway, through credentials a host timer writes to tmpfs (September R-15); IMDSv2 with hop limit 1 keeps containers out of the metadata |
-| `h4-prod-tunnel-end` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; write `site/status/latest.json`; `budgets:ViewBudget` on `h4-server-month`; `ec2:DescribeInstances` on the tagged instance. For the dashboard's panels (plan §11), all reads: the pause switch's parameter; the health check's status; the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`); and the two functions' outcome counts (`cloudwatch:GetMetricData` on their namespace, to confirm in group 9). Session Manager | the tunnel end's host services and `snapshot-sink` |
+| `h4-prod-tunnel-end` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; write `site/status/latest.json`; `budgets:ViewBudget` on `h4-server-month`; `ec2:DescribeInstances` on the tagged instance; `sns:Publish` on `h4-alerts`, for its deployer's alerts (contracts/aws-alerts.md §1). For the dashboard's panels (plan §11), all reads: the autostart switch's parameter; the health check's status; the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`); and the two functions' outcome counts (`cloudwatch:GetMetricData` on their namespace, to confirm in group 9). Session Manager | the tunnel end's host services and `snapshot-sink` |
 | The laptop's Bedrock permission set (spec 000's runtime identity) | only `sts:AssumeRole` on `h4-laptop-bedrock` | the laptop's gateway, through SSO (row F2). Imported into Terraform and narrowed, ending spec 000's "made by hand" (spec FR-013) |
 | `h4-laptop-bedrock` (new, an ordinary role) | `bedrock:InvokeModel*` on the one inference profile; trusts only the permission set's role | the laptop's gateway, assumed with its SSO credentials, so the budget action's deny can attach to it (to confirm, R-22) |
 | `h4-ec2-stop` permission set (question 16's default) | `ec2:StopInstances` on the tagged instance; `ec2:DescribeInstances` | `h4-handover` and `make ec2-stop`, through the Author's SSO session |
-| `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the pause switch, the server action's status, the health check's status, and the tunnel end's state; publish to `h4-alerts` | `h4-ec2-start` |
-| `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the pause switch, the health check's status, and the server action's status; publish to `h4-alerts` | `h4-ec2-guard` |
+| `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the autostart switch, the server action's status, the health check's status, and the tunnel end's state; publish to `h4-alerts` | `h4-ec2-start` |
+| `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the autostart switch, the health check's status, and the server action's status; publish to `h4-alerts` | `h4-ec2-guard` |
 | The Author's administrator permission set | as September | Terraform, by hand |
 
 Every role and permission set is in protected Terraform (FR-012). Nothing changes IAM at run time (spec FR-070).
@@ -424,6 +427,8 @@ Rollback and the hand-started hold are as September R-17.
 
 It writes `site/status/latest.json` (spec FR-057 to FR-059). The rest is as September R-19.
 
+**While the tunnel end is gone,** the sink is gone with it, and `latest.json` keeps naming the last serving host. So `/status/` doesn't take the host from the document alone: it also reads `/api/status`, and the edge's degraded answer there (`no_host_serving`, `stack` null), or no answer, means `none`. The document's values then show as last-known, with their times (spec FR-057). This was weighed against moving the cloud part's writer off the tunnel end, to a scheduled function: that adds a function, a schedule, and a role with the same reads, to cover a gap the page can already see.
+
 ### R-25: Telemetry across the hosts (changed)
 
 **Decision.**
@@ -437,7 +442,8 @@ It writes `site/status/latest.json` (spec FR-057 to FR-059). The rest is as Sept
 **Decision.** September R-26: Terraform never creates or reads a secret; the Author writes each under `/h4reet/<host>/` with `aws ssm put-parameter --type SecureString`, and `make secrets-check` lists them by name only. New secrets:
 - EC2's Anthropic API key (spec FR-068), in place of the laptop's env-file key;
 - the shared state's role passwords: `gateway`, `grafana_ro`, `relay_ro`, `relay_rw`;
-- the relay's two host tokens.
+- the relay's two host tokens (`RELAY_TOKEN_*`);
+- the sink's token, which the publishers send (`SNAPSHOT_SINK_TOKEN`), and the laptop's telemetry block's token, which the tunnel end's collector sends (`TELEMETRY_BLOCK_TOKEN`). Each is named in FR-011's deny list (contracts/env-cloud.md §5; P-1).
 
 RDS's master password is RDS's own, in Secrets Manager (R-20). This stays a named exception to FR-001 (plan Complexity Tracking).
 

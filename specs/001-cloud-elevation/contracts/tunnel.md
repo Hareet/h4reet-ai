@@ -52,14 +52,14 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 
 - **Reconnecting:** backoff 1, 2, 5, 10, 30 s, with `ServerAliveInterval 10`, `ServerAliveCountMax 3` and `ExitOnForwardFailure yes`.
 - **Its health:** `h4.tunnel.up`, from both ends.
-- **The admin-only stack** for `make operator-* ENV=shared` runs the same image with only `-L 5432` (contracts/handover.md §7).
+- **The admin-only stack** for `make operator-* ENV=shared` runs the same image with only `-L 5432`, and only while the laptop's prod isn't running; while it runs, the command uses prod's own admin listener (contracts/shared-state.md §7).
 
 ## 4. The hosts' blocks on `edge` (spec 000's nginx)
 
 | Block | Hosts | Published | Accepts | Auth | Notes |
 |---|---|---|---|---|---|
 | 8085, relay | the laptop; EC2 | the laptop: unpublished (the tunnel reaches it). EC2: its private address, a literal in the `ec2` class, admitted only from the tunnel end's security group | `POST /hello`, `POST /room/turn`, `POST /room/events` to `gateway:8080`; `GET /health` (below) | `Authorization: Bearer <relay token for this host>`, from the host's env file; 401 otherwise, logged with no address | it moves `X-H4-Viewer` into the one `X-Forwarded-For` value it sends on, drops any other, and keeps `traceparent` |
-| 8086, telemetry | the laptop | unpublished | `POST /v1/{traces,metrics,logs}` to `otel-collector:4318` | its own bearer token | EC2's collector is reached in the VPC instead |
+| 8086, telemetry | the laptop | unpublished | `POST /v1/{traces,metrics,logs}` to `otel-collector:4318` | its own bearer token, `TELEMETRY_BLOCK_TOKEN` | EC2's collector is reached in the VPC instead |
 | 8087, health | the laptop | unpublished | `GET /health` only | none: Route 53's checkers can't send one (spec FR-053's conditional) | answers 200 or 503 with an empty body; rate-limited to 10 requests a second |
 
 **`GET /health` on 8085 and 8087** both ask `gateway:8080/health` and answer 200 only if it reports itself up and the shared state readable. The plan's gateway task adds that field to the gateway's health answer if it isn't there.
@@ -71,6 +71,7 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 | The client's key pair | `make tunnel-keys` (the Author) | the private key in `~/.config/h4reet-ai/tunnel/`, denied to agents; the public key in Parameter Store, `/h4reet/tunnel-end/AUTHORIZED_KEY` |
 | The server's host key | the same | the private key in Parameter Store, `/h4reet/tunnel-end/HOST_KEY` (SecureString); its public key pinned in the laptop's `known_hosts` under `~/.config/h4reet-ai/tunnel/` |
 | The relay's tokens, one per host | `make tunnel-keys` | Parameter Store under `/h4reet/tunnel-end/`, and each host's own copy: the laptop's prod env file, EC2's Parameter Store path |
+| The sink's token, `SNAPSHOT_SINK_TOKEN`, and the telemetry block's token, `TELEMETRY_BLOCK_TOKEN` | `make tunnel-keys` | Parameter Store under `/h4reet/tunnel-end/`; the sink's token also in the laptop's prod env file and EC2's path, the telemetry block's in the laptop's prod env file |
 
 `make tunnel-revoke` empties `AUTHORIZED_KEY`, and a Systems Manager command restarts `tunnel-end`: one action (FR-055).
 
@@ -80,7 +81,7 @@ On EC2 and on the tunnel end, as September: a host proxy with a hostname allowli
 
 | Host | Allowed through the proxy | Reached inside the VPC |
 |---|---|---|
-| EC2 | `api.anthropic.com`, `bedrock-runtime.us-east-1.amazonaws.com`, `api.telegram.org`, the SMTP host, and the AWS endpoints for ECR, S3, Systems Manager, STS, and Budgets | RDS |
-| The tunnel end | the AWS endpoints for S3, Systems Manager, STS, Budgets, and EC2's describe calls | RDS; EC2's relay block; EC2's collector |
+| EC2 | `api.anthropic.com`, `bedrock-runtime.us-east-1.amazonaws.com`, `api.telegram.org`, the SMTP host, and the AWS endpoints for ECR, S3, Systems Manager, STS, Budgets, and SNS (its alerts to `h4-alerts`; row C7) | RDS |
+| The tunnel end | the AWS endpoints for ECR (its deployer's pulls), S3, Systems Manager, STS, Budgets, EC2's describe calls, SNS (its alerts to `h4-alerts`; row C7), Route 53's health-check status, and CloudWatch's metric reads (the dashboard's reads, plan §11) | RDS; EC2's relay block; EC2's collector |
 
 `tools/gates/disclosure_check.py` fails the gate when an allowlist and the disclosure differ.

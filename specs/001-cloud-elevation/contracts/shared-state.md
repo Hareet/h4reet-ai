@@ -58,15 +58,26 @@ Both production gateways run with `H4_STACK=prod`, so both use `stack_state`'s o
 
 ## 6. The move (data-model.md §1.5)
 
-`make operator-init ENV=shared DAY_USD=… MONTH_USD=… FALLBACK_TODAY_USD=… ADAPTER_MONTH_USD=… [RENEW=yes]` initializes the store through spec 000's initialization (FR-034: the credential, the reason, an audit row with `host`). It refuses unless the store is `uninitialized`.
+`make operator-init ENV=shared DAY_USD=… MONTH_USD=… FALLBACK_TODAY_USD=… ADAPTER_MONTH_USD=… [RENEW=yes]` initializes the store through spec 000's initialization (FR-034: the credential, the reason, an audit row with `host`). It refuses unless the store is `uninitialized`: a new store, a store found empty, or a restored store after §8's `operator-restore`.
 
 ## 7. Operator access (FR-074)
 
-`make operator-status|reset|renew|init ENV=shared` runs spec 000's operator CLI against an admin-only stack on the laptop: `tunnel` with only `-L 5432`, and `gateway` with `H4_HOST=laptop`, its admin listener on `127.0.0.1:18003`, and no relay block. It can't take visitors, since the relay never sees it as healthy, and it stops when the command ends. Each action writes spec 000's audit row, with `host` set.
+`make operator-status|reset|renew|init|restore ENV=shared` runs spec 000's operator CLI against the shared state, through one of two gateways, so that only one ever holds `127.0.0.1:18003`:
+- **While the laptop's prod runs,** through that prod's own admin listener, `127.0.0.1:18003`. Its gateway already uses the shared state.
+- **Otherwise,** through an admin-only stack on the laptop: `tunnel` with only `-L 5432`, and `gateway` with `H4_HOST=laptop`, its admin listener on the same `127.0.0.1:18003`, and no relay block. It can't take visitors, since the relay never sees it as healthy, and it stops when the command ends.
+
+`operator.py` checks which applies before it starts anything, and refuses to start the admin-only stack while prod's gateway holds the port. Each action writes spec 000's audit row, with `host` set.
 
 ## 8. Restore
 
-The runbook restores from RDS's automated backups to a new instance. The restored store is then treated as found again: both hosts stay degraded until `make operator-init ENV=shared` confirms its values, with the reason naming the restore. Nothing restarts at zero (FR-019).
+A restored store isn't empty: it holds the meters and the kill switch as they were at the restore point, and §6's `init` refuses it. Spend after the restore point is missing from it. So the runbook, all in the Author's terminal:
+1. **Stop both hosts:** `make ec2-autostart STATE=off`, `make ec2-stop`, and `make down ENV=prod` on the laptop. No gateway may use the restored store before step 4.
+2. **Restore** from RDS's automated backups to a new instance, and give it the original instance's identifier, keeping the old one's final snapshot, so the endpoint, the tunnel's permit, and every `GATEWAY_DB_URL` stay as they are. The rename steps, and how Terraform's state then matches the instance, are to confirm against AWS's guide in group 6, and the runbook records them.
+3. **`make operator-restore ENV=shared`** (new; spec 000's operator actions, amended by name): it refuses unless EC2 is stopped and the laptop's prod isn't running. Through the admin-only stack (§7), it prints the restored meters, then, under the initialization lock, sets `stack_state` to `uninitialized`. It keeps the ledger and the audit log. From then on, every gateway and the relay answer degraded, as for a store found empty.
+4. **`make operator-init ENV=shared`** with the values the Author confirms: never lower than the restored meters step 3 printed, and raised by the spend since the restore point that the providers' own usage shows (Bedrock's cost in AWS's data, and the Anthropic account's usage). Nothing restarts at zero (FR-019).
+5. **Start the hosts again:** `make ec2-autostart STATE=on`, or the laptop's prod.
+
+Steps 3 and 4 each take the operator credential and a reason naming the restore, and write an audit row with `host`.
 
 ## 9. What it never holds
 

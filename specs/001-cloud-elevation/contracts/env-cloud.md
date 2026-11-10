@@ -6,9 +6,9 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 
 | Host | Env file | Written by | Secrets in it |
 |---|---|---|---|
-| The laptop | `~/.config/h4reet-ai/env/prod.env` (spec 000's) | the Author | as today, plus `GATEWAY_DB_URL`, the gateway's and `grafana_ro`'s passwords for the shared state, and the relay block's and the telemetry block's tokens |
-| EC2 | `/run/h4reet/ec2.env`, on tmpfs, mode 0600 | `deploy/scripts/write_env.py` at boot, from Parameter Store `/h4reet/ec2/*` and the String parameters Terraform writes | the Anthropic key, Telegram's and SMTP's credentials, the shared state's passwords, its relay block's token |
-| The tunnel end | `/run/h4reet/tunnel-end.env`, on tmpfs | `write_env.py`, from `/h4reet/tunnel-end/*` | the host key, the authorized key, the relay's two host tokens, `relay_ro`'s and `relay_rw`'s passwords |
+| The laptop | `~/.config/h4reet-ai/env/prod.env` (spec 000's) | the Author | as today, plus `GATEWAY_DB_URL`, the gateway's and `grafana_ro`'s passwords for the shared state, the relay block's token, the telemetry block's token, and the sink's token |
+| EC2 | `/run/h4reet/ec2.env`, on tmpfs, mode 0600 | `deploy/scripts/write_env.py` at boot, from Parameter Store `/h4reet/ec2/*` and the String parameters Terraform writes | the Anthropic key, Telegram's and SMTP's credentials, the shared state's passwords, its relay block's token, the sink's token |
+| The tunnel end | `/run/h4reet/tunnel-end.env`, on tmpfs | `write_env.py`, from `/h4reet/tunnel-end/*` | the host key, the authorized key, the relay's two host tokens, the sink's token, the telemetry block's token, `relay_ro`'s and `relay_rw`'s passwords |
 
 `write_env.py` refuses to start the stack while an expected name is missing, naming it, never a value. `make secrets-check` (the Author) lists which names exist, by name and type only.
 
@@ -24,6 +24,8 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 | `GATEWAY_DB_TLS_SERVERNAME` (new) | `<rds-endpoint>` | `<rds-endpoint>` | — | — | — | preflight |
 | `RELAY_TOKEN_SELF` (new) | the laptop's | EC2's | — | — | — | the relay block |
 | `RELAY_TOKEN_LAPTOP`, `RELAY_TOKEN_EC2` (new) | — | — | both | — | — | the relay |
+| `SNAPSHOT_SINK_TOKEN` (new) | the publisher's | the publisher's | the sink's | — | — | the sink (contracts/public-view.md §1) |
+| `TELEMETRY_BLOCK_TOKEN` (new) | the telemetry block's | — | the collector's | — | — | the laptop's 8086 block (contracts/tunnel.md §4) |
 | `GATEWAY_ANTHROPIC_API_KEY` | as spec 010 | from Parameter Store | — | absent | absent | spec 010's preflight |
 
 The ports keep spec 000's prod values on both serving hosts (18000 to 18005): different machines, the same numbers. On EC2 they bind its loopback, for the operator's session; its relay block binds its private address (contracts/tunnel.md §4). The tunnel end's relay listener binds its private address, and its internal listener `127.0.0.1:18505`.
@@ -64,5 +66,5 @@ The gateway selects `envs.prod.hosts.<H4_HOST>` on prod. It refuses with exit 78
 
 ## 5. FR-011's deny list grows (the guard patch, plan §2)
 
-- **Names:** `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, `RELAY_TOKEN_*`, `DB_*_PASSWORD`, `TF_VAR_*`, `AWS_*`, and `TF_CLI_ARGS*`.
+- **Names:** `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, `RELAY_TOKEN_*`, `SNAPSHOT_SINK_TOKEN`, `TELEMETRY_BLOCK_TOKEN`, `DB_*_PASSWORD`, `TF_VAR_*`, `AWS_*`, and `TF_CLI_ARGS*`, each with its own matrix row.
 - **Paths:** `/run/h4reet/*.env` (on the hosts, never on an agent's machine); `~/.config/h4reet-ai/{infra,tunnel,release}`, already under spec 000's deny, each with its own matrix row.

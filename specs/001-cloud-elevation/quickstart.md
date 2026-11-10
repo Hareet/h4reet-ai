@@ -35,15 +35,15 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 ## 4. Group 4: the safety net (SC-009)
 
 1. Apply `infra/account`, with the import of the laptop's Bedrock permission set, now narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`. Point the laptop's Bedrock profile at that role, as the runbook says, and check with `aws sts get-caller-identity` that it names `h4-laptop-bedrock`, with no paid call. Write the Telegram parameters.
-2. Set `rehearsal = true`, plan, and apply. Wait for AWS to evaluate both $0.01 budgets.
-3. Record, per action, from AWS's timestamps: when it evaluated; when Telegram and email got the alert; when the policy was attached to `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock` (to confirm), and when `h4-rehearsal-instance` was stopped. Note the delay.
+2. Set `rehearsal = true`, plan, and apply. Start `h4-rehearsal-instance`, since stopping a stopped instance proves nothing, and check it is `running`. Wait for AWS to evaluate both $0.01 budgets.
+3. Record, per action, from AWS's timestamps: when it evaluated; when Telegram and email got the alert; when the policy was attached to `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock` (to confirm), and when `h4-rehearsal-instance` was stopped, with the SSM run's status from the action's history (`AWS-StopEC2Instance` succeeded) and the instance's state after it (`stopped`). Note the delay.
 4. `rehearsal = false`; plan; apply.
 
 **SC-009 passes** when both channels got each alert and each action took effect on its target.
 
 ## 5. Group 5: the tunnel end and the tunnel (SC-006)
 
-1. Apply `infra/prod`'s network and the tunnel end. Run `make tunnel-keys`, then `make secrets-check`.
+1. Apply `infra/prod`'s network and the tunnel end, and `infra/account`'s warning rule for it. Run `make tunnel-keys`, then `make secrets-check`. `make cloud-session HOST=tunnel-end` opens a Systems Manager session to it.
 2. `make up ENV=prod` on the laptop, with the `tunnel` profile. `h4.tunnel.up` is 1 on both ends.
 3. From a machine outside your network, scan your public address: zero open ports. Stop the tunnel and scan again: zero.
 4. Scan the tunnel end's Elastic IP: only 2222, and 8087 from Route 53's ranges, which looks closed from your scanner.
@@ -62,6 +62,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - release the cutover, so the laptop's prod uses the shared store.
 4. Run `make operator-status ENV=shared`. The values are the carried ones, and nothing is zero that wasn't.
 5. Run the two-gateways test's record (plan §10), from the group's note.
+6. Run `make operator-status ENV=shared` once while the laptop's prod runs, and once while it doesn't: the first uses prod's admin listener, the second the admin-only stack, and neither fails on port 18003.
 
 ## 7. Group 7: EC2 (SC-005, SC-017)
 
@@ -76,14 +77,14 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 8. Group 8: the edge and the relay
 
-1. Point the registrar's name servers at the zone, and record it. Apply the certificate, the distribution, and the VPC origin. Deploy the relay on the tunnel end.
+1. Point the registrar's name servers at the zone, and record it. Apply the certificate, the distribution, and the VPC origin, and `infra/account`'s P-I5 line that enables the probe's schedule. Deploy the relay on the tunnel end.
 2. Run the red-team cases on all four adapters, and record that they passed (FR-039).
 3. `curl -I https://hareet.ai/`: TLS, HSTS, the CSP. `curl http://hareet.ai/` redirects to HTTPS.
 4. Stop EC2 with the laptop off. `POST /api/hello` gets 503 `no_host_serving` from the relay. Stop the relay: the edge's own body, the same cause. The site still loads.
 
 ## 9. Group 9: the handover (SC-001, SC-007, SC-010, SC-011, SC-018)
 
-1. Apply the health check, the alarm, the rules, the two functions, and the pause switch (`on`).
+1. Apply the health check, the alarm, the rules, the two functions, and the autostart switch, set `on` so EC2 may start automatically.
 2. **Laptop to EC2, ten times:** with the laptop serving and EC2 stopped, cut the laptop: `make down ENV=prod`, or pull its network. For each run, check that:
    - `h4-ec2-start` fires once;
    - EC2 starts, and the relay serves it;
@@ -93,9 +94,9 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - the relay serves the laptop;
    - `h4-handover` stops EC2 within 5 minutes;
    - no request went unanswered.
-4. **Pause:** `make ec2-autostart STATE=off`, then cut the laptop. EC2 stays stopped, and `ec2_start_refused (paused)` arrives. `make ec2-autostart STATE=on`: EC2 starts.
+4. **The autostart switch:** `make ec2-autostart STATE=off`, then cut the laptop. EC2 stays stopped, and `ec2_start_refused (paused)` arrives. `make ec2-autostart STATE=on`: EC2 starts.
 5. **The guard:** with the laptop serving, `make ec2-start` is refused (`laptop_serving`). Start EC2 from the console: the guard stops it and alerts `ec2_stopped_laptop_serving`. Its third stop, while the server budget's action has run (`ec2_stopped_server_budget`), is proven by its tests (tasks.md T117); group 4's rehearsal of that action stops `h4-rehearsal-instance`, never EC2.
-6. **The dashboard:** the "Hosts" row shows EC2's state, each start and refusal, the guard's stops, the pause switch, the health check's status, and the handover window, from the sink's cloud reads.
+6. **The dashboard:** the "Hosts" row shows EC2's state, each start and refusal, the guard's stops, the autostart switch, the health check's status, and the handover window, from the sink's cloud reads.
 7. **SC-018, five times:** rehearse a spot interruption on EC2, through AWS's fault-injection service or the console's interruption test (to confirm and to price). Check each time that:
    - the warning's alert arrives within AWS's notice;
    - requests get `no_host_serving`;
@@ -106,7 +107,8 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - `tunnel_end_interruption` arrives;
    - the site loads, and every dynamic request gets the edge's `no_host_serving`;
    - while it is gone, cutting the laptop gives `ec2_start_refused (tunnel_end_down)`;
-   - on its return, `tunnel_end_back` arrives, the laptop's tunnel reconnects, the start function runs once, and the relay serves whichever host is up.
+   - while it is gone, `/status/` names no host serving, beside its last-known values and their times (spec FR-057);
+   - on its return, `tunnel_end_back` arrives, the laptop's tunnel reconnects, the start function runs once, and the relay serves whichever host is up. If the start function started EC2 while the laptop was reconnecting, the loop stops it within 5 minutes of the relay serving the laptop.
 8. **SC-001:** over a day, with the laptop off and EC2 serving, the probe's results: 100% within 5 s; windows with no host answered `no_host_serving` within 5 s.
 9. **The first public release.** Then **SC-010:** load every page and call hello, the status, and a twin turn with the browser's network log on. 100% of requests go to hareet.ai, and no cookie is set. **SC-011:** `evals/visitor_scan.py` after a scripted visit with a marker message, on each host and the shared state: zero finds.
 

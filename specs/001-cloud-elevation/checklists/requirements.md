@@ -47,6 +47,11 @@
   2. The disclosure rows V2, V4, V6, C2, C3, C4, and S17 describe one relay, on the tunnel end, and the new row C15 carries the telemetry forward 2202.
   3. FR-017 has the relay read the kill switch; FR-071 has the guard stop EC2 while the server budget's action has run.
   4. The plan's question 8 is open for T000.
+- Validation, 2026-11-09, after the analysis's remaining findings (the note's second 2026-11-09 section):
+  1. "Pause switch" is now "the autostart switch" throughout the spec: `on` lets EC2 start automatically. The alert codes `paused` and `ec2_stopped_paused` keep their names, in the contracts.
+  2. FR-019 covers a store restored from a backup; FR-057 says the public view names no host while the tunnel end is gone; FR-069 lists every start and stop.
+  3. Rows C6 and C7 are widened (the loop's status and describe calls; ECR and SNS), and Degraded Modes gains a row for the shared state unreachable everywhere.
+  4. The price per turn cites the Author's confirmation (commit ada55c98, version 2026-11-09.1); the tunnel end's figures and the store's line are marked to confirm or to price.
 - Checks run on the file:
   - 73 FR lines, each carrying SHALL; FR-014 to FR-016 stay moved, and no number is reused;
   - 61 Given/When/Then scenarios; 24 edge cases;

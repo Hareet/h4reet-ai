@@ -1,4 +1,4 @@
-# Contract: the handover: the health check, the start function, the guard, the pause switch, the laptop's loop, and the commands
+# Contract: the handover: the health check, the start function, the guard, the autostart switch, the laptop's loop, and the commands
 
 Spec 001, re-planned 2026-11-09. New. Spec FR-063 to FR-066, FR-069 to FR-072, FR-074. FR-076. Research: R-29 to R-32. By the Author's answers to the plan's questions 1 and 2: the relay moves visitors, the health check only wakes EC2, and the tunnel end runs on spot.
 
@@ -44,15 +44,15 @@ The same packaging, in `infra/lambdas/ec2_guard/`, with its own role, `h4-ec2-gu
 | Condition | Action |
 |---|---|
 | The health check is healthy (the laptop serves) | `ec2:StopInstances`; alert `ec2_stopped_laptop_serving` |
-| The pause switch is `off` | `ec2:StopInstances`; alert `ec2_stopped_paused` |
+| The autostart switch is `off` | `ec2:StopInstances`; alert `ec2_stopped_paused` |
 | The server budget's action has run and isn't reversed | `ec2:StopInstances`; alert `ec2_stopped_server_budget` |
 | Otherwise | nothing |
 
 Each stop also writes one embedded-metric log line, as §3's.
 
-## 5. The pause switch
+## 5. The autostart switch
 
-A `String` parameter `/h4reet/prod/ec2-autostart`, `on` or `off`, defined in protected Terraform with `ignore_changes = [value]`, so its value is the Author's and a plan never shows it as drift. Only `make ec2-autostart` changes it (§7), and each change writes an audit row (FR-012, FR-065). The dashboard shows it.
+A `String` parameter `/h4reet/prod/ec2-autostart`: `on` lets EC2 start automatically, and `off` stops that. The refusal and stop codes keep the word `paused` (`paused`, `ec2_stopped_paused`); each means the switch is `off`. It is defined in protected Terraform with `ignore_changes = [value]`, so its value is the Author's and a plan never shows it as drift. Only `make ec2-autostart` changes it (§7), and each change writes an audit row (FR-012, FR-065). The dashboard shows it.
 
 ## 6. `h4-handover` (the laptop's loop; FR-064)
 
@@ -60,7 +60,7 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 
 | Phase | Behavior |
 |---|---|
-| Waiting | every 5 s, read the public `https://hareet.ai/api/status` (contracts/relay-http.md §6), marked as a probe. When `serving` is `laptop`: stop EC2 with the `h4-ec2-stop` permission set (question 7), record the handover's window, and move to serving |
+| Waiting | every 5 s, read the public `https://hareet.ai/api/status` (contracts/relay-http.md §6), marked as a probe (disclosure row C6, with the describe and stop calls below). When `serving` is `laptop`: stop EC2 with the `h4-ec2-stop` permission set (question 7), record the handover's window, and move to serving |
 | Serving | every 60 s: if EC2's state is `running` or `pending`, stop it and record why (`flap`) |
 | No session | if the SSO session has expired or the stop fails: one alert through the laptop's prod alert path, keep serving, retry each minute. `make up` never fails for this |
 | Window | from the relay's first `laptop` to EC2's `stopped`: at most 5 minutes (FR-063); recorded in the stack's state directory and as `h4.handover.window_seconds` |
@@ -69,12 +69,12 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 
 | Command | Does | Audit |
 |---|---|---|
-| `make ec2-status` | EC2's state, its spot request's state, the pause switch, the server action's status, the relay's `serving` | — |
+| `make ec2-status` | EC2's state, its spot request's state, the autostart switch, the server action's status, the relay's `serving` | — |
 | `make ec2-start` | invokes `h4-ec2-start` with `manual: true`, so §3's four checks apply | the function's alert |
 | `make ec2-stop` | `ec2:StopInstances` through the `h4-ec2-stop` permission set | a line in `~/.local/state/h4reet/ec2-actions.jsonl`, and an alert |
 | `make ec2-autostart STATE=on\|off` | writes the parameter; with `on`, also invokes `h4-ec2-start` once | an audit row in the shared state, through `ENV=shared` |
 | `make server-budget-restore` | reverses the server action (`execute-budget-action --execution-type REVERSE_BUDGET_ACTION`), after the incident note | the action's history; an alert |
-| `make operator-* ENV=shared` | contracts/shared-state.md §7 | spec 000's audit rows |
+| `make operator-* ENV=shared` | contracts/shared-state.md §7, `operator-restore` among them (§8) | spec 000's audit rows |
 | `make cloud-session HOST=ec2\|tunnel-end` | a Systems Manager port-forwarding session to that host's admin listener and the relay's internal listener | Systems Manager's session history |
 
 ## 8. The sequences
@@ -104,6 +104,8 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 3. When capacity returns, AWS starts it. systemd starts Docker and the deployer, and compose starts its services. The laptop's tunnel reconnects within its backoff.
 4. `h4-tunnel-end-running` alerts `tunnel_end_back` and invokes the start function once. EC2 starts if the laptop isn't serving.
 5. The relay serves whichever host passes its checks.
+
+Step 4 can run before the laptop's tunnel is back, while Route 53's check still reports the outage, so it can start EC2 though the laptop is about to serve. That is accepted, not delayed (research.md R-29): once the relay serves the laptop, the loop stops EC2 within the window (§6), and SC-016 counts the minutes.
 
 ## 9. Nothing changes configuration at run time (FR-072)
 

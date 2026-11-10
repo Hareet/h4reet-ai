@@ -58,7 +58,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ## Before any group
 
-- [ ] T000 Author: approve spec.md and plan.md, and with them §13's spec amendments, which follow his answer to plan Q1. Confirm, or overturn, the session's provisional answers to plan Q5 (the resting words as a spec 002 follow-up in his words), Q6 ("it" is the laptop's stack), and Q7 (the IAM default, with the guard's stop-only role, the start function's reads, `h4-laptop-bedrock`, and the tunnel end's reads for the dashboard), and question 16's default with them. Answer plan Q8: A, his wording for the relay on spot in the 1.1.0 patch, or B, a deviation in spec.md's Assumptions citing ADR 0044. Confirm T001 as the default order. Then gate and merge `spec/001-cloud-elevation` (documents only) with `tools/gates/gate spec/001-cloud-elevation` from main's checkout. Check: the plan's Status and the spec's Clarifications record his approval and each answer of his in his words; with B, spec.md's Assumptions name the deviation before the merge (main)
+- [ ] T000 Author: approve spec.md and plan.md, and with them §13's spec amendments, which follow his answer to plan Q1. Confirm, or overturn, the session's provisional answers to plan Q5 (the resting words as a spec 002 follow-up in his words), Q6 ("it" is the laptop's stack), and Q7 (the IAM default, with the guard's stop-only role, the start function's reads, `h4-laptop-bedrock`, the tunnel end's reads for the dashboard, and the tunnel end's `sns:Publish` on `h4-alerts`), and question 16's default with them. Answer plan Q8: A, his wording for the relay on spot in the 1.1.0 patch, or B, a deviation in spec.md's Assumptions citing ADR 0044. Confirm T001 as the default order. Then gate and merge `spec/001-cloud-elevation` (documents only) with `tools/gates/gate spec/001-cloud-elevation` from main's checkout. Check: the plan's Status and the spec's Clarifications record his approval and each answer of his in his words; with B, spec.md's Assumptions name the deviation before the merge (main)
 - [ ] T001 Author: apply the constitution's amendment 1.1.0, as amended on `docs/001-ec2-default` with the two sentences he chose to add (plan Q3), and with his Q8 wording if he chose A (P-2). Accept ADR 0044. This is the default order, before any group; he confirms it at T000. Check: `.specify/memory/constitution.md` on `refs/heads/main` reads "**Version**: 1.1.0"; ADR 0044's Status reads accepted. Groups 3 to 9 each check this first (main)
 
 ---
@@ -84,7 +84,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [ ] T005 Write P-1 as `docs/merge-requests/<date>-feat-001-p1-guards.patch`, from plain copies of `main`'s files, by plan §2's list:
   - `.claude/hooks/bash-gate.sh`'s Terraform rules and Author-only targets;
-  - `.claude/settings.json`'s denies (`*.tfstate*`, `*.tfplan`, `*.tfvars*`) and `credentials.envVars` (`TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, `RELAY_TOKEN_*`, `DB_*_PASSWORD`);
+  - `.claude/settings.json`'s denies (`*.tfstate*`, `*.tfplan`, `*.tfvars*`) and `credentials.envVars` (`TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, `RELAY_TOKEN_*`, `SNAPSHOT_SINK_TOKEN`, `TELEMETRY_BLOCK_TOKEN`, `DB_*_PASSWORD`);
   - `.claude/hooks/protected-paths.sh`'s Terraform globs;
   - `tools/gates/infra_policy.py`, `infra_redact.py`, `infra_plan_note.py`, `disclosure_check.py`, and the compose policy's host rules;
   - the gate's `infra-plan-note` and `infra-check` steps;
@@ -101,8 +101,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the route per host and rule R1;
   - the public cap (P-6).
 
-  Check: the docs-links check passes; each ADR quotes the Author's answers it rests on, in his words (FR-062, SC-014) (feat/001-guards)
-- [ ] T008 Author: choose the Terraform and `hashicorp/aws` versions in his terminal. The agent then writes them to `.devcontainer/toolchain.vars`, with the AWS CLI's pin, in the branch. Check: `make toolchain-check` passes (FR-004) (feat/001-guards)
+  They stay proposed in the branch and become accepted when the Author merges group 1, after his approval at T000 (plan §14). Check: the docs-links check passes; each ADR quotes the Author's answers it rests on, in his words (FR-062, SC-014) (feat/001-guards)
+- [ ] T008 Write `make infra-mirror` (seeds the provider mirror at the pinned versions) and `make aws-login` (starts the Author's SSO session for a named profile), both refused to agents by P-1 (R-32). Then write `.devcontainer/toolchain.vars`'s Terraform, `hashicorp/aws`, and AWS CLI pins, at the versions the Author chooses in his terminal. Check: `make toolchain-check` passes; on a patched export the bash gate refuses both targets (FR-004, FR-006) (feat/001-guards)
 
 ### Close
 
@@ -132,7 +132,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - RDS's smallest Graviton class and its storage;
   - the Route 53 health check;
   - the fault-injection service for the rehearsals;
-  - the "to confirm" lines.
+  - the rehearsal `t4g.nano`, `h4-rehearsal-instance`;
+  - the "to confirm" lines, the tunnel end's Elastic IP among them.
 
   Then set the server budget's figure as `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`. He records his prices on the branch, in his own commit. Check: research.md R-05's lines carry his prices and their dates, with the figure where he chooses to record it (FR-021, FR-022) (feat/001-measure)
 
@@ -203,13 +204,14 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - `h4-laptop-bedrock`, an ordinary IAM role: `bedrock:InvokeModel*` on the one inference profile only, trusting only the permission set's role;
   - the model action's settings, `h4-deny-paid-models`, and its targets: ordinary roles only, never a role under the path Identity Center gives the roles it makes for permission sets (`/aws-reserved/sso.amazonaws.com/`, to confirm);
   - its execution role, which may attach and detach only that policy on those roles;
-  - while `rehearsal = true`, the two $0.01 budgets; `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock` that no one assumes (to confirm); and `h4-rehearsal-instance`.
+  - while `rehearsal = true`, the two $0.01 budgets; `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock` that no one assumes (to confirm); and `h4-rehearsal-instance`;
+  - the probe's and the credential audit's EventBridge schedules only in `alerts.tf`, the probe's disabled, and no EventBridge rule in `lambdas.tf` (rule T5).
 
-  Check: RED (FR-013, FR-023, FR-026) (feat/001-us2-safety-net)
+  Check: RED (FR-012, FR-013, FR-023, FR-026) (feat/001-us2-safety-net)
 
 ### Implementation
 
-- [ ] T034 [US2] Write `infra/account/{main,lambdas,registry}.tf`: the bridge, the probe with its schedule disabled until group 8, the audit's weekly schedule, ECR, the release bucket, and the rehearsal instance. Write `killswitch.tf`, `iam.tf` (the permission set, for import and narrowing; `h4-laptop-bedrock`; `h4-rehearsal-target`), and `alerts.tf` as P-I2. Check: on a patched copy, T033 passes, and `make infra-check` passes (feat/001-us2-safety-net)
+- [ ] T034 [US2] Write `infra/account/{main,lambdas,registry}.tf`: the bridge's, the probe's, and the audit's functions, ECR, the release bucket, and the rehearsal instance. Write `killswitch.tf`, `iam.tf` (the permission set, for import and narrowing; `h4-laptop-bedrock`; `h4-rehearsal-target`), and `alerts.tf` (with the probe's schedule, disabled until group 8's P-I5, and the audit's weekly schedule) as P-I2. Check: on a patched copy, T033 passes, and `make infra-check` passes (feat/001-us2-safety-net)
 - [ ] T035 [P] [US2] Write `infra/lambdas/alert_bridge/` and `infra/lambdas/probe/`. Check: T031 and T032 pass (feat/001-us2-safety-net)
 - [ ] T036 [P] [US2] Add F2's change (the laptop's `sts:AssumeRole` on `h4-laptop-bedrock`), C8's Telegram half, C10, and C11, in the same commit as T034. Write the runbooks `docs/runbooks/aws-budget.md`, `aws-budget-action.md` (the deny on `h4-laptop-bedrock` and on `h4-prod-gateway` from group 7), `server-budget.md`, `aws-anomaly.md`, and `credential-audit.md`, and the laptop runbook's Bedrock profile, which chains from his SSO session to `h4-laptop-bedrock` (the form to confirm). Check: `disclosure_check` passes; each alert kind of this group names its runbook (FR-040, FR-056) (feat/001-us2-safety-net)
 
@@ -225,11 +227,11 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   1. verify, import the laptop's Bedrock permission set, apply, and record;
   2. point the laptop's Bedrock profile at `h4-laptop-bedrock`, as the runbook says;
   3. write the Telegram parameters;
-  4. set `rehearsal = true`, plan, and apply;
-  5. record each action's timings (contracts/aws-alerts.md §4; September §3.4);
+  4. set `rehearsal = true`, plan, and apply; start `h4-rehearsal-instance` before the trip, since stopping a stopped instance proves nothing;
+  5. record each action's timings (contracts/aws-alerts.md §4; September §3.4), and, for the server action, the SSM run's status from the action's history and the instance's state after it;
   6. set `rehearsal = false`, plan, and apply.
 
-  Check: SC-009, both channels got each alert, and each action took effect on its rehearsal target; `aws sts get-caller-identity` with the laptop's Bedrock profile names `h4-laptop-bedrock`, with no paid call; spec 000's "made by hand" deviation ends for the laptop (FR-013) (main)
+  Check: SC-009, both channels got each alert, and each action took effect on its rehearsal target: the policy attached to `h4-rehearsal-target`, and the SSM run succeeded with `h4-rehearsal-instance` going from `running` to `stopped`; `aws sts get-caller-identity` with the laptop's Bedrock profile names `h4-laptop-bedrock`, with no paid call; spec 000's "made by hand" deviation ends for the laptop (FR-013) (main)
 
 ---
 
@@ -252,13 +254,13 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T043 [P] [US4] Extend `services/gateway/test/unit/health.test.ts`: the health answer carries the store's readability, and reads unhealthy while the store can't be read. Check: RED (FR-054) (feat/001-tunnel-end)
 - [ ] T044 [P] [US4] Write `deploy/hosts/test_hosts.py` and extend `deploy/scripts/test_preflight.py` and the compose policy's tests:
   - the tunnel end's nftables and security-group text admits 2222 from anywhere, 8087 from Route 53's ranges, and 8080 only privately;
-  - its egress allowlist matches the disclosure;
+  - its egress allowlist matches the disclosure, ECR (its deployer's pulls) and SNS (its alerts) among it;
   - the `tunnel-end` class selects `tunnel-end`, `relay`, `snapshot-sink`, and the collector only, with `H4_HOST=tunnel-end`;
   - the laptop's prod has the `tunnel` profile.
 
   Check: RED (FR-051, FR-052) (feat/001-tunnel-end)
 - [ ] T045 [P] [US4] Write `deploy/otel/test_collector_tunnel_end.py`, on the configuration's text: the routing connector sends `laptop` to the tunnel's 2202 forward and `ec2` and `none` to EC2's collector; the file-backed queue; spec 000's redaction applied again, so no payload, address, or client identifier leaves; the queue's and the exporters' counters exported. Check: RED (FR-060; row C15) (feat/001-tunnel-end)
-- [ ] T046 [P] [US4] Write `infra/test/fixtures/prod-tunnel-end/` and `infra/test/test_prod_network.py`. They cover the VPC and its subnets, the tunnel end with two interfaces, its Elastic IP, IMDSv2 with hop limit 1 (T13), spot persistent with `stop` (T11), its role (R-15), and the `h4-tunnel-end-spot-warning` rule to `h4-alerts`. Check: RED (FR-076) (feat/001-tunnel-end)
+- [ ] T046 [P] [US4] Write `infra/test/fixtures/prod-tunnel-end/` and `infra/test/test_prod_network.py`. They cover the VPC and its subnets, the tunnel end with two interfaces, its Elastic IP, IMDSv2 with hop limit 1 (T13), spot persistent with `stop` (T11), its role (R-15: ECR pulls, its Parameter Store path, `sns:Publish` on `h4-alerts`, Session Manager), and the `h4-tunnel-end-spot-warning` rule to `h4-alerts`. Check: RED (FR-076) (feat/001-tunnel-end)
 
 ### Implementation
 
@@ -267,9 +269,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T049 [US4] Write `deploy/hosts/` for the tunnel end (cloud-init, systemd units, nftables, `daemon.json`), `deploy/scripts/write_env.py`, `egress_proxy.py`, and the deployer's host part. Extend preflight and the compose policy's `tunnel-end` class. Check: T044 passes (feat/001-tunnel-end)
 - [ ] T050 [US4] Write `deploy/otel/collector-tunnel-end.yaml` and the collector's service in the `tunnel-end` profile. Check: T045 passes (FR-060) (feat/001-tunnel-end)
 - [ ] T051 [US4] Write `infra/prod/{main,network,tunnel-end,ssm}.tf`. Write `ec2-market.tf` (the tunnel end's spot options), `iam.tf` (its role), and the warning rule in `infra/account/handover.tf` as P-I3. Check: on a patched copy, T046 passes, and `make infra-check` passes (feat/001-tunnel-end)
-- [ ] T052 [P] [US4] Write `make tunnel-keys` and `make tunnel-revoke` (Author-only), and `h4.tunnel.up` and `h4.tunnel.reconnects` from both ends. Check: their unit tests pass; the bash gate refuses them in an agent session (FR-055, FR-060) (feat/001-tunnel-end)
+- [ ] T052 [P] [US4] Write `make tunnel-keys` (the client key, the host key, the relay's host tokens, `SNAPSHOT_SINK_TOKEN`, and `TELEMETRY_BLOCK_TOKEN`), `make tunnel-revoke`, and `make cloud-session HOST=ec2|tunnel-end` (a Systems Manager port-forwarding session; FR-050), all Author-only, and `h4.tunnel.up` and `h4.tunnel.reconnects` from both ends. Check: their unit tests pass; the bash gate refuses them in an agent session (FR-050, FR-055, FR-060) (feat/001-tunnel-end)
 - [ ] T053 [P] [US4] Add the "Hosts" row's first panels to the provisioned dashboard: the tunnel's state and reconnects, and telemetry delayed or lost (the tunnel end's collector's queue and drop counters) (plan §11). Check: the dashboard's provisioning test passes with them (FR-060) (feat/001-tunnel-end)
-- [ ] T054 [P] [US4] Add the disclosure rows S16, S17, and C3, and S1's change, in the same commit as T047; C15 in the same commit as T050; the tunnel end's egress rows in the same commit as T049. Write `docs/runbooks/tunnel-end.md` (a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot interruption; a move to another zone) and the laptop runbook's tunnel part. Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-tunnel-end)
+- [ ] T054 [P] [US4] Add the disclosure rows S16, S17, and C3, and S1's change, in the same commit as T047; C15 in the same commit as T050; the tunnel end's egress rows and C7's tunnel-end part (its deployer, ECR, the secrets store, Systems Manager, and SNS) in the same commit as T049. Write `docs/runbooks/tunnel-end.md` (a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot interruption; a move to another zone) and the laptop runbook's tunnel part. Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-tunnel-end)
 
 ### The Author's plan block
 
@@ -309,7 +311,13 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - `H4_HOST` per class, and its mismatches.
 
   Check: RED (FR-019; contracts/env-cloud.md §2) (feat/001-shared-state)
-- [ ] T064 [P] [US2] Write `scripts/test_operator_shared.py`: `ENV=shared` composes an admin-only stack (the tunnel's `-L 5432` only, the gateway's admin listener on loopback, no relay block); it refuses `init` unless the store is `uninitialized`; each action writes an audit row with `host`. Check: RED (FR-074) (feat/001-shared-state)
+- [ ] T064 [P] [US2] Write `scripts/test_operator_shared.py`, with a stub laptop prod and a stub store:
+  - while the laptop's prod runs, `ENV=shared` uses its admin listener on `127.0.0.1:18003` and starts no stack; otherwise it composes an admin-only stack (the tunnel's `-L 5432` only, the gateway's admin listener on the same port, no relay block); it never starts that stack while prod's gateway holds the port;
+  - it refuses `init` unless the store is `uninitialized`;
+  - `restore` refuses unless EC2 is stopped and the laptop's prod isn't running; it prints the restored meters, sets the store `uninitialized` under the initialization lock, and keeps the ledger and the audit log; `init` then accepts the store, and refuses values lower than the printed meters;
+  - each action writes an audit row with `host`.
+
+  Check: RED (FR-019, FR-074; contracts/shared-state.md §7, §8) (feat/001-shared-state)
 - [ ] T065 [P] [US3] Extend `evals/test_twin_readiness.py`: the evidence names both host routes' adapters, the laptop's local model and fallback and EC2's Anthropic API and Bedrock, read from schema 2. Check: RED (spec 010 FR-026 and spec 007 FR-031, amended by name) (feat/001-shared-state)
 - [ ] T066 [P] [US2] Write `infra/test/fixtures/prod-rds/` and `infra/test/test_prod_rds.py`: rule T12, the subnet group, the parameter group (`rds.force_ssl`, no statement logging), the security group admitting only EC2's and the tunnel end's groups, and no `password` argument. Check: RED (FR-019; contracts/shared-state.md §1) (feat/001-shared-state)
 
@@ -319,17 +327,17 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T068 [US2] Make the gateway's store connection take `GATEWAY_DB_URL` with TLS verified against the pinned RDS bundle and a server name. Emit `h4.shared_state.latency` and `h4.shared_state.errors`, labelled with `h4.host`. Check: T060 passes (FR-060) (feat/001-shared-state)
 - [ ] T069 [US5] Make `placeholder_gate` read every host route's `first`, `second`, and `fallback`, as well as schema 1's `envs.prod.fallback`, before schema 2 lands. Check: T062 passes; `make test` passes on main's routing file with his adopted F3 words (FR-068) (feat/001-shared-state)
 - [ ] T070 [US2] Add schema 2, the route per host, R1, H1, H2, and A1 to `src/config/validate.ts` and the router. Write `config/routing.yaml` as schema 2 with the laptop's line only, `laptop: { primary: local, fallback: anthropic }`, as main names prod's route, and no `ec2` line, which is the Author's (T095; ADR 0041). Check: T061 passes; T062 still passes on the schema-2 file; every existing gateway test passes (feat/001-shared-state)
-- [ ] T071 [US2] Extend preflight, the env templates, `operator.py`'s `ENV=shared`, and `make shared-state-roles` (Author-only). Check: T063 and T064 pass (feat/001-shared-state)
+- [ ] T071 [US2] Extend preflight, the env templates, `operator.py`'s `ENV=shared` with its choice of admin listener, the gateway's admin action for `restore`, and `make shared-state-roles` and `make operator-restore` (both Author-only). Check: T063 and T064 pass (feat/001-shared-state)
 - [ ] T072 [P] [US3] Change `evals/twin_readiness.py`. Check: T065 passes; `make evals`'s exit status is unchanged by the report (feat/001-shared-state)
 - [ ] T073 [US2] Write `infra/prod/rds.tf`, and the RDS endpoint's permit in the tunnel's server configuration. Check: T066 passes; `make infra-check` passes (feat/001-shared-state)
-- [ ] T074 [P] [US2] Amend the other specs' living interfaces by name, each passage marked "(spec 001)":
-  - spec 000's contracts/config-files.md (R1), contracts/env-files.md (`H4_HOST`, `GATEWAY_DB_URL`), and data-model.md (§2 to §7: the shared store, `host`);
+- [ ] T074 [P] [US2] Amend the other specs by name, in this branch, since its code needs them (plan §13), each passage marked "(spec 001)":
+  - spec 000's FR-030 (the sub-budget is the laptop's fallback rule) and FR-031 (one shared meter for prod, in the account), its contracts/config-files.md (R1), contracts/env-files.md (`H4_HOST`, `GATEWAY_DB_URL`), its operator actions (`restore`), and data-model.md (§2 to §7: the shared store, `host`);
   - spec 010's FR-001 and FR-026, and its Out list;
   - spec 007's FR-031's evidence.
 
-  Check: the docs-links check passes; the reviewer reads each against the FRs it serves (plan §13) (feat/001-shared-state)
+  Check: the docs-links check passes; the reviewer reads each against the FRs it serves (plan §13); the note lists every amended passage for the Author (feat/001-shared-state)
 - [ ] T075 [P] [US2] Add the shared state's panel to the "Hosts" row: latency and errors per host (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-shared-state)
-- [ ] T076 [P] [US2] Add the disclosure rows C2 and C13, and S2's shared-state change, in the same commit as T068. Write `docs/runbooks/shared-state.md` (unreachable, the move, a restore from backup), and the laptop runbook's sentence that prod needs the network and an offline demo runs `make up ENV=dev` (plan Q4). Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-shared-state)
+- [ ] T076 [P] [US2] Add the disclosure rows C2 and C13, and S2's shared-state change, in the same commit as T068. Write `docs/runbooks/shared-state.md` (unreachable; the move; a restore from backup, with contracts/shared-state.md §8's five steps), and the laptop runbook's sentence that prod needs the network and an offline demo runs `make up ENV=dev` (plan Q4). Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-shared-state)
 
 ### The Author's plan block
 
@@ -340,7 +348,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T078 Review and note, with T060's run. Check: as T009 (feat/001-shared-state)
 - [ ] T079 Author: gate and merge. Check: as T029 (feat/001-shared-state, then main)
 - [ ] T080 Author: on `main`, verify, apply, and record RDS; write the role passwords to Parameter Store and the laptop's env file; run `make shared-state-roles`. Then the move (data-model.md §1.5):
-  1. stop the laptop's paid route;
+  1. stop the laptop's paid route, by his route change (ADR 0041);
   2. run `make operator-status ENV=prod` and record its values;
   3. run `make operator-init ENV=shared` with them and a reason;
   4. release the cutover.
@@ -393,7 +401,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - provider, model, tokens, and cost on each span and ledger row.
 
   Check: RED (SC-017) (feat/001-us6-ec2)
-- [ ] T086 [P] [US6] Extend the egress proxy's allowlist test for EC2's hosts: `api.anthropic.com`, Bedrock's endpoint, Telegram, the SMTP host, and the AWS endpoints, generated from the disclosure. Check: RED (FR-051) (feat/001-us6-ec2)
+- [ ] T086 [P] [US6] Extend the egress proxy's allowlist test for EC2's hosts: `api.anthropic.com`, Bedrock's endpoint, Telegram, the SMTP host, and the AWS endpoints (ECR, S3, Systems Manager, STS, Budgets, and SNS for its alerts), generated from the disclosure. Check: RED (FR-051) (feat/001-us6-ec2)
 
 ### Implementation
 
@@ -406,7 +414,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - S2's EC2 part (EC2's allowlist, C2), F1 (EC2's second route), and F3's EC2 part (its trigger, default, and switch-off), beside his adopted words, which stay verbatim;
   - A1 and A2 from EC2, and D1's sentence;
   - V2's Why, Default, and switch-off;
-  - C7.
+  - C7's EC2 and laptop parts (EC2's deployer, ECR, the secrets store, Systems Manager, and SNS; the laptop's local release directory).
 
   Write `docs/runbooks/ec2.md` and `deploy.md`. Check: `disclosure_check` passes; row F3's adopted words are byte-identical to main's (feat/001-us6-ec2)
 
@@ -452,29 +460,31 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the zone and its records; the certificate;
   - the distribution's aliases, behaviors, origins (OAC; the VPC origin to the tunnel end's private interface), policies, and headers;
   - error responses (502 and 504 to 503 with `/_degraded/api.json`, TTL 0);
-  - no access logs.
+  - no access logs;
+  - CloudFront's policies only in `edge-limits.tf` (rule T5);
+  - the probe's schedule enabled in `infra/account/alerts.tf`.
 
-  Check: RED (FR-027 to FR-029) (feat/001-us3-us5-edge)
+  Check: RED (FR-027 to FR-029, FR-061) (feat/001-us3-us5-edge)
 
 ### Implementation
 
 - [ ] T105 [US3] Write P-6 as `docs/merge-requests/<date>-feat-001-p6-public-cap.patch`, before the relay's code: `config/budgets.yaml`'s new `public` section, with keys for the per-address requests a minute, burst, and requests a day, and the global in-flight limit, each figure left blank and marked as the Author's (FR-033; plan §14). The ADR for the public cap (T007) names it. Check: the patch applies to a fresh export; on a patched copy, the gateway's validator refuses the blank figures, naming each key (feat/001-us3-us5-edge)
 - [ ] T106 [US3] Write `services/relay/` (Fastify on Node 24, a second npm workspace, the gateway's pins), and `relay` in compose's `tunnel-end` and `dev-relay` profiles. Make the gateway's validator accept the `public` section. Add the relay's spans and metrics (`relay.request`, `h4.relay.host`, `h4.relay.requests`, `h4.relay.host_healthy`, `h4.serving_host`, `h4.cap.refused`, `h4.handover.events`, `h4.handover.gap_seconds`). Check: T098 and T099 pass, with test figures in the tests' own fixtures (FR-060) (feat/001-us3-us5-edge)
-- [ ] T107 [US3] Write `infra/prod/{edge,dns,site}.tf`, and CloudFront's policies as P-I5 if the policy puts them in a protected file. Check: on a patched copy, T104 passes, and `make infra-check` passes (feat/001-us3-us5-edge)
+- [ ] T107 [US3] Write `infra/prod/{edge,dns,site}.tf`. Write P-I5: CloudFront's policies in `infra/prod/edge-limits.tf`, which rule T5 protects, and the one line in `infra/account/alerts.tf` that enables the probe's schedule. Check: on a patched copy, T104 passes, and `make infra-check` passes (feat/001-us3-us5-edge)
 - [ ] T108 [US5] Change `apps/web`: the status page's links, the disclosure page's new rows, and `/_degraded/api.json` built from spec 000's schema. Amend spec 002's contract §3 by name, with the tier mapping. Check: T100 and T103 pass (feat/001-us3-us5-edge)
 - [ ] T109 [P] [US5] Write the visitor scan, and the red-team runner's support for the four adapters. Check: T101 and T102 pass (feat/001-us3-us5-edge)
 - [ ] T110 [P] [US3] Add the relay's panels to the "Hosts" row: which host serves (a state timeline), the handovers and their gaps (from `v_handovers`), the relay's requests by host and outcome, and the cap's refusals (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us3-us5-edge)
-- [ ] T111 [P] [US5] Add the disclosure rows V1, V2's path, V4, V6 to V9, C1, C14, and S15, in the same commit as T106 and T107. Enable the probe's schedule. Check: `disclosure_check` passes (FR-040, FR-061) (feat/001-us3-us5-edge)
+- [ ] T111 [P] [US5] Add the disclosure rows V1, V2's path, V4, V6 to V9, C1, C14, and S15, in the same commit as T106 and T107. Check: `disclosure_check` passes (FR-040) (feat/001-us3-us5-edge)
 
 ### The Author's plan block
 
-- [ ] T112 Author: as T027, for `ROOT=prod` (the edge), with P-I5 if there is one; on the branch itself if not. Check: as T027 (feat/001-us3-us5-edge)
+- [ ] T112 Author: as T027, with P-I5, for `ROOT=prod` (the edge) and `ROOT=account` (the probe's schedule). Check: as T027 (feat/001-us3-us5-edge)
 
 ### Close
 
 - [ ] T113 Review and note. Check: as T009 (feat/001-us3-us5-edge)
-- [ ] T114 Author: write his figures into P-6 and into the public cap's ADR, and apply P-6 on the branch; apply P-I5, if any, as in T112; gate; merge. Check: the gate passes, and the gateway's validator accepts his figures (FR-033) (feat/001-us3-us5-edge, then main)
-- [ ] T115 Author: on `main`, point the registrar's name servers at the zone and record it (contracts/infra-records.md §2). Verify, apply, and record the edge; deploy the relay to the tunnel end. Run the red-team cases on all four adapters, and record that they pass. Confirm the tunnel end's measured memory on its `t4g.micro` (R-33). Check: quickstart §8 (FR-039) (main)
+- [ ] T114 Author: write his figures into P-6 and into the public cap's ADR, and apply P-6 on the branch; apply P-I5, as in T112; gate; merge. Check: the gate passes, and the gateway's validator accepts his figures (FR-033) (feat/001-us3-us5-edge, then main)
+- [ ] T115 Author: on `main`, point the registrar's name servers at the zone and record it (contracts/infra-records.md §2). Verify, apply, and record both roots (the edge, and the probe's schedule); deploy the relay to the tunnel end. Run the red-team cases on all four adapters, and record that they pass. Confirm the tunnel end's measured memory on its `t4g.micro` (R-33). Check: quickstart §8 (FR-039) (main)
 
 ---
 
@@ -484,7 +494,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - one host at a time;
 - EC2 woken when the laptop goes, and stopped when it serves;
 - EC2's restarts guarded, the server budget's action among the reasons;
-- the pause switch;
+- the autostart switch (`on` lets EC2 start automatically);
 - both instances' spot interruptions handled;
 - the handover's and the server's state on the dashboard.
 
@@ -495,7 +505,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### Tests first
 
 - [ ] T116 [P] [US4] Write `infra/lambdas/ec2_start/test_start.py`, with stub SSM, Budgets, EC2, and Route 53:
-  - step 1 refuses with `paused`;
+  - step 1 refuses with `paused` while the autostart switch is `off`;
   - step 2 with `server_budget_stopped`;
   - step 3 with `tunnel_end_down`;
   - step 4 with `laptop_serving`, when invoked by hand or `from: tunnel_end_back`;
@@ -506,7 +516,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   Check: RED (FR-065, FR-070, FR-076) (feat/001-us4-us7-handover)
 - [ ] T117 [P] [US7] Write `infra/lambdas/ec2_guard/test_guard.py`, with stub SSM, Budgets, EC2, and Route 53:
   - it stops EC2 when the health check is healthy (`ec2_stopped_laptop_serving`);
-  - when the switch is off (`ec2_stopped_paused`);
+  - when the autostart switch is `off` (`ec2_stopped_paused`);
   - when the server budget's action has run and isn't reversed (`ec2_stopped_server_budget`);
   - it does nothing otherwise, and stops only the tagged instance;
   - one alert and one embedded-metric log line per stop.
@@ -514,7 +524,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   Check: RED (FR-071) (feat/001-us4-us7-handover)
 - [ ] T118 [P] [US4] Write `deploy/scripts/test_handover.py`, with a stub status and a stub EC2:
   - waiting reads `serving`, then stops EC2 once it is `laptop` and records the window;
-  - serving stops EC2 again after a flap;
+  - serving stops EC2 again after a flap, and after a start on the tunnel end's return while the laptop was reconnecting;
   - an expired session alerts once and keeps serving;
   - `make up` never fails on a failed stop.
 
@@ -525,7 +535,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the rules: the alarm's change, EC2's warning, EC2's `running`, and the tunnel end's `running` to the start function and the alert;
   - the two functions' roles, the guard's with its read of the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`);
   - the tunnel end's role, with its reads for the dashboard and its one-key write for `site/status/latest.json` (R-15);
-  - the pause parameter with `ignore_changes`;
+  - the autostart switch's parameter with `ignore_changes`;
   - each of these only in protected files.
 
   Check: RED (FR-012, FR-065, FR-071, FR-072) (feat/001-us4-us7-handover)
@@ -539,21 +549,21 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T124 [US4] Write `infra/prod/failover.tf`, `infra/account/handover.tf`, and the roles' changes in `iam.tf` as P-I6. Check: on a patched copy, T119 passes, and `make infra-check` passes (feat/001-us4-us7-handover)
 - [ ] T125 [P] [US7] Write the `make ec2-*` and `server-budget-restore` targets. Check: T120 passes (feat/001-us4-us7-handover)
 - [ ] T126 [US7] Write the sink's cloud reads in `deploy/scripts/snapshot_sink.py`, and `snapshot-sink` in the `tunnel-end` profile, exporting the metrics through the tunnel end's collector (C15). Check: T121 passes (FR-060) (feat/001-us4-us7-handover)
-- [ ] T127 [P] [US7] Add the handover's and the server's panels to the "Hosts" row: EC2's state and interruptions; its starts and refusals and the guard's stops; the pause switch; the health check's status; the handover window; and the server's month against its budget beside model spend against the ceilings and the adapter's month (plan §11; User Story 7). Check: the dashboard's provisioning test passes (FR-060, FR-065) (feat/001-us4-us7-handover)
-- [ ] T128 [P] [US4] Write `docs/runbooks/handover.md` and `spot-interruption.md`, and update `tunnel-end.md` and `server-budget.md` (the guard's `ec2_stopped_server_budget`). Add the disclosure row C6 and C5's change. Check: each alert kind of contracts/aws-alerts.md §2 names its runbook; `disclosure_check` passes (FR-040, FR-056) (feat/001-us4-us7-handover)
+- [ ] T127 [P] [US7] Add the handover's and the server's panels to the "Hosts" row: EC2's state and interruptions; its starts and refusals and the guard's stops; the autostart switch; the health check's status; the handover window; and the server's month against its budget beside model spend against the ceilings and the adapter's month (plan §11; User Story 7). Check: the dashboard's provisioning test passes (FR-060, FR-065) (feat/001-us4-us7-handover)
+- [ ] T128 [P] [US4] Write `docs/runbooks/handover.md` (with EC2 started on the tunnel end's return while the laptop reconnects, and stopped by the loop) and `spot-interruption.md`, and update `tunnel-end.md` and `server-budget.md` (the guard's `ec2_stopped_server_budget`). Add the disclosure row C6 and C5's change. Check: each alert kind of contracts/aws-alerts.md §2 names its runbook; `disclosure_check` passes (FR-040, FR-056) (feat/001-us4-us7-handover)
 
 ### The Author's plan block
 
-- [ ] T129 Author: as T027, with P-I6, for `ROOT=prod` (the health check, the tunnel end's role) and `ROOT=account` (the alarm, the rules, the functions, their roles, the pause switch). Check: as T027 (feat/001-us4-us7-handover)
+- [ ] T129 Author: as T027, with P-I6, for `ROOT=prod` (the health check, the tunnel end's role) and `ROOT=account` (the alarm, the rules, the functions, their roles, the autostart switch). Check: as T027 (feat/001-us4-us7-handover)
 
 ### Close
 
 - [ ] T130 Review and note. Check: as T009 (feat/001-us4-us7-handover)
 - [ ] T131 Author: apply P-I6 on the branch, as in T129; gate; merge. Check: as T029 (feat/001-us4-us7-handover, then main)
-- [ ] T132 Author: on `main`, verify, apply, and record both roots; set the pause switch `on`; release the tunnel end's new `snapshot-sink`. Check: User Story 1's scenario 10, a fresh plan after a handover shows no change (FR-072) (main)
+- [ ] T132 Author: on `main`, verify, apply, and record both roots; set the autostart switch `on`, so EC2 may start automatically; release the tunnel end's new `snapshot-sink`. Check: User Story 1's scenario 10, a fresh plan after a handover shows no change (FR-072) (main)
 - [ ] T133 Author: rehearse the handover and the interruptions, as quickstart §9 lists them:
   - ten handovers each way (SC-007);
-  - the pause and the guard;
+  - the autostart switch and the guard;
   - five spot interruptions of EC2 and three of the tunnel end (SC-018), through AWS's fault-injection service or the console's interruption test, as priced in T017.
 
   Check: SC-007, SC-018 (main)
@@ -574,12 +584,12 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the publisher posts only while its host serves, read from the relay's status.
 
   Check: RED (FR-057 to FR-059) (feat/001-us8-public-view)
-- [ ] T136 [P] [US8] Extend `apps/web`'s tests for `/status/`: it renders each part with its time, names `none` while no host serves, shows the handovers and their gaps, and shows the server's month beside its budget and model spend beside the ceilings. Check: RED (SC-013) (feat/001-us8-public-view)
+- [ ] T136 [P] [US8] Extend `apps/web`'s tests for `/status/`: it renders each part with its time, names `none` while no host serves, shows the handovers and their gaps, and shows the server's month beside its budget and model spend beside the ceilings. It names `none` when `latest.json` names a host but `/api/status` gives the edge's degraded answer (503, `no_host_serving`, `stack` null) or none, as while the tunnel end is gone, and shows the document's values as last-known. Check: RED (SC-013; FR-057) (feat/001-us8-public-view)
 
 ### Implementation
 
 - [ ] T137 [US8] Write `snapshot_publisher.py` and the sink's document part in `snapshot_sink.py`, and the publisher's compose service on both hosts. The sink's write uses the tunnel end's one-key grant from group 9 (T124). Check: T135 passes (feat/001-us8-public-view)
-- [ ] T138 [US8] Write `/status/`. Check: T136 passes (FR-059) (feat/001-us8-public-view)
+- [ ] T138 [US8] Write `/status/`, taking the serving host from `/api/status` first (contracts/public-view.md §3). Check: T136 passes (FR-057, FR-059) (feat/001-us8-public-view)
 
 ### Close
 
@@ -623,14 +633,14 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 |---|---|
 | T000 | approve the spec and the plan; confirm or overturn plan Q5 to Q7 and question 16; answer plan Q8; confirm T001's order |
 | T001 | apply the constitution 1.1.0 as amended, with his Q8 wording if A; accept ADR 0044 |
-| T008, T010, T011 | choose the Terraform pins; apply P-1 and P-3, gate, merge; seed the mirror |
+| T008, T010, T011 | choose the Terraform pins (the agent writes them, with `make infra-mirror` and `make aws-login`); apply P-1 and P-3, gate, merge; seed the mirror |
 | T017, T019 | price the lines; set the server budget's figure; gate, merge |
 | T027, T029, T030 | the bootstrap's plan block; P-I1, gate, merge; apply: state, budgets, alerts; migrate the state; the tags; the email subscription |
-| T037, T039, T040 | the safety net's plan block; P-I2, gate, merge; apply and import; the laptop's Bedrock profile; the Telegram parameters; the rehearsals |
-| T055, T057, T058 | the tunnel end's plan block; P-I3, gate, merge; apply; the tunnel keys; the scans |
+| T037, T039, T040 | the safety net's plan block; P-I2, gate, merge; apply and import; the laptop's Bedrock profile; the Telegram parameters; the rehearsals, with the rehearsal instance started first |
+| T055, T057, T058 | the tunnel end's plan block; P-I3, gate, merge; apply both roots; the tunnel keys; the scans |
 | T077, T079, T080 | RDS's plan block; gate, merge; apply; the role passwords; move the meter |
 | T093, T095 to T097 | EC2's plan block; P-I4 and EC2's route line, gate, merge; apply; the secrets; the Anthropic account's limit; the first release; SC-017; SC-005 |
-| T112, T114, T115 | the edge's plan block; P-6 with his figures, P-I5 if any, gate, merge; the name servers; apply; the red-team runs |
+| T112, T114, T115 | the edge's plan block; P-6 with his figures, P-I5 (CloudFront's policies and the probe's schedule), gate, merge; the name servers; apply both roots; the red-team runs |
 | T129, T131 to T134 | the handover's plan block; P-I6, gate, merge; apply; the rehearsals; the resting words; the first public release |
 | T140, T141 | gate, merge; the public view's hour |
 | T146 to T149 | gate, merge; the month's measurements; the audit; the intents' words |

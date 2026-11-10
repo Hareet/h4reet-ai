@@ -23,7 +23,7 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `cert_expiring` | ACM | as September | `certificate.md` |
 | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
 | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
-| `ec2_started`, `ec2_start_refused` (`paused`, `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
+| `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
 | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
 | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
 | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
@@ -58,13 +58,13 @@ The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap boun
 
 **Rehearsals (FR-026, SC-009):** while `rehearsal = true`, two $0.01 budgets with the same action types:
 - the model rehearsal against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes (to confirm, with the target, in group 4);
-- the server rehearsal against `h4-rehearsal-instance`, a stopped `t4g.nano` (to price).
+- the server rehearsal against `h4-rehearsal-instance`, a `t4g.nano` (to price), which the Author starts before the trip, since stopping a stopped instance proves nothing.
 
-The record is as September §3.4, per action. Then `rehearsal = false`.
+The record is as September §3.4, per action. For the server action it also keeps the SSM run's status from the action's history (`AWS-StopEC2Instance` succeeded) and the instance's state after it (`stopped`). Then `rehearsal = false`.
 
 ## 5. The uptime probe (FR-061)
 
-As September §4: `h4-probe`, once a minute, from AWS's side.
+As September §4: `h4-probe`, once a minute, from AWS's side. Its schedule, an EventBridge rule, sits in the protected `infra/account/alerts.tf` (rule T5), as the credential audit's weekly schedule does. It is written disabled in group 4 (P-I2), and the line that enables it is part of group 8's P-I5.
 - **Its checks:** `GET https://hareet.ai/` and `GET https://hareet.ai/api/status` with `X-H4-Probe: 1`.
 - **A pass:** 200 within 5 s; for status, a JSON body with a `serving` field.
 - **The alarm:** after 5 failed minutes.
