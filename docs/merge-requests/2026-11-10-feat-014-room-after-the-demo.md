@@ -116,7 +116,7 @@ h=$(git symbolic-ref -q HEAD)
 t=$(git rev-parse --verify "refs/heads/$b")
 [ "$t" = "$sha" ] || ok=no
 mr=refs/heads/main
-rv=eaf66991b664406e2b213671b24d0a45e331c3be
+rv=7c12a0bbb1e5b911d032c8d01c6442191103407e
 anc=(merge-base --is-ancestor)
 git "${anc[@]}" "$rv" "$sha" || ok=no
 mt=(merge-tree --write-tree "$mr")
@@ -138,11 +138,12 @@ grep -vxF -- "$a" "$w/o" | grep -q . && ok=no
 echo "guard: $ok"
 ```
 
-**Why `rv`, and why two merge-trees.** `rv` is the content the review will have read and its fixes settled; until the
-review, it is this build's last content commit, eaf66991 (the type fix make check's lint stage asked for), and the session moves it with T053. After `rv`, the branch
-changes only this note; the guard lets nothing else change, the board's patch included. Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content
-to the reviewed one whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On `guard:
-no`, don't merge: tell the session.
+**Why `rv`, and why two merge-trees.** `rv` is 7c12a0bb, T053's GREEN: the content the review read with its fixes,
+which the short second review reads as T053's diff; if that review asks for more, the session moves `rv` again. After
+`rv`, the branch changes only this note, and the guard lets nothing else change, the board's patch included (I4).
+Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content to the reviewed one
+whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On `guard: no`, don't merge:
+tell the session.
 
 **3. The merge, only after `guard: go`**, the gate's merge line rebuilt from its log, "by hand" with its reason after
 2b:
@@ -416,9 +417,48 @@ Each phase's tests ran before its code (RED), then with it (GREEN), as the commi
 - US4, T034 (GREEN): page.test.ts -t T033: 5 passed. With the rest of test/lookdev, compose, report, scan, schema: 12 files, 659 passed, 1 failed: scan.test.ts's FR-007 found two room piece IDs in T038's and T037's tests (committed earlier); fixed in 4ee4f3e3 (test titles and a lookup by glow ID, nothing checked changed), then scan, approvals, data-only: 3 files, 71 passed.
 - Polish, make test (first run at b2c9312d): web 4 files failed, 5 failed | 3259 passed | 1 skipped (3265): manifest.test.ts (placeholders), text-copy.test.ts (the hidden note's words), avatars-compose.test.ts x2 (the figures block's grips), vocabulary.test.ts (standin.avatar); the gateway 95 files, 1655 passed | 13 skipped (1668); pytest not reached. Each a changed expectation (FR-053 to FR-055, FR-039), committed as T028's; the four files then 64 passed.
 
+- T053 RED (on 3f2f3aac's tests, before the code): `hud.test.ts`, `stages-checks.test.ts`, `hud-look.test.ts`,
+  `hud-contrast.test.ts` -t T053: 9 failed, 1 passed (the protectors' equivalence, N3, passes at once): "expected
+  undefined to be 'bar'" (no walkPlace), "expected 0.625 to be less than 0.625" (the desktop's ease), "expected null to
+  be 'bar'" (no data-walk-place), "html[data-hud="column"] .room button:hover: expected null to be '@media (hover:
+  hover)'" and "expected false to be true" (unscoped hover), "expected 'var(--tile-face-lit)' to be '#eef4fb'" (the
+  resume's selected item), the offer's outline undefined, no `--glass-alpha-lit`. The guard, rehearsed with the board's
+  patch changed after `rv`: "guard: go", before I4's fix.
+- T053 GREEN (7c12a0bb): the four files' T053 cases, 10 passed, after the placement moved from the bar's cluster to the
+  column's head (E24) and the hud cases with it; the whole web suite 149 files, 3,270 passed | 1 skipped, after the
+  knock-on expectations listed below. The rehearsal's patch case: "guard: no". Step 6's guards in a scratch folder:
+  "digest: go" on the patch's digest, "digest: no" once the block changes; "entry: no" with either placeholder left,
+  "entry: go" once both are filled, under zsh and bash.
+
 ### T013's frame line and T047's measures
 
-T013's frame line, from `npm run room:report -w apps/web` at the tip:
+Remeasured at T053, with the walking control at the column's head, from `npm run room:report -w apps/web`:
+
+```text
+Frame (spec 014, FR-060, FR-061): the frame areas over the same screens, eased from the window toward each clear area only as far as keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; 7,678 stages, each with the HUD boxes over it reserved.
+- the dock layout: 3,972 screens and states, 1,684 at ease 0, 915 between, 1,373 at ease 1; the median 6/16.
+- the column layout under 1280 × 720: 2,821 screens and states, 670 at ease 0, 1,883 between, 268 at ease 1; the median 13/16.
+- the column layout from 1280 × 720: 2,437 screens and states, 1,035 at ease 0, 1,402 between, 0 at ease 1; the median 4/16.
+- The reference desktop (1920 × 1200): ease 8/16, a frame area of 1696 × 1160.3 over spec 005's 1472 × 1120.5, the room 3.5% larger on screen.
+- The reference phone (384 × 740): ease 1, a frame area of 384 × 422 over spec 005's 384 × 422, the room 0.0% larger on screen.
+```
+
+Each the frame's ease, the room's growth on screen over spec 005's frame, and the room's centre across, beside spec
+005's and the window's (a scratch test over the compose's geometry, deleted after):
+
+| Window | Ease | The room larger by | The room's centre x (spec 005's; the window's) | Always-on cover (cap 25%) |
+|---|---|---|---|---|
+| 1920 × 1200 | 8/16 (10/16 at T013) | 3.5% (2.7%) | 804 (693; 960) | 10.7% |
+| 1920 × 1080 | 5/16 (7/16) | 5.5% (4.5%) | 850 (698; 960) | 11.9% |
+| 2560 × 1440 | 0 (0) | 5.8% (5.8%) | 1225 (1004; 1280) | 6.7% |
+| 1280 × 720 | 13/16 (1) | 2.3% (0) | 433 (392; 640) | 24.4% |
+
+What binds next, at each window's step before its ease: the twin's framed box, the protector's fifth of six (four
+selectables' cores, then the twin and the visitor), within 0.5rem of the bar's cluster at the foot's right (at
+1920 × 1200, step 7/16: the box 332 × 832 at 1034, 309). With the control in the bar's cluster instead, measured first:
+1920 × 1080 9/16 and 2560 × 1440 3/16, so the column's head (E24).
+
+T013's frame line, from `npm run room:report -w apps/web` at e40b875f, before T053:
 
 ```text
 Frame (spec 014, FR-060, FR-061): the frame areas over the same screens, eased from the window toward each clear area only as far as keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; 7,678 stages, each with the HUD boxes over it reserved.
@@ -434,7 +474,7 @@ T047's measures, at the tip, beside T001's:
 | Measure | T001 (the base, cb861c2a) | The tip |
 |---|---|---|
 | The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,321 JS + 5,413 CSS = 48,734 bytes (+2,717), one chunk, against the 150 KB budget |
-| `npm run room:check -w apps/web` | "room: 0 findings in 0 files", 5.12 s wall clock | "room: 0 findings in 0 files", 6.91 s wall clock (7.28 s user) |
+| `npm run room:check -w apps/web` | "room: 0 findings in 0 files", 5.12 s wall clock | "room: 0 findings in 0 files", 7.61 s wall clock (7.85 s user) at T053; 6.91 s before it |
 | Supported stages | 7,291 over 7,241 sweep screens | 7,678 frame-area stages over the same screens |
 | `package-lock.json` | | `git diff 32fb2bc3 HEAD -- '*package-lock.json'`: 0 lines; no package added (FR-067) |
 | Response headers | | `apps/web/nginx.conf`, `deploy/edge/nginx.conf`, and their tests `deploy/scripts/test_web_nginx.py` and `test_edge_site.py`: 0 changed lines |
