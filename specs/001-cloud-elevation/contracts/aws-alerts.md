@@ -6,12 +6,14 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/aws
 
 As September §1: one SNS topic, `h4-alerts`, in `infra/bootstrap/alerts.tf` (protected).
 - **Email** goes through SNS's email subscription to the Author's sensitive variable.
-- **Telegram** goes through `h4-alert-bridge`, which reads its token and chat ID from Parameter Store at each run and logs neither.
+- **Telegram** goes through `h4-alert-bridge`, which reads its token and chat ID from Parameter Store at each run and logs neither. **As built in group 4:** the Author's SecureStrings `/h4reet/alerts/TELEGRAM_BOT_TOKEN` and `/h4reet/alerts/TELEGRAM_CHAT_ID` (`infra/parameters.txt`); sendMessage with 5 s and 3 attempts, 2 s apart, as September had it; a run that can't send raises, so Lambda retries it twice and then sends it to the failure queue `h4-alert-bridge-failed`, kept 14 days (`infra/account/lambdas.tf`). Its log is the source, the kind, and the outcome.
 - **Who may publish:** `budgets.amazonaws.com`, `costalerts.amazonaws.com`, `events.amazonaws.com`, `cloudwatch.amazonaws.com`, and the roles of the credential audit, `h4-ec2-start`, `h4-ec2-guard`, EC2's and the tunnel end's instances, and the Author's `make ec2-stop`.
 
 ## 2. The alerts
 
 Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then facts. Never a payload, client identifier, account ID, key ID, or secret.
+
+**As built in group 4** (`infra/lambdas/alert_bridge/bridge.py`): a kind that takes a reason carries it after the kind, `[hareet.ai aws] ec2_start_refused (tunnel_end_down): …`; the facts follow as `- <key>: <value>` lines, and the last line names the kind's page, `Runbook: docs/runbooks/<page>`, from this table. The bridge knows a notice by its shape: AWS Budgets' threshold and action notices, by the budget's name (the rehearsals' add `- rehearsal: yes`), Cost Anomaly Detection's, CloudWatch's alarms', and EventBridge's events; and this project's own, which its functions, hosts, and rules' input transformers publish already in the format, whose kind and reason must be this table's and whose fact lines alone pass. Anything else it sends as `unrecognized`, with nothing of the notice and no page: the alerts mailbox has SNS's own copy. It takes out of every message what has a secret's, an account ID's, a key ID's, an email address's, or a network address's shape.
 
 | Kind | Source | When | Runbook |
 |---|---|---|---|
@@ -60,6 +62,8 @@ The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap boun
 - the model rehearsal against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes (to confirm, with the target, in group 4);
 - the server rehearsal against `h4-rehearsal-instance`, a `t4g.nano` (to price), which the Author starts before the trip, since stopping a stopped instance proves nothing.
 
+**As built in group 4** (`infra/account/killswitch.tf`, while `main.tf`'s `local.rehearsal` is true): `h4-rehearsal-model` reads Bedrock's spend by `var.bedrock_service_names`, and `h4-rehearsal-server` every cost but those names', as the real budgets do, so each fires on spend the month already holds and proves its filter; the model rehearsal needs a cent of Bedrock's spend in the month. `h4-rehearsal-target` trusts only the account's root user, who holds no key. The server rehearsal's role may run `AWS-StopEC2Instance`, stop that one instance, and describe instances; anything more Budgets asks of it is what the rehearsal shows.
+
 The record is as September §3.4, per action. For the server action it also keeps the SSM run's status from the action's history (`AWS-StopEC2Instance` succeeded) and the instance's state after it (`stopped`). Then `rehearsal = false`.
 
 ## 5. The uptime probe (FR-061)
@@ -67,6 +71,6 @@ The record is as September §3.4, per action. For the server action it also keep
 As September §4: `h4-probe`, once a minute, from AWS's side. Its schedule, an EventBridge rule, sits in the protected `infra/account/alerts.tf` (rule T5), as the credential audit's weekly schedule does. It is written disabled in group 4 (P-I2), and the line that enables it is part of group 8's P-I5.
 - **Its checks:** `GET https://hareet.ai/` and `GET https://hareet.ai/api/status` with `X-H4-Probe: 1`.
 - **A pass:** 200 within 5 s; for status, a JSON body with a `serving` field.
-- **The alarm:** after 5 failed minutes.
+- **The alarm:** after 5 failed minutes. **As built in group 4:** it moves to group 8, with the line that enables the schedule (plan.md §16, group 4's departure 2): an alarm that reads missing data as breaching would fire while the schedule is off, and it needs `cloudwatch.amazonaws.com` among the bootstrap topic's publishers (§1). A failed run raises, so Lambda counts an error, which that alarm reads; Lambda retries none, since the next minute is the retry.
 
-It never calls hello or a turn.
+It never calls hello or a turn. **As built:** it sends no cookie and no credential, and follows no redirect (`infra/lambdas/probe/probe.py`).

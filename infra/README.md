@@ -14,7 +14,18 @@ Everything spec 001 puts in the cloud is defined here, in Terraform, in one acco
 
 ## Protected files
 
-These change only by the Author's hand, as patches beside a group's note (FR-012; [contracts/infra-records.md §3](../specs/001-cloud-elevation/contracts/infra-records.md)): `iam*.tf`, `budgets*.tf`, `alerts*.tf`, `killswitch*.tf`, `handover*.tf`, `failover*.tf`, `ec2-market*.tf`, `edge-limits*.tf`, in any root, and `policy/`. The policy (`tools/gates/infra_policy.py`) keeps the resource types they hold inside them (rule T5). The bootstrap's are P-I1's, `docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch`.
+These change only by the Author's hand, as patches beside a group's note (FR-012; [contracts/infra-records.md §3](../specs/001-cloud-elevation/contracts/infra-records.md)): `iam*.tf`, `budgets*.tf`, `alerts*.tf`, `killswitch*.tf`, `handover*.tf`, `failover*.tf`, `ec2-market*.tf`, `edge-limits*.tf`, in any root, and `policy/`. The policy (`tools/gates/infra_policy.py`) keeps the resource types they hold inside them (rule T5). The bootstrap's are P-I1's, `docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch`; the account's, with the alert bridge's folder, which spec 000's protected names (`infra/*alert*`) also hold, are P-I2's, `docs/merge-requests/2026-11-10-feat-001-pi2-account.patch`.
+
+## The account root
+
+`account/` (group 4) holds the safety net's second half, and what the hosts will pull:
+
+- **The laptop's Bedrock identity** (`iam.tf`): spec 000's permission set, imported by its name (`main.tf`'s `local.laptop_permission_set`, which the Author reads from Identity Center) and narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`, an ordinary role at `/` that holds `bedrock:InvokeModel*` on the one inference profile.
+- **The model action** (`killswitch.tf`): at 100% of `h4-model-month`, `h4-deny-paid-models` attaches to `h4-laptop-bedrock`, by a role that may do only that. While `local.rehearsal` is true, two $0.01 budgets rehearse both actions, against `h4-rehearsal-target` and `h4-rehearsal-instance` (`main.tf`).
+- **The functions** (`lambdas.tf`, their roles in `iam.tf`, what invokes them in `alerts.tf`): `h4-alert-bridge`, `h4-probe`, and `h4-credential-audit`, container images on arm64 from their repositories, each made once `local.lambda_images` names its digest.
+- **The registry and the release bucket** (`registry.tf`).
+
+Its one variable, `bedrock_service_names`, comes from `~/.config/h4reet-ai/infra/account.env`, as `TF_VAR_bedrock_service_names=["…"]`, the names Bedrock's spend shows under in Cost Explorer. Its state is in the bucket from the first apply, under `account.tfstate`.
 
 ## Who runs what
 
@@ -42,7 +53,7 @@ terraform -chdir=infra/bootstrap \
   -platform=linux_amd64
 ```
 
-The bootstrap's lockfile is his step on `feat/001-us1-bootstrap`, before its plan block (the branch's note, "For the Author").
+The bootstrap's lockfile is his step on `feat/001-us1-bootstrap`, before its plan block (the branch's note, "For the Author"), and the account's on `feat/001-us2-safety-net`, the same way with `-chdir=infra/account`.
 
 ## The state
 

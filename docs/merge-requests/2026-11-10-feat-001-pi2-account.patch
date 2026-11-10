@@ -1,12 +1,1266 @@
-P-I2, spec 001 group 4's protected files, at the RED step (tasks.md T031): the alert bridge's test alone,
-infra/lambdas/alert_bridge/test_bridge.py, a new file. Spec 000's protected names (infra/*alert*) hold the bridge's
-folder, so its test, its code, and its Dockerfile reach the branch only by the Author's hand. The GREEN commit rebuilds
-this patch with the bridge, iam.tf, killswitch.tf, and alerts.tf.
+P-I2, spec 001 group 4's protected files (tasks.md T031, T034, T035; plan.md §3.2, §14, §16; research.md R-15, R-22
+to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All five are new files. For the Author's hand only: the protected
+names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform file names and spec 000's infra/*alert*) keep
+them from agent sessions.
 
 Built on 2026-11-10 from plain copies, `diff -u` against /dev/null, never `git apply` or a write into a worktree, on
 feat/001-us2-safety-net, stacked on groups 1 to 3. Apply it from the repository's top with `patch -p1`, which skips
-this preamble.
+this preamble, byte for byte as in T037's scratch clone (T039). It needs nothing of P-I1's: it creates files only.
 
+  - infra/account/iam.tf: the laptop's Bedrock permission set, imported by main.tf's local.laptop_permission_set and
+    narrowed to an inline policy of sts:AssumeRole on h4-laptop-bedrock; h4-laptop-bedrock, an ordinary role at /,
+    trusting only the set's AWSReservedSSO_ role, with bedrock:InvokeModel* on the one inference profile and its models
+    through it; h4-rehearsal-target, of the same shape, trusting only the root user, while local.rehearsal is true;
+    and the three functions' roles.
+  - infra/account/killswitch.tf: h4-deny-paid-models; the model action on h4-model-month at 100% of actual,
+    automatic, attaching it to h4-laptop-bedrock by a role that may do only that; and, while local.rehearsal is
+    true, h4-rehearsal-model and h4-rehearsal-server at $0.01, filtered as the real budgets are by
+    var.bedrock_service_names, with the same two action types against h4-rehearsal-target and h4-rehearsal-instance.
+  - infra/account/alerts.tf: h4-alerts read by name; the bridge's subscription and SNS's permission for that topic
+    alone; the probe's schedule, once a minute, written DISABLED (group 8's P-I5 enables it); the credential audit's
+    weekly schedule, Mondays 06:00 UTC.
+  - infra/lambdas/alert_bridge/bridge.py and test_bridge.py: h4-alerts' Telegram half, stdlib but for Parameter
+    Store through the runtime's SDK; and its tests (T031), every kind of contracts/aws-alerts.md §2.
+
+To confirm at T037, before any apply (the merge-request note's "For the Author"): that Terraform takes Identity
+Center's data sources in the import block's id; that the hand-made set shows no other change than its tags,
+description, and inline policy; and the Bedrock policy's condition key, bedrock:InferenceProfileArn, on a call
+through the profile.
+
+--- /dev/null
++++ b/infra/account/iam.tf
+@@ -0,0 +1,335 @@
++# The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
++# laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
++# role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
++# for the rehearsal; and the three functions' roles. Protected (FR-012; rule T5): it changes only by the Author's patch.
++# Nothing here changes at run time (FR-070).
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
++# Its name is main.tf's local.laptop_permission_set. The hand-made set's customer-managed policy reference stays outside
++# Terraform until the Author detaches it, once the laptop's profile chains through h4-laptop-bedrock (tasks.md T040;
++# plan.md §16, group 4's departures); the credential audit then holds the set to this policy alone.
++
++data "aws_ssoadmin_instances" "this" {}
++
++data "aws_ssoadmin_permission_set" "laptop" {
++  instance_arn = tolist(data.aws_ssoadmin_instances.this.arns)[0]
++  name         = local.laptop_permission_set
++}
++
++import {
++  to = aws_ssoadmin_permission_set.laptop
++  id = "${data.aws_ssoadmin_permission_set.laptop.arn},${tolist(data.aws_ssoadmin_instances.this.arns)[0]}"
++}
++
++resource "aws_ssoadmin_permission_set" "laptop" {
++  name         = local.laptop_permission_set
++  instance_arn = tolist(data.aws_ssoadmin_instances.this.arns)[0]
++  description  = "The laptop's Bedrock: sts:AssumeRole on h4-laptop-bedrock alone (spec 001 FR-013)"
++
++  tags = {
++    component = "laptop-bedrock"
++  }
++
++  # As the hand-made set has them: the plan shows the import, and these stay the Author's.
++  lifecycle {
++    ignore_changes = [session_duration, relay_state]
++  }
++}
++
++data "aws_iam_policy_document" "laptop_assume" {
++  statement {
++    sid       = "AssumeTheBedrockRole"
++    effect    = "Allow"
++    actions   = ["sts:AssumeRole"]
++    resources = [aws_iam_role.laptop_bedrock.arn]
++  }
++}
++
++resource "aws_ssoadmin_permission_set_inline_policy" "laptop" {
++  instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
++  permission_set_arn = aws_ssoadmin_permission_set.laptop.arn
++  inline_policy      = data.aws_iam_policy_document.laptop_assume.json
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# h4-laptop-bedrock: an ordinary role at the path /, never one of Identity Center's, so the model action's deny can
++# attach to it (research.md R-22). Only the permission set's role may assume it: Identity Center names that role
++# AWSReservedSSO_<set>_<suffix>, under /aws-reserved/sso.amazonaws.com/ (with a Region in the path for some accounts).
++
++data "aws_iam_policy_document" "laptop_bedrock_trust" {
++  statement {
++    sid     = "ThePermissionSetsRoleOnly"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "AWS"
++      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
++    }
++
++    condition {
++      test     = "ArnLike"
++      variable = "aws:PrincipalArn"
++      values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_${local.laptop_permission_set}_*"]
++    }
++  }
++}
++
++# bedrock:InvokeModel* on the one inference profile, and on its models only through that profile (spec 000 plan
++# §5.2's "the one inference profile and the foundation models it routes to"). Converse is authorized by these two.
++data "aws_iam_policy_document" "bedrock_invoke" {
++  statement {
++    sid       = "TheInferenceProfile"
++    effect    = "Allow"
++    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
++    resources = ["arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/${local.inference_profile}"]
++  }
++
++  statement {
++    sid       = "ItsModelsThroughTheProfileOnly"
++    effect    = "Allow"
++    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
++    resources = ["arn:aws:bedrock:*::foundation-model/${local.foundation_model}*"]
++
++    condition {
++      test     = "StringLike"
++      variable = "bedrock:InferenceProfileArn"
++      values   = ["arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/${local.inference_profile}"]
++    }
++  }
++}
++
++resource "aws_iam_role" "laptop_bedrock" {
++  name                 = "h4-laptop-bedrock"
++  path                 = "/"
++  description          = "The laptop gateway's Bedrock, assumed from its permission set (spec 001 FR-013)"
++  assume_role_policy   = data.aws_iam_policy_document.laptop_bedrock_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "laptop-bedrock"
++  }
++}
++
++resource "aws_iam_role_policy" "laptop_bedrock" {
++  name   = "bedrock-invoke"
++  role   = aws_iam_role.laptop_bedrock.id
++  policy = data.aws_iam_policy_document.bedrock_invoke.json
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# h4-rehearsal-target, the model rehearsal's target (FR-026): an ordinary role of the same shape as h4-laptop-bedrock,
++# while local.rehearsal is true. No one assumes it: only the account's root user could, and the root user holds no key
++# (the credential audit's root_access_key).
++
++data "aws_iam_policy_document" "rehearsal_target_trust" {
++  count = local.rehearsal ? 1 : 0
++
++  statement {
++    sid     = "NoOne"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "AWS"
++      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
++    }
++
++    condition {
++      test     = "ArnEquals"
++      variable = "aws:PrincipalArn"
++      values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
++    }
++  }
++}
++
++resource "aws_iam_role" "rehearsal_target" {
++  count                = local.rehearsal ? 1 : 0
++  name                 = "h4-rehearsal-target"
++  path                 = "/"
++  description          = "The model rehearsal's target, of h4-laptop-bedrock's shape; no one assumes it (spec 001 FR-026)"
++  assume_role_policy   = data.aws_iam_policy_document.rehearsal_target_trust[0].json
++  max_session_duration = 3600
++
++  tags = {
++    component = "rehearsal"
++  }
++}
++
++resource "aws_iam_role_policy" "rehearsal_target" {
++  count  = local.rehearsal ? 1 : 0
++  name   = "bedrock-invoke"
++  role   = aws_iam_role.rehearsal_target[0].id
++  policy = data.aws_iam_policy_document.bedrock_invoke.json
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The functions' roles: each writes its own log group, and holds what its function needs, no more.
++
++data "aws_iam_policy_document" "lambda_trust" {
++  statement {
++    sid     = "LambdaForThisAccount"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["lambda.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++}
++
++resource "aws_iam_role" "alert_bridge" {
++  name               = "h4-alert-bridge-fn"
++  path               = "/"
++  description        = "h4-alert-bridge: its log, its two parameters, its failure queue"
++  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
++
++  tags = {
++    component = "alert-bridge"
++  }
++}
++
++# The two parameters are the Author's SecureStrings under the AWS-managed aws/ssm key, whose own policy lets the
++# account's principals decrypt through Parameter Store; a key of his own would need kms:Decrypt here.
++data "aws_iam_policy_document" "alert_bridge" {
++  statement {
++    sid       = "ItsLog"
++    effect    = "Allow"
++    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
++    resources = ["${aws_cloudwatch_log_group.alert_bridge.arn}:*"]
++  }
++
++  statement {
++    sid     = "TheBotsTokenAndTheChat"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/alerts/TELEGRAM_BOT_TOKEN",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/alerts/TELEGRAM_CHAT_ID",
++    ]
++  }
++
++  statement {
++    sid       = "ItsFailureQueue"
++    effect    = "Allow"
++    actions   = ["sqs:SendMessage"]
++    resources = [aws_sqs_queue.alert_bridge_failed.arn]
++  }
++}
++
++resource "aws_iam_role_policy" "alert_bridge" {
++  name   = "alert-bridge"
++  role   = aws_iam_role.alert_bridge.id
++  policy = data.aws_iam_policy_document.alert_bridge.json
++}
++
++resource "aws_iam_role" "probe" {
++  name               = "h4-probe-fn"
++  path               = "/"
++  description        = "h4-probe: its log alone; its checks call the public site"
++  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
++
++  tags = {
++    component = "probe"
++  }
++}
++
++data "aws_iam_policy_document" "probe" {
++  statement {
++    sid       = "ItsLog"
++    effect    = "Allow"
++    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
++    resources = ["${aws_cloudwatch_log_group.probe.arn}:*"]
++  }
++}
++
++resource "aws_iam_role_policy" "probe" {
++  name   = "probe"
++  role   = aws_iam_role.probe.id
++  policy = data.aws_iam_policy_document.probe.json
++}
++
++resource "aws_iam_role" "credential_audit" {
++  name               = "h4-credential-audit-fn"
++  path               = "/"
++  description        = "h4-credential-audit: IAM's and Identity Center's reads, its results, its alert"
++  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
++
++  tags = {
++    component = "credential-audit"
++  }
++}
++
++# The reads audit.py makes (contracts/infra-records.md §4): IAM's list and get calls, which take no narrower resource
++# for the account-wide listing, and Identity Center's permission sets; then its result into the release bucket's
++# audits/credential/, and any finding to h4-alerts.
++data "aws_iam_policy_document" "credential_audit" {
++  statement {
++    sid       = "ItsLog"
++    effect    = "Allow"
++    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
++    resources = ["${aws_cloudwatch_log_group.credential_audit.arn}:*"]
++  }
++
++  statement {
++    sid    = "ReadIam"
++    effect = "Allow"
++    actions = [
++      "iam:GetAccountSummary",
++      "iam:GetPolicy",
++      "iam:GetPolicyVersion",
++      "iam:GetRole",
++      "iam:GetRolePolicy",
++      "iam:ListAccessKeys",
++      "iam:ListAttachedRolePolicies",
++      "iam:ListOpenIDConnectProviders",
++      "iam:ListRolePolicies",
++      "iam:ListRoles",
++      "iam:ListUsers",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "ReadIdentityCenter"
++    effect = "Allow"
++    actions = [
++      "sso:DescribePermissionSet",
++      "sso:GetInlinePolicyForPermissionSet",
++      "sso:ListCustomerManagedPolicyReferencesInPermissionSet",
++      "sso:ListInstances",
++      "sso:ListManagedPoliciesInPermissionSet",
++      "sso:ListPermissionSets",
++      "sso:ListTagsForResource",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid       = "StoreItsResult"
++    effect    = "Allow"
++    actions   = ["s3:PutObject"]
++    resources = ["${aws_s3_bucket.releases.arn}/audits/credential/*"]
++  }
++
++  statement {
++    sid       = "AlertAFinding"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [data.aws_sns_topic.alerts.arn]
++  }
++}
++
++resource "aws_iam_role_policy" "credential_audit" {
++  name   = "credential-audit"
++  role   = aws_iam_role.credential_audit.id
++  policy = data.aws_iam_policy_document.credential_audit.json
++}
+--- /dev/null
++++ b/infra/account/killswitch.tf
+@@ -0,0 +1,311 @@
++# The budget actions (spec 001 FR-023, FR-026; research.md R-22; contracts/aws-alerts.md §4): the model action on
++# h4-model-month, which attaches h4-deny-paid-models to h4-laptop-bedrock (and, from group 7, to EC2's h4-prod-gateway),
++# and, while main.tf's local.rehearsal is true, both actions' rehearsals on $0.01 budgets of the real ones' shape. The
++# server action itself waits for EC2 (group 7). Protected (FR-012; rule T5): it changes only by the Author's patch.
++
++resource "aws_iam_policy" "deny_paid_models" {
++  name        = "h4-deny-paid-models"
++  path        = "/"
++  description = "Bedrock's invocations denied: the model action's policy (spec 001 FR-023)"
++  policy      = data.aws_iam_policy_document.deny_paid_models.json
++
++  tags = {
++    component = "kill-switch"
++  }
++}
++
++data "aws_iam_policy_document" "deny_paid_models" {
++  statement {
++    sid       = "DenyPaidModels"
++    effect    = "Deny"
++    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
++    resources = ["*"]
++  }
++}
++
++# AWS Budgets runs each action with its execution role, for this account alone.
++data "aws_iam_policy_document" "budgets_trust" {
++  statement {
++    sid     = "BudgetsForThisAccount"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["budgets.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The model action: at 100% of h4-model-month's actual cost (infra/bootstrap/budgets.tf), automatically. Its role may
++# attach and detach that one policy, on that one role, and nothing else. The Author reverses it after the incident
++# note (docs/runbooks/aws-budget-action.md).
++
++resource "aws_iam_role" "model_action" {
++  name               = "h4-budget-action-model"
++  path               = "/"
++  description        = "The model action: h4-deny-paid-models on the Bedrock roles, and nothing else"
++  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
++
++  tags = {
++    component = "kill-switch"
++  }
++}
++
++data "aws_iam_policy_document" "model_action" {
++  statement {
++    sid       = "ThatPolicyOnThoseRoles"
++    effect    = "Allow"
++    actions   = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
++    resources = [aws_iam_role.laptop_bedrock.arn]
++
++    condition {
++      test     = "ArnEquals"
++      variable = "iam:PolicyARN"
++      values   = [aws_iam_policy.deny_paid_models.arn]
++    }
++  }
++}
++
++resource "aws_iam_role_policy" "model_action" {
++  name   = "attach-the-deny"
++  role   = aws_iam_role.model_action.id
++  policy = data.aws_iam_policy_document.model_action.json
++}
++
++resource "aws_budgets_budget_action" "model" {
++  budget_name        = "h4-model-month"
++  action_type        = "APPLY_IAM_POLICY"
++  approval_model     = "AUTOMATIC"
++  notification_type  = "ACTUAL"
++  execution_role_arn = aws_iam_role.model_action.arn
++
++  action_threshold {
++    action_threshold_type  = "PERCENTAGE"
++    action_threshold_value = 100
++  }
++
++  definition {
++    iam_action_definition {
++      policy_arn = aws_iam_policy.deny_paid_models.arn
++      roles      = [aws_iam_role.laptop_bedrock.name]
++    }
++  }
++
++  subscriber {
++    address           = data.aws_sns_topic.alerts.arn
++    subscription_type = "SNS"
++  }
++
++  depends_on = [aws_iam_role_policy.model_action]
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The rehearsals (FR-026; SC-009), while local.rehearsal is true: two $0.01 budgets of the real ones' shape, the model
++# rehearsal's on Bedrock's spend (var.bedrock_service_names) and the server rehearsal's on every cost but Bedrock's, so
++# each fires on spend the month already holds, and proves its filter too. Each acts, automatically, at 100%, as the
++# real ones do: the model rehearsal attaches the deny to h4-rehearsal-target, and the server rehearsal stops
++# h4-rehearsal-instance through Systems Manager (main.tf). The model rehearsal fires only once the month holds a cent of
++# Bedrock's spend (the merge-request note's rehearsal steps).
++
++resource "aws_budgets_budget" "rehearsal_model" {
++  count        = local.rehearsal ? 1 : 0
++  name         = "h4-rehearsal-model"
++  budget_type  = "COST"
++  limit_amount = "0.01"
++  limit_unit   = "USD"
++  time_unit    = "MONTHLY"
++
++  cost_filter {
++    name   = "Service"
++    values = var.bedrock_service_names
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 100
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [data.aws_sns_topic.alerts.arn]
++  }
++
++  tags = {
++    component = "rehearsal"
++  }
++}
++
++resource "aws_iam_role" "rehearsal_model_action" {
++  count              = local.rehearsal ? 1 : 0
++  name               = "h4-budget-action-rehearsal-model"
++  path               = "/"
++  description        = "The model rehearsal: h4-deny-paid-models on h4-rehearsal-target, and nothing else"
++  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
++
++  tags = {
++    component = "rehearsal"
++  }
++}
++
++data "aws_iam_policy_document" "rehearsal_model_action" {
++  count = local.rehearsal ? 1 : 0
++
++  statement {
++    sid       = "ThatPolicyOnTheTarget"
++    effect    = "Allow"
++    actions   = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
++    resources = [aws_iam_role.rehearsal_target[0].arn]
++
++    condition {
++      test     = "ArnEquals"
++      variable = "iam:PolicyARN"
++      values   = [aws_iam_policy.deny_paid_models.arn]
++    }
++  }
++}
++
++resource "aws_iam_role_policy" "rehearsal_model_action" {
++  count  = local.rehearsal ? 1 : 0
++  name   = "attach-the-deny"
++  role   = aws_iam_role.rehearsal_model_action[0].id
++  policy = data.aws_iam_policy_document.rehearsal_model_action[0].json
++}
++
++resource "aws_budgets_budget_action" "rehearsal_model" {
++  count              = local.rehearsal ? 1 : 0
++  budget_name        = aws_budgets_budget.rehearsal_model[0].name
++  action_type        = "APPLY_IAM_POLICY"
++  approval_model     = "AUTOMATIC"
++  notification_type  = "ACTUAL"
++  execution_role_arn = aws_iam_role.rehearsal_model_action[0].arn
++
++  action_threshold {
++    action_threshold_type  = "PERCENTAGE"
++    action_threshold_value = 100
++  }
++
++  definition {
++    iam_action_definition {
++      policy_arn = aws_iam_policy.deny_paid_models.arn
++      roles      = [aws_iam_role.rehearsal_target[0].name]
++    }
++  }
++
++  subscriber {
++    address           = data.aws_sns_topic.alerts.arn
++    subscription_type = "SNS"
++  }
++
++  depends_on = [aws_iam_role_policy.rehearsal_model_action]
++}
++
++resource "aws_budgets_budget" "rehearsal_server" {
++  count        = local.rehearsal ? 1 : 0
++  name         = "h4-rehearsal-server"
++  budget_type  = "COST"
++  limit_amount = "0.01"
++  limit_unit   = "USD"
++  time_unit    = "MONTHLY"
++
++  filter_expression {
++    not {
++      dimensions {
++        key    = "SERVICE"
++        values = var.bedrock_service_names
++      }
++    }
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 100
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [data.aws_sns_topic.alerts.arn]
++  }
++
++  tags = {
++    component = "rehearsal"
++  }
++}
++
++resource "aws_iam_role" "rehearsal_server_action" {
++  count              = local.rehearsal ? 1 : 0
++  name               = "h4-budget-action-rehearsal-server"
++  path               = "/"
++  description        = "The server rehearsal: AWS-StopEC2Instance on h4-rehearsal-instance, and nothing else"
++  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
++
++  tags = {
++    component = "rehearsal"
++  }
++}
++
++# The stop document, and the stop of that one instance; EC2's Describe calls take no narrower resource. What else, if
++# anything, Budgets asks of the role is what the rehearsal shows (tasks.md T040).
++data "aws_iam_policy_document" "rehearsal_server_action" {
++  count = local.rehearsal ? 1 : 0
++
++  statement {
++    sid       = "TheStopDocument"
++    effect    = "Allow"
++    actions   = ["ssm:StartAutomationExecution"]
++    resources = ["arn:aws:ssm:us-east-1::automation-definition/AWS-StopEC2Instance:*"]
++  }
++
++  statement {
++    sid       = "ThatInstance"
++    effect    = "Allow"
++    actions   = ["ec2:StopInstances"]
++    resources = [aws_instance.rehearsal[0].arn]
++  }
++
++  statement {
++    sid       = "ItsState"
++    effect    = "Allow"
++    actions   = ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"]
++    resources = ["*"]
++  }
++}
++
++resource "aws_iam_role_policy" "rehearsal_server_action" {
++  count  = local.rehearsal ? 1 : 0
++  name   = "stop-the-rehearsal-instance"
++  role   = aws_iam_role.rehearsal_server_action[0].id
++  policy = data.aws_iam_policy_document.rehearsal_server_action[0].json
++}
++
++resource "aws_budgets_budget_action" "rehearsal_server" {
++  count              = local.rehearsal ? 1 : 0
++  budget_name        = aws_budgets_budget.rehearsal_server[0].name
++  action_type        = "RUN_SSM_DOCUMENTS"
++  approval_model     = "AUTOMATIC"
++  notification_type  = "ACTUAL"
++  execution_role_arn = aws_iam_role.rehearsal_server_action[0].arn
++
++  action_threshold {
++    action_threshold_type  = "PERCENTAGE"
++    action_threshold_value = 100
++  }
++
++  definition {
++    ssm_action_definition {
++      action_sub_type = "STOP_EC2_INSTANCES"
++      instance_ids    = [aws_instance.rehearsal[0].id]
++      region          = "us-east-1"
++    }
++  }
++
++  subscriber {
++    address           = data.aws_sns_topic.alerts.arn
++    subscription_type = "SNS"
++  }
++
++  depends_on = [aws_iam_role_policy.rehearsal_server_action]
++}
+--- /dev/null
++++ b/infra/account/alerts.tf
+@@ -0,0 +1,103 @@
++# What reaches h4-alerts' functions, and when (spec 001 FR-022, FR-061; research.md R-23, R-24; contracts/aws-alerts.md
++# §1, §2, §5): the bridge's subscription to the topic, the probe's schedule, written disabled, and the credential
++# audit's weekly schedule. The topic itself is the bootstrap's (infra/bootstrap/alerts.tf). Protected (FR-012; rule T5:
++# SNS, EventBridge, and Lambda's permissions live only in protected files): it changes only by the Author's patch.
++
++data "aws_sns_topic" "alerts" {
++  name = "h4-alerts"
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# h4-alerts' Telegram half (row C8): every notice on the topic goes to h4-alert-bridge, and SNS may invoke it for this
++# topic alone. The email half is the bootstrap's subscription.
++
++resource "aws_lambda_permission" "alert_bridge_sns" {
++  count         = length(aws_lambda_function.alert_bridge)
++  statement_id  = "h4-alerts"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.alert_bridge[0].function_name
++  principal     = "sns.amazonaws.com"
++  source_arn    = data.aws_sns_topic.alerts.arn
++}
++
++resource "aws_sns_topic_subscription" "alert_bridge" {
++  count     = length(aws_lambda_function.alert_bridge)
++  topic_arn = data.aws_sns_topic.alerts.arn
++  protocol  = "lambda"
++  endpoint  = aws_lambda_function.alert_bridge[0].arn
++
++  depends_on = [aws_lambda_permission.alert_bridge_sns]
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The probe's schedule (FR-061): once a minute, written disabled. The line that enables it is group 8's P-I5, once the
++# site and the status request exist, with its alarm after 5 failed minutes and h4-alerts' CloudWatch publisher (plan.md
++# §16, group 4's departures). Until then the probe calls nothing (row C11).
++
++resource "aws_cloudwatch_event_rule" "probe" {
++  name                = "h4-probe-every-minute"
++  description         = "h4-probe once a minute; enabled in group 8 (spec 001 FR-061)"
++  schedule_expression = "rate(1 minute)"
++  state               = "DISABLED"
++
++  tags = {
++    component = "probe"
++  }
++}
++
++resource "aws_cloudwatch_event_target" "probe" {
++  count     = length(aws_lambda_function.probe)
++  rule      = aws_cloudwatch_event_rule.probe.name
++  target_id = "h4-probe"
++  arn       = aws_lambda_function.probe[0].arn
++
++  retry_policy {
++    maximum_retry_attempts       = 0
++    maximum_event_age_in_seconds = 60
++  }
++}
++
++resource "aws_lambda_permission" "probe_events" {
++  count         = length(aws_lambda_function.probe)
++  statement_id  = "h4-probe-every-minute"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.probe[0].function_name
++  principal     = "events.amazonaws.com"
++  source_arn    = aws_cloudwatch_event_rule.probe.arn
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The credential audit's weekly run (FR-008; contracts/infra-records.md §4): Mondays at 06:00 UTC. The Author's
++# make infra-audit and make infra-verify run the same checks in his terminal.
++
++resource "aws_cloudwatch_event_rule" "credential_audit" {
++  name                = "h4-credential-audit-weekly"
++  description         = "h4-credential-audit, weekly (spec 001 FR-008)"
++  schedule_expression = "cron(0 6 ? * MON *)"
++  state               = "ENABLED"
++
++  tags = {
++    component = "credential-audit"
++  }
++}
++
++resource "aws_cloudwatch_event_target" "credential_audit" {
++  count     = length(aws_lambda_function.credential_audit)
++  rule      = aws_cloudwatch_event_rule.credential_audit.name
++  target_id = "h4-credential-audit"
++  arn       = aws_lambda_function.credential_audit[0].arn
++
++  retry_policy {
++    maximum_retry_attempts       = 2
++    maximum_event_age_in_seconds = 3600
++  }
++}
++
++resource "aws_lambda_permission" "credential_audit_events" {
++  count         = length(aws_lambda_function.credential_audit)
++  statement_id  = "h4-credential-audit-weekly"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.credential_audit[0].function_name
++  principal     = "events.amazonaws.com"
++  source_arn    = aws_cloudwatch_event_rule.credential_audit.arn
++}
+--- /dev/null
++++ b/infra/lambdas/alert_bridge/bridge.py
+@@ -0,0 +1,473 @@
++#!/usr/bin/env python3
++"""The alert bridge, h4-alert-bridge (spec 001 FR-022; contracts/aws-alerts.md §1 and §2, and September's §2 at
++00309c47; research.md R-23; tasks.md T035): h4-alerts' Telegram half. SNS hands it each notice on the topic, and it
++sends the Author one plain-text message through the Telegram Bot API:
++
++    [hareet.ai aws] <kind>: <the line's facts>
++    - <fact>: <value>
++    Runbook: docs/runbooks/<page>
++
++The kinds and their pages are contracts/aws-alerts.md §2's. It knows a notice by its shape:
++  - this project's own, already in the format, from the credential audit, the handover's functions, the hosts'
++    deployers, and the EventBridge rules' input transformers: its kind must be one §2 lists, and only its fact lines,
++    `- <key>: <value>`, pass;
++  - AWS Budgets' threshold notices and its actions' notices, by the budget's name;
++  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's), and EventBridge's events (ACM's expiry, EC2's spot
++    warning), as JSON.
++Anything else is `unrecognized`, and carries nothing of the notice: the alerts mailbox has SNS's own copy.
++
++It picks the facts it sends, never a whole notice, and takes out of them whatever has a secret's, an account ID's, a
++key ID's, an email address's, or a network address's shape. It reads the bot's token and the chat ID from Parameter
++Store at each run, and logs neither, nor the message: its log is the source, the kind, and the outcome. sendMessage gets
++5 s and 3 attempts, 2 s apart; a message that can't be sent raises, so Lambda retries the run twice and then hands it to
++the function's failure destination (infra/account/lambdas.tf).
++
++The standard library, but for Parameter Store, which it reads with the AWS SDK the Lambda's base image carries, as the
++credential audit does. The function runs on python3.14, arm64 (research.md R-02); this file holds to 3.12's syntax.
++The shapes of Budgets' notices are to confirm against the real ones at the rehearsal (tasks.md T040).
++"""
++
++from __future__ import annotations
++
++import json
++import os
++import re
++import time
++import urllib.error
++import urllib.request
++from collections.abc import Callable
++from dataclasses import dataclass, field
++
++PREFIX = "[hareet.ai aws]"
++TELEGRAM = "https://api.telegram.org/bot{token}/sendMessage"
++TOKEN_PARAMETER = "/h4reet/alerts/TELEGRAM_BOT_TOKEN"
++CHAT_PARAMETER = "/h4reet/alerts/TELEGRAM_CHAT_ID"
++ATTEMPTS = 3
++GAP_S = 2
++TIMEOUT_S = 5
++MAX_LINE = 200
++MAX_FACTS = 12
++MAX_TEXT = 2000
++
++# contracts/aws-alerts.md §2: each kind and its runbook. A reason, where the kind takes one, may have a page of its own.
++KINDS: dict[str, str] = {
++    "model_budget_warn": "aws-budget.md",
++    "model_budget_reached": "aws-budget.md",
++    "server_budget_warn": "server-budget.md",
++    "server_budget_reached": "server-budget.md",
++    "model_action_executed": "aws-budget-action.md",
++    "server_action_executed": "server-budget.md",
++    "aws_anomaly": "aws-anomaly.md",
++    "cert_expiring": "certificate.md",
++    "probe_failing": "probe-failing.md",
++    "probe_recovered": "probe-failing.md",
++    "credential_finding": "credential-audit.md",
++    "ec2_started": "handover.md",
++    "ec2_start_refused": "handover.md",
++    "ec2_stopped_laptop_serving": "handover.md",
++    "ec2_stopped_paused": "handover.md",
++    "ec2_stopped_server_budget": "server-budget.md",
++    "ec2_stopped_by_author": "handover.md",
++    "spot_interruption": "spot-interruption.md",
++    "deploy_rolled_back": "deploy.md",
++    "deploy_rollback_failed": "deploy.md",
++    "deploy_refused": "deploy.md",
++    "tunnel_end_interruption": "tunnel-end.md",
++    "tunnel_end_back": "tunnel-end.md",
++}
++REASONS: dict[str, dict[str, str]] = {
++    "ec2_start_refused": {
++        "paused": "handover.md",
++        "server_budget_stopped": "handover.md",
++        "laptop_serving": "handover.md",
++        "start_failed": "handover.md",
++        "tunnel_end_down": "tunnel-end.md",
++    },
++}
++# The project's budgets, by name, and which kinds they give (infra/bootstrap/budgets.tf, infra/account/killswitch.tf).
++BUDGETS: dict[str, tuple[str, bool]] = {
++    "h4-model-month": ("model", False),
++    "h4-model-day": ("model", False),
++    "h4-server-month": ("server", False),
++    "h4-rehearsal-model": ("model", True),
++    "h4-rehearsal-server": ("server", True),
++}
++PROBE_ALARM = "h4-probe-failing"
++
++# What never leaves, in the order they're taken out: each shape, and what stands in for it.
++SCRUB = (
++    (
++        re.compile(
++            r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(-----END [A-Z ]*PRIVATE KEY-----|$)",
++            re.DOTALL,
++        ),
++        "<secret>",
++    ),
++    (re.compile(r"\b[0-9]{8,10}:[A-Za-z0-9_-]{35}\b"), "<secret>"),
++    (re.compile(r"sk-ant-[A-Za-z0-9_-]{8,}"), "<secret>"),
++    (re.compile(r"h4op_[A-Za-z0-9_-]{8,}"), "<secret>"),
++    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"), "<secret>"),
++    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "<key>"),
++    (
++        re.compile(
++            r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
++        ),
++        "<email>",
++    ),
++    (re.compile(r"(?<![0-9])[0-9]{12}(?![0-9])"), "<account>"),
++    (re.compile(r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])"), "<address>"),
++    (
++        re.compile(
++            r"(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{1,4}:){2,7}(?::|[0-9A-Fa-f]{1,4})(?![0-9A-Za-z:])"
++        ),
++        "<address>",
++    ),
++)
++FACT = re.compile(r"^- ([a-z][a-z0-9_]{0,39}): (.+)$")
++OURS = re.compile(r"^\[hareet\.ai aws\] ([a-z0-9_]+)(?: \(([a-z_]+)\))?: (.+)$")
++
++
++class BridgeError(RuntimeError):
++    """A run that couldn't send. Its message never names the token, the chat, the URL, or the notice."""
++
++
++@dataclass
++class Alert:
++    source: str
++    kind: str
++    summary: str
++    reason: str | None = None
++    facts: list[tuple[str, str]] = field(default_factory=list)
++
++
++def scrub(text: str) -> str:
++    for pattern, stand_in in SCRUB:
++        text = pattern.sub(stand_in, text)
++    return text
++
++
++def money(text: str | None) -> str | None:
++    m = re.search(r"\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)", text or "")
++    if not m:
++        return None
++    return f"${float(m.group(1).replace(',', '')):.2f}"
++
++
++def unrecognized(source: str) -> Alert:
++    return Alert(
++        source,
++        "unrecognized",
++        "a notice on h4-alerts the bridge doesn't know; the alerts mailbox has its copy",
++    )
++
++
++# ----------------------------------------------------------------------------------------------------------------------
++# Knowing a notice by its shape.
++
++
++def from_ours(text: str) -> Alert | None:
++    lines = text.strip().splitlines()
++    if not lines or not lines[0].startswith(PREFIX):
++        return None
++    m = OURS.match(lines[0].strip())
++    if not m:
++        return unrecognized("h4")
++    kind, reason, summary = m.groups()
++    if kind not in KINDS or (
++        reason is not None and reason not in REASONS.get(kind, {})
++    ):
++        return unrecognized("h4")
++    facts = []
++    for line in lines[1:]:
++        f = FACT.match(line.strip())
++        if f:
++            facts.append((f.group(1), f.group(2)))
++    return Alert("h4", kind, summary, reason, facts)
++
++
++def budget_fields(text: str) -> dict[str, str]:
++    fields = {}
++    for line in text.splitlines():
++        key, sep, value = line.partition(":")
++        if sep and key.strip() and len(key) <= 40:
++            fields.setdefault(key.strip().lower(), value.strip())
++    return fields
++
++
++def from_budgets(text: str) -> Alert | None:
++    fields = budget_fields(text)
++    name = fields.get("budget name")
++    if name is None:
++        return None
++    if name not in BUDGETS:
++        return unrecognized("budgets")
++    family, rehearsal = BUDGETS[name]
++    extra = [("rehearsal", "yes")] if rehearsal else []
++    if any(k.startswith("action ") for k in fields) or re.search(
++        r"(?i)budget action|action (?:has been )?executed", text
++    ):
++        status = fields.get("action status", "executed")
++        return Alert(
++            "budget_action",
++            f"{family}_action_executed",
++            f"{name}'s action ran",
++            None,
++            [
++                ("budget", name),
++                ("action", fields.get("action type", "the budget's action")),
++                ("status", status),
++                *extra,
++            ],
++        )
++    limit = money(fields.get("budgeted amount"))
++    threshold = money(fields.get("alert threshold"))
++    actual = money(fields.get("actual amount") or fields.get("forecasted amount"))
++    if None in (limit, threshold, actual):
++        return unrecognized("budgets")
++    reached = float(threshold[1:]) >= float(limit[1:])  # type: ignore[index]
++    kind = f"{family}_budget_{'reached' if reached else 'warn'}"
++    return Alert(
++        "budgets",
++        kind,
++        f"{name} at {actual}, past {threshold} of {limit}",
++        None,
++        [
++            ("budget", name),
++            ("threshold", threshold),
++            ("actual", actual),
++            ("limit", limit),
++            *extra,
++        ],  # type: ignore[list-item]
++    )
++
++
++def from_json(doc: object) -> Alert | None:
++    if not isinstance(doc, dict):
++        return None
++    if "AlarmName" in doc and "NewStateValue" in doc:
++        if doc.get("AlarmName") != PROBE_ALARM:
++            return unrecognized("alarm")
++        state = doc.get("NewStateValue")
++        since = str(doc.get("StateChangeTime", ""))[:19]
++        if state == "ALARM":
++            return Alert(
++                "alarm",
++                "probe_failing",
++                f"the probe has failed for 5 minutes, since {since}",
++            )
++        if state == "OK":
++            return Alert(
++                "alarm", "probe_recovered", f"the probe passes again, since {since}"
++            )
++        return unrecognized("alarm")
++    if "anomalyId" in doc or ("impact" in doc and "anomalyStartDate" in doc):
++        impact = doc.get("impact") if isinstance(doc.get("impact"), dict) else {}
++        causes = (
++            doc.get("rootCauses") if isinstance(doc.get("rootCauses"), list) else []
++        )
++        service = doc.get("dimensionalValue") or next(
++            (
++                c.get("service")
++                for c in causes
++                if isinstance(c, dict) and c.get("service")
++            ),
++            "an AWS service",
++        )
++        total = money(str(impact.get("totalImpact", ""))) or "an amount"
++        since = str(doc.get("anomalyStartDate", ""))[:10]
++        return Alert(
++            "anomaly",
++            "aws_anomaly",
++            f"{service}, impact {total}, since {since}",
++            None,
++            [("service", str(service))],
++        )
++    if "detail-type" in doc and "source" in doc:
++        detail = doc.get("detail") if isinstance(doc.get("detail"), dict) else {}
++        kind = doc.get("detail-type")
++        if kind == "ACM Certificate Approaching Expiration":
++            name, days = (
++                detail.get("CommonName", "a certificate"),
++                detail.get("DaysToExpiry", "?"),
++            )
++            return Alert(
++                "events",
++                "cert_expiring",
++                f"{name} expires in {days} days",
++                None,
++                [("domain", str(name))],
++            )
++        if kind == "EC2 Spot Instance Interruption Warning":
++            instance = detail.get("instance-id", "an instance")
++            return Alert(
++                "events",
++                "spot_interruption",
++                f"AWS takes {instance} back in 2 minutes",
++                None,
++                [
++                    ("instance", str(instance)),
++                    ("action", str(detail.get("instance-action", "?"))),
++                ],
++            )
++        return unrecognized("events")
++    return None
++
++
++def classify(message: str) -> Alert:
++    text = message or ""
++    for reader in (from_ours, from_budgets):
++        found = reader(text)
++        if found is not None:
++            return found
++    try:
++        doc = json.loads(text)
++    except ValueError:
++        doc = None
++    return from_json(doc) or unrecognized("unknown")
++
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The message.
++
++
++def runbook(alert: Alert) -> str | None:
++    if alert.kind not in KINDS:
++        return None
++    return REASONS.get(alert.kind, {}).get(alert.reason or "", KINDS[alert.kind])
++
++
++def clip(text: str, room: int) -> str:
++    text = " ".join(text.split())
++    return text if len(text) <= room else text[: room - 1] + "…"
++
++
++def render(alert: Alert) -> str:
++    head = f"{PREFIX} {alert.kind}{f' ({alert.reason})' if alert.reason else ''}: "
++    lines = [head + clip(scrub(alert.summary), MAX_LINE - len(head))]
++    for key, value in alert.facts[:MAX_FACTS]:
++        lead = f"- {key}: "
++        lines.append(lead + clip(scrub(value), MAX_LINE - len(lead)))
++    page = runbook(alert)
++    tail = f"Runbook: docs/runbooks/{page}" if page else None
++    while (
++        len("\n".join(lines + ([tail] if tail else []))) > MAX_TEXT and len(lines) > 1
++    ):
++        lines.pop()
++    return "\n".join(lines + ([tail] if tail else []))
++
++
++# ----------------------------------------------------------------------------------------------------------------------
++# Telegram, and Parameter Store.
++
++
++def _urlopen(
++    request: urllib.request.Request, timeout: float
++):  # the seam the tests replace
++    return urllib.request.urlopen(request, timeout=timeout)
++
++
++def http_post(url: str, body: bytes, timeout: float) -> int:
++    """POST JSON; the status. A refusal's status comes back; a network failure raises OSError."""
++    request = urllib.request.Request(
++        url, data=body, method="POST", headers={"Content-Type": "application/json"}
++    )
++    try:
++        with _urlopen(request, timeout) as response:
++            return int(response.status)
++    except urllib.error.HTTPError as exc:
++        return int(exc.code)
++
++
++def send(
++    token: str,
++    chat: str,
++    text: str,
++    post: Callable[[str, bytes, float], int],
++    sleep: Callable[[float], object],
++) -> int:
++    """Send one message: 3 attempts, 2 s apart, on a network failure, a 5xx, or a 429. The attempts it took."""
++    body = json.dumps(
++        {"chat_id": chat, "text": text, "link_preview_options": {"is_disabled": True}}
++    ).encode()
++    url = TELEGRAM.format(token=token)
++    why = "no attempt"
++    for attempt in range(1, ATTEMPTS + 1):
++        if attempt > 1:
++            sleep(GAP_S)
++        try:
++            status = post(url, body, TIMEOUT_S)
++        except OSError as exc:
++            why = f"telegram unreachable ({exc.__class__.__name__})"
++            continue
++        if 200 <= status < 300:
++            return attempt
++        why = f"telegram answered {status}"
++        if status != 429 and status < 500:
++            raise BridgeError(why)
++    raise BridgeError(f"{why}, after {ATTEMPTS} attempts")
++
++
++def parameter_names() -> tuple[str, str]:
++    return (
++        os.environ.get("H4_TELEGRAM_TOKEN_PARAMETER", TOKEN_PARAMETER),
++        os.environ.get("H4_TELEGRAM_CHAT_PARAMETER", CHAT_PARAMETER),
++    )
++
++
++class SsmParameters:
++    """Parameter Store, through the AWS SDK the Lambda's base image carries; this file imports it only here."""
++
++    def __init__(self) -> None:
++        import boto3
++
++        self.client = boto3.client("ssm", region_name="us-east-1")
++
++    def get(self, name: str) -> str:
++        from botocore.exceptions import BotoCoreError, ClientError
++
++        try:
++            return self.client.get_parameter(Name=name, WithDecryption=True)[
++                "Parameter"
++            ]["Value"]
++        except (ClientError, BotoCoreError, KeyError) as exc:
++            raise BridgeError(
++                f"parameter {name} can't be read ({exc.__class__.__name__})"
++            ) from None
++
++
++def log(**fields: object) -> None:
++    print(json.dumps(fields, sort_keys=False))
++
++
++def handler(
++    event: object,
++    context: object,
++    parameters: object | None = None,
++    post: Callable[[str, bytes, float], int] | None = None,
++    sleep: Callable[[float], object] | None = None,
++) -> dict:
++    """h4-alert-bridge's entry (infra/account/lambdas.tf), for SNS's event."""
++    records = (event or {}).get("Records") if isinstance(event, dict) else None
++    notices = [
++        r["Sns"].get("Message") or ""
++        for r in records or []
++        if isinstance(r, dict) and isinstance(r.get("Sns"), dict)
++    ]
++    if not notices:
++        return {"sent": 0}
++    store = parameters if parameters is not None else SsmParameters()
++    token_name, chat_name = parameter_names()
++    token, chat = store.get(token_name), store.get(chat_name)  # type: ignore[attr-defined]
++    sent = 0
++    for notice in notices:
++        alert = classify(notice)
++        try:
++            attempts = send(
++                token, chat, render(alert), post or http_post, sleep or time.sleep
++            )
++        except BridgeError as exc:
++            log(source=alert.source, kind=alert.kind, outcome="failed", why=str(exc))
++            raise
++        log(source=alert.source, kind=alert.kind, outcome="sent", attempts=attempts)
++        sent += 1
++    return {"sent": sent}
 --- /dev/null
 +++ b/infra/lambdas/alert_bridge/test_bridge.py
 @@ -0,0 +1,661 @@
@@ -256,10 +1510,10 @@ this preamble.
 +            continue
 +        cells = [c.strip() for c in line.strip().strip("|").split("|")]
 +        first, runbooks = cells[0], re.findall(r"`([a-z0-9-]+\.md)`", cells[-1])
-+        reasons = re.search(r"`([a-z_]+)` \((.*)\)$", first)
-+        if " (" in first and "`ec2_start_refused (" in first:
++        reasons = re.search(r"`([a-z0-9_]+)` \((.*)\)$", first)
++        if "`ec2_start_refused (" in first:
 +            # The row whose kind and reason are one code span: `ec2_start_refused (tunnel_end_down)`.
-+            ((kind, reason),) = re.findall(r"`([a-z_]+) \(([a-z_]+)\)`", first)
++            ((kind, reason),) = re.findall(r"`([a-z0-9_]+) \(([a-z_]+)\)`", first)
 +            found[f"{kind} {reason}"] = runbooks[0]
 +            continue
 +        kinds = re.findall(r"`([a-z0-9_]+)`", re.sub(r"\(.*\)", "", first))

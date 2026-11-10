@@ -41,6 +41,8 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 **SC-009 passes** when both channels got each alert and each action took effect on its target.
 
+**As built in group 4** (plan.md §16, group 4's departures): every apply needs its plan in a merged note, so steps 2 and 4 are reviewed changes of `infra/account/main.tf`'s `local.rehearsal`, and the functions come in a change of their own, once their images are in the registry the first apply makes (`local.lambda_images`): apply the account root; push the images; set their digests and `rehearsal = true` together; then `rehearsal = false`. The model rehearsal fires only once the month holds a cent of Bedrock's spend, as Cost Explorer shows it under `TF_VAR_bedrock_service_names`'s names. The instance runs from its creation. Spec 000's hand-made policy on the permission set is detached by hand, once, after the chained profile works (`docs/runbooks/laptop.md`). The branch's note gives each step as commands.
+
 ## 5. Group 5: the tunnel end and the tunnel (SC-006)
 
 1. Apply `infra/prod`'s network and the tunnel end, and `infra/account`'s warning rule for it. Run `make tunnel-keys`, then `make secrets-check`. `make cloud-session HOST=tunnel-end` opens a Systems Manager session to it.
