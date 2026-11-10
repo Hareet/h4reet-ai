@@ -91,9 +91,11 @@ describe("the Tab order in the HUD (FR-043, FR-046)", () => {
       expect(order.indexOf(UI["hud.log_toggle"] ?? "")).toBeGreaterThan(order.indexOf(UI["list.heading"] ?? ""));
       expect(order.indexOf("Your message")).toBeGreaterThan(order.indexOf(UI["hud.log_toggle"] ?? ""));
       expect(order.at(-1)).toBe(UI["around.heading"]);
-      // The dock layout's order is the column's.
+      // The dock layout's order is the column's, but for the log's header buttons, which hide with the empty sheet
+      // they head until the log holds a line (the review's finding 1).
       const upright = await room({ w: 390, h: 844 }, webgl);
-      expect(tabOrder(upright.doc).map(nameOf)).toEqual(order);
+      const heads = [UI["hud.log_toggle"], UI["talk.larger"]];
+      expect(tabOrder(upright.doc).map(nameOf)).toEqual(order.filter((n) => !heads.includes(n)));
       // In full screen, the same.
       fullScreen(wide, true);
       expect(tabOrder(wide.doc).map(nameOf)).toEqual(order);
@@ -226,4 +228,55 @@ describe("axe in full screen (FR-051)", () => {
       fullScreen(v, true);
       expect(await axeViolations(v)).toEqual([]);
     });
+});
+
+// The review of 60b51de4, finding 1 (WCAG 2.4.7; FR-051): no stop of the Tab order is a control nobody can see.
+describe("no control in the Tab order that isn't drawn (T046, finding 1)", () => {
+  it("hides the log's header buttons with the dock's empty sheet, and shows them with its first line; the column keeps them", async () => {
+    const heads = (v: Visit): string[] =>
+      tabOrder(v.doc)
+        .map(nameOf)
+        .filter((n) => n === UI["hud.log_toggle"] || n === UI["talk.larger"]);
+    const upright = await room({ w: 390, h: 844 });
+    expect(heads(upright)).toEqual([]);
+    const box = upright.doc.querySelector<HTMLInputElement>("#talk-text") as HTMLInputElement;
+    box.value = "Hello";
+    button(upright.doc, "Send").click();
+    await flush();
+    expect(heads(upright)).toEqual([UI["hud.log_toggle"], UI["talk.larger"]]);
+    const wide = await room({ w: 1280, h: 720 });
+    expect(heads(wide)).toEqual([UI["hud.log_toggle"], UI["talk.larger"]]);
+  });
+
+  it("takes a collapsed log's links and buttons out of the Tab order, and keeps the log a live region", async () => {
+    const v = await room({ w: 1280, h: 720 });
+    const box = v.doc.querySelector<HTMLInputElement>("#talk-text") as HTMLInputElement;
+    box.value = "Hello";
+    button(v.doc, "Send").click();
+    await flush();
+    const log = v.doc.querySelector<HTMLElement>(".talk-log") as HTMLElement;
+    const inLog = (): HTMLElement[] => tabOrder(v.doc).filter((el) => log.contains(el));
+    // The fixed message points to the resume: a button and a link in the log.
+    expect(inLog().length).toBeGreaterThan(0);
+    button(v.doc, UI["hud.log_toggle"] ?? "").click();
+    expect(inLog()).toEqual([]);
+    expect(log.getAttribute("role")).toBe("log");
+    expect(log.getAttribute("aria-live")).toBe("polite");
+    expect(log.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
+    // A line that lands while collapsed is out of the Tab order too, and every one comes back on opening.
+    box.value = "Again";
+    button(v.doc, "Send").click();
+    await flush();
+    expect(inLog()).toEqual([]);
+    button(v.doc, UI["hud.log_toggle"] ?? "").click();
+    expect(inLog().length).toBeGreaterThan(1);
+  });
+
+  it("draws nothing the hidden attribute hides, whatever display a rule gives it", () => {
+    const hidden = rules().filter((r) => r.selectors.some((s) => /\[hidden\]$/.test(s)));
+    expect(
+      hidden.some((r) => r.selectors.includes(".room [hidden]") && r.decls.get("display") === "none !important"),
+    ).toBe(true);
+    expect(hidden.some((r) => r.selectors.includes(".disclosure [hidden]"))).toBe(true);
+  });
 });
