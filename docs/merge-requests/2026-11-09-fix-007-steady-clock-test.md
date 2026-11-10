@@ -5,11 +5,12 @@ Spec: [specs/007-twin-conversation/](../../specs/007-twin-conversation/), its
 Opus 5.5), for the main session · Date: 2026-11-09
 
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
-`/tmp/claude-1000/wt-clock`, which the main session created from `main` at ada55c98. Repo hooks active: yes. In
-`.claude/audit/hooks.log`, this session's events in `wt-clock` from 2026-11-09T23:04Z were ALLOW, among them its
-`git --no-replace-objects merge refs/heads/fix/009-avatars-ready` at 23:11:12Z (Status). The BLOCKs in the same
-window are other sessions': 23:11:39Z ("redirecting git hooks or config", in `wt-switch`), and 23:25:03Z and 23:25:29Z
-("a read-only role writing a file").
+`/tmp/claude-1000/wt-clock`, which the main session created from `main` at ada55c98; it's stacked on
+`fix/009-avatars-ready` (Status). Repo hooks active: yes. In `.claude/audit/hooks.log`, this session's events in
+`wt-clock` from 2026-11-09T23:04Z were ALLOW, among them its `git --no-replace-objects merge
+refs/heads/fix/009-avatars-ready` at 23:11:12Z, which Claude Code's auto-mode classifier then refused (Status). The
+BLOCKs in the same window are other sessions': 23:11:39Z ("redirecting git hooks or config", in `wt-switch`), 23:25:03Z
+and 23:25:29Z ("a read-only role writing a file"), and 23:34:02Z ("an Author-only make target", in `wt-feat005`).
 
 Authorized by: your decision of 2026-11-09, answering "How should we get your gates passing?": "Fix the test
 (Recommended)", whose description read: "A small branch that makes the timing test measure with the same steady clock
@@ -17,40 +18,45 @@ the gateway's timers use (performance.now() in place of Date.now()). It's an edi
 needed." That answer is the authority for editing a test file here. This isn't a fix task in the `FIX_TASK` sense: no
 gateway code changes, and the test's bounds are as they were.
 
-## Status: not ready for your gate; the stack waits on one merge
+## Status: stacked on fix/009-avatars-ready; the checks pass; this branch's review next, then your gate
 
-The main session changed this branch's base mid-task: stack it on `fix/009-avatars-ready` (2423a5a6, reviewed: ready),
-whose F1 to F3 fix two of `main`'s own gate steps, `make lint` (Prettier on four of your history files from e324771e)
-and the web tests (`test/room/chunk.test.ts` and `dist.test.ts`, 8 failures), so that one gate and one merge of this
-branch bring both. This session's `git --no-replace-objects merge refs/heads/fix/009-avatars-ready`, at 23:11:12Z,
-would have been a fast-forward, since nothing was committed yet. Claude Code's auto-mode classifier refused it
-("Merge Without Review"); the repository's bash gate had allowed it. Nothing was respelled. So this tip sits on `main`
-(ada55c98) alone, and its `make lint` and `make test` fail on `main`'s own files, as `main` does. The gateway's
-workspace, this branch's subject, passes whole. The stack is rehearsed without moving a ref (Verification): it merges
-with no conflict, and that tree passes Prettier and the web tests. Once the merge lands (a merge commit now, never a
-rebase), the session reruns the checks on the stacked tip and rewrites this section. Until then, don't gate.
+The checks below pass but for the environment's `matrix` rows. This branch's own `REVIEW.md` pass (Review) is still
+to come, from a session that wrote none of it; fix/009's is done. With that recorded, the tip is ready for your gate.
 
-| Check, on a63a74ea (the fix, before this note) | Result |
+This branch is the clock fix (a63a74ea) and this note, stacked on `fix/009-avatars-ready` (2423a5a6, reviewed: ready;
+its note, [2026-11-09-fix-009-avatars-ready.md](2026-11-09-fix-009-avatars-ready.md)). That branch's F1 to F3 fix two
+of `main`'s own gate steps, `make lint` (Prettier on four of your history files from e324771e) and the web tests
+(`test/room/chunk.test.ts` and `dist.test.ts`, 8 failures); this branch fixes the third, the gateway's timing test. So
+**one gate on this tip, and one merge, bring both branches**: don't gate or merge `fix/009-avatars-ready` on its own.
+
+**You ran the stacking merge in your terminal:** 6ee7a6de, "Merge branch 'refs/heads/fix/009-avatars-ready' into
+fix/007-steady-clock-test", its parents 5ad8fcd2 (this branch) and 2423a5a6 (fix/009). This session's own `git
+--no-replace-objects merge refs/heads/fix/009-avatars-ready`, at 23:11:12Z, was refused by Claude Code's auto-mode
+classifier ("Merge Without Review"), though the repository's bash gate had allowed it; nothing was respelled. Your
+merge's tree, 93481939, is the one this session had rehearsed without moving a ref (Verification), and both
+`refs/heads/main` (ada55c98) and `fix/009-avatars-ready` are ancestors of the tip. The checks below are on 6ee7a6de,
+before this note's rewrite.
+
+| Check, on 6ee7a6de (the stacked tip) | Result |
 |---|---|
-| The file alone, five runs each | RED on `main`: 3 of 5 failed (8,363 against 9,000; 5,424 and 5,394 against 6,000); GREEN: 5 of 5 passed |
-| `make test`'s gateway workspace | "95 passed (95)", "1652 passed \| 13 skipped (1665)" |
-| `make test`'s web workspace | `main`'s own 8 failures in `chunk.test.ts` and `dist.test.ts` (fix/009's F2 and F3); "2 failed \| 105 passed (107)", "8 failed \| 2685 passed (2693)"; make stops here |
-| pytest, run alone as `make test` runs it | "4095 passed in 481.54s (0:08:01)", exit 0 |
-| `make lint` | ESLint and tsc pass; Prettier fails on `main`'s four history files (fix/009's F1) |
-| `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed; the behavioral tier's advisory WARN |
-| `make check ENGINE_MODE=none-yet` | "9 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 3 FAIL; failing: lint FAIL, test FAIL, matrix FAIL": `lint` and `test` on `main`'s own files, as above; `matrix` E10 and E14 alone, the environment's |
-| The stack, rehearsed: `fix/009-avatars-ready` merged with a63a74ea, no ref moved | no conflict; tree 98582d5a; on its export, `prettier --check .` "All matched files use Prettier code style!" and the web workspace "108 passed (108)", "2699 passed (2699)"; the gateway's files are this tip's, since fix/009 changes nothing under `services/` |
-| The rehearsal into `refs/heads/main` (ada55c98) | `main` an ancestor; the merge writes the tip's own tree; `gitleaks dir` on that tree, no leaks |
+| The timing file alone, five runs each (on a63a74ea) | RED on `main`: 3 of 5 failed (8,363 against 9,000; 5,424 and 5,394 against 6,000); GREEN: 5 of 5 passed |
+| `make lint` | exit 0 |
+| `make test` | exit 0, all three suites whole: the gateway "95 passed (95)", "1652 passed \| 13 skipped (1665)"; the web "108 passed (108)", "2699 passed (2699)"; pytest "4099 passed in 426.62s (0:07:06)" |
+| `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,830; the behavioral tier's advisory WARN |
+| `make check ENGINE_MODE=none-yet` | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix` E10 and E14 alone, the environment's; `test` whole (pytest "4099 passed"); `arrival` "0 findings in 75 files (20 commits), 8 warnings", the intake's. The run before it, under a load average near 22, failed one other gateway case, `app.test.ts`'s graceful shutdown, a 50 ms race this branch doesn't touch (Verification, Backlog) |
+| The rehearsal into `refs/heads/main` (ada55c98) | `main` and `fix/009-avatars-ready` ancestors; the merge writes the tip's own tree, 93481939; `gitleaks dir` on that tree, no leaks |
 
 ## Runs in your terminal
 
 Nothing paid, and no `--prove` or behavioral tier: the gate's stage E waits for `--prove` only when a branch touches
 `deploy/agents-engine/` or `.claude/settings.json` (`stage_e`: "the branch touches neither deploy/agents-engine/ nor
 .claude/settings.json"), and its behavioral tier runs only for `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code
-pin (`agent_config_evals`: "the branch touches none of the triggers"). Against `main` (ada55c98), this branch touches
-`services/gateway/test/integration/twin-paid-timeout.test.ts`, `specs/007-twin-conversation/plan.md`, and this note.
-No step runs git in an agent's worktree. If `main` moves before the gate, the guard says `no`: tell the session, which
-merges `main` into the branch.
+pin (`agent_config_evals`: "the branch touches none of the triggers"). Against `main` (ada55c98), this branch touches,
+from this branch, `services/gateway/test/integration/twin-paid-timeout.test.ts`, `specs/007-twin-conversation/plan.md`,
+and this note; and, from `fix/009-avatars-ready`, your intake under `assets/` (`assets/visitors/`, `assets/CREDITS.md`),
+`.prettierignore`, `apps/web/`, `specs/009-room-avatars/`, and its three files in `docs/merge-requests/`. No step runs
+git in an agent's worktree. If `main` moves before the gate, the guard says `no`: tell the session, which merges `main`
+into the branch.
 
 1. **The gate, from main's checkout:**
 
@@ -62,8 +68,10 @@ merges `main` into the branch.
    tools/gates/gate "$b" 2>&1 | tee "$log"
    ```
 
-   Expect Ready, with `evals` WARN (the behavioral tier's advisory line). With any FAIL, don't merge, and tell the
-   session.
+   Expect Ready, with `evals` WARN (the behavioral tier's advisory line); and, from fix/009, as its note says,
+   `arrival` PASS with the intake's eight `WARN assets/visitors/…` lines (spec 004's C1, the composite mark), and
+   `studio-settings` run on your studio session's settings, since the range adds files under `assets/`. With any FAIL,
+   don't merge, and tell the session.
 
 2. **The guard.** It goes only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA
    the gate checked, and `main` has nothing that SHA lacks:
@@ -98,16 +106,25 @@ merges `main` into the branch.
    [ "$ok" = go ] && git "${o[@]}" "$sha"
    ```
 
-4. **Then `fix/009-avatars-ready`'s note,** `docs/merge-requests/2026-11-09-fix-009-avatars-ready.md`, from its step
-   4: `make up ENV=prod`, the T046 demo, and parking off `main` (its step 6, the same as here):
+   This merge brings `fix/009-avatars-ready` too, so its note's steps 1 to 3 are done; the rest of its steps follow,
+   from [its note](2026-11-09-fix-009-avatars-ready.md#runs-in-your-terminal).
+
+4. **The stack,** from main's checkout (fix/009's step 4):
+
+   ```bash
+   make up ENV=prod
+   ```
+
+5. **T046, the demo (L5),** in the browser, as fix/009's step 5 has it: the woman at the door, the hand-off ending in
+   her left hand, a talk with the twin, the stand-in line, and "2D view". Your verdict goes in a follow-up note, as that
+   step says.
+
+6. **Park off `main` again** (fix/009's step 6):
 
    ```bash
    p=wip-park/11-9-2026
    git --no-replace-objects switch -C "$p"
    ```
-
-   Its steps 1 to 3 are done by this branch's: its commits are in this tip once the stack lands, so one gate and one
-   merge bring both. This step reads that note as the stack brings it; it isn't in this tip until then.
 
 ## What changed and why
 
@@ -170,7 +187,8 @@ clock compared with a timer's length. None is left beyond this file:
 |---|---|
 | Spec 007's D43, its tests | unchanged in what they check: a visitor's turn the fallback answers at 6 s, hello cut at 4 s and retried, the admin call cut at 9 s after one attempt; now measured on the clock the cuts run on |
 | SC-005 (spec 000) | hello's 4 s cut and retry, as before, its bounds unchanged |
-| FR-041 (`make check`, every local gate) | the gateway's workspace passes whole again on this host, so `make test` reaches the web tests and pytest; the web's eight failures are `main`'s own, which the stack fixes (Status) |
+| FR-041 (`make check`, every local gate) | the gateway's workspace passes whole again on this host, so `make test` reaches the web tests and pytest; with fix/009 stacked, `make lint` and `make test` pass whole, and `make check` fails `matrix` alone (E10 and E14, the environment's) |
+| fix/009's own criteria (FR-018, FR-043, SC-014, User Story 7) | that branch's, as its note gives them; this branch changes none of its files |
 
 ## Constitution check
 
@@ -179,7 +197,7 @@ clock compared with a timer's length. None is left beyond this file:
 | I. Data-local by default | No | No flow added or changed |
 | II. Production-grade or not shipped | Yes | RED from the environment, GREEN five runs of five, `make lint`, `make test`, `make evals`, and `make check` pasted below |
 | III. Intent before spec, spec before code, humans merge | Yes | A test edit by your answer, quoted above; plan.md's D43 updated in the same commit; you merge |
-| IV. Least privilege | No | Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, or `.specify/` written, nor `CLAUDE.md` or `REVIEW.md`; no permission or sandbox change |
+| IV. Least privilege | No | This session wrote nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, or `.specify/`, nor `CLAUDE.md` or `REVIEW.md`; no permission or sandbox change. The stack's `assets/` files are your intake, by your merge; nothing in the range touches the other paths |
 | V. Cost is a first-class signal | No | $0; no model call |
 | VI. Build in public | Yes | The runs and the clock reading are in this note |
 | VII. Own the whole product | Yes | Your words quoted, not paraphrased |
@@ -192,7 +210,10 @@ None yet. A reviewer agent's `REVIEW.md` pass, from a session that wrote none of
 
 ## Verification
 
-All in `/tmp/claude-1000/wt-clock`, with the pinned Node (v24.21.0), after `npm ci --cache "$TMPDIR/npm-cache"`.
+All in `/tmp/claude-1000/wt-clock`, with the pinned Node (v24.21.0), after `npm ci --cache "$TMPDIR/npm-cache"`. RED
+and GREEN are on the fix's own commit; `make lint`, `make test`, `make evals`, `make check`, the rehearsal, and
+gitleaks are on the stacked tip, 6ee7a6de. The runs on 5ad8fcd2, before the stack, are kept at the end (Before the
+stack).
 
 ### RED, then GREEN
 
@@ -244,6 +265,139 @@ GREEN: `timed()` on `performance.now()`, five runs of the file alone:
 
 ### make lint
 
+On 6ee7a6de, exit 0:
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+460 files already formatted
+```
+
+followed by shellcheck over the repository's scripts, with no finding.
+
+### make test
+
+On 6ee7a6de, exit 0, all three suites:
+
+```text
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+npm test --workspaces --if-present
+> @h4reet/gateway@0.1.0 test
+ Test Files  95 passed (95)
+      Tests  1652 passed | 13 skipped (1665)
+   Duration  104.43s (tests 96%, import 2%, transform 1%)
+> @h4reet/web@0.1.0 test
+ Test Files  108 passed (108)
+      Tests  2699 passed (2699)
+   Duration  139.92s (tests 75%, import 23%, transform 2%)
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts
+4099 passed in 426.62s (0:07:06)
+```
+
+### make evals
+
+On 6ee7a6de, with this note's rewrite unstaged, exit 0:
+
+```text
+evals product (fake): 187 passed, 0 failed
+INFO (twin readiness): hobbies-and-travel: ready, its evidence at the running hashes
+INFO (twin readiness): mission: ready, its evidence at the running hashes
+INFO (twin readiness): work-projects: ready, its evidence at the running hashes
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 05cec03a74a5
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+agent-config behavioral: fail, 0 planned
+note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
+PASS  every relative link resolves: 1830 links in 261 files
+docs links: 0 failed, 1830 relative links in 261 files
+```
+
+### make check ENGINE_MODE=none-yet
+
+On 6ee7a6de, with this note's rewrite unstaged, exit 2, `matrix` alone failing, on E10 and E14:
+
+```text
+secrets: PASS (unstaged changes, staged changes, 20 commits since main)
+first visit (phase 3): 9,841,044 of 25,000,000 bytes · history: 25,459,087 of 500,000,000 bytes
+arrival-check: 0 findings in 75 files (20 commits), 8 warnings
+redteam: 68 passed, 0 failed
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 1
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+```
+
+Its `test` step: the gateway "95 passed (95)", "1652 passed | 13 skipped (1665)"; the web "108 passed (108)", "2699
+passed (2699)"; pytest "4099 passed in 489.17s (0:08:09)". The eight arrival warnings are the intake's
+`WARN assets/visitors/…` lines (spec 004's C1, the composite mark), as fix/009's note expects.
+
+The first `make check` on 6ee7a6de (23:48Z to 23:55Z, with the host's load average near 22 on 24 cores while other
+sessions ran) gave "10 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, matrix FAIL". Its one
+`test` failure was another gateway case, not this branch's file:
+
+```text
+ FAIL  test/integration/app.test.ts > graceful shutdown > lets a request in flight finish, then closes both listeners and the store
+AssertionError: expected 503 to be 200 // Object.is equality
+ ❯ test/integration/app.test.ts:525:24
+ Test Files  1 failed | 94 passed (95)
+      Tests  1 failed | 1651 passed | 13 skipped (1665)
+```
+
+That case gives a request 50 ms (a `setTimeout`) to reach its handler before it closes the server, and a server that
+is closing answers 503; under that load the request came late. No wall clock is involved, and this branch doesn't touch
+the file. It passed in both full `make test` runs, alone three runs of three ("Tests 18 passed (18)" each, 23:55Z to
+23:56Z), and in the rerun above. It's in the Backlog.
+
+### The rehearsal into refs/heads/main, and gitleaks
+
+On 6ee7a6de, against `refs/heads/main` at ada55c98, read without moving a ref: `main` and `fix/009-avatars-ready`
+are both ancestors of the tip, and `git merge-tree --write-tree refs/heads/main HEAD` writes the tip's own tree
+(93481939, the same as `HEAD^{tree}`, and the tree this session had rehearsed for the stack before your merge), so the
+merge writes exactly the tree the gate checks. Nothing in the range touches `tools/gates/`, `.claude/`,
+`evals/agent-config/`, `corpus/`, `config/`, `.specify/`, `deploy/agents-engine/`, `CLAUDE.md`, or `REVIEW.md`.
+
+`gitleaks dir` over that tree, a `git archive` export of 6ee7a6de with this note's rewrite copied in, with the gate's
+flags (`--redact`, `--config` main's `.gitleaks.toml` shown into a scratch file, a fresh empty
+`--gitleaks-ignore-path`, `--ignore-gitleaks-allow`, `--exit-code 99`), from inside the export, with no
+`.gitleaksignore` at its root; its JSON report `[]`:
+
+```text
+5:10PM INF scanned ~50759261 bytes (50.76 MB) in 1.66s
+5:10PM INF no leaks found
+exit 0
+```
+
+The export and its scratch folder (`$TMPDIR/exp-clock-stacked`, `$TMPDIR/gl-clock2`) were deleted by name after.
+
+### Before the stack (a63a74ea and b36576b2, on `main` alone)
+
+These ran before your stacking merge, when the branch sat on `main` alone; `lint` and `test` failed there on `main`'s
+own files, which the stack fixes. Kept as the record.
+
+#### make lint
+
 On a63a74ea, exit 2, at Prettier, on `main`'s four history files, which fix/009's F1 keeps from Prettier (ESLint and
 tsc passed first; ruff and shellcheck come after Prettier, so they didn't run):
 
@@ -263,7 +417,7 @@ make: *** [Makefile:222: lint] Error 1
 The two files this branch changes, alone: `prettier --check` "All matched files use Prettier code style!", and
 `eslint --max-warnings 0` on the test file, no output. This note, the same.
 
-### make test
+#### make test
 
 On a63a74ea, exit 2. The gateway's workspace passes whole; the web workspace fails `main`'s own eight cases, fix/009's
 F2 and F3; make stops there:
@@ -306,7 +460,7 @@ apps/web`, exit 0:
       Tests  2699 passed (2699)
 ```
 
-### make evals
+#### make evals
 
 On a63a74ea, exit 0:
 
@@ -325,7 +479,7 @@ PASS  every relative link resolves: 1823 links in 259 files
 docs links: 0 failed, 1823 relative links in 259 files
 ```
 
-### make check ENGINE_MODE=none-yet
+#### make check ENGINE_MODE=none-yet
 
 On b36576b2 (a63a74ea and this note's first draft), with this note's later edits unstaged, exit 2. Its `lint` and
 `test` failed on `main`'s files exactly as above (the gateway "95 passed (95)", "1652 passed | 13 skipped (1665)"; the
@@ -357,7 +511,7 @@ SKIP     image  no agents' engine yet: tasks.md T046
 make check: 9 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 3 FAIL; failing: lint FAIL, test FAIL, matrix FAIL
 ```
 
-### The rehearsal into refs/heads/main, and gitleaks
+#### The rehearsal into refs/heads/main, and gitleaks
 
 On b36576b2, against `refs/heads/main` at ada55c98, read without moving a ref: `main` is an ancestor of the tip, and
 `git merge-tree --write-tree refs/heads/main HEAD` writes the tip's own tree (0be849b3, the same as `HEAD^{tree}`), so
@@ -395,15 +549,19 @@ by name after.
   blocker.
 - `test/unit/clock.test.ts:132`'s two `Date.now()` reads around `realNow()` (Other tests): a microsecond window, left
   as it is.
+- `services/gateway/test/integration/app.test.ts:520` to `:525`, graceful shutdown: the 50 ms wait before `close()`
+  is a race with the request's arrival, which a heavily loaded host lost once (Verification, make check). Waiting for
+  the request to reach the `/slow` handler, rather than for a fixed 50 ms, would remove it. A test edit, so yours to
+  allow; not a blocker, since it passed every other run.
 
 ## For the Author
 
-1. **The stack waits on one merge in this worktree** (Status), which this session's permission layer refused. Whoever
-   lands it (the main session, or you, by allowing it), the session then reruns the checks on the stacked tip and
-   rewrites Status and Verification before you gate.
+1. **One gate on this tip brings both branches** (Status): your stacking merge, 6ee7a6de, put `fix/009-avatars-ready`
+   in it, so don't gate or merge that branch on its own.
 2. **Your answer is the authority for the test edit,** quoted above in your words; the bounds are yours from D43,
    unchanged.
 3. **The gateway's wall-clock deadline arithmetic** (Backlog) is a question for spec 000 when you want it; nothing
    failed from it here.
-4. **The order,** once Status says ready: steps 1 to 4 above; then the cleanup, after the merge:
-   `git worktree remove /tmp/claude-1000/wt-clock`.
+4. **The order:** steps 1 to 6 above; then the cleanup, after the merge: `git worktree remove
+   /tmp/claude-1000/wt-clock`, and fix/009's own, `/tmp/claude-1000/wt-avfix` and `/tmp/claude-1000/wt-intake009`, as
+   its note says.
