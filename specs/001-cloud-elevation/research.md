@@ -193,7 +193,7 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 
 It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state from the last read (R-29), the kill switch, and the cause a hello would get. It writes each change of serving host to the shared state's `handover_events` (data-model.md §1.3), as `relay_rw`, which may insert there and nowhere else.
 
-**Why.** The relay holds the cap, the kill switch read, and the host choice in one place that runs around the clock. The status answer stays live while no host serves. The Cloud standard lists the relay among what "must be always-on", and on spot it has gaps: plan question 8 asks the Author how to carry that.
+**Why.** The relay holds the cap, the kill switch read, and the host choice in one place that runs around the clock. The status answer stays live while no host serves. The Cloud standard lists the relay among what "must be always-on", and on spot it has gaps: plan question 8 asked the Author how to carry that, and his approval at T000 takes option A, his wording in the 1.1.0 patch.
 
 
 ### R-10: Egress through an allowlisting proxy (carried, on two hosts)

@@ -2,7 +2,7 @@
 
 **Branch**: `spec/001-cloud-elevation` (this plan; the work runs on one feature branch per task group, [§16](#16-order-of-work-risks-and-proof)) | **Date**: 2026-11-09 | **Spec**: [spec.md](spec.md)
 
-**Status**: **Draft for the Author's review**, written on 2026-11-09 while he was away, at the main session's direction. It replaces the September plan (`plan.md` at 00309c47). The Author answered [questions 1 to 4](#questions-for-the-author) the same day, and they are applied here and in spec.md. Questions 5 to 7 weren't asked: their recommended answers are taken provisionally, as the session's defaults, not his words. No task starts before he approves it (tasks.md T000) (CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`"). His constitution patch, version 1.1.0, comes next, before any group (tasks.md T001), as the default order he confirms at T000; every infrastructure group checks it first ([Constitution Check](#constitution-check)). Revised on 2026-11-09 after `/speckit-analyze` over 8acc2686.
+**Status**: **Approved by the Author on 2026-11-10** (tasks.md T000). His words, verbatim: "Let's approve the t000 and spec 001 plan. Let's have you build it out but not push or try anything in the cloud yet, i will do that in the morning, but you can have everything ready and verified by then. Use the latest dependenices adn versions for aws services, plugins" What his approval takes is recorded in spec.md's Clarifications (Session 2026-11-10), each a reading beside his words: this plan and its §13 amendments; questions 5 to 7, and the spec's question 16, at their provisional defaults, the session's answers, which his approval leaves standing; question 8 as option A, his wording in the 1.1.0 patch, being added on `docs/001-ec2-default`; and, as the session's reading, the default order with T001 first, the ADRs proposed until his merges, and T008's pins at the latest releases established on 2026-11-10. **One named deviation:** his words direct group 1 to be built now, before T001 (spec.md Assumptions, "The constitution first"). Nothing merges and nothing is applied before T001, and every group that touches `infra/` checks it first ([Constitution Check](#constitution-check)). Drafted on 2026-11-09 while he was away, at the main session's direction; it replaced the September plan (`plan.md` at 00309c47), and was revised the same day after `/speckit-analyze` over 8acc2686.
 
 **Input**: spec.md as reworked and clarified on 2026-11-09 (commit b2ea2765), with no needs-clarification marker left. [ADR 0044](../../docs/adr/0044-ec2-as-prods-default-host.md), proposed, on branch `docs/001-ec2-default` (4fe34783). The constitution 1.0.1 in force, and the proposed 1.1.0 patch (`docs/merge-requests/2026-11-09-constitution-1.1.0.patch` on that branch). The September research, plan, data model, and contracts at 00309c47, where this plan carries something over.
 
@@ -15,7 +15,7 @@
 
 ## Questions for the Author
 
-Each was something this plan would otherwise have decided past his answers. Questions 1 to 4 were put to him on 2026-11-09, in the session, in the words quoted under each. His choice and the option's text are quoted as given. The options below them are as this plan first offered them, kept as the record. Questions 5 to 7 weren't asked: the session took each recommended option provisionally, as a default that the tasks carry, not his words, and his to overturn at T000. Question 8 came from the analysis of 2026-11-09, after his answers. It is open, and T000 asks it.
+Each was something this plan would otherwise have decided past his answers. Questions 1 to 4 were put to him on 2026-11-09, in the session, in the words quoted under each. His choice and the option's text are quoted as given. The options below them are as this plan first offered them, kept as the record. Questions 5 to 7 weren't asked: the session took each recommended option provisionally, as a default that the tasks carry, not his words, and his to overturn at T000. Question 8 came from the analysis of 2026-11-09, after his answers. T000 asked it, and his approval takes option A (spec.md Clarifications, Session 2026-11-10).
 
 ### Question 1: How does the edge reach whichever host serves?
 
@@ -101,7 +101,9 @@ Question 16 wasn't asked; the session took its recommended option as a default (
 | A (recommended) | Confirm the default and the additions. | As planned. |
 | B | Change them. | Research R-15's table and the handover contract change. |
 
-### Question 8: The relay on spot, against the Cloud standard (open, for T000)
+### Question 8: The relay on spot, against the Cloud standard (answered at T000: option A)
+
+**Answered at T000, 2026-11-10,** by his approval of this plan, which takes option A, the recommendation: his wording for the relay on spot goes into the still-unapplied 1.1.0 patch, and is being added on `docs/001-ec2-default`. The words are his, in that patch. T001 applies it.
 
 The relay runs on the tunnel end (question 1), and the tunnel end runs on spot (question 2), so AWS can take the relay away for a while. The Cloud standard, in force and as amended on `docs/001-ec2-default`, lists "the thin API/relay" among what "must be always-on". Neither answer said how to square that, and this plan doesn't decide it.
 
@@ -256,7 +258,7 @@ Technical approach, by area:
 | VI. Build in public | — | — | **Complies**, with ADR 0013's recorded deviation (private until publication). |
 | VII. Whole product | — | — | **Complies**: the site states nothing outside the corpus. The trade, every turn paid on EC2 and free on the laptop, is on the dashboard. |
 | VIII. Honest AI | — | — | **Complies**: red-team cases on every adapter that can answer, before public (FR-039). |
-| Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay", and, as amended for question 3, names Bedrock called from the serving host | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`. **Open for T000 (question 8):** the relay runs around the clock on spot, so it has gaps where the standard, in force and as amended, lists it among what "must be always-on". Terraform for everything, with one named exception: secrets (research.md R-26). |
+| Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay", and, as amended for question 3, names Bedrock called from the serving host | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`. **Question 8, answered at T000 with option A:** the relay runs around the clock on spot, so it has gaps where the standard, in force and as amended, lists it among what "must be always-on"; his wording for it goes into the 1.1.0 patch, so no deviation remains once T001 applies it. Terraform for everything, with one named exception: secrets (research.md R-26). |
 | Compute standard | — | — | **Complies**: one compose file on three hosts, with only the env file differing; the same images by digest. Image variants carried (ADR 0015). |
 | Local tier standard | "via the cloud fallback within its sub-budget" | "via the cloud host and its paid routes within the ceilings and adapter caps" | **Deviation from 1.0.1, removed by 1.1.0.** "Exposed only through an outbound tunnel" holds. |
 | Model access standard | "local-first with Bedrock as fallback inside a capped sub-budget" | per host: local-first on the laptop; the Anthropic API first on EC2 | **Deviation from 1.0.1, removed by 1.1.0.** One gateway, routes as configuration ([§6](#6-routing-per-host)). |
@@ -628,7 +630,7 @@ The Author answered question 1 with the relay on the tunnel end, and these chang
 | FR-072 | no DNS answer changes at run time |
 | SC-007, SC-016 | "the failover answering with the laptop" becomes "the relay sending to the laptop" |
 | Data-Flow Disclosure Entries | C1 to the relay on the tunnel end; new row C14, the relay to the serving host's relay block |
-| Constitution Check, Cloud standard | the relay runs around the clock on spot; its gap against "must be always-on" is question 8, open for T000 |
+| Constitution Check, Cloud standard | the relay runs around the clock on spot; its gap against "must be always-on" is question 8, answered at T000 with option A |
 | Clarifications | a new entry records the answers to the plan's questions 1 to 4, and that question 1's supersedes the DNS-failover reading of point 1 |
 | New FR-076; Degraded Modes; Edge Cases | the tunnel end on spot: stop on interruption, the warning's alert, the site and the resting reply while it's gone, its return (question 2) |
 | Assumptions | the 1.1.0 patch's two added sentences (question 3); offline demos on `ENV=dev` (question 4); the tunnel end and the relay, decided |
@@ -679,7 +681,7 @@ research.md R-05 has the table, each line with its repository figure and date, o
 
 ## 16. Order of work, risks, and proof
 
-**Before any group:** T000, his approval, and T001, his constitution patch (P-2, 1.1.0 as amended, with his question 8 wording if he chooses A), as the default order he confirms at T000. Every group that touches `infra/` (3 to 9) checks T001's result first.
+**Before any group:** T000, his approval (2026-11-10), and T001, his constitution patch (P-2, 1.1.0 as amended, with his question 8 wording, option A), as the default order. Every group that touches `infra/` (3 to 9) checks T001's result first. **The named deviation:** his approval's "build it out … you can have everything ready and verified by then" has group 1 built before T001; group 1 writes nothing under `infra/`, and nothing merges or is applied before T001 (spec.md Assumptions).
 
 **Task groups.** Each is a feature branch with a note, merged by the Author in this order.
 
@@ -788,7 +790,8 @@ Verdict: **PASS**, conditional on the 1.1.0 patch, with the deviations below.
 | An always-on RDS instance | The shared meter must outlive both hosts and run while EC2 is stopped (FR-019) | Postgres on the tunnel end: one small instance becomes the meter's only home; DynamoDB: a second implementation of the meter |
 | The relay on the tunnel end (question 1, the Author's answer) | A private, single origin for CloudFront, and a host choice that DNS can't make for VPC origins | DNS failover with public origins (option B): certificates, a third-party authority, and a secret header |
 | The tunnel end on spot (question 2, the Author's answer) | His choice, at about $2.20 a month (research.md R-05, 2026-10-18, to confirm) | On demand, about $6.13 a month (research.md R-04, to confirm), recommended and not chosen. The risk is named in §12 and §16: while AWS has it back, the twin rests on both hosts and the site still loads |
-| The relay on spot, against the Cloud standard's "must be always-on" (open: question 8) | The relay runs on the tunnel end (question 1), which runs on spot (question 2) | Not this plan's to choose: option A puts his wording into the 1.1.0 patch, so no deviation remains; option B names a deviation in spec.md's Assumptions, citing ADR 0044. Until he answers at T000, neither is assumed |
+| The relay on spot, against the Cloud standard's "must be always-on" (question 8, answered at T000: option A) | The relay runs on the tunnel end (question 1), which runs on spot (question 2) | Not this plan's to choose. His approval takes option A: his wording goes into the 1.1.0 patch, being added on `docs/001-ec2-default`, so no deviation remains once T001 applies it. Option B, a deviation in spec.md's Assumptions citing ADR 0044, wasn't taken |
+| Group 1 built before T001 (spec.md Assumptions, "The constitution first") | His approval at T000: "Let's have you build it out … you can have everything ready and verified by then" | Waiting for T001: his words ask for the build tonight. The deviation is bounded: group 1 writes nothing under `infra/`, and nothing merges or is applied before T001 |
 | Three hosts and three deployers | The tunnel end must run while both serving hosts are off | Fewer hosts: the tunnel would have nowhere to end while EC2 is stopped |
 | Host services outside compose (deployers, egress proxies, credential timers, the handover loop) | They need the Docker socket, the firewall, an instance role, or the Author's SSO session | In containers they would need `docker.sock` or host networking, which spec 000 refuses |
 | **Spec FR-032's one exception:** the Author's test client reaches the relay's internal listener through a Systems Manager session, as a fixed documentation-range identity (as September) | The relay has to be testable before the edge exists | Testing only through CloudFront: no test before group 8 |
