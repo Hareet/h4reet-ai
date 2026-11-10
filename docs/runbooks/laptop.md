@@ -28,10 +28,10 @@ In your own terminal, on `main` after group 4's apply.
    region = us-east-1
    ```
 
-3. **Sign in as the runtime user,** never as yourself, and check the role:
+3. **Sign in as the runtime user,** never as yourself, and check the role. `make aws-login ENV=prod` follows the chain and starts `h4reet-bedrock-sso`'s session in `aws-home`, where prod's gateway reads it; never `PROFILE=…`, which is your own `~/.aws`:
 
    ```bash
-   make aws-login PROFILE=h4reet-bedrock-sso
+   make aws-login ENV=prod
    HOME="$HOME/.config/h4reet-ai/aws-home" aws sts get-caller-identity --profile h4reet-bedrock
    ```
 

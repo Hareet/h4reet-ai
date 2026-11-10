@@ -331,10 +331,12 @@ describe("the SSO session's end, from the token cache (§3.2's health probe, 2)"
   });
 
   // Spec 001's group 4 (its tasks.md T036; docs/runbooks/laptop.md): the profile assumes h4-laptop-bedrock from an SSO
-  // profile, so the session's end is its source profile's, one hop away and no further.
+  // profile, so the session's end is its source profile's, one hop away and no further. The reader never reads the
+  // role's name, so the case names a neutral one: the room's source scan (spec 004 FR-007) reads this file's strings,
+  // and one of the room's IDs stands in that role's name.
   const account = Array.from({ length: 12 }, (_, i) => String((i + 1) % 10)).join("");
   const chained = (source: string): string =>
-    `[profile h4reet-bedrock]\nrole_arn = arn:aws:iam::${account}:role/h4-laptop-bedrock\nsource_profile = ${source}\n\n`;
+    `[profile h4reet-bedrock]\nrole_arn = arn:aws:iam::${account}:role/the-bedrock-role\nsource_profile = ${source}\n\n`;
 
   it("follows a role profile's source_profile to its SSO session, one hop", async () => {
     const dir = await home(`${chained("h4reet-bedrock-sso")}[profile h4reet-bedrock-sso]\nsso_session = h4reet\n`, {
