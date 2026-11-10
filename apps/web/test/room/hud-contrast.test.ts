@@ -243,3 +243,70 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
     expect(palette().get("--hud-blur")).toBe("blur(12px)");
   });
 });
+
+// T025 (spec 014; FR-025, FR-026; SC-004; plan.md §4, PD-8): the look's new pairs, computed from the same palette over
+// white and over black beneath. The notes' chips (the glass's colour at its opacity) with their light words; the neon's
+// warm accent edge against the glass and against a tile; a hovered or selected tile's lighter face with its words; and
+// the headings' words on the glass. The glass's opacity stays the lowest 5% step at which every pair passes, the new
+// ones among them.
+const HUD_AT = 'html[data-hud="column"]';
+const DOCK_AT = 'html[data-hud="dock"]';
+const declaredAt = (selector: string, property: string): string | undefined =>
+  rulesFor(selector)
+    .filter((r) => r.declarations.has(property))
+    .at(-1)
+    ?.declarations.get(property);
+
+describe("the look's new pairs (spec 014, T025)", () => {
+  function newPairs(alpha: number): { name: string; contrast: number; floor: number }[] {
+    const p = palette();
+    const glassRgb = colour(p.get("--glass") ?? "").rgb;
+    const text = colour(p.get("--hud-text") ?? "").rgb;
+    const face = colour(p.get("--tile-face") ?? "");
+    const lit = colour(p.get("--tile-face-lit") ?? "");
+    const accent = colour(p.get("--accent-neon") ?? "").rgb;
+    const out: { name: string; contrast: number; floor: number }[] = [];
+    for (const [beneath, under] of [
+      ["white", WHITE],
+      ["black", BLACK],
+    ] as const) {
+      const glass = over({ rgb: glassRgb, a: alpha }, under);
+      const chip = over({ rgb: glassRgb, a: alpha }, under);
+      const tile = over(face, glass);
+      const litTile = over(lit, glass);
+      out.push(
+        { name: `a chip's words over ${beneath}`, contrast: ratio(text, chip), floor: 4.5 },
+        { name: `the accent edge against the glass over ${beneath}`, contrast: ratio(accent, glass), floor: 3 },
+        { name: `the accent edge against a tile over ${beneath}`, contrast: ratio(accent, tile), floor: 3 },
+        { name: `the accent edge against a lit tile over ${beneath}`, contrast: ratio(accent, litTile), floor: 3 },
+        { name: `a lit tile's words over ${beneath}`, contrast: ratio(text, litTile), floor: 4.5 },
+        { name: `a heading's words on the glass over ${beneath}`, contrast: ratio(text, glass), floor: 4.5 },
+      );
+    }
+    return out;
+  }
+  const failingNew = (alpha: number): string[] =>
+    newPairs(alpha)
+      .filter((x) => x.contrast < x.floor)
+      .map((x) => `${x.name}: ${x.contrast.toFixed(2)} under ${x.floor}`);
+
+  it("passes every new pair at the glass's opacity, and fails one a step below with the old pairs", () => {
+    const alpha = Number(palette().get("--glass-alpha"));
+    expect(failingNew(alpha)).toEqual([]);
+    expect(alpha).toBe(0.6);
+    expect([...failing(alpha - 0.05), ...failingNew(alpha - 0.05)].length).toBeGreaterThan(0);
+  });
+
+  it("passes every new pair where the glass is opaque", () => {
+    expect(failingNew(1)).toEqual([]);
+  });
+
+  it("draws the chips, the accent, and the lit face from the palette", () => {
+    for (const at of [HUD_AT, DOCK_AT]) {
+      expect(declaredAt(`${at} .room-note`, "background"), at).toBe("var(--chip-face)");
+      expect(declaredAt(`${at} .room button:hover`, "border-color"), at).toBe("var(--accent-neon)");
+      expect(declaredAt(`${at} .room button:hover`, "background"), at).toBe("var(--tile-face-lit)");
+      expect(declaredAt(`${at} .room button[aria-current="true"]`, "border-color"), at).toBe("var(--accent-neon)");
+    }
+  });
+});

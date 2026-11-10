@@ -275,7 +275,8 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
     expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${DOCK} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
-    expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("var(--strip-h)");
+    // Spec 014 (FR-017, FR-021; W4): the column is its content's height at its band's foot, no longer from the strip.
+    expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("auto");
     expect(decl(`${COLUMN} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
     expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
     expect(decl(`${DOCK} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
@@ -298,6 +299,31 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
             false,
           );
     }
+  });
+
+  // T023 (spec 014; FR-021, SC-002; plan.md §3.2): in the column layout, the compact clusters take their sizes from
+  // the room's properties, which layout.ts sets from compactBoxes: the strip's place and width, the bar's width at the
+  // foot's right, and the column's height; the log rests at --log-rest. --clear-*, --notes-h, and --column-w keep their
+  // meanings, and each compact box's rule sets no length of its own.
+  it("sizes the column layout's compact clusters from --strip-w, --bar-w, and --column-h (spec 014, T023)", () => {
+    expect(decl(`${COLUMN} .disclosure`, "left")).toBe("var(--strip-x)");
+    expect(decl(`${COLUMN} .disclosure`, "right")).toBe("auto");
+    expect(decl(`${COLUMN} .disclosure`, "width")).toBe("var(--strip-w)");
+    expect(decl(`${COLUMN} .hud-bar`, "left")).toBe("auto");
+    expect(decl(`${COLUMN} .hud-bar`, "right")).toBe("var(--safe-right)");
+    expect(decl(`${COLUMN} .hud-bar`, "width")).toBe("var(--bar-w)");
+    expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "height")).toBe("var(--column-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
+    expect(decl(`${COLUMN} .talk-log`, "max-height")).toBe("var(--log-rest)");
+    expect(decl(`${COLUMN} .talk-log`, "overflow-y")).toBe("auto");
+    // The dock keeps spec 005's bands.
+    expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
+    expect(RULES.some((r) => r.selector === `${DOCK} .disclosure` && r.decls.has("width"))).toBe(false);
+    // The resume and the larger view keep reading the clear area, the notes' reserve, and the column's band.
+    expect(decl(`${COLUMN} .resume-panel`, "width")).toBe("var(--clear-w)");
+    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "top")).toBe("var(--notes-h)");
+    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "max-width")).toBe("calc(100vw - var(--column-w))");
   });
 
   it("make the room block the window: 100dvh after 100vh, and the page in the room no frame", () => {
