@@ -9,14 +9,27 @@ main session · Date: 2026-11-09
 Session: the main session started from
 `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
 `/tmp/claude-1000/wt-switch`, cut from main's ada55c98 ("config(010):
-Anthropic price, read 11-09"), and it stays on that base: its commits
-sit directly on ada55c98, with no merge. Repo hooks active: yes
-(`.claude/audit/hooks.log`, this worktree's entries that weren't
-ALLOW):
+Anthropic price, read 11-09"). Its commits through 5f6dabb7 sit
+directly on ada55c98. Once main moved to 6ab892ad (gates 1 and 1b),
+main was merged in at f8179e8b with the allowed merge,
+`git --no-replace-objects merge --no-edit refs/heads/main`. Repo hooks
+active: yes (`.claude/audit/hooks.log`, this worktree's entries that
+weren't ALLOW):
 
 ```text
 2026-11-09T23:11:39Z	bash	BLOCK	redirecting git hooks or config :: cd /tmp/claude-1000/wt-switch && git -c core.hooksPath=/dev/null merge --no-ff -m "Merge fix/009-avatars-ready (2423a5a6) into feat/010-anthropic-switch" …
+2026-11-10T00:25:35Z	bash	BLOCK	the Bedrock evals :: cd /tmp/claude-1000/wt-switch && grep -n -E 'routing|fallback|bedrock|anthropic' deploy/scripts/preflight.py | head -30; …
+2026-11-10T00:33:20Z	bash	BLOCK	switching to main :: cd /tmp/claude-1000/wt-switch && git diff -U0 docs/data-flow-disclosure.md | grep '^@@'; git add … && git commit -q -F - <<'EOF' …
 ```
+
+- **The 00:25:35Z entry isn't this session's.** It was a read-only
+  grep, probably from the reviewer's session reading this worktree.
+- **At 00:33:20Z the bash gate matched words in a commit message.**
+  The heredoc held the review's nit 1, which names the gate step's
+  first command, and the gate matches that text. Nothing ran. The
+  command wasn't respelled: the same message went into a file written
+  with the editor, and the commit used `git commit -F` with that
+  file, as every commit since has.
 
 **The bash gate refused one command, rightly, and the merge it was
 part of is gone.** The main session first asked for
@@ -35,9 +48,10 @@ do that, with hooks or anything else. … Keep your branch on main's
 base (ada55c98)." So the commits after 963aba28 were rebased onto
 ada55c98 with `git rebase --onto`, which drops the merge. Their
 content is unchanged, and their SHAs are new (the table below). Main's
-own failures are recorded below as main's. Once the avatars stack is
-on main, the main session merges `refs/heads/main` into this branch
-and reruns the checks before your gate.
+own failures were recorded as main's. Once the avatars stack was on
+main, `refs/heads/main` was merged in (f8179e8b) and every check
+reran: main's old failures are gone (Verification, "On the merged
+tip").
 
 **The auto-mode classifier refused one command.** It was a temporary
 edit of `config/budgets.yaml` that removed the Anthropic cap, to watch
@@ -63,7 +77,7 @@ Authorized by:
   holds your F3 words, the route, the two tests, and an updated note
   on the disclosure."
 
-## Status: reviewed once; its nits taken and both blockers answered by you; not merged
+## Status: ready for its gate on this commit, main 6ab892ad merged in; reviewed once, its nits taken, both blockers answered by you; not merged
 
 | Commit | What |
 |---|---|
@@ -74,7 +88,9 @@ Authorized by:
 | fcf71182 | this note, after the rebase onto ada55c98 (a save point: one line of it still read `PYTEST_TOTALS`) |
 | 31d7c5ee | this note, with pytest's totals, `make check`, gitleaks, and the rehearsal; the commit the review read |
 | 6ca72c17 | the review's nits: the paragraph below F3 made conditional, and this note's Review, Backlog, step 1, and T062 |
-| this commit | your answers to I-1 and I-2: F3's opening in your chosen words, your FR-039 weighing quoted, and two follow-ups |
+| 5f6dabb7 | your answers to I-1 and I-2: F3's opening in your chosen words, your FR-039 weighing quoted, and two follow-ups. The content the guard anchors on |
+| f8179e8b | the merge of main at 6ab892ad (gates 1 and 1b), no conflicts |
+| this commit | this note: ready for its gate, with the checks on the merged tip and the guard on 5f6dabb7 |
 
 ## What changed and why
 
@@ -175,7 +191,7 @@ API's own temperature (`test/unit/paid-temperature.test.ts`,
 | FR-038 (F3 in its own section, in the spec's words) | `test_the_anthropic_apis_row_is_in_its_own_section_in_the_specs_words`, and F3's other cells unchanged |
 | FR-039 (F3's words are yours; `make test` holds the route back until they're in) | RED and GREEN below. The weighing against intent 000 and the corpus is yours. Against the corpus's promise, your words in F3 do it: "Against my promise that a visitor's conversation isn't saved: …". Against intent 000's "Nothing is retained beyond the session without explicit consent", your words of 2026-11-09 (the review's I-1): "We can say nothing is retained when running local models. Refer to Anthropic if cloud models are on." What that asks of the corpus and of G8 is under For the Author, "Follow-ups" |
 | SC-010 | `make test` failed with the route on `anthropic` and the placeholder, and passes with your words, on either route |
-| T059 (its agent part) | your words and the route. Yours: the key, `make up ENV=prod`, and `anthropic healthy` (For the Author, step 4) |
+| T059 (its agent part) | your words and the route. Yours: the key, `make up ENV=prod`, and `anthropic healthy` (For the Author, steps 4 and 5) |
 
 ## Constitution check
 
@@ -226,7 +242,7 @@ took them to you. Both are answered.
 | 2. The paragraph below F3 stated the route as fact | Rewritten conditionally, as main's was: "F3's flow happens only while `config/routing.yaml` names the Anthropic API as prod's fallback". It also says "of 2026-11-09" where it said "read on 2026-11-09", which was my echo of I-2's words. `evals/test_disclosure.py`: 28 passed |
 | 3. `twin-paid-temperature.test.ts:62`'s `hasIn` checks only that the key exists, and ties the test to the committed route | In the Backlog. One correction: the line is this branch's (7c68a753), not main's |
 | 4. `docs/how-we-build/lifecycle.md:54` is stale | Not edited here: `docs/001-ec2-default` rewrites that same line, so an edit would conflict. In the Backlog |
-| 5. T062 should take the mark helper from git, not `/tmp` | Step 6 now takes it from `wip/session-helpers-2026-11-08` at 1beed2c3, with its sha256 to check |
+| 5. T062 should take the mark helper from git, not `/tmp` | T062 (now step 8) takes it from `wip/session-helpers-2026-11-08` at 1beed2c3, with its sha256 to check |
 | 6. Record the review | This section |
 
 ## Backlog
@@ -246,11 +262,133 @@ took them to you. Both are answered.
 
 ## Verification
 
-Every run is on the branch as it now stands, on ada55c98, unless it
-says otherwise. That means 5f9eb812's tree, with this note's own text
-the only difference from this commit. The RED runs and the first GREEN
-of FR-039's test were on the first pass, before the rebase, and the
-files they test are the same.
+### On the merged tip, f8179e8b (main 6ab892ad)
+
+Every run in this subsection is on f8179e8b's tree, with this note's
+own text the only difference from this commit. They ran one heavy run
+at a time, since you were using the machine. Main's old failures are
+gone: the Prettier history files, the web chunk and dist tests, and
+the D43 timing test.
+
+**make lint**: exit 0.
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+462 files already formatted
+… | xargs -0 -t shellcheck -- …
+exit=0
+```
+
+**make test**: exit 0, all three parts.
+
+```text
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+(gateway)
+ Test Files  95 passed (95)
+      Tests  1653 passed | 13 skipped (1666)
+(web)
+ Test Files  109 passed (109)
+      Tests  2704 passed (2704)
+(pytest)
+4099 passed in 448.36s (0:07:28)
+exit=0
+```
+
+**make evals**: exit 0.
+
+```text
+evals product (fake): 187 passed, 0 failed
+INFO (twin readiness): hobbies-and-travel: evidence missing: a product run on anthropic, the paid adapter prod's route names, a red-team run on anthropic, the paid adapter prod's route names
+INFO (twin readiness): mission: evidence missing: a product run on anthropic, the paid adapter prod's route names, a red-team run on anthropic, the paid adapter prod's route names
+INFO (twin readiness): work-projects: evidence missing: a product run on anthropic, the paid adapter prod's route names, a red-team run on anthropic, the paid adapter prod's route names
+evals narration (fake): 44 passed, 0 failed
+PASS  FR-007: 28 of 28 variables denied by name
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-6…
+PASS  every relative link resolves: 1836 links in 263 files
+docs links: 0 failed, 1836 relative links in 263 files
+exit=0
+```
+
+**make check ENGINE_MODE=none-yet**, its summary whole:
+
+```text
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1…
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
+```
+
+Its test stage passed in full (`Tests  1653 passed | 13 skipped
+(1666)`, `Tests  2704 passed (2704)`, `4099 passed in 440.37s`). The
+matrix failed E10 and E14 alone, for the environment, and its hook
+layer printed `forbidden-actions (hook layer): 853 passed, 2 failed,
+57 known gaps`:
+
+```text
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive …
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+```
+
+**gitleaks on a fresh export**, scanned from inside it as the gate
+scans, with the export's own `.gitleaks.toml`, an empty ignore path,
+and `--ignore-gitleaks-allow`:
+
+```text
+export of f8179e8b689108fab5509bceb523c6ffc514bbed into a new folder: 1911 files
+v8.30.1
+exit=0
+10:57PM INF scanned ~50860684 bytes (50.86 MB) in 2.19s
+10:57PM INF no leaks found
+```
+
+**The rehearsal**, `git merge-tree` against `refs/heads/main`, which
+writes no worktree:
+
+```text
+$ git merge-tree --write-tree --name-only refs/heads/main f8179e8b689108fab5509bceb523c6ffc514bbed
+7cdf0ab1c30fe8dd4684c62f73b62773e6d436a7 (exit 0)
+tip tree: 7cdf0ab1c30fe8dd4684c62f73b62773e6d436a7
+main: 6ab892adbe2f9631a7c2386bc87e11282a50d09b
+main is an ancestor of the tip: a --no-ff merge's tree is the tip's
+```
+
+**The guard's anchor**, step 2's lines run here on f8179e8b. The tree
+main and 5f6dabb7 merge to is 7cdf0ab1, the same as the tip's:
+
+```text
+expected tree: 7cdf0ab1c30fe8dd4684c62f73b62773e6d436a7
+guard (rv=5f6dabb7) on f8179e8b689108fab5509bceb523c6ffc514bbed: go
+a plain diff of rv against sha would say: no
+docs/data-flow-disclosure.md
+(above: what differs from the review's tip 31d7c5ee, notes aside)
+```
+
+### The earlier runs, on ada55c98
+
+Every run from here on was on the branch before main was merged in,
+on ada55c98 (5f9eb812's tree), unless it says otherwise. They are kept
+as the record. The RED runs and the first GREEN of FR-039's test were
+on the first pass, before the rebase, and the files they test are the
+same.
 
 ### FR-039's test, RED then GREEN
 
@@ -547,20 +685,16 @@ What changes is `make evals`' report:
 - They are information that fails nothing (FR-028), and `make evals`
   exits 0 with them.
 
-### Before your gate
+### Main is merged in
 
-This branch sits on ada55c98, so on its own it carries main's
-failures:
-
-- Prettier on four history files;
-- the web workspace's chunk and dist tests;
-- the clock-bound timing test.
-
-The first two are fixed on `fix/009-avatars-ready`, and the timing
-test on `fix/007-steady-clock-test`. Those merge first, as their
-stack. The main session then merges `refs/heads/main` into this
-branch, reruns the checks, and gives you the new tip. Gate that tip,
-not this one.
+Main at 6ab892ad (gate 1's timing fix and avatars, f76ead54, then gate
+1b's image fix) is merged into this branch at f8179e8b, with
+`git --no-replace-objects merge --no-edit refs/heads/main`. There were
+no conflicts. Against main, the branch still changes only its six
+files: `config/routing.yaml`, `docs/data-flow-disclosure.md`, the two
+tests, `specs/010-anthropic-provider/plan.md`, and this note. Main's
+old failures are gone on the merged tip (Verification, "On the merged
+tip").
 
 ### Your steps
 
@@ -585,21 +719,20 @@ tools/gates/gate "$b" 2>&1 | tee "$log"
 ```
 
 Expect Ready, with `evals` WARN for the behavioral tier's information
-line. Until the timing-test fix is on main, `twin-paid-timeout.test.ts`
-can fail on this machine's clock (Verification). With any failure,
+line, as `make check` printed it (Verification). With any failure,
 don't merge: tell the session.
 
-**2. The guard and the merge.** It prints `guard: go`, and merges,
-only if all of these hold:
+**2. The guard.** It prints `guard: go` only if all of these hold:
 
 - the gate printed its merge line;
 - your checkout is on `main`;
 - the branch is at the SHA the gate checked;
-- `main` is an ancestor of that SHA.
+- `main` is an ancestor of that SHA;
+- the reviewed content, 5f6dabb7, is an ancestor of that SHA;
+- that SHA's tree is main merged with 5f6dabb7, with nothing different
+  outside `docs/merge-requests/`.
 
 ```bash
-b=feat/010-anthropic-switch
-log=~/gate-switch.log
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 ok=go
@@ -608,41 +741,88 @@ h=$(git symbolic-ref -q HEAD)
 [ "$h" = refs/heads/main ] || ok=no
 t=$(git rev-parse --verify "refs/heads/$b")
 [ "$t" = "$sha" ] || ok=no
-a=refs/heads/main
-git merge-base --is-ancestor $a $t || ok=no
+mr=refs/heads/main
+anc=(merge-base --is-ancestor)
+git "${anc[@]}" "$mr" "$sha" || ok=no
+rv=5f6dabb744653f7f4a65eb8ccf03c0bafd7d85da
+git "${anc[@]}" "$rv" "$sha" || ok=no
+mt=(merge-tree --write-tree "$mr" "$rv")
+e=$(git "${mt[@]}") || ok=no
+x=(diff --quiet "$e" "$sha" --)
+x+=(':!docs/merge-requests')
+git "${x[@]}" || ok=no
 echo "guard: $ok"
+```
+
+**Why `rv` is 5f6dabb7, and why the guard compares against a
+merge-tree.** The review read 31d7c5ee. The review round then changed
+`docs/data-flow-disclosure.md` twice, as well as the note:
+
+- 6ca72c17, nit 2: the paragraph below F3.
+- 5f6dabb7: F3's opening, in the words you chose for I-2.
+
+So 5f6dabb7 is the content the review and your answers settled. With
+`rv` at 31d7c5ee, the guard would have to exclude the disclosure, and
+a later change to the public disclosure would go unguarded. With
+5f6dabb7, only `docs/merge-requests/` is excluded.
+
+And this branch merges main after 5f6dabb7, so a plain diff of `$rv`
+against `$sha` would show all of main's new changes and say no. So the
+guard builds the tree main and 5f6dabb7 would merge to
+(`git merge-tree --write-tree`, which writes no worktree). It then
+requires the gated SHA to equal that tree but for the notes.
+
+Run on this branch's merged tip, f8179e8b, the same lines printed
+`guard: go`. A plain diff said no, and a merge-tree with 31d7c5ee
+differed in `docs/data-flow-disclosure.md` alone. On `guard: no`,
+don't merge: tell the session.
+
+**3. The merge, only after `guard: go`,** the gate's merge line
+rebuilt from its log:
+
+```bash
 m="Merge $b (${sha:0:12})"
 o=(--no-replace-objects merge --no-ff)
 o+=(-m "$m" -m "$s" "$sha")
 [ "$ok" = go ] && git "${o[@]}"
 ```
 
-On `guard: no`, nothing merged: tell the session.
+### After the merge
 
-**3. Prod on main, and the adapter's health** (T059's check). The key
-is in prod's env file by your account. `make up` runs preflight
-first:
+**4. Prod on main.** Hold it until your GPU is free; nothing below
+runs before it. If you step away between steps 3 and 4, park your
+checkout off `main` first (the block at the end), and come back with
+`git --no-replace-objects switch main`. The key is in prod's env file
+by your account. `make up` runs preflight first:
 
 ```bash
 git symbolic-ref HEAD
 make up ENV=prod
+```
+
+The first line should print `refs/heads/main`.
+
+**5. The adapter's health** (T059's check):
+
+```bash
 make operator-status ENV=prod
 ```
 
-The first line should print `refs/heads/main`. Within a minute of the
-start, the status's adapters line should read:
+Within a minute of the start, its adapters line should read:
 
 ```text
 adapters       local healthy · anthropic healthy
 ```
 
-`scripts/operator.py` lines 998 to 1009 print it from the admin
-listener's `/admin/status`. The Anthropic health check runs once a
-minute. If you see `anthropic unhealthy (credentials)`, the API
-refused the key or its form (plan B2, B5): don't run the steps below,
-and tell the session.
+- `scripts/operator.py` lines 998 to 1009 print it from the admin
+  listener's `/admin/status`.
+- The Anthropic health check runs once a minute (`config/routing.yaml`,
+  `health: { interval_ms: 60000 }`).
+- If you see `anthropic unhealthy (credentials)`, the API refused the
+  key or its form (plan B2, B5). Don't run the steps below: tell the
+  session.
 
-**4. T060, the live contract run.** Paid and slow: `make
+**6. T060, the live contract run.** Paid and slow: `make
 contract-live` (Makefile lines 595 to 612) records a call through
 prod's admin route with your operator token, then replays it in the
 gate's container phase (`tools/gates/gate --contract-replay`):
@@ -655,9 +835,9 @@ make contract-live ENV=prod $a REASON="$r"
 
 Record its cost in a follow-up note.
 
-**5. T061, the product and red-team runs.** Paid and slow: `make
+**7. T061, the product and red-team runs.** Paid and slow. `make
 evals ADAPTER=anthropic` runs `evals/run.py --adapter anthropic`
-(Makefile lines 303 to 316). `make redteam-live` runs
+(Makefile lines 303 to 316), and `make redteam-live` runs
 `redteam/live.py --live` (lines 338 to 344). Each goes through prod's
 admin routes, attributed `test`, inside the ceilings and your cap:
 
@@ -666,13 +846,13 @@ make evals ADAPTER=anthropic
 make redteam-live ADAPTER=anthropic ENV=prod
 ```
 
-Each writes a `<UTC>-anthropic.json` history, under
-`evals/product/history/` and `redteam/history/`. In the red-team
-output, read every "REPAIRED, read it:" and "REDACTED by …, read it:"
-answer, as on Bedrock. Record the measured cost per turn beside the
-spec's estimate.
+- Each writes a `<UTC>-anthropic.json` history, under
+  `evals/product/history/` and `redteam/history/`.
+- In the red-team output, read every "REPAIRED, read it:" and
+  "REDACTED by …, read it:" answer, as on Bedrock.
+- Record the measured cost per turn beside the spec's estimate.
 
-**6. T062, the marks**, on main. The mark helper comes from git, not
+**8. T062, the marks**, on main. The mark helper comes from git, not
 `/tmp`: it is committed on `wip/session-helpers-2026-11-08` at
 1beed2c3, as `wip/2026-11-08/twin-mark.py`. Take it into your home
 folder and check its hash first:
@@ -705,7 +885,7 @@ python3 -I -B "$t" work-projects
 - The helper takes the newest `-local.json` run and the newest run on
   the adapter prod's route names. It reads that adapter through main's
   own `evals/twin_readiness.py` (`paid_adapter`), so with the route on
-  `anthropic` it takes step 5's runs.
+  `anthropic` it takes step 7's runs.
 - It keeps a mark only if main's readiness rule then reads the topic
   "ready, its evidence at the running hashes"; otherwise it puts the
   file back and says why.
@@ -715,9 +895,9 @@ python3 -I -B "$t" work-projects
 - For hobbies-and-travel it also prints "Before you commit: your
   location decision on its Golden Q&A 1 (the conversation's note, item
   3)." That reminder is the helper's own, written for the Bedrock
-  marks. This branch adds nothing to it.
+  marks; this branch adds nothing to it.
 
-**7. T063, the wrong key, once**, as the provider note's block 9 gives
+**9. T063, the wrong key, once**, as the provider note's block 9 gives
 it ([2026-11-08-feat-010-anthropic-provider.md](2026-11-08-feat-010-anthropic-provider.md)):
 
 1. In an editor, put a copy of the key with one character changed in
