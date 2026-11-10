@@ -154,6 +154,11 @@ body.in-room .disclosure p {
     --glass-alpha-lit: 1;
   }
 
+  /* T053's second review: the walking control's hover opaque whatever its own rule says. */
+  :root[data-hud] .room-walk:hover {
+    background: rgb(var(--glass));
+  }
+
   .hud-glass,
   :root[data-blur] .hud-glass {
     -webkit-backdrop-filter: none;
@@ -892,10 +897,12 @@ html[data-hud="dock"] .room-list li {
 }
 
 /* The column's larger conversation view (FR-028): the sheet beside the column, over the scene, up to half the window's
-   width, its foot clear of the walking control; never a re-fit. */
+   width, its foot clear of the walking control; never a re-fit. Since spec 014 its containing block, the panels, is the
+   compact column at its band's foot, so its top reaches back up the band to the notes' foot, where spec 005 put it
+   (T053's second review; FR-019 counts what the visitor opens in no HUD box). */
 html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
   position: absolute;
-  top: var(--notes-h);
+  top: calc(var(--notes-h) + var(--column-h) - var(--clear-h));
   right: 100%;
   bottom: 3.75rem;
   width: 50vw;
@@ -1080,8 +1087,16 @@ html[data-hud="dock"] .resume-panel {
   :root[data-hud] .hud-glass a:focus-visible,
   :root[data-hud] .hud-glass input:focus-visible,
   :root[data-hud] .hud-glass.room-walk:focus-visible,
+  :root[data-hud] .room-offer button:focus-visible,
   :root[data-hud] .room-stage-view[role="application"]:focus-visible + .room-clear {
     outline-color: Highlight;
+  }
+
+  /* T053's second review: the walking control's hover in the system's colours, outranking its glass hover. */
+  :root[data-hud] .room-walk:hover {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: Highlight;
   }
 }
 

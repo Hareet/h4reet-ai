@@ -305,7 +305,11 @@ describe("the walking control at the column's head, and the hover's scope (spec 
   it("gives the control its own glass hover, and every hover rule only where the pointer hovers", () => {
     const hovers = ROOM_RULES.filter((r) => /:hover\b/.test(r.selector));
     expect(hovers.length).toBeGreaterThan(0);
-    for (const r of hovers) expect(r.at, r.selector).toBe("@media (hover: hover)");
+    // The fallbacks for forced colours and reduced transparency undo a hover where it shows, so they sit in their own
+    // blocks (T053's second review); every hover that adds a look is under (hover: hover).
+    for (const r of hovers)
+      if (!/forced-colors|prefers-reduced-transparency/.test(r.at ?? ""))
+        expect(r.at, r.selector).toBe("@media (hover: hover)");
     for (const layout of ["column", "dock"]) {
       const walk = hovers.find((r) => r.selector === `html[data-hud="${layout}"] .room-walk:hover`);
       expect(walk?.declarations.get("background"), layout).toBe("rgb(var(--glass) / var(--glass-alpha-lit))");

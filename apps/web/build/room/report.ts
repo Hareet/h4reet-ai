@@ -542,7 +542,8 @@ function walking(c: Composed): string[] {
   }
   // Spec 005 (FR-055): every HUD control over the clear area RG6 reserves, one line a box; the walking control's alone.
   const box =
-    `Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), ${WALK_CONTROL.widthRem}rem × ` +
+    "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area " +
+    `(since spec 014's W19, on short column windows and in the dock), ${WALK_CONTROL.widthRem}rem × ` +
     `${WALK_CONTROL.heightRem}rem, ${WALK_CONTROL.insetRem}rem in from the clear area's bottom-right corner,`;
   const holds = c.geometry ? pickSweep(c.geometry).boxHolds : [];
   if (holds.length === 0) out.push(`${box} holds no side-wall selectable at any supported stage.`);

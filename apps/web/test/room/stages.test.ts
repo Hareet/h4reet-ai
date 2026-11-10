@@ -322,7 +322,10 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
     expect(RULES.some((r) => r.selector === `${DOCK} .disclosure` && r.decls.has("width"))).toBe(false);
     // The resume and the larger view keep reading the clear area, the notes' reserve, and the column's band.
     expect(decl(`${COLUMN} .resume-panel`, "width")).toBe("var(--clear-w)");
-    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "top")).toBe("var(--notes-h)");
+    // Its top from the compact column back up to the notes' reserve (T053's second review).
+    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "top")).toBe(
+      "calc(var(--notes-h) + var(--column-h) - var(--clear-h))",
+    );
     expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "max-width")).toBe("calc(100vw - var(--column-w))");
   });
 

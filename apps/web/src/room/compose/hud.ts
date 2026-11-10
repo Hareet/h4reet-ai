@@ -114,6 +114,9 @@ export const HUD_PLACEMENTS = {
     padRem: 0.25,
     /** Spec 014: the column's compact box sits at its band's foot (D8), as tall as its content. */
     anchor: "foot",
+    /** Spec 014, T053 (W19): the gap between the column's content and the walking control at its head, and the
+     *  control's inset from the column's right. */
+    walkGapRem: 0.25,
     /** Spec 014: the list's rows beside its header button in the column, by the column's width (the model: three
      *  rows under 20rem, two from there to 28rem), which its content's height counts. */
     listRows: [
@@ -392,7 +395,7 @@ export function compactBoxes(
   // T053 (Amendment W19; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"): where the column's
   // band has room above its content, the walking control sits at the column's head, at its right, a gap above it;
   // else in the clear area's corner, as spec 008 put it.
-  const gap = t.bar.gapRem * rem;
+  const gap = t.column.walkGapRem * rem;
   if (h + gap + wh <= band.h) {
     const head: Box = { x: column.x + column.w - metrics.safe.right - gap - ww, y: column.y - gap - wh, w: ww, h: wh };
     return {
