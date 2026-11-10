@@ -91,12 +91,19 @@ const READABLE = [
   /^docs\/data-flow-disclosure\.md$/,
   /^intent(\/[^/]+\.md)?$/,
   /^specs(\/[^/]+(\/intent\.md)?)?$/,
+  // Spec 012 (its Amendment L8): the hints' figures, from the configuration that enforces them.
+  /^config\/(budgets|routing|prices)\.yaml$/,
 ];
 /** The room's data, the only files a data edit changes. */
 const DATA = /^apps\/web\/(room|content\/room)\//;
 
 /** The committed data, loaded and schema-checked: what each change starts from, its defaults written out. */
 const committed = loadRoom(fileTree(REPO));
+/** Spec 012 (its Amendment L8): each file a session hint names in its sources, which strict mode's RT14 reads to see
+ *  the tree holds it, and nothing else of it. */
+const HINT_SOURCES = new Set(
+  (committed.hints?.value.hints ?? []).flatMap((h) => (h.by === "session" ? (h.sources ?? []) : [])),
+);
 function must<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) throw new Error(`the committed data has no ${what}`);
   return value;
@@ -142,7 +149,7 @@ function expectDataOnly(c: Change): void {
   expect(c.changed.length).toBeGreaterThan(0);
   expect(c.changed.filter((path) => !DATA.test(path))).toEqual([]);
   expect(c.tree.log.length).toBeGreaterThan(0);
-  expect(c.tree.log.filter((path) => !READABLE.some((re) => re.test(path)))).toEqual([]);
+  expect(c.tree.log.filter((path) => !READABLE.some((re) => re.test(path)) && !HINT_SOURCES.has(path))).toEqual([]);
 }
 
 const base = compose(fileTree(REPO), policy, { mode: "strict", drafts: true });

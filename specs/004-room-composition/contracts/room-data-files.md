@@ -48,7 +48,7 @@ apps/web/content/room/               room text, approved by hash: agents draft, 
 
 The caps come through the policy, never the tree ([room-bundle.md](room-bundle.md) §2).
 
-**(spec 012)** `apps/web/room/hints.yaml`, the loader's hints, joins the room's data files (its Amendment L8; FR-032; its contracts/hints.md §1): written by agents and reviewed, its Author's hints only with his words in an intent; not approved by hash; what reaches the built site is each hint's text, its slots filled, in the index's `hints`, never its `by`, `words_from`, `sources`, or `when`. The compositor also reads, through its tree, `config/budgets.yaml`, `config/routing.yaml`, and `config/prices.yaml` for the hints' figures (`build/room/hints.ts`), as it reads `config/budgets.yaml` and `config/twin-readiness.yaml` today.
+**(spec 012)** `apps/web/room/hints.yaml`, the loader's hints, joins the room's data files (its Amendment L8; FR-032; its contracts/hints.md §1): written by agents and reviewed, its Author's hints only with his words in an intent; not approved by hash; what reaches the built site is each hint's text, its slots filled, in the index's `hints`, never its `by`, `words_from`, `sources`, or `when`. The compositor also reads, through its tree, `config/budgets.yaml`, `config/routing.yaml`, and `config/prices.yaml` for the hints' figures (`build/room/hints.ts`), as the room's build reads `config/budgets.yaml` and `config/twin-readiness.yaml` today; and, in strict mode, each file a session hint names in its `sources`, to see the tree holds it (RT14), and nothing else of it. FR-006's data-only test lists both.
 
 ## 2. Common rules
 
