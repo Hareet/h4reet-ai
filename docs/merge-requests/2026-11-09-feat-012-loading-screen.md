@@ -18,6 +18,7 @@ Authorized by: the spec and the plan, approved by the Author on 2026-11-09 as ta
 | 91593f6e | T037's docs: the review's N2 (Amendment L12), plan.md's tree, the README. The content the guard anchors on |
 | 0e5f5b44 | this note, ready for its gate after `feat/005-full-window-room`, with T033's checks on 91593f6e |
 | a9a4f09e | the merge of `refs/heads/main` at b335b9b2, `git --no-replace-objects merge --no-edit refs/heads/main`, with one conflict, in `docs/adr/README.md`: both rows kept, 0044 then 0045, as the main session directed; the merged index is `main`'s with the 0045 row added |
+| 158c4b60 | this note in progress, a save point while `make check` ran |
 | this commit | this note: the checks on a9a4f09e, the guard on 91593f6e, and your steps for a clean gate or a hand merge |
 
 **The second merge of `main`.** It brought ten files, none of them code or configuration: `.specify/memory/constitution.md`, `README.md`, ADRs 0001 and 0044, the ADR index, `docs/how-we-build/lifecycle.md`, three files in `docs/merge-requests/` (the constitution's patch, `docs/001-ec2-default`'s note, and `feat/005-full-window-room`'s), and `specs/005-full-window-room/tasks.md`. In `docs/adr/README.md` each side had added a row after 0043: `main`'s 0044, EC2 as prod's default host, and this branch's 0045, the room loads behind a loader. Both are kept in number order, each in its own side's words, and the merged file differs from `main`'s by the 0045 row alone. No file the hints read or cite changed, and nothing under `apps/`, `services/`, or `config/`, so the sizes and the hints measured on 91593f6e stand.
@@ -181,16 +182,16 @@ In a checkout's build (`compose()` over the repository, lenient, with the twin's
 
 ## Verification on the merged tip (a9a4f09e)
 
-Every check ran on a9a4f09e, the merge of `refs/heads/main` at b335b9b2, under Node 24.21.0, one at a time. The only difference in the working tree was this note's edits, uncommitted. Another branch's `make check` ran on the same machine, and the load average stood at 2 to 26 as the runs began and ended.
+Every check ran on a9a4f09e, the merge of `refs/heads/main` at b335b9b2, under Node 24.21.0, one at a time. The only difference in the working tree was this note's edits, uncommitted until the save point 158c4b60 during `make check`. Another branch's `make check` ran on the same machine, and the load average stood at 2 to 26 as the runs began and ended.
 
 | Check | Result |
 |---|---|
 | `make lint` | exit 0 |
 | `make test` | exit 2, the gateway's suite only. Two timing cases failed under a load average near 24: `test/integration/app.test.ts`'s graceful shutdown ("TypeError: fetch failed", ECONNRESET, the 50 ms race), and `test/integration/twin-paid-timeout.test.ts`'s D43 case (a 6 s paid delay that timed out at 25 s). Each file, run alone once right after and recorded as such, passed whole: 18 of 18, and 3 of 3. The web suite passed whole, 3,071 with 1 skipped. `make test` stops at npm's step, so its pytest step ran on its own: 4,101 passed |
 | `make evals` | exit 0; the behavioral tier's WARN, an information line (spec 006 FR-002); docs links 0 failed, 1,931 in 279 files |
-| `make check ENGINE_MODE=none-yet` | MAKE_CHECK_RESULT |
-| gitleaks on an export of this commit's tree | GITLEAKS_RESULT |
-| The rehearsal of your steps, in a scratch clone | REHEARSAL_RESULT |
+| `make check ENGINE_MODE=none-yet` | 11 PASS, 1 SKIP, 1 WARN, 1 FAIL; `failing: matrix FAIL`, on E10 and E14 alone, the environment's: E10's engine reset needs 22 GiB free on both drives to seed, and E14's dev-cpu ports on the host's 127.0.0.1 are out of the sandbox's reach (stage S). Its hook layer's line, `853 passed, 2 failed, 57 known gaps`, is as on 91593f6e. Its `test` stage passed whole, the two timing cases among them: the gateway 1,655 with 13 skipped, the web 3,071 with 1 skipped, and pytest 4,101. The WARN is the behavioral tier's information line, and the SKIP is the image stage's (no agents' engine yet, T046) |
+| gitleaks on an export of this commit's tree | no leaks found, exit 0 (below) |
+| The rehearsal of your steps, in a scratch clone | every case as expected, under `zsh -f` and `bash --noprofile --norc`: go on a candidate for this commit, after a clean gate and for a hand merge; no with one more changed file after the anchor, and in each failing case. The trial merge into `refs/heads/main` has no conflict (below) |
 
 This branch changes no gateway source. Against `main` it changes two gateway test files, `test/integration/room-events.test.ts` and `test/unit/room-events-config.test.ts` (User Story 6), and neither failed.
 
@@ -211,7 +212,7 @@ shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transacti
 exit: 0
 ```
 
-FINAL_LINT
+`make lint` ran again on this commit's tree, after its last edit and before the commit: exit 0, with the same lines as above, 478 files formatted among them.
 
 ### `make test`, on a9a4f09e
 
@@ -316,11 +317,149 @@ docs links: 0 failed, 1931 relative links in 279 files
 exit: 0
 ```
 
-MAKE_CHECK_SECTION
+### `make check ENGINE_MODE=none-yet`, on a9a4f09e's tree
 
-GITLEAKS_SECTION
+It ran from 07:55 to 08:07. The save point 158c4b60, this note in progress, was committed during the run, two minutes in, from the working tree it checked, so its `secrets` and `arrival` stages counted 43 commits since `main`, the save point among them.
 
-REHEARSAL_SECTION
+Its summary, every stage's line.
+
+```text
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
+exit: 2
+
+The test stage's totals:
+      Tests  1655 passed | 13 skipped (1668)
+      Tests  3071 passed | 1 skipped (3072)
+4101 passed in 316.78s (0:05:16)
+
+The matrix's failing rows and its hook layer's line:
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded images are missing
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+
+The secrets and arrival stages' lines:
+-> PASS 43 commits since main (b335b9b2ff7f..HEAD)
+arrival-check: 0 findings in 210 files (43 commits)
+```
+
+### gitleaks on a fresh export of this commit's tree
+
+A `git archive` export of the staged tree, this note included, went into a new, empty folder and was scanned from inside it, as the gate's gitleaks-tree step scans:
+- with `main`'s `.gitleaks.toml`, which this branch doesn't change, kept outside the export;
+- with a fresh empty folder as the ignore path, so no `.gitleaksignore` entry applies;
+- with `--ignore-gitleaks-allow`, so no inline allow applies either.
+
+The tree scanned held this note as it is, but for this block's and the rehearsal's outputs, which were filled in after it. The session scanned the final tree again before the commit, with the same result.
+
+```text
+export of bca42a9e2344b04d1f5fe699c75ecc0e2614e3c7 (staged tree) into a new folder: 1985 files
+v8.30.1
+8:09AM INF scanned ~52692618 bytes (52.69 MB) in 1.67s
+8:09AM INF no leaks found
+exit=0
+report: []
+```
+
+### The rehearsal of your steps, in a scratch clone
+
+The rehearsal ran in a bare clone under `$TMPDIR` (`git clone --bare --shared`), which reads the repository's objects and writes nothing to it. It ran against the real `refs/heads/main`, b335b9b2, and a candidate for this commit: this commit's tree, but for this block's and gitleaks' outputs, on 158c4b60. The clone's own scratch refs are:
+- `rehearse/extra`: one more file, `apps/web/src/extra-after-anchor.ts`;
+- `rehearse/readme`: one more line in the index;
+- `rehearse/notes`: a line added to this note;
+- `rehearse/premerge`: 0e5f5b44, the tip before the merge of b335b9b2.
+
+Each case runs the note's own blocks, extracted from this file, over a gate log made for it: 2a or 2b, then 2c, under `zsh -f` and under `bash --noprofile --norc`. The gate logs' FAIL lines copy vitest's own, as fix/007's note recorded them. 2c's two HEAD lines are left out in every case but the last, because the bash gate refused pointing the clone's HEAD at `main` (For the Author, the refusals). In the last case the whole guard ran, and the clone's HEAD, `wip-park/11-9-2026`, gave no.
+
+```text
+zsh  clean ok    guard: go     63e82340: the tip, a clean gate
+zsh  hand  ok    guard: go     63e82340: the tip, a hand merge
+zsh  clean ok    guard: no     63e82340: a clean form on a failing summary, with a stray merge line
+zsh  clean ok    guard: no     63e82340: a clean form with no merge line
+zsh  hand  ok    guard: no     63e82340: a hand form on a clean gate
+zsh  hand  ok    guard: no     63e82340: a hand form, test and matrix-h failing
+zsh  hand  ok    guard: no     63e82340: a hand form, two FAIL lines
+zsh  hand  ok    guard: no     63e82340: a hand form, one FAIL line in another file
+zsh  clean ok    guard: no     63e82340: the branch moved after the gate
+zsh  clean ok    guard: no     9f374c30: one more changed file after the anchor, clean
+zsh  hand  ok    guard: no     9f374c30: one more changed file after the anchor, hand
+zsh  clean ok    guard: no     55ac97a3: one more line in the index
+zsh  clean ok    guard: go     8fe75a6b: a change to this note alone
+zsh  clean ok    guard: no     0e5f5b44: the tip before the merge of main
+zsh  clean ok    guard: no     63e82340: the whole guard, HEAD not on main
+bash clean ok    guard: go     63e82340: the tip, a clean gate
+bash hand  ok    guard: go     63e82340: the tip, a hand merge
+bash clean ok    guard: no     63e82340: a clean form on a failing summary, with a stray merge line
+bash clean ok    guard: no     63e82340: a clean form with no merge line
+bash hand  ok    guard: no     63e82340: a hand form on a clean gate
+bash hand  ok    guard: no     63e82340: a hand form, test and matrix-h failing
+bash hand  ok    guard: no     63e82340: a hand form, two FAIL lines
+bash hand  ok    guard: no     63e82340: a hand form, one FAIL line in another file
+bash clean ok    guard: no     63e82340: the branch moved after the gate
+bash clean ok    guard: no     9f374c30: one more changed file after the anchor, clean
+bash hand  ok    guard: no     9f374c30: one more changed file after the anchor, hand
+bash clean ok    guard: no     55ac97a3: one more line in the index
+bash clean ok    guard: go     8fe75a6b: a change to this note alone
+bash clean ok    guard: no     0e5f5b44: the tip before the merge of main
+bash clean ok    guard: no     63e82340: the whole guard, HEAD not on main
+rehearsal: every case as expected
+```
+
+The merge forms, 3a and 3b, ran under both shells with `git` replaced by a function that prints each argument in brackets, so nothing merged. With `ok=no`, neither form runs anything:
+
+```text
+== zsh, 3a, ok=go
+[--no-replace-objects]
+[merge]
+[--no-ff]
+[-m]
+[Merge feat/012-loading-screen (63e82340b309)]
+[-m]
+[gate: 63e82340b309c6a9a2e62a53ea5f172bb57e3d85 (feat/012-loading-screen) by tools/gates/gate at b335b9b2ff7f: 20 PASS, 3 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL]
+[63e82340b309c6a9a2e62a53ea5f172bb57e3d85]
+(end, exit 0)
+== zsh, 3b, ok=go
+[--no-replace-objects]
+[merge]
+[--no-ff]
+[-m]
+[Merge feat/012-loading-screen (63e82340b309) by hand]
+[-m]
+[gate: 63e82340b309c6a9a2e62a53ea5f172bb57e3d85 (feat/012-loading-screen) by tools/gates/gate at b335b9b2ff7f: 19 PASS, 3 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: test FAIL]
+[-m]
+[test: app.test.ts shutdown race (50 ms) under load; no gateway source here, pytest 4101]
+[63e82340b309c6a9a2e62a53ea5f172bb57e3d85]
+(end, exit 0)
+== zsh, 3a, ok=no
+(end, exit 1)
+== zsh, 3b, ok=no
+(end, exit 1)
+(bash --noprofile --norc printed the same lines, byte for byte)
+```
+
+The trial merge of this commit's candidate into `refs/heads/main`:
+
+```text
+$ git merge-tree --write-tree --name-only refs/heads/main 63e82340b309c6a9a2e62a53ea5f172bb57e3d85
+bca42a9e2344b04d1f5fe699c75ecc0e2614e3c7
+exit: 0
+the candidate's tree: bca42a9e2344b04d1f5fe699c75ecc0e2614e3c7
+refs/heads/main (b335b9b2) is an ancestor of the candidate, so a --no-ff merge's tree is the candidate's own
+```
 
 ## Verification on the post-fix tip (91593f6e, T033)
 
@@ -655,7 +794,7 @@ o+=(-m "$m" -m "$s" -m "$w" "$sha")
 [ "$ok" = go ] && git "${o[@]}"
 ```
 
-That is the shape of c01545ce, `docs/001-ec2-default`'s hand merge. PYTEST_N's count is this session's `make check` test stage on a9a4f09e (Verification on the merged tip).
+That is the shape of c01545ce, `docs/001-ec2-default`'s hand merge. 4101 is this session's pytest count on a9a4f09e's tree, in `make test`'s pytest step run on its own and again in `make check`'s test stage (Verification on the merged tip).
 
 **4. The room on main.** Bring it up as you do, from main's checkout after the merge:
 
