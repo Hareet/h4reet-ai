@@ -810,6 +810,10 @@ def test_the_cut_short_share_reads_as_a_percentage_of_a_stand_in_for_visits() ->
         "2D",
     ):
         assert words in panel["description"], words
+    # T037, the review's N3: the kind is sent before the hand-off, so a visit cut short that leaves before its offer
+    # counts above the line alone, and the share isn't only low.
+    assert "reads low rather than high" not in panel["description"]
+    assert "before the hand-off" in panel["description"]
     # Beside "Visits in full screen", in the Room row.
     full = by_title()["Visits in full screen"]
     assert panel["gridPos"]["y"] == full["gridPos"]["y"]
