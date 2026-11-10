@@ -126,7 +126,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
      ],
      "allow": [
        "Bash(git status*)",
-@@ -324,6 +331,130 @@
+@@ -324,6 +331,134 @@
          {
            "name": "ANTHROPIC_API_KEY",
            "mode": "deny"
@@ -185,6 +185,10 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +        },
 +        {
 +          "name": "TF_VAR_server_budget_usd",
++          "mode": "deny"
++        },
++        {
++          "name": "TF_VAR_bedrock_service_names",
 +          "mode": "deny"
 +        },
 +        {
@@ -481,7 +485,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +# Spec 001's guard patch, P-1 (its plan §2; contracts/env-cloud.md §5; FR-011): each name its own row. The families
 +# TF_VAR_*, AWS_*, TF_CLI_ARGS*, RELAY_TOKEN_*, and DB_*_PASSWORD are denied by their members' names: the sandbox's
 +# credentials.envVars takes names, and a pattern there is unconfirmed. TF_CLI_ARGS* is also refused by the bash gate.
-+for v in GATEWAY_DB_URL GATEWAY_DB_TLS_SERVERNAME RELAY_TOKEN_SELF RELAY_TOKEN_LAPTOP RELAY_TOKEN_EC2 SNAPSHOT_SINK_TOKEN TELEMETRY_BLOCK_TOKEN DB_GATEWAY_PASSWORD DB_GRAFANA_RO_PASSWORD DB_RELAY_RO_PASSWORD DB_RELAY_RW_PASSWORD TF_VAR_alert_email TF_VAR_state_bucket_suffix TF_VAR_server_budget_usd TF_CLI_ARGS TF_CLI_ARGS_init TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_import TF_CLI_ARGS_refresh TF_CLI_ARGS_state TF_CLI_ARGS_taint TF_CLI_ARGS_test TF_CLI_ARGS_workspace AWS_SECURITY_TOKEN AWS_DEFAULT_PROFILE AWS_ROLE_SESSION_NAME AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE AWS_BEARER_TOKEN_BEDROCK; do
++for v in GATEWAY_DB_URL GATEWAY_DB_TLS_SERVERNAME RELAY_TOKEN_SELF RELAY_TOKEN_LAPTOP RELAY_TOKEN_EC2 SNAPSHOT_SINK_TOKEN TELEMETRY_BLOCK_TOKEN DB_GATEWAY_PASSWORD DB_GRAFANA_RO_PASSWORD DB_RELAY_RO_PASSWORD DB_RELAY_RW_PASSWORD TF_VAR_alert_email TF_VAR_state_bucket_suffix TF_VAR_server_budget_usd TF_VAR_bedrock_service_names TF_CLI_ARGS TF_CLI_ARGS_init TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_import TF_CLI_ARGS_refresh TF_CLI_ARGS_state TF_CLI_ARGS_taint TF_CLI_ARGS_test TF_CLI_ARGS_workspace AWS_SECURITY_TOKEN AWS_DEFAULT_PROFILE AWS_ROLE_SESSION_NAME AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE AWS_BEARER_TOKEN_BEDROCK; do
 +  set_has "spec 001: $v is denied by name" "[.sandbox.credentials.envVars[] | select(.mode == \"deny\") | .name] | index(\"$v\") != null"
 +done
 +# shellcheck disable=SC2016 # $d and $r are jq variables, not shell expansions
@@ -591,7 +595,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
          report.add(agent_config_evals(repo, export_dir, base, paths))
 --- a/tools/gates/matrix-required.txt
 +++ b/tools/gates/matrix-required.txt
-@@ -343,3 +343,188 @@
+@@ -343,3 +343,189 @@
  H/bash-gate.sh/bash <<EOF make evals ADAPTER=anthropic EOF
  H/bash-gate.sh/make lint && pytest -q evals/test_disclosure.py -k anthropic
  H/bash-gate.sh/npm ls @anthropic-ai/sdk -w services/gateway
@@ -761,6 +765,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +H/settings/spec 001: TF_VAR_alert_email is denied by name
 +H/settings/spec 001: TF_VAR_state_bucket_suffix is denied by name
 +H/settings/spec 001: TF_VAR_server_budget_usd is denied by name
++H/settings/spec 001: TF_VAR_bedrock_service_names is denied by name
 +H/settings/spec 001: TF_CLI_ARGS is denied by name
 +H/settings/spec 001: TF_CLI_ARGS_init is denied by name
 +H/settings/spec 001: TF_CLI_ARGS_plan is denied by name
