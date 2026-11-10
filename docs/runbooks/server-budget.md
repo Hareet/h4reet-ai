@@ -32,7 +32,11 @@ In your own terminal, with your SSO session (`pf` your administrator profile).
 - For the rehearsal: the action's history shows the run, and the instance's state is `stopped`:
 
   ```bash
-  aws ec2 describe-instances --filters Name=tag:Name,Values=h4-rehearsal-instance --query 'Reservations[].Instances[].State.Name' --profile "$pf" --region us-east-1
+  a=(--profile "$pf" --region us-east-1)
+  t=Name=tag:Name,Values=h4-rehearsal-instance
+  s='Reservations[].Instances[].State.Name'
+  aws ec2 describe-instances "${a[@]}" \
+    --filters "$t" --query "$s"
   ```
 
 ## Undo

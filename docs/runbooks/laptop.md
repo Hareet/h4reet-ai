@@ -33,7 +33,9 @@ In your own terminal, on `main` after group 4's apply.
 
    ```bash
    make aws-login ENV=prod
-   HOME="$HOME/.config/h4reet-ai/aws-home" aws sts get-caller-identity --profile h4reet-bedrock
+   h=~/.config/h4reet-ai/aws-home
+   HOME="$h" aws sts get-caller-identity \
+     --profile h4reet-bedrock
    ```
 
    Its `Arn` names `assumed-role/h4-laptop-bedrock/h4reet-laptop`, and no paid call is made.

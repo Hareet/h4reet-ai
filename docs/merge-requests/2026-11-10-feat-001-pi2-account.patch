@@ -1,35 +1,40 @@
-P-I2, spec 001 group 4's protected files (tasks.md T031, T034, T035; plan.md §3.2, §14, §16; research.md R-15, R-22
-to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All five are new files. For the Author's hand only: the protected
-names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform file names and spec 000's infra/*alert*) keep
-them from agent sessions.
+P-I2, spec 001 group 4's protected files (tasks.md T031, T034, T035, T038; plan.md §3.2, §14, §16; research.md R-15,
+R-22 to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All five are new files. For the Author's hand only: the
+protected names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform file names and spec 000's
+infra/*alert*) keep them from agent sessions.
 
 Built on 2026-11-10 from plain copies, `diff -u` against /dev/null, never `git apply` or a write into a worktree, on
-feat/001-us2-safety-net, stacked on groups 1 to 3. Apply it from the repository's top with `patch -p1`, which skips
-this preamble, byte for byte as in T037's scratch clone (T039). It needs nothing of P-I1's: it creates files only.
+feat/001-us2-safety-net, stacked on groups 1 to 3, and rebuilt after T038's review. Apply it from the repository's top
+with `patch -p1`, which skips this preamble, byte for byte as in T037's scratch clone (T039). It needs nothing of
+P-I1's: it creates files only.
 
-  - infra/account/iam.tf: the laptop's Bedrock permission set, imported by main.tf's local.laptop_permission_set and
-    narrowed to an inline policy of sts:AssumeRole on h4-laptop-bedrock; h4-laptop-bedrock, an ordinary role at /,
-    trusting only the set's AWSReservedSSO_ role, with bedrock:InvokeModel* on the one inference profile and its models
-    through it; h4-rehearsal-target, of the same shape, trusting only the root user, while local.rehearsal is true;
-    and the three functions' roles.
+  - infra/account/iam.tf: the permission set's name, its own local.laptop_permission_set (null until the Author reads
+    it); the laptop's Bedrock permission set, imported by that name, kept from destroy, and narrowed to an inline
+    policy of sts:AssumeRole on h4-laptop-bedrock; h4-laptop-bedrock, an ordinary role at /, trusting exactly the
+    set's AWSReservedSSO_<set>_<16 characters> role, with bedrock:InvokeModel* on the one inference profile and its
+    models through it; h4-rehearsal-target, of the same shape, trusting only the root user, while local.rehearsal is
+    true; and the three functions' roles.
   - infra/account/killswitch.tf: h4-deny-paid-models; the model action on h4-model-month at 100% of actual,
     automatic, attaching it to h4-laptop-bedrock by a role that may do only that; and, while local.rehearsal is
-    true, h4-rehearsal-model and h4-rehearsal-server at $0.01, filtered as the real budgets are by
-    var.bedrock_service_names, with the same two action types against h4-rehearsal-target and h4-rehearsal-instance.
+    true, h4-rehearsal-model (no credits counted) and h4-rehearsal-server at $0.01, filtered as the real budgets are
+    by var.bedrock_service_names, with the same two action types against h4-rehearsal-target and
+    h4-rehearsal-instance, the server rehearsal's role shaped as AWS's managed policy for these actions.
   - infra/account/alerts.tf: h4-alerts read by name; the bridge's subscription and SNS's permission for that topic
     alone; the probe's schedule, once a minute, written DISABLED (group 8's P-I5 enables it); the credential audit's
     weekly schedule, Mondays 06:00 UTC.
   - infra/lambdas/alert_bridge/bridge.py and test_bridge.py: h4-alerts' Telegram half, stdlib but for Parameter
-    Store through the runtime's SDK; and its tests (T031), every kind of contracts/aws-alerts.md §2.
+    Store through the runtime's SDK, its token held to a bot token's shape before any URL; and its tests (T031),
+    every kind of contracts/aws-alerts.md §2.
 
 To confirm at T037, before any apply (the merge-request note's "For the Author"): that Terraform takes Identity
 Center's data sources in the import block's id; that the hand-made set shows no other change than its tags,
-description, and inline policy; and the Bedrock policy's condition key, bedrock:InferenceProfileArn, on a call
-through the profile.
+description, and inline policy; the Bedrock policy's condition key, bedrock:InferenceProfileArn, on a call through
+the profile; the 16 characters of the set's role's suffix; and the server rehearsal's role against the managed
+policy AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console shows it.
 
 --- /dev/null
 +++ b/infra/account/iam.tf
-@@ -0,0 +1,335 @@
+@@ -0,0 +1,353 @@
 +# The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
 +# laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
 +# role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
@@ -38,9 +43,19 @@ through the profile.
 +
 +# ----------------------------------------------------------------------------------------------------------------------
 +# The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
-+# Its name is main.tf's local.laptop_permission_set. The hand-made set's customer-managed policy reference stays outside
-+# Terraform until the Author detaches it, once the laptop's profile chains through h4-laptop-bedrock (tasks.md T040;
-+# plan.md §16, group 4's departures); the credential audit then holds the set to this policy alone.
++# Its name is the local below. The hand-made set's customer-managed policy reference stays outside Terraform until the
++# Author detaches it, once the laptop's profile chains through h4-laptop-bedrock (tasks.md T040; plan.md §16, group
++# 4's departure 7): until then the model action's deny doesn't reach the set's own role. The credential audit then
++# holds the set to this policy alone.
++
++locals {
++  # The name of spec 000's hand-made Bedrock permission set, which this file imports, overwrites, and provisions, and
++  # whose role alone h4-laptop-bedrock trusts. It lives here, in the protected file, so only the Author's patch sets it
++  # (T038's review, I4). The repository doesn't hold it: he reads it from IAM Identity Center before T037, and the
++  # session puts it in this patch. While it is null, make plan ROOT=account stops at the set's lookup, with nothing
++  # made.
++  laptop_permission_set = null
++}
 +
 +data "aws_ssoadmin_instances" "this" {}
 +
@@ -63,9 +78,11 @@ through the profile.
 +    component = "laptop-bedrock"
 +  }
 +
-+  # As the hand-made set has them: the plan shows the import, and these stay the Author's.
++  # As the hand-made set has them: the plan shows the import, and these stay the Author's. No plan removes the
++  # laptop's identity.
 +  lifecycle {
-+    ignore_changes = [session_duration, relay_state]
++    prevent_destroy = true
++    ignore_changes  = [session_duration, relay_state]
 +  }
 +}
 +
@@ -87,7 +104,10 @@ through the profile.
 +# ----------------------------------------------------------------------------------------------------------------------
 +# h4-laptop-bedrock: an ordinary role at the path /, never one of Identity Center's, so the model action's deny can
 +# attach to it (research.md R-22). Only the permission set's role may assume it: Identity Center names that role
-+# AWSReservedSSO_<set>_<suffix>, under /aws-reserved/sso.amazonaws.com/ (with a Region in the path for some accounts).
++# AWSReservedSSO_<set>_<16 characters>, under /aws-reserved/sso.amazonaws.com/, with a Region's segment in the path for
++# some accounts. Each `?` is one character, and the role's name follows a `/`, so the pattern is that set's role
++# exactly, never a set named <set>_<more> (T038's review, I4). The 16 is to confirm at T037: a wrong length leaves the
++# laptop unable to assume the role, and admits no one else.
 +
 +data "aws_iam_policy_document" "laptop_bedrock_trust" {
 +  statement {
@@ -103,7 +123,10 @@ through the profile.
 +    condition {
 +      test     = "ArnLike"
 +      variable = "aws:PrincipalArn"
-+      values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_${local.laptop_permission_set}_*"]
++      values = [
++        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${local.laptop_permission_set}_????????????????",
++        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_${local.laptop_permission_set}_????????????????",
++      ]
 +    }
 +  }
 +}
@@ -367,7 +390,7 @@ through the profile.
 +}
 --- /dev/null
 +++ b/infra/account/killswitch.tf
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,332 @@
 +# The budget actions (spec 001 FR-023, FR-026; research.md R-22; contracts/aws-alerts.md §4): the model action on
 +# h4-model-month, which attaches h4-deny-paid-models to h4-laptop-bedrock (and, from group 7, to EC2's h4-prod-gateway),
 +# and, while main.tf's local.rehearsal is true, both actions' rehearsals on $0.01 budgets of the real ones' shape. The
@@ -483,7 +506,11 @@ through the profile.
 +# each fires on spend the month already holds, and proves its filter too. Each acts, automatically, at 100%, as the
 +# real ones do: the model rehearsal attaches the deny to h4-rehearsal-target, and the server rehearsal stops
 +# h4-rehearsal-instance through Systems Manager (main.tf). The model rehearsal fires only once the month holds a cent of
-+# Bedrock's spend (the merge-request note's rehearsal steps).
++# Bedrock's spend. Prod's route on main names the Anthropic API, so that cent comes from the Author's live runs on
++# Bedrock: one `make redteam-live ADAPTER=bedrock ENV=prod` run cost about $0.055 on 2026-11-09, metered as `test`
++# inside the ceilings, and November's runs already hold about $0.49 (the merge-request note). Like h4-model-month, it
++# counts usage, not cost net of credits, so a credit can't hide the cent (T038's review, nit 2); the server rehearsal
++# keeps AWS's default, as h4-server-month does.
 +
 +resource "aws_budgets_budget" "rehearsal_model" {
 +  count        = local.rehearsal ? 1 : 0
@@ -496,6 +523,10 @@ through the profile.
 +  cost_filter {
 +    name   = "Service"
 +    values = var.bedrock_service_names
++  }
++
++  cost_types {
++    include_credit = false
 +  }
 +
 +  notification {
@@ -609,7 +640,7 @@ through the profile.
 +  count              = local.rehearsal ? 1 : 0
 +  name               = "h4-budget-action-rehearsal-server"
 +  path               = "/"
-+  description        = "The server rehearsal: AWS-StopEC2Instance on h4-rehearsal-instance, and nothing else"
++  description        = "The server rehearsal: AWS-StopEC2Instance and its reverse on h4-rehearsal-instance, and nothing else"
 +  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
 +
 +  tags = {
@@ -617,23 +648,36 @@ through the profile.
 +  }
 +}
 +
-+# The stop document, and the stop of that one instance; EC2's Describe calls take no narrower resource. What else, if
-+# anything, Budgets asks of the role is what the rehearsal shows (tasks.md T040).
++# As AWS's managed policy for these actions, AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM, shapes it,
++# as far as the repository can say, narrowed to the one instance (T038's review, nit 1): the stop document and the
++# start that reverses it (REVERSE_BUDGET_ACTION runs AWS-StartEC2Instance); EC2's start and stop on that instance,
++# only as Systems Manager calls them; and EC2's Describe calls, which take no narrower resource. To confirm at T037,
++# against the managed policy's current version in IAM's console; what else, if anything, Budgets asks of the role is
++# what the rehearsal shows (tasks.md T040).
 +data "aws_iam_policy_document" "rehearsal_server_action" {
 +  count = local.rehearsal ? 1 : 0
 +
 +  statement {
-+    sid       = "TheStopDocument"
-+    effect    = "Allow"
-+    actions   = ["ssm:StartAutomationExecution"]
-+    resources = ["arn:aws:ssm:us-east-1::automation-definition/AWS-StopEC2Instance:*"]
++    sid     = "TheStopDocumentAndItsReverse"
++    effect  = "Allow"
++    actions = ["ssm:StartAutomationExecution"]
++    resources = [
++      "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*",
++      "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*",
++    ]
 +  }
 +
 +  statement {
-+    sid       = "ThatInstance"
++    sid       = "ThatInstanceThroughSystemsManager"
 +    effect    = "Allow"
-+    actions   = ["ec2:StopInstances"]
++    actions   = ["ec2:StartInstances", "ec2:StopInstances"]
 +    resources = [aws_instance.rehearsal[0].arn]
++
++    condition {
++      test     = "ForAnyValue:StringEquals"
++      variable = "aws:CalledVia"
++      values   = ["ssm.amazonaws.com"]
++    }
 +  }
 +
 +  statement {
@@ -787,7 +831,7 @@ through the profile.
 +}
 --- /dev/null
 +++ b/infra/lambdas/alert_bridge/bridge.py
-@@ -0,0 +1,473 @@
+@@ -0,0 +1,495 @@
 +#!/usr/bin/env python3
 +"""The alert bridge, h4-alert-bridge (spec 001 FR-022; contracts/aws-alerts.md §1 and §2, and September's §2 at
 +00309c47; research.md R-23; tasks.md T035): h4-alerts' Telegram half. SNS hands it each notice on the topic, and it
@@ -893,7 +937,7 @@ through the profile.
 +        ),
 +        "<secret>",
 +    ),
-+    (re.compile(r"\b[0-9]{8,10}:[A-Za-z0-9_-]{35}\b"), "<secret>"),
++    (re.compile(r"\b[0-9]{5,15}:[A-Za-z0-9_-]{30,50}\b"), "<secret>"),
 +    (re.compile(r"sk-ant-[A-Za-z0-9_-]{8,}"), "<secret>"),
 +    (re.compile(r"h4op_[A-Za-z0-9_-]{8,}"), "<secret>"),
 +    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"), "<secret>"),
@@ -1189,12 +1233,33 @@ through the profile.
 +        except OSError as exc:
 +            why = f"telegram unreachable ({exc.__class__.__name__})"
 +            continue
++        except Exception as exc:  # noqa: BLE001 — any other failure's message may hold the token
++            # Anything else, http.client's InvalidURL among them, may hold the URL, and the URL holds the token: only
++            # the class's name goes on, and another attempt can't mend it (T038's review, I5).
++            raise BridgeError(
++                f"telegram's request failed ({exc.__class__.__name__})"
++            ) from None
 +        if 200 <= status < 300:
 +            return attempt
 +        why = f"telegram answered {status}"
 +        if status != 429 and status < 500:
 +            raise BridgeError(why)
 +    raise BridgeError(f"{why}, after {ATTEMPTS} attempts")
++
++
++TOKEN_SHAPE = re.compile(r"[0-9]{5,15}:[A-Za-z0-9_-]{30,50}")
++
++
++def bot_token(value: object, name: str) -> str:
++    """The parameter's value, stripped, held to a bot token's shape before any URL is built from it: a control
++    character in it would make http.client raise with the URL, the token in it, in its message (T038's review, I5).
++    A refusal names the parameter, never the value."""
++    token = str(value).strip()
++    if not TOKEN_SHAPE.fullmatch(token):
++        raise BridgeError(
++            f"parameter {name} isn't a bot token's shape: digits, a colon, and URL-safe characters"
++        )
++    return token
 +
 +
 +def parameter_names() -> tuple[str, str]:
@@ -1247,7 +1312,8 @@ through the profile.
 +        return {"sent": 0}
 +    store = parameters if parameters is not None else SsmParameters()
 +    token_name, chat_name = parameter_names()
-+    token, chat = store.get(token_name), store.get(chat_name)  # type: ignore[attr-defined]
++    token = bot_token(store.get(token_name), token_name)  # type: ignore[attr-defined]
++    chat = str(store.get(chat_name)).strip()  # type: ignore[attr-defined]
 +    sent = 0
 +    for notice in notices:
 +        alert = classify(notice)

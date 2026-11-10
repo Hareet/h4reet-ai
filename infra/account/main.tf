@@ -19,13 +19,11 @@ data "aws_caller_identity" "current" {}
 
 locals {
   # Both budget actions' rehearsals (FR-026; contracts/aws-alerts.md §4; tasks.md T040): true only while the Author
-  # rehearses, by a reviewed change like any other, since every apply needs its plan in a merged note.
+  # rehearses, by a reviewed change like any other, since every apply needs its plan in a merged note. That change also
+  # adds infra/account/rehearsal-on.txt, naming its note, whose `<!-- h4-rehearsal: on -->` line says it is the
+  # rehearsal; the change that ends it sets false and removes the marker (infra/test/test_account.py). The permission
+  # set's name is iam.tf's own local.
   rehearsal = false
-
-  # The name of spec 000's hand-made Bedrock permission set, which iam.tf imports and narrows (FR-013). The repository
-  # doesn't hold it: the Author reads it from IAM Identity Center before T037 (the merge-request note), and the session
-  # writes it here. While it is null, make plan ROOT=account stops at the permission set's lookup, with nothing made.
-  laptop_permission_set = null
 
   # The one inference profile config/routing.yaml's bedrock adapter names, and the models it routes to (spec 000
   # T105; research.md R-15). infra/test/test_account.py holds the first to routing.yaml's.

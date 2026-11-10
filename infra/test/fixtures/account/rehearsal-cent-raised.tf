@@ -13,6 +13,10 @@ resource "aws_budgets_budget" "rehearsal_model" {
     values = var.bedrock_service_names
   }
 
+  cost_types {
+    include_credit = false
+  }
+
   notification {
     comparison_operator       = "GREATER_THAN"
     threshold                 = 100

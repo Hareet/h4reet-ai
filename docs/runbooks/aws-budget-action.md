@@ -19,10 +19,18 @@
 In your own terminal, with your SSO session (`pf` your administrator profile).
 
 1. **Write the incident note first.** The constitution's rule: a ceiling's action is reversed only after the note, seven days at most, says why spend reached it.
-2. **Record when AWS acted**, from the action's history:
+2. **Record when AWS acted**, from the action's history (for the rehearsal's, `n=h4-rehearsal-model`):
 
    ```bash
-   aws budgets describe-budget-action-histories --account-id "$(aws sts get-caller-identity --query Account --output text --profile "$pf")" --budget-name h4-model-month --profile "$pf" --region us-east-1
+   pf=h4reet-admin
+   a=(--profile "$pf" --region us-east-1)
+   q=(--query Account --output text)
+   id=$(aws sts get-caller-identity "${a[@]}" \
+     "${q[@]}")
+   n=h4-model-month
+   h=(budgets describe-budget-action-histories)
+   aws "${h[@]}" "${a[@]}" \
+     --account-id "$id" --budget-name "$n"
    ```
 
 3. **Find the source:** the runbook `aws-budget.md`'s Act.
@@ -32,18 +40,32 @@ In your own terminal, with your SSO session (`pf` your administrator profile).
 - On the role, the attached policies list `h4-deny-paid-models`:
 
   ```bash
-  aws iam list-attached-role-policies --role-name h4-laptop-bedrock --profile "$pf"
+  r=h4-laptop-bedrock
+  aws iam list-attached-role-policies \
+    --role-name "$r" --profile "$pf"
   ```
 
 - After the Undo, the same list is empty, and `make operator-status ENV=prod` shows Bedrock's adapter healthy again within its health interval.
 
 ## Undo
 
-After the incident note, reverse the action; this detaches the policy:
+After the incident note, reverse the action; this detaches the policy. With `pf`, `a`, `id`, and `n` as in Act, step 2, first the action's ID:
 
 ```bash
-aws budgets describe-budget-actions-for-budget --account-id "$(aws sts get-caller-identity --query Account --output text --profile "$pf")" --budget-name h4-model-month --profile "$pf" --region us-east-1
-aws budgets execute-budget-action --execution-type REVERSE_BUDGET_ACTION --account-id "$(aws sts get-caller-identity --query Account --output text --profile "$pf")" --budget-name h4-model-month --action-id <the action's ID, from the line above> --profile "$pf" --region us-east-1
+d=(budgets
+  describe-budget-actions-for-budget)
+aws "${d[@]}" "${a[@]}" \
+  --account-id "$id" --budget-name "$n"
+```
+
+Then, with `x` set to the `ActionId` it printed:
+
+```bash
+x=ACTION_ID
+e=(budgets execute-budget-action)
+e+=(--execution-type REVERSE_BUDGET_ACTION)
+aws "${e[@]}" "${a[@]}" --account-id "$id" \
+  --budget-name "$n" --action-id "$x"
 ```
 
 For the rehearsal's, the budget is `h4-rehearsal-model`, and the role `h4-rehearsal-target`. Never detach the policy by hand in the console: the action would read as executed while the policy is gone.

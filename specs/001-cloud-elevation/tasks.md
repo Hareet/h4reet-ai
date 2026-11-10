@@ -256,6 +256,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### Close
 
 - [ ] T038 Review and note. Check: as T009 (feat/001-us2-safety-net)
+  - **The first pass, 2026-11-10,** over 5a82fcf5..af7d66be: not ready, with three blockers and two Important findings (I1 to I5) and five nits. Each is fixed on the branch, test-first for the code, in its own commits, with P-I2 rebuilt and dry-run again (the note's Review). **A second, short pass** reads what For the Author's section 2 then adds (the set's name in P-I2, the base's lock line, the Dockerfiles, P-I2 rebuilt with the bridge's), and its tip is the merge guard's anchor (T039).
 - [ ] T039 Author: apply P-I2 on the branch, as in T037; gate; merge. Check: as T029 (feat/001-us2-safety-net, then main)
 - [ ] T040 Author: on `main`:
   1. verify, import the laptop's Bedrock permission set, apply, and record;
