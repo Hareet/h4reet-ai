@@ -368,6 +368,7 @@ def test_spec_000s_part_closes_with_fr_040s_sentence() -> None:
     assert [section.splitlines()[0] for section in later] == [
         "Spec 002: the room",
         "Spec 010: the Anthropic API",  # spec 010, FR-038 (its plan, D12)
+        "Spec 001: the cloud",  # spec 001, FR-040 (its plan §8.3; tasks.md T026)
     ]
     assert "aren't here yet" not in TEXT  # the intro no longer waits for rows
 
@@ -441,6 +442,39 @@ def test_row_f1_adds_spec_007s_turn_to_its_own_words() -> None:
 def test_security_md_links_the_disclosure() -> None:
     security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
     assert "](docs/data-flow-disclosure.md)" in security
+
+
+# Spec 001 (FR-040; its plan §8.3): its rows go in a section of their own, each in the commit that creates its flow.
+# Group 3 (tasks.md T026, in T023's commit) adds C8's email half, AWS's budgets and anomaly monitor to the alerts
+# mailbox through SNS's email subscription on h4-alerts, and C9, the Author's terminal to AWS's APIs. C8's Telegram
+# half, through the alert bridge, is group 4's (T036).
+SPEC_001 = REPO / "specs" / "001-cloud-elevation" / "spec.md"
+
+
+def spec_001_entry(row_id: str) -> list[str]:
+    """The row of specs/001-cloud-elevation/spec.md's "New rows" table: its eight cells, the ID first."""
+    new_rows = SPEC_001.read_text(encoding="utf-8").split("\n### New rows\n", 1)[1]
+    (entry,) = [ln for ln in new_rows.splitlines() if ln.startswith(f"| {row_id} |")]
+    return [c.strip() for c in entry.strip().strip("|").split("|")]
+
+
+def test_spec_001s_rows_are_in_its_own_section_in_the_specs_words() -> None:
+    section = TEXT.split("\n## Spec 001: the cloud\n", 1)[1]
+    assert "| C8 |" in section and "| C9 |" in section
+    c8, c9 = rows()["C8"], rows()["C9"]
+    entry_c8, entry_c9 = spec_001_entry("C8"), spec_001_entry("C9")
+    # C9 is the spec's row, word for word, with its FR.
+    assert c9[:7] == entry_c9[1:8]
+    # C8's email half: the spec's From → To with the mailbox alone, the path named after it, and its other cells word
+    # for word.
+    assert (
+        entry_c8[1]
+        == "AWS's budgets and anomaly monitor → Telegram and the alerts mailbox"
+    )
+    assert c8[0].startswith("AWS's budgets and anomaly monitor → the alerts mailbox, ")
+    assert "`h4-alerts`" in c8[0]
+    assert c8[1:7] == entry_c8[2:8]
+    assert "spec 001 FR-022" in c8[7] and "spec 001 FR-001" in c9[7]
 
 
 # Spec 010 (FR-038, FR-039, SC-010; its plan §10, D12): the Anthropic API's row, F3, in a section of its own in the

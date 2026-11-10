@@ -109,7 +109,8 @@ endif
 # agent-writable, and without these flags uv would run or obey it in the Author's terminal.
 PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with-requirements .devcontainer/requirements-tools.txt pytest)
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
-PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts)
+# infra/ holds spec 001's tests of its roots (infra/test/) and of its Lambda functions (infra/lambdas/*/test_*.py).
+PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra)
 
 # node_modules and pytest, with any conftest.py, run code that agents can write and git doesn't show. The targets
 # that run them work only in the agent sandbox or the devcontainer. In your own terminal, read the merge-request
