@@ -6,13 +6,15 @@ Authorized by: the spec and the plan, approved by the Author on 2026-11-09 as ta
 
 ## Status
 
-**Not ready to merge: the review and the full checks are still to come.** The branch is stacked on `feat/005-full-window-room`: it was cut at `spec/012-loading-screen-r2`'s tip, b0bd247e, which sits on `feat/005-full-window-room` at af82c6c5, the reviewed full-window room. So `feat/005-full-window-room` merges first, and this branch after it. The branch has merged `refs/heads/main` at d0fac811 (034215bc), as the main session directed, which brings gate 1 (the avatars and the timing fix), gate 1b (`fix/007-image-readiness`), and gate 2 (the Anthropic switch). The Author's steps come with the final note.
+**Ready for its gate, after `feat/005-full-window-room`.** The branch is stacked on `feat/005-full-window-room`: it was cut at `spec/012-loading-screen-r2`'s tip, b0bd247e, which sits on `feat/005-full-window-room` at af82c6c5, the reviewed full-window room. So `feat/005-full-window-room` merges first, and this branch after it. The branch has merged `refs/heads/main` at d0fac811 (034215bc), as the main session directed, which brings gate 1 (the avatars and the timing fix), gate 1b (`fix/007-image-readiness`), and gate 2 (the Anthropic switch).
 
-- **Built, test-first:** T000 to T032 and T034, and T041 after the merge. Every story is in.
-- **User Story 6, landed:** the main session confirmed that `config/room-events.yaml` is generated and not protected, so T030 and T031 (793b44ca) and T032 (6cea0c5d) applied the two held patches, the first regenerating that file with `npm run manifest`: one line, the kind. No other file under `config/` changed. The two patch files stay beside this note as the record of the held work.
-- **T041, landed after the merge:** the image's room build copies `config/routing.yaml` and `config/prices.yaml` (87db6def, 4a3a257b).
-- **Not run yet, by the main session's direction (other branches' checks and the Author's paid live runs come first):** `make test` and `make check ENGINE_MODE=none-yet` (T033), `gitleaks dir`, and the whole web suite again after the merge. `make lint`, the whole web suite, and `make evals` ran before the merge, and the targeted tests and `room:check` after it (below).
-- **Still to come:** T036's review by an agent that wrote none of this, T037's fixes, T033's full checks, and the Author's T038 to T040.
+- **Built, test-first:** T000 to T032, T034, and T035, and T041 after the merge. Every story is in.
+- **User Story 6:** the main session confirmed that `config/room-events.yaml` is generated and not protected, so T030 and T031 (793b44ca) and T032 (6cea0c5d) applied the two held patches, the first regenerating that file with `npm run manifest`: one line, the kind. No other file under `config/` changed. The two patch files stay beside this note as the record of the held work.
+- **T041, after the merge:** the image's room build copies `config/routing.yaml` and `config/prices.yaml` (87db6def, 4a3a257b).
+- **Reviewed:** T036's review of 4989cb5c said not ready, with one Important finding and five nits; T037 fixed each, a RED commit and then a GREEN one for each change to code (Review). The post-fix tip is 91593f6e, which the guard anchors on: after it, only this note changes.
+- **Checked on the post-fix tip (T033):** `make lint`, `make test`, `make evals`, `make check ENGINE_MODE=none-yet`, `gitleaks dir` on an export, and the rehearsal into `refs/heads/main` (Verification).
+- **Done, but not ticked:** T033, T036, and T037 are done but stay unticked in `tasks.md`, because only this note may change after 91593f6e. Their ticks go with the next commit that moves the anchor, or with yours.
+- **The Author's:** T038 (the gate and the merge, after `feat/005-full-window-room`), T039 (his runs and his look on the live room), and T040 (ADR 0045).
 
 ## What changed and why
 
@@ -24,7 +26,8 @@ What this branch builds, by plan.md:
 - **A pure progress model** (`src/room/loading/progress.ts`): the 3D code 10, the room's text 2, the typefaces 3 (`faces/fonts.ts`'s new `settled()`), and the figures' files and the set models 85 by their bytes as served, each counting once its load has ended. Every end is kept, those heard before the 3D stage's list among them.
 - **The room's models shown while the loader shows** (`scene.ts`, `scene/loader.ts`, `scene/avatars.ts`): the 3D stage says what it will load (`expected`) and keeps one flag, `closed`, turned by the room's `gaveWay` or its first `showHandoff`; one gate (`figureGate`, `modelGate`, `swapGate`) holds every parse and a set model's swap from then until the hand-off ends. The fetch, its integrity check, and its order are unchanged.
 - **The card, the bar, and the page behind** (`loading/view.ts`, `loading/loading.css`, `layout.ts`): the card is the HUD's dark glass in every layout, fixed below the measured strip and the notes' reserve in the column and dock layouts, first in the page's flow in the stacked one. The bar is a progress bar with its value text ("64%: Loading the room's pieces: 12 of 21"), its fill's fraction set through the CSS object model. The scrim is a tint by element, per layout, never on the AI disclosure or the stage's notes. The scene's own motion is held by a counted hold of the motion store. The card fades out in 200 ms, inert from its first frame, and at once under reduced motion.
-- **The hints** (`apps/web/room/hints.yaml`, `build/room/hints.ts`, `build/room/checks/rt.ts`, `loading/hints.ts`): his three verbatim, then the session's twelve as The Hint Copy words them, checked by RT2, RT3, RT9, and the new RT14 to RT17, every figure filled at build from the configuration, carried filled in the index's new `hints`. One at a time below the bar, a new one every 6 seconds, paused by the pointer, stopped by focus, with "Pause hints" or "Play hints", "Previous hint", and "Next hint".
+- **The hints** (`apps/web/room/hints.yaml`, `build/room/hints.ts`, `build/room/checks/rt.ts`, `loading/hints.ts`): his three verbatim, then the session's twelve as The Hint Copy words them, checked by RT2, RT3, RT9, and the new RT14 to RT17, every figure filled at build from the configuration, carried filled in the index's new `hints`. One at a time below the bar, a new one every 6 seconds, paused by the pointer, stopped by focus from the keyboard (a press's own focus isn't a stop, the review's I-1), with "Pause hints" or "Play hints", "Previous hint", and "Next hint".
+- **The event, its row, and its panel**: `loading_cut_short`, with no identifier, once a visit cut short at the ceiling (`events.ts`, `app.ts`); row V4's trigger in the same commit; `config/room-events.yaml` regenerated; "Visits whose loading was cut short" in the dashboard's Room row and spec 000's §7.8.
 - **The words**: twelve UI words (`ui-keys.ts`, `apps/web/room/ui-words.yaml`, the fixture room's), with the slots `{done}`, `{total}`, and `{n}`.
 - **The record**: ADR 0045, proposed; the living interfaces' "(spec 012)" passages (spec 002's room-scene.md §1 and §3; spec 004's research R-28, room-bundle.md §3.1, and room-data-files.md §1, §9, and §13.5); the room's README's "The loader and its hints".
 
@@ -48,12 +51,12 @@ Recorded in tasks.md T000, in his words, verbatim: "Also we aprove of the spec 0
 | FR-021                   | met                                                                                                                              | T005, `test/room/avatar-scene.test.ts`, `avatar-handoff.test.ts`                          |
 | FR-022, FR-023           | met                                                                                                                              | T012, T025                                                                                |
 | FR-024 to FR-027         | met in jsdom by the CSS rules and the geometry model; the look on screen is the Author's (T039)                                  | `test/ui/loading-page.test.ts`, `loading-notes.test.ts` (T016)                            |
-| FR-028 to FR-031         | met                                                                                                                              | `test/room/loading-hints.test.ts` (T020), T012's T021 cases                               |
+| FR-028 to FR-031 | met, a press's own focus no stop since T037 (the review's I-1) | `test/room/loading-hints.test.ts` (T020), `test/ui/loading.test.ts`'s T021 and T037 cases |
 | FR-032 to FR-034 | met, in a checkout's build and the web image's | `test/room/hints-compose.test.ts` (T018), `hints.test.ts` (T019), `test/room/image-inputs.test.ts` (T041) |
 | FR-035                   | met: hints 1 and 2 with no `when`                                                                                                | T019                                                                                      |
 | FR-036                   | met                                                                                                                              | T021                                                                                      |
 | FR-037 to FR-043         | met in jsdom; the keyboard-only and screen-reader runs are the Author's (T039)                                                   | T012, T025, `test/room/loading-contrast.test.ts` (T025)                                   |
-| FR-044, FR-045 | met: after the merge, the entry 45,976 bytes and the index 6,221, which `test/room/chunk.test.ts`'s own assertion now holds too; no package added | T033's numbers below |
+| FR-044, FR-045 | met: on 91593f6e, the entry 46,021 bytes (+4,298) and the index 6,221 (+1,025), which `test/room/chunk.test.ts`'s own assertions hold too; no package added | T033's numbers below |
 | FR-046 to FR-048, FR-050 | met: the kind, its emit once a visit, row V4's trigger in the same commit, §7.8's row and the panel | T029; the gateway's route test; `deploy/scripts/test_dashboard.py` |
 | FR-049                   | met                                                                                                                              | T006                                                                                      |
 | FR-051                   | met                                                                                                                              | `test/room/vocabulary.test.ts` (T013)                                                     |
@@ -69,7 +72,7 @@ SC-006's hands-on runs and SC-010 are the Author's, after the merge (T039).
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I. Data-local by default | No new request or destination: the model reads page memory, and a fetch and beacon spy sees nothing new in every fault run (T006, T027). The one event, `loading_cut_short`, with no identifier, and row V4's trigger in the same commit (793b44ca). The degraded paths were built first (Phase 2) |
 | II. Production-grade | Tests first in every phase, RED and GREEN below; the frame log's `loading` entries; the event's counter and its panel; ADR 0045 and the room's README |
-| III. Intent before spec, spec before code | From the approved spec and plan; every departure recorded in plan.md (C1 to C6) in its commit; the living contracts marked "(spec 012)"; no agent merges                                                                                             |
+| III. Intent before spec, spec before code | From the approved spec and plan; every departure recorded in plan.md (C1 to C7) in its commit; the living contracts marked "(spec 012)"; no agent merges                                                                                             |
 | IV. Least privilege | No header, permission, sandbox domain, or human-only file changed; nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `infra/`, `CLAUDE.md`, or `REVIEW.md`, and under `config/` only the generated `config/room-events.yaml`; the integrity check on every model kept; the web image copies two more public configuration files, through fix/007's list and test |
 | V. Cost | $0 in the cloud; no transfer change; at most one beacon per visit cut short. The cost hints read the configuration that enforces the ceilings, in the image as in a checkout |
 | VI. Build in public                       | The shares, the ceiling, the hints and their sources committed                                                                                                                                                                                       |
@@ -78,11 +81,25 @@ SC-006's hands-on runs and SC-010 are the Author's, after the merge (T039).
 
 ## Review
 
-T036's review, by an agent that wrote none of this work, hasn't run yet. Its findings go here.
+T036's review, by an agent that wrote none of this work, read the tip 4989cb5c. The main session ran it and relayed its findings; the reviewer's name isn't given to this session. **Verdict: not ready**, with one Important finding and five nits. T037 fixed each test-first, a RED commit and then a GREEN one for each change to code:
+
+| Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | RED      | GREEN                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------ |
+| **I-1** (FR-030, SC-005, WCAG 2.2's 2.2.2). A mouse click or a tap on "Pause hints" started the rotation, in the browsers that focus a button as it is pressed (Chrome, Edge, and Firefox on Windows and Linux, Chrome on Android): the press's own focus reached the controls' `focusin` as focus entering them, which stopped the rotation, and the click then played it. jsdom's `click()` never focuses, so the tests missed it. Now a `pointerdown` on the controls marks a press, which the next focus or click consumes; keyboard focus still stops the hints. Tests send the browsers' sequences: a mouse press, and a tap (pointerdown, pointerup, pointerleave, focus, click) | fb77b91b | f7e76839                             |
+| **N1.** `scene/loader.ts` asked the texture ledger before the swap gate's wait and uploaded after it, so two parses in flight as the loader gave way could both fit and both upload. It asks again after the wait                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 24e64d10 | 01d7d746                             |
+| **N2.** Hint 15 shows "Langfuse" on the loader's card, where spec 004's FR-049 and `REVIEW.md` name the neon sign alone. spec.md gains Amendment L12, naming the loader beside the sign and recording that the Author approved the copy as written, whose hint 15 he saw in the session's report. `REVIEW.md` is his to change; his look, below                                                                                                                                                                                                                                                                                                                                         | –        | 91593f6e (docs)                      |
+| **N3.** The panel's description said the share "reads low rather than high"; the event is sent before the hand-off, so a visit cut short that leaves before the offer counts in the numerator alone, and the share can read high too. The description and §7.8's reading now say it is rough in both directions (plan.md's departure C7)                                                                                                                                                                                                                                                                                                                                                | 616aebf7 | 22ede5db                             |
+| **N4** (drafts builds). `toFlat`'s skips could end the bar's last part and give way as `ready` before its own `giveWay("2d")`, so the frame log said the wrong reason. The fall gives way as `2d` first                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 977b970d | 07d03eeb                             |
+| **N5.** The note gave two growth figures for the entry chunk. Remeasured on the post-fix tip; one figure, below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | –        | this note                            |
+| The price lookup. By provider and model, not model alone: the provider is fixed by each adapter's type in the gateway's own code, which nothing outside its adapters names, so the cheap safe half landed: two entries for prod's fallback model in the last version leave the price unfilled (RT17) rather than one picked by the file's order. A lookup by provider too is yours to ask for                                                                                                                                                                                                                                                                                           | 3c834c59 | 75019b6c                             |
+| plan.md's file tree, corrected to the files built; the README's loader section, `loading_cut_short`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | –        | 91593f6e (docs)                      |
+| Hint 13                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | –        | unchanged, as the Author approved it |
+
+The guard anchors on the post-fix tip, 91593f6e: after it, only this note changes.
 
 ## Departures
 
-Each is in plan.md's Departures, in the commit that made it, and in ADR 0045:
+Each is in plan.md's Departures, in the commit that made it. ADR 0045 lists C1 to C6; C7, the panel's wording from the review's N3, is plan.md's alone, since it changes no decision the ADR records:
 
 | ID  | What                                                                              | Why                                                                                                                                                                                 |
 | --- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -92,6 +109,7 @@ Each is in plan.md's Departures, in the commit that made it, and in ADR 0045:
 | C4  | `setLoading("on" \| "leaving" \| "off")`, and `insertLoader(card)`                | So the tints fade with the card, and "Around the room" is reachable from the fade's first frame                                                                                     |
 | C5  | The stage line reads "Loading the room's code" until the stage's list has arrived | The loader's own chunk is 3D code too; "pieces: 0 of 0" would read wrong                                                                                                            |
 | C6  | The track is `rgb(0 0 0 / 0.35)`, not `rgb(255 255 255 / 0.16)`                   | T025 found the yellow fill at 2.44:1 against the planned track over white beneath, under FR-041's 3:1                                                                               |
+| C7 | The panel's description says the share is rough in both directions | `loading_cut_short` is sent before the hand-off, so a visit cut short that leaves before the offer counts in the numerator alone (the review's N3) |
 
 ## The RED and GREEN runs
 
@@ -124,7 +142,7 @@ Each phase's tests were committed failing before the code that makes them pass. 
 
 ## The hints, as the built index holds them
 
-In a checkout's build (`compose()` over the repository, lenient, with the twin's readiness), in order, 0 findings:
+In a checkout's build (`compose()` over the repository, lenient, with the twin's readiness), in order, 0 findings, read again after the merge of `main`. Since gate 2, prod's fallback is the Anthropic API, so hint 12's figures are that adapter's model's entry in the price table's last version; they read as before:
 
 1. Make sure to ask how this web site is built, how we evaluated outputs, designed and made it secure.
 2. Ask about the latest work
@@ -144,19 +162,25 @@ In a checkout's build (`compose()` over the repository, lenient, with the twin's
 
 **In the web image**, the `Dockerfile`'s install stage, on which both of apps/web's builds stand, now copies `config/routing.yaml` and `config/prices.yaml` beside `config/budgets.yaml` (T041), so the image's build reads the same seven configuration files a checkout's does and fills hints 12 to 14 alike; `test/room/image-inputs.test.ts` holds it to that. This session has no container engine, so the built image's own hints are yours to read (For the Author).
 
-## Verification (T033, so far)
+## Verification (T033)
 
-The numbers are after the merge of `main`, at 4a3a257b; the outputs below are from before it, at a6c2484c with the avatars-compose correction, and wait for T033's full runs after the merge. Node 24.21.0.
+Every check ran on the post-fix tip, 91593f6e, under Node 24.21.0, one at a time, while other branches' checks ran on the same machine (its load average stood at 2 to 27).
 
-|                                                                           | At the base (b906c5e7)              | Now                                                                                                       |
-| ------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| The entry chunk and its CSS, gzipped                                      | 41,723 bytes (JS 37,377, CSS 4,346) | 45,976 bytes (JS 41,023, CSS 4,953): +4,253, within the plan's 8 KB, of 153,600 |
-| The index, serialized, gzip level 9                                       | 5,196 bytes                         | 6,221 bytes: +1,025, of 16,384 (R-11; `test/room/chunk.test.ts`'s own assertion passes after the merge) |
-| `npm run room:check`                                                      | 0 findings                          | 0 findings, the hints' strict rules among them                                                            |
-| `package-lock.json`, every `package.json`                                 |                                     | unchanged (FR-045)                                                                                        |
-| `apps/web/nginx.conf`, the compose files, `deploy/env*` | | unchanged (FR-052, FR-053); `deploy/` gains the dashboard's panel and its test's case; the `Dockerfile` gains the two configuration files' copies (T041) |
+|                                                         | At the base (b906c5e7)              | At 91593f6e                                                                                                                                              |
+| ------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The entry chunk and its CSS, gzipped                    | 41,723 bytes (JS 37,377, CSS 4,346) | 46,021 bytes (JS 41,068, CSS 4,953): +4,298, within the plan's 8 KB, of 153,600                                                                          |
+| The index, serialized, gzip level 9                     | 5,196 bytes                         | 6,221 bytes: +1,025, of 16,384 (R-11); `test/room/chunk.test.ts`'s own assertions pass                                                                   |
+| `npm run room:check`                                    | 0 findings                          | 0 findings, the hints' strict rules among them                                                                                                           |
+| `package-lock.json`, every `package.json`               |                                     | unchanged (FR-045)                                                                                                                                       |
+| `apps/web/nginx.conf`, the compose files, `deploy/env*` |                                     | unchanged (FR-052, FR-053); `deploy/` gains the dashboard's panel and its test's case; the `Dockerfile` gains the two configuration files' copies (T041) |
 
-**What failed before the merge, and whose it was.** `make lint` stopped at Prettier on the four history files `main` carried at e324771e, `main`'s known failure, so its later steps were run on their own: all passed. The web suite's 12 failures were `main`'s 8 known readiness failures (`test/room/chunk.test.ts` 6, `test/room/dist.test.ts` 2), which the merge's targeted runs now pass, and T029's 4 RED cases, which T030 and T032 turned GREEN. `make evals` exits 0 with the behavioral tier's WARN, information, never a merge block (spec 006 FR-002).
+**What failed, and whose it is.**
+
+- `make test`: the web suite's one failure was `test/lookdev/candidate.test.ts`'s 80-variant case, a timeout (62.5 s against its 60 s) while the machine ran other branches' checks. That file alone passed whole (18), and the case alone took about 30 s. Its compose runs over fixture trees that hold no hints file, so nothing this branch adds runs for it but two empty checks. The gateway's suite passed whole, its timing tests among them. `make test` stops at the web suite, so its pytest step ran on its own: 4,101 passed.
+- `make evals`: exit 0. Its one line short of a pass is the behavioral tier's WARN, an information line in `make evals` (spec 006 FR-002): the newest run for the agent config's trigger hash is `feat/011`'s, and this branch changes none of the agent config, so the gate's step doesn't wait on one.
+- `make check ENGINE_MODE=none-yet`: 11 PASS, 1 SKIP, 1 WARN, 1 FAIL. The matrix failed E10 and E14 alone, for the environment, as on the switch's note: E10's engine reset needs 22 GiB free on both drives to seed, and E14's dev-cpu ports on the host's 127.0.0.1 are out of the sandbox's reach (stage S). Its hook layer's line, `853 passed, 2 failed, 57 known gaps`, is the switch's own. The WARN is the behavioral tier's line above, and the SKIP is the image stage's (no agents' engine yet, T046). Its test stage passed whole, the candidate case among them: the gateway 1,655 passed with 13 skipped, the web 3,071 passed with 1 skipped, and pytest 4,101.
+
+**One figure for the entry chunk** (the review's N5). The entry chunk grew 4,298 bytes, compressed, against the base, measured on 91593f6e. That figure counts this branch's code and whatever the merge of `refs/heads/main` at d0fac811 brought to the entry. The note's earlier figures were steps on the way: +4,221 before the merge, then +4,253 before T037's fixes, which add 45 bytes. The acceptance table and the cost section now say +4,298 too.
 
 ### `make lint`
 
@@ -165,264 +189,82 @@ node_modules/.bin/eslint --max-warnings 0 .
 for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
 node_modules/.bin/prettier --check .
 Checking formatting...
-[warn] evals/product/history/2026-11-09T175245Z-local.json
-[warn] evals/product/history/2026-11-09T191058Z-bedrock.json
-[warn] redteam/history/20261109T175353Z-local.json
-[warn] redteam/history/20261109T191059Z-bedrock.json
-[warn] Code style issues found in 4 files. Run Prettier with --write to fix.
-make: *** [Makefile:222: lint] Error 1
-exit: 2
-```
-
-### ruff, ruff format, and shellcheck, the lint target's steps after Prettier
-
-```text
+All matched files use Prettier code style!
+ruff check .
 All checks passed!
-ruff exit: 0
-469 files already formatted
-ruff format exit: 0
+ruff format --check --no-cache --extend-exclude corpus .
+476 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
-shellcheck exit: 0
+exit: 0
 ```
 
-### The whole web suite (`npx vitest run --maxWorkers=6` in `apps/web`)
+### `make test`
 
-Its failing tree and its totals; the rest of its output is each failure's diff.
+Its three suites' totals, with every failure's line; the whole output is in the session's log.
 
 ```text
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+npm test --workspaces --if-present
+
+> @h4reet/gateway@0.1.0 test
+> vitest run
+
+ RUN  v5.0.3 /tmp/claude-1000/wt-feat012/services/gateway
+
+ Test Files  95 passed (95)
+      Tests  1655 passed | 13 skipped (1668)
+   Start at  00:21:56
+   Duration  105.24s (tests 96%, import 3%, transform 1%)
+
+> @h4reet/web@0.1.0 test
+> vitest run
 
  RUN  v5.0.3 /tmp/claude-1000/wt-feat012/apps/web
 
- ❯ test/events.test.ts (7 tests | 1 failed) 118ms
-   ❯ the beacon (4)
-     × sends each kind once, its body {kind} or {kind, id} alone, as text a beacon sends without a preflight 68ms
- ❯ test/disclosure.test.ts (11 tests | 1 failed) 271ms
-   ❯ the disclosure page (11)
-     × names the loader cut short in row V4's trigger, before spec 009's closing clause (spec 012, L5) 8ms
- ❯ test/ui/loading-degraded.test.ts (26 tests | 1 failed) 4393ms
-   ❯ loading_cut_short (FR-046) (4)
-     × is sent once a visit, with no identifier, at the ceiling with a file not ended 26ms
- ❯ test/room/chunk.test.ts (14 tests | 6 failed) 6289ms
-   ❯ the release build (7)
-     ❯ the room's bundle (FR-011) (3)
-       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 3339ms
-       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 44ms
-     ❯ room-manifest.json (Amendment B7) (1)
-       × is compose()'s manifest, its build_kind "release" 7ms
-   ❯ the drafts build (7)
-     ❯ the room's bundle (FR-011) (3)
-       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 2612ms
-       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 28ms
-     ❯ room-manifest.json (Amendment B7) (1)
-       × is compose()'s manifest, its build_kind "drafts" 1ms
- ❯ test/room/dist.test.ts (12 tests | 2 failed) 9521ms
-   ❯ the site's release build (contracts/room-bundle.md §14) (2)
-     × holds no † field's value and no pending line of the committed data, in any file 3149ms
-   ❯ the site's drafts build (contracts/room-bundle.md §14) (2)
-     × holds no † field's value and no pending line of the committed data, in any file 3065ms
- ❯ test/manifest.test.ts (13 tests | 1 failed) 32232ms
-   ❯ room-manifest.json (Amendment B7) (7)
-     × keeps spec 002's free talk not ready, the four avatars, and the event kinds 2656ms
+ ❯ test/lookdev/candidate.test.ts (18 tests | 1 failed) 121675ms
+   ❯ a candidate's findings and measures are compose()'s for the same bytes and piece (FR-068) (4)
+     × every variant of test/helpers/glb.ts gets compose()'s findings, in its order, `candidate` for the file 62544ms
 
-⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
- Test Files  6 failed | 129 passed (135)
-      Tests  12 failed | 3041 passed | 1 skipped (3054)
-   Start at  23:10:42
-   Duration  137.36s (tests 79%, import 21%, transform 1%)
-exit: 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/lookdev/candidate.test.ts > a candidate's findings and measures are compose()'s for the same bytes and piece (FR-068) > every variant of test/helpers/glb.ts gets compose()'s findings, in its order, `candidate` for the file
+Error: Test timed out in 60000ms.
+  ❯ test/lookdev/candidate.test.ts:161:3
+
+ Test Files  1 failed | 136 passed (137)
+      Tests  1 failed | 3070 passed | 1 skipped (3072)
+   Start at  00:23:34
+   Duration  158.29s (tests 75%, import 21%, transform 4%)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /tmp/claude-1000/wt-feat012/apps/web
+npm error workspace @h4reet/web@0.1.0
+npm error location /tmp/claude-1000/wt-feat012/apps/web
+npm error command failed
+npm error command sh -c vitest run
+make: *** [Makefile:246: test] Error 1
+exit: 2
+
+$ npx vitest run test/lookdev/candidate.test.ts    # the timed-out file alone, after
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Duration  81.94s (tests 98%, transform 1%, import 1%)
+exit: 0
+
+$ pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts    # make test's pytest step, on its own
+4101 passed in 340.15s (0:05:40)
+exit: 0
 ```
 
 ### `make evals`
 
+Every line but the 250 per-case PASS lines; the whole output is in the session's log.
+
 ```text
 python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite product --adapter ${ADAPTER:-fake} $([ "${ADAPTER:-}" = local ] && echo --stack prod)
-PASS  hello-fake
-PASS  twin-00-profile-q1-engineer
-PASS  twin-00-profile-q1-non-engineer
-PASS  twin-00-profile-q2-engineer
-PASS  twin-00-profile-q2-non-engineer
-PASS  twin-00-profile-q3-engineer
-PASS  twin-00-profile-q3-non-engineer
-PASS  twin-00-profile-q4-engineer
-PASS  twin-00-profile-q4-non-engineer
-PASS  twin-00-profile-q5-engineer
-PASS  twin-00-profile-q5-non-engineer
-PASS  twin-00-profile-q6-engineer
-PASS  twin-00-profile-q6-non-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-1-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-1-non-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-2-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-2-non-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-3-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-3-non-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-4-engineer
-PASS  twin-01-ai-strategy-and-cht-gap-4-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q1-engineer
-PASS  twin-01-ai-strategy-and-cht-q1-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q10-engineer
-PASS  twin-01-ai-strategy-and-cht-q10-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q11-engineer
-PASS  twin-01-ai-strategy-and-cht-q11-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q12-engineer
-PASS  twin-01-ai-strategy-and-cht-q12-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q13-engineer
-PASS  twin-01-ai-strategy-and-cht-q13-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q14-engineer
-PASS  twin-01-ai-strategy-and-cht-q14-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q15-engineer
-PASS  twin-01-ai-strategy-and-cht-q15-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q16-engineer
-PASS  twin-01-ai-strategy-and-cht-q16-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q17-engineer
-PASS  twin-01-ai-strategy-and-cht-q17-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q18-engineer
-PASS  twin-01-ai-strategy-and-cht-q18-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q2-engineer
-PASS  twin-01-ai-strategy-and-cht-q2-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q3-engineer
-PASS  twin-01-ai-strategy-and-cht-q3-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q4-engineer
-PASS  twin-01-ai-strategy-and-cht-q4-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q5-engineer
-PASS  twin-01-ai-strategy-and-cht-q5-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q6-engineer
-PASS  twin-01-ai-strategy-and-cht-q6-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q7-engineer
-PASS  twin-01-ai-strategy-and-cht-q7-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q8-engineer
-PASS  twin-01-ai-strategy-and-cht-q8-non-engineer
-PASS  twin-01-ai-strategy-and-cht-q9-engineer
-PASS  twin-01-ai-strategy-and-cht-q9-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-1-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-1-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-10-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-10-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-11-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-11-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-12-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-12-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-13-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-13-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-2-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-2-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-3-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-3-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-4-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-4-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-5-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-5-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-6-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-6-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-7-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-7-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-8-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-8-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-9-engineer
-PASS  twin-02-production-infrastructure-national-scale-gap-9-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-q1-engineer
-PASS  twin-02-production-infrastructure-national-scale-q1-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-q2-engineer
-PASS  twin-02-production-infrastructure-national-scale-q2-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-q3-engineer
-PASS  twin-02-production-infrastructure-national-scale-q3-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-q4-engineer
-PASS  twin-02-production-infrastructure-national-scale-q4-non-engineer
-PASS  twin-02-production-infrastructure-national-scale-q5-engineer
-PASS  twin-02-production-infrastructure-national-scale-q5-non-engineer
-PASS  twin-03-grants-and-credits-gap-1-engineer
-PASS  twin-03-grants-and-credits-gap-1-non-engineer
-PASS  twin-03-grants-and-credits-gap-2-engineer
-PASS  twin-03-grants-and-credits-gap-2-non-engineer
-PASS  twin-03-grants-and-credits-gap-3-engineer
-PASS  twin-03-grants-and-credits-gap-3-non-engineer
-PASS  twin-03-grants-and-credits-q1-engineer
-PASS  twin-03-grants-and-credits-q1-non-engineer
-PASS  twin-03-grants-and-credits-q2-engineer
-PASS  twin-03-grants-and-credits-q2-non-engineer
-PASS  twin-04-hobbies-and-travel-q1-engineer
-PASS  twin-04-hobbies-and-travel-q1-non-engineer
-PASS  twin-04-hobbies-and-travel-q2-engineer
-PASS  twin-04-hobbies-and-travel-q2-non-engineer
-PASS  twin-04-hobbies-and-travel-q3-engineer
-PASS  twin-04-hobbies-and-travel-q3-non-engineer
-PASS  twin-04-hobbies-and-travel-q4-engineer
-PASS  twin-04-hobbies-and-travel-q4-non-engineer
-PASS  twin-04-hobbies-and-travel-q5-engineer
-PASS  twin-04-hobbies-and-travel-q5-non-engineer
-PASS  twin-04-hobbies-and-travel-q6-engineer
-PASS  twin-04-hobbies-and-travel-q6-non-engineer
-PASS  twin-04-hobbies-and-travel-q7-engineer
-PASS  twin-04-hobbies-and-travel-q7-non-engineer
-PASS  twin-04-hobbies-and-travel-q8-engineer
-PASS  twin-04-hobbies-and-travel-q8-non-engineer
-PASS  twin-05-mission-q1-engineer
-PASS  twin-05-mission-q1-non-engineer
-PASS  twin-05-mission-q2-engineer
-PASS  twin-05-mission-q2-non-engineer
-PASS  twin-05-mission-q3-engineer
-PASS  twin-05-mission-q3-non-engineer
-PASS  twin-05-mission-q4-engineer
-PASS  twin-05-mission-q4-non-engineer
-PASS  twin-05-mission-q5-engineer
-PASS  twin-05-mission-q5-non-engineer
-PASS  twin-05-mission-q6-engineer
-PASS  twin-05-mission-q6-non-engineer
-PASS  twin-05-mission-q7-engineer
-PASS  twin-05-mission-q7-non-engineer
-PASS  twin-06-work-projects-q1-engineer
-PASS  twin-06-work-projects-q1-non-engineer
-PASS  twin-06-work-projects-q2-engineer
-PASS  twin-06-work-projects-q2-non-engineer
-PASS  twin-06-work-projects-q3-engineer
-PASS  twin-06-work-projects-q3-non-engineer
-PASS  twin-06-work-projects-q4-engineer
-PASS  twin-06-work-projects-q4-non-engineer
-PASS  twin-06-work-projects-q5-engineer
-PASS  twin-06-work-projects-q5-non-engineer
-PASS  twin-06-work-projects-q6-engineer
-PASS  twin-06-work-projects-q6-non-engineer
-PASS  twin-06-work-projects-q7-engineer
-PASS  twin-06-work-projects-q7-non-engineer
-PASS  twin-07-denver-local-ai-gap-1-engineer
-PASS  twin-07-denver-local-ai-gap-1-non-engineer
-PASS  twin-07-denver-local-ai-gap-2-engineer
-PASS  twin-07-denver-local-ai-gap-2-non-engineer
-PASS  twin-07-denver-local-ai-gap-3-engineer
-PASS  twin-07-denver-local-ai-gap-3-non-engineer
-PASS  twin-07-denver-local-ai-q1-engineer
-PASS  twin-07-denver-local-ai-q1-non-engineer
-PASS  twin-07-denver-local-ai-q2-engineer
-PASS  twin-07-denver-local-ai-q2-non-engineer
-PASS  twin-07-denver-local-ai-q3-engineer
-PASS  twin-07-denver-local-ai-q3-non-engineer
-PASS  twin-07-denver-local-ai-q4-engineer
-PASS  twin-07-denver-local-ai-q4-non-engineer
-PASS  twin-07-denver-local-ai-q5-engineer
-PASS  twin-07-denver-local-ai-q5-non-engineer
-PASS  twin-07-denver-local-ai-q6-engineer
-PASS  twin-07-denver-local-ai-q6-non-engineer
-PASS  twin-07-denver-local-ai-q7-engineer
-PASS  twin-07-denver-local-ai-q7-non-engineer
-PASS  twin-07-denver-local-ai-q8-engineer
-PASS  twin-07-denver-local-ai-q8-non-engineer
-PASS  twin-08-hareet-ai-gap-1-engineer
-PASS  twin-08-hareet-ai-gap-1-non-engineer
-PASS  twin-08-hareet-ai-q1-engineer
-PASS  twin-08-hareet-ai-q1-non-engineer
-PASS  twin-08-hareet-ai-q2-engineer
-PASS  twin-08-hareet-ai-q2-non-engineer
-PASS  twin-08-hareet-ai-q3-engineer
-PASS  twin-08-hareet-ai-q3-non-engineer
-PASS  twin-08-hareet-ai-q4-engineer
-PASS  twin-08-hareet-ai-q4-non-engineer
-PASS  twin-08-hareet-ai-q5-engineer
-PASS  twin-08-hareet-ai-q5-non-engineer
-PASS  twin-08-hareet-ai-q6-engineer
-PASS  twin-08-hareet-ai-q6-non-engineer
-PASS  twin-08-hareet-ai-q7-engineer
-PASS  twin-08-hareet-ai-q7-non-engineer
-PASS  twin-08-hareet-ai-q8-engineer
-PASS  twin-08-hareet-ai-q8-non-engineer
 twin 00-profile engineer: 6 of 6 golden cases passed (100%; the bar is 5 of 6)
 twin 00-profile non-engineer: 6 of 6 golden cases passed (100%; the bar is 5 of 6)
 twin 01-ai-strategy-and-cht engineer: 18 of 18 golden cases passed (100%; the bar is 17 of 18)
@@ -446,84 +288,82 @@ INFO (twin readiness): hobbies-and-travel: ready, its evidence at the running ha
 INFO (twin readiness): mission: ready, its evidence at the running hashes
 INFO (twin readiness): work-projects: ready, its evidence at the running hashes
 python3 -I -B -X pycache_prefix=/dev/null evals/run.py --suite narration --adapter fake
-PASS  narration-agent-orchestrator-engineer
-PASS  narration-agent-orchestrator-non-engineer
-PASS  narration-agent-watchdog-engineer
-PASS  narration-agent-watchdog-non-engineer
-PASS  narration-ai-strategy-engineer
-PASS  narration-ai-strategy-non-engineer
-PASS  narration-change-management-engineer
-PASS  narration-change-management-non-engineer
-PASS  narration-cht-agent-data-layer-engineer
-PASS  narration-cht-agent-data-layer-non-engineer
-PASS  narration-cht-agent-engineer
-PASS  narration-cht-agent-non-engineer
-PASS  narration-cht-codebase-engineer
-PASS  narration-cht-codebase-non-engineer
-PASS  narration-cht-docker-architecture-engineer
-PASS  narration-cht-docker-architecture-non-engineer
-PASS  narration-cht-skills-engineer
-PASS  narration-cht-skills-non-engineer
-PASS  narration-claude-medic-aws-engineer
-PASS  narration-claude-medic-aws-non-engineer
-PASS  narration-cloud-data-centers-engineer
-PASS  narration-cloud-data-centers-non-engineer
-PASS  narration-denver-local-ai-engineer
-PASS  narration-denver-local-ai-non-engineer
-PASS  narration-hareet-ai-engineer
-PASS  narration-hareet-ai-non-engineer
-PASS  narration-kenya-localization-engineer
-PASS  narration-kenya-localization-non-engineer
-PASS  narration-national-benchmarking-engineer
-PASS  narration-national-benchmarking-non-engineer
-PASS  narration-national-scale-engineer
-PASS  narration-national-scale-non-engineer
-PASS  narration-no-code-configuration-engineer
-PASS  narration-no-code-configuration-non-engineer
-PASS  narration-other-deployments-engineer
-PASS  narration-other-deployments-non-engineer
-PASS  narration-powersync-postgres-engineer
-PASS  narration-powersync-postgres-non-engineer
-PASS  narration-smart-task-prioritization-engineer
-PASS  narration-smart-task-prioritization-non-engineer
-PASS  narration-tools-engineer
-PASS  narration-tools-non-engineer
-PASS  narration-voice-for-cht-engineer
-PASS  narration-voice-for-cht-non-engineer
 evals narration (fake): 44 passed, 0 failed
 python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
-PASS  CLAUDE.md is 58 lines and 5974 bytes (at most 60 and 6 KB)
-PASS  CLAUDE.md names the constitution as superseding it
-PASS  REVIEW.md names the constitution as superseding it
-PASS  role docs: tools match roles.expected
-PASS  role implementer: tools match roles.expected
-PASS  role ops: tools match roles.expected
-PASS  role red-teamer: tools match roles.expected
-PASS  role reviewer: tools match roles.expected
-PASS  role spec-writer: tools match roles.expected
-PASS  hook .claude/hooks/bash-gate.sh is registered for PreToolUse Bash
-PASS  hook .claude/hooks/protected-paths.sh is registered for PreToolUse Edit|Write|MultiEdit|NotebookEdit
-PASS  hook .claude/hooks/post-edit-check.sh is registered for PostToolUse Edit|Write|MultiEdit
-PASS  hook .claude/hooks/subagent-report-check.sh is registered for SubagentStop (every subagent)
-PASS  hook .claude/hooks/content-scan.sh is registered for PreToolUse Edit|Write|MultiEdit
-PASS  FR-007: 28 of 28 variables denied by name
 agent-config static: 0 failed, 0 planned
 tier=0; python3 -I -B -X pycache_prefix=/dev/null evals/behavioral_line.py || tier=$?; python3 -I -B -X pycache_prefix=/dev/null evals/docs_links.py && exit $tier
 behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 05cec03a74a5
 WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
 agent-config behavioral: fail, 0 planned
 note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
-PASS  every relative link resolves: 1904 links in 272 files
-PASS  README.md links the ADR index (docs/adr/)
-PASS  the ADR index links every ADR file: 32 of 32
-PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
-docs links: 0 failed, 1904 relative links in 272 files
+docs links: 0 failed, 1919 relative links in 277 files
 exit: 0
+```
+
+### `make check ENGINE_MODE=none-yet`
+
+Its summary, every stage's line.
+
+```text
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
+exit: 2
+
+The test stage's totals:
+      Tests  1655 passed | 13 skipped (1668)
+      Tests  3071 passed | 1 skipped (3072)
+4101 passed in 398.42s (0:06:38)
+
+The matrix's failing rows and its hook layer's line:
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded images are missing
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+```
+
+### gitleaks on a fresh export
+
+A `git archive` export of the post-fix tip into a new, empty folder, scanned from inside it, as the gate scans, with the export's own `.gitleaks.toml`, an empty folder as the ignore path, and `--ignore-gitleaks-allow`.
+
+```text
+export of 91593f6e77e487f3ce9724ca11f3c220a8874b2d into a new folder: 1982 files
+v8.30.1
+12:48AM INF scanned ~52350526 bytes (52.35 MB) in 1.66s
+12:48AM INF no leaks found
+exit=0
+```
+
+### The rehearsal into `refs/heads/main`
+
+`git merge-tree` against `refs/heads/main`, which writes no worktree, and the guard's tree comparison with `rv` at 91593f6e, as step 2 below makes it. Run on 91593f6e itself, nothing differs. On this note's commit, only this note will, which the guard allows.
+
+```text
+$ git merge-tree --write-tree --name-only refs/heads/main 91593f6e77e487f3ce9724ca11f3c220a8874b2d
+92b1fc19498485b44fe1dc7902d852a9d3f5fb88 (exit 0)
+tip tree: 92b1fc19498485b44fe1dc7902d852a9d3f5fb88
+main: d0fac811ca297a6d9ead42022043d8a12fb4418e
+main is an ancestor of the tip: a --no-ff merge's tree is the tip's
+expected tree (main merged with rv 91593f6e77e487f3ce9724ca11f3c220a8874b2d): 92b1fc19498485b44fe1dc7902d852a9d3f5fb88
+guard's tree comparison (rv=91593f6e77e487f3ce9724ca11f3c220a8874b2d) on 91593f6e77e487f3ce9724ca11f3c220a8874b2d: go
+what differs between rv's merge and the tip, all paths:
 ```
 
 ## Cost and data-flow impact
 
-$0 in the cloud. No new file, request, or transfer: the loader watches the loads the room already makes. At most one `loading_cut_short` beacon a visit cut short at the ceiling, about 30 bytes of body, on spec 002's existing flow, with row V4's trigger in the same commit (793b44ca). On the visitor's device, the same parsing as before, done while the loader shows rather than after the hand-off; the entry chunk grew 4,221 bytes, compressed.
+$0 in the cloud. No new file, request, or transfer: the loader watches the loads the room already makes. At most one `loading_cut_short` beacon a visit cut short at the ceiling, about 30 bytes of body, on spec 002's existing flow, with row V4's trigger in the same commit (793b44ca). On the visitor's device, the same parsing as before, done while the loader shows rather than after the hand-off; the entry chunk grew 4,298 bytes, compressed, against the base (Verification, its one figure).
 
 ## For the Author
 
@@ -539,15 +379,67 @@ docker run --rm --entrypoint sh "$I" -c \
 
 Expected: the three lines of hints 12 to 14 above, figures included.
 
-**Your look and your runs, after the merge** (T039, in one batch; the gate and the merge come with the final note):
+**The order.** `feat/005-full-window-room` merges first, through its own gate. If that changes `main` beyond what this branch holds, the session merges `refs/heads/main` here again and checks it before your gate, and runs the guard's tree comparison on the new tip: the anchor stays 91593f6e unless that merge needed a resolution, when the note names the new anchor. Every block runs from main's checkout, each line 45 characters or fewer, every `git switch` with `--no-replace-objects`.
+
+**1. The gate** (T038). This branch touches neither `deploy/agents-engine/` nor `.claude/settings.json`, so stage E needs no `--prove` (`tools/gates/gate` line 89, `STAGE_E_PATHS` at line 199), and none of `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin, so its behavioral tier is SKIP (line 90, the filter at line 1661). The gate exits 2 unless your checkout is on `main`:
+
+```bash
+git --no-replace-objects switch main
+b=feat/012-loading-screen
+log=~/gate-012.log
+tools/gates/gate "$b" 2>&1 | tee "$log"
+```
+
+Expect Ready, with `evals` WARN for the behavioral tier's information line, as `make check` printed it. With any failure, don't merge: tell the session.
+
+**2. The guard.** It prints `guard: go` only if the gate printed its merge line; your checkout is on `main`; the branch is at the SHA the gate checked; `main` is an ancestor of that SHA; the reviewed and fixed content, 91593f6e, is an ancestor of it; and that SHA's tree is `main` merged with 91593f6e, with nothing different outside `docs/merge-requests/`:
+
+```bash
+s=$(grep '^gate: ' "$log" | tail -n 1)
+sha=$(printf '%s\n' "$s" | awk '{print $2}')
+ok=go
+grep -q '^merge: ' "$log" || ok=no
+h=$(git symbolic-ref -q HEAD)
+[ "$h" = refs/heads/main ] || ok=no
+t=$(git rev-parse --verify "refs/heads/$b")
+[ "$t" = "$sha" ] || ok=no
+mr=refs/heads/main
+anc=(merge-base --is-ancestor)
+git "${anc[@]}" "$mr" "$sha" || ok=no
+rv=91593f6e77e487f3ce9724ca11f3c220a8874b2d
+git "${anc[@]}" "$rv" "$sha" || ok=no
+mt=(merge-tree --write-tree "$mr" "$rv")
+e=$(git "${mt[@]}") || ok=no
+x=(diff --quiet "$e" "$sha" --)
+x+=(':!docs/merge-requests')
+git "${x[@]}" || ok=no
+echo "guard: $ok"
+```
+
+**Why `rv` is 91593f6e, and why a merge-tree.** The review read 4989cb5c; T037's fixes end at 91593f6e, the content the review and its fixes settled, and only this note changes after it. A plain diff of `$rv` against `$sha` would show every change `main` gains after 91593f6e and say no, so the guard builds the tree `main` and 91593f6e merge to (`git merge-tree --write-tree`, which writes no worktree) and requires the gated SHA to equal it but for the notes. Run on this branch's tip, the same lines' tree comparison prints `go` (Verification, the rehearsal). On `guard: no`, don't merge: tell the session.
+
+**3. The merge, only after `guard: go`,** the gate's merge line rebuilt from its log:
+
+```bash
+m="Merge $b (${sha:0:12})"
+o=(--no-replace-objects merge --no-ff)
+o+=(-m "$m" -m "$s" "$sha")
+[ "$ok" = go ] && git "${o[@]}"
+```
+
+Then bring the room up as you do, `make up ENV=prod`, and park your checkout off `main` again when you step away.
+
+**4. Your look and your runs, after the merge** (T039, in one batch):
 
 - **The browsers** (PD-4, R-1): in desktop Chrome, Firefox, and Safari, and Android's Chrome, with the network throttled in the developer tools, whether the bar moves only as whole files end (expected), or within one.
 - **The screen readers** (plan §6.1): what NVDA, JAWS, and VoiceOver say when the loader shows, as the bar's value changes, and as each hint appears. Expected: "Loading the room" once, each hint once, and no running count.
 - **A keyboard-only run and a screen-reader run** (SC-006), on a wide window, a phone held upright, and the stacked layout (a 400% zoom): each hears or sees that the room is loading, reads its percentage and stage, reads every hint by its controls, and lands on the room's heading when it gives way, unaided and never trapped.
 - **Reflow and text size** (SC-006): at 400% zoom on a 1280 × 1024 window and at 200% text on a phone-sized window, nothing on the card clipped or overlapping, the page scrolling only vertically.
+- **"Pause hints" by mouse and by touch** (the review's I-1): one click, and on a phone one tap, pauses the hints and the control reads "Play hints"; Tab into the controls stops them too.
+- **Hint 15's "Langfuse"** (the review's N2; spec.md's Amendment L12): the loader's card quotes the neon sign's second line, "metered by the gateway · traced in Langfuse", as plain text, where spec 004's FR-049 and `REVIEW.md` name the sign alone. You approved the copy as written; if you'd rather the name stay on the sign, hint 15 is one line in `apps/web/room/hints.yaml` to reword or remove, and `REVIEW.md`'s list is yours to extend.
 - **The look** (SC-010): enter once with the network throttled and once without; watch the bar fill and the room come together behind it, still; read the hints, pause them, and step through them; try a phone held upright. A yes or a no for each in a follow-up note; a change to the look is a new intent.
 
-**A refusal this session met.** The bash gate refused several commits while the main checkout was on `main` (the Author's gate). As the brief directs, the session kept working and committed later, in order, never in another form. One commit made in a burst afterwards took the wrong message (the refused command's message file had never been written); it was amended at once, before anything built on it.
+**A refusal this session met.** The bash gate refused several commits while the main checkout was on `main` (the Author's gate). As the brief directs, the session kept working and committed later, in order, never in another form. One commit made in a burst afterwards took the wrong message (the refused command's message file had never been written); it was amended at once, before anything built on it. Later, while it refused the User Story 6 commit, one attempt left out a patch file's removal, to rule out `git rm` as the trigger; it was refused all the same, so the patch files stay beside this note as the record of the held work, and no other form was tried. And `tasks.md` keeps T033, T036, and T037 unticked: they are done, as this note records, but the guard lets only this note change after 91593f6e, so their ticks wait for the next change that moves the anchor (the merge of `main` after `feat/005-full-window-room` lands, if one is needed), and this note is their record until then.
 
 ## T001: the base, the outside facts, and the numbers
 
