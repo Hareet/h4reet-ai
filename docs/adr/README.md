@@ -4,7 +4,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 
 | # | Decision | Status | Spec |
 |---|---|---|---|
-| [0001](0001-local-first-routing-with-capped-bedrock-fallback.md) | Local-first routing with Bedrock as capped fallback (one Decision extended by 0041) | proposed | 000 |
+| [0001](0001-local-first-routing-with-capped-bedrock-fallback.md) | Local-first routing with Bedrock as capped fallback (one Decision extended by 0041; amended by 0044) | proposed | 000 |
 | [0002](0002-one-compose-topology-for-every-environment.md) | Everything containerized; one compose topology for every environment | proposed | 000 |
 | [0003](0003-local-compose-first-then-terraform-elevation.md) | Local-compose-first delivery, then Terraform elevation to AWS | proposed | 000, 001 |
 | [0004](0004-langfuse-and-grafana-over-opentelemetry.md) | Langfuse (self-hosted, in the stack) + Grafana dashboards | proposed | 000 |
@@ -38,3 +38,4 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0040](0040-the-twins-conversation-core.md) | The twin's conversation core: a gateway route, a committed grounding pack, deterministic guards, and readiness by hash in a human-only file (0039 is allocated to spec 008's walking view) | proposed | 007 |
 | [0041](0041-the-anthropic-api-as-a-second-paid-adapter.md) | The Anthropic API as a second paid adapter, prod's fallback one at a time: the official SDK pinned and vetted behind a transport of its own, the same ceilings and a monthly cap of its own, and its flow disclosed in the Author's words before any call (extends 0001's Decision item 3 and its model line) | proposed | 010 |
 | [0042](0042-alerts-designed-to-be-read.md) | Alerts designed to be read: Telegram's message entities and a hand-written HTML email, each with its plain form as the fallback, and a marked sample of each (extends one Decision of 0005) | proposed | 011 |
+| [0044](0044-ec2-as-prods-default-host.md) | EC2 as prod's default host: the Anthropic API answers first, Bedrock second, one host serving at a time, a relay at an outbound tunnel's end, on spot, that picks the host, one meter in the cloud, and the model ceilings separate from the server's budget (amends 0001's Decision; 0043 is allocated to spec 005's room) | proposed | 001 |
