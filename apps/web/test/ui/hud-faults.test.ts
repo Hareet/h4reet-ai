@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import { compose } from "../../build/room/compose";
 import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import type { Protect } from "../../src/room/compose/frame";
+import { hudBoxes } from "../../src/room/compose/hud";
+import type { Box } from "../../src/room/compose/hud";
 import type { StatusResult } from "../../src/room/signals/tier";
 import {
   AI_DISCLOSURE,
@@ -173,5 +176,84 @@ describe("the layout under every fault (spec 005, T040)", () => {
     expect(v.room.visit.mode).toBe("2d");
     expect(fs.asked).toEqual([{ navigationUI: "hide" }]);
     await expectWhole(v, "a lost context in full screen");
+  });
+});
+
+// T021 (spec 014; FR-001, FR-002, FR-004, FR-065; SC-011): the frame never degrades the room. Over FR-002's states, with
+// no WebGL 2, and with the frame computation throwing, each run ends as spec 005's do (expectWhole: the room filling the
+// window, the HUD usable, the disclosure and the stand-in line in view, only the conversation's answers degraded, no
+// request beyond the room's own) and with the room framed into its frame area or the clear area: the frame given to the
+// stage, and the --frame-* properties, hold the clear area and lie in the window; no image is asked for.
+describe("the frame under every fault (spec 014, T021)", () => {
+  const W = { w: 1920, h: 1200 };
+  /** A protector whose one box sits at the window's centre, clear of every compact box: the frame is the window. */
+  const centred: Protect = {
+    boxes: (area) => [{ x: area.x + area.w / 2 - 22, y: area.y + area.h / 2 - 22, w: 44, h: 44 }],
+  };
+  async function framedRoom(o: { webgl?: boolean; index?: RoomIndex; protect?: Protect } = {}) {
+    const viewport = stubViewport(W);
+    const v = start({ webgl: o.webgl ?? true, viewport: viewport.factory, ...(o.index ? { room: o.index } : {}) });
+    if (o.protect) v.scene.protect = o.protect;
+    stubFullscreen(v);
+    await intoRoom(v);
+    return v;
+  }
+  const holds = (outer: Box, inner: Box): boolean =>
+    outer.x <= inner.x + 1e-9 &&
+    outer.y <= inner.y + 1e-9 &&
+    outer.x + outer.w >= inner.x + inner.w - 1e-9 &&
+    outer.y + outer.h >= inner.y + inner.h - 1e-9;
+  function expectFramed(v: Visit, what: string): void {
+    const clear = hudBoxes(W).clear;
+    const root = v.doc.documentElement;
+    const px = (name: string): number => Number.parseFloat(root.style.getPropertyValue(name));
+    const frame = { x: px("--frame-x"), y: px("--frame-y"), w: px("--frame-w"), h: px("--frame-h") };
+    for (const value of Object.values(frame)) expect(Number.isFinite(value), `${what}: --frame-*`).toBe(true);
+    expect(holds(frame, clear), `${what}: the frame holds the clear area`).toBe(true);
+    expect(holds({ x: 0, y: 0, ...W }, frame), `${what}: the frame lies in the window`).toBe(true);
+    if (v.room.visit.mode !== "2d") {
+      const given = v.scene.created[0]?.frame?.();
+      expect(given, `${what}: the stage's frame`).not.toBeNull();
+      if (given) expect(holds(given.area, clear), `${what}: the stage's frame holds the clear area`).toBe(true);
+    }
+    expect(v.doc.querySelectorAll("img[src]").length, `${what}: no image asked for`).toBe(0);
+  }
+
+  it.each([
+    ["the local tier off", { local_tier: "down", state: "normal", cause_now: null }],
+    ["the budget spent", { local_tier: "up", state: "degraded", cause_now: "meter_at_ceiling" }],
+    ["the kill switch degraded", { local_tier: "up", state: "degraded", cause_now: "kill_switch_tripped" }],
+    ["the kill switch's state unknown", { local_tier: "up", state: "unknown", cause_now: null }],
+  ] as const)("frames the room into the window's frame area with %s", async (what, body) => {
+    const v = await framedRoom({ index: site(fixture().index), protect: centred });
+    v.room.live.complete(answer(v, body));
+    expectFramed(v, what);
+    expect(v.scene.created[0]?.frame?.()?.ease).toBe(0);
+    await expectWhole(v, what);
+  });
+
+  it("frames the room with the live source off, and with no WebGL 2 in its 2D frame area", async () => {
+    const off = await framedRoom({ index: fixture().index, protect: centred });
+    expectFramed(off, "the live source off");
+    await expectWhole(off, "the live source off");
+    const flat = await framedRoom({ webgl: false });
+    expect(flat.room.visit.mode).toBe("2d");
+    expectFramed(flat, "no WebGL 2");
+    await expectWhole(flat, "no WebGL 2");
+  });
+
+  it("frames into the clear area when the frame computation throws, and carries on (FR-004)", async () => {
+    const v = await framedRoom({
+      protect: {
+        boxes: () => {
+          throw new Error("the protector failed");
+        },
+      },
+    });
+    expectFramed(v, "the frame computation throwing");
+    const given = v.scene.created[0]?.frame?.();
+    expect(given?.area).toEqual(hudBoxes(W).clear);
+    expect(given?.ease).toBe(1);
+    await expectWhole(v, "the frame computation throwing");
   });
 });
