@@ -1,0 +1,4 @@
+rule: RT16
+file: apps/web/room/hints.yaml
+path: hints[0].text
+why: a hint over 25 words once filled

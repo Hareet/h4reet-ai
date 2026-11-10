@@ -433,6 +433,8 @@ Each step records spec 003's asset event (R-60). This is spec 002's T078, which 
 
 **Rationale.** FR-055 to FR-057 and spec 003's site-loading order and failures; the hand-off, which nothing may skip, stays smooth.
 
+**(spec 012)** Step 4, amended (its Amendment L6; FR-021): a set model parses and swaps while spec 012's loader shows, as its file arrives, or after the hand-off ends, and never from the loader's giving way to the hand-off's end. A parse already begun when the loader gives way may finish, since a parse can't be stopped part-way; its model swaps in only once the hand-off ends, as spec 009's FR-022 words it for avatars. The loader passes a `modelGate` the set models await, the same function as the figures' `figureGate`, and a `swapGate` between the parse and the swap, raced with `stop()`; the 3D stage closes both when the loader gives way or at the hand-off's first frame, whichever comes first. Where no loader shows (the lookdev page), a set model waits for the hand-off's end, as above. The rationale holds: the hand-off, which nothing may skip, stays smooth.
+
 **Alternatives considered.** Parsing during the hand-off (frames would stall in the one animation nothing skips). Keeping decoded bitmaps (close to double the texture memory on a phone). `GLTFLoader.load(url)` (no integrity and no timeout control).
 
 ### R-29: GLB textures under the unchanged CSPs (FR-075)

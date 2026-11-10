@@ -570,6 +570,57 @@ describe("typefaces (FR-061; R-37)", () => {
     expect(changes).toEqual([TYPEFACE_WAIT_MS]);
   });
 
+  // Spec 012 (T007; FR-010; PD-15): the loader's typefaces step ends when every typeface has arrived or failed, or at
+  // TYPEFACE_WAIT_MS; a page with no font-loading API asks for none, so its step ends at once (plan.md's departure C1).
+  it("settles once every typeface has arrived (spec 012, T007)", async () => {
+    const { doc, arrive } = fakeFonts();
+    const clock = new FakeClock();
+    const loader = loadTypefaces(doc, clock, typefaces());
+    let settled = false;
+    void loader.settled().then(() => (settled = true));
+    clock.advance(300);
+    await flush();
+    expect(settled).toBe(false);
+    arrive();
+    await flush();
+    expect(settled).toBe(true);
+  });
+
+  it("settles once every typeface has arrived or failed, a failed one counting (spec 012, T007)", async () => {
+    const clock = new FakeClock();
+    const doc = { fonts: { load: () => Promise.reject(new Error("no such file")) } } as unknown as Document;
+    const loader = loadTypefaces(doc, clock, typefaces());
+    let settled = false;
+    void loader.settled().then(() => (settled = true));
+    await flush();
+    expect(settled).toBe(true);
+  });
+
+  it(`settles at ${TYPEFACE_WAIT_MS / 1000} s when a typeface hasn't arrived by then (spec 012, T007)`, async () => {
+    const { doc } = fakeFonts();
+    const clock = new FakeClock();
+    const loader = loadTypefaces(doc, clock, typefaces());
+    let settled = false;
+    void loader.settled().then(() => (settled = true));
+    clock.advance(TYPEFACE_WAIT_MS - 1);
+    await flush();
+    expect(settled).toBe(false);
+    clock.advance(1);
+    await flush();
+    expect(settled).toBe(true);
+  });
+
+  it("settles at once on a page with no document.fonts, which asks for no typeface (spec 012, T007)", async () => {
+    const clock = new FakeClock();
+    const loader = loadTypefaces({} as Document, clock, typefaces());
+    let settled = false;
+    void loader.settled().then(() => (settled = true));
+    await flush();
+    expect(settled).toBe(true);
+    // The faces still draw with their fallback at TYPEFACE_WAIT_MS, as before.
+    expect(loader.family("neon")).toBeNull();
+  });
+
   it("gives the words and their layout whatever the family, so the text copy never waits for a typeface", () => {
     const { index } = fixture();
     for (const face of index.faces) {

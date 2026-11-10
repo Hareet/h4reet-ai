@@ -18,7 +18,7 @@ import type { RoomScene } from "../../src/room/compose/bundle";
 import { readImage } from "../../src/room/glb/images";
 import { createScene } from "../../src/room/scene";
 import { AVATAR_NODE } from "../../src/room/scene/avatars";
-import { integrity } from "../../src/room/scene/loader";
+import { figureEntries, integrity, modelEntries } from "../../src/room/scene/loader";
 import type { FigureSignal, SceneOptions } from "../../src/room/stage";
 import { FakeClock, flush } from "../helpers/room";
 import type { TestWindow } from "../helpers/room";
@@ -291,6 +291,34 @@ describe("the figures in the 3D stage (scene.ts with scene/avatars.ts)", () => {
     await answer(s, () => avatarIn(s, "fx-twin"));
     expect(s.fetched.length).toBe(2 * before);
     expect(avatarIn(s, "fx-twin")).toBe(true);
+    s.stage.dispose();
+  });
+});
+
+// Spec 012 (T005; FR-014, FR-021; contracts/loading-progress.md §3): the figures' files in what the 3D stage will load,
+// and their gate closed from the loader's giving way, as from the hand-off's first frame.
+describe("spec 012: the figures' files in the stage's expected list, and the gate from the loader's giving way (T005)", () => {
+  it("lists each figure file and each set model as {asset, bytes}", async () => {
+    const s = staged("woman");
+    const part = composed().scene;
+    const want = [...figureEntries(part, "woman"), ...modelEntries(part)].map((e) => ({
+      asset: e.asset,
+      bytes: e.bytes,
+    }));
+    expect(want.length).toBeGreaterThan(4);
+    await expect(s.stage.expected).resolves.toEqual(want);
+    s.stage.dispose();
+  });
+
+  it("parses nothing for the figures once the loader has given way, before the hand-off's first frame, and swaps them in when it ends", async () => {
+    const s = staged("woman", { gaveWay: Promise.resolve() });
+    await answer(s, () => s.fetched.length >= 8 && false);
+    expect(s.fetched).toHaveLength(8);
+    expect(avatarIn(s, "fx-visitor")).toBe(false);
+    s.stage.showHandoff(0);
+    s.handoff();
+    await answer(s, () => avatarIn(s, "fx-visitor") && avatarIn(s, "fx-twin"));
+    expect(avatarIn(s, "fx-visitor") && avatarIn(s, "fx-twin")).toBe(true);
     s.stage.dispose();
   });
 });

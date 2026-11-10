@@ -289,6 +289,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     },
     onChange: (fn) => fonts.onChange(fn),
     dispose: () => fonts.dispose(),
+    settled: () => fonts.settled(),
   };
   let faces: FaceQuads | null = null;
   let glows: GlowCards | null = null;

@@ -521,6 +521,53 @@ export const topicsSchema = z.strictObject({
   ),
 });
 
+/** A hint's ID: lowercase words joined by `-`, 1 to 40 characters (spec 012's contracts/hints.md §1). */
+const HINT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const hintId = z
+  .string()
+  .max(40)
+  .regex(HINT_ID, own("RD3", `a hint's id outside the grammar ${HINT_ID.source}`));
+/** A hint's text before its slots are filled: one line, 1 to 200 characters. */
+const hintText = line("a line break in a hint").min(1).max(200);
+/** `when`: free_talk_ready alone (spec 012, FR-032, FR-035). */
+const hintWhen = z.literal("free_talk_ready").optional();
+
+/** `apps/web/room/hints.yaml` (spec 012's contracts/hints.md §1): 1 to 20 hints, each the Author's, with his words'
+ *  `words_from` (exactly one, RT15's), or the session's, with its `sources` (RT14's); the other key refused by its
+ *  form; an `id` once in the file. */
+export const hintsSchema = z.strictObject({
+  version: version(),
+  hints: z
+    .array(
+      z.discriminatedUnion("by", [
+        z.strictObject({
+          id: hintId,
+          by: z.literal("author"),
+          text: hintText,
+          words_from: z.array(quoteRef).optional(),
+          when: hintWhen,
+        }),
+        z.strictObject({
+          id: hintId,
+          by: z.literal("session"),
+          text: hintText,
+          sources: z.array(z.string().min(1)).max(6).optional(),
+          when: hintWhen,
+        }),
+      ]),
+    )
+    .min(1)
+    .max(20)
+    .superRefine((hints, ctx) => {
+      const seen = new Set<string>();
+      hints.forEach((h, i) => {
+        if (seen.has(h.id))
+          ctx.addIssue({ code: "custom", path: [i, "id"], message: own("RD3", "a hint's id used twice").error });
+        seen.add(h.id);
+      });
+    }),
+});
+
 /** A line: `text` with no line break; `about_author` and `pending` default false; `claims`, whose absence on a line
  *  about the Author is RT5's. */
 const textLine = z.strictObject({
@@ -715,3 +762,5 @@ export type LookFile = z.output<typeof lookSchema>;
 export type Fixture = z.output<typeof fixtureSchema>;
 export type TurnOutcome = Fixture["turns"][number];
 export type Lookdev = z.output<typeof lookdevSchema>;
+export type Hints = z.output<typeof hintsSchema>;
+export type Hint = Hints["hints"][number];

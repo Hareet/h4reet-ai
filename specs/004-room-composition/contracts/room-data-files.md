@@ -48,6 +48,8 @@ apps/web/content/room/               room text, approved by hash: agents draft, 
 
 The caps come through the policy, never the tree ([room-bundle.md](room-bundle.md) §2).
 
+**(spec 012)** `apps/web/room/hints.yaml`, the loader's hints, joins the room's data files (its Amendment L8; FR-032; its contracts/hints.md §1): written by agents and reviewed, its Author's hints only with his words in an intent; not approved by hash; what reaches the built site is each hint's text, its slots filled, in the index's `hints`, never its `by`, `words_from`, `sources`, or `when`. The compositor also reads, through its tree, `config/budgets.yaml`, `config/routing.yaml`, and `config/prices.yaml` for the hints' figures (`build/room/hints.ts`), as the room's build reads `config/budgets.yaml` and `config/twin-readiness.yaml` today; and, in strict mode, each file a session hint names in its `sources`, to see the tree holds it (RT14), and nothing else of it. FR-006's data-only test lists both.
+
 ## 2. Common rules
 
 | Rule | Value |
@@ -476,6 +478,8 @@ A value is a string, or `{text, about_author: true, claims}` for a word that sta
 
 **(spec 005)** The closed list gains, each with no slot (its FR-065; Amendments H14, H17): `fullscreen.enter` ("Full screen"), `fullscreen.leave` ("Leave full screen"), `fullscreen.refused` ("Full screen isn't available here. The room still fills the window."), `walk.help_fullscreen` and `walk.entered_fullscreen` (the walking view's words while the page is in full screen), `hud.log_toggle` ("Conversation", the conversation log's header button), `talk.larger` ("Larger conversation"), and `talk.smaller` ("Smaller conversation"). `list.heading` is now the list's visible header button. `flat-failed`'s default loses "below", since the list is no longer below the stage: "This drawing of the room could not be shown. The list of things in the room still works." (its D9, a data edit and the Author's to change). The frame log's events (research.md R-70) gain `refit`, `panel`, and `fullscreen`.
 
+**(spec 012)** The closed list gains the loader's words (its Amendment L9; FR-016, FR-051; D8): `loading.heading` ("Loading the room"), `loading.code` ("Loading the room's code"), `loading.pieces` with `{done}` and `{total}` ("Loading the room's pieces: {done} of {total}"), `loading.finishing` ("Finishing the room"), `loading.ready` ("The room is ready."), `loading.cut_short` ("The room opens now. Some pieces are still on their way and appear as they arrive."), `hints.label` ("Hint"), `hints.position` with `{n}` and `{total}` ("Hint {n} of {total}"), `hints.pause` ("Pause hints"), `hints.play` ("Play hints"), `hints.previous` ("Previous hint"), and `hints.next` ("Next hint"). The slots `{done}`, `{total}`, and `{n}` join `{time}`, `{amount}`, and `{name}`: live counts, filled at run time. None states anything about the Author. The frame log's events gain `loading`.
+
 How the sign's readings combine is [turn-cost.md](turn-cost.md)'s. Every value passes C9; C6 and C8 apply where it states anything about the Author, and a live value in a slot counts as a slot for C6 (RT2, RT3, RT5; FR-035). Amounts are live values, never UI words, so no UI word holds a digit outside a slot (FR-048). Spec 002's fixed messages stay in its `messages.yaml`; `topic_not_ready`'s `{topic}` now takes the topic's phrase.
 
 ## 10. Looks: `apps/web/room/looks/<look>.yaml`
@@ -633,6 +637,15 @@ Nine families, two letters each, so a merge-request note that holds spec 003's A
 | RT11 | A `tier.*` UI word naming the twin | FR-035 |
 | RT12 | A closed-list UI key missing, or a value whose slots differ from its key's | FR-005, FR-029 |
 | RT13 | An outline breaking §8: another key; an `href`, a `data:` URI, a base64-like run, a file name, a path, or a file extension in any string; `paths` outside the grammar; a `cap_height` not above 0 or above the view box's height; in strict mode, `words` not inside the quotation marks of the intent `intent_ref` names | FR-032, FR-052 |
+
+**(spec 012)** The words family runs over `apps/web/room/hints.yaml` too (its Amendment L8; FR-032 to FR-034; its contracts/hints.md §4). RT2 and RT3 extend over every hint's text, refusing in both modes; RT9 extends over each Author's hint's `words_from`, in strict mode alone, as today. Four rules are new, each registered with its modes in `build/room/checks/family.ts`:
+
+| ID | Refused | Lenient build | Strict build | Spec |
+|---|---|---|---|---|
+| RT14 | A session hint with no `sources`, or a source the tree doesn't hold | doesn't run | refuses | spec 012's FR-032 |
+| RT15 | An Author's hint without exactly one `words_from`, or whose `text` isn't its quote exactly, character for character, whitespace included | refuses | refuses | spec 012's FR-029, FR-032 |
+| RT16 | A hint longer than 160 characters or 25 words once its slots are filled | refuses | refuses | spec 012's FR-033 |
+| RT17 | A slot outside the hints' closed list; a `{ui:…}` key off the closed list, or whose word holds a slot; or a slot the build can't fill | warns, and the hint is left out of the index | refuses | spec 012's FR-033 |
 
 ### 13.6 RV: vector drawings
 

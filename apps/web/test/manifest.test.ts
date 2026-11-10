@@ -104,6 +104,8 @@ describe("room-manifest.json (Amendment B7)", () => {
       "avatar_failed",
       // Spec 005 (its FR-060; Amendment H7).
       "fullscreen_entered",
+      // Spec 012 (its FR-046; Amendment L3).
+      "loading_cut_short",
     ]);
   });
 

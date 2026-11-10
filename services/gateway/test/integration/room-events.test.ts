@@ -179,6 +179,7 @@ describe("POST /room/events accepts", () => {
       { kind: "walk_started" },
       { kind: "avatar_failed" },
       { kind: "fullscreen_entered" },
+      { kind: "loading_cut_short" },
     ];
     for (const [i, event] of sent.entries()) {
       const res = await post(stack, JSON.stringify(event), i % 2 === 0 ? BEACON : "application/json");
@@ -199,6 +200,7 @@ describe("POST /room/events accepts", () => {
       [{ kind: "walk_started", id: "-" }, 1],
       [{ kind: "avatar_failed", id: "-" }, 1],
       [{ kind: "fullscreen_entered", id: "-" }, 1],
+      [{ kind: "loading_cut_short", id: "-" }, 1],
     ]);
     expect(await meter.points("h4.room.events.refused")).toEqual([]);
   });
@@ -222,6 +224,17 @@ describe("POST /room/events accepts", () => {
     expect(withId.statusCode).toBe(400);
     expect(withId.json()).toMatchObject({ error: "invalid_request", field: "body" });
     expect(await meter.points("h4.room.events")).toEqual([[{ kind: "fullscreen_entered", id: "-" }, 1]]);
+    expect(await meter.points("h4.room.events.refused")).toEqual([[{ reason: "shape" }, 1]]);
+  });
+
+  it("loading_cut_short with no identifier, and refuses it with one as the shape (spec 012, FR-046, SC-008)", async () => {
+    const { stack, meter } = await stackWith();
+    const ok = await post(stack, '{"kind":"loading_cut_short"}');
+    expect(ok.statusCode).toBe(204);
+    const withId = await post(stack, `{"kind":"loading_cut_short","id":"${firstObject()}"}`);
+    expect(withId.statusCode).toBe(400);
+    expect(withId.json()).toMatchObject({ error: "invalid_request", field: "body" });
+    expect(await meter.points("h4.room.events")).toEqual([[{ kind: "loading_cut_short", id: "-" }, 1]]);
     expect(await meter.points("h4.room.events.refused")).toEqual([[{ reason: "shape" }, 1]]);
   });
 

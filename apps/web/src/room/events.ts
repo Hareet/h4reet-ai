@@ -20,6 +20,9 @@ export const EVENT_KINDS = [
   // Spec 005 (its FR-060; Amendment H7): the visitor's first entry into full screen in a visit, with no identifier,
   // after spec 009's avatar_failed (plan.md §12.1).
   "fullscreen_entered",
+  // Spec 012 (its FR-046; Amendment L3): the loader giving way at its ceiling with the room's files still loading, once
+  // a visit, with no identifier, after spec 005's fullscreen_entered.
+  "loading_cut_short",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

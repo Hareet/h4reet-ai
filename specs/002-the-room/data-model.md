@@ -150,6 +150,8 @@ Each `cannot_talk` message ends by pointing to the resume and the PDF.
 
 **(spec 005)** `kind` may also be `fullscreen_entered`, with no `id` (spec 005's FR-060; Amendment H7), beside spec 008's `walk_started` and spec 009's `avatar_failed`; the kinds are `apps/web/src/room/events.ts`'s, which `config/room-events.yaml` lists.
 
+**(spec 012)** `kind` may also be `loading_cut_short`, with no `id` (spec 012's FR-046; Amendment L3): the loader giving way at its ceiling while the room's files are still loading, once a visit.
+
 **Nothing else.** No text, audio, path, avatar, client address, visit ID, or time: the gateway's clock times it (FR-054). It becomes one increment of `h4.room.events{kind, id}`, labelled `id="-"` when absent.
 
 ## 9. The visit (in the page)

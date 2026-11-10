@@ -229,6 +229,9 @@ function harness(
     handoff?: "pending" | "done";
     decoder?: Decoder;
     limit?: number;
+    /** Spec 012's gates (contract §3): given, the set models parse through `modelGate` and swap through `swapGate`. */
+    modelGate?: () => Promise<unknown>;
+    swapGate?: () => Promise<unknown>;
   } = {},
 ): Harness {
   const clock = new FakeClock();
@@ -275,6 +278,8 @@ function harness(
     uploader: { initTexture: (texture) => uploads.push(texture) },
     prepare: () => undefined,
     swap: (piece, model) => swaps.push({ piece, model, at: clock.now() }),
+    ...(options.modelGate ? { modelGate: options.modelGate } : {}),
+    ...(options.swapGate ? { swapGate: options.swapGate } : {}),
   };
   // The options read the harness itself, so a test's change to its mode or level reaches the loader.
   harnessed.loader = createLoader(loaderOptions);
@@ -1156,5 +1161,199 @@ describe("a set model's event when the room is in 2D before its 3D stage's loade
     v.clock.advance(SEND_EVERY_MS);
     await flush();
     expect(posts).toHaveLength(1);
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// Spec 012's gates (T005; FR-015, FR-021; SC-003; contracts/loading-progress.md §3): the set models parse and swap
+// while the loader shows, and never from its giving way to the hand-off's end
+// --------------------------------------------------------------------------------------------------------------------
+describe("spec 012's model and swap gates (T005)", () => {
+  /** The 3D stage's one rule, as scene.ts gives it: open while the loader shows; once closed (the loader gave way, or
+   *  the hand-off's first frame), each gate waits for the hand-off's end. */
+  function gates(): { gate: () => Promise<unknown>; close(): void; end(): void } {
+    let closed = false;
+    let end = (): void => undefined;
+    const ended = new Promise<void>((resolve) => (end = resolve));
+    return { gate: () => (closed ? ended : Promise.resolve()), close: () => (closed = true), end: () => end() };
+  }
+
+  it("parses and swaps a set model as soon as its file arrives while the gate is open, the hand-off still ahead", async () => {
+    const g = gates();
+    const h = harness({ handoff: "pending", modelGate: g.gate, swapGate: g.gate });
+    const done = h.loader.load([urlEntry("fx-desk")]);
+    await settle();
+    h.fetch.calls[0]?.answer({ body: DESK_GLB });
+    await settle();
+    expect(h.swaps.map((s) => s.piece)).toEqual(["fx-desk"]);
+    expect(h.events.map((e) => e.outcome)).toEqual(["loaded"]);
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+    expect(h.holds.held()).toBe(0);
+  });
+
+  it("parses a file that arrives once the gate has closed only after the hand-off ends", async () => {
+    const g = gates();
+    const h = harness({ handoff: "pending", modelGate: g.gate, swapGate: g.gate });
+    const done = h.loader.load([urlEntry("fx-desk")]);
+    await settle();
+    g.close();
+    h.fetch.calls[0]?.answer({ body: DESK_GLB });
+    await settle();
+    h.clock.advance(1000);
+    await settle();
+    expect(h.decoder.options).toEqual([]);
+    expect(h.holds.held()).toBe(0);
+    expect(h.swaps).toEqual([]);
+    g.end();
+    await settle();
+    expect(h.swaps.map((s) => s.piece)).toEqual(["fx-desk"]);
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+  });
+
+  it("finishes a parse begun before the gate closed, and holds its swap at the swap gate for the hand-off's end", async () => {
+    const g = gates();
+    const d = decoder({ gated: true });
+    const h = harness({ handoff: "pending", decoder: d, modelGate: g.gate, swapGate: g.gate });
+    const done = h.loader.load([memoryEntry("fx-desk", DESK_GLB)]);
+    await settle();
+    // Parsing: its hold taken, its decode waiting.
+    expect(h.holds.held()).toBe(1);
+    expect(d.waiting()).toBeGreaterThan(0);
+    g.close();
+    d.open();
+    await settle();
+    h.clock.advance(500);
+    await settle();
+    // Parsed, not swapped: the hold covers the wait.
+    expect(h.swaps).toEqual([]);
+    expect(h.holds.held()).toBe(1);
+    expect(h.events).toEqual([]);
+    g.end();
+    await settle();
+    expect(h.swaps.map((s) => s.piece)).toEqual(["fx-desk"]);
+    expect(h.events.map((e) => e.outcome)).toEqual(["loaded"]);
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+    expect(h.holds.held()).toBe(0);
+  });
+
+  it("swaps nothing when stopped during a swap gate's wait, and lets its hold go", async () => {
+    const g = gates();
+    const d = decoder({ gated: true });
+    const h = harness({ handoff: "pending", decoder: d, modelGate: g.gate, swapGate: g.gate });
+    const done = h.loader.load([memoryEntry("fx-desk", DESK_GLB)]);
+    await settle();
+    g.close();
+    d.open();
+    await settle();
+    expect(h.holds.held()).toBe(1);
+    h.mode = "2d";
+    h.loader.stop();
+    await settle();
+    expect(h.swaps).toEqual([]);
+    expect(h.holds.held()).toBe(0);
+    expect(h.events).toEqual([{ asset: "fx-desk", outcome: "skipped", ms_bucket: "<250", bytes: 0, mode: "2d" }]);
+    g.end();
+    await settle();
+    await done;
+    expect(h.swaps).toEqual([]);
+    expect(h.holds.held()).toBe(0);
+  });
+
+  it("reloads after a lost context's restore during a swap gate's wait as it does today", async () => {
+    const g = gates();
+    const h = harness({ handoff: "pending", modelGate: g.gate, swapGate: g.gate });
+    const first = h.loader.load([memoryEntry("fx-a", DESK_GLB)]);
+    await settle();
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await first;
+    expect(h.swaps.map((s) => [s.piece, s.model !== null])).toEqual([["fx-a", true]]);
+    g.close();
+    const waiting = h.loader.load([memoryEntry("fx-b", DESK_GLB)]);
+    await settle();
+    expect(h.swaps).toHaveLength(1);
+    // The restore: the shown piece back to its stand-in at once, and loaded again, through the closed gate.
+    const reloading = h.loader.reload();
+    await settle();
+    expect(h.swaps.map((s) => [s.piece, s.model !== null])).toEqual([
+      ["fx-a", true],
+      ["fx-a", false],
+    ]);
+    g.end();
+    await settle();
+    expect(
+      h.swaps
+        .slice(2)
+        .map((s) => [s.piece, s.model !== null])
+        .sort(),
+    ).toEqual([
+      ["fx-a", true],
+      ["fx-b", true],
+    ]);
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await Promise.all([waiting, reloading]);
+    expect(h.holds.held()).toBe(0);
+  });
+
+  // T037, the review's N1: two parses in flight as the gate closes both passed the ledger's check before their swaps
+  // waited; the second, uploaded after the first, would take the ledger over its limit. Each checks again after the wait.
+  it("checks the ledger again after the swap gate, so two parses that waited can't both take it over its limit", async () => {
+    const g = gates();
+    const d = decoder({ gated: true });
+    const h = harness({
+      handoff: "pending",
+      decoder: d,
+      modelGate: g.gate,
+      swapGate: g.gate,
+      limit: Math.floor(DESK_TEXTURE_BYTES * 1.5),
+    });
+    const done = h.loader.load([memoryEntry("fx-a", DESK_GLB), memoryEntry("fx-b", DESK_GLB)]);
+    await settle();
+    expect(h.holds.held()).toBe(2);
+    g.close();
+    d.open();
+    await settle();
+    expect(h.swaps).toEqual([]);
+    g.end();
+    await settle();
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+    expect(h.swaps.map((s) => s.piece)).toEqual(["fx-a"]);
+    expect(h.events.map((e) => [e.asset, e.outcome])).toEqual([
+      ["fx-a", "loaded"],
+      ["fx-b", "skipped"],
+    ]);
+    expect(h.ledger.bytes).toBeLessThanOrEqual(Math.floor(DESK_TEXTURE_BYTES * 1.5));
+    expect(h.holds.held()).toBe(0);
+  });
+
+  it("leaves the fetch, its order, its slots, and its events as they were", async () => {
+    const g = gates();
+    const h = harness({ modelGate: g.gate, swapGate: g.gate });
+    const pieces = ["fx-a", "fx-b", "fx-c", "fx-d", "fx-e"];
+    const done = h.loader.load(pieces.map((p) => urlEntry(p)));
+    await settle();
+    expect(MAX_FETCHES).toBe(4);
+    expect(h.fetch.calls.map((c) => c.url)).toEqual(pieces.slice(0, 4).map(urlOf));
+    for (const c of h.fetch.calls)
+      expect(c.init).toMatchObject({
+        integrity: integrity(SHA),
+        redirect: "error",
+        mode: "same-origin",
+        credentials: "same-origin",
+      });
+    for (const c of h.fetch.calls.slice(0, 4)) c.answer({ body: DESK_GLB });
+    await settle();
+    h.fetch.calls[4]?.answer("hang");
+    h.clock.advance(FETCH_TIMEOUT_MS);
+    await settle();
+    expect(h.events.filter((e) => e.asset === "fx-e").map((e) => e.outcome)).toEqual(["retried"]);
+    h.fetch.calls[5]?.answer({ body: DESK_GLB });
+    await settle();
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+    expect(h.events.filter((e) => e.outcome === "loaded").map((e) => e.asset)).toHaveLength(5);
   });
 });
