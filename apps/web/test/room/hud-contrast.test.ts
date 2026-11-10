@@ -205,6 +205,11 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass button:focus-visible`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass input:focus-visible`],
         [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass.room-walk:focus-visible`],
+        // T053's second review: the offer's ring and the walking control's hover have their fallbacks too.
+        [/forced-colors/, "outline-color", "Highlight", `${at} .room-offer button:focus-visible`],
+        [/forced-colors/, "background", "ButtonFace", `${at} .room-walk:hover`],
+        [/forced-colors/, "border-color", "Highlight", `${at} .room-walk:hover`],
+        [/prefers-reduced-transparency/, "background", "rgb(var(--glass))", `${at} .room-walk:hover`],
       );
     const losing: string[] = [];
     for (const [block, property, value, rule] of FALLBACKS) {

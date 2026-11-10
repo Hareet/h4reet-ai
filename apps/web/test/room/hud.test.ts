@@ -336,8 +336,8 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
     const area = c.all.reduce((n, b) => n + b.w * b.h, 0) + notesW * notesReserve(clear);
     expect(alwaysOnCoverage(screen)).toBeCloseTo(area / (1920 * 1200), 9);
     expect(alwaysOnCoverage(screen)).toBeLessThan(0.25);
-    // Overlapping boxes count once: a window where the bar's cluster runs under the walking control's corner counts
-    // the shared part once, so the coverage is never above the boxes' summed areas.
+    // Overlapping boxes count once: where two boxes share a part (on a short window the walking control in the clear
+    // area's corner can meet the bar's cluster or the column), the coverage is never above the boxes' summed areas.
     for (const s of [
       { w: 1280, h: 720 },
       { w: 700, h: 400 },
@@ -388,8 +388,8 @@ describe("the walking control at the column's head (spec 014, T053)", () => {
       expect(c.layout, where).toBe("column");
       expect(c.walkPlace, where).toBe("column");
       expect(inside(bands.column, c.walk), where).toBe(true);
-      expect(c.walk.y + c.walk.h, where).toBeCloseTo(column.y - HUD_PLACEMENTS.bar.gapRem * 16, 6);
-      expect(c.walk.x + c.walk.w, where).toBeCloseTo(column.x + column.w - HUD_PLACEMENTS.bar.gapRem * 16, 6);
+      expect(c.walk.y + c.walk.h, where).toBeCloseTo(column.y - HUD_PLACEMENTS.column.walkGapRem * 16, 6);
+      expect(c.walk.x + c.walk.w, where).toBeCloseTo(column.x + column.w - HUD_PLACEMENTS.column.walkGapRem * 16, 6);
       expect([c.walk.w, c.walk.h], where).toEqual([128, 44]);
       expect(meets(c.walk, bands.clear), where).toBe(false);
       expect(meets(c.walk, column), where).toBe(false);

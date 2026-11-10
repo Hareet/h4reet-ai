@@ -8,7 +8,7 @@
 // column's log rests at --log-rest and scrolls; and the room sets the compact boxes' properties from compactBoxes.
 import { describe, expect, it } from "vitest";
 
-import { compactBoxes, logRestRem } from "../../src/room/compose/hud";
+import { compactBoxes, hudBoxes, logRestRem } from "../../src/room/compose/hud";
 import { button, flush, intoRoom, matchesRule, parseCss, start, stubViewport, stylesheets } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
@@ -263,6 +263,43 @@ describe("the walking control at the column's head, and the hover's scope (spec 
     expect(wide.doc.querySelector(".room-clear > .room-walk")).not.toBeNull();
     const phone = await room({ w: 390, h: 844 });
     expect(phone.doc.documentElement.getAttribute("data-walk-place")).toBe("stage");
+  });
+
+  // T053's second review: the larger conversation's sheet is positioned in the panels' box, which spec 014 made the
+  // compact column; it still opens as spec 005 drew it (its FR-028), from the notes' foot to 3.75rem above the bar,
+  // what the visitor opens counting for no HUD box (FR-019). Its box, from the rule's declarations and the room's
+  // properties, over the column's compact box, its containing block.
+  it("opens the larger conversation as tall as spec 005 drew it, above the compact column", async () => {
+    const screen = { w: 1920, h: 1200 };
+    const v = await room(screen);
+    const root = v.doc.documentElement;
+    const rule = ROOM_RULES.find((r) => r.selector === 'html[data-hud="column"] .talk[data-larger="on"] .talk-sheet');
+    const value = (expr: string): number => {
+      const resolved = expr.replace(/var\((--[\w-]+)\)/g, (_, name: string) => root.style.getPropertyValue(name));
+      const terms = resolved
+        .replace(/^calc\((.*)\)$/, "$1")
+        .replace(/px/g, "")
+        .replace(/rem/g, "*16");
+      if (!/^[\d.\s+*-]+$/.test(terms)) throw new Error(`not a sum: ${expr}`);
+      return terms
+        .split(/\s+(?=[+-]\s)/)
+        .map((t) => t.trim())
+        .reduce((n, t) => {
+          const sign = t.startsWith("-") ? -1 : 1;
+          const body = t.replace(/^[+-]\s*/, "");
+          const [a, b] = body.split("*").map(Number);
+          return n + sign * (a ?? 0) * (b ?? 1);
+        }, 0);
+    };
+    const c = compactBoxes(screen);
+    const bands = hudBoxes(screen);
+    if (!c.column || !rule) throw new Error("no column or no rule");
+    const top = c.column.y + value(rule.declarations.get("top") ?? "");
+    const bottom = c.column.y + c.column.h - value(rule.declarations.get("bottom") ?? "");
+    const notes = Number.parseFloat(root.style.getPropertyValue("--notes-h"));
+    expect(top).toBeCloseTo(bands.clear.y + notes, 3);
+    expect(bottom).toBeCloseTo(bands.bar.y - 60, 3);
+    expect(bottom - top).toBeGreaterThan(0.6 * screen.h);
   });
 
   it("gives the control its own glass hover, and every hover rule only where the pointer hovers", () => {

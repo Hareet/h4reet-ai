@@ -149,7 +149,8 @@ describe("the report's stages and reserved boxes (FR-055, FR-057; plan.md §10.2
         `(1920 × 1200 at a pixel ratio of 1) and the reference phone's 384 × 422 (384 × 740 at 2.8125).`,
     );
     expect(md).toContain(
-      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), 8rem × 2.75rem, 0.5rem in from " +
+      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area " +
+        "(since spec 014's W19, on short column windows and in the dock), 8rem × 2.75rem, 0.5rem in from " +
         "the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.",
     );
     expect(md).not.toContain("The walking control's box (spec 008, FR-021)");
