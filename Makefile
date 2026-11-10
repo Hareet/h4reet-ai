@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -498,29 +498,32 @@ infra-mirror: ## (the Author) Seed the Terraform provider mirror at .devcontaine
 # Spec 001's offline checks (contracts/infra-records.md §1 and §3; quickstart.md §1), each PLANNED, naming its task,
 # until its part exists: the guard patch's checkers (P-1, T010), the Author's provider mirror (T011), and infra/
 # (T020). Then infra_policy.py on the HCL, terraform fmt, and, per root, init against the mirror alone and validate.
+# Each is one shell script, so a PLANNED step's exit 0 ends the whole target; make plan runs the same script.
 INFRA_MIRROR := $(HOME)/.local/share/h4reet/terraform-providers
 INFRA_ROOTS := $(notdir $(wildcard infra/bootstrap infra/account infra/prod))
-infra-check: ## Spec 001's offline Terraform checks: the policy, fmt, and validate against the provider mirror
-	@[ -f tools/gates/infra_policy.py ] || { echo "PLANNED (T010): tools/gates/infra_policy.py arrives with the guard patch, P-1"; exit 0; }
-	@[ -d "$(INFRA_MIRROR)" ] || { echo "PLANNED (T011): the provider mirror, $(INFRA_MIRROR), is the Author's make infra-mirror"; exit 0; }
-	@[ -d infra ] || { echo "PLANNED (T020): no infra/ yet; group 3 writes its first file"; exit 0; }
-	$(PY_HOST) tools/gates/infra_policy.py
-	@command -v terraform >/dev/null 2>&1 || { echo "PLANNED (T011): terraform isn't installed here; the Author's make check runs fmt and validate"; exit 0; }
-	CHECKPOINT_DISABLE=1 terraform fmt -check -recursive infra
-	@set -e; cfg="$$(mktemp)"; data="$$(mktemp -d)"; trap 'rm -rf "$$cfg" "$$data"' EXIT; \
+INFRA_CHECK_SH = set -e; \
+	if [ ! -f tools/gates/infra_policy.py ]; then echo "PLANNED (T010): tools/gates/infra_policy.py arrives with the guard patch, P-1"; exit 0; fi; \
+	if [ ! -d "$(INFRA_MIRROR)" ]; then echo "PLANNED (T011): the provider mirror, $(INFRA_MIRROR), is the Author's make infra-mirror"; exit 0; fi; \
+	if [ ! -d infra ]; then echo "PLANNED (T020): no infra/ yet; group 3 writes its first file"; exit 0; fi; \
+	$(PY_HOST) tools/gates/infra_policy.py; \
+	if ! command -v terraform >/dev/null 2>&1; then echo "PLANNED (T011): terraform isn't installed here; the Author's make check runs fmt and validate"; exit 0; fi; \
+	CHECKPOINT_DISABLE=1 terraform fmt -check -recursive infra; \
+	cfg="$$(mktemp)"; data="$$(mktemp -d)"; trap 'rm -rf "$$cfg" "$$data"' EXIT; \
 	printf 'provider_installation {\n  filesystem_mirror {\n    path = "%s"\n  }\n}\n' "$(INFRA_MIRROR)" >"$$cfg"; \
 	for root in $(INFRA_ROOTS); do \
 	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" init -backend=false -input=false -lockfile=readonly >/dev/null; \
 	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" validate -no-color; \
 	done
+infra-check: ## Spec 001's offline Terraform checks: the policy, fmt, and validate against the provider mirror
+	@$(INFRA_CHECK_SH)
 
 infra-plan-note: ## Spec 001's plan blocks: every root the branch changes has its block in the branch's note
-	@[ -f tools/gates/infra_plan_note.py ] || { echo "PLANNED (T010): tools/gates/infra_plan_note.py arrives with the guard patch, P-1"; exit 0; }
-	$(PY_HOST) tools/gates/infra_plan_note.py
+	@if [ ! -f tools/gates/infra_plan_note.py ]; then echo "PLANNED (T010): tools/gates/infra_plan_note.py arrives with the guard patch, P-1"; \
+	else $(PY_HOST) tools/gates/infra_plan_note.py; fi
 
 disclosure-check: ## Every outward thing the tree holds has its row in docs/data-flow-disclosure.md (spec 001 plan §8.3)
-	@[ -f tools/gates/disclosure_check.py ] || { echo "PLANNED (T010): tools/gates/disclosure_check.py arrives with the guard patch, P-1"; exit 0; }
-	$(PY_HOST) tools/gates/disclosure_check.py
+	@if [ ! -f tools/gates/disclosure_check.py ]; then echo "PLANNED (T010): tools/gates/disclosure_check.py arrives with the guard patch, P-1"; \
+	else $(PY_HOST) tools/gates/disclosure_check.py; fi
 
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
@@ -717,7 +720,7 @@ endif
 # Author's, with his SSO session, and arrives with group 3 (tasks.md T024); the bash gate refuses it to agents (P-1).
 plan: ## The offline Terraform checks (make infra-check); never apply from here. ROOT=… is the Author's real plan (T024)
 	@[ -z "$(call from_cli,ROOT)" ] || { echo "make plan ROOT=…: the real plan, the Author's, arrives with spec 001's group 3 (tasks.md T024)" >&2; exit 2; }
-	@$(MAKE) --no-print-directory infra-check
+	@$(INFRA_CHECK_SH)
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
