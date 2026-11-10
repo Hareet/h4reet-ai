@@ -3,18 +3,21 @@ Spec: [specs/001-cloud-elevation/](../../specs/001-cloud-elevation/) (its intent
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`; this branch's worktree is `/tmp/claude-1000/wt-001g3`, cut at `feat/001-measure`'s tip ee2d3224 · Repo hooks active: yes (`.claude/audit/hooks.log`; three refusals, under Verification, "Refusals")
 Authorized by: the Author's approval at T000, verbatim, as he went to bed on 2026-11-10: "Let's approve the t000 and spec 001 plan. Let's have you build it out but not push or try anything in the cloud yet, i will do that in the morning, but you can have everything ready and verified by then. Use the latest dependenices adn versions for aws services, plugins". Building group 3 before T001 is the main session's reading of those words, not a word of his (below).
 
-## Status: built and verified; the lockfile, the plan block, and P-I1 are yours; stacked on groups 1 and 2; not reviewed yet (T028 comes next); not merged; nothing applied, nothing pushed, no cloud call
+## Status: built and verified; T028's review found three blockers, one Important finding, and five nits, each fixed below; the service names, the lockfile, the plan block, and P-I1 are yours; stacked on groups 1 and 2; not merged; nothing applied, nothing pushed, no cloud call
 
-| Commit | What |
-|---|---|
-| 23242ebf | group 3's precondition, unmet, recorded in tasks.md, with spec.md's Assumptions and plan.md naming the extension; T020's wording, the reader |
-| 56d7a044 | T020 to T022, and T024's and T026's tests, RED |
-| df274c33 | T023 to T026, GREEN: the bootstrap root, P-I1, the five targets and their scripts, the credential audit, the README, the disclosure rows; plan.md §16's departures; tasks.md, the contract's §2, quickstart §3 |
-| 280c2fc5 | a test, RED: without `-s`, make echoed the five targets' script lines into their stdout |
-| 4c64a9a0 | the fix, GREEN: each script line starts with `@` |
-| this commit | this note |
+| Commit      | What                                                                                                                                                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 23242ebf    | group 3's precondition, unmet, recorded in tasks.md, with spec.md's Assumptions and plan.md naming the extension; T020's wording, the reader                                                                                                                                 |
+| 56d7a044    | T020 to T022, and T024's and T026's tests, RED                                                                                                                                                                                                                               |
+| df274c33    | T023 to T026, GREEN: the bootstrap root, P-I1, the five targets and their scripts, the credential audit, the README, the disclosure rows; plan.md §16's departures; tasks.md, the contract's §2, quickstart §3                                                               |
+| 280c2fc5    | a test, RED: without `-s`, make echoed the five targets' script lines into their stdout                                                                                                                                                                                      |
+| 4c64a9a0    | the fix, GREEN: each script line starts with `@`                                                                                                                                                                                                                             |
+| 5a82fcf5    | this note's first version, which T028 reviewed (ee2d3224..5a82fcf5)                                                                                                                                                                                                          |
+| bd59a10e    | T028's B3, I4, and nits 1 to 5: the tests, RED                                                                                                                                                                                                                               |
+| ccc32352    | the fixes, GREEN: `bedrock_service_names`, P-I1 rebuilt, any IAM user a finding, `fmt -check` and no replaced plan, the TLS deny for `"*"`, credits out of the model budgets; plan.md's departures 5, 6, 11, 12; the contracts. The post-fix tip, which the guard anchors on |
+| this commit | this note: the review and each fix, B1's guard, B2's record, the Author's order                                                                                                                                                                                              |
 
-**Stacked on groups 1 and 2.** This branch is cut at `feat/001-measure`'s tip, ee2d3224, which is cut at `feat/001-guards`' b7e45a67. Neither is reviewed or merged, so this branch holds their commits too and merges after both. This group's own changes are `git diff ee2d3224 feat/001-us1-bootstrap`. Its copy of P-1 is group 1's file as of b7e45a67; the patched exports below use P-1 as rebuilt after group 1's review, from `refs/heads/feat/001-guards` at 360489b1.
+**Stacked on groups 1 and 2.** This branch is cut at `feat/001-measure`'s tip, ee2d3224, which is cut at `feat/001-guards`' b7e45a67. Neither is merged, so this branch holds their commits too and merges after both. This group's own changes are `git diff ee2d3224 feat/001-us1-bootstrap`. Its copy of P-1 is group 1's file as of b7e45a67; the patched exports below use P-1 as rebuilt after group 1's review: `refs/heads/feat/001-guards` at 360489b1 for the first build, and at 84d0b707 after T028's review.
 
 **T001 isn't applied, and the group is built anyway.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads 1.0.1, and ADR 0044 is proposed. The main session directed the build, as its reading of your T000 words ("build it out … you can have everything ready and verified by then"). spec.md's Assumptions ("The constitution first") and plan.md name it as an extension of group 1's deviation: nothing of it merges, and nothing is applied, before T001. It is yours to overturn.
 
@@ -24,39 +27,41 @@ Group 3 writes the first files under `infra/`: Terraform's state, and the safety
 
 **On the branch:**
 
-| File | Change |
-|---|---|
-| `infra/bootstrap/versions.tf` | Terraform 1.17.1 and `hashicorp/aws` 6.72.0, the pins; the state's backend `local`, at the path `make plan ROOT=bootstrap` names |
-| `infra/bootstrap/variables.tf` | the three variables the guard patch denies by name: `state_bucket_suffix`, `alert_email` (sensitive), `server_budget_usd`, each validated |
-| `infra/bootstrap/main.tf` | `provider "aws"` in us-east-1 with `default_tags` (`project`, `environment = account`); the state bucket `h4reet-ai-tfstate-<suffix>`: versioned, SSE-S3, Block Public Access on all four, owner-enforced, `prevent_destroy`, and a policy that denies every request without TLS and grants nothing |
-| `infra/bootstrap/outputs.tf`, `redact.txt` | the bucket's name for the state's move; the attributes the plan block redacts beside the always-redacted (the bucket's name, its output, the subscription's address) |
-| `scripts/infra/infra_plan.py`, `infra_verify.py`, `infra_record.py`, `secrets_check.py`, `infra_common.py` | `make plan ROOT=…`, `make infra-verify`, `make infra-record`, `make secrets-check`, and what they share |
-| `infra/lambdas/credential_audit/audit.py` | the credential audit, stdlib, for your terminal (`make infra-audit`, and `make infra-verify` before every apply) and, from group 4, the Lambda on `python3.14`, arm64 |
-| `Makefile` | the five targets, each refusing in the agent sandbox before its script runs; `OUTCOME` and `EXIT_STATUS` literal; `infra` in pytest's folders |
-| `infra/README.md`, `infra/parameters.txt` | the roots, the protected files, who runs what, the lockfile, the state; the Parameter Store names the hosts expect (none yet) |
-| `docs/data-flow-disclosure.md` | spec 001's section: C8's email half and C9, in the spec's words, with what they leave out beside them (T026, in T023's commit) |
-| `infra/test/`, `infra/lambdas/credential_audit/test_audit.py`, `scripts/infra/test_*.py`, `scripts/infra/infra_testkit.py`, `evals/test_disclosure.py` | the tests (T020 to T022, T024, T026) |
-| `specs/001-cloud-elevation/` | tasks.md's precondition and T020 to T026's records; spec.md's Assumptions; plan.md §16's group 3 departures and Complexity Tracking; the contract's §2 and quickstart §3, as built |
+| File                                                                                                                                                   | Change                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infra/bootstrap/versions.tf`                                                                                                                          | Terraform 1.17.1 and `hashicorp/aws` 6.72.0, the pins; the state's backend `local`, at the path `make plan ROOT=bootstrap` names                                                                                                                                                                                           |
+| `infra/bootstrap/variables.tf`                                                                                                                         | four variables, each validated: `state_bucket_suffix`, `alert_email` (sensitive), `server_budget_usd`, and `bedrock_service_names`, a list with no default, from T028's review (B3), whose `TF_VAR_` deny P-1 is to add                                                                                                    |
+| `infra/bootstrap/main.tf`                                                                                                                              | `provider "aws"` in us-east-1 with `default_tags` (`project`, `environment = account`); the state bucket `h4reet-ai-tfstate-<suffix>`: versioned, SSE-S3, Block Public Access on all four, owner-enforced, `prevent_destroy`, and a policy that denies every principal (`"*"`) any request without TLS, and grants nothing |
+| `infra/bootstrap/outputs.tf`, `redact.txt`                                                                                                             | the bucket's name for the state's move; the attributes the plan block redacts beside the always-redacted (the bucket's name, its output, the subscription's address)                                                                                                                                                       |
+| `scripts/infra/infra_plan.py`, `infra_verify.py`, `infra_record.py`, `secrets_check.py`, `infra_common.py`                                             | `make plan ROOT=…`, `make infra-verify`, `make infra-record`, `make secrets-check`, and what they share                                                                                                                                                                                                                    |
+| `infra/lambdas/credential_audit/audit.py`                                                                                                              | the credential audit, stdlib, for your terminal (`make infra-audit`, and `make infra-verify` before every apply) and, from group 4, the Lambda on `python3.14`, arm64; any IAM user is a finding                                                                                                                           |
+| `Makefile`                                                                                                                                             | the five targets, each refusing in the agent sandbox before its script runs, each adding nothing to its script's stdout; `OUTCOME` and `EXIT_STATUS` literal; `infra` in pytest's folders                                                                                                                                  |
+| `infra/README.md`, `infra/parameters.txt`                                                                                                              | the roots, the protected files, who runs what, the lockfile, the state; the Parameter Store names the hosts expect (none yet)                                                                                                                                                                                              |
+| `docs/data-flow-disclosure.md`                                                                                                                         | spec 001's section: C8's email half and C9, in the spec's words, with what they leave out beside them (T026, in T023's commit)                                                                                                                                                                                             |
+| `infra/test/`, `infra/lambdas/credential_audit/test_audit.py`, `scripts/infra/test_*.py`, `scripts/infra/infra_testkit.py`, `evals/test_disclosure.py` | the tests (T020 to T022, T024, T026), with 29 fixtures                                                                                                                                                                                                                                                                     |
+| `specs/001-cloud-elevation/`                                                                                                                           | tasks.md's precondition and T020 to T026's records; spec.md's Assumptions; plan.md §16's group 3 departures and Complexity Tracking; contracts/aws-alerts.md §3, infra-records.md §1, §2, §4, env-cloud.md §5, and quickstart §3, as built                                                                                 |
 
-**P-I1, for your hand** (`docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch`; two new files, built from plain copies with `diff -u` against /dev/null, never written into a worktree's protected paths):
+**P-I1, for your hand** (`docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch`; two new files, built from plain copies with `diff -u` against /dev/null, never written into a worktree's protected paths; rebuilt after T028's review):
 
-| File | What |
-|---|---|
-| `infra/bootstrap/budgets.tf` | `h4-model-month` ($20 a month) and `h4-model-day` ($5 a day) on Bedrock's cost; `h4-server-month` at `var.server_budget_usd` on every cost but Bedrock's; each notifying `h4-alerts` at 70% and 100% of actual. The account's DIMENSIONAL SERVICE anomaly monitor, with an IMMEDIATE subscription at $1 of impact |
-| `infra/bootstrap/alerts.tf` | `h4-alerts`; its policy, letting Budgets and Cost Anomaly Detection publish, for this account alone; the email subscription to `var.alert_email`; the topic's output |
+| File                         | What                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `infra/bootstrap/budgets.tf` | `h4-model-month` ($20 a month) and `h4-model-day` ($5 a day) on the services `var.bedrock_service_names` names, counting usage, not cost net of credits; `h4-server-month` at `var.server_budget_usd` on every cost but those services'; each notifying `h4-alerts` at 70% and 100% of actual. The account's DIMENSIONAL SERVICE anomaly monitor, with an IMMEDIATE subscription at $1 of impact |
+| `infra/bootstrap/alerts.tf`  | `h4-alerts`; its policy, letting Budgets and Cost Anomaly Detection publish, for this account alone; the email subscription to `var.alert_email`; the topic's output                                                                                                                                                                                                                             |
 
-### Where the build departs from the plan (plan.md §16, group 3's departures, in df274c33)
+### Where the build departs from the plan (plan.md §16, group 3's departures, in df274c33 and ccc32352)
 
 1. **The tests read HCL with P-1's reader, and skip until P-1 is applied.** Until you apply P-I1, `test_bootstrap.py` reads `budgets.tf` and `alerts.tf` from P-I1's patch file, so the branch's tests cover the protected files before they are in the tree.
 2. **Terraform's data folder is outside the tree,** at `~/.config/h4reet-ai/infra/data/<root>`, so no `.terraform/` folder an agent could fill sits in the tree (P-1's rule T4 refuses one, as the coordinator asked). The apply command `make infra-verify` prints carries it, and the profile.
-3. **The lockfile is your step,** from your mirror, on the branch, before T027's plan block. No agent session holds Terraform or the mirror. Until then the policy's one finding on the root is T10.
+3. **The lockfile is your step,** from your mirror, on your branch, before T027's plan block. No agent session holds Terraform or the mirror. Until then the policy's one finding on the root is T10.
 4. **The state starts local, and its move needs a backend change** on a branch of its own after T029, so T030 step 2 runs from that branch, not from `main`.
-5. **The state bucket's TLS deny names the account, not `"*"`:** P-1's rule T6 reads any wildcard principal as a grant, a deny's included. September R-03's "every principal except the Author's administrator role" isn't built: it needs your administrator permission set's name, and a wrong one would lock you out of your own state.
-6. **The server budget's exclusion** is `filter_expression` with `not`, to confirm when your `make plan` validates it.
+5. **September R-03's administrator-only clause isn't built:** "every principal except the Author's administrator role" needs your administrator permission set's name, and a wrong one would lock you out of your own state. The TLS deny is for every principal, `"*"` (before T028's review it named the account, since P-1's T6 then read a deny's wildcard as a grant; P-1 at 84d0b707 doesn't).
+6. **The budgets' service filter is your data:** Bedrock's cost is the services `var.bedrock_service_names` names, from your Cost Explorer (T028's B3); the server budget's exclusion is `filter_expression` with `not`; the model budgets count usage, not cost net of credits (nit 4). The first two to confirm when your `make plan` validates them.
 7. **The audit's Dockerfile moves to group 4,** with its base's digest: the compose policy refuses a `FROM` without one in `deploy/images.lock`, and the base can't be resolved offline.
 8. **The laptop identity's check waits for group 4's cutover,** so spec 000's hand-made permission set doesn't block the bootstrap's apply.
 9. **The record's times** come from a stamp `make infra-verify` writes; a second record the same day is `<date>-2-<root>.md`; `OUTCOME=failed` takes `EXIT_STATUS`.
 10. **`make secrets-check`** reads `infra/parameters.txt`, empty in group 3.
+11. **Any IAM user is a finding** of the credential audit, whatever it holds (T028's I4); SES's SMTP credentials are one.
+12. **`make plan ROOT=…` runs `terraform fmt -check`** before `init`, and never replaces a saved plan of its tree (nits 1 and 3).
 
 ## Acceptance criteria
 
@@ -64,37 +69,49 @@ Group 3 writes the first files under `infra/`: Terraform's state, and the safety
 - **FR-002:** `default_tags` and `component` on every taggable resource (T020's check, and rule T2).
 - **FR-004:** the pins in `versions.tf`; the lockfile is your step (departure 3).
 - **FR-005, FR-007, FR-010:** `make plan ROOT=…` prints the redacted block tied to `HEAD:infra`; `make infra-verify` refuses all nine ways; `make infra-record` writes the record, addresses and actions only.
-- **FR-008, SC-004:** the credential audit's checks, in your terminal now and weekly from group 4.
+- **FR-008, SC-004:** the credential audit's checks, no IAM user at all among them, in your terminal now and weekly from group 4.
 - **FR-022:** the three budgets, the anomaly monitor, and the email half of the alert path, in P-I1. The Telegram half is group 4's.
 - **FR-040:** C8's email half and C9, in T023's commit.
 
 ## Constitution check
 
-| Principle or standard | How this branch complies |
-|---|---|
-| III. Intent → spec → code | Built on the approved spec and plan (T000). T001 isn't applied: the extension of group 1's named deviation is in spec.md's Assumptions and tasks.md, as the session's reading, and nothing merges or is applied before T001. The departures are in plan.md §16, in the commit that makes them |
-| IV. Least privilege | Every deny of this group's paths and names landed in P-1, before this branch. The protected files reach the branch only by your hand (P-I1). No permission or sandbox domain widened. Each new target refuses in the sandbox, as P-1's bash gate does. Terraform's data folder, the plans, and the values stay under `~/.config/h4reet-ai/`, denied to agents |
-| V. Cost | Nothing paid ran; no cloud call. The bootstrap's own cost is the state bucket's few cents, which `h4-server-month` covers. Its figure is yours (T017) |
-| I. Privacy | The alert address is a sensitive variable, never in the repository or the plan block; C8 and C9 are disclosed before their flows happen |
-| II. Production-grade | Tests first, RED then GREEN. These are your terminal's targets and an audit, with no endpoint, so no span or panel; the audit's alert and its runbook come with group 4 (T036) |
-| Cloud standard | Terraform for everything but the secrets (research.md R-26); you apply from your terminal |
+| Principle or standard     | How this branch complies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| III. Intent → spec → code | Built on the approved spec and plan (T000). T001 isn't applied: the extension of group 1's named deviation is in spec.md's Assumptions and tasks.md, as the session's reading, and nothing merges or is applied before T001. The departures are in plan.md §16, in the commit that makes them                                                                                                                                                                                                                   |
+| IV. Least privilege       | Every deny of this group's first three `TF_VAR_` names and its paths landed in P-1, before this branch; the fourth name's deny, `TF_VAR_bedrock_service_names`, is P-1's to add before you write its value (For the Author, 0). The protected files reach the branch only by your hand (P-I1). No permission or sandbox domain widened. Each new target refuses in the sandbox, as P-1's bash gate does. Terraform's data folder, the plans, and the values stay under `~/.config/h4reet-ai/`, denied to agents |
+| V. Cost                   | Nothing paid ran; no cloud call. The bootstrap's own cost is the state bucket's few cents, which `h4-server-month` covers. Its figure is yours (T017); the service names its budgets watch are yours (For the Author, 2)                                                                                                                                                                                                                                                                                        |
+| I. Privacy                | The alert address is a sensitive variable, never in the repository or the plan block; C8 and C9 are disclosed before their flows happen                                                                                                                                                                                                                                                                                                                                                                         |
+| II. Production-grade      | Tests first, RED then GREEN, for the build and for each review fix in code. These are your terminal's targets and an audit, with no endpoint, so no span or panel; the audit's alert and its runbook come with group 4 (T036)                                                                                                                                                                                                                                                                                   |
+| Cloud standard            | Terraform for everything but the secrets (research.md R-26); you apply from your terminal                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Review
 
-Pending: T028, a reviewer that wrote none of this group, after groups 1's and 2's (T009, T018).
+**T028, by a reviewer that wrote none of this group, on ee2d3224..5a82fcf5: not ready.** Three blockers, one Important finding, and five nits, as the coordinator relayed them; each fix, and its commit:
+
+| Finding | What                                                                                                                                                                           | Fixed                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1      | the T029 guard could never pass: it listed the files changed since the reviewed tip, and the review's record, your block, your lockfile, and main's merge always land after it | this commit: the guard compares the gated commit with main's merge with the anchor (`git merge-tree --write-tree`), allowing only `docs/merge-requests/`, the lockfile, and P-I1's two files, on your own branch `feat/001-us1-bootstrap-p`, since the session's worktree holds this one. Run against a mock of the whole sequence, in bash and zsh, RED then GREEN (Verification). The note's order is now: the service names, the lockfile, T027, T029 |
+| B2      | the gate's plan-note step asked an `account` block, which can't exist before group 4                                                                                           | option A, in P-1 at `feat/001-guards` 84d0b707 (group 1's): a root's block is needed once its folder exists. Rerun here: only the bootstrap's is asked (Verification; For the Author, 1)                                                                                                                                                                                                                                                                 |
+| B3      | Claude Haiku 5.5 on Bedrock is sold through AWS Marketplace, and its cost can show under its own service name, not "Amazon Bedrock", so the model budgets could see none of it | bd59a10e, ccc32352: `var.bedrock_service_names`, a list with no default, validated non-empty, in all three budgets; your step before the lockfile and T027, with the console path (For the Author, 2); P-I1 rebuilt, dry-run again; contracts/aws-alerts.md §3. Its `TF_VAR_` deny is P-1's to add                                                                                                                                                       |
+| I4      | the audit missed console passwords, service-specific credentials (Bedrock's long-term API keys among them), SSH keys, and signing certificates                                 | bd59a10e, ccc32352: any IAM user is a finding, `iam_user_present`, whatever it holds; contracts/infra-records.md §4. The SES warning is in For the Author, 3                                                                                                                                                                                                                                                                                             |
+| nit 1   | `terraform fmt -check` never ran on this root                                                                                                                                  | bd59a10e, ccc32352: `make plan ROOT=…` runs it after the policy, before `init`; the note's claim is fixed (Verification)                                                                                                                                                                                                                                                                                                                                 |
+| nit 2   | the TLS deny named the account                                                                                                                                                 | bd59a10e, ccc32352: `"*"`, which P-1's T6 now passes; the test requires it; departure 5 keeps only the administrator-only clause                                                                                                                                                                                                                                                                                                                         |
+| nit 3   | `make plan` replaced a saved plan of the same tree                                                                                                                             | bd59a10e, ccc32352: it refuses while the plan or its stamp exists                                                                                                                                                                                                                                                                                                                                                                                        |
+| nit 4   | the model budgets counted cost net of credits                                                                                                                                  | bd59a10e, ccc32352: `cost_types` with `include_credit = false`, in P-I1; yours to overturn (For the Author, 3)                                                                                                                                                                                                                                                                                                                                           |
+| nit 5   | the policy's test called its private functions                                                                                                                                 | bd59a10e: it runs the policy's CLI on a copy of the root                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+A review of the fixes, if you want one, reads 5a82fcf5..this commit. The guard anchors on ccc32352, the post-fix tip.
 
 ## Backlog
 
 - **The four links to `docs/001-ec2-default`'s files,** inherited from `spec/001-cloud-elevation`, fail `make test`'s and `make evals`' docs-links check until that branch merges and main comes in.
-- **The tests that need P-1 skip on this branch** (PLANNED, T010), 61 of them, until group 1 merges with P-1 and main comes in here. They pass on a patched export (Verification).
+- **The tests that need P-1 skip on this branch** (PLANNED, T010), 65 of them after T028's review, until group 1 merges with P-1 and main comes in here. They pass on a patched export (Verification).
+- **`TF_VAR_bedrock_service_names` needs its deny** by name in P-1's `.claude/settings.json`, with its matrix row (For the Author, 0).
 - **The state bucket's policy sits in `main.tf`,** agent-editable, as the plan has it: rule T6 refuses a wildcard grant, and every change shows in your plan block. A protected file for it would be yours to ask for.
 - **`h4-alerts` isn't encrypted:** Budgets and Cost Anomaly Detection can't publish to a topic under the AWS-managed key, and a key of your own costs about $1 a month. The alerts carry no payload.
 - **The state's move** (departure 4) needs its branch, which the session writes when you ask, after T029.
 - **The Lambda's Dockerfile and the audit's weekly schedule** are group 4's (T034).
-- **Two findings in P-1's policy, for group 1** (human-only code; nothing here changes it):
-  - its reader drops the newlines inside a list's elements, so a multi-line object in a list reads as a partial value, `{'Sid': UNKNOWN}`, not as UNKNOWN. So rule T7 misses a security group written as `ingress = [{ … }]`: a port-22 rule open to `0.0.0.0/0` in that form gave no finding on the patched export. The plan-JSON pass in your `make plan` still reads the planned values; the gate's HCL pass doesn't;
-  - rule T6 reads any wildcard principal as a grant, a deny's included, so the usual TLS-only deny (`"*"`) fails it; the state bucket's deny names the account instead (departure 5).
-
+- **Group 3's three findings in P-1's tools are fixed there,** at `feat/001-guards` 0ceee24e (group 1's): the plan note's roots (B2 above), the reader's lists of objects, through which rule T7 missed a security group written as `ingress = [{ … }]`, and T6's reading of a deny's wildcard as a grant.
 ## Verification
 
 ### RED and GREEN
@@ -168,7 +185,7 @@ $ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line scripts/infra/
 30 passed in 1.67s
 ```
 
-### P-I1's dry run, on a fresh export
+### P-I1's dry run, on a fresh export (the first build)
 
 A fresh `git archive` export of df274c33, which holds the patch, in a new folder under `$TMPDIR`; then the patch applied there, and P-1 after it. The patched files are byte for byte the plain copies P-I1 was built from:
 
@@ -211,9 +228,9 @@ $ pytest -q -p no:cacheprovider --import-mode=importlib tools/gates/test/test_in
 exit 0
 ```
 
-T10, the lockfile, is the policy's one finding: yours, from your mirror (For the Author, 3). With a stand-in lockfile holding the pinned version, which rule T10 reads, the policy passes; the stand-in was in that scratch export alone. fmt and validate need Terraform and your mirror, which no agent session has; your `make plan ROOT=bootstrap` runs init and plan, and so validates the root.
+T10, the lockfile, is the policy's one finding: yours, from your mirror (For the Author, 4). With a stand-in lockfile holding the pinned version, which rule T10 reads, the policy passes; the stand-in was in that scratch export alone. fmt and validate need Terraform and your mirror, which no agent session has; your `make plan ROOT=bootstrap` runs `terraform fmt -check`, after T028's review (nit 1), then init and plan, which validates the root.
 
-### The gate's plan-note step, on this branch
+### The gate's plan-note step, on this branch, before T028's review
 
 P-1's `infra_plan_note.py`, as rebuilt, run from the patched export against this branch's git, which it only reads:
 
@@ -224,13 +241,163 @@ FAIL: plan for bootstrap missing or made from an older infra tree; run make plan
 exit 1
 ```
 
-The bootstrap's block is yours (T027). The account's can't exist: For the Author, 1.
+The bootstrap's block is yours (T027). The account's couldn't exist: T028's B2, settled in P-1 at 84d0b707 (After T028's review, below; For the Author, 1).
 
-### The plan block (T027)
+### After T028's review
 
-Pending: yours, from a scratch clone with P-I1 applied (For the Author, 4).
+**RED** (bd59a10e). On the branch, the audit's tests (I4):
 
-### make lint
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/lambdas   # the branch
+FAILED infra/lambdas/credential_audit/test_audit.py::test_a_users_access_key_names_the_user_never_the_key
+FAILED infra/lambdas/credential_audit/test_audit.py::test_any_iam_user_is_a_finding_whatever_it_holds[a console password]
+FAILED infra/lambdas/credential_audit/test_audit.py::test_any_iam_user_is_a_finding_whatever_it_holds[a service-specific credential, Bedrock's long-term API key among them]
+FAILED infra/lambdas/credential_audit/test_audit.py::test_any_iam_user_is_a_finding_whatever_it_holds[an SSH public key]
+FAILED infra/lambdas/credential_audit/test_audit.py::test_any_iam_user_is_a_finding_whatever_it_holds[a signing certificate]
+FAILED infra/lambdas/credential_audit/test_audit.py::test_any_iam_user_is_a_finding_whatever_it_holds[nothing at all]
+FAILED infra/lambdas/credential_audit/test_audit.py::test_the_lambda_publishes_a_finding_and_stores_the_result
+7 failed, 57 passed in 0.45s
+exit 1
+```
+
+On a patched export of bd59a10e with P-1 at `feat/001-guards` 84d0b707: the root fails the new checks (B3, nits 2 and 4), so every fixture fails behind it (the root must be clean before a fixture's defect is), and `make plan`'s four new tests fail (nits 1 and 3):
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no infra/test scripts/infra/test_infra_plan.py   # a patched export, P-1 at 84d0b707, P-I1 not applied
+FAILED infra/test/test_bootstrap.py::test_the_variables_are_the_three_the_deny_list_names_and_the_email_is_sensitive
+FAILED infra/test/test_bootstrap.py::test_the_state_bucket_is_versioned_encrypted_private_and_tls_only
+FAILED infra/test/test_bootstrap.py::test_the_model_budgets_are_20_a_month_and_5_a_day_on_bedrocks_cost
+FAILED infra/test/test_bootstrap.py::test_the_server_budget_is_the_authors_figure_on_every_cost_but_bedrocks
+FAILED infra/test/test_bootstrap.py::test_the_root_has_no_problem
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[anomaly-daily]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[anomaly-ten-dollars]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[default-tags]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[email-not-sensitive]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[extra-variable]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-day-every-service]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-day-named-service]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-day-no-seventy]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-month-amount]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-month-credits]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-month-forecast]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[model-month-mailbox]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[names-default]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[names-unchecked]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[remote-state-first]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[server-month-counts-bedrock]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[server-month-literal]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[sns-in-main]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-account-principal]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-destroyable]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-granted]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-plain-http]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-public]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-unencrypted]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[state-unversioned]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[topic-email-literal]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[topic-open-publish]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[unpinned]
+FAILED infra/test/test_bootstrap.py::test_each_fixture_is_found_as_its_defect[untagged]
+FAILED scripts/infra/test_infra_plan.py::test_terraform_fmt_checks_the_root_before_init
+FAILED scripts/infra/test_infra_plan.py::test_a_root_out_of_format_stops_the_plan
+FAILED scripts/infra/test_infra_plan.py::test_a_saved_plan_for_this_tree_is_never_replaced[the saved plan]
+FAILED scripts/infra/test_infra_plan.py::test_a_saved_plan_for_this_tree_is_never_replaced[its stamp]
+38 failed, 30 passed in 7.92s
+exit 1
+```
+
+**GREEN** (ccc32352). On the branch, `pytest infra/lambdas`: `64 passed`. On the patched export, P-I1 not applied, so its two files come from the rebuilt patch:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib infra scripts/infra evals/test_disclosure.py   # a patched export, P-1 at 84d0b707, P-I1 not applied
+250 passed in 18.27s
+exit 0
+```
+
+One existing test changed with GREEN, named in ccc32352's message: the plan test's profile check skips `terraform fmt`'s call, which, like `terraform version`, installs and calls no provider.
+
+**P-I1, rebuilt, its dry run on a fresh export** of ccc32352, then applied there with P-1 at 84d0b707:
+
+```text
+$ patch -p1 --dry-run < docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch   # a fresh export of ccc32352
+checking file infra/bootstrap/budgets.tf
+checking file infra/bootstrap/alerts.tf
+exit 0
+$ patch -p1 < docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch
+patching file infra/bootstrap/budgets.tf
+patching file infra/bootstrap/alerts.tf
+exit 0
+$ patch -p1 -s < 2026-11-10-feat-001-p1-guards.patch   # P-1 from refs/heads/feat/001-guards (84d0b707)
+exit 0
+$ sha256sum infra/bootstrap/budgets.tf infra/bootstrap/alerts.tf <the plain copies>
+a7b3ce982e8d7435590df8ff4e6ab497949a635c14f6fd44622c89f255f38376  infra/bootstrap/budgets.tf
+a2362a5c2adacdb48a5150847f2dcf2577fba24cde06b762329e60b2948285af  infra/bootstrap/alerts.tf
+a7b3ce982e8d7435590df8ff4e6ab497949a635c14f6fd44622c89f255f38376  plain copy: infra/bootstrap/budgets.tf
+a2362a5c2adacdb48a5150847f2dcf2577fba24cde06b762329e60b2948285af  plain copy: infra/bootstrap/alerts.tf
+$ pytest -q -p no:cacheprovider --import-mode=importlib infra scripts/infra evals/test_disclosure.py   # P-1 and P-I1 applied
+250 passed in 18.22s
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/infra_policy.py
+T10 infra/bootstrap:0 no .terraform.lock.hcl
+infra-policy: 1 finding in 6 files
+exit 1
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib tools/gates/test/test_infra_policy.py tools/gates/test/test_infra_redact.py tools/gates/test/test_infra_plan_note.py tools/gates/test/test_disclosure_check.py
+132 passed in 2.08s
+exit 0
+```
+
+**The gate's plan-note step,** with P-1 at 84d0b707 (B2): only the bootstrap's block is asked, yours at T027.
+
+```text
+$ python3 -I -B -X pycache_prefix=/dev/null <export>/tools/gates/infra_plan_note.py --repo /tmp/claude-1000/wt-001g3   # P-1 at feat/001-guards 84d0b707
+FAIL: plan for bootstrap missing or made from an older infra tree; run make plan ROOT=bootstrap in your terminal and paste the block (infra/'s tree is 25bc96a2412ed8601d478d20834ad6f928f9a1f0)
+exit 1
+```
+
+### The guard, against a mock
+
+B1's guard (For the Author, 6), taken from this note's block and run by `guard_mock.py` in a scratch repository: the post-fix tip as its anchor; then the review's record in the note; your branch cut from this one; your lockfile; your plan block in the note; a commit on main, a gate tool's among its files, merged into your branch; P-I1's two files; the gate's log; and the guard from main's checkout. Each shell runs it as you would paste it (`bash --noprofile --norc`, `zsh -f`). It must say `guard: go` and merge on the whole sequence, and `guard: no`, merging nothing, on each variant. RED, the guard as it stood at 5a82fcf5:
+
+```text
+$ python3 -I guard_mock.py <the note at 5a82fcf5>   # the guard before the fix
+FAIL  bash  the whole sequence             guard: no, nothing merged
+PASS  bash  a root file after the anchor   guard: no, nothing merged
+PASS  bash  a gate tool after the anchor   guard: no, nothing merged
+PASS  bash  no merge line                  guard: no, nothing merged
+PASS  bash  not on main                    guard: no, nothing merged
+FAIL  zsh   the whole sequence             guard: no, nothing merged
+PASS  zsh   a root file after the anchor   guard: no, nothing merged
+PASS  zsh   a gate tool after the anchor   guard: no, nothing merged
+PASS  zsh   no merge line                  guard: no, nothing merged
+PASS  zsh   not on main                    guard: no, nothing merged
+guard mock: 2 failed
+exit 1
+```
+
+GREEN, the guard in this note:
+
+```text
+$ python3 -I guard_mock.py docs/merge-requests/2026-11-10-feat-001-us1-bootstrap.md   # the guard after T028's review
+PASS  bash  the whole sequence             guard: go, merged
+PASS  bash  a root file after the anchor   guard: no, nothing merged
+PASS  bash  a gate tool after the anchor   guard: no, nothing merged
+PASS  bash  no merge line                  guard: no, nothing merged
+PASS  bash  not on main                    guard: no, nothing merged
+PASS  zsh   the whole sequence             guard: go, merged
+PASS  zsh   a root file after the anchor   guard: no, nothing merged
+PASS  zsh   a gate tool after the anchor   guard: no, nothing merged
+PASS  zsh   no merge line                  guard: no, nothing merged
+PASS  zsh   not on main                    guard: no, nothing merged
+guard mock: 0 failed
+exit 0
+```
+
+### make lint and make test, after T028's review
+
+Both rerun at ccc32352, one at a time, with this note in the tree. `make evals`, `make check ENGINE_MODE=none-yet`, and their outputs below are of 4c64a9a0, before the review: of what they read, only `infra/`, `scripts/infra/`, the specs, and this note changed since, and `make test` runs all of those again here.
 
 ```text
 $ make lint
@@ -248,7 +415,72 @@ shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transacti
 exit 0
 ```
 
-### make test
+```text
+$ make test
+python3 -I -B -X pycache_prefix=/dev/null corpus/tools/check_corpus.py
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+> @h4reet/gateway@0.1.0 test
+> vitest run
+ Test Files  95 passed (95)
+      Tests  1653 passed | 13 skipped (1666)
+   Duration  101.48s (tests 96%, import 3%, transform 1%)
+> @h4reet/web@0.1.0 test
+> vitest run
+ Test Files  109 passed (109)
+      Tests  2704 passed (2704)
+   Duration  77.25s (tests 74%, import 23%, transform 2%)
+pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra
+=================================== FAILURES ===================================
+>       assert code == 0, "\n".join(line for line in out.splitlines() if "FAIL" in line)
+E       AssertionError: FAIL  specs/001-cloud-elevation/plan.md:7: ../../docs/adr/0044-ec2-as-prods-default-host.md: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:9: ../../docs/adr/0044-ec2-as-prods-default-host.md: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:9: ../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch: no such file or directory
+E         FAIL  specs/001-cloud-elevation/spec.md:656: ../../docs/merge-requests/2026-11-09-constitution-1.1.0.patch: no such file or directory
+E       assert 1 == 0
+evals/test_docs_links.py:495: AssertionError
+=========================== short test summary info ============================
+FAILED evals/test_docs_links.py::test_the_repository_passes - AssertionError:...
+1 failed, 4310 passed, 66 skipped in 469.68s (0:07:49)
+make: *** [Makefile:248: test] Error 1
+exit 2
+```
+
+`make test`'s one failure is the docs-links test again, on the four inherited links. Its 66 skips are the first round's 62 and the four new plan tests, which also need P-1; 65 are this group's. The gateway's timing tests passed, so none needed a rerun.
+
+`gitleaks dir` on a fresh export of ccc32352 with this note copied in, as the first round's below:
+
+```text
+export of ccc32352d5f57eb0ee5e6e0680a608eb7982ef2c into a new folder, with this note copied in: 2005 files, scanned from inside it
+$ gitleaks dir --no-banner --no-color --redact --config .gitleaks.toml --gitleaks-ignore-path <an empty folder> --ignore-gitleaks-allow --exit-code 99 .
+v8.30.1
+5:12AM INF scanned ~52647448 bytes (52.65 MB) in 1.67s
+5:12AM INF no leaks found
+exit=0
+```
+
+### The plan block (T027)
+
+Pending: yours, from a scratch clone with P-I1 applied (For the Author, 5).
+
+### make lint, at 4c64a9a0
+
+```text
+$ make lint
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+515 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/aws-sso-profile.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+exit 0
+```
+
+### make test, at 4c64a9a0
 
 `make test`'s totals, picked from its whole log: the corpus gate's line, each workspace's vitest summary, and pytest's failure and last line. Its one failure is the docs-links test, on the four inherited links `make evals` names below (Backlog). The gateway's timing tests passed in this run, so none needed a rerun.
 
@@ -282,7 +514,7 @@ make: *** [Makefile:248: test] Error 1
 exit 2
 ```
 
-### make evals
+### make evals, at 4c64a9a0
 
 Its whole output. Two kinds of line aren't this branch's: the behavioral tier's WARN, main's newest run for its trigger hash (information in `make evals`, spec 006 FR-002; this branch touches nothing the tier covers), and the docs-links check's four failures, the inherited links (Backlog).
 
@@ -579,7 +811,7 @@ make: *** [Makefile:316: evals] Error 1
 exit 2
 ```
 
-### make check ENGINE_MODE=none-yet
+### make check ENGINE_MODE=none-yet, at 4c64a9a0
 
 Its whole output.
 
@@ -1722,7 +1954,7 @@ make: *** [Makefile:160: check] Error 1
 exit 2
 ```
 
-### gitleaks dir
+### gitleaks dir, at 4c64a9a0
 
 As the gate's gitleaks-tree step scans: a fresh `git archive` export of the tip the note sits on, with this note copied in (its gitleaks section then still read "pending"); the export's own `.gitleaks.toml`; an empty folder as the ignore path, so no `.gitleaksignore` entry applies; `--ignore-gitleaks-allow`, so no inline allow does either; scanned from inside the export.
 
@@ -1757,45 +1989,56 @@ No cost tonight: nothing ran in the cloud. Once you apply it, the bootstrap cost
 
 ## For the Author
 
-Your part is the lockfile, the plan block (T027), P-I1 (T029), the gate and the merge, and the apply on `main` (T030). Nothing of it is for tonight's session, and nothing here runs before T001.
+Your part, in this order: the service names Bedrock's cost shows under, the lockfile, the plan block (T027), P-I1 with the gate and the merge (T029), and the apply on `main` (T030). T028's review has run (Review), so nothing of the session's comes between them. Nothing here runs before T001.
 
 ### 0. Before any of it
 
 In this order, each by the notes that come before this one:
 
 1. T001: `docs/001-ec2-default`'s gate and merge, and the 1.1.0 patch.
-2. Group 1 (`feat/001-guards`) and group 2 (`feat/001-measure`): their reviews, patches, gates, and merges, and T011, your mirror.
-3. Tell the session: it merges main into this branch, which brings P-1, and the four docs links resolve. Then its tests that skip here run.
-4. Settle the gate's question in section 1 below, or this branch's gate fails at T029.
+2. Group 1 (`feat/001-guards`) and group 2 (`feat/001-measure`): their patches, gates, and merges, and T011, your mirror. P-1 as it stands at `feat/001-guards` 84d0b707 settles the `account` block this branch's gate would have asked for (section 1).
+3. P-1 also needs the deny of the fourth `TF_VAR_` name this branch adds, `TF_VAR_bedrock_service_names`, beside the other three in `.claude/settings.json` (contracts/env-cloud.md §5: "A new member gets its deny in the patch that names it"). Its value isn't a secret, but the family is denied by its members' names. Tell the session, and group 1's patch takes it, with its matrix row, before you write the value (section 2).
+4. Tell the session: it merges main into this branch, which brings P-1, and the four docs links resolve. Then its 65 tests that skip here run.
 
-### 1. Decide before T029: the gate asks a plan for `account`
+### 1. Settled: the gate's `account` block (option A)
 
-P-1's `infra_plan_note.py` asks a block for the `account` root whenever a branch touches `infra/lambdas/`, since that root deploys the functions. This branch adds `infra/lambdas/credential_audit/` (T022, T025), and `infra/account` doesn't exist until group 4, so `make plan ROOT=account` can't make one. Its run on this branch, today (Verification):
+P-1's `infra_plan_note.py` used to ask a block for the `account` root whenever a branch touches `infra/lambdas/`. This branch adds `infra/lambdas/credential_audit/`, and `infra/account` doesn't exist until group 4, so no such block could be made. T028's review found it (B2), and P-1 took option A at `feat/001-guards` 84d0b707: a root needs its block only once its folder exists at the branch's tip. Rerun on this branch with that P-1, it asks only the bootstrap's block, yours at T027 (Verification, "After T028's review").
+
+### 2. The service names Bedrock's cost shows under (before the lockfile and T027)
+
+The model budgets watch Bedrock's cost, and the server budget leaves it out, by service name. Claude Haiku 5.5 on Bedrock is sold through AWS Marketplace, and Cost Explorer has commonly shown such models under a name of their own, such as "Claude … (Amazon Bedrock Edition)", not "Amazon Bedrock". With the wrong name, both model budgets would see none of the spend, group 4's action on `h4-model-month` would never trip, and `h4-server-month` would count model spend as the server's (T028's review, B3). So the names are yours to read, and nothing guesses them:
+
+1. In the AWS console, signed in as yourself: **Billing and Cost Management → Cost Explorer** (under Cost and Usage Analysis).
+2. Report parameters: **Date range** from 2026-10-12 to today, **Granularity** Daily, **Group by: Dimension → Service**, no filters.
+3. Pick a day spec 000's Bedrock fallback ran. Note each service whose cost is Bedrock's: "Amazon Bedrock", and any "Claude …" line, each exactly as it reads there.
+
+Then add the line to `~/.config/h4reet-ai/infra/bootstrap.env` (mode 0600), the names in an HCL list, each as Cost Explorer spells it, for example:
 
 ```text
-FAIL: plan for account missing or made from an older infra tree; …
+TF_VAR_bedrock_service_names=["Amazon Bedrock","Claude Haiku 5.5 (Amazon Bedrock Edition)"]
 ```
 
-Two ways out, each yours:
+If no day shows any Bedrock spend, tell the session: the list can't be read yet, and an empty one is refused (`variables.tf`).
 
-- **A, recommended:** P-1's step asks a block only for a root whose folder exists at the branch's tip. One condition in human-only code that is still under group 1's review, so it can travel in P-1 before you apply it. Tell the session, and group 1's patch takes it.
-- **B:** the audit's code moves out of `infra/lambdas/` until group 4 deploys it, a departure from T022's and T025's paths. Tell the session.
+### 3. Three things to confirm at T027
 
-### 2. Three things to confirm before you apply
+Each shows when you run `make plan ROOT=bootstrap`, before anything costs money:
 
-Each shows in your plan block (T027), before anything costs money:
-
-- **`filter_expression` on `aws_budgets_budget`.** `h4-server-month`'s "every cost but Bedrock's" uses it, with `not` (departure 6). If your provider doesn't take it, `make plan ROOT=bootstrap` fails at validate, with nothing created; tell the session.
-- **Bedrock's service name in Cost Explorer.** Both kinds of budget read Bedrock's cost as the service `Amazon Bedrock`. In the Billing console, Cost Explorer, group by Service, and look at a day spec 000's Bedrock fallback ran: if its spend shows under another name (for example a "Claude … (Amazon Bedrock Edition)" line), the model budgets would miss it, and the server budget would count it. Tell the session the name you see.
+- **`filter_expression` and `cost_types` on `aws_budgets_budget`.** `h4-server-month`'s "every cost but Bedrock's" uses `filter_expression` with `not` (plan.md §16, group 3's departure 6), and the model budgets `cost_types`. If your provider takes neither, `make plan` fails at init or plan, with nothing created; tell the session.
+- **The model budgets count usage, not cost net of credits** (`include_credit = false`, T028's review, nit 4), so a credit can't hide Bedrock's spend from the safety net. The server budget keeps AWS's default. Both are yours to change: tell the session.
 - **The account's own anomaly monitor.** An account holds one AWS-services monitor. If Cost Anomaly Detection already shows one (AWS makes one for new accounts), the apply's create fails; tell the session, and the root imports it instead.
 
-### 3. The lockfile, on the branch
+And one warning: **the credential audit now finds any IAM user** (T028's review, I4), since a console password, a service-specific credential (Bedrock's long-term API keys among them), an SSH key, or a signing certificate is an IAM user's. SES's SMTP credentials are an IAM user's access keys. If spec 000's mail channel (row A2) is SES, the audit finds that user, and `make infra-verify` refuses the apply until you move the channel off it, or tell the session.
 
-Needs Terraform 1.17.1 and your mirror (T011). Your untracked files stay as they are:
+### 4. The lockfile, on a branch of your own from this one
+
+Needs Terraform 1.17.1 and your mirror (T011). The session's worktree holds `feat/001-us1-bootstrap`, so your commits go on a new branch cut from it, `feat/001-us1-bootstrap-p`, which the gate, the guard, and the merge then name. Your untracked files stay as they are:
 
 ```bash
 b=feat/001-us1-bootstrap
-git --no-replace-objects switch "$b"
+pb=feat/001-us1-bootstrap-p
+git --no-replace-objects switch -c "$pb" \
+  "refs/heads/$b"
 m=~/.local/share/h4reet/terraform-providers
 r=infra/bootstrap
 terraform -chdir="$r" providers lock \
@@ -1804,23 +2047,21 @@ git add -- "$r/.terraform.lock.hcl"
 git commit -m "infra(001): the lockfile"
 ```
 
-If git says the branch is checked out in `/tmp/claude-1000/wt-001g3`, ask the session to release it first.
+### 5. T027: the plan block, from a scratch clone
 
-### 4. T027: the plan block, from a scratch clone
-
-The values first: `~/.config/h4reet-ai/infra/bootstrap.env`, mode 0600, three lines, `TF_VAR_state_bucket_suffix=<a word>`, `TF_VAR_alert_email=<the mailbox>`, `TF_VAR_server_budget_usd=<your figure, T017>`. Then your SSO session, with `pf` your administrator profile's name:
+The values: `~/.config/h4reet-ai/infra/bootstrap.env`, mode 0600, four lines: `TF_VAR_state_bucket_suffix=<a word>`, `TF_VAR_alert_email=<the mailbox>`, `TF_VAR_server_budget_usd=<your figure, T017>`, and section 2's `TF_VAR_bedrock_service_names`. Then your SSO session, with `pf` your administrator profile's name:
 
 ```bash
 pf=h4reet-admin
 make -f Makefile aws-login PROFILE="$pf"
 ```
 
-The clone, with P-I1 applied and committed there:
+The clone of your branch, with P-I1 applied and committed there:
 
 ```bash
-b=feat/001-us1-bootstrap
+pb=feat/001-us1-bootstrap-p
 s=~/scratch-001g3
-git clone -q -b "$b" . "$s"
+git clone -q -b "$pb" . "$s"
 cd "$s"
 d=docs/merge-requests
 p=$d/2026-11-10-feat-001-pi1-bootstrap.patch
@@ -1834,26 +2075,22 @@ make "${v[@]}" plan ROOT=bootstrap \
 cd -
 ```
 
-It prints its steps on stderr and the block alone into `~/block-001g3.md`. Read it: three budgets, the anomaly monitor and its subscription, the topic, its policy, its subscription, and the bucket's six resources; no account ID, address, or email (each reads `<account>`, `<email>`, or `<redacted>`). Paste the block into this note's "The plan block" heading on the branch and commit, or hand the file to the session, which commits it. Its `tree` is the tree `infra/` will have on the branch once you commit P-I1 there (section 6).
+It runs the policy, `terraform fmt -check`, init, plan, and the policy again on the plan, prints its steps on stderr, and puts the block alone into `~/block-001g3.md`. It never replaces a saved plan of the same tree: to plan again, remove `~/.config/h4reet-ai/infra/plans/bootstrap-<tree>.tfplan` and its `.verified` stamp yourself. Read the block: `Plan: 14 to add, 0 to change, 0 to destroy`, the three budgets on your service names, the anomaly monitor and its subscription, the topic, its policy, its subscription, and the bucket's six resources; no account ID, address, or email (each reads `<account>`, `<email>`, or `<redacted>`). Paste the block into this note's "The plan block (T027)" heading on your branch and commit it there, or hand the file to the session.
 
-### 5. T028: the review
+### 6. T029: P-I1 on your branch, the gate, the merge
 
-The session runs it on the tip that holds your lockfile and your block.
-
-### 6. T029: P-I1 on the branch, the gate, the merge
-
-The same patch, byte for byte:
+The same patch, byte for byte, on `feat/001-us1-bootstrap-p`:
 
 ```bash
-b=feat/001-us1-bootstrap
-git --no-replace-objects switch "$b"
+pb=feat/001-us1-bootstrap-p
+git --no-replace-objects switch "$pb"
 d=docs/merge-requests
 p=$d/2026-11-10-feat-001-pi1-bootstrap.patch
 patch -p1 --dry-run < "$p"
 patch -p1 < "$p"
 git add -- infra/bootstrap
 git commit -m "enforce(001): P-I1"
-t=$(git rev-parse "$b:infra")
+t=$(git rev-parse "$pb:infra")
 grep -c "tree=$t" "$d"/*us1-bootstrap.md
 ```
 
@@ -1861,20 +2098,24 @@ The count is 1: the block's tree is the branch's. Then the gate, from main's che
 
 ```bash
 git --no-replace-objects switch main
-tools/gates/gate "$b" 2>&1 |
+tools/gates/gate "$pb" 2>&1 |
   tee ~/gate-001g3.log
 ```
 
-Expect Ready, with `infra-plan-note` PASS for bootstrap. On any FAIL or PENDING, don't merge: tell the session. Then the guard, which anchors on the tip the review read (replace `REVIEWED_TIP` with the SHA in the Review section): it merges only if the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, `main` and the reviewed tip are both its ancestors, and nothing changed since the reviewed tip but P-I1's two files. Whatever it prints, it then parks your checkout off `main`:
+Expect Ready, with `infra-plan-note` PASS for bootstrap. On any FAIL or PENDING, don't merge: tell the session.
+
+Then the guard. It anchors on the post-fix tip, after T028's review, ccc32352d5f57eb0ee5e6e0680a608eb7982ef2c (Review). It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main`; `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; and the SHA differs from main's merge with the anchor only in the notes under `docs/merge-requests/` (the review's record, your block), the lockfile, and P-I1's two files. Comparing against main's merge with the anchor keeps it where it is when main is merged into the branch again (T028's review, B1). Whatever it prints, it then parks your checkout off `main`:
 
 ```bash
+pb=feat/001-us1-bootstrap-p
 log=~/gate-001g3.log
-rv=REVIEWED_TIP
+rv=ccc32352d5f57eb0ee5e6e0680a608eb7982ef2c
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
 on=$(git symbolic-ref -q HEAD)
-tip=$(git rev-parse --verify "refs/heads/$b")
+q="refs/heads/$pb"
+tip=$(git rev-parse --verify "$q")
 mr=refs/heads/main
 [ "$on.$tip" = "$mr.$sha" ] || n=0
 ok=no
@@ -1882,12 +2123,17 @@ ok=no
 a=(merge-base --is-ancestor)
 git "${a[@]}" "$mr" "$sha" || ok=no
 git "${a[@]}" "$rv" "$sha" || ok=no
-x='^infra/bootstrap/(budgets|alerts)\.tf$'
-c=$(git diff --name-only "$rv" "$sha")
-k=$(printf '%s\n' "$c" | grep -Ecv "$x")
-[ -n "$c" ] && [ "$k" = 0 ] || ok=no
+w=(merge-tree --write-tree)
+e=$(git "${w[@]}" "$mr" "$rv") || ok=no
+i=infra/bootstrap
+y=(":(exclude)docs/merge-requests/")
+y+=(":(exclude)$i/.terraform.lock.hcl")
+y+=(":(exclude)$i/budgets.tf")
+y+=(":(exclude)$i/alerts.tf")
+g=(diff --quiet "$e" "$sha" -- .)
+git "${g[@]}" "${y[@]}" || ok=no
 echo "guard: $ok"
-m="Merge $b (${sha:0:12})"
+m="Merge $pb (${sha:0:12})"
 o=(--no-replace-objects merge --no-ff)
 o+=(-m "$m" -m "$s")
 [ "$ok" = go ] && git "${o[@]}" "$sha"
@@ -1895,11 +2141,11 @@ p=wip-park/11-11-2026
 git --no-replace-objects switch -C "$p"
 ```
 
-On `guard: no`, nothing merged: tell the session.
+On `guard: no`, nothing merged: tell the session. The guard ran against a mock of this whole sequence, in bash and in zsh (Verification, "The guard, against a mock").
 
 ### 7. T030, on main
 
-With your SSO session, `pf` your administrator profile's name as in section 4:
+With your SSO session, `pf` your administrator profile's name as in section 5:
 
 ```bash
 pf=h4reet-admin
@@ -1923,3 +2169,9 @@ On a failed apply, `OUTCOME=failed EXIT_STATUS=<its exit status>` instead. Then:
 5. park your checkout off `main`.
 
 The state's move, T030 step 2, waits for its branch (departure 4): tell the session, which writes it; you then run `terraform init -migrate-state` from that branch's checkout and record it.
+
+### 8. A line for CLAUDE.md, for your hand
+
+The second time this has happened (group 1's B1, then this group's), so a line for "Things Claude gets wrong", in your words; CLAUDE.md is at its 6 KB cap with P-3, so it needs something cut to fit:
+
+> Writing a merge guard that lists the files changed since the reviewed tip: the review's record, the Author's block and patches, and main's merge always land after it; compare the branch's own diff with the reviewed one.
