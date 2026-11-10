@@ -61,7 +61,7 @@ export const RULES = {
   RI7: rule("RI"), // a model not under assets/room/, or not recorded
   RI8: rule("RI"), // the root, the figures, and the hand-off
   RI9: rule("RI", read), // a corpus path outside its form
-  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks
+  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect

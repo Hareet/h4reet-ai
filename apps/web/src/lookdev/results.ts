@@ -27,7 +27,8 @@ export interface Probe {
   readonly dpr: number;
 }
 
-export type SceneChoice = "room" | "vignette";
+/** The room, the vignette, and since spec 014 the hands view (its FR-042; PD-24), which measures nothing. */
+export type SceneChoice = "room" | "vignette" | "hands";
 /** The reference stages, stages.ts's on any device; the phone copy's own device's stage, from its probe, which on the
  *  reference phone re-measures its stage; the desk close-up; and spec 005's window views (its FR-059; plan.md §10.4):
  *  the reference desktop's, the reference phone's, and a large monitor's whole window, the HUD over it. */

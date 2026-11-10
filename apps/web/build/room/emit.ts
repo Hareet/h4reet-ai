@@ -113,6 +113,8 @@ export interface RoomFixture {
 export interface RoomLookdev {
   readonly vignette: { readonly show: readonly string[] };
   readonly close_up: { readonly frame: readonly string[] };
+  /** Spec 014 (FR-042; PD-24): the hands view's avatars, where lookdev.yaml lists any. */
+  readonly hands?: { readonly avatars: readonly AvatarId[] };
   readonly looks: readonly Look[];
   /** Each piece's fit inputs: its expected bounds and live faces at the stylized scale, its budget, whether the caps
    *  list it as a small prop. */
@@ -1473,6 +1475,7 @@ function lookdevOf(c: Composed): RoomLookdev {
   return {
     vignette: { show: [...(lookdev?.vignette.show ?? [])] },
     close_up: { frame: [...(lookdev?.close_up.frame ?? [])] },
+    ...(lookdev?.hands ? { hands: { avatars: lookdev.hands.avatars.filter(isAvatarId) } } : {}),
     looks: c.room.looks.map((l) => lookOf(l.value)),
     pieces,
     caps: {

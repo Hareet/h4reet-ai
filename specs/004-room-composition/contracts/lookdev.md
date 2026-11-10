@@ -108,7 +108,7 @@ At a run's end, the page shows its readouts as text and as one JSON block in a r
 | `build` | `drafts`, always: no other build has the page |
 | `bundle` | the digest both parts of the bundle carry, which names what was composed |
 | `probe` | §7.2's fields in the phone copy; `null` on the site's page |
-| `scene` | `room` or `vignette` |
+| `scene` | `room` or `vignette`; **(spec 014)** or `hands`, the hands view, whose run judges nothing |
 | `view`, `stage_css`, `dpr` | `desktop`, `phone`, or `close-up`; the stage drawn, in CSS pixels, and the pixel ratio drawn at, which in the phone copy re-measure the reference phone's stage |
 | `window_css`, `buffer_px`, `pixel_cap` | **(spec 005)** the window a window view's canvas fills, in CSS pixels, or `null` in a stage view; the drawing buffer, in device pixels; and the quality level's pixel cap in force, in device pixels (spec 005's FR-059) |
 | `ease`, `frame_css` | **(spec 014)** in a window view, the frame area's ease, 0 to 1 in sixteenths, and the frame area, `[x, y, w, h]` in CSS pixels from the window's top left; `null` in a stage view (its FR-063) |

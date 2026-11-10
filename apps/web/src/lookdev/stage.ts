@@ -38,13 +38,14 @@
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
 // the live switch held off, and to the page's status line, which says how a candidate's load ended; and a pick on the
 // canvas logs spec 002's object_selected in the log too.
-import { PerspectiveCamera, SRGBColorSpace } from "three";
-import type { Material, Mesh, Object3D, WebGLRenderer } from "three";
+import { Box3, PerspectiveCamera, SRGBColorSpace } from "three";
+import type { AnimationClip, Group, Material, Mesh, Object3D, WebGLRenderer } from "three";
 
 import type { RoomFixture, RoomLookdev } from "../../build/room/emit";
 import { createAssetEvents } from "../asset-events";
 import type { AssetEvent } from "../asset-events";
 import { AVATARS } from "../choice/avatars";
+import type { AvatarId, ClipRole } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { MotionStore } from "../room/motion";
@@ -86,7 +87,7 @@ import type { GlowCards } from "../room/scene/glows";
 import { LABEL_LAYER, createHighlight, drawFrame } from "../room/scene/highlight";
 import type { Highlight } from "../room/scene/highlight";
 import { createTextureLedger } from "../room/scene/ledger";
-import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
+import { createLoader, figureEntries, modelEntries, prepareModel, showModel } from "../room/scene/loader";
 import { caseFor } from "../room/signals/tier";
 import { createCostChannel } from "../room/signals/turn-cost";
 import type { CostState, TurnOutcome } from "../room/signals/turn-cost";
@@ -94,6 +95,8 @@ import type { ModelEntry } from "../room/scene/loader";
 import { createInk } from "../room/scene/look";
 import type { Ink } from "../room/scene/look";
 import type { FrameSample } from "./metrics";
+import { HANDS_NODE, caseLabel, disposeHands, drawHands, handsCases } from "./hands";
+import type { HandsDrawn } from "./hands";
 import type { QualityChoice, SceneChoice, ViewChoice } from "./results";
 
 /** The drafts build's inputs: the 3D part, the index, the lookdev inputs, the fixtures, and the room text. */
@@ -175,6 +178,11 @@ export interface LookdevStage {
   readonly textureBytes: number;
   /** The selectable drawn with the highlight (spec 008, FR-050), or none. */
   readonly highlight: string | null;
+  /** Spec 014's hands view (FR-042; PD-24): each case of lookdev.yaml's `hands.avatars`, its words, and why it doesn't
+   *  draw, or null where it does; empty where the file lists none. */
+  readonly hands: readonly { readonly label: string; readonly why: string | null }[];
+  /** Called after each change of the hands view's cases: a model or a clip taken, or a load ended without one. */
+  onHands(fn: () => void): void;
   setView(view: ViewChoice): void;
   setScene(scene: SceneChoice): void;
   setLook(id: string): void;
@@ -276,6 +284,18 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     return p ? [p.frame_box] : [];
   });
   const vignette = new Set(lookdev.vignette.show);
+  // Spec 014's hands view (FR-042; PD-24): the listed avatars' files through the loader's figure hooks, asked for the
+  // first time the view shows, from the site's a/ on the site's page; none in the phone copy, which makes no request.
+  const handsCaseList = handsCases(lookdev.hands?.avatars ?? []);
+  const handsFiles = new Map<
+    AvatarId,
+    { model: Object3D | null; clips: Map<ClipRole, AnimationClip>; missed: boolean }
+  >();
+  for (const c of handsCaseList)
+    if (!handsFiles.has(c.avatar)) handsFiles.set(c.avatar, { model: null, clips: new Map(), missed: !options.site });
+  let handsAsked = false;
+  let handsShown: { group: Group; drawn: HandsDrawn[] } | null = null;
+  const handsListeners: (() => void)[] = [];
   const figures = new Set([part.figures.twin, part.figures.visitor]);
   const memberOf = new Map<string, number>();
   index.selectables.forEach((s, i) => {
@@ -461,7 +481,11 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     canvas.style.height = `${size.h}px`;
     renderer.setPixelRatio(ratio);
     renderer.setSize(size.w, size.h, false);
-    spec = frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
+    spec = frameCamera(
+      camera,
+      stage.w / stage.h,
+      scene === "hands" && handsShown ? handsBoxes(handsShown.group) : view === "close-up" ? closeUp : framed,
+    );
     if (windowed) {
       const o = viewOffsetFor(clear, windowed);
       camera.setViewOffset(o.fullWidth, o.fullHeight, o.x, o.y, o.width, o.height);
@@ -520,8 +544,66 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
         mark(child, on);
       }
     };
-    for (const [id, node] of room.placements) mark(node, scene === "room" || vignette.has(id));
-    for (const child of room.scene.children) if (!nodes.has(child) && drawable(child)) set(child, scene === "room");
+    for (const [id, node] of room.placements)
+      mark(node, scene === "room" || (scene === "vignette" && vignette.has(id)));
+    for (const child of room.scene.children)
+      if (!nodes.has(child) && child.name !== HANDS_NODE && drawable(child)) set(child, scene === "room");
+    // Spec 014's hands view, in place of the room: drawn once its scene first shows, and again as its files arrive.
+    if (scene === "hands") {
+      askHands();
+      if (!handsShown) drawHandsNow();
+    }
+    if (handsShown) {
+      if (handsShown.group.parent !== room.scene) room.scene.add(handsShown.group);
+      handsShown.group.visible = scene === "hands";
+    }
+  }
+
+  /** The hands group's box in world metres, framed as the room's boxes are. */
+  function handsBoxes(group: Object3D): Box[] {
+    group.updateMatrixWorld(true);
+    const b = new Box3().setFromObject(group, true);
+    if (b.isEmpty()) return [{ min: [-0.5, 0, -0.5], max: [0.5, 1.8, 0.5] }];
+    return [{ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] }];
+  }
+
+  /** The hands view's cases drawn again from the files the page has now, in place of the last drawing. */
+  function drawHandsNow(): void {
+    if (handsShown) disposeHands(handsShown.group);
+    handsShown = handsCaseList.length > 0 ? drawHands(handsCaseList, handsFiles, part.figures.grips) : null;
+    if (handsShown) {
+      room.scene.add(handsShown.group);
+      handsShown.group.visible = scene === "hands";
+    }
+    for (const fn of handsListeners) fn();
+  }
+
+  /** The listed avatars' files, asked for once, the site's page alone. */
+  function askHands(): void {
+    if (handsAsked || !options.site || handsCaseList.length === 0) return;
+    handsAsked = true;
+    const avatars = [...handsFiles.keys()];
+    const entries = avatars.flatMap((avatar) =>
+      figureEntries({ figures: { ...part.figures, stand_in: null }, avatars: part.avatars }, avatar, "../"),
+    );
+    for (const avatar of avatars)
+      if (!part.avatars[avatar]) {
+        const own = handsFiles.get(avatar);
+        if (own) own.missed = true;
+      }
+    void loader.loadFigures(entries);
+  }
+
+  /** A hands file's change: the view drawn again where it shows, its list told. */
+  function handsChanged(): void {
+    if (scene === "hands") {
+      drawHandsNow();
+      fit();
+    } else {
+      if (handsShown) disposeHands(handsShown.group);
+      handsShown = null;
+      for (const fn of handsListeners) fn();
+    }
   }
 
   /** The sample state: the fixture's tier applied to each tier switch through the room's own apply, its case by the
@@ -568,8 +650,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     uploader: renderer,
     prepare: (piece, model) => {
       const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
-      if (!own) return;
-      prepareModel(model, own, look, room.materials);
+      // Spec 014's hands view: an avatar's model, by its file's key, readied as the room's 3D stage readies one.
+      if (!own && !piece.startsWith("avatar:")) return;
+      prepareModel(model, own ?? { faces: {} }, look, room.materials);
       ink.prepare(model);
     },
     swap: (piece, model) => {
@@ -577,6 +660,28 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       applyScene();
       highlight.refresh();
     },
+    // Spec 014's hands view: the listed avatars' models and clips, as the room's figures take theirs.
+    avatar: (entry, model) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      if (!own) return false;
+      own.model = model;
+      handsChanged();
+      return true;
+    },
+    clip: (entry, clips) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      const first = clips[0];
+      if (!own || entry.figure.role === null || !first) return;
+      own.clips.set(entry.figure.role, first);
+      handsChanged();
+    },
+    figureEnded: (entry, outcome) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      if (!own || outcome === "loaded" || entry.figure.role !== null) return;
+      own.missed = true;
+      handsChanged();
+    },
+    maxSide: part.figures.texture_px,
   });
 
   /** The models from the site's a/, the site's page alone; the page's candidates. */
@@ -742,6 +847,17 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get highlight() {
       return highlighted;
     },
+    get hands() {
+      const drawn = handsShown?.drawn;
+      return handsCaseList.map((c, i) => {
+        const own = handsFiles.get(c.avatar);
+        const why = drawn?.[i]?.why ?? (own?.missed ? "no model" : "waiting for its model");
+        return { label: caseLabel(c), why: drawn ? (drawn[i]?.why ?? null) : why };
+      });
+    },
+    onHands(fn) {
+      handsListeners.push(fn);
+    },
     setView(next) {
       view = next;
       fit();
@@ -749,6 +865,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     setScene(next) {
       scene = next;
       applyScene();
+      fit();
     },
     setLook(id) {
       const next = lookdev.looks.find((l) => l.id === id);
@@ -818,6 +935,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       glows?.dispose();
       highlight.dispose();
       fonts.dispose();
+      if (handsShown) disposeHands(handsShown.group);
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

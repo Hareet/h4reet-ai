@@ -769,11 +769,13 @@ export const fixtureSchema = z.strictObject({
   turns: z.array(turnOutcome),
 });
 
-/** `apps/web/room/lookdev.yaml` (§12): `vignette.show` and `close_up.frame`, each "at least one". */
+/** `apps/web/room/lookdev.yaml` (§12): `vignette.show` and `close_up.frame`, each "at least one"; since spec 014 (its
+ *  FR-042; PD-24), the hands view's `hands.avatars`, optional, at least one, which RI10 holds to the avatar table. */
 export const lookdevSchema = z.strictObject({
   version: version(),
   vignette: z.strictObject({ show: z.array(z.string()).min(1) }),
   close_up: z.strictObject({ frame: z.array(z.string()).min(1) }),
+  hands: z.strictObject({ avatars: z.array(z.string()).min(1) }).optional(),
 });
 
 export type CatalogEntry = z.output<typeof catalogSchema>;

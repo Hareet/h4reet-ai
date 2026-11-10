@@ -5,7 +5,8 @@
 // a vocabulary word; RI6 too many selectables, a repeated member, or a placement in two; RI7 a model not directly under
 // assets/room/, off its piece's ID, or not recorded with the kind room and its SHA-256; RI8 the root, the figures, and
 // the hand-off, each hand on the side the other figure's lies on, and spec 009's stand-in, an avatar of the table;
-// RI10 lookdev.yaml's placements, in a drafts build; RI11 a label nothing references.
+// RI10 lookdev.yaml's placements, and since spec 014 its hands view's avatars, in a drafts build; RI11 a label nothing
+// references.
 // A reference into a file the loader refused (or a required file that is missing) isn't reported again: that file's
 // finding is the one to fix. No reason holds a value from the data.
 import { createHash } from "node:crypto";
@@ -436,7 +437,7 @@ function handSides(ctx: Context, ri8: (path: string, reason: string) => void): v
       );
 }
 
-/** RI10: in a drafts build, lookdev.yaml naming a placement the scene doesn't have. */
+/** RI10: in a drafts build, lookdev.yaml naming a placement the scene doesn't have, or an avatar outside the table. */
 function lookdev(ctx: Context): void {
   const { scene, lookdev: file } = ctx.room;
   if (!ctx.options.drafts || !scene || !file) return;
@@ -447,6 +448,11 @@ function lookdev(ctx: Context): void {
     });
   check(file.value.vignette.show, "vignette", "show");
   check(file.value.close_up.frame, "close_up", "frame");
+  // Spec 014 (FR-042; PD-24): the hands view's avatars, each of the room's avatar table.
+  file.value.hands?.avatars.forEach((id, k) => {
+    if (!isAvatarId(id))
+      ctx.report("RI10", file.file, ctx.path("hands", "avatars", k), "no avatar of that ID in the room's avatar table");
+  });
 }
 
 /** RI11: a `label.<name>` UI word that no placement, face binding, or switch references. */
