@@ -11,11 +11,6 @@
 // ends with "Around the room", in 3D and 2D; axe on the paused room too; "Around the room" visible after the
 // conversation, outside the stage, open, updated in place in no live region; no meaning on colour alone; and the
 // 320 × 568 page, modelled from room.css (below), with five toolbar controls.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { create } from "fontkit";
-import type { Font } from "fontkit";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,7 +27,6 @@ import { framedBoxes } from "../../src/room/scene/bundle3d";
 import { renderTextCopy } from "../../src/room/text-copy";
 import {
   AI_DISCLOSURE,
-  WEB,
   axeViolations,
   button,
   enter,
@@ -45,6 +39,7 @@ import {
   repositoryBundle,
   roomIndex,
   start,
+  stubViewport,
   stylesheets,
   tabOrder,
   talkLog,
@@ -52,6 +47,7 @@ import {
 } from "../helpers/room";
 import type { CssRule, Visit } from "../helpers/room";
 import { goodTree, sideWallPolicy, sideWallTree } from "../helpers/room-fixtures";
+import { hudModel, hudWords } from "./hud-model";
 
 /** The "In the room" list's buttons by their accessible names, as the index gives them: in scene order, each name, a
  *  ": ", and its topic's phrase, or the resume action's UI word. */
@@ -182,6 +178,12 @@ describe("keyboard", () => {
       await intoRoom(v);
       // Spec 008's Amendment M6: in 3D, the walking control comes after the toolbar, in the stage.
       const walk = webgl ? [roomIndex().ui["walk.enter"] ?? "Walk around"] : [];
+      // Spec 005's FR-043: each collapsible panel's header button first in its panel, the list's and the log's, with the
+      // larger view's beside the log's.
+      const HEADS = {
+        list: [roomIndex().ui["list.heading"] ?? ""],
+        talk: [roomIndex().ui["hud.log_toggle"] ?? "", roomIndex().ui["talk.larger"] ?? ""],
+      };
       const stops = tabOrder(v.doc);
       expect(stops.map(nameOf)).toEqual([
         "Resume",
@@ -189,7 +191,9 @@ describe("keyboard", () => {
         "Pause the room",
         "How data flows",
         ...walk,
+        ...HEADS.list,
         ...OBJECT_BUTTONS,
+        ...HEADS.talk,
         "Your message",
         "Send",
         "Hold to talk",
@@ -206,14 +210,16 @@ describe("keyboard", () => {
       const order = tabOrder(v.doc).map(nameOf);
       // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, the conversation
       // panel's three, and "Around the room" come first.
-      const room = 4 + walk.length + OBJECT_BUTTONS.length + 3 + 1;
+      const room = 4 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
       expect(order.slice(0, room)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
         ...walk,
+        ...HEADS.list,
         ...OBJECT_BUTTONS,
+        ...HEADS.talk,
         "Your message",
         "Send",
         "Hold to talk",
@@ -301,7 +307,7 @@ describe("assistive technology", () => {
     // Each selectable is cued in the drawing (spec 004, T109), and has its button in the list.
     const count = roomIndex().selectables.length;
     expect(flat?.querySelectorAll(".flat-cue")).toHaveLength(count);
-    expect(v.doc.querySelectorAll(".room-list button")).toHaveLength(count);
+    expect(v.doc.querySelectorAll(".room-list li button")).toHaveLength(count);
   });
 
   it("has polite live regions for the hand-off line and the twin's words, in the page before either speaks", () => {
@@ -338,7 +344,7 @@ describe("the side-wall selectables' road in (FR-064's carve-out)", () => {
     const select = vi.fn<(id: string) => void>();
     const list = renderObjectList(doc, index, select);
     doc.body.append(list);
-    const buttons = [...list.querySelectorAll("button")];
+    const buttons = [...list.querySelectorAll<HTMLButtonElement>("li button")];
     expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual([
       "fx-workstation",
       "fx-board",
@@ -375,22 +381,33 @@ describe("the AI disclosure", () => {
     return value;
   }
 
-  it("stays in view on every screen: the page's header, sticky at the top, opaque, never inert or hidden", async () => {
+  // Spec 005 (FR-021; Amendment H6): in the room's HUD the header is the strip, fixed at the window's top over the scene,
+  // dark glass whose contrast test/room/hud-contrast.test.ts computes; on the choice screen, and in the stacked layout,
+  // it stays sticky and white.
+  it("stays in view on every screen: the page's header, at the top, never inert or hidden", async () => {
     const all = rules();
     for (const [name, v] of await screens()) {
       const header = [...v.doc.querySelectorAll("header")].find((h) => textOf(h).includes(AI_DISCLOSURE));
       if (!header) throw new Error(`${name}: no header holds the AI disclosure`);
       expect(header.closest("[inert], [hidden], [aria-hidden='true']"), name).toBeNull();
       expect(header.parentElement, name).toBe(v.doc.body);
-      expect(declared(header, "position", all), name).toBe("sticky");
       expect(declared(header, "top", all), name).toBe("0");
-      expect(declared(header, "background", all), name).toMatch(/^#fff(fff)?$/i);
+      const hud = ["column", "dock"].includes(v.doc.documentElement.getAttribute("data-hud") ?? "");
+      if (hud) {
+        expect(declared(header, "position", all), name).toBe("fixed");
+        expect(declared(header, "background", all), name).toBe("rgb(var(--glass) / var(--glass-alpha))");
+      } else {
+        expect(declared(header, "position", all), name).toBe("sticky");
+        expect(declared(header, "background", all), name).toMatch(/^#fff(fff)?$/i);
+      }
     }
   });
 
   it("leaves room above a focused control for itself, so the header never covers it (WCAG 2.4.11)", () => {
     const html = rules().find((r) => r.selector === "html");
-    expect(px(html?.declarations.get("scroll-padding-top"))).toBeGreaterThanOrEqual(64);
+    // The strip's height and a rem in the room's HUD; 4rem and a rem, today's 5rem, before the room sets it.
+    expect(html?.declarations.get("scroll-padding-top")).toBe("calc(var(--strip-h, 4rem) + 1rem)");
+    expect(rules().some((r) => r.declarations.has("--strip-h"))).toBe(false);
   });
 });
 
@@ -447,8 +464,11 @@ describe("touch and small screens", () => {
     const media = sheets.flatMap((s) => s.atRules).map((a) => a.prelude);
     expect(media.some((m) => /prefers-reduced-motion:\s*reduce/.test(m))).toBe(true);
     expect(media.some((m) => /orientation:\s*landscape/.test(m))).toBe(true);
-    // The stage's height leaves the toolbar, the list, the text box, and the talk button on a 320 by 568 screen.
-    const stage = sheets.flatMap((s) => s.rules).find((r) => r.selector === ".room-stage");
+    // The room block is the window's dynamic height in the HUD, and the stacked layout's stage follows it too.
+    const top = sheets.flatMap((s) => s.rules);
+    const block = top.find((r) => r.selector.split(",").some((p) => p.trim() === 'html[data-hud="dock"] .room-block'));
+    expect(block?.declarations.get("height")).toMatch(/dvh/);
+    const stage = top.find((r) => r.selector === 'html[data-hud="stacked"] .room-stage');
     expect(stage?.declarations.get("height")).toMatch(/dvh/);
   });
 });
@@ -475,11 +495,15 @@ describe('"Around the room" (FR-063; User Story 7 scenarios 2 and 5)', () => {
       const room = v.doc.querySelector(".room");
       const around = v.doc.querySelector<HTMLElement>(".room-around");
       if (!room || !around) throw new Error('no room, or no "Around the room"');
-      // A part of the room's grid of its own, right after the conversation panel and before the resume's.
+      // A part of the room of its own, right after the room block, whose last part is the panels ending with the
+      // conversation panel (spec 005), and before the resume's.
       const parts = [...room.children];
       const at = parts.indexOf(around);
       expect(at).toBeGreaterThan(0);
-      expect(parts[at - 1]?.classList.contains("talk")).toBe(true);
+      const block = parts[at - 1];
+      expect(block?.classList.contains("room-block")).toBe(true);
+      expect(block?.lastElementChild?.classList.contains("hud-panels")).toBe(true);
+      expect(block?.lastElementChild?.lastElementChild?.classList.contains("talk")).toBe(true);
       expect(parts[at + 1]?.classList.contains("resume-panel")).toBe(true);
       expect(around.closest(".room-stage")).toBeNull();
       // Open to every visitor: never hidden, inert, visually hidden, or folded, and nothing in it to expand.
@@ -524,18 +548,21 @@ describe('"Around the room" (FR-063; User Story 7 scenarios 2 and 5)', () => {
     expect(around.closest(LIVE)).toBeNull();
   });
 
-  it("takes its own place in room.css's grid: after the talk panel in portrait, across both columns in landscape", () => {
+  // Spec 005: the grid is the stacked layout's; in the HUD "Around the room" follows the room block in a reading column.
+  it("takes its own place in the stacked layout's grid: after the talk panel in portrait, across both columns in landscape", () => {
     const sheets = stylesheets().map((s) => parseCss(s.text));
     const top = sheets.flatMap((s) => s.rules);
+    const S = 'html[data-hud="stacked"]';
     const last = (list: CssRule[], selector: string, property: string): string | undefined =>
       list
-        .filter((r) => r.selector === selector && r.declarations.has(property))
+        .filter((r) => r.selector.split(",").some((p) => p.trim() === selector) && r.declarations.has(property))
         .at(-1)
         ?.declarations.get(property);
-    expect(last(top, ".room-around", "grid-area")).toBe("around");
+    expect(last(top, `${S} .room-around`, "grid-area")).toBe("around");
+    expect(last(top, 'html[data-hud="column"] .room-around', "max-width")).toBe("48rem");
     const areas = (value: string | undefined): string[] =>
       [...(value ?? "").matchAll(/"([^"]*)"/g)].map((m) => m[1] ?? "");
-    expect(areas(last(top, ".room", "grid-template-areas"))).toEqual([
+    expect(areas(last(top, `${S} .room`, "grid-template-areas"))).toEqual([
       "toolbar",
       "stage",
       "list",
@@ -547,7 +574,7 @@ describe('"Around the room" (FR-063; User Story 7 scenarios 2 and 5)', () => {
       .flatMap((s) => s.atRules)
       .filter((a) => /orientation:\s*landscape/.test(a.prelude))
       .flatMap((a) => parseCss(a.body).rules);
-    expect(areas(last(landscape, ".room", "grid-template-areas"))).toEqual([
+    expect(areas(last(landscape, `${S} .room`, "grid-template-areas"))).toEqual([
       "toolbar toolbar",
       "stage list",
       "stage talk",
@@ -598,214 +625,43 @@ describe("no meaning on colour alone (FR-065; WCAG 2.2's 1.4.1; R-40)", () => {
   });
 });
 
-// The 320 × 568 guarantee (FR-065; User Story 7 scenario 4; R-40): jsdom lays nothing out, so this models the portrait
-// page as room.css lays it out, from room.css's own values at that screen, with each control's words measured in the
-// page's typeface, the vendored IBM Plex Sans: the AI disclosure, the toolbar's five controls (spec 003's "Credits"
-// link, the UI word toolbar.credits, counted until T223 adds it), the stage, the "In the room" list, and the
-// conversation panel as the room shows it, its log empty. The Author's run at 320 × 568 (T174) checks it in a browser.
-
-interface CssAt {
-  /** A property's value for an exact selector at this screen: its last declaration, the media rules that apply last. */
-  get(selector: string, property: string): string | undefined;
-}
-
-/** Whether a media query applies at a screen: orientation and widths in rem; anything else (reduced motion) is off. */
-function mediaApplies(prelude: string, screen: { w: number; h: number }): boolean {
-  const query = prelude.replace(/^@media\s*/, "").trim();
-  return query.split(/\s+and\s+/).every((feature) => {
-    const f = feature.trim();
-    let m = /^\(orientation:\s*(portrait|landscape)\)$/.exec(f);
-    if (m) return m[1] === "portrait" ? screen.h >= screen.w : screen.w > screen.h;
-    m = /^\((min|max)-width:\s*([\d.]+)rem\)$/.exec(f);
-    if (m) return m[1] === "min" ? screen.w >= Number(m[2]) * 16 : screen.w <= Number(m[2]) * 16;
-    m = /^\(width\s*(<|<=)\s*([\d.]+)rem\)$/.exec(f);
-    if (m) return m[1] === "<" ? screen.w < Number(m[2]) * 16 : screen.w <= Number(m[2]) * 16;
-    return false;
-  });
-}
-
-let parsedSheets: ReturnType<typeof parseCss>[] | null = null;
-
-function cssAt(screen: { w: number; h: number }): CssAt {
-  const ordered: CssRule[] = [];
-  parsedSheets ??= stylesheets().map((sheet) => parseCss(sheet.text));
-  for (const parsed of parsedSheets) {
-    ordered.push(...parsed.rules);
-    for (const at of parsed.atRules) if (mediaApplies(at.prelude, screen)) ordered.push(...parseCss(at.body).rules);
-  }
-  return {
-    get(selector, property) {
-      let value: string | undefined;
-      for (const rule of ordered) {
-        const parts = rule.selector.split(",").map((s) => s.trim());
-        if (parts.includes(selector) && rule.declarations.has(property)) value = rule.declarations.get(property);
-      }
-      return value;
-    },
-  };
-}
-
-/** A length in CSS pixels: px, rem, or em (of `em`), or 0. */
-function length(value: string | undefined, em = 16): number {
-  const v = (value ?? "").trim();
-  if (v === "0") return 0;
-  const m = /^(-?[\d.]+)(px|rem|em)$/.exec(v);
-  if (!m) throw new Error(`not a length: "${v}"`);
-  return Number(m[1]) * (m[2] === "px" ? 1 : m[2] === "rem" ? 16 : em);
-}
-
-/** A padding or margin shorthand's right and left, or top and bottom, summed. */
-function sides(value: string | undefined, axis: "x" | "y"): number {
-  const parts = (value ?? "0")
-    .trim()
-    .split(/\s+/)
-    .map((p) => length(p));
-  const [top = 0, right = top, bottom = top, left = right] = parts;
-  return axis === "x" ? left + right : top + bottom;
-}
-
-/** A border shorthand's width. */
-const borderWidth = (value: string | undefined): number => length(/^([\d.]+px)/.exec(value ?? "")?.[1] ?? "0");
-
-let plex: Font | null = null;
-/** A text's advance width in CSS pixels, in the page's typeface at `size` px, kerning applied. */
-function textWidth(text: string, size: number): number {
-  plex ??= create(readFileSync(join(WEB, "fonts", "IBMPlexSans-Regular.woff"))) as Font;
-  return (plex.layout(text).advanceWidth / plex.unitsPerEm) * size;
-}
-
-/** How many rows a wrapping flex line of items takes in a width, with a gap between items. */
-function flexRows(widths: readonly number[], width: number, gap: number): number {
-  let rows = 0;
-  let used = Infinity;
-  for (const w of widths) {
-    if (used + gap + w <= width) used += gap + w;
-    else {
-      rows += 1;
-      used = w;
-    }
-  }
-  return rows;
-}
-
-/** How many lines a paragraph's words wrap to in a width. */
-function textLines(text: string, size: number, width: number): number {
-  const space = textWidth(" ", size);
-  return flexRows(
-    text
-      .split(/\s+/)
-      .filter((w) => w !== "")
-      .map((w) => textWidth(w, size)),
-    width,
-    space,
-  );
-}
-
-interface PortraitPage {
-  readonly toolbar: readonly string[];
-  readonly toolbarRows: number;
-  readonly listRows: number;
-  /** The stage's box on the screen, from the page's top. */
-  readonly stage: { readonly top: number; readonly w: number; readonly h: number };
-  /** The foot of the text box and the talk button's row. */
-  readonly talkBottom: number;
-}
-
-/** The portrait page in the room at a screen, from the page's top, as room.css lays it out (see above). */
-function portraitPage(doc: Document, screen: { w: number; h: number }): PortraitPage {
-  const css = cssAt(screen);
-  const root = 16;
-  const lineHeight = Number(css.get(":root", "line-height"));
-  const pad = length(css.get("body.in-room", "padding"));
-  const width = screen.w - 2 * pad;
-  const gap = length(css.get(".room", "gap"));
-  const target = length(css.get(".room button", "min-height"));
-  const row = (size: number): number => Math.max(target, size * lineHeight);
-  const buttonX = sides(css.get(".room button", "padding"), "x") + 2 * borderWidth(css.get(".room button", "border"));
-
-  // The AI disclosure, sticky at the top.
-  const pSize = length(css.get("body.in-room .disclosure p", "font-size"), root);
-  const disclosure = textOf(doc.getElementById("ai-disclosure"));
-  const header =
-    sides(css.get("body.in-room .disclosure p", "margin"), "y") +
-    textLines(disclosure, pSize, width) * pSize * lineHeight +
-    borderWidth(css.get(".disclosure", "border-bottom"));
-
-  // The toolbar: its buttons and links at its type, wrapping; the fifth control, "Credits", counted until T223.
-  const toolbarSize = length(css.get(".room-toolbar", "font-size") ?? "1rem", root);
-  const controls = [...doc.querySelectorAll(".room-toolbar > button, .room-toolbar > a")].map((el) => ({
-    text: textOf(el),
-    x: el.tagName === "A" ? sides(css.get(".room-toolbar a", "padding"), "x") : buttonX,
-  }));
-  const credits = roomIndex().ui["toolbar.credits"] ?? "Credits";
-  if (!controls.some((c) => c.text === credits))
-    controls.push({ text: credits, x: sides(css.get(".room-toolbar a", "padding"), "x") });
-  const toolbarGap = length(css.get(".room-toolbar", "gap"));
-  const toolbarRows = flexRows(
-    controls.map((c) => Math.max(target, textWidth(c.text, toolbarSize) + c.x)),
-    width,
-    toolbarGap,
-  );
-  const toolbar = toolbarRows * row(toolbarSize) + (toolbarRows - 1) * toolbarGap;
-
-  // The stage: the screen's height less the reserve, clamped.
-  const height = /^calc\(100dvh - ([\d.]+rem)\)$/.exec(css.get(".room-stage", "height") ?? "");
-  if (!height) throw new Error(".room-stage's height isn't calc(100dvh - <n>rem)");
-  const stageH = Math.min(
-    length(css.get(".room-stage", "max-height")),
-    Math.max(length(css.get(".room-stage", "min-height")), screen.h - length(height[1])),
-  );
-  const stageTop = pad + header + toolbar + gap;
-
-  // The "In the room" list: each button's shown name (its ": " and topic are visually hidden), wrapping.
-  const listX =
-    sides(css.get(".room-list button", "padding"), "x") + 2 * borderWidth(css.get(".room button", "border"));
-  const names = [...doc.querySelectorAll(".room-list ul > li > button")].map((b) => textOf(b.firstElementChild));
-  const listGap = length(css.get(".room-list ul", "gap"));
-  const listRows = flexRows(
-    names.map((n) => Math.max(target, textWidth(n, root) + listX)),
-    width,
-    listGap,
-  );
-  const list = listRows * row(root) + (listRows - 1) * listGap;
-
-  // The conversation as the room shows it: an empty log, then the label over the text box and the talk button.
-  const labelSize = length(css.get(".talk-form label", "font-size"), root);
-  const talk =
-    0 + length(css.get(".talk", "gap")) + labelSize * lineHeight + length(css.get(".talk-form", "gap")) + row(root);
-
-  return {
-    toolbar: controls.map((c) => c.text),
-    toolbarRows,
-    listRows,
-    stage: { top: stageTop, w: width, h: stageH },
-    talkBottom: stageTop + stageH + gap + list + gap + talk,
-  };
-}
-
-describe("320 × 568 (FR-065; User Story 7 scenario 4)", () => {
+// The 320 × 568 guarantee (FR-065; User Story 7 scenario 4; R-40), in the HUD since spec 005 (T021; its FR-022,
+// SC-012): jsdom lays nothing out, so test/ui/hud-model.ts models the HUD at a screen from compose/hud.ts's table, with
+// each control's words measured in the page's typeface: the strip, the bar's controls ("Credits" and the full-screen
+// control counted), the list's strip, and the text box's row in the dock, above the bar. The Author's run at
+// 320 × 568 checks it in a browser.
+describe("320 × 568 (FR-065; User Story 7 scenario 4; spec 005's SC-012)", () => {
   const SCREEN = { w: 320, h: 568 } as const;
+  const WORDS = hudWords(roomIndex());
 
-  it("keeps the text box and the talk button on screen under five toolbar controls, without scrolling", async () => {
+  it("keeps the text box and the talk button on screen under the bar's controls, without scrolling", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
-    const page = portraitPage(v.doc, SCREEN);
-    expect(page.toolbar).toEqual([
+    const model = hudModel(SCREEN, WORDS);
+    expect(model.layout).toBe("dock");
+    expect(WORDS.bar).toEqual([
       "Resume",
       "2D view",
       "Pause the room",
+      "Leave full screen",
       "How data flows",
       roomIndex().ui["toolbar.credits"],
     ]);
-    expect(page.talkBottom, `the talk button's foot, ${page.talkBottom.toFixed(1)} px`).toBeLessThanOrEqual(SCREEN.h);
-    // compose/stages.ts gives the stage room.css gives this screen, so the checks run at the stage a visitor sees.
-    expect({ w: page.stage.w, h: page.stage.h }).toEqual(stageFor(SCREEN));
+    // The room's own bar holds them in that order, but "Credits" until it lands and the full-screen control where the
+    // browser offers it.
+    const bar = [...v.doc.querySelectorAll(".hud-bar > button, .hud-bar > a")].map((el) => textOf(el));
+    expect(bar.slice(0, 3)).toEqual(["Resume", "2D view", "Pause the room"]);
+    expect(bar).toContain("How data flows");
+    expect(model.talkRows).toBe(1);
+    expect(model.talkBottom, `the talk button's foot, ${model.talkBottom.toFixed(1)} px`).toBeLessThanOrEqual(SCREEN.h);
+    // compose/stages.ts gives the clear area the HUD leaves, so the checks run at the stage a visitor sees.
+    expect({ w: model.clear.w, h: model.clear.h }).toEqual(stageFor(SCREEN));
+    expect(model.clear.w).toBeGreaterThanOrEqual(304);
+    expect(model.clear.h).toBeGreaterThanOrEqual(196);
   });
 
-  it("frames the twin, the desk, and every selectable's members inside that stage: every framed placement", async () => {
-    const v = start({ webgl: true });
-    await intoRoom(v);
-    const { stage } = portraitPage(v.doc, SCREEN);
+  it("frames the twin, the desk, and every selectable's members inside that stage: every framed placement", () => {
+    const stage = stageFor(SCREEN);
     const { scene: part, index } = repositoryBundle();
     const camera = framing(stage.w / stage.h, framedBoxes(part));
     // As the scene frames them (Amendment B8): every framed placement, the desk among them, the twin, and every
@@ -825,56 +681,46 @@ describe("320 × 568 (FR-065; User Story 7 scenario 4)", () => {
       expect(x + w, `${id}'s right`).toBeLessThanOrEqual(stage.w + 1e-6);
       expect(y + h, `${id}'s foot`).toBeLessThanOrEqual(stage.h + 1e-6);
     }
-    expect(stage.top + stage.h).toBeLessThanOrEqual(SCREEN.h);
   });
 
-  // T047 (spec 008; FR-021): the walking control sits in the stage, so the toolbar keeps its five controls and its rows,
-  // and the text box and the talk button stay on screen; its box, room.css's, is at least 44 × 44 inside that stage.
-  it("puts the walking control in the stage, not the toolbar, at least 44 × 44 and inside the stage", async () => {
+  // T047 (spec 008; FR-021), in the clear area since spec 005: the walking control sits in the clear box, so the bar
+  // keeps its controls and its rows; its box, room.css's, is at least 44 × 44 inside that stage.
+  it("puts the walking control in the clear area, not the bar, at least 44 × 44 and inside the stage", async () => {
     const v = start({ webgl: true });
     await intoRoom(v);
     const walk = v.doc.querySelector<HTMLElement>("button.room-walk");
-    expect(walk?.closest(".room-stage")).not.toBeNull();
-    expect(walk?.closest(".room-toolbar")).toBeNull();
+    expect(walk?.closest(".room-clear")).not.toBeNull();
+    expect(walk?.closest(".hud-bar")).toBeNull();
     expect(walk?.hidden).toBe(false);
-    const page = portraitPage(v.doc, SCREEN);
-    expect(page.toolbar).toHaveLength(5);
-    expect(page.talkBottom).toBeLessThanOrEqual(SCREEN.h);
     const stage = stageFor(SCREEN);
     const [x, y, w, h] = walkControlBox(stage);
     expect(Math.min(w, h)).toBeGreaterThanOrEqual(44);
     expect([x >= 0, y >= 0, x + w <= stage.w, y + h <= stage.h]).toEqual([true, true, true, true]);
   });
 
-  it("drops the toolbar's type to 0.875rem below a portrait width of 25rem, and grows the stage's reserve below 35rem", () => {
-    const narrow = cssAt(SCREEN);
-    const between = cssAt({ w: 400, h: 800 });
-    const wide = cssAt({ w: 560, h: 900 });
-    expect(narrow.get(".room-toolbar", "font-size")).toBe("0.875rem");
-    expect(between.get(".room-toolbar", "font-size")).toBeUndefined();
-    expect(wide.get(".room-toolbar", "font-size")).toBeUndefined();
-    // One toolbar row: a 44 px control and the toolbar's 0.5rem gap, 3.25rem.
-    const rowRem = (length(wide.get(".room button", "min-height")) + length(wide.get(".room-toolbar", "gap"))) / 16;
-    expect(rowRem).toBe(3.25);
-    // Wherever the five controls wrap to two rows at 1rem, below 35rem (the review of T171, B1; FR-047).
-    expect(narrow.get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
-    expect(between.get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
-    expect(cssAt({ w: 559, h: 900 }).get(".room-stage", "height")).toBe(`calc(100dvh - ${20 + rowRem}rem)`);
-    expect(wide.get(".room-stage", "height")).toBe("calc(100dvh - 20rem)");
-    // Portrait only: a landscape phone keeps the landscape layout's reserve.
-    expect(cssAt({ w: 568, h: 320 }).get(".room-stage", "height")).toBe("calc(100dvh - 7rem)");
+  it("keeps the stacked layout's type drop below 25rem and its reserve below 35rem, spec 004's", () => {
+    const at = (prelude: RegExp): CssRule[] =>
+      stylesheets()
+        .flatMap((sheet) => parseCss(sheet.text).atRules)
+        .filter((a) => prelude.test(a.prelude))
+        .flatMap((a) => parseCss(a.body).rules);
+    const narrow = at(/^@media \(orientation: portrait\) and \(max-width: 24\.99rem\)$/);
+    expect(narrow.find((r) => r.selector === 'html[data-hud="stacked"] .hud-bar')?.declarations.get("font-size")).toBe(
+      "0.875rem",
+    );
+    const reserve = at(/^@media \(orientation: portrait\) and \(max-width: 34\.99rem\)$/);
+    expect(reserve.find((r) => r.selector === 'html[data-hud="stacked"] .room-stage')?.declarations.get("height")).toBe(
+      "calc(100dvh - 23.25rem)",
+    );
     // Both bounds in max-width, not range syntax, which Safari reads only from 16.4 (the review of T171, N1).
     const preludes = stylesheets().flatMap((sheet) => parseCss(sheet.text).atRules.map((a) => a.prelude));
-    expect(preludes).toContain("@media (orientation: portrait) and (max-width: 24.99rem)");
-    expect(preludes).toContain("@media (orientation: portrait) and (max-width: 34.99rem)");
     expect(preludes.some((m) => /\(\s*width\s*[<>]/.test(m))).toBe(false);
   });
 });
 
-// The review of T171, B1 (spec 002's FR-047, as Amendment B8 extends it): "Pause the room" wraps the toolbar to two
-// rows at 1rem on every portrait screen below about 35rem, and below about 447 px the "In the room" list wraps too, so
-// the same model holds every portrait screen from 320 px to 35rem wide whose stage isn't at its 9rem minimum: the
-// common phones by name, and the sweep's portrait screens (compose/stages.ts) in that band.
+// The review of T171, B1 (spec 002's FR-047, as Amendment B8 extends it), in the HUD since spec 005: every portrait
+// screen from 320 px to 35rem wide keeps its text box and talk button on screen in the dock, the common phones by name
+// and the sweep's portrait screens in that band, at the stage stages.ts gives.
 describe("every portrait screen to 35rem wide (FR-047; the review of T171, B1)", () => {
   const PHONES = [
     [320, 568],
@@ -891,32 +737,48 @@ describe("every portrait screen to 35rem wide (FR-047; the review of T171, B1)",
     [430, 932],
   ] as const;
 
-  /** The band's portrait screens: the phones above and the sweep's screens from 320 to 560 wide, at least as tall as
-   *  wide, whose stage isn't at the 9rem minimum, where the room gives up its stage first. */
-  function band(): { w: number; h: number }[] {
-    const out = new Map<string, { w: number; h: number }>();
-    for (const [w, h] of PHONES) out.set(`${w}x${h}`, { w, h });
-    for (const s of sweepScreens()) if (s.w <= 560 && s.h >= s.w) out.set(`${s.w}x${s.h}`, s);
-    return [...out.values()].filter((s) => stageFor(s).h > 9 * 16);
-  }
-
-  it("keeps the talk button's foot on screen when the room shows, and the stage stages.ts gives", async () => {
-    const v = start({ webgl: true });
-    await intoRoom(v);
-    const screens = band();
-    for (const [w, h] of PHONES)
-      expect(
-        screens.some((s) => s.w === w && s.h === h),
-        `${w} × ${h}`,
-      ).toBe(true);
-    expect(screens.some((s) => s.w === 560)).toBe(true);
-    for (const screen of screens) {
-      const page = portraitPage(v.doc, screen);
+  it("keeps the talk button's foot on screen when the room shows, and the stage stages.ts gives", () => {
+    const words = hudWords(roomIndex());
+    const screens = new Map<string, { w: number; h: number }>();
+    for (const [w, h] of PHONES) screens.set(`${w}x${h}`, { w, h });
+    for (const s of sweepScreens()) if (s.w <= 560 && s.h >= s.w) screens.set(`${s.w}x${s.h}`, s);
+    for (const screen of screens.values()) {
+      const model = hudModel(screen, words);
       const where = `${screen.w} × ${screen.h}`;
-      expect(page.talkBottom, `${where}: the talk button's foot, ${page.talkBottom.toFixed(1)} px`).toBeLessThanOrEqual(
-        screen.h,
-      );
-      expect({ w: page.stage.w, h: page.stage.h }, where).toEqual(stageFor(screen));
+      expect(model.layout, where).toBe("dock");
+      expect(model.talkRows, where).toBe(1);
+      expect(model.talkBottom, `${where}: the talk button's foot`).toBeLessThanOrEqual(screen.h);
+      expect({ w: model.clear.w, h: model.clear.h }, where).toEqual(stageFor(screen));
     }
   });
+});
+
+// T021 (spec 005; FR-021, FR-043, FR-048, FR-051): axe in every layout and panel state, in 3D and 2D, the window stubbed
+// (hud/viewport.ts): the column layout, the dock layout, and the stacked layout; the list and the log each collapsed;
+// the larger conversation view; and the walking view.
+describe("the HUD, in every layout and panel state (spec 005, T021)", () => {
+  const LAYOUTS = [
+    ["the column layout", { w: 1280, h: 720 }],
+    ["the dock layout", { w: 390, h: 844 }],
+    ["the stacked layout", { w: 320, h: 256 }],
+  ] as const;
+
+  for (const webgl of [true, false])
+    for (const [layout, screen] of LAYOUTS)
+      it(`has 0 axe violations in ${layout}, its panels open and collapsed, in ${webgl ? "3D" : "2D"}`, async () => {
+        const viewport = stubViewport(screen);
+        const v = start({ webgl, viewport: viewport.factory });
+        await intoRoom(v);
+        expect(v.doc.documentElement.getAttribute("data-hud"), layout).toBe(layout.split(" ")[1]);
+        expect(await axeViolations(v), `${layout}, open`).toEqual([]);
+        button(v.doc, roomIndex().ui["list.heading"] ?? "").click();
+        button(v.doc, roomIndex().ui["hud.log_toggle"] ?? "").click();
+        expect(await axeViolations(v), `${layout}, collapsed`).toEqual([]);
+        v.doc.querySelector<HTMLButtonElement>(".talk-larger")?.click();
+        expect(await axeViolations(v), `${layout}, the larger view`).toEqual([]);
+        if (webgl) {
+          button(v.doc, roomIndex().ui["walk.enter"] ?? "").click();
+          expect(await axeViolations(v), `${layout}, walking`).toEqual([]);
+        }
+      });
 });

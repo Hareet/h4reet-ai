@@ -1,9 +1,9 @@
 P-3 (spec 001 plan §14; tasks.md T006): CLAUDE.md, three sentences, DRAFTED FOR THE AUTHOR'S WORDS.
-Each changed line below is the session's draft; replace its words with yours before you apply it (the plan: "The words are his").
+Apply it first; then put your words in place of the three changed lines below, in CLAUDE.md itself (the plan: "The words are his").
+Your words must keep CLAUDE.md within the static tier's cap of 6144 bytes (evals/agent-config/static.py, FR-006): main's file is 5974, and this draft makes it 6143.
 1. The infra line, for the local phase's apply: September's draft (plan.md at 00309c47, §2), shortened to fit.
 2. The routing sentence, a route per host, as plan §14 drafts it, shortened to fit.
 3. The relay's line, as plan §14 drafts it, shortened to fit.
-CLAUDE.md's cap is 6 KB, 6144 bytes (evals/agent-config/static.py, FR-006): main's is 5974, and this patch makes it 6143.
 Built from a git archive export of refs/heads/main at d0fac811ca297a6d9ead42022043d8a12fb4418e; patch -p1 skips this preamble.
 
 --- a/CLAUDE.md

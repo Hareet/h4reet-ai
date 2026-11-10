@@ -786,7 +786,9 @@ describe("in the room", () => {
     expect(view?.querySelector(".flat")).toBeNull();
     expect(view?.querySelector(".room-loading")).toBeNull();
     // The stage shows flat-failed's words exactly, and nothing from them up hides them from assistive technology.
-    expect(textOf(view)).toBe("This drawing of the room could not be shown. The list below still works.");
+    expect(textOf(view)).toBe(
+      "This drawing of the room could not be shown. The list of things in the room still works.",
+    );
     expect(textOf(view)).toBe(index.ui["flat-failed"]);
     const line = view?.firstElementChild ?? null;
     expect(textOf(line)).toBe(index.ui["flat-failed"]);
@@ -903,8 +905,10 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
     }
   });
 
+  // Since spec 005 the overlay's signs meet at a scale of 1, the stages 320 px wide, and part at 1.025, 568 × 320's
+  // clear area (0.95 and 0.975, 312 × 224, before it).
   it("gives them their cues and pick areas back at a larger scale", () => {
-    for (const stage of [{ w: 312, h: 224 }, REFERENCE_PHONE.stage, REFERENCE_DESKTOP.stage]) {
+    for (const stage of [{ w: 328, h: 240.5 }, REFERENCE_PHONE.stage, REFERENCE_DESKTOP.stage]) {
       const { index, flat, win, select, shown, at } = stageAt(stage);
       expect(index.selectables.map((x) => shown(x.id))).toEqual(["visible", "visible", "visible", "visible"]);
       for (const id of [KEPT, ...LIST_ONLY, "fx-workstation", "fx-board"]) tap(win, flat.element, at(id), "touch");
@@ -915,9 +919,9 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
   it("holds them at one size and not the next, as the drawing's box changes", () => {
     const { index } = sideWall();
     const picker = flatPicker(index.flat.hits, index);
-    picker.resize(box({ w: 304, h: 248 }));
+    picker.resize(box({ w: 320, h: 250 }));
     expect([...picker.held()]).toEqual(LIST_ONLY);
-    picker.resize(box({ w: 320, h: 248 }));
+    picker.resize(box({ w: 328, h: 240.5 }));
     expect([...picker.held()]).toEqual([]);
   });
 
@@ -931,7 +935,7 @@ describe("the 2D room's side-wall selectables (FR-064's carve-out)", () => {
           "left-wall: { at: [-0.9, 0, -0.95]",
         ),
         "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-          "offset: [0, 1.0515, 0] }",
+          "offset: [0, 1.074, 0] }",
           "offset: [0, 1.0375, 0] }",
         ),
       }),

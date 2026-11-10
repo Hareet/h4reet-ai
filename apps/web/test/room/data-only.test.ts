@@ -52,8 +52,8 @@ import {
   flatScale,
   smallestFlatStage,
   supportedStages,
-  walkControlBox,
 } from "../../src/room/compose/stages";
+import { reservedBoxes } from "../../src/room/compose/hud";
 import type { Stage } from "../../src/room/compose/stages";
 import { TIER_VALUES, isSideWallAnchor } from "../../src/room/compose/vocabulary";
 import type { RoomEvent } from "../../src/room/events";
@@ -308,7 +308,8 @@ function views(): View[] {
   const out: View[] = supportedStages().map((stage) => {
     const camera = framing(stage.w / stage.h, framed);
     const others = pickAreasOn(base.scene, base.index, camera, stage);
-    const reserved = [walkControlBox(stage)];
+    // Every HUD control over the clear area, as RG6 reserves them (spec 005, FR-055).
+    const reserved = reservedBoxes(stage);
     const held = listOnly(others, [0, 0, stage.w, stage.h], sideWall, reserved);
     return { camera, stage, others, core: CORE_PX, grid: false, held, reserved };
   });

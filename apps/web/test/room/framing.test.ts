@@ -107,8 +107,10 @@ describe("framing(aspect, boxes)", () => {
   });
 
   it("places the camera lower than spec 002's for its LAYOUT boxes, and no further, at each of the six aspects", () => {
-    expect(ASPECTS).toHaveLength(6);
-    for (const aspect of ASPECTS) {
+    // Spec 002's six, among spec 005's series (its PD-10).
+    const SIX = [0.45, 0.6, 0.8, 1.15, 1.5, 2.4];
+    for (const a of SIX) expect(ASPECTS).toContain(a);
+    for (const aspect of SIX) {
       const kernel = framing(aspect, LAYOUT_BOXES.map(withLabel));
       expect(kernel.fov, `fov at ${aspect}`).toBe(FOV);
       // The camera at the lower eye, to the last bit.

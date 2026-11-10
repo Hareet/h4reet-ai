@@ -21,7 +21,7 @@ The constitution's Local tier standard: "exposed only through an outbound tunnel
 ## Alternatives considered
 
 - **A tunnel run by a third party:** ruled out by the option he chose, "No third party carries visitors' messages".
-- **Ending on EC2:** EC2 is stopped while the laptop serves (ADR 0044, proposed, decision 3).
+- **Ending on EC2:** EC2 is stopped while the laptop serves ([ADR 0044](0044-ec2-as-prods-default-host.md), decision 3).
 
 ## Consequences
 

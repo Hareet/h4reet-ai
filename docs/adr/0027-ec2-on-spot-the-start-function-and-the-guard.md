@@ -36,4 +36,4 @@ Question 16, the IAM, wasn't asked. The session took its recommended option prov
 ## Links
 
 - Spec: [001](../../specs/001-cloud-elevation/spec.md) · Contract: [handover.md](../../specs/001-cloud-elevation/contracts/handover.md)
-- Related: [ADR 0025](0025-the-relay-on-the-tunnel-end-on-spot.md), ADR 0044 (proposed, on `docs/001-ec2-default`)
+- Related: [ADR 0025](0025-the-relay-on-the-tunnel-end-on-spot.md), [ADR 0044](0044-ec2-as-prods-default-host.md) (accepted)

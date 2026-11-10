@@ -63,6 +63,8 @@ describe("config/room-events.yaml", () => {
       "mode_2d",
       "walk_started",
       "avatar_failed",
+      // Spec 005's Amendment H7 (its FR-060): the visitor's first entry into full screen in a visit, with no ID.
+      "fullscreen_entered",
     ]);
     expect(loaded.config.items.size).toBeGreaterThan(0);
     for (const id of [...loaded.config.items, ...loaded.config.objects]) expect(id).toMatch(/^[a-z][a-z0-9-]{1,40}$/);

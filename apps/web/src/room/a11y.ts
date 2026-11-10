@@ -10,6 +10,7 @@
 // focus.
 import type { RoomIndex } from "./compose/bundle";
 import { h } from "./dom";
+import { icon } from "./hud/icons";
 import { uiWord } from "./ui-keys";
 
 /** What the list reads of the index: its words, its selectables, and their topics. */
@@ -24,19 +25,25 @@ function opens(room: ListIndex, selectable: ListIndex["selectables"][number]): s
 }
 
 /** The "In the room" list: a button per selectable, in the index's order, named by it and by what it opens. With
- *  `target`, each button's focus names its selectable and its blur names none (spec 008). */
+ *  `target`, each button's focus names its selectable and its blur names none (spec 008). Since spec 005 (FR-023;
+ *  plan.md §6.4) its heading is a visible header button, the UI word list.heading, which collapses and opens the list in
+ *  one press, its state in aria-expanded; collapsing it while it holds focus moves focus to the button, and `collapse`
+ *  hears each change, so the dock layout re-frames. */
 export function renderObjectList(
   doc: Document,
   room: ListIndex,
   select: (id: string) => void,
   target?: (id: string | null) => void,
+  collapse?: (collapsed: boolean) => void,
 ): HTMLElement {
-  const heading = h(
+  const toggle = h(
     doc,
-    "h2",
-    { id: "room-list-heading", class: "visually-hidden" },
-    uiWord(room.ui, "list.heading") ?? "",
+    "button",
+    { type: "button", class: "hud-toggle", "aria-expanded": "true", "aria-controls": "room-list-items" },
+    icon(doc, "chevron"),
+    h(doc, "span", {}, uiWord(room.ui, "list.heading") ?? ""),
   );
+  const heading = h(doc, "h2", { id: "room-list-heading", class: "room-list-heading" }, toggle);
   const items = room.selectables.map((selectable) => {
     const what = opens(room, selectable);
     const button = h(
@@ -53,13 +60,15 @@ export function renderObjectList(
     }
     return h(doc, "li", {}, button);
   });
-  return h(
-    doc,
-    "section",
-    { class: "room-list", "aria-labelledby": "room-list-heading" },
-    heading,
-    h(doc, "ul", {}, ...items),
-  );
+  const list = h(doc, "ul", { id: "room-list-items" }, ...items);
+  toggle.addEventListener("click", () => {
+    const collapsed = !list.hidden;
+    if (collapsed && list.contains(doc.activeElement)) toggle.focus();
+    list.hidden = collapsed;
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    collapse?.(collapsed);
+  });
+  return h(doc, "section", { class: "room-list", "aria-labelledby": "room-list-heading" }, heading, list);
 }
 
 export interface Announcer {

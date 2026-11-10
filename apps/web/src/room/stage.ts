@@ -88,6 +88,11 @@ export interface SceneOptions {
   target?(input: Extract<TargetInput, "pointer" | "press" | "reach">, id: string | null): void;
   /** Each frame's time, for the quality controller. */
   onFrame(time: number): void;
+  /** Spec 005 (FR-015; plan.md §4.3, §5): the clear area the room is framed into, in the canvas's CSS pixels from its
+   *  top left, with the window it was computed for, read each frame. The stage frames into it while its canvas is that
+   *  window, as it is in the room's HUD, and into the whole canvas otherwise: null or absent (the stacked layout), or a
+   *  canvas of another size (a frame between a resize and its re-fit). */
+  clear?(): ClearArea | null;
   /** Where the stage reports a leave of the walking view it made itself (spec 008): Escape, or a failed step (FR-005).
    *  Absent, nothing is reported. */
   walkEnded?(why: WalkEnd): void;
@@ -116,6 +121,12 @@ export interface SceneOptions {
    *  failed after its retry (scene/avatars.ts); the room sends avatar_failed once a visit from it and logs the rest in a
    *  drafts build's frame log. Absent, nothing is reported. */
   onFigure?: (signal: FigureSignal) => void;
+}
+
+/** The clear area the room gives its 3D stage (spec 005), and the window it was computed for, in CSS pixels. */
+export interface ClearArea {
+  readonly area: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  readonly window: { readonly w: number; readonly h: number };
 }
 
 /** One of the room's two figures (spec 009). */

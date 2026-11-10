@@ -14,6 +14,8 @@ What the visitor sees and can do, with the IDs other parts use. Spec: FR-001 to 
 
 **The AI disclosure** is always visible ("You're talking with an AI representation of the Author, not the Author."), and wherever the twin speaks aloud, "Its voice is a cloned voice." (FR-004). The data-flow disclosure link is on the choice screen and in the room's toolbar.
 
+**(spec 005)** In the room, the AI disclosure is the HUD's strip at the window's top, `index.html`'s own header fixed there, over the scene and in view at every scroll position and in full screen; the choice screen keeps its header (Amendment H6). The **Room** screen gains the full-screen control, in the bar after "Pause the room", where the browser reports that the page can enter full screen. The **Resume** opens over the room, in the clear area, as an opaque panel; "Close" and Escape still return focus to "Resume" (Amendment H2).
+
 ## 2. Objects
 
 | ID | What | Topic | Position |
@@ -42,6 +44,8 @@ Each object is a mesh with `userData.objectId`, a raycast target for pointer and
 
 The mode never moves back up during a visit. Entering `2d` sends one `mode_2d` event.
 
+**(spec 005)** `reduced` also turns the HUD's backdrop blur off from quality 2, and caps the drawing buffer at each level's pixel cap (`scene/levels.ts`'s `pixelCap`; spec 005's FR-010, FR-011). `2d` fills the window the same way, the drawing at 8:5 in the clear area under the same HUD. A resize, a turned device, full screen, and a change of pixel ratio re-fit the room in every mode, and never step the quality down (Amendment H4).
+
 ## 5. Keyboard and assistive technology
 
 - **Tab order:** the toolbar, the "In the room" list, the conversation panel, then the resume when it's open. Focus is always visible (a 2-pixel outline at 3:1 contrast or better).
@@ -50,9 +54,13 @@ The mode never moves back up during a visit. Entering `2d` sends one `mode_2d` e
 - **Touch targets:** at least 44 by 44 CSS pixels. No hover-only cue.
 - **The talk button** works with a held Space or Enter while focused (FR-026). Until recognition exists, a press announces `voice_unavailable` and moves focus to the text box (R-14).
 
+- **(spec 005)** The toolbar is the HUD's bar at the window's foot; its Tab order is unchanged, with the full-screen control after "Pause the room". Each collapsible panel's header button comes first in its panel: the list's (`list.heading`) and the conversation's log's (`hud.log_toggle`). The order is the same in every layout, and 44 by 44 holds in every layout, the stacked one included (Amendment H3).
+
 ## 6. Layout
 
 From 320 CSS pixels wide, in either orientation. In portrait, the camera's vertical field of view and the conversation panel's height keep the twin, the desk, the snowboard, the bicycle, the text box, and the talk button on screen without scrolling (FR-047). An orientation change reframes the scene and keeps the visit's state.
+
+**(spec 005)** The canvas fills the browser's window, and the interface is a HUD of dark glass laid over it (Amendment H1): the AI disclosure as a strip at the top, a bar of controls at the foot, and one column on the right holding the list above the conversation; on a window held upright, the list, the text box, and the bar docked at the foot instead. Their places are one table, `compose/hud.ts`. The room is framed whole into the clear area the docked panels leave, the scene continuing behind them. The portrait guarantee (the twin, the desk, the snowboard, the bicycle, the text box, and the talk button on screen without scrolling) holds in the HUD. A resize, a turned device, full screen, and a change of pixel ratio each re-fit the room and keep the visit's state. Where the HUD can't fit (a high zoom, a large text size, a window under 320 CSS pixels wide), the stacked layout keeps this section's grid.
 
 ## 7. What the page never does
 

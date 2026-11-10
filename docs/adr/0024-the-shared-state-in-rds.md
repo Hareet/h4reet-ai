@@ -6,7 +6,7 @@ Status: proposed, 2026-11-10 · Spec: 001 (FR-017 to FR-020, FR-074; plan §3.3;
 
 Spec 000 gives each stack its own meter and kill switch (its FR-031; ADR 0020). With EC2 as prod's default host and the laptop serving when the Author runs it, two gateways run prod.
 
-On 2026-11-09 the session put this point to him, in its words (ADR 0044, proposed, decision 7): "The budget needs one counter." Each machine has its own database, so if each counts spend separately, both could spend the $20. The budget and kill-switch state need to live in one place in the cloud that both read. Spec 001's design already plans for that.
+On 2026-11-09 the session put this point to him, in its words ([ADR 0044](0044-ec2-as-prods-default-host.md), decision 7): "The budget needs one counter." Each machine has its own database, so if each counts spend separately, both could spend the $20. The budget and kill-switch state need to live in one place in the cloud that both read. Spec 001's design already plans for that.
 
 His reply to the five points, verbatim: "Okay, all of your feedback is approved. for server size, we will try to use spot instances, or only keep the server online for 8-12 hours a day."
 
@@ -35,4 +35,4 @@ The store's product was the plan's to settle, and the plan settled it as RDS (pl
 ## Links
 
 - Spec: [001](../../specs/001-cloud-elevation/spec.md) · Contract: [shared-state.md](../../specs/001-cloud-elevation/contracts/shared-state.md) · Data model: [§1](../../specs/001-cloud-elevation/data-model.md)
-- Related: [ADR 0020](0020-gateway-state-store-and-meter.md), ADR 0044 (proposed, on `docs/001-ec2-default`)
+- Related: [ADR 0020](0020-gateway-state-store-and-meter.md), [ADR 0044](0044-ec2-as-prods-default-host.md) (accepted)

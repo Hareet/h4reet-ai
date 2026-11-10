@@ -35,4 +35,4 @@ The session reads "it should be the local-first primary scenario we built for" a
 ## Links
 
 - Spec: [001](../../specs/001-cloud-elevation/spec.md) · Contract: [env-cloud.md](../../specs/001-cloud-elevation/contracts/env-cloud.md)
-- Extends: [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md) · Related: [ADR 0041](0041-the-anthropic-api-as-a-second-paid-adapter.md), ADR 0044 (proposed, on `docs/001-ec2-default`), which amends ADR 0001
+- Extends: [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md) · Related: [ADR 0041](0041-the-anthropic-api-as-a-second-paid-adapter.md), [ADR 0044](0044-ec2-as-prods-default-host.md) (accepted), which amends ADR 0001
