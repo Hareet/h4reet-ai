@@ -79,6 +79,31 @@ EVENTS = (
 INVOKE = {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"}
 TOPIC = "data.aws_sns_topic.alerts.arn"
 SSO_PATH = "aws-reserved/sso.amazonaws.com/"
+# The permission set's own role and no other (T038's review, I4): Identity Center names it AWSReservedSSO_<set>_<16
+# characters>, under its path, with a Region's segment in some accounts. Each `?` is one character, and the role's name
+# follows a `/`, so a set named <set>_<more> can't match.
+_ROLE = "AWSReservedSSO_${local.laptop_permission_set}_" + "?" * 16
+_ARN = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/"
+SSO_TRUST = [f"{_ARN}{_ROLE}", f"{_ARN}*/{_ROLE}"]
+
+
+# The rehearsal (T038's review, I1): local.rehearsal is true only on its own change, beside this marker, which names
+# that change's note, whose line says so.
+REHEARSAL_MARKER = ROOT / "rehearsal-on.txt"
+REHEARSAL_LINE = "<!-- h4-rehearsal: on -->"
+_TREE = object()
+# The server rehearsal's documents: the stop, and the start that reverses it (nit 1), AWS's own, in this Region.
+SSM_DOCUMENTS = [
+    "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*",
+    "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*",
+]
+
+
+def quoted(text: str) -> list[str]:
+    """The quoted strings of a list's source text, in order."""
+    return re.findall(r'"([^"]*)"', text)
+
+
 FUNCTIONS = {
     "alert_bridge": "h4-alert-bridge",
     "probe": "h4-probe",
@@ -412,6 +437,21 @@ def check_permission_set(root: dict[str, list]) -> list[str]:
     me = f"aws_ssoadmin_permission_set.{ps.labels[1]}"
     if raw(ps, "name") != "local.laptop_permission_set":
         found.append("permission set: its name isn't local.laptop_permission_set")
+    # The name decides which set the protected file imports, overwrites, and provisions, so it is the protected
+    # file's own (T038's review, I4).
+    homes = [
+        where(root, b)
+        for b in blocks(root, "locals")
+        if any(
+            isinstance(a, ip.Attribute) and a.name == "laptop_permission_set"
+            for a in b.body
+        )
+    ]
+    if homes != ["iam.tf"]:
+        found.append("permission set: its name isn't a local of iam.tf alone")
+    life = ps.block("lifecycle")
+    if life is None or ip.literal(life.attr("prevent_destroy")) is not True:
+        found.append("permission set: a plan may destroy it (prevent_destroy)")
     imports = [b for b in blocks(root, "import") if raw(b, "to") == me]
     if len(imports) != 1:
         found.append("permission set: it isn't imported (an import block to it)")
@@ -488,13 +528,9 @@ def check_laptop_role(root: dict[str, list]) -> list[str]:
                 "AWS",
                 '["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]',
             )
-        ] and any(
-            test == "ArnLike"
-            and var == "aws:PrincipalArn"
-            and SSO_PATH in vals
-            and "AWSReservedSSO_${local.laptop_permission_set}_" in vals
-            for test, var, vals in t["conditions"]
-        )
+        ] and [(test, var, quoted(vals)) for test, var, vals in t["conditions"]] == [
+            ("ArnLike", "aws:PrincipalArn", SSO_TRUST)
+        ]
     if not ok:
         found.append(
             "laptop role: its trust admits more than the permission set's role"
@@ -684,12 +720,49 @@ def _cent_budget(root: dict[str, list], b, label: str) -> list[str]:
     return found
 
 
-def check_rehearsal(root: dict[str, list]) -> list[str]:
+def rehearsal_marker() -> str | None:
+    return (
+        REHEARSAL_MARKER.read_text(encoding="utf-8")
+        if REHEARSAL_MARKER.is_file()
+        else None
+    )
+
+
+def marker_note(marker: str | None, repo: Path) -> bool:
+    """The marker names a note under docs/merge-requests/, which exists and says it is the rehearsal's."""
+    names = [
+        ln.split(":", 1)[1].strip()
+        for ln in (marker or "").splitlines()
+        if ln.startswith("note:")
+    ]
+    if len(names) != 1 or not re.fullmatch(
+        r"docs/merge-requests/[0-9A-Za-z._-]+\.md", names[0]
+    ):
+        return False
+    note = repo / names[0]
+    return note.is_file() and REHEARSAL_LINE in note.read_text(encoding="utf-8")
+
+
+def check_rehearsal(
+    root: dict[str, list], marker: object = _TREE, repo: Path = REPO
+) -> list[str]:
+    """The rehearsal's shape whichever way local.rehearsal is set (T038's review, I1). It is true only on the
+    rehearsal's own change: with infra/account/rehearsal-on.txt beside it, naming that change's note, which says so;
+    and the marker goes when it is false again."""
     found = []
-    if locals_of(root).get("rehearsal") is not False:
+    text = rehearsal_marker() if marker is _TREE else marker
+    on = locals_of(root).get("rehearsal")
+    if on is True and not marker_note(text, repo):  # type: ignore[arg-type]
         found.append(
-            "rehearsal: local.rehearsal isn't false in the tree (the Author sets it true to rehearse)"
+            "rehearsal: local.rehearsal is true without its marker, infra/account/rehearsal-on.txt, naming a note "
+            "that says it is the rehearsal"
         )
+    elif on is False and text is not None:
+        found.append(
+            "rehearsal: infra/account/rehearsal-on.txt stands while local.rehearsal is false"
+        )
+    elif on not in (True, False):
+        found.append("rehearsal: local.rehearsal isn't true or false")
     every = [
         b
         for b in blocks(root, "resource") + blocks(root, "data")
@@ -713,6 +786,11 @@ def check_rehearsal(root: dict[str, list]) -> list[str]:
     ):
         found.append(
             "rehearsal model budget: it doesn't read Bedrock's cost by var.bedrock_service_names"
+        )
+    ct = model.block("cost_types")
+    if ct is None or ip.literal(ct.attr("include_credit")) is not False:
+        found.append(
+            "rehearsal model budget: it counts cost net of credits, unlike h4-model-month (include_credit = false)"
         )
     fe = server.block("filter_expression")
     n = fe.block("not") if fe else None
@@ -834,14 +912,21 @@ def check_rehearsal(root: dict[str, list]) -> list[str]:
             ("Service", '["budgets.amazonaws.com"]')
         ]
         arn = f"aws_instance.{inst.labels[1]}[0].arn"
+        # As AWS's managed AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM shapes it, narrowed to the one
+        # instance (nit 1): the stop document and its reverse, the start; EC2's start and stop on that instance only
+        # as Systems Manager calls them; and EC2's Describe calls, which take no narrower resource.
+        seen = set()
         for s in allowed(root, exec_role):
             if s["actions"] == {"ssm:StartAutomationExecution"}:
-                ok &= (
-                    "automation-definition/AWS-StopEC2Instance:" in s["resources"]
-                    and s["resources"].count('"') == 2
-                )
-            elif s["actions"] == {"ec2:StopInstances"}:
-                ok &= s["resources"] == f"[{arn}]"
+                seen.add("ssm")
+                ok &= sorted(quoted(s["resources"])) == sorted(SSM_DOCUMENTS)
+            elif s["actions"] == {"ec2:StartInstances", "ec2:StopInstances"}:
+                seen.add("ec2")
+                ok &= s["resources"] == f"[{arn}]" and [
+                    (t, v, quoted(vals)) for t, v, vals in s["conditions"]
+                ] == [
+                    ("ForAnyValue:StringEquals", "aws:CalledVia", ["ssm.amazonaws.com"])
+                ]
             elif s["actions"] <= {
                 "ec2:DescribeInstances",
                 "ec2:DescribeInstanceStatus",
@@ -849,9 +934,11 @@ def check_rehearsal(root: dict[str, list]) -> list[str]:
                 ok &= s["resources"] == '["*"]'
             else:
                 ok = False
+        ok &= seen == {"ssm", "ec2"}
     if not ok:
         found.append(
-            "rehearsal server action: its execution role may do more than run AWS-StopEC2Instance on it"
+            "rehearsal server action: its execution role may do more than run AWS-StopEC2Instance and its reverse "
+            "on it"
         )
     return found
 
@@ -1137,11 +1224,21 @@ CHECKS = (
 )
 
 
-def problems(root: dict[str, list], pinned: dict[str, str] | None = None) -> list[str]:
+def problems(
+    root: dict[str, list],
+    pinned: dict[str, str] | None = None,
+    marker: object = _TREE,
+    repo: Path = REPO,
+) -> list[str]:
     pinned = pins() if pinned is None else pinned
     found: list[str] = []
     for check in CHECKS:
-        found += check(root, pinned) if check is check_versions else check(root)  # type: ignore[call-arg]
+        if check is check_versions:
+            found += check(root, pinned)
+        elif check is check_rehearsal:
+            found += check(root, marker, repo)
+        else:
+            found += check(root)  # type: ignore[call-arg]
     return found
 
 
@@ -1169,6 +1266,10 @@ def fixture(path: Path) -> tuple[list, list[tuple[str, ...]], str | None, list[s
 
 
 def block_address(block) -> tuple[str, ...]:
+    """A block's address; a locals block's is its first name's, since main.tf and iam.tf each hold one."""
+    if block.type == "locals":
+        first = next((a.name for a in block.body if isinstance(a, ip.Attribute)), "")
+        return ("locals", first)
     return (block.type, *block.labels)
 
 
@@ -1258,6 +1359,70 @@ def test_the_rehearsals_exist_only_while_rehearsal_is_true_against_targets_of_th
     None
 ):
     assert check_rehearsal(parsed(root_texts())) == []
+
+
+# T038's review, I1: the rehearsal's own change sets local.rehearsal true, with the marker naming its note, and must
+# pass the gate; nothing else may, and the rest of the checks hold it just the same.
+ON = FIXTURES / "rehearsal-on-in-the-tree.tf"
+
+
+def rehearsal_on(tmp_path: Path, line: str = REHEARSAL_LINE) -> tuple[dict, str]:
+    """The root with local.rehearsal true, and a marker naming a note under tmp_path's docs/merge-requests/."""
+    root, _ = mutated(parsed(root_texts()), ON)
+    note = tmp_path / "docs" / "merge-requests" / "2026-11-11-ops-001-rehearsal-on.md"
+    note.parent.mkdir(parents=True)
+    note.write_text(f"# ops/001-rehearsal-on\n{line}\nThe rehearsal (tasks.md T040).\n")
+    return root, "note: docs/merge-requests/2026-11-11-ops-001-rehearsal-on.md\n"
+
+
+def test_the_rehearsals_own_change_passes_with_its_marker(tmp_path: Path) -> None:
+    root, marker = rehearsal_on(tmp_path)
+    assert locals_of(root)["rehearsal"] is True
+    assert problems(root, marker=marker, repo=tmp_path) == []
+
+
+def test_true_needs_the_marker_and_a_note_that_says_so(tmp_path: Path) -> None:
+    root, marker = rehearsal_on(tmp_path, line="<!-- something else -->")
+    want = "rehearsal: local.rehearsal is true without its marker"
+    for m in (
+        None,
+        marker,
+        "note: docs/merge-requests/no-such-note.md\n",
+        "note: ../elsewhere.md\n",
+        "",
+    ):
+        found = problems(root, marker=m, repo=tmp_path)
+        assert len(found) == 1 and found[0].startswith(want), (m, found)
+
+
+def test_the_marker_goes_when_the_rehearsal_ends(tmp_path: Path) -> None:
+    _, marker = rehearsal_on(tmp_path)
+    found = problems(parsed(root_texts()), marker=marker, repo=tmp_path)
+    assert found == [
+        "rehearsal: infra/account/rehearsal-on.txt stands while local.rehearsal is false"
+    ]
+
+
+def test_the_tree_holds_no_marker_while_its_rehearsal_is_false() -> None:
+    assert locals_of(parsed(root_texts()))["rehearsal"] is False
+    assert rehearsal_marker() is None
+
+
+@pytest.mark.parametrize(
+    "path",
+    [p for p in FIXTURE_FILES if p.stem.startswith("rehearsal-") and p != ON],
+    ids=lambda p: p.stem,
+)
+def test_the_rehearsals_own_change_is_held_as_strictly(
+    path: Path, tmp_path: Path
+) -> None:
+    # Each rehearsal defect is still found with local.rehearsal true and its marker in place.
+    root, marker = rehearsal_on(tmp_path)
+    changed, expect = mutated(root, path)
+    found = problems(changed, marker=marker, repo=tmp_path)
+    for want in expect:
+        assert any(want in f for f in found), (want, found)
+    assert len(found) == len(expect), found
 
 
 def test_the_schedules_live_in_alerts_tf_and_the_probes_is_disabled() -> None:

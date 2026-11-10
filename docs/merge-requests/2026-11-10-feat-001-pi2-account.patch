@@ -1263,7 +1263,7 @@ through the profile.
 +    return {"sent": sent}
 --- /dev/null
 +++ b/infra/lambdas/alert_bridge/test_bridge.py
-@@ -0,0 +1,661 @@
+@@ -0,0 +1,743 @@
 +"""Tests for the alert bridge, infra/lambdas/alert_bridge/bridge.py (spec 001 tasks.md T031; FR-022; contracts/aws-alerts.md
 +§1 and §2, and September's §2 at 00309c47; research.md R-23).
 +
@@ -1556,13 +1556,14 @@ through the profile.
 +
 +
 +class Parameters:
-+    def __init__(self) -> None:
++    def __init__(self, token: str = TOKEN) -> None:
 +        self.reads: list[str] = []
++        self.token = token
 +
 +    def get(self, name: str) -> str:
 +        self.reads.append(name)
 +        return {
-+            bridge.TOKEN_PARAMETER: TOKEN,
++            bridge.TOKEN_PARAMETER: self.token,
 +            bridge.CHAT_PARAMETER: CHAT,
 +        }[name]
 +
@@ -1855,6 +1856,87 @@ through the profile.
 +        with pytest.raises(bridge.BridgeError):
 +            deliver(NOTICES["aws_anomaly"], telegram=telegram)
 +        assert len(telegram.calls) == 1, status
++
++
++# T038's review, I5: a token with a control character in it makes http.client raise InvalidURL with the URL, which holds
++# the token, in its message, and Lambda would log it and hand it to the failure queue. So the token is stripped and held
++# to the bot token's shape before any URL is built, and nothing the post raises reaches the log but its class's name.
++
++
++def run_with(token: str, post) -> tuple[pytest.ExceptionInfo | None, str]:
++    raised = None
++    try:
++        bridge.handler(
++            sns(NOTICES["aws_anomaly"]),
++            None,
++            parameters=Parameters(token),
++            post=post,
++            sleep=lambda s: None,
++        )
++    except bridge.BridgeError as exc:
++        raised = exc
++    return raised, str(raised)  # type: ignore[return-value]
++
++
++def test_a_token_of_another_shape_is_refused_naming_only_its_parameter(
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    for bad in (
++        TOKEN[:5] + "\x00" + TOKEN[5:],
++        TOKEN[:12] + "\r\n" + TOKEN[12:],
++        TOKEN + " extra",
++        TOKEN.replace(":", ""),
++        "",
++    ):
++        telegram = Telegram()
++        raised, message = run_with(bad, telegram)
++        assert raised is not None, repr(bad)
++        assert bridge.TOKEN_PARAMETER in message
++        assert TOKEN[:9] not in message and "api.telegram.org" not in message
++        assert telegram.calls == []
++    out = capsys.readouterr()
++    assert TOKEN[:9] not in out.out + out.err
++
++
++def test_the_token_is_stripped_of_the_blanks_around_it() -> None:
++    telegram = Telegram()
++    raised, _ = run_with(f"  {TOKEN}\n", telegram)
++    assert raised is None
++    ((url, _, _),) = telegram.calls
++    assert url == f"https://api.telegram.org/bot{TOKEN}/sendMessage"
++
++
++def test_anything_else_the_post_raises_becomes_its_class_name_alone(
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    import http.client
++
++    for exc in (
++        http.client.InvalidURL(f"URL can't contain control characters: bot{TOKEN}"),
++        ValueError(f"https://api.telegram.org/bot{TOKEN}/sendMessage"),
++        RuntimeError(TOKEN),
++    ):
++        calls: list[str] = []
++
++        def post(
++            url: str,
++            body: bytes,
++            timeout: float,
++            exc: Exception = exc,
++            calls: list[str] = calls,
++        ) -> int:
++            calls.append(url)
++            raise exc
++
++        raised, message = run_with(TOKEN, post)
++        assert raised is not None and raised.__cause__ is None
++        assert raised.__suppress_context__
++        assert exc.__class__.__name__ in message
++        assert TOKEN[:9] not in message and "api.telegram.org" not in message
++        assert len(calls) == 1  # not retried: another attempt can't mend it
++    out = capsys.readouterr()
++    assert TOKEN[:9] not in out.out + out.err
++    assert '"outcome": "failed"' in out.out
 +
 +
 +def test_missing_parameters_raise_without_naming_a_value() -> None:
