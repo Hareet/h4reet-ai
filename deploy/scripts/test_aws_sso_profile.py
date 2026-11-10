@@ -138,3 +138,50 @@ def test_make_aws_login_with_profile_runs_this_script() -> None:
     makefile = (REPO / "Makefile").read_text(encoding="utf-8")
     assert 'bash deploy/scripts/aws-sso-profile.sh "$$PROFILE"' in makefile
     assert "ifneq ($(call from_cli,PROFILE),)" in makefile
+
+
+needs_make = pytest.mark.skipif(shutil.which("make") is None, reason="needs GNU make")
+
+
+def make(stage: dict, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
+    """make aws-login with the fake aws first on PATH; -f Makefile, as in the main tree (T183)."""
+    base = {
+        "HOME": str(stage["home"]),
+        "PATH": f"{stage['bin']}:/usr/bin:/bin",
+        "FAKE_LOG": str(stage["log"]),
+    }
+    argv = [
+        "make",
+        "--no-print-directory",
+        "-C",
+        str(REPO),
+        "-f",
+        "Makefile",
+        "aws-login",
+        *args,
+    ]
+    return subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        env={**base, **env},
+        check=False,
+        timeout=120,
+    )
+
+
+@needs_make
+def test_make_aws_login_with_profile_starts_that_session(stage: dict) -> None:
+    done = make(stage, "PROFILE=h4reet-admin")
+    assert done.returncode == 0, done.stderr
+    (call,) = calls(stage)
+    assert call["argv"] == ["sso", "login", "--profile", "h4reet-admin"]
+    assert call["home"] == str(stage["home"])
+
+
+@needs_make
+def test_make_aws_login_takes_profile_from_the_command_line_only(stage: dict) -> None:
+    # From the environment, PROFILE is no choice: make takes spec 000's prod path, which this stage can't serve.
+    done = make(stage, PROFILE="h4reet-admin")
+    assert done.returncode != 0
+    assert all(c["argv"][-1] != "h4reet-admin" for c in calls(stage))
