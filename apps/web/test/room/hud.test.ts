@@ -355,3 +355,53 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
     expect(hudBoxes({ w: 1920, h: 1200 }).column).toEqual({ x: 1472, y: 27.5, w: 448, h: 1120.5 });
   });
 });
+
+// T053 (spec 014, the review's finding on the frame; the Author's answer of 2026-11-10, "Move the walk control
+// (Recommended)"; Amendment W19 to spec 008's FR-021): in the column layout, where the bar's row holds its tiles and the
+// walking control together, the control is a tile at the bar cluster's left end, in the bar's band, and the compact bar
+// box takes it in; the clear area holds no HUD box. A narrower column window, and the dock layout, keep spec 008's place
+// in the clear area's bottom-right corner. Its size stays 8rem by 2.75rem.
+describe("the walking control in the bar's cluster (spec 014, T053)", () => {
+  const inside = (outer: Box, inner: Box): boolean =>
+    inner.x >= outer.x - 1e-9 &&
+    inner.y >= outer.y - 1e-9 &&
+    inner.x + inner.w <= outer.x + outer.w + 1e-9 &&
+    inner.y + inner.h <= outer.y + outer.h + 1e-9;
+  const meets = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+  it("puts it at the bar cluster's left end, in the bar's band, on landscape windows from 1280 × 720", () => {
+    for (const screen of [
+      { w: 1280, h: 720 },
+      { w: 1920, h: 1080 },
+      { w: 1920, h: 1200 },
+      { w: 2560, h: 1440 },
+    ]) {
+      const c = compactBoxes(screen);
+      const bands = hudBoxes(screen);
+      const where = `${screen.w} × ${screen.h}`;
+      expect(c.layout, where).toBe("column");
+      expect(c.walkPlace, where).toBe("bar");
+      expect(inside(c.bar, c.walk), where).toBe(true);
+      expect(inside(bands.bar, c.walk), where).toBe(true);
+      expect(c.walk.x, where).toBeCloseTo(c.bar.x + HUD_PLACEMENTS.bar.padRem * 16, 6);
+      expect([c.walk.w, c.walk.h], where).toEqual([128, 44]);
+      expect(meets(c.walk, bands.clear), where).toBe(false);
+      expect(c.all, where).toEqual([c.strip, c.bar, c.column]);
+      expect(c.bar.x + c.bar.w, where).toBeCloseTo(screen.w, 6);
+    }
+  });
+
+  it("keeps spec 008's place in the clear area's corner on a narrower column window and in the dock layout", () => {
+    for (const screen of [
+      { w: 600, h: 420 },
+      { w: 390, h: 844 },
+    ]) {
+      const c = compactBoxes(screen);
+      const bands = hudBoxes(screen);
+      const [x, y, w, h] = walkControlBox(bands.clear);
+      expect(c.walkPlace, `${screen.w} × ${screen.h}`).toBe("stage");
+      expect(c.walk).toEqual({ x: bands.clear.x + x, y: bands.clear.y + y, w, h });
+      expect(c.all).toContain(c.walk);
+    }
+  });
+});

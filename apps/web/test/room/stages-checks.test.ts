@@ -27,7 +27,9 @@ import type { Tree } from "../../build/room/source";
 import { framing } from "../../src/room/compose/framing";
 import { memberRect, unionOf } from "../../src/room/compose/pick";
 import type { Rect } from "../../src/room/compose/pick";
-import { protectorFor } from "../../src/room/compose/protect";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
+import { frameArea } from "../../src/room/compose/frame";
+import { DEFAULT_METRICS, OPENING } from "../../src/room/compose/hud";
 import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
@@ -240,4 +242,38 @@ describe("RG6 at the frame areas (spec 014, T009)", () => {
         for (const i of set) if (!b.get(id)?.has(i)) more.push(`${id} at ${JSON.stringify(screens[i])}`);
       expect(more.slice(0, 3)).toEqual([]);
     });
+});
+
+// T053 (spec 014, the review's N3; FR-016): the room's protector, built from the bundle (protectSceneOf), and the
+// compositor's, built from the compose's own geometry over the sweep (protectSceneOfGeometry), give one frame area
+// at each screen, so the room is framed where the checks judged it.
+describe("one frame area for the room and the checks (spec 014, T053; FR-016)", () => {
+  it("gives the bundle's protector and the sweep's the same frame area and ease", () => {
+    const { scene: part, index } = repositoryBundle();
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    const room = protectorFor(protectSceneOf(part, index));
+    const sweep = protectorFor(protectSceneOfGeometry(g));
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 1920, h: 1080 },
+      { w: 2560, h: 1440 },
+      { w: 1280, h: 720 },
+      { w: 390, h: 844 },
+      { w: 768, h: 1024 },
+    ]) {
+      const a = frameArea(screen, OPENING, DEFAULT_METRICS, room);
+      const b = frameArea(screen, OPENING, DEFAULT_METRICS, sweep);
+      expect(a.ease, `${screen.w} × ${screen.h}`).toBe(b.ease);
+      expect(a.area, `${screen.w} × ${screen.h}`).toEqual(b.area);
+    }
+  });
+
+  // The Author's answer of 2026-11-10, "Move the walk control (Recommended)": with the walking control in the bar's
+  // cluster, the reference desktop's frame no longer eases around it (plan.md E1).
+  it("eases the reference desktop's frame less than 10/16 with the walking control in the bar", () => {
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    expect(stageFor(REFERENCE_DESKTOP.screen, g.protect).ease).toBeLessThan(10 / 16);
+  });
 });

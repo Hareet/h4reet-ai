@@ -310,3 +310,32 @@ describe("the look's new pairs (spec 014, T025)", () => {
     }
   });
 });
+
+// T053 (spec 014, the review's I2 and I3): the hand-off offer's buttons take the yellow ring on the glass, not the
+// page's #0b4f9c (about 1.7:1 there); the walking control's hover face, the glass at --glass-alpha-lit, keeps its words
+// at 4.5:1 over a white scene, and turns opaque where the visitor asks for less transparency or more contrast.
+describe("the offer's focus ring and the walking control's hover (spec 014, T053)", () => {
+  it("rings the offer's buttons in the highlight's yellow, at 3:1 over the glass on white and on black", () => {
+    for (const layout of ["column", "dock"]) {
+      const at = `html[data-hud="${layout}"] .room-offer button:focus-visible`;
+      expect(declared(at, "outline"), at).toBe("2px solid var(--hud-focus)");
+    }
+    const glass = colour(`${palette().get("--glass")} `.trim());
+    const alpha = Number(palette().get("--glass-alpha"));
+    const yellow = colour(palette().get("--hud-focus") ?? "").rgb;
+    for (const under of [WHITE, BLACK])
+      expect(ratio(yellow, over({ rgb: glass.rgb, a: alpha }, under))).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps the walking control's hover words at 4.5:1 over a white scene, opaque under the two preferences", () => {
+    const lit = Number(palette().get("--glass-alpha-lit"));
+    expect(lit).toBeGreaterThanOrEqual(Number(palette().get("--glass-alpha")));
+    const glass = colour(palette().get("--glass") ?? "").rgb;
+    const text = colour(palette().get("--hud-text") ?? "").rgb;
+    expect(ratio(text, over({ rgb: glass, a: lit }, WHITE))).toBeGreaterThanOrEqual(4.5);
+    for (const prelude of [/prefers-reduced-transparency: reduce/, /prefers-contrast: more/]) {
+      const root = rulesFor(":root", prelude).find((r) => r.declarations.has("--glass-alpha-lit"));
+      expect(root?.declarations.get("--glass-alpha-lit"), String(prelude)).toBe("1");
+    }
+  });
+});

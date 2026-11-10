@@ -225,3 +225,76 @@ describe("the compact column's properties and the log at rest (spec 014, T024; F
     expect(talk?.getAttribute("data-larger")).toBe("on");
   });
 });
+
+// T053 (spec 014; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"; the review's I3): the
+// walking control in the bar's cluster, by the CSS properties the room sets from compose/hud.ts's compactBoxes, its
+// DOM place, and so the Tab order, unchanged; its own glass hover, only where the pointer hovers, so a tap leaves none;
+// and the hover and selection rules scoped to the HUD's own buttons, so the resume keeps its document's look (FR-022).
+describe("the walking control in the bar, and the hover's scope (spec 014, T053)", () => {
+  const px = (v: Visit, name: string): number => Number.parseFloat(v.doc.documentElement.style.getPropertyValue(name));
+  const ROOM_RULES = (() => {
+    const out: Rule[] = [];
+    const add = (text: string, at: string | null): void => {
+      const sheet = parseCss(text);
+      for (const r of sheet.rules)
+        for (const selector of r.selector.split(","))
+          out.push({ selector: selector.trim(), declarations: r.declarations, order: 0, at });
+      for (const a of sheet.atRules) add(a.body, a.prelude);
+    };
+    for (const sheet of stylesheets().filter((x) => /room\.css$/.test(x.path))) add(sheet.text, null);
+    return out;
+  })();
+
+  it("places the control at the bar cluster's left end on a wide window, and in the clear area's corner on a phone", async () => {
+    const wide = await room({ w: 1920, h: 1200 });
+    const c = compactBoxes({ w: 1920, h: 1200 });
+    expect(wide.doc.documentElement.getAttribute("data-walk-place")).toBe("bar");
+    expect(px(wide, "--walk-x")).toBeCloseTo(c.walk.x, 3);
+    expect(px(wide, "--walk-y")).toBeCloseTo(c.walk.y, 3);
+    const rule = ROOM_RULES.find((r) => r.selector === 'html[data-hud="column"][data-walk-place="bar"] .room-walk');
+    expect(rule?.declarations.get("left")).toBe("calc(var(--walk-x) - var(--clear-x))");
+    expect(rule?.declarations.get("top")).toBe("calc(var(--walk-y) - var(--clear-y))");
+    expect(rule?.declarations.get("right")).toBe("auto");
+    expect(rule?.declarations.get("bottom")).toBe("auto");
+    // Its DOM place is spec 008's, in the clear box after the notes, so the Tab order is unchanged (FR-062).
+    expect(wide.doc.querySelector(".room-clear > .room-walk")).not.toBeNull();
+    const phone = await room({ w: 390, h: 844 });
+    expect(phone.doc.documentElement.getAttribute("data-walk-place")).toBe("stage");
+  });
+
+  it("gives the control its own glass hover, and every hover rule only where the pointer hovers", () => {
+    const hovers = ROOM_RULES.filter((r) => /:hover\b/.test(r.selector));
+    expect(hovers.length).toBeGreaterThan(0);
+    for (const r of hovers) expect(r.at, r.selector).toBe("@media (hover: hover)");
+    for (const layout of ["column", "dock"]) {
+      const walk = hovers.find((r) => r.selector === `html[data-hud="${layout}"] .room-walk:hover`);
+      expect(walk?.declarations.get("background"), layout).toBe("rgb(var(--glass) / var(--glass-alpha-lit))");
+      expect(walk?.declarations.get("border-color"), layout).toBe("var(--accent-neon)");
+    }
+  });
+
+  it("scopes the hover and selection rules to the HUD's own buttons", () => {
+    for (const r of ROOM_RULES.filter((x) => /:hover\b|\[aria-current="true"\]/.test(x.selector)))
+      expect(/\.(hud-panels|hud-bar|room-offer|room-walk)\b/.test(r.selector), r.selector).toBe(true);
+  });
+
+  it("leaves the resume's selected item and its hover to resume.css (FR-022)", async () => {
+    const v = await room({ w: 1920, h: 1200 });
+    button(v.doc, "Resume").click();
+    // A selected item as resume/view.ts marks one, in the open panel (the default content holds no items).
+    const panel = v.doc.querySelector(".resume-panel");
+    if (!panel) throw new Error("no resume panel");
+    const list = v.doc.createElement("ul");
+    list.className = "resume-items";
+    const item = v.doc.createElement("button");
+    item.type = "button";
+    item.setAttribute("aria-current", "true");
+    list.append(v.doc.createElement("li"));
+    list.firstElementChild?.append(item);
+    panel.append(list);
+    expect(winning(item, "background")).toBe("#eef4fb");
+    expect(winning(item, "border-color")).toBe("#0b4f9c");
+    for (const r of ROOM_RULES.filter((x) => /:hover\b/.test(x.selector)))
+      expect(matchesRule(item, r.selector.replace(/:hover\b/g, "")), r.selector).toBe(false);
+  });
+});
