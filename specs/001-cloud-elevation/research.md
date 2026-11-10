@@ -65,9 +65,9 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 
 | What | Pinned | Released | Source | Status |
 |---|---|---|---|---|
-| Terraform | 1.17.1 | 2026-10-28 | web search, 2026-11-10; the Author confirms at T011 | `TERRAFORM_VERSION` |
-| `hashicorp/aws` provider | 6.72.0 | 2026-11-04 | web search, 2026-11-10; the Author confirms at T011. Latest at 2026-11-10: it releases weekly, so recheck at T011 | `TERRAFORM_AWS_PROVIDER_VERSION` |
-| Lambda runtimes | `python3.14` and `nodejs24.x`, on arm64 | — | web search, 2026-11-10; the Author confirms at T011. Node.js 26's runtime may be live but isn't confirmed; 24 matches the repository's Node 24 | group 4 pins each base image by digest |
+| Terraform | 1.17.1 | 2026-10-28 | the main session's web search, 2026-11-10, of endoflife.date's Terraform page (endoflife.date/terraform); the Author confirms at T011 | `TERRAFORM_VERSION` |
+| `hashicorp/aws` provider | 6.72.0 | 2026-11-04 | the main session's web search, 2026-11-10, of the provider's GitHub releases page (github.com/hashicorp/terraform-provider-aws/releases); the Author confirms at T011. Latest at 2026-11-10: it releases weekly, so recheck at T011 | `TERRAFORM_AWS_PROVIDER_VERSION` |
+| Lambda runtimes | `python3.14` and `nodejs24.x`, on arm64 | listed on 2026-11-10 | the main session's web search, 2026-11-10, of AWS's Lambda runtimes page (docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html); the Author confirms at T011. Node.js 26's runtime may be live but isn't confirmed; 24 matches the repository's Node 24 | group 4 pins each base image by digest |
 | AWS CLI v2 | 2.29.1 | — | the repository: the host's version on 2026-10-07 (`docs/merge-requests/2026-10-07-chore-repo-hygiene.md`; spec 000's tasks.md T104) | `AWS_CLI_VERSION`; the latest is to confirm, and a newer pin is his to choose |
 | Session Manager plugin | — | — | the repository holds no version | to confirm |
 | `python-hcl2` | not added | — | the gates read HCL with their own standard-library reader (R-14) | — |
@@ -204,7 +204,7 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 
 It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state from the last read (R-29), the kill switch, and the cause a hello would get. It writes each change of serving host to the shared state's `handover_events` (data-model.md §1.3), as `relay_rw`, which may insert there and nowhere else.
 
-**Why.** The relay holds the cap, the kill switch read, and the host choice in one place that runs around the clock. The status answer stays live while no host serves. The Cloud standard lists the relay among what "must be always-on", and on spot it has gaps: plan question 8 asked the Author how to carry that, and his approval at T000 takes option A, his wording in the 1.1.0 patch.
+**Why.** The relay holds the cap, the kill switch read, and the host choice in one place that runs around the clock. The status answer stays live while no host serves. The Cloud standard lists the relay among what "must be always-on", and on spot it has gaps: plan question 8 asked the Author how to carry that; the session takes option A provisionally under its reading of his approval at T000, the wording in the 1.1.0 patch his to write or confirm at T001.
 
 
 ### R-10: Egress through an allowlisting proxy (carried, on two hosts)

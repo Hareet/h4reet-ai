@@ -10,7 +10,7 @@ CloudFront reaches a private origin only through a VPC origin, bound to one reso
 
 > Question 2: "Spec 001's plan: the tiny always-on instance where your laptop's tunnel ends (and, with the relay option, every request passes through). On demand or spot?" He chose "Spot", which read: "About $2.20 a month (October's figure). AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up."
 
-Question 8, the relay on spot against the Cloud standard's "must be always-on", was asked at T000. His approval, 2026-11-10: "Let's approve the t000 and spec 001 plan." It takes option A, the plan's recommendation: his wording in the still-unapplied 1.1.0 patch, being added on `docs/001-ec2-default` (spec.md, Clarifications, Session 2026-11-10).
+Question 8, the relay on spot against the Cloud standard's "must be always-on", was asked at T000. His approval, 2026-11-10: "Let's approve the t000 and spec 001 plan." It chooses neither option. The session takes the plan's recommendation, A, provisionally under its reading of that approval, as it took questions 5 to 7: his wording in the still-unapplied 1.1.0 patch on `docs/001-ec2-default`, his to write or confirm at T001 (spec.md, Clarifications, Session 2026-11-10).
 
 ## Decision
 
