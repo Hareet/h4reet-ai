@@ -10,7 +10,8 @@ What the laptop's prod needs from the account, as spec 001 builds it, group by g
 
 ## Impact
 
-- While the profile is wrong, prod on the laptop answers locally only; its Bedrock fallback is down. Prod on EC2 isn't affected.
+- While prod's route names the Anthropic API as its fallback, as `config/routing.yaml` on `main` does (spec 010's T059), the laptop's gateway calls no Bedrock, and P19 doesn't read the profile: it matters to a route back to Bedrock, and to your live runs on it (`make redteam-live ADAPTER=bedrock ENV=prod`).
+- While the profile is wrong and the route names Bedrock, prod on the laptop answers locally only; its Bedrock fallback is down. Prod on EC2 isn't affected.
 - The `credentials_expiring` warning keeps working: the gateway reads the session's end from the source profile (`services/gateway/src/adapters/bedrock-converse.ts`).
 
 ## Act
