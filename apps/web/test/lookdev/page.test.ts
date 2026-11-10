@@ -46,7 +46,9 @@ import type { LookdevDeps, LookdevPage } from "../../src/lookdev/page";
 import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
-import { clearArea } from "../../src/room/compose/hud";
+import { frameArea } from "../../src/room/compose/frame";
+import { DEFAULT_METRICS, OPENING, clearArea } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { bufferRatio, viewOffsetFor } from "../../src/room/fit";
 import { readImage } from "../../src/room/glb/images";
 import { REASON, count } from "../../src/room/glb/rules";
@@ -1752,6 +1754,37 @@ describe("the window views (spec 005, T026)", () => {
     const ratio = bufferRatio(2.8125, qualitySettings(settled), 384, 740);
     expect(results.buffer_px).toEqual([Math.floor(384 * ratio), Math.floor(740 * ratio)]);
     expect(results.pixel_cap).toBe(qualitySettings(settled).pixelCap);
+  });
+
+  // T019 (spec 014; FR-063; contracts/lookdev.md §6, "(spec 014)"): a window run's results give the frame area's ease
+  // and the frame area itself, which the room's kernel computes from the part's protector; a stage view gives null.
+  it("gives a window run's results the frame area's ease and frame, and a stage view's null (spec 014, T019)", async () => {
+    for (const [label, screen] of [
+      ["Reference desktop's window", { w: 1920, h: 1200 }],
+      ["A large monitor's window", { w: 2560, h: 1440 }],
+    ] as const) {
+      const { root, clock, inputs: given } = open();
+      choose(control<HTMLInputElement>(root, label));
+      clock.advance(50);
+      buttonNamed(root, "Run 2 minutes").click();
+      await settle(clock);
+      clock.advance(120_000, 100);
+      await settle(clock);
+      const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+      const f = frameArea(screen, OPENING, DEFAULT_METRICS, protectorFor(protectSceneOf(given.part, given.index)));
+      expect(results.ease, label).toBe(f.ease);
+      expect(results.frame_css, label).toEqual([f.area.x, f.area.y, f.area.w, f.area.h]);
+    }
+    const { root, clock } = open();
+    choose(control<HTMLInputElement>(root, "Reference desktop"));
+    clock.advance(50);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+    expect(results.ease).toBeNull();
+    expect(results.frame_css).toBeNull();
   });
 
   it("gives the phone copy's own view its device's clear area", () => {
