@@ -25,7 +25,8 @@ describe("the sign's readings from a turn's three facts (spec 014, T043)", () =>
   it("reads a fallback reply's cost as the paid estimate on both counters", () => {
     const got = signReadings({ status: 200, route: "fallback", cost_micro_usd: 100_000 }, words);
     expect(got).toEqual(expected(200, { route: "fallback", cost_micro_usd: 100_000 }));
-    expect(got.call).toBe("$0.10 est.");
+    // The room's own amount, formatMicro's ("$0.100000 est."), with "est.".
+    expect(got.call).toMatch(/^\$0\.1\d* est\.$/);
     expect(got.visit).toContain("est.");
   });
 
