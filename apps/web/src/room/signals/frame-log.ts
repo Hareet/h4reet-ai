@@ -36,7 +36,8 @@ export type FrameEvent =
   // Spec 009's figures (its FR-035; plan.md §3.4): a picture's change (`figure`, `shows`, `why`) and a clip's.
   | "figure"
   | "clip"
-  // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, and the buffer's ratio.
+  // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, the buffer's size, and its
+  // ratio (null, and the size "none", in 2D).
   | "refit"
   // A collapsible part's change (`part`, `state`): the list, the log, and the larger view.
   | "panel"

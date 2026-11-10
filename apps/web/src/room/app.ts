@@ -66,6 +66,7 @@ import type { HudState } from "./compose/hud";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
+import { bufferRatio } from "./fit";
 import { renderFlat } from "./flat";
 import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
@@ -92,6 +93,7 @@ import {
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { FrameLog, FrameLogOptions } from "./signals/frame-log";
+import { qualitySettings } from "./scene/levels";
 import { createLiveSignals } from "./signals/live";
 import type { LiveSignals } from "./signals/live";
 import { caseFor } from "./signals/tier";
@@ -226,13 +228,22 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       if (settling) settling.frames = SETTLE_FRAMES;
       else settling = { release: controller.hold(), frames: SETTLE_FRAMES };
     }
-    log?.record("refit", {
-      w: m.w,
-      h: m.h,
-      layout: fits ? boxes.layout : "stacked",
-      clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
-      ratio: m.dpr,
-    });
+    if (log) {
+      // The drawing buffer the 3D stage sizes on its next frame (scene.ts's resize; FR-063, plan.md §12.4): the canvas,
+      // the window in the HUD and the stage's view in the stacked layout, at the buffer's ratio, which the level's
+      // ratio and pixel cap bound. None in 2D, which draws no buffer.
+      const canvas = fits ? screen : { w: layout.view.clientWidth, h: layout.view.clientHeight };
+      const ratio = bufferRatio(m.dpr, qualitySettings(visit.quality), canvas.w, canvas.h);
+      const drawn = visit.mode !== "2d" && canvas.w > 0 && canvas.h > 0;
+      log.record("refit", {
+        w: m.w,
+        h: m.h,
+        layout: fits ? boxes.layout : "stacked",
+        clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
+        buffer: drawn ? `${Math.floor(canvas.w * ratio)}x${Math.floor(canvas.h * ratio)}` : "none",
+        ratio: drawn ? ratio : null,
+      });
+    }
   }
 
   /** A targeting event through the store: a change of target goes to the stage that draws, and to a drafts build's

@@ -4,7 +4,9 @@
 //   the unprefixed ones are missing (iPadOS's Safari before 16.4). An iPhone's browsers report none, and the room offers
 //   no control there (Q4, provisional). Never decided by the browser's name.
 // - A request asks to hide the browser's navigation UI; a rejected request or a fullscreenerror is a refusal, which the
-//   room says once and never retries (FR-005).
+//   room says once and never retries (FR-005). Browsers fire the event and then reject the promise: one refusal a
+//   request, by whichever comes first, and nothing for an error no request of the room's asked for (the review of
+//   60b51de4's nit).
 // - A change by any means (the control, the shortcut, the browser's Escape or its own exit, a tab switch) reaches the
 //   listeners, by either event's name.
 // - Escape is the browser's while the page is in full screen (D3): every Escape handler in the room asks
@@ -54,14 +56,22 @@ export function createFullscreen(doc: Document): Fullscreen {
     const on = fullscreenElement(doc) !== null;
     for (const fn of [...changes]) fn(on);
   };
+  /** Whether a request of the room's waits for its answer: a change or a refusal ends it. */
+  let asking = false;
   const refused = (): void => {
+    if (!asking) return;
+    asking = false;
     for (const fn of [...refusals]) fn();
+  };
+  const settled = (): void => {
+    asking = false;
+    changed();
   };
   /** A promise's rejection, where a request gives one. */
   const caught = (result: unknown, onError: () => void): void => {
     if (result && typeof (result as Promise<void>).catch === "function") (result as Promise<void>).catch(onError);
   };
-  for (const name of ["fullscreenchange", "webkitfullscreenchange"]) doc.addEventListener(name, changed);
+  for (const name of ["fullscreenchange", "webkitfullscreenchange"]) doc.addEventListener(name, settled);
   for (const name of ["fullscreenerror", "webkitfullscreenerror"]) doc.addEventListener(name, refused);
 
   return {
@@ -81,6 +91,7 @@ export function createFullscreen(doc: Document): Fullscreen {
         return;
       }
       const request = unprefixed ? root.requestFullscreen : root.webkitRequestFullscreen;
+      asking = true;
       try {
         caught(request?.call(root, { navigationUI: "hide" }), refused);
       } catch {
@@ -98,7 +109,7 @@ export function createFullscreen(doc: Document): Fullscreen {
     dispose() {
       changes.clear();
       refusals.clear();
-      for (const name of ["fullscreenchange", "webkitfullscreenchange"]) doc.removeEventListener(name, changed);
+      for (const name of ["fullscreenchange", "webkitfullscreenchange"]) doc.removeEventListener(name, settled);
       for (const name of ["fullscreenerror", "webkitfullscreenerror"]) doc.removeEventListener(name, refused);
     },
   };

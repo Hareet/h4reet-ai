@@ -123,13 +123,16 @@ body.in-room .disclosure p {
 }
 
 /* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
-   browser draws no backdrop blur, so the tint alone carries the contrast (FR-006). */
+   browser draws no backdrop blur, so the tint alone carries the contrast (FR-006). Each fallback names the root's
+   attribute, so it outranks the HUD's rule it undoes, `html[data-blur="on"] .hud-glass` (the review of 60b51de4's
+   nit; test/room/hud-contrast.test.ts computes the specificity). */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
   }
 
-  .hud-glass {
+  .hud-glass,
+  :root[data-blur] .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -140,7 +143,8 @@ body.in-room .disclosure p {
     --glass-alpha: 1;
   }
 
-  .hud-glass {
+  .hud-glass,
+  :root[data-blur] .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -151,7 +155,8 @@ body.in-room .disclosure p {
     --glass-alpha: 1;
   }
 
-  .hud-glass {
+  .hud-glass,
+  :root[data-blur] .hud-glass {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -299,6 +304,21 @@ html[data-hud="dock"] .room-clear {
 .room-stage-view[role="application"]:focus-visible {
   outline: 3px solid #0b4f9c;
   outline-offset: -3px;
+}
+
+/* In the HUD the stage's view is the whole window, its edge under the docked boxes, so the ring is drawn at the clear
+   area instead: the HUD's yellow outside a band of the glass's colour, one of which reaches 3:1 over any scene pixel,
+   white or black (the review of 60b51de4's nit). */
+html[data-hud="column"] .room-stage-view[role="application"]:focus-visible,
+html[data-hud="dock"] .room-stage-view[role="application"]:focus-visible {
+  outline: none;
+}
+
+html[data-hud="column"] .room-stage-view[role="application"]:focus-visible + .room-clear,
+html[data-hud="dock"] .room-stage-view[role="application"]:focus-visible + .room-clear {
+  outline: 3px solid var(--hud-focus);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 5px rgb(var(--glass));
 }
 
 .room-stage-view[role="application"] .room-canvas {
@@ -510,6 +530,28 @@ html[data-hud="dock"] .talk-sheet {
   overflow: hidden;
   padding: 0.25rem calc(0.25rem + var(--safe-right)) 0.25rem calc(0.25rem + var(--safe-left));
   background: rgb(var(--glass) / var(--glass-alpha));
+}
+
+/* In the dock, the characters-left counter shares the label's line, on its right: the dock's height counts the label's
+   line and the text box's row, so a third line would spill over the bar (compose/hud.ts's talk entry; the review of
+   60b51de4's nit). */
+html[data-hud="dock"] .talk-form {
+  grid-template-columns: 1fr auto;
+}
+
+html[data-hud="dock"] .talk-form label {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+html[data-hud="dock"] .talk-counter {
+  grid-row: 1;
+  grid-column: 2;
+  line-height: 1.5;
+}
+
+html[data-hud="dock"] .talk-row {
+  grid-column: 1 / -1;
 }
 
 html[data-hud="dock"] .talk[data-log="empty"] .talk-sheet {
@@ -820,11 +862,14 @@ html[data-hud="dock"] .resume-panel {
   paint-order: stroke;
 }
 
-/* Forced colours: the system's colours throughout the HUD, no blur, and focus in Highlight (FR-006). */
+/* Forced colours: the system's colours throughout the HUD, no blur, and focus in Highlight (FR-006). The selectors
+   that name the root's attributes outrank the HUD's own rules (the review of 60b51de4's nit). */
 @media (forced-colors: active) {
   html[data-hud="column"] .disclosure,
   html[data-hud="dock"] .disclosure,
-  .hud-glass {
+  .hud-glass,
+  :root[data-hud] .hud-glass,
+  :root[data-blur] .hud-glass {
     color: CanvasText;
     background: Canvas;
     -webkit-backdrop-filter: none;
@@ -832,14 +877,20 @@ html[data-hud="dock"] .resume-panel {
   }
 
   .hud-bar button,
-  .hud-bar a {
+  .hud-bar a,
+  :root[data-hud] .hud-tile {
     color: ButtonText;
     background: ButtonFace;
     border-color: ButtonText;
   }
 
   .room button:focus-visible,
-  .room a:focus-visible {
+  .room a:focus-visible,
+  :root[data-hud] .hud-glass button:focus-visible,
+  :root[data-hud] .hud-glass a:focus-visible,
+  :root[data-hud] .hud-glass input:focus-visible,
+  :root[data-hud] .hud-glass.room-walk:focus-visible,
+  :root[data-hud] .room-stage-view[role="application"]:focus-visible + .room-clear {
     outline-color: Highlight;
   }
 }
