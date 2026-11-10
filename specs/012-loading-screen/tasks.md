@@ -225,7 +225,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 **Independent Test**: spec.md User Story 4's.
 
-- [ ] T025 [P] [US4] Write `apps/web/test/ui/loading-a11y.test.ts` and `apps/web/test/room/loading-contrast.test.ts` (FR-008, FR-022, FR-039 to FR-043; SC-006), in each layout:
+- [x] T025 [P] [US4] Write `apps/web/test/ui/loading-a11y.test.ts` and `apps/web/test/room/loading-contrast.test.ts` (FR-008, FR-022, FR-039 to FR-043; SC-006), in each layout:
   - **Tab order**: Tab and Shift+Tab reach the rotation control, "Previous hint", and "Next hint" and nothing behind the tint, "Around the room" included; nothing traps;
   - **During the fade** (FR-022): from the moment give-way starts, Tab reaches no card control, and a press on one does nothing;
   - **Focus return**: from each hint control, focus lands on the room's heading at give-way;
@@ -238,7 +238,7 @@ description: "Task list for spec 012, the room's loading screen"
   - **Axe**: 0 violations while showing, with each hint, paused, cut short, and after give-way, in each layout.
 
   Check: RED before T026 for any case the code doesn't yet meet (feat/012-loading-screen)
-- [ ] T026 [US4] Fix what T025 finds, in `loading/view.ts`, `loading/hints.ts`, `loading.css`, or `app.ts`. Check: T025 passes (feat/012-loading-screen)
+- [x] T026 [US4] Fix what T025 finds, in `loading/view.ts`, `loading/hints.ts`, `loading.css`, or `app.ts`. Check: T025 passes (feat/012-loading-screen)
 
 **Checkpoint**: no visitor loses track of the loading, or is trapped by it, in any layout.
 

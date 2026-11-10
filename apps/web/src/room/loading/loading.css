@@ -6,7 +6,8 @@
      clear area's top and the notes' reserve, so it covers neither the AI disclosure's strip nor the stand-in line, and
      scrolls inside itself where it is taller than the window below that top; z 4, over the docked panels (3) and under
      the strip (5). In the stacked layout it is first in the room's grid, in the page's flow, above the stage.
-   - The bar: a track holding no text, the fill in the highlight's yellow, its width a 150 ms transition, with no sheen.
+   - The bar: a dark track holding no text, the fill in the highlight's yellow, its width a 150 ms transition, with no
+     sheen.
    - Focus: the HUD's yellow ring on the card's heading and buttons, in every layout, outranking the room's blue.
    - No text element of the card has a fixed height or clips its overflow, only a min-height (WCAG 1.4.12).
    - Giving way: a 200 ms fade of its opacity; none under reduced motion, where the card goes at once. */
@@ -125,12 +126,13 @@ html[data-hud="stacked"][data-loading] .talk {
   font-variant-numeric: tabular-nums;
 }
 
-/* The bar (PD-11): a track on the glass with the tiles' border, the fill in the highlight's yellow. */
+/* The bar (PD-11, departure C6): a track darker than the glass, with the tiles' light border, the fill in the
+   highlight's yellow; so the fill reaches 3:1 against the track over white beneath too (test/room/loading-contrast). */
 .room-loader-bar {
   box-sizing: border-box;
   height: 0.75rem;
   overflow: hidden;
-  background: rgb(255 255 255 / 0.16);
+  background: rgb(0 0 0 / 0.35);
   border: 1px solid var(--tile-border);
   border-radius: 0.375rem;
 }
