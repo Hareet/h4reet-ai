@@ -1,0 +1,4 @@
+rule: RT17
+file: apps/web/room/hints.yaml
+path: hints[0].text
+why: a slot outside the hints' closed list (strict mode refuses; lenient mode warns and leaves the hint out)

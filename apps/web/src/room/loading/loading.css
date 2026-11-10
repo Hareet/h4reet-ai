@@ -1,0 +1,245 @@
+/* The loader's card (spec 012; FR-008, FR-022, FR-025, FR-040 to FR-042; plan.md §5, PD-10, PD-11, PD-19, PD-23;
+   contracts/loading-progress.md §5), from the site's own origin, classes only, its one size set through the CSS object
+   model (--loader-fraction, loading/view.ts), never a style attribute (FR-052).
+   - The card is the HUD's dark glass in every layout, with its own colour and background, since spec 005's
+     `.hud-glass` colours hold only in the column and dock layouts. In those it is fixed, centred, its top below the
+     clear area's top and the notes' reserve, so it covers neither the AI disclosure's strip nor the stand-in line, and
+     scrolls inside itself where it is taller than the window below that top; z 4, over the docked panels (3) and under
+     the strip (5). In the stacked layout it is first in the room's grid, in the page's flow, above the stage.
+   - The bar: a dark track holding no text, the fill in the highlight's yellow, its width a 150 ms transition, with no
+     sheen.
+   - Focus: the HUD's yellow ring on the card's heading and buttons, in every layout, outranking the room's blue.
+   - No text element of the card has a fixed height or clips its overflow, only a min-height (WCAG 1.4.12).
+   - Giving way: a 200 ms fade of its opacity; none under reduced motion, where the card goes at once. */
+
+.room-loader {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+  border: 1px solid var(--tile-border);
+  border-radius: 0.75rem;
+  transition: opacity 200ms ease-out;
+}
+
+.room-loader--leaving {
+  opacity: 0;
+}
+
+html[data-hud="column"] .room-loader,
+html[data-hud="dock"] .room-loader {
+  position: fixed;
+  z-index: 4;
+  top: calc(var(--clear-y) + var(--notes-h));
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(36rem, 100% - 2rem);
+  max-height: calc(100vh - var(--clear-y) - var(--notes-h) - 0.5rem);
+  max-height: calc(100dvh - var(--clear-y) - var(--notes-h) - 0.5rem);
+  overflow-y: auto;
+}
+
+/* The stacked layout: first in the room's grid, above the stage, in the page's flow (PD-10). The templates are spec
+   005's at e324771e with the loader's row before them, portrait and landscape. */
+html[data-hud="stacked"] .room-loader {
+  position: static;
+  grid-area: loader;
+}
+
+html[data-hud="stacked"][data-loading] .room {
+  grid-template-areas: "loader" "toolbar" "stage" "list" "talk" "around" "resume";
+}
+
+@media (orientation: landscape) and (min-width: 32rem) {
+  html[data-hud="stacked"][data-loading] .room {
+    grid-template-areas: "loader loader" "toolbar toolbar" "stage list" "stage talk" "around around" "resume resume";
+  }
+}
+
+/* The scrim (PD-9; FR-024 to FR-027): a tint laid by element over the room's parts while the loader shows, each a
+   ::after inside its element, letting the pointer through, with no blur over the moving scene. In the column and dock
+   layouts: the stage's view, the bar, the docked panels, and "Around the room"; in the stacked layout, whose
+   `.hud-panels` is `display: contents` (its ::after would land on an ancestor and cover the page), the list and the
+   conversation in place of the panels. Never the AI disclosure, the clear box, the notes, the stand-in line, or the
+   card: they stay undimmed by construction. The tints fade with the card ("leaving"); none under reduced motion. */
+html[data-hud="column"][data-loading] .room-stage-view::after,
+html[data-hud="column"][data-loading] .hud-bar::after,
+html[data-hud="column"][data-loading] .hud-panels::after,
+html[data-hud="column"][data-loading] .room-around::after,
+html[data-hud="dock"][data-loading] .room-stage-view::after,
+html[data-hud="dock"][data-loading] .hud-bar::after,
+html[data-hud="dock"][data-loading] .hud-panels::after,
+html[data-hud="dock"][data-loading] .room-around::after,
+html[data-hud="stacked"][data-loading] .room-stage-view::after,
+html[data-hud="stacked"][data-loading] .hud-bar::after,
+html[data-hud="stacked"][data-loading] .room-list::after,
+html[data-hud="stacked"][data-loading] .talk::after,
+html[data-hud="stacked"][data-loading] .room-around::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(0 0 0 / 0.55);
+  transition: opacity 200ms ease-out;
+}
+
+html[data-loading="leaving"] .room-stage-view::after,
+html[data-loading="leaving"] .hud-bar::after,
+html[data-loading="leaving"] .hud-panels::after,
+html[data-loading="leaving"] .room-list::after,
+html[data-loading="leaving"] .talk::after,
+html[data-loading="leaving"] .room-around::after {
+  opacity: 0;
+}
+
+/* Each tinted part positioned, so its tint stays inside it: "Around the room" in every layout, and in the stacked layout
+   the bar, the list, and the conversation, which are in the page's flow there. The stage's view, and in the column and
+   dock layouts the bar and the panels, are positioned already (room.css); the dock's conversation is left alone, its
+   sheet placed against the panels. */
+html[data-loading] .room-around,
+html[data-hud="stacked"][data-loading] .hud-bar,
+html[data-hud="stacked"][data-loading] .room-list,
+html[data-hud="stacked"][data-loading] .talk {
+  position: relative;
+}
+
+.room-loader-heading {
+  margin: 0;
+  min-height: 1.5rem;
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.room-loader-percent,
+.room-loader-stage {
+  margin: 0;
+  min-height: 1.25rem;
+  line-height: 1.4;
+}
+
+.room-loader-percent {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar (PD-11, departure C6): a track darker than the glass, with the tiles' light border, the fill in the
+   highlight's yellow; so the fill reaches 3:1 against the track over white beneath too (test/room/loading-contrast). */
+.room-loader-bar {
+  box-sizing: border-box;
+  height: 0.75rem;
+  overflow: hidden;
+  background: rgb(0 0 0 / 0.35);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.375rem;
+}
+
+.room-loader-fill {
+  height: 100%;
+  width: calc(var(--loader-fraction, 0) * 100%);
+  background: var(--hud-focus);
+  transition: width 150ms ease-out;
+}
+
+/* The hints (FR-028 to FR-031): one at a time, its place below it, and the three controls in a row that wraps, each at
+   least 44 by 44 CSS pixels (room.css's `.room button`), a tile of the HUD's on the glass. */
+.room-loader-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.room-loader-hint {
+  margin: 0;
+  min-height: 3rem;
+  line-height: 1.5;
+}
+
+.room-loader-position {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.room-loader-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+:root .room-loader button {
+  padding: 0 0.75rem;
+  color: var(--hud-text);
+  background: var(--tile-face);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.5rem;
+}
+
+/* The HUD's yellow ring on the card, in every layout (PD-23): `:root` outranks room.css's `.room button:focus-visible`
+   and `.room [tabindex]:focus-visible`, whose blue is under 3:1 on the glass. */
+:root .room-loader button:focus-visible,
+:root .room-loader [tabindex]:focus-visible {
+  outline: 2px solid var(--hud-focus);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: nothing slides, glows, or fades (FR-040); view.ts removes the card at once. */
+@media (prefers-reduced-motion: reduce) {
+  .room-loader,
+  .room-loader-fill,
+  :root[data-loading] .room-stage-view::after,
+  :root[data-loading] .hud-bar::after,
+  :root[data-loading] .hud-panels::after,
+  :root[data-loading] .room-list::after,
+  :root[data-loading] .talk::after,
+  :root[data-loading] .room-around::after {
+    transition: none;
+  }
+}
+
+/* Forced colours: the system's colours, the fill in Highlight, the ring in Highlight (FR-008). */
+@media (forced-colors: active) {
+  .room-loader,
+  :root[data-hud] .room-loader {
+    color: CanvasText;
+    background: Canvas;
+    border-color: CanvasText;
+  }
+
+  .room-loader-bar {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+
+  /* The tints keep their dimming: forced colours would otherwise paint them opaque, hiding the page. */
+  :root[data-loading] .room-stage-view::after,
+  :root[data-loading] .hud-bar::after,
+  :root[data-loading] .hud-panels::after,
+  :root[data-loading] .room-list::after,
+  :root[data-loading] .talk::after,
+  :root[data-loading] .room-around::after {
+    forced-color-adjust: none;
+  }
+
+  /* Kept as Highlight: forced colours would otherwise paint the fill the track's Canvas. */
+  .room-loader-fill {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  :root .room-loader button {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: ButtonText;
+  }
+
+  :root .room-loader button:focus-visible,
+  :root .room-loader [tabindex]:focus-visible {
+    outline-color: Highlight;
+  }
+}

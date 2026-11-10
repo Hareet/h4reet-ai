@@ -3495,6 +3495,65 @@
       }
     },
     {
+      "type": "stat",
+      "id": 84,
+      "title": "Visits whose loading was cut short",
+      "description": "The share of visits whose loading screen gave way at its 7-second ceiling with the room's files still loading, over the dashboard's range: loading_cut_short events, one a visit, over resume_opened plus resume_kept, a stand-in for visits, since no visit is counted (spec 012, FR-046, FR-048; spec 002, FR-054). It shows how often the ceiling binds, which says whether the first visit is too heavy for visitors' connections. A rough share, in both directions: 2D visits count in the denominator and never show the loader, and a visit that keeps the resume and opens it later counts twice there, which pull it low; and the event is sent before the hand-off, so a visit cut short that leaves before the hand-off's offer counts in the numerator alone, which pulls it high. With no visit in the range it has no value.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 124,
+        "w": 5,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum(increase(h4_room_events_total{kind=\"loading_cut_short\"}[$__range])) / sum(increase(h4_room_events_total{kind=~\"resume_opened|resume_kept\"}[$__range]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "cut-short share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
       "type": "row",
       "id": 67,
       "title": "Room conversation",

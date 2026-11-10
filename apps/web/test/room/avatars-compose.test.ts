@@ -429,7 +429,14 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
     /^docs\/data-flow-disclosure\.md$/,
     /^intent(\/[^/]+\.md)?$/,
     /^specs(\/[^/]+(\/intent\.md)?)?$/,
+    // Spec 012 (its Amendment L8): the hints' figures, from the configuration that enforces them.
+    /^config\/(budgets|routing|prices)\.yaml$/,
   ];
+  /** Spec 012 (its Amendment L8): each file a session hint names in its sources, which strict mode's RT14 reads to
+   *  see the tree holds it, and nothing else of it. */
+  const HINT_SOURCES = new Set(
+    (loadRoom(fileTree(REPO)).hints?.value.hints ?? []).flatMap((h) => (h.by === "session" ? (h.sources ?? []) : [])),
+  );
   const policy = readRoomPolicy({ env: process.env, root: REPO });
   const committed = parse(new TextDecoder().decode(fileTree(REPO).read(SCENE_FILE) ?? new Uint8Array())) as Record<
     string,
@@ -453,6 +460,6 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
     const result = compose(tree, policy, STRICT);
     expect(result.findings.map((f) => formatFinding(f))).toEqual([]);
     expect(result.scene.figures).toMatchObject(expected);
-    expect(tree.log.filter((path) => !READABLE.some((re) => re.test(path)))).toEqual([]);
+    expect(tree.log.filter((path) => !READABLE.some((re) => re.test(path)) && !HINT_SOURCES.has(path))).toEqual([]);
   });
 });

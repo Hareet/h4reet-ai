@@ -5,6 +5,7 @@
 // browser restores or remembers its choices: a reload asks again (FR-002).
 import "./choice.css";
 
+import { PDF_HREF, pdfFileName } from "../resume/download";
 import { h } from "../room/dom";
 import { AVATARS, avatarPreview, isAvatarId } from "./avatars";
 import type { AvatarId } from "./avatars";
@@ -57,7 +58,7 @@ export function renderChoice(doc: Document, options: { onEnter(choice: Choice): 
     h(doc, "p", { id: "choice-hint", class: "choice-hint" }, "Choose a path and an avatar to enter."),
     enter,
   );
-  const pdf = h(doc, "a", { href: "./resume.pdf", download: true }, "Download the resume (PDF)");
+  const pdf = h(doc, "a", { href: PDF_HREF, download: pdfFileName() }, "Download the resume (PDF)");
   pdf.addEventListener("click", () => options.onPdf());
 
   const checked = (group: string): string | undefined =>

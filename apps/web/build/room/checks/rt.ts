@@ -16,6 +16,10 @@
 //   (typefaces.ts); RT11, the tier's sentences; RT12, the closed list's keys and slots (src/room/ui-keys.ts); RT13, an
 //   outline's strings and, in strict mode only, its words in its intent's quotation marks (its keys, cap height, and
 //   path data are the loader's).
+// Spec 012 (its FR-032 to FR-034; Amendment L8; contracts/hints.md §4) runs RT2, RT3, and RT9 over the loader's hints
+// too, and adds four rules for them: RT14, a session hint's sources, in strict mode only; RT15, an Author's hint his
+// quote exactly; RT16, a hint's length once filled; and RT17, a slot the build can't fill, which lenient mode warns of,
+// the hint left out of the index (build/room/hints.ts).
 // The room's name, which C8 and C9's key phrases read as spec 002 reads them, is the resume source's, through the
 // tree. A reference that doesn't resolve is RI4's, and a file the loader refused meets none of these. A reason holds
 // keys, indices, measured numbers, and the rules' own words, never a value from the data.
@@ -45,6 +49,8 @@ import { readJson, readYaml } from "../load";
 import type { Loaded, LoadedRoom } from "../load";
 import { CORPUS_FILE } from "../schema";
 import type { Outline, Placement, Region, RoomTextBlock, UiWord } from "../schema";
+import { fillHints, wordCount } from "../hints";
+import type { FilledHint } from "../hints";
 import { readFaces } from "../typefaces";
 import type { Faces } from "../typefaces";
 import { formatPath } from "./family";
@@ -98,7 +104,7 @@ function readResume(ctx: Context): ResumeSource | null {
 
 /** Every file the loader read and kept. */
 function loadedFiles(room: LoadedRoom): Loaded<unknown>[] {
-  const files: (Loaded<unknown> | null)[] = [room.scene, room.topics, room.ui, room.lookdev];
+  const files: (Loaded<unknown> | null)[] = [room.scene, room.topics, room.ui, room.lookdev, room.hints];
   files.push(...room.catalog, ...room.looks, ...room.fixtures, ...room.blocks, ...room.outlines);
   return files.filter((f) => f !== null);
 }
@@ -237,6 +243,17 @@ function numbers(ctx: Context): void {
       else if (line.about_author && bareNumber(line.text))
         ctx.report("RT3", b.file, at, "a digit in a line about the Author");
     });
+  // Spec 012: a hint states a figure only through a slot (its FR-033).
+  const hints = ctx.room.hints;
+  hints?.value.hints.forEach((hint, i) => {
+    if (/\d/.test(hint.text.replace(/\{[^{}\s]*\}/g, "")))
+      ctx.report(
+        "RT3",
+        hints.file,
+        ctx.path("hints", i, "text"),
+        "a digit outside a slot, where a hint states a figure",
+      );
+  });
 }
 
 /** checkLine's reasons for C1 to C5, a citation's (RT4), and for C8, a line's own words (RT5). C6, C7, and C9 are RT3's
@@ -597,6 +614,67 @@ function quotes(ctx: Context): void {
     t.words_from.forEach((ref, k) => check(topics.file, ["topics", i, "words_from", k], ref)),
   );
   for (const b of ctx.room.blocks) b.value.words_from?.forEach((ref, k) => check(b.file, ["words_from", k], ref));
+  // Spec 012: an Author's hint quotes his words in an intent (its FR-032).
+  const hints = ctx.room.hints;
+  hints?.value.hints.forEach((h, i) => {
+    if (h.by === "author") h.words_from?.forEach((ref, k) => check(hints.file, ["hints", i, "words_from", k], ref));
+  });
+}
+
+// ---- RT14 to RT17: spec 012's hints ----
+
+const FILLED = new WeakMap<Context, readonly FilledHint[]>();
+
+/** The context's hints, filled once (build/room/hints.ts): what RT16 measures and RT17 reports, as emit fills them. */
+export function filledHints(ctx: Context): readonly FilledHint[] {
+  let found = FILLED.get(ctx);
+  if (!found) {
+    found = fillHints(ctx.room.hints?.value ?? null, ctx.tree, ctx.room.ui?.value.words ?? {});
+    FILLED.set(ctx, found);
+  }
+  return found;
+}
+
+/** The hints' own rules (contracts/hints.md §4): RT14 in strict mode alone, a session hint's sources the tree holds;
+ *  RT15, an Author's hint his one quote exactly; RT16, at most 160 characters and 25 words once filled; RT17, each slot
+ *  filled. A reason names keys and slots, never a hint's words. */
+function hintRules(ctx: Context): void {
+  const hints = ctx.room.hints;
+  if (!hints) return;
+  const file = hints.file;
+  for (const { index: i, hint, text, faults } of filledHints(ctx)) {
+    if (hint.by === "session" && ctx.options.mode === "strict") {
+      const sources = hint.sources ?? [];
+      if (sources.length === 0) ctx.report("RT14", file, ctx.path("hints", i), "a session hint with no source");
+      sources.forEach((source, k) => {
+        if (ctx.tree.read(source) === null)
+          ctx.report("RT14", file, ctx.path("hints", i, "sources", k), "a source the tree doesn't hold");
+      });
+    }
+    if (hint.by === "author") {
+      const quotes = hint.words_from ?? [];
+      if (quotes.length !== 1)
+        ctx.report("RT15", file, ctx.path("hints", i, "words_from"), "an Author's hint takes exactly one words_from");
+      else if (hint.text !== quotes[0]?.quote)
+        ctx.report("RT15", file, ctx.path("hints", i, "text"), "not its quote exactly, character for character");
+    }
+    if (text !== null && (text.length > 160 || wordCount(text) > 25))
+      ctx.report(
+        "RT16",
+        file,
+        ctx.path("hints", i, "text"),
+        "over 160 characters or 25 words once its slots are filled",
+      );
+    for (const fault of faults) {
+      const reason =
+        fault.kind === "unknown"
+          ? "a slot outside the hints' closed list"
+          : fault.kind === "ui"
+            ? "a {ui:…} slot whose key is off the closed list, or whose word holds a slot"
+            : `the slot {${fault.slot}}, which the configuration doesn't hold: its file or its key is missing`;
+      ctx.report("RT17", file, ctx.path("hints", i, "text"), reason);
+    }
+  }
 }
 
 // ---- RT11 and RT12: the UI words ----
@@ -704,7 +782,7 @@ function outlines(ctx: Context): void {
 
 /** RT: regions' text (RT1), spec 002's C6, C1 to C5, and C8 (RT3 to RT5), the monitor's scripts (RT6), the chalk's
  *  excludes (RT7), grids (RT8), quotes (RT9), typefaces (RT10), the tier's words (RT11), the closed list's keys
- *  (RT12), and outlines (RT13). RT2 is the walk's, which compose() runs first. */
+ *  (RT12), outlines (RT13), and spec 012's hints (RT14 to RT17). RT2 is the walk's, which compose() runs first. */
 export const rt: Family = (ctx) => {
   const { line, resume } = words(ctx);
   const looks = ctx.room.looks.map((l) => ({ file: l.file, typefaces: l.value.typefaces }));
@@ -721,4 +799,5 @@ export const rt: Family = (ctx) => {
   tierWords(ctx);
   closedList(ctx);
   outlines(ctx);
+  hintRules(ctx);
 };

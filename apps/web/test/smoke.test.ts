@@ -134,6 +134,8 @@ describe("the built room-data.json", () => {
       resume_state: "withheld",
       header: null,
       sections: [],
+      // The PDF is the render: nothing is approved here (spec 002's amendment of 2026-11-09).
+      resume_pdf: null,
       room_text: { blocks: [] },
     });
   });

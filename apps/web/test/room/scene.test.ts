@@ -60,7 +60,7 @@ import {
 import type { Room3D } from "../../src/room/scene/bundle3d";
 import { VISITOR_TURN, visitorTurnShare } from "../../src/room/handoff";
 import { readImage } from "../../src/room/glb/images";
-import { MODEL_NODE, integrity } from "../../src/room/scene/loader";
+import { MODEL_NODE, integrity, modelEntries } from "../../src/room/scene/loader";
 import { outlineThickness } from "../../src/room/scene/look";
 import { shapeGeometry } from "../../src/room/scene/standins";
 import type { SceneOptions } from "../../src/room/stage";
@@ -1231,5 +1231,117 @@ describe("the room's studio models in its 3D stage (scene.ts with scene/loader.t
       vi.doUnmock("../../src/room/scene/loader");
       vi.resetModules();
     }
+  });
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// Spec 012 (T005; FR-014, FR-021; SC-003; contracts/loading-progress.md §3): what the 3D stage will load, which the
+// loader's bar counts, and when its models show: at once while the loader shows, and from its giving way only once
+// the hand-off ends; without the room's gaveWay, from the hand-off's first frame, as the figures' gate does today.
+// --------------------------------------------------------------------------------------------------------------------
+describe("spec 012: the 3D stage's expected files and its gates (T005)", () => {
+  afterEach(() => {
+    swapped.part = null;
+    swapped.renderer = null;
+  });
+
+  /** A promise and what settles it. */
+  const later = (): { promise: Promise<void>; settle(): void } => {
+    let settle = (): void => undefined;
+    const promise = new Promise<void>((resolve) => (settle = resolve));
+    return { promise, settle };
+  };
+
+  it("resolves expected with each set model as {asset, bytes}, in load_order", async () => {
+    const s = staged();
+    const want = modelEntries(s.result.scene).map((e) => ({ asset: e.asset, bytes: e.bytes }));
+    expect(want).toHaveLength(2);
+    expect(want.every((f) => f.bytes > 0)).toBe(true);
+    await expect(s.stage.expected).resolves.toEqual(want);
+    s.stage.dispose();
+  });
+
+  it("resolves expected with [] where the part sets no model and no avatar loads", async () => {
+    const s = staged({}, (own) => ({ ...own, load_order: [] }));
+    await expect(s.stage.expected).resolves.toEqual([]);
+    s.stage.dispose();
+  });
+
+  it("resolves expected with the list below the floor, every file then skipped", async () => {
+    const s = staged({ floor: false });
+    const want = modelEntries(s.result.scene).map((e) => ({ asset: e.asset, bytes: e.bytes }));
+    await expect(s.stage.expected).resolves.toEqual(want);
+    await vi.waitFor(() => expect(s.events).toHaveLength(2));
+    expect(s.events.every((e) => e.outcome === "skipped")).toBe(true);
+    s.stage.dispose();
+  });
+
+  it("resolves expected with [] when its loader's chunk fails to import, and never rejects", async () => {
+    vi.doMock("../../src/room/scene/loader", () => {
+      throw new Error("the loader's chunk didn't load");
+    });
+    vi.resetModules();
+    try {
+      const { createScene: blocked } = await import("../../src/room/scene");
+      const s = staged({ floor: true }, undefined, blocked);
+      await expect(s.stage.expected).resolves.toEqual([]);
+      s.stage.dispose();
+    } finally {
+      vi.doUnmock("../../src/room/scene/loader");
+      vi.resetModules();
+    }
+  });
+
+  it("parses and swaps a set model as soon as its file arrives while the loader shows, the hand-off still ahead", async () => {
+    const handoff = later();
+    const gaveWay = later();
+    const s = staged({ handoff: handoff.promise, gaveWay: gaveWay.promise });
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    await answerAll(s, 0);
+    expect(byAsset(s.events)).toEqual([loadedEvent(s, "fx-desk"), loadedEvent(s, "fx-plug")]);
+    s.clock.advance(SETTLE_FRAMES * 16);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: true, standin: false });
+    s.stage.dispose();
+  });
+
+  it("closes its gates when the loader gives way, before the hand-off's first frame: a file then shows once it ends", async () => {
+    const handoff = later();
+    const gaveWay = later();
+    const s = staged({ handoff: handoff.promise, gaveWay: gaveWay.promise });
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    gaveWay.settle();
+    await flush();
+    for (const f of s.fetched) f.answer(s.files.get(SET.find((piece) => f.url.startsWith(`a/${piece}.`)) ?? ""));
+    await flush();
+    s.clock.advance(1000);
+    await flush();
+    expect(s.events).toEqual([]);
+    expect(s.held()).toBe(0);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: false, standin: true });
+    s.stage.showHandoff(0);
+    handoff.settle();
+    await vi.waitFor(() => expect(s.events).toHaveLength(2));
+    s.clock.advance(SETTLE_FRAMES * 16);
+    for (const holder of holdersOf(s)) expect(showing(holder), holder.name).toEqual({ model: true, standin: false });
+    s.stage.dispose();
+  });
+
+  it("without the room's gaveWay, closes its gates at the hand-off's first frame, as the figures' gate does today", async () => {
+    const handoff = later();
+    const s = staged({ handoff: handoff.promise });
+    await vi.waitFor(() => expect(s.fetched).toHaveLength(2));
+    const desk = s.fetched.find((f) => f.url.startsWith("a/fx-desk."));
+    const plug = s.fetched.find((f) => f.url.startsWith("a/fx-plug."));
+    desk?.answer(s.files.get("fx-desk"));
+    await vi.waitFor(() => expect(s.events).toHaveLength(1));
+    s.stage.showHandoff(0);
+    plug?.answer(s.files.get("fx-plug"));
+    await flush();
+    s.clock.advance(1000);
+    await flush();
+    expect(s.events.map((e) => e.asset)).toEqual(["fx-desk"]);
+    handoff.settle();
+    await vi.waitFor(() => expect(s.events).toHaveLength(2));
+    s.stage.dispose();
   });
 });

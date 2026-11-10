@@ -124,6 +124,8 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "copy",
       "typefaces",
       "models",
+      // Spec 012's loader hints (its Amendment L7).
+      "hints",
     ]);
     expect(Object.keys(index.build)).toEqual(["kind", "placeholders"]);
     expect(Object.keys(index.live)).toEqual(["source", "turn", "asset_events", "poll_ms", "freshness_ms"]);

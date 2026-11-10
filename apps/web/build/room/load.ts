@@ -4,12 +4,12 @@
 //   `parseDocument(text, {schema: "core", uniqueKeys: true, merge: false})`, so `off` stays a string, with no alias,
 //   anchor, merge key, tag, or directive; strict JSON for an outline (src/room/glb/json.ts: no duplicate key, NaN, or
 //   Infinity). A key that isn't a string, and `__proto__`, are keys no schema defines. A reason never quotes the file.
-// - The walk: apps/web/room/ holds scene.yaml, topics.yaml, ui-words.yaml, lookdev.yaml, the folders catalog/, looks/,
-//   and fixtures/ of `<stem>.yaml` files, and README.md, which is prose and never read; apps/web/content/room/ holds
-//   `<block>.yaml` files and outlines/ of `<sign>.outline.json` files. Anything else there is RD5, and so is a stem that
-//   differs from the ID or name its file holds, and a data folder's place holding a file, a link, or an empty folder.
-//   Names are looked up in Maps, so one such as `constructor` is RD5 too. The scene and the UI words are required; a
-//   room without either is RD3.
+// - The walk: apps/web/room/ holds scene.yaml, topics.yaml, ui-words.yaml, lookdev.yaml, spec 012's hints.yaml, the
+//   folders catalog/, looks/, and fixtures/ of `<stem>.yaml` files, and README.md, which is prose and never read;
+//   apps/web/content/room/ holds `<block>.yaml` files and outlines/ of `<sign>.outline.json` files. Anything else there
+//   is RD5, and so is a stem that differs from the ID or name its file holds, and a data folder's place holding a file,
+//   a link, or an empty folder. Names are looked up in Maps, so one such as `constructor` is RD5 too. The scene and the
+//   UI words are required; a room without either is RD3.
 // - The loaded room: each file that passed, parsed and schema-checked, with its path; each that didn't, in `failed`,
 //   so a reference into it isn't reported again; and the problems, sorted, which the RD family reports.
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from "yaml";
@@ -22,6 +22,7 @@ import { shapeProblems } from "./checks/rd";
 import {
   catalogSchema,
   fixtureSchema,
+  hintsSchema,
   lookdevSchema,
   lookSchema,
   outlineSchema,
@@ -33,6 +34,7 @@ import {
 import type {
   CatalogEntry,
   Fixture,
+  Hints,
   Lookdev,
   LookFile,
   Outline,
@@ -51,9 +53,11 @@ export const SCENE_FILE = `${ROOM_DIR}/scene.yaml`;
 export const TOPICS_FILE = `${ROOM_DIR}/topics.yaml`;
 export const UI_WORDS_FILE = `${ROOM_DIR}/ui-words.yaml`;
 export const LOOKDEV_FILE = `${ROOM_DIR}/lookdev.yaml`;
+/** Spec 012's loader hints (its contracts/hints.md §1): optional. */
+export const HINTS_FILE = `${ROOM_DIR}/hints.yaml`;
 
 export type DataKind =
-  "catalog" | "scene" | "topics" | "ui-words" | "look" | "fixture" | "lookdev" | "room-text" | "outline";
+  "catalog" | "scene" | "topics" | "ui-words" | "look" | "fixture" | "lookdev" | "room-text" | "outline" | "hints";
 
 const SCHEMAS = {
   catalog: catalogSchema,
@@ -65,6 +69,7 @@ const SCHEMAS = {
   lookdev: lookdevSchema,
   "room-text": roomTextSchema,
   outline: outlineSchema,
+  hints: hintsSchema,
 } as const;
 
 /** The kinds kept one file each in a folder, with the folder, the file's ending, and the key its stem must equal. */
@@ -83,6 +88,7 @@ const SINGLES: ReadonlyMap<string, DataKind> = new Map([
   ["topics.yaml", "topics"],
   ["ui-words.yaml", "ui-words"],
   ["lookdev.yaml", "lookdev"],
+  ["hints.yaml", "hints"],
 ]);
 /** The folders of apps/web/room/, by name. */
 const ROOM_FOLDERS: ReadonlyMap<string, FolderKind> = new Map([
@@ -236,6 +242,8 @@ export interface LoadedRoom {
   readonly lookdev: Loaded<Lookdev> | null;
   readonly blocks: readonly Loaded<RoomTextBlock>[];
   readonly outlines: readonly Loaded<Outline>[];
+  /** Spec 012's loader hints, where the room has them. */
+  readonly hints: Loaded<Hints> | null;
   /** Every file of a data kind that was read, in path order, loaded or not. */
   readonly files: readonly string[];
   /** The files RD or their schema refused, and a required file that is missing: none of them is in the model. */
@@ -325,6 +333,7 @@ export function loadRoom(tree: Tree): LoadedRoom {
     lookdev: one<Lookdev>("lookdev"),
     blocks: all<RoomTextBlock>("room-text"),
     outlines: all<Outline>("outline"),
+    hints: one<Hints>("hints"),
     files: [...files].sort(compareBytewise),
     failed,
     problems: problems.sort(compareFindings),

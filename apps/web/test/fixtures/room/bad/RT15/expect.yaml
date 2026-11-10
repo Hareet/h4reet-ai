@@ -1,0 +1,4 @@
+rule: RT15
+file: apps/web/room/hints.yaml
+path: hints[0].text
+why: an Author's hint whose text isn't its quote, character for character

@@ -4,6 +4,9 @@
 // from the font (monospace or sans-serif), and again when the typeface arrives. A page without document.fonts, as in
 // jsdom, counts every typeface as late. The words and their layout never wait: the text copy reads them whatever the
 // family (words.ts), and the grids are the compositor's, from the typeface's own metrics.
+// Spec 012 (its FR-010 (c); plan.md PD-15): settled() is the loader's typefaces step, resolving once every typeface has
+// arrived or failed, or at TYPEFACE_WAIT_MS; a page with no document.fonts asks for none, so it resolves at once
+// (plan.md's departure C1), while its faces still draw with their fallback at TYPEFACE_WAIT_MS, as before.
 import type { Clock } from "../clock";
 import type { RoomIndex } from "../compose/bundle";
 import type { TypefaceUse } from "../compose/vocabulary";
@@ -19,6 +22,8 @@ export interface TypefaceLoader {
   onChange(fn: () => void): () => void;
   /** Stops the wait. */
   dispose(): void;
+  /** Resolves once every typeface has arrived or failed, or at TYPEFACE_WAIT_MS; at once with no document.fonts. */
+  settled(): Promise<void>;
 }
 
 /** What the loader reads of the page: its font set, where it has one. */
@@ -55,15 +60,25 @@ export function loadTypefaces(doc: Document, clock: Clock, typefaces: RoomIndex[
       changed();
     });
   };
+  // The loader's step (spec 012): every typeface's load settled, arrived or failed, or the wait over.
+  let settle: () => void = () => undefined;
+  const settledOnce = new Promise<void>((resolve) => (settle = resolve));
   const timer = clock.setTimeout(() => {
     late = true;
+    settle();
     changed();
   }, TYPEFACE_WAIT_MS);
   if (fonts && typeof fonts.load === "function") {
     const seen = new Set<string>();
+    let pending = 0;
+    const one = (): void => {
+      pending -= 1;
+      if (pending === 0) settle();
+    };
     for (const t of typefaces) {
       if (seen.has(key(t))) continue;
       seen.add(key(t));
+      pending += 1;
       // The family quoted, as a font shorthand needs a name with spaces to be; a size is required and any will do.
       fonts
         .load(`${t.weight} 16px "${t.family}"`)
@@ -71,9 +86,11 @@ export function loadTypefaces(doc: Document, clock: Clock, typefaces: RoomIndex[
           arrived.add(key(t));
           arrive();
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(one);
     }
-  }
+    if (pending === 0) settle();
+  } else settle();
   return {
     family(use) {
       const t = typefaces.find((x) => x.use === use);
@@ -90,5 +107,6 @@ export function loadTypefaces(doc: Document, clock: Clock, typefaces: RoomIndex[
       clock.clearTimeout(timer);
       listeners.clear();
     },
+    settled: () => settledOnce,
   };
 }

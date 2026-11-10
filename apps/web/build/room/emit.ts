@@ -77,6 +77,7 @@ import type { ComposeOptions, Finding } from "./checks/family";
 import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
+import { fillHints, indexHints } from "./hints";
 import { resolvedHighlight } from "./checks/rw";
 import type { ResolvedHighlight } from "./checks/rw";
 import type { Loaded, LoadedRoom } from "./load";
@@ -1116,6 +1117,12 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       fallback: t.fallback,
     })),
     models: [...models],
+    // Spec 012's hints, filled from the configuration and the UI words, those whose slot couldn't be filled (RT17) or
+    // whose `when` isn't met left out (its FR-032, FR-033).
+    hints: indexHints(
+      fillHints(c.room.hints?.value ?? null, c.reader.tree, words),
+      c.options.readiness?.freeTalk ?? false,
+    ),
   };
 }
 

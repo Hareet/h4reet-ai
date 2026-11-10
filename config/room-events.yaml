@@ -15,6 +15,7 @@ kinds:
   - "walk_started"
   - "avatar_failed"
   - "fullscreen_entered"
+  - "loading_cut_short"
 objects:
   - "snowboard"
   - "bicycle"

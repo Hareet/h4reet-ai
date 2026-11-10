@@ -1,0 +1,32 @@
+# The fixture room's hints (spec 012, T018): an Author's hint quoting the fixture intent, and session hints with a UI
+# word's slot, the figures' slots, a typed word, and a hint shown only while free talk is ready.
+version: 1
+hints:
+  - id: fx-quoted
+    by: author
+    text: "the fixture room holds a desk"
+    words_from:
+      - file: intent/900-fx-room.md
+        quote: "the fixture room holds a desk"
+  - id: fx-listed
+    by: session
+    text: 'Every piece is also in the "{ui:list.heading}" list.'
+    sources:
+      - apps/web/room/ui-words.yaml
+  - id: fx-ceilings
+    by: session
+    text: "Spend stops at {budget.daily_usd} a day and {budget.monthly_usd} a month, the fallback inside {budget.fallback_daily_usd}."
+    sources:
+      - config/budgets.yaml
+  - id: fx-prices
+    by: session
+    text: "The fallback costs {price.input} in and {price.output} out per million tokens."
+    sources:
+      - config/prices.yaml
+      - config/routing.yaml
+  - id: fx-free-talk
+    by: session
+    text: "Ask the fixture twin anything."
+    sources:
+      - intent/900-fx-room.md
+    when: free_talk_ready

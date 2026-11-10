@@ -50,6 +50,18 @@ words:
   fullscreen.refused: Full screen isn't available here. The room still fills the window.
   walk.help_fullscreen: In full screen, Escape first leaves full screen. Press it again to stop walking.
   walk.entered_fullscreen: Walking. Escape leaves full screen first, then stops walking.
+  loading.heading: Loading the room
+  loading.code: Loading the room's code
+  loading.pieces: "Loading the room's pieces: {done} of {total}"
+  loading.finishing: Finishing the room
+  loading.ready: The room is ready.
+  loading.cut_short: The room opens now. Some pieces are still on their way and appear as they arrive.
+  hints.label: Hint
+  hints.position: Hint {n} of {total}
+  hints.pause: Pause hints
+  hints.play: Play hints
+  hints.previous: Previous hint
+  hints.next: Next hint
   label.fx-desk: fixture desk
   label.fx-monitor: fixture monitor
   label.fx-laptop: fixture laptop

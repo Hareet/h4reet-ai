@@ -129,6 +129,23 @@ describe("the disclosure page", () => {
     );
   });
 
+  it("names the loader cut short in row V4's trigger, before spec 009's closing clause (spec 012, L5)", () => {
+    const rows = new Map(
+      markdownTables(SOURCE)
+        .flatMap((t) => t.slice(1))
+        .map((row) => [row[0], row] as const),
+    );
+    const trigger = rows.get("V4")?.[2] ?? "";
+    const words = ", the loader giving way at its ceiling while the room's files are still loading, once a visit";
+    expect(trigger).toContain(words);
+    expect(trigger.indexOf(words)).toBeLessThan(
+      trigger.indexOf(", and a figure's avatar failing to load, once a visit"),
+    );
+    expect(trigger.indexOf(words)).toBeGreaterThan(
+      trigger.indexOf(", the visitor first entering full screen in a visit"),
+    );
+  });
+
   it("names the avatar files in V1, whose paths show the choice, and avatar_failed's trigger in V4 (spec 009, M6)", () => {
     const rows = new Map(
       markdownTables(SOURCE)

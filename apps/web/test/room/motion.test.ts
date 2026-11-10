@@ -143,3 +143,37 @@ describe("Paused at HH:MM (FR-060)", () => {
     expect(store.pausedAt).toBeNull();
   });
 });
+
+// Spec 012 (T007; FR-024; D13; PD-20): the loader's hold, counted as the quality controller's holds are: while any is
+// taken, the room's motion is held still, with nothing paused, no "Paused at", and nothing else changed.
+describe("the motion store's hold (spec 012, T007)", () => {
+  it("holds the room still with nothing paused and no Paused at, counting two holds, each released once", () => {
+    const store = createMotionStore({ win: page(), wall: () => WALL0 });
+    const seen: boolean[] = [];
+    store.subscribe((state) => seen.push(state.animate));
+    expect(store.animate).toBe(true);
+    const first = store.hold();
+    const second = store.hold();
+    expect(store.animate).toBe(false);
+    expect(store.paused).toBe(false);
+    expect(store.pausedAt).toBeNull();
+    first();
+    first();
+    expect(store.animate).toBe(false);
+    second();
+    expect(store.animate).toBe(true);
+    second();
+    expect(store.animate).toBe(true);
+    // Told when the room's motion stops and when it starts again, once each.
+    expect(seen).toEqual([false, true]);
+  });
+
+  it("leaves a pause the visitor made, and its Paused at, as they were", () => {
+    const store = createMotionStore({ win: page(), wall: () => WALL0 });
+    store.setPaused(true);
+    const release = store.hold();
+    expect([store.paused, store.pausedAt]).toEqual([true, "13:05"]);
+    release();
+    expect([store.paused, store.pausedAt, store.animate]).toEqual([true, "13:05", false]);
+  });
+});

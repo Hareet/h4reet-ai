@@ -59,7 +59,7 @@ No content about the Author goes in this contract's examples: placeholders in an
 
 **The interactive resume's data** goes in `room-data.json`: the header's `room` part, then each section's items with their slots filled, each marked `approved` or draft (§5).
 
-**The PDF**, `resume.pdf`, comes from the same parsed items in the same order, with the same filled text:
+**The PDF**, `resume.pdf`, comes from the same parsed items in the same order, with the same filled text, unless the Author's designed PDF is served in its place (§7):
 
 | Property | Value |
 |---|---|
@@ -69,7 +69,7 @@ No content about the Author goes in this contract's examples: placeholders in an
 | Title | "Resume", with `DisplayDocTitle` true |
 | Font | the vendored font, embedded and subset; no other font |
 | `Info` keys | `Title` and `Author` only. No `CreationDate`, `ModDate`, `Producer`, `Creator`, `Subject`, or `Keywords`, so nothing in the file dates or names its toolchain, and the same source and policy build the same bytes. No XMP metadata stream either, so no `xmp:CreatorTool` and no `pdf:Producer` |
-| Links | none but the site's own URL, when spec 001 gives it one |
+| Links | none but the site's own URL, when spec 001 gives it one. The Author's designed PDF, when it's served instead, links to §7's allowlist |
 
 **Equality** (SC-002): the PDF's extracted text, with whitespace collapsed, holds each item's filled text exactly once, in order, and nothing that isn't in the source except the section titles and the header.
 
@@ -91,7 +91,7 @@ No content about the Author goes in this contract's examples: placeholders in an
 }
 ```
 
-`kind` is `resume` or `narration`. A file is approved when an entry's `sha256` equals its current digest, whatever its path now.
+`kind` is `resume` or `narration` (and spec 004's `room-text`). A file is approved when an entry's `sha256` equals its current digest, whatever its path now. The Author's designed PDF is approved the same way, by an entry of kind `resume` (§7).
 
 **The PDF's header** comes from a second human-only file in the same directory, `assets/policy/resume-header.json`, which the Author fills and the twin never reads:
 
@@ -117,3 +117,46 @@ So an approval is in effect only once the Author's commit to it is on `main`, as
 ## 6. Proposals
 
 The draft source is filed for the Author in `corpus/proposals/resume-<date>.md`, with a pointer to the draft and any facts slots its items need, unfilled. The PDF's header isn't proposed there: the Author fills `assets/policy/resume-header.json` directly (§5). Agents never write `corpus/` outside `proposals/`.
+
+## 7. The Author's designed PDF
+
+Spec.md's [amendment of 2026-11-09](../spec.md#amendment-2026-11-09-the-authors-designed-pdf), in his words there. The Author's own resume, `apps/web/content/resume-author.pdf`, which he commits himself, takes the render's place as `resume.pdf`.
+
+**Served**, byte for byte, when all three hold; otherwise the PDF is the render (§4), unchanged:
+- `main`'s `content-approvals.json` holds the file's SHA-256 (§5), in an entry of any kind (the patch writes `resume`), or the build shows drafts (`ROOM_DRAFTS=1`). A drafts build serves any version that passes the checks, pinned by no hash, and marks it only in `resume_pdf`;
+- `main`'s `resume-header.json` fills both slots, since FR-017 puts the full name and contact on the PDF only then;
+- the tree holds `apps/web/content/resume.yaml`: a tree without it publishes no PDF, as before.
+
+The entry goes in by the Author's commit on `main`: spec 003's rule A9 refuses a branch that changes `assets/policy/`. No human-only check holds the served file to that entry yet: `tools/gates/content_check.py` never reads `dist/resume.pdf` (plan §2's departure from ADR 0034).
+
+**What the build writes beside it:**
+- `resume.pdf.txt`: the file's text as `pdfText` reads it, for the gate's scan of `dist/` (§4).
+- `room-data.json`'s `resume_pdf`: `{source, sha256}`, with `draft: true` when a drafts build serves it unapproved, or `null` when the PDF is the render. The file is never in `published`, which the gate's content check holds to content files (§5).
+
+**The checks.** `apps/web/build/resume-pdf.ts`, with C9's list from `build/content.ts`. They run on every build that finds the file, served or not, after the citation check. A problem fails the build with `apps/web/content/resume-author.pdf: the PDF check failed`, then one line per rule and place, never a private phrase:
+
+| # | Rule | Fails with |
+|---|---|---|
+| PDF1 | A PDF pdf.js reads | `PDF1 not a PDF that pdf.js reads` |
+| PDF2 | At most 1,000,000 bytes and 2 pages | `PDF2 over 1,000,000 bytes`; `PDF2 over 2 pages` |
+| PDF3 | Text the checks can read: some; `main`'s full name in it when the header is filled; and no glyph pdf.js couldn't map, read as a replacement, private-use, or control character | `PDF3 no text the checks can read`; `PDF3 its text doesn't hold main's full name, …`; `PDF3 text pdf.js couldn't map to characters` |
+| PDF4 | No phrase of C9's list: every corpus file's "Do not claim" key phrases, and the private denylist's where the build can read it (§2) | `PDF4 forbidden phrase (from <file:line>), in its <place>` |
+| PDF5 | Every URL, written out or linked, is http or https to a host the allowlist names, or a subdomain of one, with no user in it; every link is http, https, or mailto | `PDF5 a URL to a host outside the allowlist, in its <place>`; `PDF5 a link that isn't http, https, or mailto, in its links` |
+| PDF6 | No phone number's shape: from a plus, 8 to 15 digits; three, three, and four digits, with or without a 1 before them; or a `tel:` link | `PDF6 a phone number's shape, in its <place>` |
+| PDF7 | No email address, written out or in a `mailto:` link, but `main`'s contact (with the header filled) | `PDF7 an email address other than main's contact, in its <place>` |
+| PDF8 | The surname rule's words only inside `main`'s full name and contact (with the header filled) | `PDF8 the surname outside main's full name and contact, in its <place>` |
+| PDF9 | Nothing the checks can't read: no attachment, JavaScript, form field, other annotation than a link (a note, a stamp, a popup), or XMP metadata stream | `PDF9 <what>, which the checks can't read` |
+
+The places are the file's text, each link annotation's target, and its document properties' text values. PDF4 and PDF8 read each normalized as C9 reads text, with `main`'s full name and contact taken out, and normalized again (`shownOf`; `pdf4Lines` gives those lines, one a place). A written URL is one with `http://`, `https://`, or `www.`, or a bare domain whose top-level domain is a common one written lowercase ("hareet.ai", "github.com/Hareet"): a name like "Node.js" or "ASP.NET" isn't one.
+
+**The allowlist** names hosts the corpus names, each with the file that names it:
+
+| Host | Path | Named in |
+|---|---|---|
+| `hareet.ai` | any | `corpus/08-hareet-ai.md` |
+| `denverlocal.ai` | any | `corpus/07-denver-local-ai.md` |
+| `github.com` | the Author's account, `/Hareet`, any case | `corpus/00-profile.md` |
+
+**The download name.** Every link to the PDF has a `download` name, the file name the Author's request gives, derived at build time from `main`'s `resume-header.json`: the full name's words, each kept to letters, digits, and hyphens, joined by hyphens, then `-Resume-hareet-ai.pdf`. While either slot is empty, it is `Resume-hareet-ai.pdf`, as FR-017 gives the PDF the room's header then. No source file holds the name: `apps/web/build/download-name.ts` defines `__PDF_FILE_NAME__` for the scripts and writes the name into `index.html`'s link, whose source holds the fallback. The path stays `./resume.pdf`, so [web-serving.md §3](web-serving.md#3-headers)'s headers are unchanged.
+
+**What it doesn't hold to.** §4's properties, links, and equality are the render's. The designed PDF keeps the properties its export wrote, which the checks read. Its claims are the Author's own words, held to the "Do not claim" lists by PDF4, not cited one by one.

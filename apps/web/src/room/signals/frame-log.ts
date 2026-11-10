@@ -42,7 +42,11 @@ export type FrameEvent =
   // A collapsible part's change (`part`, `state`): the list, the log, and the larger view.
   | "panel"
   // Full screen's changes and refusals (`state`: entered, left, or refused).
-  | "fullscreen";
+  | "fullscreen"
+  // Spec 012's loader (its FR-049; contracts/loading-progress.md §7): `state` shown (`value`), ended (`part`, `value`),
+  // gave_way (`why`: ready, ceiling, or 2d; `value`, `done`, `total`), and hint (`n`); never a file's name or a hint's
+  // words.
+  | "loading";
 
 /** A field an entry carries beside its four. */
 export type FrameField = string | number | boolean | null;

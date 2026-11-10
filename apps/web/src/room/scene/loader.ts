@@ -11,7 +11,10 @@
 //    10-second timeout on the room's clock that covers the body. A model the page holds in memory (lookdev's
 //    candidates, every model in the phone copy) is read from there, and nothing is fetched.
 // 4. Parse and swap. At most 2 at once, only after the hand-off (fetches may run during it), each inside a quality
-//    hold from its parse until two frames after its swap (R-35), with the room's image step (gltf-images.ts); the
+//    hold from its parse until two frames after its swap (R-35), with the room's image step (gltf-images.ts); since
+//    spec 012 (its Amendment L6; FR-021), where the stage gives `modelGate` and `swapGate`, while its loader shows or
+//    after the hand-off ends, never from the loader's giving way to the hand-off's end, a parse begun before then
+//    finishing and its swap waiting for the hand-off's end; the
 //    model readied as the room's (prepareModel: lights and cameras out, the look applied, its face objects hidden),
 //    then shown in place of its piece's stand-ins (showModel) and its textures uploaded through the ledger, each image
 //    counted once, every decoded bitmap closed. A piece whose textures would take the ledger over its limit stays a
@@ -35,6 +38,10 @@
 // - Parsing waits for the hand-off as the swap does, since a parse stalls frames in the one animation nothing skips; a
 //   figure file of spec 009's may parse before the hand-off starts too, within the room's wait (figureGate), read again
 //   once it has a parse slot; one already parsing when the hand-off starts finishes, and shows when it ends.
+// - Spec 012 (FR-021): a set model takes `modelGate` as a figure file takes `figureGate`, read again once it has a parse
+//   slot, and `swapGate` between its parse and its swap, raced with stop() so a room gone to 2D never swaps and lets its
+//   hold go; its hold covers the wait. The 3D stage gives all three as one function (scene.ts); the lookdev page gives
+//   none, so its models wait for `handoff`, as before.
 // - A failed attempt's hold, like a swap's, is released two frames after it.
 import type { AnimationClip, Light, Material, Mesh, Object3D, Texture } from "three";
 
@@ -133,6 +140,12 @@ export interface LoaderOptions {
   /** Phase 2's parse gate for a figure file (R-10): resolves when it may parse, at once before the hand-off starts and
    *  at its end once it has; absent, a figure file waits for the hand-off's end, as a piece's model does. */
   readonly figureGate?: () => Promise<unknown>;
+  /** Spec 012's parse gate for a set model (FR-021): resolves when it may parse, at once while the loader shows and at
+   *  the hand-off's end from the loader's giving way on; absent, a set model waits for `handoff`. */
+  readonly modelGate?: () => Promise<unknown>;
+  /** Spec 012's swap gate (FR-021): awaited between a set model's parse and its swap, raced with stop(); absent, a
+   *  parsed model swaps at once. */
+  readonly swapGate?: () => Promise<unknown>;
 }
 
 export interface Loader {
@@ -396,6 +409,15 @@ export function createLoader(options: LoaderOptions): Loader {
   let stopped = false;
   let fellBack = false;
   let active = 0;
+  /** Settles when the loader stops: what a swap gate's wait races (spec 012). */
+  let stopping: () => void = () => undefined;
+  const stoppedPromise = new Promise<void>((resolve) => (stopping = resolve));
+  /** The gate a file's parse waits at: a figure's through figureGate, a set model's through modelGate, else the
+   *  hand-off's end. */
+  const parseGate = (entry: ModelEntry): Promise<unknown> => {
+    if (isFigure(entry)) return options.figureGate ? options.figureGate() : options.handoff;
+    return options.modelGate ? options.modelGate() : options.handoff;
+  };
 
   /** A piece's older loads, superseded, record nothing more. */
   const supersede = (piece: string): void => {
@@ -493,9 +515,10 @@ export function createLoader(options: LoaderOptions): Loader {
   async function parseAndSwap(load: Load, data: ArrayBuffer, start: number | null): Promise<void> {
     const { entry } = load;
     const releaseSlot = await parseSlot();
-    // The gate again once the slot is taken: the hand-off may have started while the file waited for it (R-10). A parse
-    // already begun when it starts finishes, and its avatar shows once the hand-off ends (FR-022).
-    if (isFigure(entry) && options.figureGate) await options.figureGate();
+    // The gate again once the slot is taken: the hand-off may have started while the file waited for it (R-10), or the
+    // loader given way (spec 012). A parse already begun then finishes, and its avatar or model shows once the hand-off
+    // ends (FR-022; spec 012's FR-021).
+    if (isFigure(entry) ? options.figureGate : options.modelGate) await parseGate(entry);
     const release = options.hold();
     try {
       if (stopped) return;
@@ -515,6 +538,22 @@ export function createLoader(options: LoaderOptions): Loader {
         disposeModel(model);
         end(load, "skipped", null);
         return;
+      }
+      // Spec 012: a model parsed as the loader gave way swaps in only once the hand-off ends, or never, on a stop. The
+      // ledger is asked again after the wait: another model may have taken its room meanwhile (the review's N1).
+      if (options.swapGate) {
+        await Promise.race([options.swapGate(), stoppedPromise]);
+        if (stopped || latest.get(entry.piece) !== load.mine) {
+          parsed.close();
+          disposeModel(model);
+          return;
+        }
+        if (!options.ledger.fits(parsed.textureBytes)) {
+          parsed.close();
+          disposeModel(model);
+          end(load, "skipped", null);
+          return;
+        }
       }
       options.prepare(entry.piece, model);
       const before = shown.get(entry.piece);
@@ -598,8 +637,9 @@ export function createLoader(options: LoaderOptions): Loader {
             releaseFetch();
           }
           fetchDone(true);
-          // A piece's model parses after the hand-off; a figure file through Phase 2's gate, where the stage gives one.
-          await (isFigure(entry) && options.figureGate ? options.figureGate() : options.handoff);
+          // A piece's model parses after the hand-off; a figure file through Phase 2's gate, and a set model through
+          // spec 012's, where the stage gives them.
+          await parseGate(entry);
           if (stopped) return;
           await parseAndSwap(load, data, start);
           return;
@@ -714,6 +754,7 @@ export function createLoader(options: LoaderOptions): Loader {
     stop() {
       if (stopped) return;
       stopped = true;
+      stopping();
       for (const abort of aborts) abort.abort();
       aborts.clear();
       // Each settling hold let go at once, its next frame cancelled first, so no tick of it runs again.
