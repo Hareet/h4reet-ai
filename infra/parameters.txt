@@ -1,0 +1,5 @@
+# The Parameter Store names the hosts expect, which make secrets-check lists by name and type, never by value
+# (spec 001 research.md R-26; contracts/env-cloud.md §1). One a line: the name, then its type (String, StringList, or
+# SecureString). The secrets are the Author's, written by hand under /h4reet/<host>/, outside Terraform, which never
+# creates or reads one (rule T9). Each group adds the names its hosts read: group 4 Telegram's, group 5 the tunnel
+# end's, group 6 the shared state's, group 7 EC2's. Group 3's bootstrap reads none.

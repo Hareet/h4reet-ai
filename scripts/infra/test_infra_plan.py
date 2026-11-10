@@ -138,9 +138,10 @@ def test_terraform_reads_the_mirror_alone_and_keeps_its_data_outside_the_tree(
         assert not env["TF_DATA_DIR"].startswith(str(world["repo"]))
         assert env["CHECKPOINT_DISABLE"] == "1" and env["TF_IN_AUTOMATION"] == "1"
         assert not [k for k in env if k.startswith("TF_CLI_ARGS")]
-        assert [k for k in env if k.startswith("AWS_")] == ["AWS_PROFILE"] and env[
-            "AWS_PROFILE"
-        ] == PROFILE
+        assert [k for k in env if k.startswith("AWS_")] in ([], ["AWS_PROFILE"])
+        if "version" in call["argv"]:
+            continue  # terraform version reads no configuration and calls no provider
+        assert env["AWS_PROFILE"] == PROFILE
         assert (
             call["cli_config"] is not None
             and str(world["mirror"]) in call["cli_config"]

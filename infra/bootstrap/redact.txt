@@ -1,0 +1,5 @@
+# The attributes whose values make plan ROOT=bootstrap replaces with <redacted> in the plan block, beside what
+# tools/gates/infra_redact.py always takes out (contracts/infra-records.md §2). One name a line.
+bucket        # the state bucket's name holds the Author's suffix
+state_bucket  # its output
+endpoint      # h4-alerts' email subscription, the alerts mailbox (sensitive too)

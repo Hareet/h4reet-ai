@@ -171,7 +171,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T020 [P] [US1] Write `infra/test/fixtures/bootstrap/` and `infra/test/test_bootstrap.py`, the first files under `infra/`, which parse the root's HCL with group 1's standard-library reader, `tools/gates/infra_policy.py`'s, from the guard patch P-1 (plan.md Technical Context; research.md R-14):
+- [x] T020 [P] [US1] Write `infra/test/fixtures/bootstrap/` and `infra/test/test_bootstrap.py`, the first files under `infra/`, which parse the root's HCL with group 1's standard-library reader, `tools/gates/infra_policy.py`'s, from the guard patch P-1 (plan.md Technical Context; research.md R-14):
   - the state bucket: versioned, encrypted, public access blocked, TLS-only;
   - `h4-model-month` at $20 and `h4-model-day` at $5, on Bedrock's cost, with notifications at 70% and 100%;
   - `h4-server-month` at `var.server_budget_usd`, on every cost but Bedrock's, at 70% and 100%;
@@ -180,15 +180,22 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the tags.
 
   Check: RED (FR-001 to FR-003, FR-022) (feat/001-us1-bootstrap)
-- [ ] T021 [P] [US1] Write `scripts/infra/test_infra_verify.py` and `test_infra_record.py`, with a stub `terraform show -json`. They cover `infra-verify`'s refusals (`not_main`, `dirty`, `no_reviewed_plan`, `plan_missing`, `plan_stale`, `plan_not_reviewed`, `plan_differs`, `credential_finding`, `state_locked`) and the record's fields: addresses and actions only, redacted. Check: RED (FR-005, FR-007, FR-010) (feat/001-us1-bootstrap)
-- [ ] T022 [P] [US1] Write `infra/lambdas/credential_audit/test_audit.py`, with a stub IAM. Its findings: user access keys; root keys; outside trust; OIDC providers; the laptop's permission set, or `h4-laptop-bedrock`, not being Terraform's, or the permission set holding anything but `sts:AssumeRole` on that role; and a start, guard, or stop policy naming anything but the tagged instance. Nothing may name a key's ID. Check: RED (FR-008, FR-013, SC-004) (feat/001-us1-bootstrap)
+  - **Done 2026-11-10** (56d7a044): ten checks over the root, and 24 fixtures, one defect each, which must each find exactly their problem. Until P-1 is applied the module reads PLANNED (T010); until P-I1 is, it reads `budgets.tf` and `alerts.tf` from P-I1's patch file (plan.md §16, group 3's departure 1). RED on a patched export: every check fails on the missing root (the note).
+- [x] T021 [P] [US1] Write `scripts/infra/test_infra_verify.py` and `test_infra_record.py`, with a stub `terraform show -json`. They cover `infra-verify`'s refusals (`not_main`, `dirty`, `no_reviewed_plan`, `plan_missing`, `plan_stale`, `plan_not_reviewed`, `plan_differs`, `credential_finding`, `state_locked`) and the record's fields: addresses and actions only, redacted. Check: RED (FR-005, FR-007, FR-010) (feat/001-us1-bootstrap)
+  - **Done 2026-11-10** (56d7a044), with a scratch repository, a merged note, and a fake terraform and aws in `scripts/infra/infra_testkit.py`; each refusal has its test, and the record its fields, its redaction, and its branch. RED on a patched export: every test fails or errors without the scripts (the note).
+- [x] T022 [P] [US1] Write `infra/lambdas/credential_audit/test_audit.py`, with a stub IAM. Its findings: user access keys; root keys; outside trust; OIDC providers; the laptop's permission set, or `h4-laptop-bedrock`, not being Terraform's, or the permission set holding anything but `sts:AssumeRole` on that role; and a start, guard, or stop policy naming anything but the tagged instance. Nothing may name a key's ID. Check: RED (FR-008, FR-013, SC-004) (feat/001-us1-bootstrap)
+  - **Done 2026-11-10** (56d7a044), with a stub AWS for IAM, STS, Identity Center, SNS, and S3, and a fake AWS CLI for the terminal's run. RED: it fails to collect without `audit.py` (the note).
 
 ### Implementation
 
 - [ ] T023 [US1] Write `infra/bootstrap/{main,variables,versions,outputs}.tf` and its lockfile from the mirror. Write `budgets.tf` and `alerts.tf` as P-I1 (`docs/merge-requests/<date>-feat-001-pi1-bootstrap.patch`), since they are protected. Check: on a patched copy, T020 passes, and `make infra-check` passes (feat/001-us1-bootstrap)
-- [ ] T024 [US1] Write `make plan ROOT=…`, `make infra-verify`, `make infra-record`, `make infra-audit`, and `make secrets-check` (`scripts/infra/*.py`), each refused to agents by P-1. Check: T021 passes (feat/001-us1-bootstrap)
-- [ ] T025 [P] [US1] Write `infra/lambdas/credential_audit/` (stdlib Python, Dockerfile) and `infra/README.md`. Check: T022 passes (feat/001-us1-bootstrap)
-- [ ] T026 [P] [US2] Add the disclosure rows C8 (its email half) and C9, in the same commit as T023. Check: `disclosure_check` passes (FR-040) (feat/001-us1-bootstrap)
+  - **Built 2026-11-10, but for the lockfile,** which is the Author's step (plan.md §16, group 3's departure 3). The four files, `redact.txt`, and P-I1 (`docs/merge-requests/2026-11-10-feat-001-pi1-bootstrap.patch`, two new files from plain copies, `diff -u`). On a patched copy T020 passes, from P-I1's patch and from the tree, and the policy's one finding is T10, no lockfile; fmt and validate need Terraform and his mirror, so they run in his `make plan ROOT=bootstrap` (the note). Three things to confirm at T027 are in the note's "For the Author".
+- [x] T024 [US1] Write `make plan ROOT=…`, `make infra-verify`, `make infra-record`, `make infra-audit`, and `make secrets-check` (`scripts/infra/*.py`), each refused to agents by P-1. Check: T021 passes (feat/001-us1-bootstrap)
+  - **Done 2026-11-10:** `scripts/infra/infra_plan.py`, `infra_verify.py`, `infra_record.py`, and `secrets_check.py`, sharing `infra_common.py`, and the five targets, each refusing in the sandbox before its script runs. GREEN: T021's tests, the plan's and the secrets check's, and the targets' pass on a patched export (the note). Departures 2, 4, 9, and 10 of plan.md §16's group 3 are theirs.
+- [x] T025 [P] [US1] Write `infra/lambdas/credential_audit/` (stdlib Python, Dockerfile) and `infra/README.md`. Check: T022 passes (feat/001-us1-bootstrap)
+  - **Done 2026-11-10, but for the Dockerfile,** which moves to group 4 with the function's deployment and its base's digest (plan.md §16, group 3's departure 7). `audit.py` runs in the Author's terminal through the AWS CLI, and as the Lambda's handler on `python3.14`, arm64, from group 4. GREEN: T022 passes (the note).
+- [x] T026 [P] [US2] Add the disclosure rows C8 (its email half) and C9, in the same commit as T023. Check: `disclosure_check` passes (FR-040) (feat/001-us1-bootstrap)
+  - **Done 2026-11-10,** in T023's commit: spec 001's section of `docs/data-flow-disclosure.md`, with C8's email half and C9 in the spec's words. `disclosure_check` passes on a patched export (the note).
 
 ### The Author's plan block
 
@@ -205,6 +212,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   4. confirm SNS's email subscription.
 
   Check: quickstart §3's checks; the apply record is on `ops/apply-bootstrap-<date>` (FR-003, FR-007, FR-022; SC-012) (main)
+  - **As built (group 3):** step 2 needs `versions.tf`'s backend to read `s3`, a change on a branch of its own after this one merges, so it runs from that branch's checkout, not from `main` (plan.md §16, group 3's departure 4).
 
 ---
 

@@ -162,14 +162,6 @@ def refers(block, name: str, target: str) -> bool:
     )
 
 
-def jsonencoded(block, name: str) -> object:
-    """The value of `name = jsonencode({...})`: its literal parts, with references and templates UNKNOWN."""
-    text = raw(block, name).strip()
-    if not (text.startswith("jsonencode(") and text.endswith(")")):
-        return ip.UNKNOWN
-    return ip.evaluate(ip.tokenize(text[len("jsonencode(") : -1]))
-
-
 def as_list(value: object) -> list:
     return value if isinstance(value, list) else [value]
 
@@ -291,33 +283,41 @@ def check_state_bucket(root: dict[str, list]) -> list[str]:
     )
     if len(pab) != 1 or any(ip.literal(pab[0].attr(k)) is not True for k in settings):
         found.append("state bucket: public access isn't blocked on all four settings")
-    policies = of("aws_s3_bucket_policy")
     tls = False
-    for p in policies:
-        doc = jsonencoded(p, "policy")
-        statements = as_list(doc.get("Statement")) if isinstance(doc, dict) else []
+    for p in of("aws_s3_bucket_policy"):
+        m = re.fullmatch(
+            r"data\.aws_iam_policy_document\.([\w-]+)\.json", raw(p, "policy")
+        )
+        docs = (
+            resource(root, "aws_iam_policy_document", m.group(1), kind="data")
+            if m
+            else []
+        )
+        statements = docs[0].blocks("statement") if len(docs) == 1 else []
         for s in statements:
-            if not isinstance(s, dict):
-                continue
-            condition = s.get("Condition")
-            secure = (
-                condition.get("Bool", {}).get("aws:SecureTransport")
-                if isinstance(condition, dict)
-                else None
-            )
-            resources = raw(p, "policy")
-            if (
-                s.get("Effect") == "Deny"
-                and secure == "false"
-                and as_list(s.get("Action")) == ["s3:*"]
-                and "aws_s3_bucket.state.arn" in resources
-                and "/*" in resources
-            ):
-                tls = True
-            if s.get("Effect") == "Allow":
+            # aws_iam_policy_document's effect is Allow when the statement doesn't set it.
+            effect = ip.literal(s.attr("effect")) if s.attr("effect") else "Allow"
+            if effect != "Deny":
                 found.append(
                     "state bucket: its policy grants something; it only denies"
                 )
+                continue
+            secure = [
+                c
+                for c in s.blocks("condition")
+                if ip.literal(c.attr("test")) == "Bool"
+                and ip.literal(c.attr("variable")) == "aws:SecureTransport"
+                and ip.literal(c.attr("values")) == ["false"]
+            ]
+            resources = raw(s, "resources")
+            if (
+                secure
+                and ip.literal(s.attr("actions")) == ["s3:*"]
+                and "aws_s3_bucket.state.arn" in resources
+                and "/*" in resources
+                and s.blocks("principals")
+            ):
+                tls = True
     if not tls:
         found.append("state bucket: no TLS-only deny on the bucket and its objects")
     return found
@@ -534,7 +534,8 @@ def check_tags(root: dict[str, list]) -> list[str]:
 
 
 def check_files(root: dict[str, list]) -> list[str]:
-    """Budgets, cost anomaly, SNS, and IAM live only in the protected files (FR-012; rule T5's reading)."""
+    """Budgets, cost anomaly, SNS, and IAM resources live only in the protected files (FR-012), as rule T5 reads
+    them: resources, not data sources, so main.tf's policy document for the state bucket may stay beside it."""
     found = []
     for name, body in root.items():
         if name in PROTECTED_FILES:
@@ -542,7 +543,7 @@ def check_files(root: dict[str, list]) -> list[str]:
         for b in body:
             if (
                 isinstance(b, ip.Block)
-                and b.type in ("resource", "data")
+                and b.type == "resource"
                 and len(b.labels) == 2
                 and b.labels[0].startswith(PROTECTED_KINDS)
             ):

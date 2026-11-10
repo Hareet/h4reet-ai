@@ -168,6 +168,18 @@ def test_dirty_with_an_ignored_file_under_infra(world: dict) -> None:
     assert refused(verify(world)) == "dirty"
 
 
+def test_an_ignored_file_terraform_never_reads_isnt_dirty(world: dict) -> None:
+    # make test's bytecode under infra/test/, say: ignored, and nothing terraform reads.
+    repo = world["repo"]
+    (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+    kit.git(repo, "add", ".gitignore")
+    kit.git(repo, "commit", "-q", "-m", "ignore bytecode")
+    cache = repo / "infra" / "test" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "test_x.cpython-312.pyc").write_bytes(b"\0")
+    assert verify(world).returncode == 0
+
+
 def test_an_untracked_file_outside_infra_isnt_dirty(world: dict) -> None:
     # The Author's checkout holds untracked files of his own at its top; they reach no terraform command.
     (world["repo"] / "notes-of-his.txt").write_text("mine\n", encoding="utf-8")
@@ -175,7 +187,12 @@ def test_an_untracked_file_outside_infra_isnt_dirty(world: dict) -> None:
 
 
 def test_a_later_docs_merge_keeps_the_reviewed_plan(world: dict) -> None:
-    kit.merge_note(world["repo"], "nothing of infra here\n", branch="docs/x")
+    kit.merge_note(
+        world["repo"],
+        "nothing of infra here\n",
+        branch="docs/x",
+        note_path="docs/merge-requests/2026-11-12-docs-x.md",
+    )
     assert verify(world).returncode == 0
 
 

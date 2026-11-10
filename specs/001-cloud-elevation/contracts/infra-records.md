@@ -24,6 +24,8 @@ As September §2 to §4 and §6, at 00309c47, unchanged:
 
 The name-server change at the registrar gets a hand-written record with the root `dns-delegation`.
 
+**As built in group 3** (plan.md §16, group 3's departures 2 and 9): Terraform's data folder is `~/.config/h4reet-ai/infra/data/<root>`, never `.terraform/` in the tree, so the one command `infra-verify` prints is `AWS_PROFILE=<profile> TF_DATA_DIR=<…/data/root> terraform -chdir=infra/<root> apply <saved plan>`. On a pass, `infra-verify` writes a stamp beside the saved plan (`<root>-<tree>.verified`: the commit, the note, the time), and `infra-record` takes the record's start from it and refuses without it. `infra-record ROOT=… OUTCOME=failed` takes `EXIT_STATUS=<n>`, and a second record the same day is `<date>-2-<root>.md` on `ops/apply-<root>-<date>-2`.
+
 ## 3. The policy (`tools/gates/infra_policy.py`; human-only)
 
 Run by `make infra-check` against the Author's provider mirror, and twice in the Author's `make plan`: on the HCL before `init`, and on the saved plan's JSON.

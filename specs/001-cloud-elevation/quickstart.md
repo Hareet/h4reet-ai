@@ -27,8 +27,8 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 3. Group 3: the bootstrap (SC-012 starts)
 
-1. `make plan ROOT=bootstrap` in a scratch clone with P-I1 applied; paste the block; after the review, apply P-I1 on the branch; the gate passes; merge.
-2. `make infra-verify ROOT=bootstrap`, apply the saved plan, `make infra-record`. Migrate the state (`terraform init -migrate-state`), and record it.
+1. **As built:** first, on the branch, make the root's lockfile from your mirror (`terraform -chdir=infra/bootstrap providers lock -fs-mirror=…`, as `infra/README.md` gives it) and commit it. Then `make plan ROOT=bootstrap PROFILE=…` in a scratch clone with P-I1 applied; paste the block; after the review, apply P-I1 on the branch; the gate passes; merge.
+2. `make infra-verify ROOT=bootstrap PROFILE=…`, run the command it prints, then `make infra-record ROOT=bootstrap OUTCOME=ok`. Migrate the state (`terraform init -migrate-state`), and record it: **as built,** from a branch of its own that switches `versions.tf`'s backend to `s3` (plan.md §16, group 3's departure 4).
 3. Activate the cost-allocation tags in the Billing console. Confirm SNS's email subscription.
 4. Check that `h4-model-month`, `h4-model-day`, `h4-server-month`, and the anomaly monitor exist with their thresholds.
 

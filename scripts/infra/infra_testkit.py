@@ -150,7 +150,7 @@ def make_repo(tmp: Path, scripts: tuple[str, ...], whole_root: bool = False) -> 
     for name in CHECKERS:
         (repo / "tools" / "gates").mkdir(parents=True, exist_ok=True)
         shutil.copy(GATES / name, repo / "tools" / "gates" / name)
-    for name in scripts:
+    for name in (*scripts, "infra_common.py"):
         (repo / "scripts" / "infra").mkdir(parents=True, exist_ok=True)
         shutil.copy(
             REPO / "scripts" / "infra" / name, repo / "scripts" / "infra" / name
@@ -210,10 +210,12 @@ def block(
     )
 
 
-def merge_note(repo: Path, body: str, branch: str = "feat/001-x") -> None:
+def merge_note(
+    repo: Path, body: str, branch: str = "feat/001-x", note_path: str = NOTE
+) -> None:
     """A feature branch whose note holds `body`, merged into main with --no-ff, as the Author's gate merges."""
     git(repo, "switch", "-q", "-c", branch)
-    note = repo / NOTE
+    note = repo / note_path
     note.write_text(f"# {branch}\n\n{body}", encoding="utf-8")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "the note")
