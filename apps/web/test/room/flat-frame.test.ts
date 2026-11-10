@@ -47,7 +47,7 @@ describe("the 2D protector (compose/protect.ts's flatProtectorFor)", () => {
     const screen = { w: 1920, h: 1200 };
     const clear = hudBoxes(screen).clear;
     const area: Box = { x: 0, y: 0, ...screen };
-    const got = protect.boxes(area, clear);
+    const got = protect.boxes(area, clear) ?? [];
     // Written out: the hits' cores at the area's scale, less those list-only at the clear area's scale.
     const inputs = index.flat.hits.map((h) => ({
       id: h.selectable,
@@ -91,7 +91,7 @@ describe("the 2D protector (compose/protect.ts's flatProtectorFor)", () => {
       const clear = hudBoxes(screen).clear;
       const near = (a: Box, b: Box): boolean =>
         a.x < b.x + b.w + 8 && b.x - 8 < a.x + a.w && a.y < b.y + b.h + 8 && b.y - 8 < a.y + a.h;
-      for (const p of protect.boxes(f.area, clear))
+      for (const p of protect.boxes(f.area, clear) ?? [])
         for (const c of compactBoxes(screen).all) expect(near(p, c), `${screen.w} × ${screen.h}`).toBe(false);
     }
   });

@@ -346,10 +346,11 @@ describe("the report's exempt faces and side-wall selectables", () => {
   it("marks the counter face exempt on the phone, and the word face readable", () => {
     const rows = lines(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }));
     // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2, before it).
+    // Spec 014: the reference desktop is its frame area, so its caps grow; the phone's is its clear area, at ease 1.
     expect(rows).toContain(
-      '| `fx-neon.counters` | yes | 21.9 px | 7.5 px | 9 | -1.5 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
+      '| `fx-neon.counters` | yes | 23.1 px | 7.5 px | 9 | -1.5 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
     );
-    expect(rows).toContain("| `fx-neon.panel` | yes | 49.2 px | 16.9 px | 9 | 7.9 px | readable |");
+    expect(rows).toContain("| `fx-neon.panel` | yes | 52.1 px | 16.9 px | 9 | 7.9 px | readable |");
   });
 
   it("names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table", () => {
@@ -362,7 +363,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
       "",
       "| Selectable | 3D | 2D |",
       "|---|---|---|",
-      "| `fx-lower` (left-wall) | list-only at 320 × 250 and 44 others | list-only at 320 × 250 and 44 others |",
+      "| `fx-lower` (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |",
       "",
     ]);
     // The legibility table's last row is right above it.
@@ -386,7 +387,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const rows = lines(result);
     // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed.
     expect(rows.filter((r) => r.startsWith("| `fx-"))).toContain(
-      "| `fx-lower` (left-wall) | list-only at 320 × 322 and 53 others | – |",
+      "| `fx-lower` (left-wall) | list-only at 320 × 322 and 62 others | – |",
     );
     expect(rows.some((r) => r.startsWith("| `fx-upper` (left-wall)"))).toBe(false);
     expect(rows).toContain("Findings: none.");
@@ -406,7 +407,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     });
     expect(out.report.markdown).not.toContain("fx-lower");
     expect(out.report.markdown).toContain(
-      "| selectables[3] (left-wall) | list-only at 320 × 250 and 44 others | list-only at 320 × 250 and 44 others |",
+      "| selectables[3] (left-wall) | list-only at 320 × 250 and 53 others | list-only at 320 × 250 and 53 others |",
     );
   });
 });

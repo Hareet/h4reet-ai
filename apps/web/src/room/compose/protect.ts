@@ -14,8 +14,9 @@ import { framing } from "./framing";
 import type { Box as WorldBox } from "./framing";
 import { DEFAULT_METRICS, walkControlBox } from "./hud";
 import type { Box } from "./hud";
-import { CORE_PX, listOnly, memberRect, pickAreas } from "./pick";
-import type { PickInput } from "./pick";
+import { CORE_PX, flatCore, listOnly, memberRect, pickAreas } from "./pick";
+import type { PickInput, Rect } from "./pick";
+import { FLAT_VIEW, flatPlacement } from "./stages";
 
 /** The protector's input: the framing's boxes, the selectables in scene order with their members' framed boxes and
  *  whether each hangs on a side wall (FR-064's carve-out), and the two figures' framed boxes, all in world metres. */
@@ -56,11 +57,16 @@ export function protectorFor(scene: ProtectScene, rem: number = DEFAULT_METRICS.
     return held;
   };
   return {
+    key: `3d:${rem}:${JSON.stringify(scene)}`,
     boxes(area, clear) {
       const held = heldAt(clear);
       const stage = { w: area.w, h: area.h };
+      const areas = pickAreas(inputsAt(scene, stage));
+      // FR-061: a selectable pressable at spec 005's frame stays pressable at this one, its HUD boxes apart, which the
+      // margin test then keeps clear; else the step is refused.
+      for (const id of listOnly(areas, [0, 0, area.w, area.h], sideWall)) if (!held.has(id)) return null;
       const out: Box[] = [];
-      for (const a of pickAreas(inputsAt(scene, stage)))
+      for (const a of areas)
         if (a.core && !held.has(a.id))
           out.push({ x: area.x + a.core[0], y: area.y + a.core[1], w: CORE_PX, h: CORE_PX });
       const camera = framing(stage.w / stage.h, scene.framed);
@@ -87,5 +93,43 @@ export function protectSceneOf(part: RoomScene, index: Pick<RoomIndex, "selectab
     framed: part.placements.filter((p) => p.framed).map((p) => p.frame_box),
     selectables: index.selectables.map((s) => ({ id: s.id, boxes: of(s.members), sideWall: s.side_wall })),
     figures: of([part.figures.twin, part.figures.visitor]),
+  };
+}
+
+/** The 2D drawing's protector (PD-23): its hit rectangles' cores and its figures' drawn boxes, the index's `flat.hits`
+ *  and `flat.figures` in view-box units, at the area's scale, the drawing centred in the area; a side-wall selectable
+ *  list-only at the clear area's scale is absent, as in 3D. */
+export function flatProtectorFor(index: Pick<RoomIndex, "flat" | "selectables">): Protect {
+  const sideWall = new Set(index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+  const inputs: PickInput[] = index.flat.hits.map((h) => ({
+    id: h.selectable,
+    members: h.rects.map((rect, k) => ({ rect, depth: h.depths[k] ?? 0 })),
+  }));
+  const view: Rect = [0, 0, FLAT_VIEW.w, FLAT_VIEW.h];
+  let known: { readonly key: string; readonly held: ReadonlySet<string> } | null = null;
+  const heldAt = (clear: Box): ReadonlySet<string> => {
+    const key = `${clear.w}x${clear.h}`;
+    if (known?.key === key) return known.held;
+    const held = listOnly(pickAreas(inputs, flatCore(clear)), view, sideWall);
+    known = { key, held };
+    return held;
+  };
+  return {
+    boxes(area, clear) {
+      const held = heldAt(clear);
+      const p = flatPlacement(area);
+      const areas = pickAreas(inputs, flatCore(area));
+      for (const id of listOnly(areas, view, sideWall)) if (!held.has(id)) return null;
+      const out: Box[] = [];
+      for (const a of areas) {
+        if (!a.core || held.has(a.id)) continue;
+        const [cx, cy, cw, ch] = a.core;
+        const centre = [p.x + (cx + cw / 2) * p.scale, p.y + (cy + ch / 2) * p.scale] as const;
+        out.push({ x: centre[0] - CORE_PX / 2, y: centre[1] - CORE_PX / 2, w: CORE_PX, h: CORE_PX });
+      }
+      for (const [x, y, w, h] of index.flat.figures)
+        out.push({ x: p.x + x * p.scale, y: p.y + y * p.scale, w: w * p.scale, h: h * p.scale });
+      return out;
+    },
   };
 }

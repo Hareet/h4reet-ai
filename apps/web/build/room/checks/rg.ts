@@ -49,10 +49,13 @@ import { dot, normalize, origin, rotation, sub, transformPoint } from "../../../
 import type { Mat4, Turn, Vec3 } from "../../../src/room/compose/math";
 import { anchorWorld, modelOf, mountWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountAnchor, MountPlacement, Resolved } from "../../../src/room/compose/mount";
+import type { Protect } from "../../../src/room/compose/frame";
 import { reservedBoxes } from "../../../src/room/compose/hud";
 import { flatCore, listOnly, memberRect, pickAreas, pickProblems } from "../../../src/room/compose/pick";
 import type { MemberRect, PickArea, PickProblem, Rect } from "../../../src/room/compose/pick";
 import { projector, toStage } from "../../../src/room/compose/project";
+import { protectorFor } from "../../../src/room/compose/protect";
+import type { ProtectScene } from "../../../src/room/compose/protect";
 import type { Camera, Projector } from "../../../src/room/compose/project";
 import {
   ASPECTS,
@@ -61,6 +64,7 @@ import {
   REFERENCE_PHONE,
   flatScale,
   smallestFlatStage,
+  stageFor,
   supportedStages,
 } from "../../../src/room/compose/stages";
 import type { Stage } from "../../../src/room/compose/stages";
@@ -128,10 +132,13 @@ export interface Geometry {
   readonly boxes: ReadonlyMap<string, Box>;
   /** The framed placements' boxes, in scene order: what every camera frames. */
   readonly framed: readonly Box[];
-  /** The production camera on each reference stage, the desktop's first. */
+  /** The production camera on each reference stage, the desktop's first. Since spec 014, each reference stage is the
+   *  frame area of its screen (FR-060), which holds its clear area. */
   readonly reference: readonly ReferenceView[];
   /** The 2D drawing's camera, framing(1.6). */
   readonly flat: Camera;
+  /** Spec 014: the frame area's protector over this scene (compose/protect.ts), which the supported stages take. */
+  readonly protect: Protect;
 }
 
 /** A box's eight corners. */
@@ -190,14 +197,53 @@ export function geometry(room: LoadedRoom, set: ReadonlyMap<string, Box | null>)
     boxes.set(id, framedBox);
     if (p.frame) framed.push(framedBox);
   }
-  const reference = ([REFERENCE_DESKTOP, REFERENCE_PHONE] as const).map(({ stage, dpr }, k): ReferenceView => ({
-    name: k === 0 ? "desktop" : "phone",
-    stage,
-    dpr,
-    camera: framing(stage.w / stage.h, framed),
-  }));
+  // Spec 014 (FR-016, FR-060): the protector over the scene's own boxes, so the stages and the reference stages are the
+  // frame areas the room frames into.
   const flat = framing(FLAT_VIEW.w / FLAT_VIEW.h, framed);
-  return { room, scene, pieces, index, resolved, set, boxes, framed, reference, flat };
+  // The side-wall flags read the scene and the catalog alone, not the stages, so they come before them.
+  const base = { room, scene, pieces, index, resolved, set, boxes, framed, flat };
+  const flags = sideWallsOf({ ...base, reference: [], protect: { boxes: () => [] } });
+  const protect = protectorFor(protectSceneFrom(scene.value, boxes, framed, flags));
+  const reference = ([REFERENCE_DESKTOP, REFERENCE_PHONE] as const).map(({ screen, dpr }, k): ReferenceView => {
+    const framedStage = stageFor(screen, protect);
+    const stage = { w: framedStage.w, h: framedStage.h };
+    return { name: k === 0 ? "desktop" : "phone", stage, dpr, camera: framing(stage.w / stage.h, framed) };
+  });
+  return { ...base, reference, protect };
+}
+
+/** The protector's input from a scene's resolved boxes (spec 014; FR-016; contracts/frame-area.md §5): the framed
+ *  boxes, each selectable's members' boxes with its side-wall flag, and the two figures' boxes, as the bundle carries
+ *  them for the room's own protector (compose/protect.ts's protectSceneOf). */
+function protectSceneFrom(
+  scene: Scene,
+  boxes: ReadonlyMap<string, Box>,
+  framed: readonly Box[],
+  sideWall: readonly boolean[],
+): ProtectScene {
+  const of = (ids: readonly string[]): Box[] =>
+    ids.flatMap((id) => {
+      const b = boxes.get(id);
+      return b ? [b] : [];
+    });
+  const figures = (["twin", "visitor"] as const).flatMap((role) => {
+    const p = scene.placements.find((x) => x.role === role);
+    return p ? of([p.id]) : [];
+  });
+  return {
+    framed,
+    selectables: scene.selectables.map((x, k) => ({
+      id: String(k),
+      boxes: of(x.members),
+      sideWall: sideWall[k] ?? false,
+    })),
+    figures,
+  };
+}
+
+/** The protector's input for a compose's geometry, the one the stages take (spec 014). */
+export function protectSceneOfGeometry(g: Geometry): ProtectScene {
+  return protectSceneFrom(g.scene.value, g.boxes, g.framed, sideWallsOf(g));
 }
 
 const geometries = new WeakMap<Context, Geometry | null>();
@@ -439,9 +485,9 @@ function inView(ctx: Context, g: Geometry): void {
 
 // ---- RG6 ----
 
-let stages: readonly Stage[] | null = null;
-/** Every supported stage (stages.ts), computed once. */
-const allStages = (): readonly Stage[] => (stages ??= supportedStages());
+/** Every supported stage (stages.ts), for a compose's geometry: since spec 014, its frame areas, each with the HUD
+ *  boxes over it reserved (FR-060), made once for its protector. */
+const allStages = (g: Geometry): readonly Stage[] => supportedStages(g.protect);
 
 /** A stage's size, as a reason and the report's Side-wall section print it. */
 export const stageSize = (s: Stage): string => `${Number(s.w.toFixed(1))} × ${Number(s.h.toFixed(1))}`;
@@ -543,12 +589,29 @@ export interface SideWallPick {
   readonly flat: readonly Stage[];
 }
 
-/** A problem RG6 refuses, with the first stage it comes at, in 3D or in 2D, and at how many more. */
+/** A problem RG6 refuses, with the first stage it comes at, in 3D or in 2D, and at how many more, counted by size:
+ *  since spec 014 two stages of one size can differ in their reserved boxes, and a reason names sizes. */
 interface SweptProblem {
   readonly problem: PickProblem;
   readonly mode: "3D" | "2D";
   readonly first: Stage;
   more: number;
+  readonly sizes: Set<string>;
+}
+
+/** A stage's size, the key by which RG6 counts and lists its stages. */
+const sizeKey = (s: Stage): string => `${s.w}x${s.h}`;
+
+/** Each list's sizes so far, so adding stays linear over the sweep. */
+const sizesOf = new WeakMap<Stage[], Set<string>>();
+
+/** Adds a stage to a list unless one of its size is there already. */
+function addSized(list: Stage[], stage: Stage): void {
+  let sizes = sizesOf.get(list);
+  if (!sizes) sizesOf.set(list, (sizes = new Set(list.map(sizeKey))));
+  if (sizes.has(sizeKey(stage))) return;
+  sizes.add(sizeKey(stage));
+  list.push(stage);
 }
 
 /** RG6's sweep of every supported stage, in 3D at its production framing and in 2D at its scale: what it refuses,
@@ -573,7 +636,7 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
   // only the supported stages' sweep is kept for the compose.
   const known = at === undefined ? sweeps.get(g) : undefined;
   if (known) return known;
-  const sweepStages = at ?? allStages();
+  const sweepStages = at ?? allStages(g);
   const s = g.scene.value;
   const selectables = s.selectables.flatMap((x, k) => {
     const boxes = x.members.flatMap((m) => {
@@ -610,8 +673,11 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
     for (const problem of problems) {
       const key = `${mode}\n${problem.selectable}\n${problem.problem}\n${problem.other ?? ""}`;
       const seen = found.get(key);
-      if (seen) seen.more += 1;
-      else found.set(key, { problem, mode, first: stage, more: 0 });
+      if (!seen) found.set(key, { problem, mode, first: stage, more: 0, sizes: new Set([sizeKey(stage)]) });
+      else if (!seen.sizes.has(sizeKey(stage))) {
+        seen.sizes.add(sizeKey(stage));
+        seen.more += 1;
+      }
     }
   };
   const flat = flatMembers(g);
@@ -631,20 +697,30 @@ export function pickSweep(g: Geometry, at?: readonly Stage[]): PickSweep {
     );
     const view: Rect = [0, 0, stage.w, stage.h];
     // Spec 008 (FR-021, FR-058): the walking control's box, in the stage's bottom-right corner in 3D, is reserved; since
-    // spec 005 every HUD control over the clear area is (its FR-055), compose/hud.ts's reservedBoxes.
-    const reserved = reservedBoxes(stage);
+    // spec 005 every HUD control over the clear area is (its FR-055), compose/hud.ts's reservedBoxes; since spec 014,
+    // every HUD box over the stage's frame area, the stage's own `reserved` (FR-060).
+    const reserved = stage.reserved ?? reservedBoxes(stage);
     const held = listOnly(areas, view, sideWall, reserved);
     note("3D", pickProblems(areas, view, held, reserved), stage);
-    for (const id of held) picks.get(id)?.stages.push(stage);
+    for (const id of held) {
+      const pick = picks.get(id);
+      if (pick) addSized(pick.stages, stage);
+    }
     const plain = listOnly(areas, view, sideWall);
-    for (const id of held) if (!plain.has(id)) boxHolds.get(id)?.stages.push(stage);
+    for (const id of held) {
+      const hold = boxHolds.get(id);
+      if (hold && !plain.has(id)) addSized(hold.stages, stage);
+    }
     // In 2D the view box is fixed, and a core's 44 px are view-box units at the stage's scale.
     const scale = flatScale(stage);
     let drawn = flatAreas.get(scale);
     if (!drawn) flatAreas.set(scale, (drawn = pickAreas(flatInputs, flatCore(stage))));
     const flatHeld = listOnly(drawn, flatView, sideWall);
     note("2D", pickProblems(drawn, flatView, flatHeld), stage);
-    for (const id of flatHeld) picks.get(id)?.flat.push(stage);
+    for (const id of flatHeld) {
+      const pick = picks.get(id);
+      if (pick) addSized(pick.flat, stage);
+    }
   }
   const sweep: PickSweep = {
     problems: [...found.values()],
@@ -668,7 +744,7 @@ function spacing(ctx: Context, g: Geometry): void {
       problem.problem === "outside"
         ? "its 44 × 44 core leaves the view"
         : problem.problem === "reserved"
-          ? "its exclusive core lies under the walking control's box"
+          ? "its exclusive core lies under a panel's box or the walking control's box"
           : `its exclusive core overlaps ${meets[problem.problem]} selectables[${problem.other ?? ""}]`;
     const where =
       mode === "3D"
@@ -1026,6 +1102,19 @@ export function flatMembers(g: Geometry): MemberRect[][] {
       return [{ rect, depth: onGrid(member.depth, 1e6) }];
     }),
   );
+}
+
+/** Spec 014 (FR-003; PD-23): the two figures' framed boxes in the 2D drawing's view box, the twin's then the visitor's,
+ *  projected as the hits are and on the bundle's grid: the index's `flat.figures`, which the 2D protector keeps clear. */
+export function flatFigures(g: Geometry): [number, number, number, number][] {
+  return (["twin", "visitor"] as const).flatMap((role): [number, number, number, number][] => {
+    const p = g.scene.value.placements.find((x) => x.role === role);
+    const box = p && g.boxes.get(p.id);
+    const member = box && memberRect(box, g.flat, FLAT_VIEW);
+    if (!member) return [];
+    const [x, y, w, h] = member.rect;
+    return [[onGrid(x, 1e4), onGrid(y, 1e4), onGrid(w, 1e4), onGrid(h, 1e4)]];
+  });
 }
 
 /** A bound face's canvas size and its largest on-screen size at the reference stages: the index's faces[] px and

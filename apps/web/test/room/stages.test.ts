@@ -21,6 +21,7 @@ import {
   compactBoxes,
   fitsHud,
   layoutFor,
+  reservedBoxes,
 } from "../../src/room/compose/hud";
 import type { Box } from "../../src/room/compose/hud";
 import type { Rect } from "../../src/room/compose/pick";
@@ -229,7 +230,13 @@ describe("the stages (compose/stages.ts)", () => {
     const high = ASPECTS.filter((a) => a > 2.4);
     for (let i = 0; i < low.length; i += 1) expect(low[i]).toBeCloseTo((low[i + 1] ?? 0.45) / 1.25, 12);
     for (let i = 0; i < high.length; i += 1) expect(high[i]).toBeCloseTo((high[i - 1] ?? 2.4) * 1.25, 12);
-    const aspects = supportedStages().map((s) => s.w / s.h);
+    // Spec 014: the supported stages are the frame areas, given the room's protector, whose narrowest aspect is a step
+    // below the clear areas' (its plan §11); the clear areas stay covered, since a frame that falls back frames into
+    // one (its FR-004).
+    const { scene, index } = repositoryBundle();
+    const aspects = [...supportedStages(protectorFor(protectSceneOf(scene, index))), ...supportedStages()].map(
+      (s) => s.w / s.h,
+    );
     const [lo, hi] = [Math.min(...aspects), Math.max(...aspects)];
     expect(ASPECTS[0]).toBeLessThanOrEqual(lo);
     expect(ASPECTS.at(-1)).toBeGreaterThanOrEqual(hi);
@@ -412,8 +419,10 @@ describe("the stages as frame areas (spec 014, T009)", () => {
 
   it("keeps spec 005's stages without a protector: the clear areas, the walking control's box reserved", () => {
     const stage = stageFor({ w: 1920, h: 1200 });
-    expect([stage.w, stage.h]).toEqual([1472, 1120.5]);
-    expect(stage.reserved).toEqual([walkControlBox(stage)]);
+    expect(stage).toEqual({ w: 1472, h: 1120.5 });
+    // No reserved boxes of its own: RG6 reserves spec 005's, the walking control's box alone.
+    expect(stage.reserved).toBeUndefined();
+    expect(reservedBoxes(stage)).toEqual([walkControlBox(stage)]);
   });
 
   it("lists each sweep screen's frame area once, a dock screen's collapsed one too, its reserved boxes with it", () => {
@@ -429,7 +438,10 @@ describe("the stages as frame areas (spec 014, T009)", () => {
       if (layoutFor(screen) === "dock") {
         const collapsed = { list: "collapsed" } as const;
         const f = frameArea(screen, collapsed, DEFAULT_METRICS, protect);
-        expect(keys.has(id({ w: f.area.w, h: f.area.h, reserved: reservedOf(f.area, screen, collapsed) })), key(screen)).toBe(true);
+        expect(
+          keys.has(id({ w: f.area.w, h: f.area.h, reserved: reservedOf(f.area, screen, collapsed) })),
+          key(screen),
+        ).toBe(true);
       }
     }
   });

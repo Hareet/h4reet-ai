@@ -148,6 +148,8 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "poses",
       "faces",
       "hits",
+      // Spec 014 (FR-003; PD-23): the figures' framed boxes in the view box, which the 2D drawing's frame area protects.
+      "figures",
       "labels",
       "papers",
       "visitor",

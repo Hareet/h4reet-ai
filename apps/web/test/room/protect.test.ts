@@ -60,7 +60,7 @@ describe("the protector over T004's scene (compose/protect.ts)", () => {
     ]) {
       const clear = hudBoxes(screen).clear;
       for (const area of [{ x: 0, y: 0, ...screen }, clear]) {
-        const got = protect.boxes(area, clear);
+        const got = protect.boxes(area, clear) ?? [];
         const want = expected(SCENE, area, clear);
         expect(got).toEqual([...want.cores.values(), ...want.figures]);
         for (const b of got) for (const v of [b.x, b.y, b.w, b.h]) expect(Number.isFinite(v)).toBe(true);
@@ -87,7 +87,7 @@ describe("the protector over T004's scene (compose/protect.ts)", () => {
       const want = expected(signs, clear, clear);
       const absent = ["sign-a", "sign-b"].filter((id) => !want.cores.has(id));
       expect(absent.length, `${screen.w} × ${screen.h}`).toBeGreaterThan(0);
-      const got = protectorFor(signs).boxes({ x: 0, y: 0, ...screen }, clear);
+      const got = protectorFor(signs).boxes({ x: 0, y: 0, ...screen }, clear) ?? [];
       expect(got).toEqual([
         ...expected(signs, { x: 0, y: 0, ...screen }, clear).cores.values(),
         ...want.figures.map(() => expect.anything()),
@@ -101,7 +101,7 @@ describe("the protector over T004's scene (compose/protect.ts)", () => {
     const clear = hudBoxes(screen).clear;
     const window = { x: 0, y: 0, ...screen };
     expect(protectorFor(SCENE).boxes(window, clear)).toEqual(protectorFor(SCENE).boxes(window, clear));
-    for (const b of protectorFor(SCENE).boxes(window, clear)) {
+    for (const b of protectorFor(SCENE).boxes(window, clear) ?? []) {
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.w).toBeLessThanOrEqual(1920);
     }
@@ -119,8 +119,8 @@ describe("the protector from the room's own bundle (protectSceneOf)", () => {
     const round = (bs: readonly Box[]) => bs.map((b) => [b.x, b.y, b.w, b.h].map((v) => Math.round(v * 10) / 10));
     const protect = protectorFor(input);
     expect({
-      window: round(protect.boxes({ x: 0, y: 0, ...screen }, clear)),
-      clear: round(protect.boxes(clear, clear)),
+      window: round(protect.boxes({ x: 0, y: 0, ...screen }, clear) ?? []),
+      clear: round(protect.boxes(clear, clear) ?? []),
       compact: round(compactBoxes(screen).all),
     }).toMatchSnapshot();
   });

@@ -302,7 +302,10 @@ export function reservedBoxes(clear: { readonly w: number; readonly h: number },
 
 /** The log's rest height in the column, in rem: `restRem` where the window is at least `tallFromRem` tall, and
  *  `shortRestRem` below it (PD-7; D12). */
-export function logRestRem(screen: { readonly h: number }, metrics: HudMetrics = DEFAULT_METRICS): number {
+export function logRestRem(
+  screen: { readonly w: number; readonly h: number },
+  metrics: HudMetrics = DEFAULT_METRICS,
+): number {
   const t = HUD_PLACEMENTS.log;
   return screen.h >= t.tallFromRem * metrics.rem ? t.restRem : t.shortRestRem;
 }

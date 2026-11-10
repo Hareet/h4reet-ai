@@ -36,10 +36,15 @@ import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { framing } from "../../src/room/compose/framing";
+import type { Box as WorldBox } from "../../src/room/compose/framing";
+import { layoutFor } from "../../src/room/compose/hud";
+import { memberRect } from "../../src/room/compose/pick";
 import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
   WALK_CONTROL,
+  framedStages,
   supportedStages,
   sweepScreens,
 } from "../../src/room/compose/stages";
@@ -218,6 +223,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
 
   // Spec 005's stages (its FR-052 to FR-054, FR-057): the clear areas RG5 to RG7 and the table above run at.
   lines.push(stagesLine(), "");
+
+  // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
+  lines.push(...frameLines(c), "");
 
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
@@ -442,6 +450,65 @@ function stagesLine(): string {
     `${n(supportedStages().length)} stages; the reference desktop's ${ref(REFERENCE_DESKTOP)} at a pixel ratio of ` +
     `${REFERENCE_DESKTOP.dpr}) and the reference phone's ${ref(REFERENCE_PHONE)} at ${REFERENCE_PHONE.dpr}).`
   );
+}
+
+/** The room's on-screen height on a stage at its production framing: the framed set's union, projected. */
+function roomHeight(framed: readonly WorldBox[], stage: { readonly w: number; readonly h: number }): number {
+  if (framed.length === 0 || !(stage.w > 0) || !(stage.h > 0)) return 0;
+  const along = (k: 0 | 1 | 2, f: (...n: number[]) => number, side: "min" | "max"): number =>
+    f(...framed.map((b) => b[side][k]));
+  const union: WorldBox = {
+    min: [along(0, Math.min, "min"), along(1, Math.min, "min"), along(2, Math.min, "min")],
+    max: [along(0, Math.max, "max"), along(1, Math.max, "max"), along(2, Math.max, "max")],
+  };
+  const r = memberRect(union, framing(stage.w / stage.h, framed), stage);
+  return r ? r.rect[3] : 0;
+}
+
+/** Spec 014's frame lines (FR-060, FR-061; plan.md §11): the frame areas' count with their reserved boxes; each screen
+ *  class's eases, at 0, between, and at 1, with the median; and the reference stages' ease, frame area, and the room's
+ *  growth on screen over spec 005's frame. */
+function frameLines(c: Composed): string[] {
+  const g = c.geometry;
+  const head = "Frame (spec 014, FR-060, FR-061)";
+  if (!g) return [`${head}: none, the scene having no geometry to frame.`];
+  const made = framedStages(g.protect);
+  const n = (x: number): string => x.toLocaleString("en-US");
+  const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
+  const classes: readonly [string, (s: { readonly w: number; readonly h: number }) => boolean][] = [
+    ["the dock layout", (s) => layoutFor(s) === "dock"],
+    ["the column layout under 1280 × 720", (s) => layoutFor(s) === "column" && (s.w < 1280 || s.h < 720)],
+    ["the column layout from 1280 × 720", (s) => layoutFor(s) === "column" && s.w >= 1280 && s.h >= 720],
+  ];
+  const out = [
+    `${head}: the frame areas over the same screens, eased from the window toward each clear area only as far as ` +
+      `keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
+      `${n(made.stages.length)} stages, each with the HUD boxes over it reserved.`,
+  ];
+  for (const [name, holds] of classes) {
+    const eases = made.screens.filter((x) => holds(x.screen)).map((x) => x.stage.ease ?? 1);
+    if (eases.length === 0) continue;
+    const sorted = [...eases].sort((a, b) => a - b);
+    const median = sorted[Math.floor((sorted.length - 1) / 2)] ?? 1;
+    const at0 = eases.filter((e) => e === 0).length;
+    const at1 = eases.filter((e) => e === 1).length;
+    out.push(
+      `- ${name}: ${n(eases.length)} screens and states, ${n(at0)} at ease 0, ${n(eases.length - at0 - at1)} ` +
+        `between, ${n(at1)} at ease 1; the median ${sixteenths(median)}.`,
+    );
+  }
+  for (const r of [REFERENCE_DESKTOP, REFERENCE_PHONE]) {
+    const framed = made.screens.find((x) => x.screen === r.screen);
+    if (!framed) continue;
+    const growth = roomHeight(g.framed, framed.stage) / roomHeight(g.framed, r.stage) - 1;
+    const which = r === REFERENCE_DESKTOP ? "The reference desktop" : "The reference phone";
+    out.push(
+      `- ${which} (${r.screen.w} × ${r.screen.h}): ease ${sixteenths(framed.stage.ease ?? 1)}, a frame area of ` +
+        `${plainSize(framed.stage.w)} × ${plainSize(framed.stage.h)} over spec 005's ${plainSize(r.stage.w)} × ` +
+        `${plainSize(r.stage.h)}, the room ${(growth * 100).toFixed(1)}% larger on screen.`,
+    );
+  }
+  return out;
 }
 
 /** Spec 008's walking lines (FR-021, FR-026; plan.md §3.5): the visitor figure's start at the walking radius, RW1's

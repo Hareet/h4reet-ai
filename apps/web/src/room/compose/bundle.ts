@@ -152,6 +152,9 @@ export interface RoomIndex {
     }[];
     faces: { face: string; matrix: Matrix2D; size: [number, number] }[];
     hits: { selectable: string; rects: [number, number, number, number][]; depths: number[] }[];
+    /** Spec 014 (FR-003; PD-23): the two figures' framed boxes in the view box, the twin's then the visitor's, as the
+     *  hits are projected: what the 2D drawing's frame area keeps clear of the HUD. */
+    figures: [number, number, number, number][];
     labels: { placement: string; label: string; at: [number, number] }[];
     papers: [[number, number], [number, number], [number, number]];
     visitor: { x: number; baseline: number; scale: number };

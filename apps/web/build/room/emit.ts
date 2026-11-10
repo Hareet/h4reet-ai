@@ -74,7 +74,7 @@ import { avatarsOf, bundledFiles } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
-import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
+import { faceScreens, flatFigures, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { fillHints, indexHints } from "./hints";
@@ -934,6 +934,7 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     poses,
     faces: frames,
     hits,
+    figures: c.geometry ? flatFigures(c.geometry) : [],
     labels,
     papers: [paper(from), paper(middle), paper(to)],
     visitor: at

@@ -98,7 +98,14 @@ describe("the faces' on-screen sizes and texture memory at the new reference sta
     const { index } = repositoryBundle();
     const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
     if (!g) throw new Error("no geometry");
-    expect(g.reference.map((r) => r.stage)).toEqual([REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage]);
+    // Spec 014 (its FR-060; plan.md §11): each reference stage is its screen's frame area, which holds spec 005's.
+    expect(g.reference.map((r) => r.stage)).toEqual(
+      [REFERENCE_DESKTOP, REFERENCE_PHONE].map(({ screen }) => {
+        const s = stageFor(screen, g.protect);
+        return { w: s.w, h: s.h };
+      }),
+    );
+    expect(g.reference[0]?.stage.w).toBeGreaterThanOrEqual(REFERENCE_DESKTOP.stage.w);
     const screens = faceScreens(g);
     for (const face of index.faces) {
       const s = screens.find((x) => `${x.placement}.${x.role}` === face.id);
@@ -229,7 +236,8 @@ describe("RG6 at the frame areas (spec 014, T009)", () => {
         new Map(sweep.sideWalls.map((p) => [p.id, new Set(p.stages.map((s) => stages.indexOf(s)))]));
       const [a, b] = [at(now, framed), at(then, clear)];
       const more: string[] = [];
-      for (const [id, set] of a) for (const i of set) if (!b.get(id)?.has(i)) more.push(`${id} at ${JSON.stringify(screens[i])}`);
+      for (const [id, set] of a)
+        for (const i of set) if (!b.get(id)?.has(i)) more.push(`${id} at ${JSON.stringify(screens[i])}`);
       expect(more.slice(0, 3)).toEqual([]);
     });
 });

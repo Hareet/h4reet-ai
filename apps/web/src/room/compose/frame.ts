@@ -18,9 +18,14 @@ export const MARGIN_REM = 0.5;
 
 /** What the frame area protects (contracts/frame-area.md §2): the protected boxes on the canvas, in CSS pixels from the
  *  window's top left, when the room is framed into `area` with the production framing at its aspect; `clear` is spec
- *  005's clear area at the same window, where a selectable's being pressable is judged. */
+ *  005's clear area at the same window, where a selectable's being pressable is judged. Null where a selectable
+ *  pressable at spec 005's frame would be left to the list at the area's framing (spec 005's FR-057, this spec's
+ *  FR-061): no box can say that, so the step is refused whatever the HUD's boxes are. */
 export interface Protect {
-  boxes(area: Box, clear: Box): readonly Box[];
+  boxes(area: Box, clear: Box): readonly Box[] | null;
+  /** What the protector protects, as text, where two protectors over the same scene give the same boxes: the stages'
+   *  cache keys on it, so a compose of an unchanged scene doesn't sweep its frame areas again. */
+  readonly key?: string;
 }
 
 export interface FrameArea {
@@ -69,6 +74,7 @@ export function frameArea(
     for (let k = 0; k < EASE_STEPS; k += 1) {
       const area = areaAt(k / EASE_STEPS, screen, clear);
       const boxes = protect.boxes(area, clear);
+      if (boxes === null) continue;
       if (!boxes.every(finite)) return fallback;
       if (boxes.every((p) => hud.every((h) => !near(p, h, margin))))
         return { area, ease: k / EASE_STEPS, fellBack: false };

@@ -219,8 +219,9 @@ describe("RG5: every framed box in view at the six aspects", () => {
     const found = far.filter((f) => f.rule === "RG5");
     expect(where(found)).toEqual([`RG5 ${SCENE}:placements[5]`]);
     expect(found[0]?.reason).toBe(
-      "a corner of its framed box outside the view at the aspects 0.288, 0.36, 0.45, 0.6, 0.8, 1.15, 1.5, 2.4, 3, 3.75, " +
-        "4.6875, 5.859375, 7.32421875, 9.1552734375, and 11.444091796875",
+      // Spec 014 (its plan §11): the series takes one more step down, 0.2304, to cover the frame areas' aspects.
+      "a corner of its framed box outside the view at the aspects 0.2304, 0.288, 0.36, 0.45, 0.6, 0.8, 1.15, 1.5, 2.4, " +
+        "3, 3.75, 4.6875, 5.859375, 7.32421875, 9.1552734375, and 11.444091796875",
     );
   });
 });
@@ -313,11 +314,16 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
     composed(t)
       .findings.filter((f) => f.rule === "RG6")
       .map((f) => `${f.path}: ${f.reason}`);
-  /** The 45 stages 320 px wide, in supportedStages()'s order: since spec 005, the clear areas of the 320 px screens
-   *  held upright in the dock layout, their list open and collapsed (the 31 stages 304 px wide before it). */
-  const NARROW = supportedStages()
-    .filter((s) => s.w === 320)
-    .map(stageSize);
+  /** The stages 320 px wide, in supportedStages()'s order, once a size: since spec 005, the clear areas of the 320 px
+   *  screens held upright in the dock layout, their list open and collapsed (the 31 stages 304 px wide before it); since
+   *  spec 014, the frame areas there, given the overlay's own protector (its FR-060), 45 of them once a size. */
+  const NARROW = [
+    ...new Set(
+      supportedStages(geometryOf(contextOf(sideWall(), sideWallPolicy()))?.protect)
+        .filter((s) => s.w === 320)
+        .map(stageSize),
+    ),
+  ];
   const placement = (scene: Doc, k: number): Doc => at(scene, "placements", k);
 
   it("keeps the upper sign's tap and lets the lower go without its core there, and flags both side_wall", () => {
@@ -330,7 +336,7 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       ["fx-upper", true],
       ["fx-lower", true],
     ]);
-    expect(NARROW).toHaveLength(45);
+    expect(NARROW).toHaveLength(54);
     expect(picks(t)).toEqual([{ id: "fx-lower", walls: ["left-wall"], stages: NARROW, flat: NARROW }]);
   });
 
@@ -367,7 +373,7 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.1;
     });
     expect(reasons(t)).toEqual([]);
-    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 322 and 53 others, 2D –"]);
+    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 322 and 62 others, 2D –"]);
     expect(picks(t)[0]?.stages.some((s) => s.startsWith("336 × "))).toBe(true);
   });
 
@@ -379,15 +385,15 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.065;
     });
     expect(reasons(t)).toEqual([]);
-    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 250 and 45 others, 2D 320 × 250 and 104 others"]);
+    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 117 others"]);
     expect(picks(t)[0]?.flat.some((s) => s.startsWith("336 × "))).toBe(true);
   });
 
   /** RG6 on the stages 320 px wide, for the two signs, once neither is a side-wall selectable (304 px before spec 005). */
   const NOT_SIDE_WALL = [
-    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 250 and 44 others",
+    "selectables[2]: its exclusive core overlaps the core of selectables[3] in 3D at 320 × 250 and 53 others",
     "selectables[2]: its exclusive core overlaps the core of selectables[3] in 2D, at the drawing's smallest scale",
-    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 320 × 250 and 44 others",
+    "selectables[3]: its exclusive core overlaps the core of selectables[2] in 3D at 320 × 250 and 53 others",
     "selectables[3]: its exclusive core overlaps the core of selectables[2] in 2D, at the drawing's smallest scale",
   ];
   const sides = (t: Tree): boolean[] => composed(t).index.selectables.map((x) => x.side_wall);
@@ -535,8 +541,9 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
         action: { resume: {} },
       });
     });
+    // Spec 014: 7,158 sizes of frame area in place of spec 005's 7,080 clear areas.
     expect(reasons(t)).toContain(
-      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7079 others",
+      "selectables[4]: its exclusive core overlaps a member of selectables[3] in 3D at 320 × 250 and 7157 others",
     );
   });
 });
