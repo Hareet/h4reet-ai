@@ -166,7 +166,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 **Independent Test**: spec.md User Story 2's.
 
-- [ ] T016 [P] [US2] Write `apps/web/test/ui/loading-page.test.ts` and `apps/web/test/ui/loading-notes.test.ts` (FR-024 to FR-027, FR-042; SC-003):
+- [x] T016 [P] [US2] Write `apps/web/test/ui/loading-page.test.ts` and `apps/web/test/ui/loading-notes.test.ts` (FR-024 to FR-027, FR-042; SC-003):
   - **the tints, per layout**, from `loading.css`'s rules under `html[data-loading="on"]`: in the column and dock layouts they name only `.room-stage-view`, `.hud-bar`, `.hud-panels`, and `.room-around`; in the stacked layout only `.room-stage-view`, `.hud-bar`, `.room-list`, `.talk`, and `.room-around`, never `.hud-panels`; each is a `::after` with `position: absolute`, `inset: 0`, and `pointer-events: none`; each tinted element is positioned in its layout, by `room.css`'s rules or `loading.css`'s `position: relative` (`.room-around` in every layout; `.hud-bar`, `.room-list`, and `.talk` in the stacked one), and `.talk` is never given a position in the dock layout; no rule names `.disclosure`, `.room-clear`, `.room-notes`, `.room-note`, `.room-stand-in`, or `.room-loader`;
   - **the card, per layout**: `.room-loader` carries its own `color` and `background` outside any `data-hud` rule; in the column and dock layouts it is `fixed`, `z-index: 4` (under the strip's 5), with `top: calc(var(--clear-y) + var(--notes-h))`; in the stacked layout it is `static` with `grid-area: loader`, and both stacked templates under `data-loading="on"` put `loader` first, before `stage`;
   - **the geometry** (`loading-notes.test.ts`, as `test/ui/hud-notes.test.ts` is one): the card's box from `loading.css`'s formulas over `compose/hud.ts`'s numbers, and the notes' box from the model's real text widths, never meet at the windows spec 005's review measured nor across `sweepScreens()`; and the card's top is at or below the strip's measured box at each;
@@ -177,7 +177,7 @@ description: "Task list for spec 012, the room's loading screen"
   - with the 3D stage's loader stubbed, each set model and figure's file that ends before the loader gives way is swapped in before it gives way, and none from its giving way to the hand-off's end.
 
   Check: RED before T017 for the CSS and geometry cases; the inert, motion, and swap cases may pass after T011, and the note says which (feat/012-loading-screen)
-- [ ] T017 [US2] Write the tints in `apps/web/src/room/loading/loading.css` (PD-9) per layout, with the stacked grid's `loader` row, and the tints' reduced-motion, reduced-transparency, more-contrast, and forced-colours rules. Check: T016 passes (feat/012-loading-screen)
+- [x] T017 [US2] Write the tints in `apps/web/src/room/loading/loading.css` (PD-9) per layout, with the stacked grid's `loader` row, and the tints' reduced-motion, reduced-transparency, more-contrast, and forced-colours rules. Check: T016 passes (feat/012-loading-screen)
 
 **Checkpoint**: the visitor sees the room come together, dimmed and still, with the AI disclosure and the stand-in line untouched in every layout.
 

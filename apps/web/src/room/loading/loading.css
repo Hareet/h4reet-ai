@@ -59,6 +59,53 @@ html[data-hud="stacked"][data-loading] .room {
   }
 }
 
+/* The scrim (PD-9; FR-024 to FR-027): a tint laid by element over the room's parts while the loader shows, each a
+   ::after inside its element, letting the pointer through, with no blur over the moving scene. In the column and dock
+   layouts: the stage's view, the bar, the docked panels, and "Around the room"; in the stacked layout, whose
+   `.hud-panels` is `display: contents` (its ::after would land on an ancestor and cover the page), the list and the
+   conversation in place of the panels. Never the AI disclosure, the clear box, the notes, the stand-in line, or the
+   card: they stay undimmed by construction. The tints fade with the card ("leaving"); none under reduced motion. */
+html[data-hud="column"][data-loading] .room-stage-view::after,
+html[data-hud="column"][data-loading] .hud-bar::after,
+html[data-hud="column"][data-loading] .hud-panels::after,
+html[data-hud="column"][data-loading] .room-around::after,
+html[data-hud="dock"][data-loading] .room-stage-view::after,
+html[data-hud="dock"][data-loading] .hud-bar::after,
+html[data-hud="dock"][data-loading] .hud-panels::after,
+html[data-hud="dock"][data-loading] .room-around::after,
+html[data-hud="stacked"][data-loading] .room-stage-view::after,
+html[data-hud="stacked"][data-loading] .hud-bar::after,
+html[data-hud="stacked"][data-loading] .room-list::after,
+html[data-hud="stacked"][data-loading] .talk::after,
+html[data-hud="stacked"][data-loading] .room-around::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(0 0 0 / 0.55);
+  transition: opacity 200ms ease-out;
+}
+
+html[data-loading="leaving"] .room-stage-view::after,
+html[data-loading="leaving"] .hud-bar::after,
+html[data-loading="leaving"] .hud-panels::after,
+html[data-loading="leaving"] .room-list::after,
+html[data-loading="leaving"] .talk::after,
+html[data-loading="leaving"] .room-around::after {
+  opacity: 0;
+}
+
+/* Each tinted part positioned, so its tint stays inside it: "Around the room" in every layout, and in the stacked layout
+   the bar, the list, and the conversation, which are in the page's flow there. The stage's view, and in the column and
+   dock layouts the bar and the panels, are positioned already (room.css); the dock's conversation is left alone, its
+   sheet placed against the panels. */
+html[data-loading] .room-around,
+html[data-hud="stacked"][data-loading] .hud-bar,
+html[data-hud="stacked"][data-loading] .room-list,
+html[data-hud="stacked"][data-loading] .talk {
+  position: relative;
+}
+
 .room-loader-heading {
   margin: 0;
   min-height: 1.5rem;
@@ -106,7 +153,13 @@ html[data-hud="stacked"][data-loading] .room {
 /* Reduced motion: nothing slides, glows, or fades (FR-040); view.ts removes the card at once. */
 @media (prefers-reduced-motion: reduce) {
   .room-loader,
-  .room-loader-fill {
+  .room-loader-fill,
+  :root[data-loading] .room-stage-view::after,
+  :root[data-loading] .hud-bar::after,
+  :root[data-loading] .hud-panels::after,
+  :root[data-loading] .room-list::after,
+  :root[data-loading] .talk::after,
+  :root[data-loading] .room-around::after {
     transition: none;
   }
 }
@@ -123,6 +176,16 @@ html[data-hud="stacked"][data-loading] .room {
   .room-loader-bar {
     background: Canvas;
     border-color: CanvasText;
+  }
+
+  /* The tints keep their dimming: forced colours would otherwise paint them opaque, hiding the page. */
+  :root[data-loading] .room-stage-view::after,
+  :root[data-loading] .hud-bar::after,
+  :root[data-loading] .hud-panels::after,
+  :root[data-loading] .room-list::after,
+  :root[data-loading] .talk::after,
+  :root[data-loading] .room-around::after {
+    forced-color-adjust: none;
   }
 
   /* Kept as Highlight: forced colours would otherwise paint the fill the track's Canvas. */
