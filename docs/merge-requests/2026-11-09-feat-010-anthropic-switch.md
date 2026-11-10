@@ -63,7 +63,7 @@ Authorized by:
   holds your F3 words, the route, the two tests, and an updated note
   on the disclosure."
 
-## Status: reviewed once (not ready: two items for you, no code change); nits taken; not merged
+## Status: reviewed once; its nits taken and both blockers answered by you; not merged
 
 | Commit | What |
 |---|---|
@@ -73,7 +73,8 @@ Authorized by:
 | 5f9eb812 | this note, first written |
 | fcf71182 | this note, after the rebase onto ada55c98 (a save point: one line of it still read `PYTEST_TOTALS`) |
 | 31d7c5ee | this note, with pytest's totals, `make check`, gitleaks, and the rehearsal; the commit the review read |
-| this commit | the review's nits: the paragraph below F3 made conditional, and this note's Review, Backlog, step 1, and T062 |
+| 6ca72c17 | the review's nits: the paragraph below F3 made conditional, and this note's Review, Backlog, step 1, and T062 |
+| this commit | your answers to I-1 and I-2: F3's opening in your chosen words, your FR-039 weighing quoted, and two follow-ups |
 
 ## What changed and why
 
@@ -110,9 +111,10 @@ Authorized by:
   2 asked, it states the route conditionally, as main's did, and it no
   longer says "read on 2026-11-09" (the review's I-2, below).
 
-Your words, as F3 now holds them:
+Your words, as F3 now holds them, with the opening you chose for the
+review's I-2:
 
-> Read on 2026-11-09 on Anthropic's pages. Anthropic doesn't train its models on API requests or replies unless the customer opts in or sends feedback, and this site does neither. Anthropic deletes API inputs and outputs within 30 days. Its newer docs say content isn't kept at all outside its "Covered Models", and Claude Haiku 5.5 isn't one, so I disclose the longer period. A request its safety systems flag for breaking its Usage Policy can be kept up to 2 years, and the flag's scores up to 7, or longer where the law requires. The site doesn't set a US-only option, so Anthropic may process a request anywhere it runs. For the API, Anthropic acts as this site's processor. Against my promise that a visitor's conversation isn't saved: this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training. The room asks no one who they are; a visitor picks a path and an avatar, and Anthropic gets no visitor's address or identifier. What a visitor types is sent as typed.
+> Adopted on 2026-11-09 from summaries of Anthropic's pages. Anthropic doesn't train its models on API requests or replies unless the customer opts in or sends feedback, and this site does neither. Anthropic deletes API inputs and outputs within 30 days. Its newer docs say content isn't kept at all outside its "Covered Models", and Claude Haiku 5.5 isn't one, so I disclose the longer period. A request its safety systems flag for breaking its Usage Policy can be kept up to 2 years, and the flag's scores up to 7, or longer where the law requires. The site doesn't set a US-only option, so Anthropic may process a request anywhere it runs. For the API, Anthropic acts as this site's processor. Against my promise that a visitor's conversation isn't saved: this site saves none of it, and Anthropic may keep a turn it answered for up to 30 days, never for training. The room asks no one who they are; a visitor picks a path and an avatar, and Anthropic gets no visitor's address or identifier. What a visitor types is sent as typed.
 
 ### Where the words came from
 
@@ -120,7 +122,8 @@ The main session drafted them from web-search summaries of
 Anthropic's pages. It didn't read the pages themselves, because the
 project's bash gate blocks fetching docs ("fetching docs is a human
 step"). You answered "Use it" on 2026-11-09, which makes them yours.
-The pages the summaries came from:
+F3's opening says so since your answer to the review's I-2 (Review,
+below). The pages the summaries came from:
 
 - https://platform.claude.com/docs/en/manage-claude/api-and-data-retention
 - https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data
@@ -170,7 +173,7 @@ API's own temperature (`test/unit/paid-temperature.test.ts`,
 |---|---|
 | FR-002 (the switch is one line in `envs.prod`, after the price, the cap, the key, and the words) | 80680a52's `envs.prod`. The price is ada55c98, the cap is P-C, the key is in your env file by your account, and the words are in F3. The one line needed the two tests first (B16), and they now hold it both ways |
 | FR-038 (F3 in its own section, in the spec's words) | `test_the_anthropic_apis_row_is_in_its_own_section_in_the_specs_words`, and F3's other cells unchanged |
-| FR-039 (F3's words are yours; `make test` holds the route back until they're in) | RED and GREEN below. The weighing against intent 000 and the corpus is yours, and your words do it in F3 ("Against my promise that a visitor's conversation isn't saved: …") |
+| FR-039 (F3's words are yours; `make test` holds the route back until they're in) | RED and GREEN below. The weighing against intent 000 and the corpus is yours. Against the corpus's promise, your words in F3 do it: "Against my promise that a visitor's conversation isn't saved: …". Against intent 000's "Nothing is retained beyond the session without explicit consent", your words of 2026-11-09 (the review's I-1): "We can say nothing is retained when running local models. Refer to Anthropic if cloud models are on." What that asks of the corpus and of G8 is under For the Author, "Follow-ups" |
 | SC-010 | `make test` failed with the route on `anthropic` and the placeholder, and passes with your words, on either route |
 | T059 (its agent part) | your words and the route. Yours: the key, `make up ENV=prod`, and `anthropic healthy` (For the Author, step 4) |
 
@@ -191,14 +194,31 @@ API's own temperature (`test/unit/paid-temperature.test.ts`,
 
 One review, of 31d7c5ee, by a reviewer who wrote none of it, as the
 main session relayed it. Its verdict: not ready, but no code change is
-needed. Its two blockers need your own words, and the main session is
-taking them to you. Both stay open here, and F3's words are untouched:
+needed. Its two blockers needed your own words, and the main session
+took them to you. Both are answered.
 
 - **I-1**: FR-039's weighing against intent 000's "Nothing is retained
-  beyond the session without explicit consent".
+  beyond the session without explicit consent". Your words, 2026-11-09:
+  "We can say nothing is retained when running local models. Refer to
+  Anthropic if cloud models are on."
+  - It is recorded as your FR-039 weighing (Acceptance criteria). It
+    is not in F3: it goes there only if you ask.
+  - What it asks of the corpus and of guard G8 is two follow-ups,
+    under For the Author.
 - **I-2**: F3's "Read on 2026-11-09 on Anthropic's pages", while the
   record (this note's "Where the words came from") says the session
-  drafted them from search summaries.
+  drafted them from search summaries. Asked how it should read, you
+  chose "Say summaries (Recommended)". Its description: "Change the
+  opening to "Adopted on 2026-11-09 from summaries of Anthropic's
+  pages." The rest of your F3 words stay as they are. This is true
+  today, and you can re-check against the pages later."
+  - In `docs/data-flow-disclosure.md`, F3's "Read on 2026-11-09 on
+    Anthropic's pages." is now "Adopted on 2026-11-09 from summaries
+    of Anthropic's pages.", and nothing else changed. A script
+    compared the file with its parent: the new file is the old with
+    exactly that sentence replaced.
+  - `evals/test_disclosure.py`: 28 passed.
+  - This note's quote of your F3 words was checked against the file.
 
 | Nit | What was done |
 |---|---|
@@ -727,20 +747,38 @@ committed through the gate, then `make up ENV=prod`. F3 keeps your
 words. `make test` passes on either route: B11 for the disclosure,
 and B16's new test for the config.
 
-### Two follow-ups, yours, not done here
+### Follow-ups, yours, not done here
 
-1. **The corpus's promise.** `corpus/08-hareet-ai.md`'s Golden Q&A 5
-   tells visitors: "We disclose every data flow, your conversation is
-   not saved and you can look at the GitHub repo for how all the code
-   works." F3 now qualifies that in your words: "this site saves none
-   of it, and Anthropic may keep a turn it answered for up to 30 days,
-   never for training." So the corpus's words may need your edit.
-   Agents never edit `corpus/`. The three ready topics' packs hold
-   their own files (`04`, `05`, `06`, by `config/twin/corpus.json`), so
-   a change to `08` moves the whole pack's hash, free talk's, and
-   theirs only if their hash input covers it. After the pack is
-   regenerated, `make evals`' readiness lines show what a moved hash
-   closed until you re-run and re-mark it (spec 007, FR-030).
-2. **A visible line by the room's text box**, such as "please don't
+The first two follow from your answer to the review's I-1: "We can say
+nothing is retained when running local models. Refer to Anthropic if
+cloud models are on." Neither is this branch's: one is your corpus
+words, the other a code change.
+
+1. **The corpus's promise, and the privacy quote G8 uses on every
+   topic.** `corpus/08-hareet-ai.md`'s Golden Q&A 5 tells visitors:
+   "We disclose every data flow, your conversation is not saved and
+   you can look at the GitHub repo for how all the code works."
+   - The pack carries that answer as `quotes.privacy`
+     (`config/twin/corpus.json`). Guard G8 gives it in place of any
+     answer that speaks of a visitor's conversation being kept
+     (`services/gateway/src/twin/guards.ts` lines 883 to 886, and line
+     1027), on every topic.
+   - By your I-1 words, both should say that nothing is retained when
+     local models answer, and refer to Anthropic's retention when a
+     cloud model answers.
+   - That is your corpus edit. Agents never edit `corpus/`; one may
+     propose the words in `corpus/proposals/`.
+   - The three ready topics' packs hold their own files (`04`, `05`,
+     `06`, by `config/twin/corpus.json`). So a change to `08` moves the
+     whole pack's hash, free talk's, and theirs only if their hash
+     input covers it. After the pack is regenerated, `make evals`'
+     readiness lines show what a moved hash closed until you re-run
+     and re-mark it (spec 007, FR-030).
+2. **G8's privacy answer, by the adapter that answered.** Today G8
+   gives the same privacy answer whichever adapter answered the turn.
+   Making it depend on the answering adapter (local, or a cloud model)
+   is a spec change. As the main session puts it, it must land before
+   EC2 goes public, since every EC2 turn is the Anthropic API's.
+3. **A visible line by the room's text box**, such as "please don't
    type personal details". It would need a spec change (spec 002's or
    spec 007's room text), so it isn't here.
