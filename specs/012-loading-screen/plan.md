@@ -45,7 +45,7 @@
 
 **Constraints**: the CSP's `style-src 'self'` (classes, and CSS properties set through the CSS object model); WCAG 2.2 AA in every state and layout; no request but the one event; spec 002's SC-005; the browser's integrity check on every model; `make up` always works.
 
-**Scale/Scope**: 55 FRs and 11 success criteria; 11 amendment rows; two contracts; one new data file; four new modules (`loading/progress.ts`, `loading/view.ts`, `loading/hints.ts`, `build/room/hints.ts`) and one stylesheet (`loading/loading.css`); a hold in the motion store; four new compositor rules; twelve UI words; fifteen hints; one event kind; one panel; one disclosure trigger; no Author patch.
+**Scale/Scope**: 55 FRs and 11 success criteria; 11 amendment rows, and L12 after T036's review; two contracts; one new data file; four new modules (`loading/progress.ts`, `loading/view.ts`, `loading/hints.ts`, `build/room/hints.ts`) and one stylesheet (`loading/loading.css`); a hold in the motion store; four new compositor rules; twelve UI words; fifteen hints; one event kind; one panel; one disclosure trigger; no Author patch.
 
 ## Constitution Check
 
@@ -73,7 +73,7 @@ Gate result: **PASS**, with the inherited deviation, the intent's location, and 
 ```text
 specs/012-loading-screen/
 ├── intent.md                     # the Author's words, verbatim; accepted provisionally, pending T000
-├── spec.md                       # FR-001 to FR-055, SC-001 to SC-011, the Clarifications, L1 to L11, the hint copy
+├── spec.md                       # FR-001 to FR-055, SC-001 to SC-011, the Clarifications, L1 to L12, the hint copy
 ├── plan.md                       # this file, with the Revision section
 ├── contracts/
 │   ├── loading-progress.md       # the parts, the model, the stage's side, the sequence, the view, the rotation
@@ -87,38 +87,41 @@ specs/012-loading-screen/
 
 ```text
 apps/web/
-├── Dockerfile                                   [chg] the build stage copies the three config files the hints read, by fix/007-image-readiness's list (PD-21)
+├── Dockerfile                                   [chg] the install stage copies config/routing.yaml and config/prices.yaml, by fix/007's list (PD-21; T041)
 ├── room/hints.yaml                              [new] the hints (contracts/hints.md §1; the spec's copy)
 ├── room/ui-words.yaml                           [chg] the twelve words (FR-051)
 ├── room/README.md                               [chg] "The loader and its hints" (§10)
 ├── src/room/loading/progress.ts                 [new] the progress model (contract §2)
-├── src/room/loading/view.ts                     [new] the card, the bar, the stage line, the hint area (contract §5)
+├── src/room/loading/view.ts                     [new] the card, the bar, the stage line, the hint area, the fade (contract §5)
 ├── src/room/loading/hints.ts                    [new] the rotation (contract §6)
 ├── src/room/loading/loading.css                 [new] the card in each layout, the tints, the rings, the fallbacks
 ├── src/room/app.ts                              [chg] the sequence, the ceiling, give-way, the hold, the event (§4, §8)
-├── src/room/layout.ts                           [chg] setLoading: data-loading, "Around the room" inert (§5.1)
+├── src/room/layout.ts                           [chg] setLoading and insertLoader (§5.1; departure C4)
 ├── src/room/motion.ts                           [chg] hold() (PD-20)
 ├── src/room/quality.ts                          [chg] LOADING_CEILING_MS (§4.2)
-├── src/room/stage.ts                            [chg] Stage3D.expected; SceneOptions.gaveWay (§3.1)
-├── src/room/scene.ts                            [chg] expected; `closed`; modelGate and swapGate (§3)
-├── src/room/scene/loader.ts                     [chg] modelGate, swapGate (§3.2)
-├── src/room/scene/avatars.ts                    [chg] reads the stage's `closed` (§3.2)
-├── src/room/faces/fonts.ts                      [chg] settled() (§2.2)
+├── src/room/stage.ts                            [chg] Stage3D.expected, ExpectedFile, SceneOptions.gaveWay (§3.1)
+├── src/room/scene.ts                            [chg] expected; `closed`; one gate for figureGate, modelGate, and swapGate (§3)
+├── src/room/scene/loader.ts                     [chg] modelGate, swapGate, the ledger asked again after the wait (§3.2)
+├── src/room/scene/avatars.ts                    [chg] close() (§3.2)
+├── src/room/faces/fonts.ts                      [chg] settled() (§2.2; departure C1)
 ├── src/room/events.ts                           [chg] loading_cut_short (§8.1)
-├── src/room/ui-keys.ts                          [chg] the twelve keys and their slots (§6.4)
+├── src/room/ui-keys.ts                          [chg] the twelve keys and the slots done, total, and n (§6.4)
 ├── src/room/signals/frame-log.ts                [chg] the loading event (§8.4)
 ├── src/room/compose/bundle.ts                   [chg] RoomIndex.hints (contracts/hints.md §3)
+├── src/lookdev/stage.ts                         [chg] its eager typeface loader passes settled() through
 ├── build/room/schema.ts                         [chg] the hints file's schema (§7.1)
 ├── build/room/hints.ts                          [new] the slot filler, its path constants (§7.2)
 ├── build/room/checks/rt.ts, family.ts           [chg] RT2, RT3, RT9 over hints; RT14 to RT17 with their modes (§7.3)
 ├── build/room/load.ts, emit.ts                  [chg] read hints.yaml; the index's field (§7.4)
-├── test/room/{loading-progress,loading-hints,hints-compose,hints,loading-contrast}.test.ts   [new]
-├── test/room/{loader,scene,vocabulary,quality,faces,motion}.test.ts                         [chg]
+├── test/room/{loading-progress,loading-hints,loading-contrast,hints-compose,hints}.test.ts             [new]
+├── test/room/{loader,scene,avatar-scene,avatar-handoff,faces,quality,motion,vocabulary}.test.ts         [chg]
+├── test/room/{compose,schema,bundle,data-only,avatars-compose,image-inputs}.test.ts                    [chg] the hints' kind, rules, field, and reads
 ├── test/ui/{loading,loading-page,loading-notes,loading-a11y,loading-faults,loading-degraded}.test.ts  [new]
-├── test/ui/{degraded,a11y,handoff,handoff-wait}.test.ts                                     [chg]
-├── test/{events,manifest,disclosure}.test.ts                                                [chg]
-├── test/fixtures/room/good/apps/web/room/ui-words.yaml                                      [chg] the new words
-└── test/fixtures/room/hints/                                                                [new] fixture configs and hints files
+├── test/{events,manifest,disclosure}.test.ts                                                           [chg]
+├── test/helpers/room.ts                                                                                [chg] the fake stage's expected and onCreate; intoRoom through the loader
+├── test/fixtures/room/good/apps/web/room/ui-words.yaml                                                 [chg] the new words
+├── test/fixtures/room/hints/                                                                           [new] fixture configs and a hints file
+└── test/fixtures/room/bad/RT14/ to RT17/, README.md                                                    [new], [chg]
 
 config/room-events.yaml                          [gen] the kind (§8.1)
 services/gateway/test/unit/room-events-config.test.ts, test/integration/room-events.test.ts   [chg] the kind (§8.1)
@@ -128,10 +131,10 @@ docs/adr/0045-the-room-loads-behind-a-loader.md, docs/adr/README.md             
 specs/000-local-foundations/contracts/telemetry.md                                            [chg] §7.8, "(spec 012)"
 specs/002-the-room/contracts/{room-scene,room-events}.md, data-model.md                       [chg] "(spec 012)" (§11)
 specs/004-room-composition/contracts/{room-data-files,room-bundle}.md, research.md            [chg] "(spec 012)" (§11)
-docs/merge-requests/<date>-feat-012-loading-screen.md                                         [new] the note
+docs/merge-requests/2026-11-09-feat-012-loading-screen.md                                     [new] the note, with User Story 6's two held patches beside it
 ```
 
-`fix/007-image-readiness`'s test of the room's build reads, wherever that branch keeps it, gains this plan's three paths (T041). Its file is named in T001's record, since this session hasn't read that branch.
+`fix/007-image-readiness`'s test of the room's build reads, `apps/web/test/room/image-inputs.test.ts`, gains `ROUTING_FILE` and `PRICES_FILE` (T041); `BUDGETS_FILE` it already listed. Corrected to the built files after T036's review.
 
 **Structure decision**: the loader is three small modules under `src/room/loading/`, in the entry chunk because it shows before the 3D chunk may have arrived. The progress model and the rotation are pure, with no DOM and no clock of their own, so Node tests cover their rules; `app.ts` owns the clock, the ceiling, the motion hold, and giving way, and the view only draws. The 3D stage tells the room what it will load (`expected`) and learns when the loader gave way (`gaveWay`), and the room counts the asset events it already receives, so the loader adds two values to the stage's interface and no channel.
 
@@ -332,6 +335,7 @@ The loader's modules, its stylesheet, the twelve words, and the hints' text join
 | L8, L9 | `specs/004-room-composition/contracts/room-data-files.md` §1, §9, §13.5 | T003 |
 | L10 | spec 005's FR-019 is read from this spec; `layout.ts`'s header names the change | T015 |
 | L11 | spec 009's FR-019 (a) and FR-022 are read from this spec; `scene.ts`'s and `scene/avatars.ts`'s comments name the change | T009 |
+| L12 | spec 012's Hint Copy, hint 15; this spec's Amendments | T037 |
 
 ## 12. The Author's patches and actions
 
