@@ -460,3 +460,19 @@ describe("loading_cut_short (FR-046)", () => {
     expect(cutShort(v)).toEqual([]);
   });
 });
+
+// T037, the review's N4 (FR-004, FR-049): the fall to 2D records every set model not yet ended as skipped, which can
+// end the bar's last part; the loader gives way as `2d` first, so a drafts build's frame log says why it gave way.
+describe("the fall to 2D's reason (T037, N4)", () => {
+  it("gives way as 2d, not ready, when the fall's own skips would end the last part", async () => {
+    const list = roomIndex().models.map((asset) => ({ asset, bytes: 100 }));
+    expect(list.length).toBeGreaterThan(0);
+    const { v } = await entered({ list, drafts: true });
+    expect(loading(v)).toBe(true);
+    v.scene.stage?.canvas.dispatchEvent(new v.win.Event("webglcontextlost", { cancelable: true }));
+    v.clock.advance(CONTEXT_RESTORE_MS);
+    await flush();
+    expect(v.room.visit.mode).toBe("2d");
+    expect(loadingLog(v).filter((e) => e.state === "gave_way")).toEqual([expect.objectContaining({ why: "2d" })]);
+  });
+});
