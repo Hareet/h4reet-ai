@@ -7,7 +7,15 @@
 import { describe, expect, it } from "vitest";
 
 import { createContext } from "../../build/room/checks/family";
-import { faceCaps, faceScreens, geometryOf, lookTypefaces, pickSweep } from "../../build/room/checks/rg";
+import {
+  faceCaps,
+  faceScreens,
+  geometryOf,
+  lookTypefaces,
+  pickSweep,
+  protectSceneOfGeometry,
+  sideWallsOf,
+} from "../../build/room/checks/rg";
 import type { Geometry } from "../../build/room/checks/rg";
 import { sceneTextureMemory, sceneTextureTotal } from "../../build/room/checks/rk";
 import { compose } from "../../build/room/compose";
@@ -17,6 +25,9 @@ import type { RoomPolicy } from "../../build/room/policy";
 import { fileTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
 import { framing } from "../../src/room/compose/framing";
+import { memberRect, unionOf } from "../../src/room/compose/pick";
+import type { Rect } from "../../src/room/compose/pick";
+import { protectorFor } from "../../src/room/compose/protect";
 import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
@@ -169,5 +180,56 @@ describe("the side-wall selectables' list-only stages, no more than spec 004's (
       }
       expect(more.slice(0, 3)).toEqual([]);
       if (name === "the side-wall overlay") expect(before).toBeGreaterThan(0);
+    });
+});
+
+// T009 (spec 014; FR-060, FR-061, SC-002; contracts/frame-area.md §5): RG6 at the frame areas. RG6 reserves each
+// stage's `reserved` boxes: a stage whose reserved box covers a selectable's core refuses that selectable by name; and,
+// run at the frame areas and at spec 005's clear areas, each side-wall selectable is list-only at a screen's frame area
+// only where it was at that screen's clear area.
+describe("RG6 at the frame areas (spec 014, T009)", () => {
+  it("refuses a selectable whose core lies under a stage's reserved box, by name", () => {
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    const stage = { w: 1472, h: 1120.5 };
+    const clean = pickSweep(g, [{ ...stage, reserved: [] }]);
+    expect(clean.problems.filter((p) => p.mode === "3D")).toEqual([]);
+    // A box over the first selectable's core, at the clear area's framing.
+    const camera = framing(stage.w / stage.h, g.framed);
+    const first = g.scene.value.selectables[0];
+    const boxes = (first?.members ?? []).flatMap((m) => {
+      const b = g.boxes.get(m);
+      const r = b && memberRect(b, camera, stage);
+      return r ? [r.rect] : [];
+    });
+    const union = unionOf(boxes);
+    if (!union) throw new Error("no union");
+    const over: Rect = [union[0] + union[2] / 2 - 30, union[1] + union[3] / 2 - 30, 60, 60];
+    const sweep = pickSweep(g, [{ ...stage, reserved: [over] }]);
+    const found = sweep.problems.filter((p) => p.mode === "3D" && p.problem.problem === "reserved");
+    const sideWall = sideWallsOf(g)[0] ?? false;
+    if (sideWall) expect(sweep.sideWalls.find((s) => s.index === 0)?.stages).toHaveLength(1);
+    else expect(found.map((p) => p.problem.selectable)).toEqual(["0"]);
+  });
+
+  for (const [name, tree, policy] of [
+    ["the repository's room", repositoryTree, mainPolicy],
+    ["the side-wall overlay", sideWallTree, sideWallPolicy],
+  ] as const)
+    it(`lists a side-wall selectable of ${name} at a frame area only where spec 005 listed it at the clear area`, () => {
+      const g = geometryOf(contextOf(tree(), policy()));
+      if (!g) throw new Error("no geometry");
+      const protect = protectorFor(protectSceneOfGeometry(g));
+      const screens = sweepScreens().filter((_, i) => i % 7 === 0);
+      const framed = screens.map((s) => stageFor(s, protect));
+      const clear = screens.map((s) => stageFor(s));
+      const now = pickSweep(g, framed);
+      const then = pickSweep(g, clear);
+      const at = (sweep: ReturnType<typeof pickSweep>, stages: readonly Stage[]) =>
+        new Map(sweep.sideWalls.map((p) => [p.id, new Set(p.stages.map((s) => stages.indexOf(s)))]));
+      const [a, b] = [at(now, framed), at(then, clear)];
+      const more: string[] = [];
+      for (const [id, set] of a) for (const i of set) if (!b.get(id)?.has(i)) more.push(`${id} at ${JSON.stringify(screens[i])}`);
+      expect(more.slice(0, 3)).toEqual([]);
     });
 });

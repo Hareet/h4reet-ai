@@ -9,14 +9,18 @@ import {
   DEFAULT_METRICS,
   HUD_PLACEMENTS,
   OPENING,
+  alwaysOnCoverage,
   clearArea,
+  compactBoxes,
   fitsHud,
   hudBoxes,
   layoutFor,
+  logRestRem,
+  notesReserve,
   reservedBoxes,
 } from "../../src/room/compose/hud";
-import type { HudMetrics } from "../../src/room/compose/hud";
-import { walkControlBox } from "../../src/room/compose/stages";
+import type { Box, HudMetrics } from "../../src/room/compose/hud";
+import { sweepScreens, walkControlBox } from "../../src/room/compose/stages";
 
 const COLLAPSED = { list: "collapsed" } as const;
 /** The strip's one line and two: 0.8125rem at a line height of 1.5, with 0.25rem above and below. */
@@ -196,5 +200,158 @@ describe("a strip taller than the table (T046, finding 3)", () => {
       expect(b.clear.y + b.clear.h).toBe(plain.clear.y + plain.clear.h);
       expect(hudBoxes(screen, OPENING, { ...DEFAULT_METRICS, strip: 10 }).strip.h).toBe(plain.strip.h);
     }
+  });
+});
+
+// T005 (spec 014; FR-017, FR-019, FR-021; contracts/frame-area.md §1, §3; plan.md §3.1, PD-3 to PD-7): the HUD's
+// compact boxes beside spec 005's bands, which stay as they are. In the column layout the AI disclosure is a strip as
+// wide as the table's bound for its words, centred at the top; the bar's tiles one cluster at the foot's right (PD-6);
+// the column its content's height at its band's foot (D8), its log at its rest height (PD-7); and the walking control
+// in the clear area's bottom-right corner. In the dock layout the compact boxes are the bands. Every compact box lies
+// inside its band, and none covers the window's centre, so the follow camera's figure, centred in a frame area, is never
+// under one (plan.md §5). The always-on interface's coverage is its compact boxes' and the notes' reserve's union over
+// the window's area.
+describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", () => {
+  const inside = (inner: Box, outer: Box): boolean =>
+    inner.x >= outer.x - 1e-9 &&
+    inner.y >= outer.y - 1e-9 &&
+    inner.x + inner.w <= outer.x + outer.w + 1e-9 &&
+    inner.y + inner.h <= outer.y + outer.h + 1e-9;
+  const holds = (b: Box, x: number, y: number): boolean => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h;
+  const screens = sweepScreens().filter((s) => fitsHud(s));
+
+  it("gives the strip, the bar, the column or the dock, and the walking control, each inside its band", () => {
+    const failures: string[] = [];
+    for (const screen of screens)
+      for (const state of [OPENING, COLLAPSED]) {
+        const bands = hudBoxes(screen, state);
+        const c = compactBoxes(screen, state);
+        const where = `${screen.w} × ${screen.h}, ${state.list}`;
+        if (c.layout !== bands.layout) failures.push(`${where}: the layout`);
+        if (!inside(c.strip, bands.strip)) failures.push(`${where}: the strip`);
+        if (!inside(c.bar, bands.bar)) failures.push(`${where}: the bar`);
+        if (bands.column && !(c.column && inside(c.column, bands.column))) failures.push(`${where}: the column`);
+        if (bands.dock && !(c.dock && inside(c.dock, bands.dock))) failures.push(`${where}: the dock`);
+        if (!inside(c.walk, bands.clear)) failures.push(`${where}: the walking control`);
+        if (c.all.length !== 4) failures.push(`${where}: ${c.all.length} boxes`);
+      }
+    expect(failures.slice(0, 5), `${failures.length} failures; the first`).toEqual([]);
+  });
+
+  it("makes the dock layout's compact boxes its bands", () => {
+    for (const screen of [
+      { w: 320, h: 568 },
+      { w: 390, h: 844 },
+      { w: 800, h: 800 },
+    ]) {
+      const bands = hudBoxes(screen);
+      const c = compactBoxes(screen);
+      expect(c.layout).toBe("dock");
+      expect([c.strip, c.bar, c.dock]).toEqual([bands.strip, bands.bar, bands.dock]);
+      expect(c.column).toBeNull();
+    }
+  });
+
+  it("centres the strip at the top, as wide as the table's bound for its words, and never wider than the window", () => {
+    const t = HUD_PLACEMENTS.strip;
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 1280, h: 720 },
+      { w: 600, h: 400 },
+    ]) {
+      const c = compactBoxes(screen);
+      const bands = hudBoxes(screen);
+      expect(c.strip.w).toBe(Math.min(t.maxRem * 16, screen.w));
+      expect(c.strip.x + c.strip.w / 2).toBeCloseTo(screen.w / 2, 9);
+      expect(c.strip.y).toBe(0);
+      expect(c.strip.h).toBe(bands.strip.h);
+    }
+  });
+
+  it("puts the bar's cluster at the foot's right, as wide as the table's bound for its tiles, under the column", () => {
+    const t = HUD_PLACEMENTS.bar;
+    expect(t.align).toBe("right");
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 1280, h: 720 },
+      { w: 2560, h: 1440 },
+    ]) {
+      const c = compactBoxes(screen);
+      const bands = hudBoxes(screen);
+      expect(c.bar.w).toBe(Math.min(t.maxRem * 16, screen.w));
+      expect(c.bar.x + c.bar.w).toBe(screen.w);
+      expect([c.bar.y, c.bar.h]).toEqual([bands.bar.y, bands.bar.h]);
+      // The column stands on the bar: the two touch and don't overlap.
+      expect((c.column?.y ?? 0) + (c.column?.h ?? 0)).toBeCloseTo(c.bar.y, 9);
+    }
+    // The safe area's right inset keeps the cluster off the notch.
+    const safe: HudMetrics = { rem: 16, safe: { top: 0, right: 30, bottom: 0, left: 0 } };
+    const c = compactBoxes({ w: 1920, h: 1200 }, OPENING, safe);
+    expect(c.bar.x + c.bar.w).toBe(1920 - 30);
+  });
+
+  it("sizes the column to its content at its band's foot, its log at its rest height (D8, D12)", () => {
+    expect(HUD_PLACEMENTS.column.anchor).toBe("foot");
+    expect(logRestRem({ w: 1920, h: 1200 })).toBe(8);
+    expect(logRestRem({ w: 1920, h: 900 })).toBe(8);
+    expect(logRestRem({ w: 1920, h: 899 })).toBe(5);
+    expect(logRestRem({ w: 1280, h: 720 })).toBe(5);
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 1280, h: 720 },
+      { w: 3840, h: 2160 },
+    ]) {
+      const bands = hudBoxes(screen);
+      const c = compactBoxes(screen);
+      const band = bands.column as Box;
+      const column = c.column as Box;
+      expect([column.x, column.w]).toEqual([band.x, band.w]);
+      expect(column.y + column.h).toBeCloseTo(band.y + band.h, 9);
+      expect(column.h).toBeLessThan(band.h);
+      // The log's rest height is inside it: the column shrinks by 3rem when the log rests at 5rem, not 8rem.
+      const short = compactBoxes({ w: screen.w, h: 899 }).column as Box;
+      if (screen.h >= 900) expect(column.h - short.h).toBeCloseTo(3 * 16, 9);
+    }
+  });
+
+  it("leaves the window's centre outside every compact box at every screen of the sweep", () => {
+    const failures: string[] = [];
+    for (const screen of screens)
+      for (const state of [OPENING, COLLAPSED])
+        for (const b of compactBoxes(screen, state).all)
+          if (holds(b, screen.w / 2, screen.h / 2)) failures.push(`${screen.w} × ${screen.h}, ${state.list}`);
+    expect(failures.slice(0, 3)).toEqual([]);
+  });
+
+  it("measures the always-on interface's coverage as its boxes' and the notes' union over the window's area", () => {
+    const screen = { w: 1920, h: 1200 };
+    const c = compactBoxes(screen);
+    const clear = hudBoxes(screen).clear;
+    const notesW = Math.min(HUD_PLACEMENTS.notes.maxRem * 16 + 2 * HUD_PLACEMENTS.notes.insetRem * 16, clear.w);
+    // At 1920 × 1200 the boxes don't overlap: the bar lies under the column, the strip above it, the walking control and
+    // the notes inside the clear area.
+    const area = c.all.reduce((n, b) => n + b.w * b.h, 0) + notesW * notesReserve(clear);
+    expect(alwaysOnCoverage(screen)).toBeCloseTo(area / (1920 * 1200), 9);
+    expect(alwaysOnCoverage(screen)).toBeLessThan(0.25);
+    // Overlapping boxes count once: a window where the bar's cluster runs under the walking control's corner counts
+    // the shared part once, so the coverage is never above the boxes' summed areas.
+    for (const s of [
+      { w: 1280, h: 720 },
+      { w: 700, h: 400 },
+    ]) {
+      const k = compactBoxes(s);
+      const cl = hudBoxes(s).clear;
+      const nw = Math.min(HUD_PLACEMENTS.notes.maxRem * 16 + 2 * HUD_PLACEMENTS.notes.insetRem * 16, cl.w);
+      const sum = k.all.reduce((n, b) => n + b.w * b.h, 0) + nw * notesReserve(cl);
+      expect(alwaysOnCoverage(s)).toBeLessThanOrEqual(sum / (s.w * s.h) + 1e-12);
+      // At least the largest box's share.
+      const largest = Math.max(...k.all.map((b) => b.w * b.h));
+      expect(alwaysOnCoverage(s)).toBeGreaterThanOrEqual(largest / (s.w * s.h));
+    }
+  });
+
+  it("keeps hudBoxes and every band as spec 005 set them (PD-3)", () => {
+    expect(hudBoxes({ w: 1920, h: 1200 }).clear).toEqual({ x: 0, y: 27.5, w: 1472, h: 1120.5 });
+    expect(hudBoxes({ w: 1920, h: 1200 }).column).toEqual({ x: 1472, y: 27.5, w: 448, h: 1120.5 });
   });
 });

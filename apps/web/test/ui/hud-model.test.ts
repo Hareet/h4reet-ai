@@ -8,16 +8,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_METRICS,
+  HUD_PLACEMENTS,
   OPENING,
+  alwaysOnCoverage,
   barRows,
+  compactBoxes,
   fitsHud,
+  hudBoxes,
   layoutFor,
   listRows,
+  logRestRem,
   stripLines,
 } from "../../src/room/compose/hud";
 import { sweepScreens } from "../../src/room/compose/stages";
 import { roomIndex } from "../helpers/room";
-import { hudModel, hudWords, textWidth } from "./hud-model";
+import { compactModel, hudModel, hudWords, notesWords, textWidth } from "./hud-model";
 
 const WORDS = hudWords(roomIndex());
 const COLLAPSED = { list: "collapsed" } as const;
@@ -97,5 +102,61 @@ describe("the strip under text spacing (T046, finding 3)", () => {
       expect(lines, `${w} px`).toBe(2);
       expect(stripLines({ w })).toBe(1);
     }
+  });
+});
+
+// T006 (spec 014; FR-019, SC-003; D7, D12; plan.md §3.1, §3.3, PD-4, PD-5, PD-7): the compact entries of the table held
+// to the model with real text. The strip's words on one line, the bar's six tiles in one row, and the notes' widest
+// words fit the table's bounds; the column's content, its list's rows found at its width and its log at its rest height,
+// fits the column's compact box; and the always-on interface covers at most a quarter of every landscape window from
+// 1280 × 720 to 3840 × 2160 in the column layout, at the compositor's metrics.
+describe("the compact HUD against the model (spec 014, T006)", () => {
+  const hudBoxesOf = (s: { w: number; h: number }) => hudBoxes(s).column ?? { x: 0, y: 0, w: 0, h: 0 };
+  const index = roomIndex();
+  const NOTES = notesWords(index);
+  const landscape = sweepScreens().filter(
+    (s) => s.w > s.h && s.w >= 1280 && s.h >= 720 && s.w <= 3840 && s.h <= 2160 && layoutFor(s) === "column",
+  );
+
+  it("fits the strip's words on one line, the bar's six tiles in one row, and the notes' widest words in the bounds", () => {
+    const m = compactModel({ w: 1920, h: 1200 }, WORDS, NOTES, logRestRem({ w: 1920, h: 1200 }));
+    const t = HUD_PLACEMENTS;
+    expect(m.stripW).toBeLessThanOrEqual(t.strip.maxRem * 16);
+    expect(m.barW).toBeLessThanOrEqual(t.bar.maxRem * 16);
+    expect(m.notesW).toBeLessThanOrEqual(t.notes.maxRem * 16);
+    // Each bound is the model's figure rounded up to a whole rem, so a word added overflows it and fails here.
+    expect(t.strip.maxRem * 16 - m.stripW).toBeLessThan(16);
+    expect(t.bar.maxRem * 16 - m.barW).toBeLessThan(16);
+    expect(t.notes.maxRem * 16 - m.notesW).toBeLessThan(16);
+    expect(NOTES).toContain(index.ui["twin.stand_in"]);
+  });
+
+  it("holds the column's content, its list's rows and its log at rest, in the column's compact box", () => {
+    const failures: string[] = [];
+    for (const screen of sweepScreens().filter((s) => layoutFor(s) === "column")) {
+      const m = compactModel(screen, WORDS, NOTES, logRestRem(screen));
+      const column = compactBoxes(screen).column;
+      const band = hudModel(screen, WORDS).layout === "column" ? hudBoxesOf(screen) : null;
+      // Where the band can't hold the content, the column is the band, and its log scrolls inside (FR-018).
+      const room = band ? Math.min(m.columnH, band.h) : m.columnH;
+      if (!column) failures.push(`${screen.w} × ${screen.h}: no column`);
+      else if (room > column.h + 1e-9)
+        failures.push(`${screen.w} × ${screen.h}: the content's ${m.columnH} over the column's ${column.h}`);
+    }
+    expect(failures.slice(0, 3), `${failures.length} screens; the first`).toEqual([]);
+  });
+
+  it("covers at most a quarter of every landscape window from 1280 × 720 to 3840 × 2160 (SC-003)", () => {
+    expect(landscape.length).toBeGreaterThan(500);
+    const over: string[] = [];
+    let worst = { share: 0, at: "" };
+    for (const screen of landscape) {
+      const share = alwaysOnCoverage(screen);
+      if (share > worst.share) worst = { share, at: `${screen.w} × ${screen.h}` };
+      if (share > 0.25) over.push(`${screen.w} × ${screen.h}: ${share.toFixed(4)}`);
+    }
+    expect(over.slice(0, 3), `${over.length} windows over 25%; the worst ${worst.at}`).toEqual([]);
+    expect(alwaysOnCoverage({ w: 1280, h: 720 })).toBeLessThanOrEqual(0.25);
+    expect(alwaysOnCoverage({ w: 1920, h: 1200 })).toBeLessThan(0.15);
   });
 });

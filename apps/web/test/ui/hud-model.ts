@@ -173,3 +173,54 @@ export function hudModel(
   }
   return { layout, stripLines, barRows, listRows, talkRows, columnHolds, talkBottom, clear: boxes.clear };
 }
+
+/** What the model measures of the compact HUD at a screen (spec 014, T006; plan.md §3.1, PD-4, PD-5, PD-7): the strip's
+ *  words on one line, its padding and border included; the bar's six tiles in one row, its gaps and padding included;
+ *  the notes' widest words, a note's padding and border included; and the column's content height, from the list's rows
+ *  the model finds at the column's width, the log's rest height, and the rest of the column's rows. */
+export interface CompactModel {
+  readonly stripW: number;
+  readonly barW: number;
+  readonly notesW: number;
+  readonly listRows: number;
+  readonly columnH: number;
+}
+
+/** The notes' words: the placeholder note, and the twin's stand-in line, and any other the room may show there. */
+export function notesWords(index: Pick<RoomIndex, "ui">): string[] {
+  const words = [index.ui["standin.note"], index.ui["twin.stand_in"]];
+  const avatar = index.ui["standin.avatar"];
+  if (avatar !== undefined) words.push(avatar, `${index.ui["standin.note"] ?? ""} ${avatar}`);
+  return words.filter((w): w is string => w !== undefined);
+}
+
+export function compactModel(
+  screen: { readonly w: number; readonly h: number },
+  words: HudWords,
+  notes: readonly string[],
+  logRestRem: number,
+  metrics: HudMetrics = DEFAULT_METRICS,
+): CompactModel {
+  const t = HUD_PLACEMENTS;
+  const rem = metrics.rem;
+  const border = 2 * t.borderPx;
+  const stripW = textWidth(words.disclosure, t.strip.fontRem * rem) + 2 * t.strip.padXRem * rem + border;
+  const tile = (word: string): number =>
+    Math.max(t.bar.tileRem * rem, textWidth(word, t.bar.fontRem * rem) + 2 * t.bar.tilePadXRem * rem + border);
+  const tiles = words.bar.map(tile);
+  const barW = tiles.reduce((a, b) => a + b, 0) + (tiles.length - 1) * t.bar.gapRem * rem + 2 * t.bar.padRem * rem;
+  const notesW = Math.max(...notes.map((n) => textWidth(n, t.notes.fontRem * rem) + 2 * 0.5 * rem + border));
+  const boxes = hudBoxes(screen, OPENING, metrics);
+  const panelWidth = (boxes.column?.w ?? 0) - metrics.safe.right - 2 * t.column.padRem * rem;
+  const listButton = (name: string): number =>
+    Math.max(t.list.rowRem * rem, textWidth(name, t.list.fontRem * rem) + 2 * t.list.padXRem * rem + border);
+  const header =
+    textWidth(words.listHeading, t.list.fontRem * rem) +
+    (t.list.iconRem + t.list.iconGapRem + 2 * t.list.padXRem) * rem +
+    border;
+  const listRows = floatRows(header, words.names.map(listButton), panelWidth, t.list.gapRem * rem);
+  const row = (t.list.rowRem + t.list.gapRem) * rem;
+  const talkHeight = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem;
+  const columnH = 2 * t.column.padRem * rem + listRows * row + row + logRestRem * rem + t.talk.statusRem * rem + talkHeight;
+  return { stripW, barW, notesW, listRows, columnH };
+}

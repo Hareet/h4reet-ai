@@ -4,7 +4,10 @@
 // smallest. The first screen that fails is named, with both stages.
 import { describe, expect, it } from "vitest";
 
+import { clearArea } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, SMALLEST, stageFor } from "../../src/room/compose/stages";
+import { repositoryBundle } from "../helpers/room";
 import * as legacy from "./legacy-stages";
 
 describe("the floor: every stage at least spec 004's (FR-054)", () => {
@@ -33,6 +36,42 @@ describe("the floor: every stage at least spec 004's (FR-054)", () => {
       expect(now.screen).toEqual(then.screen);
       expect(now.stage.w, `${now.screen.w} × ${now.screen.h}'s width`).toBeGreaterThanOrEqual(then.stage.w);
       expect(now.stage.h, `${now.screen.w} × ${now.screen.h}'s height`).toBeGreaterThanOrEqual(then.stage.h);
+    }
+  });
+});
+
+// T009 (spec 014; FR-061; contracts/frame-area.md §5): the frame areas hold the floor. Given the composed scene's
+// protector, every screen's frame area holds its clear area, which holds its stage before spec 005, so the legacy floor
+// holds at every screen of spec 004's sweep, and at the reference and smallest screens.
+describe("the floor at the frame areas (spec 014, T009)", () => {
+  const { scene, index } = repositoryBundle();
+  const protect = protectorFor(protectSceneOf(scene, index));
+
+  it("holds every screen of spec 004's sweep to its old stage at its frame area, in width and in height", () => {
+    const failures: string[] = [];
+    for (const screen of legacy.sweepScreens()) {
+      const before = legacy.stageFor(screen);
+      const clear = clearArea(screen);
+      const after = stageFor(screen, protect);
+      if (after.w + 1e-9 < clear.w || after.h + 1e-9 < clear.h)
+        failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under its clear area`);
+      if (after.w + 1e-9 < before.w || after.h + 1e-9 < before.h)
+        failures.push(`${screen.w} × ${screen.h}: ${after.w} × ${after.h} under ${before.w} × ${before.h}`);
+    }
+    expect(failures.slice(0, 1), `${failures.length} screens under the floor; the first`).toEqual([]);
+  });
+
+  it("holds the reference and smallest screens' frame areas to their old stages", () => {
+    for (const [screen, then] of [
+      [REFERENCE_DESKTOP.screen, legacy.REFERENCE_DESKTOP.stage],
+      [REFERENCE_PHONE.screen, legacy.REFERENCE_PHONE.stage],
+      [SMALLEST[0]?.screen, legacy.SMALLEST[0]?.stage],
+      [SMALLEST[1]?.screen, legacy.SMALLEST[1]?.stage],
+    ] as const) {
+      if (!screen || !then) throw new Error("a stage is missing");
+      const now = stageFor(screen, protect);
+      expect(now.w).toBeGreaterThanOrEqual(then.w);
+      expect(now.h).toBeGreaterThanOrEqual(then.h);
     }
   });
 });
