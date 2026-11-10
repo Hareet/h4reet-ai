@@ -20,6 +20,13 @@
   border: 0;
 }
 
+/* What the hidden attribute hides takes no box, whatever display another rule gives it (spec 005; the review of
+   60b51de4, finding 1): the collapsed list, the walking control in 2D, the empty sheet's header buttons. */
+.room [hidden],
+.disclosure [hidden] {
+  display: none !important;
+}
+
 /* Every target is at least 44 by 44 CSS pixels (FR-046). */
 .room button,
 .room a,

@@ -66,6 +66,10 @@ export const DEFAULT_TALK_LIMITS: TalkLimits = { turnMaxChars: 600, historyMaxTu
 export interface TalkPanel {
   readonly element: HTMLElement;
   readonly textBox: HTMLInputElement;
+  /** Spec 005: whether the panel is docked at the window's foot, where its log is a sheet out of view until it holds a
+   *  line; its header buttons hide with that empty sheet, so no stop of the Tab order is out of view (the review of
+   *  60b51de4, finding 1). */
+  setDocked(on: boolean): void;
   /** A selectable whose action is talk was selected (FR-023; spec 004, FR-037, FR-038; spec 007, FR-032): an unready
    *  topic shows the fixed message naming it by its own phrase, from the bundle's index; a ready one opens its
    *  conversation, unless it is the active conversation's own. */
@@ -186,10 +190,31 @@ export function renderTalk(
     form,
   );
 
+  // Spec 005 (the review of 60b51de4, finding 1): the docked panel's empty sheet hides its header buttons with it; a
+  // collapsed log, visually hidden but still a live region, keeps its links and buttons out of the Tab order.
+  let docked = false;
+  let collapsed = false;
+  const showHead = (): void => {
+    head.hidden = docked && log.childElementCount === 0;
+  };
+  /** A collapsed log's controls out of the Tab order, and back once it opens: only those it took out. */
+  const tabbable = (): void => {
+    for (const el of log.querySelectorAll<HTMLElement>("a[href], button, input, [tabindex]")) {
+      if (collapsed && el.getAttribute("tabindex") !== "-1") {
+        el.setAttribute("tabindex", "-1");
+        el.setAttribute("data-collapsed-tab", "");
+      } else if (!collapsed && el.hasAttribute("data-collapsed-tab")) {
+        el.removeAttribute("tabindex");
+        el.removeAttribute("data-collapsed-tab");
+      }
+    }
+  };
   const append = (node: HTMLElement): void => {
     log.append(node);
     while (log.children.length > LOG_LIMIT) log.firstElementChild?.remove();
     element.setAttribute("data-log", "lines");
+    showHead();
+    tabbable();
     // The newest line stays in view (spec 007, FR-042; spec 005, FR-028).
     log.scrollTop = log.scrollHeight;
   };
@@ -335,11 +360,11 @@ export function renderTalk(
     }
   });
 
-  let collapsed = false;
   logToggle.addEventListener("click", () => {
     collapsed = !collapsed;
     if (collapsed && log.contains(doc.activeElement)) logToggle.focus();
     log.classList.toggle("visually-hidden", collapsed);
+    tabbable();
     logToggle.setAttribute("aria-expanded", String(!collapsed));
     options.onPanel?.("log", collapsed ? "collapsed" : "open");
   });
@@ -407,6 +432,10 @@ export function renderTalk(
   return {
     element,
     textBox,
+    setDocked(on) {
+      docked = on;
+      showHead();
+    },
     topicSelected(id, topic) {
       if (!topic.ready) {
         show("topic_not_ready", { topic: topic.phrase });

@@ -217,6 +217,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       keyboard: m.keyboard,
     });
     layout.setBlur(blurAt(visit.quality));
+    // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
+    talk?.setDocked(fits && boxes.layout === "dock");
     if (what === "keyboard") return;
     clear = fits ? { area: boxes.clear, window: screen } : null;
     if (controller) {
