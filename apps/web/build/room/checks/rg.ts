@@ -429,7 +429,12 @@ function bounds(ctx: Context): void {
         rg2(ctx.path("live_faces", k, "px"), `${off.toFixed(1)} px off the face's aspect, more than one pixel`);
     });
     c.glows.forEach((glow, k) => {
-      if (!holds(b, glow.at)) rg2(ctx.path("glows", k), "outside origin.bounds");
+      if (glow.at !== undefined && !holds(b, glow.at)) rg2(ctx.path("glows", k), "outside origin.bounds");
+      // Spec 014 (its FR-045; T001's RG10): each point of a path glow inside the piece's bounds.
+      glow.path?.forEach((point, i) => {
+        if (!holds(b, point))
+          ctx.report("RG10", file, `${ctx.path("glows", k)}.path[${i}]`, "a path glow's point outside origin.bounds");
+      });
     });
     c.standin.forEach((s, k) => {
       const e = shapeBox(s);
@@ -1018,8 +1023,14 @@ function separation(g: Geometry, a: Parts, b: Parts, view: Projector, stage: Sta
     const glow = on?.entry.glows.find((x) => x.id === name);
     if (!on || !glow) continue;
     const change = Math.abs((a.glows.get(key) ?? glow.level) - (b.glows.get(key) ?? glow.level));
-    const centre = transformPoint(on.model, glow.at);
-    const r = glow.radius * on.entry.stylized_scale;
+    // A path glow's cue is its path's span (spec 014): its points' bounds, the widest across, at the stylized scale.
+    const path = glow.path ?? [];
+    const span =
+      path.length > 0
+        ? Math.max(...path.map((p) => p[0])) - Math.min(...path.map((p) => p[0])) + 2 * (glow.spread ?? 0)
+        : 0;
+    const centre = transformPoint(on.model, glow.at ?? path[0] ?? [0, 0, 0]);
+    const r = ((glow.radius ?? span / 2) as number) * on.entry.stylized_scale;
     most = Math.max(most, change * apart([centre[0] - r, centre[1], centre[2]], [centre[0] + r, centre[1], centre[2]]));
   }
   return most;

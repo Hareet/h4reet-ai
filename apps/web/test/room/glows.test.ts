@@ -90,13 +90,15 @@ describe("the path glow's ribbon (scene/glows.ts; PD-14)", () => {
     for (let i = 0; i < position.count; i += 1) {
       const p = new Vector3(position.getX(i), position.getY(i), position.getZ(i));
       const d = polylineDistance(p.clone().setZ(TUBE[0]?.[2] ?? 0), TUBE);
-      expect(d, `vertex ${i}`).toBeLessThanOrEqual(SPREAD + 0.001 + 1e-9);
+      expect(d, `vertex ${i}`).toBeLessThanOrEqual(SPREAD + 0.001 + 1e-6);
       // Never past twice the spread at a joint, the mitre's cap (R-8).
       expect(d).toBeLessThanOrEqual(2 * SPREAD);
-      expect(Math.abs(p.z - ((TUBE[0]?.[2] ?? 0) + 0.001))).toBeLessThan(1e-9);
+      expect(Math.abs(p.z - ((TUBE[0]?.[2] ?? 0) + 0.001))).toBeLessThan(1e-6);
       const alpha = color.getW(i);
-      if (d < 1e-9) {
-        expect(alpha).toBe(1);
+      // Alpha 1 only on the path, within float32's rounding of the positions; 0 at the spread's edges, which at a
+      // square corner can lie on the next segment, so an edge vertex's distance alone doesn't tell them apart.
+      if (alpha === 1) {
+        expect(d, `vertex ${i}, alpha 1`).toBeLessThan(1e-6);
         onPath += 1;
       } else {
         expect(alpha).toBe(0);

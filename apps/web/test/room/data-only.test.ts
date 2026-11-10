@@ -1020,14 +1020,19 @@ describe("the neon sign's path glow (spec 014, T037)", () => {
   it("gives the sign's tube-glow a path and a spread, no radius, and less area than the disc", () => {
     const { scene: part } = repositoryBundle();
     const sign = part.pieces["neon-sign"];
-    const glow = sign?.glows["tube-glow"] as { path?: [number, number, number][]; spread?: number; radius?: number };
+    const glow = (sign?.glows["tube-glow"] ?? {}) as {
+      path?: [number, number, number][];
+      spread?: number;
+      radius?: number;
+    };
     expect(glow.radius).toBeUndefined();
     expect(glow.path?.length).toBeGreaterThanOrEqual(2);
     expect(glow.spread).toBeGreaterThan(0);
     const s = sign?.scale ?? 1;
     let length = 0;
     for (let i = 0; i + 1 < (glow.path?.length ?? 0); i += 1) {
-      const [a, b] = [glow.path?.[i] ?? [0, 0, 0], glow.path?.[i + 1] ?? [0, 0, 0]];
+      const a: [number, number, number] = glow.path?.[i] ?? [0, 0, 0];
+      const b: [number, number, number] = glow.path?.[i + 1] ?? [0, 0, 0];
       length += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     }
     const ribbon = length * 2 * (glow.spread ?? 0) * s * s;

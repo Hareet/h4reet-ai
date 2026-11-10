@@ -208,7 +208,12 @@ export interface RoomScene {
       anchors: Record<string, { at: Vec3; turn: Turn }>;
       standin: Shape[];
       faces: Record<string, { at: Vec3; size: [number, number]; facing: Vec3; up: Vec3 }>;
-      glows: Record<string, { at: Vec3; radius: number; tone: string; motion: GlowMotion; level: number }>;
+      /** A disc glow's `at` and `radius`, or since spec 014 a path glow's `path` and `spread` (its FR-045), in the
+       *  piece's frame at scale 1. */
+      glows: Record<
+        string,
+        { at?: Vec3; radius?: number; path?: Vec3[]; spread?: number; tone: string; motion: GlowMotion; level: number }
+      >;
     }
   >;
   placements: {

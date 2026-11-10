@@ -126,15 +126,37 @@ const liveFace = z
       ctx.addIssue({ code: "custom", message: "RD3: up is required where facing is ±Y", path: ["up"] });
   });
 
-/** `glows[]`: `radius` "metres above 0"; `motion` flicker, breathe, or steady; `level` "0 to 1, default 1". */
-const glow = z.strictObject({
-  id: name("a glow's name"),
-  at: vec3,
-  radius: positive,
-  tone: z.string(),
-  motion: z.enum(GLOW_MOTIONS),
-  level: z.number().min(0).max(1).default(1),
-});
+/** Spec 014 (FR-045; T001's RD6): a path glow's spread, its half-width in metres at scale 1, above 0 and at most 0.05. */
+const SPREAD_MAX = 0.05;
+
+/** `glows[]`: `radius` "metres above 0"; `motion` flicker, breathe, or steady; `level` "0 to 1, default 1". Since spec
+ *  014 (its FR-045; Amendment W9) a glow gives exactly one of a `radius`, with its `at`, and a `path` of at least two
+ *  points with a `spread` in (0, 0.05]; RD6 refuses anything else, and RG10 a path point outside the piece's bounds. */
+const glow = z
+  .strictObject({
+    id: name("a glow's name"),
+    at: vec3.optional(),
+    radius: positive.optional(),
+    path: z.array(vec3).optional(),
+    spread: z.number().optional(),
+    tone: z.string(),
+    motion: z.enum(GLOW_MOTIONS),
+    level: z.number().min(0).max(1).default(1),
+  })
+  .superRefine((g, ctx) => {
+    const fail = (message: string): void => ctx.addIssue({ code: "custom", message: `RD6: ${message}` });
+    if (g.radius !== undefined && g.path !== undefined) return fail("both a radius and a path");
+    if (g.radius === undefined && g.path === undefined) return fail("neither a radius nor a path");
+    if (g.radius !== undefined) {
+      if (g.spread !== undefined) return fail("a spread without a path");
+      if (g.at === undefined)
+        ctx.addIssue({ code: "custom", message: "RD3: a disc glow's at is required", path: ["at"] });
+      return;
+    }
+    if ((g.path?.length ?? 0) < 2) return fail("a path of fewer than two points");
+    if (g.spread === undefined) return fail("a path without a spread");
+    if (!(g.spread > 0) || g.spread > SPREAD_MAX) return fail("a spread not above 0 and at most 0.05");
+  });
 
 /** `claims`: `{signal: tier, poses}`, each pose to the tier value it claims, or null. */
 const claims = z.strictObject({

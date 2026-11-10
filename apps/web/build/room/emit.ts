@@ -1176,9 +1176,11 @@ function pieceOf(c: Composed, entry: CatalogEntry): RoomScene["pieces"][string] 
       facing: vec(f.facing),
       up: vec(f.up ?? UP),
     })),
+    // A disc glow's centre and radius, or since spec 014 a path glow's points and spread (its FR-045).
     glows: sortedMap(glows, (g) => ({
-      at: vec(g.at),
-      radius: m6(g.radius),
+      ...(g.path === undefined
+        ? { at: vec(g.at ?? [0, 0, 0]), radius: m6(g.radius ?? 0) }
+        : { path: g.path.map(vec), spread: m6(g.spread ?? 0) }),
       tone: g.tone,
       motion: g.motion,
       level: m6(g.level),

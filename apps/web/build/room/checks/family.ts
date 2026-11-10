@@ -72,6 +72,7 @@ export const RULES = {
   RG7: rule("RG"), // a face under the legibility floor
   RG8: rule("RG", { refuses: false }), // poses apart by less than the floor: reported, never refused
   RG9: rule("RG"), // a region outside its face, or two that overlap
+  RG10: rule("RG"), // spec 014: a path glow's point outside its piece's bounds
   RS1: rule("RS", readPart), // a switch's signal (the loader's), and its cases
   RS2: rule("RS"), // poses against claims; a placed switch piece; two poses claiming one value
   RS3: rule("RS"), // a case showing a pose that claims another value
