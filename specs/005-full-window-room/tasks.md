@@ -378,7 +378,7 @@ description: "Task list for spec 005, the room fills the browser window"
   - the Author's steps as short, wrap-proof lines.
 
   Check: the note exists on the branch (feat/005-full-window-room)
-- [ ] T045 Review by an agent that wrote none of the work: `REVIEW.md`'s passes (bugs, security, compliance with spec.md, plan.md, and the constitution, and cost and telemetry), with the findings in the note. Check: the findings are recorded; the reviewer is named (feat/005-full-window-room)
+- [x] T045 Review by an agent that wrote none of the work: `REVIEW.md`'s passes (bugs, security, compliance with spec.md, plan.md, and the constitution, and cost and telemetry), with the findings in the note. Check: the findings are recorded; the reviewer is named (feat/005-full-window-room). Record: "the main session's reviewer subagent (role reviewer, which wrote none of the code), reviewing 60b51de4 on 2026-11-09: not ready, four findings and five nits, all fixed in T046"
 - [x] T046 Fix the review's findings, each in its own commit with a test where it changes behaviour, and finish the note. Check: T042's commands pass again, their outputs replaced in the note (feat/005-full-window-room)
 - [ ] T047 Author: from main's checkout, run `tools/gates/gate feat/005-full-window-room`, and merge with the command it prints. Check: `refs/heads/main` holds the branch's tip (main)
 - [ ] T048 Author: bring the room up as he does, and look at the live room in his browser (SC-013; Q2's answer):
