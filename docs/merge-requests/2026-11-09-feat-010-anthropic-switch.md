@@ -63,7 +63,7 @@ Authorized by:
   holds your F3 words, the route, the two tests, and an updated note
   on the disclosure."
 
-## Status: built and checked; not reviewed, not merged
+## Status: reviewed once (not ready: two items for you, no code change); nits taken; not merged
 
 | Commit | What |
 |---|---|
@@ -72,7 +72,8 @@ Authorized by:
 | 80680a52 | config: the switch. Prod's fallback, F3's placeholder replaced by your words, and the paragraph below F3 |
 | 5f9eb812 | this note, first written |
 | fcf71182 | this note, after the rebase onto ada55c98 (a save point: one line of it still read `PYTEST_TOTALS`) |
-| this commit | this note, with pytest's totals, `make check`, gitleaks, and the rehearsal on the branch as it now stands |
+| 31d7c5ee | this note, with pytest's totals, `make check`, gitleaks, and the rehearsal; the commit the review read |
+| this commit | the review's nits: the paragraph below F3 made conditional, and this note's Review, Backlog, step 1, and T062 |
 
 ## What changed and why
 
@@ -99,12 +100,15 @@ Authorized by:
   `config/routing.yaml` names the Anthropic API as prod's fallback, so
   no visitor's turn can reach Anthropic before his words are in (spec
   010, FR-039)." It now reads: "F3's words about what Anthropic keeps
-  are the Author's, read on 2026-11-09, in place of the marked
-  placeholder spec 010's entry holds, and `config/routing.yaml` names
-  the Anthropic API as prod's fallback (spec 010, T059).
-  `evals/test_disclosure.py` fails `make test` whenever the route
-  names it while F3 holds that placeholder, so no visitor's turn can
-  reach Anthropic without his words (spec 010, FR-039)."
+  are the Author's, of 2026-11-09, in place of the marked placeholder
+  spec 010's entry holds. F3's flow happens only while
+  `config/routing.yaml` names the Anthropic API as prod's fallback
+  (spec 010, FR-002), and `evals/test_disclosure.py` fails `make test`
+  whenever the route names it while F3 holds that placeholder, so no
+  visitor's turn can reach Anthropic without his words (spec 010,
+  FR-039)." That paragraph is my text, not yours. As the review's nit
+  2 asked, it states the route conditionally, as main's did, and it no
+  longer says "read on 2026-11-09" (the review's I-2, below).
 
 Your words, as F3 now holds them:
 
@@ -185,8 +189,40 @@ API's own temperature (`test/unit/paid-temperature.test.ts`,
 
 ## Review
 
-Not reviewed: the agent that implements never reviews. A reviewer who
-wrote none of it reads it next.
+One review, of 31d7c5ee, by a reviewer who wrote none of it, as the
+main session relayed it. Its verdict: not ready, but no code change is
+needed. Its two blockers need your own words, and the main session is
+taking them to you. Both stay open here, and F3's words are untouched:
+
+- **I-1**: FR-039's weighing against intent 000's "Nothing is retained
+  beyond the session without explicit consent".
+- **I-2**: F3's "Read on 2026-11-09 on Anthropic's pages", while the
+  record (this note's "Where the words came from") says the session
+  drafted them from search summaries.
+
+| Nit | What was done |
+|---|---|
+| 1. Step 1 must start with `git --no-replace-objects switch main`: the gate exits 2 unless HEAD is `refs/heads/main` (`tools/gates/gate` line 14, and lines 468 to 472) | Step 1 now starts with it |
+| 2. The paragraph below F3 stated the route as fact | Rewritten conditionally, as main's was: "F3's flow happens only while `config/routing.yaml` names the Anthropic API as prod's fallback". It also says "of 2026-11-09" where it said "read on 2026-11-09", which was my echo of I-2's words. `evals/test_disclosure.py`: 28 passed |
+| 3. `twin-paid-temperature.test.ts:62`'s `hasIn` checks only that the key exists, and ties the test to the committed route | In the Backlog. One correction: the line is this branch's (7c68a753), not main's |
+| 4. `docs/how-we-build/lifecycle.md:54` is stale | Not edited here: `docs/001-ec2-default` rewrites that same line, so an edit would conflict. In the Backlog |
+| 5. T062 should take the mark helper from git, not `/tmp` | Step 6 now takes it from `wip/session-helpers-2026-11-08` at 1beed2c3, with its sha256 to check |
+| 6. Record the review | This section |
+
+## Backlog
+
+- `services/gateway/test/integration/twin-paid-temperature.test.ts`
+  line 62, `expect(routing.hasIn(["envs", "prod", "fallback"]), …)`,
+  came with this branch's 7c68a753. It checks only that the key
+  exists, and it ties a test about Bedrock's settings to the committed
+  route. If prod's route took its fallback out, which F3's "How to
+  switch it off" offers, the test would fail though Bedrock's settings
+  are fine. Dropping the assertion is a test edit, for you to allow.
+- `docs/how-we-build/lifecycle.md` line 54 still says "local models on
+  the RTX 5090 first, Bedrock as capped fallback". Not edited here,
+  because `docs/001-ec2-default` rewrites that same line; it should
+  say "the paid fallback prod's route names" there, or after both
+  merge.
 
 ## Verification
 
@@ -518,8 +554,11 @@ or `.claude/settings.json` (`tools/gates/gate` line 88 and
 `STAGE_E_PATHS`, line 199). The behavioral tier runs only when it
 touches `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin
 (line 90, and the filter at 1661). This branch touches none of them.
+The gate exits 2 unless your checkout is on `main` (line 14, and lines
+468 to 472), so the block starts there:
 
 ```bash
+git --no-replace-objects switch main
 b=feat/010-anthropic-switch
 log=~/gate-switch.log
 tools/gates/gate "$b" 2>&1 | tee "$log"
@@ -613,14 +652,34 @@ output, read every "REPAIRED, read it:" and "REDACTED by …, read it:"
 answer, as on Bedrock. Record the measured cost per turn beside the
 spec's estimate.
 
-**6. T062, the marks**, on main:
+**6. T062, the marks**, on main. The mark helper comes from git, not
+`/tmp`: it is committed on `wip/session-helpers-2026-11-08` at
+1beed2c3, as `wip/2026-11-08/twin-mark.py`. Take it into your home
+folder and check its hash first:
 
 ```bash
 git --no-replace-objects switch main
-h=/tmp/claude-1000/twin-mark.py
-python3 -I -B $h hobbies-and-travel
-python3 -I -B $h mission
-python3 -I -B $h work-projects
+c=1beed2c3
+p=wip/2026-11-08/twin-mark.py
+t=$HOME/twin-mark.py
+git --no-replace-objects show "$c:$p" > "$t"
+sha256sum "$t"
+```
+
+The hash should be:
+
+```text
+03a30b73ae39a659a58364b90d530af6c6954f88b65071b2ee54941545d80509
+```
+
+That is the sha256 of `git show 1beed2c3:wip/2026-11-08/twin-mark.py`,
+computed here. If it differs, stop and tell the session. Then, one
+topic at a time:
+
+```bash
+python3 -I -B "$t" hobbies-and-travel
+python3 -I -B "$t" mission
+python3 -I -B "$t" work-projects
 ```
 
 - The helper takes the newest `-local.json` run and the newest run on
@@ -633,8 +692,10 @@ python3 -I -B $h work-projects
 - After each topic, run the commit lines it prints: they add
   `config/twin-readiness.yaml` and the histories.
 - It refuses to run unless your checkout is on `main`.
-- It lives in `/tmp`, which WSL wipes at boot: if it's gone, ask the
-  session.
+- For hobbies-and-travel it also prints "Before you commit: your
+  location decision on its Golden Q&A 1 (the conversation's note, item
+  3)." That reminder is the helper's own, written for the Bedrock
+  marks. This branch adds nothing to it.
 
 **7. T063, the wrong key, once**, as the provider note's block 9 gives
 it ([2026-11-08-feat-010-anthropic-provider.md](2026-11-08-feat-010-anthropic-provider.md)):
