@@ -74,7 +74,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Tests for Foundational (first)
 
-- [ ] T004 [P] Write `apps/web/test/room/loading-progress.test.ts` (FR-010 to FR-014; SC-001; contract §1, §2):
+- [x] T004 [P] Write `apps/web/test/room/loading-progress.test.ts` (FR-010 to FR-014; SC-001; contract §1, §2):
   - the shares sum to 100; `code` 10, `text` 2, `typefaces` 3, `files` 85;
   - a file counts its served bytes as a share of the expected total on `loaded`, `failed`, or `skipped`, once, and nothing on `retried` or for an asset not expected;
   - **ends before `expected` count once it arrives**: `skipped` for every file, heard before `expected`, counts in full the moment `expected` is called, and the files' part has then ended; a mix of ends before and after counts each once;
@@ -84,7 +84,7 @@ description: "Task list for spec 012, the room's loading screen"
   - no method throws on an unknown part, asset, or outcome.
 
   Check: RED before T008 (feat/012-loading-screen)
-- [ ] T005 [P] Extend `apps/web/test/room/loader.test.ts` and `test/room/scene.test.ts` (FR-015, FR-021; SC-003; contract §3):
+- [x] T005 [P] Extend `apps/web/test/room/loader.test.ts` and `test/room/scene.test.ts` (FR-015, FR-021; SC-003; contract §3):
   - with `modelGate` open (the loader showing), a set model parses and swaps as soon as its file arrives;
   - once `gaveWay` resolves, before the hand-off's first frame, the gate is closed: a file arriving then parses only after the hand-off ends;
   - a parse begun before `gaveWay` finishes, and its swap waits at `swapGate` for the hand-off's end;
@@ -95,7 +95,7 @@ description: "Task list for spec 012, the room's loading screen"
   - `Stage3D.expected` resolves with each model and figure entry as `{ asset, bytes }`; with `[]` where nothing loads; with the list below the floor, each then `skipped`; and with `[]` when the loader chunk fails to import; it never rejects.
 
   Check: RED before T009 (feat/012-loading-screen)
-- [ ] T006 [P] Write `apps/web/test/ui/loading-degraded.test.ts` (FR-001 to FR-009, FR-011, FR-017 to FR-023, FR-049; SC-002), through `startRoom` with the 3D stage stubbed and a stub clock:
+- [x] T006 [P] Write `apps/web/test/ui/loading-degraded.test.ts` (FR-001 to FR-009, FR-011, FR-017 to FR-023, FR-049; SC-002), through `startRoom` with the 3D stage stubbed and a stub clock:
   - no WebGL 2: no loader, and the 2D hand-off starts as today;
   - the 3D chunk late at `SCENE_WAIT_MS`, or failing: the loader says `loading.ready` once, gives way at once (`2d`), and the 2D hand-off plays;
   - the frame floor, and a lost context that doesn't restore, while it shows: it says `loading.ready` and gives way (`2d`);
@@ -112,14 +112,14 @@ description: "Task list for spec 012, the room's loading screen"
   - in a drafts build, the frame log records `loading` with `shown`, `ended`, and `gave_way` and its `why`; in a release build, nothing.
 
   Check: RED before T011 (feat/012-loading-screen)
-- [ ] T007 [P] Extend `apps/web/test/room/faces.test.ts`, `test/room/quality.test.ts`, and `test/room/motion.test.ts` (FR-010, FR-020, FR-024): `TypefaceLoader.settled()` resolves once every typeface has arrived or failed, or at `TYPEFACE_WAIT_MS`, and with no `document.fonts` at `TYPEFACE_WAIT_MS`; `LOADING_CEILING_MS` is at most 7,000 and at least `SCENE_WAIT_MS` plus 1,500; `motion.hold()` makes `animate` false, leaves `paused` and `pausedAt` as they were, counts two holds, and its release is idempotent. Check: RED before T010 (feat/012-loading-screen)
+- [x] T007 [P] Extend `apps/web/test/room/faces.test.ts`, `test/room/quality.test.ts`, and `test/room/motion.test.ts` (FR-010, FR-020, FR-024): `TypefaceLoader.settled()` resolves once every typeface has arrived or failed, or at `TYPEFACE_WAIT_MS`, and with no `document.fonts` at `TYPEFACE_WAIT_MS`; `LOADING_CEILING_MS` is at most 7,000 and at least `SCENE_WAIT_MS` plus 1,500; `motion.hold()` makes `animate` false, leaves `paused` and `pausedAt` as they were, counts two holds, and its release is idempotent. Check: RED before T010 (feat/012-loading-screen)
 
 ### Implementation for Foundational
 
-- [ ] T008 [P] Write `apps/web/src/room/loading/progress.ts` by contract §2 and plan §2, keeping ends heard before `expected` (PD-22). Check: T004 passes (feat/012-loading-screen)
-- [ ] T009 [P] Change `apps/web/src/room/scene/loader.ts` (`modelGate`, `swapGate` raced with `stop()`, its header's step 4, L6), `scene.ts` (`expected`; `closed` from `gaveWay` or the first `showHandoff`; both gates from it; comments naming spec 009's FR-019 (a) and FR-022 as L11 amends them), `scene/avatars.ts` (its hand-off test reads `closed`), and `stage.ts` (`Stage3D.expected`, `ExpectedFile`, `SceneOptions.gaveWay`), by plan §3. Check: T005 passes; the existing loader, scene, avatars, and lookdev tests pass, or change only for the gates, which the note lists (feat/012-loading-screen)
-- [ ] T010 [P] Add `settled()` to `apps/web/src/room/faces/fonts.ts` (PD-15), `LOADING_CEILING_MS` to `quality.ts` (PD-7), and `hold()` to `motion.ts` (PD-20). Check: T007 passes (feat/012-loading-screen)
-- [ ] T011 Build the room's sequence by contract §4 and plan §4:
+- [x] T008 [P] Write `apps/web/src/room/loading/progress.ts` by contract §2 and plan §2, keeping ends heard before `expected` (PD-22). Check: T004 passes (feat/012-loading-screen)
+- [x] T009 [P] Change `apps/web/src/room/scene/loader.ts` (`modelGate`, `swapGate` raced with `stop()`, its header's step 4, L6), `scene.ts` (`expected`; `closed` from `gaveWay` or the first `showHandoff`; both gates from it; comments naming spec 009's FR-019 (a) and FR-022 as L11 amends them), `scene/avatars.ts` (its hand-off test reads `closed`), and `stage.ts` (`Stage3D.expected`, `ExpectedFile`, `SceneOptions.gaveWay`), by plan §3. Check: T005 passes; the existing loader, scene, avatars, and lookdev tests pass, or change only for the gates, which the note lists (feat/012-loading-screen)
+- [x] T010 [P] Add `settled()` to `apps/web/src/room/faces/fonts.ts` (PD-15), `LOADING_CEILING_MS` to `quality.ts` (PD-7), and `hold()` to `motion.ts` (PD-20). Check: T007 passes (feat/012-loading-screen)
+- [x] T011 Build the room's sequence by contract §4 and plan §4:
   - `app.ts`: the model, the timer, the motion hold, `gaveWay` handed to the 3D stage, `recordAsset` feeding the model from "Enter", the parts' ends (the text's at once with no `roomData`), `giveWay(why)` once from any road, the hand-off on the loader and the figures' wait together, `toFlat` giving way first, and the frame log's `loading` entries (`signals/frame-log.ts` gains the event);
   - `layout.ts`: `setLoading(on)`, which sets `data-loading` on the page's root and toggles `inert` on "Around the room" (PD-18);
   - `loading/view.ts` as a skeleton: the section, its heading, and the progress bar with its ARIA values, no look and no hints yet.

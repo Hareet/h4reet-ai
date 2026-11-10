@@ -9,6 +9,8 @@
 // sway), still applying state changes at once, and the frame loop keeps drawing still frames. Paused or hidden also
 // stop the status polling, and the tier reads paused (signals/live.ts); reduced motion stops motion alone, not polling
 // (FR-044, FR-059). Only the pause shows "Paused at" (FR-060). Nothing here stores anything or asks the network.
+// Spec 012 (its FR-024; D13; plan.md PD-20) adds hold(), the loader's: counted, as the quality controller's holds are;
+// while any is taken the room doesn't animate, and nothing else changes: no pause, no "Paused at", no polling.
 import { uiWord } from "./ui-keys";
 
 /** The media query whose change the store follows. */
@@ -30,6 +32,9 @@ export interface MotionState {
 export interface MotionStore extends MotionState {
   /** "Pause the room" pressed, or pressed again. */
   setPaused(on: boolean): void;
+  /** Spec 012: holds the room's motion still while the loader shows, with nothing paused; returns its release, which
+   *  counts once however often it's called. */
+  hold(): () => void;
   /** Called with the store's state, synchronously, whenever a flag changes; returns what unsubscribes. */
   subscribe(listener: (state: MotionState) => void): () => void;
   /** Stops listening to the page. */
@@ -60,12 +65,15 @@ export function createMotionStore(options: { readonly win: Window; readonly wall
   let pausedAt: string | null = null;
   let reducedMotion = query?.matches === true;
   let hidden = doc.visibilityState === "hidden";
+  /** The loader's holds taken and not yet let go (spec 012). */
+  let holds = 0;
+  const animating = (): boolean => !paused && !reducedMotion && !hidden && holds === 0;
 
   const state = (): MotionState => ({
     paused,
     reducedMotion,
     hidden,
-    animate: !paused && !reducedMotion && !hidden,
+    animate: animating(),
     pausedAt,
   });
   const notify = (): void => {
@@ -114,7 +122,7 @@ export function createMotionStore(options: { readonly win: Window; readonly wall
     },
     // Read on every frame, so it builds no state object.
     get animate() {
-      return !paused && !reducedMotion && !hidden;
+      return animating();
     },
     get pausedAt() {
       return pausedAt;
@@ -124,6 +132,19 @@ export function createMotionStore(options: { readonly win: Window; readonly wall
       paused = on;
       pausedAt = on ? clockTime(wall()) : null;
       notify();
+    },
+    hold() {
+      const before = animating();
+      holds += 1;
+      if (before !== animating()) notify();
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        const was = animating();
+        holds -= 1;
+        if (was !== animating()) notify();
+      };
     },
     subscribe(listener) {
       listeners.add(listener);

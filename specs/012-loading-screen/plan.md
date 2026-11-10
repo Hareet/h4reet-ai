@@ -435,4 +435,12 @@ The pass found no CRITICAL issue. Each finding, and where it now lands:
 
 ## Departures (implementation)
 
-None yet. Each departure from this plan is recorded here in the commit that makes it, with its reason, as spec 005's plan records its own.
+Each departure from this plan is recorded here in the commit that makes it, with its reason, as spec 005's plan records its own.
+
+| ID | Where | The plan's text | What was built, and why | Task |
+|---|---|---|---|---|
+| C1 | §2.2, PD-15; contract §1's `typefaces` row; tasks.md T007 | `settled()` resolves "at `TYPEFACE_WAIT_MS`" on a page with no `document.fonts` | It resolves at once there. Such a page asks for no typeface (`faces/fonts.ts` calls `document.fonts.load` or nothing), so the step has nothing to wait for. Every browser the room supports has `document.fonts`; jsdom has none, and a 2-second wait for files never asked for would hold every 3D room test's hand-off. The faces on such a page still draw with their fallback at `TYPEFACE_WAIT_MS`, as before. Where `document.fonts` exists, the 2-second bound holds as planned | T007, T010 |
+| C2 | §2.2's `files` row; contract §4, step 4 | the stage's `expected` passed to the model | A 3D stage that gives no `expected` (`Stage3D.expected` is optional, as `figures` is; the tests' stand-in stage gives none) counts no file: the model takes `[]`, as for a part that loads nothing. `scene.ts` always gives it | T011 |
+| C3 | §6.3; contract §4, step 8 | the end line said in the status region, "The hand-off's own line follows, as today" | The status region holds one text at a time (`a11y.ts`'s `say` replaces it), so two says in one turn would leave a screen reader only the last. The end line is said at the end of the turn in which the loader gives way, unless the hand-off starts in that turn, when one say carries both, the end line first ("The room is ready. The twin hands you a paper: the Author's resume."). It is still said once (FR-038) | T011 |
+| C4 | PD-18; §5.1 | `layout.setLoading(on)` | `setLoading("on" \| "leaving" \| "off")`: "leaving" while the card fades, so the tints can fade with it (PD-19), "Around the room" reachable again from the fade's first frame (FR-027); "off" once the card is gone. `insertLoader(card)` puts the card after the room's block, before "Around the room" (contract §5) | T011 |
+| C5 | contract §2's `stage` rule | `code` while `code` hasn't ended | `code` also until the 3D stage's list of files has arrived: the loader's own chunk, which builds that list, is 3D code too (spec Q1's context counts it among the four chunks), and "pieces: 0 of 0" would read wrong | T008 |

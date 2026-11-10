@@ -28,6 +28,13 @@ export const TARGET_TOLERANCE = 0.9;
  * so a stalled download can't hold the hand-off back (SC-005). A late chunk is ignored: the mode never moves back up.
  */
 export const SCENE_WAIT_MS = 4000;
+/**
+ * Spec 012's ceiling (its FR-020; plan.md PD-7): how long after "Enter", on the room's clock, the loader shows at most
+ * before it gives way to the hand-off, whatever is still loading. With spec 002's 3 seconds for the choice screen, the
+ * hand-off begins within its SC-005's 10 seconds of the page opening; and it is never shorter than SCENE_WAIT_MS and
+ * the figures' default wait_ms, 1.5 s, so it never cuts today's own waits short.
+ */
+export const LOADING_CEILING_MS = 7000;
 /** How long a lost WebGL context has to come back before the room switches to 2D. */
 export const CONTEXT_RESTORE_MS = 3000;
 /**

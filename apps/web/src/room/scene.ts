@@ -20,6 +20,13 @@
 // hovering pointer's pick and a press's to the room as targeting inputs (objects.ts). The review of Phase 1: the
 // renderer asks for a stencil buffer, which the highlight's mask needs, and the stand-ins' labels draw on a layer of
 // their own, after the passes while there's a target (highlight.ts's drawFrame), so no border paints over a label.
+// Spec 012 (its FR-014, FR-021; contracts/loading-progress.md §3; Amendments L6, L11): the stage says what it will load,
+// `expected`, each figure's file and each set model with its bytes as served, which the room's loader counts; and it
+// keeps one flag, `closed`, turned by the room's `gaveWay` or its own first showHandoff, whichever comes first, from
+// which one gate holds the figures' files and the set models (and a set model's swap) until the hand-off ends. Before
+// it, while the loader shows, each parses and shows as it arrives. So spec 009's FR-019 (a) wait and FR-022's rule for
+// avatars, as spec 012's L11 amends them, hold for the set models too: nothing parses from the giving way to the
+// hand-off's end, and one already parsing then shows once it ends.
 import {
   CanvasTexture,
   Object3D,
@@ -61,7 +68,7 @@ import { createTextureLedger } from "./scene/ledger";
 import type { Loader } from "./scene/loader";
 import { qualitySettings } from "./scene/levels";
 import { createInk } from "./scene/look";
-import type { SceneOptions, Stage3D } from "./stage";
+import type { ExpectedFile, SceneOptions, Stage3D } from "./stage";
 
 /** A label without a renderer: an empty node with the label's name, for the tests and a page with no 2D canvas. */
 const namedLabel: LabelFactory = (text) => {
@@ -238,8 +245,23 @@ export function createScene(options: SceneOptions): Stage3D {
   let figuresSettled: () => void = () => undefined;
   const figuresReady = new Promise<void>((resolve) => (figuresSettled = resolve));
   if (!wantsAvatars || floor === false) figuresSettled();
-  let started = false;
+  // Spec 012: closed from the loader's giving way or the hand-off's first frame, whichever comes first; until then the
+  // figures' files and the set models parse and show as they arrive.
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    figures?.close();
+  };
+  void options.gaveWay?.then(close, close);
   const handoffEnded = options.handoff ?? Promise.resolve();
+  const gate = (): Promise<unknown> => (closed ? handoffEnded : Promise.resolve());
+  // What the stage will load (spec 012): resolved once the loader's chunk has built the entries; never rejected.
+  let sayExpected: (files: readonly ExpectedFile[]) => void = () => undefined;
+  const expected = new Promise<readonly ExpectedFile[]>((resolve) => (sayExpected = resolve));
+  const asExpected = (entries: readonly { asset: string; bytes: number }[]): ExpectedFile[] =>
+    entries.map((e) => ({ asset: e.asset, bytes: e.bytes }));
+  if (!(part.load_order.length > 0 || wantsAvatars)) sayExpected([]);
   if (part.load_order.length > 0 || wantsAvatars)
     // The avatars' chunk failing to load leaves the figures their fallbacks, and the room's models load all the same.
     void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars").catch(() => null) : null])
@@ -247,6 +269,8 @@ export function createScene(options: SceneOptions): Stage3D {
         const entries = modelEntries(part);
         // Without the avatars' chunk nothing could show them, so their files aren't fetched.
         const figureFiles = avatars ? figureEntries(part, options.avatar) : [];
+        // Said before any file's end is recorded; below the floor every one is skipped at once, which the room keeps.
+        sayExpected(disposed ? [] : asExpected([...figureFiles, ...entries]));
         if (disposed || (entries.length === 0 && figureFiles.length === 0)) return;
         const atFloor = floor === undefined ? (): boolean => meetsModelFloor(capability(win)) : (): boolean => floor;
         figures =
@@ -254,6 +278,7 @@ export function createScene(options: SceneOptions): Stage3D {
             chosen: options.avatar,
             ...(options.onFigure ? { signal: options.onFigure } : {}),
           }) ?? null;
+        if (closed) figures?.close();
         if (figures) void figures.settled.then(figuresSettled);
         else figuresSettled();
         // The room's models start once every figure file's fetch has ended (FR-021; Amendment M17).
@@ -297,7 +322,10 @@ export function createScene(options: SceneOptions): Stage3D {
             figures?.missed(entry.figure.avatar, entry.figure.role, why);
           },
           maxSide: part.figures.texture_px,
-          figureGate: () => (started ? handoffEnded : Promise.resolve()),
+          // One gate for the figures' files and the set models, and a set model's swap (spec 012, FR-021).
+          figureGate: gate,
+          modelGate: gate,
+          swapGate: gate,
         });
         void loader.loadFigures(figureFiles, figuresFetched);
         void loader.load(entries);
@@ -306,6 +334,7 @@ export function createScene(options: SceneOptions): Stage3D {
       })
       .catch(() => {
         figuresSettled();
+        sayExpected([]);
         if (disposed) return;
         const outcome = floor === false ? "skipped" : "failed";
         for (const asset of options.room.models)
@@ -528,13 +557,15 @@ export function createScene(options: SceneOptions): Stage3D {
     element: canvas,
     canvas,
     showHandoff(progress) {
-      // Its first call is the hand-off's start: no figure file parses from then until it ends (R-10).
-      started = true;
+      // Its first call is the hand-off's start: no figure file or set model parses from then until it ends (R-10), if
+      // the loader's giving way hasn't closed the gate already (spec 012).
+      close();
       if (figures) figures.showHandoff(progress, options.reducedMotion);
       else drawHandoff(room, progress, options.reducedMotion);
     },
     figures: figuresReady,
     waitMs: part.figures.wait_ms,
+    expected,
     apply(value) {
       // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts), its glows with it.
       room.cases.apply(value);

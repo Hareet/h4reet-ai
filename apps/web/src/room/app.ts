@@ -46,6 +46,15 @@
 //   (onFigure), and the room sends avatar_failed once a visit, with no identifier, on the first figure file that
 //   failed after its retry, never for a skip, a missing file, the floor, or 2D (FR-032), and logs each picture's and
 //   clip's change in a drafts build's frame log (FR-035).
+// - Spec 012's loader (its FR-001 to FR-027, FR-037 to FR-039, FR-046, FR-049; plan.md §4; contracts/loading-progress.md
+//   §4): where the room draws in 3D from "Enter", a loader shows over its page in place of "Loading the room…", its
+//   parts tinted and inert and its motion held, with a progress model fed the 3D code's arrival, the room text's first
+//   settle, the typefaces' (faces/fonts.ts's settled), the 3D stage's list of files (`expected`), and every asset event
+//   from "Enter". It gives way, once, at the first of: every part ended (`ready`); the ceiling, LOADING_CEILING_MS after
+//   "Enter" on the room's clock (`ceiling`); or the room in 2D by any road (`2d`). This function owns the ceiling's
+//   timer, so a view that throws can't hold the hand-off (FR-007). The hand-off starts once the loader has given way
+//   and spec 009's figures wait has ended, never before; the stage's gate closes as it gives way (gaveWay), so nothing
+//   parses from then to the hand-off's end. A room in 2D from "Enter" shows no loader, and its hand-off starts as before.
 import "./room.css";
 
 import type { RoomContent } from "../../build/manifest";
@@ -80,8 +89,13 @@ import type { Handoff } from "./handoff";
 import { createViewport } from "./hud/viewport";
 import type { Viewport, WindowMeasures } from "./hud/viewport";
 import { renderRoom } from "./layout";
+import { createProgress } from "./loading/progress";
+import type { Progress } from "./loading/progress";
+import { createLoadingView } from "./loading/view";
+import type { LoadingView, LoadingViewOptions } from "./loading/view";
 import type { RoomLayout } from "./layout";
 import {
+  LOADING_CEILING_MS,
   SCENE_WAIT_MS,
   SETTLE_FRAMES,
   capability,
@@ -136,6 +150,8 @@ export interface RoomDeps {
   /** Spec 005 (plan.md §4.3): the window's measures and their changes, hud/viewport.ts's for the page; the tests give a
    *  stand-in. */
   viewport?: (win: Window) => Viewport;
+  /** Spec 012: the loader's view, loading/view.ts's for the page; a test may give one that throws (FR-007). */
+  loadingView?: (options: LoadingViewOptions) => LoadingView;
 }
 
 export interface RoomHandle {
@@ -378,6 +394,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const webgl = device.webgl2;
   const loadScene = deps.loadScene ?? ((): Promise<SceneModule> => import("./scene"));
   const scene: Promise<SceneModule | null> = webgl ? loadScene().catch(() => null) : Promise.resolve(null);
+  /** Where the 3D chunk's import stands, for "Enter": a chunk that failed before it means the 2D room, with no loader
+   *  (spec 012, FR-003); one that arrived counts the loader's code step at once (FR-013). */
+  let sceneState: "pending" | "loaded" | "failed" = "pending";
+  void scene.then((module) => (sceneState = module ? "loaded" : "failed"));
 
   /** The 3D chunk, or "late" once SCENE_WAIT_MS have passed since "Enter" without it (null: no WebGL 2, or it failed). */
   function sceneOrLate(): Promise<SceneModule | null | "late"> {
@@ -402,6 +422,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const ended = new Set<string>();
   const recordAsset = (event: AssetEvent): void => {
     if (event.outcome !== "retried") ended.add(event.asset);
+    // The loader's model hears every end from "Enter", before the list of files too (spec 012, FR-014; PD-22).
+    if (loading && !loading.done) {
+      loading.progress.asset(event.asset, event.outcome);
+      loadingChanged();
+    }
     assets.record(event);
   };
   // The hand-off's end, after which the 3D stage parses and swaps studio models (R-28).
@@ -429,6 +454,142 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
   };
+
+  /** Spec 012's loader while it shows, then given way. */
+  interface LoaderRun {
+    readonly progress: Progress;
+    readonly view: LoadingView | null;
+    /** Resolves when it gives way: the 3D stage's gate closes then (FR-021). */
+    readonly gaveWay: Promise<void>;
+    readonly resolve: () => void;
+    readonly timer: number;
+    /** The motion store's hold, while the view shows. */
+    readonly release: (() => void) | null;
+    done: boolean;
+    /** The steps whose end the frame log has recorded. */
+    readonly logged: Set<string>;
+  }
+  let loading: LoaderRun | null = null;
+  /** The figures' wait (spec 009, FR-019 (a)) has ended, or there was none. */
+  let figuresDone = false;
+  let handoffStarted = false;
+  /** The loader's end line, said together with the hand-off's line when the hand-off starts in the same call, since
+   *  the status region holds one text at a time (plan.md's departure C3). */
+  let endLine: string | null = null;
+
+  /** Shows the loader at "Enter" (contract §4, step 2). */
+  function startLoading(layout: RoomLayout): void {
+    const progress = createProgress();
+    if (sceneState === "loaded") progress.ended("code");
+    let view: LoadingView | null = null;
+    try {
+      view = (deps.loadingView ?? createLoadingView)({
+        doc,
+        clock,
+        ui: deps.room.ui,
+        hints: [],
+        reducedMotion: () => motion.reducedMotion,
+        hidden: () => motion.hidden,
+        onHint: (n) => log?.record("loading", { state: "hint", n }),
+      });
+      layout.insertLoader(view.element);
+      view.show(progress.state);
+    } catch {
+      // The room goes on without it: the timer and the model still decide when the hand-off starts (FR-007).
+      view?.element.remove();
+      view = null;
+    }
+    let resolve: () => void = () => undefined;
+    const gaveWay = new Promise<void>((r) => (resolve = r));
+    let release: (() => void) | null = null;
+    if (view) {
+      layout.setLoading("on");
+      release = motion.hold();
+      view.heading.focus();
+    } else layout.heading.focus();
+    const timer = clock.setTimeout(() => giveWay("ceiling"), LOADING_CEILING_MS);
+    loading = { progress, view, gaveWay, resolve, timer, release, done: false, logged: new Set() };
+    log?.record("loading", { state: "shown", value: progress.state.value });
+    if (sceneState === "loaded") loadingLogged("code");
+  }
+
+  /** A step part has settled (contract §4, step 3 and 4). */
+  function loadingEnded(part: "code" | "text" | "typefaces"): void {
+    const run = loading;
+    if (!run || run.done) return;
+    run.progress.ended(part);
+    loadingLogged(part);
+    loadingChanged();
+  }
+
+  /** The frame log's `ended` entry, once a part. */
+  function loadingLogged(part: string): void {
+    const run = loading;
+    if (!run || run.logged.has(part)) return;
+    run.logged.add(part);
+    log?.record("loading", { state: "ended", part, value: run.progress.state.value });
+  }
+
+  /** The model changed: the view draws it, and the loader gives way once every part has ended (contract §4, step 6). */
+  function loadingChanged(): void {
+    const run = loading;
+    if (!run || run.done) return;
+    const state = run.progress.state;
+    if (state.total === state.done && state.stage !== "code" && state.stage !== "pieces") loadingLogged("files");
+    try {
+      run.view?.show(state);
+    } catch {
+      // The view keeps what it drew; the model and the timer go on.
+    }
+    if (state.complete) giveWay("ready");
+  }
+
+  /** Gives way, once, by the first reason (contract §4, step 8). */
+  function giveWay(why: "ready" | "ceiling" | "2d"): void {
+    const run = loading;
+    const layout = room;
+    if (!run || run.done || !layout) return;
+    run.done = true;
+    // The 3D stage's gate closes before the hand-off's first frame (FR-021).
+    run.resolve();
+    clock.clearTimeout(run.timer);
+    run.release?.();
+    const state = run.progress.state;
+    endLine =
+      why === "ceiling"
+        ? (uiWord(deps.room.ui, "loading.cut_short") ??
+          "The room opens now. Some pieces are still on their way and appear as they arrive.")
+        : (uiWord(deps.room.ui, "loading.ready") ?? "The room is ready.");
+    // Said at the end of this turn, or with the hand-off's line if the hand-off starts in it (FR-038).
+    queueMicrotask(sayEndLine);
+    if (run.view) {
+      layout.setLoading("leaving");
+      try {
+        run.view.giveWay(() => layout.setLoading("off"));
+      } catch {
+        run.view.element.remove();
+        layout.setLoading("off");
+      }
+    }
+    layout.heading.focus();
+    log?.record("loading", { state: "gave_way", why, value: state.value, done: state.done, total: state.total });
+    maybeStartHandoff();
+  }
+
+  /** The loader's end line, said once, unless the hand-off's line took it with it. */
+  function sayEndLine(): void {
+    if (endLine === null) return;
+    announcer.say(endLine);
+    endLine = null;
+  }
+
+  /** The hand-off starts once the loader has given way and the figures' wait has ended, and only once. */
+  function maybeStartHandoff(): void {
+    if (handoffStarted || !figuresDone) return;
+    if (loading && !loading.done) return;
+    handoffStarted = true;
+    startHandoff();
+  }
 
   function enter(choice: Choice): void {
     if (visit.stage !== "choosing") return;
@@ -576,27 +737,59 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     doc.body.classList.add("in-room");
     // The AI disclosure's header is the HUD's strip in the room: dark glass, blurred where the glass is (spec 005).
     doc.querySelector("header.disclosure")?.classList.add("hud-glass");
-    layout.heading.focus();
+    // Spec 012: in 3D, the loader over the page, its heading focused; in 2D from "Enter", the room's heading (FR-003).
+    if (webgl && sceneState !== "failed") startLoading(layout);
+    else layout.heading.focus();
     // Enter (contracts/tier-signal.md §5.4): the tier reduced, and shown in the text copy, before the stage is drawn.
     live.enter();
     // The faces' typefaces, and the room text, from Enter, whatever the 3D chunk does (spec 004, FR-061; R-11, R-37).
     typefaces = loadTypefaces(doc, clock, deps.room.typefaces);
+    void typefaces.settled().then(() => loadingEnded("typefaces"));
     loadText(1);
+    if (!deps.roomData) loadingEnded("text");
 
     const loaded = await sceneOrLate();
     const module = loaded === "late" ? null : loaded;
-    if (module) mount3d(module, choice);
+    if (module) {
+      loadingEnded("code");
+      mount3d(module, choice);
+    }
     if (!module || !stage) toFlat(!webgl ? "no_webgl2" : loaded === "late" ? "load_timeout" : "load_failed");
+    else watchExpected(stage);
     const wait = figuresWait();
-    if (wait === null) startHandoff();
-    else void wait.then(startHandoff);
+    if (wait === null) figuresDone = true;
+    else
+      void wait.then(() => {
+        figuresDone = true;
+        maybeStartHandoff();
+      });
+    maybeStartHandoff();
+  }
+
+  /** The 3D stage's list of files, to the loader's model; a stage that gives none counts no file (plan.md's departure
+   *  C2). */
+  function watchExpected(current: Stage): void {
+    if (!loading || loading.done) return;
+    const listed = current.mode === "3d" ? (current as Stage3D).expected : undefined;
+    const take = (files: readonly { asset: string; bytes: number }[]): void => {
+      if (!loading || loading.done) return;
+      loading.progress.expected(files);
+      loadingChanged();
+    };
+    if (!listed) take([]);
+    else void listed.then(take, () => take([]));
   }
 
   function startHandoff(): void {
     handoff = runHandoff({
       clock,
       durationMs: handoffDuration(visit.mode === "2d" ? "2d" : "3d", motion.reducedMotion),
-      announce: (text) => announcer.say(text),
+      announce: (text) => {
+        // The loader's end line and the hand-off's, in one say when they fall in the same turn (plan.md's C3).
+        const line = endLine === null ? text : `${endLine} ${text}`;
+        endLine = null;
+        announcer.say(line);
+      },
       show: (progress) => stage?.showHandoff(progress),
       onDone: offerResume,
     });
@@ -633,6 +826,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     void load()
       .catch(() => null)
       .then((json) => {
+        // The loader's text step ends on the first load's settle, either way; its retry isn't waited for (spec 012).
+        if (attempt === 1) loadingEnded("text");
         if (json === null || json === undefined) {
           if (attempt === 1) clock.setTimeout(() => loadText(2), ROOM_TEXT_RETRY_MS);
           return;
@@ -673,6 +868,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         onFrame,
         floor: meetsModelFloor(device),
         handoff: handoffDone,
+        // Spec 012: the stage's gate closes as the loader gives way (FR-021).
+        ...(loading ? { gaveWay: loading.gaveWay } : {}),
         hold: holdQuality,
         level: () => controller?.quality ?? 0,
         mode: () => visit.mode,
@@ -760,6 +957,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();
     emit({ kind: "mode_2d" });
+    // Spec 012 (FR-004): a fall to 2D while the loader shows gives way at once, the 2D stage now the room's.
+    giveWay("2d");
   }
 
   function offerResume(): void {

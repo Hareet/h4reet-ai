@@ -555,7 +555,8 @@ describe("the room's modes", () => {
     await flush();
     expect(v.room.visit.mode).toBe("2d");
     expect(v.doc.querySelector(".flat")).not.toBeNull();
-    expect(textOf(announcer(v.doc))).toBe(HANDOFF_LINE);
+    // Spec 012: the loader gave way as the room went to 2D, its end line said with the hand-off's (FR-004, FR-038).
+    expect(textOf(announcer(v.doc))).toBe(`The room is ready. ${HANDOFF_LINE}`);
     expect(twoD(v.events)).toBe(1);
     v.clock.advance(4500);
     expect(v.room.visit.stage).toBe("room");

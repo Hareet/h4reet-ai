@@ -88,6 +88,12 @@ export interface RoomLayout {
   /** Whether the page is in full screen: the control's words and icon, and the walking view's instructions, which then
    *  say that Escape first leaves full screen (FR-039, FR-040). */
   setFullscreen(on: boolean): void;
+  /** Spec 012 (FR-024 to FR-027; plan.md PD-18): the loader's state on the page's root, data-loading, which tints the
+   *  room's parts: "on" while it shows, with "Around the room" inert too and the stage's "Loading the room…" line gone,
+   *  the loader in its place; "leaving" while its card fades, "Around the room" reachable again; "off" after. */
+  setLoading(state: "on" | "leaving" | "off"): void;
+  /** Spec 012: puts the loader's card in the room, after the room's block and before "Around the room" (contract §5). */
+  insertLoader(card: HTMLElement): void;
 }
 
 /** A HUD tile (spec 005, FR-026; plan.md §6.2): an icon over its words, the words its name. */
@@ -204,6 +210,7 @@ export function renderRoom(
   );
   const block = h(doc, "div", { class: "room-block" }, heading, toolbar, stage, panels);
   const element = h(doc, "div", { class: "room" }, block, parts.around, resumePanel);
+  const loadingLine = view.querySelector(".room-loading");
   const root = doc.documentElement;
   const controls = [toolbar, view, walkButton, parts.list, parts.talk, resumePanel];
 
@@ -305,6 +312,15 @@ export function renderRoom(
       }
       const extra = walkWords.helpFullscreen ?? "";
       walkHelp.textContent = on && extra !== "" ? `${walkWords.help} ${extra}` : walkWords.help;
+    },
+    setLoading(state) {
+      if (state === "off") root.removeAttribute("data-loading");
+      else root.setAttribute("data-loading", state);
+      parts.around.toggleAttribute("inert", state === "on");
+      if (state === "on") loadingLine?.remove();
+    },
+    insertLoader(card) {
+      block.after(card);
     },
   };
 }

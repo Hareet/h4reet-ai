@@ -16,13 +16,16 @@ import { repositoryBundle } from "../helpers/room";
 const STEPS = ["code", "text", "typefaces"] as const;
 type Step = (typeof STEPS)[number];
 
-/** The value the shares give: the ended steps' shares and the files' share in proportion to the ended bytes, as one
- *  exact fraction rounded down. */
-function expectedValue(steps: ReadonlySet<Step>, ended: number, total: number, files: boolean): number {
+/** The value the shares give: the ended steps' shares and, once the list has arrived, the files' share in proportion
+ *  to the ended bytes, as one exact fraction rounded down; the whole share once every file has ended. */
+function expectedValue(
+  steps: ReadonlySet<Step>,
+  files: { listed: boolean; ended: number; total: number; whole: boolean },
+): number {
   const stepSum = [...steps].reduce((n, s) => n + SHARES[s], 0);
-  if (!files) return stepSum;
-  if (total === 0) return stepSum + SHARES.files;
-  return Math.floor((stepSum * total + SHARES.files * ended) / total);
+  if (!files.listed) return stepSum;
+  if (files.whole || files.total === 0) return stepSum + SHARES.files;
+  return Math.floor((stepSum * files.total + SHARES.files * files.ended) / files.total);
 }
 
 /** A seeded generator (mulberry32), so each order is the same on every run. */
@@ -189,12 +192,12 @@ describe("the value over every order (SC-001)", () => {
     const check = (where: string): void => {
       const ended = [...endedFiles].reduce((n, a) => n + (bytes.get(a) ?? 0), 0);
       const filesDone = listed && endedFiles.size === files.length;
-      const sum = expectedValue(steps, listed ? ended : 0, total, listed && (filesDone || total === 0));
+      const sum = expectedValue(steps, { listed, ended, total, whole: filesDone });
       const complete = steps.size === 3 && filesDone;
       const state: ProgressState = p.state;
       expect(state.complete, `${label} ${where}`).toBe(complete);
       // The sum rounded down, but never above 99 until every part has ended.
-      const want = complete ? 100 : Math.min(99, Math.max(last, listed ? sum : expectedValue(steps, 0, 1, false)));
+      const want = complete ? 100 : Math.min(99, Math.max(last, sum));
       expect(state.value, `${label} ${where}`).toBe(want);
       expect(state.value, `${label} ${where}: never down`).toBeGreaterThanOrEqual(last);
       if (!complete) expect(state.value, `${label} ${where}`).toBeLessThanOrEqual(99);

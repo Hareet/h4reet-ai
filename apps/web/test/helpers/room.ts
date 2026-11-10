@@ -725,9 +725,20 @@ export async function enter(v: Visit, path = "engineer", avatar = "dog"): Promis
   await flush();
 }
 
-/** A whole arrival: the choice, the hand-off to its end, then "Keep it for later". */
+/** Spec 012: steps the room's clock, letting promises settle between steps, until the loader has given way, at most
+ *  its 7-second ceiling; nothing where it already has, or none showed. */
+export async function throughLoader(v: Visit, stepMs = 100): Promise<void> {
+  for (let t = 0; t <= 7000 && v.doc.documentElement.getAttribute("data-loading") === "on"; t += stepMs) {
+    v.clock.advance(stepMs);
+    await flush();
+  }
+}
+
+/** A whole arrival: the choice, the loader while it shows (spec 012), the hand-off to its end, then "Keep it for
+ *  later". */
 export async function intoRoom(v: Visit): Promise<void> {
   await enter(v);
+  await throughLoader(v);
   v.clock.advance(5000);
   button(v.doc, "Keep it for later").click();
   await flush();

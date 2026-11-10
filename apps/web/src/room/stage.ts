@@ -66,6 +66,16 @@ export interface Stage3D extends Stage {
   readonly figures?: Promise<void>;
   /** The scene's wait_ms: the longest the room waits for `figures`. */
   readonly waitMs?: number;
+  /** Spec 012 (contracts/loading-progress.md §3): what the stage will load, each figure's file and each set model with
+   *  its bytes as served, once its loader's chunk has built them; [] where nothing loads or that chunk fails. It never
+   *  rejects. Absent, as on a stand-in stage, the room counts no file. */
+  readonly expected?: Promise<readonly ExpectedFile[]>;
+}
+
+/** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
+export interface ExpectedFile {
+  readonly asset: string;
+  readonly bytes: number;
 }
 
 export interface SceneOptions {
@@ -101,8 +111,12 @@ export interface SceneOptions {
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
    *  002's WebGL 2 check (R-28 step 1). Absent, the stage reads it when its first model would load. */
   floor?: boolean;
-  /** Resolves once the hand-off has ended: models parse and swap only after it. */
+  /** Resolves once the hand-off has ended: models parse and swap only after it, unless the room gives `gaveWay`. */
   handoff?: Promise<void>;
+  /** Spec 012 (FR-021; contracts/loading-progress.md §3): resolves when the room's loader gives way. Until then the set
+   *  models and the figures' files parse and swap as they arrive; from then, or from the hand-off's first frame,
+   *  whichever comes first, only once the hand-off ends. Absent, only the hand-off's first frame closes it. */
+  gaveWay?: Promise<unknown>;
   /** The quality controller's hold, for each model's parse and swap (FR-055). */
   hold?: () => () => void;
   /** The quality level as a model decodes: 1 or more decodes its images at half size (FR-056). */

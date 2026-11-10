@@ -20,12 +20,21 @@ import {
 import { createFrameLog } from "../../src/room/signals/frame-log";
 import type { StatusResult } from "../../src/room/signals/tier";
 import type { ExpectedFile, SceneModule, SceneOptions } from "../../src/room/stage";
-import { WALL0, announcer, enter, flush, roomIndex, start } from "../helpers/room";
+import { WALL0, announcer, button, enter, flush, radio, roomIndex, start } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 const READY = "The room is ready.";
 const CUT_SHORT = "The room opens now. Some pieces are still on their way and appear as they arrive.";
 const HANDOFF = "The twin hands you a paper: the Author's resume.";
+
+/** Presses Enter without waiting for the stage, for a 3D chunk that hasn't arrived. */
+async function press(v: Visit): Promise<void> {
+  await flush();
+  radio(v.doc, "path", "engineer").click();
+  radio(v.doc, "avatar", "dog").click();
+  button(v.doc, "Enter").click();
+  await flush();
+}
 
 const card = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLElement>(".room-loader");
 const options = (v: Visit): SceneOptions => {
@@ -109,7 +118,7 @@ describe("a fall to 2D while the loader shows (FR-004)", () => {
   it("says the room is ready once and gives way at once when the 3D chunk is late at SCENE_WAIT_MS", async () => {
     const v = start({ webgl: true, sceneHangs: true, frameLog: createFrameLog });
     const lines = said(v);
-    await enter(v);
+    await press(v);
     expect(card(v)).not.toBeNull();
     expect(loading(v)).toBe(true);
     v.clock.advance(SCENE_WAIT_MS - 1);
@@ -131,7 +140,7 @@ describe("a fall to 2D while the loader shows (FR-004)", () => {
     const late = new Promise<SceneModule>((_, reject) => (fail = () => reject(new Error("the chunk didn't load"))));
     const v = start({ webgl: true, loadScene: () => late });
     const lines = said(v);
-    await enter(v);
+    await press(v);
     expect(card(v)).not.toBeNull();
     fail();
     await flush();

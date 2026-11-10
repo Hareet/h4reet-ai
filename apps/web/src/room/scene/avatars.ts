@@ -34,6 +34,9 @@
 //   avatar that becomes ready during it waits for its end to show. Under reduced motion the hand-off's crossfade
 //   stays, "take" doesn't play, and the clips change by cuts at the start and the end. `settled` resolves once both
 //   figures show their avatars or keep their fallbacks for good: what the room waits for, at most wait_ms.
+// - Spec 012 (its FR-021; Amendment L11): close() is the room's loader giving way, which the 3D stage passes on; from
+//   then, before the hand-off's first frame too, an avatar that becomes ready waits for the hand-off's end to show, as
+//   one ready during it does (FR-022).
 import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Quaternion, Vector3 } from "three";
 import type { AnimationAction, AnimationClip, Euler, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -98,6 +101,9 @@ export interface AvatarFigures {
   /** The hand-off has ended: the visitor's avatar holds the kept paper from now on, and plays "idle-holding"; an avatar
    *  that became ready during it shows now. */
   handoffEnded(): void;
+  /** Spec 012: the room's loader has given way; an avatar that becomes ready from now until the hand-off ends shows
+   *  only once it ends. One already shown stays. */
+  close(): void;
   /** Resolves once both figures show their avatars or keep their fallbacks for good (R-10): the room's wait. */
   readonly settled: Promise<void>;
   /** Walking's driver for the visitor's avatar (FR-028; R-16), which figure.ts's figureDriverFor uses while the
@@ -226,6 +232,8 @@ export function createAvatarFigures(
   let animate = false;
   /** Where the hand-off stands: before its start, during it, or after its end (Phase 1 has only after). */
   let phase: "before" | "during" | "after" = "before";
+  /** Spec 012: the room's loader has given way (close()). */
+  let closed = false;
   /** The visitor's "take" has started in this hand-off. */
   let taking = false;
   /** The sheet's start: the twin's holding hand's place at the hand-off's start, where it showed its avatar. */
@@ -434,8 +442,10 @@ export function createAvatarFigures(
 
   /** Shows a figure's avatar once it is ready: its model in, and its idle loaded or failed (or none in the part). */
   function tryShow(f: Figure): void {
-    // Never during the hand-off: an avatar ready then swaps in when it ends (FR-019 (e), FR-022).
+    // Never during the hand-off, nor from the loader's giving way before it: an avatar ready then swaps in when it ends
+    // (FR-019 (e), FR-022; spec 012's FR-021).
     if (disposed || f.shown || f.wants === null || !f.instance || phase === "during") return;
+    if (closed && phase === "before") return;
     const source = sourceOf(f.wants);
     if (roles(f.wants).includes("idle") && !source.ended.has("idle")) return;
     f.hidden = new Map(f.fallback.map((c) => [c, c.visible] as const));
@@ -625,6 +635,9 @@ export function createAvatarFigures(
       // The kept sheet, which reduced motion fades in, at the visitor's hand while it isn't in it yet.
       if (to && room.paper.kept.parent === room.scene) room.paper.kept.position.copy(to);
       drawHandoff(room, progress, reducedMotion);
+    },
+    close() {
+      closed = true;
     },
     handoffEnded() {
       phase = "after";
