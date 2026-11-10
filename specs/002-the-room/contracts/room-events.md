@@ -20,6 +20,7 @@ Spec: FR-054, FR-056, SC-010. Plan: §6. Research: R-10. Data: [data-model.md](.
 | `turn_sent` | – | the text box sends, or a transcript is sent |
 | `voice_pressed` | – | the talk button is pressed |
 | `mode_2d` | – | the room enters the 2D mode |
+| `fullscreen_entered` | – | **(spec 005)** the visitor first enters full screen in a visit (its FR-060; Amendment H7). Specs 008 and 009 added `walk_started` and `avatar_failed` before it, in their own amendments; `config/room-events.yaml`, generated from `apps/web/src/room/events.ts`, lists every kind |
 
 Nothing else goes in the body. A failed or refused beacon is ignored: the room doesn't retry, queue, or store it.
 

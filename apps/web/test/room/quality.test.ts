@@ -242,6 +242,8 @@ describe("R-35's four quality levels (Amendment B13)", () => {
     expect([0, 1, 2, 3].map(qualitySettings)).toEqual([
       {
         pixelRatio: 2,
+        // Spec 005's pixel cap (D7).
+        pixelCap: 3_686_400,
         shadows: true,
         outlines: true,
         glowCards: true,
@@ -252,6 +254,8 @@ describe("R-35's four quality levels (Amendment B13)", () => {
       },
       {
         pixelRatio: 1.25,
+        // Spec 005's pixel cap (D7).
+        pixelCap: 2_304_000,
         shadows: true,
         outlines: true,
         glowCards: true,
@@ -262,6 +266,8 @@ describe("R-35's four quality levels (Amendment B13)", () => {
       },
       {
         pixelRatio: 1,
+        // Spec 005's pixel cap (D7).
+        pixelCap: 1_440_000,
         shadows: false,
         outlines: false,
         glowCards: false,
@@ -272,6 +278,8 @@ describe("R-35's four quality levels (Amendment B13)", () => {
       },
       {
         pixelRatio: 0.75,
+        // Spec 005's pixel cap (D7).
+        pixelCap: 921_600,
         shadows: false,
         outlines: false,
         glowCards: false,

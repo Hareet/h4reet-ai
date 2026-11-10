@@ -196,8 +196,9 @@ describe("pick areas (compose/pick.ts)", () => {
     expect(flatCore({ w: 304, h: 248 })).toBeCloseTo(44 / 0.95, 12);
     expect(flatCore({ w: 640, h: 400 })).toBe(22);
     expect(flatCore({ w: 960, h: 300 })).toBe(44 / 1.5);
+    // Spec 005: the smallest stage's scale is 1 (320 × 250), 0.95 (304 × 196) before it.
     const smallest = Math.max(...SMALLEST.map((s) => flatCore(s.stage)));
-    expect(smallest).toBeCloseTo(44 / 0.95, 12);
+    expect(smallest).toBeCloseTo(44, 12);
     const [area] = pickAreas([{ id: "fx-flat", members: [member(150, 90, 20, 10)] }], flatCore({ w: 640, h: 400 }));
     expect(area?.core).toEqual([149, 84, 22, 22]);
   });

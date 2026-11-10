@@ -1,23 +1,25 @@
-// T061 (spec 004; FR-009, FR-052, FR-064; R-18, R-19; contracts/room-data-files.md §13.3): the supported stages are
-// code, `compose/stages.ts`, pinned here to `src/room/room.css`'s stage rules, so a data edit can't weaken the checks
-// that run at them. The six framing aspects; the reference stages (the desktop's ≈ 686 × 640 CSS px from a 1920 × 1200
-// window at a pixel ratio of 1, the phone's 368 × 368 at 2.8125, ≈ 368 × 420 before T171's narrow-portrait rules); the
-// smallest stages, a 320 × 568 screen in portrait and in landscape; and the sweep of screens from 320 × 568 to
-// 1920 × 1200, each through room.css's formulas.
-// T170 and T171 (spec 004; FR-064, FR-065; R-40), and the review of T171 (B1, FR-047): below a portrait width of 35rem,
-// where the toolbar's five controls wrap at 1rem, the stage's reserve grows by one toolbar row, 3.25rem, so the 320 × 568
-// screen's stage is 304 × 196, and the reference phone's, 384 wide, is 368 × 368. The toolbar's type drop, below 25rem,
-// doesn't move the stage.
+// T061 (spec 004; FR-009, FR-052, FR-064; R-18, R-19; contracts/room-data-files.md §13.3), as spec 005 changes it
+// (T006; its FR-052 to FR-054; plan.md §2.3, §3.1, PD-9, PD-10): the supported stages are code, `compose/stages.ts`,
+// and since spec 005 they are the clear areas the HUD's placements (`compose/hud.ts`) leave each screen: the reference
+// stages keep their screens and take their clear areas; the sweep keeps spec 004's 16-pixel grid from 320 × 568 to
+// 1920 × 1200 and extends on a 64-pixel grid and named screens to 5120 × 2160 and 2160 × 3840; a screen in the dock
+// layout gives a stage with its list open and one with it collapsed; and the framing aspects are spec 002's six and a
+// series by ×1.25 outward that covers every supported stage. room.css's HUD rules are pinned here to the table's CSS
+// properties, so a docked box takes its size from the table alone. The old stages are the floor
+// (test/room/stages-floor.test.ts), and the stacked layout keeps the old grid (test/ui/degraded.test.ts).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_METRICS, HUD_PLACEMENTS, OPENING, clearArea, fitsHud, layoutFor } from "../../src/room/compose/hud";
+import { DEFAULT_TALK_LIMITS } from "../../src/talk/talk";
+import { textWidth } from "../ui/hud-model";
 import {
   ASPECTS,
+  NAMED_SCREENS,
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
-  ROOM_CSS,
   SMALLEST,
   SWEEP_STEP,
   flatScale,
@@ -28,17 +30,21 @@ import {
   WALK_CONTROL,
   walkControlBox,
 } from "../../src/room/compose/stages";
+import * as legacy from "./legacy-stages";
 
 const CSS = readFileSync(fileURLToPath(new URL("../../src/room/room.css", import.meta.url)), "utf8");
 
 interface Rule {
+  /** The at-rule the rule sits in, `@media …` or `@supports …`, or null for none. */
   media: string | null;
   selector: string;
   /** Each property's last value, as the cascade takes it within one rule. */
   decls: Map<string, string>;
+  /** Every declaration in order, a property given twice (a fallback first) kept twice. */
+  all: [string, string][];
 }
 
-/** The style sheet's rules, one level of @media deep: enough to read the stage's rules without a CSS library. */
+/** The style sheet's rules, one at-rule deep: enough to read the room's rules without a CSS library. */
 function rules(css: string): Rule[] {
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const out: Rule[] = [];
@@ -56,14 +62,19 @@ function rules(css: string): Rule[] {
         j += 1;
       }
       const inner = body.slice(open + 1, j - 1);
-      if (head.startsWith("@media")) walk(inner, head.slice("@media".length).trim());
+      if (head.startsWith("@")) walk(inner, head);
       else {
         const decls = new Map<string, string>();
+        const all: [string, string][] = [];
         for (const part of inner.split(";")) {
           const colon = part.indexOf(":");
-          if (colon > 0) decls.set(part.slice(0, colon).trim(), part.slice(colon + 1).trim());
+          if (colon > 0) {
+            const [p, v] = [part.slice(0, colon).trim(), part.slice(colon + 1).trim()];
+            decls.set(p, v);
+            all.push([p, v]);
+          }
         }
-        for (const selector of head.split(",")) out.push({ media, selector: selector.trim(), decls });
+        for (const selector of head.split(",")) out.push({ media, selector: selector.trim(), decls, all });
       }
       i = j;
     }
@@ -73,9 +84,6 @@ function rules(css: string): Rule[] {
 }
 
 const RULES = rules(CSS);
-const LANDSCAPE = "(orientation: landscape) and (min-width: 32rem)";
-/** Where the stage's reserve grows: portrait, below 35rem, in max-width (Safari reads range syntax only from 16.4). */
-const RESERVE = "(orientation: portrait) and (max-width: 34.99rem)";
 
 function decl(selector: string, property: string, media: string | null = null): string {
   const found = RULES.filter((r) => r.selector === selector && r.media === media && r.decls.has(property));
@@ -91,176 +99,254 @@ function rem(value: string): number {
   return Number(m[1]);
 }
 
+const key = (s: { w: number; h: number }): string => `${s.w}x${s.h}`;
+
 describe("the stages (compose/stages.ts)", () => {
-  it("hold spec 002's six framing aspects", () => {
-    expect(ASPECTS).toEqual([0.45, 0.6, 0.8, 1.15, 1.5, 2.4]);
+  it("are the clear areas the HUD leaves each screen, its panels open", () => {
+    for (const screen of [
+      { w: 320, h: 568 },
+      { w: 568, h: 320 },
+      { w: 1280, h: 720 },
+      { w: 390, h: 844 },
+      { w: 3440, h: 1440 },
+      { w: 2160, h: 3840 },
+    ]) {
+      const clear = clearArea(screen, OPENING, DEFAULT_METRICS);
+      expect(stageFor(screen), key(screen)).toEqual({ w: clear.w, h: clear.h });
+    }
   });
 
-  it("read room.css's stage rules: the page's padding and width, the reserves, the clamps, and the columns", () => {
-    expect(ROOM_CSS.rem).toBe(16);
-    expect(rem(decl("body.in-room", "max-width"))).toBe(ROOM_CSS.bodyMaxWidthRem);
-    expect(rem(decl("body.in-room", "padding"))).toBe(ROOM_CSS.bodyPaddingRem);
-    expect(rem(decl(".room", "gap"))).toBe(ROOM_CSS.gapRem);
-    expect(decl(".room", "grid-template-columns")).toBe("minmax(0, 1fr)");
-    // The stage's height, in portrait first: the screen's height less a reserve, between a floor and a ceiling.
-    expect(decl(".room-stage", "height")).toBe(`calc(100dvh - ${ROOM_CSS.portraitReserveRem}rem)`);
-    expect(rem(decl(".room-stage", "min-height"))).toBe(ROOM_CSS.stageMinHeightRem);
-    expect(rem(decl(".room-stage", "max-height"))).toBe(ROOM_CSS.stageMaxHeightRem);
-    // Landscape, at least 32rem wide: the stage beside the list, three parts to two, the list at least 15rem.
-    expect(RULES.some((r) => r.media === LANDSCAPE)).toBe(true);
-    expect(ROOM_CSS.landscapeMinWidthRem).toBe(32);
-    expect(decl(".room", "grid-template-columns", LANDSCAPE)).toBe(
-      `minmax(0, ${ROOM_CSS.stageFr}fr) minmax(${ROOM_CSS.listMinRem}rem, ${ROOM_CSS.listFr}fr)`,
-    );
-    expect(decl(".room-stage", "height", LANDSCAPE)).toBe(`calc(100dvh - ${ROOM_CSS.landscapeReserveRem}rem)`);
-    // Portrait below 35rem: the reserve and one toolbar row, a 44 px control and the toolbar's 0.5rem gap. The media
-    // query's bound is 34.99rem, so a screen of a whole number of pixels is under it exactly when it is under 35rem.
-    expect(ROOM_CSS.reserveMaxWidthRem).toBe(35);
-    expect(ROOM_CSS.reserveMaxWidthRem * 16 - 34.99 * 16).toBeLessThan(1);
-    expect(decl(".room-stage", "height", RESERVE)).toBe(`calc(100dvh - ${ROOM_CSS.narrowReserveRem}rem)`);
-    expect(RULES.some((r) => r.media === RESERVE && r.decls.has("font-size"))).toBe(false);
-    const target = Number(/^(\d+)px$/.exec(decl(".room button", "min-height"))?.[1]);
-    const row = (target + 16 * rem(decl(".room-toolbar", "gap"))) / 16;
-    expect(ROOM_CSS.narrowReserveRem).toBe(ROOM_CSS.portraitReserveRem + row);
-    // The 2D drawing keeps its 8:5 shape inside the stage, so its scale is min(W ÷ 320, H ÷ 200).
-    expect(decl(".flat", "width")).toBe("min(100cqw, 160cqh)");
-    expect(decl(".flat", "height")).toBe("min(100cqh, 62.5cqw)");
-  });
-
-  it("give the reference desktop's stage, ≈ 686 × 640 CSS px from 1920 × 1200 CSS px at a pixel ratio of 1", () => {
+  it("keep the reference screens and ratios, their stages their clear areas and at least spec 004's", () => {
     expect(REFERENCE_DESKTOP.screen).toEqual({ w: 1920, h: 1200 });
     expect(REFERENCE_DESKTOP.dpr).toBe(1);
-    expect(REFERENCE_DESKTOP.stage.w).toBeCloseTo(686.4, 9);
-    expect(REFERENCE_DESKTOP.stage.h).toBe(640);
-    expect(stageFor(REFERENCE_DESKTOP.screen)).toEqual(REFERENCE_DESKTOP.stage);
-  });
-
-  it("give the reference phone's stage, 368 × 368 CSS px at a pixel ratio of 2.8125: 384 wide is narrow portrait", () => {
+    expect(REFERENCE_DESKTOP.stage).toEqual(stageFor(REFERENCE_DESKTOP.screen));
+    expect(REFERENCE_DESKTOP.stage).toEqual({ w: 1472, h: 1120.5 });
+    expect(REFERENCE_DESKTOP.stage.w).toBeGreaterThanOrEqual(686.4);
+    expect(REFERENCE_DESKTOP.stage.h).toBeGreaterThanOrEqual(640);
+    expect(REFERENCE_PHONE.screen).toEqual({ w: 384, h: 740 });
     expect(REFERENCE_PHONE.dpr).toBe(2.8125);
-    expect(REFERENCE_PHONE.stage).toEqual({ w: 368, h: 368 });
-    expect(stageFor(REFERENCE_PHONE.screen)).toEqual(REFERENCE_PHONE.stage);
+    expect(REFERENCE_PHONE.stage).toEqual(stageFor(REFERENCE_PHONE.screen));
+    expect(REFERENCE_PHONE.stage).toEqual({ w: 384, h: 422 });
+    expect(REFERENCE_PHONE.stage.w).toBeGreaterThanOrEqual(368);
+    expect(REFERENCE_PHONE.stage.h).toBeGreaterThanOrEqual(368);
   });
 
-  it("give the smallest stages: 304 × 196 for 320 × 568 in portrait, 304 × 208 for 568 × 320 in landscape", () => {
+  it("keep the two smallest screens, their stages at least 304 × 196 and 304 × 208", () => {
     expect(SMALLEST.map((s) => s.screen)).toEqual([
       { w: 320, h: 568 },
       { w: 568, h: 320 },
     ]);
     expect(SMALLEST.map((s) => s.stage)).toEqual([
-      // 568 less the narrow portrait reserve, 23.25rem: R-19's 304 × 248 less one toolbar row.
-      { w: 304, h: 196 },
-      // The list's column keeps its 15rem minimum, so the stage takes 552 − 8 − 240 px, not three fifths of 544.
-      { w: 304, h: 208 },
+      { w: 320, h: 250 },
+      { w: 328, h: 240.5 },
     ]);
+    const [portrait, landscape] = SMALLEST.map((s) => s.stage);
+    expect(portrait?.w).toBeGreaterThanOrEqual(304);
+    expect(portrait?.h).toBeGreaterThanOrEqual(196);
+    expect(landscape?.w).toBeGreaterThanOrEqual(304);
+    expect(landscape?.h).toBeGreaterThanOrEqual(208);
     for (const s of SMALLEST) expect(stageFor(s.screen)).toEqual(s.stage);
   });
 
-  it("follow room.css between the two layouts: clamped heights, the page's 72rem, the list's 15rem", () => {
-    // Portrait: the page's width less its padding; the height less 20rem, at least 9rem and at most 40rem; below
-    // 35rem wide, less 23.25rem.
-    expect(stageFor({ w: 390, h: 844 })).toEqual({ w: 374, h: 472 });
-    expect(stageFor({ w: 412, h: 915 })).toEqual({ w: 396, h: 543 });
-    expect(stageFor({ w: 559, h: 900 })).toEqual({ w: 543, h: 528 });
-    expect(stageFor({ w: 560, h: 900 })).toEqual({ w: 544, h: 580 });
-    expect(stageFor({ w: 360, h: 420 })).toEqual({ w: 344, h: 144 });
-    expect(stageFor({ w: 1024, h: 1366 })).toEqual({ w: 1008, h: 640 });
-    // A square is portrait in CSS.
-    expect(stageFor({ w: 800, h: 800 })).toEqual({ w: 784, h: 480 });
-    // Narrower than 32rem stays portrait even when wider than tall, with the portrait reserve: CSS's orientation is
-    // landscape there, so the narrow rule doesn't apply.
-    expect(stageFor({ w: 500, h: 300 })).toEqual({ w: 484, h: 144 });
-    expect(stageFor({ w: 384, h: 380 })).toEqual({ w: 368, h: 144 });
-    expect(stageFor({ w: 384, h: 680 })).toEqual({ w: 368, h: 308 });
-    // Landscape: three fifths of the row once the list's two fifths reach 15rem, the height less 7rem.
-    expect(stageFor({ w: 1024, h: 600 })).toEqual({ w: 600, h: 488 });
-    const above = stageFor({ w: 700, h: 400 });
-    expect(above.w).toBeCloseTo(((700 - 16 - 8) * 3) / 5, 9);
-    expect(above.h).toBe(288);
-    // Below that, the list keeps its 15rem and the stage takes the rest of the row.
-    expect(stageFor({ w: 600, h: 360 })).toEqual({ w: 336, h: 248 });
-    // The page stops at 72rem.
-    expect(stageFor({ w: 1280, h: 720 }).w).toBeCloseTo(((1152 - 8) * 3) / 5, 9);
-    expect(stageFor({ w: 2560, h: 1440 }).w).toBeCloseTo(((1152 - 8) * 3) / 5, 9);
-  });
-
-  it("sweep the screens from 320 × 568 to 1920 × 1200, in both orientations", () => {
+  it("sweep spec 004's 16-pixel grid, then a 64-pixel grid and named screens to 5120 × 2160 and 2160 × 3840", () => {
     const screens = sweepScreens();
-    const key = (s: { w: number; h: number }): string => `${s.w}x${s.h}`;
     const keys = new Set(screens.map(key));
     expect(keys.size).toBe(screens.length);
-    for (const s of [...SMALLEST.map((x) => x.screen), REFERENCE_DESKTOP.screen, REFERENCE_PHONE.screen])
-      expect(keys.has(key(s)), key(s)).toBe(true);
     expect(SWEEP_STEP).toBe(16);
-    for (const w of [320, 336, 1904, 1920]) expect(keys.has(`${w}x1200`), `${w} wide`).toBe(true);
-    expect(keys.has("1920x320")).toBe(true);
+    // Spec 004's sweep, whole.
+    for (const s of legacy.sweepScreens()) expect(keys.has(key(s)), key(s)).toBe(true);
+    // The named screens, and the extremes.
+    expect(NAMED_SCREENS).toEqual([
+      { w: 2560, h: 1440 },
+      { w: 3440, h: 1440 },
+      { w: 3840, h: 2160 },
+      { w: 5120, h: 1440 },
+      { w: 5120, h: 2160 },
+      { w: 1080, h: 1920 },
+      { w: 2160, h: 3840 },
+    ]);
+    for (const s of NAMED_SCREENS) expect(keys.has(key(s)), key(s)).toBe(true);
+    expect(Math.max(...screens.map((s) => s.w))).toBe(5120);
+    expect(Math.max(...screens.map((s) => s.h))).toBe(3840);
+    const named = new Set(NAMED_SCREENS.map(key));
+    const old = new Set(legacy.sweepScreens().map(key));
+    let coarse = 0;
     for (const s of screens) {
-      expect(s.w).toBeGreaterThanOrEqual(320);
-      expect(s.w).toBeLessThanOrEqual(1920);
-      expect(s.h).toBeGreaterThanOrEqual(320);
-      expect(s.h).toBeLessThanOrEqual(1200);
-      // Nothing smaller than the 320 × 568 screen, turned either way.
-      if (s.h >= s.w) expect(s.h, key(s)).toBeGreaterThanOrEqual(568);
-      else expect(s.w, key(s)).toBeGreaterThanOrEqual(568);
+      if (old.has(key(s)) || named.has(key(s))) continue;
+      coarse += 1;
+      // The 64-pixel grid: landscape screens at least 576 tall, portrait from 1080 wide and 1920 tall.
+      expect(s.w % 64, key(s)).toBe(0);
+      expect(s.h % 64, key(s)).toBe(0);
+      if (s.w > s.h) expect(s.h, key(s)).toBeGreaterThanOrEqual(576);
+      else {
+        expect(s.w, key(s)).toBeGreaterThanOrEqual(1080);
+        expect(s.h, key(s)).toBeGreaterThanOrEqual(1920);
+      }
     }
-    // A screen below 320 × 568 in portrait would give the CSS minimum, 304 × 144, which R-19 leaves out.
-    expect(keys.has("320x480")).toBe(false);
+    expect(coarse).toBeGreaterThan(1000);
+    // Sorted, so two builds walk them in one order; and every one holds the HUD.
+    expect(screens).toEqual([...screens].sort((a, b) => a.w - b.w || a.h - b.h));
+    for (const s of screens) expect(fitsHud(s), key(s)).toBe(true);
   });
 
-  it("list every supported stage once, the reference and smallest stages among them, none under the smallest", () => {
+  it("list every supported stage once: each screen's open stage, and a dock screen's collapsed one too", () => {
     const stages = supportedStages();
-    const key = (s: { w: number; h: number }): string => `${s.w}x${s.h}`;
     expect(new Set(stages.map(key)).size).toBe(stages.length);
     const keys = new Set(stages.map(key));
     for (const s of [REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage, ...SMALLEST.map((x) => x.stage)])
       expect(keys.has(key(s)), key(s)).toBe(true);
+    for (const screen of sweepScreens()) {
+      expect(keys.has(key(stageFor(screen))), key(screen)).toBe(true);
+      if (layoutFor(screen) === "dock") {
+        const collapsed = clearArea(screen, { list: "collapsed" });
+        expect(keys.has(key(collapsed)), `${key(screen)}, collapsed`).toBe(true);
+      }
+    }
     for (const s of stages) {
       expect(s.w).toBeGreaterThanOrEqual(304);
       expect(s.h).toBeGreaterThanOrEqual(196);
-      expect(s.h).toBeLessThanOrEqual(640);
     }
-    for (const s of sweepScreens()) expect(keys.has(key(stageFor(s)))).toBe(true);
-    // Sorted, so two builds walk them in one order.
-    const sorted = [...stages].sort((a, b) => a.w - b.w || a.h - b.h);
-    expect(stages).toEqual(sorted);
+    expect(stages).toEqual([...stages].sort((a, b) => a.w - b.w || a.h - b.h));
+  });
+
+  it("frame at spec 002's six aspects and a series by ×1.25 outward that covers every supported stage", () => {
+    for (const a of [0.45, 0.6, 0.8, 1.15, 1.5, 2.4]) expect(ASPECTS).toContain(a);
+    expect([...ASPECTS]).toEqual([...ASPECTS].sort((a, b) => a - b));
+    const low = ASPECTS.filter((a) => a < 0.45);
+    const high = ASPECTS.filter((a) => a > 2.4);
+    for (let i = 0; i < low.length; i += 1) expect(low[i]).toBeCloseTo((low[i + 1] ?? 0.45) / 1.25, 12);
+    for (let i = 0; i < high.length; i += 1) expect(high[i]).toBeCloseTo((high[i - 1] ?? 2.4) * 1.25, 12);
+    const aspects = supportedStages().map((s) => s.w / s.h);
+    const [lo, hi] = [Math.min(...aspects), Math.max(...aspects)];
+    expect(ASPECTS[0]).toBeLessThanOrEqual(lo);
+    expect(ASPECTS.at(-1)).toBeGreaterThanOrEqual(hi);
+    // The series stops one step past each end: nothing beyond the cover.
+    expect((ASPECTS[1] ?? 0) > lo).toBe(true);
+    expect((ASPECTS.at(-2) ?? 0) < hi).toBe(true);
   });
 
   it("give the 2D drawing's scale on a stage as min(W ÷ 320, H ÷ 200)", () => {
     expect(flatScale({ w: 304, h: 248 })).toBeCloseTo(0.95, 12);
-    expect(flatScale({ w: 304, h: 208 })).toBeCloseTo(0.95, 12);
+    expect(flatScale({ w: 320, h: 250 })).toBe(1);
     expect(flatScale({ w: 686.4, h: 640 })).toBeCloseTo(2.145, 12);
     expect(flatScale({ w: 640, h: 300 })).toBe(1.5);
   });
 });
 
-// T303 (spec 004; FR-064; spec.md's Clarifications, 2026-10-26, T302): FR-064's smallest stages no longer bound the
-// carve-out, so the named set left stages.ts; the stage of the 2D drawing's smallest scale stays, which RG6's reasons
-// name.
-describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
-  it("comes first at 304 × 196, at 0.95, and only at stages 304 px wide", async () => {
-    expect(smallestFlatStage()).toEqual({ w: 304, h: 196 });
-    expect(flatScale(smallestFlatStage())).toBeCloseTo(0.95, 12);
-    for (const s of supportedStages()) if (flatScale(s) <= 0.95 + 1e-12) expect(s.w).toBe(304);
-    const module = await import("../../src/room/compose/stages");
-    expect(Object.keys(module)).not.toContain("isFr064Smallest");
-    expect(Object.keys(module)).not.toContain("fr064SmallestStages");
-  });
-});
+describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
+  const COLUMN = 'html[data-hud="column"]';
+  const DOCK = 'html[data-hud="dock"]';
 
-// T033 (spec 008; FR-021; plan.md R-09): the walking control's box, a fixed box in the stage's bottom-right corner that
-// room.css's `.room-walk` sets and compose/stages.ts pins, as it pins the stage's rules: at least 44 × 44 CSS pixels.
-describe("the walking control's box (spec 008, T033)", () => {
-  it("reads room.css's .room-walk rule: 8rem by 2.75rem, 0.5rem in from the stage's bottom and right", () => {
-    expect(WALK_CONTROL).toEqual({ widthRem: 8, heightRem: 2.75, insetRem: 0.5 });
+  it("size each docked box from the table's properties, and set no length of their own for one", () => {
+    // The strip grows with its words, never clipping them (the review of 60b51de4, finding 3; FR-049).
+    expect(decl(`${COLUMN} .disclosure`, "min-height")).toBe("var(--strip-h)");
+    expect(decl(`${DOCK} .disclosure`, "min-height")).toBe("var(--strip-h)");
+    for (const at of [COLUMN, DOCK]) {
+      const strip = RULES.filter((r) => r.selector === `${at} .disclosure`);
+      expect(
+        strip.some((r) => r.decls.has("height")),
+        `${at}: no fixed height`,
+      ).toBe(false);
+      expect(
+        strip.some((r) => r.decls.get("overflow") === "hidden"),
+        `${at}: no overflow hidden`,
+      ).toBe(false);
+    }
+    expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
+    expect(decl(`${DOCK} .hud-bar`, "height")).toBe("var(--bar-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
+    expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("var(--strip-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
+    expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
+    expect(decl(`${DOCK} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
+    for (const [p, v] of [
+      ["left", "var(--clear-x)"],
+      ["top", "var(--clear-y)"],
+      ["width", "var(--clear-w)"],
+      ["height", "var(--clear-h)"],
+    ] as const) {
+      expect(decl(`${COLUMN} .room-clear`, p)).toBe(v);
+      expect(decl(`${DOCK} .room-clear`, p)).toBe(v);
+    }
+    const boxes = [".disclosure", ".hud-bar", ".hud-panels", ".room-clear"];
+    const sizes = ["width", "height", "top", "bottom", "left", "right", "inset", "min-height", "max-height"];
+    for (const rule of RULES) {
+      if (!boxes.some((b) => rule.selector === `${COLUMN} ${b}` || rule.selector === `${DOCK} ${b}`)) continue;
+      for (const [p, v] of rule.all)
+        if (sizes.includes(p))
+          expect(/\d(px|rem|em|%|vh|vw|dvh)/.test(v.replace(/var\([^)]*\)/g, "")), `${rule.selector} ${p}: ${v}`).toBe(
+            false,
+          );
+    }
+  });
+
+  it("make the room block the window: 100dvh after 100vh, and the page in the room no frame", () => {
+    const block = RULES.filter((r) => r.selector === `${COLUMN} .room-block` && r.media === null);
+    const heights = block.flatMap((r) => r.all.filter(([p]) => p === "height").map(([, v]) => v));
+    expect(heights).toEqual(["100vh", "100dvh"]);
+    expect(decl(`${DOCK} .room-block`, "height")).toBe("100dvh");
+    expect(decl(`${COLUMN} .room-stage`, "position")).toBe("absolute");
+    expect(decl(`${COLUMN} .room-stage`, "inset")).toBe("0");
+    const inRoom = RULES.filter((r) => r.selector === "body.in-room" && r.media === null);
+    for (const r of inRoom) {
+      expect(r.decls.has("max-width"), "body.in-room's max-width").toBe(false);
+      expect(r.decls.has("padding"), "body.in-room's padding").toBe(false);
+    }
+  });
+
+  // The review of 60b51de4's nit: the characters-left counter, a third line under the text box's row, spilled over the
+  // bar, since the dock's height (the table's talk entry) counts the label's line and the row. In the dock it shares
+  // the label's line, on its right, and both fit there at the narrowest window, its widest words included.
+  it("keep the dock's characters-left counter on the label's line, which the dock's height counts", () => {
+    expect(decl(`${DOCK} .talk-form`, "grid-template-columns")).toBe("1fr auto");
+    expect(decl(`${DOCK} .talk-form label`, "grid-row")).toBe("1");
+    expect(decl(`${DOCK} .talk-form label`, "grid-column")).toBe("1");
+    expect(decl(`${DOCK} .talk-counter`, "grid-row")).toBe("1");
+    expect(decl(`${DOCK} .talk-counter`, "grid-column")).toBe("2");
+    expect(decl(`${DOCK} .talk-counter`, "line-height")).toBe(String(HUD_PLACEMENTS.talk.lineHeight));
+    expect(decl(`${DOCK} .talk-row`, "grid-column")).toBe("1 / -1");
+    const rem = DEFAULT_METRICS.rem;
+    const size = HUD_PLACEMENTS.talk.labelRem * rem;
+    const widest = `${Math.ceil(DEFAULT_TALK_LIMITS.turnMaxChars * 0.2)} characters left`;
+    const words = textWidth("Your message", size) + HUD_PLACEMENTS.talk.gapRem * rem + textWidth(widest, size);
+    expect(words).toBeLessThanOrEqual(320 - 2 * HUD_PLACEMENTS.dock.padRem * rem);
+  });
+
+  it("keep the 2D drawing's container rule and the walking control's box", () => {
+    expect(decl(".flat", "width")).toBe("min(100cqw, 160cqh)");
+    expect(decl(".flat", "height")).toBe("min(100cqh, 62.5cqw)");
     expect(decl(".room-walk", "position")).toBe("absolute");
     expect(rem(decl(".room-walk", "width"))).toBe(WALK_CONTROL.widthRem);
     expect(rem(decl(".room-walk", "height"))).toBe(WALK_CONTROL.heightRem);
     expect(rem(decl(".room-walk", "right"))).toBe(WALK_CONTROL.insetRem);
     expect(rem(decl(".room-walk", "bottom"))).toBe(WALK_CONTROL.insetRem);
   });
+});
 
+// T303 (spec 004; FR-064; spec.md's Clarifications, 2026-10-26, T302), as spec 005 moves it: the stage of the 2D
+// drawing's smallest scale, which RG6's reasons name, is now the 320 × 568 screen's clear area, at 1.
+describe("the 2D drawing's smallest scale (compose/stages.ts)", () => {
+  it("comes first at 320 × 250, at 1, and only at stages 320 px wide", async () => {
+    expect(smallestFlatStage()).toEqual({ w: 320, h: 250 });
+    expect(flatScale(smallestFlatStage())).toBe(1);
+    for (const s of supportedStages()) if (flatScale(s) <= 1 + 1e-12) expect(s.w).toBe(320);
+    // Spec 005's floor: the smallest 2D scale only grows, from spec 004's 0.95.
+    expect(flatScale(smallestFlatStage())).toBeGreaterThan(flatScale(legacy.SMALLEST[0]?.stage ?? { w: 0, h: 0 }));
+    const module = await import("../../src/room/compose/stages");
+    expect(Object.keys(module)).not.toContain("isFr064Smallest");
+    expect(Object.keys(module)).not.toContain("fr064SmallestStages");
+    expect(Object.keys(module)).not.toContain("ROOM_CSS");
+  });
+});
+
+// T033 (spec 008; FR-021; plan.md R-09): the walking control's box, a fixed box in the stage's bottom-right corner that
+// room.css's `.room-walk` sets and compose/stages.ts pins: at least 44 × 44 CSS pixels; since spec 005, the clear
+// area's corner.
+describe("the walking control's box (spec 008, T033)", () => {
   it("is at least 44 × 44 CSS pixels, in the stage's bottom-right corner, at every supported stage", () => {
-    expect(WALK_CONTROL.heightRem * ROOM_CSS.rem).toBeGreaterThanOrEqual(44);
-    expect(WALK_CONTROL.widthRem * ROOM_CSS.rem).toBeGreaterThanOrEqual(44);
+    expect(WALK_CONTROL).toEqual({ widthRem: 8, heightRem: 2.75, insetRem: 0.5 });
+    expect(WALK_CONTROL.heightRem * 16).toBeGreaterThanOrEqual(44);
+    expect(WALK_CONTROL.widthRem * 16).toBeGreaterThanOrEqual(44);
     for (const stage of supportedStages()) {
       const [x, y, w, h] = walkControlBox(stage);
       expect([w, h]).toEqual([128, 44]);

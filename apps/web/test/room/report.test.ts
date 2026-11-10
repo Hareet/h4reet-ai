@@ -345,10 +345,11 @@ describe("the report's exempt faces and side-wall selectables", () => {
 
   it("marks the counter face exempt on the phone, and the word face readable", () => {
     const rows = lines(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }));
+    // At spec 005's reference stages (12.5 and 7.2, and 28.1 and 16.2, before it).
     expect(rows).toContain(
-      '| `fx-neon.counters` | yes | 12.5 px | 7.2 px | 9 | -1.8 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
+      '| `fx-neon.counters` | yes | 21.9 px | 7.5 px | 9 | -1.5 px | exempt on the phone, carried by the text copy\'s "Around the room" |',
     );
-    expect(rows).toContain("| `fx-neon.panel` | yes | 28.1 px | 16.2 px | 9 | 7.2 px | readable |");
+    expect(rows).toContain("| `fx-neon.panel` | yes | 49.2 px | 16.9 px | 9 | 7.9 px | readable |");
   });
 
   it("names each list-only side-wall selectable, its wall, and its 3D and 2D stages, after the legibility table", () => {
@@ -361,7 +362,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
       "",
       "| Selectable | 3D | 2D |",
       "|---|---|---|",
-      "| `fx-lower` (left-wall) | list-only at 304 × 196 and 30 others | list-only at 304 × 196 and 30 others |",
+      "| `fx-lower` (left-wall) | list-only at 320 × 250 and 44 others | list-only at 320 × 250 and 44 others |",
       "",
     ]);
     // The legibility table's last row is right above it.
@@ -376,8 +377,8 @@ describe("the report's exempt faces and side-wall selectables", () => {
         "left-wall: { at: [-0.9, 0, -0.5]",
       ),
       "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-        "offset: [0, 1.0515, 0] }",
-        "offset: [0, 1.09, 0] }",
+        "offset: [0, 1.074, 0] }",
+        "offset: [0, 1.1, 0] }",
       ),
     });
     const result = compose(tree, sideWallPolicy(), { mode: "strict", drafts: true });
@@ -385,7 +386,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     const rows = lines(result);
     // The upper sign keeps its tap there (`listOnly`'s release pass), so the lower alone is listed.
     expect(rows.filter((r) => r.startsWith("| `fx-"))).toContain(
-      "| `fx-lower` (left-wall) | list-only at 304 × 252 and 48 others | – |",
+      "| `fx-lower` (left-wall) | list-only at 320 × 322 and 53 others | – |",
     );
     expect(rows.some((r) => r.startsWith("| `fx-upper` (left-wall)"))).toBe(false);
     expect(rows).toContain("Findings: none.");
@@ -405,7 +406,7 @@ describe("the report's exempt faces and side-wall selectables", () => {
     });
     expect(out.report.markdown).not.toContain("fx-lower");
     expect(out.report.markdown).toContain(
-      "| selectables[3] (left-wall) | list-only at 304 × 196 and 30 others | list-only at 304 × 196 and 30 others |",
+      "| selectables[3] (left-wall) | list-only at 320 × 250 and 44 others | list-only at 320 × 250 and 44 others |",
     );
   });
 });
@@ -469,9 +470,10 @@ describe("the report's walking lines (spec 008)", () => {
       "Walking (spec 008, FR-026): the visitor figure's start, x 0 and z 0.8, is on the walkable floor at the radius " +
         "0.12 m, 0.875 m from its nearest edge, the floor's open front.",
     );
+    // Spec 005: the reserved boxes, the walking control's in the clear area's bottom-right corner.
     expect(md).toContain(
-      "The walking control's box (spec 008, FR-021): 8rem × 2.75rem, 0.5rem in from the stage's bottom-right corner, " +
-        "holds no side-wall selectable at any supported stage.",
+      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), 8rem × 2.75rem, 0.5rem in from " +
+        "the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.",
     );
     expect(md.indexOf("Walking (spec 008")).toBeGreaterThan(md.indexOf("| Look | Band |"));
     expect(md.indexOf("Walking (spec 008")).toBeLessThan(md.indexOf("Findings:"));

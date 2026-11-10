@@ -4,6 +4,10 @@
 export interface QualitySettings {
   /** The most device pixels a CSS pixel gets. */
   pixelRatio: number;
+  /** The most device pixels the drawing buffer holds (spec 005, FR-010, FR-011; plan.md §4.2, D7): the ratio falls
+   *  below pixelRatio where the canvas's area would take more (fit.ts's bufferRatio). Starting figures, tuned from the
+   *  Author's lookdev runs, each one edit. */
+  pixelCap: number;
   shadows: boolean;
   /** The look's outlines (spec 004, R-35). */
   outlines: boolean;
@@ -22,6 +26,7 @@ export interface QualitySettings {
 const LEVELS: readonly QualitySettings[] = [
   {
     pixelRatio: 2,
+    pixelCap: 3_686_400,
     shadows: true,
     outlines: true,
     glowCards: true,
@@ -32,6 +37,7 @@ const LEVELS: readonly QualitySettings[] = [
   },
   {
     pixelRatio: 1.25,
+    pixelCap: 2_304_000,
     shadows: true,
     outlines: true,
     glowCards: true,
@@ -42,6 +48,7 @@ const LEVELS: readonly QualitySettings[] = [
   },
   {
     pixelRatio: 1,
+    pixelCap: 1_440_000,
     shadows: false,
     outlines: false,
     glowCards: false,
@@ -52,6 +59,7 @@ const LEVELS: readonly QualitySettings[] = [
   },
   {
     pixelRatio: 0.75,
+    pixelCap: 921_600,
     shadows: false,
     outlines: false,
     glowCards: false,

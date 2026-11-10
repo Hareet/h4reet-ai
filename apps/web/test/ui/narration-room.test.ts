@@ -94,6 +94,8 @@ function holds(prelude: string, vp: Viewport): boolean {
       if (feature === "max-width") return vp.width <= px(value);
       if (feature === "orientation") return value === (vp.width > vp.height ? "landscape" : "portrait");
       if (feature === "prefers-reduced-motion" || feature === "pointer") return false;
+      // Spec 005's preference queries, off as the default visitor has them.
+      if (["forced-colors", "prefers-contrast", "prefers-reduced-transparency"].includes(feature ?? "")) return false;
       return true;
     }),
   );
@@ -145,17 +147,20 @@ describe("narration in the room", () => {
       expect(shown(v).length).toBeGreaterThan(0);
       const rules = rulesAt(vp);
 
-      // The disclosure: on the page, unhidden, a child of the body, sticky at the top, opaque, and stacked above.
+      // The disclosure: on the page, unhidden, a child of the body, at the top, and stacked above: since spec 005 the
+      // HUD's strip in the room, fixed over the scene, its dark glass's contrast computed by
+      // test/room/hud-contrast.test.ts; sticky and opaque in the stacked layout.
       const disclosure = v.doc.querySelector<HTMLElement>(".disclosure");
       if (!disclosure) throw new Error("no AI disclosure");
       expect(textOf(disclosure)).toContain(AI_DISCLOSURE);
       expect(disclosure.closest("[hidden], [aria-hidden='true']")).toBeNull();
       expect(disclosure.parentElement).toBe(v.doc.body);
-      expect(valueOf(disclosure, "position", rules)).toBe("sticky");
+      const hud = ["column", "dock"].includes(v.doc.documentElement.getAttribute("data-hud") ?? "");
+      expect(valueOf(disclosure, "position", rules)).toBe(hud ? "fixed" : "sticky");
       expect(px(valueOf(disclosure, "top", rules) ?? "") || Number(valueOf(disclosure, "top", rules))).toBe(0);
-      expect(valueOf(disclosure, "background", rules) ?? valueOf(disclosure, "background-color", rules)).toMatch(
-        OPAQUE,
-      );
+      const background = valueOf(disclosure, "background", rules) ?? valueOf(disclosure, "background-color", rules);
+      if (hud) expect(background).toBe("rgb(var(--glass) / var(--glass-alpha))");
+      else expect(background).toMatch(OPAQUE);
       const z = Number(valueOf(disclosure, "z-index", rules));
       expect(z).toBeGreaterThan(0);
 
@@ -171,8 +176,9 @@ describe("narration in the room", () => {
         expect(valueOf(el, "overflow", rules) ?? "visible", el.tagName).toMatch(/^(visible|clip)$/);
         expect(valueOf(el, "overflow-y", rules) ?? "visible", el.tagName).toMatch(/^(visible|clip)$/);
       }
+      // Since spec 005 the resume lies over the room block's clear area, under the strip (FR-027).
       for (let el: Element | null = region(v); el && el !== v.doc.body; el = el.parentElement) {
-        expect(valueOf(el, "position", rules) ?? "static", el.className).toMatch(/^(static|relative)$/);
+        expect(valueOf(el, "position", rules) ?? "static", el.className).toMatch(/^(static|relative|absolute)$/);
       }
 
       // And beside the words, the narration says the AI twin narrates them.
