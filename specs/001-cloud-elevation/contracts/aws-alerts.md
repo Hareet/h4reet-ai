@@ -38,9 +38,11 @@ The laptop's own alerts, such as the handover loop's failed stop, go through spe
 
 | Budget | Amount | Filter | Notifications |
 |---|---|---|---|
-| `h4-model-month` | $20 | Amazon Bedrock | 70% and 100% of actual |
-| `h4-model-day` | $5 | Amazon Bedrock | 70% and 100% of actual |
-| `h4-server-month` | the Author's figure (`TF_VAR_server_budget_usd`) | every service but Amazon Bedrock | 70% and 100% of actual |
+| `h4-model-month` | $20 | Bedrock's services, `var.bedrock_service_names`; usage, not net of credits | 70% and 100% of actual |
+| `h4-model-day` | $5 | Bedrock's services, `var.bedrock_service_names`; usage, not net of credits | 70% and 100% of actual |
+| `h4-server-month` | the Author's figure (`TF_VAR_server_budget_usd`) | every service but Bedrock's | 70% and 100% of actual |
+
+**Bedrock's services** (group 3, after T028's review, B3): the names Bedrock's cost shows under in the Author's Cost Explorer, which he writes as `TF_VAR_bedrock_service_names`, a list with no default, before the plan. Claude on Bedrock is sold through AWS Marketplace, and its cost can show under a name of its own ("Claude … (Amazon Bedrock Edition)"), not "Amazon Bedrock" alone. A wrong name would hide the spend from both model budgets and from the model action that reads `h4-model-month` (§4), and count it in the server budget. The model budgets count usage (`cost_types`, `include_credit = false`), so a credit can't hide the spend; the server budget keeps AWS's default. Both are his to change.
 
 The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap bound it, and the account's own limit is its safety net (spec FR-073).
 

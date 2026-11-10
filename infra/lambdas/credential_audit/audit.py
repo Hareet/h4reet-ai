@@ -16,6 +16,10 @@ Two ways in, one core:
 The core is the standard library alone.
 
 The findings, each naming a user, role, permission set, or provider by name, never a key's ID or the account's ID:
+  iam_user_present                 an IAM user exists at all: a user is how a console password, a service-specific
+                                   credential (Bedrock's long-term API keys among them), an SSH public key, or a signing
+                                   certificate lives, each long-lived, and humans use SSO (FR-008; User Story 1's
+                                   scenario 5). SES's SMTP credentials are an IAM user's access keys, so they count
   iam_user_access_key              an IAM user holds an access key, active or not
   root_access_key                  the root user holds one
   role_foreign_trust               a role's trust allows a principal outside the account, its services, and its
@@ -333,6 +337,9 @@ def run_audit(
     account = str(aws.call("sts", "GetCallerIdentity")["Account"])
     found: list[dict] = []
     for user in aws.call("iam", "ListUsers").get("Users") or []:
+        # Any IAM user: a user is how a console password, a service-specific credential, an SSH key, or a signing
+        # certificate lives, and humans use SSO (FR-008; User Story 1's scenario 5). Its access keys get their own.
+        found.append({"check": "iam_user_present", "resource": user["UserName"]})
         keys = (
             aws.call("iam", "ListAccessKeys", UserName=user["UserName"]).get(
                 "AccessKeyMetadata"

@@ -139,8 +139,8 @@ def test_terraform_reads_the_mirror_alone_and_keeps_its_data_outside_the_tree(
         assert env["CHECKPOINT_DISABLE"] == "1" and env["TF_IN_AUTOMATION"] == "1"
         assert not [k for k in env if k.startswith("TF_CLI_ARGS")]
         assert [k for k in env if k.startswith("AWS_")] in ([], ["AWS_PROFILE"])
-        if "version" in call["argv"]:
-            continue  # terraform version reads no configuration and calls no provider
+        if "version" in call["argv"] or "fmt" in call["argv"]:
+            continue  # neither installs or calls a provider: version reads nothing, fmt the files alone
         assert env["AWS_PROFILE"] == PROFILE
         assert (
             call["cli_config"] is not None

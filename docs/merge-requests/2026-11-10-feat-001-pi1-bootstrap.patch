@@ -3,27 +3,34 @@ T023; plan.md §3.1, §14; research.md R-22, R-23; contracts/aws-alerts.md §1 a
 Author's hand only: the protected names (FR-012; .claude/hooks/protected-paths.sh) keep them from agent sessions.
 
 Built on 2026-11-10 from plain copies, `diff -u` against /dev/null, never `git apply` or a write into a worktree, on
-feat/001-us1-bootstrap, stacked on groups 1 and 2. Apply it from the repository's top with `patch -p1`, which skips
-this preamble, byte for byte as in T027's scratch clone (T029).
+feat/001-us1-bootstrap, stacked on groups 1 and 2; rebuilt the same day for T028's review (B3 and nit 4). Apply it
+from the repository's top with `patch -p1`, which skips this preamble, byte for byte as in T027's scratch clone (T029).
 
-  - budgets.tf: h4-model-month ($20 a month) and h4-model-day ($5 a day) on Bedrock's cost, h4-server-month at
-    var.server_budget_usd on every cost but Bedrock's, each notifying h4-alerts at 70% and 100% of actual; the
-    account's DIMENSIONAL SERVICE anomaly monitor, with an IMMEDIATE subscription at $1 of impact.
+  - budgets.tf: h4-model-month ($20 a month) and h4-model-day ($5 a day) on Bedrock's cost, the services
+    var.bedrock_service_names names, counting usage, not cost net of credits; h4-server-month at
+    var.server_budget_usd on every cost but those services'; each notifying h4-alerts at 70% and 100% of actual.
+    The account's DIMENSIONAL SERVICE anomaly monitor, with an IMMEDIATE subscription at $1 of impact.
   - alerts.tf: h4-alerts; its policy, which lets Budgets and Cost Anomaly Detection publish, for this account alone;
     the email subscription to var.alert_email; and the topic's output.
 
-To confirm at T027, before any apply (the merge-request note's "For the Author"): that the provider takes
-aws_budgets_budget's filter_expression with not, which `terraform validate` in make plan ROOT=bootstrap checks; the
-service name Bedrock's spend shows under in his Cost Explorer ("Amazon Bedrock"); and that the account has no AWS
-services anomaly monitor of its own already, since an account holds one.
+Before T027 (the merge-request note's "For the Author"): the service names Bedrock's cost shows under in his Cost
+Explorer, as TF_VAR_bedrock_service_names in ~/.config/h4reet-ai/infra/bootstrap.env. To confirm at T027, before any
+apply: that the provider takes aws_budgets_budget's filter_expression with not, and cost_types, which make plan
+ROOT=bootstrap validates; and that the account has no AWS services anomaly monitor of its own already, since an
+account holds one.
 
 --- /dev/null
 +++ b/infra/bootstrap/budgets.tf
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,163 @@
 +# The model-spend budgets and the server budget, and the account's anomaly monitor (spec 001 FR-021, FR-022;
 +# research.md R-22; contracts/aws-alerts.md §3), applied first. Each budget notifies h4-alerts (alerts.tf) at 70% and
 +# 100% of actual cost; the monitor, at once, on any anomaly of $1 or more. Protected (FR-012; contracts/infra-records.md
 +# §3, rule T5): it changes only by the Author's patch, with an ADR. Its two actions are infra/account's (group 4).
++#
++# Bedrock's cost is the services var.bedrock_service_names names, as the Author reads them in his Cost Explorer: Claude
++# on Bedrock is sold through AWS Marketplace and can show under a name of its own (T028's review, B3). The model budgets
++# count usage, not cost net of credits, so a credit can't hide the spend from them (nit 4); the server budget keeps
++# AWS's default, his to change.
 +
 +resource "aws_budgets_budget" "model_month" {
 +  name         = "h4-model-month"
@@ -34,7 +41,11 @@ services anomaly monitor of its own already, since an account holds one.
 +
 +  cost_filter {
 +    name   = "Service"
-+    values = ["Amazon Bedrock"]
++    values = var.bedrock_service_names
++  }
++
++  cost_types {
++    include_credit = false
 +  }
 +
 +  notification {
@@ -69,7 +80,11 @@ services anomaly monitor of its own already, since an account holds one.
 +
 +  cost_filter {
 +    name   = "Service"
-+    values = ["Amazon Bedrock"]
++    values = var.bedrock_service_names
++  }
++
++  cost_types {
++    include_credit = false
 +  }
 +
 +  notification {
@@ -108,7 +123,7 @@ services anomaly monitor of its own already, since an account holds one.
 +    not {
 +      dimensions {
 +        key    = "SERVICE"
-+        values = ["Amazon Bedrock"]
++        values = var.bedrock_service_names
 +      }
 +    }
 +  }

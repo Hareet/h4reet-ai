@@ -11,7 +11,7 @@ Spec 001, re-planned 2026-11-09. It carries the September contract (`contracts/i
 | `make infra-verify ROOT=…`, `make infra-record ROOT=… OUTCOME=…`, `make infra-audit`, `make infra-mirror`, `make secrets-check` | the Author's terminal; refused to agents |
 | `terraform -chdir=infra/<root> apply <saved plan>` | the Author's terminal; refused to agents in every spelling (research.md R-16) |
 
-`~/.config/h4reet-ai/infra/<root>.env` holds each root's run-time values as `TF_VAR_…` lines: the alert email address (`TF_VAR_alert_email`), the state bucket's suffix (`TF_VAR_state_bucket_suffix`), and the server budget's figure (`TF_VAR_server_budget_usd`). The guard patch denies each by name (contracts/env-cloud.md §5). No secret is a Terraform variable.
+`~/.config/h4reet-ai/infra/<root>.env` holds each root's run-time values as `TF_VAR_…` lines: the alert email address (`TF_VAR_alert_email`), the state bucket's suffix (`TF_VAR_state_bucket_suffix`), and the server budget's figure (`TF_VAR_server_budget_usd`); and, after group 3's review (T028, B3), the service names Bedrock's cost shows under in his Cost Explorer (`TF_VAR_bedrock_service_names`, a list). The guard patch denies each by name (contracts/env-cloud.md §5); the fourth's deny is P-1's to add before he writes it. No secret is a Terraform variable.
 
 ## 2. The plan block, the gate's step, `infra-verify`, the apply record
 
@@ -24,7 +24,7 @@ As September §2 to §4 and §6, at 00309c47, unchanged:
 
 The name-server change at the registrar gets a hand-written record with the root `dns-delegation`.
 
-**As built in group 3** (plan.md §16, group 3's departures 2 and 9): Terraform's data folder is `~/.config/h4reet-ai/infra/data/<root>`, never `.terraform/` in the tree, so the one command `infra-verify` prints is `AWS_PROFILE=<profile> TF_DATA_DIR=<…/data/root> terraform -chdir=infra/<root> apply <saved plan>`. On a pass, `infra-verify` writes a stamp beside the saved plan (`<root>-<tree>.verified`: the commit, the note, the time), and `infra-record` takes the record's start from it and refuses without it. `infra-record ROOT=… OUTCOME=failed` takes `EXIT_STATUS=<n>`, and a second record the same day is `<date>-2-<root>.md` on `ops/apply-<root>-<date>-2`.
+**As built in group 3** (plan.md §16, group 3's departures 2 and 9): Terraform's data folder is `~/.config/h4reet-ai/infra/data/<root>`, never `.terraform/` in the tree, so the one command `infra-verify` prints is `AWS_PROFILE=<profile> TF_DATA_DIR=<…/data/root> terraform -chdir=infra/<root> apply <saved plan>`. On a pass, `infra-verify` writes a stamp beside the saved plan (`<root>-<tree>.verified`: the commit, the note, the time), and `infra-record` takes the record's start from it and refuses without it. `infra-record ROOT=… OUTCOME=failed` takes `EXIT_STATUS=<n>`, and a second record the same day is `<date>-2-<root>.md` on `ops/apply-<root>-<date>-2`. After T028's review (departure 12), `make plan ROOT=…` runs `terraform fmt -check` on the root after the policy and before `init`, and refuses while a saved plan of the same tree, or its stamp, exists.
 
 ## 3. The policy (`tools/gates/infra_policy.py`; human-only)
 
@@ -45,6 +45,7 @@ Run by `make infra-check` against the Author's provider mirror, and twice in the
 ## 4. The credential audit (FR-008, SC-004)
 
 As September §7: weekly, and before every apply. Its checks:
+- no IAM user at all, whatever it holds, since a console password, a service-specific credential (Bedrock's long-term API keys among them), an SSH public key, and a signing certificate are each an IAM user's, and long-lived (FR-008; User Story 1's scenario 5; group 3, after T028's review, I4): `iam_user_present`, naming the user;
 - no IAM user access key;
 - no root access key;
 - no role trusting a principal outside the account, its services, and Identity Center;

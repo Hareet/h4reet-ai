@@ -64,9 +64,7 @@ resource "aws_s3_bucket_public_access_block" "state" {
   restrict_public_buckets = true
 }
 
-# TLS only. The deny names the account, whose principals are the only ones the bucket can admit (no grant, Block Public
-# Access on), rather than "*", which the policy's rule T6 reads as a grant (plan.md §16, group 3's departures). It
-# grants nothing.
+# TLS only, for every principal. It grants nothing.
 data "aws_iam_policy_document" "state" {
   statement {
     sid       = "TlsOnly"
@@ -76,7 +74,7 @@ data "aws_iam_policy_document" "state" {
 
     principals {
       type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+      identifiers = ["*"]
     }
 
     condition {
