@@ -186,12 +186,19 @@ export interface CompactModel {
   readonly columnH: number;
 }
 
-/** The notes' words: the placeholder note, and the twin's stand-in line, and any other the room may show there. */
+/** The notes' words, each on its own: the placeholder note's two (spec 014's standin.avatar where the index has it),
+ *  and the twin's stand-in line. */
 export function notesWords(index: Pick<RoomIndex, "ui">): string[] {
-  const words = [index.ui["standin.note"], index.ui["twin.stand_in"]];
-  const avatar = index.ui["standin.avatar"];
-  if (avatar !== undefined) words.push(avatar, `${index.ui["standin.note"] ?? ""} ${avatar}`);
-  return words.filter((w): w is string => w !== undefined);
+  return [index.ui["standin.note"], index.ui["standin.avatar"], index.ui["twin.stand_in"]].filter(
+    (w): w is string => w !== undefined,
+  );
+}
+
+/** The placeholder note saying both (spec 014, FR-054; PD-18), as layout.ts joins them: the pieces' words first, a stop
+ *  after them where they end without one. */
+export function joinedNote(index: Pick<RoomIndex, "ui">): string {
+  const note = index.ui["standin.note"] ?? "";
+  return `${/[.!?]$/.test(note) ? note : `${note}.`} ${index.ui["standin.avatar"] ?? ""}`;
 }
 
 export function compactModel(

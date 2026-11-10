@@ -76,8 +76,10 @@ export interface RoomLayout {
   offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
-  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. */
-  setPlaceholders(on: boolean): void;
+  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. Since
+   *  spec 014 (its FR-053, FR-054; PD-18) it says what is missing: the room's pieces (standin.note), the visitor's
+   *  figure in 3D (standin.avatar), or both in one note, the pieces' first; hidden where nothing is. */
+  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -135,6 +137,8 @@ export function renderRoom(
     around: HTMLElement;
     /** The placeholder note's words: the UI word standin.note. */
     note: string;
+    /** Spec 014 (FR-054): the visitor's figure's placeholder words, the UI word standin.avatar; empty for none. */
+    noteAvatar?: string;
     /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
     standIn?: string;
     /** "Pause the room": the UI word pause.button. */
@@ -260,7 +264,10 @@ export function renderRoom(
       flatButton.setAttribute("aria-disabled", "true");
     },
     setPlaceholders(on) {
-      note.hidden = !on || parts.note === "";
+      const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");
+      // One note (FR-055): the two joined, the first ending in a stop where its words don't.
+      note.textContent = words.map((w, k) => (k < words.length - 1 && !/[.!?]$/.test(w) ? `${w}.` : w)).join(" ");
+      note.hidden = words.length === 0;
     },
     setPaused(on) {
       pauseButton.setAttribute("aria-pressed", String(on));

@@ -32,6 +32,7 @@ words:
   toolbar.credits: Credits
   standin.label: "{name} (a stand-in)"
   standin.note: Fixture shapes stand in for the pieces
+  standin.avatar: Fixture figure is a flat placeholder
   draft.badge: Draft
   flat-failed: This drawing of the room could not be shown. The list of things in the room still works.
   walk.enter: Walk around

@@ -22,7 +22,7 @@ import {
 } from "../../src/room/compose/hud";
 import { sweepScreens } from "../../src/room/compose/stages";
 import { roomIndex } from "../helpers/room";
-import { compactModel, hudModel, hudWords, notesWords, textWidth } from "./hud-model";
+import { compactModel, hudModel, hudWords, joinedNote, notesWords, textLines, textWidth } from "./hud-model";
 
 const WORDS = hudWords(roomIndex());
 const COLLAPSED = { list: "collapsed" } as const;
@@ -129,6 +129,22 @@ describe("the compact HUD against the model (spec 014, T006)", () => {
     expect(t.bar.maxRem * 16 - m.barW).toBeLessThan(16);
     expect(t.notes.maxRem * 16 - m.notesW).toBeLessThan(16);
     expect(NOTES).toContain(index.ui["twin.stand_in"]);
+  });
+
+  // T041 (spec 014; FR-054, FR-055; PD-18): the placeholder note saying both, wrapped at the notes' bound, takes no more
+  // lines than the table reserves it at every clear width the sweep gives.
+  it("wraps the placeholder note saying both into the lines the table reserves it (spec 014, T041)", () => {
+    const t = HUD_PLACEMENTS.notes;
+    const joined = joinedNote(index);
+    const failures: string[] = [];
+    for (const screen of sweepScreens().filter((x) => fitsHud(x))) {
+      const clear = hudBoxes(screen).clear;
+      const inner = Math.min(t.maxRem * 16, clear.w - 2 * t.insetRem * 16) - 2 * 0.5 * 16 - 2;
+      const lines = textLines(joined, t.fontRem * 16, inner);
+      const band = t.placeholderLines.find((b) => clear.w < b.belowRem * 16)?.n ?? 1;
+      if (lines > band) failures.push(`${screen.w} × ${screen.h}: ${lines} lines over ${band}`);
+    }
+    expect(failures.slice(0, 3)).toEqual([]);
   });
 
   it("holds the column's content, its list's rows and its log at rest, in the column's compact box", () => {

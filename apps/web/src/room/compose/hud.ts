@@ -162,9 +162,17 @@ export const HUD_PLACEMENTS = {
     gapRem: 0.25,
     count: 2,
     lines: [{ belowRem: 27, n: 2 }] as readonly Band[],
-    /** Spec 014: a note's widest words, its padding and border included (the model: 25.99rem for `standin.note`),
-     *  the notes' reserve's width in the always-on interface's coverage. */
+    /** Spec 014: a note's widest words on one line, its padding and border included (the model: 25.99rem for
+     *  `standin.note`): room.css holds each note to it, and it is the notes' reserve's width in the always-on
+     *  interface's coverage. */
     maxRem: 26,
+    /** Spec 014 (FR-054, FR-055; PD-18): the placeholder note's lines, which may hold `standin.note` and
+     *  `standin.avatar` joined, wrapped at maxRem: two, and three where the clear area is under 27rem; the stand-in line
+     *  keeps `lines`. */
+    placeholderLines: [
+      { belowRem: 27, n: 3 },
+      { belowRem: Number.POSITIVE_INFINITY, n: 2 },
+    ] as readonly Band[],
   },
 } as const;
 
@@ -276,9 +284,11 @@ export function fitsHud(
  *  reach into (FR-021). */
 export function notesReserve(clear: { readonly w: number }, rem = DEFAULT_METRICS.rem): number {
   const n = HUD_PLACEMENTS.notes;
-  const lines = band(n.lines, clear.w, rem);
-  const note = lines * n.fontRem * n.lineHeight * rem + 2 * n.padYRem * rem;
-  return 2 * n.insetRem * rem + n.count * note + (n.count - 1) * n.gapRem * rem;
+  const height = (lines: number): number => lines * n.fontRem * n.lineHeight * rem + 2 * n.padYRem * rem;
+  // Spec 014: the placeholder note by its own band, since it may say two things; the stand-in line by the notes'.
+  const first = height(band(n.placeholderLines, clear.w, rem));
+  const rest = height(band(n.lines, clear.w, rem));
+  return 2 * n.insetRem * rem + first + (n.count - 1) * (rest + n.gapRem * rem);
 }
 
 /** The walking control's box (spec 008, FR-021; plan.md R-09): `.room-walk`'s width, height, and inset from the clear

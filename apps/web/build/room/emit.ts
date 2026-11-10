@@ -37,7 +37,7 @@ import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
 
-import { AVATARS, isAvatarId } from "../../src/choice/avatars";
+import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
@@ -1543,13 +1543,6 @@ function standinsOf(c: Composed): RoomManifest["standins"] {
   return out;
 }
 
-/** Whether an avatar is still a placeholder: the twin without its GLB under assets/twin/, or a visitor's avatar
- *  without assets/visitors/<avatar>/<avatar>.glb (spec 003's files). */
-function avatarsPlaceholder(tree: Tree): boolean {
-  const twin = tree.list("assets/twin").some((name) => name.endsWith(".glb"));
-  return !twin || AVATARS.some((a) => !tree.list(`assets/visitors/${a.id}`).includes(`${a.id}.glb`));
-}
-
 const ITEM_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
 /** The resume's item IDs, in order, once each: spec 002's manifest's items; none where the source doesn't read. */
@@ -1579,7 +1572,9 @@ function itemIds(tree: Tree): string[] {
 export const emit: Emit = (room, policy, options, findings, reader) => {
   const c = prepare(room, policy, options, findings, reader);
   const standins = standinsOf(c);
-  const placeholders = standins.length > 0 || avatarsPlaceholder(reader.tree);
+  // Spec 014 (FR-053; PD-17; Amendment W11): the room's stand-ins alone; the page adds a piece that falls back, and the
+  // visitor's figure says its own words.
+  const placeholders = standins.length > 0;
   const scenePart = sceneBody(c);
   const indexPart = indexBody(c, placeholders, loadedModels(scenePart));
   const digest = sha256(`${serialize(indexPart)}\n${serialize(scenePart)}`);

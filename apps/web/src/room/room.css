@@ -767,6 +767,9 @@ html[data-hud="dock"] .resume-panel button:hover {
 /* The notes are glass chips with light words, letting a pointer through (FR-023); the offer sits on the glass. */
 html[data-hud="column"] .room-note,
 html[data-hud="dock"] .room-note {
+  /* At most compose/hud.ts's notes.maxRem wide, so a note that says two things wraps into its reserved lines. */
+  max-width: 26rem;
+  box-sizing: border-box;
   color: var(--hud-text);
   background: var(--chip-face);
   border: 1px solid var(--tile-border);

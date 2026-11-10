@@ -403,9 +403,21 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
 
+  /** Spec 014 (FR-053 to FR-055; PD-17, PD-18): what the placeholder note names, the room's pieces from the bundle or
+   *  a load that fell back, and the visitor's figure while the 3D room shows its flat shape. */
+  const placeholders = { pieces: deps.room.build.placeholders, figure: false };
+  function showPlaceholders(): void {
+    room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
+    // Spec 014 (FR-054): the visitor's figure's flat shape in 3D, named by the note; its avatar takes it away.
+    if (signal.kind === "picture" && signal.figure === "visitor") {
+      placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
+      showPlaceholders();
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;
@@ -459,6 +471,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const ended = new Set<string>();
   const recordAsset = (event: AssetEvent): void => {
     if (event.outcome !== "retried") ended.add(event.asset);
+    // Spec 014 (FR-053): a room piece's model that failed or was skipped in 3D shows its stand-in, which the note
+    // names; in 2D the drawing is the room's by design, and its skips say nothing of placeholder shapes.
+    const failed = event.outcome === "failed" || event.outcome === "skipped";
+    if (failed && event.mode !== "2d" && visit.mode !== "2d" && deps.room.models.includes(event.asset)) {
+      placeholders.pieces = true;
+      showPlaceholders();
+    }
     // The loader's model hears every end from "Enter", before the list of files too (spec 012, FR-014; PD-22).
     if (loading && !loading.done) {
       loading.progress.asset(event.asset, event.outcome);
@@ -693,6 +712,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       talk: talk.element,
       around: around.element,
       note: uiWord(deps.room.ui, "standin.note") ?? "",
+      noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
       walk: {
         enter: uiWord(deps.room.ui, "walk.enter") ?? "",
@@ -734,7 +754,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       if (!open()) return;
       motion.setPaused(!motion.paused);
     });
-    layout.setPlaceholders(deps.room.build.placeholders);
+    showPlaceholders();
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
     layout.flatButton.addEventListener("click", () => {
@@ -968,6 +988,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
+    // Spec 014 (FR-054): in 2D every figure is flat by design, so the note drops the figure's words.
+    showPlaceholders();
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
