@@ -265,7 +265,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Tests for User Story 6 (first)
 
-- [ ] T029 [P] [US6] Extend the event's tests (FR-046 to FR-048, FR-050; SC-008):
+- [x] T029 [P] [US6] Extend the event's tests (FR-046 to FR-048, FR-050; SC-008):
   - `apps/web/test/ui/loading-degraded.test.ts`: `loading_cut_short` emitted once a visit at the ceiling with a file not ended, and never on `ready`, on `2d`, in 2D from the start, below the floor with every file skipped early, or when every file ended in the ceiling's own tick;
   - `apps/web/test/events.test.ts` and `test/manifest.test.ts`: the kinds' list with `loading_cut_short` last;
   - `services/gateway/test/unit/room-events-config.test.ts`: the pinned kinds;
@@ -296,7 +296,7 @@ description: "Task list for spec 012, the room's loading screen"
 
   Check: all pass; `make up ENV=dev-cpu`'s compose config is unchanged (FR-053) (feat/012-loading-screen)
 - [x] T034 Write `apps/web/room/README.md`'s "The loader and its hints" (plan §10), and finish ADR 0045 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/012-loading-screen)
-- [ ] T035 Draft the merge-request note, `docs/merge-requests/<date>-feat-012-loading-screen.md`, and commit it as a save point. It holds:
+- [x] T035 Draft the merge-request note, `docs/merge-requests/<date>-feat-012-loading-screen.md`, and commit it as a save point. It holds:
   - what changed and why, with the Author's words quoted;
   - his T000 answers, and which provisional answers stand;
   - each FR's status;
