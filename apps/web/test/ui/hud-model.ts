@@ -221,6 +221,7 @@ export function compactModel(
   const listRows = floatRows(header, words.names.map(listButton), panelWidth, t.list.gapRem * rem);
   const row = (t.list.rowRem + t.list.gapRem) * rem;
   const talkHeight = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem;
-  const columnH = 2 * t.column.padRem * rem + listRows * row + row + logRestRem * rem + t.talk.statusRem * rem + talkHeight;
+  const columnH =
+    2 * t.column.padRem * rem + listRows * row + row + logRestRem * rem + t.talk.statusRem * rem + talkHeight;
   return { stripW, barW, notesW, listRows, columnH };
 }
