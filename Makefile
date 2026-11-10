@@ -746,7 +746,8 @@ endif
 # PROFILE=h4reet-… (or AWS_PROFILE): each refuses inside the agent sandbox before its script runs, and the bash gate
 # refuses each to agent sessions too (P-1). There is no apply target: make infra-verify prints the one terraform apply
 # to run, and make infra-record records it. Each value comes from the command line only and reaches its script as
-# "$$NAME", read by the shell, never spliced into the recipe.
+# "$$NAME", read by the shell, never spliced into the recipe. Each script line starts with @, so make adds nothing to
+# its stdout: make plan ROOT=…'s is the block for the note, and make infra-verify's the one command.
 AUTHOR_ONLY = @[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make $@ is the Author's: $(1)" >&2; exit 2; }
 NEEDS = @[ -n "$(call from_cli,$(1))" ] || { echo "make $@ needs $(1)=$(2)" >&2; exit 2; }
 WITH_PROFILE = $(if $(call from_cli,PROFILE), --profile "$$PROFILE")
@@ -754,7 +755,7 @@ WITH_PROFILE = $(if $(call from_cli,PROFILE), --profile "$$PROFILE")
 plan: ## The offline Terraform checks (make infra-check); never apply from here. ROOT=… [PROFILE=…] is the Author's real plan
 ifneq ($(call from_cli,ROOT),)
 	$(call AUTHOR_ONLY,it runs terraform init and plan with his SSO session in his terminal (contracts/infra-records.md §1))
-	$(PY_HOST) scripts/infra/infra_plan.py --root "$$ROOT"$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/infra_plan.py --root "$$ROOT"$(WITH_PROFILE)
 else
 	@$(INFRA_CHECK_SH)
 endif
@@ -762,21 +763,21 @@ endif
 infra-verify: ## (the Author) On main, before an apply: the saved plan is the reviewed one; prints the one apply command: ROOT=… [PROFILE=…]
 	$(call AUTHOR_ONLY,it checks his saved plan and runs the credential audit with his SSO session)
 	$(call NEEDS,ROOT,bootstrap|account|prod)
-	$(PY_HOST) scripts/infra/infra_verify.py --root "$$ROOT"$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/infra_verify.py --root "$$ROOT"$(WITH_PROFILE)
 
 infra-record: ## (the Author) After an apply: its record, on a new ops/apply-* branch: ROOT=… OUTCOME=ok|failed [EXIT_STATUS=n] [PROFILE=…]
 	$(call AUTHOR_ONLY,it records his apply and commits the record on a branch of his)
 	$(call NEEDS,ROOT,bootstrap|account|prod)
 	$(call NEEDS,OUTCOME,ok|failed)
-	$(PY_HOST) scripts/infra/infra_record.py --root "$$ROOT" --outcome "$$OUTCOME"$(if $(call from_cli,EXIT_STATUS), --exit-status "$$EXIT_STATUS")$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/infra_record.py --root "$$ROOT" --outcome "$$OUTCOME"$(if $(call from_cli,EXIT_STATUS), --exit-status "$$EXIT_STATUS")$(WITH_PROFILE)
 
 infra-audit: ## (the Author) The credential audit, with his SSO session: no long-lived credential, the laptop's identity narrow (FR-008) [PROFILE=…]
 	$(call AUTHOR_ONLY,it reads the account's IAM with his SSO session)
-	$(PY_HOST) infra/lambdas/credential_audit/audit.py --terminal$(WITH_PROFILE)
+	@$(PY_HOST) infra/lambdas/credential_audit/audit.py --terminal$(WITH_PROFILE)
 
 secrets-check: ## (the Author) Which Parameter Store names infra/parameters.txt expects exist, by name and type, never a value [PROFILE=…]
 	$(call AUTHOR_ONLY,it lists his account's parameters with his SSO session)
-	$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
+	@$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
