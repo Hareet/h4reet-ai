@@ -958,6 +958,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
       room.setStage("2d");
     }
+    // Spec 012 (FR-004): a fall to 2D while the loader shows gives way at once, the 2D stage now the room's, and as `2d`
+    // before the skips below can end the bar's last part and give way as `ready` (the review's N4).
+    giveWay("2d");
     // The 3D stage's loader skips what it had on its way; every other set model whose load hadn't recorded its end is
     // skipped here, the room in 2D (data-model.md §11.4): one the room started in 2D without, or one its 3D stage's
     // loader hadn't reached. The entry has no 3D part, so the index names them (FR-071).
@@ -967,8 +970,6 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     flat?.showHandoff(handoff && !handoff.finished ? handoff.progress() : 1);
     room.markFlat();
     emit({ kind: "mode_2d" });
-    // Spec 012 (FR-004): a fall to 2D while the loader shows gives way at once, the 2D stage now the room's.
-    giveWay("2d");
   }
 
   function offerResume(): void {
