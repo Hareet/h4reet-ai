@@ -232,7 +232,10 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
         if (!inside(c.bar, bands.bar)) failures.push(`${where}: the bar`);
         if (bands.column && !(c.column && inside(c.column, bands.column))) failures.push(`${where}: the column`);
         if (bands.dock && !(c.dock && inside(c.dock, bands.dock))) failures.push(`${where}: the dock`);
-        if (!inside(c.walk, bands.clear)) failures.push(`${where}: the walking control`);
+        // T053 (W19): the walking control at the column's head, in the column's band, where the band has room above
+        // the column's content; else in the clear area, as spec 008 put it.
+        const band = c.walkPlace === "column" ? bands.column : bands.clear;
+        if (!band || !inside(c.walk, band)) failures.push(`${where}: the walking control`);
         if (c.all.length !== 4) failures.push(`${where}: ${c.all.length} boxes`);
       }
     expect(failures.slice(0, 5), `${failures.length} failures; the first`).toEqual([]);
@@ -357,11 +360,12 @@ describe("the compact boxes (spec 014, T005; compose/hud.ts's compactBoxes)", ()
 });
 
 // T053 (spec 014, the review's finding on the frame; the Author's answer of 2026-11-10, "Move the walk control
-// (Recommended)"; Amendment W19 to spec 008's FR-021): in the column layout, where the bar's row holds its tiles and the
-// walking control together, the control is a tile at the bar cluster's left end, in the bar's band, and the compact bar
-// box takes it in; the clear area holds no HUD box. A narrower column window, and the dock layout, keep spec 008's place
+// (Recommended)"; Amendment W19 to spec 008's FR-021): in the column layout, where the column's band has room above the
+// column's content, the walking control sits at the column's head, at its right, a gap above the column, in the
+// column's band and out of the clear area; the bar's cluster keeps its table width, so the frame doesn't ease around
+// the control at the clear area's corner. Where the band has no room, and in the dock layout, it keeps spec 008's place
 // in the clear area's bottom-right corner. Its size stays 8rem by 2.75rem.
-describe("the walking control in the bar's cluster (spec 014, T053)", () => {
+describe("the walking control at the column's head (spec 014, T053)", () => {
   const inside = (outer: Box, inner: Box): boolean =>
     inner.x >= outer.x - 1e-9 &&
     inner.y >= outer.y - 1e-9 &&
@@ -369,7 +373,7 @@ describe("the walking control in the bar's cluster (spec 014, T053)", () => {
     inner.y + inner.h <= outer.y + outer.h + 1e-9;
   const meets = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-  it("puts it at the bar cluster's left end, in the bar's band, on landscape windows from 1280 × 720", () => {
+  it("puts it at the column's head, in the column's band, on landscape windows from 1280 × 720", () => {
     for (const screen of [
       { w: 1280, h: 720 },
       { w: 1920, h: 1080 },
@@ -379,21 +383,24 @@ describe("the walking control in the bar's cluster (spec 014, T053)", () => {
       const c = compactBoxes(screen);
       const bands = hudBoxes(screen);
       const where = `${screen.w} × ${screen.h}`;
+      const column = c.column;
+      if (!column || !bands.column) throw new Error(`${where}: no column`);
       expect(c.layout, where).toBe("column");
-      expect(c.walkPlace, where).toBe("bar");
-      expect(inside(c.bar, c.walk), where).toBe(true);
-      expect(inside(bands.bar, c.walk), where).toBe(true);
-      expect(c.walk.x, where).toBeCloseTo(c.bar.x + HUD_PLACEMENTS.bar.padRem * 16, 6);
+      expect(c.walkPlace, where).toBe("column");
+      expect(inside(bands.column, c.walk), where).toBe(true);
+      expect(c.walk.y + c.walk.h, where).toBeCloseTo(column.y - HUD_PLACEMENTS.bar.gapRem * 16, 6);
+      expect(c.walk.x + c.walk.w, where).toBeCloseTo(column.x + column.w - HUD_PLACEMENTS.bar.gapRem * 16, 6);
       expect([c.walk.w, c.walk.h], where).toEqual([128, 44]);
       expect(meets(c.walk, bands.clear), where).toBe(false);
-      expect(c.all, where).toEqual([c.strip, c.bar, c.column]);
-      expect(c.bar.x + c.bar.w, where).toBeCloseTo(screen.w, 6);
+      expect(meets(c.walk, column), where).toBe(false);
+      expect(c.all, where).toEqual([c.strip, c.bar, column, c.walk]);
+      expect(c.bar.w, where).toBe(Math.min(HUD_PLACEMENTS.bar.maxRem * 16, screen.w));
     }
   });
 
-  it("keeps spec 008's place in the clear area's corner on a narrower column window and in the dock layout", () => {
+  it("keeps spec 008's place in the clear area's corner where the column's band has no room, and in the dock layout", () => {
     for (const screen of [
-      { w: 600, h: 420 },
+      { w: 576, h: 368 },
       { w: 390, h: 844 },
     ]) {
       const c = compactBoxes(screen);

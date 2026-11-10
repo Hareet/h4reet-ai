@@ -185,7 +185,10 @@ describe("the notes, the type, and the motion (spec 014, T024; FR-023, FR-024, F
     const root = RULES.find((r) => r.selector === ":root" && r.declarations.has("--accent-neon"));
     expect(root?.declarations.get("--accent-neon")).toMatch(/^#[0-9a-f]{6}$/);
     expect(root?.declarations.get("--hud-focus")).toBe("#ffd23f");
-    const hover = RULES.filter((r) => /\.room button:hover$/.test(r.selector) && r.declarations.has("border-color"));
+    // T053 (the review's I3): the hover names the HUD's own buttons.
+    const hover = RULES.filter(
+      (r) => /\.hud-panels button:hover$/.test(r.selector) && r.declarations.has("border-color"),
+    );
     expect(hover.length).toBeGreaterThan(0);
     for (const r of hover) expect(r.declarations.get("border-color")).toBe("var(--accent-neon)");
     const current = RULES.filter(
@@ -227,10 +230,10 @@ describe("the compact column's properties and the log at rest (spec 014, T024; F
 });
 
 // T053 (spec 014; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"; the review's I3): the
-// walking control in the bar's cluster, by the CSS properties the room sets from compose/hud.ts's compactBoxes, its
+// walking control at the column's head, by the CSS properties the room sets from compose/hud.ts's compactBoxes, its
 // DOM place, and so the Tab order, unchanged; its own glass hover, only where the pointer hovers, so a tap leaves none;
 // and the hover and selection rules scoped to the HUD's own buttons, so the resume keeps its document's look (FR-022).
-describe("the walking control in the bar, and the hover's scope (spec 014, T053)", () => {
+describe("the walking control at the column's head, and the hover's scope (spec 014, T053)", () => {
   const px = (v: Visit, name: string): number => Number.parseFloat(v.doc.documentElement.style.getPropertyValue(name));
   const ROOM_RULES = (() => {
     const out: Rule[] = [];
@@ -245,13 +248,13 @@ describe("the walking control in the bar, and the hover's scope (spec 014, T053)
     return out;
   })();
 
-  it("places the control at the bar cluster's left end on a wide window, and in the clear area's corner on a phone", async () => {
+  it("places the control at the column's head on a wide window, and in the clear area's corner on a phone", async () => {
     const wide = await room({ w: 1920, h: 1200 });
     const c = compactBoxes({ w: 1920, h: 1200 });
-    expect(wide.doc.documentElement.getAttribute("data-walk-place")).toBe("bar");
+    expect(wide.doc.documentElement.getAttribute("data-walk-place")).toBe("column");
     expect(px(wide, "--walk-x")).toBeCloseTo(c.walk.x, 3);
     expect(px(wide, "--walk-y")).toBeCloseTo(c.walk.y, 3);
-    const rule = ROOM_RULES.find((r) => r.selector === 'html[data-hud="column"][data-walk-place="bar"] .room-walk');
+    const rule = ROOM_RULES.find((r) => r.selector === 'html[data-hud="column"][data-walk-place="column"] .room-walk');
     expect(rule?.declarations.get("left")).toBe("calc(var(--walk-x) - var(--clear-x))");
     expect(rule?.declarations.get("top")).toBe("calc(var(--walk-y) - var(--clear-y))");
     expect(rule?.declarations.get("right")).toBe("auto");

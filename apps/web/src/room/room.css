@@ -127,6 +127,8 @@ body.in-room .disclosure p {
   --accent-neon: #ffc8a8;
   --tile-face-lit: rgb(40 46 56 / 0.55);
   --chip-face: rgb(var(--glass) / var(--glass-alpha));
+  /* T053 (the review's I3): the walking control's hover face, the glass a step denser, opaque with the glass. */
+  --glass-alpha-lit: 0.75;
   --heading-font: "Patrick Hand", cursive;
   --figure-font: "IBM Plex Mono", ui-monospace, monospace;
   --strip-x: 0px;
@@ -138,6 +140,8 @@ body.in-room .disclosure p {
   --frame-y: 0px;
   --frame-w: 0px;
   --frame-h: 0px;
+  --walk-x: 0px;
+  --walk-y: 0px;
 }
 
 /* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
@@ -147,6 +151,7 @@ body.in-room .disclosure p {
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
   }
 
   .hud-glass,
@@ -159,6 +164,7 @@ body.in-room .disclosure p {
 @media (prefers-contrast: more) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
   }
 
   .hud-glass,
@@ -171,6 +177,7 @@ body.in-room .disclosure p {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
   }
 
   .hud-glass,
@@ -685,9 +692,22 @@ html[data-hud="dock"] .hud-glass a:focus-visible,
 html[data-hud="column"] .hud-glass input:focus-visible,
 html[data-hud="dock"] .hud-glass input:focus-visible,
 html[data-hud="column"] .hud-glass.room-walk:focus-visible,
-html[data-hud="dock"] .hud-glass.room-walk:focus-visible {
+html[data-hud="dock"] .hud-glass.room-walk:focus-visible,
+html[data-hud="column"] .room-offer button:focus-visible,
+html[data-hud="dock"] .room-offer button:focus-visible {
   outline: 2px solid var(--hud-focus);
   outline-offset: 2px;
+}
+
+/* Since T053 (spec 014's Amendment W19; the Author's answer, "Move the walk control (Recommended)"): on a column window
+   whose band has room above the column's content, the walking control sits at the column's head, at its right, at
+   compose/hud.ts's compactBoxes place, which the room sets as --walk-x and --walk-y in the window's pixels. Its DOM
+   place, and so the Tab order, stays spec 008's. */
+html[data-hud="column"][data-walk-place="column"] .room-walk {
+  left: calc(var(--walk-x) - var(--clear-x));
+  top: calc(var(--walk-y) - var(--clear-y));
+  right: auto;
+  bottom: auto;
 }
 
 /* The walking control over the scene: a glass tile of its own, where no panel lies behind it. */
@@ -736,16 +756,38 @@ html[data-hud="dock"] .hud-panels .talk-link {
 }
 
 /* Hover and selection (FR-025): the neon's warm edge, a 1-pixel ring inside it, and a lighter face, beyond colour;
-   pressed keeps spec 005's inset ring and underline; focus keeps the yellow ring. */
-html[data-hud="column"] .room button:hover,
-html[data-hud="dock"] .room button:hover,
-html[data-hud="column"] .room a.hud-tile:hover,
-html[data-hud="dock"] .room a.hud-tile:hover,
-html[data-hud="column"] .room button[aria-current="true"],
-html[data-hud="dock"] .room button[aria-current="true"] {
+   pressed keeps spec 005's inset ring and underline; focus keeps the yellow ring. Since T053 (the review's I3) both
+   name the HUD's own buttons alone, the panels', the bar's, and the offer's, so the resume keeps resume.css's look
+   (FR-022); and hover applies only where the pointer can hover, so a tap leaves none behind. */
+html[data-hud="column"] .hud-panels button[aria-current="true"],
+html[data-hud="dock"] .hud-panels button[aria-current="true"] {
   border-color: var(--accent-neon);
   background: var(--tile-face-lit);
   box-shadow: inset 0 0 0 1px var(--accent-neon);
+}
+
+@media (hover: hover) {
+  html[data-hud="column"] .hud-panels button:hover,
+  html[data-hud="dock"] .hud-panels button:hover,
+  html[data-hud="column"] .hud-bar button:hover,
+  html[data-hud="dock"] .hud-bar button:hover,
+  html[data-hud="column"] .hud-bar a.hud-tile:hover,
+  html[data-hud="dock"] .hud-bar a.hud-tile:hover,
+  html[data-hud="column"] .room-offer button:hover,
+  html[data-hud="dock"] .room-offer button:hover {
+    border-color: var(--accent-neon);
+    background: var(--tile-face-lit);
+    box-shadow: inset 0 0 0 1px var(--accent-neon);
+  }
+
+  /* The walking control lies over the scene, not on a panel: its hover is the glass a step denser, which keeps its
+     words at 4.5:1 over a light scene and is opaque where the glass is. */
+  html[data-hud="column"] .room-walk:hover,
+  html[data-hud="dock"] .room-walk:hover {
+    border-color: var(--accent-neon);
+    background: rgb(var(--glass) / var(--glass-alpha-lit));
+    box-shadow: inset 0 0 0 1px var(--accent-neon);
+  }
 }
 
 html[data-hud="column"] .hud-panels button[aria-pressed="true"],
@@ -754,14 +796,6 @@ html[data-hud="dock"] .hud-panels button[aria-pressed="true"] {
   background: var(--tile-face);
   box-shadow: inset 0 0 0 2px var(--hud-text);
   text-decoration: underline;
-}
-
-/* The resume's controls keep the document's look on hover too (FR-022). */
-html[data-hud="column"] .resume-panel button:hover,
-html[data-hud="dock"] .resume-panel button:hover {
-  border-color: #555555;
-  background: #ffffff;
-  box-shadow: none;
 }
 
 /* The notes are glass chips with light words, letting a pointer through (FR-023); the offer sits on the glass. */

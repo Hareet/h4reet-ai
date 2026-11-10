@@ -304,9 +304,13 @@ describe("the look's new pairs (spec 014, T025)", () => {
   it("draws the chips, the accent, and the lit face from the palette", () => {
     for (const at of [HUD_AT, DOCK_AT]) {
       expect(declaredAt(`${at} .room-note`, "background"), at).toBe("var(--chip-face)");
-      expect(declaredAt(`${at} .room button:hover`, "border-color"), at).toBe("var(--accent-neon)");
-      expect(declaredAt(`${at} .room button:hover`, "background"), at).toBe("var(--tile-face-lit)");
-      expect(declaredAt(`${at} .room button[aria-current="true"]`, "border-color"), at).toBe("var(--accent-neon)");
+      // T053 (the review's I3): the hover names the HUD's buttons, only where the pointer hovers; the selection too.
+      const hover = rulesFor(`${at} .hud-panels button:hover`, /\(hover: hover\)/);
+      expect(hover.at(-1)?.declarations.get("border-color"), at).toBe("var(--accent-neon)");
+      expect(hover.at(-1)?.declarations.get("background"), at).toBe("var(--tile-face-lit)");
+      expect(declaredAt(`${at} .hud-panels button[aria-current="true"]`, "border-color"), at).toBe(
+        "var(--accent-neon)",
+      );
     }
   });
 });

@@ -269,9 +269,9 @@ describe("one frame area for the room and the checks (spec 014, T053; FR-016)", 
     }
   });
 
-  // The Author's answer of 2026-11-10, "Move the walk control (Recommended)": with the walking control in the bar's
-  // cluster, the reference desktop's frame no longer eases around it (plan.md E1).
-  it("eases the reference desktop's frame less than 10/16 with the walking control in the bar", () => {
+  // The Author's answer of 2026-11-10, "Move the walk control (Recommended)": with the walking control at the column's
+  // head, the reference desktop's frame no longer eases around it at the clear area's corner (plan.md E1).
+  it("eases the reference desktop's frame less than 10/16 with the walking control at the column's head", () => {
     const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
     if (!g) throw new Error("no geometry");
     expect(stageFor(REFERENCE_DESKTOP.screen, g.protect).ease).toBeLessThan(10 / 16);

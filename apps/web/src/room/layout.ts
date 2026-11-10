@@ -48,7 +48,14 @@ export interface HudApplied {
   /** Spec 014 (FR-017 to FR-021; plan.md §3.2): the column layout's compact clusters, compose/hud.ts's compactBoxes: the
    *  strip's place and width, the bar's width, and the column's height; and the log's rest height in the column, in
    *  CSS pixels. */
-  readonly compact: { readonly strip: Box; readonly bar: Box; readonly column: Box | null };
+  readonly compact: {
+    readonly strip: Box;
+    readonly bar: Box;
+    readonly column: Box | null;
+    /** T053 (W19): the walking control's box, and where it sits. */
+    readonly walk: Box;
+    readonly walkPlace: "column" | "stage";
+  };
   readonly logRest: number;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
   readonly notes: number;
@@ -293,6 +300,8 @@ export function renderRoom(
     applyHud(applied) {
       root.setAttribute("data-hud", applied.layout);
       root.setAttribute("data-list", applied.state.list);
+      // Spec 014, T053 (W19): where the walking control sits, which room.css's column layout reads with --walk-x/-y.
+      root.setAttribute("data-walk-place", applied.compact.walkPlace);
       const px = (n: number): string => `${n}px`;
       const { safe } = applied.metrics;
       const sizes: [string, number][] = [
@@ -314,6 +323,9 @@ export function renderRoom(
         ["--strip-x", applied.compact.strip.x],
         ["--strip-w", applied.compact.strip.w],
         ["--bar-w", applied.compact.bar.w],
+        // Since T053 (W19): the walking control's place, at the column's head or in the clear area's corner.
+        ["--walk-x", applied.compact.walk.x],
+        ["--walk-y", applied.compact.walk.y],
         ["--column-h", applied.compact.column?.h ?? 0],
         ["--log-rest", applied.logRest],
         // Spec 014 (FR-003; plan.md §2.5, §3.2): the frame area, where the 2D drawing's view sits.

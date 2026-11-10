@@ -348,8 +348,11 @@ export interface CompactBoxes {
   readonly column: Box | null;
   /** The dock, in the dock layout; null in the column layout. */
   readonly dock: Box | null;
-  /** The walking control's box, in the clear area's bottom-right corner, in the window's pixels. */
+  /** The walking control's box, in the window's pixels: since T053 (Amendment W19), at the column's head where
+   *  `walkPlace` is "column"; else in the clear area's bottom-right corner, spec 008's place. */
   readonly walk: Box;
+  /** Where the walking control sits: at the column's head, or in the stage's corner (spec 008's FR-021). */
+  readonly walkPlace: "column" | "stage";
   readonly all: readonly Box[];
 }
 
@@ -366,7 +369,16 @@ export function compactBoxes(
   const walk: Box = { x: bands.clear.x + wx, y: bands.clear.y + wy, w: ww, h: wh };
   if (bands.layout === "dock" || !bands.column) {
     const all = [bands.strip, bands.bar, ...(bands.dock ? [bands.dock] : []), walk];
-    return { layout: bands.layout, strip: bands.strip, bar: bands.bar, column: null, dock: bands.dock, walk, all };
+    return {
+      layout: bands.layout,
+      strip: bands.strip,
+      bar: bands.bar,
+      column: null,
+      dock: bands.dock,
+      walk,
+      walkPlace: "stage",
+      all,
+    };
   }
   const width = across(screen, metrics);
   const stripW = Math.min(t.strip.maxRem * rem, width);
@@ -377,7 +389,33 @@ export function compactBoxes(
   const contentW = band.w - metrics.safe.right;
   const h = Math.min(band.h, columnContentHeight(screen, metrics, contentW));
   const column: Box = { x: band.x, y: band.y + band.h - h, w: band.w, h };
-  return { layout: "column", strip, bar, column, dock: null, walk, all: [strip, bar, column, walk] };
+  // T053 (Amendment W19; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"): where the column's
+  // band has room above its content, the walking control sits at the column's head, at its right, a gap above it;
+  // else in the clear area's corner, as spec 008 put it.
+  const gap = t.bar.gapRem * rem;
+  if (h + gap + wh <= band.h) {
+    const head: Box = { x: column.x + column.w - metrics.safe.right - gap - ww, y: column.y - gap - wh, w: ww, h: wh };
+    return {
+      layout: "column",
+      strip,
+      bar,
+      column,
+      dock: null,
+      walk: head,
+      walkPlace: "column",
+      all: [strip, bar, column, head],
+    };
+  }
+  return {
+    layout: "column",
+    strip,
+    bar,
+    column,
+    dock: null,
+    walk,
+    walkPlace: "stage",
+    all: [strip, bar, column, walk],
+  };
 }
 
 /** The notes' reserve as a box at the clear area's top left: as wide as the notes' widest words and their inset, at

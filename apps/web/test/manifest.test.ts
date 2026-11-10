@@ -9,8 +9,8 @@
 // event kinds. config/room-events.yaml is room:generate's since T108, its objects the selectables' IDs, and
 // test/room/generated.test.ts holds the committed file fresh; spec 002's generator and its item reader went with it.
 // T234 (spec 004; FR-013, User Story 4 scenario 1): with every piece's studio file set, the manifest names no stand-in,
-// so `placeholders` is the avatars' alone, true until spec 003's files arrive; the stand-in rule is held on the room as
-// it stood before (`withoutModels`).
+// so `placeholders` is false: since spec 014 (its FR-053; Amendment W11) the flag is the room's stand-ins alone, the
+// avatars' files no longer setting it; the stand-in rule is held on the room as it stood before (`withoutModels`).
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

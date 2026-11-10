@@ -316,7 +316,7 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       .map((f) => `${f.path}: ${f.reason}`);
   /** The stages 320 px wide, in supportedStages()'s order, once a size: since spec 005, the clear areas of the 320 px
    *  screens held upright in the dock layout, their list open and collapsed (the 31 stages 304 px wide before it); since
-   *  spec 014, the frame areas there, given the overlay's own protector (its FR-060), 45 of them once a size. */
+   *  spec 014, the frame areas there, given the overlay's own protector (its FR-060), 54 of them once a size. */
   const NARROW = [
     ...new Set(
       supportedStages(geometryOf(contextOf(sideWall(), sideWallPolicy()))?.protect)
@@ -385,7 +385,8 @@ describe("RG6: FR-064's carve-out for side-wall selectables", () => {
       (at(placement(scene, SIDE.lower), "mount").offset as number[])[1] = 1.065;
     });
     expect(reasons(t)).toEqual([]);
-    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 117 others"]);
+    // T053 (W19): the walking control at the column's head moves the frame areas, 117 others in 2D before.
+    expect(listed(t)).toEqual(["fx-lower: 3D 320 × 250 and 53 others, 2D 320 × 250 and 114 others"]);
     expect(picks(t)[0]?.flat.some((s) => s.startsWith("336 × "))).toBe(true);
   });
 
