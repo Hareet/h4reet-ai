@@ -166,6 +166,8 @@ interface RoomIndex {
 - **`copy`** lists the text copy's entries in order, by reference: the bound faces in placement order, the switches, the sign's figures, and the fixed lines (the illustration's note, the affiliation line, and "Paused at" while paused). The words come at run time from the renderers' own word lists, so the 3D room, the 2D room, and the text copy can't differ (FR-034, FR-063).
 - **`typefaces`** carries, for each typeface use, the look's family and weight and the family's cap ratio (room-data-files.md, RG7), so the page and the lookdev page compute the same glyph heights as the compositor; `fallback` is the generic family drawn after 2 seconds (FR-061).
 
+**(spec 012)** `RoomIndex` gains `hints: string[]` after `models` (its Amendment L7; FR-032): the loader's hints, filled, in `apps/web/room/hints.yaml`'s order, a hint whose slot couldn't be filled or whose `when` isn't met left out; empty where the file is absent. At most 20 strings of at most 160 characters each, inside the index's 16 KB (its contracts/hints.md §3).
+
 ### 3.2 The 3D part
 
 ```ts
