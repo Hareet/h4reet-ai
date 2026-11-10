@@ -447,7 +447,7 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
   it("names the man as the stand-in in the committed scene, with the defaults written out", () => {
     // Spec 014 (FR-039; D1; plan.md E15): the committed scene's grips beside them, the man's and the woman's left.
     expect(committed.figures).toMatchObject({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
-    expect(Object.keys(committed.figures).sort()).toEqual(["grips", "texture_px", "twin_stand_in", "wait_ms"]);
+    expect(Object.keys(committed.figures ?? {}).sort()).toEqual(["grips", "texture_px", "twin_stand_in", "wait_ms"]);
   });
 
   it.each([
