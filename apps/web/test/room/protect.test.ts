@@ -69,21 +69,31 @@ describe("the protector over T004's scene (compose/protect.ts)", () => {
   });
 
   it("leaves out a side-wall selectable list-only at the clear area's frame", () => {
-    // A narrow sign at the left wall's front edge, list-only on a small window's clear area: its core leaves the view.
-    const narrow: ProtectScene = {
+    // Two small signs side by side on the left wall: their cores overlap, so FR-064's carve-out leaves at least one to
+    // the list at the clear area, and the protector gives no box for it.
+    const signs: ProtectScene = {
       ...SCENE,
       selectables: [
         ...SCENE.selectables,
-        { id: "sign", boxes: [{ min: [-1.065, 1.9, -0.06], max: [-1.06, 2.0, -0.02] }], sideWall: true },
+        { id: "sign-a", boxes: [{ min: [-1.065, 1.2, -0.62], max: [-1.055, 1.26, -0.6] }], sideWall: true },
+        { id: "sign-b", boxes: [{ min: [-1.065, 1.2, -0.59], max: [-1.055, 1.26, -0.57] }], sideWall: true },
       ],
     };
-    const screen = { w: 568, h: 320 };
-    const clear = hudBoxes(screen).clear;
-    const want = expected(narrow, clear, clear);
-    expect(want.cores.has("sign")).toBe(false);
-    const got = protectorFor(narrow).boxes(clear, clear);
-    expect(got).toHaveLength(want.cores.size + want.figures.length);
-    expect(got).toEqual([...want.cores.values(), ...want.figures]);
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 568, h: 320 },
+    ]) {
+      const clear = hudBoxes(screen).clear;
+      const want = expected(signs, clear, clear);
+      const absent = ["sign-a", "sign-b"].filter((id) => !want.cores.has(id));
+      expect(absent.length, `${screen.w} × ${screen.h}`).toBeGreaterThan(0);
+      const got = protectorFor(signs).boxes({ x: 0, y: 0, ...screen }, clear);
+      expect(got).toEqual([
+        ...expected(signs, { x: 0, y: 0, ...screen }, clear).cores.values(),
+        ...want.figures.map(() => expect.anything()),
+      ]);
+      expect(got).toHaveLength(want.cores.size + signs.figures.length);
+    }
   });
 
   it("gives the same boxes from a fresh protector, and every pressable core inside its area", () => {
