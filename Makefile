@@ -135,7 +135,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival infra-check infra-plan-note disclosure-check evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -476,10 +476,51 @@ init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its templat
 # prod's Bedrock session (plan §4 and §5.2; research.md R-17; tasks.md T104): aws sso login for the runtime identity's
 # profile, with HOME at ~/.config/h4reet-ai/aws-home, whose .aws prod's gateway mounts read-only. Only prod has one:
 # dev and dev-cpu mount deploy/aws-none. Agent sessions can't read that directory, and the script refuses them too.
-aws-login: ## (the Author) A new SSO session for prod's Bedrock identity: aws sso login --profile h4reet-bedrock
+# With PROFILE (spec 001, tasks.md T008; research.md R-32): the Author's own SSO session for a named profile in his
+# ~/.aws, such as the administrator profile his make plan ROOT=… uses, never the runtime identity's, whose session
+# lives in aws-home. PROFILE comes from the command line only and reaches the script as "$$PROFILE".
+aws-login: ## (the Author) A new SSO session: prod's Bedrock identity, or with PROFILE=h4reet-… his own named profile
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make aws-login is the Author's: it writes prod's Bedrock session to ~/.config/h4reet-ai, which agent sessions can't read" >&2; exit 2; }
+ifneq ($(call from_cli,PROFILE),)
+	bash deploy/scripts/aws-sso-profile.sh "$$PROFILE"
+else
 	@[ "$(ENV)" = prod ] || { echo "make aws-login ENV=$(ENV): the session is prod's alone; dev and dev-cpu mount deploy/aws-none and route no paid adapter" >&2; exit 2; }
 	bash deploy/scripts/aws-login.sh
+endif
+
+# Spec 001's provider mirror (research.md R-14; tasks.md T008, T011): the pinned hashicorp/aws, seeded from the registry
+# in the Author's terminal into ~/.local/share/h4reet/terraform-providers, which agents read and can't write. make
+# infra-check's terraform init reads only that mirror. The bash gate refuses it to agent sessions (P-1).
+infra-mirror: ## (the Author) Seed the Terraform provider mirror at .devcontainer/toolchain.vars's pins (spec 001)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make infra-mirror is the Author's: it reaches the Terraform registry, which agent sessions can't" >&2; exit 2; }
+	$(PY_HOST) scripts/infra/infra_mirror.py
+
+# Spec 001's offline checks (contracts/infra-records.md §1 and §3; quickstart.md §1), each PLANNED, naming its task,
+# until its part exists: the guard patch's checkers (P-1, T010), the Author's provider mirror (T011), and infra/
+# (T020). Then infra_policy.py on the HCL, terraform fmt, and, per root, init against the mirror alone and validate.
+INFRA_MIRROR := $(HOME)/.local/share/h4reet/terraform-providers
+INFRA_ROOTS := $(notdir $(wildcard infra/bootstrap infra/account infra/prod))
+infra-check: ## Spec 001's offline Terraform checks: the policy, fmt, and validate against the provider mirror
+	@[ -f tools/gates/infra_policy.py ] || { echo "PLANNED (T010): tools/gates/infra_policy.py arrives with the guard patch, P-1"; exit 0; }
+	@[ -d "$(INFRA_MIRROR)" ] || { echo "PLANNED (T011): the provider mirror, $(INFRA_MIRROR), is the Author's make infra-mirror"; exit 0; }
+	@[ -d infra ] || { echo "PLANNED (T020): no infra/ yet; group 3 writes its first file"; exit 0; }
+	$(PY_HOST) tools/gates/infra_policy.py
+	@command -v terraform >/dev/null 2>&1 || { echo "PLANNED (T011): terraform isn't installed here; the Author's make check runs fmt and validate"; exit 0; }
+	CHECKPOINT_DISABLE=1 terraform fmt -check -recursive infra
+	@set -e; cfg="$$(mktemp)"; data="$$(mktemp -d)"; trap 'rm -rf "$$cfg" "$$data"' EXIT; \
+	printf 'provider_installation {\n  filesystem_mirror {\n    path = "%s"\n  }\n}\n' "$(INFRA_MIRROR)" >"$$cfg"; \
+	for root in $(INFRA_ROOTS); do \
+	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" init -backend=false -input=false -lockfile=readonly >/dev/null; \
+	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" validate -no-color; \
+	done
+
+infra-plan-note: ## Spec 001's plan blocks: every root the branch changes has its block in the branch's note
+	@[ -f tools/gates/infra_plan_note.py ] || { echo "PLANNED (T010): tools/gates/infra_plan_note.py arrives with the guard patch, P-1"; exit 0; }
+	$(PY_HOST) tools/gates/infra_plan_note.py
+
+disclosure-check: ## Every outward thing the tree holds has its row in docs/data-flow-disclosure.md (spec 001 plan §8.3)
+	@[ -f tools/gates/disclosure_check.py ] || { echo "PLANNED (T010): tools/gates/disclosure_check.py arrives with the guard patch, P-1"; exit 0; }
+	$(PY_HOST) tools/gates/disclosure_check.py
 
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
@@ -672,12 +713,15 @@ else
 	$(PY_HOST) $(TREE)/evals/breach.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))$(if $(call from_cli,DELIVERY), --delivery="$$DELIVERY")
 endif
 
-plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
-	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
+# make plan alone is the offline checks (contracts/infra-records.md §1). The real plan, make plan ROOT=…, is the
+# Author's, with his SSO session, and arrives with group 3 (tasks.md T024); the bash gate refuses it to agents (P-1).
+plan: ## The offline Terraform checks (make infra-check); never apply from here. ROOT=… is the Author's real plan (T024)
+	@[ -z "$(call from_cli,ROOT)" ] || { echo "make plan ROOT=…: the real plan, the Author's, arrives with spec 001's group 3 (tasks.md T024)" >&2; exit 2; }
+	@$(MAKE) --no-print-directory infra-check
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
