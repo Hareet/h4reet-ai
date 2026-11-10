@@ -1,0 +1,7 @@
+version: 1
+hints:
+  - id: fx-cited
+    by: session
+    text: "Every piece is also in the list."
+    sources:
+      - docs/fx-nowhere.md

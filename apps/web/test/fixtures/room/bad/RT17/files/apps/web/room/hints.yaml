@@ -1,0 +1,7 @@
+version: 1
+hints:
+  - id: fx-slotted
+    by: session
+    text: "See the {fx.nothing} list."
+    sources:
+      - intent/900-fx-room.md

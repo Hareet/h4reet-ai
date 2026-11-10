@@ -1,0 +1,18 @@
+# A fixture copy of config/routing.yaml's shape, for the hints' price slots (spec 012, T018): prod's paid fallback
+# names an adapter, whose model the price table's last version prices.
+schema: 1
+adapters:
+  local:
+    type: openai-compatible
+    kind: local
+  fx-paid:
+    type: bedrock-converse
+    kind: paid
+    model: fx-model-a
+  fx-other:
+    type: anthropic-messages
+    kind: paid
+    model: fx-model-b
+envs:
+  prod: { primary: local, fallback: fx-paid }
+  dev: { primary: local, fallback: fx-other }

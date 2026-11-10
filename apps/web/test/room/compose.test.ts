@@ -378,7 +378,8 @@ describe("compose()", () => {
 
 describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
   it("holds every rule of spec 004's nine families with spec 009's RA before RK and its RK5, then spec 008's RW1 and RW2", () => {
-    const counts = { RD: 5, RI: 11, RG: 9, RS: 6, RT: 13, RV: 3, RX: 10, RA: 5, RK: 5, RL: 4 };
+    // Spec 012's RT14 to RT17, the hints' (its Amendment L8), after spec 004's RT1 to RT13.
+    const counts = { RD: 5, RI: 11, RG: 9, RS: 6, RT: 17, RV: 3, RX: 10, RA: 5, RK: 5, RL: 4 };
     const expected = Object.entries(counts).flatMap(([family, n]) =>
       Array.from({ length: n }, (_, i) => `${family}${i + 1}`),
     );
@@ -387,8 +388,9 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
     for (const rule of RULE_IDS) expect(RULES[rule].family).toBe(rule.replace(/\d+$/, ""));
   });
 
-  it("makes RX, RA1 to RA4, RK2, and RK5 alone lenient, RG8 and RA5 alone reports, and RT9, RT8, and RT13 strict-only", () => {
+  it("makes RT17, RX, RA1 to RA4, RK2, and RK5 alone lenient, RG8 and RA5 alone reports, and RT8, RT9, RT13, and RT14 strict-only", () => {
     expect(RULE_IDS.filter((r) => RULES[r].lenient)).toEqual([
+      "RT17",
       "RX1",
       "RX2",
       "RX3",
@@ -411,6 +413,7 @@ describe("the rule catalogue (contracts/room-data-files.md §13, §15)", () => {
       RT8: "part",
       RT9: "whole",
       RT13: "part",
+      RT14: "whole",
     });
   });
 });
