@@ -232,15 +232,23 @@ Its side-wall table at the new stages: `snowboard` (left-wall) list-only in 2D a
 
 ## A late fix, after the checks below
 
-Reading my own code before handing it back, I found that `hud/viewport.ts` took the keyboard's inset as the window's height less the visual viewport's, so a pinch-zoom, which shrinks the visual viewport too, would have read as a keyboard and lifted the HUD's foot. `test/room/viewport.test.ts` failed first (a 2× zoom read as a 222 px keyboard, 07fd36ec); the inset now counts only while the visual viewport's scale is 1 (0592b563). The whole web suite on that tip: 2,834 passed, 1 skipped, 8 failed, `main`'s known chunk and dist failures (`npx vitest run` in `apps/web`, 123 files). The outputs below were taken at d722583f, before it; the fix changes one line of `src/room/hud/viewport.ts` and adds the test, and the main session's review (T045) runs the checks again (T046).
+Reading my own code before handing it back, I found that `hud/viewport.ts` took the keyboard's inset as the window's height less the visual viewport's, so a pinch-zoom, which shrinks the visual viewport too, would have read as a keyboard and lifted the HUD's foot. `test/room/viewport.test.ts` failed first (a 2× zoom read as a 222 px keyboard, 07fd36ec); the inset now counts only while the visual viewport's scale is 1 (0592b563). The whole web suite on that tip: 2,834 passed, 1 skipped, 8 failed, `main`'s known chunk and dist failures (`npx vitest run` in `apps/web`, 123 files). T042's outputs were taken at d722583f, before it; the fix changes one line of `src/room/hud/viewport.ts` and adds the test. T046 ran the checks again after the review (below).
 
 ## Verification (T042)
 
-Run in the worktree on the branch at d722583f (the code's last commit; the note's own commits after it change documents alone), under Node 24.21.0, the toolchain's pin. `refs/heads/main` was ada55c98 by then, two commits past 8adb4abb (`config(010): Anthropic price, read 11-09` and `test(gates): A10 on P-1's own file`); the branch hasn't been rebased onto it, as the main session asked, so `validate-config`'s one error below is main's newer `config/prices.yaml`, which the branch's base lacks.
+**Run again for T046.** `make lint` (with ruff, ruff's format check, and shellcheck after it), `make test` (with its pytest step on its own), and `make evals` ran again at 7fac39b7. That commit holds T046's last code and the note's review section. Their outputs below replace T042's. The results:
+- `make lint`: the same four history files on `main` fail Prettier. ESLint, tsc, ruff, ruff's format check, and shellcheck pass.
+- `make test`: the gateway's suite passed whole this time, 1,653 passed and 13 skipped, its clock test among them. The web suite had 2,850 passed, 1 skipped, and 8 failed, `main`'s known chunk and dist failures.
+- pytest: 4,095 passed and 1 failed, the known A10 case.
+- `make evals`: exit 0, with the same WARN line.
+
+`make check ENGINE_MODE=none-yet`, the gitleaks scan, and the rehearsal below are still T042's, from d722583f. They run again on the whole branch after it merges `refs/heads/main` (finding 5's order). The numbers table is also d722583f's. T046 adds a little to the entry chunk: `fit.ts`'s `bufferRatio` and `scene/levels.ts`'s table, which `app.ts` now uses for the frame log's buffer, and 86 lines of CSS, comments included. The re-check after the merge measures it again.
+
+T042's run was in the worktree on the branch at d722583f (the code's last commit; the note's own commits after it change documents alone), under Node 24.21.0, the toolchain's pin. `refs/heads/main` was ada55c98 by then, two commits past 8adb4abb (`config(010): Anthropic price, read 11-09` and `test(gates): A10 on P-1's own file`). The branch hasn't been rebased onto it, as the main session asked, so `validate-config`'s one error below is main's newer `config/prices.yaml`, which the branch's base lacks.
 
 **What fails, and whose it is.** Nothing below fails for this branch's code:
 - `lint`: Prettier on four history JSON files committed on `main` at e324771e (`evals/product/history/2026-11-09T175245Z-local.json`, `2026-11-09T191058Z-bedrock.json`, `redteam/history/20261109T175353Z-local.json`, `20261109T191059Z-bedrock.json`), `main`'s known failure. Since `make lint` stops there, ruff, ruff's format check, and shellcheck were run on their own after it: all pass (below).
-- `test`: the gateway's `test/integration/twin-paid-timeout.test.ts` ("expected 5457 to be greater than or equal to 6000"), **environmental**: this machine's kernel clock ticks about 1.9% fast and the wall clock is stepped back, so `Date.now()` falls behind `performance.now()` and the test, which measures with `Date.now()`, reads its cuts short; the gateway is untouched by this branch, and the test wasn't edited. And the web's 8 known readiness failures in `test/room/chunk.test.ts` (6) and `test/room/dist.test.ts` (2). Since `make test` stops before pytest, its pytest step was run on its own: 4,095 passed and 1 failed, `tools/gates/test/test_arrival_check.py`'s A10 case, `main`'s known failure (which main's e7fa53ed addresses).
+- `test`: in T042's run (T046's passed it), the gateway's `test/integration/twin-paid-timeout.test.ts` ("expected 5457 to be greater than or equal to 6000"), **environmental**: this machine's kernel clock ticks about 1.9% fast and the wall clock is stepped back, so `Date.now()` falls behind `performance.now()` and the test, which measures with `Date.now()`, reads its cuts short; the gateway is untouched by this branch, and the test wasn't edited. And the web's 8 known readiness failures in `test/room/chunk.test.ts` (6) and `test/room/dist.test.ts` (2). Since `make test` stops before pytest, its pytest step was run on its own: 4,095 passed and 1 failed, `tools/gates/test/test_arrival_check.py`'s A10 case, `main`'s known failure (which main's e7fa53ed addresses).
 - `validate-config`: `config/prices.yaml`'s version 3 differs from `main`'s, which ada55c98 changed after the branch's base; the rebase onto main resolves it.
 - `matrix`: E10 and E14, folded from the host's prove report of commit a5eb05b8 (16:07Z), the known stale report: E10 the engine reset's free space, E14 dev-cpu's ports, which the sandbox can't reach. The hook layer's own rows: 853 passed, 57 known gaps.
 - `evals`: a WARN, the behavioral tier's line from main's last run (information, never a merge block, spec 006 FR-002); the docs' links pass.
@@ -268,15 +276,18 @@ Checking formatting...
 [warn] redteam/history/20261109T191059Z-bedrock.json
 [warn] Code style issues found in 4 files. Run Prettier with --write to fix.
 make: *** [Makefile:222: lint] Error 1
-make lint  55.66s user 3.74s system 127% cpu 46.739 total
+exit: 2
 ```
 
 ### ruff, ruff format, and shellcheck, the lint target's steps after Prettier
 
 ```text
 All checks passed!
+ruff exit: 0
 461 files already formatted
+ruff format exit: 0
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+shellcheck exit: 0
 ```
 
 ### `make test`
@@ -292,37 +303,11 @@ npm test --workspaces --if-present
 
  RUN  v5.0.3 /tmp/claude-1000/wt-feat005/services/gateway
 
- ❯ test/integration/twin-paid-timeout.test.ts (3 tests | 1 failed) 31770ms
-   ❯ a twin turn's one 9 s attempt on a paid adapter (spec 007's plan, D43) (3)
-     × answers a visitor's turn that the paid fallback takes 6 s over 12382ms
 
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-
- FAIL  test/integration/twin-paid-timeout.test.ts > a twin turn's one 9 s attempt on a paid adapter (spec 007's plan, D43) > answers a visitor's turn that the paid fallback takes 6 s over
-AssertionError: expected 5457 to be greater than or equal to 6000
- ❯ test/integration/twin-paid-timeout.test.ts:97:16
-     95|     expect(res.json()).toMatchObject({ route: "fallback", text: "A slo…
-     96|     // At 4 s it would have timed out and retried, and answered sooner.
-     97|     expect(ms).toBeGreaterThanOrEqual(6_000);
-       |                ^
-     98|   }, 25_000);
-     99|
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
-
-
- Test Files  1 failed | 94 passed (95)
-      Tests  1 failed | 1652 passed | 13 skipped (1666)
-   Start at  16:21:46
-   Duration  104.22s (tests 96%, import 3%, transform 1%)
-
-npm error Lifecycle script `test` failed with error:
-npm error code 1
-npm error path /tmp/claude-1000/wt-feat005/services/gateway
-npm error workspace @h4reet/gateway@0.1.0
-npm error location /tmp/claude-1000/wt-feat005/services/gateway
-npm error command failed
-npm error command sh -c vitest run
+ Test Files  95 passed (95)
+      Tests  1653 passed | 13 skipped (1666)
+   Start at  18:12:42
+   Duration  114.80s (tests 96%, import 3%, transform 1%)
 
 
 > @h4reet/web@0.1.0 test
@@ -331,24 +316,24 @@ npm error command sh -c vitest run
 
  RUN  v5.0.3 /tmp/claude-1000/wt-feat005/apps/web
 
- ❯ test/room/chunk.test.ts (14 tests | 6 failed) 8322ms
+ ❯ test/room/chunk.test.ts (14 tests | 6 failed) 8652ms
    ❯ the release build (7)
      ❯ the room's bundle (FR-011) (3)
-       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 4365ms
-       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 71ms
+       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 4169ms
+       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 62ms
      ❯ room-manifest.json (Amendment B7) (1)
-       × is compose()'s manifest, its build_kind "release" 10ms
+       × is compose()'s manifest, its build_kind "release" 5ms
    ❯ the drafts build (7)
      ❯ the room's bundle (FR-011) (3)
-       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 3469ms
-       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 50ms
+       × puts the index, `room`, in the entry chunk, within 16,384 bytes at gzip level 9 3894ms
+       × puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it 117ms
      ❯ room-manifest.json (Amendment B7) (1)
-       × is compose()'s manifest, its build_kind "drafts" 3ms
- ❯ test/room/dist.test.ts (12 tests | 2 failed) 13054ms
+       × is compose()'s manifest, its build_kind "drafts" 6ms
+ ❯ test/room/dist.test.ts (12 tests | 2 failed) 15105ms
    ❯ the site's release build (contracts/room-bundle.md §14) (2)
-     × holds no † field's value and no pending line of the committed data, in any file 4193ms
+     × holds no † field's value and no pending line of the committed data, in any file 4924ms
    ❯ the site's drafts build (contracts/room-bundle.md §14) (2)
-     × holds no † field's value and no pending line of the committed data, in any file 3986ms
+     × holds no † field's value and no pending line of the committed data, in any file 4849ms
 
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
 
@@ -373,7 +358,7 @@ AssertionError: the entry chunk holds the index's digest: expected false to be t
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
 
  FAIL  test/room/chunk.test.ts > the release build > the room's bundle (FR-011) > puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it
-AssertionError: assets/scene-DudkYCZj.js holds the 3D part's digest: expected false to be true // Object.is equality
+AssertionError: assets/scene-Dmtoe2MG.js holds the 3D part's digest: expected false to be true // Object.is equality
 
 - Expected
 + Received
@@ -444,7 +429,7 @@ AssertionError: expected { objects: [ { …(4) }, …(3) ], …(9) } to deeply e
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
 
  FAIL  test/room/chunk.test.ts > the drafts build > the room's bundle (FR-011) > puts the 3D part only behind the entry's dynamic import, beside the scene module, the digest with it
-AssertionError: assets/scene-CnzR2Ezu.js holds the 3D part's digest: expected false to be true // Object.is equality
+AssertionError: assets/scene-B05tpLFU.js holds the 3D part's digest: expected false to be true // Object.is equality
 
 - Expected
 + Received
@@ -483,10 +468,10 @@ AssertionError: expected false to be true // Object.is equality
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
 
 
- Test Files  2 failed | 120 passed (122)
-      Tests  8 failed | 2831 passed | 1 skipped (2840)
-   Start at  16:23:28
-   Duration  75.49s (tests 77%, import 20%, transform 2%)
+ Test Files  2 failed | 122 passed (124)
+      Tests  8 failed | 2850 passed | 1 skipped (2859)
+   Start at  18:14:34
+   Duration  76.93s (tests 78%, import 20%, transform 2%)
 
 npm error Lifecycle script `test` failed with error:
 npm error code 1
@@ -496,7 +481,7 @@ npm error location /tmp/claude-1000/wt-feat005/apps/web
 npm error command failed
 npm error command sh -c vitest run
 make: *** [Makefile:246: test] Error 1
-make test  1976.60s user 344.10s system 1316% cpu 2:56.24 total
+exit: 2
 ```
 
 ### pytest, `make test`'s last step, on its own
@@ -560,33 +545,17 @@ make test  1976.60s user 344.10s system 1316% cpu 2:56.24 total
 ........................................................................ [ 98%]
 ................................................................         [100%]
 =================================== FAILURES ===================================
-_________ test_a10_passes_p1s_own_file_whose_comments_show_ready_true __________
-
-repo = <arrival_fixtures.Repo object at 0x7a755d2e30e0>
-
-    def test_a10_passes_p1s_own_file_whose_comments_show_ready_true(repo: fx.Repo) -> None:
-        # P-1 rides on the stack's top as a branch of the Author's, feat/007-p1: its file, nothing ready, passes, though
-        # its header's example shows `ready: true` in a comment.
-        p1 = (
-            Path(__file__).resolve().parents[3] / "config" / "twin-readiness.yaml"
-        ).read_bytes()
-        assert b"ready: true" in p1
-        repo.write("config/twin-readiness.yaml", p1)
-        repo.commit("P-1's readiness file")
-        run = check(repo, "--range", "main..HEAD")
->       assert not run.has("A10"), run.out
-E       AssertionError: A10 config/twin-readiness.yaml @3f894ed: the branch marks the twin ready, which only the Author does, on main (spec 007 FR-029)
-E         arrival-check: 1 finding in 1 file (1 commit)
-E         
-E       assert not True
-E        +  where True = has('A10')
-E        +    where has = <tools.gates.test.test_arrival_check.Run object at 0x7a755d2e3110>.has
-
-tools/gates/test/test_arrival_check.py:2002: AssertionError
+E   AssertionError: A10 config/twin-readiness.yaml @b5081a7: the branch marks the twin ready, which only the Author does, on main (spec 007 FR-029)
+      arrival-check: 1 finding in 1 file (1 commit)
+      
+    assert not True
+     +  where True = has('A10')
+     +    where has = <tools.gates.test.test_arrival_check.Run object at 0x73a3217c66f0>.has
+/tmp/claude-1000/wt-feat005/tools/gates/test/test_arrival_check.py:2002: AssertionError: A10 config/twin-readiness.yaml @b5081a7: the branch marks the twin ready, which only the Author does, on main (spec 007 FR-029)
 =========================== short test summary info ============================
 FAILED tools/gates/test/test_arrival_check.py::test_a10_passes_p1s_own_file_whose_comments_show_ready_true
-1 failed, 4095 passed in 411.60s (0:06:51)
-pytest -q -p no:cacheprovider --import-mode=importlib corpus/tools evals       289.29s user 49.99s system 84% cpu 6:43.32 total
+1 failed, 4095 passed in 447.00s (0:07:27)
+exit: 1
 ```
 
 ### `make evals`
@@ -875,7 +844,7 @@ PASS  README.md links the ADR index (docs/adr/)
 PASS  the ADR index links every ADR file: 31 of 31
 PASS  User Story 6's five decisions have their ADRs: 0001 (local-first routing), 0002 (one compose topology), 0003 (local-compose-first delivery), 0004 (Langfuse and Grafana), 0005 (Telegram alerting)
 docs links: 0 failed, 1850 relative links in 264 files
-make evals  2.20s user 0.15s system 96% cpu 2.436 total
+exit: 0
 ```
 
 ### `make check ENGINE_MODE=none-yet`
