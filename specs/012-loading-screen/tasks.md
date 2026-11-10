@@ -295,7 +295,7 @@ description: "Task list for spec 012, the room's loading screen"
   - `npm run room:check`'s result on the repository's room, with no RT warning for the hints.
 
   Check: all pass; `make up ENV=dev-cpu`'s compose config is unchanged (FR-053) (feat/012-loading-screen)
-- [ ] T034 Write `apps/web/room/README.md`'s "The loader and its hints" (plan §10), and finish ADR 0045 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/012-loading-screen)
+- [x] T034 Write `apps/web/room/README.md`'s "The loader and its hints" (plan §10), and finish ADR 0045 with any departure. Bring plan.md's departures section up to date. Check: `make test`'s docs-links check passes (feat/012-loading-screen)
 - [ ] T035 Draft the merge-request note, `docs/merge-requests/<date>-feat-012-loading-screen.md`, and commit it as a save point. It holds:
   - what changed and why, with the Author's words quoted;
   - his T000 answers, and which provisional answers stand;

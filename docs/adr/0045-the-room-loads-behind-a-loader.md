@@ -38,3 +38,13 @@ Until this change, after "Enter" the room showed one line, "Loading the room…"
 - **The hand-off can start later than before**: on a slow connection up to 7 seconds after "Enter", where it started within about 1.5 seconds of the scene's mount over placeholder shapes. The cut-short panel shows how often the ceiling binds.
 - **The entry chunk grows** by the loader's code, styles, words, and hints, measured against spec 002's 150 KB and the index's 16 KB in the branch's note.
 - **A change to a ceiling or a price changes the cost hints with it**, in a checkout's build and the web image's alike, once `fix/007-image-readiness`'s list carries the three paths (plan PD-21).
+
+## Departures in the build
+
+Each is recorded in spec 012's plan.md, Departures, in the commit that made it:
+- **C1**: the typefaces step ends at once on a page with no `document.fonts`, which asks for no typeface; where the API exists, the 2-second bound holds.
+- **C2**: a 3D stage that gives no list of files counts none; the room's own stage always gives one.
+- **C3**: the loader's end line is said together with the hand-off's when both fall in one turn, since the room's status region holds one text at a time.
+- **C4**: the page's loading state has a third value, "leaving", so the tints fade with the card.
+- **C5**: the stage line reads "Loading the room's code" until the 3D stage's list of files has arrived, the loader's own chunk being 3D code too.
+- **C6**: the bar's track is darker than planned, `rgb(0 0 0 / 0.35)`, since the planned light track left the yellow fill at 2.44:1 against it over white beneath, under WCAG's 3:1.
