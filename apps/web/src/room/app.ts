@@ -440,6 +440,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     controller?.restart();
     if (doc.visibilityState === "hidden") assets.hide();
     else assets.show();
+    // Spec 012: the hints don't rotate while the page is hidden; the ceiling runs on (FR-009).
+    if (loading && !loading.done) loading.view?.visibility(doc.visibilityState !== "hidden");
   });
   const onFrame = (time: number): void => {
     log?.frame(time);
@@ -487,7 +489,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         doc,
         clock,
         ui: deps.room.ui,
-        hints: [],
+        hints: deps.room.hints ?? [],
         reducedMotion: () => motion.reducedMotion,
         hidden: () => motion.hidden,
         onHint: (n) => log?.record("loading", { state: "hint", n }),

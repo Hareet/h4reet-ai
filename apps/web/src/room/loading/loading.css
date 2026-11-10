@@ -142,6 +142,42 @@ html[data-hud="stacked"][data-loading] .talk {
   transition: width 150ms ease-out;
 }
 
+/* The hints (FR-028 to FR-031): one at a time, its place below it, and the three controls in a row that wraps, each at
+   least 44 by 44 CSS pixels (room.css's `.room button`), a tile of the HUD's on the glass. */
+.room-loader-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.room-loader-hint {
+  margin: 0;
+  min-height: 3rem;
+  line-height: 1.5;
+}
+
+.room-loader-position {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.room-loader-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+:root .room-loader button {
+  padding: 0 0.75rem;
+  color: var(--hud-text);
+  background: var(--tile-face);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.5rem;
+}
+
 /* The HUD's yellow ring on the card, in every layout (PD-23): `:root` outranks room.css's `.room button:focus-visible`
    and `.room [tabindex]:focus-visible`, whose blue is under 3:1 on the glass. */
 :root .room-loader button:focus-visible,
@@ -192,6 +228,12 @@ html[data-hud="stacked"][data-loading] .talk {
   .room-loader-fill {
     forced-color-adjust: none;
     background: Highlight;
+  }
+
+  :root .room-loader button {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: ButtonText;
   }
 
   :root .room-loader button:focus-visible,
