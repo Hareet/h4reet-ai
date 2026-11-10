@@ -155,11 +155,22 @@ export function createLoadingView(options: LoadingViewOptions): LoadingView {
     clock.setTimeout(() => showHint(r.index), 0);
     area.addEventListener("pointerenter", () => r.pointer(true));
     area.addEventListener("pointerleave", () => r.pointer(false));
-    // Focus entering the controls from outside them stops the rotation; moving among them doesn't (FR-030).
+    // Focus entering the controls from outside them stops the rotation; moving among them doesn't (FR-030). A press's own
+    // focus isn't a stop: browsers that focus a button as it is pressed would otherwise stop the hints and then, with
+    // the click, play them, so "Pause hints" pressed would start them (the review's I-1). The press is the pointerdown
+    // on a control, which the next focus or click on the controls consumes.
+    let pressing = false;
+    controls.addEventListener("pointerdown", () => (pressing = true));
+    controls.addEventListener("pointercancel", () => (pressing = false));
     controls.addEventListener("focusin", (event) => {
+      if (pressing) {
+        pressing = false;
+        return;
+      }
       const from = event.relatedTarget as Node | null;
       if (from === null || !controls.contains(from)) r.focusEntered();
     });
+    controls.addEventListener("click", () => (pressing = false), { capture: true });
     rotate.addEventListener("click", () => r.toggle());
     previous.addEventListener("click", () => r.previous());
     next.addEventListener("click", () => r.next());
