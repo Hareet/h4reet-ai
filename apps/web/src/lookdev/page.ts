@@ -118,6 +118,10 @@ const VIEWS: readonly { value: ViewChoice; label: string }[] = [
   { value: "phone", label: "Reference phone" },
   { value: "device", label: "This device" },
   { value: "close-up", label: "Desk close-up" },
+  // Spec 005 (FR-059; plan.md §10.4): the room at the whole window, the HUD over it.
+  { value: "window-desktop", label: "Reference desktop's window" },
+  { value: "window-phone", label: "Reference phone's window" },
+  { value: "window-monitor", label: "A large monitor's window" },
 ];
 const QUALITIES: readonly { value: "auto" | "0" | "1" | "2" | "3"; label: string }[] = [
   { value: "auto", label: "Automatic" },
@@ -256,7 +260,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     doc,
     "section",
     { class: "lookdev-stage-panel", "aria-label": "The room at the chosen view" },
-    h(doc, "div", { class: "lookdev-stage" }, stage.canvas),
+    h(doc, "div", { class: "lookdev-stage" }, stage.canvas, stage.hud),
     status,
     caption,
     ...(below ? [below] : []),
@@ -457,6 +461,12 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
         `${count(measured?.textureBytes ?? stage.textureBytes)} of ${count(part.scene_texture_bytes)} bytes`,
       ],
       ["Smallest cap height", capReadout()],
+      // Spec 005 (FR-059): the drawing buffer, the ratio, and the pixel cap in force.
+      [
+        "Buffer",
+        `${stage.buffer[0]} × ${stage.buffer[1]} device px at a pixel ratio of ${Math.round(stage.ratio * 1000) / 1000}, ` +
+          `under a cap of ${count(stage.cap)} device px`,
+      ],
     ];
     readoutList.replaceChildren(...rows.flatMap(([term, value]) => [h(doc, "dt", {}, term), h(doc, "dd", {}, value)]));
   }
@@ -682,6 +692,9 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
             view: stage.view,
             stage: [stage.stage.w, stage.stage.h],
             dpr: stage.ratio,
+            window: stage.window === null ? null : [stage.window.w, stage.window.h],
+            buffer: stage.buffer,
+            cap: stage.cap,
             look: stage.look.id,
             sample: stage.sample?.id ?? "",
             quality: stage.quality,

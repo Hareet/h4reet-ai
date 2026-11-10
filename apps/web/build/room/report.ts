@@ -36,7 +36,13 @@ import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
-import { WALK_CONTROL } from "../../src/room/compose/stages";
+import {
+  REFERENCE_DESKTOP,
+  REFERENCE_PHONE,
+  WALK_CONTROL,
+  supportedStages,
+  sweepScreens,
+} from "../../src/room/compose/stages";
 import type { Stage } from "../../src/room/compose/stages";
 import type { FloorEdge } from "../../src/room/compose/floor";
 import type { Composed, RoomReport } from "./emit";
@@ -210,13 +216,16 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // The side-wall selectables FR-064's carve-out (see listOnly) leaves to the list, and where.
   lines.push(...sideWalls(c), "");
 
+  // Spec 005's stages (its FR-052 to FR-054, FR-057): the clear areas RG5 to RG7 and the table above run at.
+  lines.push(stagesLine(), "");
+
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
 
   // Spec 008's highlight: each look's band and edge, and RW2's lowest contrast against its palette.
   lines.push(...highlights(c), "");
 
-  // Spec 008's walking lines: the figure's start, RW1's measure, and the walking control's box, RG6's.
+  // Spec 008's walking lines: the figure's start, RW1's measure, and spec 005's reserved boxes, RG6's.
   lines.push(...walking(c), "");
 
   // The findings.
@@ -415,6 +424,26 @@ function switches(c: Composed): string[] {
   return out;
 }
 
+/** A number as the report prints a size: to the tenth, and a count with its thousands. */
+const plainSize = (n: number): string => String(Number(n.toFixed(1)));
+
+/** Spec 005's stages line (FR-052 to FR-054, FR-057; plan.md §10.2): the layouts, the sweep's extent and count, the
+ *  supported stages' count, and the two reference stages with their screens. */
+function stagesLine(): string {
+  const screens = sweepScreens();
+  const extent = (k: "w" | "h", f: (...n: number[]) => number): number => f(...screens.map((s) => s[k]));
+  const n = (x: number): string => x.toLocaleString("en-US");
+  const ref = (r: typeof REFERENCE_DESKTOP): string =>
+    `${plainSize(r.stage.w)} × ${plainSize(r.stage.h)} (${r.screen.w} × ${r.screen.h}`;
+  return (
+    `Stages (spec 005, FR-052 to FR-054): the clear areas of the HUD's column and dock layouts, a dock screen's with ` +
+    `its list open and collapsed, over ${n(screens.length)} screens from ${extent("w", Math.min)} × ` +
+    `${extent("h", Math.min)} to ${extent("w", Math.max)} × ${extent("h", Math.max)}, ` +
+    `${n(supportedStages().length)} stages; the reference desktop's ${ref(REFERENCE_DESKTOP)} at a pixel ratio of ` +
+    `${REFERENCE_DESKTOP.dpr}) and the reference phone's ${ref(REFERENCE_PHONE)} at ${REFERENCE_PHONE.dpr}).`
+  );
+}
+
 /** Spec 008's walking lines (FR-021, FR-026; plan.md §3.5): the visitor figure's start at the walking radius, RW1's
  *  measure, with how far it stands from the nearest edge of the walkable floor and which; or, where RW1 refuses it,
  *  what it stands in. Then the walking control's box, as RG6 reserves it in 3D, with each side-wall selectable it
@@ -444,9 +473,10 @@ function walking(c: Composed): string[] {
       out.push(`${head}, ${at}, isn't on the walkable floor at ${radius}: ${where}.`);
     }
   }
+  // Spec 005 (FR-055): every HUD control over the clear area RG6 reserves, one line a box; the walking control's alone.
   const box =
-    `The walking control's box (spec 008, FR-021): ${WALK_CONTROL.widthRem}rem × ${WALK_CONTROL.heightRem}rem, ` +
-    `${WALK_CONTROL.insetRem}rem in from the stage's bottom-right corner,`;
+    `Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), ${WALK_CONTROL.widthRem}rem × ` +
+    `${WALK_CONTROL.heightRem}rem, ${WALK_CONTROL.insetRem}rem in from the clear area's bottom-right corner,`;
   const holds = c.geometry ? pickSweep(c.geometry).boxHolds : [];
   if (holds.length === 0) out.push(`${box} holds no side-wall selectable at any supported stage.`);
   else {

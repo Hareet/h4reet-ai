@@ -154,7 +154,8 @@ describe("object_selected", () => {
     const { index } = fixture();
     const v = start({ webgl: true, room: index });
     await intoRoom(v);
-    const buttons = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list button")];
+    // The list's buttons, its header button apart (spec 005).
+    const buttons = [...v.doc.querySelectorAll<HTMLButtonElement>(".room-list li button")];
     expect(buttons.map((b) => b.getAttribute("data-object-id"))).toEqual(index.selectables.map((s) => s.id));
     for (const b of buttons) {
       const [from, expected] = [v.events.length, sends(v, index, b.getAttribute("data-object-id"))];

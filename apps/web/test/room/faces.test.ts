@@ -395,16 +395,26 @@ describe("the faces in 3D (R-37; FR-054)", () => {
     const disposed = new Set<string>();
     for (const [id, map] of before) map?.addEventListener("dispose", () => disposed.add(id));
     resized.faces.setLevel(1);
+    // Since spec 005 the reference stages are larger, so a face may meet its px cap at both levels: its size stays, and
+    // so does its texture; every face whose size changes takes a new one, and at least one does.
+    let moved = 0;
     for (const [id, quad] of resized.faces.quads) {
       const map = (quad.material as MeshBasicMaterial).map;
+      const face = resized.index.faces.find((f) => f.id === id);
+      if (!face) throw new Error(id);
+      const [was, now] = [faceCanvasSize(face, 2, qualitySettings(0)), faceCanvasSize(face, 2, qualitySettings(1))];
+      if (was[0] === now[0] && was[1] === now[1]) {
+        expect(map, id).toBe(before.get(id));
+        continue;
+      }
+      moved += 1;
       expect(map, id).not.toBe(before.get(id));
       expect(disposed.has(id), id).toBe(true);
       const canvas = map?.image as HTMLCanvasElement;
-      const face = resized.index.faces.find((f) => f.id === id);
-      if (!face) throw new Error(id);
-      expect([canvas.width, canvas.height], id).toEqual(faceCanvasSize(face, 2, qualitySettings(1)));
+      expect([canvas.width, canvas.height], id).toEqual(now);
       expect(map?.generateMipmaps, id).toBe(false);
     }
+    expect(moved).toBeGreaterThan(0);
     // At a pixel ratio of 1, levels 0 to 2 draw every face at one size: its texture stays.
     const same = quads({ dpr: 1 });
     const kept = new Map([...same.faces.quads].map(([id, q]) => [id, (q.material as MeshBasicMaterial).map]));

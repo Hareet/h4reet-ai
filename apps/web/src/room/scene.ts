@@ -45,6 +45,8 @@ import {
   showHandoff as drawHandoff,
 } from "./scene/bundle3d";
 import { floorOfPart } from "./compose/floor";
+import type { Box } from "./compose/hud";
+import { bufferRatio, clearNdc, fillsCanvas, viewOffsetFor } from "./fit";
 import type { Camera as ViewCamera } from "./compose/project";
 import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
@@ -365,6 +367,21 @@ export function createScene(options: SceneOptions): Stage3D {
           },
         })
       : null;
+  /** The clear area the room is framed into, in the canvas's CSS pixels (spec 005, FR-015; plan.md §5): the room's,
+   *  or the whole canvas where it gives none (the stacked layout). */
+  let clear: Box = { x: 0, y: 0, w: 0, h: 0 };
+  /** The clear area's size, the stage the kernel's framing, the picker, and the walking view measure. */
+  const clearStage = (): { w: number; h: number } => ({ w: clear.w, h: clear.h });
+  /** The camera's projection shifted so the clear area's frustum spans the canvas at its own scale (PD-12): the room in
+   *  the clear area, the scene continuing behind the panels. A clear area that is the canvas needs no shift. */
+  const shift = (): void => {
+    if (fillsCanvas(clear, size)) {
+      if (camera.view?.enabled) camera.clearViewOffset();
+      return;
+    }
+    const o = viewOffsetFor(clear, size);
+    camera.setViewOffset(o.fullWidth, o.fullHeight, o.x, o.y, o.width, o.height);
+  };
   /** A camera of the kernel's on the stage's camera. */
   const applyCamera = (spec: ViewCamera, aspect: number): void => {
     camera.fov = spec.fov;
@@ -388,28 +405,61 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     returning = false;
     if (size.w > 0 && size.h > 0) {
-      frameCamera(camera, size.w / size.h, boxes);
-      picker.setCamera(null, { w: size.w, h: size.h });
+      frameCamera(camera, clear.w / clear.h, boxes);
+      shift();
+      picker.setCamera(null, clearStage());
     }
     options.walkEnded?.("failed");
   };
   let lastTime: number | null = null;
-  const unbind = bindPointerSelection(canvas, picker.pick, options.select, options.target, (ndc) => {
-    if (walking?.on) input.miss(ndc);
-  });
+  // A point of the canvas picks and walks in the clear area's own coordinates, where the picker's areas are RG6's; a
+  // point outside it, under a panel or a safe area, picks nothing (spec 005, PD-13).
+  const inClear = (ndc: { x: number; y: number }): { x: number; y: number } | null => clearNdc(ndc, size, clear);
+  const unbind = bindPointerSelection(
+    canvas,
+    (ndc) => {
+      const at = inClear(ndc);
+      return at ? picker.pick(at) : null;
+    },
+    options.select,
+    options.target,
+    (ndc) => {
+      const at = inClear(ndc);
+      if (walking?.on && at) input.miss(at);
+    },
+  );
 
   let size = { w: 0, h: 0, ratio: 0 };
+  const same = (a: Box, b: Box): boolean => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  /**
+   * The canvas at the window (spec 005, FR-010 to FR-012; plan.md §4.2, §4.4): its buffer at bufferRatio, within the
+   * level's pixel cap; the camera framed at the clear area's aspect and shifted into it; the picker's areas in the clear
+   * area; the look's lines at the canvas's height; and the highlight's band at the canvas's size, in CSS pixels on
+   * screen at any ratio. Read each frame, so a re-fit shows on the next one. The camera, the pick areas, and the ink's
+   * width follow the stage, all from the same framing of the same boxes.
+   */
   const resize = (): void => {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    const ratio = Math.min(win.devicePixelRatio || 1, settings.pixelRatio);
-    if (!w || !h || (w === size.w && h === size.h && ratio === size.ratio)) return;
+    if (!w || !h) return;
+    const ratio = bufferRatio(win.devicePixelRatio || 1, settings, w, h);
+    // The room's clear area while the canvas is the window it was computed for; else the whole canvas.
+    const given = options.clear?.() ?? null;
+    const fits =
+      given !== null &&
+      Math.abs(given.window.w - w) <= 1 &&
+      Math.abs(given.window.h - h) <= 1 &&
+      given.area.w > 0 &&
+      given.area.h > 0;
+    const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
+    if (w === size.w && h === size.h && ratio === size.ratio && same(next, clear)) return;
     size = { w, h, ratio };
+    clear = next;
     renderer.setPixelRatio(ratio);
     renderer.setSize(w, h, false);
-    // The camera, the pick areas, and the ink's width follow the stage, all from the same framing of the same boxes.
-    frameCamera(camera, w / h, boxes);
-    picker.resize({ w, h });
+    if (!walking?.on && !returning) frameCamera(camera, clear.w / clear.h, boxes);
+    shift();
+    picker.resize(clearStage());
     ink.setStageHeight(h);
     highlight.setStage(w, h);
   };
@@ -431,19 +481,22 @@ export function createScene(options: SceneOptions): Stage3D {
     const dt = lastTime === null ? 0 : Math.min(0.1, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
     if (walking && size.w > 0 && size.h > 0) {
-      const stage = { w: size.w, h: size.h };
+      // The walking view measures the clear area, and its follow camera takes the production camera's shift, so the
+      // figure stays centred in it (spec 005, FR-018).
+      const stage = clearStage();
       if (walking.on) {
         try {
-          applyCamera(walking.frame(input.take(dt, rates), stage, time, dt, moving), size.w / size.h);
+          applyCamera(walking.frame(input.take(dt, rates), stage, time, dt, moving), clear.w / clear.h);
         } catch {
           failWalk();
         }
       } else if (returning) {
         const back = walking.returning(stage, time, moving);
-        if (back) applyCamera(back, size.w / size.h);
+        if (back) applyCamera(back, clear.w / clear.h);
         else {
           returning = false;
-          frameCamera(camera, size.w / size.h, boxes);
+          frameCamera(camera, clear.w / clear.h, boxes);
+          shift();
           picker.setCamera(null, stage);
         }
       }

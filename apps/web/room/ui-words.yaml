@@ -36,7 +36,7 @@ words:
   standin.label: "{name} (placeholder)"
   standin.note: Placeholder shapes stand in for the room's pieces until their models arrive
   draft.badge: Draft
-  flat-failed: This drawing of the room could not be shown. The list below still works.
+  flat-failed: This drawing of the room could not be shown. The list of things in the room still works.
   walk.enter: Walk around
   walk.leave: Stop walking
   walk.region: The room, walking
@@ -45,6 +45,14 @@ words:
   walk.left: Walking stopped.
   walk.target: "{name}: press Enter to open."
   twin.stand_in: The twin's figure is a stand-in, not the Author's likeness.
+  hud.log_toggle: Conversation
+  talk.larger: Larger conversation
+  talk.smaller: Smaller conversation
+  fullscreen.enter: Full screen
+  fullscreen.leave: Leave full screen
+  fullscreen.refused: Full screen isn't available here. The room still fills the window.
+  walk.help_fullscreen: In full screen, Escape first leaves full screen. Press it again to stop walking.
+  walk.entered_fullscreen: Walking. Escape leaves full screen first, then stops walking.
   label.desk: Desk
   label.monitor: Monitor
   label.neon-sign: Neon sign

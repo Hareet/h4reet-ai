@@ -56,8 +56,13 @@ import type { RoomText } from "../room/faces/words";
 import { loadOrder } from "../room/compose/load-order";
 import type { LoadEntry } from "../room/compose/load-order";
 import { framing } from "../room/compose/framing";
+import { clearArea, hudBoxes } from "../room/compose/hud";
+import type { Box as ClearBox } from "../room/compose/hud";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../room/compose/stages";
-import type { Stage } from "../room/compose/stages";
+import type { Screen, Stage } from "../room/compose/stages";
+import { bufferRatio, clearNdc, viewOffsetFor } from "../room/fit";
+// The room's own stylesheet, so the window views' HUD boxes carry the room's classes and look (spec 005, PD-25).
+import "../room/room.css";
 import { bindPointerSelection } from "../room/objects";
 import { createQualityController, meetsModelFloor, targetFps, watchContext } from "../room/quality";
 import type { Capability, QualityController } from "../room/quality";
@@ -140,6 +145,14 @@ export interface LookdevStage {
   readonly stage: Stage;
   /** The pixel ratio drawn at. */
   readonly ratio: number;
+  /** Spec 005 (FR-059; plan.md §10.4, PD-25): the window a window view's canvas fills, null in a stage view; the clear
+   *  area the room is framed into, in the canvas's CSS pixels; the drawing buffer, in device pixels; the level's pixel
+   *  cap in force; and the HUD's docked boxes, static, over a window view's canvas. */
+  readonly window: Screen | null;
+  readonly clear: ClearBox;
+  readonly buffer: readonly [number, number];
+  readonly cap: number;
+  readonly hud: HTMLElement;
   readonly scene: SceneChoice;
   readonly sample: RoomFixture | null;
   readonly quality: QualityChoice;
@@ -223,6 +236,9 @@ export function createStage(options: StageOptions): LookdevStage {
   }
 }
 
+/** A large monitor's window, the third window view (spec 005, FR-059): 2560 × 1440 CSS pixels at a pixel ratio of 1. */
+const LARGE_MONITOR: Screen = { w: 2560, h: 1440 };
+
 function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   const { win, clock, inputs } = options;
   const { part, index, lookdev, fixtures } = inputs;
@@ -230,6 +246,17 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   const canvas = doc.createElement("canvas");
   canvas.className = "lookdev-canvas";
   canvas.setAttribute("aria-hidden", "true");
+  // The window views' HUD: the strip, the bar, and the column or the dock, as static glass boxes (PD-25).
+  const hud = doc.createElement("div");
+  hud.className = "lookdev-hud";
+  hud.hidden = true;
+  hud.setAttribute("aria-hidden", "true");
+  const hudParts = ["strip", "bar", "panels"].map((part) => {
+    const box = doc.createElement("div");
+    box.className = `hud-glass lookdev-hud-box lookdev-hud-${part}`;
+    hud.append(box);
+    return box;
+  });
 
   const camera = new PerspectiveCamera();
   camera.layers.enable(LABEL_LAYER);
@@ -295,6 +322,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let stage: Stage = REFERENCE_DESKTOP.stage;
   let spec: Camera = framing(stage.w / stage.h, framed);
   let ratio = 1;
+  let windowed: Screen | null = null;
+  let clear: ClearBox = { x: 0, y: 0, w: stage.w, h: stage.h };
+  let buffer: readonly [number, number] = [0, 0];
   let holds = 0;
   let disposed = false;
   let last: FrameSample = { drawCalls: 0, triangles: 0, textureBytes: 0 };
@@ -353,12 +383,49 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
    * phone's the last measured; this device's, the copy's alone, is the room's layout at its probe's viewport, at its
    * pixel ratio; and the close-up takes the page's primary stage, this device's in the copy (the review's page-4).
    */
-  function viewOf(v: ViewChoice): { stage: Stage; dpr: number } {
+  function viewOf(v: ViewChoice): { stage: Stage; dpr: number; window?: Screen } {
     const device = options.device;
     const own = device && { stage: stageFor({ w: device.viewport[0], h: device.viewport[1] }), dpr: device.dpr };
+    // Spec 005's window views: the screen's whole window, its clear area the stage (FR-059; PD-25).
+    const windowed = (screen: Screen, dpr: number): { stage: Stage; dpr: number; window: Screen } => ({
+      stage: stageFor(screen),
+      dpr,
+      window: screen,
+    });
+    if (v === "window-desktop") return windowed(REFERENCE_DESKTOP.screen, REFERENCE_DESKTOP.dpr);
+    if (v === "window-phone") return windowed(REFERENCE_PHONE.screen, REFERENCE_PHONE.dpr);
+    if (v === "window-monitor") return windowed(LARGE_MONITOR, 1);
     if (v === "phone") return REFERENCE_PHONE;
     if ((v === "device" || v === "close-up") && own) return own;
     return REFERENCE_DESKTOP;
+  }
+
+  /** The HUD's boxes over a window view's canvas, positioned through the CSS object model, and the room's layout and
+   *  blur on the page's root, so room.css draws them as the room does; hidden in a stage view. */
+  function placeHud(): void {
+    const root = doc.documentElement;
+    if (!windowed) {
+      hud.hidden = true;
+      root.removeAttribute("data-hud");
+      root.removeAttribute("data-blur");
+      return;
+    }
+    const b = hudBoxes(windowed);
+    const boxes = [b.strip, b.bar, b.column ?? b.dock ?? b.bar];
+    hudParts.forEach((el, k) => {
+      const box = boxes[k];
+      if (!box) return;
+      for (const [name, value] of [
+        ["left", box.x],
+        ["top", box.y],
+        ["width", box.w],
+        ["height", box.h],
+      ] as const)
+        el.style.setProperty(name, `${value}px`);
+    });
+    hud.hidden = false;
+    root.setAttribute("data-hud", b.layout);
+    root.setAttribute("data-blur", level <= 1 ? "on" : "off");
   }
 
   const picker = selectablePicker(part, index);
@@ -367,16 +434,27 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   function fit(): void {
     const v = viewOf(view);
     stage = v.stage;
-    ratio = Math.min(v.dpr, settings.pixelRatio);
+    windowed = v.window ?? null;
+    // The canvas: the stage, or in a window view the whole window, the room framed into its clear area (spec 005).
+    const size = windowed ?? stage;
+    clear = windowed ? clearArea(windowed) : { x: 0, y: 0, w: stage.w, h: stage.h };
+    // The room's buffer ratio: the device's, capped by the level's ratio and its pixel cap (spec 005, PD-11).
+    ratio = bufferRatio(v.dpr, settings, size.w, size.h);
+    buffer = [Math.floor(size.w * ratio), Math.floor(size.h * ratio)];
     // CSSOM, which the site's style-src 'self' allows, unlike a style attribute in markup.
-    canvas.style.width = `${stage.w}px`;
-    canvas.style.height = `${stage.h}px`;
+    canvas.style.width = `${size.w}px`;
+    canvas.style.height = `${size.h}px`;
     renderer.setPixelRatio(ratio);
-    renderer.setSize(stage.w, stage.h, false);
+    renderer.setSize(size.w, size.h, false);
     spec = frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
+    if (windowed) {
+      const o = viewOffsetFor(clear, windowed);
+      camera.setViewOffset(o.fullWidth, o.fullHeight, o.x, o.y, o.width, o.height);
+    } else if (camera.view?.enabled) camera.clearViewOffset();
     picker.resize(stage);
-    ink.setStageHeight(stage.h);
-    highlight.setStage(stage.w, stage.h);
+    ink.setStageHeight(size.h);
+    highlight.setStage(size.w, size.h);
+    placeHud();
   }
 
   /** The quality level's settings, as the room's 3D stage applies them (scene.ts's setQuality). */
@@ -527,7 +605,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
 
   const unbind = bindPointerSelection(
     canvas,
-    (ndc) => (view === "close-up" ? null : picker.pick(ndc)),
+    (ndc) => {
+      if (view === "close-up") return null;
+      // A window view's point moved into its clear area first, as the room's stage does (spec 005, PD-13).
+      const at = windowed ? clearNdc(ndc, windowed, clear) : ndc;
+      return at ? picker.pick(at) : null;
+    },
     (id) => options.log({ kind: "usage", text: `object_selected ${id}` }),
   );
   const unwatch = watchContext(
@@ -597,6 +680,19 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get ratio() {
       return ratio;
     },
+    get window() {
+      return windowed;
+    },
+    get clear() {
+      return clear;
+    },
+    get buffer() {
+      return buffer;
+    },
+    get cap() {
+      return settings.pixelCap;
+    },
+    hud,
     get scene() {
       return scene;
     },

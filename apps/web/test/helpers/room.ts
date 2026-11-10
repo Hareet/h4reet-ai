@@ -3,6 +3,7 @@
 // microphone API the page could reach, a stand-in for the 3D chunk (jsdom has no WebGL), and the room's content and
 // index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
 // network: jsdom loads no subresource, and every request API is a spy.
+import type { Viewport, ViewportChange, WindowMeasures } from "../../src/room/hud/viewport";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -509,6 +510,8 @@ export interface SceneOptionsForTest {
   /** The drafts build's frame log (spec 004, T246): the factory main.ts gives a drafts build, which the room makes its
    *  log with and puts h4FrameLog() on the window; absent, as in a release build, the room keeps no log. */
   frameLog?: RoomDeps["frameLog"];
+  /** Spec 005: the window's measures and their changes (hud/viewport.ts), which a test stubs; by default the page's. */
+  viewport?: RoomDeps["viewport"];
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -558,6 +561,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     wall,
     ...(options.sendTurn ? { sendTurn: options.sendTurn } : {}),
     ...(options.frameLog ? { frameLog: options.frameLog } : {}),
+    ...(options.viewport ? { viewport: options.viewport } : {}),
     loadScene: () => {
       scene.loads += 1;
       if (options.loadScene) return options.loadScene();
@@ -581,6 +585,82 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     room,
     resumeLoads: () => loads,
     roomDataLoads: () => roomDataLoads,
+  };
+}
+
+/** A stand-in for hud/viewport.ts (spec 005): measures a test sets, and the change it reports to the room, "refit" or
+ *  "keyboard". Its factory goes to start()'s `viewport`. */
+export function stubViewport(initial: Partial<WindowMeasures> = {}) {
+  let m: WindowMeasures = {
+    w: 1280,
+    h: 720,
+    dpr: 1,
+    rem: 16,
+    safe: { top: 0, right: 0, bottom: 0, left: 0 },
+    keyboard: 0,
+    strip: 0,
+    ...initial,
+  };
+  const listeners = new Set<(what: ViewportChange) => void>();
+  const viewport: Viewport = {
+    read: () => m,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    dispose: () => listeners.clear(),
+  };
+  return {
+    factory: (): Viewport => viewport,
+    set(next: Partial<WindowMeasures>, what: ViewportChange = "refit"): void {
+      m = { ...m, ...next };
+      for (const fn of [...listeners]) fn(what);
+    },
+    get measures(): WindowMeasures {
+      return m;
+    },
+  };
+}
+
+/** Spec 005: The page's Fullscreen API, a stand-in: whether the browser offers it, whether it refuses, and what was asked. */
+export function stubFullscreen(v: Visit, o: { supported?: boolean; refuse?: boolean } = {}) {
+  const doc = v.doc as Document & Record<string, unknown>;
+  const root = doc.documentElement as HTMLElement & Record<string, unknown>;
+  let element: Element | null = null;
+  const asked: unknown[] = [];
+  const fire = (name: string): void => {
+    doc.dispatchEvent(new v.win.Event(name));
+  };
+  Object.defineProperty(doc, "fullscreenEnabled", { configurable: true, value: o.supported ?? true });
+  Object.defineProperty(doc, "fullscreenElement", { configurable: true, get: () => element });
+  root.requestFullscreen = (options?: unknown) => {
+    asked.push(options);
+    // A refusal as browsers make it: the error event, then the rejection (the review of 60b51de4's nit).
+    if (o.refuse) {
+      fire("fullscreenerror");
+      return Promise.reject(new TypeError("refused"));
+    }
+    element = root;
+    fire("fullscreenchange");
+    return Promise.resolve();
+  };
+  doc.exitFullscreen = () => {
+    asked.push("exit");
+    element = null;
+    fire("fullscreenchange");
+    return Promise.resolve();
+  };
+  return {
+    asked,
+    /** The browser's own exit: Escape, a system gesture, or a tab switch. */
+    exit(): void {
+      element = null;
+      fire("fullscreenchange");
+    },
+    enterByBrowser(): void {
+      element = root;
+      fire("fullscreenchange");
+    },
   };
 }
 

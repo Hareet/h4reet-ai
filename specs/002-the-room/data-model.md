@@ -148,6 +148,8 @@ Each `cannot_talk` message ends by pointing to the resume and the PDF.
 | `kind` | string | one of `object_selected`, `item_selected`, `resume_opened`, `resume_kept`, `pdf_downloaded`, `turn_sent`, `voice_pressed`, `mode_2d` |
 | `id` | string, optional | for `object_selected`, an object ID; for `item_selected`, an item ID; for the others, absent |
 
+**(spec 005)** `kind` may also be `fullscreen_entered`, with no `id` (spec 005's FR-060; Amendment H7), beside spec 008's `walk_started` and spec 009's `avatar_failed`; the kinds are `apps/web/src/room/events.ts`'s, which `config/room-events.yaml` lists.
+
 **Nothing else.** No text, audio, path, avatar, client address, visit ID, or time: the gateway's clock times it (FR-054). It becomes one increment of `h4.room.events{kind, id}`, labelled `id="-"` when absent.
 
 ## 9. The visit (in the page)
