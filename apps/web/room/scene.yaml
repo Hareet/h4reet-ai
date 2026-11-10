@@ -224,4 +224,17 @@ retired:
 # shows the man as a stand-in, by the Author's "the male one can act as my twin" (2026-11-08), until the twin's own
 # avatar exists, and the room says so in its note and its text copy; the avatars' textures decode at most 1,024 pixels
 # a side; and the hand-off waits at most 1.5 s for both avatars (Phase 2).
-figures: { twin_stand_in: man, texture_px: 1024, wait_ms: 1500 }
+# Spec 014's grips (its FR-038 to FR-041; plan.md §6; D1): the sheet's held edge's middle in the holding hand bone's
+# frame, in the room's metres, and its turn from the bone's axes, in degrees. The studio's man and woman hold with the
+# left hand, so each gives its left; the right takes the default computed from the hand's bones. Each value is an
+# estimate, read from that default's frame at the first frame of "idle-holding" (T032), for the Author's look at
+# lookdev's hands view to tune (T054); the turn's x and z trade places near a quarter turn about y, as Euler angles do.
+figures:
+  twin_stand_in: man
+  texture_px: 1024
+  wait_ms: 1500
+  grips:
+    man:
+      left: { at: [0, 0.049, 0], turn: { x: 0, y: -88, z: 180 } } # estimated
+    woman:
+      left: { at: [0, 0.044, 0], turn: { x: 180, y: -89, z: 0 } } # estimated

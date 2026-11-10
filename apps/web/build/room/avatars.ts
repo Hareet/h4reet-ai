@@ -45,6 +45,8 @@ export interface FigureBlock {
   readonly stand_in: AvatarId | null;
   readonly texture_px: number;
   readonly wait_ms: number;
+  /** Spec 014 (FR-039): the grips, per avatar of the table and hand; absent where the scene gives none. */
+  readonly grips?: NonNullable<NonNullable<Scene["figures"]>["grips"]>;
 }
 
 /** A role an avatar's file holds: its model, a clip's, or none. */
@@ -111,6 +113,7 @@ export function figureBlock(scene: Scene | null | undefined): FigureBlock {
     stand_in: named !== undefined && AVATAR_IDS.includes(named) ? (named as AvatarId) : null,
     texture_px: block?.texture_px ?? FIGURES_DEFAULTS.texture_px,
     wait_ms: block?.wait_ms ?? FIGURES_DEFAULTS.wait_ms,
+    ...(block?.grips === undefined ? {} : { grips: block.grips }),
   };
 }
 

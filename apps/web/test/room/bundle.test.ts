@@ -874,6 +874,13 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       texture_px: 1024,
       wait_ms: 1500,
       twin_height: 0.5,
+      // Spec 014 (FR-039; W16): the good fixture's grips, as its scene gives them.
+      grips: {
+        man: {
+          right: { at: [0.01, 0.05, 0.02], turn: { x: 0, y: 0, z: 180 } },
+          left: { at: [-0.01, 0.05, 0.02], turn: { x: 0, y: 0, z: 180 } },
+        },
+      },
     });
     expect(scene.avatars).toEqual({});
     expect(scene.handoff).toEqual({

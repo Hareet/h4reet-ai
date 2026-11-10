@@ -1038,7 +1038,8 @@ describe("the figures' grips (spec 014, T031)", () => {
   const GOOD = { at: [0.02, -0.06, 0.03], turn: { x: 0, y: 10, z: 180 } };
   const withGrips = (grips: unknown): Uint8Array =>
     variant(FILES.scene, (d) => {
-      d.figures = { ...(d.figures as Doc | undefined), grips };
+      // Copied whole, so YAML writes no anchor for a value used twice (RD1 refuses one).
+      d.figures = { ...(d.figures as Doc | undefined), grips: JSON.parse(JSON.stringify(grips)) as unknown };
     });
   it("reads a good grip whole", () => {
     const { value, seen } = judge("scene", withGrips({ man: { right: GOOD, left: GOOD }, woman: { left: GOOD } }));

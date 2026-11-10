@@ -20,6 +20,7 @@ import {
   TYPEFACE_USES,
 } from "../../src/room/compose/vocabulary";
 import { isUiKey } from "../../src/room/ui-keys";
+import { AVATARS } from "../../src/choice/avatars";
 
 /** IDs `^[a-z][a-z0-9-]{1,40}$` (§3.1), and every other name (§3.2). */
 export const ID = /^[a-z][a-z0-9-]{1,40}$/;
@@ -470,6 +471,27 @@ const walking = z
  *  side, and the hand-off's wait of 1,500 ms. */
 export const FIGURES_DEFAULTS = { texture_px: 1024, wait_ms: 1500 } as const;
 
+/** Spec 014 (FR-039; plan.md PD-16; T001's RD7): a grip, the held edge's middle `at` in the hand bone's frame, each
+ *  coordinate within ±0.15 m, and the sheet's `turn` from its axes, each within ±180°. */
+const GRIP_AT = 0.15;
+const GRIP_TURN = 180;
+const gripCoordinate = z.number().refine((v) => Math.abs(v) <= GRIP_AT, own("RD7", "past ±0.15 m"));
+const gripDegrees = z.number().refine((v) => Math.abs(v) <= GRIP_TURN, own("RD7", "past ±180°"));
+const grip = z.strictObject({
+  at: z.tuple([gripCoordinate, gripCoordinate, gripCoordinate]),
+  turn: z.strictObject({ x: gripDegrees, y: gripDegrees, z: gripDegrees }),
+});
+/** `figures.grips`: from an avatar of the room's table to `right` and `left`, RD7 refusing any other key. */
+const grips = z.record(z.string(), z.record(z.string(), grip)).superRefine((value, ctx) => {
+  for (const [avatar, hands] of Object.entries(value)) {
+    if (!AVATARS.some((a) => a.id === avatar))
+      ctx.addIssue({ code: "custom", message: "RD7: not an avatar of the room's table", path: [avatar] });
+    for (const hand of Object.keys(hands))
+      if (hand !== "right" && hand !== "left")
+        ctx.addIssue({ code: "custom", message: "RD7: a hand but right and left", path: [avatar, hand] });
+  }
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -484,6 +506,7 @@ const figures = z
       .refine(isPowerOfTwo, own("RD3", "not a power of two"))
       .default(FIGURES_DEFAULTS.texture_px),
     wait_ms: z.number().int().min(0).max(3000).default(FIGURES_DEFAULTS.wait_ms),
+    grips: grips.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 

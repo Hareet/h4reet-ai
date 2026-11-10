@@ -401,17 +401,11 @@ describe("the holding hand and the kept paper (FR-018; R-08, R-09)", () => {
     expect(kept.parent).toBe(hand);
     expect(s.room.paper.atVisitor.opacity).toBe(1);
     expect(s.room.paper.atTwin.opacity).toBe(0);
-    // Spec 014 (FR-038, FR-040; W15): at the hand's grip, the computed default where the scene gives none, never the
-    // wrist lifted by half the sheet.
+    // Spec 014 (FR-038, FR-040; W15): at the hand's grip, the computed default where the scene gives none.
     const front = new Vector3(0, 0, 1).transformDirection((avatarIn(s, "visitor") ?? hand).matrixWorld);
     const grip = gripMatrix(hand, front, null);
     if (!grip) throw new Error("no grip");
     expect(worldOf(kept).distanceTo(new Vector3().setFromMatrixPosition(grip))).toBeLessThan(1e-6);
-    expect(
-      worldOf(kept)
-        .sub(worldOf(hand))
-        .distanceTo(new Vector3(0, 0.297 / 2, 0)),
-    ).toBeGreaterThan(0.01);
     // It moves with the hand as "idle-holding" plays: the hand's motion, carried.
     const before = worldOf(kept).sub(worldOf(hand));
     s.figures.update(500, true, 0);

@@ -257,6 +257,9 @@ export interface RoomScene {
     texture_px: number;
     wait_ms: number;
     twin_height: number;
+    /** Spec 014 (FR-039; W16): each avatar's grip per hand, from the scene's figures block, in the hand bone's frame
+     *  (metres at the room's scale, degrees); an absent avatar or hand takes the computed default (scene/grip.ts). */
+    grips?: Partial<Record<AvatarId, Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>>>>;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */

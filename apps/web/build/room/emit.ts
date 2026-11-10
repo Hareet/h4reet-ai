@@ -37,7 +37,7 @@ import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
 
-import { AVATARS } from "../../src/choice/avatars";
+import { AVATARS, isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
@@ -71,6 +71,7 @@ import { gzip9 } from "../../src/room/glb/gzip";
 import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
 import { avatarsOf, bundledFiles } from "./avatars";
+import type { FigureBlock } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
@@ -1332,6 +1333,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       texture_px: c.avatars.figures.texture_px,
       wait_ms: c.avatars.figures.wait_ms,
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
+      // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
+      ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
@@ -1647,3 +1650,24 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
     report: roomReport(c, digest, index),
   };
 };
+
+/** The scene's grips as the 3D part carries them (spec 014, FR-039): only the table's avatars and the two hands, which
+ *  RD7 holds the data to, each number on the bundle's grid. */
+function gripsOf(grips: NonNullable<FigureBlock["grips"]>): NonNullable<RoomScene["figures"]["grips"]> {
+  type GripIn = { readonly at: readonly [number, number, number]; readonly turn: Turn };
+  const out: NonNullable<RoomScene["figures"]["grips"]> = {};
+  for (const [avatar, hands] of Object.entries(grips) as [string, Readonly<Record<string, GripIn>>][]) {
+    if (!isAvatarId(avatar)) continue;
+    const entry: Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>> = {};
+    for (const hand of ["right", "left"] as const) {
+      const g = hands[hand];
+      if (g)
+        entry[hand] = {
+          at: [m6(g.at[0]), m6(g.at[1]), m6(g.at[2])],
+          turn: { x: m6(g.turn.x), y: m6(g.turn.y), z: m6(g.turn.z) },
+        };
+    }
+    out[avatar] = entry;
+  }
+  return out;
+}

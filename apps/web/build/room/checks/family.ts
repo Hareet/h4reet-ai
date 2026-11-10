@@ -50,6 +50,8 @@ export const RULES = {
   RD3: rule("RD", read), // a required key missing, or a value outside its type or range
   RD4: rule("RD", read), // a version other than 1
   RD5: rule("RD", read), // a file in the data folders that isn't one of their kinds
+  RD6: rule("RD", read), // spec 014: a glow's radius or path, its points, and its spread
+  RD7: rule("RD", read), // spec 014: a figures grip's avatar, hand, point, or turn
   RI1: rule("RI", read), // an ID or a name outside its grammar
   RI2: rule("RI"), // a duplicate ID or name
   RI3: rule("RI"), // a retired ID taken again

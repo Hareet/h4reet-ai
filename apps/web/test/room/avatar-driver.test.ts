@@ -22,7 +22,8 @@ import type { ComposeResult } from "../../build/room/compose";
 import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import { buildRoom, keepPaper } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
-import { PAPER_LIFT, createAvatarFigures } from "../../src/room/scene/avatars";
+import { AVATAR_NODE, createAvatarFigures } from "../../src/room/scene/avatars";
+import { gripCentre } from "../../src/room/scene/grip";
 import type { AvatarFigures } from "../../src/room/scene/avatars";
 import { cutoutDriver, figureDriverFor } from "../../src/room/scene/figure";
 import type { FigureDriver, FigureFrame } from "../../src/room/scene/figure";
@@ -122,8 +123,13 @@ describe("the avatar's driver (FR-028; R-16; SC-007)", () => {
       worst.bob = Math.max(worst.bob, Math.abs(s.room.visitor.position.y - lift));
       // The paper in the holding hand, its lower edge within 2 cm of it.
       worst.held &&= s.room.paper.kept.parent === hand;
-      const edge = worldOf(s.room.paper.kept).sub(new Vector3(0, PAPER_LIFT, 0));
-      worst.paper = Math.max(worst.paper, edge.distanceTo(worldOf(hand)));
+      // Spec 014 (FR-038; W15): the sheet at the hand's grip as it walks, its centre where the grip puts it.
+      let holder: Object3D | null = hand;
+      while (holder && holder.name !== AVATAR_NODE) holder = holder.parent;
+      const front = new Vector3(0, 0, 1).transformDirection((holder ?? hand).matrixWorld);
+      const side = /Left/.test(hand.name) ? "left" : "right";
+      const grip = gripCentre(hand, front, night.scene.figures.grips?.woman?.[side] ?? null) ?? worldOf(hand);
+      worst.paper = Math.max(worst.paper, worldOf(s.room.paper.kept).distanceTo(grip));
     }
     expect(worst.place).toBeLessThan(1e-6);
     expect(worst.degrees).toBeLessThan(1);

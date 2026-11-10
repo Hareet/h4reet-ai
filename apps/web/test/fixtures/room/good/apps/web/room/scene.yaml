@@ -95,6 +95,12 @@ selectables:
     action: { talk: { topic: fx-work, lead: Fixture lead about the work first. } }
   - { id: fx-board, name: Fixture board, members: [fx-board], action: { resume: {} } }
 handoff: { from: { placement: fx-twin, anchor: hand }, to: { placement: fx-visitor, anchor: hand } }
+# Spec 014's grips (FR-039): one per hand for an avatar of the room's table, as RD7 reads them.
+figures:
+  grips:
+    man:
+      right: { at: [0.01, 0.05, 0.02], turn: { x: 0, y: 0, z: 180 } }
+      left: { at: [-0.01, 0.05, 0.02], turn: { x: 0, y: 0, z: 180 } }
 survey: { desk_corner: { placement: fx-desk, anchor: corner } }
 retired:
   - { id: fx-old-lamp, kinds: [piece, placement], retired: "2026-10-01", reason: Fixture lamp removed from the room. }
