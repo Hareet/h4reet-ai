@@ -8,6 +8,7 @@ import { defineConfig } from "vite";
 import { draftsOn, roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
 import { disclosurePage } from "./build/disclosure";
+import { resumeDownloadName } from "./build/download-name";
 import { narrationPart } from "./build/narration";
 import { DEFAULT_POLICY_DIR } from "./build/policy";
 import { roomBundle } from "./build/room/plugin";
@@ -47,6 +48,9 @@ export default defineConfig({
       policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR,
       parts: [resumePart, narrationPart, roomTextPart],
     }),
+    // The PDF's download name, from main's resume-header.json in the same policy directory (build/download-name.ts;
+    // spec 002's amendment of 2026-11-09): defined for the scripts, and written into index.html's plain link.
+    resumeDownloadName({ policyDir: () => process.env.ROOM_POLICY_DIR || DEFAULT_POLICY_DIR }),
     // The room's bundle, composed from apps/web/room/ under main's policy (spec 004, T096; its contracts/room-bundle.md
     // §3, §12): spec 002's fixed messages and the manifest, now Amendment B7's, with the index, in the entry; the 3D
     // part in the lazy 3D chunk; dist/room-manifest.json; and each set model's gzip copy under dist/a/.

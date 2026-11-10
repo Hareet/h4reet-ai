@@ -15,11 +15,14 @@
 // - Its text, as pdf.js reads it through the embedded font's ToUnicode map, goes beside it in resume.pdf.txt
 //   (pdfText): the font stores glyph codes, not text, so this is what the gate's scan of dist/ for a draft's words
 //   reads to cover the PDF.
+// - The Author's designed PDF takes this one's place when main approves it (spec 002's amendment of 2026-11-09;
+//   build/resume-pdf.ts): pdfText's reading, through openPdf and documentText, gives its text too.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import PDFDocument from "pdfkit";
 
 import { pdfHeader, type Policy } from "./approvals";
@@ -277,19 +280,32 @@ export async function renderPdf(input: PdfInput, fontsDir: string = FONTS_DIR): 
   return done;
 }
 
+/** pdf.js's loading task for a PDF's bytes, as the build reads every PDF: a copy of the bytes, no font faces, and no
+ * system fonts. The caller destroys it. */
+export async function openPdf(pdf: Uint8Array): Promise<PDFDocumentLoadingTask> {
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  return getDocument({ data: new Uint8Array(pdf), verbosity: 0, disableFontFace: true, useSystemFonts: false });
+}
+
 /** The PDF's text as pdf.js extracts it, one line: a line that ends after a hyphen rejoined to the next without a
  * space, any other line break a space, and whitespace collapsed, so it holds the source's words as written. */
 export async function pdfText(pdf: Uint8Array): Promise<string> {
-  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const task = getDocument({ data: new Uint8Array(pdf), verbosity: 0, disableFontFace: true, useSystemFonts: false });
-  const doc = await task.promise;
+  const task = await openPdf(pdf);
+  try {
+    return await documentText(await task.promise);
+  } finally {
+    await task.destroy();
+  }
+}
+
+/** pdfText's text of a document pdf.js has open: the Author's PDF's checks read it this way too (build/resume-pdf.ts). */
+export async function documentText(doc: PDFDocumentProxy): Promise<string> {
   let text = "";
   for (let n = 1; n <= doc.numPages; n++) {
     const content = await (await doc.getPage(n)).getTextContent();
     for (const item of content.items) if ("str" in item) text += item.str + (item.hasEOL ? "\n" : "");
     text += "\n";
   }
-  await task.destroy();
   return text
     .replace(/-\n+(?=\S)/g, "-")
     .replace(/\s+/g, " ")

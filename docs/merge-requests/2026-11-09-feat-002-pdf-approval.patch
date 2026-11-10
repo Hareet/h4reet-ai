@@ -1,0 +1,13 @@
+--- a/assets/policy/content-approvals.json
++++ b/assets/policy/content-approvals.json
+@@ -3,6 +3,9 @@
+   "approvals": [
+     {"id": "C-0001", "path_when_approved": "apps/web/content/resume.yaml", "kind": "resume",
+      "sha256": "e77c72127e84da60ead201997fa3d77348463a297e350f46f0abfe8b63bd80fb",
+-     "date": "2026-11-06", "reason": "<your words>"}
++     "date": "2026-11-06", "reason": "<your words>"},
++    {"id": "C-0002", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
++     "sha256": "PDF_SHA256",
++     "date": "2026-11-09", "reason": "I also want the downloaded resume to be the one that we built"}
+   ]
+ }

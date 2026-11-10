@@ -96,6 +96,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
 | `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
 | `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and `narration: {engineer, non-engineer}`, each `{words, approved, source, sha256}` with its slots filled, or `null` where a build without drafts left a draft out (Phase 5); no sections when withheld, so no narration |
+| `resume_pdf` | the Author's designed PDF when the build serves it as `resume.pdf`: `{source, sha256}`, with `draft: true` when a drafts build serves it unapproved; `null` when the PDF is the render ([contracts/resume-source.md §7](contracts/resume-source.md#7-the-authors-designed-pdf); spec.md's amendment of 2026-11-09). Never in `published`, which holds content files only |
 | `messages` | not written: the fixed messages (§7) are bundled into the page at build instead, so showing one makes no request (plan §4, group 4) |
 
 **`room-manifest.json`:**
