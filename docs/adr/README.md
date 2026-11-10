@@ -10,9 +10,9 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0004](0004-langfuse-and-grafana-over-opentelemetry.md) | Langfuse (self-hosted, in the stack) + Grafana dashboards | proposed | 000 |
 | [0005](0005-telegram-and-smtp-alerting.md) | Telegram primary / email secondary alerting; no SNS SMS (one Decision extended by 0042) | proposed | 000, 011 |
 | [0006](0006-artifact-chain-and-hooks.md) | intent.md + Spec Kit + REVIEW.md as the artifact chain; hooks as the deterministic layer | proposed | 000 |
-| 0007 | One AWS account; environments separated by VM, IAM role, tag, and budget | proposed | 001 |
-| 0008 | Terraform, plan-in-PR, human-gated apply | proposed | 001 |
-| 0009 | Pull-based deployment to the local tier; no inbound ports; no self-hosted runners | proposed | 001 |
+| [0007](0007-one-aws-account.md) | One AWS account; environments separated by VM, IAM role, tag, and budget | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0008](0008-terraform-reviewed-plans-recorded-apply.md) | Terraform with reviewed plans and the Author's recorded apply until publication; the GitHub-side half moves to the publication spec (replaces one Consequence of 0013) | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0009](0009-pull-based-deployment-no-inbound-ports.md) | Pull-based deployment; no inbound ports on the local tier; no self-hosted runners | proposed (accepted when the Author merges spec 001's group 1) | 001 |
 | [0010](0010-real-time-avatar-rig-and-art-direction.md) | Real-time 3D avatar rig (not generated video); GTA V-inspired original art direction | accepted (the Author's commit 1f929db0, with the avatar caps; the room's caps from his ec2fdb87; spec 004's look to come in ADR 0037, which amends it) | 003, Phase 2, 004 |
 | 0011 | Cloned voice for the twin, disclosed | proposed | Phase 2 |
 | [0012](0012-constitution-1-0-1-spec-kit-lifecycle.md) | Constitution 1.0.1: Spec Kit 1.0.8 lifecycle order and command names | accepted | — |
@@ -27,6 +27,12 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0021](0021-internal-network-prometheus-loki-edge.md) | Prometheus and Loki on an internal-only network, with edge as the only publisher | proposed | 000 |
 | [0022](0022-seaweedfs-for-langfuse.md) | SeaweedFS as Langfuse's object store, because MinIO's community images are gone | proposed | 000 |
 | [0023](0023-claude-code-pin-is-a-floor.md) | Claude Code's pin is a floor: a newer host warns, and the evals record the version they ran (replaces one Decision point and one Consequence of 0018) | accepted | 000 |
+| [0024](0024-the-shared-state-in-rds.md) | The shared state, one meter and one kill switch for both prod hosts, in RDS for PostgreSQL | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0025](0025-the-relay-on-the-tunnel-end-on-spot.md) | The relay on the tunnel end, which picks the serving host; the tunnel end on spot | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0026](0026-the-tunnel-openssh-to-the-tunnel-end.md) | The tunnel: OpenSSH from the laptop, ending on the tunnel end | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0027](0027-ec2-on-spot-the-start-function-and-the-guard.md) | EC2 on spot, stopping on interruption; the start function, the guard, and the autostart switch | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0028](0028-the-route-per-host-and-rule-r1.md) | The route per host, and rule R1 amended (extends 0001) | proposed (accepted when the Author merges spec 001's group 1) | 001 |
+| [0029](0029-the-public-request-cap-in-the-relay.md) | The public request cap, in the relay, in figures the Author sets | proposed (accepted when the Author merges spec 001's group 1) | 001 |
 | [0030](0030-media-license-and-ai-mark.md) | The assets' media license (all rights reserved, viewing and linking welcome) and the AI-likeness mark, which follows the record (spec 004, Amendment C1) | proposed | 003, 004 |
 | [0031](0031-assets-in-plain-git.md) | Assets in plain git, under fixed roots, served under content-derived names, with a 500 MB history cap | proposed | 003 |
 | [0032](0032-pre-publication-cleanup-for-assets.md) | ADR 0013's pre-publication cleanup extends to an asset that locates the Author or breaks a license (extends one Decision of 0013) | proposed | 003 |

@@ -176,8 +176,8 @@ Technical approach, by area:
 - **Cost** ([§3](#3-cost-the-budgets-the-actions-and-the-shared-meter)): the budgets, the two actions and their rehearsals, the shared meter, and a route per host that keeps EC2's calls out of the laptop's sub-budget.
 - **The tunnel end** ([§4](#4-the-tunnel-end-the-tunnel-the-relay-and-the-sink)): the tunnel, the relay, the snapshot sink, and a small collector.
 - **The hosts** ([§5](#5-the-hosts-ec2-and-the-laptop)): EC2's instance, network, storage, and identities; the laptop's changes.
-- **Routing** ([§6](#6-routing-per-host)): `H4_HOST`, schema 2, and rule R1 amended.
-- **The handover** ([§7](#7-the-handover)): the sequence, the windows, the functions, and the operator's commands.
+- **Routing** ([§6](#6-routing-per-host-fr-035-fr-067-fr-068-researchmd-r-27-r-28)): `H4_HOST`, schema 2, and rule R1 amended.
+- **The handover** ([§7](#7-the-handover-fr-063-to-fr-066-fr-069-to-fr-072-fr-074-researchmd-r-29-to-r-32)): the sequence, the windows, the functions, and the operator's commands.
 - **Visitors** ([§8](#8-the-edge-the-site-and-the-disclosure)): the edge, the site, the disclosure's rows, and the public view.
 
 ## Technical Context
@@ -261,7 +261,7 @@ Technical approach, by area:
 | Cloud standard | "The cloud hosts only what must be always-on and cheap" | "may also host the production stack on one VM, without the local model server, as the default production host"; the always-on list keeps "the thin API/relay", and, as amended for question 3, names Bedrock called from the serving host | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`. **Question 8, answered at T000 with option A:** the relay runs around the clock on spot, so it has gaps where the standard, in force and as amended, lists it among what "must be always-on"; his wording for it goes into the 1.1.0 patch, so no deviation remains once T001 applies it. Terraform for everything, with one named exception: secrets (research.md R-26). |
 | Compute standard | — | — | **Complies**: one compose file on three hosts, with only the env file differing; the same images by digest. Image variants carried (ADR 0015). |
 | Local tier standard | "via the cloud fallback within its sub-budget" | "via the cloud host and its paid routes within the ceilings and adapter caps" | **Deviation from 1.0.1, removed by 1.1.0.** "Exposed only through an outbound tunnel" holds. |
-| Model access standard | "local-first with Bedrock as fallback inside a capped sub-budget" | per host: local-first on the laptop; the Anthropic API first on EC2 | **Deviation from 1.0.1, removed by 1.1.0.** One gateway, routes as configuration ([§6](#6-routing-per-host)). |
+| Model access standard | "local-first with Bedrock as fallback inside a capped sub-budget" | per host: local-first on the laptop; the Anthropic API first on EC2 | **Deviation from 1.0.1, removed by 1.1.0.** One gateway, routes as configuration ([§6](#6-routing-per-host-fr-035-fr-067-fr-068-researchmd-r-27-r-28)). |
 | Observability standard | "Langfuse, self-hosted on the local tier" | as amended for question 3: Langfuse self-hosted in the stack | **Deviation from 1.0.1, removed by 1.1.0** as amended on `docs/001-ec2-default`: EC2's stack runs its own Langfuse. |
 | Alerting standard | — | — | **Complies**: Telegram first, email second, never SMS; degradation never waits on delivery. |
 | Security & Agent Governance | — | — | **Complies**: IAM, budgets, alert routing, edge limits, the kill switch, the failover, the start function, and the autostart switch are the Author's. Agents plan only. |
