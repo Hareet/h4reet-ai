@@ -3,9 +3,12 @@ contracts/aws-alerts.md §1 and §3): infra/bootstrap's HCL, read with group 1's
 tools/gates/infra_policy.py's (the guard patch P-1; plan.md Technical Context), never with python-hcl2 or Terraform.
 
 What the root must hold:
-  - the state bucket: versioned, encrypted, public access blocked, TLS-only, and kept from destroy;
-  - h4-model-month at $20 and h4-model-day at $5, on Bedrock's cost, with notifications at 70% and 100% of actual;
+  - the state bucket: versioned, encrypted, public access blocked, TLS-only for every principal, kept from destroy;
+  - h4-model-month at $20 and h4-model-day at $5, on Bedrock's cost, with notifications at 70% and 100% of actual,
+    on usage, not net of credits;
   - h4-server-month at var.server_budget_usd, on every cost but Bedrock's, at 70% and 100%;
+  - Bedrock's cost as the service names the Author reads in his Cost Explorer, var.bedrock_service_names, a list
+    with no default (T028's review, B3: Claude on Bedrock may show under its own Marketplace name);
   - the anomaly monitor, with its immediate $1 subscription;
   - h4-alerts, with its email subscription from a sensitive variable, and a policy that lets only Budgets and Cost
     Anomaly Detection publish, for this account;
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,11 +46,16 @@ FILES = (
     "alerts.tf",
 )
 PROTECTED_FILES = ("budgets.tf", "alerts.tf")
-# The three names the guard patch denies to agents (contracts/env-cloud.md §5; contracts/infra-records.md §1). A new
-# variable needs its deny first (FR-011).
-VARIABLES = {"alert_email", "state_bucket_suffix", "server_budget_usd"}
+# The names the guard patch denies to agents by name (contracts/env-cloud.md §5; contracts/infra-records.md §1); a
+# new variable needs its deny there (FR-011). bedrock_service_names, from T028's review (B3), waits for its deny in P-1.
+VARIABLES = {
+    "alert_email",
+    "state_bucket_suffix",
+    "server_budget_usd",
+    "bedrock_service_names",
+}
 PROTECTED_KINDS = ("aws_budgets_", "aws_ce_", "aws_sns_", "aws_iam_")
-BEDROCK = "Amazon Bedrock"
+BEDROCK = "var.bedrock_service_names"
 TOPIC = "aws_sns_topic.alerts.arn"
 
 if not READER.is_file():
@@ -229,6 +238,16 @@ def check_variables(root: dict[str, list]) -> list[str]:
     budget = declared.get("server_budget_usd")
     if budget is not None and raw(budget, "type") != "number":
         found.append("variables: server_budget_usd isn't a number")
+    names = declared.get("bedrock_service_names")
+    checked = [
+        v
+        for v in (names.blocks("validation") if names is not None else [])
+        if "length(var.bedrock_service_names) > 0" in raw(v, "condition")
+    ]
+    if names is not None and (raw(names, "type") != "list(string)" or not checked):
+        found.append(
+            "variables: bedrock_service_names isn't a list(string) validated non-empty"
+        )
     for name, block in sorted(declared.items()):
         if block.attr("default") is not None and name in VARIABLES:
             found.append(
@@ -310,14 +329,22 @@ def check_state_bucket(root: dict[str, list]) -> list[str]:
                 and ip.literal(c.attr("values")) == ["false"]
             ]
             resources = raw(s, "resources")
+            principals = [
+                (ip.literal(x.attr("type")), ip.literal(x.attr("identifiers")))
+                for x in s.blocks("principals")
+            ]
             if (
                 secure
                 and ip.literal(s.attr("actions")) == ["s3:*"]
                 and "aws_s3_bucket.state.arn" in resources
                 and "/*" in resources
-                and s.blocks("principals")
             ):
                 tls = True
+                # Every principal: T028's review, nit 2 (P-1's T6 now passes a Deny with "*").
+                if principals != [("AWS", ["*"])]:
+                    found.append(
+                        'state bucket: the TLS deny isn\'t for every principal ("*")'
+                    )
     if not tls:
         found.append("state bucket: no TLS-only deny on the bucket and its objects")
     return found
@@ -373,14 +400,20 @@ def check_model_budgets(root: dict[str, list]) -> list[str]:
         ):
             found.append(f"{name}: isn't a {unit} COST budget")
         filters = [
-            (ip.literal(f.attr("name")), ip.literal(f.attr("values")))
+            (ip.literal(f.attr("name")), raw(f, "values"))
             for f in b.blocks("cost_filter")
         ]
         if (
-            filters != [("Service", [BEDROCK])]
+            filters != [("Service", BEDROCK)]
             or b.block("filter_expression") is not None
         ):
-            found.append(f"{name}: not filtered to Bedrock's cost alone")
+            found.append(
+                f"{name}: not filtered to the service names the Author gives, {BEDROCK}"
+            )
+        # Usage, not net of credits: a credit would hide the spend from the safety net (T028's review, nit 4).
+        costs = b.blocks("cost_types")
+        if len(costs) != 1 or ip.literal(costs[0].attr("include_credit")) is not False:
+            found.append(f"{name}: counts credits against the spend")
         found += _notifications(b)
     return found
 
@@ -410,7 +443,7 @@ def check_server_budget(root: dict[str, list]) -> list[str]:
         b.blocks("cost_filter")
         or dims is None
         or ip.literal(dims.attr("key")) != "SERVICE"
-        or ip.literal(dims.attr("values")) != [BEDROCK]
+        or raw(dims, "values") != BEDROCK
         or len(fe.body) != 1  # type: ignore[union-attr]
         or len(excluded.body) != 1  # type: ignore[union-attr]
     ):
@@ -658,7 +691,7 @@ def test_default_tags_name_the_project_and_the_account_environment() -> None:
     assert check_provider(parsed(root_texts())) == []
 
 
-def test_the_variables_are_the_three_the_deny_list_names_and_the_email_is_sensitive() -> (
+def test_the_variables_are_the_ones_the_deny_list_names_and_the_email_is_sensitive() -> (
     None
 ):
     assert check_variables(parsed(root_texts())) == []
@@ -698,25 +731,55 @@ def test_the_root_has_no_problem() -> None:
     assert problems(parsed(root_texts())) == []
 
 
-def test_the_policy_reads_the_tree_as_the_root_does() -> None:
-    # The policy's own T-rules on the root's files, as data, without the lockfile (T10), which the Author makes from
-    # his provider mirror (tasks.md T023), and the root-level checks that need a whole tree.
+def policy_on_a_copy(
+    tmp_path: Path, lockfile: bool
+) -> subprocess.CompletedProcess[str]:
+    """P-1's policy, by its CLI as make infra-check runs it, on a copy of the root (P-I1's files included)."""
+    root = tmp_path / "copy" / "infra" / "bootstrap"
+    root.mkdir(parents=True)
     for name, text in root_texts().items():
-        src = ip.Source(f"infra/bootstrap/{name}", text, ip.parse_hcl(text))
-        found = (
-            ip.t8_text(src)
-            + ip.t3_providers(src, pins(), root=True)
-            + ip.t4_code(src)
-            + ip.t5_where(src, set())
-            + ip.t7_ingress(src)
-            + ip.t9_secrets(src)
-            + [
-                f
-                for r in ip.resources(src.body)
-                for f in ip.t2_tags(src, r, ip.TAGGABLE)
-            ]
+        (root / name).write_text(text, encoding="utf-8")
+    (tmp_path / "copy" / ".devcontainer").mkdir()
+    (tmp_path / "copy" / ".devcontainer" / "toolchain.vars").write_bytes(
+        PINS.read_bytes()
+    )
+    if lockfile:
+        # A stand-in for the Author's lockfile: the pinned version, which is what rule T10 reads.
+        pin = pins()["TERRAFORM_AWS_PROVIDER_VERSION"]
+        (root / ".terraform.lock.hcl").write_text(
+            f'provider "registry.terraform.io/hashicorp/aws" {{\n  version     = "{pin}"\n  constraints = "{pin}"\n}}\n',
+            encoding="utf-8",
         )
-        assert [str(f) for f in found] == [], name
+    return subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-X",
+            "pycache_prefix=/dev/null",
+            str(READER),
+            "--root",
+            str(tmp_path / "copy"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+
+def test_the_policy_passes_the_root_but_for_the_authors_lockfile(
+    tmp_path: Path,
+) -> None:
+    # T028's review, nit 5: the policy's CLI on a copy, not its functions. The one finding without a lockfile is T10's,
+    # the Author's step from his mirror (tasks.md T023); with a stand-in, it passes.
+    done = policy_on_a_copy(tmp_path, lockfile=False)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert done.stdout.splitlines()[0] == "T10 infra/bootstrap:0 no .terraform.lock.hcl"
+    assert done.stdout.splitlines()[1:] == ["infra-policy: 1 finding in 6 files"]
+    done = policy_on_a_copy(tmp_path / "with-lock", lockfile=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert done.stdout.strip() == "infra-policy: PASS, 6 files"
 
 
 @pytest.mark.parametrize("path", FIXTURE_FILES, ids=[p.stem for p in FIXTURE_FILES])

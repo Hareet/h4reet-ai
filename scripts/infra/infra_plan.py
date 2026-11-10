@@ -7,11 +7,12 @@ research.md R-13, R-14; tasks.md T024; FR-004, FR-005, FR-010). His terminal alo
 
 In order, and stopping at the first that fails:
   1. infra/ is as HEAD holds it, with nothing untracked or ignored under it, since the block names HEAD:infra's tree;
+     and no plan of that tree is saved, nor its stamp: a plan, reviewed or verified, is never replaced;
   2. the root's values, ~/.config/h4reet-ai/infra/<root>.env, read as data: TF_VAR_ lines of variables the root
      declares, mode 0600;
   3. the provider mirror (make infra-mirror, T011), and terraform at .devcontainer/toolchain.vars's pin;
   4. tools/gates/infra_policy.py on the HCL, BEFORE init, since init and plan run agent-written configuration with
-     the Author's administrator session;
+     the Author's administrator session; then `terraform fmt -check` on the root, which reads its files and runs none;
   5. terraform init against the mirror alone (a CLI configuration naming only it), with the lockfile read-only, the
      local state's path for a root whose backend is local, and the state bucket for one whose backend is s3;
   6. terraform plan -out=~/.config/h4reet-ai/infra/plans/<root>-<tree>.tfplan;
@@ -88,6 +89,16 @@ def run(root: str, given_profile: str | None) -> int:
                 f"{len(dirty)} path(s) differ from HEAD (first: {dirty[0]}); commit or remove them",
             )
         tree = c.git(repo, "rev-parse", "HEAD:infra").strip()
+        # A plan of this tree, reviewed or verified, is never replaced (T028's review, nit 3): he removes it himself.
+        for held in (
+            c.plan_path(home, root, tree),
+            c.stamp_path(c.plan_path(home, root, tree)),
+        ):
+            if held.exists():
+                raise c.Refusal(
+                    "plan_exists",
+                    f"{held} exists, a plan of this tree; remove it and its stamp yourself to plan again",
+                )
         values = c.read_env_file(home, root, c.declared_variables(policy, repo, root))
         mirror = c.mirror_dir(home)
         if not mirror.is_dir():
@@ -143,6 +154,17 @@ def run(root: str, given_profile: str | None) -> int:
             "refused: the policy found the above in the HCL, so no terraform command ran",
         )
         return 1
+    # terraform fmt, before init: nothing else checks this root's formatting where Terraform runs (T028's review, nit 1).
+    formatted = c.terraform(
+        repo, root, ["fmt", "-check", "-no-color"], c.terraform_env(home, root)
+    )
+    if formatted.returncode != 0:
+        sys.stderr.write(formatted.stdout + formatted.stderr)
+        c.say(
+            PROG,
+            "refused: terraform fmt -check lists the files above; run terraform fmt on them, and commit",
+        )
+        return 1
 
     plan = c.plan_path(home, root, tree)
     for folder in (
@@ -151,7 +173,6 @@ def run(root: str, given_profile: str | None) -> int:
         c.state_path(home, root).parent,
     ):
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    drop(plan)
     with tempfile.TemporaryDirectory(prefix="infra-plan-") as tmp:
         config = Path(tmp) / "terraform.rc"
         config.write_text(cli_config(mirror), encoding="utf-8")

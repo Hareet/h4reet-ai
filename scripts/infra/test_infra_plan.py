@@ -139,8 +139,8 @@ def test_terraform_reads_the_mirror_alone_and_keeps_its_data_outside_the_tree(
         assert env["CHECKPOINT_DISABLE"] == "1" and env["TF_IN_AUTOMATION"] == "1"
         assert not [k for k in env if k.startswith("TF_CLI_ARGS")]
         assert [k for k in env if k.startswith("AWS_")] in ([], ["AWS_PROFILE"])
-        if "version" in call["argv"]:
-            continue  # terraform version reads no configuration and calls no provider
+        if "version" in call["argv"] or "fmt" in call["argv"]:
+            continue  # neither installs or calls a provider: version reads nothing, fmt the files alone
         assert env["AWS_PROFILE"] == PROFILE
         assert (
             call["cli_config"] is not None
@@ -239,6 +239,48 @@ def test_a_failed_plan_prints_no_block(world: dict) -> None:
     kit.answer(world["bin"], show_text=SHOW, plan_json=PLAN_JSON, plan_exit=1)
     done = plan(world)
     assert done.returncode == 1 and done.stdout == ""
+
+
+def test_terraform_fmt_checks_the_root_before_init(world: dict) -> None:
+    # T028's review, nit 1: no other run checks this root's formatting, so make plan ROOT=… does, before init.
+    assert plan(world).returncode == 0
+    calls = terraform_calls(world)
+    words = [[a for a in c["argv"] if not a.startswith("-chdir=")][:1] for c in calls]
+    assert ["fmt"] in words and words.index(["fmt"]) < words.index(["init"])
+    (fmt,) = terraform_calls(world, "fmt")
+    assert "-check" in fmt["argv"] and fmt["argv"][0] == "-chdir=infra/bootstrap"
+
+
+def test_a_root_out_of_format_stops_the_plan(world: dict) -> None:
+    kit.answer(
+        world["bin"],
+        show_text=SHOW,
+        plan_json=PLAN_JSON,
+        fmt_exit=3,
+        fmt_out="main.tf\n",
+    )
+    done = plan(world)
+    assert done.returncode == 1 and done.stdout == ""
+    assert "main.tf" in done.stderr and "terraform fmt" in done.stderr
+    assert terraform_calls(world, "init") == []
+
+
+@pytest.mark.parametrize("which", ["the saved plan", "its stamp"])
+def test_a_saved_plan_for_this_tree_is_never_replaced(world: dict, which: str) -> None:
+    # T028's review, nit 3: a plan of the same tree, reviewed or verified, isn't overwritten; the Author removes it
+    # himself if he means to make it again.
+    target = (
+        saved(world)
+        if which == "the saved plan"
+        else saved(world).with_suffix(".verified")
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"BEFORE")
+    done = plan(world)
+    assert done.returncode == 2 and done.stdout == ""
+    assert str(target) in done.stderr
+    assert target.read_bytes() == b"BEFORE"
+    assert terraform_calls(world, "init") == []
 
 
 @pytest.mark.parametrize(

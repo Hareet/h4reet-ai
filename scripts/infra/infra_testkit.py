@@ -45,6 +45,9 @@ if words[:1] == ["version"]:
     print("Terraform v" + fake.get("tf", "1.17.1"))
     print("on linux_amd64")
     sys.exit(0)
+if words[:1] == ["fmt"]:
+    sys.stdout.write(fake.get("fmt_out", ""))
+    sys.exit(int(fake.get("fmt_exit", 0)))
 if words[:1] == ["init"]:
     data = Path(os.environ.get("TF_DATA_DIR", ".terraform"))
     data.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,9 @@
 """Tests for the credential audit, infra/lambdas/credential_audit/audit.py (spec 001 tasks.md T022; FR-008, FR-013,
 SC-004; contracts/infra-records.md §4, and September's §7 at 00309c47; data-model.md §6.6 at 00309c47). Its findings:
 
+  - iam_user_present: an IAM user exists at all, since a user is how a console password, a service-specific
+    credential (Bedrock's long-term API keys among them), an SSH public key, or a signing certificate lives, each
+    long-lived (FR-008; User Story 1's scenario 5; T028's review, I4);
   - iam_user_access_key: an IAM user holds an access key, active or not;
   - root_access_key: the root user holds one;
   - role_foreign_trust: a role trusts a principal outside the account, its services, and its Identity Center;
@@ -295,9 +298,35 @@ def test_a_users_access_key_names_the_user_never_the_key(aws: StubAws) -> None:
     aws.users = {"h4reet-runtime": [KEY_ID], "keyless": []}
     result = audit.run_audit(aws, source="terminal")
     assert [(f["check"], f["resource"]) for f in result["findings"]] == [
-        ("iam_user_access_key", "h4reet-runtime")
+        ("iam_user_access_key", "h4reet-runtime"),
+        ("iam_user_present", "h4reet-runtime"),
+        ("iam_user_present", "keyless"),
     ]
     assert KEY_ID not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "holds",
+    [
+        "a console password",
+        "a service-specific credential, Bedrock's long-term API key among them",
+        "an SSH public key",
+        "a signing certificate",
+        "nothing at all",
+    ],
+)
+def test_any_iam_user_is_a_finding_whatever_it_holds(aws: StubAws, holds: str) -> None:
+    # A user without an access key still holds, or can hold, a long-lived credential of another kind; the audit names
+    # the user, whatever it holds, and never reads the credential (T028's review, I4).
+    aws.users = {"someone": []}
+    assert findings(aws) == [("iam_user_present", "someone")], holds
+    assert not [
+        c
+        for c in aws.calls
+        if c[1].startswith(
+            ("ListSSH", "ListServiceSpecific", "ListSigning", "GetLogin")
+        )
+    ]
 
 
 def test_root_keys(aws: StubAws) -> None:
@@ -588,9 +617,10 @@ def test_the_lambda_publishes_a_finding_and_stores_the_result(
     result = audit.handler({}, None, aws=aws)
     assert result["clean"] is False
     (msg,) = aws.published
-    assert msg["Message"].startswith("[hareet.ai aws] credential_finding: 1 finding")
+    assert msg["Message"].startswith("[hareet.ai aws] credential_finding: 2 findings")
     assert (
         "iam_user_access_key: someone" in msg["Message"]
+        and "iam_user_present: someone" in msg["Message"]
         and "docs/runbooks/credential-audit.md" in msg["Message"]
     )
     assert KEY_ID not in msg["Message"] and ACCOUNT not in msg["Message"]
