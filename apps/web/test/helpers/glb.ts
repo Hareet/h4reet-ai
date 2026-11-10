@@ -1185,6 +1185,15 @@ export const AVATAR_BONES: readonly AvatarBone[] = [
 ];
 /** The bones a fixture without hands leaves out, the dog's and the dinosaur's case. */
 const HAND_BONES = new Set(["mixamorig:RightHand", "mixamorig:LeftHand"]);
+/** Each hand's index finger, its first two joints by their Mixamo names, which `fingers` appends to AVATAR_BONES (so
+ *  their parents' indices continue its list): the holding hand's cases where a hand's fingers alone move (spec 009's
+ *  FR-018, as the Author amended it on 2026-11-09). */
+export const FINGER_BONES: readonly AvatarBone[] = [
+  { name: "mixamorig:RightHandIndex1", parent: 4, at: [-0.01, -0.08, 0.02] },
+  { name: "mixamorig:RightHandIndex2", parent: 9, at: [0, -0.04, 0] },
+  { name: "mixamorig:LeftHandIndex1", parent: 6, at: [0.01, -0.08, 0.02] },
+  { name: "mixamorig:LeftHandIndex2", parent: 11, at: [0, -0.04, 0] },
+];
 
 /** A bone's rest position in the model's frame, in metres: the sum of its own and its ancestors' translations. */
 export function boneRest(bones: readonly AvatarBone[], index: number): Vec3 {
@@ -1204,13 +1213,15 @@ export interface AvatarGlbOptions extends PackOptions {
   readonly unit?: number;
   /** Whether the skeleton has its two hand bones: true by default. */
   readonly hands?: boolean;
+  /** Whether each hand has its index finger's two joints (FINGER_BONES): false by default, and only with the hands. */
+  readonly fingers?: boolean;
   /** Images the body's material uses, each embedded: the decode cap's and the ledger's cases. */
   readonly images?: readonly Uint8Array[];
 }
 
 /** The avatar's bones as the options give them. */
-function avatarBones(o: { readonly hands?: boolean }): AvatarBone[] {
-  if (o.hands !== false) return [...AVATAR_BONES];
+function avatarBones(o: { readonly hands?: boolean; readonly fingers?: boolean }): AvatarBone[] {
+  if (o.hands !== false) return o.fingers === true ? [...AVATAR_BONES, ...FINGER_BONES] : [...AVATAR_BONES];
   // Without the hands, every index after a dropped bone moves down; no bone below has a hand as its parent.
   const kept = AVATAR_BONES.filter((b) => !HAND_BONES.has(b.name));
   return kept.map((b) => {
@@ -1356,6 +1367,19 @@ export function holdingTracks(hand: "right" | "left" = "right"): ClipTrack[] {
       ],
     },
   ];
+}
+
+/** "idle-holding" closing one hand's index finger on the sheet, the hand bone itself still, as the studio's woman and
+ *  man close their left hands' fingers: each of FINGER_BONES's two joints on that hand turned 60° about x, from the
+ *  first frame on. The model needs `fingers`. */
+export function fingerTracks(hand: "right" | "left"): ClipTrack[] {
+  const side = hand === "right" ? "Right" : "Left";
+  const curl = [0.5, 0, 0, 0.8660254];
+  return [1, 2].map((joint) => ({
+    bone: `mixamorig:${side}HandIndex${joint}`,
+    path: "rotation" as const,
+    values: [curl, curl],
+  }));
 }
 
 /** "take": the right arm turns forward and back about x over the clip. */
