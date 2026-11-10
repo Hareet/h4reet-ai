@@ -1,6 +1,6 @@
 # Intent: A game-style loading screen for the room, with hints
 
-Author: the Author (drafted by Claude from the Author's words of 2026-11-09, as the main session's brief relays them). Status: accepted provisionally by the session on 2026-11-09, pending the Author's T000 ([tasks.md](tasks.md)). He wrote the words below before leaving for dinner and asked for the work to start while he was away; the main session directed this session to take it from intent through clarify (provisionally), plan, and tasks. Created: 2026-11-09, in the spec's folder rather than `intent/`, as the intents of specs 008, 009, and 010 were, so it moves nowhere when accepted.
+Author: the Author (drafted by Claude from the Author's words of 2026-11-09, as the main session's brief relays them). Status: accepted provisionally by the session on 2026-11-09, pending the Author's T000 ([tasks.md](tasks.md)), at which he accepts or closes it. He wrote the words below before leaving for dinner and asked for the work to start while he was away; the main session directed this session to take it from intent through clarify (provisionally), plan, and tasks. Created: 2026-11-09, in the spec's folder rather than `intent/`, as the intents of specs 008, 009, and 010 were, so it moves nowhere when accepted; the spec names that location as a deviation from Principle III's "committed to `intent/`".
 
 ## The Author's words
 
