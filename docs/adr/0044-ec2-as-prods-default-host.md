@@ -1,6 +1,6 @@
 # ADR 0044: EC2 as prod's default host, with the laptop serving when the Author runs it
 
-Status: proposed, 2026-11-09 · Spec: 001, reworked at 4e211e57 (FR-017 to FR-024, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075; SC-001, SC-002, SC-007; User Stories 2 to 7; Clarifications, Session 2026-11-09). The numbers of the 2026-09-07 outline, which earlier drafts of this ADR cited, are mapped under Consequences · Amends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its routing order, now set per host · The constitution change it needs is proposed, not applied: [2026-11-09-constitution-1.1.0.patch](../merge-requests/2026-11-09-constitution-1.1.0.patch) · Number: ADR 0043 is taken by `feat/005-full-window-room`, so this is 0044
+Status: proposed, 2026-11-09 · Spec: 001, reworked at 8acc2686 (FR-017 to FR-024, FR-029, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075, FR-076; SC-001, SC-002, SC-007, SC-018; User Stories 2 to 7; Clarifications, Session 2026-11-09). The numbers of the 2026-09-07 outline, which earlier drafts of this ADR cited, are mapped under Consequences · Amends [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md), its routing order, now set per host · The constitution change it needs is proposed, not applied: [2026-11-09-constitution-1.1.0.patch](../merge-requests/2026-11-09-constitution-1.1.0.patch) · Number: ADR 0043 is taken by `feat/005-full-window-room`, so this is 0044
 
 ## Context
 
@@ -100,13 +100,13 @@ On 2026-11-09 the Author also approved five points on the workflow, as a set. Th
 
 10. **Relay picks the host. Supersedes the DNS part of point 1.** The question put to the Author on 2026-11-09 was "how should visitors reach whichever machine is serving (your laptop or EC2)?" His answer: "Relay picks the host (Recommended)". The option read: "The site's edge always talks to the tiny always-on relay (your tunnel's end). The relay checks both hosts every second and sends each request to the laptop if it's up, else EC2, else the resting reply. Switching takes seconds, and neither host needs a public certificate. Route 53's health check only wakes EC2. This changes the DNS-failover design you approved, so the spec's wording changes with your OK."
 
-    Decided: the edge always talks to the always-on relay at the tunnel's end, and the relay picks the host. Route 53 does not move DNS between the hosts. Route 53's health check only wakes EC2. Until the Author's OK, spec 001 at 4e211e57 still describes DNS failover (FR-054, FR-063 to FR-065); its wording changes with that OK.
+    Decided: the edge always talks to the relay at the tunnel's end, and the relay picks the host. Route 53 does not move DNS between the hosts. Route 53's health check only wakes EC2. At 8acc2686 the spec applies this: the relay picks the host (FR-029, FR-054, FR-063), and the health check only wakes EC2 (FR-065). Whether the Author has signed off that wording is his to confirm.
 
-11. **The tunnel's end is spot.** The question was "On demand or spot?", for the tiny always-on instance that is the tunnel's end. His answer: "Spot". The option read: "About $2.20 a month (October's figure). AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up." The price is the option's own, quoted from October; this ADR gives no price of its own. Decided: the tunnel's end is a spot instance. While AWS has it back, the site rests, whichever host is up. The response and its alert are open (open item 3).
+11. **The tunnel's end is spot.** The question was "On demand or spot?", for the tiny always-on instance that is the tunnel's end. His answer: "Spot". The option read: "About $2.20 a month (October's figure). AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up." The price is the option's own, quoted from October; this ADR gives no price of its own. Decided: the tunnel's end is a spot instance. While AWS has it back, the site rests, whichever host is up. Spec 001 at 8acc2686 settles the response in FR-076: an alert on both channels; the edge rests every dynamic request while the tunnel's end is gone; the start function does not start EC2; on return, the tunnel's end's services restart without a person and the start function runs once (open item 3).
 
 12. **The amendment's two wording changes.** The question put to the Author was whether to add two wording changes to the amendment: the Observability standard's "Langfuse, self-hosted on the local tier", and the Cloud standard's always-on "Bedrock fallback path". His answer: "Add both (Recommended)". The option read: "The patch gains two small wording changes: Langfuse self-hosted in the stack, and Bedrock called from the serving host. Still 1.1.0. The ADR's old → new list grows to match." Decided: both are in the amendment, and the version stays 1.1.0.
 
-Not decided here: the tunnel software, the shared state store, the server's instance type and budget figure, the response to a tunnel-end interruption, and the IAM each piece needs. These are the open list below.
+Not decided here: the tunnel software, the shared state store, the server's instance type and budget figure, and the IAM each piece needs. These are the open list below, with the items the reworked spec now settles marked as such.
 
 ## Alternatives considered
 
@@ -151,23 +151,25 @@ Each change, old → new:
 
 **Money.** The model ceilings do not change. The server's cost is unknown until the Author sets its budget and instance type. This ADR gives no estimate of its own, and the figures in point 5 are the session's unmeasured estimates. Every new feature needs a cost estimate (CLAUDE.md). Spec 001 states one (SC-002, FR-021).
 
-**The 2026-09-07 outline's numbers, and the reworked spec's.** Earlier drafts of this ADR cited spec 001 by the outline's numbers. The reworked spec at 4e211e57 settles each conflict below under its own numbers. Where a number changed, the mapping says so.
+**The 2026-09-07 outline's numbers, and the reworked spec's.** Earlier drafts of this ADR cited spec 001 by the outline's numbers. The reworked spec at 8acc2686 settles each conflict below under its own numbers. Where a number changed, the mapping says so.
 
-| Outline (2026-09-07) | Reworked spec at 4e211e57 | What changed |
+| Outline (2026-09-07) | Reworked spec at 8acc2686 | What changed |
 |---|---|---|
-| Header: FR-005 to FR-008; SC-002, SC-003; User Stories 2 to 5 | FR-017 to FR-024, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075; SC-001, SC-002, SC-007; User Stories 2 to 7 | the reworked spec's numbers now carry these decisions |
+| Header: FR-005 to FR-008; SC-002, SC-003; User Stories 2 to 5 | FR-017 to FR-024, FR-029, FR-043, FR-044, FR-052 to FR-054, FR-063 to FR-072, FR-075, FR-076; SC-001, SC-002, SC-007, SC-018; User Stories 2 to 7 | the reworked spec's numbers now carry these decisions |
 | FR-001 (Terraform only) | FR-001, FR-072 | run-time actions change state only; IAM is FR-070 |
 | FR-005 (the VM runs the compose file unchanged) | FR-043, FR-044 | EC2 runs without the model server (FR-044) |
-| FR-006 (no inbound; the tunnel) | FR-052 | the tunnel's end is settled in decision 11 |
+| FR-006 (no inbound; the tunnel) | FR-052, with FR-076 for the tunnel's end | the tunnel's end is settled in decision 11 |
 | FR-007 ("a cloud store replicated from the stack") | FR-017, FR-019 | the cloud store is the record both hosts use, not a replica |
 | FR-008 (budgets and anomaly detection) | FR-022 to FR-026 | the server budget is FR-021 |
 | FR-009 (the dashboard snapshot) | FR-057 | refreshed by whichever host serves |
 | SC-002 ("≤ $10/month" idle) | SC-002, FR-021 | the server budget, set by the Author after measuring |
 | SC-003 (5 seconds, local tier off) | SC-001 | an exception for a window in which no host serves |
 | Assumptions ("the full stack for demonstration only") | FR-044 | superseded |
+| Point 1 (DNS failover moves visitors; decision 10) | FR-029, FR-054, FR-063, FR-065 | the relay picks the host; the health check only wakes EC2 (FR-065) |
+| The tunnel's end on spot (decision 11) | FR-052, FR-076 | the site rests while it is gone |
 | US2 AS2 (hello through the relay "routes exactly as spec 000 defines") | User Story 6; User Story 3, scenarios 2 and 3; FR-067 | a route per host |
 | US3 AS2 ("the relay routes to the fallback within the sub-budget") | User Story 3, scenarios 2 and 3; FR-067 | the sub-budget belongs to the laptop's route only |
-| US4 AS2 ("routing falls back within 5 seconds" when the tunnel drops) | User Story 4, scenarios 5 and 6; FR-054, FR-066; SC-007 | the window has a stated exception (decision 8) |
+| US4 AS2 ("routing falls back within 5 seconds" when the tunnel drops) | User Story 4, scenarios 5 and 6; FR-054, FR-066; SC-007; FR-076 for the tunnel's end | the window has a stated exception (decision 8) |
 | US5 AS2 (the meter in the stack; the relay sees its state "within 10 seconds") | User Story 2, scenario 4; SC-008; FR-017, FR-019, FR-030 | the shared state is the record both hosts use |
 | Rule R1, "every primary must be local" (spec 000's contracts/config-files.md; `services/gateway/src/config/validate.ts:328-329`) | FR-067 | the laptop's route keeps R1; EC2's route names paid adapters only |
 | The route selected by `H4_ENV` (`config/routing.yaml`'s header) | FR-067 | the route is selected by host, since both hosts run prod |
@@ -182,22 +184,22 @@ Each change, old → new:
 
 ## Open, for spec 001
 
-These items stay here for the record. Where the reworked spec at 4e211e57 now answers one, its number is given. The answer is the spec's reading, which the Author can overturn, unless it says it is his.
+These items stay here for the record. Where the reworked spec at 8acc2686 now settles one, its number is given, and the answer is the spec's reading, which the Author can overturn unless it says it is his.
 
-1. **The tunnel software and the health check.** Decision 11 settles the tunnel's end (a spot instance, the relay). Open: which tunnel software, and how the relay's checks reach the laptop through the tunnel. Spec 001's question 13 (September's OpenSSH design; FR-052, FR-054) predates decision 10, and its health-check wording changes with the Author's OK. Our question: a laptop that only dials out has no address to probe, so the probe must run through the tunnel.
-2. **The shared state.** Which cloud store holds the budget and kill-switch state (decision 7), what the laptop's gateway reads, and what each host does when that store is unreachable. Spec 001 at 4e211e57 answers the last part: unreachable, or unconfirmed within 10 seconds, is degraded (FR-019, FR-030, SC-008). The store's product is the re-plan's.
-3. **Spot interruption, of EC2 and of the tunnel's end.** Spec 001 at 4e211e57 answers for EC2: the same gap plus an alert (question 17; FR-071; SC-018). Open: the same answer for the tunnel's end, which decision 11 makes a spot instance whose interruption rests the site whichever host is up.
-4. **The schedule.** Spec 001 at 4e211e57 answers: spot around the clock, with the schedule in reserve (question 15; FR-069). Open: which 8 to 12 hours, and who sets them, if the schedule is used.
-5. **The server's instance type and budget figure, and its limits.** Spec 001 at 4e211e57 answers the limit: at the server budget, EC2 stops until the Author restores it (FR-021, FR-023). Neither the instance type nor the figure is set (question 14: measured, then the Author sets it).
-6. **What starts and stops EC2, and with which IAM permissions.** Decision 5 keeps the Lambda and the laptop's stop. Spec 001 at 4e211e57 answers the permissions provisionally (question 16, not asked: FR-070, FR-072). Open: the Author's own answer on the IAM, since changing IAM is a human act, and the Terraform question, which FR-001 and FR-072 answer for now.
-7. **What serves while no host does.** Spec 001 at 4e211e57 answers: no model call; the edge, the static site, the last snapshot, the shared state, the budgets, and the alerting stay up (FR-075; FR-028; SC-013). Open: whether the tunnel's end's rest (decision 11) changes that list.
-8. **The sub-budget's reading on each host.** Spec 001 at 4e211e57 takes the Author's answer as its reading: the $2-a-day sub-budget is the laptop's rule only, and spec 000's FR-030 is amended by name (Scope; FR-067). Not decided by the Author in his own words.
+1. **The tunnel software and the health check.** Settled at 8acc2686 by FR-052 (the tunnel ends on the tunnel end, a spot instance, on September's OpenSSH design, FR-076) and by FR-054 (the relay checks each host every second, and the failover's health check probes the laptop's path through the tunnel). Still open: whether the plan keeps September's OpenSSH design or uses another tunnel software. Our question, now answered by FR-054: a laptop that only dials out has no address to probe, so the probe runs through the tunnel. History: the 2026-09-07 outline left the health check open, and decision 10 replaced the DNS failover it was part of.
+2. **The shared state.** Which cloud store holds the budget and kill-switch state (decision 7), and what the laptop's gateway reads. Spec 001 at 8acc2686 answers what each host does when that store is unreachable: unreachable, or unconfirmed within 10 seconds, is degraded (FR-019, FR-030, SC-008). The store's product is the re-plan's.
+3. **Spot interruption, of EC2 and of the tunnel's end.** Settled at 8acc2686. For EC2: the same gap plus an alert (question 17; FR-071; SC-018). For the tunnel's end: FR-076, an alert on both channels; while it is gone, the edge rests every dynamic request even with a host up, and the start function does not start EC2; on return, the services restart without a person, the tunnel reconnects, and the start function runs once. History: decision 11 left this response open.
+4. **The schedule.** Spec 001 at 8acc2686 answers: spot around the clock, with the schedule in reserve (question 15; FR-069). Open: which 8 to 12 hours, and who sets them, if the schedule is used.
+5. **The server's instance type and budget figure, and its limits.** Spec 001 at 8acc2686 answers the limit: at the server budget, EC2 stops until the Author restores it (FR-021, FR-023). Neither the instance type nor the figure is set (question 14: measured, then the Author sets it).
+6. **What starts and stops EC2, and with which IAM permissions.** Decision 5 keeps the Lambda and the laptop's stop. Spec 001 at 8acc2686 answers the permissions provisionally (question 16, not asked: FR-070, FR-072). Open: the Author's own answer on the IAM, since changing IAM is a human act, and the Terraform question, which FR-001 and FR-072 answer for now.
+7. **What serves while no host does.** Settled at 8acc2686 by FR-075: no model call; the edge, the static site, the last snapshot, the relay's status answer and degraded body, the shared state, the budgets and their actions, the health check, the start function, the tunnel's end, and AWS-side alerting stay up. While the tunnel's end is gone, the edge's own degraded body stands in for the relay (FR-076). FR-028 covers the static site.
+8. **The sub-budget's reading on each host.** Spec 001 at 8acc2686 takes the Author's answer as its reading: the $2-a-day sub-budget is the laptop's rule only, and spec 000's FR-030 is amended by name (Scope; FR-067). Not decided by the Author in his own words.
 9. **What "it" refers to** in the first quote (see Context). Spec 001 records it per host, as this ADR does. Still his to say.
-10. **Whether a stopped instance's remaining charges**, such as storage and addresses, fit the server budget. Spec 001 at 4e211e57 counts EC2's stopped time inside the server budget (FR-021). The size of those charges is not known.
+10. **Whether a stopped instance's remaining charges**, such as storage and addresses, fit the server budget. Spec 001 at 8acc2686 counts EC2's stopped time inside the server budget (FR-021). The size of those charges is not known.
 
 ## Links
 
-- Spec: [001 spec](../../specs/001-cloud-elevation/spec.md) (reworked at 4e211e57) · Intent: [001 intent](../../specs/001-cloud-elevation/intent.md)
+- Spec: [001 spec](../../specs/001-cloud-elevation/spec.md) (reworked at 8acc2686) · Intent: [001 intent](../../specs/001-cloud-elevation/intent.md)
 - Constitution amendment, proposed and not applied: [2026-11-09-constitution-1.1.0.patch](../merge-requests/2026-11-09-constitution-1.1.0.patch)
 - Merge-request note: [2026-11-09-docs-001-ec2-default.md](../merge-requests/2026-11-09-docs-001-ec2-default.md)
 - Amends: [ADR 0001](0001-local-first-routing-with-capped-bedrock-fallback.md) · Related: [ADR 0041](0041-the-anthropic-api-as-a-second-paid-adapter.md), [ADR 0005](0005-telegram-and-smtp-alerting.md), [ADR 0013](0013-local-until-publication.md)
