@@ -18,11 +18,13 @@ reached its handler instead of a fixed 50 ms? It's an edit to a test file, so it
 "okay, fix the test". That answer is the authority for editing a test file here. This isn't a fix task in the
 `FIX_TASK` sense: no gateway code changes, and no assertion's bound moves.
 
-## Status: Review pending
+## Status: reviewed, ready; the final checks wait
 
-The test change is 1571e069; this note is the branch's last commit. Review pending: no `REVIEW.md` pass has read this
-branch yet, and this session, which wrote it, reviews none of it. Step 2's guard holds the gate to 1571e069, the
-content the review is to read (Review).
+The test change is 1571e069; this note is the branch's last commit. The review is in: "ready", no blockers, from a
+reviewer that wrote none of this branch (Review). Its nit 3 is applied in step 2's guard; the rest go to the Backlog,
+and the test stays as reviewed. Step 2's guard holds the gate to 1571e069, the test the review read. The rows below
+from `make check`, gitleaks, and the rehearsal are from b13e9f58, before the review; they are run again on the final
+tip, and this table is refreshed then.
 
 | Check | Result |
 |---|---|
@@ -44,7 +46,7 @@ Every block runs from main's checkout, `~/h4reet-ai/h4reet-ai`. Each line is 45 
 this branch touches `services/gateway/test/integration/app.test.ts` and this note alone, and in `tools/gates/gate`
 stage E runs only when a branch touches `deploy/agents-engine/` or `.claude/settings.json` (line 88, and
 `STAGE_E_PATHS`, line 199), and the behavioral tier only when it touches `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin
-(line 90). Hold the steps until the review is in (Review).
+(line 90). The review is in (Review); hold the steps until the Status says the final checks are in.
 
 **1. The gate.** It exits 2 unless your checkout is on `main` (line 14), so the block starts there:
 
@@ -61,6 +63,7 @@ Expect Ready, with `evals` WARN for the behavioral tier's information line, as `
 **2. The guard.** It prints `guard: go` only if all of these hold:
 
 - the gate printed its merge line;
+- the gate's summary line names nothing failing or waiting;
 - your checkout is on `main`;
 - the branch is at the SHA the gate checked;
 - `main` is an ancestor of that SHA;
@@ -71,6 +74,7 @@ Expect Ready, with `evals` WARN for the behavioral tier's information line, as `
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 ok=go
+case $s in *failing:*) ok=no;; esac
 grep -q '^merge: ' "$log" || ok=no
 h=$(git symbolic-ref -q HEAD)
 [ "$h" = refs/heads/main ] || ok=no
@@ -91,9 +95,14 @@ git "${x[@]}" || ok=no
 echo "guard: $ok"
 ```
 
+**Why the `case` line.** `grep -q '^merge: '` matches any line of the log that starts with `merge: `, and the gate
+streams container output into it (the review's nit 3). The gate prints its merge line only when nothing fails or
+waits, and its summary line, `$s`, then has no `; failing:` part (`tools/gates/gate` lines 1929 to 1932, and 1955 to
+1962), so the `case` line says no whenever the summary names one.
+
 **Why the anchor is 1571e069, and why it compares against a merge-tree.** 1571e069 is the test change, the one commit
-of this branch that isn't main's or this note, and the content the review is to read. If the review changes the
-test, the session moves `rv` to the reviewed commit in this note. The branch merges main after 1571e069, so a plain
+of this branch that isn't main's or this note. The review read it and passed it unchanged, so `rv` stays on it. The
+branch merges main after 1571e069, so a plain
 diff of 1571e069 against the gated SHA would show main's new changes and say no; `git merge-tree --write-tree` builds
 the tree main and 1571e069 merge to, and writes no worktree. The guard excludes this note alone, not the folder.
 `:(exclude)` is git's long form of `:!`, which zsh would read as history inside double quotes. If main moves before
@@ -138,7 +147,10 @@ then called `close()`. It assumed 50 ms was enough for the request to reach its 
 So "expected 503 to be 200" means the request reached the router after `close()` had begun: refused as new work,
 not dropped in its handler.
 That matches the `gateway.stopping` row of `specs/000-local-foundations/contracts/telemetry.md`: "the listeners stop
-accepting, and requests in flight finish". No code bug: a request in its handler when shutdown begins isn't dropped.
+accepting, and requests in flight finish". The in-flight guarantee holds: a request in its handler when shutdown
+begins finishes, and isn't dropped. The 503 itself has a gap of its own, older than this branch, which the review
+found (I-1, Backlog): Fastify writes it (`route.js:492-502`) before any hook runs, so it lacks the headers and body
+fields `contracts/gateway-http.md` requires.
 The 503 failed your gates on `feat/010-anthropic-switch` and `docs/001-ec2-default` (2026-11-09/10) and agents'
 `make check` runs under load (`2026-11-09-fix-007-steady-clock-test.md` records one, at a load average near 22).
 
@@ -178,7 +190,7 @@ fail, so this branch changes no other test.
 |---|---|
 | Spec 000's T027 (`tasks.md:151-152`): "two listeners, the api on 8080 and admin on 8081, and graceful shutdown" | its test proves the same things, and no longer races the request's arrival |
 | `contracts/telemetry.md`'s `gateway.stopping` row: "the listeners stop accepting, and requests in flight finish" | the test closes with the request in its handler, and expects 200, then both listeners refusing |
-| Spec 000's FR-041 (`make check`, every local gate) | the gateway's workspace no longer fails this case under load (Verification) |
+| Spec 000's FR-041 (`make check`, every local gate) | this case no longer races the request's arrival. The evidence is the 100 ms hold (old 0 of 10, new 10 of 10), since the CPU burner didn't reproduce the race; the review is recorded (Review) (Verification) |
 
 ## Constitution check
 
@@ -193,13 +205,36 @@ fail, so this branch changes no other test.
 | VII. Own the whole product | Yes | Your words quoted, not paraphrased |
 | VIII. Honest AI | No | Nothing the twin says changes |
 | Development workflow, step 4 ("Bug fixes start from a failing test the agent may not edit") | Yes | The defect is in the test itself; your answer is the authority for the edit, and the code isn't changed |
-| Security and agent governance | Yes | This session reviews none of its own work (Review) |
+| Security and agent governance | Yes | A reviewer that wrote none of this branch passed it, "ready"; this session reviews none of its own work (Review) |
 
 ## Review
 
-Pending. The review is to read the branch's own change, `d0fac811..1571e069` (the test), and this note. Main's merge,
-5b69b884, adds nothing of its own: its tree is the one main and 1571e069 merge to (Verification). This session wrote
-the branch and reviews none of it.
+A `REVIEW.md` pass by a reviewer that wrote none of this branch, as the main session relayed it to this session. It
+read b13e9f58 and this note's revision then in the working tree, committed unchanged as e530cc63. The branch's own
+change is the test, `d0fac811..1571e069`, and this note; main's merges, 5b69b884 and e5c5abbc, add nothing of their
+own (Verification). This session wrote the branch and reviews none of it. The review's full text wasn't relayed to
+this session, so the findings below are in the relay's words where quoted, and summarized where not.
+
+- **Verdict:** "ready", no blockers.
+- **I-1** (Important, older than this branch): the drain-time 503 is written by Fastify (`route.js:492-502`) before
+  any hook. So `app.ts`'s onSend never runs, and the response lacks `contracts/gateway-http.md:8-10`'s headers
+  (charset, Cache-Control no-store, nosniff, X-Request-Id, and `request_id` in the body), §2.5.2's
+  `X-H4-Degraded-Cause` and `cause`, and a span annotation. **Done:** "What changed and why" now claims only the
+  in-flight guarantee, and names the gap. **Backlog:** the fix, which is spec work.
+- **Nit 1:** at `app.test.ts:531-532`, if the race ends "answered" or rejects, the test returns before `close()`, and
+  the gateway isn't in `running`, so afterEach doesn't close it. The fix would push `result` into `running`. This
+  session's reading: the listeners stay open; the PGlite database is in `databases`, which afterEach closes.
+  **Backlog**, not applied: the reviewed test stays as anchored.
+- **Nit 2:** the "answered" branch drops the status. The fix would be
+  `` inFlight.then((r) => `answered ${r.status}`) ``. **Backlog**, not applied, for the same reason.
+- **Nit 3:** `grep -q '^merge: '` accepts any log line starting `merge: `, and the gate streams container output into
+  the log. **Done:** step 2's guard has `case $s in *failing:*) ok=no;; esac` right after `ok=go`, and a bullet for
+  it; the line is 35 characters.
+- **Nit 4:** the FR-041 row's "no longer fails this case under load". **Done:** the row names the 100 ms hold as the
+  evidence, since the CPU burner didn't reproduce the race, and points here.
+- **Nit 5:** the gitleaks, rehearsal, and `make check` rows describe b13e9f58. **Done after the final checks:** they
+  run again on the final tip, and the rows are refreshed in the note's last commit (Status).
+- **Feed-back:** a line for your `CLAUDE.md`, which only you can add (For the Author).
 
 ## Verification
 
@@ -433,8 +468,10 @@ docs/merge-requests/2026-11-10-fix-000-shutdown-test.md
 (above: every file the tip differs from the merge-tree in)
 ```
 
-Main moved twice while this branch was open: from d0fac811 (the cut) to c01545ce (your docs/001 merge), then to
-67028747 (your constitution 1.1.0 commit and ADR 0044 accepted). 5b69b884 merges 67028747 in; nothing conflicted.
+Main moved three times while this branch was open: from d0fac811 (the cut) to c01545ce (your docs/001 merge), then to
+67028747 (your constitution 1.1.0 commit and ADR 0044 accepted), then to b335b9b2 (your feat/005 merge, gate 5).
+5b69b884 merges 67028747 in, and e5c5abbc merges b335b9b2; nothing conflicted, and neither touches the test or this
+note.
 
 ## Cost and data-flow impact
 
@@ -447,8 +484,23 @@ $0: no model call, no AWS, and the only network traffic was `npm ci`'s registry 
 
 None before the merge but the gate and the guard.
 
+### For your CLAUDE.md
+
+The review proposes a line for "Things Claude gets wrong". Only you can add it:
+
+> Writing a test that waits a fixed time for the other side to reach a point: wait on a signal the code under test
+> gives, and time with `performance.now()`.
+
 ### Backlog
 
+- **I-1, the drain-time 503** (older than this branch): Fastify writes it before any hook, without the headers and
+  body fields of `contracts/gateway-http.md:8-10` and §2.5.2, and without a span annotation. A fix would be
+  `return503OnClosing: false` plus a contract-shaped 503 from an onRequest hook with a new degraded cause. That is
+  spec work: a new cause in the contract, its telemetry, and a degraded-mode entry.
+- **Nit 1:** `app.test.ts:531-532` returns before `close()` when the race ends "answered" or rejects, leaving the
+  gateway's listeners open; pushing `result` into `running` fixes it. A test edit, yours to allow.
+- **Nit 2:** the race's "answered" branch drops the status; `` inFlight.then((r) => `answered ${r.status}`) ``
+  keeps it. A test edit, yours to allow.
 - `integration/dispatcher.test.ts:290`: to prove the wake, the enqueue should wait for the first pass to finish, not
   just its LISTEN. A test edit, yours to allow.
 - `unit/gateway.test.ts:157`, `dispatcher-forms.test.ts`'s 50 ms, and `unit/twin-bench.test.ts`'s 20 ms a turn
