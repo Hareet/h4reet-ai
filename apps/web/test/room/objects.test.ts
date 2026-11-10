@@ -235,7 +235,7 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
           "left-wall: { at: [-0.9, 0, -0.5]",
         ),
         "apps/web/room/scene.yaml": text("apps/web/room/scene.yaml").replace(
-          "offset: [0, 1.0515, 0] }",
+          "offset: [0, 1.074, 0] }",
           "offset: [0, 1.09, 0] }",
         ),
       }),
@@ -261,8 +261,10 @@ describe("the 3D room's side-wall selectables (FR-064's carve-out)", () => {
     }
   });
 
-  it("gives them their pick areas at the reference desktop's stage and on a stage 312 px wide", () => {
-    for (const stage of [REFERENCE_DESKTOP.stage, { w: 312, h: 224 }]) {
+  // Since spec 005 the overlay's signs meet at the stages 320 px wide, so the next stage wider, 568 × 320's clear area,
+  // gives them back (312 × 224, before it).
+  it("gives them their pick areas at the reference desktop's stage and on a stage 328 px wide", () => {
+    for (const stage of [REFERENCE_DESKTOP.stage, { w: 328, h: 240.5 }]) {
       const { win, canvas, selectObject, core, button } = stageAt(stage);
       for (const id of ["fx-upper", "fx-lower", "fx-workstation", "fx-board"]) {
         selectObject.mockClear();

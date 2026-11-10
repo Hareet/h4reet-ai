@@ -42,16 +42,19 @@ import {
   button,
   flush,
   intoRoom,
+  parseCss,
   roomIndex,
   setHidden,
   setReducedMotion,
   start,
+  stylesheets,
   talkLog,
   textOf,
 } from "../helpers/room";
-import type { Visit } from "../helpers/room";
+import type { CssRule, Visit } from "../helpers/room";
 import { goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
+import * as legacy from "../room/legacy-stages";
 
 /** What the real scene module draws and draws with in the model runs: their 3D part and a stand-in renderer. */
 const swapped = vi.hoisted(() => ({
@@ -813,5 +816,177 @@ describe("targeting under each degraded state (spec 008, T008)", () => {
     expect(view?.children.length).toBe(1);
     expect(v.spies.network).toEqual([]);
     expect(v.spies.storage).toEqual([]);
+  });
+});
+
+// T010 (spec 005; FR-001 to FR-007; plan.md §5.4, §6.7, §6.11, PD-23): the layout's degraded paths, defined before
+// any of the HUD's look. In each of FR-002's states the room block, the HUD's data attributes, and its properties are
+// those of the happy path, only the conversation's answers changing; with no WebGL 2 the 2D drawing sits in the clear
+// area with the backdrop across the room block and no walking control; a drawing that can't be drawn shows flat-failed's
+// words (D9) there as text; the glass is opaque, with no blur, under reduced transparency, more contrast, and no
+// backdrop blur, and takes the system's colours under forced colours; and the stacked layout keeps spec 004's grid at
+// e324771e, the numbers test/room/legacy-stages.ts froze.
+describe("the layout's degraded paths (spec 005, T010)", () => {
+  /** The HUD as the room set it on the page's root: its data attributes and its CSS properties. */
+  function hudOf(v: Visit): Record<string, string> {
+    const root = v.doc.documentElement;
+    const out: Record<string, string> = {};
+    for (const name of ["hud", "list", "blur"]) out[`data-${name}`] = root.getAttribute(`data-${name}`) ?? "";
+    for (const p of ["--strip-h", "--bar-h", "--column-w", "--dock-h", "--clear-x", "--clear-y", "--clear-w"])
+      out[p] = root.style.getPropertyValue(p);
+    out["--clear-h"] = root.style.getPropertyValue("--clear-h");
+    return out;
+  }
+
+  it("lays the HUD out in each of FR-002's states exactly as on the happy path", async () => {
+    const { index } = fixture();
+    const happy = start({ webgl: true, room: index });
+    await intoRoom(happy);
+    const want = hudOf(happy);
+    expect(want["data-hud"]).toBe("column");
+    expect(want["--clear-w"]).not.toBe("");
+    const states = [
+      ["the local tier off", { local_tier: "down", state: "normal", cause_now: null }],
+      ["the budget spent", { local_tier: "up", state: "degraded", cause_now: "meter_at_ceiling" }],
+      ["the kill switch tripped", { local_tier: "up", state: "degraded", cause_now: "kill_switch_tripped" }],
+      ["the kill switch's state unknown", { local_tier: "up", state: "unknown", cause_now: null }],
+    ] as const;
+    for (const [what, body] of states) {
+      const v = start({ webgl: true, room: site(index) });
+      await intoRoom(v);
+      v.room.live.complete({
+        ok: true,
+        started: v.clock.now() - 150,
+        ended: v.clock.now(),
+        endedWall: WALL0 + v.clock.now(),
+        answer: body,
+      });
+      expect(hudOf(v), what).toEqual(want);
+    }
+    // The live source off, and the tier unknown after a failure.
+    const off = start({ webgl: true, room: index });
+    await intoRoom(off);
+    expect(hudOf(off)).toEqual(want);
+    const failed = start({ webgl: true, room: site(index) });
+    await intoRoom(failed);
+    failed.room.live.complete(failure(failed, "network"));
+    expect(failed.room.live.tier.tier).toBe("unknown");
+    expect(hudOf(failed)).toEqual(want);
+  });
+
+  it("puts the 2D drawing in the clear area with no WebGL 2, the backdrop across the room block, no walking control", async () => {
+    const v = start({ webgl: false });
+    await intoRoom(v);
+    expect(v.room.visit.mode).toBe("2d");
+    const view = v.doc.querySelector<HTMLElement>(".room-stage-view");
+    expect(view?.querySelector(".flat")).not.toBeNull();
+    expect(view?.getAttribute("data-stage")).toBe("2d");
+    expect(v.doc.querySelector<HTMLElement>("button.room-walk")?.hidden).toBe(true);
+    const sheets = stylesheets().flatMap((s) => parseCss(s.text).rules);
+    const stage = sheets.filter((r) => r.selector.split(",").some((p) => p.trim() === ".room-stage"));
+    expect(stage.some((r) => r.declarations.get("background") === "#20252b")).toBe(true);
+    // In 2D the view is placed at the clear area, the 3D canvas's view at the window.
+    const placed = sheets.filter((r) => r.selector.includes('.room-stage-view[data-stage="2d"]'));
+    expect(placed.some((r) => r.declarations.get("left") === "var(--clear-x)")).toBe(true);
+    expect(placed.some((r) => r.declarations.get("width") === "var(--clear-w)")).toBe(true);
+  });
+
+  it("shows flat-failed's new words in the clear area, as text a screen reader reads, when the drawing can't be drawn", async () => {
+    const { index } = fixture();
+    const viewBox = [0, 0, Number.NaN, 200] as unknown as RoomIndex["flat"]["view_box"];
+    const broken: RoomIndex = { ...index, flat: { ...index.flat, view_box: viewBox } };
+    const v = start({ webgl: false, room: broken });
+    await intoRoom(v);
+    const view = v.doc.querySelector<HTMLElement>(".room-stage-view");
+    const line = view?.querySelector(".room-flat-failed");
+    expect(textOf(line ?? null)).toBe(
+      "This drawing of the room could not be shown. The list of things in the room still works.",
+    );
+    expect(line?.closest("[aria-hidden='true'], [hidden]")).toBeNull();
+    expect(view?.getAttribute("data-stage")).toBe("2d");
+    // And the repository's own words, D9's.
+    expect(roomIndex().ui["flat-failed"]).toBe(
+      "This drawing of the room could not be shown. The list of things in the room still works.",
+    );
+  });
+
+  /** The rules inside each at-rule whose prelude matches, from every stylesheet. */
+  function inside(prelude: RegExp): CssRule[] {
+    return stylesheets().flatMap((s) =>
+      parseCss(s.text)
+        .atRules.filter((a) => prelude.test(a.prelude))
+        .flatMap((a) => parseCss(a.body).rules),
+    );
+  }
+
+  it("makes the glass opaque, with no blur, under reduced transparency, more contrast, and no backdrop blur", () => {
+    for (const prelude of [
+      /^@media \(prefers-reduced-transparency: reduce\)$/,
+      /^@media \(prefers-contrast: more\)$/,
+      /^@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)$/,
+    ]) {
+      const found = inside(prelude);
+      expect(found.length, String(prelude)).toBeGreaterThan(0);
+      expect(
+        found.some((r) => r.declarations.get("--glass-alpha") === "1"),
+        `${String(prelude)}: the glass's alpha`,
+      ).toBe(true);
+      expect(
+        found.some((r) => r.declarations.get("backdrop-filter") === "none"),
+        `${String(prelude)}: no blur`,
+      ).toBe(true);
+      expect(
+        found.some((r) => r.declarations.get("-webkit-backdrop-filter") === "none"),
+        `${String(prelude)}: no WebKit blur`,
+      ).toBe(true);
+    }
+  });
+
+  it("leaves the panels to the system's colours under forced colours", () => {
+    const found = inside(/^@media \(forced-colors: active\)$/);
+    const values = found.flatMap((r) => [...r.declarations.values()]);
+    for (const colour of ["Canvas", "CanvasText", "ButtonFace", "ButtonText", "Highlight"])
+      expect(
+        values.some((v) => v.split(/\s+/).includes(colour)),
+        colour,
+      ).toBe(true);
+    expect(found.some((r) => r.declarations.get("backdrop-filter") === "none")).toBe(true);
+  });
+
+  it("keeps spec 004's grid as the stacked layout, at the numbers of e324771e", () => {
+    const S = 'html[data-hud="stacked"]';
+    const base = stylesheets().flatMap((s) => parseCss(s.text).rules);
+    const get = (rs: CssRule[], selector: string, property: string): string | undefined =>
+      rs
+        .filter((r) => r.selector.split(",").some((p) => p.trim() === selector))
+        .at(-1)
+        ?.declarations.get(property);
+    const c = legacy.ROOM_CSS;
+    expect(get(base, `${S} body.in-room`, "max-width")).toBe(`${c.bodyMaxWidthRem}rem`);
+    expect(get(base, `${S} body.in-room`, "padding")).toBe(`${c.bodyPaddingRem}rem`);
+    expect(get(base, `${S} .room`, "display")).toBe("grid");
+    expect(get(base, `${S} .room`, "gap")).toBe(`${c.gapRem}rem`);
+    expect(get(base, `${S} .room`, "grid-template-columns")).toBe("minmax(0, 1fr)");
+    expect(get(base, `${S} .room`, "grid-template-areas")).toBe('"toolbar" "stage" "list" "talk" "around" "resume"');
+    expect(get(base, `${S} .room-stage`, "height")).toBe(`calc(100dvh - ${c.portraitReserveRem}rem)`);
+    expect(get(base, `${S} .room-stage`, "min-height")).toBe(`${c.stageMinHeightRem}rem`);
+    expect(get(base, `${S} .room-stage`, "max-height")).toBe(`${c.stageMaxHeightRem}rem`);
+    // Every control in the page's flow: the room block and the panels' wrapper give their children to the grid.
+    expect(get(base, `${S} .room-block`, "display")).toBe("contents");
+    expect(get(base, `${S} .hud-panels`, "display")).toBe("contents");
+    expect(get(base, `${S} .hud-bar`, "grid-area")).toBe("toolbar");
+    expect(get(base, `${S} .hud-bar`, "position")).toBe("static");
+    const narrow = inside(/^@media \(orientation: portrait\) and \(max-width: 34\.99rem\)$/);
+    expect(get(narrow, `${S} .room-stage`, "height")).toBe(`calc(100dvh - ${c.narrowReserveRem}rem)`);
+    const narrower = inside(/^@media \(orientation: portrait\) and \(max-width: 24\.99rem\)$/);
+    expect(get(narrower, `${S} .hud-bar`, "font-size")).toBe("0.875rem");
+    const landscape = inside(/^@media \(orientation: landscape\) and \(min-width: 32rem\)$/);
+    expect(get(landscape, `${S} .room`, "grid-template-columns")).toBe(
+      `minmax(0, ${c.stageFr}fr) minmax(${c.listMinRem}rem, ${c.listFr}fr)`,
+    );
+    expect(get(landscape, `${S} .room`, "grid-template-areas")).toBe(
+      '"toolbar toolbar" "stage list" "stage talk" "around around" "resume resume"',
+    );
+    expect(get(landscape, `${S} .room-stage`, "height")).toBe(`calc(100dvh - ${c.landscapeReserveRem}rem)`);
   });
 });

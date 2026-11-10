@@ -257,23 +257,28 @@ describe("RG7's per-face exemption on the reference phone", () => {
   };
 
   it("exempts a readable face whose regions are all turn-cost under the floor on the phone, when the desktop meets it", () => {
+    // At spec 005's reference stages, the clear areas (28.1 and 16.1, 12.4 and 7.1 before it).
     expect(caps(countersTree()).filter((f) => f.face.startsWith("fx-neon."))).toEqual([
-      { face: "fx-neon.panel", desktop: 28.1, phone: 16.1, phone_exempt: false },
-      { face: "fx-neon.counters", desktop: 12.4, phone: 7.1, phone_exempt: true },
+      { face: "fx-neon.panel", desktop: 49.2, phone: 16.8, phone_exempt: false },
+      { face: "fx-neon.counters", desktop: 21.8, phone: 7.4, phone_exempt: true },
     ]);
     expect(compose(countersTree(), noPolicy(), { mode: "strict", drafts: true }).findings).toEqual([]);
   });
 
   it("holds the same face to the floor on the desktop", () => {
-    expect(rg7(countersTree(), floorOf(13))).toEqual([
-      "placements[2].faces.screen: cap height 12.6 px on the phone stage, under the floor of 13",
-      "placements[3].faces.counters: cap height 12.4 px on the desktop stage, under the floor of 13",
-    ]);
+    // Since spec 005 the counters meet a floor of 13 on the desktop's larger stage, so the floor that catches them there
+    // is 22; every face under it on the phone is caught too, but the counters, exempt there.
+    const found = rg7(countersTree(), floorOf(22));
+    expect(found).toContain(
+      "placements[3].faces.counters: cap height 21.8 px on the desktop stage, under the floor of 22",
+    );
+    expect(found.filter((f) => f.startsWith("placements[3].faces.counters:"))).toHaveLength(1);
+    expect(found).toContain("placements[2].faces.screen: cap height 13.1 px on the phone stage, under the floor of 22");
   });
 
   it("holds a word face, a ui region, to the floor on the phone, whatever the piece's other faces carry", () => {
     expect(rg7(countersTree(), floorOf(17))).toContain(
-      "placements[3].faces.panel: cap height 16.1 px on the phone stage, under the floor of 17",
+      "placements[3].faces.panel: cap height 16.8 px on the phone stage, under the floor of 17",
     );
   });
 
@@ -297,9 +302,9 @@ describe("RG7's per-face exemption on the reference phone", () => {
 
   it("holds a face whose regions are all turn-cost to the floor on the phone where the catalog doesn't mark it readable", () => {
     const t = counters({ readable: "readable: false" });
-    expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop: 12.4, phone: 7.1, phone_exempt: false });
+    expect(counterCaps(t)).toEqual({ face: "fx-neon.counters", desktop: 21.8, phone: 7.4, phone_exempt: false });
     expect(rg7(t)).toEqual([
-      "placements[3].faces.counters: cap height 7.1 px on the phone stage, under the floor of 9",
+      "placements[3].faces.counters: cap height 7.4 px on the phone stage, under the floor of 9",
     ]);
   });
 
@@ -320,8 +325,9 @@ describe("RG7's per-face exemption on the reference phone", () => {
   it("holds a face with a ui region and a turn-cost region to the floor on the phone", () => {
     // The known-good set's panel binds the word and both counters to one face.
     expect(caps(goodTree()).find((f) => f.face === "fx-neon.panel")?.phone_exempt).toBe(false);
-    expect(rg7(goodTree(), floorOf(11))).toEqual([
-      "placements[3].faces.panel: cap height 10.7 px on the phone stage, under the floor of 11",
+    // 11.2 px on the phone since spec 005's stages (10.7 before), so the floor that catches it is 12.
+    expect(rg7(goodTree(), floorOf(12))).toEqual([
+      "placements[3].faces.panel: cap height 11.2 px on the phone stage, under the floor of 12",
     ]);
   });
 });

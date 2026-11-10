@@ -76,7 +76,7 @@ placements:
     frame: true
   - id: fx-lower
     piece: fx-sign
-    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.0515, 0] }
+    mount: { on: fx-shell, anchor: left-wall, offset: [0, 1.074, 0] }
     frame: true
 switches:
   - id: fx-power

@@ -121,7 +121,9 @@ describe("in the room", () => {
       expect(v.room.visit.mode).toBe(webgl ? "3d" : "2d");
       const around = v.doc.querySelector(".room-around");
       if (!around) throw new Error("no text copy in the room");
-      expect(around.previousElementSibling?.matches(".talk")).toBe(true);
+      // Right after the room block, whose last part ends with the conversation panel (spec 005).
+      expect(around.previousElementSibling?.matches(".room-block")).toBe(true);
+      expect(around.previousElementSibling?.querySelector(".hud-panels > .talk:last-child")).not.toBeNull();
       expect(around.closest(".room-stage")).toBeNull();
       expect(around.closest("[hidden], [inert], [aria-hidden='true']")).toBeNull();
       expect(linesOf(around)).toEqual(expectedLines(index, "not-live"));

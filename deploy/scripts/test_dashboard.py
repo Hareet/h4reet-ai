@@ -717,6 +717,8 @@ def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
         "Turns sent and talk presses",
         "Events refused",
         "Visits that walked",
+        # Spec 005's (its FR-062; Amendment H8).
+        "Visits in full screen",
     ]
     # After the stack's own rows and before the dev-time row. Not necessarily right above it: spec 003's studio row
     # (its gpu-window.md §3) goes there, and asks for that place itself.
@@ -775,6 +777,20 @@ def test_the_walked_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> No
     assert 'kind="walk_started"' in target["expr"]
     for words in ("walk_started", "resume_opened", "resume_kept", "stand-in"):
         assert words in panel["description"], words
+
+
+def test_the_full_screen_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    # Spec 005's Amendment H8 (FR-062): fullscreen_entered over the same stand-in for visits as the walked share.
+    panel = by_title()["Visits in full screen"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    (target,) = panel["targets"]
+    assert 'kind="fullscreen_entered"' in target["expr"]
+    for words in ("fullscreen_entered", "resume_opened", "resume_kept", "stand-in"):
+        assert words in panel["description"], words
+    # Beside "Visits that walked", in the Room row.
+    walked = by_title()["Visits that walked"]
+    assert panel["gridPos"]["y"] == walked["gridPos"]["y"]
+    assert panel["gridPos"]["x"] >= walked["gridPos"]["x"] + walked["gridPos"]["w"]
 
 
 def test_refused_events_read_by_their_reason() -> None:
