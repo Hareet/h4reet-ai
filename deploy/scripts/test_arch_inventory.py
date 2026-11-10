@@ -5,6 +5,7 @@ returns; one test serves them over a unix socket, so the script's own HTTP code 
 
 from __future__ import annotations
 
+import http.client
 import http.server
 import importlib.util
 import io
@@ -278,12 +279,10 @@ def test_an_image_the_store_lacks_is_absent_and_unknown() -> None:
 
 
 def test_an_unpinned_line_is_never_looked_up() -> None:
-    text = LOCK.read_text(encoding="utf-8").replace(
-        "chrislusf/seaweedfs                                                                      4.48                     sha256:",
-        "chrislusf/seaweedfs  4.48  -  ",
-    )
-    lock = ai.parse_lock(text)
-    seaweed = next(pin for pin in lock if pin.service == "seaweedfs")
+    # "-" marks a digest make pin-images hasn't resolved yet (the lock's header).
+    line = "seaweedfs  docker.io/chrislusf/seaweedfs  4.48  -  docker.io  2026-11-10\n"
+    (seaweed,) = ai.parse_lock(line)
+    assert not seaweed.pinned and seaweed.ref == "docker.io/chrislusf/seaweedfs:4.48"
     fetch, asked = stub_engine({})
     rows = ai.inventory([seaweed], fetch)
     assert asked == [] and rows[0].status == "unpinned" and rows[0].arm64 is None
@@ -410,19 +409,22 @@ def test_the_request_is_one_get_of_the_image_with_its_manifests() -> None:
     )
 
 
-class _Engine(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+class _UnixEngine(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
 
 
-def test_a_fake_engine_on_a_unix_socket() -> None:
-    """The script's own HTTP: GET only, the manifests view, a 404 for an image the store lacks."""
+class _TcpEngine(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+
+
+def fake_engine_handler(seen: list[tuple[str, str]]):
+    """An engine's image inspect: GET only, the manifests view, and a 404 for an image the store lacks (the GPU one)."""
     docs = {pin.ref: (AMD64_ONLY if pin.service == "loki" else MULTI) for pin in pins()}
     docs = {
         ref: doc
         for ref, doc in docs.items()
         if not ref.startswith("ghcr.io/ggml-org/llama.cpp:server-cuda")
     }
-    seen: list[tuple[str, str]] = []
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -448,24 +450,12 @@ def test_a_fake_engine_on_a_unix_socket() -> None:
             pass
 
         def address_string(self) -> str:
-            return "unix"
+            return "engine"
 
-    folder = tempfile.mkdtemp(dir=os.environ.get("TMPDIR") or "/tmp")
-    sock = os.path.join(folder, "e.sock")
-    if len(sock) > 100:
-        pytest.skip("the temporary folder's path is too long for a unix socket")
-    server = _Engine(sock, Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        out = io.StringIO()
-        code = ai.main([], environ={"DOCKER_HOST": f"unix://{sock}"}, out=out)
-    finally:
-        server.shutdown()
-        server.server_close()
-        os.unlink(sock)
-        os.rmdir(folder)
-    text = out.getvalue()
+    return Handler
+
+
+def check_engine_run(code: int, text: str, seen: list[tuple[str, str]]) -> None:
     assert code == 0, text
     assert {method for method, _ in seen} == {"GET"}
     assert len(seen) == len(pins())
@@ -475,3 +465,62 @@ def test_a_fake_engine_on_a_unix_socket() -> None:
         line for line in text.splitlines() if line.split()[:1] == ["model-server-gpu"]
     )
     assert "absent from this store" in row
+
+
+def test_the_scripts_own_http_against_a_fake_engine() -> None:
+    """The request and its answer through http.client, on loopback; the connection is the test's, since the agent
+    sandbox refuses unix sockets and a TLS engine needs certificates (the next test takes the unix socket's)."""
+    seen: list[tuple[str, str]] = []
+    server = _TcpEngine(("127.0.0.1", 0), fake_engine_handler(seen))
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        ep = ai.endpoint({}, Path("/nonexistent"))
+        fetch = ai.engine_fetch(
+            ep,
+            connect=lambda: http.client.HTTPConnection("127.0.0.1", port, timeout=10),
+        )
+        out = io.StringIO()
+        code = ai.main([], environ={}, fetch=fetch, out=out)
+    finally:
+        server.shutdown()
+        server.server_close()
+    check_engine_run(code, out.getvalue(), seen)
+
+
+def test_an_engine_that_doesnt_answer_is_refused() -> None:
+    def refused() -> http.client.HTTPConnection:
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    out = io.StringIO()
+    fetch = ai.engine_fetch(ai.endpoint({}, Path("/nonexistent")), connect=refused)
+    assert ai.main([], environ={}, fetch=fetch, out=out) == 2
+    assert "didn't answer: ConnectionRefusedError" in out.getvalue()
+
+
+def test_a_fake_engine_on_a_unix_socket() -> None:
+    """The script's own unix-socket connection, where unix sockets may be made: the gate's container phase."""
+    seen: list[tuple[str, str]] = []
+    folder = tempfile.mkdtemp(dir=os.environ.get("TMPDIR") or "/tmp")
+    sock = os.path.join(folder, "e.sock")
+    try:
+        if len(sock) > 100:
+            pytest.skip("the temporary folder's path is too long for a unix socket")
+        try:
+            server = _UnixEngine(sock, fake_engine_handler(seen))
+        except PermissionError:
+            pytest.skip("this sandbox refuses unix sockets")
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            out = io.StringIO()
+            code = ai.main([], environ={"DOCKER_HOST": f"unix://{sock}"}, out=out)
+        finally:
+            server.shutdown()
+            server.server_close()
+        check_engine_run(code, out.getvalue(), seen)
+    finally:
+        if os.path.exists(sock):
+            os.unlink(sock)
+        os.rmdir(folder)

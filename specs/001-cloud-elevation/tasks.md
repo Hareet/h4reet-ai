@@ -130,14 +130,20 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T012 [P] Write `deploy/scripts/test_measure_stack.py`. It needs fixtures of `docker stats` samples: the peak resident memory per service over a run; a refusal when a model-server service is running; and the record's shape (R-33). Check: RED (feat/001-measure)
-- [ ] T013 [P] Write `deploy/scripts/test_arch_inventory.py`. It needs fixtures of image indexes: `linux/arm64` present or absent per service in `deploy/images.lock`, and the hosts each service runs on (contracts/env-cloud.md §3). Check: RED (feat/001-measure)
+- [x] T012 [P] Write `deploy/scripts/test_measure_stack.py`. It needs fixtures of `docker stats` samples: the peak resident memory per service over a run; a refusal when a model-server service is running; and the record's shape (R-33). Check: RED (feat/001-measure)
+  - **Done 2026-11-10** (daf4768b), with the load's tests, the probe image's copy of it, and `make measure-stack`'s. RED: the file fails to collect without its module (the note).
+- [x] T013 [P] Write `deploy/scripts/test_arch_inventory.py`. It needs fixtures of image indexes: `linux/arm64` present or absent per service in `deploy/images.lock`, and the hosts each service runs on (contracts/env-cloud.md §3). Check: RED (feat/001-measure)
+  - **Done 2026-11-10** (daf4768b), with a fake engine over HTTP. RED: the file fails to collect without its module (the note).
 
 ### Implementation
 
-- [ ] T014 Write `deploy/scripts/measure_stack.py`, `make measure-stack ENV=dev-cpu`, and a load script: hello and twin turns at the public cap, against a stub paid adapter, with the CPU model server stopped. Check: T012 passes (FR-021) (feat/001-measure)
-- [ ] T015 Write `deploy/scripts/arch_inventory.py`, offline against the seeded store (`docker buildx imagetools inspect`). Check: T013 passes (feat/001-measure)
+- [x] T014 Write `deploy/scripts/measure_stack.py`, `make measure-stack ENV=dev-cpu`, and a load script: hello and twin turns at the public cap, against a stub paid adapter, with the CPU model server stopped. Check: T012 passes (FR-021) (feat/001-measure)
+  - **Done 2026-11-10:** the load script is `deploy/scripts/measure_load.py`, which `evals/Dockerfile.probe` copies into the breach probe. Three departures, in plan.md §16 (group 2's departures 2 to 4): the rate is the gateway's global metered limit, since the public cap's figures are blank until P-6; the stub is dev's synthetic adapter, inside dev's meters; and dev-cpu only. GREEN: T012's 62 tests pass (the note). Row S11 of `docs/data-flow-disclosure.md` names the load's two calls to `edge`, and `evals/test_disclosure.py` now reads the load's file too, as it reads the probe's.
+- [x] T015 Write `deploy/scripts/arch_inventory.py`, offline against the seeded store (`docker buildx imagetools inspect`). Check: T013 passes (feat/001-measure)
+  - **Done 2026-11-10,** with `make arch-inventory`. One departure (plan.md §16, group 2's departure 1): imagetools asks the registry, so the script reads the store through the Engine API's index view. GREEN: T013's tests pass, 21 here and the unix-socket one skipped, since the sandbox refuses unix sockets. The script also read the agents' engine's real store (the note).
 - [ ] T016 Run the measurement on `dev-cpu` and the inventory. Record each service's peak memory, the disks' sizes, and which images lack arm64 in research.md R-33 and the note, with the run's length and load. Check: the record names the smallest instance types that fit, by memory alone; no price is written (R-33) (feat/001-measure)
+  - **The inventory ran on 2026-11-10;** it is read-only. Every image EC2 runs has `linux/arm64` (research.md R-33's record).
+  - **The measurement is pending,** for two reasons. The rule from the crash of 2026-10-08 runs heavy work only with at least 30 GB free on C:, and the drive had 29.0 GB. And dev-cpu runs from the main working tree, whose files the engine binds, not from this branch's worktree. The note's "For the Author" gives the morning's steps. research.md R-33 reads "pending the run" until then.
 - [ ] T017 Author: price research.md R-05's lines from AWS's pages in his terminal:
   - EC2's measured types on spot, and an 8-to-12-hour day for the reserve;
   - the tunnel end's `t4g.micro` on spot, and its Elastic IP;

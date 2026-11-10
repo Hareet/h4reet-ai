@@ -135,11 +135,19 @@ The policy also refuses an EC2 instance whose market options aren't spot with `i
 
 **Decision.** Before the Author sets the server budget, the plan's first measuring task (group 2) does the following:
 - **Memory:** run the production topology without the model server on the agents' engine (`dev-cpu`, its CPU model server stopped) under a scripted load: hello and twin turns at the public cap, against a stub paid adapter. Record each service's peak resident memory with `docker stats`, over a run long enough for ClickHouse's merges and Loki's compaction to show. The Author repeats it on the laptop if he wants a second figure.
+  - **As built** (plan.md §16, group 2's departures 2 to 4): `make measure-stack ENV=dev-cpu` (`deploy/scripts/measure_stack.py`). Its load, `deploy/scripts/measure_load.py`, runs in a breach-probe container: hello and twin turns through edge, for 30 minutes by default (three of Loki's 10-minute compactions). The rate is the gateway's global metered limit, 60 a minute (turns 20, hello 40), since the public cap's figures are blank until P-6. The stub is dev's synthetic adapter, inside dev's meters: about 20 answers at $0.10 against the $2 grant, then degraded answers, each counted. A sample every 10 s. dev-cpu only; the laptop's repeat isn't built.
 - **Architectures:** read each pinned image's index in `deploy/images.lock` (`docker buildx imagetools inspect`, offline against the seeded store) and list which have `linux/arm64`.
+  - **As built** (departure 1): imagetools asks the registry, so `make arch-inventory` (`deploy/scripts/arch_inventory.py`) reads the engine's store through the Engine API instead: `GET /images/{name}/json?manifests=1`, which lists every platform the stored index names, pulled or not.
 - **The tunnel end:** the same measurement for its four services.
+  - **As built** (departure 5): they don't exist until groups 5 and 8, so their measurement moves there. Of today's pinned images the tunnel end runs the collector, which the inventory covers.
 - **Disks:** the data volumes' sizes after the run.
+  - **As built:** before and after the run, with the sizes of the images the stack runs.
 
 The record goes in this file under R-33 and in the group's note. The Author prices from it (spec question 14).
+
+**The record.**
+- **Architectures: read on 2026-11-10** from the agents' engine's store by `make arch-inventory` (read-only; nothing pulled). Every image EC2 runs has a `linux/arm64` build: `edge` (also the web image's runtime base), `otel-collector`, `prometheus`, `loki`, `grafana`, `langfuse-web`, `langfuse-worker`, `langfuse-db`, `clickhouse`, `valkey`, `seaweedfs`, and `base:node` (the gateway's and web's build base). So does the tunnel end's collector. **So EC2 can be Graviton (R-04), and releases build for `linux/arm64` (R-17).** The two GPU-only images, `model-server-gpu` and `probe:cuda`, aren't in that store; they run on the laptop alone. The inventory's whole output is in the group's note.
+- **Memory and disks: pending the run** (tasks.md T016). It needs at least 30 GB free on the Windows drive that holds WSL's disk, and it starts from the main working tree on the branch. On 2026-11-10 the drive had 29.0 GB free (`df -B1 /mnt/c`: 29,004,742,656 bytes), so it didn't run. The group's note gives the Author the morning's steps. Until then, no instance type is named from a measurement.
 
 ---
 

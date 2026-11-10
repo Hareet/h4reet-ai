@@ -21,7 +21,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 2. Group 2: the measurement, and your figure
 
-1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64.
+1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64. **As built** (plan.md §16, group 2's departures): first your disk check in your terminal, at least 30 GB free on the drive under WSL's disk (`df -h /mnt/c`), with no other agent using the engine. Then the main working tree on `feat/001-measure`, since dev-cpu runs from it. Then the session runs `make up ENV=dev-cpu`, `make measure-stack ENV=dev-cpu`, and `make down ENV=dev-cpu` there. `make arch-inventory` reads the store alone and has already run (R-33's record).
 2. Price research.md R-05's lines from AWS's pages in your terminal: EC2's measured types on spot, and an 8-to-12-hour day as the reserve; the tunnel end on spot (plan question 2); RDS; the health check; and the "to confirm" lines.
 3. Set `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`, and record your prices on the branch before its review.
 

@@ -2,8 +2,9 @@
 T110).
 
 The compose policy already requires a row for every service (tools/gates/compose_policy.py). These hold rows to what
-the code does: the breach probe's row names exactly the services evals/breach_probe.py calls, and the alerts' rows
-name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at. Bedrock's two rows keep
+the code does: the breach probe's row names exactly the services evals/breach_probe.py and spec 001's measurement load,
+which runs in the probe, call; and the alerts' rows name the Telegram Bot API and the alerts mailbox, which the
+gateway's egress row points at. Bedrock's two rows keep
 plan §17's words, name the region config/routing.yaml must use, and name the SSO token's refresh while prod runs.
 Every flow plan §17 lists has its row (T110); the rows T110 adds keep the plan's words too, and say what their code
 does; the file closes with FR-040's sentence; and SECURITY.md links it. From US6's review, the Claude Code row lists
@@ -56,8 +57,12 @@ def named(cell: str) -> set[str]:
 
 
 def called_hosts() -> set[str]:
-    """Every host a URL in breach_probe.py's source names, constant or not, and those its module constants hold."""
+    """Every host a URL in breach_probe.py's source names, constant or not, and those its module constants hold; and,
+    since the probe's image holds it too, the hosts spec 001's measurement load calls (deploy/scripts/measure_load.py)."""
     source = (REPO / "evals" / "breach_probe.py").read_text(encoding="utf-8")
+    source += (REPO / "deploy" / "scripts" / "measure_load.py").read_text(
+        encoding="utf-8"
+    )
     urls = set(re.findall(r"""https?://[^\s"'/{}]+""", source))
     urls |= {v for v in vars(probe).values() if isinstance(v, str) and "://" in v}
     return {urllib.parse.urlsplit(url).hostname or "" for url in urls}

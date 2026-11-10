@@ -334,7 +334,7 @@ def test_compose_ps_in_either_form() -> None:
     rows = ms.parse_ps(lines)
     assert [row["Service"] for row in rows] == list(STACK)
     # Older compose printed one array.
-    assert ms.parse_ps("[" + ",".join(lines.split()) + "]") == rows
+    assert ms.parse_ps("[" + ",".join(lines.splitlines()) + "]") == rows
     assert ms.parse_ps("") == []
 
 
@@ -672,7 +672,8 @@ def test_the_table_for_the_note_and_r33() -> None:
     assert code == 0, text
     lines = text.splitlines()
     assert "| Service | Peak (MiB) | Limit (MiB) | Samples |" in lines
-    assert "| clickhouse | 900.0 | 512.0 | 1 |" in lines
+    # The stub load ends at its third poll: three samples, each service in all three.
+    assert "| clickhouse | 900.0 | 512.0 | 3 |" in lines
     assert any(
         line.startswith("| All services, the sum of each one's peak |")
         for line in lines

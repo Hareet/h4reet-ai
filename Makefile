@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -521,6 +521,30 @@ infra-plan-note: ## Spec 001's plan blocks: every root the branch changes has it
 	@if [ ! -f tools/gates/infra_plan_note.py ]; then echo "PLANNED (T010): tools/gates/infra_plan_note.py arrives with the guard patch, P-1"; \
 	else $(PY_HOST) tools/gates/infra_plan_note.py; fi
 
+# Spec 001's measurement (research.md R-33; tasks.md T014, T016): dev-cpu's stack without its model server, under the
+# load deploy/scripts/measure_load.py sends from a breach-probe container, with each service's peak memory from docker
+# stats, the volumes' sizes before and after, and the images'. dev-cpu only, on the agents' engine, with the stack up:
+# prod's route would send the load to its paid fallback, and dev's repeat on the laptop isn't built (plan.md §16, group
+# 2's departures). Inside the sandbox it runs itself again through the relay, as up does; the script refuses any other
+# engine, and a linked worktree, whose files the engine doesn't bind. MINUTES comes from the command line only and
+# reaches the script as "$$MINUTES".
+measure-stack: ## Measure dev-cpu's memory and disks without its model server, under load (spec 001 R-33): ENV=dev-cpu [MINUTES=30]
+	@[ "$(ENV)" = dev-cpu ] || { echo "make measure-stack ENV=$(ENV): dev-cpu only, on the agents' engine; prod's route would send its load to the paid fallback (research.md R-33)" >&2; exit 2; }
+ifeq ($(VIA_RELAY),1)
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make measure-stack: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory measure-stack ENV=dev-cpu
+else
+	$(PY_HOST) deploy/scripts/measure_stack.py --stack dev-cpu --env-file $(ENVFILE)$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
+endif
+
+# Spec 001's architecture inventory (research.md R-33, R-04; tasks.md T015): every image deploy/images.lock pins, read
+# from the engine's own store, never a registry, with its platforms and the hosts it runs on (contracts/env-cloud.md
+# §3). Read-only: it pulls nothing. Inside the sandbox, the agents' engine through the relay, as engine-status reaches
+# it; elsewhere, the engine DOCKER_HOST names.
+arch-inventory: ## Which pinned images have linux/arm64, from the engine's store alone, and the hosts each runs on (spec 001 R-33)
+	@if [ "$${SANDBOX_RUNTIME:-}" = 1 ] && [ -z "$${DOCKER_HOST:-}" ]; then $(RELAY) make --no-print-directory arch-inventory; \
+	else $(PY_HOST) deploy/scripts/arch_inventory.py; fi
+
 disclosure-check: ## Every outward thing the tree holds has its row in docs/data-flow-disclosure.md (spec 001 plan §8.3)
 	@if [ ! -f tools/gates/disclosure_check.py ]; then echo "PLANNED (T010): tools/gates/disclosure_check.py arrives with the guard patch, P-1"; \
 	else $(PY_HOST) tools/gates/disclosure_check.py; fi
@@ -724,7 +748,8 @@ plan: ## The offline Terraform checks (make infra-check); never apply from here.
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
+	measure-stack arch-inventory
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
