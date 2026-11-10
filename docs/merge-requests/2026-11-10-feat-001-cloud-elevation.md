@@ -129,7 +129,133 @@ Each check ran one at a time, in this worktree, while another session built spec
 
 ### After the combined review: P-E and the reruns
 
-<!-- round 2: pending; the next commit fills it in -->
+#### P-E: its tests RED, then GREEN
+
+P-E's tests and code were written in a plain copy of `deploy/agents-engine/` under `$TMPDIR`, beside an unchanged copy, never in a worktree. RED: a patched export of 8b4fd0f1 with P-1, P-3, P-I1, and P-I2, and P-E's two test files alone, the engine's code unchanged:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=no deploy/agents-engine/test/test_engine_sh.py deploy/agents-engine/test/test_prove_limits_sh.py   # P-1, P-3, P-I1, P-I2, and P-E's tests alone
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_bare_name_patterns_pass_while_no_file_they_match_is_outside_a_mask
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_file_a_bare_pattern_matches_outside_a_mask_is_refused[*.tfstate*-infra/bootstrap/terraform.tfstate]
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_file_a_bare_pattern_matches_outside_a_mask_is_refused[*.tfstate*-terraform.tfstate.backup]
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_file_a_bare_pattern_matches_outside_a_mask_is_refused[*.tfplan-infra/account/x.tfplan]
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_file_a_bare_pattern_matches_outside_a_mask_is_refused[*.tfvars*-prod.tfvars.json]
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_file_a_bare_pattern_matches_under_a_mask_passes
+FAILED deploy/agents-engine/test/test_engine_sh.py::test_a_bare_pattern_is_read_from_either_layer_of_the_settings
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-*.tfstate*-*.tfstate*]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-*.tfplan-*.tfplan]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-*.tfvars*-*.tfvars*]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[fs-*.pem-*.pem]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-.env*-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-*.env-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[fs-.env.*-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-./config/*.key-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-infra/*.tfstate-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-~/.aws/**-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[fs-secrets-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-*-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_deny_name_glob_takes_bare_name_patterns_alone[rule-**-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_glob_sample_is_a_planted_name_the_pattern_matches[*.tfstate*-__h4-prove-e7.tfstate]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_glob_sample_is_a_planted_name_the_pattern_matches[*.tfplan-__h4-prove-e7.tfplan]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_glob_sample_is_a_planted_name_the_pattern_matches[*.tfvars*-__h4-prove-e7.tfvars]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_glob_sample_is_a_planted_name_the_pattern_matches[key-?.pem*-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_glob_sample_is_a_planted_name_the_pattern_matches[*.[pk]em-]
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_the_walk_finds_a_file_a_bare_pattern_matches
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_the_walk_passes_with_no_such_file
+FAILED deploy/agents-engine/test/test_prove_limits_sh.py::test_the_walk_still_finds_env_files_without_patterns
+29 failed, 112 passed in 15.44s
+```
+
+`test_a_pattern_with_a_slash_still_needs_its_folder_masked` passes before and after: it holds what must not change, that only a bare name is exempt. GREEN, the same export with P-E's code too:
+
+```text
+$ shellcheck <the two edited scripts>
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=short deploy/agents-engine/test/test_engine_sh.py deploy/agents-engine/test/test_prove_limits_sh.py   # P-1, P-3, P-I1, P-I2, and P-E
+141 passed in 16.19s
+```
+
+**P-E,** `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch` (eccca942): 21,433 bytes, SHA-256 20445b515dbe800a55eaf95e1668e7e95e253c375d3c9ee2717427279327f3af. Its preamble, then `diff -u` per file, with `a/` and `b/` labels, so `patch -p1` applies it from the repository's top. Applied to a copy of the unchanged plain copies, it gives the edited copy exactly (`diff -r`: no difference). Its four files: `deploy/agents-engine/engine.sh`, `deploy/agents-engine/prove-limits.sh`, `deploy/agents-engine/test/test_engine_sh.py`, and `deploy/agents-engine/test/test_prove_limits_sh.py`. No file in either tree, the combined branch's or your main checkout's, node_modules included, matches `*.tfstate*`, `*.tfplan`, or `*.tfvars*`, so the new check doesn't refuse the engine today.
+
+#### On a fresh export of 065aa4cd, with the five patches
+
+A `git archive` of 065aa4cd in a new folder, each patch applied there from the export's own patch file by `patch -p1`, never in a worktree; P-E held back first, for the RED run:
+
+```text
+p1-guards sha256 b0c1148f0d786321: applied
+p3-claude-md sha256 415742e1f22921b3: applied
+pi1-bootstrap sha256 e32b2148ef3ddbed: applied
+pi2-account sha256 1d5cfb498788099f: applied
+pe-engine sha256 20445b515dbe800a: held back for the RED run
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings   # P-1, P-3, P-I1, P-I2; no P-E
+E   AssertionError: engine.sh: the sandbox read-denies the pattern '*.tfstate*' inside the tree, and no path in tree-masks.txt holds all it matches; mask its directory
+1 failed in 0.16s
+exit 1
+$ patch -p1 --dry-run < docs/merge-requests/2026-11-10-feat-001-pe-engine.patch
+checking file deploy/agents-engine/engine.sh
+checking file deploy/agents-engine/prove-limits.sh
+checking file deploy/agents-engine/test/test_engine_sh.py
+checking file deploy/agents-engine/test/test_prove_limits_sh.py
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings   # and P-E
+1 passed in 0.16s
+exit 0
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra   # the five patches
+4751 passed, 5 skipped in 480.50s (0:08:00)
+exit 0
+$ SANDBOX_RUNTIME= bash redteam/forbidden-actions.sh   # the five patches
+TOTALS      matrix                0 planned (reported, not failing), 2 skipped: stage S not in the agent sandbox; stage E can't read this checkout's engine tree
+REQUIRED    matrix-required       every listed row ran
+forbidden-actions (hook layer): 929 passed, 0 failed, 65 known gaps
+exit 0
+$ shellcheck deploy/agents-engine/*.sh
+exit 0
+$ ruff check --no-cache deploy/agents-engine
+All checks passed!
+$ ruff format --check --no-cache deploy/agents-engine
+7 files already formatted
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
+agent-config static: 0 failed, 0 planned
+exit 0
+```
+
+The first round's one failure, the blocker, is gone; the 30 more passing are P-E's new tests.
+
+#### make lint and make test, at 065aa4cd
+
+```text
+$ make lint
+All matched files use Prettier code style!
+All checks passed!
+545 files already formatted
+exit 0
+$ make test
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+ Test Files  95 passed (95)
+      Tests  1657 passed | 13 skipped (1670)
+ Test Files  139 passed (139)
+      Tests  3108 passed | 1 skipped (3109)
+4344 passed, 71 skipped in 395.69s (0:06:35)
+exit 0
+```
+
+No test failed, the gateway's timing tests among them, so none needed a rerun. `make lint`'s lines are picked from its whole log, 12 lines as in the first round. 065aa4cd's tree differs from this commit's only in this note.
+
+#### gitleaks dir, at this note
+
+As the gate's gitleaks-tree step scans, and as the first round's below: a fresh export of the tip this note sits on, with this note copied in (this section then still pending).
+
+```text
+export of 065aa4cd99bb51638912cbbf4a1616a272a8b5f4 into a new folder, with this note copied in: 2144 files, scanned from inside it
+$ gitleaks dir --no-banner --no-color --redact --config .gitleaks.toml --gitleaks-ignore-path <an empty folder> --ignore-gitleaks-allow --exit-code 99 .
+v8.30.1
+11:52AM INF scanned ~55220318 bytes (55.22 MB) in 5.31s
+11:52AM INF no leaks found
+exit=0
+```
 
 ### The first round, at f843d182
 
