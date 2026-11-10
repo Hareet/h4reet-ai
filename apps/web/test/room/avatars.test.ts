@@ -27,7 +27,9 @@ import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import type { RoomScene } from "../../src/room/compose/bundle";
 import { buildRoom, frameCamera, framedBoxes } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
-import { AVATAR_NODE, CROSSFADE_S, PAPER_LIFT, createAvatarFigures } from "../../src/room/scene/avatars";
+import * as avatarsModule from "../../src/room/scene/avatars";
+import { AVATAR_NODE, CROSSFADE_S, createAvatarFigures } from "../../src/room/scene/avatars";
+import { gripMatrix } from "../../src/room/scene/grip";
 import type { AvatarFigures } from "../../src/room/scene/avatars";
 import type { FigureSignal } from "../../src/room/stage";
 import { PerspectiveCamera } from "three";
@@ -399,10 +401,17 @@ describe("the holding hand and the kept paper (FR-018; R-08, R-09)", () => {
     expect(kept.parent).toBe(hand);
     expect(s.room.paper.atVisitor.opacity).toBe(1);
     expect(s.room.paper.atTwin.opacity).toBe(0);
-    const offset = worldOf(kept).sub(worldOf(hand));
-    expect(offset.x).toBeCloseTo(0, 6);
-    expect(offset.y).toBeCloseTo(PAPER_LIFT, 6);
-    expect(offset.z).toBeCloseTo(0, 6);
+    // Spec 014 (FR-038, FR-040; W15): at the hand's grip, the computed default where the scene gives none, never the
+    // wrist lifted by half the sheet.
+    const front = new Vector3(0, 0, 1).transformDirection((avatarIn(s, "visitor") ?? hand).matrixWorld);
+    const grip = gripMatrix(hand, front, null);
+    if (!grip) throw new Error("no grip");
+    expect(worldOf(kept).distanceTo(new Vector3().setFromMatrixPosition(grip))).toBeLessThan(1e-6);
+    expect(
+      worldOf(kept)
+        .sub(worldOf(hand))
+        .distanceTo(new Vector3(0, 0.297 / 2, 0)),
+    ).toBeGreaterThan(0.01);
     // It moves with the hand as "idle-holding" plays: the hand's motion, carried.
     const before = worldOf(kept).sub(worldOf(hand));
     s.figures.update(500, true, 0);
@@ -418,5 +427,13 @@ describe("the holding hand and the kept paper (FR-018; R-08, R-09)", () => {
     s.figures.handoffEnded();
     expect(s.room.paper.kept.parent).toBe(s.room.scene);
     expect(worldOf(s.room.paper.kept).distanceTo(s.room.anchors.visitorHand)).toBeLessThan(1e-6);
+  });
+});
+
+// T031 (spec 014; FR-038 to FR-041; W15): the paper's grip in the figures' controller. PAPER_LIFT is gone; a grip the
+// scene gives for the holding avatar's hand places the kept sheet's held edge at its point in the hand bone's frame.
+describe("the kept paper at the grip (spec 014, T031)", () => {
+  it("exports no PAPER_LIFT", () => {
+    expect(Object.keys(avatarsModule)).not.toContain("PAPER_LIFT");
   });
 });

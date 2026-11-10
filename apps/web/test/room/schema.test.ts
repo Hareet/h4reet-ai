@@ -1030,3 +1030,37 @@ describe("a finding's path (contracts/room-data-files.md §14)", () => {
     expect(formatPath(["Bad Key"])).toBe("-");
   });
 });
+
+// T031 (spec 014; FR-039; plan.md PD-16; T001's RD7): the scene's figures block's grips, from an avatar of the room's
+// table to `right` and `left`, each `{ at, turn }`: an avatar outside the table, a hand but the two, an `at` past ±0.15,
+// and a turn past ±180 are each refused by RD7; a good grip is read whole, with its numbers.
+describe("the figures' grips (spec 014, T031)", () => {
+  const GOOD = { at: [0.02, -0.06, 0.03], turn: { x: 0, y: 10, z: 180 } };
+  const withGrips = (grips: unknown): Uint8Array =>
+    variant(FILES.scene, (d) => {
+      d.figures = { ...(d.figures as Doc | undefined), grips };
+    });
+  it("reads a good grip whole", () => {
+    const { value, seen } = judge("scene", withGrips({ man: { right: GOOD, left: GOOD }, woman: { left: GOOD } }));
+    expect(seen).toEqual([]);
+    expect(at(value as Doc, "figures", "grips", "man", "right")).toEqual(GOOD);
+  });
+  it.each([
+    ["an avatar outside the room's table", { robot: { right: GOOD } }, "RD7 figures.grips.robot"],
+    ["a hand but right and left", { man: { middle: GOOD } }, "RD7 figures.grips.man.middle"],
+    ["an at past 0.15", { man: { right: { ...GOOD, at: [0.16, 0, 0] } } }, "RD7 figures.grips.man.right.at[0]"],
+    ["an at past -0.15", { man: { right: { ...GOOD, at: [0, -0.2, 0] } } }, "RD7 figures.grips.man.right.at[1]"],
+    [
+      "a turn past 180",
+      { man: { right: { ...GOOD, turn: { x: 181, y: 0, z: 0 } } } },
+      "RD7 figures.grips.man.right.turn.x",
+    ],
+    [
+      "a turn past -180",
+      { woman: { left: { ...GOOD, turn: { x: 0, y: 0, z: -190 } } } },
+      "RD7 figures.grips.woman.left.turn.z",
+    ],
+  ])("refuses %s", (_, grips, expected) => {
+    expect(judge("scene", withGrips(grips)).seen).toContain(expected);
+  });
+});
