@@ -664,7 +664,7 @@ never prod): one turn with the local model stopped reaches the sign as a paid re
 
 ### The refusals
 
-The bash gate refused six commands this session, each for its command's text; none was respelled or retried in
+The bash gate refused seven commands this session, each for its command's text; none was respelled or retried in
 another form:
 
 1. 2026-11-10T16:32:25Z, a `grep` over `evals/breach.py` for the helpers `evals/sign_check.py` loads from it: "Blocked
@@ -683,6 +683,8 @@ another form:
 6. 19:37:20Z, a Python heredoc writing `make check`'s results into this note, whose text quoted the matrix's E10
    line: "Blocked by .claude/hooks/bash-gate.sh — running the agents' engine's Author commands". Nothing ran the
    engine's script; the results were written with the Edit tool.
+7. 19:40:32Z, a recursive delete of the rehearsal's scratch clone and the gitleaks export under `/tmp/claude-1000/f14`:
+   "recursive delete outside workspace". They stay there, outside the repository, until `/tmp` is cleared.
 
 The Write and Edit tools are the route this project's sessions take after such a refusal, since the gate reads a
 command's text, not its effect; each refusal is yours to judge. The post-edit lint also flagged
