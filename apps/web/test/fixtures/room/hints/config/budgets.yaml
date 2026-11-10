@@ -1,0 +1,12 @@
+# A fixture copy of config/budgets.yaml's shape, for the hints' slots (spec 012, T018): prod's ceilings and its
+# fallback sub-budget.
+schema: 1
+envs:
+  prod:
+    daily_usd: 5.00
+    monthly_usd: 20.00
+    fallback_daily_usd: 2.00
+  dev:
+    daily_usd: 1.00
+    monthly_usd: 3.00
+    fallback_daily_usd: 0.50

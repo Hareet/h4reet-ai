@@ -96,6 +96,7 @@ A content file is **approved** when an entry's `sha256` equals its current diges
 | `resume_state` | what the build published from the resume's source: `approved`; `draft`, a drafts build's, under the banner; `withheld`, a draft in a build without drafts, so no header and no items; or `absent` |
 | `header` | the room's header, `{name, lines[]}` with slots filled, and its `source` file and that file's `sha256`; `null` when withheld |
 | `sections[].items[]` | `{id, text}` with slots filled (empty slots render their fallback or nothing), with its `source` file and that file's `sha256`, and `narration: {engineer, non-engineer}`, each `{words, approved, source, sha256}` with its slots filled, or `null` where a build without drafts left a draft out (Phase 5); no sections when withheld, so no narration |
+| `resume_pdf` | the Author's designed PDF when the build serves it as `resume.pdf`: `{source, sha256}`, with `draft: true` when a drafts build serves it unapproved; `null` when the PDF is the render ([contracts/resume-source.md §7](contracts/resume-source.md#7-the-authors-designed-pdf); spec.md's amendment of 2026-11-09). Never in `published`, which holds content files only |
 | `messages` | not written: the fixed messages (§7) are bundled into the page at build instead, so showing one makes no request (plan §4, group 4) |
 
 **`room-manifest.json`:**
@@ -148,6 +149,8 @@ Each `cannot_talk` message ends by pointing to the resume and the PDF.
 | `id` | string, optional | for `object_selected`, an object ID; for `item_selected`, an item ID; for the others, absent |
 
 **(spec 005)** `kind` may also be `fullscreen_entered`, with no `id` (spec 005's FR-060; Amendment H7), beside spec 008's `walk_started` and spec 009's `avatar_failed`; the kinds are `apps/web/src/room/events.ts`'s, which `config/room-events.yaml` lists.
+
+**(spec 012)** `kind` may also be `loading_cut_short`, with no `id` (spec 012's FR-046; Amendment L3): the loader giving way at its ceiling while the room's files are still loading, once a visit.
 
 **Nothing else.** No text, audio, path, avatar, client address, visit ID, or time: the gateway's clock times it (FR-054). It becomes one increment of `h4.room.events{kind, id}`, labelled `id="-"` when absent.
 

@@ -1,0 +1,7 @@
+version: 1
+hints:
+  - id: fx-long
+    by: session
+    text: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty more words than any reader takes in"
+    sources:
+      - intent/900-fx-room.md

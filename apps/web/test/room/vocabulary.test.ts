@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 import {
   ACTIONS,
@@ -150,8 +151,49 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "fullscreen.refused": [],
       "walk.help_fullscreen": [],
       "walk.entered_fullscreen": [],
+      // Spec 012's loader (its FR-016, FR-030, FR-037, FR-051; D8; T013).
+      "loading.heading": [],
+      "loading.code": [],
+      "loading.pieces": ["done", "total"],
+      "loading.finishing": [],
+      "loading.ready": [],
+      "loading.cut_short": [],
+      "hints.label": [],
+      "hints.position": ["n", "total"],
+      "hints.pause": [],
+      "hints.play": [],
+      "hints.previous": [],
+      "hints.next": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(49);
+    expect(Object.keys(UI_KEYS)).toHaveLength(61);
+  });
+
+  // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and
+  // every room holds them with D8's words: the repository's and the fixture set's (RT12), none stating anything about
+  // the Author, no digit outside a slot (RT3).
+  it("hold spec 012's loader words, in the repository's room and the fixture set's", () => {
+    const words = {
+      "loading.heading": "Loading the room",
+      "loading.code": "Loading the room's code",
+      "loading.pieces": "Loading the room's pieces: {done} of {total}",
+      "loading.finishing": "Finishing the room",
+      "loading.ready": "The room is ready.",
+      "loading.cut_short": "The room opens now. Some pieces are still on their way and appear as they arrive.",
+      "hints.label": "Hint",
+      "hints.position": "Hint {n} of {total}",
+      "hints.pause": "Pause hints",
+      "hints.play": "Play hints",
+      "hints.previous": "Previous hint",
+      "hints.next": "Next hint",
+    };
+    for (const [key, text] of Object.entries(words)) {
+      expect(UI_KEYS[key as keyof typeof UI_KEYS], key).toEqual(slotsIn(text));
+      expect(text.replace(/\{[a-z]+\}/g, ""), key).not.toMatch(/\d/);
+      for (const file of ["room/ui-words.yaml", "test/fixtures/room/good/apps/web/room/ui-words.yaml"]) {
+        const parsed = (parse(readFileSync(join(WEB, file), "utf8")) as { words: Record<string, unknown> }).words;
+        expect(parsed[key], `${file}: ${key}`).toBe(text);
+      }
+    }
   });
 
   // T022 (spec 005; FR-065): the HUD's words join the closed list with no slot, and every room holds them: the
@@ -175,8 +217,8 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
     expect(Object.keys(UI_KEYS).filter((k) => k.startsWith("tier."))).toEqual(TIER_VALUES.map((v) => `tier.${v}`));
   });
 
-  it("take slots only from {time}, {amount}, and {name}", () => {
-    expect(SLOTS).toEqual(["time", "amount", "name"]);
+  it("take slots only from {time}, {amount}, {name}, and spec 012's live counts, {done}, {total}, and {n}", () => {
+    expect(SLOTS).toEqual(["time", "amount", "name", "done", "total", "n"]);
     for (const slots of Object.values(UI_KEYS)) for (const slot of slots) expect(SLOTS).toContain(slot);
   });
 

@@ -719,6 +719,8 @@ def test_the_room_row_is_whole_and_sits_above_the_dev_time_row() -> None:
         "Visits that walked",
         # Spec 005's (its FR-062; Amendment H8).
         "Visits in full screen",
+        # Spec 012's (its FR-048; Amendment L4).
+        "Visits whose loading was cut short",
     ]
     # After the stack's own rows and before the dev-time row. Not necessarily right above it: spec 003's studio row
     # (its gpu-window.md §3) goes there, and asks for that place itself.
@@ -791,6 +793,31 @@ def test_the_full_screen_share_reads_as_a_percentage_of_a_stand_in_for_visits() 
     walked = by_title()["Visits that walked"]
     assert panel["gridPos"]["y"] == walked["gridPos"]["y"]
     assert panel["gridPos"]["x"] >= walked["gridPos"]["x"] + walked["gridPos"]["w"]
+
+
+def test_the_cut_short_share_reads_as_a_percentage_of_a_stand_in_for_visits() -> None:
+    # Spec 012's Amendment L4 (FR-048): loading_cut_short over the same stand-in for visits as the walked share, its
+    # description saying that 2D visits, which never show the loader, count in the denominator, so the share reads low.
+    panel = by_title()["Visits whose loading was cut short"]
+    assert panel["fieldConfig"]["defaults"]["unit"] == "percentunit"
+    (target,) = panel["targets"]
+    assert 'kind="loading_cut_short"' in target["expr"]
+    for words in (
+        "loading_cut_short",
+        "resume_opened",
+        "resume_kept",
+        "stand-in",
+        "2D",
+    ):
+        assert words in panel["description"], words
+    # T037, the review's N3: the kind is sent before the hand-off, so a visit cut short that leaves before its offer
+    # counts above the line alone, and the share isn't only low.
+    assert "reads low rather than high" not in panel["description"]
+    assert "before the hand-off" in panel["description"]
+    # Beside "Visits in full screen", in the Room row.
+    full = by_title()["Visits in full screen"]
+    assert panel["gridPos"]["y"] == full["gridPos"]["y"]
+    assert panel["gridPos"]["x"] >= full["gridPos"]["x"] + full["gridPos"]["w"]
 
 
 def test_refused_events_read_by_their_reason() -> None:

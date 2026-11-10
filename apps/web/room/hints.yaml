@@ -1,0 +1,104 @@
+# The loader's hints (spec 012; FR-028 to FR-036; contracts/hints.md): shown one at a time below the loading bar, in
+# this order, from "Enter" until the room opens. The Author's three come first, exactly as he typed them in the
+# intent; the session's twelve follow, each citing the files its facts come from. Every figure is a slot, filled at
+# build from the configuration that enforces it; every word of the room's interface a UI word holds is a {ui:…} slot.
+# Changing, adding, removing, gating (`when: free_talk_ready`), or reordering a hint is an edit here, which the
+# compositor's words family checks (RT2, RT3, RT9, RT14 to RT17). The Author approved this copy as written on
+# 2026-11-09 (spec 012's tasks.md T000), and his hints 1 and 2 show always, with no `when` (D6).
+version: 1
+hints:
+  - id: ask-how-built
+    by: author
+    text: "Make sure to ask how this web site is built, how we evaluated outputs, designed and made it secure."
+    words_from:
+      - file: specs/012-loading-screen/intent.md
+        quote: "Make sure to ask how this web site is built, how we evaluated outputs, designed and made it secure."
+  - id: ask-latest-work
+    by: author
+    text: "Ask about the latest work"
+    words_from:
+      - file: specs/012-loading-screen/intent.md
+        quote: "Ask about the latest work"
+  - id: click-objects
+    by: author
+    text: "click on objects to have the twin start discussing them"
+    words_from:
+      - file: specs/012-loading-screen/intent.md
+        quote: "click on objects to have the twin start discussing them"
+  - id: point-and-list
+    by: session
+    text: 'A border lights up around any piece you can talk about as you point at it; each is also in the "{ui:list.heading}" list.'
+    sources:
+      - specs/008-visitor-movement/spec.md
+      - apps/web/room/ui-words.yaml
+  - id: type-a-question
+    by: session
+    text: "Once a piece has started a conversation, type a question in the conversation's box and press Send."
+    sources:
+      - apps/web/src/talk/talk.ts
+      - config/twin-readiness.yaml
+  - id: your-path
+    by: session
+    text: 'Your path sets the twin''s depth: "Engineer" for each topic''s detail, "Not an engineer" for the overview, with the same facts in both.'
+    sources:
+      - apps/web/src/choice/visit.ts
+      - specs/007-twin-conversation/spec.md
+  - id: walk-around
+    by: session
+    text: 'Press "{ui:walk.enter}": W, A, S, D or the arrow keys walk, Q and E turn, and tapping or clicking the floor walks there.'
+    sources:
+      - apps/web/room/ui-words.yaml
+      - specs/008-visitor-movement/spec.md
+  - id: the-corpus
+    by: session
+    text: "The twin speaks only from a curated, versioned corpus about the Author's real work, and says so when it doesn't know."
+    sources:
+      - .specify/memory/constitution.md
+  - id: the-sign
+    by: session
+    text: 'The neon sign on the monitor counts what your conversation costs: "{ui:sign.call_label}" for the latest answer, "{ui:sign.visit_label}" for all of them.'
+    sources:
+      - specs/004-room-composition/spec.md
+      - apps/web/room/ui-words.yaml
+  - id: local-or-paid
+    by: session
+    text: 'On the sign, an answer from the Author''s own machine reads "local" at no cost; a paid cloud answer shows its estimated cost, marked "est.".'
+    sources:
+      - specs/004-room-composition/spec.md
+      - apps/web/room/ui-words.yaml
+  - id: this-visit
+    by: session
+    text: 'This visit''s total is summed in this page''s memory, never stored or sent, and starts again on reload. An unknown cost reads "{ui:sign.unavailable}".'
+    sources:
+      - specs/004-room-composition/spec.md
+      - apps/web/src/room/signals/turn-cost.ts
+  - id: the-prices
+    by: session
+    text: "The gateway prices every answer from a versioned table: the paid fallback costs {price.input} per million input tokens and {price.output} per million output tokens."
+    sources:
+      - config/prices.yaml
+      - config/routing.yaml
+      - specs/000-local-foundations/spec.md
+      - CLAUDE.md
+  - id: local-first
+    by: session
+    text: "The Author's machine answers first, at no marginal cost. A paid cloud model answers only when it can't, inside a {budget.fallback_daily_usd} fallback sub-budget a day."
+    sources:
+      - config/routing.yaml
+      - config/prices.yaml
+      - config/budgets.yaml
+      - specs/000-local-foundations/spec.md
+  - id: the-ceilings
+    by: session
+    text: "A real-time meter caps spend: {budget.daily_usd} a day, {budget.monthly_usd} a month. At a ceiling, fixed messages replace the twin's answers until the Author resets it."
+    sources:
+      - config/budgets.yaml
+      - specs/000-local-foundations/spec.md
+      - specs/007-twin-conversation/spec.md
+      - .specify/memory/constitution.md
+  - id: second-line
+    by: session
+    text: 'The sign''s second line, "{ui:sign.second_line}", says where its figures come from.'
+    sources:
+      - specs/004-room-composition/spec.md
+      - apps/web/room/ui-words.yaml

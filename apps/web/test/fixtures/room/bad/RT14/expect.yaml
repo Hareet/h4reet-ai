@@ -1,0 +1,4 @@
+rule: RT14
+file: apps/web/room/hints.yaml
+path: hints[0].sources[0]
+why: a session hint citing a file the tree doesn't hold (strict mode)

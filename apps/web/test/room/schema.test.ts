@@ -5,7 +5,7 @@
 // (RD2), a missing key or a value outside its type (RD3), and a version other than 1 (RD4), and holds the constraints
 // T076 and T077 give verbatim; a constraint another family's rule names carries that rule. RD5 keeps the data folders
 // to their kinds. Every input is the known-good fixture set, changed one value at a time.
-import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -16,9 +16,14 @@ import { formatPath } from "../../build/room/checks/family";
 import { loadRoom, namespaceIds, readFile, readJson, readYaml } from "../../build/room/load";
 import type { DataKind } from "../../build/room/load";
 import { fileTree } from "../../build/room/source";
-import { goodFiles, overlay } from "../helpers/room-fixtures";
+import { FIXTURES_DIR, goodFiles, overlay } from "../helpers/room-fixtures";
 
 const good = goodFiles();
+// Spec 012's hints file, which the known-good set doesn't hold: the hints overlay's (test/fixtures/room/README.md).
+good.set(
+  "apps/web/room/hints.yaml",
+  new Uint8Array(readFileSync(join(FIXTURES_DIR, "hints/apps/web/room/hints.yaml"))),
+);
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
@@ -32,6 +37,7 @@ const FILES: Record<DataKind, string> = {
   lookdev: "apps/web/room/lookdev.yaml",
   "room-text": "apps/web/content/room/fx-script.yaml",
   outline: "apps/web/content/room/outlines/fx-sign-words.outline.json",
+  hints: "apps/web/room/hints.yaml",
 };
 const KINDS = Object.keys(FILES) as DataKind[];
 
@@ -138,6 +144,7 @@ describe("each kind's strictObject (RD2, RD3, RD4)", () => {
     lookdev: { missing: ["close_up"], wrong: [["vignette", "show"], "fx-desk"] },
     "room-text": { missing: ["renderer"], wrong: [["lines", 0, "pending"], "no"] },
     outline: { missing: ["paths"], wrong: [["view_box"], "0 0 1 1"] },
+    hints: { missing: ["hints"], wrong: [["hints", 1, "text"], 7] },
   };
 
   it.each(KINDS)("%s: an unknown key, a missing key, and a value outside its type", (kind) => {

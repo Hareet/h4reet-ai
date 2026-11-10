@@ -16,6 +16,10 @@ FR-064's carve-out's known-good overlay (T292; contracts/room-data-files.md §13
 
 FR-052's exemption's known-good overlay (T293; contracts/room-data-files.md §13.3), rooted like the repository: its two files replace the known-good set's (`countersTree()`), and it composes with no finding. The neon panel `fx-neon` becomes two readable faces side by side: `panel`, bound to the UI word alone, and `counters`, bound to the two turn-cost regions alone. Under the floor of 9 px, the counter face falls under it on the reference phone alone, where RG7 exempts it, and meets it on the reference desktop; the word face meets it on both.
 
+## `hints/`: the hints overlay
+
+Spec 012's loader hints (its T018; contracts/hints.md), rooted like the repository, read by `test/room/hints-compose.test.ts` alone: `apps/web/room/hints.yaml`, an Author's hint quoting the known-good set's intent, session hints with a UI word's slot, the figures' slots, and one shown only while free talk is ready; and fixture copies of `config/budgets.yaml`, `config/routing.yaml`, and `config/prices.yaml`, whose last version prices two fallback models, `fx-model-a` for prod's fallback and `fx-model-b` for another adapter. The known-good set holds no hints file, so its index's `hints` is empty.
+
 ## `bad/<RULE>/`: one known-bad case each
 
 A case's folder is named by its rule, alone or with a suffix (`bad/RI4/`, `bad/RI4-label/`). It holds `expect.yaml`, and optionally `files/`, rooted like the repository, whose files replace or join the known-good set's. Adding a case is adding a folder: no test or helper changes.

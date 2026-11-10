@@ -7,6 +7,9 @@
 // checkout's build, and so every other test here, sees the Author's file. No other part of config/ is copied. The
 // runtime stage copies only dist/ (deploy/scripts/test_web_image.py holds it to that), so none of these files reaches
 // nginx's root, and a context file .dockerignore leaves out fails the build (the same file's test).
+// Spec 012 (its FR-033; plan.md PD-21; tasks.md T041): the loader's hints fill their figures from config/budgets.yaml,
+// config/routing.yaml, and config/prices.yaml through the same tree (build/room/hints.ts's hintFigures), so its two
+// further constants join the list, and the image's hints equal a checkout's.
 import { readFileSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 
@@ -22,11 +25,20 @@ import {
   talkLimits,
   twinReadiness,
 } from "../../build/room/readiness";
+import { PRICES_FILE, ROUTING_FILE, hintFigures } from "../../build/room/hints";
 import { fileTree } from "../../build/room/source";
 
 const DOCKERFILE = "apps/web/Dockerfile";
-/** What the room's build reads from config/, by readiness.ts's own names. */
-const INPUTS: readonly string[] = [READINESS_PATH, PACK_FILE, PROMPT_FILE, LINES_FILE, BUDGETS_FILE];
+/** What the room's build reads from config/, by readiness.ts's own names and, since spec 012, hints.ts's. */
+const INPUTS: readonly string[] = [
+  READINESS_PATH,
+  PACK_FILE,
+  PROMPT_FILE,
+  LINES_FILE,
+  BUDGETS_FILE,
+  ROUTING_FILE,
+  PRICES_FILE,
+];
 
 interface Stage {
   /** The FROM's image, or the earlier stage it builds on. */
@@ -140,10 +152,11 @@ const copies = (b: { workdir: string; before: string[] }, path: string): number 
   b.before.filter((line) => copiedTo(line, path, b.workdir) === posix.join(b.workdir, path)).length;
 
 describe("the web image's room build sees the twin's readiness (spec 007; FR-030, FR-037)", () => {
-  it("reads from the tree exactly readiness.ts's five files, by its own constants", () => {
+  it("reads from the tree exactly readiness.ts's five files and hints.ts's two more, by their own constants", () => {
     const tree = fileTree(REPO_ROOT);
     twinReadiness(tree);
     talkLimits(tree);
+    hintFigures(tree);
     expect([...new Set(tree.log)].sort()).toEqual([...INPUTS].sort());
   });
 
@@ -167,7 +180,7 @@ describe("the web image's room build sees the twin's readiness (spec 007; FR-030
     });
   }
 
-  it("copies from config/ those five files by name, and no other part of it, into any stage", () => {
+  it("copies from config/ those seven files by name, and no other part of it, into any stage", () => {
     const sources = STAGES.flatMap((s) => s.body.flatMap((l) => contextCopy(l)?.sources ?? []));
     const config = sources.filter((s) => s === "." || s === "config" || s.startsWith("config/"));
     expect([...config].sort()).toEqual([...INPUTS].sort());

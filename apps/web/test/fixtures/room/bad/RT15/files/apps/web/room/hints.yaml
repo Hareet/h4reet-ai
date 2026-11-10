@@ -1,0 +1,8 @@
+version: 1
+hints:
+  - id: fx-quoted
+    by: author
+    text: "The fixture room holds a desk"
+    words_from:
+      - file: intent/900-fx-room.md
+        quote: "the fixture room holds a desk"

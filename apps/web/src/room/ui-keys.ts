@@ -4,8 +4,9 @@
 // a data label, `label.<name>` (RD2). A slot is filled at run time with a live value, never with data: amounts are live
 // values, so no UI word holds a digit outside a slot (RT3, FR-048).
 
-/** The slots a UI word may hold: `{time}`, `{amount}`, and `{name}`. */
-export const SLOTS = ["time", "amount", "name"] as const;
+/** The slots a UI word may hold: `{time}`, `{amount}`, and `{name}`; since spec 012 (its FR-051), the loader's live
+ *  counts, `{done}`, `{total}`, and `{n}`. */
+export const SLOTS = ["time", "amount", "name", "done", "total", "n"] as const;
 export type Slot = (typeof SLOTS)[number];
 
 export const UI_KEYS = {
@@ -73,6 +74,20 @@ export const UI_KEYS = {
   "fullscreen.refused": [],
   "walk.help_fullscreen": [],
   "walk.entered_fullscreen": [],
+  // Spec 012's loader (its FR-016, FR-030, FR-037, FR-051; D8): its heading, its stage lines, its two end lines, and its
+  // hints' label, position, and three controls. None states anything about the Author.
+  "loading.heading": [],
+  "loading.code": [],
+  "loading.pieces": ["done", "total"],
+  "loading.finishing": [],
+  "loading.ready": [],
+  "loading.cut_short": [],
+  "hints.label": [],
+  "hints.position": ["n", "total"],
+  "hints.pause": [],
+  "hints.play": [],
+  "hints.previous": [],
+  "hints.next": [],
 } as const satisfies Record<string, readonly Slot[]>;
 
 export type UiKey = keyof typeof UI_KEYS;

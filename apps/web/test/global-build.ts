@@ -47,8 +47,13 @@ export interface SiteBuild {
 /** A module's ID as SiteChunks gives it. */
 const moduleName = (id: string): string => (isAbsolute(id) ? relative(REPO, id).split("\\").join("/") : id);
 
-/** A release or drafts build of the site into a new temporary folder, under `policy`, or an empty policy directory. */
-export async function buildSite(options: { readonly drafts: boolean; readonly policy?: string }): Promise<SiteBuild> {
+/** A release or drafts build of the site into a new temporary folder, under `policy`, or an empty policy directory, with
+ *  the site's vite.config.ts, or the config file `config` names (test/helpers/site-without-room-data.config.ts). */
+export async function buildSite(options: {
+  readonly drafts: boolean;
+  readonly policy?: string;
+  readonly config?: string;
+}): Promise<SiteBuild> {
   const made = [mkdtempSync(join(tmpdir(), `h4-web-${options.drafts ? "drafts" : "release"}-`))];
   const out = made[0] as string;
   const policy = options.policy ?? mkdtempSync(join(tmpdir(), "h4-web-policy-"));
@@ -68,7 +73,7 @@ export async function buildSite(options: { readonly drafts: boolean; readonly po
   try {
     const built = await build({
       root: WEB,
-      configFile: join(WEB, "vite.config.ts"),
+      configFile: options.config ?? join(WEB, "vite.config.ts"),
       logLevel: "silent",
       build: { outDir: out, emptyOutDir: true },
     });

@@ -164,6 +164,9 @@ export interface RoomIndex {
   /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
    *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */
   models: string[];
+  /** The loader's hints, filled, in the file's order; a hint whose slot couldn't be filled, or whose `when` isn't met,
+   *  is left out (spec 012; its contracts/hints.md §3; Amendment L7). */
+  hints: string[];
 }
 
 /** A set model, as the room fetches and verifies it (contracts/room-bundle.md §3.2): `url`, `a/<stem>.<hash16>.glb` (a

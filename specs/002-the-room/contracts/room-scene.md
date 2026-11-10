@@ -16,6 +16,8 @@ What the visitor sees and can do, with the IDs other parts use. Spec: FR-001 to 
 
 **(spec 005)** In the room, the AI disclosure is the HUD's strip at the window's top, `index.html`'s own header fixed there, over the scene and in view at every scroll position and in full screen; the choice screen keeps its header (Amendment H6). The **Room** screen gains the full-screen control, in the bar after "Pause the room", where the browser reports that the page can enter full screen. The **Resume** opens over the room, in the clear area, as an opaque panel; "Close" and Escape still return focus to "Resume" (Amendment H2).
 
+**(spec 012)** A **Loading** screen sits between **Choice** and **Hand-off**, in 3D only (its Amendment L1; FR-018, FR-024): from "Enter", the room's page is built as before, dimmed by a tint on each of its parts and inert, and the loader's card shows over it, in place of the stage's line "Loading the room…": a heading, "Loading the room"; a progress bar with its percentage and a line naming what is still loading; and hints below it. It leaves when the loader gives way: every needed file ended, the room fell to 2D, or 7 seconds after "Enter" (its FR-019, FR-020). The AI disclosure and the stand-in line are never tinted or covered (its FR-025). A room in 2D from "Enter" shows no Loading screen (its FR-003).
+
 ## 2. Objects
 
 | ID | What | Topic | Position |
@@ -33,6 +35,7 @@ Each object is a mesh with `userData.objectId`, a raycast target for pointer and
 - **2D mode:** three still frames, 1.5 s each.
 - **No skip:** no control skips it, and keys and clicks during it do nothing but move focus.
 - **Announced:** at its start, the live region (polite) gets "The twin hands you a paper: the Author's resume." At its end, focus moves to "Read the resume now".
+- **(spec 012)** **When it starts:** once the loader has given way (its Amendment L2; FR-019) and spec 009's wait for the figures has ended, and never before. **No skip** covers the loader too: no control skips it (its FR-023).
 
 ## 4. Modes and quality
 

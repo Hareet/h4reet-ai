@@ -1,9 +1,9 @@
 // What the rule families share (spec 004; FR-009, FR-013; R-09, R-10; contracts/room-data-files.md §13 to §15):
 // - the catalogue: every rule of §13, its family, whether lenient mode tolerates it (RX and RK2, the findings about one
-//   piece's model file, and spec 009's RA1 to RA4 and RK5, about the avatars' files), what of it runs only in strict
-//   mode (RT9, RT8's section-title fit, RT13's intent lookup), whether it refuses (all but RG8 and spec 009's RA5, which
-//   only report), and what of it the loader reports as it reads,
-//   from a constraint the schemas hold (schema.ts's `own`), so the family's module needn't check that part again;
+//   piece's model file, spec 009's RA1 to RA4 and RK5, about the avatars' files, and spec 012's RT17, a hint's slot),
+//   what of it runs only in strict mode (RT9, RT8's section-title fit, RT13's intent lookup, spec 012's RT14), whether
+//   it refuses (all but RG8 and spec 009's RA5, which only report), and what of it the loader reports as it reads, from
+//   a constraint the schemas hold (schema.ts's `own`), so the family's module needn't check that part again;
 // - a finding, `<rule> <file>:<path>: <reason>`, its order (file, then path with indices as numbers, then rule), and a
 //   path's form: keys joined by dots, indices in brackets, `-` for the whole file, and a key that isn't printable left
 //   out with everything below it, so no path prints a name RT2 refused;
@@ -89,6 +89,12 @@ export const RULES = {
   RT11: rule("RT"), // a tier word naming the twin
   RT12: rule("RT"), // a closed-list UI key missing, or its slots wrong
   RT13: rule("RT", { strict: "part", loader: "part" }), // an outline's keys, cap height, and paths (the loader's); its intent in strict mode
+  // Spec 012's hints (its Amendment L8; contracts/hints.md §4; plan.md PD-13): RT14 reads the tree's files, so it runs in
+  // strict mode alone, as RT9 does; RT17 warns in lenient mode, the hint left out of the index.
+  RT14: rule("RT", { strict: "whole" }), // a session hint with no source, or one the tree doesn't hold
+  RT15: rule("RT"), // an Author's hint without exactly one words_from, or not its quote exactly
+  RT16: rule("RT"), // a hint over 160 characters or 25 words once filled
+  RT17: rule("RT", { lenient: true }), // a slot outside the closed list, or one the build can't fill
   RV1: rule("RV"), // a piece with no drawing
   RV2: rule("RV", readPart), // point counts, path data, and finite numbers (the loader's)
   RV3: rule("RV", readPart), // a colour outside the palette; a negative stroke width (the loader's)
