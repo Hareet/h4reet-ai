@@ -167,10 +167,11 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 **Goal**: Terraform's state, and the budgets, applied first (FR-001 to FR-008, FR-022). **Independent test**: quickstart §3.
 
 **Precondition**: T001's check holds. The branch's first commit records it.
+  - **Recorded 2026-11-10: unmet.** `.specify/memory/constitution.md` on `refs/heads/main` (d0fac811) reads "**Version**: 1.0.1", not 1.1.0, and ADR 0044 reads "Status: proposed", on `docs/001-ec2-default` (a633f542). The group is built anyway, at the main session's direction, as its reading of the Author's T000 words, "build it out … you can have everything ready and verified by then": the agent work on `feat/001-us1-bootstrap` and its patch, P-I1. Nothing of it merges, and nothing is applied, before T001. That extends the deviation spec.md's Assumptions name for group 1 ("The constitution first"), which now says so; it is the session's reading, not a word of his, and his to overturn.
 
 ### Tests first
 
-- [ ] T020 [P] [US1] Write `infra/test/fixtures/bootstrap/` and `infra/test/test_bootstrap.py`, the first files under `infra/`, which parse the root's HCL with `python-hcl2`:
+- [ ] T020 [P] [US1] Write `infra/test/fixtures/bootstrap/` and `infra/test/test_bootstrap.py`, the first files under `infra/`, which parse the root's HCL with group 1's standard-library reader, `tools/gates/infra_policy.py`'s, from the guard patch P-1 (plan.md Technical Context; research.md R-14):
   - the state bucket: versioned, encrypted, public access blocked, TLS-only;
   - `h4-model-month` at $20 and `h4-model-day` at $5, on Bedrock's cost, with notifications at 70% and 100%;
   - `h4-server-month` at `var.server_budget_usd`, on every cost but Bedrock's, at 70% and 100%;
