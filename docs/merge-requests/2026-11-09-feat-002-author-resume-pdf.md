@@ -2,7 +2,7 @@
 
 Spec: [specs/002-the-room/](../../specs/002-the-room/spec.md), its Clarifications' [amendment of 2026-11-09](../../specs/002-the-room/spec.md#amendment-2026-11-09-the-authors-designed-pdf), [plan.md §2](../../specs/002-the-room/plan.md#2-the-resume-source-checks-and-two-renderings-user-story-1-fr-013-to-fr-019-r-05-r-06) ("The Author's PDF"), [contracts/resume-source.md §7](../../specs/002-the-room/contracts/resume-source.md#7-the-authors-designed-pdf), and data-model.md §5 · Intent: none new (intent 002) · Written by: implementer subagent (Claude Opus 5.5), for the main session · Date: 2026-11-09
 
-Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is `/tmp/claude-1000/wt-resume-pdf`, cut with `git worktree add -b` at e324771e and now based on 8adb4abb, your "policy: mit, dinov3, bsd-3-clause". `main` has since moved to e7fa53ed, your "test(gates): A10 on P-1's own file"; the branch rebases onto `main` once `fix/009-avatars-ready` is in too. Repo hooks active: yes. This session's entries in `.claude/audit/hooks.log` that weren't ALLOW:
+Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is `/tmp/claude-1000/wt-resume-pdf`, cut with `git worktree add -b` at e324771e and now rebased onto 787d85af, `main`'s tip with `fix/009-avatars-ready` (through f76ead54), the web image's readiness fix, and the Anthropic switch merged, and your A10 fix (e7fa53ed) before them. Repo hooks active: yes. This session's entries in `.claude/audit/hooks.log` that weren't ALLOW:
 
 ```text
 2026-11-09T20:42:28Z	post-edit	WARN	lint failed :: /tmp/claude-1000/wt-resume-pdf/apps/web/test/content/author-pdf.test.ts
@@ -11,26 +11,28 @@ Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This 
 2026-11-09T20:47:21Z	post-edit	WARN	lint failed :: /tmp/claude-1000/wt-resume-pdf/apps/web/build/content.ts
 2026-11-09T20:58:30Z	bash	BLOCK	recursive delete outside workspace :: rm -rf <the session's scratchpad>/glpdf <the session's scratchpad>/glrepo
 2026-11-09T21:18:37Z	bash	BLOCK	switching to main :: R=$TMPDIR/guardtest; … git init -q -b main … git switch -q main … zsh steps.zsh
+2026-11-10T06:40:36Z	bash	BLOCK	changing main (HEAD is main) :: cd /tmp/claude-1000/wt-resume-pdf && python3 -I - <<'EOF' … (an edit of this note)
+2026-11-10T06:41:28Z	bash	BLOCK	changing main (HEAD is main) :: cd /tmp/claude-1000/wt-resume-pdf && git add docs/merge-requests/2026-11-09-… && git commit …
 ```
 
-The four warnings were imports written one edit before their first use; every file passes lint now. The bash gate refused two commands, and in each nothing ran and nothing was respelled:
+The four warnings were imports written one edit before their first use; every file passes lint now. The bash gate refused four commands, and in each nothing ran and nothing was respelled:
 - deleting two scratch folders that hold copies of your PDF, made for the gitleaks check (Verification). They're in "Cleanup" below;
-- a rehearsal of step 4's guard in zsh, on a scratch repository of two empty commits, which the gate read as a switch to main. So step 4 hasn't run here. Its lines are the guard you ran for `fix/007-live-runs-2`, with shorter names, and the ancestor test split over two lines.
+- a rehearsal of step 4's guard in zsh, on a scratch repository of two empty commits, which the gate read as a switch to main. So step 4 hasn't run here. Its lines are the guard you ran for `fix/007-live-runs-2`, with shorter names, and the ancestor test split over two lines;
+- after the rebase, a script editing this note, and then this note's commit, while your checkout of main was on `main` for your live runs. The note's edit was made in the editor instead, with the same words; the commit waited until your checkout was parked.
 
 The two BLOCKs on this worktree at 21:26:06Z and 21:29:55Z ("a read-only role writing a file") came from the reviewer's read-only session, not this one.
 
 Authorized by: your approval of the amendment in the main session on 2026-11-09, recorded verbatim in spec.md's Clarifications, as the main session's brief relayed it; and the main session's review of 9320b778, as it relayed it.
 
-## Status: reviewed once (can merge, with changes requested), the changes made; not reviewed again, not merged
+## Status: reviewed once (can merge, with changes requested), the changes made, rebased onto main 787d85af; not reviewed again, not merged; `make check` on this tip waits for the main session's go
 
 | Commit | What |
 |---|---|
-| d5465d62 | RED: the designed PDF's tests, the download name's, and `resume_pdf` in the smoke test, the review's cases among them |
-| f48a8a50 | GREEN: the code, spec.md's amendment, plan.md's departure, the contract's §7, data-model.md, quickstart.md, the web README |
-| c2011d9c | chore: Prettier skips the product evals' and the red-team's run records, which fail `main`'s `make lint` since e324771e. Outside the amendment; `fix/009-avatars-ready` carries the same lines, so this commit goes when the branch rebases onto it |
+| 0771df98 | RED: the designed PDF's tests, the download name's, and `resume_pdf` in the smoke test, the review's cases among them |
+| 04c984c3 | GREEN: the code, spec.md's amendment, plan.md's departure, the contract's §7, data-model.md, quickstart.md, the web README |
 | this commit | this note, and the approval patch beside it, `2026-11-09-feat-002-pdf-approval.patch` |
 
-**The history was rebuilt after the review.** The first version wrote your surname into eight files the agents wrote, 20 times, and into two commit messages, and `tools/gates/publish_check.py` checks every blob in history against your denylist. These four commits replace the reviewed ones (06d511c4, 0a0e3fd7, 39bb8e0a, 9320b778), which no branch or tag reaches any more. Now the surname is only in spec.md's two verbatim quotes of your words, where the review kept it. The review's changes were still written test-first: their RED run against the reviewed code is in Verification.
+**The history was rebuilt after the review.** The first version wrote your surname into eight files the agents wrote, 20 times, and into two commit messages, and `tools/gates/publish_check.py` checks every blob in history against your denylist. These three commits replace the reviewed ones (06d511c4, 0a0e3fd7, 39bb8e0a, 9320b778), which no branch or tag reaches any more. The Prettier fix that sat between them (c2011d9c) is gone: `main` carries its own, from `fix/009-avatars-ready`. Now the surname is only in spec.md's two verbatim quotes of your words, where the review kept it. The review's changes were still written test-first: their RED run against the reviewed code is in Verification.
 
 **Three things differ from the option you approved** ("you add the PDF's hash to approvals.json, then gate and merge"):
 
@@ -40,14 +42,14 @@ Authorized by: your approval of the amendment in the main session on 2026-11-09,
 
 **And one gap, named in plan.md §2 as a departure from ADR 0034:** nothing human-only checks that the PDF `dist/` serves is one `main` approves. `tools/gates/content_check.py` never reads `dist/resume.pdf`, so the build's own code is what keeps an unapproved file out of a release build. The Backlog has the patch that closes it.
 
-**Two of `main`'s failures reach this branch.** Neither comes from it:
+**`main`'s failures before this rebase.** Neither came from this branch:
 
-- **`test` fails on `main`**, by every sign since e324771e changed `config/twin-readiness.yaml`:
-  - `apps/web`: 8 tests in `test/room/chunk.test.ts` and `test/room/dist.test.ts` fail. The built manifest shows the objects `ready: true` where `compose()` in the test says `false`, and the bundle's digest differs.
-  - pytest: `tools/gates/test/test_arrival_check.py::test_a10_passes_p1s_own_file_whose_comments_show_ready_true` fails.
+- **`test`** failed on `main` from e324771e, which changed `config/twin-readiness.yaml`, until the merges now on it:
+  - `apps/web`: 8 tests in `test/room/chunk.test.ts` and `test/room/dist.test.ts`, which `fix/009-avatars-ready` fixes;
+  - pytest: `tools/gates/test/test_arrival_check.py::test_a10_passes_p1s_own_file_whose_comments_show_ready_true`, which your e7fa53ed fixes.
 
-  The same 8 web failures show on `main`'s own code. This branch touches neither `config/` nor `tools/gates/`. `fix/009-avatars-ready` fixes the 8, and your e7fa53ed, now on `main`, fixes the A10 test; the session rebases onto `main` once `fix/009-avatars-ready` is in, so the gate should see none of them.
-- **`lint`:** fixed here, by c2011d9c, and by `fix/009-avatars-ready` too.
+  Both are on `main` now, under this branch. Their runs below are from before the rebase. `make check` on this tip comes when the main session says the machine is free; until then, lint and the PDF's tests are the runs on it (Verification).
+- **`lint`** failed on `main`'s four run records, which `main`'s `.prettierignore` now skips.
 
 ## Runs in your terminal (ADR 0017)
 
@@ -109,7 +111,7 @@ log=~/gate-resume-pdf.log
 tools/gates/gate "$c" 2>&1 | tee "$log"
 ```
 
-Expect Ready, with `evals` WARN, the behavioral tier's line about `main`'s recorded run, once the session has rebased onto `main` with `fix/009-avatars-ready` in. Before that, `test` fails for `main`'s reasons (Status). The content build runs PDF1 to PDF9 on your file and serves the render, since `main` doesn't approve it yet. Where the gate shows the build's lines, one says so: "resume: apps/web/content/resume-author.pdf passed PDF1 to PDF9; main doesn't approve it, so the PDF is the render". With any other failure, don't merge; tell the session.
+Expect Ready, with `evals` WARN, the behavioral tier's line about `main`'s recorded run. The session's `make check` on this tip is still to come (Status): if it finds anything, the note says so before you gate. The content build runs PDF1 to PDF9 on your file and serves the render, since `main` doesn't approve it yet. Where the gate shows the build's lines, one says so: "resume: apps/web/content/resume-author.pdf passed PDF1 to PDF9; main doesn't approve it, so the PDF is the render". With any other failure, don't merge; tell the session.
 
 **4. The guard and the merge.** It prints `guard: go`, and merges, only when the gate printed its merge line, your checkout is on `main`, the branch is at the SHA the gate checked, and `main` is an ancestor of that SHA:
 
@@ -225,7 +227,6 @@ The scratchpad's two folders hold copies of your PDF. A WSL restart clears all o
 | `specs/002-the-room/plan.md` §2 | "The Author's PDF": the departure, where it differs from the option you approved, the drafts rule, and the departure from ADR 0034 |
 | `specs/002-the-room/contracts/resume-source.md` | §7, the designed PDF: when it's served, what's written beside it, PDF1 to PDF9, the allowlist, and the download name. §4's "Links" row and §5's kinds point to it |
 | `specs/002-the-room/data-model.md` §5, `quickstart.md` §3, `apps/web/README.md` | `resume_pdf`; a check for you after `make up`; the new files |
-| `.prettierignore` | `evals/product/history/` and `redteam/history/`, kept byte for byte (c2011d9c) |
 | `docs/merge-requests/2026-11-09-feat-002-pdf-approval.patch` | Your approval, for step 5 |
 
 **What the design settled** (spec.md's amendment and the contract's §7 hold it all):
@@ -290,7 +291,18 @@ Not reviewed again.
 
 ## Verification
 
-All on this worktree unless noted, at c2011d9c's code; the note's commit adds two documents. The history was rebuilt twice after the review: first as 669809c6, 3c8baf9f, and ef18c7f7, whose `make check` failed `lint` on one line of `author-pdf.test.ts` that an editing script had wrapped and Prettier joins, then, with that line formatted, as d5465d62, f48a8a50, and c2011d9c. ef18c7f7's tree differs from c2011d9c's in that line alone.
+All on this worktree unless noted; the note's commit adds two documents.
+
+**On this tip, rebased onto 787d85af** (0771df98 RED and 04c984c3 GREEN, with no conflict). `make -f Makefile lint`, exit 0: ESLint, tsc, "All matched files use Prettier code style!", ruff "All checks passed!", "463 files already formatted", shellcheck clean. Then the PDF's five test files, `npx vitest run test/content/author-pdf.test.ts test/ui/pdf-download.test.ts test/smoke.test.ts test/content/publication.test.ts test/pdf.test.ts`, exit 0:
+
+```text
+ Test Files  5 passed (5)
+      Tests  72 passed | 1 skipped (73)
+```
+
+The approval patch still applies to `main`'s `content-approvals.json`, which 787d85af leaves as it was (`git apply --check`). `make check`, `make test`, `make evals`, gitleaks on an export, and the rehearsal on this tip wait for the main session's go. The rest of this section ran before the rebase, at c2011d9c, whose code matches this tip's: the rebase brought `main`'s changes in under it, and dropped c2011d9c's `.prettierignore` lines for `main`'s own.
+
+The history was rebuilt twice after the review: first as 669809c6, 3c8baf9f, and ef18c7f7, whose `make check` failed `lint` on one line of `author-pdf.test.ts` that an editing script had wrapped and Prettier joins; then, with that line formatted, as d5465d62, f48a8a50, and c2011d9c, which the rebase made 0771df98 and 04c984c3.
 
 **RED, the review's changes**, against the reviewed code (9320b778): `npx vitest run test/content/author-pdf.test.ts test/ui/pdf-download.test.ts`, with the review's cases written in and no code changed:
 
@@ -311,7 +323,7 @@ Error: Cannot find module '../../build/download-name' imported from /tmp/claude-
 
 PDF9's case failed on the note, an annotation other than a link: the reviewed code already caught the JavaScript, the XMP stream, and the form field.
 
-**RED, the rebuilt history**, at d5465d62, on a plain export of it (`/tmp/claude-1000/export-resume-pdf-red`, this worktree's `node_modules` linked in): the same three files as the first version's RED. The two new files fail at import, and the smoke test on `resume_pdf`:
+**RED, the rebuilt history**, at d5465d62 (now 0771df98), on a plain export of it (`/tmp/claude-1000/export-resume-pdf-red`, this worktree's `node_modules` linked in): the same three files as the first version's RED. The two new files fail at import, and the smoke test on `resume_pdf`:
 
 ```text
  FAIL  test/content/author-pdf.test.ts [ test/content/author-pdf.test.ts ]
@@ -348,7 +360,7 @@ ruff format --check --no-cache --extend-exclude corpus .
 shellcheck -- .claude/git-hooks/pre-commit … tools/gates/secrets.sh   (21 files, no finding)
 ```
 
-Without c2011d9c it fails on `main`'s four run records alone: "[warn] Code style issues found in 4 files", `evals/product/history/2026-11-09T175245Z-local.json`, `…191058Z-bedrock.json`, `redteam/history/20261109T175353Z-local.json`, and `…191059Z-bedrock.json`.
+Before the rebase, without c2011d9c, it failed on `main`'s four run records alone: "[warn] Code style issues found in 4 files", `evals/product/history/2026-11-09T175245Z-local.json`, `…191058Z-bedrock.json`, `redteam/history/20261109T175353Z-local.json`, and `…191059Z-bedrock.json`.
 
 **`make test`**, as `make check`'s `test` step ran it, exit 2: it stops at the web workspace, on `main`'s 8 failures (Status):
 
@@ -449,7 +461,7 @@ The content check is `main`'s `tools/gates/content_check.py`. It ran with that p
 - on a scratch repository holding it, `gitleaks git --log-opts="--all --text"`, as the publish check reads history: "scanned ~243644 bytes … no leaks found";
 - on a plain export of this branch's tree as first committed with this note, 37dfb173 (`git archive` into `/tmp/claude-1000/export-resume-pdf-tip`), with an empty ignore path and `--ignore-gitleaks-allow`: "scanned ~40283241 bytes (40.28 MB) … no leaks found". The commit was then amended to write this line, which is all that differs.
 
-**The merge rehearsal** into `refs/heads/main` with `git merge-tree --write-tree`, which writes no worktree. Into 8adb4abb, this branch's base, the merged tree is c2011d9c's own, since `main` was an ancestor. Into e7fa53ed, `main` now: exit 0, no conflict, and the merged tree (2417d313) differs from c2011d9c's (bc5f43cd) in `tools/gates/test/test_arrival_check.py` alone, your A10 fix. This note's commit adds two documents beside them, and the session's report gives the final tip's lines.
+**The merge rehearsal**, before the rebase, into `refs/heads/main` with `git merge-tree --write-tree`, which writes no worktree. Into 8adb4abb, then this branch's base, the merged tree was c2011d9c's own, since `main` was an ancestor. Into e7fa53ed, `main` then: exit 0, no conflict, and the merged tree (2417d313) differed from c2011d9c's (bc5f43cd) in `tools/gates/test/test_arrival_check.py` alone, your A10 fix. Now `main`, 787d85af, is this tip's base, so the merge writes the tip's own tree; the rehearsal on this tip waits with `make check`.
 
 **Git keeps your PDF's bytes:** `git hash-object --path=apps/web/content/resume-author.pdf` equals `--no-filters` (7c2c1f07): git reads it as binary, so `.gitattributes`' `text=auto eol=lf` leaves it alone, and the committed file hashes as step 1 says.
 
@@ -462,7 +474,7 @@ None. No model call, no new endpoint, no new event, and no new byte leaving a vi
 ## For the Author
 
 1. **The order:** steps 0 to 7. Step 5, the approval, comes after the merge, on `main` (Status).
-2. **`main`'s red `test`** (Status): `fix/009-avatars-ready` comes first, and your A10 fix is in; the session rebases this branch onto `main`, dropping c2011d9c, and gives you the new tip.
+2. **`main`'s red `test`** (Status) is fixed on `main` by the merges under this branch. The session's `make check` on this tip comes first, and the session gives you the tip for step 1 with it.
 3. **The denylist gap:** no automated run applies your private denylist to the PDF. Step 0 is the check for this file. Any later edit to the PDF needs step 0 again (ask the session for a new `resume-pdf-pdf4.txt`), a new hash, and a new approval.
 4. **Your surname in history:** this branch holds it only in spec.md's two quotes of your words. `assets/policy/resume-header.json` already holds it, and your PDF, once committed, holds your name too, as glyph codes and properties (`publish_check.py` reads blobs as text, so it may or may not see it there). The reviewed commits that held it more widely are unreachable; `git gc` drops them once your reflog lets go of them.
 5. **Your PDF's properties** are Chromium's: its title, your full name and hareet.ai; the producer and creator; and the export's two dates (2026-10-29). The amendment allows them (FR-019 as amended). A PDF export without them would need another tool.
