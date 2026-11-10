@@ -1,5 +1,7 @@
 # Contract: the sign's end-to-end check (spec 014, FR-056 to FR-059)
 
+**Status: withdrawn** by spec.md's Amendment X1 after the review (T053), the Author's answer of 2026-11-10: "Drop the make target". Kept as the record of what was planned; nothing in the repository implements it.
+
 A check on a running dev stack that a conversation turn, with the local model stopped, reaches the neon sign as a paid reading: through the gateway, the edge, and the page's own cost code, with no paid call. It sits beside the breach test (`evals/breach.py`, spec 000 FR-036), which already stops and starts a dev stack's model server and runs its HTTP calls from a probe on the stack's internal network. A file named here that doesn't exist yet is in a code span.
 
 ## 1. Entry points

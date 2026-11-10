@@ -672,29 +672,12 @@ else
 	$(PY_HOST) $(TREE)/evals/breach.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))$(if $(call from_cli,DELIVERY), --delivery="$$DELIVERY")
 endif
 
-# The sign's check from end to end (spec 014, FR-056 to FR-058; contracts/sign-check.md; plan.md §10): evals/sign_check.py,
-# by path through PY_HOST, stops the stack's model server, sends one turn through the edge's site listener from a probe
-# on the internal network, reads its route and cost through the room's own turn-cost code, then starts the model server
-# and does it again. dev and dev-cpu only, with breach-test's guards and relay; never prod, and no paid call.
-sign-check: ## The sign's end-to-end check on dev or dev-cpu, model server stopped then started (spec 014); never prod
-	@case "$(ENV)" in dev|dev-cpu) ;; *) echo "make sign-check runs on dev or dev-cpu, never $(ENV) (spec 014, FR-057)" >&2; exit 2 ;; esac
-ifeq ($(VIA_RELAY),1)
-	@[ "$(ENV)" = dev-cpu ] || { echo "make sign-check ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
-	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make sign-check: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
-	$(RELAY) make --no-print-directory sign-check ENV=dev-cpu
-else
-	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || [ "$(ENV)" = dev-cpu ] || { echo "make sign-check ENV=$(ENV): agent sessions run dev-cpu only, on their own engine (FR-039); the Author runs dev" >&2; exit 2; }
-	@[ -z "$(RUNFILE)" ] || [ -f "$(RUNFILE)" ] || { echo "make sign-check ENV=$(ENV): h4reet-$(ENV) wasn't started by make up (no $(RUNFILE))" >&2; exit 2; }
-	@[ -f "$(TREE)/evals/sign_check.py" ] || { echo "make sign-check ENV=$(ENV): the commit being run has no evals/sign_check.py" >&2; exit 2; }
-	$(PY_HOST) $(TREE)/evals/sign_check.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))
-endif
-
 plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
 	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test sign-check plan
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan

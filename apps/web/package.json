@@ -25,7 +25,6 @@
     "room:report": "node --import tsx build/room/cli.ts report",
     "room:scan": "node --import tsx build/room/cli.ts scan",
     "room:fit": "node --import tsx build/room/cli.ts fit",
-    "room:sign": "node --import tsx build/room/sign-reading.ts",
     "twin:pack": "node --import tsx build/twin-pack.ts"
   },
   "devDependencies": {
