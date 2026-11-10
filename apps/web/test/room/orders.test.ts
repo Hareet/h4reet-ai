@@ -414,7 +414,7 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
     expect(rows.slice(-3)).toEqual([
       "- [ ] `fx-edge`: on the anchor `floor`, offset x -1.3125, y 1.5, z -0.8 (measured)",
       "- [ ] `fx-upper`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.55 above the floor, 0 out from the wall (measured)",
-      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.1015 above the floor, 0 out from the wall (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.124 above the floor, 0 out from the wall (measured)",
     ]);
   });
 
@@ -456,7 +456,7 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
     );
     expect(rows.filter((r) => r.includes("`left-wall`"))).toEqual([
       "- [ ] `fx-upper`: on the anchor `left-wall`, offset x 0, y 1.5, z 0 (measured)",
-      "- [ ] `fx-lower`: on the anchor `left-wall`, offset x 0, y 1.0515, z 0 (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, offset x 0, y 1.074, z 0 (measured)",
     ]);
   });
 
@@ -469,7 +469,7 @@ describe("the photo guide (contracts/room-bundle.md §9.2)", () => {
     );
     expect(rows.filter((r) => r.includes("-wall`"))).toEqual([
       "- [ ] `fx-upper`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.55 above the floor, 0.0008 out from the wall (measured)",
-      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.1015 above the floor, 0.0008 out from the wall (measured)",
+      "- [ ] `fx-lower`: on the anchor `left-wall`, its origin (Fixture point at the centre of the sign's foot) 0.45 from the back wall and 1.124 above the floor, 0.0008 out from the wall (measured)",
       "- [ ] `fx-right`: on the anchor `right-wall`, its origin (Fixture point at the centre of the sign's foot) 0.55 from the back wall and 1.25 above the floor, 0.02 out from the wall (measured)",
     ]);
   });

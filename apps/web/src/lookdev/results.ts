@@ -29,8 +29,10 @@ export interface Probe {
 
 export type SceneChoice = "room" | "vignette";
 /** The reference stages, stages.ts's on any device; the phone copy's own device's stage, from its probe, which on the
- *  reference phone re-measures its stage; and the desk close-up. */
-export type ViewChoice = "desktop" | "phone" | "device" | "close-up";
+ *  reference phone re-measures its stage; the desk close-up; and spec 005's window views (its FR-059; plan.md §10.4):
+ *  the reference desktop's, the reference phone's, and a large monitor's whole window, the HUD over it. */
+export type ViewChoice =
+  "desktop" | "phone" | "device" | "close-up" | "window-desktop" | "window-phone" | "window-monitor";
 /** Automatic, the real controller; or a level pinned for a measurement. */
 export type QualityChoice = "auto" | 0 | 1 | 2 | 3;
 
@@ -45,6 +47,11 @@ export interface RunSetup {
   readonly stage: readonly [number, number];
   /** The pixel ratio drawn at. */
   readonly dpr: number;
+  /** Spec 005 (FR-059): the window the canvas fills in a window view, null in a stage view; the drawing buffer's size in
+   *  device pixels; and the level's pixel cap in force. */
+  readonly window: readonly [number, number] | null;
+  readonly buffer: readonly [number, number];
+  readonly cap: number;
   /** The look's ID, and the fixture's. */
   readonly look: string;
   readonly sample: string;
@@ -81,6 +88,10 @@ export interface Results {
   readonly view: ViewChoice;
   readonly stage_css: readonly [number, number];
   readonly dpr: number;
+  /** Spec 005 (FR-059): the window drawn in a window view, or null; the drawing buffer; and the pixel cap in force. */
+  readonly window_css: readonly [number, number] | null;
+  readonly buffer_px: readonly [number, number];
+  readonly pixel_cap: number;
   readonly look: string;
   readonly sample: string;
   readonly quality: {
@@ -146,6 +157,9 @@ export function results(setup: RunSetup, run: RunReadouts): Results {
     view: setup.view,
     stage_css: [nearest(setup.stage[0], 10), nearest(setup.stage[1], 10)],
     dpr: nearest(setup.dpr, 1e4),
+    window_css: setup.window === null ? null : [setup.window[0], setup.window[1]],
+    buffer_px: [setup.buffer[0], setup.buffer[1]],
+    pixel_cap: setup.cap,
     look: setup.look,
     sample: setup.sample,
     quality: {
@@ -198,6 +212,9 @@ export function resultsText(r: Results): string[] {
         `CSS px at a pixel ratio of ${p.dpr}`,
     `Scene ${r.scene}, view ${r.view}${r.view === "close-up" ? ", which judges nothing" : ""}: a stage of ` +
       `${size(r.stage_css)} CSS px at a pixel ratio of ${r.dpr}`,
+    // Spec 005 (FR-059): the window drawn, the buffer, and the cap.
+    `${r.window_css === null ? "No window: the stage is the canvas" : `A window of ${size(r.window_css)} CSS px`}; a ` +
+      `buffer of ${size(r.buffer_px)} device px, under a cap of ${count(r.pixel_cap)}`,
     `Look ${r.look}, sample state ${r.sample}`,
     `Quality ${q.mode === "auto" ? "automatic" : `pinned at ${q.mode}`}: settled at ${q.settled}, after ` +
       `${plural(q.step_downs, "step-down")}, ${q.step_downs_while_loading} while a hold was held or a piece loaded`,

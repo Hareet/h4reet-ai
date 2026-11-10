@@ -41,6 +41,8 @@ The spec's Terms: "A drafts build: spec 002's `-drafts` images of dev and dev-cp
 - **Reference phone.** In the phone copy, the phone's own stage: the room's layout at the phone's viewport, by the `stages` module's formulas (pinned by a test to `apps/web/src/room/room.css`, on `feat/002-us6-events`), at the phone's pixel ratio; the results record both (§6), which is how lookdev re-measures the reference phone's stage, about 368 × 420. On the desktop, the last measured phone stage and pixel ratio from `stages.ts`: FR-069's option B, should the phone fail its probe.
 - **Desk close-up.** The placements `lookdev.yaml` lists under `close_up.frame` (the desk and what stands on it), framed by the same `framing` over their boxes: a secondary view, for detail. Its readouts are labelled "close-up" and judge nothing; the intent: "Legibility is judged at the room's real framing, not at a close-up."
 
+**(spec 005)** The views gain three window views (spec 005's FR-059; its plan.md §10.4, PD-25; Amendment H16): `window-desktop`, `window-phone`, and `window-monitor`, the reference desktop's 1920 × 1200 window at a pixel ratio of 1, the reference phone's 384 × 740 at 2.8125, and a large monitor's 2560 × 1440 at 1. The canvas fills the whole window, the room is framed into its clear area by the room's shifted camera, and the HUD's docked boxes lie over it as static glass with the room's classes, blurred at quality levels 0 and 1. Every view draws at the room's buffer ratio (`fit.ts`'s `bufferRatio`), the level's pixel cap among its bounds, and the readouts gain the buffer, the ratio, and the cap. Spec 005's look is judged on the live room, not here (its Q2 answer); these views measure its cost.
+
 ## 4. Candidates, in memory only (FR-067, FR-068, FR-023)
 
 - **Reading.** A picked file is read with `File.arrayBuffer()` and held as a `Uint8Array`, and nothing else is done with the file.
@@ -106,6 +108,7 @@ At a run's end, the page shows its readouts as text and as one JSON block in a r
 | `probe` | §7.2's fields in the phone copy; `null` on the site's page |
 | `scene` | `room` or `vignette` |
 | `view`, `stage_css`, `dpr` | `desktop`, `phone`, or `close-up`; the stage drawn, in CSS pixels, and the pixel ratio drawn at, which in the phone copy re-measure the reference phone's stage |
+| `window_css`, `buffer_px`, `pixel_cap` | **(spec 005)** the window a window view's canvas fills, in CSS pixels, or `null` in a stage view; the drawing buffer, in device pixels; and the quality level's pixel cap in force, in device pixels (spec 005's FR-059) |
 | `look`, `sample` | the look's and the fixture's IDs |
 | `quality` | `mode`, `"auto"` or the pinned level, 0 to 3; `settled`, the level at the run's end; `step_downs`, in all, and `step_downs_while_loading`, while any hold is held or any piece loads |
 | `duration_s`, `scripted_load` | 120 for SC-005's visit, 600 for its soak; whether the run began with the scripted load. A run stopped early produces no results |

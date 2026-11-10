@@ -10,6 +10,7 @@
 //   walking its listener isn't passive, so it can keep the page from scrolling.
 // - Every held key and drag is dropped when the walking view or the window loses focus, the page hides, or the input
 //   is unbound, so nothing moves until a new input begins (FR-029).
+import { browserOwnsEscape } from "../fullscreen";
 import { TAP_SLOP_PX } from "../objects";
 import type { Ndc } from "../objects";
 import type { Move } from "./movement";
@@ -94,7 +95,8 @@ export function createWalkInput(surface: HTMLElement, win: Window): WalkInput {
     if (e.key === "+" || e.key === "=") zoom += 1;
     else if (e.key === "-" || e.key === "−") zoom -= 1;
     else if (e.key === "Enter") enter = true;
-    else if (e.key === "Escape") escape = true;
+    // In full screen the browser takes Escape to leave it; the walking view keeps its own for the next (spec 005, FR-039).
+    else if (e.key === "Escape" && !browserOwnsEscape(win.document)) escape = true;
   };
   const onKeyUp = (e: KeyboardEvent): void => {
     const what = keyOf(e);

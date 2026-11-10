@@ -46,6 +46,8 @@ import type { LookdevDeps, LookdevPage } from "../../src/lookdev/page";
 import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
+import { clearArea } from "../../src/room/compose/hud";
+import { bufferRatio, viewOffsetFor } from "../../src/room/fit";
 import { readImage } from "../../src/room/glb/images";
 import { REASON, count } from "../../src/room/glb/rules";
 import { MODEL_FLOOR } from "../../src/room/quality";
@@ -750,7 +752,9 @@ describe("the scene, the look, the sample state, quality, and pause (contracts/l
     pinned.clock.advance(20_000, 100);
     expect(pinned.page.stage.level).toBe(2);
     expect(pinned.page.stage.quality).toBe(2);
-    expect(pinned.renderer.ratio).toBe(Math.min(1, qualitySettings(2).pixelRatio));
+    // Since spec 005 the desktop's stage is its clear area, 1472 × 1120.5, where level 2's pixel cap binds.
+    const { w, h } = REFERENCE_DESKTOP.stage;
+    expect(pinned.renderer.ratio).toBeCloseTo(bufferRatio(1, qualitySettings(2), w, h), 12);
   });
 
   it("pauses the idle sway, and lets it move again", () => {
@@ -1264,6 +1268,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
       "view",
       "stage_css",
       "dpr",
+      "window_css",
+      "buffer_px",
+      "pixel_cap",
       "look",
       "sample",
       "quality",
@@ -1291,7 +1298,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
     });
     // The pixel ratio drawn at: the desktop's 1, as the level the controller settled at caps it.
     const settled = (results.quality as { settled: number }).settled;
-    expect(results.dpr).toBe(Math.min(1, qualitySettings(settled).pixelRatio));
+    // Since spec 005, the room's buffer ratio, its level's pixel cap among its bounds.
+    const { w, h } = REFERENCE_DESKTOP.stage;
+    expect(results.dpr).toBe(Math.round(bufferRatio(1, qualitySettings(settled), w, h) * 1e4) / 1e4);
     expect(results.stage_css).toEqual([REFERENCE_DESKTOP.stage.w, REFERENCE_DESKTOP.stage.h]);
     expect((results.frames as { count: number }).count).toBeGreaterThan(1000);
     expect(results.draw_calls).toBeGreaterThan(0);
@@ -1659,5 +1668,105 @@ describe("spec 008's highlight sample on the page (T010; FR-050)", () => {
     expect(o.page.stage.highlight).toBe(id);
     expect(o.spies.network.filter((r) => !r.startsWith("fetch ../a/"))).toEqual([]);
     expect(o.spies.storage).toEqual([]);
+  });
+});
+
+// T026 (spec 005; FR-059; plan.md §10.4, PD-25): the window views. The reference desktop's, the reference phone's, and a
+// large monitor's window: the canvas at the screen's full size, the camera framed at its clear area's aspect and shifted
+// into it, the HUD's docked boxes laid over it as static panels with the room's classes, the blur on at quality levels
+// 0 and 1; the readouts and the results give the buffer's size, the ratio, and the pixel cap; and the phone copy's own
+// view is its device's clear area.
+describe("the window views (spec 005, T026)", () => {
+  const WINDOWS = [
+    ["Reference desktop's window", "window-desktop", { w: 1920, h: 1200 }, 1, "column"],
+    ["Reference phone's window", "window-phone", { w: 384, h: 740 }, 2.8125, "dock"],
+    ["A large monitor's window", "window-monitor", { w: 2560, h: 1440 }, 1, "column"],
+  ] as const;
+
+  for (const [label, value, screen, dpr, layout] of WINDOWS)
+    it(`draws ${label} at its full size, the camera shifted into its clear area, the HUD over it`, () => {
+      const { page, clock, root, renderer, inputs: given, doc } = open();
+      choose(control<HTMLInputElement>(root, label));
+      clock.advance(50);
+      expect(page.stage.view).toBe(value);
+      const canvas = root.querySelector("canvas") as HTMLCanvasElement;
+      expect([canvas.style.width, canvas.style.height]).toEqual([`${screen.w}px`, `${screen.h}px`]);
+      expect(renderer.size).toEqual([screen.w, screen.h]);
+      expect(renderer.ratio).toBeCloseTo(bufferRatio(dpr, qualitySettings(0), screen.w, screen.h), 12);
+      const clear = clearArea(screen);
+      expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
+      const camera = page.stage.camera;
+      expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);
+      const o = viewOffsetFor(clear, screen);
+      expect(camera.view).toMatchObject({ enabled: true, fullWidth: o.fullWidth, offsetY: o.y, width: o.width });
+      const spec = framing(
+        clear.w / clear.h,
+        given.part.placements.filter((p) => p.framed).map((p) => p.frame_box),
+      );
+      expect(camera.position.distanceTo(new Vector3(...spec.position))).toBeLessThan(1e-9);
+      // The HUD's docked boxes, static, with the room's classes, and the room's layout on the page's root.
+      const hud = root.querySelector<HTMLElement>(".lookdev-hud");
+      expect(hud?.hidden).toBe(false);
+      expect(doc.documentElement.getAttribute("data-hud")).toBe(layout);
+      const panels = [...(hud?.querySelectorAll(".hud-glass") ?? [])];
+      expect(panels.length).toBe(3);
+      expect(doc.documentElement.getAttribute("data-blur")).toBe("on");
+      // The readouts: the buffer's size, the ratio, and the cap.
+      const ratio = bufferRatio(dpr, qualitySettings(0), screen.w, screen.h);
+      const cap = qualitySettings(0).pixelCap.toLocaleString("en-US");
+      clock.advance(1000);
+      const terms = [...root.querySelectorAll(".lookdev-readouts dt")];
+      const buffer = terms.find((dt) => collapse(dt.textContent) === "Buffer")?.nextElementSibling;
+      expect(collapse(buffer?.textContent)).toBe(
+        `${Math.floor(screen.w * ratio)} × ${Math.floor(screen.h * ratio)} device px at a pixel ratio of ` +
+          `${Math.round(ratio * 1000) / 1000}, under a cap of ${cap} device px`,
+      );
+    });
+
+  it("turns the blur off from quality level 2, and hides the HUD's boxes in the stage views", () => {
+    const { clock, root, doc } = open();
+    choose(control<HTMLInputElement>(root, "Reference desktop's window"));
+    choose(control<HTMLInputElement>(root, "Pinned at 2"));
+    clock.advance(50);
+    expect(doc.documentElement.getAttribute("data-blur")).toBe("off");
+    choose(control<HTMLInputElement>(root, "Pinned at 1"));
+    clock.advance(50);
+    expect(doc.documentElement.getAttribute("data-blur")).toBe("on");
+    choose(control<HTMLInputElement>(root, "Reference desktop"));
+    clock.advance(50);
+    expect(root.querySelector<HTMLElement>(".lookdev-hud")?.hidden).toBe(true);
+  });
+
+  it("gives the results the window, the buffer, and the cap of a run", async () => {
+    const { root, clock } = open();
+    choose(control<HTMLInputElement>(root, "Reference phone's window"));
+    clock.advance(50);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+    expect(results.view).toBe("window-phone");
+    expect(results.window_css).toEqual([384, 740]);
+    const settled = (results.quality as { settled: number }).settled;
+    const ratio = bufferRatio(2.8125, qualitySettings(settled), 384, 740);
+    expect(results.buffer_px).toEqual([Math.floor(384 * ratio), Math.floor(740 * ratio)]);
+    expect(results.pixel_cap).toBe(qualitySettings(settled).pixelCap);
+  });
+
+  it("gives the phone copy's own view its device's clear area", () => {
+    const probe: Probe = {
+      webgl2: true,
+      max_texture_size: 8192,
+      device_memory: 8,
+      create_image_bitmap: true,
+      secure_context: false,
+      viewport: [412, 780],
+      dpr: 2.625,
+    };
+    const { page, clock } = open({ phone: true, probe });
+    clock.advance(50);
+    const clear = clearArea({ w: 412, h: 780 });
+    expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
   });
 });

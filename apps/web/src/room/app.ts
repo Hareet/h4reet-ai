@@ -61,10 +61,14 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
+import { OPENING, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
+import type { HudState } from "./compose/hud";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
+import { bufferRatio } from "./fit";
 import { renderFlat } from "./flat";
+import { browserOwnsEscape, createFullscreen } from "./fullscreen";
 import { loadTypefaces } from "./faces/fonts";
 import type { TypefaceLoader } from "./faces/fonts";
 import { ROOM_TEXT_RETRY_MS, roomTextOf } from "./faces/words";
@@ -73,10 +77,13 @@ import { createMotionStore } from "./motion";
 import type { MotionStore } from "./motion";
 import { handoffDuration, runHandoff } from "./handoff";
 import type { Handoff } from "./handoff";
+import { createViewport } from "./hud/viewport";
+import type { Viewport, WindowMeasures } from "./hud/viewport";
 import { renderRoom } from "./layout";
 import type { RoomLayout } from "./layout";
 import {
   SCENE_WAIT_MS,
+  SETTLE_FRAMES,
   capability,
   createQualityController,
   meetsModelFloor,
@@ -86,13 +93,14 @@ import {
 import type { FlatReason, QualityController } from "./quality";
 import type { ResumeView } from "./resume-port";
 import type { FrameLog, FrameLogOptions } from "./signals/frame-log";
+import { qualitySettings } from "./scene/levels";
 import { createLiveSignals } from "./signals/live";
 import type { LiveSignals } from "./signals/live";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
+import type { ClearArea, FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -125,6 +133,9 @@ export interface RoomDeps {
   /** A drafts build's frame log (spec 004, T246; R-70): main.ts gives `virtual:room-frame-log`'s factory in a drafts
    *  build, and nothing in a release build, which then keeps no log. */
   frameLog?: (options: FrameLogOptions) => FrameLog;
+  /** Spec 005 (plan.md §4.3): the window's measures and their changes, hud/viewport.ts's for the page; the tests give a
+   *  stand-in. */
+  viewport?: (win: Window) => Viewport;
 }
 
 export interface RoomHandle {
@@ -167,6 +178,74 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The room takes input only after the hand-off and its offer. */
   const open = (): boolean => visit.stage === "room" && !offering;
 
+  /** The HUD's docked panels' states (spec 005): every panel starts open (FR-020). */
+  let hudState: HudState = OPENING;
+  /** The glass's blur, at quality levels 0 and 1 alone (spec 005, FR-025; PD-17). */
+  const blurAt = (level: number): boolean => level <= 1;
+  /** A docked or collapsible panel's change, in a drafts build's frame log (FR-063). */
+  const panel = (part: string, state: string): void => log?.record("panel", { part, state });
+  /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
+  let viewport: Viewport | null = null;
+  /** The clear area the 3D stage frames the room into, in the canvas's CSS pixels, with the window it was computed for;
+   *  null in the stacked layout, where the canvas is its own stage. */
+  let clear: ClearArea | null = null;
+  /** The quality controller's hold while the window changes: released SETTLE_FRAMES frames after the last re-fit, so a
+   *  drag never steps the quality down (FR-013; PD-15). */
+  let settling: { release: () => void; frames: number } | null = null;
+
+  /**
+   * Re-fits the room to the window (spec 005, FR-012; plan.md §4.3): the layout and its boxes from compose/hud.ts, or
+   * the stacked layout where the HUD can't fit (FR-007), applied to the page's root; the clear area to the stage, which
+   * frames into it on its next frame; the quality controller held; and the re-fit in a drafts build's frame log. The
+   * keyboard's inset alone ("keyboard") lifts the HUD's foot and re-frames nothing.
+   */
+  function refit(what: "refit" | "keyboard" = "refit"): void {
+    const layout = room;
+    if (!layout || !viewport) return;
+    const m: WindowMeasures = viewport.read();
+    const metrics = { rem: m.rem, safe: m.safe, strip: m.strip };
+    const screen = { w: m.w, h: m.h };
+    const boxes = hudBoxes(screen, hudState, metrics);
+    const fits = fitsHud(screen, hudState, metrics);
+    layout.applyHud({
+      layout: fits ? boxes.layout : "stacked",
+      state: hudState,
+      metrics,
+      strip: boxes.strip.h,
+      bar: boxes.bar.h,
+      column: boxes.column?.w ?? 0,
+      dock: boxes.dock?.h ?? 0,
+      clear: boxes.clear,
+      notes: notesReserve(boxes.clear, m.rem),
+      keyboard: m.keyboard,
+    });
+    layout.setBlur(blurAt(visit.quality));
+    // The conversation's log is a sheet above the dock in the dock layout (spec 005; the review's finding 1).
+    talk?.setDocked(fits && boxes.layout === "dock");
+    if (what === "keyboard") return;
+    clear = fits ? { area: boxes.clear, window: screen } : null;
+    if (controller) {
+      if (settling) settling.frames = SETTLE_FRAMES;
+      else settling = { release: controller.hold(), frames: SETTLE_FRAMES };
+    }
+    if (log) {
+      // The drawing buffer the 3D stage sizes on its next frame (scene.ts's resize; FR-063, plan.md §12.4): the canvas,
+      // the window in the HUD and the stage's view in the stacked layout, at the buffer's ratio, which the level's
+      // ratio and pixel cap bound. None in 2D, which draws no buffer.
+      const canvas = fits ? screen : { w: layout.view.clientWidth, h: layout.view.clientHeight };
+      const ratio = bufferRatio(m.dpr, qualitySettings(visit.quality), canvas.w, canvas.h);
+      const drawn = visit.mode !== "2d" && canvas.w > 0 && canvas.h > 0;
+      log.record("refit", {
+        w: m.w,
+        h: m.h,
+        layout: fits ? boxes.layout : "stacked",
+        clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
+        buffer: drawn ? `${Math.floor(canvas.w * ratio)}x${Math.floor(canvas.h * ratio)}` : "none",
+        ratio: drawn ? ratio : null,
+      });
+    }
+  }
+
   /** A targeting event through the store: a change of target goes to the stage that draws, and to a drafts build's
    *  frame log with the input that made it (spec 008, FR-007, FR-054). */
   function retarget(event: TargetEvent): void {
@@ -193,6 +272,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
 
   /** Whether this visit has walked: walk_started goes once a visit (FR-051). */
   let walked = false;
+  /** Whether this visit has entered spec 005's full screen: fullscreen_entered goes once a visit (FR-060). */
+  let fullscreenEntered = false;
   /** The stage, where it's the 3D one, which walks. */
   const walker = (s: Stage | null): Stage3D | null => (s?.mode === "3d" && "walk" in s ? (s as Stage3D) : null);
   /** Into the walking view: focus on it, walk_started the first time, and the frame log's entry (FR-022, FR-054). */
@@ -203,6 +284,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!scene3d.walk.walking) return;
     layout.setWalking(true);
     layout.view.focus();
+    // Spec 008's FR-043 entry announcement, which spec 005's FR-039 words for full screen, where Escape is the browser's.
+    const said = uiWord(deps.room.ui, browserOwnsEscape(doc) ? "walk.entered_fullscreen" : "walk.entered");
+    if (said) announcer.say(said);
     if (!walked) {
       walked = true;
       emit({ kind: "walk_started" });
@@ -334,6 +418,14 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   });
   const onFrame = (time: number): void => {
     log?.frame(time);
+    // A re-fit's hold ends SETTLE_FRAMES frames after the last one (spec 005, FR-013).
+    if (settling) {
+      settling.frames -= 1;
+      if (settling.frames <= 0) {
+        settling.release();
+        settling = null;
+      }
+    }
     if (doc.visibilityState === "hidden") controller?.restart();
     else controller?.frame(time);
   };
@@ -347,7 +439,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   }
 
   async function arrive(choice: Choice): Promise<void> {
-    const list = renderObjectList(doc, deps.room, selectObject, (id) => targetInput("focus", id));
+    // The list's header button collapses it; in the dock layout the room re-frames into what it frees (spec 005).
+    const list = renderObjectList(
+      doc,
+      deps.room,
+      selectObject,
+      (id) => targetInput("focus", id),
+      (collapsed) => {
+        hudState = { list: collapsed ? "collapsed" : "open" };
+        refit();
+        panel("list", hudState.list);
+      },
+    );
     talk = renderTalk(doc, {
       messages: content.messages,
       clock,
@@ -363,7 +466,16 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       onTurnOutcome: (result) => cost.report(classifyTurn(result), "turn"),
       // The twin's per-turn limits, from the build (spec 007, FR-027, FR-041); FR-027's defaults without them.
       ...(content.twin ? { limits: content.twin.limits } : {}),
+      // Spec 005's header words for the log and its larger view (FR-023, FR-028, FR-065).
+      words: {
+        logToggle: uiWord(deps.room.ui, "hud.log_toggle") ?? "Conversation",
+        larger: uiWord(deps.room.ui, "talk.larger") ?? "Larger conversation",
+        smaller: uiWord(deps.room.ui, "talk.smaller") ?? "Smaller conversation",
+      },
+      onPanel: (part, state) => panel(part, state),
     });
+    // Spec 005's full screen of the page's root (FR-036 to FR-042), its support read as the room is built.
+    const fullscreen = createFullscreen(doc);
     // "Around the room", from the index alone, so it's whole from Enter whatever the 3D chunk does (FR-011, FR-063).
     const around = renderTextCopy(doc, deps.room);
     around.setCost(cost.state);
@@ -379,13 +491,28 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",
         region: uiWord(deps.room.ui, "walk.region") ?? "",
         help: uiWord(deps.room.ui, "walk.help") ?? "",
+        helpFullscreen: uiWord(deps.room.ui, "walk.help_fullscreen") ?? "",
       },
+      // Spec 005's full-screen control, where the browser offers full screen (Q4, provisional).
+      ...(fullscreen.supported
+        ? {
+            fullscreen: {
+              enter: uiWord(deps.room.ui, "fullscreen.enter") ?? "Full screen",
+              leave: uiWord(deps.room.ui, "fullscreen.leave") ?? "Leave full screen",
+            },
+          }
+        : {}),
       // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
       standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
         ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
         : "",
     });
     room = layout;
+    // Spec 005 (FR-034; plan.md §7): a press on the scene while walking gives the walking view focus, so walking's keys
+    // go there and not to a panel the visitor typed in.
+    layout.view.addEventListener("pointerdown", () => {
+      if (walker(stage)?.walk.walking && doc.activeElement !== layout.view) layout.view.focus({ preventScroll: true });
+    });
     // Spec 008's walking control (FR-020 to FR-022, FR-051): it enters and leaves the 3D stage's walking view.
     layout.walkButton.addEventListener("click", () => {
       const scene3d = walker(stage);
@@ -408,12 +535,47 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       layout.flatButton.focus();
     });
     layout.resumePanel.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
+      // In full screen the browser takes Escape to leave it, and the resume stays open (spec 005, FR-039).
+      if (event.key !== "Escape" || browserOwnsEscape(doc)) return;
       event.preventDefault();
       closeResume();
     });
+    // Spec 005's full screen (FR-036 to FR-042; plan.md §8): the control, Alt+Enter from anywhere in the room, a
+    // refusal said once, every change re-fitting the room and wording the control, and the event once a visit.
+    layout.fullscreenButton?.addEventListener("click", () => {
+      if (open()) fullscreen.toggle();
+    });
+    doc.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        if (!open() || !fullscreen.supported) return;
+        event.preventDefault();
+        event.stopPropagation();
+        fullscreen.toggle();
+      },
+      true,
+    );
+    fullscreen.onRefused(() => {
+      announcer.say(uiWord(deps.room.ui, "fullscreen.refused") ?? "");
+      log?.record("fullscreen", { state: "refused" });
+    });
+    fullscreen.onChange((on) => {
+      layout.setFullscreen(on);
+      refit();
+      log?.record("fullscreen", { state: on ? "entered" : "left" });
+      if (on && !fullscreenEntered) {
+        fullscreenEntered = true;
+        emit({ kind: "fullscreen_entered" });
+      }
+    });
+    viewport = (deps.viewport ?? ((w: Window): Viewport => createViewport(w)))(win);
+    viewport.subscribe((what) => refit(what));
+    refit();
     screen.replaceChildren(layout.element);
     doc.body.classList.add("in-room");
+    // The AI disclosure's header is the HUD's strip in the room: dark glass, blurred where the glass is (spec 005).
+    doc.querySelector("header.disclosure")?.classList.add("hud-glass");
     layout.heading.focus();
     // Enter (contracts/tier-signal.md §5.4): the tier reduced, and shown in the text copy, before the stage is drawn.
     live.enter();
@@ -519,6 +681,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         text,
         cost: cost.state,
         onFigure: figureSignal,
+        clear: () => clear,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -534,6 +697,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         visit.quality = level;
         visit.mode = "reduced";
         scene3d.setQuality(level);
+        room?.setBlur(blurAt(level));
       },
       onFlat: toFlat,
     });
@@ -545,6 +709,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     // The canvas and the drawing are pictures of what the list holds (FR-045).
     next.element.setAttribute("aria-hidden", "true");
     room?.view.replaceChildren(next.element);
+    room?.setStage(next.mode);
   }
 
   /** Into 2D for the rest of the visit, once, by any road, keeping everything else (FR-042). If the 2D drawing refuses
@@ -584,6 +749,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     else {
       const words = uiWord(deps.room.ui, "flat-failed") ?? "";
       room.view.replaceChildren(h(doc, "p", { class: "room-flat-failed" }, words));
+      room.setStage("2d");
     }
     // The 3D stage's loader skips what it had on its way; every other set model whose load hadn't recorded its end is
     // skipped here, the room in 2D (data-model.md §11.4): one the room started in 2D without, or one its 3D stage's

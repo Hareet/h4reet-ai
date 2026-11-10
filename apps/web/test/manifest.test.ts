@@ -102,6 +102,8 @@ describe("room-manifest.json (Amendment B7)", () => {
       "mode_2d",
       "walk_started",
       "avatar_failed",
+      // Spec 005 (its FR-060; Amendment H7).
+      "fullscreen_entered",
     ]);
   });
 

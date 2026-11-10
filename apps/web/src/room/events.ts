@@ -17,6 +17,9 @@ export const EVENT_KINDS = [
   // Spec 009 (its FR-032; Amendment M4): a figure's avatar file failed to load after its retry, once a visit, with no
   // identifier, after spec 008's walk_started (plan.md §3.4).
   "avatar_failed",
+  // Spec 005 (its FR-060; Amendment H7): the visitor's first entry into full screen in a visit, with no identifier,
+  // after spec 009's avatar_failed (plan.md §12.1).
+  "fullscreen_entered",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
