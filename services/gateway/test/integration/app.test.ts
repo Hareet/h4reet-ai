@@ -500,6 +500,13 @@ describe("startup", () => {
 describe("graceful shutdown", () => {
   it("lets a request in flight finish, then closes both listeners and the store", async () => {
     const db = await freshDatabase();
+    // Shutdown starts once the request has reached its handler, not after a fixed wait. On a loaded machine a request
+    // can take longer than any fixed wait to arrive, and Fastify answers one that reaches its router after close()
+    // has begun with 503 (return503OnClosing): a listener that no longer accepts, not a request in flight.
+    let arrived = (): void => {};
+    const reached = new Promise<void>((resolve) => {
+      arrived = resolve;
+    });
     const result = await startGateway({
       env: DEV_ENV,
       config,
@@ -511,6 +518,7 @@ describe("graceful shutdown", () => {
       onFatal: () => {},
       routes: (api) => {
         api.get("/slow", async () => {
+          arrived();
           await new Promise((r) => setTimeout(r, 200));
           return { done: true };
         });
@@ -519,7 +527,9 @@ describe("graceful shutdown", () => {
     expect(result.kind).toBe("running");
     if (result.kind !== "running") return;
     const inFlight = fetch(`http://127.0.0.1:${result.ports.api}/slow`);
-    await new Promise((r) => setTimeout(r, 50));
+    // A fetch that fails, or is answered without reaching the handler, ends the wait with its own error or answer.
+    const first = await Promise.race([reached.then(() => "reached"), inFlight.then(() => "answered")]);
+    expect(first).toBe("reached");
     const closing = result.close();
     const res = await inFlight;
     expect(res.status).toBe(200);
