@@ -27,6 +27,10 @@ import {
   stateOf,
 } from "../build/approvals";
 import { fillPolicy, POLICY_PATHS, prebuild, type Show } from "../build/policy";
+import { compose as roomCompose } from "../build/room/compose";
+import { policyFrom } from "../build/room/policy";
+import type { RoomPolicy } from "../build/room/policy";
+import { fileTree } from "../build/room/source";
 
 const sha256 = (data: string | Uint8Array): string => createHash("sha256").update(data).digest("hex");
 const RESUME = "version: 1\nsections: []\n";
@@ -401,5 +405,56 @@ describe("build/policy.ts, a checkout's prebuild", () => {
       fillPolicy(dir, root);
       expect(readdirSync(dir)).toEqual([]);
     }
+  });
+});
+
+// T038 (spec 014; FR-050, FR-051; SC-008; plan.md §8): the chalkboard's line, `chalk-denverlocal.yaml`, waits only for
+// the Author's room-text approval. With a policy whose approvals name the block's digest under room-text, computed here
+// from the file at run time (no digest is written down), a release build publishes the block, its one line the words
+// "denverlocal.ai", approved, so the slate's region draws it; without the entry, a release build leaves it out, the
+// slate plain, and a drafts build carries it marked as a draft.
+describe("the chalkboard's line (spec 014, T038)", () => {
+  const ROOT = join(__dirname, "..", "..", "..");
+  const BLOCK = "apps/web/content/room/chalk-denverlocal.yaml";
+  const digest = sha256(readFileSync(join(ROOT, BLOCK)));
+  const caps = readFileSync(join(ROOT, "assets/policy/caps.json"));
+  const withBoard = policyFrom(
+    {
+      caps,
+      approvals: new TextEncoder().encode(
+        JSON.stringify({
+          schema: 1,
+          approvals: [
+            {
+              id: "C-0003",
+              path_when_approved: BLOCK,
+              kind: "room-text",
+              sha256: digest,
+              date: "2026-11-10",
+              reason: "a stand-in approval, made by the test",
+            },
+          ],
+        }),
+      ),
+      header: null,
+    },
+    "policy-dir",
+  );
+  const without = policyFrom({ caps, approvals: null, header: null }, "policy-dir");
+  const block = (policy: RoomPolicy, drafts: boolean) =>
+    roomCompose(fileTree(ROOT), policy, { mode: "lenient", drafts }).roomText.blocks.find(
+      (b) => b.id === "chalk-denverlocal",
+    );
+
+  it("publishes the line, approved, in a release build once main approves the block's digest", () => {
+    const b = block(withBoard, false);
+    expect(b?.state).toBe("approved");
+    expect(b?.sha256).toBe(digest);
+    expect(b?.lines.map((l) => l.text)).toEqual(["denverlocal.ai"]);
+  });
+
+  it("leaves the slate plain in a release build without it, and marks it a draft in a drafts build", () => {
+    expect(block(without, false)).toBeUndefined();
+    expect(block(without, true)?.state).toBe("draft");
   });
 });
