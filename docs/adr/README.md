@@ -4,7 +4,7 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 
 | # | Decision | Status | Spec |
 |---|---|---|---|
-| [0001](0001-local-first-routing-with-capped-bedrock-fallback.md) | Local-first routing with Bedrock as capped fallback (one Decision extended by 0041) | proposed | 000 |
+| [0001](0001-local-first-routing-with-capped-bedrock-fallback.md) | Local-first routing with Bedrock as capped fallback (one Decision extended by 0041; amended by 0044) | proposed | 000 |
 | [0002](0002-one-compose-topology-for-every-environment.md) | Everything containerized; one compose topology for every environment | proposed | 000 |
 | [0003](0003-local-compose-first-then-terraform-elevation.md) | Local-compose-first delivery, then Terraform elevation to AWS | proposed | 000, 001 |
 | [0004](0004-langfuse-and-grafana-over-opentelemetry.md) | Langfuse (self-hosted, in the stack) + Grafana dashboards | proposed | 000 |
@@ -39,4 +39,5 @@ One file per decision, numbered, immutable once accepted (supersede with a new A
 | [0041](0041-the-anthropic-api-as-a-second-paid-adapter.md) | The Anthropic API as a second paid adapter, prod's fallback one at a time: the official SDK pinned and vetted behind a transport of its own, the same ceilings and a monthly cap of its own, and its flow disclosed in the Author's words before any call (extends 0001's Decision item 3 and its model line) | proposed | 010 |
 | [0042](0042-alerts-designed-to-be-read.md) | Alerts designed to be read: Telegram's message entities and a hand-written HTML email, each with its plain form as the fallback, and a marked sample of each (extends one Decision of 0005) | proposed | 011 |
 | [0043](0043-the-room-fills-the-window.md) | The room fills the window: a HUD of dark glass over a full-window scene, its placements as kernel data, the clear area as the stage (every stage at least its size before), contain framing by a shifted camera, and full screen of the page with Escape left to the browser (supersedes the Author's answer to spec 004's D4) | proposed | 005 |
+| [0044](0044-ec2-as-prods-default-host.md) | EC2 as prod's default host: the Anthropic API answers first, Bedrock second, one host serving at a time, a relay at an outbound tunnel's end, on spot, that picks the host, one meter in the cloud, and the model ceilings separate from the server's budget (amends 0001's Decision; 0043 is allocated to spec 005's room) | proposed | 001 |
 | [0045](0045-the-room-loads-behind-a-loader.md) | The room loads behind a loader: a game-style bar from "Enter" to the hand-off counting the first visit's files as each ends, the room's models shown while it shows and never from its giving way to the hand-off's end, a 7-second ceiling that keeps spec 002's SC-005, and hints as data with their figures from configuration (0044 is `docs/001-ec2-default`'s) | proposed | 012 |
