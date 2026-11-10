@@ -1,0 +1,7 @@
+rule: RI10
+file: apps/web/room/lookdev.yaml
+path: hands.avatars[1]
+why: a hands view naming an avatar outside the room's table, in a drafts build (spec 014, FR-042)
+drafts: true
+edits:
+  - { file: apps/web/room/lookdev.yaml, at: [hands], set: { avatars: [woman, robot] } }
