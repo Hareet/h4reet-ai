@@ -17,7 +17,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 1. Apply P-1 and P-3 (plan §2, §14). Run the matrix. Expect zero failures, and a planned row only for checks whose targets don't exist yet.
 2. In an agent session, try `terraform apply`, `make ec2-start`, `make operator-init ENV=shared`, and `make release`, in the matrix's spellings. Each is refused, with a reason and an audit record.
-3. In your terminal, `make infra-mirror`; then `make check`. `infra-check` turns from PLANNED to PASS.
+3. In your terminal, `make infra-mirror`; then `make check`. `infra-check` moves from "PLANNED (T011)" to "PLANNED (T020)": it reads PLANNED until group 3 writes `infra/` (tasks.md T011), then PASS.
 
 ## 2. Group 2: the measurement, and your figure
 

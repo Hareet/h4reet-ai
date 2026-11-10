@@ -74,8 +74,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T002 Create the worktree for `feat/001-guards` from `refs/heads/main` and record the base's full SHA. Make a fresh `git archive` export of `main` in a new, empty folder, as the patches' base. Check: `git rev-parse HEAD` is main's SHA, read from `refs/heads/main` (feat/001-guards)
-- [ ] T003 [P] Write the forbidden-action matrix's new rows in a copy of `redteam/forbidden-actions.sh` and `tools/gates/matrix-required.txt`, on the export:
+- [x] T002 Create the worktree for `feat/001-guards` from `refs/heads/main` and record the base's full SHA. Make a fresh `git archive` export of `main` in a new, empty folder, as the patches' base. Check: `git rev-parse HEAD` is main's SHA, read from `refs/heads/main` (feat/001-guards)
+  - **Done 2026-11-10, with a stand-in:** the worktree `/tmp/claude-1000/wt-001g1`, cut at `spec/001-cloud-elevation`'s tip d3c7ee02 (which holds this spec, its plan, and these tasks), stands in for the one this task names, and `git --no-replace-objects merge refs/heads/main` brought main in at 203bec3f. So `git rev-parse HEAD` is the branch's tip, not main's; the base is main at d0fac811ca297a6d9ead42022043d8a12fb4418e, read from `refs/heads/main` after the merge. The patches' base is a fresh `git archive` export of that commit, in a new, empty folder under `$TMPDIR`.
+- [x] T003 [P] Write the forbidden-action matrix's new rows in a copy of `redteam/forbidden-actions.sh` and `tools/gates/matrix-required.txt`, on the export:
   - stage H rows for Terraform's state-changing commands in every spelling (R-16: `-chdir`, `TF_CLI_ARGS*`, `tofu`, `terragrunt`, wrappers, `bash -c`, subshells, a path to the binary);
   - stage H rows for the Author-only targets (R-32, R-16);
   - stage S rows for the denied paths and names (contracts/env-cloud.md §5);
@@ -83,11 +84,13 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - a gap row for any spelling found to get through.
 
   Check: RED, the rows fail on the unpatched export (feat/001-guards)
-- [ ] T004 [P] Write `tools/gates/test/test_infra_policy.py`, `test_infra_redact.py`, `test_infra_plan_note.py`, and `test_disclosure_check.py` on the export. They need fixtures for rules T1 to T13 (each passing and failing), redaction (12-digit runs, emails, sensitive values, a secret pattern refused), the plan note's tree hash, and the disclosure against compose services, sshd permits, egress-proxy hosts, CloudFront origins, EventBridge targets, and open security-group rules. Check: RED (feat/001-guards)
+  - **Done 2026-11-10** in P-1 (`docs/merge-requests/2026-11-10-feat-001-p1-guards.patch`): 162 new stage H rows and 3 stage S rows, with 163 IDs in `tools/gates/matrix-required.txt` (the stage S marker among them); 8 of the stage H rows are gap rows (a name held in a variable, a shell function or alias, a copy of the binary, a name built at run time, `make plan $(echo ROOT)=…`, and a shell write to a protected file). RED on the unpatched export: 103 failures. GREEN on a patched export: 910 passed, 0 failed (the note).
+- [x] T004 [P] Write `tools/gates/test/test_infra_policy.py`, `test_infra_redact.py`, `test_infra_plan_note.py`, and `test_disclosure_check.py` on the export. They need fixtures for rules T1 to T13 (each passing and failing), redaction (12-digit runs, emails, sensitive values, a secret pattern refused), the plan note's tree hash, and the disclosure against compose services, sshd permits, egress-proxy hosts, CloudFront origins, EventBridge targets, and open security-group rules. Check: RED (feat/001-guards)
 
 ### Implementation
 
-- [ ] T005 Write P-1 as `docs/merge-requests/<date>-feat-001-p1-guards.patch`, from plain copies of `main`'s files, by plan §2's list:
+  - **Done 2026-11-10** in P-1: 106 tests over the four checkers. RED: all four files fail to collect without their modules (the note).
+- [x] T005 Write P-1 as `docs/merge-requests/<date>-feat-001-p1-guards.patch`, from plain copies of `main`'s files, by plan §2's list:
   - `.claude/hooks/bash-gate.sh`'s Terraform rules and Author-only targets;
   - `.claude/settings.json`'s denies (`*.tfstate*`, `*.tfplan`, `*.tfvars*`) and `credentials.envVars` (`TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, `RELAY_TOKEN_*`, `SNAPSHOT_SINK_TOKEN`, `TELEMETRY_BLOCK_TOKEN`, `DB_*_PASSWORD`);
   - `.claude/hooks/protected-paths.sh`'s Terraform globs;
@@ -96,8 +99,10 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - T003's rows and T004's tests.
 
   Check: `patch -p1 --dry-run` applies it cleanly to a second fresh export; on a patched export, T003's rows and T004's tests pass, and the agent-config tiers pass (FR-004 to FR-006, FR-011, FR-012) (feat/001-guards)
-- [ ] T006 [P] Write P-3 as `docs/merge-requests/<date>-feat-001-p3-claude-md.patch`, with plan §14's three sentences of `CLAUDE.md` drafted and marked for his words: the infra line for the local phase's apply, the routing sentence per host, and the relay's line. Check: applies to a fresh export; `evals/agent-config`'s static tier passes on it (FR-062) (feat/001-guards)
-- [ ] T007 [P] Write the ADRs plan §14 lists, status proposed, at the free numbers in `docs/adr/README.md` when this task runs, with their index rows:
+  - **Done 2026-11-10:** P-1, 17 files. Two departures, in plan §2: the compose policy's host rules move to groups 5 and 7, and the gate runs no `terraform`. `patch -p1 --dry-run` applies it cleanly to a fresh export of `refs/heads/main` and to an export of the branch; on a patched export of the branch the matrix (910 passed, 0 failed), the 1,445 gate tests, `make toolchain-check`, and the static tier pass (the note).
+- [x] T006 [P] Write P-3 as `docs/merge-requests/<date>-feat-001-p3-claude-md.patch`, with plan §14's three sentences of `CLAUDE.md` drafted and marked for his words: the infra line for the local phase's apply, the routing sentence per host, and the relay's line. Check: applies to a fresh export; `evals/agent-config`'s static tier passes on it (FR-062) (feat/001-guards)
+  - **Done 2026-11-10:** P-3 (`docs/merge-requests/2026-11-10-feat-001-p3-claude-md.patch`), its three sentences shortened to fit CLAUDE.md's 6 KB cap. It applies to a fresh export, and the static tier passes on it (the note).
+- [x] T007 [P] Write the ADRs plan §14 lists, status proposed, at the free numbers in `docs/adr/README.md` when this task runs, with their index rows:
   - 0007, 0008, and 0009;
   - the shared state in RDS;
   - the relay on the tunnel end, with the tunnel end on spot (plan Q1, Q2), and plan Q8's answer;
@@ -107,10 +112,12 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the public cap (P-6).
 
   They stay proposed in the branch and become accepted when the Author merges group 1, after his approval at T000 (plan §14). Check: the docs-links check passes; each ADR quotes the Author's answers it rests on, in his words (FR-062, SC-014) (feat/001-guards)
-- [ ] T008 Write `make infra-mirror` (seeds the provider mirror at the pinned versions) and `make aws-login` (starts the Author's SSO session for a named profile), both refused to agents by P-1 (R-32). Then write `.devcontainer/toolchain.vars`'s Terraform, `hashicorp/aws`, and AWS CLI pins, at the versions the Author chooses in his terminal. Check: `make toolchain-check` passes; on a patched export the bash gate refuses both targets (FR-004, FR-006) (feat/001-guards)
+  - **Done 2026-11-10:** ADRs 0007, 0008, 0009, and 0024 to 0029 (spec 001's own allocation since September), proposed, with their index rows. The docs-links check finds no broken link of theirs; four links inherited from `spec/001-cloud-elevation` point at `docs/001-ec2-default`'s files and resolve once it merges.
+- [x] T008 Write `make infra-mirror` (seeds the provider mirror at the pinned versions) and `make aws-login` (starts the Author's SSO session for a named profile), both refused to agents by P-1 (R-32). Then write `.devcontainer/toolchain.vars`'s Terraform, `hashicorp/aws`, and AWS CLI pins, at the versions the Author chooses in his terminal. Check: `make toolchain-check` passes; on a patched export the bash gate refuses both targets (FR-004, FR-006) (feat/001-guards)
 
 ### Close
 
+  - **Done 2026-11-10:** `make infra-mirror` (`scripts/infra/infra_mirror.py`), `make aws-login PROFILE=h4reet-…` (`deploy/scripts/aws-sso-profile.sh`), and the pins in `.devcontainer/toolchain.vars`: Terraform 1.17.1, `hashicorp/aws` 6.72.0, the AWS CLI 2.29.1 (research.md R-02). "At the versions the Author chooses in his terminal": his T000 words ask for the latest, and he confirms them at T011. On a patched export `make toolchain-check` passes and the bash gate refuses both targets (the note).
 - [ ] T009 Review by an agent that wrote none of the group, and the note. Check: the note holds `make check`'s and `gitleaks dir`'s whole output, and lists P-1 and P-3 first under "For the Author" (feat/001-guards)
 - [ ] T010 Author: apply P-1 and P-3 on the branch from the note's patch files, run `tools/gates/gate feat/001-guards` from main's checkout, and merge. Check: the gate passes; the matrix shows zero failures and no gap (feat/001-guards, then main)
 - [ ] T011 Author: on `main`, run `make infra-mirror`, which seeds `~/.local/share/h4reet/terraform-providers`. Check: `make check`'s `infra-check` step reads PLANNED until `infra/` exists (quickstart §1) (main)

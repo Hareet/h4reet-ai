@@ -11,7 +11,7 @@ Spec 001, re-planned 2026-11-09. It carries the September contract (`contracts/i
 | `make infra-verify ROOT=…`, `make infra-record ROOT=… OUTCOME=…`, `make infra-audit`, `make infra-mirror`, `make secrets-check` | the Author's terminal; refused to agents |
 | `terraform -chdir=infra/<root> apply <saved plan>` | the Author's terminal; refused to agents in every spelling (research.md R-16) |
 
-`~/.config/h4reet-ai/infra/<root>.env` holds each root's run-time values as `TF_VAR_…` lines: the alert email address, the state bucket's suffix, and the server budget's figure. No secret is a Terraform variable.
+`~/.config/h4reet-ai/infra/<root>.env` holds each root's run-time values as `TF_VAR_…` lines: the alert email address (`TF_VAR_alert_email`), the state bucket's suffix (`TF_VAR_state_bucket_suffix`), and the server budget's figure (`TF_VAR_server_budget_usd`). The guard patch denies each by name (contracts/env-cloud.md §5). No secret is a Terraform variable.
 
 ## 2. The plan block, the gate's step, `infra-verify`, the apply record
 

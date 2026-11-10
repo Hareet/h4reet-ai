@@ -61,6 +61,17 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 - **`infra/account`:** the two budget actions and their rehearsals (R-22); the alert bridge, the probe, and the credential audit (R-23, R-24); the start function and the guard, their EventBridge rules, and the autostart switch's parameter (R-29, R-30); the probe's and the audit's EventBridge schedules, in the protected `alerts.tf` (rule T5); the registry and the release bucket.
 - **`infra/prod`:** the VPC and its subnets; the tunnel end (R-04, R-11); RDS (R-20); EC2 and its spot request (R-04, R-30); the Route 53 zone, the certificate, the health check and its alarm (R-29); the edge and the site's bucket (R-07); the roles (R-15).
 
+**The versions, pinned in group 1 (tasks.md T008),** for the Author's "Use the latest dependenices adn versions for aws services, plugins" (T000, 2026-11-10):
+
+| What | Pinned | Released | Source | Status |
+|---|---|---|---|---|
+| Terraform | 1.17.1 | 2026-10-28 | web search, 2026-11-10; the Author confirms at T011 | `TERRAFORM_VERSION` |
+| `hashicorp/aws` provider | 6.72.0 | 2026-11-04 | web search, 2026-11-10; the Author confirms at T011. Latest at 2026-11-10: it releases weekly, so recheck at T011 | `TERRAFORM_AWS_PROVIDER_VERSION` |
+| Lambda runtimes | `python3.14` and `nodejs24.x`, on arm64 | — | web search, 2026-11-10; the Author confirms at T011. Node.js 26's runtime may be live but isn't confirmed; 24 matches the repository's Node 24 | group 4 pins each base image by digest |
+| AWS CLI v2 | 2.29.1 | — | the repository: the host's version on 2026-10-07 (`docs/merge-requests/2026-10-07-chore-repo-hygiene.md`; spec 000's tasks.md T104) | `AWS_CLI_VERSION`; the latest is to confirm, and a newer pin is his to choose |
+| Session Manager plugin | — | — | the repository holds no version | to confirm |
+| `python-hcl2` | not added | — | the gates read HCL with their own standard-library reader (R-14) | — |
+
 **Why.** The safety net is applied first and alone, as FR-022 asks. The handover's functions sit with the account's other functions, so they don't share a root with the instances they act on, and a plan of `infra/prod` can't silently widen them.
 
 ### R-03: State in S3 with S3's own lock (carried)
@@ -73,7 +84,7 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 
 ### R-14: Offline checks and the policy (carried, grown)
 
-**Decision.** September R-14: a provider mirror the Author seeds; `make infra-check` runs `fmt`, `validate`, and `tools/gates/infra_policy.py` offline; the Author's `make plan` runs the policy on the HCL before `init` and on the saved plan's JSON after. Its rules grow with FR-012's longer list. These resource types live only in protected files:
+**Decision.** September R-14: a provider mirror the Author seeds (`make infra-mirror`, into `~/.local/share/h4reet/terraform-providers`); `make infra-check` runs `fmt`, `validate`, and `tools/gates/infra_policy.py` offline, `init` reading that mirror alone; the policy reads HCL with its own standard-library reader, not `python-hcl2` (group 1's departure, plan §2), and refuses (T0) a file it can't read; the Author's `make plan` runs the policy on the HCL before `init` and on the saved plan's JSON after. Its rules grow with FR-012's longer list. These resource types live only in protected files:
 - IAM, budgets and budget actions, SNS, CloudWatch alarms, and EventBridge rules (as before), the probe's and the credential audit's schedules among them (`alerts*.tf`);
 - CloudFront's policies (`edge-limits*.tf`);
 - the Route 53 health check and the failover's alarm (`failover*.tf`);

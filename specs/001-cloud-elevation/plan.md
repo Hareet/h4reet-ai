@@ -184,16 +184,17 @@ Technical approach, by area:
 
 **Language/Version**:
 - **TypeScript on Node 24 LTS**, at spec 000's pins, for `services/relay` (new) and the gateway's changes.
-- **Python 3.12, stdlib only**, for the host scripts (the deployer, the egress proxy, the credential timer, the handover loop, the snapshot publisher and sink), the Lambda functions, and the gates' new checks. `python-hcl2` stays the one pinned, hashed addition (September).
-- **HCL for Terraform**, with Terraform and `hashicorp/aws` pinned in the first infra task from the Author's terminal.
+- **Python 3.12, stdlib only**, for the host scripts (the deployer, the egress proxy, the credential timer, the handover loop, the snapshot publisher and sink), and the gates' new checks. **Changed in group 1:** the gates' checks read HCL with their own standard-library reader, in `tools/gates/infra_policy.py`, which refuses (rule T0) what it can't read; `python-hcl2`, September's one pinned addition, isn't added, since the gate's tools run under `python3 -I` with no third-party package, in the Author's terminal before `terraform init`. Group 3's `infra/test/` reads HCL through the same reader.
+- **The Lambda functions: `python3.14` on arm64,** and `nodejs24.x` for any function in TypeScript, the latest runtimes the session established on 2026-11-10 (web search; research.md R-02), for the Author's "Use the latest dependenices adn versions for aws services, plugins" (tasks.md T000); he confirms them at T011. Node.js 26's runtime may be live but isn't confirmed, so 24, which matches the repository's Node 24.
+- **HCL for Terraform**, with Terraform 1.17.1 and `hashicorp/aws` 6.72.0 pinned in group 1 (tasks.md T008; research.md R-02), the latest established on 2026-11-10, which the Author confirms in his terminal at T011.
 - **Bash**, nginx and OpenSSH configuration, and SQL for migration 0007.
 
 **Primary Dependencies**:
 - **The relay:** Fastify, `pg`, zod, and pino at the gateway's pinned versions, in one lockfile.
-- **The AWS CLI v2** at the devcontainer's pin, and the Session Manager plugin, in the Author's terminal and on the hosts.
+- **The AWS CLI v2** at the devcontainer's pin (2.29.1, the host's version on the repository's record; a newer one is his to choose), and the Session Manager plugin (its version to confirm), in the Author's terminal and on the hosts.
 - **OpenSSH** from Alpine, pinned by the base image's digest.
 - **The RDS certificate bundle,** pinned by SHA-256 into the gateway's and the relay's images.
-- **New images,** pinned by index digest in `deploy/images.lock`: `relay`, `tunnel` (both ends), `snapshot`, and the Lambda images on AWS's Python 3.12 Lambda base.
+- **New images,** pinned by index digest in `deploy/images.lock`: `relay`, `tunnel` (both ends), `snapshot`, and the Lambda images on AWS's `python3.14` Lambda base for arm64, pinned by digest in group 4.
 
 **Storage**:
 - **RDS for PostgreSQL 17:** the shared state (data-model.md §1).
@@ -366,14 +367,14 @@ The rule from spec 000's plan §15: a deny lands in a patch applied before the r
 **`docs/merge-requests/<date>-feat-001-guards.patch`** (P-1):
 - **`.claude/hooks/bash-gate.sh`:** September R-16's Terraform rules, and the Author-only targets of research.md R-32 and R-16.
 - **`.claude/settings.json`:**
-  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` on `*.tfstate*`, `*.tfplan`, and `*.tfvars*`;
-  - `credentials.envVars` gains `TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, the relay's host tokens (`RELAY_TOKEN_*`), the sink's token (`SNAPSHOT_SINK_TOKEN`), the telemetry block's token (`TELEMETRY_BLOCK_TOKEN`), and the shared state's role passwords (`DB_*_PASSWORD`);
+  - `denyRead`, `denyWrite`, `Read(...)`, and `Edit(...)` on `*.tfstate*`, `*.tfplan`, and `*.tfvars*`. **As built:** `Read(...)` and `Edit(...)` on the three patterns; the sandbox's `denyRead` and `denyWrite` take paths, and a pattern there is unconfirmed (a bad entry could stop every sandboxed command), so they keep the folders that hold the files: `~/.config/h4reet-ai/infra/` holds the local state, the saved plans, and each root's `TF_VAR_` lines, under spec 000's deny of all of `~/.config/h4reet-ai`;
+  - `credentials.envVars` gains `TF_VAR_*`, `AWS_*`, `TF_CLI_ARGS*`, `GATEWAY_DB_URL`, the relay's host tokens (`RELAY_TOKEN_*`), the sink's token (`SNAPSHOT_SINK_TOKEN`), the telemetry block's token (`TELEMETRY_BLOCK_TOKEN`), and the shared state's role passwords (`DB_*_PASSWORD`). **As built:** by their members' names, since the sandbox takes names and a pattern there is unconfirmed: `TF_VAR_alert_email`, `TF_VAR_state_bucket_suffix`, `TF_VAR_server_budget_usd`; `TF_CLI_ARGS` and its per-command forms; the AWS credential and profile names spec 000 lacked; `RELAY_TOKEN_SELF`, `_LAPTOP`, `_EC2`; and `DB_GATEWAY_PASSWORD`, `DB_GRAFANA_RO_PASSWORD`, `DB_RELAY_RO_PASSWORD`, `DB_RELAY_RW_PASSWORD` (contracts/env-cloud.md §5). The bash gate also refuses `TF_CLI_ARGS` by name, and any terraform command while one is set;
   - `~/.config/h4reet-ai/{infra,tunnel,release}` get their own matrix rows; spec 000's deny already covers them.
-- **`.claude/hooks/protected-paths.sh`:** `infra/**/{iam,budgets,alerts,killswitch,handover,failover,ec2-market,edge-limits}*.tf` and `infra/policy/**`.
-- **`tools/gates/`:** the policy, redaction, plan-note, and disclosure checks, the compose policy's host rules, and the gate's new steps.
+- **`.claude/hooks/protected-paths.sh`:** `infra/**/{iam,budgets,alerts,killswitch,handover,failover,ec2-market,edge-limits}*.tf` and `infra/policy/**`. **As built:** by file name in any case, `.tf` or `.tf.json`, anywhere under `infra/` but `infra/test/`, whose fixtures Terraform never plans, and state, saved-plan, and variable files anywhere. Spec 000's broader names stay (`infra/*budget*`, `infra/*alert*`, `infra/*iam*`, `infra/*edge*`, `infra/*waf*`), so they also hold `infra/lambdas/alert_bridge/` (group 4, T035) and `infra/prod/edge.tf` (group 8, T107): those arrive as the Author's patches with P-I2 and P-I5, unless he narrows spec 000's names, a loosening that is his to choose (the note's "For the Author").
+- **`tools/gates/`:** the policy, redaction, plan-note, and disclosure checks, and the gate's new steps, `infra-plan-note`, `infra-check` (the policy over the export, as data), and `disclosure`; `toolchain_check.py` reads spec 001's pins, each SKIP where its tool isn't installed. **As built, two departures:** the gate runs no `terraform` (its fmt and validate need the Author's mirror and run in `make infra-check`; his `make plan` runs init and plan anyway); and **the compose policy's host rules move** to the groups that add the host classes, as patches beside their P-I patches (group 5's `tunnel-end`, group 7's `ec2`), since no host class, `H4_HOST` key, or host env template exists yet to write or test them against.
 - **`redteam/forbidden-actions.sh`:** a stage H row per spelling, with a gap row for any that gets through.
-- **`CLAUDE.md`:** three sentences, in [§14](#14-the-authors-patches-steps-and-adrs).
-- **`.devcontainer/toolchain.vars`:** the Terraform and AWS CLI pins.
+- **`CLAUDE.md`:** three sentences, in [§14](#14-the-authors-patches-steps-and-adrs), as their own patch, P-3. **As built:** shortened to fit CLAUDE.md's 6 KB cap (`evals/agent-config/static.py`, FR-006), which leaves main's file 170 bytes; the patch makes it 6143 of 6144.
+- **`.devcontainer/toolchain.vars`:** the Terraform and AWS CLI pins. **As built,** on the branch, not in the patch: the file is agent-editable, and the branch's `toolchain_check.py` ignores keys it doesn't know until P-1 gives each its row.
 
 ## 3. Cost: the budgets, the actions, and the shared meter
 
