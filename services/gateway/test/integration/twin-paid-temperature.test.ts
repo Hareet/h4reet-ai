@@ -3,9 +3,12 @@
 // (src/twin/turn.ts), and Claude Haiku 5.5 refuses any temperature but its default with a 400: "it takes no temperature
 // but its default, 1" (spec 000's contracts/provider-adapter.md §5.4).
 // The stack runs on prod's own config/routing.yaml and config/prices.yaml, as committed, so its Bedrock adapter is
-// configured as prod's is; aws-sdk-client-mock answers its ConverseCommand, and nothing leaves the process. Through
-// Bedrock, the Author's evaluation call (POST /admin/twin/turn, which spec 007's T075 and T077 make) and a visitor's
-// turn on prod's paid fallback (POST /room/turn) send no temperature, and the local adapter still gets the twin's 0.3.
+// configured as prod's is; aws-sdk-client-mock answers its ConverseCommand, and nothing leaves the process. The test is
+// about Bedrock's committed settings, so its copy of routing.yaml pins prod's fallback to bedrock, whichever paid
+// adapter the committed route names: the Author's switch changes that one line alone (spec 010, FR-002; its plan's
+// B16). Through Bedrock, the Author's evaluation call (POST /admin/twin/turn, which spec 007's T075 and T077 make) and
+// a visitor's turn on prod's paid fallback (POST /room/turn) send no temperature, and the local adapter still gets the
+// twin's 0.3.
 import { randomBytes } from "node:crypto";
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,6 +16,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { parseDocument } from "yaml";
 
 import { testStack, type TestStack } from "../helpers/stack.js";
 import { stubBedrock, type StubBedrock } from "../helpers/stub-bedrock.js";
@@ -47,11 +51,18 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
-/** prod's committed routing.yaml and prices.yaml, beside the fixtures' alerts and their budgets with limits.twin. */
+/**
+ * prod's committed routing.yaml, its fallback pinned to bedrock and every other line as committed, and its committed
+ * prices.yaml, beside the fixtures' alerts and their budgets with limits.twin.
+ */
 async function prodConfigDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "h4-config-prod-routing-"));
   dirs.push(dir);
-  for (const file of ["routing.yaml", "prices.yaml"]) await copyFile(join(REPO, "config", file), join(dir, file));
+  const routing = parseDocument(await readFile(join(REPO, "config", "routing.yaml"), "utf8"));
+  expect(routing.hasIn(["envs", "prod", "fallback"]), "the committed prod route names a paid fallback").toBe(true);
+  routing.setIn(["envs", "prod", "fallback"], "bedrock");
+  await writeFile(join(dir, "routing.yaml"), routing.toString());
+  await copyFile(join(REPO, "config", "prices.yaml"), join(dir, "prices.yaml"));
   await copyFile(join(FIXTURES, "alerts.yaml"), join(dir, "alerts.yaml"));
   const budgets = await readFile(join(FIXTURES, "budgets.yaml"), "utf8");
   await writeFile(join(dir, "budgets.yaml"), `${budgets.trimEnd()}\n${TWIN_LIMITS_BLOCK}`);
