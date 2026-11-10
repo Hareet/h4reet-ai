@@ -46,9 +46,11 @@ COPY corpus corpus
 # D44): build/room/readiness.ts applies the gateway's rule to the same files, the Author's config/twin-readiness.yaml
 # against the pack's hashes and the prompt's over prompt.md and lines.yaml, so a topic is ready in the image's room
 # exactly when it is in a checkout's build; and config/budgets.yaml's limits.twin gives the text box its limits
-# (FR-027). These five files and no other part of config/ (test/room/image-inputs.test.ts); none of them reaches the
-# runtime stage, which copies only dist/.
-COPY config/twin-readiness.yaml config/budgets.yaml config/
+# (FR-027). Spec 012's loader hints fill their figures from config/budgets.yaml, config/routing.yaml, and
+# config/prices.yaml (build/room/hints.ts; its FR-033), so the image's hints equal a checkout's. These seven files and
+# no other part of config/ (test/room/image-inputs.test.ts); none of them reaches the runtime stage, which copies only
+# dist/.
+COPY config/twin-readiness.yaml config/budgets.yaml config/routing.yaml config/prices.yaml config/
 COPY config/twin/corpus.json config/twin/prompt.md config/twin/lines.yaml config/twin/
 COPY apps/web apps/web
 # The room's caps for a build whose policy context holds none: build/room/policy.ts reads the tree's own copy only
