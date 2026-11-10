@@ -8,7 +8,7 @@ Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This 
 `/tmp/claude-1000/wt-feat014`, which the main session created at 2026-11-10T16:25:49Z with `git --no-replace-objects
 worktree add -b feat/014-room-after-the-demo /tmp/claude-1000/wt-feat014 refs/heads/spec/014-room-after-the-demo`, then
 merged `refs/heads/main` at 32fb2bc3 into it (cb861c2a). Repo hooks active: yes. In `.claude/audit/hooks.log`, the events
-naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to this note's last commit are 930 ALLOW, 10 BLOCK, and 6 WARN up to 21:13:02Z. Seven BLOCKs are this session's, each listed under For the Author, the refusals; the other three, at 19:51:11Z, 19:52:28Z, and 20:00:09Z, came while the reviewer (T052) read the branch, its read-only role refused two commands and the third for its text. The six WARNs are the post-edit lint: once on `evals/sign_probe.py`, fixed before its commit (the file is gone since X1), and five times on scratch files outside the repository.
+naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to this note's last commit are 1032 ALLOW, 13 BLOCK, and 6 WARN up to 22:08:03Z. Seven BLOCKs are this session's, each listed under For the Author, the refusals; the other six came while the reviewers read the branch, at 19:51:11Z, 19:52:28Z, and 20:00:09Z (T052) and at 21:20:16Z, 21:21:23Z, and 21:24:27Z (the second review), their read-only role refusing five commands and one for its text. The six WARNs are the post-edit lint: once on `evals/sign_probe.py`, fixed before its commit (the file is gone since X1), and five times on scratch files outside the repository.
 
 Authorized by: spec 014 and its plan, approved by the Author on 2026-11-10: "You can go ahead and start the build of
 the spec." (tasks.md T000). The brief from the main session for this build is the authority for its order and checks.
@@ -28,11 +28,11 @@ your lookdev look (T054), the gate (T057), and your look at the live room (T058)
 | `make test` | exit 0 on 36c44d5b: the gateway "1655 passed \| 13 skipped (1668)", the web "3271 passed \| 1 skipped (3272)", pytest "4101 passed in 506.72s" |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,997; the behavioral tier's WARN, information |
 | `make check ENGINE_MODE=none-yet`, the final run, on 36c44d5b | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 270 files (52 commits)" |
-| `gitleaks dir` on a fresh export | GLROW |
+| `gitleaks dir` on a fresh export | exit 0, "no leaks found", 2,026 files, on fdf21357 |
 | `npm run room:check` | "room: 0 findings in 0 files", 7.61 s (5.12 s at the base); 7,678 stages (7,291) |
 | The frame at 1920 × 1200 | ease 8/16 (10/16 before T053), the room 3.5% larger than spec 005's frame (2.7%), its centre x 804 (spec 005's 693) |
 | The entry chunk (SC-015) | 48,982 bytes gzipped (46,017 at the base), against 150 KB |
-| The rehearsal (T051) | RHROW |
+| The rehearsal (T051) | main still 32fb2bc3, an ancestor; the note's own guard blocks give go and no where they should under `zsh -f` and `bash --noprofile --norc`, on fdf21357 with `rv` 3cb4b125 |
 
 ## Runs in your terminal
 
@@ -653,23 +653,23 @@ forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
 
 ### gitleaks on a fresh export
 
-`git archive 730f6d71 | tar -x` into an empty folder under `$TMPDIR` (2,026 files, no `.pyc`), then `gitleaks dir .` there:
+`git archive fdf21357 | tar -x` into an empty folder under `$TMPDIR` (2,026 files, no `.pyc`), then `gitleaks dir .` there:
 
 ```text
-INF scanned ~53457999 bytes (53.46 MB) in 2.15s
+INF scanned ~53468535 bytes (53.47 MB) in 1.63s
 INF no leaks found
 ```
 
-Exit 0. 730f6d71 is this note's commit before its last, which adds only these results; the content scan passed every edit.
+Exit 0. fdf21357 is this note's commit before its last, which adds only these results; the content scan passed every edit.
 
 ### The rehearsal
 
 T051, again after T053. `refs/heads/main`, re-read: still 32fb2bc3, an ancestor of the tip, so nothing to rebase;
-`git merge-tree --write-tree refs/heads/main 730f6d71` writes the tip's own tree (f266777c). The board's patch needs
+`git merge-tree --write-tree refs/heads/main fdf21357` writes the tip's own tree (3407736f). The board's patch needs
 no rebuild: main's `content-approvals.json` hasn't moved, and the block's digest is unchanged.
 
 The guard: this note's own blocks, extracted from it, run in a scratch clone under `$TMPDIR` over made-up gate logs,
-2a or 2b and then 2c, with the gated SHA 730f6d71 and `rv` 7c12a0bb. A session can't point a ref or `HEAD` named
+2a or 2b and then 2c, with the gated SHA fdf21357 and `rv` 3cb4b125 (the same results as on 730f6d71 with 7c12a0bb). A session can't point a ref or `HEAD` named
 `main` anywhere, so the clone's stand-in for `main` is a branch at 32fb2bc3, its `HEAD` on it, and the blocks ran with
 `refs/heads/main` spelled as that branch; nothing else changed. The same results under `zsh -f` and under `bash
 --noprofile --norc`; the patch case is new, for I4, and said go with the old exclude:
