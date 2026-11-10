@@ -116,6 +116,19 @@ export const HUD_PLACEMENTS = {
   },
   /** The conversation's log: a sheet above the dock in the dock layout, at most 4.75rem, shown once it holds a line. */
   log: { sheetMaxRem: 4.75 },
+  /** The stage's notes in the clear area's top left (the placeholder note and the stand-in line, both counted): their
+   *  type, line height, padding, inset, and gap, room.css's `.room-notes` and `.room-note`, and the clear widths where
+   *  their words take two lines. No sheet reaches into this reserve, so none covers them (FR-021; the review of
+   *  60b51de4, finding 2); test/ui/hud-notes.test.ts holds it to the words. */
+  notes: {
+    fontRem: 0.75,
+    lineHeight: 1.5,
+    padYRem: 0.125,
+    insetRem: 0.5,
+    gapRem: 0.25,
+    count: 2,
+    lines: [{ belowRem: 27, n: 2 }] as readonly Band[],
+  },
 } as const;
 
 /** A part's count at a width in CSS pixels. */
@@ -220,6 +233,15 @@ export function fitsHud(
   if (screen.w < minimum.windowRem * metrics.rem) return false;
   const clear = clearArea(screen, state, metrics);
   return clear.w >= minimum.w && clear.h >= minimum.h;
+}
+
+/** The height the stage's notes take at the clear area's top, their insets above and below included: what no sheet may
+ *  reach into (FR-021). */
+export function notesReserve(clear: { readonly w: number }, rem = DEFAULT_METRICS.rem): number {
+  const n = HUD_PLACEMENTS.notes;
+  const lines = band(n.lines, clear.w, rem);
+  const note = lines * n.fontRem * n.lineHeight * rem + 2 * n.padYRem * rem;
+  return 2 * n.insetRem * rem + n.count * note + (n.count - 1) * n.gapRem * rem;
 }
 
 /** The walking control's box (spec 008, FR-021; plan.md R-09): `.room-walk`'s width, height, and inset from the clear

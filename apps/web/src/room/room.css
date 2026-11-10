@@ -119,6 +119,7 @@ body.in-room .disclosure p {
   --safe-bottom: 0px;
   --safe-left: 0px;
   --keyboard: 0px;
+  --notes-h: 0px;
 }
 
 /* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
@@ -501,6 +502,12 @@ html[data-hud="dock"] .talk-sheet {
   left: 0;
   right: 0;
   bottom: 100%;
+  /* Never into the notes' reserve at the clear area's top, so no sheet covers the stand-in line (FR-021). */
+  max-height: calc(var(--clear-h) - var(--notes-h) - var(--keyboard));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0.25rem calc(0.25rem + var(--safe-right)) 0.25rem calc(0.25rem + var(--safe-left));
   background: rgb(var(--glass) / var(--glass-alpha));
 }
@@ -661,7 +668,7 @@ html[data-hud="dock"] .room-list li {
    width, its foot clear of the walking control; never a re-fit. */
 html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
   position: absolute;
-  top: 0;
+  top: var(--notes-h);
   right: 100%;
   bottom: 3.75rem;
   width: 50vw;
@@ -676,6 +683,12 @@ html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
 html[data-hud="column"] .talk[data-larger="on"] .talk-log {
   flex: 1 1 auto;
   max-height: none;
+}
+
+/* The dock's sheet shrinks its log to fit, its header kept. */
+html[data-hud="dock"] .talk-log {
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 /* The dock's larger view: the log up to three quarters of the window's height above the dock. */

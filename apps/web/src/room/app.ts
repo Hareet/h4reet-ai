@@ -61,7 +61,7 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
-import { OPENING, fitsHud, hudBoxes } from "./compose/hud";
+import { OPENING, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
 import type { HudState } from "./compose/hud";
 import { h } from "./dom";
 import { noEvents } from "./events";
@@ -214,6 +214,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       column: boxes.column?.w ?? 0,
       dock: boxes.dock?.h ?? 0,
       clear: boxes.clear,
+      notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
     });
     layout.setBlur(blurAt(visit.quality));
