@@ -116,7 +116,7 @@ h=$(git symbolic-ref -q HEAD)
 t=$(git rev-parse --verify "refs/heads/$b")
 [ "$t" = "$sha" ] || ok=no
 mr=refs/heads/main
-rv=7c12a0bbb1e5b911d032c8d01c6442191103407e
+rv=3cb4b125cf4a4cc49fe8156a02b5e7e06c35e983
 anc=(merge-base --is-ancestor)
 git "${anc[@]}" "$rv" "$sha" || ok=no
 mt=(merge-tree --write-tree "$mr")
@@ -138,8 +138,8 @@ grep -vxF -- "$a" "$w/o" | grep -q . && ok=no
 echo "guard: $ok"
 ```
 
-**Why `rv`, and why two merge-trees.** `rv` is 7c12a0bb, T053's GREEN: the content the review read with its fixes,
-which the short second review reads as T053's diff; if that review asks for more, the session moves `rv` again. After
+**Why `rv`, and why two merge-trees.** `rv` is 3cb4b125, the second review's fixes: the content both reviews read
+with their fixes; if anything more changes it, the session moves `rv` again. After
 `rv`, the branch changes only this note, and the guard lets nothing else change, the board's patch included (I4).
 Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content to the reviewed one
 whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On `guard: no`, don't merge:
@@ -183,7 +183,7 @@ at:
 - **The reference desktop's window** (View): the room under the panels, its ease 8/16, the room 3.5% larger than
   spec 005's frame (10/16 and 2.7% before the walking control moved; E1, below). Whether to go further is yours: what
   binds next is the twin's framed box near the bar's cluster (plan R-1).
-- **"Walk around" at the column's head** (your answer, "Move the walk control (Recommended)"): above the column, at its right, on a wide window; in
+- **"Walk around" at the column's head**: you chose the option labelled "Move the walk control (Recommended)", worded "Put "Walk around" into the bar's tile cluster (or the column) so the frame stops easing around it; the room then grows toward the plan's ~7% and recentres." The build placed it at the column's head, which the option allows, since the bar's cluster made two windows ease more (E24): above the column, at its right, on a wide window; in
   the old corner on a short window and on a phone. Its hover over a light part of the room.
 - **The HUD's look** on the glass: the tiles, the warm edge (`#ffc8a8`, a lighter tint of the tube's colour, E11), the
   chips, Patrick Hand's headings.
@@ -212,12 +212,14 @@ echo "digest: $ok"
 ```
 
 On `digest: no`, stop and tell the session. Then edit the entry's two placeholders in
-`assets/policy/content-approvals.json`, `<the day you apply it>` and `<your words>`; the commit runs only once neither
-is left in the entry, so no placeholder reaches the loader's date check (the review's N4):
+`assets/policy/content-approvals.json`, `<the day you apply it>` and `<your words>`; the block sets `ok` afresh, so a new shell or a rerun after filling them works, and the commit runs only once
+the entry is there and neither placeholder is left in it, so no placeholder reaches the loader's date check (the review's N4):
 
 ```bash
+ok=go
 f=assets/policy/content-approvals.json
 e=$(grep -A2 '"C-0003"' "$f")
+[ -n "$e" ] || ok=no
 printf '%s\n' "$e"
 case $e in *'<the day'*) ok=no;; esac
 case $e in *'<your words>'*) ok=no;; esac
@@ -274,7 +276,7 @@ your recommendations. go for it!"
 - **The sign's check** (User Story 8): built, then withdrawn after the review by your answer, "Drop the make target" (X1): no stack
   runs it, and no target, runner, probe, or page reading remains. The chain is held by the unit tests
   (`test/room/turn-cost.test.ts`; the gateway's turn-route tests) and your live reading on prod, 2026-11-10: "Yup, it's working now! ive clicked the snowboard and the cost is changing".
-- **After the review (T053)**: the walking control at the column's head (your answer, "Move the walk control (Recommended)"; W19), the offer's
+- **After the review (T053)**: the walking control at the column's head (the build's place within the option you chose, "Move the walk control (Recommended)"; W19, E24), the offer's
   focus ring, the hover and selection rules scoped to the HUD's buttons and to pointers that hover, the guard's exclude
   narrowed to this note, step 6's digest and placeholder guards.
 - **Faults** (User Story 9, FR-001, FR-002, FR-004, FR-065): every degraded state ends framed, nothing new sent.
@@ -350,7 +352,7 @@ recorded in the commit that made it:
 | Principle | Touched | How it complies |
 |---|---|---|
 | I. Data-local by default | No | No byte newly leaves the visitor's device (FR-065; T021's network log); no disclosure change |
-| II. Production-grade or not shipped | Yes | Tests first, RED then GREEN per task (Verification); the sign's chain has its end-to-end check; `make lint`, `make test`, `make evals`, `make check` pasted below |
+| II. Production-grade or not shipped | Yes | Tests first, RED then GREEN per task (Verification); the sign's stack check withdrawn by your answer (X1), its chain held by unit tests and your live reading; `make lint`, `make test`, `make evals`, `make check` pasted below |
 | III. Intent before spec, spec before code, humans merge | Yes | Built from the approved spec and plan; every departure in plan.md in its commit; you merge |
 | IV. Least privilege | Yes | Nothing under `.claude/`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `config/`, `deploy/`, `infra/`, `.github/`, or `.specify/`, nor `CLAUDE.md` or `REVIEW.md`; the approval is a patch for your hand, built from plain copies |
 | V. Cost is a first-class signal | Yes | $0 in the cloud and in models; the sign's stack check is withdrawn (X1), its readings held by unit tests |
@@ -373,7 +375,8 @@ that no protected path was touched. Your answers of 2026-11-10: "Drop the make t
   spec.md's X1 withdraws FR-056 to FR-058, SC-010, T045, and T059, with your words and your live reading. **I1** (tsx's
   cache with no `TMPDIR` in the runner's reading) and **N5** went with the runner.
 - **The frame** (the review's measure: at 1920 × 1200 the room grew 2.7%, eased to 10/16, off centre at x 820): **done,
-  by your answer:** the walking control at the column's head (W19; E24), remeasured (E1).
+  within the option you chose:** it read "Put "Walk around" into the bar's tile cluster (or the column) so the frame stops easing around it; the room then grows toward the plan's ~7% and recentres." The build placed the control at the column's head, measured against the
+  bar's cluster (9/16 at 1920 × 1080 and 3/16 at 2560 × 1440 there; E24), and remeasured (E1, W19).
 - **I2**: the offer's buttons kept the page's `#0b4f9c` ring, about 1.7:1 over the glass. **Done:** the yellow rule
   names `.room-offer button:focus-visible`, with a contrast case.
 - **I3**: the hover and selection rules reached the walking control and the resume. **Done:** scoped to the HUD's
@@ -384,6 +387,28 @@ that no protected path was touched. Your answers of 2026-11-10: "Drop the make t
 - **N1** E1's wording; **N2** the file names below, `test/manifest.test.ts`'s header, and geometry's NARROW comment;
   **N3** an equivalence test of the bundle's protector and the sweep's (six screens, one frame area each); **N4** step
   6's digest guard before `git apply`, and the entry's placeholders checked before the commit. **Done.**
+
+The short second review read T053's diff: **ready**, no blocker. Its findings, fixed in 3cb4b125 (RED f219845f):
+
+- **Attribution** (important): the column's head was credited to your answer. You chose the option labelled "Move
+  the walk control (Recommended)", worded "Put "Walk around" into the bar's tile cluster (or the column) so the frame
+  stops easing around it; the room then grows toward the plan's ~7% and recentres." **Done:** spec FR-017 (c), W19,
+  plan E1 and E24, ADR 0046, the README, and this note quote it and say the column's head is the build's choice within
+  it, for E24's measurements; the place is in Your decisions.
+- **Stale sign-check references**: **done**, FR-001 and FR-067 marked and named in X1, plan step 6 and its note line,
+  tasks' US8 goal and checkpoint, T042 to T044 withdrawn, the constitution row.
+- **frame-area.md** defines `walk` by W19, with `walkPlace`. **Done.**
+- **Fallbacks**: the offer's ring and the walking control's hover outranked the forced-colours and
+  reduced-transparency fallbacks. **Done:** fallbacks added that outrank them, and both in hud-contrast's FALLBACKS.
+- **Step 6's second block** sets `ok=go` and checks the entry is there. **Done**, tested in fresh shells (filled: go;
+  placeholders or no entry: no).
+- **Smaller items**: report.ts's reserved-box line, hud.test's coverage comment, W19's wording and counts (5,256 sweep
+  screens; the report's 5,258 counts screens and states), tasks.md's W1 to W19 and X1, and the column's own
+  `walkGapRem`. **Done.**
+- **The larger conversation**: a regression of spec 014's compact column, not intended by it (FR-019 counts what you
+  open in no HUD box; spec 005's FR-028). At 1920 × 1200 the sheet had shrunk to about 310 px. **Done, test first:**
+  its top reaches back up the band to the notes' foot, as spec 005 drew it, tested by its box from the rule over the
+  compact column (over 60% of the window's height).
 
 ## Verification
 
@@ -429,6 +454,12 @@ Each phase's tests ran before its code (RED), then with it (GREEN), as the commi
   knock-on expectations listed below. The rehearsal's patch case: "guard: no". Step 6's guards in a scratch folder:
   "digest: go" on the patch's digest, "digest: no" once the block changes; "entry: no" with either placeholder left,
   "entry: go" once both are filled, under zsh and bash.
+
+- Second review RED (f219845f): `hud-contrast`, `hud`, `report`, `stages-checks`, `hud-look`: 5 failed, 85 passed:
+  six fallbacks losing; the sheet's top at 863 for 109.5; `walkGapRem` undefined; the report's old reserved line.
+- Second review GREEN (3cb4b125): those five files 90 passed after hud-look's every-hover case exempted the two
+  fallback blocks; the whole web suite then 2 failed (hud-notes and stages pinned the sheet's old `top`), both
+  changed expectations, then 22 of 22.
 
 ### T013's frame line and T047's measures
 
@@ -518,6 +549,9 @@ Each changes on purpose, for the FR or departure named:
   `test/room/__snapshots__/protect.test.ts.snap`, the walking control's box at 1788, 733 (1336, 1096 before);
   `test/room/geometry.test.ts`, the 2D side-wall count 114 others (117), and its NARROW comment says 54, as it asserts;
   `test/manifest.test.ts:11-12`'s header says what it checks.
+- The second review's round: `test/ui/hud-notes.test.ts` and `test/room/stages.test.ts` pin the larger sheet's new
+  `top` (FR-028); `test/room/report.test.ts` and `stages-checks.test.ts` the reserved box's line since W19;
+  `hud-look`'s every-hover case exempts the forced-colours and reduced-transparency blocks.
 
 ### make lint
 
@@ -750,7 +784,7 @@ withdrawn (X1); nothing in this branch makes a model call.
 ### What to look at
 
 Step 5's list: the Hands scene's twelve cases, the sign's glow, the reference desktop's frame, and the HUD's look.
-Your decisions: the grips' estimates (a data edit), the glow's spread (a data edit), the accent's tint (one palette
+Your decisions: the walking control's place, the column's head (built) or the bar's cluster (E24's measurements); the grips' estimates (a data edit), the glow's spread (a data edit), the accent's tint (one palette
 value in `room.css`), and whether to trim the desktop's frame further (plan R-1's ladder, E1). Then T060: accept ADR
 0046 or leave it proposed, and a yes or a no to Q1 to Q5 and D1 to D12.
 
@@ -762,8 +796,9 @@ Withdrawn by your answer, "Drop the make target" (X1). Nothing is left to run; y
 
 The earlier offer of a `make sign-check` line is withdrawn with the target. The reviewer proposes a line for "Things
 Claude gets wrong", in its words: "A make target the Author runs that starts node, npx, or tsx from the working tree
-without `$(CONTAINED)`: node_modules is agent-writable." CLAUDE.md is nearly full, so it may displace a line or need
-shortening; only you can add it.
+without `$(CONTAINED)`: node_modules is agent-writable." The second review proposes another, in its words: "A HUD rule
+added without its forced-colours and reduced-transparency fallbacks outranking it (hud-contrast's FALLBACKS)."
+CLAUDE.md is nearly full, so they may displace a line or need shortening; only you can add them.
 
 ### The refusals
 
