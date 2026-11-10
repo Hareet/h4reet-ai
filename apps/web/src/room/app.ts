@@ -266,7 +266,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (what === "keyboard") return;
     clear = fits ? { area: boxes.clear, window: screen } : null;
     frame = framed
-      ? { window: screen, area: framed.area, ease: framed.ease, hud: compact.all, clear: boxes.clear }
+      ? { window: screen, area: framed.area, ease: framed.ease, hud: compact.all, clear: boxes.clear, rem: m.rem }
       : null;
     if (framed?.fellBack) log?.record("frame_fallback", { w: m.w, h: m.h });
     if (controller) {
@@ -927,6 +927,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         onFigure: figureSignal,
         clear: () => clear,
         frame: () => frame,
+        // Spec 014 (FR-064): the walking view's hold and hand-over, in a drafts build's frame log.
+        walkHeld: (state, cause) => log?.record("walk", { state, cause }),
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.

@@ -115,6 +115,9 @@ export interface SceneOptions {
   /** Where the stage reports a leave of the walking view it made itself (spec 008): Escape, or a failed step (FR-005).
    *  Absent, nothing is reported. */
   walkEnded?(why: WalkEnd): void;
+  /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
+   *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
+  walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
@@ -154,6 +157,8 @@ export interface FrameGiven {
   /** The HUD's compact boxes over the window, which the picker reserves and the walking view's hold keeps clear. */
   readonly hud: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number }[];
   readonly clear: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  /** The root font size, for the walking view's 0.5rem hold margin; absent, 16. */
+  readonly rem?: number;
 }
 
 /** The clear area the room gives its 3D stage (spec 005), and the window it was computed for, in CSS pixels. */
