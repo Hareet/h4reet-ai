@@ -1,6 +1,7 @@
 // Every validation error and exit-78 refusal of contracts/config-files.md §1.3–§1.4, §2.4–§2.5, §3.3, and §4.3
 // (tasks.md T018), and the pin of prod's thresholds. §4.4's refusals combine the environment with the files; they
 // are in validate-env.test.ts with the module that checks them.
+import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,7 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { parse as parseYamlText, stringify } from "yaml";
+import { parse as parseYamlText, parseDocument, stringify } from "yaml";
 
 import { ADAPTER_TYPE_SPECS, type Env } from "../../src/adapters/_settings.js";
 import {
@@ -1233,18 +1234,66 @@ describe("the config directory", () => {
     expect(errorLines(validateRouting(parseYaml("config/routing.yaml", text)).issues)).toEqual([]);
   });
 
-  it("validates the committed config/routing.yaml and config/prices.yaml", async () => {
-    const dir = await dirWith(["budgets.yaml", "alerts.yaml"]);
-    for (const n of ["routing.yaml", "prices.yaml"]) {
+  // The committed files bring their own budgets.yaml, which caps the Anthropic API's month since P-C (spec 010,
+  // FR-021), and the environment gets a value made at run time for each key its route's adapters read through
+  // `api_key_env`, never a literal that looks like a key: a route on the Anthropic API needs both to start (spec 010's
+  // plan, B16). Whichever paid adapter the committed route names, these hold.
+  const COMMITTED = ["routing.yaml", "prices.yaml", "budgets.yaml"];
+  const committedRouting = (): Doc => parseYamlText(readFileSync(join(REPO, "config", "routing.yaml"), "utf8")) as Doc;
+  /** The env keys the route H4_ENV selects reads its adapters' API keys from. */
+  const routedKeyEnvs = (routing: Doc, env: Env): string[] =>
+    Object.values((routing.envs?.[env.H4_ENV ?? ""] ?? {}) as Record<string, string>)
+      .map((id) => routing.adapters?.[id]?.api_key_env as unknown)
+      .filter((key): key is string => typeof key === "string");
+  const withRoutedKeys = (routing: Doc, env: Env): Env => ({
+    ...env,
+    ...Object.fromEntries(routedKeyEnvs(routing, env).map((key) => [key, `test-${randomBytes(12).toString("hex")}`])),
+  });
+  // A gateway starts on the active price version, the newest whose effective_from has passed. Check from the newest
+  // committed version's effective_from, or NOW if that is later: before it, an older version is active, and a route
+  // added with the newest version's price (T105's Bedrock fallback) is rightly refused there.
+  const newestFrom = (set: Awaited<ReturnType<typeof loadConfig>>): number =>
+    Math.max(NOW, ...(set.prices?.versions ?? []).map((v) => v.effectiveFrom));
+
+  it("validates the committed config/routing.yaml, config/prices.yaml, and config/budgets.yaml", async () => {
+    const dir = await dirWith(["alerts.yaml"]);
+    for (const n of COMMITTED) {
       await writeFile(join(dir, n), readFileSync(join(REPO, "config", n), "utf8"));
     }
     const set = await loadConfig(dir, { allowPlanned: false });
     expect(errorLines(set.issues)).toEqual([]);
-    // A gateway starts on the active price version, the newest whose effective_from has passed. Check from the newest
-    // committed version's effective_from, or NOW if that is later: before it, an older version is active, and a route
-    // added with the newest version's price (T105's Bedrock fallback) is rightly refused there.
-    const newest = Math.max(NOW, ...(set.prices?.versions ?? []).map((v) => v.effectiveFrom));
-    expect(startupRefusals(set, PROD_ENV, newest)).toEqual([]);
-    expect(startupRefusals(set, DEV_ENV, newest)).toEqual([]);
+    const routing = committedRouting();
+    const newest = newestFrom(set);
+    expect(startupRefusals(set, withRoutedKeys(routing, PROD_ENV), newest)).toEqual([]);
+    expect(startupRefusals(set, withRoutedKeys(routing, DEV_ENV), newest)).toEqual([]);
+  });
+
+  // FR-002's switch is prod's fallback line alone: the committed files start prod on either paid adapter, the Anthropic
+  // API with its key and nothing more.
+  it("starts prod on the committed files with either paid adapter as its fallback (spec 010, FR-002)", async () => {
+    const paid = Object.entries(committedRouting().adapters as Doc)
+      .filter(([, adapter]) => adapter.kind === "paid")
+      .map(([id]) => id);
+    expect(paid.sort()).toEqual(["anthropic", "bedrock"]);
+    for (const fallback of paid) {
+      const dir = await dirWith(["alerts.yaml"]);
+      for (const n of COMMITTED) await writeFile(join(dir, n), readFileSync(join(REPO, "config", n), "utf8"));
+      const routing = parseDocument(readFileSync(join(REPO, "config", "routing.yaml"), "utf8"));
+      routing.setIn(["envs", "prod", "fallback"], fallback);
+      await writeFile(join(dir, "routing.yaml"), routing.toString());
+      const set = await loadConfig(dir, { allowPlanned: false });
+      expect(errorLines(set.issues), fallback).toEqual([]);
+      const keys = routedKeyEnvs(routing.toJS() as Doc, PROD_ENV);
+      expect(keys, fallback).toEqual(fallback === "anthropic" ? ["GATEWAY_ANTHROPIC_API_KEY"] : []);
+      const newest = newestFrom(set);
+      expect(startupRefusals(set, withRoutedKeys(routing.toJS() as Doc, PROD_ENV), newest), fallback).toEqual([]);
+      // Without its key, the Anthropic API's route is refused, as the gateway refuses it.
+      if (keys.length > 0) {
+        expect(
+          startupRefusals(set, PROD_ENV, newest).map((r) => r.reason),
+          fallback,
+        ).toEqual(["missing_env"]);
+      }
+    }
   });
 });

@@ -79,10 +79,12 @@ async function prod(): Promise<TwinStack> {
   return t;
 }
 
+/** The call's elapsed time on the monotonic clock, the one the gateway's timers run on (AbortSignal.timeout,
+ *  setTimeout), so a step or slew of the wall clock (a VM's time sync) can't read a cut short or long. */
 async function timed<T>(f: () => Promise<T>): Promise<{ out: T; ms: number }> {
-  const started = Date.now();
+  const started = performance.now();
   const out = await f();
-  return { out, ms: Date.now() - started };
+  return { out, ms: performance.now() - started };
 }
 
 describe("a twin turn's one 9 s attempt on a paid adapter (spec 007's plan, D43)", () => {

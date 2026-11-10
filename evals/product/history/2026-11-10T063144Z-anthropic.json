@@ -1,0 +1,3837 @@
+{
+  "suite": "product",
+  "adapter": "anthropic",
+  "provider": "anthropic",
+  "stack": "prod",
+  "stack_ref": "787d85afb7d1eaefe9da46e118dfe083377e1e53",
+  "started": "2026-11-10T06:26:20+00:00",
+  "finished": "2026-11-10T06:31:44+00:00",
+  "cases": 186,
+  "failed": 30,
+  "skipped": [
+    "hello-fake"
+  ],
+  "cost_micro_usd": 209331,
+  "tokens": {
+    "input_tokens": 1977052,
+    "output_tokens": 23091
+  },
+  "results": [
+    {
+      "id": "twin-00-profile-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2466,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6758,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 731,
+      "trace_id": "119a4f750abfe37e5261dc92cb772f27",
+      "answer_sha256": "1e840bd659f489a91ba1a7a8ae04a85fad7e5f68a4de987b4dacd878cd53ccaa",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2322,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6766,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 732,
+      "trace_id": "78a88a7c8cdf554ba96760ba663d1287",
+      "answer_sha256": "c0a30c625618672712c444c1c7060f46269c8cd8fca64b2132b3c3cc0d2378c6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2926,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7190,
+        "output_tokens": 46
+      },
+      "cost_micro_usd": 742,
+      "trace_id": "9d6ad4613d499f3adcb4eaf9d4b0b86a",
+      "answer_sha256": "1f0e838aaff3aa4faf2a2ba5cb08445474a28de915e8be38ac311a799b3afc1b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2538,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7198,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 767,
+      "trace_id": "eab78726a73f6077c86a0b0bf5103d34",
+      "answer_sha256": "87e051f9ebe68c83c224e6a3ddc00ae07e08db902bea1e3430b581566a0da14d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "seva"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1304,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6759,
+        "output_tokens": 100
+      },
+      "cost_micro_usd": 726,
+      "trace_id": "9860e50f30f8780d1d73296be3e8ff9c",
+      "answer_sha256": "bd7c38fe3ec7659cd89032331a0a2097aca95ac4c62125e118cf1d0d712565f0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1122,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6767,
+        "output_tokens": 66
+      },
+      "cost_micro_usd": 710,
+      "trace_id": "8bfb579911cb70ee409cb3b5bfc0b7dd",
+      "answer_sha256": "bdebada6cb394d07b11c40d8117360a26eb96bf87f076094a1a079b76f48602c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1195,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11664,
+        "output_tokens": 87
+      },
+      "cost_micro_usd": 1210,
+      "trace_id": "2c00ac9b713489f9edecf161ea383ced",
+      "answer_sha256": "806a886f1ba15a0e4fb5ffa25c565c4f6d1b2e9fe1eab76cb99d8b2514be5ffb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1298,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11672,
+        "output_tokens": 132
+      },
+      "cost_micro_usd": 1234,
+      "trace_id": "01cd2cea7fbd27fecc74b9642bc23b30",
+      "answer_sha256": "5c76a484e565d075f619fc5d67a8e9f8ed949958d60bf6dd0135e618be3c197d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2505,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7430,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 804,
+      "trace_id": "dbf92ea3e390cd88ab374126674ea65f",
+      "answer_sha256": "2b9d0176ce6928b618a2c9dd252176266f28152ec708642d96f92516cd922e6c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3699,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 7438,
+        "output_tokens": 129
+      },
+      "cost_micro_usd": 809,
+      "trace_id": "35ebba85590d351d7c7a68219640cd66",
+      "answer_sha256": "11e881947aa1ce90fced14fb8c7c9170c53ab9ccd5410c118f23b4b6b6ef537b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1173,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11026,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 1152,
+      "trace_id": "6138f82165830719fd4d49f31d359f0b",
+      "answer_sha256": "07f84ff5cea1c4c29b299707b4fa22ff64d57acd9732e0da3473a7b9b5bfc5f8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-00-profile-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1103,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11034,
+        "output_tokens": 87
+      },
+      "cost_micro_usd": 1147,
+      "trace_id": "ae27d7538642da00a7fd3d1f8b4ee955",
+      "answer_sha256": "1009d57eda34e92e882c67f098046d25e5a3f1eb7f0339cb047b1c8d753e89bd",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1285,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10659,
+        "output_tokens": 116
+      },
+      "cost_micro_usd": 1124,
+      "trace_id": "31828ccbcade9d66a98a5ea5778fc629",
+      "answer_sha256": "f4ed840f79ddd78bae352b92fc14d083898448df07160b44b2c3a5249e98034c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1512,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10667,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1134,
+      "trace_id": "28ab286ad689291a36f5019164c14d09",
+      "answer_sha256": "22b23f85275ba4f2b0aaeb822811acf10999c79e4bb8ee0a0b0221f9338cff75",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1734,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11374,
+        "output_tokens": 107
+      },
+      "cost_micro_usd": 1191,
+      "trace_id": "f9871dcfeb24ec540fe7b86a78e72138",
+      "answer_sha256": "a82ec8a81e532487392a8d51e14b5726569bde456129b205c476ef217aa3863c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1522,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11382,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1208,
+      "trace_id": "6b360ce5f0d56865e73718f99fc78710",
+      "answer_sha256": "3c73c3d2ff943fbda9dbdbcae6bf396dcd22153f07d9b4fab46d91bad14fcce6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3522,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11397,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 1207,
+      "trace_id": "a5b47a413640f497b087ca46d2f484a8",
+      "answer_sha256": "b0ba9b656d7a545485bca4194b2898860b554646d045bfc359fc8ddae53d61ac",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1602,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11405,
+        "output_tokens": 120
+      },
+      "cost_micro_usd": 1201,
+      "trace_id": "daf3e491c22213a950c36090778383ca",
+      "answer_sha256": "7d5a3b956a97f36f121f1e262750a2581e10d7aa5e519ccc401e2ec2e107d01a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3681,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11385,
+        "output_tokens": 115
+      },
+      "cost_micro_usd": 1196,
+      "trace_id": "6afa1531eaf566da3bb86d7796bda28f",
+      "answer_sha256": "58c343328d09ee2ef8dfd69ea52b8a337e4c0f0a1f688d79200ea6f6db2942ed",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-gap-4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1256,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11393,
+        "output_tokens": 99
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "2ce636543c4d34893b058457514778ac",
+      "answer_sha256": "f24238f02a656a9e7bcd60384ab661ac9ddc8da55537fc74fb1ebae6b0626a08",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1250,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11732,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1235,
+      "trace_id": "5fa2bd32e22aba9e0e996d667681db34",
+      "answer_sha256": "3f6b27352efcd3228512463a47ebbd58b71bf7b5d5d197a6170de444032aac1a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1119,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11740,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1235,
+      "trace_id": "084ac24e55bc25e97867e04b05280651",
+      "answer_sha256": "3f6b27352efcd3228512463a47ebbd58b71bf7b5d5d197a6170de444032aac1a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1792,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11223,
+        "output_tokens": 131
+      },
+      "cost_micro_usd": 1188,
+      "trace_id": "42f91a1bfc8de0600b2db76a4269bf6b",
+      "answer_sha256": "5beba7c459aaa9a7bf4a6030f8492a9ac0af5e64cfc1bce0ff3f039799618200",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1503,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11231,
+        "output_tokens": 105
+      },
+      "cost_micro_usd": 1176,
+      "trace_id": "28b228259b3c2d1c0635f76b4eec8ba7",
+      "answer_sha256": "572d2bf26e47b26503d0663a05b5110ec7ea8550ed420814b8637d7c0166e8e0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1588,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11709,
+        "output_tokens": 141
+      },
+      "cost_micro_usd": 1242,
+      "trace_id": "3131f6deb3248f127e547df81e9cf9a7",
+      "answer_sha256": "94820b6b1a9e90d85b36c5f4682742ea6be1c2dac9cdfce67ffcfae781ae0cbb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "numbers"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q11-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'",
+        "missing 'CHT'",
+        "missing 'Grafana'"
+      ],
+      "latency_ms": 1445,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11717,
+        "output_tokens": 143
+      },
+      "cost_micro_usd": 1244,
+      "trace_id": "89570eb4dff2b6706ff10e728afcb875",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'API'",
+        "missing 'claude-medic-aws'",
+        "missing 'EKS'"
+      ],
+      "latency_ms": 1461,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10972,
+        "output_tokens": 122
+      },
+      "cost_micro_usd": 1159,
+      "trace_id": "58261a8cd24ed6db34398f7cf1848a2f",
+      "answer_sha256": "790d2c681fb79f67f49cf56ba6fd2f6bf28d7d6545524fe51d5c4302a586d210",
+      "feature": "free_talk",
+      "guard": "ownership",
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q12-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'API'",
+        "missing 'claude-medic-aws'",
+        "missing 'EKS'"
+      ],
+      "latency_ms": 1397,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10980,
+        "output_tokens": 142
+      },
+      "cost_micro_usd": 1169,
+      "trace_id": "85f24bb3b039d34109edd0786e967dae",
+      "answer_sha256": "790d2c681fb79f67f49cf56ba6fd2f6bf28d7d6545524fe51d5c4302a586d210",
+      "feature": "free_talk",
+      "guard": "ownership",
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1388,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11929,
+        "output_tokens": 130
+      },
+      "cost_micro_usd": 1258,
+      "trace_id": "b8a7f87d1ba845f4556b13ec9cc395a4",
+      "answer_sha256": "1d1fd40185a4f2bad72d664c17d6b47017d624654b77c1017e7e1bd4fa81b5a8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1382,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11937,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1258,
+      "trace_id": "e629646198039a68dbf75b4b78938076",
+      "answer_sha256": "6cca375742a3d7ddec6e84581ec3f0ea80836dc5182824cbf43c9769e82b9c39",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'"
+      ],
+      "latency_ms": 1899,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11532,
+        "output_tokens": 161
+      },
+      "cost_micro_usd": 1234,
+      "trace_id": "58e5f7946406ca75aa51f92dda689a28",
+      "answer_sha256": "3effaab58585471e8329ddfe15d12235bbc7b7083841cba47d5a253a49d461c5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q14-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing '1'"
+      ],
+      "latency_ms": 4015,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11540,
+        "output_tokens": 146
+      },
+      "cost_micro_usd": 1227,
+      "trace_id": "a98455d00cddf8e418e4c57b8ba02d3f",
+      "answer_sha256": "d133b74b3f28243d3a6ce45a8fa4e9126d6053424b54ce2c0e5646d49d263c8d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'non-technical'",
+        "missing 'cht-conf'"
+      ],
+      "latency_ms": 3217,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11758,
+        "output_tokens": 130
+      },
+      "cost_micro_usd": 1241,
+      "trace_id": "e5b6c37cd2faa81ec01781eef6e3cd9e",
+      "answer_sha256": "c8511472878d75498a55307c6a1acc8d7e6c9d487758eaed843e7ac1e5d004af",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "numbers"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q15-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1270,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11766,
+        "output_tokens": 123
+      },
+      "cost_micro_usd": 1239,
+      "trace_id": "5b0b8d841e0960072f04acd442d85ae7",
+      "answer_sha256": "eb51ed7098eaa426bd700e020dff0bcc754fa65f8070216ba13e9eff5ca86d7e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1189,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11391,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 1163,
+      "trace_id": "8e5435113af4970ee7d776a69b75d28c",
+      "answer_sha256": "abec826a9ba2cd979d037586d6ecb3b94b2baedae3c076f40946c67b3fa7847e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q16-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1296,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11399,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 1164,
+      "trace_id": "89bedef7a1a7c46377fed8bf33add7cb",
+      "answer_sha256": "abec826a9ba2cd979d037586d6ecb3b94b2baedae3c076f40946c67b3fa7847e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1287,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11413,
+        "output_tokens": 88
+      },
+      "cost_micro_usd": 1186,
+      "trace_id": "02f2fa27a5fb859693e7d069c135e7ee",
+      "answer_sha256": "f52ac0441719b32c0a0dbcfec9dc554f968d9132fea0c52b2a2255eaa33e63f3",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q17-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1374,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11421,
+        "output_tokens": 37
+      },
+      "cost_micro_usd": 1161,
+      "trace_id": "2b5ef38776f20526b7b355d4e1697440",
+      "answer_sha256": "c6ce5db2e1630f72c6782092867cb18525355f37987d289a10cf2418baf54f27",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1582,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11694,
+        "output_tokens": 181
+      },
+      "cost_micro_usd": 1260,
+      "trace_id": "0ab8a82a352cdeffe33e49b974583144",
+      "answer_sha256": "957b10a4f6ce91ce133a5ff39fd5f0bebe442ee7df381c006bd6bcbb54a0f662",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q18-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1528,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11702,
+        "output_tokens": 168
+      },
+      "cost_micro_usd": 1255,
+      "trace_id": "4a37e1bfe48ec2895afc6fe83cd3fb05",
+      "answer_sha256": "88766327ce52c9d2cf54e808c9318e7d27bcb6ea4060617c93fdabe5ff943314",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1306,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11590,
+        "output_tokens": 36
+      },
+      "cost_micro_usd": 1177,
+      "trace_id": "2edffdb9277385bd2869484307d0fc11",
+      "answer_sha256": "eadf0c04de2080b073132229ac0dd2c0daeca02c5867a8edcb1898c71e39eb52",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1031,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11598,
+        "output_tokens": 53
+      },
+      "cost_micro_usd": 1187,
+      "trace_id": "f1a64d9edc64c2d2bb04672d91d549ed",
+      "answer_sha256": "4b7a67ae2df799667f3e9d3e6059e972cd0809b2aa5bda45477d860cbeb819bb",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3572,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11182,
+        "output_tokens": 166
+      },
+      "cost_micro_usd": 1202,
+      "trace_id": "fc15b78c8adfef48fff9f51295d23fc1",
+      "answer_sha256": "ff7a3d3336bb8ebb5b9f6b8ed6e4471e243ae446a00498097608253fa4db8b25",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1006,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11190,
+        "output_tokens": 113
+      },
+      "cost_micro_usd": 1176,
+      "trace_id": "b31da61e7d95fe2c1ce373a4d57b8568",
+      "answer_sha256": "468cc899567d32fbe4c49129e6eae5acdf98a138a4cae9b5393503a6ebada9e5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1197,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11459,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 1193,
+      "trace_id": "4e5fc4c1b3fd0b713a294b8f0525d519",
+      "answer_sha256": "1b54c93a4e7c98e7e4994dcd5a3dd909747ae7da774bd16cb12f3212bac9b148",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1257,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11467,
+        "output_tokens": 103
+      },
+      "cost_micro_usd": 1199,
+      "trace_id": "1b4956301a16d6f3a0a8c543bd2f060f",
+      "answer_sha256": "9a47a88fc187e3b814c0e1ff3f254283cff8809bb582208633f4a186e55f0955",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1115,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11517,
+        "output_tokens": 105
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "1f476c2adc170cb9edd9885d4698ecee",
+      "answer_sha256": "2f5fbdb799ba09ce20ed37760e89bf9d266cae0b4bcaef89adc276deaca2b32f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1229,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11525,
+        "output_tokens": 129
+      },
+      "cost_micro_usd": 1217,
+      "trace_id": "1d02df875208cb56f32d0778b7b76c2d",
+      "answer_sha256": "107d150f432a1ff148669aa12bf56cc438aa3cae3bd94f852a76673d33e7dc62",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'architected'"
+      ],
+      "latency_ms": 1469,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11753,
+        "output_tokens": 145
+      },
+      "cost_micro_usd": 1248,
+      "trace_id": "9d5f94a5755b8aa83f76dfaeb4337ffc",
+      "answer_sha256": "e019462eedf697327ed2c74305279681e3b0e989425599705adbd1ec69d588df",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q6-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'architected'"
+      ],
+      "latency_ms": 3385,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11761,
+        "output_tokens": 148
+      },
+      "cost_micro_usd": 1251,
+      "trace_id": "a6dfa4d0c531a67c8dab69dcdd0c192b",
+      "answer_sha256": "16d99e9fd056210d80cfdf965662cf378f9daab0e9ad8b0d518160aa0ac5a903",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1237,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11532,
+        "output_tokens": 123
+      },
+      "cost_micro_usd": 1215,
+      "trace_id": "d8c2bf653faee736df5a3270f9051c33",
+      "answer_sha256": "65522ddb4edf8ca54be11d742608603bcaf64cc3248b02a7979c1633c7c0913d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1063,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11540,
+        "output_tokens": 89
+      },
+      "cost_micro_usd": 1199,
+      "trace_id": "c4574e35c7cfcf6a21f524440ee407d1",
+      "answer_sha256": "95650fc704ad4ce85e338d95e044b2b3249f4ae7cb79d358f20aac5e2053a9e4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing \"CHW's\""
+      ],
+      "latency_ms": 3426,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11344,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "b47240872f4403330f1b372869983693",
+      "answer_sha256": "0bbbb0200072ff32757c758a55c3fa2ff65dcf34caad39e7147902e065db0c30",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q8-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing \"CHW's\""
+      ],
+      "latency_ms": 1485,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11352,
+        "output_tokens": 117
+      },
+      "cost_micro_usd": 1194,
+      "trace_id": "b7ff4f21433b24cab7156487d4754e40",
+      "answer_sha256": "5bb982b2fee41efcd4ce70696bb27ac7f6a9163523e29beb4c26ba949c03e855",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3622,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11528,
+        "output_tokens": 191
+      },
+      "cost_micro_usd": 1249,
+      "trace_id": "0af886cd1e1f3fd1329cd04cdb1463ef",
+      "answer_sha256": "73586c33691f0a8d7d9376b6c7dfcfe38af2fac93065e9424f73fef3a809b791",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-01-ai-strategy-and-cht-q9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1644,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11536,
+        "output_tokens": 230
+      },
+      "cost_micro_usd": 1269,
+      "trace_id": "a6c3f30e7b1a1e9c408f68ee3d29460d",
+      "answer_sha256": "375041d41354a290e120b087dcb775a99e9a9e4cd6499ee3ad9ec9b423f511fe",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 2460,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11410,
+        "output_tokens": 149
+      },
+      "cost_micro_usd": 1216,
+      "trace_id": "31f24f7f92ce04b65d128ffc3cdb15e6",
+      "answer_sha256": "1fbb24769ac88a1e8d41cfdc0ac4a28a321a03e8ae780a5b292ae9c61f7bff4a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1117,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11418,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "b8656849e2bf52e5963719990cf378f0",
+      "answer_sha256": "f793a876ed1956c1959892c7b44ce4ce9a562398ba5ceb7dc572da415f2250c7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1424,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11488,
+        "output_tokens": 111
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "b71746abf30af48ae0f13149f4a9edce",
+      "answer_sha256": "38266fad38a6cf94880cf7c23d65232f3e46b6fe708000196a14a41fc4de7826",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-10-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2573,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11496,
+        "output_tokens": 130
+      },
+      "cost_micro_usd": 1215,
+      "trace_id": "0c0e1dee5504396588e4fda3576f8915",
+      "answer_sha256": "fbd398ae67f9c7d37b9ee412e1ebb47d8c88de507c5c7a7e4badfa3d1d43866d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1806,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11308,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 1186,
+      "trace_id": "63f3dc02ccd2e1589cc4dc67f7e6d34f",
+      "answer_sha256": "aabfae978a8fd8d857e0e10eb9e8be36f41db22703429b23ed7b7c30bb3abfcd",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-11-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1818,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11316,
+        "output_tokens": 168
+      },
+      "cost_micro_usd": 1216,
+      "trace_id": "7b94527808e58ae6fb363f105c821b5e",
+      "answer_sha256": "614bf10b4fb91bce30ce13aaca3afc86685dc45ea309203fae1251513900b812",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3581,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11283,
+        "output_tokens": 120
+      },
+      "cost_micro_usd": 1189,
+      "trace_id": "c6d8ad3232eb37212d9609b3e8b235ef",
+      "answer_sha256": "aee5133b13ba065d5398ca96f7f9ea15564d0b8b59a897f6d4ddcaa3585ac2ee",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-12-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1782,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11291,
+        "output_tokens": 135
+      },
+      "cost_micro_usd": 1197,
+      "trace_id": "ca19df09507b5edb065d0b38262aaee0",
+      "answer_sha256": "04e9faa2b511180a0e06281e5d4fbdd8b49a90b2888c50bef6276a7fc36e02ee",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1717,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11477,
+        "output_tokens": 146
+      },
+      "cost_micro_usd": 1221,
+      "trace_id": "c3ff333f6795801a1cd26571e30dc330",
+      "answer_sha256": "b8ba2b52af2c44d243b3fc4755a0e0a2dd3ee52a2f99783f1d1285d7f0554b42",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-13-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1774,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11485,
+        "output_tokens": 217
+      },
+      "cost_micro_usd": 1257,
+      "trace_id": "c01231c9e21ef09abb89653378cf1c42",
+      "answer_sha256": "7075653e2b88220695fa65f864de6578b208f69ccbc83d0c24737ed9bec3c073",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1714,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11473,
+        "output_tokens": 105
+      },
+      "cost_micro_usd": 1200,
+      "trace_id": "36dd4a6ba9bd8b071eeb5503d745cac0",
+      "answer_sha256": "2200ee1608eaaca55d06db77586009463df764c26e04311fcf39bab3ad4a559b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1634,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11481,
+        "output_tokens": 109
+      },
+      "cost_micro_usd": 1203,
+      "trace_id": "a8a2550e299f33b8b6a2526f5d4ef184",
+      "answer_sha256": "5bed693162e69a75c76371e6b291981322bcef55427bdfa5f01aa8ef057687cc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1327,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11726,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 1209,
+      "trace_id": "11b79752c8b01df8f20a0a561a11c841",
+      "answer_sha256": "0319f19a0cfca976c67755f2d731ef5726cd89aceef0863b0dfb5fc3f1bb4abc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1383,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11734,
+        "output_tokens": 93
+      },
+      "cost_micro_usd": 1220,
+      "trace_id": "ae4d8de1554e36dad5ae745dfd98f2fa",
+      "answer_sha256": "55d74f507c8aa9e46c31e43bc8b2977b470fd5af72fa90c1e4e7db5699175fc0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1637,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11786,
+        "output_tokens": 121
+      },
+      "cost_micro_usd": 1240,
+      "trace_id": "b533f3f1243d6416d3979c8502d885ea",
+      "answer_sha256": "d88dab1e4e7fe4c99e644dc9db3a7f1a338c67bb189c0ad4aaab8f70aac2e290",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1694,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11794,
+        "output_tokens": 202
+      },
+      "cost_micro_usd": 1281,
+      "trace_id": "6a3a2d97916f3a00d1ba6055dee6293c",
+      "answer_sha256": "1928937cb46912c4384bffed82e3818f21f2b2721f3140015de48adacb5589a0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1900,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11445,
+        "output_tokens": 163
+      },
+      "cost_micro_usd": 1226,
+      "trace_id": "19a36ee4f02c799f7c45092b31753d7a",
+      "answer_sha256": "cb7f4ef30a9464818592da952ab2216d01cf407d6ea2fb5f2e0e5e8f4a4c0a59",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1537,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11453,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1210,
+      "trace_id": "4c89635931f912eef785c63652279b5e",
+      "answer_sha256": "8518ea8d6fc5175b8709101c435a8a121f81ca3f524f7c71d9660a329c56b345",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1574,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11448,
+        "output_tokens": 155
+      },
+      "cost_micro_usd": 1223,
+      "trace_id": "3e4ccdad4b2cc648e1c67b29cd0724cf",
+      "answer_sha256": "30bf75cf7a3fc20d96862d6e0d74f31e030736d645c884066ec3f9e2ac6dbf39",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1926,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11456,
+        "output_tokens": 173
+      },
+      "cost_micro_usd": 1233,
+      "trace_id": "d25b0bcff2540c15b941fd32953719bc",
+      "answer_sha256": "d535ec6fa9a35b92e24e4b434c1ad54ce159e219ea1a885db421438620f4a9c2",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1327,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11450,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 1201,
+      "trace_id": "265ad17bfaa7d0edb670a8d5e936614b",
+      "answer_sha256": "475a337d159a36508a67dc15c95270498711f670294021ebbde339890a8b74ec",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1397,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11458,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "4647597d609d435b3f1cd43345224a35",
+      "answer_sha256": "43b933e066d64771a7907b6a01e0e2e29e53f9e4e4881992784277afcbccb8e7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1675,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11327,
+        "output_tokens": 144
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "fc48f9835145d5b7244885122e2f6eb6",
+      "answer_sha256": "5c333b29e7910942af9d01fe9acbe6df8a4d82a07b1b9693b91543326c36bd3b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1526,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11335,
+        "output_tokens": 131
+      },
+      "cost_micro_usd": 1199,
+      "trace_id": "a5c34388f70e70fbff8e815a7816a0e1",
+      "answer_sha256": "58b824c27f1b05b2eb1cdbe53d546ac7a52d769b532f19d32a71c9372e5f363e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3974,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11444,
+        "output_tokens": 157
+      },
+      "cost_micro_usd": 1223,
+      "trace_id": "1a63fddac0568460b2a046d1a28493a0",
+      "answer_sha256": "af1449eb595fd6e18f8bfe34869629ca47c32d093937057249207295ca55dadc",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-gap-9-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3889,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11452,
+        "output_tokens": 135
+      },
+      "cost_micro_usd": 1213,
+      "trace_id": "6d9979517fa6789cd8d4c795c21418ca",
+      "answer_sha256": "68a6ce2dd420a9189d2295031598bfd624648529db676f0c45eb28d71938b60a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1238,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11545,
+        "output_tokens": 150
+      },
+      "cost_micro_usd": 1230,
+      "trace_id": "579aa859f55ccd554db0c5defc037c89",
+      "answer_sha256": "918d554981886e94f35a7ee07be3db1672f09e7ba97e8ec431fab6a0d53a7e16",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1520,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11553,
+        "output_tokens": 181
+      },
+      "cost_micro_usd": 1246,
+      "trace_id": "ec69f3ca3899127f6e341b75654c8e67",
+      "answer_sha256": "6b92dd94eb60a632118f45bb1eb9f28365a5a021d094eba2ec965a6f918b3f52",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1546,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9647,
+        "output_tokens": 142
+      },
+      "cost_micro_usd": 1036,
+      "trace_id": "3241ed6a499c17deb8683d87735b3505",
+      "answer_sha256": "8b2c809774c3b78dfca778969abfa839f17f4cf4be0078e3f655881249eb96e4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1491,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9655,
+        "output_tokens": 150
+      },
+      "cost_micro_usd": 1041,
+      "trace_id": "ec1546c71c4f946b4f43ed7e391c66d4",
+      "answer_sha256": "88dc57ad261b86b92e5d4042161f8a72f348b9b234be315dc06ee143ae79938e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1759,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11491,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 1217,
+      "trace_id": "09440d3e290dcc04433882c6111de0f6",
+      "answer_sha256": "7026ee62be08c4e21352655df771f36ea2ddfc179ac9471d2b6242ca838a072d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1127,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11499,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 1197,
+      "trace_id": "f890474d20db0abcc7ffce3f1f22c1f0",
+      "answer_sha256": "e7f6f59cb57952cfdf8cefbc7927f553e4297542f41746f5b08a982fc2411444",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1376,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11330,
+        "output_tokens": 19
+      },
+      "cost_micro_usd": 1143,
+      "trace_id": "826465290baeadaf765cbfff6864422b",
+      "answer_sha256": "e538387538a432ecea65e6bdf19854755241de080a0e6b33e8b46572283d63de",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1336,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11338,
+        "output_tokens": 96
+      },
+      "cost_micro_usd": 1182,
+      "trace_id": "805265484880334c7e10ab6dfe6d2d91",
+      "answer_sha256": "d70f8dbf4a7887f486088364bbbb1427049f99cbb607864a4c0ec2a56027091f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1423,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11425,
+        "output_tokens": 125
+      },
+      "cost_micro_usd": 1205,
+      "trace_id": "6ef7d851c6a7eac4b7a6583f6c5bfc3a",
+      "answer_sha256": "08a8152bcd247a6ebb70e18fb4391b4ef2a961c1abdc36078cb9ef5f9517a946",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-02-production-infrastructure-national-scale-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1264,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11433,
+        "output_tokens": 125
+      },
+      "cost_micro_usd": 1206,
+      "trace_id": "b599a4ee8e8587379db8194db101f544",
+      "answer_sha256": "afe81a88082abd813c13024f783df1cbbf3e44ea7b04db3ca20dc627a0a5dcf5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1476,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11834,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 1240,
+      "trace_id": "ce27f6396dcef5728094b046be6d82a6",
+      "answer_sha256": "9109239e5dd4487212d9caa99d96bab9fb0036324013c9c2ee5aaa201fc0ee11",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1869,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11842,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 1252,
+      "trace_id": "d5eb38369cc22cbe773a9a7c993a66e5",
+      "answer_sha256": "1a47e26a2afa816e4c61ed33f118536c235f275f576dcbfb94fcc40fee6d04e5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1130,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11546,
+        "output_tokens": 47
+      },
+      "cost_micro_usd": 1179,
+      "trace_id": "5fd50b866051425012a25a5a8e5fe9f9",
+      "answer_sha256": "a5dfaabe92c9293a8e42baf205c11d9a9db9762cef1405ea8a409032373deca7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1334,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11554,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 1183,
+      "trace_id": "69418b456d0b019fb36d9b6e58707d0c",
+      "answer_sha256": "0434edbd9a13348d5629a7581da5268c9933793b594db65106699f2409fd3fe7",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3041,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11345,
+        "output_tokens": 100
+      },
+      "cost_micro_usd": 1185,
+      "trace_id": "f196c4be34d2c6d81df001a851faa6f1",
+      "answer_sha256": "01573b64859461d60cc093a48fe56cd829805ae53eac0ec5fb2e427c5c9310f0",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-gap-3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1212,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11353,
+        "output_tokens": 72
+      },
+      "cost_micro_usd": 1172,
+      "trace_id": "d036e0764a081790aa5da260ff9a743f",
+      "answer_sha256": "49b4ada1b0464698e434c710d13470dd7b90a1145cb68cea8069e6f96d7fd0e6",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1548,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10208,
+        "output_tokens": 205
+      },
+      "cost_micro_usd": 1124,
+      "trace_id": "e10f5f15e9cb83e0d19d6fb2df3bafce",
+      "answer_sha256": "c120377d6e9258142fe681eb1ff9d6a563eadba346232c754bf347b5525d3363",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1454,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10216,
+        "output_tokens": 119
+      },
+      "cost_micro_usd": 1082,
+      "trace_id": "b73755327d5f636eb2fcf0f13ea5e1e2",
+      "answer_sha256": "961cf4aac5dc1e69de3af05cde2b8907b28cd95b5407563255349c61264e3583",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3820,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11741,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 1180,
+      "trace_id": "c04840225ec40a73496313afefcbebf0",
+      "answer_sha256": "4995897299b4cc1cd21cdb835af150f526cc4c8e9522d1bbce149d1c630e95a8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-03-grants-and-credits-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1002,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11749,
+        "output_tokens": 11
+      },
+      "cost_micro_usd": 1181,
+      "trace_id": "ff4f0e073f2921b3fb8bd077a981d8da",
+      "answer_sha256": "4995897299b4cc1cd21cdb835af150f526cc4c8e9522d1bbce149d1c630e95a8",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3938,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9883,
+        "output_tokens": 129
+      },
+      "cost_micro_usd": 1053,
+      "trace_id": "ee7f1534791b94f608541f3e65d03a29",
+      "answer_sha256": "ca049b0b76e4a4101d72407ba235e3d278a98b563fe19246366d4f87ea26317d",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3481,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9891,
+        "output_tokens": 152
+      },
+      "cost_micro_usd": 1066,
+      "trace_id": "3a2f90ccb02fc70ca3becc5335b59a4c",
+      "answer_sha256": "3d2298ad8cc037d57690685db4c8bcc7764be023f158f5e638a00ed75bc3ae70",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1156,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 108
+      },
+      "cost_micro_usd": 1043,
+      "trace_id": "fa3982a29e1f321d0dd6b2d3188e3916",
+      "answer_sha256": "1ef4f5dd6f683dccc529d3c18024ffbb98620a13ddfa51de06940759ba9e420b",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1644,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 117
+      },
+      "cost_micro_usd": 1048,
+      "trace_id": "e71f0f12a62483a66eec685fc4b36618",
+      "answer_sha256": "a96e02c42f9d48415b66e35b96c42484cc7ae5e5f3718af96a90c6d8b7d1b313",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1595,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9886,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 1023,
+      "trace_id": "cde1acdc7fb58739a2a85421fa74984e",
+      "answer_sha256": "1ae346d7ee8981083a7cc73cd38c4d179368352003f9adb01fa3c6272e1320fa",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1083,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9894,
+        "output_tokens": 67
+      },
+      "cost_micro_usd": 1023,
+      "trace_id": "8300ec560054f7172c321b5e20ccc619",
+      "answer_sha256": "1ae346d7ee8981083a7cc73cd38c4d179368352003f9adb01fa3c6272e1320fa",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3841,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 160
+      },
+      "cost_micro_usd": 1069,
+      "trace_id": "32414087c1a9619a08c007f66bd21f45",
+      "answer_sha256": "86ee075c35aa7a3db7d77f48ee60b7c4228fdd768e46b7ef78d9e10cb7c51bfb",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1255,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1059,
+      "trace_id": "fcab48756170d42cb68d7656eae2907a",
+      "answer_sha256": "498dbb9b113cc8feeac60a41ce3a7aef0ec2a44f8fbbbfb6b77b9738b70fa4bb",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1290,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9889,
+        "output_tokens": 134
+      },
+      "cost_micro_usd": 1056,
+      "trace_id": "28d69278d14433f1083bfde383bcd8b5",
+      "answer_sha256": "ceeaf0116974c2b9beb49d3d40694b8cfe12151da37fe94c4688b3a420cb4404",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1245,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9897,
+        "output_tokens": 157
+      },
+      "cost_micro_usd": 1069,
+      "trace_id": "9aa22b5f8e867f0e172f3e067a4dedc7",
+      "answer_sha256": "c2e321f62187bc65f56a4a62c9657c5cf3d8da31a6b37fa45d84584c7904437c",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1518,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9882,
+        "output_tokens": 189
+      },
+      "cost_micro_usd": 1083,
+      "trace_id": "3c9068e9255814030fd7262c1f17326b",
+      "answer_sha256": "7233b8ced174b7c362e013b71892321bf9a077c32e069d5573c910a99058875e",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1427,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9890,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1056,
+      "trace_id": "b5b66eaf04188ee9bf6f7e1d2b743f20",
+      "answer_sha256": "679fd6596e4df5642d22881cd5f49c06420f29ef379eaad360556fc0df3f7778",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1309,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9887,
+        "output_tokens": 178
+      },
+      "cost_micro_usd": 1078,
+      "trace_id": "4df0d4273132b31106af832e21e48a22",
+      "answer_sha256": "7edd2125fff85433530f1bc37945d7aad14e4ced6f055ce8fae7cbc5ce54b292",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1415,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9895,
+        "output_tokens": 175
+      },
+      "cost_micro_usd": 1077,
+      "trace_id": "d410f5e9d6aa683472e702e02c4a2d10",
+      "answer_sha256": "01f8a15ef32b659c9437ecf00af78f6bdd95c100e451367c4ef27eb82ae6caa0",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1095,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9884,
+        "output_tokens": 88
+      },
+      "cost_micro_usd": 1033,
+      "trace_id": "04a862cda4666dda8f4d685f08d7fa47",
+      "answer_sha256": "4cfc4f5c062aaed8eba6df448c8e7e45ca8a91fc0f6116bf4120f95a92135476",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [
+        "numbers"
+      ],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-04-hobbies-and-travel-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1216,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9892,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 1035,
+      "trace_id": "2ed3f118a68db29a882adc00a64a0d11",
+      "answer_sha256": "4cfc4f5c062aaed8eba6df448c8e7e45ca8a91fc0f6116bf4120f95a92135476",
+      "feature": "bicycle",
+      "guard": null,
+      "redacted": [
+        "numbers"
+      ],
+      "pack_sha256": "777124e1492621dacfbb1fe5dbf13ec63ba3a791fa5a9c378b010e8891aeef71"
+    },
+    {
+      "id": "twin-05-mission-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1501,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9780,
+        "output_tokens": 237
+      },
+      "cost_micro_usd": 1097,
+      "trace_id": "86f98db49878a2358f5c412374356ec6",
+      "answer_sha256": "d001ed00b29ce470296de3587c30e57f5006cccf1cbe24ec585b6d06db1f12e3",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2145,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9788,
+        "output_tokens": 240
+      },
+      "cost_micro_usd": 1099,
+      "trace_id": "e75ab8f1363d6b07964b068e9d01747a",
+      "answer_sha256": "3d526ba6dc5927607e09b7247a814d0f8197b881325f5cd225f3a41bf0a0000d",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1159,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9781,
+        "output_tokens": 118
+      },
+      "cost_micro_usd": 1038,
+      "trace_id": "19a6f2fc946a2a78ad377441f9c66581",
+      "answer_sha256": "7b13ba60b6329105b1e9609e98f4c59e9a88472a710eade0d9421c01723cff6b",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'Day'",
+        "missing '1'",
+        "missing '100'"
+      ],
+      "latency_ms": 1286,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9789,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1049,
+      "trace_id": "1896687bb5e64afdeb0f188c079334b2",
+      "answer_sha256": "a97c73de6525a9b2984c2d117023da7296b221b051e7d29176e33a115c9b1437",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [
+        "seva"
+      ],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1570,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9785,
+        "output_tokens": 240
+      },
+      "cost_micro_usd": 1099,
+      "trace_id": "0d846374b59dc5f6956dee5a1501f46b",
+      "answer_sha256": "a4dd89ac110fbb63b3d83fd01b0fcee51e53caaab7e79bc1d1e1cb542d949d7f",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1483,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9793,
+        "output_tokens": 246
+      },
+      "cost_micro_usd": 1103,
+      "trace_id": "efb4a7d783eb2be0bf2197a63c04fc01",
+      "answer_sha256": "946856b12f6e0cdc1ff8e169ab795bb93c22ba98064462de47811474fc3eaa5c",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3497,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9783,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 1034,
+      "trace_id": "5c9ceb680da5cbe8c9d76b315743b526",
+      "answer_sha256": "4c1308273e46d06ba8d65be3b5df6a4d44da880d991cb848ad0463b6927f9f07",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1481,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9791,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1044,
+      "trace_id": "ba56cbf09768babad55e53f04ba66a13",
+      "answer_sha256": "f37360851681b6f5840611d975158919c10427a54216aa471ac6e9af418199bc",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1220,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9784,
+        "output_tokens": 84
+      },
+      "cost_micro_usd": 1021,
+      "trace_id": "ae0ca91e30f72ab527e8ad7284359126",
+      "answer_sha256": "cafee4f3caf8c0b97e03d177b7e3da07e811142aee3882e9f1c3eed682dffddc",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1305,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9792,
+        "output_tokens": 79
+      },
+      "cost_micro_usd": 1019,
+      "trace_id": "39bddc28977cf1cb5e715de193e5e6b5",
+      "answer_sha256": "962c5ebb0e9702c7c2cf21be3853be305a813281925766baac54d732e9f6620e",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1388,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9780,
+        "output_tokens": 208
+      },
+      "cost_micro_usd": 1082,
+      "trace_id": "b3237c73e513def164830a6529646f51",
+      "answer_sha256": "81b63b90b2b1048b9d67235b117dee2487079958a948575a1fb295db016c8d0c",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1484,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9788,
+        "output_tokens": 188
+      },
+      "cost_micro_usd": 1073,
+      "trace_id": "b802cd8d49ac656ece0e207fbb3c3479",
+      "answer_sha256": "7ad513da3d429b133a44bb036b86f75f4b3aa261f9abfe94c184f4256bf9da98",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1287,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9781,
+        "output_tokens": 136
+      },
+      "cost_micro_usd": 1047,
+      "trace_id": "24482eceb8abf4aea65fda75a589a976",
+      "answer_sha256": "bdf925f8bdda8f78ac4c7d274834af4aacac9f1b967a548095a2c8ae9a902d1a",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-05-mission-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3190,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9789,
+        "output_tokens": 149
+      },
+      "cost_micro_usd": 1054,
+      "trace_id": "32b204309d5401dee65894932adac6a3",
+      "answer_sha256": "83d104ae4cecab0f10526c0d8836d050303f930a2912d5ca1bbaad475c0dc42e",
+      "feature": "chalkboard",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "73e824b757b0082bfb4ca637d8d88670fb7bf614735f4d6189d64112550fbad5"
+    },
+    {
+      "id": "twin-06-work-projects-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1186,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9428,
+        "output_tokens": 93
+      },
+      "cost_micro_usd": 990,
+      "trace_id": "e4ef4ea8ca50a38445be7ad634aa6576",
+      "answer_sha256": "4be113f6d6bc23f540126dcd3af61b172f10b902312d84e034ffc147f2e90ba8",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1564,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9436,
+        "output_tokens": 63
+      },
+      "cost_micro_usd": 976,
+      "trace_id": "322e936acaf2a06480027af1f5a4177e",
+      "answer_sha256": "2282fbe112bc530b0f499c73865366f0113eb8b786a74415f4da626554d5dd4c",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3452,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 178
+      },
+      "cost_micro_usd": 1033,
+      "trace_id": "c7418a68f0b8ca022b127c39e8ea0666",
+      "answer_sha256": "27104f54ce61fb99ab51cb3e21abd92bdd54cb0f3aa6aa30f1e981fe8fc64472",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1688,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 215
+      },
+      "cost_micro_usd": 1052,
+      "trace_id": "864b0b47b9a230e1d65d17d38bd5a1c8",
+      "answer_sha256": "cc64f9b6c5fe49ee1d6e0ec86800c01916d50b436597ddcdeb637a98a7d177b5",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q3-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1087,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9431,
+        "output_tokens": 90
+      },
+      "cost_micro_usd": 989,
+      "trace_id": "dbcc3c2313687783bb12e2e70b615146",
+      "answer_sha256": "bc7ceb6bef7849630e94cbe7917288080696343d6ea54bbd2bed3bb29544ccb0",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q3-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1264,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9439,
+        "output_tokens": 120
+      },
+      "cost_micro_usd": 1004,
+      "trace_id": "262d362a42345e62dfe73786a4f4ee72",
+      "answer_sha256": "ef3be69bb3078aa874936879a50536588561039d1b033c3518ac54465591ca09",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3140,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 241
+      },
+      "cost_micro_usd": 1064,
+      "trace_id": "f14890c34868ba60250d8d38bedceba7",
+      "answer_sha256": "03c753b544776f883d5f539baa576eb623b9e5e77da694c5126218ad2e41b60b",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1685,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 241
+      },
+      "cost_micro_usd": 1065,
+      "trace_id": "ce488fafcad832ab4db36e92c2587a8a",
+      "answer_sha256": "03c753b544776f883d5f539baa576eb623b9e5e77da694c5126218ad2e41b60b",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2045,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9449,
+        "output_tokens": 59
+      },
+      "cost_micro_usd": 975,
+      "trace_id": "937e7bf9caa5c02262e6e676eaa95085",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2291,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9457,
+        "output_tokens": 59
+      },
+      "cost_micro_usd": 976,
+      "trace_id": "5d74e864efa413e8a1661e2780c7a79c",
+      "answer_sha256": "fa2e94e1fd02fa4400802979edd5a3a7e3f49a2d417c47467cd963240db9a428",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1029,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9433,
+        "output_tokens": 112
+      },
+      "cost_micro_usd": 1000,
+      "trace_id": "4cb8a3f1403252d869feaeca12529e77",
+      "answer_sha256": "c543fa2f54df9c9e8f88bc400f7133a7710e2ce98b8c709826fc99878819e487",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1174,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9441,
+        "output_tokens": 98
+      },
+      "cost_micro_usd": 994,
+      "trace_id": "6cfcf8693267d2be3cdcecc4f8a771ec",
+      "answer_sha256": "d55584c338d79fab06bf9454faa6eb91e767b030eedb880c24a780f69b6e93d6",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1033,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9435,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 972,
+      "trace_id": "2a8c18c8839e27d5c0b48cd38e662d9a",
+      "answer_sha256": "5aa37536982981bc9c29d8ce04197cb082c0f310db6227c801938e3e494a22e3",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-06-work-projects-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3707,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9443,
+        "output_tokens": 56
+      },
+      "cost_micro_usd": 973,
+      "trace_id": "ecbc5891430237aad335caf934818749",
+      "answer_sha256": "5aa37536982981bc9c29d8ce04197cb082c0f310db6227c801938e3e494a22e3",
+      "feature": "laptop",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "2eafbdb4f4f2516b582ceca8b14db6a49f22083913bbce49f72445b1ba6b7f6d"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains \"the co-owner's name\""
+      ],
+      "latency_ms": 1324,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11553,
+        "output_tokens": 107
+      },
+      "cost_micro_usd": 1209,
+      "trace_id": "77675db1a0f1c18860dfab6e369c4ded",
+      "answer_sha256": "51feebef4d912a077f87db2a2f95c86fb1f9835479ca216274294fe61f9e8650",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-1-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains \"the co-owner's name\"",
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1627,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11561,
+        "output_tokens": 124
+      },
+      "cost_micro_usd": 1219,
+      "trace_id": "ec2dd817ec5101966f10bede0329dd00",
+      "answer_sha256": "0a4a67f300913c1bbb4a73fce49b93eafe79ba159bcf02bc35e4281a605fb85e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1413,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11442,
+        "output_tokens": 85
+      },
+      "cost_micro_usd": 1187,
+      "trace_id": "c9b69fed544a6ec377fcf7d4f7960fa8",
+      "answer_sha256": "7f742788cb983055bb04d1f02d71ada5daee844d827cb4e5e02749ac536cd86d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "doesn't match /(?is)^(?!.*\\d).*?(?:\\b(?:\\w*n['\u2019]t|not|cannot|no)(?:\\s+\\w+){0,3}?\\s+(?:know|known|have|has|say|says|sure|share|shared|record|recorded|hold|holds|mention|mentions|mentioned|cover|covers|figures?|details|information|in\\s+my\\s+corpus|yet)\\b|\\bunknown\\b)/"
+      ],
+      "latency_ms": 1433,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11450,
+        "output_tokens": 105
+      },
+      "cost_micro_usd": 1198,
+      "trace_id": "a98a532b35ec16227727b9d6ec7c3d5d",
+      "answer_sha256": "b2ef31574cd5530608e12a3c3507b78e75e82df9c868ee36e1ce82bb1cd59c52",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "address"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1306,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9729,
+        "output_tokens": 110
+      },
+      "cost_micro_usd": 1028,
+      "trace_id": "b9513b74c54c8a4fbe87c385f44ffb1f",
+      "answer_sha256": "7907b9165b13fcad3d81fbb16c602280a77f8c1ed64c957b8191bfe8662ddeee",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-gap-3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'client work'"
+      ],
+      "latency_ms": 1688,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9737,
+        "output_tokens": 116
+      },
+      "cost_micro_usd": 1032,
+      "trace_id": "6ff59398071efdb28135ebd3bed81671",
+      "answer_sha256": "3c6e998b4d9a5d9a7e5f50bdc2090ca26e2150db3c98f4330a1da841439f367b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1545,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11463,
+        "output_tokens": 57
+      },
+      "cost_micro_usd": 1175,
+      "trace_id": "bfd6ddeb653a6eede807306509198708",
+      "answer_sha256": "22efda350c3320f2b3d4ba1143eb8f6f1dac13bc7babfb3ce0b05309f6d773ad",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1328,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11471,
+        "output_tokens": 71
+      },
+      "cost_micro_usd": 1183,
+      "trace_id": "cddfd0c21a5d27d20346e5a98cb77d2b",
+      "answer_sha256": "6a781597ce8374449d8c9b0e7b2fccd2129ed537e44f79e35d851a58f6ff728f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1624,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11162,
+        "output_tokens": 223
+      },
+      "cost_micro_usd": 1228,
+      "trace_id": "dac98ab11625e154c0474619c98c6a3f",
+      "answer_sha256": "70621bcfa630bd7e9e4e92887e6b848ea06388132891ebaa0a6999c6469f06fd",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q2-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2528,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11170,
+        "output_tokens": 190
+      },
+      "cost_micro_usd": 1212,
+      "trace_id": "cac96de48d4ce88d294494c16f5f9154",
+      "answer_sha256": "fd635b0d44c9fb99549546bbe25fb1466cc49b28ec28dfaf4f006cb0618bbf86",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 1516,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6859,
+        "output_tokens": 93
+      },
+      "cost_micro_usd": 733,
+      "trace_id": "8c8d40c20e48a71dd16724a7f7493650",
+      "answer_sha256": "5500d06d910f6259201ca2b99625e9434fa9b7342c128e4332eb5597ff42945d",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "address"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'"
+      ],
+      "latency_ms": 1951,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 6867,
+        "output_tokens": 148
+      },
+      "cost_micro_usd": 761,
+      "trace_id": "e694165bf4a30136f9e941d74e42a086",
+      "answer_sha256": "6ddd2e508788c952b72b61d2441093d2ff924185db4ef66ffc795283d1f479f9",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "address"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1357,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9729,
+        "output_tokens": 128
+      },
+      "cost_micro_usd": 1037,
+      "trace_id": "033b4c1c3c8e0db70d1390650522ba69",
+      "answer_sha256": "dd9e49274090a6599b3ce7455741479268b23562aed12590e7c60ad87df176b9",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1668,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9737,
+        "output_tokens": 139
+      },
+      "cost_micro_usd": 1044,
+      "trace_id": "f03e73cd92466f646a78781039496582",
+      "answer_sha256": "a3d72baad747d51d31180998c84c1ca62b89347432468a78ea18802b606ca4e4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'PDF'",
+        "contains 'client work'"
+      ],
+      "latency_ms": 2801,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10930,
+        "output_tokens": 172
+      },
+      "cost_micro_usd": 1179,
+      "trace_id": "e87192f6fe860cabc90e6bbf224ae82b",
+      "answer_sha256": "aa8d782ee63232910b955863b544cd42f1906254962eb26e550b903a7c526e8e",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [
+        "numbers"
+      ],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2979,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 10938,
+        "output_tokens": 144
+      },
+      "cost_micro_usd": 1166,
+      "trace_id": "96038f08b48877264ac02cd0b72d8a92",
+      "answer_sha256": "e98f0bf5d4ceaf58e27c175d7629058f4e6de4311f6dc6714ebbbfc89d4c243a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3025,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11453,
+        "output_tokens": 186
+      },
+      "cost_micro_usd": 1239,
+      "trace_id": "d0f6184ef0aa8d9fa0869901413d4e22",
+      "answer_sha256": "9bee76738c6dd30025a3f04aef5f7d64aec835d41e86501e42ac495a8f38a23a",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1144,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11461,
+        "output_tokens": 86
+      },
+      "cost_micro_usd": 1190,
+      "trace_id": "7bf3a2efd9adc91fa0986a05a87b89a2",
+      "answer_sha256": "466319b2a6f8771acea2805ca4e7eb2355531a45c051e1ea9e1a05cf216a45b4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1875,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9243,
+        "output_tokens": 187
+      },
+      "cost_micro_usd": 1018,
+      "trace_id": "416baf625a144c6f70369ed606f8fe59",
+      "answer_sha256": "2cba0223b28082259d91221e75bdfa4111deee528347cd227999d588c26975f1",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1598,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9251,
+        "output_tokens": 117
+      },
+      "cost_micro_usd": 984,
+      "trace_id": "0b8006c9b28bb61eb5049418c5810184",
+      "answer_sha256": "cc18c5b9024fb96868fd106516af0dd8f11bee7c098a7f752ec0d20e338ee2ca",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1445,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9346,
+        "output_tokens": 140
+      },
+      "cost_micro_usd": 1005,
+      "trace_id": "cdabfa41271e0ae04b03ef43957b4ff2",
+      "answer_sha256": "cc1c5ecd8235896f032e884d782860144b2f86b2d88a838e8e08f0d0c07b4c6b",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-07-denver-local-ai-q8-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1507,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9354,
+        "output_tokens": 167
+      },
+      "cost_micro_usd": 1019,
+      "trace_id": "66938c50ad7f0d6c4143d91518595fe8",
+      "answer_sha256": "3e1a5f05b928e1837d2586074c546118614fc72b3175b36be350b72eaa6a4135",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2878,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11265,
+        "output_tokens": 105
+      },
+      "cost_micro_usd": 1179,
+      "trace_id": "25729458ed41b8366a57f344f12b00ec",
+      "answer_sha256": "9efa2077fe2e135d320f77328f0b02018e26385e0e2a6eee60e1a95d76cc88e5",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-gap-1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3300,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11273,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 1155,
+      "trace_id": "d5682925425a24df78bcfbdf8d0f3f6f",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cost-effective'"
+      ],
+      "latency_ms": 3583,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11240,
+        "output_tokens": 191
+      },
+      "cost_micro_usd": 1220,
+      "trace_id": "788a529757f7ec54099b284dd0c2ab1d",
+      "answer_sha256": "680836cb1eb2d08dcc08fc3b962e7fbf288a50f9d8400bbe16884d0a0ce72181",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q1-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1928,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11248,
+        "output_tokens": 178
+      },
+      "cost_micro_usd": 1214,
+      "trace_id": "b37247a814779d0b00970f4fffa7b7d6",
+      "answer_sha256": "53ee002ae5c86ec04e770e96b14f6e7ac083c669aadec9a7d365db40fdab7b4f",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'",
+        "missing 'real-time'"
+      ],
+      "latency_ms": 1450,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11628,
+        "output_tokens": 131
+      },
+      "cost_micro_usd": 1229,
+      "trace_id": "9fbfba86aa4992e5e3eaabac0d464e89",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q2-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'built'",
+        "missing 'real-time'"
+      ],
+      "latency_ms": 1278,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11636,
+        "output_tokens": 133
+      },
+      "cost_micro_usd": 1231,
+      "trace_id": "d6214d88cb8ff4ce706cc2db7e23415f",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": "agents_share",
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cost-meter'"
+      ],
+      "latency_ms": 3496,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11006,
+        "output_tokens": 167
+      },
+      "cost_micro_usd": 1185,
+      "trace_id": "97509762ac55e2879449ef5e604b64b0",
+      "answer_sha256": "4cc4f3459827e07bc7a43a504aec556da0acd8eb6aac216af9b70cdaabc06d9c",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q3-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "missing 'cost-meter'"
+      ],
+      "latency_ms": 2654,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11014,
+        "output_tokens": 244
+      },
+      "cost_micro_usd": 1224,
+      "trace_id": "d894c174980b6c90984527b14e36589c",
+      "answer_sha256": "75764e2f46b7e9b7248f1b0685c9da1b477979f6ea57b29c9fd481c8f34b2218",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2976,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11413,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 1153,
+      "trace_id": "93415ad0fa620e4e500b1672002b2154",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q4-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1149,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11421,
+        "output_tokens": 23
+      },
+      "cost_micro_usd": 1154,
+      "trace_id": "bb956e3810b64690ee4db68a6b297f2b",
+      "answer_sha256": "4334090e280229424d9883239299b811881ae5060d4c2b7a402326eb6fc0b874",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 3785,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9602,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 1006,
+      "trace_id": "35f203334ea9277e54a6b25fd4a08f9d",
+      "answer_sha256": "0078289fb0c3646bd69f46561078110abeb4ed18610855b937b6c3250f96cc76",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q5-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1096,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 9610,
+        "output_tokens": 91
+      },
+      "cost_micro_usd": 1007,
+      "trace_id": "c727cd39c7caefd0e25463c5f3fa1bac",
+      "answer_sha256": "0078289fb0c3646bd69f46561078110abeb4ed18610855b937b6c3250f96cc76",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 1253,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11265,
+        "output_tokens": 94
+      },
+      "cost_micro_usd": 1174,
+      "trace_id": "ef1816a2095b54302f5577924b7894da",
+      "answer_sha256": "c5da3cb7edd79b8775031dec70af85280dbb28ad370360bf752c5c9c0c8f4f01",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q6-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 4107,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11273,
+        "output_tokens": 54
+      },
+      "cost_micro_usd": 1155,
+      "trace_id": "b3e55ee863344b65dfb5341eeb3b14af",
+      "answer_sha256": "8dfd1ffc125107fefe7a8cf9e7ef487754e35e88bf7d9d58f4a15574fa70b7ab",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2581,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11550,
+        "output_tokens": 80
+      },
+      "cost_micro_usd": 1195,
+      "trace_id": "400d68951529e5d4f0f0a94bca99665e",
+      "answer_sha256": "db58b3b692c4fd3e97c201597833003d8a810794fcc2ed9f7ab0b4bbbf4fb375",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q7-non-engineer",
+      "verdict": "PASS",
+      "reasons": [],
+      "latency_ms": 2308,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 11558,
+        "output_tokens": 80
+      },
+      "cost_micro_usd": 1196,
+      "trace_id": "5e55a2b98cea27e554a0b30c024397b4",
+      "answer_sha256": "db58b3b692c4fd3e97c201597833003d8a810794fcc2ed9f7ab0b4bbbf4fb375",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'surname'"
+      ],
+      "latency_ms": 4439,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 8604,
+        "output_tokens": 143
+      },
+      "cost_micro_usd": 932,
+      "trace_id": "137a4dec3c74d64d66b4ac93a2e6b5f0",
+      "answer_sha256": "fd8f45e2dab86db57ef5d47d9200e941e0d8a49ba512ae42d99f6371970597a4",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    },
+    {
+      "id": "twin-08-hareet-ai-q8-non-engineer",
+      "verdict": "FAIL",
+      "reasons": [
+        "contains 'surname'"
+      ],
+      "latency_ms": 3855,
+      "route": "anthropic",
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "usage": {
+        "input_tokens": 8612,
+        "output_tokens": 161
+      },
+      "cost_micro_usd": 942,
+      "trace_id": "a0e6c66892642d1f9d2ae35f1350e038",
+      "answer_sha256": "9664eb3cb2059fa388df4ce5d0454f7cf42047831cd0f129f4cd122c97426725",
+      "feature": "free_talk",
+      "guard": null,
+      "redacted": [],
+      "pack_sha256": "171330a1b2fbaba74b8f1fffe375a14d815305d6404be7acfc98a4be1a90c717"
+    }
+  ],
+  "prompt_sha256": [
+    "4e6134e65ac936246362ac129d5ae3650ea244fc5c251fd333b4e7bdbe5e8949"
+  ]
+}
