@@ -30,6 +30,8 @@ sys.modules[SPEC.name] = ai
 SPEC.loader.exec_module(ai)
 
 LOCK = REPO / "deploy" / "images.lock"
+# A home with no docker config, so no test reads the session's own (the inventory refuses a named context).
+NO_HOME = Path("/nonexistent/h4-test-home")
 
 # contracts/env-cloud.md §3: what EC2 runs (edge, web, gateway, the collector, Prometheus, Loki, Grafana, and Langfuse
 # with its four stores), by images.lock's service column. The gateway and web images are built from base:node, and web's
@@ -183,7 +185,9 @@ def test_a_lock_line_without_a_hosts_row_is_refused() -> None:
         + "  ghcr.io  2026-11-10\n"
     )
     out = io.StringIO()
-    code = ai.main([], environ={}, fetch=stub_engine({})[0], out=out, lock_text=text)
+    code = ai.main(
+        [], environ={}, home=NO_HOME, fetch=stub_engine({})[0], out=out, lock_text=text
+    )
     assert code == 2
     assert (
         "newthing" in out.getvalue() and "contracts/env-cloud.md §3" in out.getvalue()
@@ -296,7 +300,7 @@ def test_the_table_and_the_answers() -> None:
     fetch, _ = stub_engine(
         {"model-server-gpu": None, "probe:cuda": None, "valkey": AMD64_ONLY}
     )
-    code = ai.main([], environ={}, fetch=fetch, out=out)
+    code = ai.main([], environ={}, home=NO_HOME, fetch=fetch, out=out)
     text = out.getvalue()
     # The GPU-only images aren't on the agents' engine, and run on the laptop alone: no cloud host waits on them.
     assert code == 0, text
@@ -315,7 +319,13 @@ def test_the_table_and_the_answers() -> None:
 
 def test_an_unread_image_on_a_cloud_host_fails() -> None:
     out = io.StringIO()
-    code = ai.main([], environ={}, fetch=stub_engine({"prometheus": None})[0], out=out)
+    code = ai.main(
+        [],
+        environ={},
+        home=NO_HOME,
+        fetch=stub_engine({"prometheus": None})[0],
+        out=out,
+    )
     assert code == 1
     assert "ec2: unknown; not read: prometheus" in out.getvalue()
 
@@ -323,7 +333,11 @@ def test_an_unread_image_on_a_cloud_host_fails() -> None:
 def test_the_json_record() -> None:
     out = io.StringIO()
     code = ai.main(
-        ["--json"], environ={}, fetch=stub_engine({"seaweedfs": AMD64_ONLY})[0], out=out
+        ["--json"],
+        environ={},
+        home=NO_HOME,
+        fetch=stub_engine({"seaweedfs": AMD64_ONLY})[0],
+        out=out,
     )
     assert code == 0
     doc = json.loads(out.getvalue())
@@ -392,7 +406,50 @@ def test_an_engine_it_cant_name_for_certain_is_refused(
     with pytest.raises(ai.Refusal):
         ai.endpoint(environ, tmp_path)
     out = io.StringIO()
-    assert ai.main([], environ=environ, out=out) == 2
+    assert ai.main([], environ=environ, home=tmp_path, out=out) == 2
+
+
+def write_config(folder: Path, text: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "config.json").write_text(text, encoding="utf-8")
+    return folder
+
+
+def test_a_named_context_in_dockers_config_is_refused(tmp_path: Path) -> None:
+    # `docker context use colima` sets currentContext in the CLI's config, and the CLI then reads that engine: this
+    # script doesn't read contexts, so it refuses rather than read another engine than the CLI would (T018's review).
+    home = tmp_path / "home"
+    write_config(home / ".docker", '{"currentContext": "colima"}')
+    with pytest.raises(ai.Refusal, match="colima"):
+        ai.endpoint({}, home)
+    elsewhere = write_config(
+        tmp_path / "cfg", '{"auths": {}, "currentContext": "remote"}'
+    )
+    with pytest.raises(ai.Refusal, match="remote"):
+        ai.endpoint({"DOCKER_CONFIG": str(elsewhere)}, tmp_path / "nobody")
+    # The CLI's own default context, or none, is the default socket.
+    write_config(home / ".docker", '{"currentContext": "default"}')
+    assert ai.endpoint({}, home) == ai.Endpoint("unix", path="/var/run/docker.sock")
+    write_config(
+        home / ".docker", ""
+    )  # an empty file, as the agent sandbox's placeholder for a denied one
+    assert ai.endpoint({}, home).kind == "unix"
+    assert (
+        ai.endpoint({"DOCKER_CONTEXT": "default"}, tmp_path / "nobody").kind == "unix"
+    )
+    # DOCKER_HOST wins over any context, as the CLI has it.
+    write_config(home / ".docker", '{"currentContext": "colima"}')
+    assert (
+        ai.endpoint({"DOCKER_HOST": "unix:///run/d.sock"}, home).path == "/run/d.sock"
+    )
+    # A config it can't read is refused, never taken for the default.
+    write_config(home / ".docker", "{not json")
+    with pytest.raises(ai.Refusal):
+        ai.endpoint({}, home)
+    (home / ".docker" / "config.json").unlink()
+    (home / ".docker" / "config.json").mkdir()
+    with pytest.raises(ai.Refusal):
+        ai.endpoint({}, home)
 
 
 def test_the_request_is_one_get_of_the_image_with_its_manifests() -> None:
@@ -482,7 +539,7 @@ def test_the_scripts_own_http_against_a_fake_engine() -> None:
             connect=lambda: http.client.HTTPConnection("127.0.0.1", port, timeout=10),
         )
         out = io.StringIO()
-        code = ai.main([], environ={}, fetch=fetch, out=out)
+        code = ai.main([], environ={}, home=NO_HOME, fetch=fetch, out=out)
     finally:
         server.shutdown()
         server.server_close()
@@ -495,7 +552,7 @@ def test_an_engine_that_doesnt_answer_is_refused() -> None:
 
     out = io.StringIO()
     fetch = ai.engine_fetch(ai.endpoint({}, Path("/nonexistent")), connect=refused)
-    assert ai.main([], environ={}, fetch=fetch, out=out) == 2
+    assert ai.main([], environ={}, home=NO_HOME, fetch=fetch, out=out) == 2
     assert "didn't answer: ConnectionRefusedError" in out.getvalue()
 
 
