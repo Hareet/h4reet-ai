@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: releases, the deployers, and rollback
 
 Spec 001 (FR-039, FR-046 to FR-049, FR-055) · Plan: [§7](../plan.md#7-releases-and-the-deployers) · Research: [R-17](../research.md#r-17-releases-from-the-authors-terminal-deployers-that-pull-to-ask-question-7), [R-04](../research.md#r-04-the-cloud-vm-graviton-spot-the-smallest-size-that-holds-the-thin-services-fr-021)

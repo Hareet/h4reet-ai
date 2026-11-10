@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the cloud stack's environment, and what changes in spec 000's
 
 Spec 001 (FR-009, FR-010, FR-011, FR-017, FR-018, FR-043, FR-050, FR-055) · Plan: [§1.4](../plan.md#14-credentials-and-secrets-fr-008-fr-009-fr-010), [§2](../plan.md#2-the-guard-patch-before-any-infra-file), [§6](../plan.md#6-the-cloud-vm) · Research: [R-15](../research.md#r-15-the-fallback-gateways-identity-fr-013-to-ask-question-6), [R-16](../research.md#r-16-refusing-terraforms-state-changing-commands-in-every-spelling-fr-006-fr-011), [R-20](../research.md#r-20-the-meter-of-record-moves-to-the-cloud-stack-fr-017-fr-018-fr-019)

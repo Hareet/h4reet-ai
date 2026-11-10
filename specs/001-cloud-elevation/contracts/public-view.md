@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the public view
 
 Spec 001 (FR-057 to FR-059, FR-042, FR-060; SC-013) · Plan: [§8.3](../plan.md#83-the-public-view-fr-057-to-fr-059-r-19) · Research: [R-19](../research.md#r-19-the-public-view-a-snapshot-the-local-tier-pushes-up-to-ask-question-9)

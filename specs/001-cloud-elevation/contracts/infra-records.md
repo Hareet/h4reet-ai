@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the plan in the note, the apply, its record, and the credential audit
 
 Spec 001 (FR-002, FR-004 to FR-010, SC-004, SC-012) · Plan: [§1](../plan.md#1-infrastructure-the-roots-the-state-and-the-records), [§2](../plan.md#2-the-guard-patch-before-any-infra-file) · Research: [R-13](../research.md#r-13-the-plan-in-the-note-and-the-apply-record-fr-005-fr-007), [R-14](../research.md#r-14-the-offline-checks-agents-can-run-and-the-policy-fr-002-fr-004-fr-012), [R-16](../research.md#r-16-refusing-terraforms-state-changing-commands-in-every-spelling-fr-006-fr-011)

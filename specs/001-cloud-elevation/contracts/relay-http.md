@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the relay's HTTP API (`POST /api/hello`, `GET /api/status`)
 
 Spec 001 (FR-017, FR-025, FR-029 to FR-037, FR-042, FR-054, FR-060, FR-061) · Plan: [§4.2](../plan.md#42-the-relay-fr-029-to-fr-033-fr-035-to-fr-037-r-18), [§5.3](../plan.md#53-health-failover-and-recovery-fr-054-r-12) · Research: [R-18](../research.md#r-18-the-relay-a-thin-typescript-service), [R-12](../research.md#r-12-the-local-paths-health-and-the-local-edges-tunnel-blocks)

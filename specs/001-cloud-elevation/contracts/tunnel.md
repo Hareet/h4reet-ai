@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the tunnel, its two ends, and the local `edge`'s tunnel blocks
 
 Spec 001 (FR-040, FR-051 to FR-055, FR-060) · Plan: [§5](../plan.md#5-the-paths-the-local-path-the-fallback-gateway-and-the-tunnel), [§6.3](../plan.md#63-egress-fr-051-r-10) · Research: [R-11](../research.md#r-11-the-tunnel-openssh-reverse-forwards-ending-on-the-vm-to-ask-question-9), [R-12](../research.md#r-12-the-local-paths-health-and-the-local-edges-tunnel-blocks), [R-10](../research.md#r-10-the-vms-egress-one-allowlisting-proxy-fr-051)

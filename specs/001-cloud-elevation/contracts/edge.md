@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: the edge, the DNS zone, and the certificate
 
 Spec 001 (FR-027 to FR-029, FR-032, FR-034, FR-038, FR-041, FR-042) · Plan: [§4.1](../plan.md#41-cloudfront-and-dns-fr-027-to-fr-029-fr-034-r-07-to-r-09), [§8.1](../plan.md#81-the-site-fr-036-to-fr-038-fr-041-fr-042) · Research: [R-07](../research.md#r-07-cloudfront-reaches-the-relay-through-a-vpc-origin-on-a-second-network-interface-to-ask-question-2), [R-08](../research.md#r-08-the-edges-own-degraded-answer-fr-034), [R-09](../research.md#r-09-the-domain-in-route-53-to-ask-question-4)

@@ -1,3 +1,5 @@
+> **Superseded on 2026-11-09.** Spec 001 was reworked that day around the Author's decisions (ADR 0044, proposed: EC2 is prod's default host); this contract is the September design's (the laptop serves, the cloud is a thin control plane) and waits for a re-plan, kept unedited below as the record.
+
 # Contract: AWS-side alerts, the budget action, and the uptime probe
 
 Spec 001 (FR-022 to FR-024, FR-026, FR-027, FR-056, FR-060, FR-061) · Plan: [§3](../plan.md#3-cost-the-safety-net-and-the-meter-of-record) · Research: [R-22](../research.md#r-22-the-budgets-the-action-and-the-rehearsal-fr-022-fr-023-fr-026), [R-23](../research.md#r-23-aws-side-alerts-reach-telegram-through-a-bridge-email-directly), [R-24](../research.md#r-24-the-uptime-probe-fr-061)
