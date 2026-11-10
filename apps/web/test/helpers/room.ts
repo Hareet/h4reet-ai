@@ -18,6 +18,7 @@ import { compose, formatFinding } from "../../build/room/compose";
 import type { ComposeResult } from "../../build/room/compose";
 import { readRoomPolicy } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
+import { twinReadiness } from "../../build/room/readiness";
 import { fileTree, overlayTree } from "../../build/room/source";
 import { startRoom } from "../../src/room/app";
 import type { RoomDeps, RoomHandle } from "../../src/room/app";
@@ -412,33 +413,52 @@ export function withoutModels(): Map<string, Uint8Array | null> {
  * under an empty policy directory, as the global setup's builds are (test/global-build.ts; `emptyDirPolicy`); with
  * `standins`, the room before its models were set (`withoutModels`). Each is composed once a test file, and a finding
  * that would fail the site's build fails the test that asks.
+ * The twin's readiness (spec 007, FR-030, FR-037) is `readiness`'s, never the one config/twin-readiness.yaml, the
+ * Author's file, happens to hold: `tree` composes with the tree's own, `twinReadiness(tree)`, exactly as the site's
+ * build does (build/room/plugin.ts), for the tests that hold a built site to this compose, whose digests and `ready`
+ * values then follow the file whatever it marks; `none`, the default, composes with nothing ready, as compose() takes
+ * no readiness, for the tests of the room before the twin, which assert it (spec 009's intake gate, F2).
  */
 export function repositoryBundle(
-  options: { readonly drafts?: boolean; readonly policy?: "main" | "empty"; readonly standins?: boolean } = {},
+  options: {
+    readonly drafts?: boolean;
+    readonly policy?: "main" | "empty";
+    readonly standins?: boolean;
+    readonly readiness?: "tree" | "none";
+  } = {},
 ): ComposeResult {
   const drafts = options.drafts ?? false;
   const source = options.policy ?? "main";
   const standins = options.standins ?? false;
-  const key = `${source} ${drafts ? "drafts" : "release"}${standins ? " standins" : ""}`;
+  const readiness = options.readiness ?? "none";
+  const key = `${source} ${drafts ? "drafts" : "release"}${standins ? " standins" : ""} ${readiness}`;
   const known = bundles.get(key);
   if (known) return known;
   const policy = source === "main" ? readRoomPolicy({ env: process.env, root: REPO }) : emptyDirPolicy();
   const tree = standins ? overlayTree(fileTree(REPO), withoutModels()) : fileTree(REPO);
-  const result = compose(tree, policy, { mode: "lenient", drafts });
+  const result = compose(tree, policy, {
+    mode: "lenient",
+    drafts,
+    ...(readiness === "tree" ? { readiness: twinReadiness(tree) } : {}),
+  });
   const refused = result.findings.filter((f) => !f.lenient).map((f) => formatFinding(f, "lenient"));
   if (refused.length > 0) throw new Error(`the repository's room doesn't compose:\n${refused.join("\n")}`);
   bundles.set(key, result);
   return result;
 }
 
-/** The room's content, as the build reads it: content/messages.yaml and the manifest, compose()'s. */
+/** The room's content, as the build reads it: content/messages.yaml and the manifest, compose()'s, with nothing ready
+ *  (`repositoryBundle`'s `none`): the room before the twin, whatever the Author's readiness file marks. */
 export function roomContent(): RoomContent {
-  return { messages: readMessages(join(WEB, "content/messages.yaml")), manifest: repositoryBundle().manifest };
+  return {
+    messages: readMessages(join(WEB, "content/messages.yaml")),
+    manifest: repositoryBundle({ readiness: "none" }).manifest,
+  };
 }
 
-/** The bundle's index, as the build bundles it beside the content. */
+/** The bundle's index, as the build bundles it beside the content, with nothing ready, as `roomContent`'s. */
 export function roomIndex(): RoomIndex {
-  return repositoryBundle().index;
+  return repositoryBundle({ readiness: "none" }).index;
 }
 
 /** A jsdom window, with its event constructors (Event, KeyboardEvent, PointerEvent) typed. */

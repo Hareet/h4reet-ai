@@ -42,6 +42,14 @@ COPY docs/data-flow-disclosure.md docs/
 # The resume's citation check reads the corpus it cites (build/content.ts). .dockerignore keeps corpus/intake/private,
 # the Author's denylist and uncleared sources, out of every context, so C9 here checks the public list only.
 COPY corpus corpus
+# The twin's readiness and limits, which the room's build reads from the tree (spec 007; FR-030, FR-037; its plan.md's
+# D44): build/room/readiness.ts applies the gateway's rule to the same files, the Author's config/twin-readiness.yaml
+# against the pack's hashes and the prompt's over prompt.md and lines.yaml, so a topic is ready in the image's room
+# exactly when it is in a checkout's build; and config/budgets.yaml's limits.twin gives the text box its limits
+# (FR-027). These five files and no other part of config/ (test/room/image-inputs.test.ts); none of them reaches the
+# runtime stage, which copies only dist/.
+COPY config/twin-readiness.yaml config/budgets.yaml config/
+COPY config/twin/corpus.json config/twin/prompt.md config/twin/lines.yaml config/twin/
 COPY apps/web apps/web
 # The room's caps for a build whose policy context holds none: build/room/policy.ts reads the tree's own copy only
 # where ROOM_POLICY_DIR holds no caps.json, so web_image.py's context, main's caps, wins wherever it is named. Spec

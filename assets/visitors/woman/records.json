@@ -1,0 +1,1143 @@
+{
+  "schema": 1,
+  "directory": "assets/visitors/woman",
+  "license": "all-rights-reserved-2026",
+  "entries": [
+    {
+      "file": "woman-idle-holding.glb",
+      "sha256": "3d7f7e68971fa257a9164b2e291f31249e27ca8e42c977e10b16a205f0b5230b",
+      "kind": "animation",
+      "made": "2026-10-26",
+      "source": {
+        "type": "prompt",
+        "id": "P-0022"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, from the prompt",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "a head-and-shoulders crop of the reviewed concept, enlarged to 1024 px with a Lanczos-3 filter, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "ba5703fe2085c1d6c9be99307075a762125cc053c390407f7e91f822e61942c4"
+        },
+        {
+          "name": "a closer mesh and its texture, from the crop, for the face",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the closer mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build, which rigged the character and keyed the idle on its skeleton, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "eeed858293ed619b20fa6713051f61ee9cb22f774353cbe1c23559e098aaf10a"
+        },
+        {
+          "name": "the idle with the hand closed on the paper, from the idle's keys and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "4d828dc6d339fc61cc3bc7b0b2ae062f0eb9b6e38a2c540cd867696fe87dbc19"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "woman-idle.glb",
+      "sha256": "77f3cdd35037fbf410779e00fa8259281fb2c4cfb94e42983455531239dc333d",
+      "kind": "animation",
+      "made": "2026-10-26",
+      "source": {
+        "type": "prompt",
+        "id": "P-0022"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, from the prompt",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "a head-and-shoulders crop of the reviewed concept, enlarged to 1024 px with a Lanczos-3 filter, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "ba5703fe2085c1d6c9be99307075a762125cc053c390407f7e91f822e61942c4"
+        },
+        {
+          "name": "a closer mesh and its texture, from the crop, for the face",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the closer mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build, which rigged the character and keyed the idle on its skeleton, the idle exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "eeed858293ed619b20fa6713051f61ee9cb22f774353cbe1c23559e098aaf10a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "woman-take.glb",
+      "sha256": "4b93cb694c976862cd02d82415b54b45777a4a52cbca64334f85c766f48fb02a",
+      "kind": "animation",
+      "made": "2026-10-26",
+      "source": {
+        "type": "prompt",
+        "id": "P-0022"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, from the prompt",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "a head-and-shoulders crop of the reviewed concept, enlarged to 1024 px with a Lanczos-3 filter, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "ba5703fe2085c1d6c9be99307075a762125cc053c390407f7e91f822e61942c4"
+        },
+        {
+          "name": "a closer mesh and its texture, from the crop, for the face",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the closer mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build, which rigged the character and keyed the idle on its skeleton, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "eeed858293ed619b20fa6713051f61ee9cb22f774353cbe1c23559e098aaf10a"
+        },
+        {
+          "name": "the take, keyed on the build's skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "4d828dc6d339fc61cc3bc7b0b2ae062f0eb9b6e38a2c540cd867696fe87dbc19"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    },
+    {
+      "file": "woman.glb",
+      "sha256": "457898c9debd1c465718f8d76144e2c6230a661bcb6d6b8157d3783092ed8f88",
+      "kind": "avatar",
+      "made": "2026-10-26",
+      "source": {
+        "type": "prompt",
+        "id": "P-0022"
+      },
+      "likeness": false,
+      "steps": [
+        {
+          "name": "the concept, from the prompt",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's review of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the mesh and its base-colour texture, from the concept",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the mesh",
+          "by": "hand"
+        },
+        {
+          "name": "a head-and-shoulders crop of the reviewed concept, enlarged to 1024 px with a Lanczos-3 filter, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "ba5703fe2085c1d6c9be99307075a762125cc053c390407f7e91f822e61942c4"
+        },
+        {
+          "name": "a closer mesh and its texture, from the crop, for the face",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of the closer mesh",
+          "by": "hand"
+        },
+        {
+          "name": "the build: the mesh cleaned, decimated and scaled, its texture resized and the head's baked, the closer mesh's face fitted, eyes and hands modelled, rigged and skinned, and exported at rest, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-10-26",
+          "workflow_sha256": "eeed858293ed619b20fa6713051f61ee9cb22f774353cbe1c23559e098aaf10a"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026"
+    }
+  ]
+}

@@ -21,8 +21,10 @@
 //   mixer advances. A clip whose tracks name a bone the model lacks counts as failed (FR-003); three sanitizes node names
 //   on load, a model's and a clip's alike, so `mixamorig:Hips` binds as `mixamorigHips`.
 // - The holding hand (R-08): of ADR 0010's two hand bones, the one "idle-holding"'s first frame moves farther from
-//   where the idle's first frame holds it, the right on a tie; with no "idle-holding", the hand nearer the other
-//   figure's hand anchor; with neither bone, none, and the paper stays at the anchor (FR-018).
+//   where the idle's first frame holds it, a hand's motion summing its hand bone's and every bone's under it, its
+//   fingers, so a clip that only closes a hand's fingers on the sheet moves that hand (the Author's answer of
+//   2026-11-09, "Count the fingers"); the right on a tie; with no "idle-holding", the hand nearer the other figure's
+//   hand anchor; with neither bone, none, and the paper stays at the anchor (FR-018).
 // - The kept paper (R-09): once the hand-off has ended and the visitor's avatar shows with a holding hand, the kept
 //   sheet goes into that hand with Object3D.attach, keeping its world transform, then lifted so the hand holds its
 //   lower edge, and moves with it; a reset puts it back at the visitor's anchor.
@@ -38,7 +40,7 @@
 //   then, before the hand-off's first frame too, an avatar that becomes ready waits for the hand-off's end to show, as
 //   one ready during it does (FR-022).
 import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Quaternion, Vector3 } from "three";
-import type { AnimationAction, AnimationClip, Euler, Object3D } from "three";
+import type { AnimationAction, AnimationClip, Bone, Euler, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { AVATAR_SHAPES } from "../../choice/avatars";
@@ -160,6 +162,27 @@ function binds(instance: Object3D, clip: AnimationClip): boolean {
 
 const worldOf = (node: Object3D): Vector3 => new Vector3().setFromMatrixPosition(node.matrixWorld);
 
+/** One hand in one pose (R-08): its hand bone's world position, and the hand bone's and every bone's under it, in the
+ *  tree's order, so two poses of one instance list the same bones alike. Bones alone (`isBone`): the kept sheet, which
+ *  the holding hand carries once the hand-off ends, is no bone, so a later "idle-holding" never counts it. */
+interface HandPose {
+  readonly at: Vector3;
+  readonly bones: readonly Vector3[];
+}
+
+/** How far a hand moves from one pose to another: its hand bone and every bone under it, its fingers, each by its
+ *  world position, summed; a hand the other pose lacks moves nothing (FR-018, as the Author amended it on 2026-11-09,
+ *  "Count the fingers": a holding clip that only closes a hand's fingers moves that hand). */
+function handMotion(from: HandPose, to: HandPose | null): number {
+  if (to === null) return 0;
+  let sum = 0;
+  from.bones.forEach((p, i) => {
+    const q = to.bones[i];
+    if (q) sum += p.distanceTo(q);
+  });
+  return sum;
+}
+
 /** Whether `node` is `root` or lies under it. */
 function within(node: Object3D, root: Object3D | null): boolean {
   for (let at: Object3D | null = node; at; at = at.parent) if (at === root) return true;
@@ -276,18 +299,25 @@ export function createAvatarFigures(
     return instance;
   }
 
-  /** The world positions of the hand bones in the instance's pose under one clip's first frame (none: the rest pose),
-   *  sampled on a mixer of its own, which restores the pose it found when its action stops. */
-  function handsAt(f: Figure, clip: AnimationClip | null): { right: Vector3 | null; left: Vector3 | null } {
+  /** Each hand in the instance's pose under one clip's first frame (none: the rest pose), sampled on a mixer of its
+   *  own, which restores the pose it found when its action stops: the hand bone's world position, and its own and every
+   *  bone's under it, its fingers, in the tree's order; null for a hand the skeleton lacks. */
+  function handsAt(f: Figure, clip: AnimationClip | null): { right: HandPose | null; left: HandPose | null } {
     const instance = f.instance as Object3D;
     const sampler = new AnimationMixer(instance);
     if (clip) sampler.clipAction(clip).play();
     sampler.update(0);
     // The figure's placement and group above, then the bones: world positions, as a frame would draw them.
     instance.updateWorldMatrix(true, true);
-    const at = (name: string): Vector3 | null => {
+    const at = (name: string): HandPose | null => {
       const bone = instance.getObjectByName(name);
-      return bone ? worldOf(bone) : null;
+      if (!bone) return null;
+      // The hand bone, then the bones under it alone, as FR-018 says: never the kept sheet or another object it holds.
+      const bones: Vector3[] = [];
+      bone.traverse((node) => {
+        if (node === bone || (node as Partial<Bone>).isBone === true) bones.push(worldOf(node));
+      });
+      return { at: worldOf(bone), bones };
     };
     const out = { right: at(HANDS.right), left: at(HANDS.left) };
     sampler.stopAllAction();
@@ -311,12 +341,12 @@ export function createAvatarFigures(
     if (rest.right === null || rest.left === null) hand = rest.right ? "right" : rest.left ? "left" : null;
     else if (holding) {
       const moved = handsAt(f, holding);
-      const right = moved.right ? moved.right.distanceTo(rest.right) : 0;
-      const left = moved.left ? moved.left.distanceTo(rest.left) : 0;
+      const right = handMotion(rest.right, moved.right);
+      const left = handMotion(rest.left, moved.left);
       hand = left > right + TIE ? "left" : "right";
     } else {
       const other = f.id === "visitor" ? anchors.twin : anchors.visitor;
-      hand = rest.left.distanceTo(other) < rest.right.distanceTo(other) - TIE ? "left" : "right";
+      hand = rest.left.at.distanceTo(other) < rest.right.at.distanceTo(other) - TIE ? "left" : "right";
     }
     f.hand = hand === null ? null : (instance.getObjectByName(HANDS[hand]) ?? null);
     if (playing !== null) start(f, playing, time);
