@@ -1297,6 +1297,38 @@ describe("spec 012's model and swap gates (T005)", () => {
     expect(h.holds.held()).toBe(0);
   });
 
+  // T037, the review's N1: two parses in flight as the gate closes both passed the ledger's check before their swaps
+  // waited; the second, uploaded after the first, would take the ledger over its limit. Each checks again after the wait.
+  it("checks the ledger again after the swap gate, so two parses that waited can't both take it over its limit", async () => {
+    const g = gates();
+    const d = decoder({ gated: true });
+    const h = harness({
+      handoff: "pending",
+      decoder: d,
+      modelGate: g.gate,
+      swapGate: g.gate,
+      limit: Math.floor(DESK_TEXTURE_BYTES * 1.5),
+    });
+    const done = h.loader.load([memoryEntry("fx-a", DESK_GLB), memoryEntry("fx-b", DESK_GLB)]);
+    await settle();
+    expect(h.holds.held()).toBe(2);
+    g.close();
+    d.open();
+    await settle();
+    expect(h.swaps).toEqual([]);
+    g.end();
+    await settle();
+    h.clock.advance(SETTLE_FRAMES * 16);
+    await done;
+    expect(h.swaps.map((s) => s.piece)).toEqual(["fx-a"]);
+    expect(h.events.map((e) => [e.asset, e.outcome])).toEqual([
+      ["fx-a", "loaded"],
+      ["fx-b", "skipped"],
+    ]);
+    expect(h.ledger.bytes).toBeLessThanOrEqual(Math.floor(DESK_TEXTURE_BYTES * 1.5));
+    expect(h.holds.held()).toBe(0);
+  });
+
   it("leaves the fetch, its order, its slots, and its events as they were", async () => {
     const g = gates();
     const h = harness({ modelGate: g.gate, swapGate: g.gate });
