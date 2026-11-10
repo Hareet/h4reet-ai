@@ -5,9 +5,9 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 - **the route per host** and the environment key that selects it;
 - **the relay's memory;**
 - **the records:** handovers, releases, deployments, plans, applies, audits, and the public view's document;
-- **the state machines:** the serving host, EC2's instance, and the pause switch.
+- **the state machines:** the serving host, EC2's instance, the tunnel end's instance, and the pause switch.
 
-Where it says "as plan question 1 recommends", the item depends on that question (plan.md).
+The relay runs on the tunnel end and picks the host, by the Author's answer to the plan's question 1. The tunnel end runs on spot, by his answer to question 2.
 
 ## 1. The shared state (spec FR-017, FR-019; research.md R-20)
 
@@ -99,7 +99,7 @@ Spec 010's refusals hold for each named paid adapter: its price version, its cap
 
 [contracts/env-cloud.md](contracts/env-cloud.md) has the full tables.
 
-## 3. The relay's memory (research.md R-18; as plan question 1 recommends)
+## 3. The relay's memory (research.md R-18)
 
 | Item | Kept | For how long |
 |---|---|---|
@@ -138,7 +138,7 @@ Numbers, states, and times only. No payload, client identifier, operator reason,
 
 ## 6. State machines
 
-### 6.1 The serving host (the relay; as plan question 1 recommends)
+### 6.1 The serving host (the relay)
 
 | From | Event | To |
 |---|---|---|
@@ -162,6 +162,18 @@ The laptop wins whenever it is healthy. Each move writes a handover event; a mov
 | stopped (an interruption) | capacity returns | running | AWS |
 | running | started while the laptop serves or the switch is off | stopped (a user stop) | `h4-ec2-guard` |
 | any | the server budget's action | stopped; the start function refuses until `make server-budget-restore` | AWS Budgets |
+| stopped | the tunnel end returns while the laptop isn't serving (one run of the start function) | running | `h4-ec2-start` |
+
+The start function also refuses while the tunnel end isn't running (`tunnel_end_down`).
+
+### 6.2a The tunnel end's instance (spec FR-076)
+
+| From | Event | To | By |
+|---|---|---|---|
+| running | a spot interruption | stopped (an interruption); `tunnel_end_interruption` alerted at the warning | AWS |
+| stopped (an interruption) | capacity returns | running; its services start; the laptop's tunnel reconnects; `tunnel_end_back` alerted; the start function runs once | AWS, then systemd and the deployer |
+
+While it is stopped, the relay's memory is gone. The edge answers `no_host_serving`, and the relay's caps restart empty on its return.
 
 ### 6.3 The pause switch
 

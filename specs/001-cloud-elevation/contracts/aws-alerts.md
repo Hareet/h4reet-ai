@@ -28,6 +28,9 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
 | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
 | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
+| `tunnel_end_interruption` | `h4-tunnel-end-spot-warning` | AWS's warning for the tunnel end (spec FR-076) | `tunnel-end.md` |
+| `tunnel_end_back` | `h4-tunnel-end-running` | the tunnel end running again | `tunnel-end.md` |
+| `ec2_start_refused (tunnel_end_down)` | `h4-ec2-start` | the laptop gone while the tunnel end is down | `tunnel-end.md` |
 
 The laptop's own alerts, such as the handover loop's failed stop, go through spec 000's dispatcher, as its other alerts do.
 

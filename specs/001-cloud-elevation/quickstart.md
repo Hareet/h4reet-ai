@@ -1,6 +1,6 @@
 # Quickstart: validating spec 001, EC2 as prod's default host
 
-Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review. It replaces the September quickstart (`quickstart.md` at 00309c47). These are the runs that prove each task group and each success criterion, against real AWS, the laptop, and the agents' engine. It is a validation guide, not an implementation: the commands are the plan's, and the contracts hold the details. As plan question 1 recommends, the relay runs on the tunnel end.
+Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review. It replaces the September quickstart (`quickstart.md` at 00309c47). These are the runs that prove each task group and each success criterion, against real AWS, the laptop, and the agents' engine. It is a validation guide, not an implementation: the commands are the plan's, and the contracts hold the details. The relay runs on the tunnel end, and the tunnel end on spot, by the Author's answers to the plan's questions 1 and 2.
 
 **Conventions.**
 - **"Your terminal"** is the Author's, outside Claude Code. Agents can't run these commands.
@@ -16,7 +16,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 ## 2. Group 2: the measurement, and your figure
 
 1. An agent session runs research.md R-33's measurement on `dev-cpu`, and records each service's peak memory, the disks, and which images have arm64.
-2. Price research.md R-05's lines from AWS's pages in your terminal: EC2's measured types on spot, and an 8-to-12-hour day as the reserve; the tunnel end (question 2); RDS; the health check; and the "to confirm" lines.
+2. Price research.md R-05's lines from AWS's pages in your terminal: EC2's measured types on spot, and an 8-to-12-hour day as the reserve; the tunnel end on spot (plan question 2); RDS; the health check; and the "to confirm" lines.
 3. Set `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`. Apply P-2, constitution 1.1.0, so the infrastructure groups may start.
 
 ## 3. Group 3: the bootstrap (SC-012 starts)
@@ -94,6 +94,12 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - requests get `no_host_serving`;
    - EC2 serves again without you once capacity returns;
    - the shared state's values are unchanged.
+
+   Then **three times on the tunnel end** (spec FR-076), once while each host serves and once while EC2 is stopped. Check that:
+   - `tunnel_end_interruption` arrives;
+   - the site loads, and every dynamic request gets the edge's `no_host_serving`;
+   - while it is gone, cutting the laptop gives `ec2_start_refused (tunnel_end_down)`;
+   - on its return, `tunnel_end_back` arrives, the laptop's tunnel reconnects, the start function runs once, and the relay serves whichever host is up.
 7. **SC-001:** over a day, with the laptop off and EC2 serving, the probe's results: 100% within 5 s; windows with no host answered `no_host_serving` within 5 s.
 8. **The first public release.** Then **SC-010:** load every page and call hello, the status, and a twin turn with the browser's network log on. 100% of requests go to hareet.ai, and no cookie is set. **SC-011:** `evals/visitor_scan.py` after a scripted visit with a marker message, on each host and the shared state: zero finds.
 

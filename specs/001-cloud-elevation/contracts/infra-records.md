@@ -36,7 +36,7 @@ Run by `make infra-check` against the Author's provider mirror, and twice in the
 | T7 | no ingress from outside the account's ranges, except: 2222 from anywhere, on the tunnel end's public interface; 8087 from Route 53's health-checker ranges, on the same; 8080 from CloudFront's VPC origin, on its private interface |
 | T8, T9 | as September: no account ID, email, or key literal; no Terraform-managed SecureString, and no data source that reads a secret |
 | T10 | as September: the lockfile's provider version matches `.devcontainer/toolchain.vars` |
-| T11 (new) | EC2's instance is spot with `instance_interruption_behavior = "stop"` and `spot_instance_type = "persistent"` (spec FR-069) |
+| T11 (new) | EC2's instance and the tunnel end's are spot with `instance_interruption_behavior = "stop"` and `spot_instance_type = "persistent"` (spec FR-069, FR-076) |
 | T12 (new) | RDS has `publicly_accessible = false`, `storage_encrypted = true`, `deletion_protection = true`, `manage_master_user_password = true`, and no `password` argument |
 | T13 (new) | IMDSv2 is required, with hop limit 1, on every instance |
 

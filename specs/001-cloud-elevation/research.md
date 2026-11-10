@@ -102,7 +102,7 @@ The policy also refuses an EC2 instance whose market options aren't spot with `i
 
 **The tunnel end.**
 - **Size:** `t4g.micro` (arm64, 1 GiB), the size September R-04 chose for thin services. Its own services are smaller than September's VM's: no gateway and no store (R-20). R-33 measures it too.
-- **Market:** spot or on-demand, plan question 2. With question 1's recommended option every dynamic request passes through it, so the plan recommends on-demand; spot is what the Author's question 13 option priced.
+- **Market:** spot, the Author's answer to plan question 2 ("Spot": "AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up"). A persistent request that stops on interruption, as EC2's (R-30). The plan had recommended on demand, since every dynamic request passes through it (question 1).
 - **Network:** two interfaces, as September's VM had (September R-07): a private one in a private subnet for CloudFront's VPC origin, and a public one with an Elastic IP for the tunnel's port and the health port.
 - **Root volume:** encrypted gp3, 8 GiB (September R-05's size, to confirm).
 
@@ -140,11 +140,11 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 - that certificate comes from a public certificate authority through a DNS challenge, which gives each host write access to a Route 53 record and adds a third party;
 - a secret header is needed to tell this distribution from any other CloudFront distribution, since CloudFront's origin-facing addresses are shared by all of them. That secret must stay out of Terraform's state (FR-009).
 
-**Decision, as recommended (plan question 1, option A).** The relay runs on the tunnel end (R-18), which CloudFront reaches as its one VPC origin, on the tunnel end's private interface, as September R-07 had it for the VM. The relay sends each request to the serving host: the laptop through the tunnel, EC2 through the VPC. Route 53's health check stays, as the independent detector that fires the start function (R-29). The failover records aren't needed for visitors' traffic.
+**Decision, the Author's answer to plan question 1** ("Relay picks the host (Recommended)", 2026-11-09). The relay runs on the tunnel end (R-18), which CloudFront reaches as its one VPC origin, on the tunnel end's private interface, as September R-07 had it for the VM. The relay sends each request to the serving host: the laptop through the tunnel, EC2 through the VPC. Route 53's health check stays, as the independent detector that fires the start function (R-29). The failover records aren't needed for visitors' traffic.
 
 **Why.** It keeps September R-07's properties: the relay has no public address, nothing outside this distribution can reach it, no secret is in the state, and no certificate or third-party authority is needed. It needs no runtime DNS change at all. The relay sees a host fail within a second (R-18), rather than after the health check's detection time plus a record's time to live. It is also what the title of the Author's question 13 option names: "Tiny always-on relay".
 
-**The trade.** Every dynamic request now passes through the tunnel end, so its outage rests the twin even while EC2 runs; hence plan question 2's recommendation that it run on demand. And point 1's "Route 53 can switch DNS by itself" changes in one part: the health check and the start function stay, but the relay, not DNS, moves visitors. The spec amendments this needs are listed in plan.md §13.
+**The trade.** Every dynamic request now passes through the tunnel end, so its outage rests the twin even while EC2 runs. The Author chose spot for it all the same (plan question 2; R-30). Point 1's "Route 53 can switch DNS by itself" changes in one part: the health check and the start function stay, but the relay, not DNS, moves visitors. The spec's wording changed with his answer (plan.md §13).
 
 **Alternatives.**
 - **B, the spec as written:** failover records for `api-origin.hareet.ai`, the tunnel end's and EC2's public addresses as primary and secondary, TLS to each, and a secret origin header kept in a CloudFront key-value store the Author writes. That means more parts: two certificates, a third-party authority, DNS write access from both hosts, a key-value store, and EC2 needs a fixed public address. The tunnel end stays out of EC2's path.
@@ -180,7 +180,7 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 
 **Why.** One block, two transports. The relay needs no per-host logic beyond the address and the token. The health block carries nothing but the status, so leaving it unauthenticated exposes nothing (FR-053).
 
-### R-18: The relay on the tunnel end (changed; plan question 1)
+### R-18: The relay on the tunnel end (changed; the Author's answer to plan question 1)
 
 **Decision.** `services/relay`, as September R-18 (Fastify 5 on Node 24, a second npm workspace), runs as a container on the tunnel end. Its order at each request:
 1. **The probe mark**, as September.
@@ -194,7 +194,6 @@ It answers `GET /api/status` itself (FR-037), with the serving host, EC2's state
 
 **Why.** The relay holds the cap, the kill switch read, and the host choice in one always-on place. The status answer stays live while no host serves, and the Cloud standard's always-on "thin API/relay" holds.
 
-**If plan question 1 is B:** the relay runs in each host's stack, as spec FR-029 has it now. Step 5 disappears, since DNS picks the host, and the status answer while no host serves comes from the edge's fixed body.
 
 ### R-10: Egress through an allowlisting proxy (carried, on two hosts)
 
@@ -268,9 +267,11 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 - **The trigger:** an EventBridge rule on the alarm's change into the alarm state invokes `h4-ec2-start`, a Lambda function packaged as a container image (stdlib Python, as September's Lambdas), in `infra/account`. One alarm change, one invocation: no loop (spec FR-065). The function:
   1. reads the pause switch, the String parameter `/h4reet/prod/ec2-autostart` (`on` or `off`); off refuses;
   2. reads the server budget's action status (`budgets:DescribeBudgetActionsForBudget`); executed refuses;
-  3. calls `ec2:StartInstances` on the instance tagged `h4-prod-ec2`, and nothing else;
-  4. publishes the outcome, started or refused and why, to `h4-alerts`, which reaches Telegram and email (R-23).
+  3. reads the tunnel end's state (`ec2:DescribeInstances` on its tag); not running refuses with `tunnel_end_down`, since no visitor could reach EC2 (plan question 2);
+  4. calls `ec2:StartInstances` on the instance tagged `h4-prod-ec2`, and nothing else;
+  5. publishes the outcome, started or refused and why, to `h4-alerts`, which reaches Telegram and email (R-23).
 - **Invoked by hand too:** `make ec2-start` and `make ec2-autostart STATE=on` invoke it (R-32), with the same checks, plus one more: it refuses while the health check is healthy, since the laptop then serves.
+- **A second trigger:** an EventBridge rule on the tunnel end entering `running` invokes it once, with the health-check test too. The alarm stays in alarm through a tunnel-end outage, so it wouldn't change again; this run starts EC2 if the laptop isn't serving.
 - **The default state.** EC2 is the default host, so the alarm is in the alarm state whenever the laptop isn't serving, and the function fires only on the laptop's departure. EC2 is started or stopped otherwise only by the laptop's stop, the guard (R-30), AWS's interruption and restart, the server budget's action, or the Author's own `make ec2-start` and `make ec2-stop`.
 
 **Why.** Point 1's mechanism ("a Lambda, fired when that health check fails, to start EC2"), with the health check probing through the tunnel end as question 13's option said. EventBridge, rather than an SNS subscription, invokes the function with no topic to manage.
@@ -282,6 +283,7 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 **Decision.**
 - **EC2** is a persistent spot request with `instance_interruption_behavior = "stop"` (spec FR-069, question 15). On an interruption, AWS stops it and keeps its volumes, and starts it again when capacity returns (to confirm against AWS's guide in the first task). A stop by the laptop or the Author is a user stop, after which AWS does not restart the instance on its own (to confirm).
 - **The interruption notice:** an EventBridge rule on "EC2 Spot Instance Interruption Warning" for that instance publishes to `h4-alerts` (spec FR-071, "You get an alert"). Visitors get `no_host_serving` until EC2 serves again or the laptop does (R-18).
+- **The tunnel end** is a persistent spot request with the same interruption behavior (the Author's answer to plan question 2). Its warning publishes `tunnel_end_interruption` to `h4-alerts`, and its return publishes `tunnel_end_back`. While it is gone, the edge's own body answers (R-08), and the start function refuses (R-29). Its Elastic IP stays associated with its interface across the stop (to confirm), so the laptop's tunnel finds it again.
 - **`h4-ec2-guard`:** a second function, on "EC2 Instance State-change Notification" to `running` for that instance. If the laptop serves (the health check is healthy) or the pause switch is `off`, it calls `ec2:StopInstances` and alerts. It may stop that one instance and nothing else (spec FR-071, "IF EC2 starts again on its own…"). It is a separate function with its own role, so the start function's role stays start-only, as question 16's default says.
 
 **Why.** Spot around the clock is the Author's answer. The guard makes the spec's rule hold whatever AWS's restart does, so the plan needn't depend on that behavior being exactly as documented.
@@ -303,7 +305,7 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 
 The gap runs from the relay's last answer from the laptop to its first from EC2, and the relay records it in `handover_events` (spec SC-007). How long it is depends on R-29's detection time and EC2's boot, which group 9's rehearsal measures; the spec sets no bound on it, only on what visitors get meanwhile (SC-001's exception).
 
-**If plan question 1 is B:** steps 3 and 1 become "the failover answers with the laptop" and "the failover answers with EC2", and the gap adds the records' time to live.
+**When the tunnel end comes back after AWS took it** (plan question 2): its services start, the laptop's tunnel reconnects, the relay finds whichever host is up, and a rule on the tunnel end's `running` state invokes the start function once (R-29).
 
 ### R-32: The operator's commands (new)
 
@@ -338,7 +340,7 @@ All run in the Author's terminal only (R-16), each with an audit record:
 | EC2, running, on spot | none for the measured type | to price, after R-33 |
 | EC2's volumes, running or stopped | gp3 at $0.08 per GiB a month (September R-05, 2026-10-18) | to confirm; sizes from R-33 |
 | EC2's address, while running | AWS's public IPv4 charge, $0.005 per address-hour since 2024-02-01 (September R-05) | to confirm that an auto-assigned address isn't charged while stopped |
-| The tunnel end, `t4g.micro` | spot about $0.0030 an hour, about $2.20 a month; on demand $0.0084 an hour, $6.13 a month (September R-04 and R-05, 2026-10-18, spot from trackers) | to confirm; question 2 picks one |
+| The tunnel end, `t4g.micro` | spot about $0.0030 an hour, about $2.20 a month; on demand $0.0084 an hour, $6.13 a month (September R-04 and R-05, 2026-10-18, spot from trackers) | to confirm; spot, the Author's answer to plan question 2 ("About $2.20 a month (October's figure)") |
 | The tunnel end's Elastic IP | $0.005 per address-hour, $3.65 a month (September R-05) | to confirm |
 | The tunnel end's root volume | 8 GiB gp3 at $0.08, $0.64 a month (September R-05) | to confirm |
 | RDS for PostgreSQL, the instance and its storage | none | to price |
@@ -390,7 +392,7 @@ September R-24 unchanged: `h4-probe`, once a minute, fetches `https://hareet.ai/
 | `h4-prod-tunnel-end` (instance role) | read its Parameter Store path; pull from ECR; read the release bucket; write `site/status/latest.json`; `budgets:ViewBudget` on `h4-server-month`; `ec2:DescribeInstances` on the tagged instance; Session Manager | the tunnel end's host services and `snapshot-sink` |
 | The laptop's Bedrock permission set (spec 000's runtime identity) | `bedrock:InvokeModel*` on the one inference profile | the laptop's gateway, through SSO (row F2). Imported into Terraform, ending spec 000's "made by hand" (spec FR-013). Its user and its IAM user `h4reet-runtime` stay as spec 000 left them, keys gone |
 | `h4-ec2-stop` permission set (question 16's default) | `ec2:StopInstances` on the tagged instance; `ec2:DescribeInstances` | `h4-handover` and `make ec2-stop`, through the Author's SSO session |
-| `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the pause switch, the server action's status, and the health check's status; publish to `h4-alerts` | `h4-ec2-start` |
+| `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the pause switch, the server action's status, the health check's status, and the tunnel end's state; publish to `h4-alerts` | `h4-ec2-start` |
 | `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the pause switch; read the health check's status; publish to `h4-alerts` | `h4-ec2-guard` |
 | The Author's administrator permission set | as September | Terraform, by hand |
 
@@ -422,7 +424,7 @@ It writes `site/status/latest.json` (spec FR-057 to FR-059). The rest is as Sept
 ### R-25: Telemetry across the hosts (changed)
 
 **Decision.**
-- **Each host's stack** keeps spec 000's collector, Langfuse, Prometheus, Loki, and Grafana. EC2's run on EC2, so the Observability standard's "Langfuse, self-hosted on the local tier" now describes the laptop only (plan question 3).
+- **Each host's stack** keeps spec 000's collector, Langfuse, Prometheus, Loki, and Grafana. EC2's run on EC2, which the 1.1.0 patch as amended allows: "Langfuse self-hosted in the stack" (plan question 3).
 - **The tunnel end** runs a small collector with a file-backed queue (64 MiB, as September R-25). The relay labels its spans and metrics with `h4.relay.host`. A routing connector sends `laptop` to the laptop's collector (the tunnel's `-R 2202`), and `ec2` and `none` to EC2's collector (in the VPC). EC2 is the host that comes up next when none serves.
 - **The relay's trace context** goes on with each request, so the host's gateway spans are its children.
 - **Delayed or lost:** the queue's and the exporters' counters reach the dashboard (spec FR-060).

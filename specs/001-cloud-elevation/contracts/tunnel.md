@@ -10,7 +10,9 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/tun
 | 8087 | public, the Elastic IP | Route 53's health-checker address ranges only (the published form to confirm in the first task) | `tunnel-end:2203`, the reverse forward to the laptop's health block |
 | 8080 | private | CloudFront's VPC origin only | the relay (contracts/relay-http.md) |
 
-Nothing else is open. The policy (contracts/infra-records.md §5, T7) refuses any other rule from outside the account.
+Nothing else is open. The policy (contracts/infra-records.md §3, T7) refuses any other rule from outside the account.
+
+**The instance** is a persistent spot request that stops on interruption (the Author's answer to the plan's question 2; spec FR-076). Its Elastic IP stays associated with its interface across a stop (to confirm), so the laptop's `tunnel` reconnects to the same address within its backoff once AWS starts it again.
 
 ## 2. `tunnel-end` (the server)
 

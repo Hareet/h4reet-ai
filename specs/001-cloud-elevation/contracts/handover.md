@@ -1,6 +1,6 @@
 # Contract: the handover: the health check, the start function, the guard, the pause switch, the laptop's loop, and the commands
 
-Spec 001, re-planned 2026-11-09. New. Spec FR-063 to FR-066, FR-069 to FR-072, FR-074. Research: R-29 to R-32. As plan question 1 recommends: the relay moves visitors, and the health check fires the start function.
+Spec 001, re-planned 2026-11-09. New. Spec FR-063 to FR-066, FR-069 to FR-072, FR-074. FR-076. Research: R-29 to R-32. By the Author's answers to the plan's questions 1 and 2: the relay moves visitors, the health check only wakes EC2, and the tunnel end runs on spot.
 
 ## 1. The health check (`infra/prod/failover.tf`, protected)
 
@@ -20,17 +20,20 @@ Spec 001, re-planned 2026-11-09. New. Spec FR-063 to FR-066, FR-069 to FR-072, F
 | `h4-laptop-away-rule` | EventBridge rule on that alarm's change into `ALARM`, targeting `h4-ec2-start` |
 | `h4-ec2-spot-warning` | EventBridge rule on "EC2 Spot Instance Interruption Warning" for the tagged instance, targeting `h4-alerts` |
 | `h4-ec2-running` | EventBridge rule on "EC2 Instance State-change Notification", state `running`, for the tagged instance, targeting `h4-ec2-guard` |
+| `h4-tunnel-end-spot-warning` | EventBridge rule on "EC2 Spot Instance Interruption Warning" for the tunnel end, targeting `h4-alerts` (`tunnel_end_interruption`) |
+| `h4-tunnel-end-running` | EventBridge rule on the tunnel end entering `running`, targeting `h4-alerts` (`tunnel_end_back`) and `h4-ec2-start`, invoked as `from: tunnel_end_back` |
 
 ## 3. `h4-ec2-start`
 
-A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. Its role, `h4-ec2-start-fn`, may start the instance tagged `h4-prod-ec2` and nothing else, read the parameter and the two statuses below, and publish to `h4-alerts` (research.md R-15).
+A Lambda container image (stdlib Python, arm64), in `infra/lambdas/ec2_start/`. Its role, `h4-ec2-start-fn`, may start the instance tagged `h4-prod-ec2` and nothing else, read the parameter and the three statuses below, and publish to `h4-alerts` (research.md R-15; plan question 7, provisional).
 
 | Step | Refuses with |
 |---|---|
 | 1. Read `/h4reet/prod/ec2-autostart` | `paused` if it is `off` |
 | 2. Read the server action's status (`budgets:DescribeBudgetActionsForBudget` on `h4-server-month`) | `server_budget_stopped` if executed and not reversed |
-| 3. When invoked by hand (§7), read the health check's status | `laptop_serving` if healthy |
-| 4. `ec2:StartInstances` on the tagged instance | `start_failed`, with AWS's error code (for example, no spot capacity) |
+| 3. Read the tunnel end's state (`ec2:DescribeInstances` on its tag) | `tunnel_end_down` if it isn't running (spec FR-076) |
+| 4. When invoked by hand (§7) or `from: tunnel_end_back`, read the health check's status | `laptop_serving` if healthy |
+| 5. `ec2:StartInstances` on the tagged instance | `start_failed`, with AWS's error code (for example, no spot capacity) |
 
 Each outcome, started or refused and why, is one message to `h4-alerts`. It makes one attempt per invocation and never loops (FR-065).
 
@@ -86,11 +89,18 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 4. EC2's deployer runs, and the stack starts.
 5. The relay sees three passes and serves EC2; it records the gap.
 
-**A spot interruption:**
+**A spot interruption of EC2:**
 1. AWS warns; `h4-ec2-spot-warning` alerts.
 2. AWS stops EC2, and the relay answers `no_host_serving`.
 3. When capacity returns, AWS starts EC2, and the guard checks it.
 4. If the guard leaves it running, the relay serves EC2 again.
+
+**A spot interruption of the tunnel end** (spec FR-076):
+1. AWS warns; `h4-tunnel-end-spot-warning` alerts.
+2. AWS stops the tunnel end. The edge answers `no_host_serving`, the site loads, and the start function refuses with `tunnel_end_down`.
+3. When capacity returns, AWS starts it. systemd starts Docker and the deployer, and compose starts its services. The laptop's tunnel reconnects within its backoff.
+4. `h4-tunnel-end-running` alerts `tunnel_end_back` and invokes the start function once. EC2 starts if the laptop isn't serving.
+5. The relay serves whichever host passes its checks.
 
 ## 9. Nothing changes configuration at run time (FR-072)
 

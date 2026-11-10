@@ -1,6 +1,6 @@
 # Contract: the edge, the zone, and the certificate
 
-Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/edge.md` at 00309c47). The domain is hareet.ai (spec Assumptions). The origin for `/api/*` is the relay on the tunnel end, as plan question 1 recommends ([§6](#6-if-plan-question-1-is-b)). Research: R-07, R-08, R-09.
+Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/edge.md` at 00309c47). The domain is hareet.ai (spec Assumptions). The origin for `/api/*` is the relay on the tunnel end, by the Author's answer to the plan's question 1; [§6](#6-while-aws-has-the-tunnel-end-back-spec-fr-076) covers the tunnel end on spot (question 2). Research: R-07, R-08, R-09.
 
 ## 1. The zone (FR-027)
 
@@ -45,10 +45,6 @@ The body is spec 000's degraded body (its contracts/gateway-http.md), built from
 
 As September §4: `make release` syncs the build to `site/`, keeps a copy under `releases/<commit>/`, and invalidates once. The distribution's configuration never changes for a release, so Terraform's state stays true. A rollback syncs the previous release's copy back.
 
-## 6. If plan question 1 is B
+## 6. While AWS has the tunnel end back (spec FR-076)
 
-- **Origin `relay`** becomes a custom origin named `api-origin.hareet.ai`, HTTPS only.
-- **Route 53 failover records** for that name: the primary is the tunnel end's Elastic IP, with the health check (contracts/handover.md §1); the secondary is EC2's fixed address.
-- **Certificates:** each host terminates TLS with a certificate for that name, from a public authority, through a DNS challenge on a record each host may write.
-- **The secret origin header:** a viewer-request CloudFront Function adds it, reading it from a key-value store the Author writes.
-- **Security groups:** they admit CloudFront's origin-facing prefix list on 443.
+The VPC origin can't be reached, so §4's error responses answer every `/api/*` request with `no_host_serving`, and the default behavior keeps serving the site from its bucket. Nothing in the distribution changes. When the tunnel end returns, the next request reaches the relay again; the error-caching TTL is 0.

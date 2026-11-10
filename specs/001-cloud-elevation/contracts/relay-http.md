@@ -1,6 +1,6 @@
 # Contract: the relay's HTTP API, on the tunnel end
 
-Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/relay-http.md` at 00309c47), whose processing order and listener rules it carries; the host choice is new. As plan question 1 recommends (option A); [§8](#8-if-plan-question-1-is-b) says what changes otherwise. Research: R-18, R-07, R-08, R-12.
+Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/relay-http.md` at 00309c47), whose processing order and listener rules it carries; the host choice is new. The relay runs on the tunnel end and picks the host, by the Author's answer to the plan's question 1 ("Relay picks the host"); §8 covers the tunnel end on spot (question 2). Research: R-18, R-07, R-08, R-12.
 
 ## 1. Listeners
 
@@ -96,10 +96,6 @@ No model call, no address, nothing per client (FR-037).
 - **Addresses in memory:** only for the cap, for at most one UTC day (FR-042).
 - **Its log:** the route, the host, the status, the cause, the duration, and the request ID.
 
-## 8. If plan question 1 is B
+## 8. While AWS has the tunnel end back (spec FR-076)
 
-The relay runs in each host's stack, as spec FR-029 has it now:
-- 8080 is bound on each host, behind a public origin (contracts/edge.md §6);
-- §4 and the handover rows disappear, since DNS picks the host;
-- §5's `no_host_serving` comes from the edge's error response only;
-- `GET /api/status` while no host serves is the edge's fixed body.
+The relay is gone with it. CloudFront's error responses answer every dynamic request with `no_host_serving` (contracts/edge.md §4), and `GET /api/status` gets the same fixed body. On its return, the relay starts with empty caps, an unknown kill switch until its first read, and both hosts unhealthy until their checks pass.
