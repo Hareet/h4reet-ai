@@ -329,3 +329,84 @@ describe("the hint area (T021)", () => {
     for (const hint of HINTS) expect(v.doc.body.textContent ?? "").not.toContain(hint);
   });
 });
+
+// T037, the review's I-1 (spec 012; FR-030; SC-005; WCAG 2.2's 2.2.2): a press on "Pause hints" pauses the hints, in
+// the browsers that focus a button as it is pressed (Chrome, Edge, and Firefox on Windows and Linux, Chrome on Android),
+// whose focus is the press's own and never a stop; only focus that enters the controls from the keyboard stops them.
+describe("a press on the rotation control, as browsers send it (T037, I-1)", () => {
+  const ptr = (v: Visit, el: Element, type: string, pointerType: string): void => {
+    el.dispatchEvent(
+      new v.win.PointerEvent(type, {
+        bubbles: type !== "pointerenter" && type !== "pointerleave",
+        pointerType,
+        button: 0,
+      }),
+    );
+  };
+  const hintText = (v: Visit): string => text(v.doc.querySelector(".room-loader-hint"));
+
+  it("pauses on a mouse press: pointerdown, the focus it brings, pointerup, click", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const area = v.doc.querySelector(".room-loader-hints") as HTMLElement;
+    const rotate = v.doc.querySelector<HTMLButtonElement>("button.room-loader-rotate") as HTMLButtonElement;
+    ptr(v, area, "pointerenter", "mouse");
+    ptr(v, rotate, "pointerdown", "mouse");
+    rotate.focus();
+    ptr(v, rotate, "pointerup", "mouse");
+    rotate.click();
+    expect(text(rotate)).toBe("Play hints");
+    const shown = hintText(v);
+    ptr(v, area, "pointerleave", "mouse");
+    // Within the loader's 7 seconds: no new hint while paused.
+    v.clock.advance(HINT_MS + 100);
+    expect(hintText(v)).toBe(shown);
+    rotate.click();
+    expect(text(rotate)).toBe("Pause hints");
+  });
+
+  it("pauses on one tap: pointerdown, pointerup, pointerleave, the focus the tap brings, click", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const area = v.doc.querySelector(".room-loader-hints") as HTMLElement;
+    const rotate = v.doc.querySelector<HTMLButtonElement>("button.room-loader-rotate") as HTMLButtonElement;
+    ptr(v, area, "pointerenter", "touch");
+    ptr(v, rotate, "pointerdown", "touch");
+    ptr(v, rotate, "pointerup", "touch");
+    ptr(v, area, "pointerleave", "touch");
+    rotate.focus();
+    rotate.click();
+    expect(text(rotate)).toBe("Play hints");
+    const shown = hintText(v);
+    v.clock.advance(HINT_MS + 100);
+    expect(hintText(v)).toBe(shown);
+  });
+
+  it("still stops on focus from the keyboard, and plays on the press that follows", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const rotate = v.doc.querySelector<HTMLButtonElement>("button.room-loader-rotate") as HTMLButtonElement;
+    rotate.focus();
+    expect(text(rotate)).toBe("Play hints");
+    const shown = hintText(v);
+    rotate.click();
+    expect(text(rotate)).toBe("Pause hints");
+    // Within the loader's 7 seconds, the next hint after 6.
+    v.clock.advance(HINT_MS + 100);
+    expect(hintText(v)).not.toBe(shown);
+  });
+
+  it("stops on keyboard focus after a press elsewhere that brought none", async () => {
+    const v = await entered(FILES);
+    v.clock.advance(0);
+    const next = button(v.doc, "Next hint");
+    const rotate = v.doc.querySelector<HTMLButtonElement>("button.room-loader-rotate") as HTMLButtonElement;
+    // A press that brings no focus (Safari on a Mac), then Tab into the controls from outside them.
+    ptr(v, next, "pointerdown", "mouse");
+    ptr(v, next, "pointerup", "mouse");
+    next.click();
+    expect(text(rotate)).toBe("Pause hints");
+    rotate.focus();
+    expect(text(rotate)).toBe("Play hints");
+  });
+});
