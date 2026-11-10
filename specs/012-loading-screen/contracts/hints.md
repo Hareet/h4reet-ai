@@ -36,7 +36,7 @@ No other key. A hint of the Author's carries no slot. The sources are for review
 
 The file is optional, as a fixture room's may lack it: absent, or with every hint left out (§4, RT17; or by `when`), the index's `hints` is empty and the loader shows its bar with no hint area (spec FR-032).
 
-**D6 and FR-035.** As the session leaves the copy, hints 1 and 2 carry no `when`, so they show always. The Author's other answer to FR-035 is `when: free_talk_ready` on both, a data edit.
+**D6 and FR-035.** As the session leaves the copy, hints 1 and 2 carry no `when`, so they show always. The Author's other answer to FR-035 is `when: free_talk_ready` on both, a data edit. He approved D6 as taken at T000, 2026-11-09, so they carry none.
 
 ## 2. The slots
 

@@ -7,7 +7,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 **Input**: the documents in `specs/012-loading-screen/`: [spec.md](spec.md) (FR-001 to FR-055, SC-001 to SC-011, the Clarifications taken provisionally, Amendments L1 to L11, The Hint Copy, and its Data-Flow Disclosure Entries), [plan.md](plan.md) (decisions PD-1 to PD-25, §2 to §15, the risks R-1 to R-12, and its Revision section), and the contracts [loading-progress.md](contracts/loading-progress.md) and [hints.md](contracts/hints.md).
 
-**Prerequisites**: the Author accepts the intent and approves the spec, the plan, and the provisional answers (T000). Until then no task below starts: `CLAUDE.md`, "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`." The intent was accepted provisionally by the session on 2026-11-09 while the Author was away; Q1 to Q5 and D1 to D13 are the session's, and provisional.
+**Prerequisites**: the Author accepts the intent and approves the spec, the plan, and the provisional answers (T000). He did, as taken, on 2026-11-09 (T000). Until then no task below starts: `CLAUDE.md`, "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`." The intent was accepted provisionally by the session on 2026-11-09 while the Author was away; Q1 to Q5 and D1 to D13 are the session's, and provisional.
 
 **Revision**: revised on 2026-11-09 after a `/speckit-analyze` pass over e2d4d3e1 (plan.md's Revision section). The task numbers stand; the one task the revision adds, T041, sits in its phase out of numeric order.
 
@@ -37,13 +37,15 @@ description: "Task list for spec 012, the room's loading screen"
 
 ## Before any phase
 
-- [ ] T000 Author: accept or close the intent, and approve spec.md and plan.md and the provisional answers, or change any of them:
+- [x] T000 Author: accept or close the intent, and approve spec.md and plan.md and the provisional answers, or change any of them:
   - the intent, in the spec's folder rather than `intent/` (the spec's Deviations);
   - Q1 to Q5, each taken as option A (the spec's Clarifications);
   - D1 to D13 (the spec's defaults), each the session's;
   - FR-035: whether his hints 1 and 2 show always, as he wrote them (D6), or only while free talk is ready (`when: free_talk_ready`);
   - the session's twelve hints, 4 to 15 (The Hint Copy): approve, rewrite, reorder, or remove;
   - and whether `spec/012-loading-screen-r2` merges on its own after its gate or travels at the base of `feat/012-loading-screen`.
+
+  **Approved on 2026-11-09, as taken.** His words, as the main session relays them, verbatim: "Also we aprove of the spec 012: the loading screen". In the session's words: he accepts the intent, in the spec's folder as the spec's Deviations name it; he approves spec.md, plan.md, Q1 to Q5 (each option A) and D1 to D13 as taken, and The Hint Copy as written, his three hints and the session's twelve; and FR-035 is answered as D6 took it, so his hints 1 and 2 show always, with no `when`, and its marker is resolved that way. He changed none of them. On the documents' road: the main session cut `feat/012-loading-screen` at `spec/012-loading-screen-r2`'s tip, b0bd247e, so the documents travel at the branch's base and one gate covers both; that is the main session's direction, not an answer of his. Before his approval this read, as history: the intent accepted provisionally by the session on 2026-11-09 while the Author was away; Q1 to Q5 and D1 to D13 the session's, and provisional.
 
   Check: his answers are recorded here, in the session's words, as spec 005's T000 records his; the intent's and the spec's Status say which answers he confirmed and which he changed, and FR-035's marker is resolved by his answer (spec/012-loading-screen-r2)
 
