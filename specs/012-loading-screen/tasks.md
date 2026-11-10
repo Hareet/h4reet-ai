@@ -55,7 +55,7 @@ description: "Task list for spec 012, the room's loading screen"
 
 **Purpose**: the base confirmed, the numbers read, and the ADR and the contract passages written down.
 
-- [ ] T001 Create the worktree with `git worktree add -b feat/012-loading-screen <new folder> <base>`, the base `feat/005-full-window-room`'s tip if spec 005 hasn't merged, else `refs/heads/main`, after reading the base's SHA; run `npm ci --ignore-scripts --cache "$TMPDIR/npm"`; cherry-pick `spec/012-loading-screen-r2`'s commits if the base lacks them. Then read and record in the note:
+- [x] T001 Create the worktree with `git worktree add -b feat/012-loading-screen <new folder> <base>`, the base `feat/005-full-window-room`'s tip if spec 005 hasn't merged, else `refs/heads/main`, after reading the base's SHA; run `npm ci --ignore-scripts --cache "$TMPDIR/npm"`; cherry-pick `spec/012-loading-screen-r2`'s commits if the base lacks them. Then read and record in the note:
   - **The base's spec 005 rules** that plan R-10 lists, re-read at the base; any that moved since af82c6c5 is a departure recorded before T014 and T017.
   - **`fix/007-image-readiness`**: whether it is in the base; the file of its test of the room's build reads, and the list's constant, which T041 extends.
   - **Numbers**: the next free ADR number, read across every `refs/heads/*` (0044 is taken on `docs/001-ec2-default`; D10 expects 0045); the release build's entry chunk and its stylesheet, gzipped, as `test/room/chunk.test.ts` measures them; and the index, serialized and gzipped at level 9 as that test measures it, by a scratch script outside the repository, since the test's index assertion sits behind `main`'s failing digest check (R-11).
