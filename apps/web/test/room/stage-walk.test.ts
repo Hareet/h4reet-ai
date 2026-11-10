@@ -123,6 +123,13 @@ describe("the walking view in the 3D stage (spec 008, T051)", () => {
     r.stage.walk.enter(r.view);
     expect(r.stage.walk.walking).toBe(true);
     for (let k = 0; k < 40; k += 1) r.clock.advance(16);
+    // Spec 014 (FR-030 to FR-033; W13): the view holds the room's view until a turn, a tilt, or a zoom; a tilt down
+    // hands over to the follow camera.
+    expect(near(r.last(), r.home)).toBe(true);
+    r.key("keydown", "KeyF", "f");
+    r.clock.advance(16);
+    r.key("keyup", "KeyF", "f");
+    for (let k = 0; k < 40; k += 1) r.clock.advance(16);
     const following = r.last();
     expect(near(following, r.home)).toBe(false);
     r.key("keydown", "KeyD", "d");

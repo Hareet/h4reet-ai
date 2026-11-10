@@ -87,13 +87,16 @@ describe("the walking view's orchestrator (spec 008, T043)", () => {
     const home = framing(STAGE.w / STAGE.h, framedBoxes(part));
     const first = view.frame(NONE, STAGE, 0, 0, true);
     expect(first.position).toEqual(home.position);
+    // Spec 014 (FR-030 to FR-033; W13): the follow camera takes over at the first camera intent, here a hair of tilt.
+    const nudge = intents({ tilt: 1e-9 });
+    view.frame(nudge, STAGE, 0, 0, true);
     const later = view.frame(NONE, STAGE, TRANSITION_MS, 0.016, true);
     expect(later.target[0]).toBeCloseTo(floor.start.x, 9);
     expect(later.target[2]).toBeCloseTo(floor.start.z, 9);
     // Not animating: at the follow camera at once.
     const { view: other } = setup();
     other.enter(0);
-    const cut = other.frame(NONE, STAGE, 0, 0, false);
+    const cut = other.frame(nudge, STAGE, 0, 0, false);
     expect(cut.target[0]).toBeCloseTo(floor.start.x, 9);
     expect(record.frames.length).toBeGreaterThan(0);
   });
@@ -162,7 +165,8 @@ describe("the walking view's orchestrator (spec 008, T043)", () => {
     const { part, view, record } = setup();
     view.enter(0);
     record.target = "the-target";
-    view.frame(intents({ enter: true }), STAGE, 0, 0, true);
+    // Spec 014 (W13): a hair of tilt hands over, so the camera follows before it leaves.
+    view.frame(intents({ enter: true, tilt: 1e-9 }), STAGE, 0, 0, true);
     expect(record.selected).toEqual(["the-target"]);
     const following = view.frame(intents({ move: { forward: 0, right: 1 } }), STAGE, 600, 0.3, true);
     view.leave(600);
@@ -228,5 +232,146 @@ describe("the walking view's orchestrator (spec 008, T043)", () => {
     expect(part.walking.reach_m).toBe(0.3);
     view.enter(0);
     expect(record.reach).toEqual([null]);
+  });
+});
+
+// T029 (spec 014; FR-030 to FR-037, FR-064; SC-005; plan.md §5, PD-10, PD-11; R-11): the walking view holds the room's
+// view from entry. The camera doesn't change through a scripted walk that stays clear, and taps pick and walk-to at the
+// room's view; the first turn, tilt, or zoom, or the figure nearing a HUD box or the window's edge, hands over to the
+// follow camera, its first frame the room's view, the move within 500 ms, or a cut while the motion store is still;
+// leaving from the hold moves nothing; a re-fit while held re-frames; and each hold and hand-over is told, with its cause.
+describe("the hold at the room's view (spec 014, T029)", () => {
+  function holding(
+    edge: (pose: { x: number; z: number }) => boolean = () => false,
+    pickAt = (): string | null => null,
+  ) {
+    const { scene: part, index } = repositoryBundle() as {
+      scene: RoomScene;
+      index: ReturnType<typeof repositoryBundle>["index"];
+    };
+    const floor = floorOfPart(part, part.walking.radius_m) as WalkableFloor;
+    const record = {
+      cameras: [] as Camera[],
+      selected: [] as string[],
+      held: [] as [string, string | null][],
+    };
+    const view = createWalking({
+      floor,
+      data: part.walking,
+      boxes: framedBoxes(part),
+      targets: reachTargets(part, index),
+      figure: { frame: () => undefined, rest: () => undefined },
+      picker: { setCamera: (c) => record.cameras.push(c), pick: pickAt },
+      reach: () => undefined,
+      select: (id) => record.selected.push(id),
+      target: () => null,
+      escape: () => undefined,
+      nearsEdge: (_camera, pose) => edge(pose),
+      held: (state, cause) => record.held.push([state, cause]),
+    });
+    return { part, floor, view, record, home: framing(STAGE.w / STAGE.h, framedBoxes(part)) };
+  }
+  const sameCamera = (a: Camera, b: Camera): boolean =>
+    a.position.every((v, k) => Math.abs(v - (b.position[k] ?? 0)) < 1e-9) &&
+    a.target.every((v, k) => Math.abs(v - (b.target[k] ?? 0)) < 1e-9);
+
+  it("enters at the room's view and keeps it, 0 changes, through a walk that stays clear", () => {
+    const { view, record, home } = holding();
+    view.enter(0);
+    let now = 0;
+    const first = view.frame(NONE, STAGE, now, 0, true);
+    expect(sameCamera(first, home)).toBe(true);
+    const start = view.pose;
+    let changes = 0;
+    let last = first;
+    for (let k = 0; k < 60; k += 1) {
+      const move = k < 30 ? { forward: 0, right: 1 } : { forward: 1, right: 0 };
+      const c = view.frame(intents({ move }), STAGE, (now += 16), 0.016, true);
+      if (!sameCamera(c, last)) changes += 1;
+      last = c;
+    }
+    expect(changes).toBe(0);
+    expect(sameCamera(last, home)).toBe(true);
+    expect(view.pose.x).not.toBe(start.x);
+    expect(record.held).toEqual([["hold", null]]);
+  });
+
+  for (const [cause, over] of [
+    ["turn", { turn: 0.05 }],
+    ["tilt", { tilt: 0.05 }],
+    ["zoom", { zoom: 1 }],
+  ] as const)
+    it(`hands over on the first ${cause}, from the room's view, within 500 ms, or at once while still`, () => {
+      const { view, record, home, floor } = holding();
+      view.enter(0);
+      view.frame(NONE, STAGE, 0, 0, true);
+      const first = view.frame(intents(over), STAGE, 100, 0.016, true);
+      expect(Math.hypot(...first.position.map((v, k) => v - (home.position[k] ?? 0)))).toBeLessThan(0.001);
+      const later = view.frame(NONE, STAGE, 100 + TRANSITION_MS, 0.016, true);
+      expect(later.target[0]).toBeCloseTo(floor.start.x, 9);
+      expect(later.target[2]).toBeCloseTo(floor.start.z, 9);
+      expect(record.held).toEqual([
+        ["hold", null],
+        ["follow", cause],
+      ]);
+      // Still: a cut to the follow camera on the frame that hands over.
+      const still = holding();
+      still.view.enter(0);
+      still.view.frame(NONE, STAGE, 0, 0, false);
+      const cut = still.view.frame(intents(over), STAGE, 100, 0.016, false);
+      expect(cut.target[0]).toBeCloseTo(floor.start.x, 9);
+    });
+
+  it("hands over when the figure nears a HUD box or the window's edge, never for the keys alone", () => {
+    const { view, record, floor } = holding((pose) => pose.x > floor.start.x + 0.2);
+    view.enter(0);
+    let now = 0;
+    view.frame(NONE, STAGE, now, 0, true);
+    for (let k = 0; k < 100 && record.held.length < 2; k += 1)
+      view.frame(intents({ move: { forward: 0, right: 1 } }), STAGE, (now += 16), 0.016, true);
+    expect(record.held).toEqual([
+      ["hold", null],
+      ["follow", "edge"],
+    ]);
+  });
+
+  it("doesn't hand over at entry when the figure starts clear (R-11), and picks and walks to at the room's view", () => {
+    const { view, record, home } = holding(
+      () => false,
+      () => "fx-picked",
+    );
+    view.enter(0);
+    const c = view.frame(intents({ taps: [{ x: 0, y: 0 }] }), STAGE, 0, 0, true);
+    expect(sameCamera(c, home)).toBe(true);
+    expect(record.selected).toEqual(["fx-picked"]);
+    expect(record.held).toEqual([["hold", null]]);
+    // A tap that picks nothing walks the figure, the camera held.
+    const walker = holding();
+    walker.view.enter(0);
+    walker.view.frame(NONE, STAGE, 0, 0, true);
+    const before = walker.view.pose;
+    let now = 0;
+    // A floor point 0.15 m to the figure's right, under the pointer at the room's view.
+    const goal: [number, number, number] = [walker.floor.start.x + 0.15, walker.floor.feetY, walker.floor.start.z];
+    const [px, py] = projector(walker.home, STAGE.w / STAGE.h).project(goal);
+    walker.view.frame(intents({ taps: [{ x: px, y: py }] }), STAGE, (now += 16), 0.016, true);
+    for (let k = 0; k < 120; k += 1) walker.view.frame(NONE, STAGE, (now += 16), 0.016, true);
+    expect(Math.hypot(walker.view.pose.x - before.x, walker.view.pose.z - before.z)).toBeGreaterThan(0.1);
+    expect(sameCamera(walker.view.frame(NONE, STAGE, now + 16, 0.016, true), walker.home)).toBe(true);
+  });
+
+  it("leaves from the hold with nothing moving, and re-frames the held view at a re-fit", () => {
+    const { view, part, home } = holding();
+    view.enter(0);
+    view.frame(NONE, STAGE, 0, 0, true);
+    const wider = { w: 1640, h: 1150.3125 };
+    const refit = view.frame(NONE, wider, 16, 0.016, true);
+    expect(sameCamera(refit, framing(wider.w / wider.h, framedBoxes(part)))).toBe(true);
+    view.frame(NONE, STAGE, 32, 0.016, true);
+    view.leave(48);
+    for (const t of [48, 64, 300, 600]) {
+      const back = view.returning(STAGE, t, true);
+      if (back) expect(sameCamera(back, home), `at ${t}`).toBe(true);
+    }
   });
 });
