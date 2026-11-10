@@ -7,8 +7,8 @@ subagent (Claude Opus 5.5), for the main session · Date: 2026-11-10
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
 `/tmp/claude-1000/wt-feat014`, which the main session created at 2026-11-10T16:25:49Z with `git --no-replace-objects
 worktree add -b feat/014-room-after-the-demo /tmp/claude-1000/wt-feat014 refs/heads/spec/014-room-after-the-demo`, then
-merged `refs/heads/main` at 32fb2bc3 into (cb861c2a). Repo hooks active: yes. In `.claude/audit/hooks.log`, the events
-naming `wt-feat014` from then to ⟦HOOKS_END⟧ are ⟦HOOKS_COUNTS⟧; every BLOCK is listed under For the Author, the
+merged `refs/heads/main` at 32fb2bc3 into it (cb861c2a). Repo hooks active: yes. In `.claude/audit/hooks.log`, the events
+naming `wt-feat014` or this session's scratch folder, `/tmp/claude-1000/f14`, from then to ⟦HOOKS_END⟧ are ⟦HOOKS_COUNTS⟧; every BLOCK is listed under For the Author, the
 refusals.
 
 Authorized by: spec 014 and its plan, approved by the Author on 2026-11-10: "You can go ahead and start the build of
@@ -22,7 +22,14 @@ step 2c. Then your lookdev look (T054), the gate (T057), and your look at the li
 
 | Check | Result |
 |---|---|
-⟦CHECK_ROWS⟧
+| `make lint` | exit 0 on eaf66991 (ESLint, tsc, Prettier, ruff, ruff format, shellcheck) |
+| `make test` | exit 0 on 4b75bb5d: the gateway "1655 passed \| 13 skipped (1668)", the web "3264 passed \| 1 skipped (3265)", pytest "4118 passed in 374.06s"; whole again in `make check`'s test stage on eaf66991 |
+| `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,997; the behavioral tier's WARN, information |
+| `make check ENGINE_MODE=none-yet`, the final run, on eaf66991 | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 221 files (40 commits)" |
+| `gitleaks dir` on a fresh export | ⟦GL_ROW⟧ |
+| `npm run room:check` | "room: 0 findings in 0 files", 6.91 s (5.12 s at the base); 7,678 stages (7,291) |
+| The entry chunk (SC-015) | 48,734 bytes gzipped (46,017 at the base), against 150 KB |
+| The rehearsal (T051) | ⟦RH_ROW⟧ |
 
 ## Runs in your terminal
 
@@ -106,7 +113,7 @@ h=$(git symbolic-ref -q HEAD)
 t=$(git rev-parse --verify "refs/heads/$b")
 [ "$t" = "$sha" ] || ok=no
 mr=refs/heads/main
-rv=RVANCHOR
+rv=eaf66991b664406e2b213671b24d0a45e331c3be
 anc=(merge-base --is-ancestor)
 git "${anc[@]}" "$rv" "$sha" || ok=no
 mt=(merge-tree --write-tree "$mr")
@@ -128,7 +135,7 @@ echo "guard: $ok"
 ```
 
 **Why `rv`, and why two merge-trees.** `rv` is the content the review will have read and its fixes settled; until the
-review, it is this build's last content commit, ⟦RV_SHORT⟧, and the session moves it with T053. After `rv`, the branch
+review, it is this build's last content commit, eaf66991 (the type fix make check's lint stage asked for), and the session moves it with T053. After `rv`, the branch
 changes only this note. Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the content
 to the reviewed one whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On `guard:
 no`, don't merge: tell the session.
@@ -355,7 +362,29 @@ Each phase's tests ran before its code (RED), then with it (GREEN), as the commi
 
 ### T013's frame line and T047's measures
 
-⟦MEASURES⟧
+T013's frame line, from `npm run room:report -w apps/web` at the tip:
+
+```text
+Frame (spec 014, FR-060, FR-061): the frame areas over the same screens, eased from the window toward each clear area only as far as keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; 7,678 stages, each with the HUD boxes over it reserved.
+- the dock layout: 3,972 screens and states, 1,684 at ease 0, 915 between, 1,373 at ease 1; the median 6/16.
+- the column layout under 1280 × 720: 2,821 screens and states, 619 at ease 0, 1,331 between, 871 at ease 1; the median 14/16.
+- the column layout from 1280 × 720: 2,437 screens and states, 976 at ease 0, 1,114 between, 347 at ease 1; the median 6/16.
+- The reference desktop (1920 × 1200): ease 10/16, a frame area of 1640 × 1150.3 over spec 005's 1472 × 1120.5, the room 2.7% larger on screen.
+- The reference phone (384 × 740): ease 1, a frame area of 384 × 422 over spec 005's 384 × 422, the room 0.0% larger on screen.
+```
+
+T047's measures, at the tip, beside T001's:
+
+| Measure | T001 (the base, cb861c2a) | The tip |
+|---|---|---|
+| The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,321 JS + 5,413 CSS = 48,734 bytes (+2,717), one chunk, against the 150 KB budget |
+| `npm run room:check -w apps/web` | "room: 0 findings in 0 files", 5.12 s wall clock | "room: 0 findings in 0 files", 6.91 s wall clock (7.28 s user) |
+| Supported stages | 7,291 over 7,241 sweep screens | 7,678 frame-area stages over the same screens |
+| `package-lock.json` | | `git diff 32fb2bc3 HEAD -- '*package-lock.json'`: 0 lines; no package added (FR-067) |
+| Response headers | | `apps/web/nginx.conf`, `deploy/edge/nginx.conf`, and their tests `deploy/scripts/test_web_nginx.py` and `test_edge_site.py`: 0 changed lines |
+| `make up ENV=dev-cpu`'s compose config | | `deploy/` and `config/`: 0 changed files, so the topology, the env files, and each stack's compose config are unchanged (FR-067) |
+| Protected paths | | `assets/`, `corpus/`, `.claude/`, `tools/gates/`, `evals/agent-config/`, `.specify/`, `infra/`, `.github/`, `CLAUDE.md`, `REVIEW.md`: 0 changed files |
+
 
 ### Changed test expectations
 
@@ -391,19 +420,112 @@ Each changes on purpose, for the FR or departure named:
 
 ### make lint
 
-⟦LINT⟧
+On eaf66991, the final run; exit 0, the whole output. The first run, on b2c9312d's parent, found one file Prettier would wrap (`bad/RD7-grip`'s edit, b2c9312d); the first `make check` found one `tsc` error in T028's avatars-compose case (eaf66991).
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+491 files already formatted
+{ git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
+shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
+make lint  46.89s user 2.93s system 165% cpu 30.108 total
+exit 0
+```
 
 ### make test
 
-⟦TEST⟧
+On 4b75bb5d, after the knock-on expectations (the first run, on b2c9312d, failed five web cases in four files, each an expectation spec 014 changes, listed above and committed as T028's). The result lines, in order: the gateway's suite, the web suite, pytest:
+
+```text
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+> vitest run
+ RUN  v5.0.3 /tmp/claude-1000/wt-feat014/services/gateway
+ Test Files  95 passed (95)
+      Tests  1655 passed | 13 skipped (1668)
+> vitest run
+ RUN  v5.0.3 /tmp/claude-1000/wt-feat014/apps/web
+ Test Files  150 passed (150)
+      Tests  3264 passed | 1 skipped (3265)
+4118 passed in 374.06s (0:06:14)
+make test  3359.54s user 446.04s system 641% cpu 9:52.98 total
+exit 0
+```
 
 ### make evals
 
-⟦EVALS⟧
+On 5f0831ab; exit 0. The result lines:
+
+```text
+evals product (fake): 187 passed, 0 failed
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+behavioral tier: 15 cases (11 enforcement, 4 conduct), 3 runs each; trigger hash 05cec03a74a5
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+agent-config behavioral: fail, 0 planned
+note: the behavioral tier's line is information in make evals, not a merge block (spec 006 FR-002): the gate's agent-config-evals step waits for a run only for a branch that changes CLAUDE.md, REVIEW.md, .claude/, or the Claude Code pin
+docs links: 0 failed, 1997 relative links in 289 files
+make evals  2.05s user 0.10s system 94% cpu 2.268 total
+exit 0
+```
+
+The behavioral tier's WARN is information in `make evals`, not a merge block (spec 006 FR-002); this branch changes no file that makes the gate wait for a run.
 
 ### make check ENGINE_MODE=none-yet
 
-⟦CHECK⟧
+Two runs. The first, on 0de3f515, gave "10 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: lint FAIL,
+matrix FAIL": `lint`'s one `tsc` error (fixed in eaf66991) and `matrix`. The second, the final run, on eaf66991 with
+this note's save point:
+
+```text
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
+make check ENGINE_MODE=none-yet  3417.88s user 449.82s system 462% cpu 13:56.98 total
+exit 2
+```
+
+Its stages' result lines:
+
+```text
+      Tests  1655 passed | 13 skipped (1668)
+      Tests  3264 passed | 1 skipped (3265)
+4118 passed in 464.51s (0:07:44)
+content check: PASS (48 content files: 1 approved by main, 47 drafts, none of whose text is in dist/)
+secrets: PASS (unstaged changes, staged changes, 40 commits since main)
+arrival-check: 0 findings in 221 files (40 commits)
+evals product (fake): 187 passed, 0 failed
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+docs links: 0 failed, 1997 relative links in 289 files
+redteam: 68 passed, 0 failed
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 o
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+```
+
+`matrix` fails on E10 and E14 alone, the environment's, as in fix/000's final run: E10 for want of 22 GiB free on
+both drives to seed a reset engine, and E14 for dev-cpu's ports, which the sandbox can't reach. Its other hook-layer
+rows pass, and its 57 known gaps are main's. The gateway's suite passed whole in both runs and in `make test`, its
+timing tests among them; `evals`' WARN is the behavioral tier's information line.
 
 ### gitleaks on a fresh export
 
@@ -501,7 +623,7 @@ never prod): one turn with the local model stopped reaches the sign as a paid re
 
 ### The refusals
 
-The bash gate refused five commands this session, each for its command's text; none was respelled or retried in
+The bash gate refused six commands this session, each for its command's text; none was respelled or retried in
 another form:
 
 1. 2026-11-10T16:32:25Z, a `grep` over `evals/breach.py` for the helpers `evals/sign_check.py` loads from it: "Blocked
@@ -517,6 +639,9 @@ another form:
    `zsh -n` and `bash -n`; nothing in this session switched any checkout.
 5. 19:04:38Z, a Python heredoc writing this list into the note, whose text quoted refusals 1 and 3: "the breach test
    outside dev-cpu". The list was written with the Edit tool.
+6. 19:37:20Z, a Python heredoc writing `make check`'s results into this note, whose text quoted the matrix's E10
+   line: "Blocked by .claude/hooks/bash-gate.sh — running the agents' engine's Author commands". Nothing ran the
+   engine's script; the results were written with the Edit tool.
 
 The Write and Edit tools are the route this project's sessions take after such a refusal, since the gate reads a
 command's text, not its effect; each refusal is yours to judge. The post-edit lint also flagged
