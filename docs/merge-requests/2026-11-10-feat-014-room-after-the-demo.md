@@ -24,15 +24,15 @@ your lookdev look (T054), the gate (T057), and your look at the live room (T058)
 
 | Check | Result |
 |---|---|
-| `make lint` | exit 0 on 2d0c176b (ESLint, tsc, Prettier, ruff, ruff format, shellcheck) |
-| `make test` | on 2d0c176b: the gateway "1 failed \| 1654 passed \| 13 skipped (1668)", the one a timing case under load, `twin-paid-timeout.test.ts`, whose file alone then passed, 3 of 3; the web "3270 passed \| 1 skipped (3271)"; pytest on its own "4101 passed in 487.13s"; all three whole in `make check`'s test stage on 730f6d71 |
+| `make lint` | exit 0 on 36c44d5b (ESLint, tsc, Prettier, ruff, ruff format, shellcheck) |
+| `make test` | exit 0 on 36c44d5b: the gateway "1655 passed \| 13 skipped (1668)", the web "3271 passed \| 1 skipped (3272)", pytest "4101 passed in 506.72s" |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,997; the behavioral tier's WARN, information |
-| `make check ENGINE_MODE=none-yet`, the final run, on 730f6d71 | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 251 files (48 commits)" |
-| `gitleaks dir` on a fresh export | exit 0, "no leaks found", 2,026 files, on 730f6d71 |
+| `make check ENGINE_MODE=none-yet`, the final run, on 36c44d5b | "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL": `matrix`'s E10 and E14 alone, the environment's; `content-check` "48 content files: 1 approved by main, 47 drafts"; `arrival` "0 findings in 270 files (52 commits)" |
+| `gitleaks dir` on a fresh export | GLROW |
 | `npm run room:check` | "room: 0 findings in 0 files", 7.61 s (5.12 s at the base); 7,678 stages (7,291) |
 | The frame at 1920 × 1200 | ease 8/16 (10/16 before T053), the room 3.5% larger than spec 005's frame (2.7%), its centre x 804 (spec 005's 693) |
-| The entry chunk (SC-015) | 48,935 bytes gzipped (46,017 at the base; 48,734 before T053), against 150 KB |
-| The rehearsal (T051) | main still 32fb2bc3, an ancestor; the note's own guard blocks give go and no where they should under `zsh -f` and `bash --noprofile --norc`, the board's patch changed after `rv` now no (I4) |
+| The entry chunk (SC-015) | 48,982 bytes gzipped (46,017 at the base), against 150 KB |
+| The rehearsal (T051) | RHROW |
 
 ## Runs in your terminal
 
@@ -504,7 +504,7 @@ T047's measures, at the tip, beside T001's:
 
 | Measure | T001 (the base, cb861c2a) | The tip |
 |---|---|---|
-| The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,438 JS + 5,497 CSS = 48,935 bytes (+2,918) after T053 (48,734 before), one chunk, against the 150 KB budget |
+| The entry chunk's gzip size (SC-015), measured as `test/room/chunk.test.ts` does on a release build | 41,064 JS + 4,953 CSS = 46,017 bytes | 43,446 JS + 5,536 CSS = 48,982 bytes (+2,965) after T053's second round (48,734 before T053), one chunk, against the 150 KB budget |
 | `npm run room:check -w apps/web` | "room: 0 findings in 0 files", 5.12 s wall clock | "room: 0 findings in 0 files", 7.61 s wall clock (7.85 s user) at T053; 6.91 s before it |
 | Supported stages | 7,291 over 7,241 sweep screens | 7,678 frame-area stages over the same screens |
 | `package-lock.json` | | `git diff 32fb2bc3 HEAD -- '*package-lock.json'`: 0 lines; no package added (FR-067) |
@@ -555,7 +555,7 @@ Each changes on purpose, for the FR or departure named:
 
 ### make lint
 
-On 2d0c176b, after T053; exit 0, the whole output:
+On 36c44d5b, after the second review's fixes; exit 0, the whole output:
 
 ```text
 node_modules/.bin/eslint --max-warnings 0 .
@@ -569,44 +569,28 @@ ruff format --check --no-cache --extend-exclude corpus .
 488 files already formatted
 { git ls-files -z '*.sh' 2>/dev/null || find . -name '*.sh' -not -path '*/node_modules/*' -printf '%P\0'; } | grep -zv '^\.specify/' | xargs -0 -t shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay
 shellcheck -- .claude/git-hooks/pre-commit .claude/git-hooks/reference-transaction deploy/agents-engine/docker-relay .claude/hooks/_audit.sh .claude/hooks/bash-gate.sh .claude/hooks/content-scan.sh .claude/hooks/post-edit-check.sh .claude/hooks/protected-paths.sh .claude/hooks/subagent-report-check.sh deploy/agents-engine/bind-tree.sh deploy/agents-engine/engine.sh deploy/agents-engine/prove-limits.sh deploy/agents-engine/setup-host.sh deploy/scripts/aws-login.sh deploy/scripts/isolation-check.sh deploy/scripts/pull-models.sh deploy/scripts/redact.sh deploy/seaweedfs/entrypoint.sh redteam/forbidden-actions.sh tools/gates/install-tools.sh tools/gates/secrets.sh
-make lint  48.88s user 4.24s system 159% cpu 33.248 total
+make lint  48.14s user 3.33s system 158% cpu 32.573 total
 exit 0
 ```
 
 ### make test
 
-On 2d0c176b, after T053. The gateway's suite failed one timing case under a load average near 31, `test/integration/twin-paid-timeout.test.ts`'s "answers a visitor's turn that the paid fallback takes 6 s over"; npm ran the web suite on, whole; `make test` stops after npm's step, so its pytest step ran on its own:
+On 36c44d5b, after the second review's fixes; exit 0, all three suites whole, the gateway's timing tests among them (the run before, on 2d0c176b, failed `twin-paid-timeout.test.ts`'s 6 s case under a load average near 31, whose file alone then passed 3 of 3). The result lines, in order: the gateway's suite, the web suite, pytest:
 
 ```text
 corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
- FAIL  test/integration/twin-paid-timeout.test.ts > a twin turn's one 9 s attempt on a paid adapter (spec 007's plan, D43) > answers a visitor's turn that the paid fallback takes 6 s over
- Test Files  1 failed | 94 passed (95)
-      Tests  1 failed | 1654 passed | 13 skipped (1668)
+ Test Files  95 passed (95)
+      Tests  1655 passed | 13 skipped (1668)
  Test Files  149 passed (149)
-      Tests  3270 passed | 1 skipped (3271)
-make test  3554.25s user 623.52s system 1560% cpu 4:27.67 total
-exit 2
-```
-
-That file alone, once, after the run (load average 15):
-
-```text
- Test Files  1 passed (1)
-      Tests  3 passed (3)
-```
-
-The pytest step on its own (4,101 since the 17 sign-check cases went with the runner, X1):
-
-```text
-4101 passed in 487.13s (0:08:07)
+      Tests  3271 passed | 1 skipped (3272)
+4101 passed in 506.72s (0:08:26)
+make test  3294.65s user 417.25s system 529% cpu 11:41.04 total
 exit 0
 ```
 
-The gateway's suite passed whole in `make check`'s test stage below, that case among them. This branch changes no gateway file.
-
 ### make evals
 
-On 2d0c176b; exit 0. The result lines:
+On 36c44d5b; exit 0. The result lines:
 
 ```text
 evals product (fake): 187 passed, 0 failed
@@ -615,7 +599,7 @@ agent-config static: 0 failed, 0 planned
 WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1
 agent-config behavioral: fail, 0 planned
 docs links: 0 failed, 1997 relative links in 289 files
-make evals  3.34s user 0.26s system 94% cpu 3.828 total
+make evals  1.81s user 0.08s system 94% cpu 2.009 total
 exit 0
 ```
 
@@ -623,7 +607,7 @@ The behavioral tier's WARN is information in `make evals`, not a merge block (sp
 
 ### make check ENGINE_MODE=none-yet
 
-The final run, on 730f6d71 (T053's GREEN with this note's save points). Earlier runs: on 0de3f515, `lint` and `matrix` failed (`lint`'s `tsc` error, fixed in eaf66991); on eaf66991, `matrix` alone.
+The final run, on 36c44d5b (the second review's fixes with this note's save point). Earlier runs: on 0de3f515, `lint` and `matrix` failed (`lint`'s `tsc` error, fixed in eaf66991); on eaf66991 and 730f6d71, `matrix` alone.
 
 ```text
 PASS     makefiles-check
@@ -642,7 +626,7 @@ FAIL     matrix
 SKIP     image  no agents' engine yet: tasks.md T046
 make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
 make: *** [Makefile:159: check] Error 1
-make check ENGINE_MODE=none-yet  4196.18s user 727.20s system 528% cpu 15:30.71 total
+make check ENGINE_MODE=none-yet  3148.98s user 419.33s system 454% cpu 13:05.24 total
 exit 2
 ```
 
@@ -650,11 +634,11 @@ Its stages' result lines:
 
 ```text
       Tests  1655 passed | 13 skipped (1668)
-      Tests  3270 passed | 1 skipped (3271)
-4101 passed in 526.10s (0:08:46)
+      Tests  3271 passed | 1 skipped (3272)
+4101 passed in 453.41s (0:07:33)
 content check: PASS (48 content files: 1 approved by main, 47 drafts, none of whose text is in dist/)
-secrets: PASS (unstaged changes, staged changes, 48 commits since main)
-arrival-check: 0 findings in 251 files (48 commits)
+secrets: PASS (unstaged changes, staged changes, 52 commits since main)
+arrival-check: 0 findings in 270 files (52 commits)
 evals product (fake): 187 passed, 0 failed
 evals narration (fake): 44 passed, 0 failed
 agent-config static: 0 failed, 0 planned
@@ -665,7 +649,7 @@ E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 12
 forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
 ```
 
-`matrix` fails on E10 and E14 alone, the environment's, as in every agent session's run: E10 for want of 22 GiB free on both drives to seed a reset engine, E14 for dev-cpu's ports, which the sandbox can't reach. Its other hook-layer rows pass; its 57 known gaps are main's. The gateway's suite passed whole here; `evals`' WARN is the behavioral tier's information line.
+`matrix` fails on E10 and E14 alone, the environment's, as in every agent session's run: E10 for want of 22 GiB free on both drives to seed a reset engine, E14 for dev-cpu's ports, which the sandbox can't reach. Its other hook-layer rows pass; its 57 known gaps are main's. `evals`' WARN is the behavioral tier's information line.
 
 ### gitleaks on a fresh export
 
