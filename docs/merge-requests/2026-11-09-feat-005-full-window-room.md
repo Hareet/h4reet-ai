@@ -31,10 +31,10 @@ What this branch builds, by plan.md:
 | FR-012, FR-013 | met | T015, T016 |
 | FR-014 | met: no file under `apps/web/room/catalog/`, `apps/web/room/scene.yaml`, or `assets/` changed | the branch's paths, below |
 | FR-015 to FR-018 | met | T009, T015 |
-| FR-019 to FR-023 | met | T005, T008, `test/ui/hud.test.ts` (T020) |
+| FR-019 to FR-023 | met | T005, T008, `test/ui/hud.test.ts` (T020), `test/ui/hud-notes.test.ts` (T046) |
 | FR-024, FR-025 | met | T019 |
 | FR-026 | met in code and CSS; the look itself is the Author's (T048) | T020 |
-| FR-027, FR-028 | met | T020 |
+| FR-027, FR-028 | met, except that the resume has no sheet for small windows (departure B12) | T020 |
 | FR-029 | met: `package-lock.json` and every `package.json` unchanged | the branch's paths |
 | FR-030 to FR-035 | met | `test/ui/hud-pointer.test.ts` (T029), T015 |
 | FR-036 to FR-042 | met, Q4 provisional | `test/room/fullscreen.test.ts` (T033), T034 |
@@ -55,7 +55,7 @@ SC-005, SC-008, and SC-013 are the Author's runs after the merge (T048, T049).
 |---|---|
 | I. Data-local by default | One event kind with no identifier, row V4's trigger in the same commit; nothing about the window, the panels, or the display leaves the device; the degraded paths were built first (Phase 2) and the faults run end to end (T040) |
 | II. Production-grade | Tests first in every phase, RED and GREEN below; the event, the panel, and the frame log's `refit`, `panel`, and `fullscreen` entries; the cost below; ADR 0043 and the room's README |
-| III. Intent before spec, spec before code | From the approved spec and plan; each departure recorded in plan.md (B1 to B11) in its commit; the living contracts marked "(spec 005)"; no agent merges |
+| III. Intent before spec, spec before code | From the approved spec and plan; each departure recorded in plan.md (B1 to B12) in its commit; the living contracts marked "(spec 005)"; no agent merges |
 | IV. Least privilege | No header, permission, sandbox domain, human-only file, or protected path changed (none of `.claude/`, `CLAUDE.md`, `REVIEW.md`, `tools/gates/`, `evals/agent-config/`, `assets/`, `corpus/`, `infra/`) |
 | V. Cost | $0 in the cloud; one beacon per visit that enters full screen; the device's pixels bounded by the caps |
 | VI. Build in public | The table, the floor, the palette, and this record committed |
@@ -64,7 +64,28 @@ SC-005, SC-008, and SC-013 are the Author's runs after the merge (T048, T049).
 
 ## Review
 
-T045's review by an agent that wrote none of this work is **pending**: this session can't start one, so the main session runs it, and T046 fixes what it finds, each in its own commit, with this note's outputs run again.
+T045's review, by an agent that wrote none of this work, read the tip 60b51de4. The main session ran it and holds its record; the reviewer's name isn't given to this session, so T045 stays for the main session to tick with it. **Verdict: not ready.** T046 fixed each finding test-first, a RED commit and then a GREEN one:
+
+| Finding | RED | GREEN |
+|---|---|---|
+| 1. Tab reached controls that weren't drawn: the dock's empty log header's buttons and the collapsed log's `.talk-link`; `test/ui/hud-a11y.test.ts` now asserts that the 390 × 844 order equals the wide one (WCAG 2.4.7; FR-051) | 26e5b195 | 177bc89a |
+| 2. The larger conversation, in the column layout, and the dock's sheet at 320 × 568 covered the stand-in line (FR-021). The fix is a notes reserve in the table (`notesReserve`, `--notes-h`) that no sheet enters, with a geometry test over the model's real text widths (`test/ui/hud-notes.test.ts`) | fdda53e8 | edded662 |
+| 3. The AI disclosure's strip clipped its words (`height: var(--strip-h)` with `overflow: hidden`). It now has `min-height` and no overflow clip, and the strip's measured height is a floor for its box, so the clear area starts below it. A text-spacing test covers it (FR-049) | 315dbb57 | 1a336d27 |
+| 4. The text box's focus ring failed 3:1 on the glass. The HUD's yellow ring now covers `input`, and `test/room/hud-contrast.test.ts` asks for it (FR-024, SC-003) | 24336d84 | d479380f |
+| All five nits: the dock's counter on the label's line; one refusal a full-screen request, tested with the browser's real sequence (the error event, then the rejection); each fallback outranking the HUD rule it undoes, by computed specificity; the walking view's ring at the clear area, yellow over a dark band; a re-fit's frame-log entry with the buffer's size and the buffer's ratio (FR-063, plan §12.4) | 49cfa5cf | 0dccfec5 |
+
+The resume always opens in the clear area, with no sheet for small windows (FR-027's "or as a sheet where the clear area is too small to read it"). This is recorded as plan.md's departure B12, and the Author can overturn it. At 320 × 568 the panel is 320 × 190 and scrolls inside itself.
+
+### Finding 5: the branch's base, this session's line's deviation
+
+The Author's T000 answer chose an option that reads, in its own words: "The build starts on a branch from main once the avatars merge, with the spec documents at its base, so one gate covers both". This branch was cut at e324771e before the avatars merged. That was the main session's direction, not his, so it is the session's deviation from his answer.
+
+The order stays as his answer has it, in effect:
+
+1. fix/009 lands first. It is stacked in `fix/007-steady-clock-test` (40624d2d when this was written, with `refs/heads/main`, ada55c98, inside it).
+2. Then this branch merges `refs/heads/main` (a merge of main only) and is checked again as a whole. That covers `test/room/chunk.test.ts` and `test/room/dist.test.ts`; the index's gzip budget at chunk.test.ts's line 133 has never run here, because main's failure at line 132 hides it. It also covers `test/room/stages-checks.test.ts`'s RK3 totals, `test/room/scene-fit.test.ts`, and the whole web suite.
+
+The two lines change one file in common, `apps/web/test/helpers/room.ts`. A three-way merge of plain copies (`git merge-file` over `git show` output, base e324771e, against 40624d2d) gives no conflict. Both sides survive it: fix/009's `twinReadiness` and `readiness: "none"`, and this branch's `hud/viewport` type, `SceneOptionsForTest.viewport`, `stubViewport` (now with `strip: 0`), and `stubFullscreen` (which now fires `fullscreenerror` before it rejects).
 
 ## Cost and data-flow impact
 
@@ -72,7 +93,7 @@ $0 in the cloud. One `fullscreen_entered` beacon at most per visit that enters f
 
 ## For the Author
 
-**Decisions, each provisional and yours** (T050): ADR 0043, proposed; Q4 (no control where the browser offers no full screen); D1 (the event, its panel, and V4's words); D2 (Alt+Enter); D3 to D11. Two findings beyond the plan: spec 008's FR-043 words `walk.left` and `walk.target` were never said by the room on `main`, and still aren't (this branch wires `walk.entered`, which FR-039 replaces in full screen; departure B11); and FR-056's "96 MB" reads here as RK3's cap in force, your 200,000,000, which the room's models already exceeded at 96 MB before this change.
+**Decisions, each provisional and yours** (T050): ADR 0043, proposed; Q4 (no control where the browser offers no full screen); D1 (the event, its panel, and V4's words); D2 (Alt+Enter); D3 to D11; the resume with no sheet for small windows (departure B12). Two findings beyond the plan: spec 008's FR-043 words `walk.left` and `walk.target` were never said by the room on `main`, and still aren't (this branch wires `walk.entered`, which FR-039 replaces in full screen; departure B11); and FR-056's "96 MB" reads here as RK3's cap in force, your 200,000,000, which the room's models already exceeded at 96 MB before this change.
 
 **The gate.** This branch touches neither `deploy/agents-engine/` nor `.claude/settings.json`, so the gate's matrix-e step is SKIP and needs no `--prove`. It touches none of `CLAUDE.md`, `REVIEW.md`, `.claude/`, or the Claude Code pin, so its agent-config-evals step, the behavioral tier, is SKIP and needs no run of yours (both read from `tools/gates/gate`'s own rules).
 
