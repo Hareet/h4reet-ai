@@ -7,9 +7,11 @@ implementer subagent (Claude Opus 5.5), for the main session · Date: 2026-11-10
 Session: the main session started from `/home/h4reet/h4reet-ai/h4reet-ai`. This branch's worktree is
 `/tmp/claude-1000/wt-shutdown`, which the main session created from `refs/heads/main` at d0fac811. Repo hooks active:
 yes. In `.claude/audit/hooks.log`, the worktree's first event is the main session's `git worktree add -b
-fix/000-shutdown-test /tmp/claude-1000/wt-shutdown refs/heads/main` at 2026-11-10T13:38:00Z, and every event of this
-session in `wt-shutdown` from then to 14:13:20Z is ALLOW (72 of 72), among them the test's commit
-at 13:50:55Z and main's merge into the branch at 13:51:58Z.
+fix/000-shutdown-test /tmp/claude-1000/wt-shutdown refs/heads/main` at 2026-11-10T13:38:00Z. From then to 14:27:04Z
+this session's events in `wt-shutdown` are 89 ALLOW and 1 BLOCK. The ALLOWs include the test's commit at 13:50:55Z,
+main's merge into the branch at 13:51:58Z, and this note's first commit at 14:17:32Z. The BLOCK, at 14:13:51Z, is
+that same commit refused while your checkout was on `main`: "changing main (HEAD is main)". It wasn't respelled: the
+same command ran unchanged once your checkout was parked again.
 
 Authorized by: your answer of 2026-11-10. The question was: "Shall I fix it, so the test waits until the request has
 reached its handler instead of a fixed 50 ms? It's an edit to a test file, so it needs your OK." Your answer, verbatim:
@@ -31,9 +33,9 @@ content the review is to read (Review).
 | `make lint` | exit 0 |
 | `make test` | exit 0, all three suites whole: the gateway "1653 passed \| 13 skipped (1666)"; the web "2704 passed (2704)"; pytest "4099 passed in 356.73s" |
 | `make evals` | exit 0: product 187 passed, narration 44 passed, agent-config static 0 failed, docs links 0 failed of 1,850; the behavioral tier's advisory WARN |
-| `make check ENGINE_MODE=none-yet` | "10 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, matrix FAIL". `test`: one gateway case, `twin-bench.test.ts`'s 20 ms speed bound (34.07 ms, at a 5-minute load average of 33.7), not this branch's; the graceful-shutdown test passed in the same run, and `make test` stops at the gateway, so the web tests and pytest didn't run there. `matrix`: E10 and E14 alone, the environment's |
-| `gitleaks dir` on a fresh export | on this note's commit, in the note's next revision |
-| The rehearsal into `refs/heads/main` (67028747) | on this note's commit, in the note's next revision |
+| `make check ENGINE_MODE=none-yet`, run twice | The second run, on b13e9f58's tree: "11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL", `matrix` E10 and E14 alone, the environment's, and `test` whole (the gateway "1653 passed \| 13 skipped (1666)", the web "2704 passed (2704)", pytest "4099 passed in 453.18s"). The first run also failed `test` on one gateway case, `twin-bench.test.ts`'s 20 ms speed bound (34.07 ms, at a 5-minute load average of 33.7), not this branch's; the graceful-shutdown test passed in both |
+| `gitleaks dir` on a fresh export of b13e9f58 (this note's first commit) | exit 0, "no leaks found", 1,917 files |
+| The rehearsal into `refs/heads/main` (67028747), on b13e9f58 | `main` is an ancestor; the merge writes the tip's own tree, 8ee8626b; step 2's ancestry, merge-tree, and diff lines print `go`, and the tip differs from the merge-tree in this note alone |
 
 ## Runs in your terminal
 
@@ -133,7 +135,8 @@ then called `close()`. It assumed 50 ms was enough for the request to reach its 
   drain" (`return503OnClosing`, true by default, which `app.ts` doesn't set). A request already in its handler isn't
   checked again and finishes; `app.ts`'s onSend hook (`app.ts:102-112`) adds `connection: close` to its response.
 
-So "expected 503 to be 200" means the request reached the router after `close()` had begun: it wasn't in flight yet.
+So "expected 503 to be 200" means the request reached the router after `close()` had begun: refused as new work,
+not dropped in its handler.
 That matches the `gateway.stopping` row of `specs/000-local-foundations/contracts/telemetry.md`: "the listeners stop
 accepting, and requests in flight finish". No code bug: a request in its handler when shutdown begins isn't dropped.
 The 503 failed your gates on `feat/010-anthropic-switch` and `docs/001-ec2-default` (2026-11-09/10) and agents'
@@ -316,7 +319,9 @@ docs links: 0 failed, 1850 relative links in 266 files
 (exit 0; the 187 product and 44 narration cases' PASS lines are left out)
 ```
 
-### make check ENGINE_MODE=none-yet
+### make check ENGINE_MODE=none-yet, the first run
+
+On 5b69b884 with this note in the working tree, before its commit. The 5-minute load average read 33.7 just after it.
 
 ```text
 The test stage, the gateway's workspace:
@@ -350,20 +355,86 @@ SKIP     image  no agents' engine yet: tasks.md T046
 make check: 10 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 2 FAIL; failing: test FAIL, matrix FAIL
 make: *** [Makefile:159: check] Error 1
 exit 2
+```
+
+### make check ENGINE_MODE=none-yet, the second run
+
+On b13e9f58's tree: it started on 5b69b884 with this note in the working tree, and the note's commit came while it
+ran, before its arrival stage, which counted 3 commits since main. Your gate 5 (feat/005) was running beside it.
+The graceful-shutdown test passed in both runs.
+
+```text
+The test stage, all three suites:
+ Test Files  95 passed (95)
+      Tests  1653 passed | 13 skipped (1666)
+ Test Files  109 passed (109)
+      Tests  2704 passed (2704)
+4099 passed in 453.18s (0:07:33)
+
+arrival:
+arrival-check: 0 findings in 48 files (3 commits)
+
+The matrix:
+E10  FAIL  (from prove-limits.sh): E10   FAIL engine.sh reset leaves a new engine holding only the seeded images -- seen: engine.sh reset failed: engine.sh: not enough free space to seed: need 22 GiB on both the Windows drive and ext4; 19 of the 19 seeded images are missing
+E14  FAIL  (from prove-limits.sh): E14   FAIL dev-cpu publishes on the host's 127.0.0.1 (ports 18300-18305); no answer on 18300 18301 18302 18303 18304 18305; the sandbox cannot reach them (stage S)
+forbidden-actions (hook layer): 853 passed, 2 failed, 57 known gaps
+
+The summary:
+PASS     makefiles-check
+PASS     githooks-check
+PASS     toolchain-check
+PASS     policy
+PASS     validate-config
+PASS     lint
+PASS     test
+PASS     content-check
+PASS     secrets
+PASS     arrival
+WARN     evals  WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+PASS     redteam
+FAIL     matrix
+SKIP     image  no agents' engine yet: tasks.md T046
+make check: 11 PASS, 1 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: matrix FAIL
+make: *** [Makefile:159: check] Error 1
 exit 2
 ```
 
 ### gitleaks on a fresh export
 
+A `git archive` export of b13e9f58, this note's first commit, into a new, empty folder, scanned from inside it as the
+gate scans: main's `.gitleaks.toml` (kept outside the export), an empty folder as the ignore path, and
+`--ignore-gitleaks-allow`. This revision changes this note alone.
+
 ```text
-Run on this note's commit, and recorded in the note's next revision.
+export of b13e9f58 (shutdown) into a new folder: 1917 files
+v8.30.1
+7:17AM INF scanned ~51109694 bytes (51.11 MB) in 1.74s
+7:17AM INF no leaks found
+exit=0
+report: []
 ```
 
 ### The rehearsal
 
+`git merge-tree` against `refs/heads/main`, which writes no worktree, then step 2's ancestry, merge-tree, and diff
+lines in `zsh -f` with `sha` set to b13e9f58 (the lines that read the gate's log and your checkout's HEAD can't run
+here):
+
 ```text
-Run on this note's commit, and recorded in the note's next revision.
+$ git merge-tree --write-tree --name-only refs/heads/main b13e9f58866247880ac06d80ace07ac576682055
+8ee8626b418c68414d6218967ff2fcafbfb6db10
+(exit 0)
+tip tree: 8ee8626b418c68414d6218967ff2fcafbfb6db10
+main: 67028747d32e71d971c7c2e3555337b394433451
+main is an ancestor of the tip: a --no-ff merge's tree is the tip's
+sha b13e9f58866247880ac06d80ace07ac576682055, e c45e86bce1cc30407edfda34e909c18f127a26f2
+guard (ancestry, merge-tree, diff): go
+docs/merge-requests/2026-11-10-fix-000-shutdown-test.md
+(above: every file the tip differs from the merge-tree in)
 ```
+
+Main moved twice while this branch was open: from d0fac811 (the cut) to c01545ce (your docs/001 merge), then to
+67028747 (your constitution 1.1.0 commit and ADR 0044 accepted). 5b69b884 merges 67028747 in; nothing conflicted.
 
 ## Cost and data-flow impact
 
@@ -380,5 +451,6 @@ None before the merge but the gate and the guard.
 
 - `integration/dispatcher.test.ts:290`: to prove the wake, the enqueue should wait for the first pass to finish, not
   just its LISTEN. A test edit, yours to allow.
-- `unit/gateway.test.ts:157` and `dispatcher-forms.test.ts`'s 50 ms: speed bounds that a loaded host can fail.
-  Whether to loosen either is yours; this branch keeps every bound.
+- `unit/gateway.test.ts:157`, `dispatcher-forms.test.ts`'s 50 ms, and `unit/twin-bench.test.ts`'s 20 ms a turn
+  (34.07 ms in this session's first `make check`): speed bounds that a loaded host can fail. Whether to loosen any is
+  yours; this branch keeps every bound.
