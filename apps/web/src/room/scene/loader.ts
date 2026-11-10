@@ -539,12 +539,19 @@ export function createLoader(options: LoaderOptions): Loader {
         end(load, "skipped", null);
         return;
       }
-      // Spec 012: a model parsed as the loader gave way swaps in only once the hand-off ends, or never, on a stop.
+      // Spec 012: a model parsed as the loader gave way swaps in only once the hand-off ends, or never, on a stop. The
+      // ledger is asked again after the wait: another model may have taken its room meanwhile (the review's N1).
       if (options.swapGate) {
         await Promise.race([options.swapGate(), stoppedPromise]);
         if (stopped || latest.get(entry.piece) !== load.mine) {
           parsed.close();
           disposeModel(model);
+          return;
+        }
+        if (!options.ledger.fits(parsed.textureBytes)) {
+          parsed.close();
+          disposeModel(model);
+          end(load, "skipped", null);
           return;
         }
       }
