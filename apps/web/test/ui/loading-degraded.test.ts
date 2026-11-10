@@ -393,3 +393,67 @@ describe("what the loader sends, and its log (FR-001, FR-049)", () => {
     expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
   });
 });
+
+// T029 (spec 012; FR-046, FR-047; SC-008): one loading_cut_short a visit, with no identifier, when the loader gives way
+// at its ceiling with a file not ended; none on ready, on 2d, in 2D from the start, below the floor with every file
+// skipped early, or when every file ended in the ceiling's own tick, before it.
+describe("loading_cut_short (FR-046)", () => {
+  const cutShort = (v: Visit): unknown[] => v.events.filter((e) => (e.kind as string) === "loading_cut_short");
+
+  it("is sent once a visit, with no identifier, at the ceiling with a file not ended", async () => {
+    const { v } = await entered({ list: files });
+    ended(v, "fx-desk", "loaded");
+    v.clock.advance(LOADING_CEILING_MS);
+    await flush();
+    expect(cutShort(v)).toEqual([{ kind: "loading_cut_short" }]);
+    v.clock.advance(60_000);
+    ended(v, "fx-sign", "loaded");
+    await flush();
+    expect(cutShort(v)).toHaveLength(1);
+  });
+
+  it("isn't sent when every file has ended, when the room falls to 2D, or in 2D from the start", async () => {
+    const ready = await entered({ list: files });
+    ended(ready.v, "fx-desk", "loaded");
+    ended(ready.v, "fx-sign", "failed");
+    await flush();
+    ready.v.clock.advance(LOADING_CEILING_MS);
+    expect(cutShort(ready.v)).toEqual([]);
+    const late = start({ webgl: true, sceneHangs: true });
+    await press(late);
+    late.clock.advance(LOADING_CEILING_MS);
+    await flush();
+    expect(late.room.visit.mode).toBe("2d");
+    expect(cutShort(late)).toEqual([]);
+    const flat = start({ webgl: false });
+    await enter(flat);
+    flat.clock.advance(LOADING_CEILING_MS);
+    expect(cutShort(flat)).toEqual([]);
+  });
+
+  it("isn't sent below the floor, every file skipped before the list arrived", async () => {
+    const v = start({ webgl: true });
+    v.scene.expected = Promise.resolve(files);
+    v.scene.onCreate = (o) => {
+      for (const f of files)
+        o.assets?.(assetEvent({ asset: f.asset, outcome: "skipped", ms: 0, bytes: 0, mode: "3d" }));
+    };
+    await enter(v);
+    v.clock.advance(LOADING_CEILING_MS);
+    expect(cutShort(v)).toEqual([]);
+  });
+
+  it("isn't sent when every file ended in the ceiling's own tick, before it", async () => {
+    const v = start({ webgl: true });
+    v.scene.expected = Promise.resolve(files);
+    // Set before Enter, so it runs before the ceiling's timer at the same time.
+    v.clock.setTimeout(() => {
+      for (const f of files) ended(v, f.asset, "loaded");
+    }, LOADING_CEILING_MS);
+    await enter(v);
+    v.clock.advance(LOADING_CEILING_MS);
+    await flush();
+    expect(loading(v)).toBe(false);
+    expect(cutShort(v)).toEqual([]);
+  });
+});

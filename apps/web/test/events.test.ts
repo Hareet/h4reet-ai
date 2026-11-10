@@ -91,6 +91,8 @@ describe("the beacon", () => {
       '{"kind":"avatar_failed"}',
       // Spec 005's (its FR-060; Amendment H7): no identifier.
       '{"kind":"fullscreen_entered"}',
+      // Spec 012's (its FR-046; Amendment L3): no identifier.
+      '{"kind":"loading_cut_short"}',
     ]);
     expect(p.touched).toEqual([]);
   });
