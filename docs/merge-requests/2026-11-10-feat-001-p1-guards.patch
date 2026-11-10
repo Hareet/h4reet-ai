@@ -1097,7 +1097,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    assert status(rows, "terraform") == "OK"
 --- /dev/null
 +++ b/tools/gates/infra_policy.py
-@@ -0,0 +1,1651 @@
+@@ -0,0 +1,1749 @@
 +#!/usr/bin/env python3
 +"""The infrastructure policy (spec 001 contracts/infra-records.md §3; plan §2; research.md R-14; FR-002, FR-004,
 +FR-009 to FR-012, FR-069, FR-076). Human-only, from the guard patch P-1.
@@ -1554,7 +1554,8 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +            cur.append(t)
 +    if cur:
 +        parts.append(cur)
-+    return [[t for t in p if t.kind != "NL"] for p in parts]
++    # Each part keeps the newlines inside its brackets: an object in a list separates its entries by them.
++    return parts
 +
 +
 +def evaluate(toks: list[Tok]) -> object:
@@ -1804,6 +1805,20 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +
 +def nested(block: Block, name: str) -> Block | None:
 +    return block.block(name)
++
++
++def entries(block: Block, name: str) -> list[Block]:
++    """A nested block's instances, or, written as an attribute holding a list of objects (ingress = [{…}]),
++    each object as a block whose attributes carry the attribute's own source text."""
++    found = list(block.blocks(name))
++    attr = block.attr(name)
++    if found or attr is None or not isinstance(attr.value, list):
++        return found
++    for item in attr.value:
++        if isinstance(item, dict):
++            body = Body(Attribute(k, attr.raw, v, attr.line) for k, v in item.items())
++            found.append(Block(name, [], body, attr.line))
++    return found
 +
 +
 +def literal(attr: Attribute | None) -> object:
@@ -2103,7 +2118,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +                continue
 +            text = s.text[_offset(s.text, r.line) :]
 +            text = text[: _block_end(text)]
-+            if WILDCARD_PRINCIPAL.search(text) and "aws:SourceArn" not in text:
++            if _grants_public(r, text):
 +                found.append(
 +                    Finding(
 +                        "T6",
@@ -2113,6 +2128,89 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +                    )
 +                )
 +    return found
++
++
++def _policy_doc(attr: Attribute | None) -> dict | None:
++    """A policy's document when it is a literal: JSON in a string or a heredoc, or jsonencode({…}) of literals."""
++    if attr is None:
++        return None
++    if isinstance(attr.value, str):
++        try:
++            doc = json.loads(attr.value)
++        except ValueError:
++            return None
++        return doc if isinstance(doc, dict) else None
++    try:
++        toks = tokenize(attr.raw)
++    except HclError:
++        return None
++    if (
++        len(toks) >= 3
++        and toks[0].kind == "IDENT"
++        and toks[0].text == "jsonencode"
++        and _is(toks[1], "(")
++    ):
++        doc = evaluate(toks[2 : _matching(toks, 1)])
++        return doc if isinstance(doc, dict) else None
++    return None
++
++
++def _wild(principal: object) -> bool:
++    if principal == "*":
++        return True
++    if isinstance(principal, dict):
++        return any(
++            v == "*" or (isinstance(v, list) and "*" in v) for v in principal.values()
++        )
++    return False
++
++
++def _statements_public(doc: dict) -> bool | None:
++    """True when an Allow statement (the default) grants a wildcard principal without an aws:SourceArn
++    condition; a Deny grants nothing. None when the statements aren't literal."""
++    statements = doc.get("Statement")
++    if isinstance(statements, dict):
++        statements = [statements]
++    if not isinstance(statements, list):
++        return None
++    for st in statements:
++        if not isinstance(st, dict):
++            return None
++        if st.get("Effect", "Allow") == "Deny":
++            continue
++        if _wild(st.get("Principal")) and "aws:SourceArn" not in json.dumps(
++            st.get("Condition", {}), default=str
++        ):
++            return True
++    return False
++
++
++def _grants_public(r: Block, text: str) -> bool:
++    if r.labels[0] == "aws_iam_policy_document":
++        for st in r.blocks("statement"):
++            if literal(st.attr("effect")) == "Deny":
++                continue  # an absent or computed effect counts as Allow, the default
++            ids = [
++                literal(p.attr("identifiers"))
++                for p in r.blocks("principals") + st.blocks("principals")
++            ]
++            wild = any(isinstance(i, list) and "*" in i for i in ids)
++            if wild and not any(
++                literal(c.attr("variable")) == "aws:SourceArn"
++                for c in st.blocks("condition")
++            ):
++                return True
++        return False
++    doc = _policy_doc(r.attr("policy"))
++    verdict = _statements_public(doc) if doc is not None else None
++    if verdict is not None:
++        return verdict
++    if (
++        "data.aws_iam_policy_document."
++        in (r.attr("policy") or Attribute("", "", None, 0)).raw
++    ):
++        return False  # the document is checked as its own block
++    return bool(WILDCARD_PRINCIPAL.search(text)) and "aws:SourceArn" not in text
 +
 +
 +def _offset(text: str, line: int) -> int:
@@ -2150,7 +2248,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    for r in resources(src.body):
 +        rtype, address = r.labels[0], ".".join(r.labels)
 +        if rtype == "aws_security_group":
-+            for ing in r.blocks("ingress"):
++            for ing in entries(r, "ingress"):
 +                out.append(
 +                    (
 +                        ing.line,
@@ -2895,7 +2993,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    sys.exit(main(sys.argv[1:]))
 --- /dev/null
 +++ b/tools/gates/infra_plan_note.py
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,227 @@
 +#!/usr/bin/env python3
 +"""The gate's infra-plan-note step (spec 001 contracts/infra-records.md §2; September's §3 at 00309c47; research.md
 +R-13; FR-005, FR-010). Human-only, from the guard patch P-1.
@@ -2996,6 +3094,14 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    return out.stdout
 +
 +
++def exists(repo: Path, head: str, path: str) -> bool:
++    try:
++        git(repo, "cat-file", "-e", f"{head}:{path}")
++    except GitError:
++        return False
++    return True
++
++
 +def roots_for(paths: list[str]) -> set[str]:
 +    roots: set[str] = set()
 +    for path in paths:
@@ -3028,7 +3134,9 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    infra = [p for p in changed if p.startswith("infra/")]
 +    if not infra:
 +        return Result("SKIP", ["SKIP: no infra change"])
-+    roots = roots_for(infra)
++    # A root needs its block only once its folder exists at the branch's tip: infra/lambdas/ belongs to the account
++    # root, which arrives with spec 001's group 4 (group 3's finding, 2026-11-10).
++    roots = {r for r in roots_for(infra) if exists(repo, head, f"infra/{r}")}
 +    if not roots:
 +        return Result(
 +            "SKIP",
@@ -3369,7 +3477,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +        return values
 +
 +    if rtype == "aws_security_group":
-+        for b in r.blocks("ingress") + r.blocks("egress"):
++        for b in ip.entries(r, "ingress") + ip.entries(r, "egress"):
 +            out.append(
 +                (
 +                    b.line,
@@ -3427,7 +3535,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    sys.exit(main(sys.argv[1:]))
 --- /dev/null
 +++ b/tools/gates/test/test_infra_policy.py
-@@ -0,0 +1,797 @@
+@@ -0,0 +1,907 @@
 +"""Tests for tools/gates/infra_policy.py: rules T1 to T13 on HCL, the reader, and the pass on a saved plan's JSON
 +(spec 001 contracts/infra-records.md §3; plan §2; tasks.md T004). Each rule has a passing baseline and failing cases.
 +Key- and token-shaped values are built at run time, never written as literals."""
@@ -4225,6 +4333,116 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    )
 +    found = only(tree, "T4")
 +    assert any(".terraform" in f.path for f in found)
++
++
++# --- group 3's findings (2026-11-10): a list's objects across lines, and a Deny statement's wildcard ------------------
++
++
++def test_reader_keeps_a_lists_objects_across_lines() -> None:
++    body = ip.parse_hcl(
++        'x = [\n  {\n    a = 1\n    b = "c"\n  },\n  {\n    d = [\n      "e",\n    ]\n  },\n]\n'
++    )
++    assert body.attr("x").value == [{"a": 1, "b": "c"}, {"d": ["e"]}]
++
++
++LIST_SG = """
++resource "aws_security_group" "{name}" {{
++  ingress = [
++    {{
++      from_port   = {port}
++      to_port     = {port}
++      protocol    = "tcp"
++      cidr_blocks = ["{cidr}"]
++    }},
++  ]
++  tags = {{ component = "c" }}
++}}
++"""
++
++
++def test_t7_reads_ingress_as_a_list_of_objects(tree: Path) -> None:
++    write(
++        tree,
++        "infra/prod/extra.tf",
++        LIST_SG.format(name="web", port=22, cidr="0.0.0.0/0"),
++    )
++    only(tree, "T7")
++
++
++@pytest.mark.parametrize(
++    ("name", "port", "cidr"),
++    [("web", 22, "10.40.0.0/16"), ("tunnel_end_public", 2222, "0.0.0.0/0")],
++)
++def test_t7_list_of_objects_that_pass(
++    tree: Path, name: str, port: int, cidr: str
++) -> None:
++    write(tree, "infra/prod/extra.tf", LIST_SG.format(name=name, port=port, cidr=cidr))
++    assert ip.check_repo(tree) == []
++
++
++TLS_DENY = """
++resource "aws_s3_bucket_policy" "tls" {
++  bucket = aws_s3_bucket.state.id
++  policy = jsonencode({
++    Statement = [
++      {
++        Effect    = "Deny"
++        Principal = "*"
++        Action    = "s3:*"
++        Resource  = "*"
++        Condition = { Bool = { "aws:SecureTransport" = "false" } }
++      },
++    ]
++  })
++}
++"""
++
++
++def test_t6_a_deny_with_a_wildcard_principal_passes(tree: Path) -> None:
++    write(tree, "infra/bootstrap/policy.tf", TLS_DENY)
++    assert ip.check_repo(tree) == []
++
++
++def test_t6_an_allow_with_a_wildcard_principal_still_fails(tree: Path) -> None:
++    write(tree, "infra/bootstrap/policy.tf", TLS_DENY.replace('"Deny"', '"Allow"'))
++    only(tree, "T6")
++
++
++DOC = """
++data "aws_iam_policy_document" "tls" {
++  statement {
++    {effect}
++    actions   = ["s3:*"]
++    resources = ["*"]
++    principals {
++      type        = "*"
++      identifiers = ["*"]
++    }
++  }
++}
++"""
++
++
++def test_t6_a_policy_documents_deny_passes_and_its_allow_fails(tree: Path) -> None:
++    write(tree, "infra/bootstrap/policy.tf", DOC.replace("{effect}", 'effect = "Deny"'))
++    assert ip.check_repo(tree) == []
++    write(
++        tree, "infra/bootstrap/policy.tf", DOC.replace("{effect}", "")
++    )  # effect defaults to Allow
++    only(tree, "T6")
++
++
++def test_t6_a_heredoc_json_policy(tree: Path) -> None:
++    doc = '{"Statement": [{"Effect": "EFFECT", "Principal": "*", "Action": "s3:GetObject", "Resource": "*"}]}'
++    text = (
++        'resource "aws_s3_bucket_policy" "p" {\n  bucket = aws_s3_bucket.state.id\n  policy = <<EOF\n'
++        + doc
++        + "\nEOF\n}\n"
++    )
++    write(tree, "infra/bootstrap/policy.tf", text.replace("EFFECT", "Deny"))
++    assert ip.check_repo(tree) == []
++    write(tree, "infra/bootstrap/policy.tf", text.replace("EFFECT", "Allow"))
++    only(tree, "T6")
 --- /dev/null
 +++ b/tools/gates/test/test_infra_redact.py
 @@ -0,0 +1,113 @@
@@ -4343,7 +4561,7 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    assert ir.main(["--check", str(f)]) == 0
 --- /dev/null
 +++ b/tools/gates/test/test_infra_plan_note.py
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,243 @@
 +"""Tests for tools/gates/infra_plan_note.py, the gate's infra-plan-note step (spec 001 contracts/infra-records.md §2;
 +September's §3 at 00309c47; tasks.md T004): which roots need a block, the block's tree hash against HEAD:infra, exactly
 +one block per root, and the block's text through the redaction check. Hash-shaped values are made at run time."""
@@ -4499,6 +4717,8 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    ],
 +)
 +def test_which_roots_a_change_needs(repo: Path, path: str, roots: set[str]) -> None:
++    for r in roots:
++        write(repo, f"infra/{r}/main.tf", "# the root\n")
 +    write(repo, path, "# x\n")
 +    commit(repo, "infra")
 +    assert pn.roots_for([path]) == roots
@@ -4551,9 +4771,43 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +    commit(repo, "note")
 +    assert pn.main(["--repo", str(repo), "--base", base, "--head", "HEAD"]) == 0
 +    assert "PASS" in capsys.readouterr().out
++
++
++# --- group 3's finding (2026-11-10): a root needs its block only once its folder exists at the branch's tip -----------
++
++
++def test_a_root_that_does_not_exist_yet_needs_no_block(repo: Path) -> None:
++    # Group 3 writes infra/bootstrap and infra/lambdas/credential_audit/; infra/account arrives with group 4.
++    write(repo, "infra/bootstrap/main.tf", "# x\n")
++    write(repo, "infra/lambdas/credential_audit/audit.py", "# x\n")
++    commit(repo, "group 3")
++    tree = git(repo, "rev-parse", "HEAD:infra")
++    write(repo, NOTE, block("bootstrap", tree))
++    commit(repo, "note")
++    result = run(repo)
++    assert result.status == "PASS", result.lines
++    assert "account" not in result.lines[0]
++
++
++def test_only_lambdas_with_no_account_root_is_skip(repo: Path) -> None:
++    write(repo, "infra/lambdas/probe/probe.py", "# x\n")
++    commit(repo, "lambdas")
++    result = run(repo)
++    assert result.status == "SKIP" and "no root" in result.lines[0]
++
++
++def test_once_the_account_root_exists_lambdas_need_its_block(repo: Path) -> None:
++    write(repo, "infra/account/main.tf", "# x\n")
++    commit(repo, "the account root")
++    write(repo, "infra/lambdas/probe/probe.py", "# x\n")
++    write(repo, NOTE, "# note\n")
++    commit(repo, "lambdas")
++    result = run(repo)
++    assert result.status == "FAIL"
++    assert any("plan for account missing" in line for line in result.lines)
 --- /dev/null
 +++ b/tools/gates/test/test_disclosure_check.py
-@@ -0,0 +1,216 @@
+@@ -0,0 +1,229 @@
 +"""Tests for tools/gates/disclosure_check.py (spec 001 plan §8.3; FR-040; tasks.md T004): a change that adds an outward
 +kind of thing needs its row in docs/data-flow-disclosure.md. The kinds: a compose service on the egress network, an
 +sshd permit, an egress-proxy host, a CloudFront origin, an EventBridge API destination, and a security-group rule open
@@ -4770,3 +5024,16 @@ in a second export, then diff -u with a/ and b/ labels, one file at a time. patc
 +
 +def test_main_without_the_disclosure(tmp_path: Path) -> None:
 +    assert dc.main(["--root", str(tmp_path)]) == 2
++
++
++def test_an_open_rule_written_as_a_list_of_objects(tree: Path) -> None:
++    # Group 3's finding (2026-11-10): ingress and egress may be written as attributes holding a list of objects.
++    write(
++        tree,
++        "infra/prod/network.tf",
++        'resource "aws_security_group" "x" {\n  egress = [\n    {\n      from_port   = 443\n'
++        '      to_port     = 443\n      cidr_blocks = ["0.0.0.0/0"]\n    },\n  ]\n}\n',
++    )
++    disclosure(tree, "S17")
++    found = dc.check(tree)
++    assert [f.kind for f in found] == ["security-group rule open to an outside range"]
