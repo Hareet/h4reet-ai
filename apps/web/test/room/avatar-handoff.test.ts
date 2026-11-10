@@ -206,3 +206,28 @@ describe("an avatar late (FR-019 (e); SC-006)", () => {
     expect(new PerspectiveCamera()).toBeDefined();
   });
 });
+
+// Spec 012 (T005; FR-021; Amendment L11): an avatar the figures take once the loader has given way, before the
+// hand-off's first frame, shows only once the hand-off ends, as one ready during it does (spec 009's FR-022).
+describe("spec 012: the figures closed from the loader's giving way (T005)", () => {
+  it("shows an avatar that becomes ready after close() only once the hand-off ends", async () => {
+    const s = setup("woman");
+    s.figures.close();
+    await feed(s, "man");
+    await feed(s, "woman");
+    expect(s.figures.shows("twin")).toBe(false);
+    expect(s.figures.shows("visitor")).toBe(false);
+    play(s, 0, D);
+    expect(s.figures.shows("visitor")).toBe(false);
+    s.figures.handoffEnded();
+    expect(s.figures.shows("twin")).toBe(true);
+    expect(s.figures.shows("visitor")).toBe(true);
+  });
+
+  it("shows an avatar ready before close() at once, as before", async () => {
+    const s = setup("woman");
+    await feed(s, "man");
+    s.figures.close();
+    expect(s.figures.shows("twin")).toBe(true);
+  });
+});

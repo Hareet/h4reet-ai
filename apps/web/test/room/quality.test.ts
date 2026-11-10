@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLOOR_FPS,
   FRAME_WINDOW_MS,
+  LOADING_CEILING_MS,
   MAX_QUALITY,
   MODEL_FLOOR,
   SCENE_WAIT_MS,
@@ -678,5 +679,14 @@ describe("the room's modes", () => {
     expect(v.doc.querySelector(".flat")?.getAttribute("data-handoff-frame")).toBe("2");
     v.clock.advance(500);
     expect(v.room.visit.stage).toBe("room");
+  });
+});
+
+// Spec 012 (T007; FR-020; PD-7): the loader's ceiling, beside SCENE_WAIT_MS, measured from "Enter" on the room's clock.
+describe("the loader's ceiling (spec 012, T007)", () => {
+  it("is at most 7 s after Enter, so spec 002's SC-005 holds, and never cuts today's own waits short", () => {
+    expect(LOADING_CEILING_MS).toBeLessThanOrEqual(7000);
+    // SCENE_WAIT_MS for the 3D chunk, then the scene's wait_ms for the figures, 1.5 s by default (spec 009).
+    expect(LOADING_CEILING_MS).toBeGreaterThanOrEqual(SCENE_WAIT_MS + 1500);
   });
 });

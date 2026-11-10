@@ -28,7 +28,7 @@ import { asRoomNarration } from "../../src/narration/data";
 import { resumeView } from "../../src/room/resume-port";
 import type { RoomResume } from "../../src/resume";
 import type { TierValue } from "../../src/room/compose/vocabulary";
-import type { SceneModule, SceneOptions, Stage3D, WalkEnd } from "../../src/room/stage";
+import type { ExpectedFile, SceneModule, SceneOptions, Stage3D, WalkEnd } from "../../src/room/stage";
 import type { CostState } from "../../src/room/signals/turn-cost";
 import type { SendTurn } from "../../src/talk/talk";
 
@@ -294,6 +294,12 @@ export interface FakeScene {
    *  the stage gives none, and the room doesn't wait. */
   figures?: Promise<void>;
   waitMs?: number;
+  /** Spec 012's Stage3D.expected (contract §3), which the next stage made gives the room as set here; absent, the stage
+   *  gives none, and the room counts no file. */
+  expected?: Promise<readonly ExpectedFile[]>;
+  /** Called inside createScene, before it returns, with the room's options: a test's way to report asset events as
+   *  the room's loader does below ADR 0010's floor, before the stage has said what it will load. */
+  onCreate?: (options: SceneOptions) => void;
 }
 
 export function fakeScene(): FakeScene {
@@ -353,8 +359,10 @@ export function fakeScene(): FakeScene {
             options.clock.cancelFrame(frame);
           },
           ...(fake.figures ? { figures: fake.figures, waitMs: fake.waitMs ?? 0 } : {}),
+          ...(fake.expected ? { expected: fake.expected } : {}),
         };
         fake.stage = stage;
+        fake.onCreate?.(options);
         return stage;
       },
     },
@@ -492,6 +500,12 @@ export interface SceneOptionsForTest {
   frameLog?: RoomDeps["frameLog"];
   /** Spec 005: the window's measures and their changes (hud/viewport.ts), which a test stubs; by default the page's. */
   viewport?: RoomDeps["viewport"];
+  /** Spec 012: no room-data.json loader at all, as a page built without one (its FR-011); by default the test's. */
+  withoutRoomData?: boolean;
+  /** Spec 012: the loader's view, which a test may replace (one that throws, FR-007); by default the room's own. */
+  loadingView?: RoomDeps["loadingView"];
+  /** Spec 012: document.fonts for the faces' typefaces, which jsdom lacks; absent, the page has none. */
+  fonts?: { load(font: string): Promise<unknown> };
 }
 
 /** An approved resume of fixture words, under the first two item IDs the manifest lists. */
@@ -516,6 +530,7 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
   const scene = fakeScene();
   let loads = 0;
   let roomDataLoads = 0;
+  if (options.fonts) Object.defineProperty(win.document, "fonts", { configurable: true, value: options.fonts });
   const room = startRoom({
     win,
     content: options.content ?? roomContent(),
@@ -532,11 +547,16 @@ export function start(options: WindowOptions & SceneOptionsForTest = {}): Visit 
     ),
     events: (event) => events.push(event),
     // The room text's load at Enter, from the test, never from the network.
-    roomData: () => {
-      roomDataLoads += 1;
-      const list = options.roomData ?? [{}];
-      return Promise.resolve(list[Math.min(roomDataLoads, list.length) - 1] ?? null);
-    },
+    ...(options.withoutRoomData
+      ? {}
+      : {
+          roomData: () => {
+            roomDataLoads += 1;
+            const list = options.roomData ?? [{}];
+            return Promise.resolve(list[Math.min(roomDataLoads, list.length) - 1] ?? null);
+          },
+        }),
+    ...(options.loadingView ? { loadingView: options.loadingView } : {}),
     clock,
     wall,
     ...(options.sendTurn ? { sendTurn: options.sendTurn } : {}),
