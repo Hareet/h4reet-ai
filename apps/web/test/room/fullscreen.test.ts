@@ -9,8 +9,12 @@ import { browserOwnsEscape, createFullscreen } from "../../src/room/fullscreen";
 
 type Doc = Document & Record<string, unknown>;
 
+/** How a stand-in refuses a request: as browsers do, the error event and then the rejection (the Fullscreen API's
+ *  order; WebKit's prefixed request has no promise, so its event alone); the rejection alone; or the event alone. */
+type Refusal = false | "both" | "reject" | "event";
+
 /** A document whose Fullscreen API is a stand-in: unprefixed, WebKit's, or none. */
-function stub(kind: "unprefixed" | "webkit" | "none", refuse = false) {
+function stub(kind: "unprefixed" | "webkit" | "none", refuse: Refusal = false) {
   const dom = new JSDOM("<main></main>");
   const doc = dom.window.document as unknown as Doc;
   const root = doc.documentElement as HTMLElement & Record<string, unknown>;
@@ -24,7 +28,9 @@ function stub(kind: "unprefixed" | "webkit" | "none", refuse = false) {
     Object.defineProperty(doc, "fullscreenElement", { configurable: true, get: () => element });
     root.requestFullscreen = (options?: unknown) => {
       calls.request.push(options);
-      if (refuse) return Promise.reject(new TypeError("refused"));
+      if (refuse === "both" || refuse === "event") fire("fullscreenerror");
+      if (refuse === "both" || refuse === "reject") return Promise.reject(new TypeError("refused"));
+      if (refuse === "event") return Promise.resolve();
       element = root;
       fire("fullscreenchange");
       return Promise.resolve();
@@ -41,6 +47,10 @@ function stub(kind: "unprefixed" | "webkit" | "none", refuse = false) {
     Object.defineProperty(doc, "webkitFullscreenElement", { configurable: true, get: () => element });
     root.webkitRequestFullscreen = (options?: unknown) => {
       calls.request.push(options);
+      if (refuse) {
+        fire("webkitfullscreenerror");
+        return;
+      }
       element = root;
       fire("webkitfullscreenchange");
     };
@@ -89,18 +99,41 @@ describe("full screen (src/room/fullscreen.ts; spec 005, T033)", () => {
     }
   });
 
-  it("calls onRefused for a rejected request and for a fullscreenerror", async () => {
-    const s = stub("unprefixed", true);
+  // The review of 60b51de4's nit: a browser refusing fires fullscreenerror and then rejects the request's promise, and
+  // the room said the refusal twice. It says it once a request, by whichever signal comes first.
+  it("calls onRefused once a refused request: for the event and the rejection both, either alone, or WebKit's", async () => {
+    for (const [kind, refusal] of [
+      ["unprefixed", "both"],
+      ["unprefixed", "reject"],
+      ["unprefixed", "event"],
+      ["webkit", "both"],
+    ] as const) {
+      const s = stub(kind, refusal);
+      const fs = createFullscreen(s.doc);
+      const refused = vi.fn();
+      fs.onRefused(refused);
+      fs.toggle();
+      await flush();
+      expect(refused, `${kind}, ${refusal}`).toHaveBeenCalledTimes(1);
+      fs.toggle();
+      await flush();
+      expect(refused, `${kind}, ${refusal}, a second request`).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("says nothing for an error event no request of the room's asked for", async () => {
+    const s = stub("unprefixed");
     const fs = createFullscreen(s.doc);
     const refused = vi.fn();
     fs.onRefused(refused);
+    s.fire("fullscreenerror");
+    s.fire("webkitfullscreenerror");
+    expect(refused).not.toHaveBeenCalled();
+    // A request granted leaves no refusal pending for a later stray event.
     fs.toggle();
     await flush();
-    expect(refused).toHaveBeenCalledTimes(1);
     s.fire("fullscreenerror");
-    expect(refused).toHaveBeenCalledTimes(2);
-    s.fire("webkitfullscreenerror");
-    expect(refused).toHaveBeenCalledTimes(3);
+    expect(refused).not.toHaveBeenCalled();
   });
 
   it("follows each change, by either event's name, whatever made it", () => {

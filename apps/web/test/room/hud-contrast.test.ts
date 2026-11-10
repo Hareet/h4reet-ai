@@ -103,6 +103,27 @@ function rulesFor(selector: string, prelude: RegExp | null = null): CssRule[] {
   return [...top, ...nested].filter((r) => r.selector.split(",").some((s) => s.trim() === selector));
 }
 
+/** A selector's specificity, [ids, classes and attributes and pseudo-classes, types and pseudo-elements], for the
+ *  plain selectors room.css writes (no :is, :not, :where, or :has). */
+function specificity(selector: string): [number, number, number] {
+  let s = selector;
+  const take = (re: RegExp): number => {
+    const n = (s.match(re) ?? []).length;
+    s = s.replace(re, " ");
+    return n;
+  };
+  const attributes = take(/\[[^\]]*\]/g);
+  const elements = take(/::[\w-]+/g);
+  const pseudo = take(/:[\w-]+(\([^)]*\))?/g);
+  const ids = take(/#[\w-]+/g);
+  const classes = take(/\.[\w-]+/g);
+  const types = take(/(^|[\s>+~])[a-zA-Z][\w-]*/g);
+  return [ids, classes + attributes + pseudo, types + elements];
+}
+
+const outranks = (a: [number, number, number], b: [number, number, number]): boolean =>
+  a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2];
+
 const declared = (selector: string, property: string): string | undefined =>
   rulesFor(selector)
     .filter((r) => r.declarations.has(property))
@@ -164,6 +185,54 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
       expect(declared(`${at} .room-walk`, "background"), at).toBe(GLASS);
       expect(declared(`${at} .room-walk`, "color"), at).toBe("var(--hud-text)");
     }
+  });
+
+  // The review of 60b51de4's nit: the fallbacks for less transparency, more contrast, no backdrop blur, and forced
+  // colours lost to the HUD's own rules, which name the root's attributes. Each now outranks the rule it undoes.
+  it("lets each fallback outrank the HUD's rule it undoes", () => {
+    expect(specificity('html[data-blur="on"] .hud-glass')).toEqual([0, 2, 1]);
+    expect(specificity(":root[data-hud] .hud-glass button:focus-visible")).toEqual([0, 4, 1]);
+    const FALLBACKS: [RegExp, string, string, string][] = [];
+    for (const block of [/prefers-reduced-transparency/, /prefers-contrast: more/, /^@supports not/, /forced-colors/])
+      for (const p of ["backdrop-filter", "-webkit-backdrop-filter"])
+        FALLBACKS.push([block, p, "none", 'html[data-blur="on"] .hud-glass']);
+    for (const at of [HUD, DOCK])
+      FALLBACKS.push(
+        [/forced-colors/, "background", "Canvas", `${at} .hud-glass`],
+        [/forced-colors/, "color", "CanvasText", `${at} .hud-glass`],
+        [/forced-colors/, "background", "ButtonFace", `${at} .hud-tile`],
+        [/forced-colors/, "color", "ButtonText", `${at} .hud-tile`],
+        [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass button:focus-visible`],
+        [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass input:focus-visible`],
+        [/forced-colors/, "outline-color", "Highlight", `${at} .hud-glass.room-walk:focus-visible`],
+      );
+    const losing: string[] = [];
+    for (const [block, property, value, rule] of FALLBACKS) {
+      const selectors = SHEET.atRules
+        .filter((a) => block.test(a.prelude))
+        .flatMap((a) => parseCss(a.body).rules)
+        .filter((r) => r.declarations.get(property) === value)
+        .flatMap((r) => r.selector.split(",").map((s) => s.trim()));
+      if (!selectors.some((s) => outranks(specificity(s), specificity(rule))))
+        losing.push(`${String(block)} ${property}: ${value} under ${rule}`);
+    }
+    expect(losing).toEqual([]);
+  });
+
+  // The review of 60b51de4's nit: the walking view's ring sat at the window's edge, under the HUD. It is drawn at the
+  // clear area: the HUD's yellow outside and a band of the glass's colour inside, so one of them reaches 3:1 over any
+  // scene pixel, white or black.
+  it("draws the walking view's focus at the clear area, yellow over a dark band, at 3:1 over white and black", () => {
+    for (const at of [HUD, DOCK]) {
+      const view = `${at} .room-stage-view[role="application"]:focus-visible`;
+      expect(declared(view, "outline"), at).toBe("none");
+      expect(declared(`${view} + .room-clear`, "outline"), at).toBe("3px solid var(--hud-focus)");
+      expect(declared(`${view} + .room-clear`, "outline-offset"), at).toBe("-3px");
+      expect(declared(`${view} + .room-clear`, "box-shadow"), at).toBe("inset 0 0 0 5px rgb(var(--glass))");
+    }
+    const p = palette();
+    expect(ratio(colour(p.get("--hud-focus") ?? "").rgb, BLACK)).toBeGreaterThanOrEqual(3);
+    expect(ratio(colour(p.get("--glass") ?? "").rgb, WHITE)).toBeGreaterThanOrEqual(3);
   });
 
   it("blurs behind the glass only under data-blur on, in both its forms, and never relies on it (PD-17)", () => {

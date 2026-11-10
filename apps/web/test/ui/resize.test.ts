@@ -10,6 +10,10 @@ import { describe, expect, it } from "vitest";
 import { fitsHud, hudBoxes } from "../../src/room/compose/hud";
 import type { HudMetrics } from "../../src/room/compose/hud";
 import type { WindowMeasures } from "../../src/room/hud/viewport";
+import { bufferRatio } from "../../src/room/fit";
+import { qualitySettings } from "../../src/room/scene/levels";
+import { createFrameLog } from "../../src/room/signals/frame-log";
+import type { FrameLogEntry } from "../../src/room/signals/frame-log";
 import { button, flush, intoRoom, start, stubViewport, talkLog } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
@@ -169,5 +173,38 @@ describe("a measured strip (T046, finding 3)", () => {
     viewport.set({ strip: 80 });
     expect(v.doc.documentElement.style.getPropertyValue("--strip-h")).toBe("80px");
     expect(v.doc.documentElement.style.getPropertyValue("--clear-y")).toBe("80px");
+  });
+});
+
+// The review of 60b51de4's nit (FR-063; plan.md §12.4): a re-fit's frame-log entry holds the drawing buffer's size and
+// the buffer's ratio, which the level's ratio and pixel cap bound, not the device's pixel ratio.
+describe("a re-fit's frame-log entry (FR-063)", () => {
+  it("records the window, the layout, the clear area, the buffer's size, and its ratio", async () => {
+    const viewport = stubViewport({ w: 1280, h: 720, dpr: 1 });
+    const v = start({ webgl: true, viewport: viewport.factory, frameLog: createFrameLog });
+    await intoRoom(v);
+    for (const step of [
+      { w: 2560, h: 1440, dpr: 2 },
+      { w: 3840, h: 2160, dpr: 1.5 },
+      { w: 390, h: 844, dpr: 3 },
+    ]) {
+      viewport.set(step);
+      const log = JSON.parse((v.win as unknown as { h4FrameLog(): string }).h4FrameLog()) as {
+        entries: FrameLogEntry[];
+      };
+      const entry = log.entries.filter((e) => e.event === "refit").at(-1);
+      const ratio = bufferRatio(step.dpr, qualitySettings(0), step.w, step.h);
+      const b = hudBoxes(step);
+      expect(entry, `${step.w} × ${step.h}`).toMatchObject({
+        w: step.w,
+        h: step.h,
+        layout: b.layout,
+        clear: `${b.clear.x},${b.clear.y},${b.clear.w},${b.clear.h}`,
+        buffer: `${Math.floor(step.w * ratio)}x${Math.floor(step.h * ratio)}`,
+        ratio,
+      });
+    }
+    // The level's cap binds at 2560 × 1440 at a ratio of 2: the buffer's ratio is 1, not the device's.
+    expect(bufferRatio(2, qualitySettings(0), 2560, 1440)).toBe(1);
   });
 });

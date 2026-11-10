@@ -615,7 +615,11 @@ export function stubFullscreen(v: Visit, o: { supported?: boolean; refuse?: bool
   Object.defineProperty(doc, "fullscreenElement", { configurable: true, get: () => element });
   root.requestFullscreen = (options?: unknown) => {
     asked.push(options);
-    if (o.refuse) return Promise.reject(new TypeError("refused"));
+    // A refusal as browsers make it: the error event, then the rejection (the review of 60b51de4's nit).
+    if (o.refuse) {
+      fire("fullscreenerror");
+      return Promise.reject(new TypeError("refused"));
+    }
     element = root;
     fire("fullscreenchange");
     return Promise.resolve();

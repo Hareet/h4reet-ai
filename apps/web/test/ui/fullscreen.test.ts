@@ -12,6 +12,8 @@ import { noPolicy } from "../../build/room/policy";
 import type { RoomIndex } from "../../src/room/compose/bundle";
 import type { TurnResult } from "../../src/room/signals/turn-cost";
 import type { TurnRequest } from "../../src/talk/talk";
+import { createFrameLog } from "../../src/room/signals/frame-log";
+import type { FrameLogEntry } from "../../src/room/signals/frame-log";
 import { createWalkInput } from "../../src/room/walk/input";
 import {
   announcer,
@@ -42,11 +44,14 @@ const escape = (v: Visit, target: EventTarget): void => {
   target.dispatchEvent(new v.win.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
 };
 
-async function room(o: { supported?: boolean; refuse?: boolean; index?: RoomIndex; sendTurn?: () => void } = {}) {
+async function room(
+  o: { supported?: boolean; refuse?: boolean; index?: RoomIndex; sendTurn?: () => void; frameLog?: boolean } = {},
+) {
   const v = start({
     webgl: true,
     ...(o.index ? { room: o.index } : {}),
     ...(o.sendTurn ? { sendTurn: o.sendTurn } : {}),
+    ...(o.frameLog ? { frameLog: createFrameLog } : {}),
   });
   const fs = stubFullscreen(v, o);
   await intoRoom(v);
@@ -86,12 +91,23 @@ describe("the full-screen control (FR-036, FR-040, FR-042)", () => {
   });
 
   it("says once that full screen isn't available when the request is refused, and keeps focus on the control", async () => {
-    const { v } = await room({ refuse: true });
+    // The browser's real sequence, the error event and then the rejection (the review of 60b51de4's nit): one refusal.
+    const { v } = await room({ refuse: true, frameLog: true });
+    // Each thing the status region is told: a record a new text node makes.
+    let said = 0;
+    new v.win.MutationObserver((records) => {
+      said += records.filter((r) => r.type === "childList" && r.addedNodes.length > 0).length;
+    }).observe(announcer(v.doc), { childList: true });
     const control = button(v.doc, ENTER);
     control.focus();
     control.click();
     await flush();
     expect(textOf(announcer(v.doc))).toBe(REFUSED);
+    expect(said).toBe(1);
+    const log = JSON.parse((v.win as unknown as { h4FrameLog(): string }).h4FrameLog()) as {
+      entries: FrameLogEntry[];
+    };
+    expect(log.entries.filter((e) => e.event === "fullscreen" && e.state === "refused")).toHaveLength(1);
     expect(v.doc.activeElement).toBe(control);
     expect(textOf(control.querySelector(".hud-tile-words"))).toBe(ENTER);
   });

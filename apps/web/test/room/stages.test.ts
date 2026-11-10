@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_METRICS, OPENING, clearArea, fitsHud, layoutFor } from "../../src/room/compose/hud";
+import { DEFAULT_METRICS, HUD_PLACEMENTS, OPENING, clearArea, fitsHud, layoutFor } from "../../src/room/compose/hud";
+import { DEFAULT_TALK_LIMITS } from "../../src/talk/talk";
+import { textWidth } from "../ui/hud-model";
 import {
   ASPECTS,
   NAMED_SCREENS,
@@ -290,6 +292,24 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
       expect(r.decls.has("max-width"), "body.in-room's max-width").toBe(false);
       expect(r.decls.has("padding"), "body.in-room's padding").toBe(false);
     }
+  });
+
+  // The review of 60b51de4's nit: the characters-left counter, a third line under the text box's row, spilled over the
+  // bar, since the dock's height (the table's talk entry) counts the label's line and the row. In the dock it shares
+  // the label's line, on its right, and both fit there at the narrowest window, its widest words included.
+  it("keep the dock's characters-left counter on the label's line, which the dock's height counts", () => {
+    expect(decl(`${DOCK} .talk-form`, "grid-template-columns")).toBe("1fr auto");
+    expect(decl(`${DOCK} .talk-form label`, "grid-row")).toBe("1");
+    expect(decl(`${DOCK} .talk-form label`, "grid-column")).toBe("1");
+    expect(decl(`${DOCK} .talk-counter`, "grid-row")).toBe("1");
+    expect(decl(`${DOCK} .talk-counter`, "grid-column")).toBe("2");
+    expect(decl(`${DOCK} .talk-counter`, "line-height")).toBe(String(HUD_PLACEMENTS.talk.lineHeight));
+    expect(decl(`${DOCK} .talk-row`, "grid-column")).toBe("1 / -1");
+    const rem = DEFAULT_METRICS.rem;
+    const size = HUD_PLACEMENTS.talk.labelRem * rem;
+    const widest = `${Math.ceil(DEFAULT_TALK_LIMITS.turnMaxChars * 0.2)} characters left`;
+    const words = textWidth("Your message", size) + HUD_PLACEMENTS.talk.gapRem * rem + textWidth(widest, size);
+    expect(words).toBeLessThanOrEqual(320 - 2 * HUD_PLACEMENTS.dock.padRem * rem);
   });
 
   it("keep the 2D drawing's container rule and the walking control's box", () => {
