@@ -2,7 +2,7 @@
 // HUD's look on the page. jsdom computes no style, so the cascade is read here from the room's stylesheets: for each HUD
 // control in the column and dock layouts, the winning rule for its background by specificity and order, outside any
 // at-rule. Every control is a tile on the dark glass, never the page's white base button, and the resume's panel keeps
-// spec 005's document look; the notes are glass chips; the headings take the chalkboard's hand-lettered face and the
+// spec 005's document look; the notes are glass chips; the headings take the slate's hand-lettered face and the
 // figures the mono; no font, url(), or package is added; every transition sits under prefers-reduced-motion:
 // no-preference, at most 150 ms; the stacked layout keeps the page's buttons; the fallbacks make the glass opaque; the
 // column's log rests at --log-rest and scrolls; and the room sets the compact boxes' properties from compactBoxes.
@@ -31,6 +31,20 @@ const RULES: readonly Rule[] = (() => {
     for (const a of sheet.atRules) add(a.body, a.prelude);
   };
   for (const s of stylesheets()) add(s.text, null);
+  return out;
+})();
+
+/** The rules of room.css and talk.css alone, the HUD's own stylesheets. */
+const HUD_RULES: readonly Rule[] = (() => {
+  const out: Rule[] = [];
+  const add = (text: string, at: string | null): void => {
+    const sheet = parseCss(text);
+    for (const r of sheet.rules)
+      for (const selector of r.selector.split(","))
+        out.push({ selector: selector.trim(), declarations: r.declarations, order: 0, at });
+    for (const a of sheet.atRules) add(a.body, a.prelude);
+  };
+  for (const s of stylesheets().filter((x) => /(room|talk)\.css$/.test(x.path))) add(s.text, null);
   return out;
 })();
 
@@ -136,7 +150,7 @@ describe("the notes, the type, and the motion (spec 014, T024; FR-023, FR-024, F
     expect(notes ? winning(notes, "pointer-events") : undefined).toBe("none");
   });
 
-  it("sets the headings in the chalkboard's face and the figures in the mono, from the site's own fonts", async () => {
+  it("sets the headings in the hand-lettered face and the figures in the mono, from the site's own fonts", async () => {
     const v = await room({ w: 1920, h: 1200 });
     const heading = v.doc.querySelector(".room-list-heading");
     const talkHead = v.doc.querySelector(".talk-head");
@@ -155,7 +169,10 @@ describe("the notes, the type, and the motion (spec 014, T024; FR-023, FR-024, F
   });
 
   it("puts every HUD transition under prefers-reduced-motion: no-preference, each at most 150 ms", () => {
-    const withTransition = RULES.filter((r) => r.declarations.has("transition") && /room|hud|talk/.test(r.selector));
+    // The HUD's stylesheets, room.css and talk.css; spec 012's loader card keeps its own fade, which this spec leaves.
+    const withTransition = HUD_RULES.filter(
+      (r) => r.declarations.has("transition") && !/^none\b/.test(r.declarations.get("transition") ?? ""),
+    );
     expect(withTransition.length).toBeGreaterThan(0);
     for (const r of withTransition) {
       expect(r.at, r.selector).toBe("@media (prefers-reduced-motion: no-preference)");

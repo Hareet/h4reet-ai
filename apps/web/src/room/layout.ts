@@ -45,6 +45,11 @@ export interface HudApplied {
   readonly clear: Box;
   /** Spec 014 (FR-003, FR-009): the frame area the room is framed into, the clear area where there is none. */
   readonly frame: Box;
+  /** Spec 014 (FR-017 to FR-021; plan.md §3.2): the column layout's compact clusters, compose/hud.ts's compactBoxes: the
+   *  strip's place and width, the bar's width, and the column's height; and the log's rest height in the column, in
+   *  CSS pixels. */
+  readonly compact: { readonly strip: Box; readonly bar: Box; readonly column: Box | null };
+  readonly logRest: number;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
@@ -298,6 +303,12 @@ export function renderRoom(
         ["--safe-left", safe.left],
         ["--keyboard", applied.keyboard],
         ["--notes-h", applied.notes],
+        // Spec 014 (FR-017 to FR-021; plan.md §3.2): the compact clusters, which room.css's column layout reads.
+        ["--strip-x", applied.compact.strip.x],
+        ["--strip-w", applied.compact.strip.w],
+        ["--bar-w", applied.compact.bar.w],
+        ["--column-h", applied.compact.column?.h ?? 0],
+        ["--log-rest", applied.logRest],
         // Spec 014 (FR-003; plan.md §2.5, §3.2): the frame area, where the 2D drawing's view sits.
         ["--frame-x", applied.frame.x],
         ["--frame-y", applied.frame.y],

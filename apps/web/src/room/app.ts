@@ -72,7 +72,7 @@ import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
 import { frameArea } from "./compose/frame";
 import type { FrameArea, Protect } from "./compose/frame";
-import { OPENING, compactBoxes, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
+import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve } from "./compose/hud";
 import type { HudState } from "./compose/hud";
 import { flatProtectorFor } from "./compose/protect";
 import { h } from "./dom";
@@ -255,6 +255,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       dock: boxes.dock?.h ?? 0,
       clear: boxes.clear,
       frame: framed?.area ?? boxes.clear,
+      compact: { strip: compact.strip, bar: compact.bar, column: compact.column },
+      logRest: logRestRem(screen, metrics) * m.rem,
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
     });
@@ -300,6 +302,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     targeting = reduceTarget(targeting, event);
     const after = targeting.target;
     if (after === before) return;
+    // Spec 014 (FR-025): the target's list button shows its selection by the neon's edge, aria-current beside it.
+    for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
+      if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
     try {
       stage?.setTarget(after);
     } catch {
