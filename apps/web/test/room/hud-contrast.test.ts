@@ -152,6 +152,10 @@ describe("the HUD's palette (room.css; FR-024, FR-025)", () => {
       expect(declared(`${at} .hud-tile`, "border"), at).toBe("1px solid var(--tile-border)");
       expect(declared(`${at} .hud-glass button:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
       expect(declared(`${at} .hud-glass a:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
+      // The conversation's text box too, on the panels' glass (the review of 60b51de4, finding 4; FR-024, SC-003): the
+      // room's blue ring falls below 3:1 on the dark glass.
+      expect(declared(`${at} .hud-glass input:focus-visible`, "outline"), at).toBe("2px solid var(--hud-focus)");
+      expect(declared(`${at} .hud-glass input:focus-visible`, "outline-offset"), at).toBe("2px");
       expect(declared(`${at} .hud-tile[aria-pressed="true"]`, "box-shadow"), at).toBe(
         "inset 0 0 0 2px var(--hud-text)",
       );
