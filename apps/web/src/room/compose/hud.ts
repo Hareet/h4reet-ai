@@ -36,6 +36,10 @@ export interface Insets {
 export interface HudMetrics {
   readonly rem: number;
   readonly safe: Insets;
+  /** The strip's height the window measured, its safe area included, where text spacing or a minimum font size makes
+   *  its words take more lines than the table's band gives: a floor for the strip's box (the review of 60b51de4,
+   *  finding 3; FR-049). Absent, the table's alone, as the compositor counts it. */
+  readonly strip?: number;
 }
 
 /** The compositor's metrics: the browser's default root font size, and no safe areas. */
@@ -185,7 +189,7 @@ export function hudBoxes(
   const { rem, safe } = metrics;
   const layout = layoutFor(screen, metrics);
   const stripH = stripLines(screen, metrics) * t.strip.fontRem * t.strip.lineHeight * rem + 2 * t.strip.padYRem * rem;
-  const strip: Box = { x: 0, y: 0, w: screen.w, h: safe.top + stripH };
+  const strip: Box = { x: 0, y: 0, w: screen.w, h: Math.max(safe.top + stripH, metrics.strip ?? 0) };
   const rows = barRows(screen, metrics);
   const barH = rows * t.bar.tileRem * rem + (rows - 1) * t.bar.gapRem * rem + 2 * t.bar.padRem * rem + safe.bottom;
   const bar: Box = { x: 0, y: screen.h - barH, w: screen.w, h: barH };

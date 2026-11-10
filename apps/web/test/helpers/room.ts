@@ -578,6 +578,7 @@ export function stubViewport(initial: Partial<WindowMeasures> = {}) {
     rem: 16,
     safe: { top: 0, right: 0, bottom: 0, left: 0 },
     keyboard: 0,
+    strip: 0,
     ...initial,
   };
   const listeners = new Set<(what: ViewportChange) => void>();

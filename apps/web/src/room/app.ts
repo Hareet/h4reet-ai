@@ -201,7 +201,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const layout = room;
     if (!layout || !viewport) return;
     const m: WindowMeasures = viewport.read();
-    const metrics = { rem: m.rem, safe: m.safe };
+    const metrics = { rem: m.rem, safe: m.safe, strip: m.strip };
     const screen = { w: m.w, h: m.h };
     const boxes = hudBoxes(screen, hudState, metrics);
     const fits = fitsHud(screen, hudState, metrics);

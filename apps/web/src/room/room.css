@@ -385,14 +385,14 @@ html[data-hud="dock"] .disclosure {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--strip-h);
+  /* At least the table's height, and taller where its words need it: never clipped (FR-049; the review's finding 3). */
+  min-height: var(--strip-h);
   z-index: 5;
   box-sizing: border-box;
   padding: calc(0.25rem + var(--safe-top)) calc(0.5rem + var(--safe-right)) 0.25rem calc(0.5rem + var(--safe-left));
   color: var(--hud-text);
   background: rgb(var(--glass) / var(--glass-alpha));
   border-bottom: 0;
-  overflow: hidden;
 }
 
 html[data-hud="column"] .disclosure p,

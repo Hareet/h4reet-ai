@@ -23,6 +23,9 @@ export interface WindowMeasures {
   readonly safe: Insets;
   /** The on-screen keyboard's inset over the window's foot. */
   readonly keyboard: number;
+  /** The AI disclosure's strip as drawn in the HUD: its words' height and its padding, 0 before the HUD lays it out.
+   *  Text spacing or a minimum font size can make it taller than the table gives (the review of 60b51de4, finding 3). */
+  readonly strip: number;
 }
 
 /** What the window changed: a re-fit, or the keyboard's inset alone. */
@@ -66,6 +69,16 @@ export function createViewport(win: Window, doc: Document = win.document): Viewp
         }
       : NONE;
     const fontSize = typeof win.getComputedStyle === "function" ? number(win.getComputedStyle(root).fontSize) : 0;
+    // The strip's natural height, but not in the stacked layout, whose header is the page's own. Before the first
+    // layout the words are at the page's size; the HUD's size changes their box, and the observer below re-fits.
+    const header = doc.querySelector<HTMLElement>("header.disclosure");
+    const words = header?.querySelector("p");
+    const hud = root.getAttribute("data-hud") !== "stacked";
+    let strip = 0;
+    if (hud && header && words && typeof win.getComputedStyle === "function") {
+      const pad = win.getComputedStyle(header);
+      strip = words.getBoundingClientRect().height + number(pad.paddingTop) + number(pad.paddingBottom);
+    }
     const vv = win.visualViewport;
     const h = win.innerHeight;
     // What the visual viewport loses at its foot, while the visitor hasn't pinch-zoomed: a zoom shrinks it too, and is
@@ -78,6 +91,7 @@ export function createViewport(win: Window, doc: Document = win.document): Viewp
       rem: fontSize || 16,
       safe,
       keyboard: Math.round(inset),
+      strip,
     };
   };
 
@@ -100,6 +114,9 @@ export function createViewport(win: Window, doc: Document = win.document): Viewp
   const Observer = (win as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
   const observer = typeof Observer === "function" ? new Observer(() => refit()) : null;
   observer?.observe(doc.documentElement);
+  // The strip's words, whose box text spacing or a font size changes without the window changing.
+  const stripWords = doc.querySelector("header.disclosure p");
+  if (stripWords) observer?.observe(stripWords);
   win.visualViewport?.addEventListener("resize", keyboard);
   win.visualViewport?.addEventListener("scroll", keyboard);
 
