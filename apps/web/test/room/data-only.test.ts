@@ -71,6 +71,7 @@ import {
   intoRoom,
   makeWindow,
   nameOf,
+  repositoryBundle,
   talkLog,
   textOf,
 } from "../helpers/room";
@@ -1008,5 +1009,33 @@ describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
     expectDataOnly(c);
     expect(read(c.result.scene)).toBe(value);
     expect(read(base.scene)).not.toBe(value);
+  });
+});
+
+// T037 (spec 014; FR-044, FR-045, FR-049; SC-007; Amendment W10): the neon sign's glow is a path along its tube, the
+// arrow's outline, a data edit: the composed part's sign gives a path and a spread and no radius, so the room draws no
+// disc behind it; and the ribbon covers less of the sign's plane than the disc did, 0.3 m in radius, both at the sign's
+// stylized scale, so less of any screen it is projected onto.
+describe("the neon sign's path glow (spec 014, T037)", () => {
+  it("gives the sign's tube-glow a path and a spread, no radius, and less area than the disc", () => {
+    const { scene: part } = repositoryBundle();
+    const sign = part.pieces["neon-sign"];
+    const glow = sign?.glows["tube-glow"] as { path?: [number, number, number][]; spread?: number; radius?: number };
+    expect(glow.radius).toBeUndefined();
+    expect(glow.path?.length).toBeGreaterThanOrEqual(2);
+    expect(glow.spread).toBeGreaterThan(0);
+    const s = sign?.scale ?? 1;
+    let length = 0;
+    for (let i = 0; i + 1 < (glow.path?.length ?? 0); i += 1) {
+      const [a, b] = [glow.path?.[i] ?? [0, 0, 0], glow.path?.[i + 1] ?? [0, 0, 0]];
+      length += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    }
+    const ribbon = length * 2 * (glow.spread ?? 0) * s * s;
+    const disc = Math.PI * (0.3 * s) ** 2;
+    expect(ribbon).toBeLessThan(disc);
+    // The laptop's charge light and the screens keep their discs (FR-048).
+    for (const piece of Object.values(part.pieces))
+      for (const [id, g] of Object.entries(piece.glows))
+        if (id !== "tube-glow") expect((g as { radius?: number }).radius, id).toBeGreaterThan(0);
   });
 });

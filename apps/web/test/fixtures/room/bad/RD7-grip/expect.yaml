@@ -1,0 +1,6 @@
+rule: RD7
+file: apps/web/room/scene.yaml
+path: figures.grips.robot
+why: a grip for an avatar outside the room's table (spec 014, FR-039)
+edits:
+  - { file: apps/web/room/scene.yaml, at: [figures, grips, robot], set: { right: { at: [0, 0.05, 0], turn: { x: 0, y: 0, z: 0 } } } }

@@ -1,0 +1,8 @@
+rule: RG10
+file: apps/web/room/catalog/fx-neon.yaml
+path: glows[0].path[1]
+why: a path glow's point outside its piece's bounds (spec 014, FR-045)
+edits:
+  - { file: apps/web/room/catalog/fx-neon.yaml, at: [glows, 0, radius], delete: true }
+  - { file: apps/web/room/catalog/fx-neon.yaml, at: [glows, 0, path], set: [[-0.2, 0.05, 0.01], [0.2, 0.5, 0.01]] }
+  - { file: apps/web/room/catalog/fx-neon.yaml, at: [glows, 0, spread], set: 0.01 }
