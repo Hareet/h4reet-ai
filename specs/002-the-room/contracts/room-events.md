@@ -21,6 +21,7 @@ Spec: FR-054, FR-056, SC-010. Plan: §6. Research: R-10. Data: [data-model.md](.
 | `voice_pressed` | – | the talk button is pressed |
 | `mode_2d` | – | the room enters the 2D mode |
 | `fullscreen_entered` | – | **(spec 005)** the visitor first enters full screen in a visit (its FR-060; Amendment H7). Specs 008 and 009 added `walk_started` and `avatar_failed` before it, in their own amendments; `config/room-events.yaml`, generated from `apps/web/src/room/events.ts`, lists every kind |
+| `loading_cut_short` | – | **(spec 012)** the loader gives way at its ceiling while the room's files are still loading, once a visit (its FR-046; Amendment L3). §3 is unchanged, so the gateway refuses the kind with an `id` |
 
 Nothing else goes in the body. A failed or refused beacon is ignored: the room doesn't retry, queue, or store it.
 

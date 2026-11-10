@@ -277,8 +277,8 @@ description: "Task list for spec 012, the room's loading screen"
 
 ### Implementation for User Story 6
 
-- [ ] T030 [US6] Add `loading_cut_short` to `apps/web/src/room/events.ts` and the emit in `app.ts`'s `giveWay`; run `npm run manifest` to regenerate `config/room-events.yaml` and the manifest; mark spec 002's room-events.md §1 and data-model.md §8 "(spec 012)" (L3). In the same commit, change row V4 (T031). Check: T029's web and gateway cases pass (feat/012-loading-screen)
-- [ ] T031 [US6] Row V4's Trigger in `docs/data-flow-disclosure.md` gains ", the loader giving way at its ceiling while the room's files are still loading, once a visit" before spec 009's closing clause (L5), in T030's commit, so the room never sends the kind without the row (FR-050). Check: T029's disclosure case passes (feat/012-loading-screen)
+- [x] T030 [US6] Add `loading_cut_short` to `apps/web/src/room/events.ts` and the emit in `app.ts`'s `giveWay`; run `npm run manifest` to regenerate `config/room-events.yaml` and the manifest; mark spec 002's room-events.md §1 and data-model.md §8 "(spec 012)" (L3). In the same commit, change row V4 (T031). Check: T029's web and gateway cases pass (feat/012-loading-screen)
+- [x] T031 [US6] Row V4's Trigger in `docs/data-flow-disclosure.md` gains ", the loader giving way at its ceiling while the room's files are still loading, once a visit" before spec 009's closing clause (L5), in T030's commit, so the room never sends the kind without the row (FR-050). Check: T029's disclosure case passes (feat/012-loading-screen)
 - [ ] T032 [US6] In one commit: spec 000's contracts/telemetry.md §7.8 gains "Visits whose loading was cut short" with the spec's query and its reading of the denominator, marked "(spec 012)"; `deploy/grafana/dashboards/h4-runtime.json` gains the panel beside "Visits in full screen", with that description (L4). Check: T029's dashboard case passes (feat/012-loading-screen)
 
 **Checkpoint**: the ceiling's bite is counted, graphed, and disclosed.

@@ -478,6 +478,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The loader's end line, said together with the hand-off's line when the hand-off starts in the same call, since
    *  the status region holds one text at a time (plan.md's departure C3). */
   let endLine: string | null = null;
+  /** Whether this visit's loading was cut short: loading_cut_short goes once a visit (FR-046). */
+  let cutShort = false;
 
   /** Shows the loader at "Enter" (contract §4, step 2). */
   function startLoading(layout: RoomLayout): void {
@@ -575,6 +577,12 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     layout.heading.focus();
     log?.record("loading", { state: "gave_way", why, value: state.value, done: state.done, total: state.total });
+    // The one byte about the loading that may leave the device (FR-046, FR-047; row V4): the ceiling cut it short, a
+    // needed file not ended, once a visit, with no identifier.
+    if (why === "ceiling" && !state.complete && !cutShort) {
+      cutShort = true;
+      emit({ kind: "loading_cut_short" });
+    }
     maybeStartHandoff();
   }
 

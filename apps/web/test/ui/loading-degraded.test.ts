@@ -421,7 +421,10 @@ describe("loading_cut_short (FR-046)", () => {
     expect(cutShort(ready.v)).toEqual([]);
     const late = start({ webgl: true, sceneHangs: true });
     await press(late);
-    late.clock.advance(LOADING_CEILING_MS);
+    // The late chunk's fall to 2D runs as its promise settles, between the two timers, as in a browser.
+    late.clock.advance(SCENE_WAIT_MS);
+    await flush();
+    late.clock.advance(LOADING_CEILING_MS - SCENE_WAIT_MS);
     await flush();
     expect(late.room.visit.mode).toBe("2d");
     expect(cutShort(late)).toEqual([]);
