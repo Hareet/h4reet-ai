@@ -36,6 +36,7 @@ import { modelEntries } from "../../src/room/scene/loader";
 import { png } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
+import { repositoryBundle } from "../helpers/room";
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -1313,5 +1314,18 @@ describe("the manifest (Amendment B7; contracts/room-bundle.md §6)", () => {
     expect(manifest.items).toEqual(["fx-item-one", "fx-item-two"]);
     expect(manifest.caps).toEqual({ source: "policy-dir", sha256: policy.caps_sha256 });
     expect(manifest.build_kind).toBe("release");
+  });
+});
+
+// T040 (spec 014; FR-053; plan.md PD-17; Amendment W11): the index's placeholders flag counts the room's stand-ins
+// alone, the manifest's `standins`, never an avatar without its model: the repository's room, whose twin and two avatar
+// choices have no model, flags it only where a piece shows its stand-in; with every piece a stand-in, it does.
+describe("the placeholders flag (spec 014, T040)", () => {
+  it("is the room's stand-ins alone, never an avatar's missing model", () => {
+    const set = repositoryBundle();
+    expect(set.index.build.placeholders).toBe(set.manifest.standins.length > 0);
+    const all = repositoryBundle({ standins: true });
+    expect(all.manifest.standins.length).toBeGreaterThan(0);
+    expect(all.index.build.placeholders).toBe(true);
   });
 });
