@@ -70,8 +70,11 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
-import { OPENING, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
+import { frameArea } from "./compose/frame";
+import type { FrameArea, Protect } from "./compose/frame";
+import { OPENING, compactBoxes, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
 import type { HudState } from "./compose/hud";
+import { flatProtectorFor } from "./compose/protect";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -114,7 +117,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { ClearArea, FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
+import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -203,8 +206,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
   let viewport: Viewport | null = null;
   /** The clear area the 3D stage frames the room into, in the canvas's CSS pixels, with the window it was computed for;
-   *  null in the stacked layout, where the canvas is its own stage. */
+   *  null in the stacked layout, where the canvas is its own stage. Since spec 014 it is the frame's far end and its
+   *  fallback; the stage frames into `frame`. */
   let clear: ClearArea | null = null;
+  /** Spec 014 (FR-009 to FR-016; contracts/frame-area.md §7; plan.md §2.4): the frame area the room is framed into, the
+   *  window it was computed for, its ease, the compact boxes, and the clear area; null in the stacked layout. */
+  let frame: FrameGiven | null = null;
+  /** The 2D drawing's protector, from the index: its hit areas' cores and its figures' drawn boxes (PD-23). */
+  const flatProtect = flatProtectorFor(deps.room);
+  /** The protector the frame area takes: the 3D stage's, from its part, while it draws; the 2D drawing's while it does;
+   *  none before a stage, when the room frames into the clear area, as before spec 014. */
+  const protector = (): Protect | null =>
+    stage?.mode === "2d" ? flatProtect : stage?.mode === "3d" ? ((stage as Stage3D).protect ?? null) : null;
   /** The quality controller's hold while the window changes: released SETTLE_FRAMES frames after the last re-fit, so a
    *  drag never steps the quality down (FR-013; PD-15). */
   let settling: { release: () => void; frames: number } | null = null;
@@ -223,6 +236,15 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const screen = { w: m.w, h: m.h };
     const boxes = hudBoxes(screen, hudState, metrics);
     const fits = fitsHud(screen, hudState, metrics);
+    // Spec 014: the frame area, from the drawing stage's protector, or the clear area where there is none yet; never a
+    // throw, since frameArea falls back to the clear area (FR-004).
+    const protect = protector();
+    const framed: FrameArea | null = fits
+      ? protect
+        ? frameArea(screen, hudState, metrics, protect)
+        : { area: boxes.clear, ease: 1, fellBack: false }
+      : null;
+    const compact = compactBoxes(screen, hudState, metrics);
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -232,6 +254,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       column: boxes.column?.w ?? 0,
       dock: boxes.dock?.h ?? 0,
       clear: boxes.clear,
+      frame: framed?.area ?? boxes.clear,
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
     });
@@ -240,6 +263,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     talk?.setDocked(fits && boxes.layout === "dock");
     if (what === "keyboard") return;
     clear = fits ? { area: boxes.clear, window: screen } : null;
+    frame = framed
+      ? { window: screen, area: framed.area, ease: framed.ease, hud: compact.all, clear: boxes.clear }
+      : null;
+    if (framed?.fellBack) log?.record("frame_fallback", { w: m.w, h: m.h });
     if (controller) {
       if (settling) settling.frames = SETTLE_FRAMES;
       else settling = { release: controller.hold(), frames: SETTLE_FRAMES };
@@ -251,11 +278,15 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       const canvas = fits ? screen : { w: layout.view.clientWidth, h: layout.view.clientHeight };
       const ratio = bufferRatio(m.dpr, qualitySettings(visit.quality), canvas.w, canvas.h);
       const drawn = visit.mode !== "2d" && canvas.w > 0 && canvas.h > 0;
+      const area = framed?.area ?? null;
       log.record("refit", {
         w: m.w,
         h: m.h,
         layout: fits ? boxes.layout : "stacked",
         clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
+        // Spec 014 (FR-064): the frame area and its ease; the entry's own `frame` is its frame count.
+        frame_area: area ? `${area.x},${area.y},${area.w},${area.h}` : "none",
+        ease: framed?.ease ?? null,
         buffer: drawn ? `${Math.floor(canvas.w * ratio)}x${Math.floor(canvas.h * ratio)}` : "none",
         ratio: drawn ? ratio : null,
       });
@@ -889,6 +920,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         cost: cost.state,
         onFigure: figureSignal,
         clear: () => clear,
+        frame: () => frame,
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -896,6 +928,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     stage = scene3d;
     visit.mode = "3d";
+    // Spec 014: the 3D stage's protector frames the room from now, from its next frame.
+    refit();
     showTier(scene3d, live.tier.tier);
     show(scene3d);
     controller = createQualityController({
@@ -952,6 +986,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       flat = null;
     }
     stage = flat;
+    // Spec 014: the 2D drawing's protector frames it (FR-003).
+    refit();
     if (flat) show(flat);
     else {
       const words = uiWord(deps.room.ui, "flat-failed") ?? "";

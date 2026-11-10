@@ -56,7 +56,9 @@ import type { RoomText } from "../room/faces/words";
 import { loadOrder } from "../room/compose/load-order";
 import type { LoadEntry } from "../room/compose/load-order";
 import { framing } from "../room/compose/framing";
-import { clearArea, hudBoxes } from "../room/compose/hud";
+import { frameArea } from "../room/compose/frame";
+import { DEFAULT_METRICS, OPENING, compactBoxes, hudBoxes } from "../room/compose/hud";
+import { protectSceneOf, protectorFor } from "../room/compose/protect";
 import type { Box as ClearBox } from "../room/compose/hud";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../room/compose/stages";
 import type { Screen, Stage } from "../room/compose/stages";
@@ -150,6 +152,9 @@ export interface LookdevStage {
    *  cap in force; and the HUD's docked boxes, static, over a window view's canvas. */
   readonly window: Screen | null;
   readonly clear: ClearBox;
+  /** Spec 014 (FR-063; contracts/lookdev.md §6): in a window view, the frame area the room is framed into, its ease, as
+   *  the room's kernel gives them; null in a stage view. `clear` is then the frame area too. */
+  readonly frame: { readonly area: ClearBox; readonly ease: number } | null;
   readonly buffer: readonly [number, number];
   readonly cap: number;
   readonly hud: HTMLElement;
@@ -242,6 +247,8 @@ const LARGE_MONITOR: Screen = { w: 2560, h: 1440 };
 function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   const { win, clock, inputs } = options;
   const { part, index, lookdev, fixtures } = inputs;
+  /** Spec 014: the frame area's protector over the part, as the room's 3D stage builds it. */
+  const protect = protectorFor(protectSceneOf(part, index));
   const doc = win.document;
   const canvas = doc.createElement("canvas");
   canvas.className = "lookdev-canvas";
@@ -325,6 +332,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let ratio = 1;
   let windowed: Screen | null = null;
   let clear: ClearBox = { x: 0, y: 0, w: stage.w, h: stage.h };
+  /** Spec 014: the window view's frame area and its ease, or null. */
+  let framedArea: { readonly area: ClearBox; readonly ease: number } | null = null;
   let buffer: readonly [number, number] = [0, 0];
   let holds = 0;
   let disposed = false;
@@ -387,12 +396,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   function viewOf(v: ViewChoice): { stage: Stage; dpr: number; window?: Screen } {
     const device = options.device;
     const own = device && { stage: stageFor({ w: device.viewport[0], h: device.viewport[1] }), dpr: device.dpr };
-    // Spec 005's window views: the screen's whole window, its clear area the stage (FR-059; PD-25).
-    const windowed = (screen: Screen, dpr: number): { stage: Stage; dpr: number; window: Screen } => ({
-      stage: stageFor(screen),
-      dpr,
-      window: screen,
-    });
+    // Spec 005's window views: the screen's whole window, its clear area the stage (FR-059; PD-25); since spec 014, its
+    // frame area, by the room's own kernel over the part (its FR-063).
+    const windowed = (screen: Screen, dpr: number): { stage: Stage; dpr: number; window: Screen } => {
+      const f = frameArea(screen, OPENING, DEFAULT_METRICS, protect);
+      return { stage: { w: f.area.w, h: f.area.h }, dpr, window: screen };
+    };
     if (v === "window-desktop") return windowed(REFERENCE_DESKTOP.screen, REFERENCE_DESKTOP.dpr);
     if (v === "window-phone") return windowed(REFERENCE_PHONE.screen, REFERENCE_PHONE.dpr);
     if (v === "window-monitor") return windowed(LARGE_MONITOR, 1);
@@ -411,8 +420,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       root.removeAttribute("data-blur");
       return;
     }
+    // Spec 014: the compact boxes the room draws at rest, inside spec 005's bands.
     const b = hudBoxes(windowed);
-    const boxes = [b.strip, b.bar, b.column ?? b.dock ?? b.bar];
+    const c = compactBoxes(windowed);
+    const boxes = [c.strip, c.bar, c.column ?? c.dock ?? c.bar];
     hudParts.forEach((el, k) => {
       const box = boxes[k];
       if (!box) return;
@@ -436,9 +447,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     const v = viewOf(view);
     stage = v.stage;
     windowed = v.window ?? null;
-    // The canvas: the stage, or in a window view the whole window, the room framed into its clear area (spec 005).
+    // The canvas: the stage, or in a window view the whole window, the room framed into its clear area (spec 005), since
+    // spec 014 its frame area (its FR-063).
     const size = windowed ?? stage;
-    clear = windowed ? clearArea(windowed) : { x: 0, y: 0, w: stage.w, h: stage.h };
+    const f = windowed ? frameArea(windowed, OPENING, DEFAULT_METRICS, protect) : null;
+    framedArea = f ? { area: f.area, ease: f.ease } : null;
+    clear = f ? f.area : { x: 0, y: 0, w: stage.w, h: stage.h };
     // The room's buffer ratio: the device's, capped by the level's ratio and its pixel cap (spec 005, PD-11).
     ratio = bufferRatio(v.dpr, settings, size.w, size.h);
     buffer = [Math.floor(size.w * ratio), Math.floor(size.h * ratio)];
@@ -683,6 +697,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     },
     get window() {
       return windowed;
+    },
+    get frame() {
+      return framedArea;
     },
     get clear() {
       return clear;

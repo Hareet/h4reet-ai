@@ -52,6 +52,9 @@ export interface RunSetup {
   readonly window: readonly [number, number] | null;
   readonly buffer: readonly [number, number];
   readonly cap: number;
+  /** Spec 014 (FR-063): a window view's frame area, `[x, y, w, h]` in CSS pixels, and its ease; null in a stage view. */
+  readonly frame: readonly [number, number, number, number] | null;
+  readonly ease: number | null;
   /** The look's ID, and the fixture's. */
   readonly look: string;
   readonly sample: string;
@@ -92,6 +95,9 @@ export interface Results {
   readonly window_css: readonly [number, number] | null;
   readonly buffer_px: readonly [number, number];
   readonly pixel_cap: number;
+  /** Spec 014 (FR-063; contracts/lookdev.md §6): the frame area's ease and the frame area, or null in a stage view. */
+  readonly ease: number | null;
+  readonly frame_css: readonly [number, number, number, number] | null;
   readonly look: string;
   readonly sample: string;
   readonly quality: {
@@ -160,6 +166,8 @@ export function results(setup: RunSetup, run: RunReadouts): Results {
     window_css: setup.window === null ? null : [setup.window[0], setup.window[1]],
     buffer_px: [setup.buffer[0], setup.buffer[1]],
     pixel_cap: setup.cap,
+    ease: setup.ease,
+    frame_css: setup.frame === null ? null : [setup.frame[0], setup.frame[1], setup.frame[2], setup.frame[3]],
     look: setup.look,
     sample: setup.sample,
     quality: {

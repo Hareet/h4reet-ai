@@ -43,6 +43,8 @@ export interface HudApplied {
   readonly column: number;
   readonly dock: number;
   readonly clear: Box;
+  /** Spec 014 (FR-003, FR-009): the frame area the room is framed into, the clear area where there is none. */
+  readonly frame: Box;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
@@ -296,6 +298,11 @@ export function renderRoom(
         ["--safe-left", safe.left],
         ["--keyboard", applied.keyboard],
         ["--notes-h", applied.notes],
+        // Spec 014 (FR-003; plan.md §2.5, §3.2): the frame area, where the 2D drawing's view sits.
+        ["--frame-x", applied.frame.x],
+        ["--frame-y", applied.frame.y],
+        ["--frame-w", applied.frame.w],
+        ["--frame-h", applied.frame.h],
       ];
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem

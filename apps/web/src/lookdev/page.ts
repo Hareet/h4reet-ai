@@ -695,6 +695,11 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
             window: stage.window === null ? null : [stage.window.w, stage.window.h],
             buffer: stage.buffer,
             cap: stage.cap,
+            frame:
+              stage.frame === null
+                ? null
+                : [stage.frame.area.x, stage.frame.area.y, stage.frame.area.w, stage.frame.area.h],
+            ease: stage.frame?.ease ?? null,
             look: stage.look.id,
             sample: stage.sample?.id ?? "",
             quality: stage.quality,

@@ -381,11 +381,15 @@ export function selectablePicker(part: RoomScene, index: Pick<RoomIndex, "select
     // The walking control's box reserved, as RG6 reserves it: a side-wall selectable whose core lies under it is held
     // here exactly where the compositor's report lists it (spec 008, FR-021; plan.md §2); and at the follow camera,
     // where the control still stands, the carve-out applied there (FR-035).
-    held = listOnly(areas, [0, 0, next.w, next.h], sideWall, reservedBoxes(next));
+    // Spec 014 (FR-060): at a frame area, every HUD box over it, the stage's reserved boxes.
+    held = listOnly(areas, [0, 0, next.w, next.h], sideWall, next.reserved ?? reservedBoxes(next));
   };
+  let reservedKey = "";
   return {
     resize(next) {
-      if (stage !== null && next.w === stage.w && next.h === stage.h) return;
+      const key = JSON.stringify(next.reserved ?? null);
+      if (stage !== null && next.w === stage.w && next.h === stage.h && key === reservedKey) return;
+      reservedKey = key;
       measure(next);
     },
     setCamera(camera, next) {

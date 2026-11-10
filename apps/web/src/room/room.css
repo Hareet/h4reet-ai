@@ -211,8 +211,9 @@ html[data-hud="dock"] .room-stage {
   inset: 0;
 }
 
-/* The stage's view: the canvas's place. In 3D it fills the stage; loading, and in 2D, it sits in the clear area, the
-   drawing at its 8:5 shape inside it (`.flat`, its container). */
+/* The stage's view: the canvas's place. In 3D it fills the stage; loading, it sits in the clear area; in 2D, since spec
+   014, in the 2D drawing's frame area (its FR-003; plan.md §2.5), the drawing at its 8:5 shape inside it (`.flat`, its
+   container), centred, so the backdrop shows around it across the window. */
 .room-stage-view {
   position: absolute;
   inset: 0;
@@ -222,8 +223,6 @@ html[data-hud="dock"] .room-stage {
   container-type: size;
 }
 
-html[data-hud="column"] .room-stage-view[data-stage="2d"],
-html[data-hud="dock"] .room-stage-view[data-stage="2d"],
 html[data-hud="column"] .room-stage-view[data-stage="loading"],
 html[data-hud="dock"] .room-stage-view[data-stage="loading"] {
   inset: auto;
@@ -231,6 +230,15 @@ html[data-hud="dock"] .room-stage-view[data-stage="loading"] {
   top: var(--clear-y);
   width: var(--clear-w);
   height: var(--clear-h);
+}
+
+html[data-hud="column"] .room-stage-view[data-stage="2d"],
+html[data-hud="dock"] .room-stage-view[data-stage="2d"] {
+  inset: auto;
+  left: var(--frame-x);
+  top: var(--frame-y);
+  width: var(--frame-w);
+  height: var(--frame-h);
 }
 
 .room-loading,

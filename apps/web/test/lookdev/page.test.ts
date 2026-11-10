@@ -1273,6 +1273,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
       "window_css",
       "buffer_px",
       "pixel_cap",
+      // Spec 014 (FR-063; contracts/lookdev.md §6): the frame area's ease and the frame area.
+      "ease",
+      "frame_css",
       "look",
       "sample",
       "quality",
@@ -1695,7 +1698,15 @@ describe("the window views (spec 005, T026)", () => {
       expect([canvas.style.width, canvas.style.height]).toEqual([`${screen.w}px`, `${screen.h}px`]);
       expect(renderer.size).toEqual([screen.w, screen.h]);
       expect(renderer.ratio).toBeCloseTo(bufferRatio(dpr, qualitySettings(0), screen.w, screen.h), 12);
-      const clear = clearArea(screen);
+      // Spec 014 (FR-063): framed into the window's frame area, by the room's kernel over the part, which holds the
+      // clear area.
+      const clear = frameArea(
+        screen,
+        OPENING,
+        DEFAULT_METRICS,
+        protectorFor(protectSceneOf(given.part, given.index)),
+      ).area;
+      expect(clear.w).toBeGreaterThanOrEqual(clearArea(screen).w);
       expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
       const camera = page.stage.camera;
       expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);
