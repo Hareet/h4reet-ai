@@ -152,6 +152,52 @@ def test_it_logs_the_runtime_profile_in_with_home_at_aws_home(stage: Stage) -> N
     assert "make operator-status ENV=prod" in done.stdout
 
 
+def test_a_profile_chained_to_h4_laptop_bedrock_logs_its_source_in(
+    stage: Stage,
+) -> None:
+    # Spec 001's group 4 (its tasks.md T036 and T040; docs/runbooks/laptop.md): h4reet-bedrock assumes h4-laptop-bedrock
+    # from an SSO profile, so the session to start is that source's, one hop away, as preflight's P19 takes it.
+    account = "".join(
+        str(i % 10) for i in range(1, 13)
+    )  # built at run time, never a literal
+    sso = "[profile h4reet-bedrock-sso]\nsso_session = h4reet\n\n[sso-session h4reet]\nsso_region = us-east-1\n"
+
+    def chained(role: str, source: str = "h4reet-bedrock-sso", rest: str = sso) -> str:
+        return (
+            f"[profile {PROFILE}]\nrole_arn = arn:aws:iam::{account}:role/{role}\nsource_profile = {source}\n\n"
+            + rest
+        )
+
+    stage.config.write_text(chained("h4-laptop-bedrock"), encoding="utf-8")
+    done = stage.run()
+    assert done.returncode == 0, done.stderr
+    (call,) = stage.calls()
+    assert call["argv"] == ["sso", "login", "--profile", "h4reet-bedrock-sso"]
+    assert call["home"] == str(stage.aws_home)
+    assert account not in done.stdout + done.stderr
+    # Any other role, a source that isn't there or isn't a plain name, or a second hop: refused, with no login.
+    second_hop = (
+        f"[profile h4reet-bedrock-sso]\nrole_arn = arn:aws:iam::{account}:role/h4-laptop-bedrock\n"
+        "source_profile = h4reet-bedrock-sso-2\n\n[profile h4reet-bedrock-sso-2]\nsso_session = h4reet\n"
+    )
+    for config, words in (
+        (chained("AdministratorAccess"), "h4-laptop-bedrock"),
+        (chained("h4-laptop-bedrock", source="nowhere"), "source_profile"),
+        (chained("h4-laptop-bedrock", source="a b"), "source_profile"),
+        (chained("h4-laptop-bedrock", rest=second_hop), "source_profile"),
+        (
+            chained("h4-laptop-bedrock", rest=sso.replace("us-east-1", "eu-west-1")),
+            "SSO region is eu-west-1",
+        ),
+    ):
+        stage.log.unlink(missing_ok=True)
+        stage.config.write_text(config, encoding="utf-8")
+        done = stage.run()
+        assert done.returncode == 2 and words in done.stderr, (config, done.stderr)
+        assert account not in done.stderr
+        assert stage.calls() == []
+
+
 def test_the_shells_aws_settings_never_reach_the_cli(stage: Stage) -> None:
     # AWS_CONFIG_FILE or AWS_SHARED_CREDENTIALS_FILE could point the login at the Author's own files, and so hand the
     # gateway the Author's session (research.md R-17); AWS_PROFILE could name another profile.
