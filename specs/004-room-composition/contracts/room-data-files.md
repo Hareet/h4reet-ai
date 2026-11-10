@@ -591,7 +591,7 @@ Nine families, two letters each, so a merge-request note that holds spec 003's A
 | RI7 | A `model` that isn't directly under `assets/room/`, whose stem isn't its piece's ID, or that `assets/room/records.json` doesn't record with the kind `room` and the SHA-256 the compositor computes from the file | FR-023 |
 | RI8 | Not exactly one placement without a mount; not exactly one `twin` placement and one `visitor` placement; a figure's piece with a `model`; a hand-off whose `from` isn't an anchor of the `twin` placement or whose `to` isn't one of the `visitor` placement | FR-003, FR-008 |
 | RI9 | A topic's `corpus` path outside the form `corpus/NN-<topic>.md` | FR-036 |
-| RI10 | `lookdev.yaml` naming a placement the scene doesn't have (drafts builds) | FR-070 |
+| RI10 | `lookdev.yaml` naming a placement the scene doesn't have; **(spec 014)** or a `hands.avatars` name outside the room's avatar table (drafts builds) | FR-070; spec 014's FR-042 |
 | RI11 | A `label.<name>` UI word that no placement, face binding, or switch references | FR-029 |
 
 ### 13.3 RG: geometry

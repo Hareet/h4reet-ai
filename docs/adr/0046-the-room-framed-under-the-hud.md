@@ -37,4 +37,10 @@ Under ADR 0043 the room was framed into the clear area, the window less the stri
 - **A re-fit costs at most 17 framings**, each a projection of a few boxes.
 - **The compositor's check runs per frame area**, each with its own reserved boxes, so its time grows with the stages' count; the branch's note records it beside the base's.
 - **The amended contracts** (spec 004's room-data-files.md §4, §5, §9, and §13, and its lookdev.md §6) carry passages marked "(spec 014)".
-- **What building changed**: spec 014's plan records its departures in the commits that made them.
+- **What building changed** (spec 014's plan, "Departures (implementation)", E1 to E23, each in the commit that made it). Those that touch these decisions:
+  - Decision 1: the reference desktop eases to 10/16, the room 2.7% larger on screen, not the 0 to 1/16 the plan estimated; what binds is the walking control's box over the twin's framed box at the clear area's corner (E1). Plan R-1's ladder wasn't taken; whether to trim further is the Author's at lookdev.
+  - Decision 2: the protector refuses a step at which a selectable pressable at spec 005's frame would be left to the list, so `frameArea` takes the next (E3).
+  - Decision 3: the compositor's reference stages are their screens' frame areas, so RG7's caps are measured there (E6); RG5's aspect series takes one more step down (E2); RG6 counts its stages by size (E4); the sweep is cached by the protector's key (E5). The index's 2D drawing gains `flat.figures` for the 2D protector (E7).
+  - Decision 5: the accent is `#ffc8a8`, a lighter tint of the tube's `#ffb08a`, which gives 2.75:1 against the glass over white and fails the 3:1 an edge needs; `#ffc8a8` gives 3.27:1 (E11). One rule set names `.hud-panels button` and `.room-offer button` (E12); the list's target carries `aria-current` (E13).
+  - Decision 6: the 3D stage measures the hold's edge with the figure's framed box at the pose and tells the room through `walkHeld` (E14).
+  - Beyond these decisions: the grips are data for the man's and the woman's left hands only, estimates (E15); the path glow bevels its joints (E17); the placeholder note names both causes in one note held to 26rem (E19); the sign's probe runs from standard input (E20); and lookdev gains a Hands scene (E22).
