@@ -6,7 +6,7 @@
 // T093 (spec 004; FR-075; R-67): in the release build and the drafts build alike, every typeface, data file, and
 // model the site loads is on its own origin: each stylesheet's url() and each such path a script names is relative, to
 // a file in the build, and the room's models, compose()'s as the build composed them, are relative `a/` paths whose
-// gzip copies are what `a/` holds.
+// gzip copies are what `a/` holds, with the cards and spec 009's avatar files, each computed from the tree (its FR-043).
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -17,7 +17,8 @@ import { JSDOM } from "jsdom";
 import { describe, expect, inject, it } from "vitest";
 
 import { renderDisclosure } from "../build/disclosure";
-import { repositoryBundle } from "./helpers/room";
+import { VISITORS_DIR } from "../build/room/avatars";
+import { REPO, repositoryBundle } from "./helpers/room";
 
 const WEB = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DISCLOSURE_MD = resolve(WEB, "../../docs/data-flow-disclosure.md");
@@ -252,12 +253,24 @@ describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004
     expect(named.some((u) => u.endsWith("room-data.json"))).toBe(true);
   });
 
-  it("takes the room's models from its own origin: relative a/ paths, whose gzip copies and cards are all a/ holds", () => {
-    const { models, cards } = repositoryBundle({ drafts: kind === "drafts", policy: "empty" });
-    const urls = [...models.map((m) => m.url), ...cards.map((c) => c.url)];
+  it("takes the room's models and the avatars' files from its own origin: relative a/ paths, whose gzip copies and the cards are all a/ holds", () => {
+    // compose()'s models and cards, and each avatar file it bundles from the tree's assets/visitors/<id>/ folders, as
+    // the build composed them: computed from the tree, never listed, so an intake changes nothing here (spec 009,
+    // FR-023, FR-043; its intake gate, F3).
+    const { models, cards, avatars } = repositoryBundle({
+      drafts: kind === "drafts",
+      policy: "empty",
+      readiness: "tree",
+    });
+    for (const a of avatars)
+      expect(a.path.startsWith(`${VISITORS_DIR}/${a.avatar}/`) && existsSync(join(REPO, a.path)), a.path).toBe(true);
+    const urls = [...models.map((m) => m.url), ...cards.map((c) => c.url), ...avatars.map((a) => a.url)];
     for (const url of urls) expect(url, url).toMatch(/^a\/[^/]+$/);
-    expect(filesUnder(join(root, "a"))).toEqual(
-      [...models.map((m) => `${m.url}.gz`), ...cards.map((c) => c.url)].map((u) => u.slice(2)).sort(),
-    );
+    const copies = [
+      ...models.map((m) => `${m.url}.gz`),
+      ...cards.map((c) => c.url),
+      ...avatars.map((a) => `${a.url}.gz`),
+    ];
+    expect(filesUnder(join(root, "a"))).toEqual(copies.map((u) => u.slice(2)).sort());
   });
 });

@@ -48,9 +48,11 @@ const chunks = inject("siteChunks");
 describe.each(["release", "drafts"] as const)("the %s build", (kind) => {
   const out = builds[kind];
   const read = (rel: string): string => readFileSync(join(out, rel), "utf8");
-  /** The room's bundle as this build composed it: the repository's data, under an empty policy directory. */
+  /** The room's bundle as this build composed it: the repository's data, under an empty policy directory, with the
+   *  tree's own twin readiness, as build/room/plugin.ts reads it, so the digests and each `ready` follow whatever the
+   *  Author's readiness file marks (spec 009's intake gate, F2). */
   const bundle = (): ReturnType<typeof repositoryBundle> =>
-    repositoryBundle({ drafts: kind === "drafts", policy: "empty" });
+    repositoryBundle({ drafts: kind === "drafts", policy: "empty", readiness: "tree" });
 
   /** The relative paths a chunk imports statically and dynamically. */
   function imports(code: string): { statics: string[]; dynamics: string[] } {
