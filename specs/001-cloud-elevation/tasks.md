@@ -122,7 +122,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [ ] T009 Review by an agent that wrote none of the group, and the note. Check: the note holds `make check`'s and `gitleaks dir`'s whole output, and lists P-1 and P-3 first under "For the Author" (feat/001-guards)
 - [ ] T010 Author: apply P-1 and P-3 on the branch from the note's patch files, run `tools/gates/gate feat/001-guards` from main's checkout, and merge. Check: the gate passes; the matrix shows zero failures and no gap beyond the listed gap rows (feat/001-guards, then main)
-  - **Combined (2026-11-10):** one gate with groups 2 to 4, of `feat/001-cloud-elevation-p` (Prerequisites).
+  - **Combined (2026-11-10):** one gate with groups 2 to 4, of `feat/001-cloud-elevation-p` (Prerequisites). P-E, the agents' engine's half of P-1 (`docs/merge-requests/2026-11-10-feat-001-pe-engine.patch`), is applied after P-1 there (plan.md §16, "Groups 1 to 4, as one branch", 7).
 - [ ] T011 Author: on `main`, run `make infra-mirror`, which seeds `~/.local/share/h4reet/terraform-providers`. Check: `make check`'s `infra-check` step reads PLANNED until `infra/` exists (quickstart §1) (main)
   - **Combined:** the mirror is seeded before the gate, from his branch's checkout, since both lockfiles need it; the checks run on `main` after the merge, where `infra/` now exists, so `infra-check` runs its checks instead of reading PLANNED (plan.md §16, "Groups 1 to 4, as one branch", 4).
 
