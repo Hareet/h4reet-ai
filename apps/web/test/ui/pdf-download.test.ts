@@ -18,10 +18,13 @@ import { pdfDownloadName } from "../../build/download-name";
 import { ABSENT } from "../../src/resume/data";
 import { PDF_FILE_FALLBACK, PDF_HREF, pdfFileName, pdfFileNameFor } from "../../src/resume/download";
 import { resumePanel } from "../../src/resume/view";
+import siteConfig from "../../vite.config";
 import { buildSite } from "../global-build";
 import { button, intoRoom, REPO, start, talkLog, textOf } from "../helpers/room";
+import withoutRoomData, { pluginNames, ROOM_DATA_PLUGIN } from "../helpers/site-without-room-data.config";
 
 const INDEX = fileURLToPath(new URL("../../index.html", import.meta.url));
+const WITHOUT_ROOM_DATA = fileURLToPath(new URL("../helpers/site-without-room-data.config.ts", import.meta.url));
 /** The test's stand-in for main's header (test/content/author-pdf.test.ts uses the same). */
 const FULL_NAME = "Robin Tidewell";
 const NAMED = "Robin-Tidewell-Resume-hareet-ai.pdf";
@@ -115,10 +118,22 @@ describe("the links", () => {
 });
 
 describe("a build under a filled header", () => {
+  // The build is the site's own config without its room-data part (test/helpers/site-without-room-data.config.ts): a
+  // fixture header is no header the tree's own designed PDF answers to, and PDF3 and PDF7 rightly refuse the Author's
+  // file under it, as his gate of 2026-11-10 found. So this case passes with and without apps/web/content/
+  // resume-author.pdf in the tree; author-pdf.test.ts holds that file to main's own header.
+  it("leaves out only the room-data part of the site's config, which reads the tree's designed PDF", () => {
+    expect(pluginNames(siteConfig.plugins)).toContain(ROOM_DATA_PLUGIN);
+    expect(pluginNames(withoutRoomData.plugins)).toEqual(
+      pluginNames(siteConfig.plugins).filter((name) => name !== ROOM_DATA_PLUGIN),
+    );
+  });
+
   it("writes the name into index.html's link and the scripts, and leaves no placeholder", async () => {
     const site = await buildSite({
       drafts: false,
       policy: policyDir({ full_name: FULL_NAME, contact: "robin@example.org" }),
+      config: WITHOUT_ROOM_DATA,
     });
     try {
       const doc = new JSDOM(readFileSync(join(site.out, "index.html"), "utf8")).window.document;
