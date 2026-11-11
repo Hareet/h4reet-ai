@@ -11,9 +11,9 @@
       "legibility_floor_css_px": 9
     },
     "avatar": {
-      "bytes": 6000000,
-      "triangles": 90000,
-      "texture_bytes": 33554432
+      "bytes": 21000000,
+      "triangles": 180000,
+      "texture_bytes": 46000000
     },
     "animation": {
       "bytes": 1000000
