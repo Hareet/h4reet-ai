@@ -168,10 +168,15 @@ describe("the avatars in the bundle (FR-009, FR-023, FR-024; plan.md §3.2, R-01
     expect(result.scene.avatars.dog).toBeUndefined();
   });
 
-  it("puts the stand-in line first in the index's copy, in every build: the twin never shows its own avatar here", () => {
+  it("puts the twin's line slot first in the index's copy, in every build, and no twin here to fill it", () => {
+    // Spec 016 (FR-014; plan.md R-18, changed with T017): the slot the room resolves to the stand-in line while the twin
+    // shows anything but its own picture; with no twin in the bundle, always.
     for (const tree of [goodTree(), night()])
-      for (const options of [STRICT, { ...STRICT, drafts: false }])
-        expect(composed(tree, avatarPolicy(), options).index.copy[0]).toEqual({ line: "twin.stand_in" });
+      for (const options of [STRICT, { ...STRICT, drafts: false }]) {
+        const result = composed(tree, avatarPolicy(), options);
+        expect(result.index.copy[0]).toEqual({ twin_line: true });
+        expect(result.index.twin).toBeNull();
+      }
   });
 
   it("writes the same bundle twice from one tree", () => {
