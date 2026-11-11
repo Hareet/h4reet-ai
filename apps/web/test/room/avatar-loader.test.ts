@@ -15,6 +15,7 @@ import type { AnimationClip, Texture } from "three";
 import { describe, expect, it } from "vitest";
 
 import { compose } from "../../build/room/compose";
+import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import type { AssetEvent } from "../../src/asset-events";
 import type { Mode } from "../../src/choice/visit";
 import { readImage } from "../../src/room/glb/images";
@@ -220,8 +221,9 @@ describe("the figures' entries (FR-010, FR-015, FR-021)", () => {
       "woman-take",
     ]);
     for (const e of entries) {
-      const own = night.scene.avatars[e.figure.avatar];
-      const file = e.figure.role === null ? own?.model : own?.clips[e.figure.role];
+      // Spec 016 widened a figure file's source to the twin's own; this part bundles no twin, so each is an avatar's.
+      const own = night.scene.avatars[e.figure.avatar as AvatarId];
+      const file = e.figure.role === null ? own?.model : own?.clips[e.figure.role as ClipRole];
       expect(e.source).toEqual({ kind: "url", url: file?.url, sha256: file?.sha256 });
       expect(e.bytes).toBe(file?.bytes);
     }

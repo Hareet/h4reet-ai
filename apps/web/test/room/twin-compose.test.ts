@@ -119,9 +119,11 @@ describe("the twin's files, read by the convention (FR-009; plan.md R-01)", () =
   it("measures the model: its height, its bounds, and its texture memory at its own size and at the twin's side", () => {
     const tree = twinTree({ model: twinModel({ images: [pngHeader(2048, 2048), pngHeader(2048, 2048)] }) });
     const twin = readTwin(tree, twinPolicy(), loadRoom(tree).scene?.value ?? null);
-    expect(twin.model?.measures?.height).toBeCloseTo(1.82, 6);
-    expect(twin.model?.measures?.texture_bytes).toBe(2 * textureMemory(2048, 2048));
-    expect(twin.model?.measures?.decoded_bytes).toBe(2 * textureMemory(1024, 1024));
+    const m = twin.model?.measures;
+    if (m?.kind !== "glb") throw new Error("no model's measures");
+    expect(m.height).toBeCloseTo(1.82, 6);
+    expect(m.texture_bytes).toBe(2 * textureMemory(2048, 2048));
+    expect(m.decoded_bytes).toBe(2 * textureMemory(1024, 1024));
     expect(twin.still?.measures).toMatchObject({ width: 48, height: 64 });
   });
 

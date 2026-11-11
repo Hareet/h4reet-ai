@@ -166,7 +166,7 @@ describe("the twin's own figure (FR-008, FR-010; SC-001)", () => {
       const mesh = n as Mesh;
       if (!mesh.isMesh) return;
       meshes += 1;
-      expect(Object.values(mesh.geometry.morphAttributes).every((list) => list.length === 0)).toBe(true);
+      expect(Object.values(mesh.geometry.morphAttributes).every((list) => (list?.length ?? 0) === 0)).toBe(true);
       expect(mesh.morphTargetInfluences).toBeUndefined();
       expect(mesh.morphTargetDictionary).toBeUndefined();
     });
