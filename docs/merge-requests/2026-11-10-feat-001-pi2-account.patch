@@ -4,16 +4,17 @@ protected names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform 
 infra/*alert*) keep them from agent sessions.
 
 Built on 2026-11-10 from plain copies, `diff -u` against /dev/null, never `git apply` or a write into a worktree, on
-feat/001-us2-safety-net, stacked on groups 1 to 3, and rebuilt after T038's review. Apply it from the repository's top
-with `patch -p1`, which skips this preamble, byte for byte as in T037's scratch clone (T039). It needs nothing of
-P-I1's: it creates files only.
+feat/001-us2-safety-net, stacked on groups 1 to 3, and rebuilt after T038's review; rebuilt on 2026-11-11, on
+feat/001-cloud-elevation, the same way, with the Author's facts (the combined note, For the Author, 2). Apply it from
+the repository's top with `patch -p1`, which skips this preamble, byte for byte as in T037's scratch clone (T039). It
+needs nothing of P-I1's: it creates files only.
 
-  - infra/account/iam.tf: the permission set's name, its own local.laptop_permission_set (null until the Author reads
-    it); the laptop's Bedrock permission set, imported by that name, kept from destroy, and narrowed to an inline
-    policy of sts:AssumeRole on h4-laptop-bedrock; h4-laptop-bedrock, an ordinary role at /, trusting exactly the
-    set's AWSReservedSSO_<set>_<16 characters> role, with bedrock:InvokeModel* on the one inference profile and its
-    models through it; h4-rehearsal-target, of the same shape, trusting only the root user, while local.rehearsal is
-    true; and the three functions' roles.
+  - infra/account/iam.tf: the permission set's name, its own local.laptop_permission_set, "h4reet-ai-cloud", as the
+    Author read it on 2026-11-11; the laptop's Bedrock permission set, imported by that name, kept from destroy, and
+    narrowed to an inline policy of sts:AssumeRole on h4-laptop-bedrock; h4-laptop-bedrock, an ordinary role at /,
+    trusting exactly the set's AWSReservedSSO_<set>_<16 characters> role (the 16 his count, the same day), with
+    bedrock:InvokeModel* on the one inference profile and its models through it; h4-rehearsal-target, of the same
+    shape, trusting only the root user, while local.rehearsal is true; and the three functions' roles.
   - infra/account/killswitch.tf: h4-deny-paid-models; the model action on h4-model-month at 100% of actual,
     automatic, attaching it to h4-laptop-bedrock by a role that may do only that; and, while local.rehearsal is
     true, h4-rehearsal-model (no credits counted) and h4-rehearsal-server at $0.01, filtered as the real budgets are
@@ -29,9 +30,8 @@ P-I1's: it creates files only.
 To confirm at T037, before any apply (the merge-request note's "For the Author"): that Terraform takes Identity
 Center's data sources in the import block's id; that the hand-made set shows no other change than its tags,
 description, and inline policy; the Bedrock policy's condition key, bedrock:InferenceProfileArn, on a call through
-the profile; the 16 characters of the set's role's suffix; and the server rehearsal's role against the managed
-policy AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console shows it.
-
+the profile; and the server rehearsal's role against the managed policy
+AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console shows it.
 --- /dev/null
 +++ b/infra/account/iam.tf
 @@ -0,0 +1,353 @@
@@ -51,10 +51,9 @@ policy AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's con
 +locals {
 +  # The name of spec 000's hand-made Bedrock permission set, which this file imports, overwrites, and provisions, and
 +  # whose role alone h4-laptop-bedrock trusts. It lives here, in the protected file, so only the Author's patch sets it
-+  # (T038's review, I4). The repository doesn't hold it: he reads it from IAM Identity Center before T037, and the
-+  # session puts it in this patch. While it is null, make plan ROOT=account stops at the set's lookup, with nothing
-+  # made.
-+  laptop_permission_set = null
++  # (T038's review, I4). The Author read it from IAM Identity Center on 2026-11-11 (the merge-request note, For the
++  # Author, 2), and the session put it in this patch.
++  laptop_permission_set = "h4reet-ai-cloud"
 +}
 +
 +data "aws_ssoadmin_instances" "this" {}
@@ -106,8 +105,9 @@ policy AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's con
 +# attach to it (research.md R-22). Only the permission set's role may assume it: Identity Center names that role
 +# AWSReservedSSO_<set>_<16 characters>, under /aws-reserved/sso.amazonaws.com/, with a Region's segment in the path for
 +# some accounts. Each `?` is one character, and the role's name follows a `/`, so the pattern is that set's role
-+# exactly, never a set named <set>_<more> (T038's review, I4). The 16 is to confirm at T037: a wrong length leaves the
-+# laptop unable to assume the role, and admits no one else.
++# exactly, never a set named <set>_<more> (T038's review, I4). The 16 is the Author's count, read from the set's role
++# under IAM, Roles, on 2026-11-11: a wrong length would leave the laptop unable to assume the role, and admit no one
++# else.
 +
 +data "aws_iam_policy_document" "laptop_bedrock_trust" {
 +  statement {

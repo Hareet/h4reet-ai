@@ -82,7 +82,11 @@ SSO_PATH = "aws-reserved/sso.amazonaws.com/"
 # The permission set's own role and no other (T038's review, I4): Identity Center names it AWSReservedSSO_<set>_<16
 # characters>, under its path, with a Region's segment in some accounts. Each `?` is one character, and the role's name
 # follows a `/`, so a set named <set>_<more> can't match.
-_ROLE = "AWSReservedSSO_${local.laptop_permission_set}_" + "?" * 16
+# The set's name and the 16, as the Author read them on 2026-11-11 (group 4's fact a): the set is "h4reet-ai-cloud", and
+# its role's name holds 16 characters after AWSReservedSSO_h4reet-ai-cloud_. The suffix itself stays out of the tree.
+LAPTOP_PERMISSION_SET = "h4reet-ai-cloud"
+ROLE_SUFFIX_LENGTH = 16
+_ROLE = "AWSReservedSSO_${local.laptop_permission_set}_" + "?" * ROLE_SUFFIX_LENGTH
 _ARN = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/"
 SSO_TRUST = [f"{_ARN}{_ROLE}", f"{_ARN}*/{_ROLE}"]
 
@@ -1337,6 +1341,14 @@ def test_the_laptops_permission_set_is_imported_and_holds_only_the_assume_role()
     None
 ):
     assert check_permission_set(parsed(root_texts())) == []
+
+
+def test_the_permission_sets_name_is_the_one_the_author_read() -> None:
+    # Group 4's fact a (the merge-request note, For the Author, 2): no longer null, so make plan ROOT=account reaches
+    # the set's lookup; and the trust's pattern holds that set's role's 16 characters.
+    root = parsed(root_texts())
+    assert locals_of(root).get("laptop_permission_set") == LAPTOP_PERMISSION_SET
+    assert ROLE_SUFFIX_LENGTH == 16 and _ROLE.endswith("_" + "?" * 16)
 
 
 def test_h4_laptop_bedrock_is_an_ordinary_role_on_the_one_profile_trusting_the_set_alone() -> (

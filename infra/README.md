@@ -20,7 +20,7 @@ These change only by the Author's hand, as patches beside a group's note (FR-012
 
 `account/` (group 4) holds the safety net's second half, and what the hosts will pull:
 
-- **The laptop's Bedrock identity** (`iam.tf`): spec 000's permission set, imported by its name (`iam.tf`'s own `local.laptop_permission_set`, which the Author reads from Identity Center), kept from destroy, and narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`, an ordinary role at `/` that holds `bedrock:InvokeModel*` on the one inference profile.
+- **The laptop's Bedrock identity** (`iam.tf`): spec 000's permission set, imported by its name (`iam.tf`'s own `local.laptop_permission_set`, `h4reet-ai-cloud`, which the Author read from Identity Center on 2026-11-11), kept from destroy, and narrowed to `sts:AssumeRole` on `h4-laptop-bedrock`, an ordinary role at `/` that holds `bedrock:InvokeModel*` on the one inference profile.
 - **The model action** (`killswitch.tf`): at 100% of `h4-model-month`, `h4-deny-paid-models` attaches to `h4-laptop-bedrock`, by a role that may do only that. While `local.rehearsal` is true, two $0.01 budgets rehearse both actions, against `h4-rehearsal-target` and `h4-rehearsal-instance` (`main.tf`). It is true only on the rehearsal's own change, beside `rehearsal-on.txt`, a line `note: docs/merge-requests/<that change's note>.md`, whose `<!-- h4-rehearsal: on -->` line says it is the rehearsal; the change that ends it removes the marker.
 - **The functions** (`lambdas.tf`, their roles in `iam.tf`, what invokes them in `alerts.tf`): `h4-alert-bridge`, `h4-probe`, and `h4-credential-audit`, container images on arm64 from their repositories, each made once `local.lambda_images` names its digest.
 - **The registry and the release bucket** (`registry.tf`).
