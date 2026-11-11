@@ -739,6 +739,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       note: uiWord(deps.room.ui, "standin.note") ?? "",
       noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
+      credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
       walk: {
         enter: uiWord(deps.room.ui, "walk.enter") ?? "",
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",

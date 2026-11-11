@@ -190,6 +190,8 @@ describe("keyboard", () => {
         "2D view",
         "Pause the room",
         "How data flows",
+        // Spec 016 (FR-042; changed with T064, plan.md R-18): the toolbar's Credits link, after How data flows.
+        "Credits",
         ...walk,
         ...HEADS.list,
         ...OBJECT_BUTTONS,
@@ -208,14 +210,16 @@ describe("keyboard", () => {
       button(v.doc, "Resume").click();
       await flush();
       const order = tabOrder(v.doc).map(nameOf);
-      // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, the conversation
-      // panel's three, and "Around the room" come first.
-      const room = 4 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
+      // The toolbar's five stops ("Pause the room", spec 004's, T161; "Credits", spec 016's), a button per
+      // selectable, the conversation panel's three, and "Around the room" come first.
+      const room = 5 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
       expect(order.slice(0, room)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
+        // Spec 016 (FR-042; changed with T064, plan.md R-18): the toolbar's Credits link, after How data flows.
+        "Credits",
         ...walk,
         ...HEADS.list,
         ...OBJECT_BUTTONS,

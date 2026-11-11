@@ -153,6 +153,8 @@ export function renderRoom(
     standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
+    /** Spec 016 (FR-042): the toolbar's credits link, the UI word toolbar.credits. */
+    credits?: string;
     /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help; and spec 005's helpFullscreen,
      *  walk.help_fullscreen. */
     walk?: {
@@ -199,6 +201,8 @@ export function renderRoom(
     pauseButton,
     ...(fullscreenButton ? [fullscreenButton] : []),
     tile(doc, "a", { href: "./disclosure/" }, "data", "How data flows"),
+    // Spec 016 (FR-042; plan.md R-14): the site's credits page, rendered from assets/CREDITS.md at build.
+    tile(doc, "a", { href: "./credits/" }, "credits", parts.credits ?? "Credits"),
     ...(fullscreenHelp ? [fullscreenHelp] : []),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").

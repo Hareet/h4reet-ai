@@ -39,7 +39,9 @@ describe("the credits page (FR-042, FR-043)", () => {
     const html = renderCredits("# Credits\n\n## `assets/<x>`\n\n- a <script>alert(1)</script> line\n");
     expect(html).not.toContain("<script>alert");
     expect(html).toContain("&lt;script&gt;");
-    expect(html).toContain("You're talking with an AI representation of the Author, not the Author.");
+    expect(new JSDOM(html).window.document.querySelector("header")?.textContent).toContain(
+      "You're talking with an AI representation of the Author, not the Author.",
+    );
     expect(html).toContain('<a href="../">Back to the room</a>');
   });
 
