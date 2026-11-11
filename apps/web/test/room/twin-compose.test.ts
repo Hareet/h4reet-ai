@@ -300,3 +300,32 @@ describe("RK3 and RK5 with the twin (FR-046; plan.md R-02; SC-008)", () => {
     );
   });
 });
+
+// T019 (spec 016; FR-056; contracts/twin-data.md §8): the report's twin: each file with its measures and whether it's
+// bundled, the model's height and bounds, the clips' lengths, the line's approval and source and never its words, and
+// RK3's and RK5's figures with the twin.
+describe("the report's twin (FR-056)", () => {
+  it("gives each file, the model's measures, the clips, the line's approval, and RK3's and RK5's figures", () => {
+    const md = composed(twinTree()).report.markdown;
+    expect(md).toContain("### The twin");
+    expect(md).toMatch(/\| `assets\/twin\/twin\.glb` \| model \| [\d,]+ \| [\d,]+ \| [\d,]+ \| 0 \| 0 \| yes \|/);
+    for (const role of TWIN_ROLES) expect(md).toContain(`| \`assets/twin/${role}.glb\` | ${role} |`);
+    expect(md).toContain("| `assets/twin/still.png` | still |");
+    expect(md).toMatch(/The twin's model at rest: 1\.820 m tall; bounds from \[/);
+    expect(md).toContain("`greeting` 2.47 s");
+    expect(md).toContain("Its still: 48 × 64 pixels.");
+    expect(md).toContain("The twin's line: from approval `A-fx-twin` in main's likeness approvals");
+    expect(md).not.toContain(FX_LINE);
+    expect(md).toMatch(/RK3's twin term: [\d,]+, the larger of its own model at 1024 px/);
+    expect(md).toMatch(
+      /First visit with both figures' files \(RK5\): [\d,]+ gzip-9 bytes, [\d,]+ of the room's placed models and cards, [\d,]+ of the twin's own files, 0 of the stand-in's files/,
+    );
+  });
+
+  it("says why the twin's files aren't shown where RA6 stands", () => {
+    const md = composed(twinTree(), twinPolicy({ likeness: [] }), LENIENT).report.markdown;
+    expect(md).toContain("The twin's line: none, so none of its files is shown (RA6).");
+    expect(md).toContain("| `assets/twin/twin.glb` | model |");
+    expect(md).toMatch(/\| `assets\/twin\/twin\.glb` \| model \|.*\| no \(RA6\) \|/);
+  });
+});
