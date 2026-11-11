@@ -8,7 +8,7 @@ Authorized by:
 - his direction for the groups, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to";
 - his two answers, as the coordinator relayed them: "One gate, named deviation (Recommended)", for the account root's plan; and "Keep them protected (Recommended)", for spec 000's protected names.
 
-## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; group 4's second, short pass waits for your three facts and T016, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
+## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; your facts in (section 2, 2026-11-11), and main merged at 2e942990; group 4's second, short pass waits for T016 and T017, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
 
 | Commit | What |
 |---|---|
@@ -20,7 +20,12 @@ Authorized by:
 | f843d182 | the combination in the documents: plan.md §16's departures, spec.md's named deviation, tasks.md, quickstart.md, the nine ADRs, `infra/README.md`, each group's note superseded for your steps, and this note's draft |
 | 8b4fd0f1 | this note: the checks, the blocker, the guard, and your order; what the combined review read |
 | eccca942 | the review's B1: P-E, `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch`, the engine's half of P-1, for your hand, test-first on a patched export; spec 000's `contracts/agents-engine.md` H8 and E7; plan.md §16's departure 7 |
-| this commit | the review's I1 to I4 and nits: the guard allows only this note under `docs/merge-requests/`, and P-E's files; the second pass anchors it; `--prove`'s preconditions; FR-005's, FR-002's, and FR-040's failures named in spec.md's deviation, with ADR 0008's first exception; sections 1, 6, and 7's steps; env-cloud.md §5 and `infra/bootstrap/variables.tf`'s stated order; the ADR rows' branch; the reruns |
+| 065aa4cd | the review's I1 to I4 and nits: the guard allows only this note under `docs/merge-requests/`, and P-E's files; the second pass anchors it; `--prove`'s preconditions; FR-005's, FR-002's, and FR-040's failures named in spec.md's deviation, with ADR 0008's first exception; sections 1, 6, and 7's steps; env-cloud.md §5 and `infra/bootstrap/variables.tf`'s stated order; the ADR rows' branch; the reruns |
+| a17ff366 | this note: P-E's runs and the reruns after the review |
+| d3ce1dba | the session's merge of `refs/heads/main` (2e942990: spec 016, C-0004, spec 014, and more), `git --no-replace-objects merge --no-ff refs/heads/main`, no conflict; tree 02b762d9, as `git merge-tree --write-tree` predicted |
+| 37d13175 | section 2, fact a: the permission set's name in P-I2's `iam.tf`, test-first; P-I2 rebuilt from plain copies |
+| 678f7b97 | section 2, fact c: the base's digest in `deploy/images.lock` and its hosts row, the probe's and the credential audit's Dockerfiles, and the bridge's in P-I2, test-first; P-I2 rebuilt from plain copies and dry-run again |
+| this commit | this note: section 2 done, the patches' hashes, the merge, the checks, and the Backlog |
 
 **The blocker, and P-E.** With P-1 applied, `make test` failed `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`. P-1 adds three in-tree read denies that are bare file-name patterns, `Read(*.tfstate*)`, `Read(*.tfplan)`, and `Read(*.tfvars*)`, and the agents' engine refused to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds: its mask check let only the `.env` globs through. It was P-1's from group 1, not the combination's. Your decision: "Derive from settings (Recommended)". P-E takes every bare file-name read deny from the settings: the check lets each through and refuses while a file one matches sits outside a mask, so a later `*.pem` or `*.key` needs no engine patch, and stage E's E7 proves it. `deploy/agents-engine/` is protected, so P-E is yours to apply, after P-1 (For the Author, 5). With all five patches the whole Python suite passes (Verification).
 
@@ -111,17 +116,18 @@ Each finding, and what was done:
 | N5 | P-E's paths missing from section 5's status and the guard | both list P-E's four files |
 | small | "(departure 13 above)"; the ADR rows named `feat/001-cloud-elevation`, where `-p` merges | "group 4's departure 13"; the rows name `feat/001-cloud-elevation-p` |
 
-**Next: group 4's second, short pass,** by an agent that wrote none of it, after your three facts and T016 (For the Author, 2 to 4). It reads what came after 8b4fd0f1: P-E (eccca942), this commit's fixes, section 2's commits, T016's R-33 record, and your T017 commit. The session writes its tip, after its fixes, into section 7's guard as `rv=`; until then the guard prints `guard: no`.
+**Next: group 4's second, short pass,** by an agent that wrote none of it, after T016 and T017 (For the Author, 3 and 4); your facts are in (section 2). It reads what came after 8b4fd0f1: P-E (eccca942), 065aa4cd's fixes, section 2's commits (37d13175 and 678f7b97), the merge of main (d3ce1dba), T016's R-33 record, and your T017 commit. The session writes its tip, after its fixes, into section 7's guard as `rv=`; until then the guard prints `guard: no`.
 
 ## Backlog
 
-- **Group 4's section 2** (your three facts first; For the Author, 2), **T016's measurement** and **T017's prices** (For the Author, 3), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4).
+- **T016's measurement** and **T017's prices** (For the Author, 3), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4). Group 4's section 2 is done (For the Author, 2).
+- **The agents' engine now seeds the functions' base too.** The engine's seed, and so its reset and stage E's E10, moves every image `deploy/images.lock` pins but `model-server-gpu` and `probe:cuda`, pulling on the host whatever the host lacks, and E10 checks each is back. `base:lambda-python` is an arm64 tag: if the host's pull of it fails on this amd64 machine, the seed, the reset, and E10 in the gate's `--prove` fail with it. Whether it does is a fact this session can't read (the registry is outside its reach); the check is yours, in section 2. If it would fail, the fix is in the engine, so yours: P-E rebuilt to skip the Lambda base as it skips the GPU-only images, test-first on a patched export, which the session builds when you say.
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
 - **Groups 1, 3, and 4's own guards are superseded, with the same flaw as I1:** each allowed all of `docs/merge-requests/` after its anchor, where the agent-written patches live. This note's guard allows only this note there. Don't run theirs.
 - **The behavioral tier's WARN in `make evals`:** main's newest run for main's trigger hash (2026-11-09, feat-011's denies) reads failed. It is main's, not this branch's; your branch's own run, with P-1 and P-3, is a new trigger hash (For the Author, 7).
-- **From the groups' notes, still open:** the devcontainer's Terraform (`WITH_TERRAFORM=1` refuses until the release's checksum is confirmed with the pin), and a shell write to a protected `.tf` file, a gap row until a deny on each path lands with its patch (group 1); the unix-socket test skips in the sandbox, the stub answers about 20 calls a run, a SIGKILL isn't caught, and the laptop's repeat and the tunnel end's measurement are groups 5 and 8's (group 2); the state bucket's policy in agent-editable `main.tf`, `h4-alerts` unencrypted, and the state's move (group 3); `infra/lambdas/test_images.py` PLANNED until the digest, Budgets' notices' text to confirm at the rehearsal, the probe's alarm in group 8, `h4reet-ai-cloud` left in IAM after the detach, `LAPTOP_PERMISSION_SET` after the detach, the bridge's failure queue without an alarm, `local.rehearsal` and `local.lambda_images` in `main.tf`, the trust's 16 characters to confirm at T037, and Lambda's unreserved concurrency (group 4).
-- **Resolved by the combination:** the four links to `docs/001-ec2-default`'s files (main has them: docs links, 0 failed); `TF_VAR_bedrock_service_names`'s deny (P-1 has it); the tests that skipped for want of P-1 (they run on the patched export); and the engine's mask check under P-1's denies (P-E).
+- **From the groups' notes, still open:** the devcontainer's Terraform (`WITH_TERRAFORM=1` refuses until the release's checksum is confirmed with the pin), and a shell write to a protected `.tf` file, a gap row until a deny on each path lands with its patch (group 1); the unix-socket test skips in the sandbox, the stub answers about 20 calls a run, a SIGKILL isn't caught, and the laptop's repeat and the tunnel end's measurement are groups 5 and 8's (group 2); the state bucket's policy in agent-editable `main.tf`, `h4-alerts` unencrypted, and the state's move (group 3); Budgets' notices' text to confirm at the rehearsal, the probe's alarm in group 8, `h4reet-ai-cloud` left in IAM after the detach, `LAPTOP_PERMISSION_SET` after the detach, the bridge's failure queue without an alarm, `local.rehearsal` and `local.lambda_images` in `main.tf`, and Lambda's unreserved concurrency (group 4).
+- **Resolved by the combination:** the four links to `docs/001-ec2-default`'s files (main has them: docs links, 0 failed); `TF_VAR_bedrock_service_names`'s deny (P-1 has it); the tests that skipped for want of P-1 (they run on the patched export); and the engine's mask check under P-1's denies (P-E). **By your facts** (section 2): `infra/lambdas/test_images.py`'s PLANNED, now each Dockerfile held to the pin; and the trust's 16 characters, your count.
 
 ## Verification
 
@@ -1949,21 +1955,32 @@ ${EDITOR:-nano} "$d/bootstrap.env"
 ${EDITOR:-nano} "$d/account.env"
 ```
 
-### 2. Group 4's three facts, then the session's commits
+### 2. Group 4's three facts, then the session's commits: done, 2026-11-11
 
-a. **The laptop's Bedrock permission set's name:** IAM Identity Center, Permission sets, the set whose permissions show the customer-managed policy `h4reet-ai-cloud`; and, under IAM, Roles, whether its role's name has exactly 16 characters after `AWSReservedSSO_<the set>_`.
+Your facts, as the coordinator relayed them, your words in quotes, the role's suffix left out:
 
-b. **Bedrock's service names:** section 1.
+- **a.** The permission set's name: "h4reet-ai-cloud". Its role's name has 16 characters after `h4reet-ai-cloud_`, which confirms the trust pattern's 16 `?`. The tree records the name and the count; the role's suffix stays out of it.
+- **c.** The base image `public.ecr.aws/lambda/python:3.14-arm64` has the digest `sha256:9ffc23f871c4db05f101f457e1742655f7629459bd3623c0ce60a65a01872904`.
+- **b.** Bedrock's service names: you wrote them into your values files yourself (section 1). The session can't read them, and doesn't ask.
 
-c. **The functions' base image's digest:**
+The session's commits on `feat/001-cloud-elevation`, each RED, then GREEN (Verification, "Section 2 and main's merge"):
+
+- **37d13175, a:** `local.laptop_permission_set = "h4reet-ai-cloud"` in P-I2's `iam.tf`, its comments, and the preamble; `infra/test/test_account.py` holds the name and the 16.
+- **678f7b97, c:** `deploy/images.lock`'s `base:lambda-python` line, written by `make pin-images`' own renderer (the file's columns realign, one wider); its row in `deploy/scripts/arch_inventory.py`, on none of contracts/env-cloud.md §3's hosts, since AWS Lambda runs the images; `infra/lambdas/probe/Dockerfile` and `infra/lambdas/credential_audit/Dockerfile`; and the bridge's, `infra/lambdas/alert_bridge/Dockerfile`, in P-I2, protected by spec 000's `infra/*alert*`. `infra/lambdas/test_images.py` holds the lock line and all three Dockerfiles to the pin, the bridge's read from P-I2 while the tree lacks it. `deploy/images.lock` and the other two Dockerfiles aren't protected paths, so they are on the branch, not in a patch.
+- **P-I2,** rebuilt from plain copies twice (a, then c) and dry-run on a fresh export after P-1 and P-E: six new files now, the Dockerfile the sixth. Its SHA-256 is under Verification.
+
+**One check of yours, before the gate's `--prove`** (Backlog, "The agents' engine now seeds the functions' base too"): what the host's pull of the base would get. From any checkout of the branch:
 
 ```bash
-i=public.ecr.aws/lambda/python:3.14-arm64
-docker buildx imagetools inspect "$i" |
-  grep -m 1 '^Digest:'
+k=base:lambda-python
+l=deploy/images.lock
+p='$1==k {print $2 ":" $3 "@" $4}'
+r=$(awk -v k="$k" "$p" "$l")
+docker buildx imagetools inspect "$r" |
+  grep -E '^(MediaType|  Platform):'
 ```
 
-Tell the session a and c. On `feat/001-cloud-elevation` it commits, test-first: the set's name in P-I2's `iam.tf`; `deploy/images.lock`'s `base:lambda-python` line and its inventory row; the probe's and the credential audit's Dockerfiles; and P-I2 rebuilt from plain copies with the bridge's Dockerfile, dry-run again (group 4's note, section 2). Group 4's second, short review pass reads them, after section 3 (section 4).
+An index whose platforms include `linux/amd64`, or a single manifest the host's `docker pull "$r"` takes, and the engine's seed moves it as it moves the rest. An index of `linux/arm64` alone, or a pull that fails, and tell the session before the gate: P-E then skips the Lambda base, as it skips the GPU-only images.
 
 ### 3. Group 2's memory run (T016), then your prices (T017)
 
