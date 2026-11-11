@@ -16,6 +16,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { readTwin, twinOf } from "../../build/room/avatars";
+import { leanMeasure } from "../../build/room/checks/ra";
+import { geometryOf } from "../../build/room/checks/rg";
 import { createContext } from "../../build/room/checks/family";
 import { sceneTextureMemory } from "../../build/room/checks/rk";
 import { compose, formatFinding } from "../../build/room/compose";
@@ -329,5 +331,54 @@ describe("the report's twin (FR-056)", () => {
     expect(md).toContain("The twin's line: none, so none of its files is shown (RA6).");
     expect(md).toContain("| `assets/twin/twin.glb` | model |");
     expect(md).toMatch(/\| `assets\/twin\/twin\.glb` \| model \|.*\| no \(RA6\) \|/);
+  });
+});
+
+// T035 (spec 016; FR-029, FR-030; contracts/twin-data.md §7, §8; SC-017): RA7, the lean's spot, from the resolved
+// placements: the default scene's twin within 1 cm and 1° of it with at least 0.45 m of desk to its right; the known-bad
+// fixtures refused in a strict build, the lean left out of a lenient one; and the report's lean line.
+describe("RA7, the lean against the desk (FR-029; SC-017)", () => {
+  it("passes the default scene: the twin within 1 cm and 1° of the spot, with 0.45 m of desk to its right", () => {
+    const { tree, policy, result } = onBranch();
+    expect(ofRules(result.findings, "RA7")).toEqual([]);
+    const room = loadRoom(tree);
+    expect(room.scene?.value.figures.twin?.lean).toMatchObject({
+      against: "work-desk",
+      behind_m: 0.679,
+      right_m: 0.45,
+    });
+    const m = leanMeasure(room.scene?.value, geometryOf(createContext(room, policy, STRICT, tree).ctx));
+    expect(m?.off_m).toBeLessThan(0.01);
+    expect(m?.turn_deg).toBeLessThan(1);
+    expect(m?.right_m).toBeGreaterThanOrEqual(0.45);
+    expect(m?.gap_m).toBeLessThanOrEqual(0.05);
+    expect(result.scene.twin?.block.lean).toEqual({ against: "work-desk", behind_m: 0.679, right_m: 0.45 });
+    expect(result.report.markdown).toMatch(
+      /The lean: the desk's origin \d+\.\d cm off its spot behind the twin, \d+\.\d° from the twin's facing, and \d+\.\d\d m of its top to the twin's right/,
+    );
+  });
+
+  it.each(["RA7-moved-desk", "RA7-short-desk", "RA7-turned"])(
+    "refuses bad/%s in a strict build, and leaves the lean out of a lenient one",
+    (name) => {
+      const c = badCases().find((x) => x.name === name);
+      if (!c) throw new Error(`no ${name}`);
+      const strict = compose(caseTree(c), c.policy, { ...c.options, mode: "strict" });
+      expect(ofRules(strict.findings, "RA7")).toContain(`RA7 ${c.file}:${c.path}`);
+      const tree = overlay({
+        ...Object.fromEntries([...c.changes].map(([p, d]) => [p, d])),
+        ...twinFolder(),
+        ...avatarFolder("man"),
+      });
+      const lenient = compose(tree, twinPolicy(), LENIENT);
+      expect(lenient.findings.find((f) => f.rule === "RA7")?.lenient).toBe(true);
+      expect(lenient.scene.twin?.block.lean).toBeNull();
+    },
+  );
+
+  it("says in the report where there is no lean", () => {
+    expect(composed(twinTree()).report.markdown).toContain(
+      "The lean: none in the scene's twin block, so the twin rests in its idle.",
+    );
   });
 });
