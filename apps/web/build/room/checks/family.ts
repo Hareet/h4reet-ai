@@ -122,6 +122,7 @@ export const RULES = {
   // assets/twin/; RA6 and RA7 are new, lenient as RA1 is, so a lenient build leaves the twin's files (RA6) or its lean
   // (RA7) out and builds.
   RA6: rule("RA", model), // the twin's files without main's approval naming its model's SHA-256 with a line
+  RA7: rule("RA", model), // the twin's lean off its spot: the desk not behind_m behind, turned, or short of right_m
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

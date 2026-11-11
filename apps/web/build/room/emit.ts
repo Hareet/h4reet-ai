@@ -1211,7 +1211,11 @@ function twinPartOf(c: Composed): RoomScene["twin"] {
       texture_bytes: model.measures?.kind === "glb" ? model.measures.decoded_bytes : 0,
     },
     clips,
-    block: twinBlockOf(c.scene, c.twin.texture_px),
+    block: (() => {
+      // RA7 left the lean out of a lenient build (FR-029): the twin rests in its idle.
+      const block = twinBlockOf(c.scene, c.twin.texture_px);
+      return c.findings.some((f) => f.rule === "RA7") ? { ...block, lean: null } : block;
+    })(),
   };
 }
 

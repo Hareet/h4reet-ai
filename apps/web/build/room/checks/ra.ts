@@ -13,12 +13,89 @@
 // assets/twin/, by their kinds (`avatar`, `animation`, `still`); RA5 to a file there with no role; and RA6, the twin's
 // files without an approval in main's likeness approvals naming its model's current SHA-256 with a non-empty line,
 // which leaves every file of the twin out of a lenient build. avatars.ts's readTwin reads them once a compose.
+// RA7 (spec 016, FR-029, FR-030; contracts/twin-data.md §7; SC-017): the scene's lean, measured from the resolved
+// placements, in the twin placement's frame: the desk's origin `behind_m` behind the twin's root along its facing, within
+// 1 cm; the desk facing as the twin faces, within 1°; and the desk's top reaching at least `right_m` to the twin's right
+// of its root (its −x, glTF's), from within 5 cm of the root, so the forearm and hand lie on it (the hand-back's figures).
+// The root's height and its side position along the desk aren't held: the twin may stand at the desk's end, the desk
+// behind and to its right, as the room's does. Lenient: a lenient build leaves the lean out, the twin resting in its idle.
+import { DEG, invert, origin, transformDirection, transformPoint } from "../../../src/room/compose/math";
+import type { Vec3 } from "../../../src/room/compose/math";
 import { avatarsOf, twinOf } from "../avatars";
-import type { Family } from "./family";
+import type { Scene } from "../schema";
+import type { Context, Family } from "./family";
+import { geometryOf } from "./rg";
+import type { Geometry } from "./rg";
 
-/** RA: every rule of the family, in its order: the visitors' folders, then the twin's. */
+/** The lean's measures, for RA7 and the report: the desk's origin's offset from the spot, in metres; the turn between
+ *  their facings, in degrees; and the desk's top to the twin's right of its root, in metres. Null without a lean, or
+ *  where the placements don't resolve. */
+export interface LeanMeasure {
+  readonly off_m: number;
+  readonly turn_deg: number;
+  readonly right_m: number;
+  /** How near the root the desk's top begins on the twin's right, in metres (0 where it passes the root). */
+  readonly gap_m: number;
+}
+
+/** The scene's lean measured (FR-029), over a compose's geometry. */
+export function leanMeasure(scene: Scene | null | undefined, g: Geometry | null): LeanMeasure | null {
+  const lean = scene?.figures.twin?.lean;
+  if (!scene || !lean || !g) return null;
+  const twin = scene.placements.find((p) => p.role === "twin");
+  const desk = scene.placements.find((p) => p.id === lean.against);
+  const tw = twin && g.resolved.world.get(twin.id);
+  const dw = desk && g.resolved.world.get(desk.id);
+  const entry = desk && g.pieces.get(desk.piece);
+  const inverse = tw ? invert(tw) : null;
+  if (!tw || !dw || !entry || !inverse) return null;
+  const at = transformPoint(inverse, origin(dw));
+  const off = Math.hypot(at[2] + lean.behind_m, 0);
+  const facing = transformDirection(inverse, transformDirection(dw, [0, 0, 1]));
+  const turn = Math.abs(Math.atan2(facing[0], facing[2])) / DEG;
+  const { min, max } = entry.origin.bounds;
+  const corners: Vec3[] = [
+    [min[0], max[1], min[2]],
+    [max[0], max[1], min[2]],
+    [min[0], max[1], max[2]],
+    [max[0], max[1], max[2]],
+  ];
+  const xs = corners.map((c) => transformPoint(inverse, transformPoint(dw, c))[0]);
+  const [left, right] = [Math.min(...xs), Math.max(...xs)];
+  return { off_m: off, turn_deg: turn, right_m: Math.max(0, -left), gap_m: Math.max(0, -right) };
+}
+
+/** RA7 over the scene's lean. */
+function leanCheck(ctx: Context): void {
+  const scene = ctx.room.scene;
+  const lean = scene?.value.figures.twin?.lean;
+  if (!scene || !lean) return;
+  const m = leanMeasure(scene.value, geometryOf(ctx));
+  if (m === null) return;
+  const at = (key: string): string => ctx.path("figures", "twin", "lean", key);
+  if (m.off_m > 0.01)
+    ctx.report(
+      "RA7",
+      scene.file,
+      at("behind_m"),
+      `the desk's origin is ${(m.off_m * 100).toFixed(1)} cm off behind_m behind the twin's root, over 1 cm`,
+    );
+  if (m.turn_deg > 1)
+    ctx.report("RA7", scene.file, at("against"), `the desk faces ${m.turn_deg.toFixed(1)}° from the twin, over 1°`);
+  if (m.right_m < lean.right_m || m.gap_m > 0.05)
+    ctx.report(
+      "RA7",
+      scene.file,
+      at("right_m"),
+      `${m.right_m.toFixed(2)} m of the desk's top to the twin's right, from ${(m.gap_m * 100).toFixed(1)} cm off its ` +
+        "root: under right_m, or starting over 5 cm from it",
+    );
+}
+
+/** RA: every rule of the family, in its order: the visitors' folders, then the twin's, then its lean. */
 export const ra: Family = (ctx) => {
   const scene = ctx.room.scene?.value ?? null;
   for (const p of avatarsOf(ctx.tree, ctx.policy, scene).problems) ctx.report(p.rule, p.file, p.path, p.reason);
   for (const p of twinOf(ctx.tree, ctx.policy, scene).problems) ctx.report(p.rule, p.file, p.path, p.reason);
+  leanCheck(ctx);
 };

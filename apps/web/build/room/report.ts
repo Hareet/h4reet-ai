@@ -56,6 +56,7 @@ import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } fro
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
+import { leanMeasure } from "./checks/ra";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
@@ -401,6 +402,15 @@ function twinLines(c: Composed, memory: SceneTextureMemory): string[] {
       ? "The twin's line: none, so none of its files is shown (RA6)."
       : `The twin's line: from approval \`${twin.line.approval}\` in main's likeness approvals, read from ` +
           `${twin.line.source === "policy-dir" ? "the policy directory" : twin.line.source === "main" ? "refs/heads/main" : "the tree's own copy"}.`,
+  );
+  // The lean's spot against the placement (contracts/twin-data.md §8), RA7's measure.
+  const lean = leanMeasure(c.scene, c.geometry);
+  out.push(
+    lean === null
+      ? "The lean: none in the scene's twin block, so the twin rests in its idle."
+      : `The lean: the desk's origin ${fixed(lean.off_m * 100, 1)} cm off its spot behind the twin, ` +
+          `${fixed(lean.turn_deg, 1)}° from the twin's facing, and ${fixed(lean.right_m, 2)} m of its top to the ` +
+          `twin's right, from ${fixed(lean.gap_m * 100, 1)} cm off its root.`,
   );
   out.push(
     `RK3's twin term: ${memory.twin === null ? "nothing yet" : count(memory.twin)}, the larger of its own model at ` +
