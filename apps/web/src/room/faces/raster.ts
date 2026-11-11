@@ -31,6 +31,11 @@ export function rasterize(
   for (const op of list.ops) {
     switch (op.op) {
       case "fill":
+        // Spec 016's print face clears to transparent, so its canvas holds ink alone (FR-036).
+        if (op.color === "transparent") {
+          ctx.clearRect(0, 0, list.size[0], list.size[1]);
+          break;
+        }
         ctx.fillStyle = op.color;
         ctx.fillRect(0, 0, list.size[0], list.size[1]);
         break;

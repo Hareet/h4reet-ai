@@ -41,6 +41,9 @@ function expectedLines(index: RoomIndex, tier: string): string[] {
       const sw = index.switches.find((s) => s.id === entry.switch);
       out.push(`${index.ui[sw?.label ?? ""] ?? ""}: ${index.ui[`tier.${tier}`] ?? ""}`);
     } else if ("line" in entry && entry.line !== "pause.paused_at") out.push(index.ui[entry.line] ?? "");
+    // Spec 016's line slot (FR-014; changed with T017, plan.md R-18): the stand-in line until the twin's own picture
+    // shows, which no fixture's text copy is told of here.
+    else if ("twin_line" in entry) out.push(index.ui["twin.stand_in"] ?? "");
   }
   return out;
 }
@@ -51,7 +54,9 @@ describe("the text copy (renderTextCopy)", () => {
   it("heads a section with around.heading, listing each switch's state and the fixed lines in copy[]'s order", () => {
     const { index } = fixture();
     // The fixture's copy[] holds every kind of entry: its faces, its switch, the sign's figures, and the fixed lines.
-    expect(new Set(index.copy.map((e) => Object.keys(e)[0]))).toEqual(new Set(["face", "switch", "figures", "line"]));
+    expect(new Set(index.copy.map((e) => Object.keys(e)[0]))).toEqual(
+      new Set(["twin_line", "face", "switch", "figures", "line"]),
+    );
     const copy = renderTextCopy(page(), index);
     const section = copy.element;
     expect(section.localName).toBe("section");
@@ -68,7 +73,7 @@ describe("the text copy (renderTextCopy)", () => {
   it("leaves out each face bound to room text until its words come, the sign's figures, and Paused at until paused", () => {
     const { index } = fixture();
     const lines = linesOf(renderTextCopy(page(), index).element);
-    const lineEntries = index.copy.filter((e) => "line" in e && e.line !== "pause.paused_at");
+    const lineEntries = index.copy.filter((e) => ("line" in e && e.line !== "pause.paused_at") || "twin_line" in e);
     const worded = index.faces.filter((f) => faceWords(f, { index, text: null }) !== null);
     expect(lines).toHaveLength(worded.length + index.switches.length + lineEntries.length);
     for (const face of index.faces) {
@@ -151,7 +156,9 @@ describe("in the room", () => {
       const v = start({ room: { ...index, build: { ...index.build, placeholders } } });
       await intoRoom(v);
       const note = v.doc.querySelector(".room-note");
-      expect(textOf(note)).toBe(index.ui["standin.note"]);
+      // Spec 014 (FR-053 to FR-055; plan.md §9): the note's words are its causes', so with nothing missing it is hidden
+      // and says nothing.
+      expect(textOf(note)).toBe(placeholders ? index.ui["standin.note"] : "");
       expect(note?.hasAttribute("hidden"), String(placeholders)).toBe(!placeholders);
     }
   });

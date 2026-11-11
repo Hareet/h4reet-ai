@@ -1,0 +1,31 @@
+rule: RA1
+file: assets/twin/twin.glb
+path: "-"
+why: the twin's model its folder's records.json doesn't record (spec 016, FR-009)
+likeness: approve
+generate:
+  assets/twin/twin.glb: glb:twin
+  assets/twin/idle.glb: glb:twin-idle
+  assets/twin/talking.glb: glb:twin-talking
+  assets/twin/listening.glb: glb:twin-listening
+  assets/twin/greeting.glb: glb:twin-greeting
+  assets/twin/desk-lean.glb: glb:twin-desk-lean
+  assets/twin/still.png: png:twin-still
+  assets/twin/records.json: twin-records
+caps:
+  schema: 1
+  adr_0010: accepted
+  per_asset:
+    room:
+      gzip_bytes: 2500000
+      triangles: 40000
+      small_props: []
+      small_prop_texture_px: 1024
+      scene_texture_bytes: 96000000
+      legibility_floor_css_px: 9
+    avatar: { bytes: 21000000, triangles: 180000, texture_bytes: 46000000 }
+    animation: { bytes: 1000000 }
+    still: { bytes: 300000 }
+  first_visit_bytes: { phase2: 10000000, phase3: 25000000 }
+edits:
+  - { file: assets/twin/records.json, at: [entries, 6], delete: true }

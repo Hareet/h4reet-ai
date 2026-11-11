@@ -4,6 +4,7 @@
 // index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
 // network: jsdom loads no subresource, and every request API is a spy.
 import type { Viewport, ViewportChange, WindowMeasures } from "../../src/room/hud/viewport";
+import type { Protect } from "../../src/room/compose/frame";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -112,14 +113,21 @@ export interface Spies {
   history: string[];
   /** Every request but a beacon: fetch, XMLHttpRequest, WebSocket, EventSource, window.open. */
   network: string[];
+  /** Spec 016 (FR-034, FR-035): each fetch of the twin's 2D still, a static file of the site's own origin which the 2D
+   *  room fetches in every 2D visit whatever the live source says (FR-001), answered with its file's bytes and kept
+   *  apart from `network`, which holds the visit's other requests (plan.md R-18). */
+  assets: string[];
   /** Each sendBeacon, with its URL and body. */
   beacons: { url: string; body: string }[];
   /** Calls to getUserMedia. */
   microphone: number;
 }
 
+/** The twin's 2D still's served name (spec 016, FR-048). */
+const STILL_URL = /^a\/twin-still\.[0-9a-f]{16}\.png$/;
+
 function spyOnEverything(win: Window, answer?: (url: string, init: RequestInit) => Promise<Response>): Spies {
-  const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+  const spies: Spies = { storage: [], history: [], network: [], assets: [], beacons: [], microphone: 0 };
   const define = (target: object, name: string, descriptor: PropertyDescriptor): void => {
     Object.defineProperty(target, name, { configurable: true, ...descriptor });
   };
@@ -136,6 +144,13 @@ function spyOnEverything(win: Window, answer?: (url: string, init: RequestInit) 
   }
   define(win, "fetch", {
     value: (input: unknown, init: RequestInit = {}) => {
+      if (STILL_URL.test(String(input))) {
+        spies.assets.push(`fetch ${String(input)}`);
+        return Promise.resolve({
+          status: 200,
+          arrayBuffer: () => Promise.resolve(new Uint8Array(readFileSync(join(REPO, "assets/twin/still.png"))).buffer),
+        } as Response);
+      }
       spies.network.push(`fetch ${String(input)}`);
       return answer ? answer(String(input), init) : Promise.reject(new Error("no network in the room's tests"));
     },
@@ -301,6 +316,9 @@ export interface FakeScene {
   /** Called inside createScene, before it returns, with the room's options: a test's way to report asset events as
    *  the room's loader does below ADR 0010's floor, before the stage has said what it will load. */
   onCreate?: (options: SceneOptions) => void;
+  /** Spec 014: the stage's frame-area protector, which the room's re-fit asks; absent, the room frames into the clear
+   *  area, as before spec 014. */
+  protect?: Protect;
 }
 
 export function fakeScene(): FakeScene {
@@ -361,6 +379,7 @@ export function fakeScene(): FakeScene {
           },
           ...(fake.figures ? { figures: fake.figures, waitMs: fake.waitMs ?? 0 } : {}),
           ...(fake.expected ? { expected: fake.expected } : {}),
+          ...(fake.protect ? { protect: fake.protect } : {}),
         };
         fake.stage = stage;
         fake.onCreate?.(options);

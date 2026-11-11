@@ -62,8 +62,10 @@ PROXY = "http://198.18.0.1:3128"  # dev-cpu.vars' H4_BUILD_PROXY
 APPROVALS = "assets/policy/content-approvals.json"
 HEADER = "assets/policy/resume-header.json"
 CAPS = "assets/policy/caps.json"
-# The policy's names in the context, in the order its digest takes them (spec 004, R-13).
-NAMES = ("content-approvals.json", "resume-header.json", "caps.json")
+LIKENESS = "assets/policy/approvals.json"
+# The policy's names in the context, in the order its digest takes them (spec 004, R-13), with spec 016's likeness
+# approvals fourth (its FR-015; plan.md R-03).
+NAMES = ("content-approvals.json", "resume-header.json", "caps.json", "approvals.json")
 # Stand-ins for the Author's files, as main would hold them. Not real approvals: the digest is made here, at run time.
 MAIN_APPROVALS = (
     '{"schema": 1, "approvals": [{"id": "C-0001", "sha256": "'
@@ -72,6 +74,7 @@ MAIN_APPROVALS = (
 )
 MAIN_HEADER = '{"schema": 1, "full_name": null, "contact": null}\n'
 MAIN_CAPS = '{"schema": 1, "per_asset": {}, "fixture": "made by the test"}\n'
+MAIN_LIKENESS = '{"schema": 1, "approvals": [], "fixture": "made by the test"}\n'
 
 
 def git(repo: Path, *args: str) -> str:
@@ -127,7 +130,7 @@ def digest(files: dict[str, bytes | None]) -> str:
 
 class FakeDocker:
     """docker buildx build, as the engine would answer it, keeping a copy of the policy context it was handed, and
-    the room-assets and visitor-assets contexts' paths, or None where the build names one or the other not."""
+    the room-assets, visitor-assets, and twin-assets contexts' paths, or None where the build names one not."""
 
     def __init__(self, build_rc: int = 0) -> None:
         self.build_rc = build_rc
@@ -136,6 +139,7 @@ class FakeDocker:
         self.context_dirs: list[Path] = []
         self.room_assets: list[str | None] = []
         self.visitor_assets: list[str | None] = []
+        self.twin_assets: list[str | None] = []
 
     def __call__(self, *args: str, capture: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(args)
@@ -147,18 +151,18 @@ class FakeDocker:
             if a == "--build-context"
         ]
         names = [name for name, _, _ in named]
-        assert names in (
-            ["policy"],
-            ["policy", "room-assets"],
-            ["policy", "visitor-assets"],
-            ["policy", "room-assets", "visitor-assets"],
-        ), names
+        # The policy first, then each asset context the tree has, in the script's order (spec 016 adds the twin's).
+        assets = [
+            n for n in ("room-assets", "visitor-assets", "twin-assets") if n in names
+        ]
+        assert names == ["policy", *assets], names
         where = {name: path for name, _, path in named}
         folder = Path(where["policy"])
         self.context_dirs.append(folder)
         self.contexts.append({p.name: p.read_bytes() for p in sorted(folder.iterdir())})
         self.room_assets.append(where.get("room-assets"))
         self.visitor_assets.append(where.get("visitor-assets"))
+        self.twin_assets.append(where.get("twin-assets"))
         return subprocess.CompletedProcess(args, self.build_rc, "", "")
 
     def builds(self) -> list[tuple[str, ...]]:
@@ -174,17 +178,19 @@ def build_argv(
     policy: str,
     room: Path | None = None,
     visitors: Path | None = None,
+    twin: Path | None = None,
 ) -> tuple[str, ...]:
     """The one build the script may run: its own tree's Dockerfile and context, the proxy, the drafts flag, the
     policy context, the tree's models as the room-assets context where it has them (`room`), its visitor avatars'
-    folder as the visitor-assets context where it has one (`visitors`, spec 009), and the policy's digest as a
-    label."""
+    folder as the visitor-assets context where it has one (`visitors`, spec 009), the twin's folder as the
+    twin-assets context where it has one (`twin`, spec 016), and the policy's digest as a label."""
     models = ("--build-context", f"room-assets={room}") if room is not None else ()
     avatars = (
         ("--build-context", f"visitor-assets={visitors}")
         if visitors is not None
         else ()
     )
+    twins = ("--build-context", f"twin-assets={twin}") if twin is not None else ()
     return (
         "buildx",
         "build",
@@ -203,6 +209,7 @@ def build_argv(
         f"policy={context}",
         *models,
         *avatars,
+        *twins,
         "--label",
         f"org.h4reet.web.policy={policy}",
         str(tree),
@@ -512,12 +519,16 @@ def test_the_policy_context_holds_mains_two_files_exactly(
     assert fake.contexts == [BOTH]
 
 
-def test_the_policy_files_are_the_approvals_the_header_and_the_caps_in_order() -> None:
-    # Spec 004, R-13: the caps join third, so the room's compositor reads main's caps from the same context.
+def test_the_policy_files_are_the_approvals_the_header_the_caps_and_the_likeness_in_order() -> (
+    None
+):
+    # Spec 004, R-13: the caps join third, so the room's compositor reads main's caps from the same context. Spec 016
+    # (FR-015; plan.md R-03): the likeness approvals fourth, so the twin's line is main's, read and never copied.
     assert wi.POLICY_FILES == (
         (APPROVALS, "content-approvals.json"),
         (HEADER, "resume-header.json"),
         (CAPS, "caps.json"),
+        (LIKENESS, "approvals.json"),
     )
 
 
@@ -534,11 +545,9 @@ def test_mains_caps_join_the_context_and_the_label_digests_the_three_in_order(
     assert fake.contexts == [ALL_THREE]
     # The label is apps/web/build/approvals.ts's policyDigest over the same bytes: "<name>:<SHA-256>\n" for the
     # approvals, the header, then the caps, hashed once more.
-    lines = "".join(f"{n}:{hashlib.sha256(ALL_THREE[n]).hexdigest()}\n" for n in NAMES)
     argv = built(fake)
     assert (
-        argv[argv.index("--label") + 1]
-        == f"org.h4reet.web.policy={hashlib.sha256(lines.encode()).hexdigest()}"
+        argv[argv.index("--label") + 1] == f"org.h4reet.web.policy={digest(ALL_THREE)}"
     )
 
 
@@ -555,6 +564,7 @@ def test_caps_main_lacks_are_absent_and_the_label_says_so(
         f"content-approvals.json:{hashlib.sha256(MAIN_APPROVALS.encode()).hexdigest()}\n"
         f"resume-header.json:{hashlib.sha256(MAIN_HEADER.encode()).hexdigest()}\n"
         "caps.json:absent\n"
+        "approvals.json:absent\n"
     )
     argv = built(fake)
     assert (
@@ -647,6 +657,7 @@ def test_no_policy_on_main_is_an_empty_context(
     argv = built(fake)
     absent = hashlib.sha256(
         b"content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n"
+        b"approvals.json:absent\n"
     ).hexdigest()
     assert absent == digest({})
     assert argv[argv.index("--label") + 1] == f"org.h4reet.web.policy={absent}"
@@ -704,6 +715,7 @@ def test_git_reads_main_without_replace_objects_or_the_callers_config(
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{APPROVALS}"],
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{HEADER}"],
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{CAPS}"],
+        ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{LIKENESS}"],
     ]
     for _, git_env in seen:
         assert git_env.get("GIT_NO_REPLACE_OBJECTS") == "1"
@@ -877,6 +889,115 @@ def test_the_build_gets_no_other_flag_for_the_models(
 
 
 # --------------------------------------------------------------------------------------------------
+# Spec 016 (FR-015, FR-048; plan.md R-03, R-04; Amendments M20, M21): main's likeness approvals in the policy context,
+# fourth, and the tree's assets/twin/ as the named context twin-assets
+# --------------------------------------------------------------------------------------------------
+def test_mains_likeness_approvals_join_the_context_and_the_label_digests_the_four_in_order(
+    tmp_path: Path, export: Path
+) -> None:
+    files = {
+        APPROVALS: MAIN_APPROVALS,
+        HEADER: MAIN_HEADER,
+        CAPS: MAIN_CAPS,
+        LIKENESS: MAIN_LIKENESS,
+    }
+    repo = make_repo(tmp_path / "repo", files)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    four = ALL_THREE | {"approvals.json": MAIN_LIKENESS.encode()}
+    assert fake.contexts == [four]
+    lines = "".join(f"{n}:{hashlib.sha256(four[n]).hexdigest()}\n" for n in NAMES)
+    argv = built(fake)
+    assert (
+        argv[argv.index("--label") + 1]
+        == f"org.h4reet.web.policy={hashlib.sha256(lines.encode()).hexdigest()}"
+    )
+
+
+def test_the_likeness_approvals_are_mains_never_a_branchs_or_a_tags_named_main(
+    tmp_path: Path, export: Path
+) -> None:
+    # A branch that could approve its own likeness line would show the Author's likeness without his approval.
+    raised = '{"schema": 1, "approvals": [], "fixture": "approved by the branch"}\n'
+    repo = make_repo(
+        tmp_path / "repo", {LIKENESS: MAIN_LIKENESS}, branch_files={LIKENESS: raised}
+    )
+    git(repo, "tag", "main", "feature")
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.contexts == [{"approvals.json": MAIN_LIKENESS.encode()}]
+
+
+def with_twin(tree: Path) -> Path:
+    """The tree's assets/twin/, holding a model and its record, as an export of a commit with the twin holds them."""
+    twin = tree / "assets/twin"
+    twin.mkdir(parents=True)
+    (twin / "twin.glb").write_bytes(b"glTF made by the test")
+    (twin / "records.json").write_text('{"schema": 1}\n', encoding="utf-8")
+    return twin
+
+
+def test_the_twin_comes_from_the_export_it_builds(
+    tmp_path: Path, export: Path, repo: Path
+) -> None:
+    room = with_models(export)
+    twin = with_twin(export)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    argv = built(fake)
+    assert argv == build_argv(
+        export, SHA, "", "", context_of(argv), digest(BOTH), room=room, twin=twin
+    )
+    assert fake.twin_assets == [str(twin)]
+    assert fake.contexts == [BOTH]
+
+
+def twin_a_link(tree: Path, outside: Path) -> None:
+    twin = with_twin(outside)
+    (tree / "assets").mkdir()
+    (tree / "assets/twin").symlink_to(twin, target_is_directory=True)
+
+
+def twin_under_a_linked_assets(tree: Path, outside: Path) -> None:
+    with_twin(outside)
+    (tree / "assets").symlink_to(outside / "assets", target_is_directory=True)
+
+
+def twin_a_file(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+    (tree / "assets/twin").write_bytes(b"not a directory")
+
+
+def twin_absent(tree: Path, outside: Path) -> None:
+    (tree / "assets").mkdir()
+
+
+@pytest.mark.parametrize(
+    "make", [twin_a_link, twin_under_a_linked_assets, twin_a_file, twin_absent]
+)
+def test_assets_twin_that_isnt_the_trees_own_directory_names_no_context(
+    tmp_path: Path,
+    export: Path,
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    make: Callable[[Path, Path], None],
+) -> None:
+    # The Dockerfile's empty twin-assets stage then stands in, and the twin's figure shows the stand-in (FR-048).
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make(export, outside)
+    env, run = host_files(tmp_path, export)
+    fake = FakeDocker()
+    assert host("prod", env, run, fake, export, repo) == 0
+    assert fake.twin_assets == [None]
+    assert not [a for a in built(fake) if "twin-assets" in a]
+    assert "has no assets/twin directory of its own" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------------------------------
 # dev-cpu: the working tree, on the agents' engine, every run
 # --------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize(
@@ -910,6 +1031,9 @@ def test_dev_cpu_builds_the_working_tree_with_drafts(
     # And its visitor avatars' folder, under assets/visitors/ (spec 009, FR-023), whatever avatars it holds yet.
     visitors = REPO / "assets/visitors"
     assert visitors.is_dir() and not visitors.is_symlink()
+    # And the twin's, under assets/twin/ (spec 016, FR-048), the Author's intake at the branch's base.
+    twin = REPO / "assets/twin"
+    assert twin.is_dir() and not twin.is_symlink()
     assert fake.calls == [
         build_argv(
             REPO,
@@ -920,11 +1044,13 @@ def test_dev_cpu_builds_the_working_tree_with_drafts(
             digest(BOTH),
             room=room,
             visitors=visitors,
+            twin=twin,
         )
     ]
     assert fake.contexts == [BOTH]
     assert fake.room_assets == [str(room)]
     assert fake.visitor_assets == [str(visitors)]
+    assert fake.twin_assets == [str(twin)]
     assert "h4reet-web:working-tree-drafts, built" in capsys.readouterr().out
 
 
@@ -1074,19 +1200,30 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     ]
     assert len(builds) == 2
     assert all(copy < i for i in builds)
-    # Of the files the build context gives (a COPY or ADD with no --from), the caps are the only one under assets/.
-    # The models come from the named room-assets stage instead (T219), never from the context's assets/room, and the
-    # visitor avatars from the visitor-assets stage (spec 009, FR-023).
+    # Of the files the build context gives (a COPY or ADD with no --from), the caps and spec 016's likeness approvals
+    # (its plan.md R-03) are the only ones under assets/. The models come from the named room-assets stage instead
+    # (T219), never from the context's assets/room, the visitor avatars from the visitor-assets stage (spec 009,
+    # FR-023), and the twin from the twin-assets stage (spec 016, FR-048).
+    likeness = "COPY assets/policy/approvals.json assets/policy/approvals.json"
+    assert all(copy < i for i in builds) and instructions.index(likeness) < min(builds)
+    # And spec 016's credits page's source (its FR-042; changed with T063, plan.md R-18), which isn't policy.
+    credits = "COPY assets/CREDITS.md assets/CREDITS.md"
     assert [
         ln
         for ln in instructions
         if ln.startswith(("COPY ", "ADD ")) and "--from=" not in ln and "assets/" in ln
-    ] == [caps]
+    ] == [credits, caps, likeness]
     assert [
         ln
         for ln in instructions
-        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln and ln != caps
-    ] == [ROOM_ASSETS_COPY, VISITOR_ASSETS_COPY]
+        if ln.startswith(("COPY ", "ADD "))
+        and "assets/" in ln
+        and ln not in (caps, likeness, credits)
+    ] == [
+        ROOM_ASSETS_COPY,
+        VISITOR_ASSETS_COPY,
+        "COPY --from=twin-assets / /src/assets/twin/",
+    ]
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1208,20 +1345,25 @@ def test_the_matcher_reads_dockerignore_as_docker_does() -> None:
 
 
 def test_the_policy_reaches_the_build_only_through_its_named_context() -> None:
-    # The approvals and the PDF's header never enter a context from the tree: the build reads them from the policy
-    # context, main's, or not at all. The caps are the exception, which the install stage copies (T328).
+    # The content approvals and the PDF's header never enter a context from the tree: the build reads them from the
+    # policy context, main's, or not at all. The caps are the exception, which the install stage copies (T328), and spec
+    # 016's likeness approvals (its plan.md R-03; changed with T013, R-18), which the room reads only where the policy
+    # context holds none, and which rule A9 holds to main's at the commit's base, as it holds the caps.
     ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert "assets/policy" in ignore
     assert "!assets/policy/caps.json" in ignore
+    assert "!assets/policy/approvals.json" in ignore
     assert ignore.index("assets/policy") < ignore.index("!assets/policy/caps.json")
+    assert ignore.index("assets/policy") < ignore.index("!assets/policy/approvals.json")
     for name in (
         "content-approvals.json",
         "resume-header.json",
-        "approvals.json",
+        "licenses.json",
         "anything-else.json",
     ):
         assert dockerignored(f"assets/policy/{name}"), name
     assert not dockerignored("assets/policy/caps.json")
+    assert not dockerignored("assets/policy/approvals.json")
 
 
 def test_every_file_the_dockerfile_copies_from_the_context_is_in_it() -> None:

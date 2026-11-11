@@ -197,8 +197,10 @@ export function createInk(renderer: WebGLRenderer, look: Look): Ink {
   const share = (node: Object3D): void => {
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
+    // A face drawn into an avatar's mesh keeps its lines off (spec 016, FR-037; plan.md R-12, K4).
     for (const material of ([] as Material[]).concat(mesh.material))
-      if (material.userData.outlineParameters !== lines) material.userData.outlineParameters = lines;
+      if (material.userData.outlineParameters !== lines && material.userData.h4FaceSurface !== true)
+        material.userData.outlineParameters = lines;
   };
   return {
     outlined: true,

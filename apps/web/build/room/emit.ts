@@ -37,7 +37,7 @@ import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
 
-import { AVATARS } from "../../src/choice/avatars";
+import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
@@ -70,11 +70,16 @@ import type { FitInput, Measures } from "../../src/room/glb/fit";
 import { gzip9 } from "../../src/room/glb/gzip";
 import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
-import { avatarsOf, bundledFiles } from "./avatars";
+import { avatarsOf, bundledFiles, twinGlbs, twinOf } from "./avatars";
+import type { FigureBlock, TwinFileRole, TwinSet } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
+import { TWIN_DEFAULTS } from "./schema";
+import { isTwinClipRole, TWIN_CLIPS_DEFAULT, TWIN_STATES } from "../../src/room/scene/twin-states";
+import type { TwinClipRole, TwinState } from "../../src/room/scene/twin-states";
+import type { TwinBlock } from "../../src/room/compose/bundle";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
-import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
+import { faceScreens, flatFigures, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { fillHints, indexHints } from "./hints";
@@ -112,6 +117,8 @@ export interface RoomFixture {
 export interface RoomLookdev {
   readonly vignette: { readonly show: readonly string[] };
   readonly close_up: { readonly frame: readonly string[] };
+  /** Spec 014 (FR-042; PD-24): the hands view's avatars, where lookdev.yaml lists any. */
+  readonly hands?: { readonly avatars: readonly AvatarId[] };
   readonly looks: readonly Look[];
   /** Each piece's fit inputs: its expected bounds and live faces at the stylized scale, its budget, whether the caps
    *  list it as a small prop. */
@@ -196,6 +203,15 @@ export interface RoomOutputs {
     readonly piece: string;
     readonly url: string;
     readonly bytes: Uint8Array;
+    readonly sha256: string;
+  }[];
+  /** Spec 016 (FR-017, FR-048): each bundled file of the twin's, as the bundle names it: a GLB's gzip-9 copy as `data`,
+   *  landing at `dist/<url>.gz`, and the still's plain bytes, landing at `dist/<url>`. */
+  readonly twin: readonly {
+    readonly role: TwinFileRole;
+    readonly path: string;
+    readonly url: string;
+    readonly data: Uint8Array;
     readonly sha256: string;
   }[];
   /** Spec 009: each bundled avatar file, as the 3D part's `avatars` names it, its gzip-9 copy landing at `dist/<url>.gz`
@@ -310,6 +326,8 @@ export interface Composed {
   readonly figures: ReadonlySet<string>;
   /** Spec 009's avatars, as build/room/avatars.ts read them for this compose. */
   readonly avatars: AvatarSet;
+  /** Spec 016's twin, as build/room/avatars.ts's readTwin read it for this compose. */
+  readonly twin: TwinSet;
   /** RG's geometry over the pieces set here, whose numbers RG and RK3 checked, its reference cameras among them; null
    *  without a scene. */
   readonly geometry: Geometry | null;
@@ -464,6 +482,7 @@ function prepare(
     pictures,
     figures,
     avatars: avatarsOf(reader.tree, policy, scene),
+    twin: twinOf(reader.tree, policy, scene),
     geometry: g,
     world,
     frames: g?.boxes ?? new Map<string, Box>(),
@@ -886,7 +905,8 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     const d = drawn.get(face.placement);
     const p = c.placements.get(face.placement);
     const live = p && c.pieces.get(p.piece)?.value.live_faces.find((f) => f.role === face.role);
-    if (!d || !live) continue;
+    // The shirt's face is drawn only on the twin's own model, never in 2D (spec 016, FR-041).
+    if (!d || !live || live.surface === "model") continue;
     const geometry = faceGeometry(live);
     const local = (u: number, v: number): [number, number] => {
       const q = facePoint(geometry, u, v);
@@ -934,6 +954,7 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     poses,
     faces: frames,
     hits,
+    figures: c.geometry ? flatFigures(c.geometry) : [],
     labels,
     papers: [paper(from), paper(middle), paper(to)],
     visitor: at
@@ -995,6 +1016,8 @@ function facesOf(c: Composed): RoomIndex["faces"] {
       px: [live.px[0], live.px[1]],
       screen_css: screen ? point(screen) : [live.px[0], live.px[1]],
       regions: binding.regions.map(regionOf),
+      // Spec 016 (FR-036; Amendment M18): a face drawn into its avatar's own mesh, which no quad or 2D frame shows.
+      ...(live.surface === "model" ? { surface: "model" as const } : {}),
     });
   }
   return out;
@@ -1023,14 +1046,14 @@ function claimsOf(piece: CatalogEntry | undefined): { claims?: { local: string; 
   return { claims: { local: named("local"), cloud: named("cloud") } };
 }
 
-/** The text copy's order (§3.1): spec 009's stand-in line, the bound faces, the switches, the sign's figures, and the
- *  fixed lines. The stand-in line comes first while the twin's figure shows anything but the twin's own avatar, which
- *  in spec 009 is always (its FR-013; plan.md R-13). */
+/** The text copy's order (§3.1): the twin's line slot, the bound faces, the switches, the sign's figures, and the
+ *  fixed lines. Spec 016 (FR-014; contracts/twin-data.md §4): the slot, first, which the room resolves to the twin's
+ *  line while its own picture shows and to spec 009's stand-in line otherwise (spec 009's FR-013, as M9 amends it). */
 function copyOf(faces: RoomIndex["faces"], switches: RoomIndex["switches"]): RoomIndex["copy"] {
   const regions = faces.flatMap((f) => f.regions);
   const has = (test: (r: IndexRegion) => boolean): boolean => regions.some(test);
   return [
-    { line: "twin.stand_in" },
+    { twin_line: true as const },
     ...faces.map((f) => ({ face: f.id })),
     ...switches.map((s) => ({ switch: s.id })),
     ...(has((r) => "signal" in r.source) ? [{ figures: true as const }] : []),
@@ -1081,6 +1104,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
   }));
   // FR-064's carve-out (see listOnly): the side-wall selectables, read from the scene's mounts.
   const sideWall = c.geometry === null ? [] : sideWallsOf(c.geometry);
+  const flat = flatOf(c, faces);
   return {
     schema: 1,
     build: { kind: c.options.drafts ? "drafts" : "release", placeholders },
@@ -1107,7 +1131,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
     })),
     faces,
     switches,
-    flat: flatOf(c, faces),
+    flat,
     copy: copyOf(faces, switches),
     typefaces: c.typefaces.map((t) => ({
       use: t.use,
@@ -1123,6 +1147,98 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       fillHints(c.room.hints?.value ?? null, c.reader.tree, words),
       c.options.readiness?.freeTalk ?? false,
     ),
+    twin: twinIndexOf(c, flat),
+  };
+}
+
+// ---- Spec 016's twin (its FR-014, FR-015, FR-034, FR-044, FR-048, FR-054; contracts/twin-data.md §1, §4) ----
+
+/** The twin's block resolved: the scene's values, each key's default where it gives none; the lean null where the
+ *  scene gives none. */
+export function twinBlockOf(scene: Scene | null, texturePx: number): TwinBlock {
+  const block = scene?.figures.twin;
+  const clips = {} as Record<TwinState, TwinClipRole>;
+  // A role RI8 refuses keeps the state's default, so a lenient reading never carries one outside the closed list.
+  for (const state of TWIN_STATES) {
+    const named = block?.clips?.[state];
+    clips[state] = named !== undefined && isTwinClipRole(named) ? named : TWIN_CLIPS_DEFAULT[state];
+  }
+  const speak = block?.speak_s;
+  return {
+    clips,
+    rest_after_s: block?.rest_after_s ?? TWIN_DEFAULTS.rest_after_s,
+    speak_wpm: block?.speak_wpm ?? TWIN_DEFAULTS.speak_wpm,
+    speak_s: speak && speak.length === 2 ? [speak[0] as number, speak[1] as number] : [...TWIN_DEFAULTS.speak_s],
+    lean: block?.lean
+      ? { against: block.lean.against, behind_m: m6(block.lean.behind_m), right_m: m6(block.lean.right_m) }
+      : null,
+    texture_px: texturePx,
+  };
+}
+
+/** The still's rectangle (FR-034; D2): the scene's, else the twin figure's box's width at its top, at the still's 3:4. */
+function stillRect(c: Composed): [number, number, number, number] {
+  const given = c.scene?.figures.twin?.still?.rect;
+  if (given && given.length === 4) return given.map(m6) as [number, number, number, number];
+  const twin = c.scene?.placements.find((p) => p.role === "twin");
+  const bounds = twin ? c.pieces.get(twin.piece)?.value.origin.bounds : undefined;
+  if (!bounds) return [0, 0, 0, 0];
+  const w = bounds.max[0] - bounds.min[0];
+  const h = (w * 4) / 3;
+  return [m6(bounds.min[0]), m6(bounds.max[1] - h), m6(w), m6(h)];
+}
+
+/** The index's twin: its line and its still, where the twin's line was read and its model or its still is bundled. */
+function twinIndexOf(c: Composed, flat: RoomIndex["flat"]): RoomIndex["twin"] {
+  const { line, still, model } = c.twin;
+  if (line === null || !(model?.bundled || still?.bundled)) return null;
+  const rect = stillRect(c);
+  // The still's rectangle in the 2D drawing's view box (plan.md R-11, as built): its corners through the twin figure's
+  // drawing's matrix, the compositor's projection, so the 2D room draws it with no projection of its own.
+  const placement = c.scene?.placements.find((p) => p.role === "twin")?.id ?? "";
+  const item = flat.items.find((i) => i.placement === placement);
+  const view = (): [number, number, number, number] => {
+    if (!item) return [0, 0, 0, 0];
+    const [a, b, cc, d, e, f] = item.matrix;
+    const at = (x: number, y: number): [number, number] => [a * x + cc * y + e, b * x + d * y + f];
+    const [p, q] = [at(rect[0], rect[1]), at(rect[0] + rect[2], rect[1] + rect[3])];
+    return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.abs(q[0] - p[0]), Math.abs(q[1] - p[1])].map(m6) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+  };
+  return {
+    line: line.line,
+    still: still?.bundled
+      ? { url: still.url, sha256: still.sha256, bytes: still.bytes, rect, view: view(), placement }
+      : null,
+  };
+}
+
+/** The 3D part's twin: its model, its bundled clips in the closed list's order, and its block; null where its model
+ *  isn't bundled. */
+function twinPartOf(c: Composed): RoomScene["twin"] {
+  const files = twinGlbs(c.twin);
+  const model = files[0];
+  if (!model) return null;
+  const clips: Partial<Record<TwinClipRole, { url: string; sha256: string; bytes: number }>> = {};
+  for (const clip of files.slice(1))
+    clips[clip.role as TwinClipRole] = { url: clip.url, sha256: clip.sha256, bytes: clip.gz?.length ?? 0 };
+  return {
+    model: {
+      url: model.url,
+      sha256: model.sha256,
+      bytes: model.gz?.length ?? 0,
+      texture_bytes: model.measures?.kind === "glb" ? model.measures.decoded_bytes : 0,
+    },
+    clips,
+    block: (() => {
+      // RA7 left the lean out of a lenient build (FR-029): the twin rests in its idle.
+      const block = twinBlockOf(c.scene, c.twin.texture_px);
+      return c.findings.some((f) => f.rule === "RA7") ? { ...block, lean: null } : block;
+    })(),
   };
 }
 
@@ -1174,9 +1290,11 @@ function pieceOf(c: Composed, entry: CatalogEntry): RoomScene["pieces"][string] 
       facing: vec(f.facing),
       up: vec(f.up ?? UP),
     })),
+    // A disc glow's centre and radius, or since spec 014 a path glow's points and spread (its FR-045).
     glows: sortedMap(glows, (g) => ({
-      at: vec(g.at),
-      radius: m6(g.radius),
+      ...(g.path === undefined
+        ? { at: vec(g.at ?? [0, 0, 0]), radius: m6(g.radius ?? 0) }
+        : { path: g.path.map(vec), spread: m6(g.spread ?? 0) }),
       tone: g.tone,
       motion: g.motion,
       level: m6(g.level),
@@ -1331,6 +1449,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       texture_px: c.avatars.figures.texture_px,
       wait_ms: c.avatars.figures.wait_ms,
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
+      // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
+      ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
@@ -1340,6 +1460,7 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
     scene_texture_bytes: c.caps.scene_texture_bytes,
     walking: walkingOf(scene),
     avatars: avatarsPart(c),
+    twin: twinPartOf(c),
   };
 }
 
@@ -1467,6 +1588,7 @@ function lookdevOf(c: Composed): RoomLookdev {
   return {
     vignette: { show: [...(lookdev?.vignette.show ?? [])] },
     close_up: { frame: [...(lookdev?.close_up.frame ?? [])] },
+    ...(lookdev?.hands ? { hands: { avatars: lookdev.hands.avatars.filter(isAvatarId) } } : {}),
     looks: c.room.looks.map((l) => lookOf(l.value)),
     pieces,
     caps: {
@@ -1537,13 +1659,6 @@ function standinsOf(c: Composed): RoomManifest["standins"] {
   return out;
 }
 
-/** Whether an avatar is still a placeholder: the twin without its GLB under assets/twin/, or a visitor's avatar
- *  without assets/visitors/<avatar>/<avatar>.glb (spec 003's files). */
-function avatarsPlaceholder(tree: Tree): boolean {
-  const twin = tree.list("assets/twin").some((name) => name.endsWith(".glb"));
-  return !twin || AVATARS.some((a) => !tree.list(`assets/visitors/${a.id}`).includes(`${a.id}.glb`));
-}
-
 const ITEM_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
 /** The resume's item IDs, in order, once each: spec 002's manifest's items; none where the source doesn't read. */
@@ -1573,7 +1688,9 @@ function itemIds(tree: Tree): string[] {
 export const emit: Emit = (room, policy, options, findings, reader) => {
   const c = prepare(room, policy, options, findings, reader);
   const standins = standinsOf(c);
-  const placeholders = standins.length > 0 || avatarsPlaceholder(reader.tree);
+  // Spec 014 (FR-053; PD-17; Amendment W11): the room's stand-ins alone; the page adds a piece that falls back, and the
+  // visitor's figure says its own words.
+  const placeholders = standins.length > 0;
   const scenePart = sceneBody(c);
   const indexPart = indexBody(c, placeholders, loadedModels(scenePart));
   const digest = sha256(`${serialize(indexPart)}\n${serialize(scenePart)}`);
@@ -1597,6 +1714,26 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
         : [],
     ),
   );
+
+  // Spec 016: the twin's served files, by the index's and the 3D part's names, where they bundle them.
+  const twin = [
+    ...(scene.twin ? twinGlbs(c.twin) : []).flatMap((f) =>
+      f.gz !== null && f.role !== null
+        ? [{ role: f.role, path: f.path, url: f.url, data: f.gz, sha256: f.sha256 }]
+        : [],
+    ),
+    ...(index.twin?.still && c.twin.still
+      ? [
+          {
+            role: "still" as const,
+            path: c.twin.still.path,
+            url: c.twin.still.url,
+            data: reader.tree.read(c.twin.still.path) ?? new Uint8Array(),
+            sha256: c.twin.still.sha256,
+          },
+        ]
+      : []),
+  ];
 
   const manifest = roomManifest({
     index,
@@ -1640,9 +1777,31 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
     models,
     cards,
     avatars,
+    twin,
     roomText: roomTextOf(c),
     manifest,
     generated,
     report: roomReport(c, digest, index),
   };
 };
+
+/** The scene's grips as the 3D part carries them (spec 014, FR-039): only the table's avatars and the two hands, which
+ *  RD7 holds the data to, each number on the bundle's grid. */
+function gripsOf(grips: NonNullable<FigureBlock["grips"]>): NonNullable<RoomScene["figures"]["grips"]> {
+  type GripIn = { readonly at: readonly [number, number, number]; readonly turn: Turn };
+  const out: NonNullable<RoomScene["figures"]["grips"]> = {};
+  for (const [avatar, hands] of Object.entries(grips) as [string, Readonly<Record<string, GripIn>>][]) {
+    if (!isAvatarId(avatar)) continue;
+    const entry: Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>> = {};
+    for (const hand of ["right", "left"] as const) {
+      const g = hands[hand];
+      if (g)
+        entry[hand] = {
+          at: [m6(g.at[0]), m6(g.at[1]), m6(g.at[2])],
+          turn: { x: m6(g.turn.x), y: m6(g.turn.y), z: m6(g.turn.z) },
+        };
+    }
+    out[avatar] = entry;
+  }
+  return out;
+}

@@ -8,6 +8,9 @@
 //   so the room sits in the clear area and the scene continues behind the panels in one perspective.
 // - A canvas point moved into the clear area, where the picker's areas are measured (RG6's numbers), or nothing for a
 //   point outside it.
+// Spec 014 (FR-012, FR-014; contracts/frame-area.md §7; plan.md §2.4): the box these take is the room's frame area, the
+// window eased toward the clear area, wherever the room gives one; `canvasToClear` and `clearNdc` keep their names, so
+// spec 005's tests read on, and take the frame area as their `clear`.
 import type { Box } from "./compose/hud";
 import type { Ndc } from "./objects";
 import type { QualitySettings } from "./scene/levels";

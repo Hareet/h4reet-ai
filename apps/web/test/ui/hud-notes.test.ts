@@ -17,7 +17,10 @@ import { textLines, textWidth } from "./hud-model";
 
 const CSS = readFileSync(join(WEB, "src/room/room.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const UI = roomIndex().ui;
-const NOTES = [UI["standin.note"] ?? "", UI["twin.stand_in"] ?? ""];
+/** Spec 016 (FR-014; contracts/twin-states.md §4; changed with T029, plan.md R-18): the line slot says the stand-in
+ *  line or the twin's line, one at a time, so the notes' box is measured with the longer of the two. */
+const LINE = [UI["twin.stand_in"] ?? "", roomIndex().twin?.line ?? ""].reduce((a, b) => (b.length > a.length ? b : a));
+const NOTES = [UI["standin.note"] ?? "", LINE];
 
 /** A declaration of the last rule whose selector list holds `selector`. */
 function declared(selector: string, property: string): string | undefined {
@@ -85,7 +88,11 @@ const REVIEWED = [
 
 describe("no sheet covers the stage's notes (T046, finding 2)", () => {
   it("reads the reserve in room.css's formulas: the larger view starts below it, the dock's sheet stops above it", () => {
-    expect(declared('html[data-hud="column"] .talk[data-larger="on"] .talk-sheet', "top")).toBe("var(--notes-h)");
+    // Spec 014 (T053's second review): the panels are the compact column at its band's foot, so the sheet's top reaches
+    // back up the band to the notes' reserve, the same box as before.
+    expect(declared('html[data-hud="column"] .talk[data-larger="on"] .talk-sheet', "top")).toBe(
+      "calc(var(--notes-h) + var(--column-h) - var(--clear-h))",
+    );
     expect(declared('html[data-hud="dock"] .talk-sheet', "max-height")).toBe(
       "calc(var(--clear-h) - var(--notes-h) - var(--keyboard))",
     );

@@ -3,9 +3,15 @@
   "approvals": [
     {"id": "C-0001", "path_when_approved": "apps/web/content/resume.yaml", "kind": "resume",
      "sha256": "e77c72127e84da60ead201997fa3d77348463a297e350f46f0abfe8b63bd80fb",
-     "date": "2026-11-06", "reason": "<your words>"},
+     "date": "2026-11-06", "reason": "Yay, resume is finalized"},
     {"id": "C-0002", "path_when_approved": "apps/web/content/resume-author.pdf", "kind": "resume",
      "sha256": "5523e5327a752bc10b92538ce8e016243aa5ea22e4e79c21f439f6b877549d6d",
-     "date": "2026-11-09", "reason": "I also want the downloaded resume to be the one that we built"}
+     "date": "2026-11-09", "reason": "I also want the downloaded resume to be the one that we built"},
+    {"id": "C-0003", "path_when_approved": "apps/web/content/room/chalk-denverlocal.yaml", "kind": "room-text",
+     "sha256": "b68917b0e1698631bd643a4cce65e3edbb604814b81b31d0efcf861f4017686a",
+     "date": "2026-11-10", "reason": "official website is up"},
+    {"id": "C-0004", "path_when_approved": "apps/web/content/room/outlines/twin-shirt-lettering.outline.json",
+     "kind": "room-text", "sha256": "961d566167bf452adf9e387bb3a2a3d5508063ee4e98bd1c1cce4badb391567d",
+     "date": "2026-11-11", "reason": "company website is up, might as well wear it!"}
   ]
 }

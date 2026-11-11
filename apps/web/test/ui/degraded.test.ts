@@ -885,10 +885,11 @@ describe("the layout's degraded paths (spec 005, T010)", () => {
     const sheets = stylesheets().flatMap((s) => parseCss(s.text).rules);
     const stage = sheets.filter((r) => r.selector.split(",").some((p) => p.trim() === ".room-stage"));
     expect(stage.some((r) => r.declarations.get("background") === "#20252b")).toBe(true);
-    // In 2D the view is placed at the clear area, the 3D canvas's view at the window.
+    // In 2D the view is placed at the clear area, the 3D canvas's view at the window; since spec 014 at the 2D
+    // drawing's frame area, which holds the clear area (its FR-003; Amendment W2).
     const placed = sheets.filter((r) => r.selector.includes('.room-stage-view[data-stage="2d"]'));
-    expect(placed.some((r) => r.declarations.get("left") === "var(--clear-x)")).toBe(true);
-    expect(placed.some((r) => r.declarations.get("width") === "var(--clear-w)")).toBe(true);
+    expect(placed.some((r) => r.declarations.get("left") === "var(--frame-x)")).toBe(true);
+    expect(placed.some((r) => r.declarations.get("width") === "var(--frame-w)")).toBe(true);
   });
 
   it("shows flat-failed's new words in the clear area, as text a screen reader reads, when the drawing can't be drawn", async () => {

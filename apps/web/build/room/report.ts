@@ -36,10 +36,15 @@ import { gzipBytes } from "../../src/room/glb/gzip";
 import { count, fixed } from "../../src/room/glb/rules";
 import type { AvatarFile } from "./avatars";
 import type { RoomIndex } from "../../src/room/compose/bundle";
+import { framing } from "../../src/room/compose/framing";
+import type { Box as WorldBox } from "../../src/room/compose/framing";
+import { layoutFor } from "../../src/room/compose/hud";
+import { memberRect } from "../../src/room/compose/pick";
 import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
   WALK_CONTROL,
+  framedStages,
   supportedStages,
   sweepScreens,
 } from "../../src/room/compose/stages";
@@ -51,6 +56,8 @@ import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } fro
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
+import { leanMeasure } from "./checks/ra";
+import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
@@ -210,6 +217,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Spec 009's avatars (its FR-040).
   lines.push(...avatars(c, memory, share, f3), "");
 
+  // Spec 016's twin (its FR-056; contracts/twin-data.md §8).
+  lines.push(...twinLines(c, memory), "");
+
   // Legibility, RG7's measure, on both reference stages.
   lines.push(...legibility(c, index), "");
 
@@ -218,6 +228,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
 
   // Spec 005's stages (its FR-052 to FR-054, FR-057): the clear areas RG5 to RG7 and the table above run at.
   lines.push(stagesLine(), "");
+
+  // Spec 014's frame areas (its FR-060, FR-061): the stages RG5 to RG7 run at since, each screen's ease, and the growth.
+  lines.push(...frameLines(c), "");
 
   // The switches: their cases, and their poses' separation (RG8).
   lines.push(...switches(c), "");
@@ -301,15 +314,16 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const twinTerm =
     memory.twin === null
       ? "nothing yet"
-      : `${count(memory.twin)} (its own models ${memory.twin_own === null ? DASH : count(memory.twin_own)}, the ` +
-        `stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ${px} px)`;
+      : `${count(memory.twin)} (its own model ${memory.twin_own === null ? DASH : count(memory.twin_own)} at ` +
+        `${c.twin.texture_px} px, the stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ` +
+        `${px} px)`;
   out.push(
     `RK3's figures with the stand-in: the twin's figure counts ${twinTerm}; the visitor's, ` +
       `${memory.visitor === null ? "nothing yet" : count(memory.visitor)}, the largest ` +
       `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
-  const visit = figuresVisit(set);
+  const visit = figuresVisit(set, c.twin);
   const tree = c.reader.tree;
   const glbsUnder = (dir: string): number =>
     filesUnder(tree, dir)
@@ -318,13 +332,93 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
   // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
   const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
-  const total = share + visit.stand_in + visit.other;
+  const total = share + visit.twin + visit.stand_in + visit.other;
+  const twinShare = visit.twin > 0 ? `${count(visit.twin)} of the twin's own files, ` : "";
   out.push(
     `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
-      `models and cards, ${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of the largest ` +
-      `other visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
+      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of ` +
+      `the largest ${visit.twin > 0 ? "" : "other "}visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
       `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
       `aside): ${count(f3View)}.`,
+  );
+  return out;
+}
+
+/**
+ * Spec 016's twin (its FR-056; contracts/twin-data.md §8): each file of assets/twin/ with its role, bytes, gzip-9
+ * bytes, triangles, and texture memory at its own size and at the twin's side, bundled or why not; the model's
+ * measured height and bounds; its clips with their lengths; each file with no role (RA5); the line's approval by ID
+ * and its source, never its words; and RK3's twin term.
+ */
+function twinLines(c: Composed, memory: SceneTextureMemory): string[] {
+  const twin = c.twin;
+  const out = ["### The twin", ""];
+  const files = [
+    ...(twin.model ? [twin.model] : []),
+    ...twin.clips,
+    ...(twin.still ? [twin.still] : []),
+    ...twin.others,
+  ];
+  if (files.length === 0) {
+    out.push("The twin has no file under assets/twin/ yet: its figure shows the stand-in.");
+    return out;
+  }
+  const px = twin.texture_px;
+  out.push(
+    `| File | Role | Bytes | gzip-9 bytes | Triangles | Texture memory | At ${px} px | Bundled |`,
+    "|---|---|---:|---:|---:|---:|---:|---|",
+  );
+  for (const f of files) {
+    const m = f.measures?.kind === "glb" ? f.measures : null;
+    const cells = [
+      `\`${f.path}\``,
+      f.role ?? DASH,
+      count(f.bytes),
+      f.gz === null ? DASH : count(f.gz.length),
+      m === null ? DASH : count(m.triangles),
+      m === null ? DASH : count(m.texture_bytes),
+      m === null ? DASH : count(m.decoded_bytes),
+      f.bundled ? "yes" : `no (${f.why ?? DASH})`,
+    ];
+    out.push(`| ${cells.join(" | ")} |`);
+  }
+  out.push("");
+  const model = twin.model?.measures?.kind === "glb" ? twin.model.measures : null;
+  if (model?.height != null && model.bounds !== null)
+    out.push(
+      `The twin's model at rest: ${fixed(model.height, 3)} m tall; bounds from ` +
+        `[${model.bounds.min.map((v) => fixed(v, 3)).join(", ")}] to [${model.bounds.max.map((v) => fixed(v, 3)).join(", ")}] m.`,
+    );
+  const clips = twin.clips.map((f) => {
+    const length = f.measures?.kind === "glb" ? f.measures.length_s : null;
+    return `\`${f.role}\` ${length === null ? DASH : `${fixed(length, 2)} s`}`;
+  });
+  if (clips.length > 0) out.push(`Its clips: ${clips.join(", ")}.`);
+  if (twin.still?.measures?.kind === "still")
+    out.push(`Its still: ${twin.still.measures.width} × ${twin.still.measures.height} pixels.`);
+  for (const f of twin.others)
+    out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);
+  out.push(
+    twin.line === null
+      ? "The twin's line: none, so none of its files is shown (RA6)."
+      : `The twin's line: from approval \`${twin.line.approval}\` in main's likeness approvals, read from ` +
+          `${twin.line.source === "policy-dir" ? "the policy directory" : twin.line.source === "main" ? "refs/heads/main" : "the tree's own copy"}.`,
+  );
+  // The lean's spot against the placement (contracts/twin-data.md §8), RA7's measure.
+  const lean = leanMeasure(c.scene, c.geometry);
+  out.push(
+    lean === null
+      ? "The lean: none in the scene's twin block, so the twin rests in its idle."
+      : `The lean: the desk's origin ${fixed(lean.off_m * 100, 1)} cm off its spot behind the twin, ` +
+          `${fixed(lean.turn_deg, 1)}° from the twin's facing, and ${fixed(lean.right_m, 2)} m of its top to the ` +
+          `twin's right, from ${fixed(lean.gap_m * 100, 1)} cm off its root.`,
+  );
+  // The twin's reach toward the shell's walls (plan.md R-19), RA8's measure.
+  out.push(reachLine(twinReachOf(c.reader.tree, c.scene, c.twin, c.geometry)));
+  out.push(
+    `RK3's twin term: ${memory.twin === null ? "nothing yet" : count(memory.twin)}, the larger of its own model at ` +
+      `${px} px (${memory.twin_own === null ? DASH : count(memory.twin_own)}) and the stand-in's files ` +
+      `(${memory.stand_in === null ? DASH : count(memory.stand_in)}).`,
   );
   return out;
 }
@@ -444,6 +538,65 @@ function stagesLine(): string {
   );
 }
 
+/** The room's on-screen height on a stage at its production framing: the framed set's union, projected. */
+function roomHeight(framed: readonly WorldBox[], stage: { readonly w: number; readonly h: number }): number {
+  if (framed.length === 0 || !(stage.w > 0) || !(stage.h > 0)) return 0;
+  const along = (k: 0 | 1 | 2, f: (...n: number[]) => number, side: "min" | "max"): number =>
+    f(...framed.map((b) => b[side][k]));
+  const union: WorldBox = {
+    min: [along(0, Math.min, "min"), along(1, Math.min, "min"), along(2, Math.min, "min")],
+    max: [along(0, Math.max, "max"), along(1, Math.max, "max"), along(2, Math.max, "max")],
+  };
+  const r = memberRect(union, framing(stage.w / stage.h, framed), stage);
+  return r ? r.rect[3] : 0;
+}
+
+/** Spec 014's frame lines (FR-060, FR-061; plan.md §11): the frame areas' count with their reserved boxes; each screen
+ *  class's eases, at 0, between, and at 1, with the median; and the reference stages' ease, frame area, and the room's
+ *  growth on screen over spec 005's frame. */
+function frameLines(c: Composed): string[] {
+  const g = c.geometry;
+  const head = "Frame (spec 014, FR-060, FR-061)";
+  if (!g) return [`${head}: none, the scene having no geometry to frame.`];
+  const made = framedStages(g.protect);
+  const n = (x: number): string => x.toLocaleString("en-US");
+  const sixteenths = (e: number): string => (e === 0 ? "0" : e === 1 ? "1" : `${Math.round(e * 16)}/16`);
+  const classes: readonly [string, (s: { readonly w: number; readonly h: number }) => boolean][] = [
+    ["the dock layout", (s) => layoutFor(s) === "dock"],
+    ["the column layout under 1280 × 720", (s) => layoutFor(s) === "column" && (s.w < 1280 || s.h < 720)],
+    ["the column layout from 1280 × 720", (s) => layoutFor(s) === "column" && s.w >= 1280 && s.h >= 720],
+  ];
+  const out = [
+    `${head}: the frame areas over the same screens, eased from the window toward each clear area only as far as ` +
+      `keeps every pressable selectable's core and both figures 0.5rem clear of the HUD's compact boxes; ` +
+      `${n(made.stages.length)} stages, each with the HUD boxes over it reserved.`,
+  ];
+  for (const [name, holds] of classes) {
+    const eases = made.screens.filter((x) => holds(x.screen)).map((x) => x.stage.ease ?? 1);
+    if (eases.length === 0) continue;
+    const sorted = [...eases].sort((a, b) => a - b);
+    const median = sorted[Math.floor((sorted.length - 1) / 2)] ?? 1;
+    const at0 = eases.filter((e) => e === 0).length;
+    const at1 = eases.filter((e) => e === 1).length;
+    out.push(
+      `- ${name}: ${n(eases.length)} screens and states, ${n(at0)} at ease 0, ${n(eases.length - at0 - at1)} ` +
+        `between, ${n(at1)} at ease 1; the median ${sixteenths(median)}.`,
+    );
+  }
+  for (const r of [REFERENCE_DESKTOP, REFERENCE_PHONE]) {
+    const framed = made.screens.find((x) => x.screen === r.screen);
+    if (!framed) continue;
+    const growth = roomHeight(g.framed, framed.stage) / roomHeight(g.framed, r.stage) - 1;
+    const which = r === REFERENCE_DESKTOP ? "The reference desktop" : "The reference phone";
+    out.push(
+      `- ${which} (${r.screen.w} × ${r.screen.h}): ease ${sixteenths(framed.stage.ease ?? 1)}, a frame area of ` +
+        `${plainSize(framed.stage.w)} × ${plainSize(framed.stage.h)} over spec 005's ${plainSize(r.stage.w)} × ` +
+        `${plainSize(r.stage.h)}, the room ${(growth * 100).toFixed(1)}% larger on screen.`,
+    );
+  }
+  return out;
+}
+
 /** Spec 008's walking lines (FR-021, FR-026; plan.md §3.5): the visitor figure's start at the walking radius, RW1's
  *  measure, with how far it stands from the nearest edge of the walkable floor and which; or, where RW1 refuses it,
  *  what it stands in. Then the walking control's box, as RG6 reserves it in 3D, with each side-wall selectable it
@@ -475,7 +628,8 @@ function walking(c: Composed): string[] {
   }
   // Spec 005 (FR-055): every HUD control over the clear area RG6 reserves, one line a box; the walking control's alone.
   const box =
-    `Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), ${WALK_CONTROL.widthRem}rem × ` +
+    "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area " +
+    `(since spec 014's W19, on short column windows and in the dock), ${WALK_CONTROL.widthRem}rem × ` +
     `${WALK_CONTROL.heightRem}rem, ${WALK_CONTROL.insetRem}rem in from the clear area's bottom-right corner,`;
   const holds = c.geometry ? pickSweep(c.geometry).boxHolds : [];
   if (holds.length === 0) out.push(`${box} holds no side-wall selectable at any supported stage.`);

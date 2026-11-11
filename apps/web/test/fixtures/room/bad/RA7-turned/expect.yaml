@@ -1,0 +1,7 @@
+rule: RA7
+file: apps/web/room/scene.yaml
+path: figures.twin.lean.against
+why: the lean against a desk that doesn't face as the twin faces, the twin turned 10° on its mount (spec 016, FR-029)
+edits:
+  - { file: apps/web/room/scene.yaml, at: [figures, twin], set: { lean: { against: fx-desk } } }
+  - { file: apps/web/room/scene.yaml, at: [placements, 7, mount, turn], set: { y: 10 } }

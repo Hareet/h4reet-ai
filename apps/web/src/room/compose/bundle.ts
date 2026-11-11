@@ -4,6 +4,7 @@
 // RoomIndex and §3.2's RoomScene: the compositor writes them field by field in this order (§11), and the room, the
 // lookdev page, and the tests read them. Types only, so nothing here reaches a chunk.
 import type { AvatarId, ClipRole } from "../../choice/avatars";
+import type { TwinClipRole, TwinState } from "../scene/twin-states";
 import type { Box } from "./framing";
 import type { Turn, Vec3 } from "./math";
 import type { GlowMotion, LookMethod, Renderer, TierValue, TypefaceUse } from "./vocabulary";
@@ -119,6 +120,9 @@ export interface RoomIndex {
     /** Its largest on-screen size at the reference stages; its px where a corner of it falls behind a reference
      *  camera, so its canvas, min(px, screen_css × the pixel ratio), is its px, as RK3 counts it (plan.md §10). */
     screen_css: [number, number];
+    /** Spec 016 (FR-036; Amendment M18): present, `model`, where the face is drawn into its avatar's own mesh of the
+     *  role's name, never as a quad or in the 2D drawing. */
+    surface?: "model";
     regions: {
       rect: [number, number, number, number];
       renderer: Renderer;
@@ -152,14 +156,18 @@ export interface RoomIndex {
     }[];
     faces: { face: string; matrix: Matrix2D; size: [number, number] }[];
     hits: { selectable: string; rects: [number, number, number, number][]; depths: number[] }[];
+    /** Spec 014 (FR-003; PD-23): the two figures' framed boxes in the view box, the twin's then the visitor's, as the
+     *  hits are projected: what the 2D drawing's frame area keeps clear of the HUD. */
+    figures: [number, number, number, number][];
     labels: { placement: string; label: string; at: [number, number] }[];
     papers: [[number, number], [number, number], [number, number]];
     visitor: { x: number; baseline: number; scale: number };
     /** The scene's look's highlight, resolved, for the 2D drawing (spec 008, FR-046; Amendment M12). */
     highlight: Highlight;
   };
-  /** The text copy's order. */
-  copy: ({ face: string } | { switch: string } | { figures: true } | { line: string })[];
+  /** The text copy's order. Spec 016 (FR-014; contracts/twin-data.md §4): `{twin_line: true}`, first, is the line slot,
+   *  which the room resolves to `twin.line` while the twin's own picture shows and to the stand-in line otherwise. */
+  copy: ({ face: string } | { switch: string } | { figures: true } | { line: string } | { twin_line: true })[];
   typefaces: { use: TypefaceUse; family: string; weight: number; cap_ratio: number; fallback: string }[];
   /** Each set model the room's loader loads (a GLB), by its asset events' `asset`, in load_order, once a piece: what a
    *  room in 2D records as skipped, since the entry has no 3D part (FR-071; an addition to §3.1, plan.md §10). */
@@ -167,6 +175,33 @@ export interface RoomIndex {
   /** The loader's hints, filled, in the file's order; a hint whose slot couldn't be filled, or whose `when` isn't met,
    *  is left out (spec 012; its contracts/hints.md §3; Amendment L7). */
   hints: string[];
+  /** Spec 016 (FR-014, FR-015, FR-034; contracts/twin-data.md §4): the twin's line, read from main's approval of its
+   *  model's current SHA-256, and its 2D still, `rect` in metres in the twin figure's frame, `[x, y, w, h]`, (x, y) its
+   *  lower-left corner; null where the twin isn't bundled. */
+  twin: {
+    line: string;
+    still: {
+      url: string;
+      sha256: string;
+      bytes: number;
+      rect: [number, number, number, number];
+      /** The rectangle in the 2D drawing's view box, projected by the compositor (plan.md R-11, as built). */
+      view: [number, number, number, number];
+      /** The twin figure's placement, whose drawing the still hides while it shows. */
+      placement: string;
+    } | null;
+  } | null;
+}
+
+/** Spec 016's twin block, resolved (contracts/twin-data.md §4): each state's clip role, the timings, the lean (null
+ *  where the scene gives none or RA7 left it out), and the twin's texture side. */
+export interface TwinBlock {
+  clips: Record<TwinState, TwinClipRole>;
+  rest_after_s: number;
+  speak_wpm: number;
+  speak_s: [number, number];
+  lean: { against: string; behind_m: number; right_m: number } | null;
+  texture_px: number;
 }
 
 /** A set model, as the room fetches and verifies it (contracts/room-bundle.md §3.2): `url`, `a/<stem>.<hash16>.glb` (a
@@ -205,7 +240,12 @@ export interface RoomScene {
       anchors: Record<string, { at: Vec3; turn: Turn }>;
       standin: Shape[];
       faces: Record<string, { at: Vec3; size: [number, number]; facing: Vec3; up: Vec3 }>;
-      glows: Record<string, { at: Vec3; radius: number; tone: string; motion: GlowMotion; level: number }>;
+      /** A disc glow's `at` and `radius`, or since spec 014 a path glow's `path` and `spread` (its FR-045), in the
+       *  piece's frame at scale 1. */
+      glows: Record<
+        string,
+        { at?: Vec3; radius?: number; path?: Vec3[]; spread?: number; tone: string; motion: GlowMotion; level: number }
+      >;
     }
   >;
   placements: {
@@ -254,6 +294,9 @@ export interface RoomScene {
     texture_px: number;
     wait_ms: number;
     twin_height: number;
+    /** Spec 014 (FR-039; W16): each avatar's grip per hand, from the scene's figures block, in the hand bone's frame
+     *  (metres at the room's scale, degrees); an absent avatar or hand takes the computed default (scene/grip.ts). */
+    grips?: Partial<Record<AvatarId, Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>>>>;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */
@@ -275,4 +318,11 @@ export interface RoomScene {
       }
     >
   >;
+  /** Spec 016 (FR-008, FR-044, FR-045, FR-048; contracts/twin-data.md §4): the twin's own model, `texture_bytes` at its
+   *  texture side, its bundled clips by role, and its block resolved; null where its model isn't bundled. */
+  twin: {
+    model: { url: string; sha256: string; bytes: number; texture_bytes: number };
+    clips: Partial<Record<TwinClipRole, { url: string; sha256: string; bytes: number }>>;
+    block: TwinBlock;
+  } | null;
 }

@@ -70,8 +70,11 @@ import { createAnnouncer, renderObjectList } from "./a11y";
 import { windowClock } from "./clock";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
-import { OPENING, fitsHud, hudBoxes, notesReserve } from "./compose/hud";
+import { frameArea } from "./compose/frame";
+import type { FrameArea, Protect } from "./compose/frame";
+import { OPENING, compactBoxes, fitsHud, hudBoxes, logRestRem, notesReserve } from "./compose/hud";
 import type { HudState } from "./compose/hud";
+import { flatProtectorFor } from "./compose/protect";
 import { h } from "./dom";
 import { noEvents } from "./events";
 import type { EventSink } from "./events";
@@ -114,7 +117,7 @@ import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import { classifyTurn, createCostChannel } from "./signals/turn-cost";
 import type { CostChannel } from "./signals/turn-cost";
-import type { ClearArea, FigureSignal, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
+import type { ClearArea, FigureSignal, FrameGiven, SceneModule, Stage, Stage3D, WalkEnd } from "./stage";
 import { renderTextCopy } from "./text-copy";
 import type { TextCopy } from "./text-copy";
 import { uiWord } from "./ui-keys";
@@ -203,8 +206,18 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   /** The window, measured, from Enter (spec 005; hud/viewport.ts). */
   let viewport: Viewport | null = null;
   /** The clear area the 3D stage frames the room into, in the canvas's CSS pixels, with the window it was computed for;
-   *  null in the stacked layout, where the canvas is its own stage. */
+   *  null in the stacked layout, where the canvas is its own stage. Since spec 014 it is the frame's far end and its
+   *  fallback; the stage frames into `frame`. */
   let clear: ClearArea | null = null;
+  /** Spec 014 (FR-009 to FR-016; contracts/frame-area.md §7; plan.md §2.4): the frame area the room is framed into, the
+   *  window it was computed for, its ease, the compact boxes, and the clear area; null in the stacked layout. */
+  let frame: FrameGiven | null = null;
+  /** The 2D drawing's protector, from the index: its hit areas' cores and its figures' drawn boxes (PD-23). */
+  const flatProtect = flatProtectorFor(deps.room);
+  /** The protector the frame area takes: the 3D stage's, from its part, while it draws; the 2D drawing's while it does;
+   *  none before a stage, when the room frames into the clear area, as before spec 014. */
+  const protector = (): Protect | null =>
+    stage?.mode === "2d" ? flatProtect : stage?.mode === "3d" ? ((stage as Stage3D).protect ?? null) : null;
   /** The quality controller's hold while the window changes: released SETTLE_FRAMES frames after the last re-fit, so a
    *  drag never steps the quality down (FR-013; PD-15). */
   let settling: { release: () => void; frames: number } | null = null;
@@ -223,6 +236,15 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     const screen = { w: m.w, h: m.h };
     const boxes = hudBoxes(screen, hudState, metrics);
     const fits = fitsHud(screen, hudState, metrics);
+    // Spec 014: the frame area, from the drawing stage's protector, or the clear area where there is none yet; never a
+    // throw, since frameArea falls back to the clear area (FR-004).
+    const protect = protector();
+    const framed: FrameArea | null = fits
+      ? protect
+        ? frameArea(screen, hudState, metrics, protect)
+        : { area: boxes.clear, ease: 1, fellBack: false }
+      : null;
+    const compact = compactBoxes(screen, hudState, metrics);
     layout.applyHud({
       layout: fits ? boxes.layout : "stacked",
       state: hudState,
@@ -232,6 +254,15 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       column: boxes.column?.w ?? 0,
       dock: boxes.dock?.h ?? 0,
       clear: boxes.clear,
+      frame: framed?.area ?? boxes.clear,
+      compact: {
+        strip: compact.strip,
+        bar: compact.bar,
+        column: compact.column,
+        walk: compact.walk,
+        walkPlace: compact.walkPlace,
+      },
+      logRest: logRestRem(screen, metrics) * m.rem,
       notes: notesReserve(boxes.clear, m.rem),
       keyboard: m.keyboard,
     });
@@ -240,6 +271,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     talk?.setDocked(fits && boxes.layout === "dock");
     if (what === "keyboard") return;
     clear = fits ? { area: boxes.clear, window: screen } : null;
+    frame = framed
+      ? { window: screen, area: framed.area, ease: framed.ease, hud: compact.all, clear: boxes.clear, rem: m.rem }
+      : null;
+    if (framed?.fellBack) log?.record("frame_fallback", { w: m.w, h: m.h });
     if (controller) {
       if (settling) settling.frames = SETTLE_FRAMES;
       else settling = { release: controller.hold(), frames: SETTLE_FRAMES };
@@ -251,11 +286,15 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       const canvas = fits ? screen : { w: layout.view.clientWidth, h: layout.view.clientHeight };
       const ratio = bufferRatio(m.dpr, qualitySettings(visit.quality), canvas.w, canvas.h);
       const drawn = visit.mode !== "2d" && canvas.w > 0 && canvas.h > 0;
+      const area = framed?.area ?? null;
       log.record("refit", {
         w: m.w,
         h: m.h,
         layout: fits ? boxes.layout : "stacked",
         clear: `${boxes.clear.x},${boxes.clear.y},${boxes.clear.w},${boxes.clear.h}`,
+        // Spec 014 (FR-064): the frame area and its ease; the entry's own `frame` is its frame count.
+        frame_area: area ? `${area.x},${area.y},${area.w},${area.h}` : "none",
+        ease: framed?.ease ?? null,
         buffer: drawn ? `${Math.floor(canvas.w * ratio)}x${Math.floor(canvas.h * ratio)}` : "none",
         ratio: drawn ? ratio : null,
       });
@@ -269,6 +308,10 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     targeting = reduceTarget(targeting, event);
     const after = targeting.target;
     if (after === before) return;
+    // Spec 014 (FR-025): the target's list button shows its selection by the neon's edge, aria-current beside it.
+    for (const b of doc.querySelectorAll<HTMLButtonElement>(".room-list button[data-object-id]"))
+      if (b.dataset.objectId === after) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
     try {
       stage?.setTarget(after);
     } catch {
@@ -366,9 +409,36 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     copy?.setPausedAt(state.paused ? state.pausedAt : null);
   });
 
+  /** Spec 014 (FR-053 to FR-055; PD-17, PD-18): what the placeholder note names, the room's pieces from the bundle or
+   *  a load that fell back, and the visitor's figure while the 3D room shows its flat shape. */
+  const placeholders = { pieces: deps.room.build.placeholders, figure: false };
+  function showPlaceholders(): void {
+    room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
+  }
+
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, the stage's note's second paragraph and the text
+   *  copy's first line: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
+   *  line otherwise, swapped in place on each picture signal of the twin's figure. */
+  let twinOwn = false;
+  function showLine(): void {
+    const stand = uiWord(deps.room.ui, "twin.stand_in") ?? "";
+    const own = twinOwn && deps.room.twin ? deps.room.twin.line : stand;
+    room?.setLine(own);
+    copy?.setTwinOwn(twinOwn);
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
+    if (signal.kind === "picture" && signal.figure === "twin") {
+      twinOwn = signal.shows === "own" || signal.shows === "still";
+      showLine();
+    }
+    // Spec 014 (FR-054): the visitor's figure's flat shape in 3D, named by the note; its avatar takes it away.
+    if (signal.kind === "picture" && signal.figure === "visitor") {
+      placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
+      showPlaceholders();
+    }
     if (signal.kind === "failed") {
       if (avatarFailed) return;
       avatarFailed = true;
@@ -378,6 +448,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!log) return;
     if (signal.kind === "picture")
       log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else if (signal.kind === "twin-state") log.record("twin-state", { state: signal.state, role: signal.role });
     else log.record("clip", { figure: signal.figure, role: signal.role });
   }
 
@@ -422,6 +493,13 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   const ended = new Set<string>();
   const recordAsset = (event: AssetEvent): void => {
     if (event.outcome !== "retried") ended.add(event.asset);
+    // Spec 014 (FR-053): a room piece's model that failed or was skipped in 3D shows its stand-in, which the note
+    // names; in 2D the drawing is the room's by design, and its skips say nothing of placeholder shapes.
+    const failed = event.outcome === "failed" || event.outcome === "skipped";
+    if (failed && event.mode !== "2d" && visit.mode !== "2d" && deps.room.models.includes(event.asset)) {
+      placeholders.pieces = true;
+      showPlaceholders();
+    }
     // The loader's model hears every end from "Enter", before the list of files too (spec 012, FR-014; PD-22).
     if (loading && !loading.done) {
       loading.progress.asset(event.asset, event.outcome);
@@ -623,6 +701,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       },
     );
     talk = renderTalk(doc, {
+      // Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, to the 3D stage's twin alone; in
+      // 2D nothing reads it.
+      onActivity: (activity) => walker(stage)?.twinActivity?.(activity),
       messages: content.messages,
       clock,
       emit,
@@ -656,7 +737,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       talk: talk.element,
       around: around.element,
       note: uiWord(deps.room.ui, "standin.note") ?? "",
+      noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
+      credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
       walk: {
         enter: uiWord(deps.room.ui, "walk.enter") ?? "",
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",
@@ -674,7 +757,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
           }
         : {}),
       // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
-      standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
+      standIn: deps.room.copy.some((e) => ("line" in e && e.line === "twin.stand_in") || "twin_line" in e)
         ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
         : "",
     });
@@ -697,7 +780,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       if (!open()) return;
       motion.setPaused(!motion.paused);
     });
-    layout.setPlaceholders(deps.room.build.placeholders);
+    showPlaceholders();
     layout.setInteractive(false);
     layout.resumeButton.addEventListener("click", openResume);
     layout.flatButton.addEventListener("click", () => {
@@ -889,6 +972,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         cost: cost.state,
         onFigure: figureSignal,
         clear: () => clear,
+        frame: () => frame,
+        // Spec 014 (FR-064): the walking view's hold and hand-over, in a drafts build's frame log.
+        walkHeld: (state, cause) => log?.record("walk", { state, cause }),
       });
     } catch {
       // The 3D chunk refused its part (not the index's, or not whole) or its renderer: the room goes to 2D.
@@ -896,6 +982,8 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     }
     stage = scene3d;
     visit.mode = "3d";
+    // Spec 014: the 3D stage's protector frames the room from now, from its next frame.
+    refit();
     showTier(scene3d, live.tier.tier);
     show(scene3d);
     controller = createQualityController({
@@ -926,6 +1014,11 @@ export function startRoom(deps: RoomDeps): RoomHandle {
   function toFlat(reason: FlatReason): void {
     if (visit.mode === "2d" || !room || !visit.avatar) return;
     visit.mode = "2d";
+    // Spec 014 (FR-054): in 2D every figure is flat by design, so the note drops the figure's words.
+    showPlaceholders();
+    // Spec 016 (FR-014): the twin's 3D model is gone with the 3D stage; the 2D room says when its still shows.
+    twinOwn = false;
+    showLine();
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
@@ -946,12 +1039,17 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         cost: cost.state,
         target: targetInput,
         ...(typefaces ? { typefaces } : {}),
+        // Spec 016 (FR-034, FR-035): the twin's still, fetched once, same-origin, its picture to the line slot.
+        fetch: (url, init) => win.fetch(url, init),
+        onFigure: figureSignal,
       });
       showTier(flat, live.tier.tier);
     } catch {
       flat = null;
     }
     stage = flat;
+    // Spec 014: the 2D drawing's protector frames it (FR-003).
+    refit();
     if (flat) show(flat);
     else {
       const words = uiWord(deps.room.ui, "flat-failed") ?? "";

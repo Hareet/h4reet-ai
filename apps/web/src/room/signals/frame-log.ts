@@ -36,9 +36,14 @@ export type FrameEvent =
   // Spec 009's figures (its FR-035; plan.md §3.4): a picture's change (`figure`, `shows`, `why`) and a clip's.
   | "figure"
   | "clip"
+  // Spec 016's twin (its FR-052; contracts/twin-states.md §7): each state change (`state`, `role`); its pictures are
+  // `figure` entries, `shows` `own`, `still`, or `drawing`.
+  | "twin-state"
   // Spec 005's re-fits (its FR-063; plan.md §12.4): the window, the layout, the clear area, the buffer's size, and its
-  // ratio (null, and the size "none", in 2D).
+  // ratio (null, and the size "none", in 2D). Spec 014 (its FR-064): the frame area, `frame_area`, and its `ease`.
   | "refit"
+  // Spec 014 (its FR-004, FR-064): a frame computation that fell back to the clear area, at the window (`w`, `h`).
+  | "frame_fallback"
   // A collapsible part's change (`part`, `state`): the list, the log, and the larger view.
   | "panel"
   // Full screen's changes and refusals (`state`: entered, left, or refused).

@@ -13,6 +13,12 @@
 // - moves the picker's camera only when the camera has moved since the last frame (FR-035, FR-049);
 // - and drives the figure.
 // Leaving rests the figure at once and brings the camera back to the production framing, as entering took it out.
+// Spec 014 (FR-030 to FR-036; plan.md §5, PD-10): entering holds the room's view, the production framing at the stage,
+// with no move; while held the figure walks by the keys and a tap's walk-to, relative to the view's straight-on yaw, taps
+// pick and walk-to at the room's view, and the camera stays. The first turn, tilt, or zoom, or the figure's box nearing
+// a HUD box or the window's edge (the stage's `nearsEdge`), ends the hold: the orbit starts where the room's view stands
+// (walk/hold.ts's orbitFrom), the triggering intent applied to it, and the follow camera blends in from the room's view
+// over at most 500 ms, or cuts while the motion store is still. Each hold and hand-over is told (`held`).
 import { framing } from "../compose/framing";
 import type { Box } from "../compose/framing";
 import type { RoomScene } from "../compose/bundle";
@@ -27,6 +33,8 @@ import type { Orbit } from "../walk/camera";
 import type { WalkIntents } from "../walk/input";
 import { startPose, step, walkTo } from "../walk/movement";
 import type { Pose, WalkTo } from "../walk/movement";
+import { orbitFrom, release } from "../walk/hold";
+import type { HoldCause } from "../walk/hold";
 import { reach } from "../walk/reach";
 import type { ReachTarget } from "../walk/reach";
 import type { FigureDriver } from "./figure";
@@ -53,6 +61,11 @@ export interface WalkingOptions {
   target(): string | null;
   /** Escape, pressed in the walking view: the room leaves it. */
   escape(): void;
+  /** Spec 014 (FR-032 (b)): whether the figure's box, at its pose and this camera, comes within 0.5rem of a HUD box or
+   *  the window's edge, which the 3D stage measures on its canvas. Absent, the edge never ends the hold. */
+  nearsEdge?(camera: Camera, pose: Pose, stage: Stage): boolean;
+  /** Spec 014 (FR-064): told at entry, `hold`, and at the hand-over, `follow` with its cause. */
+  held?(state: "hold" | "follow", cause: HoldCause | null): void;
 }
 
 export interface WalkingView {
@@ -92,6 +105,8 @@ export function createWalking(options: WalkingOptions): WalkingView {
   /** The camera the last frame drew with, where the return starts from, and when it started. */
   let shown: Camera | null = null;
   let back: { from: Camera; at: number } | null = null;
+  /** Whether the walking view holds the room's view (spec 014, FR-030): from entry until a camera intent or the edge. */
+  let holding = false;
 
   const production = (stage: Stage): Camera => framing(stage.w / stage.h, boxes);
 
@@ -101,6 +116,63 @@ export function createWalking(options: WalkingOptions): WalkingView {
     reached = id;
     options.reach(id);
   };
+
+  /** Ends the hold (FR-033): the orbit where the room's view stands about the focus, held to the limits and the
+   *  region, and the follow blend from the room's view starting now. */
+  function handOver(
+    base: Camera,
+    focus: readonly [number, number, number],
+    far: number,
+    now: number,
+    cause: HoldCause,
+  ) {
+    holding = false;
+    orbit = clampOrbit(orbitFrom(base, focus), focus, limits, region, far);
+    since = now;
+    options.held?.("follow", cause);
+  }
+
+  /** A held frame (FR-030, FR-031): the figure steps by the held keys relative to the view's straight-on yaw, or goes on
+   *  with its walk-to; taps pick, then walk-to, at the room's view; Enter selects the target; the edge, once the figure
+   *  moved, hands over, the camera then following from the next frame. The camera drawn is the room's view. */
+  function heldFrame(intents: WalkIntents, stage: Stage, base: Camera, now: number, dt: number, animate: boolean) {
+    const before = pose;
+    const moving = intents.move.forward !== 0 || intents.move.right !== 0;
+    if (moving) {
+      walk = null;
+      pose = step(floor, pose, intents.move, 0, dt, data.speed_mps);
+    } else if (walk) {
+      const next = walkTo(floor, pose, walk, dt, data.speed_mps);
+      pose = next.pose;
+      walk = next.walk;
+    } else pose = { ...pose, speed: 0, walking: false };
+    if (!same(picked, base)) {
+      picker.setCamera(base, stage);
+      picked = base;
+    }
+    for (const tap of intents.taps) {
+      const id = picker.pick(tap);
+      if (id !== null) {
+        options.select(id);
+        continue;
+      }
+      const point = floorPoint(floor, ray(base, stage.w / stage.h, [tap.x, tap.y]));
+      if (point) walk = { goal: { x: point[0], z: point[1] }, best: Infinity, since: 0 };
+    }
+    if (intents.enter) {
+      const id = options.target();
+      if (id !== null) options.select(id);
+    }
+    if (pose.x !== before.x || pose.z !== before.z || pose.heading !== before.heading) nameReach();
+    figure.frame({ pose, camera: base.position, animate, dt });
+    shown = base;
+    // The edge: the figure's box at the room's view, after this frame's step.
+    if (options.nearsEdge?.(base, pose, stage)) {
+      const focus = focusOf(pose, limits, floor);
+      handOver(base, focus, farthest(base, focus), now, "edge");
+    }
+    return base;
+  }
 
   return {
     get on() {
@@ -119,6 +191,8 @@ export function createWalking(options: WalkingOptions): WalkingView {
       reached = undefined;
       picked = null;
       back = null;
+      holding = true;
+      options.held?.("hold", null);
       nameReach();
     },
     frame(intents, stage, now, dt, animate) {
@@ -128,9 +202,15 @@ export function createWalking(options: WalkingOptions): WalkingView {
       if (intents.escape) options.escape();
       if (!on) return back?.from ?? production(stage);
       const base = production(stage);
-      // The orbit: turned, tilted, and zoomed, then held to the limits and the region about the figure's focus.
+      // Spec 014: while held, the camera stays at the room's view, unless a camera intent ends the hold now; then the
+      // orbit starts where the room's view stands, and the intent applies to it below.
       const focus = focusOf(pose, limits, floor);
       const far = farthest(base, focus);
+      if (holding) {
+        const cause = release(intents, false);
+        if (cause) handOver(base, focus, far, now, cause);
+      }
+      if (holding) return heldFrame(intents, stage, base, now, dt, animate);
       orbit = clampOrbit(
         {
           // E turns the view right: the camera swings to the figure's left, looking right of straight on (FR-029).
@@ -184,6 +264,7 @@ export function createWalking(options: WalkingOptions): WalkingView {
     leave(now) {
       if (!on) return;
       on = false;
+      holding = false;
       walk = null;
       figure.rest();
       pose = startPose(floor);

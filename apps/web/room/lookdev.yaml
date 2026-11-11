@@ -10,3 +10,8 @@ vignette:
   show: [work-desk, desk-screen, neon-sign, laptop-stand, laptop, busy-sign, chalkboard, bicycle]
 close_up:
   frame: [work-desk, desk-screen, neon-sign, laptop-stand, laptop, busy-sign, dog-sign]
+# Spec 014's hands view (its FR-042; plan.md PD-24; contracts/room-data-files.md §12): the man and the woman, each
+# holding the sheet in its right hand and in its left, at rest, in "idle-holding", and mid-walk, the forearm's 4 cm
+# volume drawn as a wire, for the Author's look at the grips. RI10 holds each name to the avatar table.
+hands:
+  avatars: [man, woman]

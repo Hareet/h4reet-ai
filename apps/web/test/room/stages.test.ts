@@ -12,7 +12,21 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_METRICS, HUD_PLACEMENTS, OPENING, clearArea, fitsHud, layoutFor } from "../../src/room/compose/hud";
+import { frameArea } from "../../src/room/compose/frame";
+import {
+  DEFAULT_METRICS,
+  HUD_PLACEMENTS,
+  OPENING,
+  clearArea,
+  compactBoxes,
+  fitsHud,
+  layoutFor,
+  reservedBoxes,
+} from "../../src/room/compose/hud";
+import type { Box } from "../../src/room/compose/hud";
+import type { Rect } from "../../src/room/compose/pick";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
+import { repositoryBundle } from "../helpers/room";
 import { DEFAULT_TALK_LIMITS } from "../../src/talk/talk";
 import { textWidth } from "../ui/hud-model";
 import {
@@ -216,7 +230,13 @@ describe("the stages (compose/stages.ts)", () => {
     const high = ASPECTS.filter((a) => a > 2.4);
     for (let i = 0; i < low.length; i += 1) expect(low[i]).toBeCloseTo((low[i + 1] ?? 0.45) / 1.25, 12);
     for (let i = 0; i < high.length; i += 1) expect(high[i]).toBeCloseTo((high[i - 1] ?? 2.4) * 1.25, 12);
-    const aspects = supportedStages().map((s) => s.w / s.h);
+    // Spec 014: the supported stages are the frame areas, given the room's protector, whose narrowest aspect is a step
+    // below the clear areas' (its plan §11); the clear areas stay covered, since a frame that falls back frames into
+    // one (its FR-004).
+    const { scene, index } = repositoryBundle();
+    const aspects = [...supportedStages(protectorFor(protectSceneOf(scene, index))), ...supportedStages()].map(
+      (s) => s.w / s.h,
+    );
     const [lo, hi] = [Math.min(...aspects), Math.max(...aspects)];
     expect(ASPECTS[0]).toBeLessThanOrEqual(lo);
     expect(ASPECTS.at(-1)).toBeGreaterThanOrEqual(hi);
@@ -255,7 +275,8 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
     expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${DOCK} .hud-bar`, "height")).toBe("var(--bar-h)");
     expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
-    expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("var(--strip-h)");
+    // Spec 014 (FR-017, FR-021; W4): the column is its content's height at its band's foot, no longer from the strip.
+    expect(decl(`${COLUMN} .hud-panels`, "top")).toBe("auto");
     expect(decl(`${COLUMN} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
     expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
     expect(decl(`${DOCK} .hud-panels`, "bottom")).toBe("calc(var(--bar-h) + var(--keyboard))");
@@ -278,6 +299,34 @@ describe("room.css's HUD rules follow the table (plan.md §2.3)", () => {
             false,
           );
     }
+  });
+
+  // T023 (spec 014; FR-021, SC-002; plan.md §3.2): in the column layout, the compact clusters take their sizes from
+  // the room's properties, which layout.ts sets from compactBoxes: the strip's place and width, the bar's width at the
+  // foot's right, and the column's height; the log rests at --log-rest. --clear-*, --notes-h, and --column-w keep their
+  // meanings, and each compact box's rule sets no length of its own.
+  it("sizes the column layout's compact clusters from --strip-w, --bar-w, and --column-h (spec 014, T023)", () => {
+    expect(decl(`${COLUMN} .disclosure`, "left")).toBe("var(--strip-x)");
+    expect(decl(`${COLUMN} .disclosure`, "right")).toBe("auto");
+    expect(decl(`${COLUMN} .disclosure`, "width")).toBe("var(--strip-w)");
+    expect(decl(`${COLUMN} .hud-bar`, "left")).toBe("auto");
+    expect(decl(`${COLUMN} .hud-bar`, "right")).toBe("var(--safe-right)");
+    expect(decl(`${COLUMN} .hud-bar`, "width")).toBe("var(--bar-w)");
+    expect(decl(`${COLUMN} .hud-bar`, "height")).toBe("var(--bar-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "height")).toBe("var(--column-h)");
+    expect(decl(`${COLUMN} .hud-panels`, "width")).toBe("var(--column-w)");
+    expect(decl(`${COLUMN} .talk-log`, "max-height")).toBe("var(--log-rest)");
+    expect(decl(`${COLUMN} .talk-log`, "overflow-y")).toBe("auto");
+    // The dock keeps spec 005's bands.
+    expect(decl(`${DOCK} .hud-panels`, "height")).toBe("var(--dock-h)");
+    expect(RULES.some((r) => r.selector === `${DOCK} .disclosure` && r.decls.has("width"))).toBe(false);
+    // The resume and the larger view keep reading the clear area, the notes' reserve, and the column's band.
+    expect(decl(`${COLUMN} .resume-panel`, "width")).toBe("var(--clear-w)");
+    // Its top from the compact column back up to the notes' reserve (T053's second review).
+    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "top")).toBe(
+      "calc(var(--notes-h) + var(--column-h) - var(--clear-h))",
+    );
+    expect(decl(`${COLUMN} .talk[data-larger="on"] .talk-sheet`, "max-width")).toBe("calc(100vw - var(--column-w))");
   });
 
   it("make the room block the window: 100dvh after 100vh, and the page in the room no frame", () => {
@@ -355,5 +404,80 @@ describe("the walking control's box (spec 008, T033)", () => {
       expect(x).toBeGreaterThanOrEqual(0);
       expect(y).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+// T009 (spec 014; FR-060, FR-061, SC-002; contracts/frame-area.md §5; plan.md §11): the supported stages, given the
+// composed scene's protector, are the frame areas the kernel gives each screen and docked-panel state, each with the
+// compact boxes that overlap it, the walking control's among them, translated into the area's pixels and clipped to it,
+// as its reserved boxes. Without a protector they stay spec 005's clear areas, with the walking control's box reserved.
+describe("the stages as frame areas (spec 014, T009)", () => {
+  const { scene, index } = repositoryBundle();
+  const protect = protectorFor(protectSceneOf(scene, index));
+  const overlap = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  /** The reserved boxes of a frame area, written out: every compact box that overlaps it, in its pixels, clipped. */
+  function reservedOf(area: Box, screen: { w: number; h: number }, state = OPENING): Rect[] {
+    return compactBoxes(screen, state).all.flatMap((b): Rect[] => {
+      if (!overlap(b, area)) return [];
+      const x0 = Math.max(b.x, area.x);
+      const y0 = Math.max(b.y, area.y);
+      const x1 = Math.min(b.x + b.w, area.x + area.w);
+      const y1 = Math.min(b.y + b.h, area.y + area.h);
+      return [[x0 - area.x, y0 - area.y, x1 - x0, y1 - y0]];
+    });
+  }
+
+  it("gives each screen its frame area, with the overlapping compact boxes reserved in the area's pixels", () => {
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 2560, h: 1440 },
+      { w: 1280, h: 720 },
+      { w: 390, h: 844 },
+      { w: 568, h: 320 },
+      { w: 5120, h: 1440 },
+    ]) {
+      const f = frameArea(screen, OPENING, DEFAULT_METRICS, protect);
+      const stage = stageFor(screen, protect);
+      expect([stage.w, stage.h], key(screen)).toEqual([f.area.w, f.area.h]);
+      expect(stage.reserved, key(screen)).toEqual(reservedOf(f.area, screen));
+      expect(stage.ease, key(screen)).toBe(f.ease);
+      // The walking control's box is always among them: it stands in the clear area, which every frame area holds.
+      expect(stage.reserved?.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("keeps spec 005's stages without a protector: the clear areas, the walking control's box reserved", () => {
+    const stage = stageFor({ w: 1920, h: 1200 });
+    expect(stage).toEqual({ w: 1472, h: 1120.5 });
+    // No reserved boxes of its own: RG6 reserves spec 005's, the walking control's box alone.
+    expect(stage.reserved).toBeUndefined();
+    expect(reservedBoxes(stage)).toEqual([walkControlBox(stage)]);
+  });
+
+  it("lists each sweep screen's frame area once, a dock screen's collapsed one too, its reserved boxes with it", () => {
+    const stages = supportedStages(protect);
+    const id = (s: { w: number; h: number; reserved?: readonly Rect[] }): string =>
+      `${s.w}x${s.h}:${JSON.stringify(s.reserved ?? [])}`;
+    const keys = new Set(stages.map(id));
+    expect(keys.size).toBe(stages.length);
+    const screens = sweepScreens();
+    for (let i = 0; i < screens.length; i += 97) {
+      const screen = screens[i] as { w: number; h: number };
+      expect(keys.has(id(stageFor(screen, protect))), key(screen)).toBe(true);
+      if (layoutFor(screen) === "dock") {
+        const collapsed = { list: "collapsed" } as const;
+        const f = frameArea(screen, collapsed, DEFAULT_METRICS, protect);
+        expect(
+          keys.has(id({ w: f.area.w, h: f.area.h, reserved: reservedOf(f.area, screen, collapsed) })),
+          key(screen),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("frames at aspects that cover every frame area", () => {
+    const aspects = supportedStages(protect).map((s) => s.w / s.h);
+    expect(ASPECTS[0]).toBeLessThanOrEqual(Math.min(...aspects));
+    expect(ASPECTS.at(-1)).toBeGreaterThanOrEqual(Math.max(...aspects));
   });
 });

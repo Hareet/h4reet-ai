@@ -7,6 +7,7 @@ import { defineConfig } from "vite";
 
 import { draftsOn, roomDataFile } from "./build/approvals";
 import { resumePart } from "./build/content";
+import { creditsPage } from "./build/credits";
 import { disclosurePage } from "./build/disclosure";
 import { resumeDownloadName } from "./build/download-name";
 import { narrationPart } from "./build/narration";
@@ -38,6 +39,8 @@ export default defineConfig({
   },
   plugins: [
     disclosurePage({ source: here("../../docs/data-flow-disclosure.md") }),
+    // Spec 016 (FR-042, FR-043): the credits page from assets/CREDITS.md, which the toolbar's Credits link opens.
+    creditsPage({ source: here("../../assets/CREDITS.md") }),
     // main's policy: the image's named context (ROOM_POLICY_DIR), or what a checkout's prebuild read from main.
     // The resume's part (build/content.ts): the citation check, its items when main approves them, and resume.pdf.
     // Narration's (build/narration.ts): N1–N5, and each published item's scripts, per path, when they're published.

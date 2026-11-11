@@ -262,21 +262,22 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
   });
 
   it("counts a figure's model that can't be read 0, and how many there are, never as a model measured at 0", () => {
+    // Spec 016 (FR-046; plan.md R-18): the twin's own is its model alone, twin.glb; changed with T011.
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     const unreadable = desk().bytes.subarray(0, 40);
     const tree = overlay({
-      "assets/twin/fx-twin.glb": desk().bytes,
-      "assets/twin/fx-twin-hands.glb": unreadable,
+      "assets/twin/twin.glb": unreadable,
       "assets/visitors/fx-dog/fx-dog.glb": unreadable,
+      "assets/visitors/fx-cat/fx-cat.glb": desk().bytes,
     });
     const memory = sceneTextureMemory(contextOf(tree));
-    expect([memory.twin, memory.visitor, memory.figures]).toEqual([deskMemory, 0, deskMemory]);
+    expect([memory.twin, memory.visitor, memory.figures]).toEqual([0, deskMemory, deskMemory]);
     expect(memory.unread).toEqual({ twin: 1, visitor: 1 });
   });
 
   it("adds the twin's measured texture memory and the largest visitor avatar's", () => {
     const tree = overlay({
-      "assets/twin/fx-twin.glb": desk().bytes,
+      "assets/twin/twin.glb": desk().bytes,
       "assets/visitors/fx-dog/fx-dog.glb": sign().bytes,
       "assets/visitors/fx-cat/fx-cat.glb": desk().bytes,
     });
@@ -287,19 +288,20 @@ describe("RK3: the scene's texture memory on the reference phone, by class", () 
     expect([memory.twin, memory.visitor, memory.figures]).toEqual([deskMemory, deskMemory, 2 * deskMemory]);
   });
 
-  it("measures the twin's models together, and each avatar's together, the largest avatar counting", () => {
+  it("measures the twin's model alone, and each avatar's together, the largest avatar counting", () => {
+    // Spec 016 (FR-046; plan.md R-18): no other file under assets/twin/ counts; changed with T011.
     const deskMemory = textureMemory(8, 8) + textureMemory(16, 8) + textureMemory(4, 4);
     const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
     const tree = overlay({
-      "assets/twin/fx-twin.glb": desk().bytes,
+      "assets/twin/twin.glb": desk().bytes,
       "assets/twin/fx-hands/fx-hands.glb": sign().bytes,
       "assets/visitors/fx-dog/fx-dog.glb": desk().bytes,
       "assets/visitors/fx-dog/fx-collar.glb": sign().bytes,
       "assets/visitors/fx-cat/fx-cat.glb": desk().bytes,
     });
     const memory = sceneTextureMemory(contextOf(tree));
-    expect([memory.twin, memory.visitor]).toEqual([deskMemory + signMemory, deskMemory + signMemory]);
-    expect(memory.figures).toBe(2 * (deskMemory + signMemory));
+    expect([memory.twin, memory.visitor]).toEqual([deskMemory, deskMemory + signMemory]);
+    expect(memory.figures).toBe(2 * deskMemory + signMemory);
   });
 
   it("sizes each bound face's canvas at min(px, its largest on-screen size × the reference phone's ratio), at most", () => {

@@ -20,10 +20,10 @@ import { join, posix } from "node:path";
 
 import type { Plugin } from "vite";
 
-/** main's three policy files, by their name in the policy directory, in the order the policy's digest takes them:
- * spec 002's content approvals and PDF header, then spec 004's caps (R-13), as build/policy.ts and web_image.py
- * name them too. */
-export const POLICY_FILES = ["content-approvals.json", "resume-header.json", "caps.json"] as const;
+/** main's four policy files, by their name in the policy directory, in the order the policy's digest takes them:
+ * spec 002's content approvals and PDF header, then spec 004's caps (R-13), then spec 016's likeness approvals (its
+ * FR-015; plan.md R-03), as build/policy.ts and web_image.py name them too. */
+export const POLICY_FILES = ["content-approvals.json", "resume-header.json", "caps.json", "approvals.json"] as const;
 
 /** The kinds an approval may name: spec 002's resume and narration, and spec 004's room text (Amendment B9). The
  * human-only content check checks room text only once P-9 gives it the kind; until then, it fails closed. */
@@ -124,6 +124,7 @@ export function readPolicy(dir: string): Policy {
     "content-approvals.json": read(POLICY_FILES[0]),
     "resume-header.json": read(POLICY_FILES[1]),
     "caps.json": read(POLICY_FILES[2]),
+    "approvals.json": read(POLICY_FILES[3]),
   };
   const approved = approvedDigests(files[POLICY_FILES[0]]);
   return { approved: approved.all, roomText: approved.roomText, header: header(files[POLICY_FILES[1]]), files };

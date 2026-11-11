@@ -49,6 +49,8 @@ import { assetEvent } from "../../asset-events";
 import type { AssetEvent, AssetOutcome } from "../../asset-events";
 import { CLIP_ROLES } from "../../choice/avatars";
 import type { AvatarId, ClipRole } from "../../choice/avatars";
+import { TWIN_CLIP_ROLES } from "./twin-states";
+import type { TwinClipRole } from "./twin-states";
 import type { Mode } from "../../choice/visit";
 import type { Clock } from "../clock";
 import type { Look, RoomScene } from "../compose/bundle";
@@ -95,8 +97,13 @@ export interface ModelEntry {
  * equal, so a newer load of the file supersedes an older one as a piece's does.
  */
 export interface FigureEntry extends ModelEntry {
-  readonly figure: { readonly avatar: AvatarId; readonly role: ClipRole | null };
+  readonly figure: { readonly avatar: FigureSource; readonly role: FigureRole | null };
 }
+
+/** Whose file a figure file is (spec 016, plan.md R-01): an avatar of the table's, or the twin's own, keyed `twin`. */
+export type FigureSource = AvatarId | "twin";
+/** A figure file's clip role: an avatar's, or the twin's own (TWIN_CLIP_ROLES). */
+export type FigureRole = ClipRole | TwinClipRole;
 
 const isFigure = (entry: ModelEntry): entry is FigureEntry => "figure" in entry;
 
@@ -137,6 +144,8 @@ export interface LoaderOptions {
   readonly figureEnded?: (entry: FigureEntry, outcome: "loaded" | "failed" | "skipped") => void;
   /** An avatar model's images decode at most this many pixels a side (R-11): the 3D part's texture_px. */
   readonly maxSide?: number;
+  /** Spec 016 (FR-045): the twin's own model's side, its block's texture_px; absent, `maxSide`. */
+  readonly twinMaxSide?: number;
   /** Phase 2's parse gate for a figure file (R-10): resolves when it may parse, at once before the hand-off starts and
    *  at its end once it has; absent, a figure file waits for the hand-off's end, as a piece's model does. */
   readonly figureGate?: () => Promise<unknown>;
@@ -208,18 +217,75 @@ export function modelEntries(part: Pick<RoomScene, "placements" | "switches" | "
 }
 
 /**
- * The figures' files as entries (spec 009, FR-010, FR-015, FR-021; R-03): the stand-in's and the chosen avatar's, each
- * avatar once where the 3D part bundles its model, the stand-in first; their models first, then their clips in the
- * closed list's order, each at `base` + its a/ URL, its asset its URL's stem.
+ * The twin's own files as entries (spec 016, FR-044; plan.md R-05): its model, then its clips in TWIN_CLIP_ROLES'
+ * order, each keyed `twin` or `twin:<role>`, which no piece ID can equal, its asset its URL's stem (`twin`,
+ * `twin-<role>`); none where the 3D part has no twin.
  */
-export function figureEntries(
-  part: Pick<RoomScene, "figures" | "avatars">,
+export function twinEntries(part: Pick<RoomScene, "twin">, base = ""): FigureEntry[] {
+  const twin = part.twin;
+  if (!twin) return [];
+  const entry = (role: TwinClipRole | null, file: { url: string; sha256: string; bytes: number }): FigureEntry => ({
+    piece: role === null ? "twin" : `twin:${role}`,
+    asset: assetOf(file.url, role === null ? "twin" : `twin-${role}`),
+    bytes: file.bytes,
+    source: { kind: "url", url: `${base}${file.url}`, sha256: file.sha256 },
+    figure: { avatar: "twin", role },
+  });
+  return [
+    entry(null, twin.model),
+    ...TWIN_CLIP_ROLES.flatMap((role) => {
+      const file = twin.clips[role];
+      return file ? [entry(role, file)] : [];
+    }),
+  ];
+}
+
+/**
+ * The stand-in's files (spec 016, FR-044, D1; plan.md R-05): fetched only after the twin's own model has failed, so
+ * none where the 3D part has no twin (spec 009's figureEntries fetches them at once then), none where the stand-in is
+ * the chosen avatar (already fetched as the visitor's), and none where it has no bundled files.
+ */
+export function standInEntries(
+  part: Pick<RoomScene, "figures" | "avatars" | "twin">,
   chosen: AvatarId,
   base = "",
 ): FigureEntry[] {
+  const id = part.figures.stand_in;
+  if (!part.twin || id === null || id === chosen || !part.avatars[id]) return [];
+  return avatarEntries(part, [id], base);
+}
+
+/**
+ * The figures' files as entries (spec 009, FR-010, FR-015, FR-021; R-03): the stand-in's and the chosen avatar's, each
+ * avatar once where the 3D part bundles its model, the stand-in first; their models first, then their clips in the
+ * closed list's order, each at `base` + its a/ URL, its asset its URL's stem. Since spec 016 (FR-044; plan.md R-05),
+ * where the 3D part has the twin's own model, the twin's files take the stand-in's place: the twin's model and the
+ * chosen avatar's first, then the twin's clips and the chosen avatar's.
+ */
+export function figureEntries(
+  part: Pick<RoomScene, "figures" | "avatars"> & Partial<Pick<RoomScene, "twin">>,
+  chosen: AvatarId,
+  base = "",
+): FigureEntry[] {
+  if (part.twin) {
+    const twin = twinEntries({ twin: part.twin }, base);
+    const own = avatarEntries(part, part.avatars[chosen] ? [chosen] : [], base);
+    const isModel = (e: FigureEntry): boolean => e.figure.role === null;
+    return [
+      ...twin.filter(isModel),
+      ...own.filter(isModel),
+      ...twin.filter((e) => !isModel(e)),
+      ...own.filter((e) => !isModel(e)),
+    ];
+  }
   const ids = [...new Set([part.figures.stand_in, chosen])].filter(
     (id): id is AvatarId => id !== null && part.avatars[id] !== undefined,
   );
+  return avatarEntries(part, ids, base);
+}
+
+/** The avatars' files, models first, then clips in the closed list's order. */
+function avatarEntries(part: Pick<RoomScene, "avatars">, ids: readonly AvatarId[], base: string): FigureEntry[] {
   const entry = (
     avatar: AvatarId,
     role: ClipRole | null,
@@ -576,10 +642,12 @@ export function createLoader(options: LoaderOptions): Loader {
    *  to the figures, its textures uploaded once they take it; a clip's animations handed over, its scene released. */
   async function parseFigure(load: Load, entry: FigureEntry, data: ArrayBuffer, start: number | null): Promise<void> {
     const clip = entry.figure.role !== null;
+    // The twin's own model at its block's side (spec 016, FR-045), an avatar's at texture_px; half at quality 1.
+    const side = entry.figure.avatar === "twin" ? (options.twinMaxSide ?? options.maxSide) : options.maxSide;
     const parsed = await parseModel(data, {
       reduced: options.level() >= 1,
       decode: options.decode,
-      ...(!clip && options.maxSide !== undefined ? { maxSide: options.maxSide } : {}),
+      ...(!clip && side !== undefined ? { maxSide: side } : {}),
     });
     const model = parsed.gltf.scene;
     if (stopped || latest.get(entry.piece) !== load.mine) {
@@ -705,9 +773,9 @@ export function createLoader(options: LoaderOptions): Loader {
         fetched();
         return;
       }
-      const avatarOf = (l: Load): AvatarId => (l.entry as FigureEntry).figure.avatar;
+      const avatarOf = (l: Load): FigureSource => (l.entry as FigureEntry).figure.avatar;
       const models = loads.filter((l) => (l.entry as FigureEntry).figure.role === null);
-      const clipsOf = (avatar: AvatarId): Load[] =>
+      const clipsOf = (avatar: FigureSource): Load[] =>
         loads.filter((l) => (l.entry as FigureEntry).figure.role !== null && avatarOf(l) === avatar);
       /** A clip that won't load: its model's fetch failed, the loader stopped, or a newer load superseded it. */
       const skip = (c: Load): Promise<void> => {

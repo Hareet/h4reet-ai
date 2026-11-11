@@ -50,6 +50,8 @@ export const RULES = {
   RD3: rule("RD", read), // a required key missing, or a value outside its type or range
   RD4: rule("RD", read), // a version other than 1
   RD5: rule("RD", read), // a file in the data folders that isn't one of their kinds
+  RD6: rule("RD", read), // spec 014: a glow's radius or path, its points, and its spread
+  RD7: rule("RD", read), // spec 014: a figures grip's avatar, hand, point, or turn
   RI1: rule("RI", read), // an ID or a name outside its grammar
   RI2: rule("RI"), // a duplicate ID or name
   RI3: rule("RI"), // a retired ID taken again
@@ -59,7 +61,7 @@ export const RULES = {
   RI7: rule("RI"), // a model not under assets/room/, or not recorded
   RI8: rule("RI"), // the root, the figures, and the hand-off
   RI9: rule("RI", read), // a corpus path outside its form
-  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks
+  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect
@@ -70,6 +72,7 @@ export const RULES = {
   RG7: rule("RG"), // a face under the legibility floor
   RG8: rule("RG", { refuses: false }), // poses apart by less than the floor: reported, never refused
   RG9: rule("RG"), // a region outside its face, or two that overlap
+  RG10: rule("RG"), // spec 014: a path glow's point outside its piece's bounds
   RS1: rule("RS", readPart), // a switch's signal (the loader's), and its cases
   RS2: rule("RS"), // poses against claims; a placed switch piece; two poses claiming one value
   RS3: rule("RS"), // a case showing a pose that claims another value
@@ -115,6 +118,13 @@ export const RULES = {
   RA3: rule("RA", model), // the stand-in's model recorded as a likeness, or from a photo
   RA4: rule("RA", model), // an avatar's file over main's per_asset cap for its kind
   RA5: rule("RA", { refuses: false }), // a file in a visitor's folder with no role: reported, never refused
+  // Spec 016's twin (its FR-015, FR-029, FR-055; contracts/twin-data.md §7): RA1, RA2, RA4, and RA5 extend to
+  // assets/twin/; RA6 and RA7 are new, lenient as RA1 is, so a lenient build leaves the twin's files (RA6) or its lean
+  // (RA7) out and builds.
+  RA6: rule("RA", model), // the twin's files without main's approval naming its model's SHA-256 with a line
+  RA7: rule("RA", model), // the twin's lean off its spot: the desk not behind_m behind, turned, or short of right_m
+  // RA8 (plan.md R-19): lenient, so a lenient build warns and keeps the twin; nothing in the bundle stands on it.
+  RA8: rule("RA", model), // the twin's own model, at rest or in a clip it plays, reaching past a wall of the shell
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

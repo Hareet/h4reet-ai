@@ -66,6 +66,9 @@ async function setup(change: Partial<RunSetup> = {}): Promise<RunSetup> {
     window: null,
     buffer: [1035, 1180],
     cap: 3_686_400,
+    // Spec 014 (FR-063): a stage view has no frame area.
+    frame: null,
+    ease: null,
     look: composed.drafts?.lookdev.looks[0]?.id ?? "",
     sample: composed.drafts?.fixtures[0]?.id ?? "",
     quality: "auto",
@@ -111,6 +114,9 @@ describe("the results block (contracts/lookdev.md §6)", () => {
       "window_css",
       "buffer_px",
       "pixel_cap",
+      // Spec 014 (FR-063; contracts/lookdev.md §6): the frame area's ease and the frame area.
+      "ease",
+      "frame_css",
       "look",
       "sample",
       "quality",

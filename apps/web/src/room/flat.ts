@@ -35,6 +35,10 @@
 // polyline, polygon, path, and text; geometry, fill, stroke, stroke-width, opacity, font-*, text-anchor, and transform,
 // each with a typed value; and, from code's own constants, a class of room.css's and a case's or a paper's visibility.
 // Anything else throws: no href, no event handler, no style, so the CSP needs no change and data never becomes code.
+// Spec 016's still (its FR-034, FR-035; plan.md R-11) is the one exception, made by code alone below the allowlist: an
+// `image` whose href is a data: URL of bytes whose SHA-256 the index names, checked before it is drawn, under a
+// `clipPath` of the code's own id over the twin figure's box, so the site's content security policy, img-src 'self'
+// data:, needs no change.
 // Words go in as text, never markup. A pointer picks through compose/pick.ts over the index's hit rectangles, each
 // selectable's exclusive core 44 CSS pixels at the drawing's scale on screen, as the compositor's spacing check (RG6)
 // measured them (R-20). The drawing is aria-hidden: the "In the room" list and the text copy are its equivalents.
@@ -57,7 +61,7 @@ import type { RoomText } from "./faces/words";
 import { caseFor } from "./signals/tier";
 import type { TierValue } from "./signals/tier";
 import type { CostState } from "./signals/turn-cost";
-import type { MotionView, Stage } from "./stage";
+import type { FigureSignal, MotionView, Stage } from "./stage";
 import { uiWord } from "./ui-keys";
 
 /** What the 2D room reads of the index: its drawing, its words, its selectables, its switches' cases, and its faces with
@@ -65,7 +69,8 @@ import { uiWord } from "./ui-keys";
 export type FlatIndex = Pick<
   RoomIndex,
   "flat" | "ui" | "selectables" | "switches" | "faces" | "build" | "live" | "typefaces"
->;
+> &
+  Partial<Pick<RoomIndex, "twin">>;
 
 /** The 2D room's picture, as drawFlat builds it. */
 export interface FlatDrawing {
@@ -101,7 +106,10 @@ export interface FlatHighlight {
 
 export interface FlatStage extends Stage {
   readonly mode: "2d";
-  readonly drawing: FlatDrawing;
+  readonly drawing: FlatDrawing & {
+    /** Spec 016: the twin figure's drawing, which its still hides while it shows; null without a still. */
+    readonly twinDrawing: SVGElement | null;
+  };
   /** Fits the picker and the cues to the drawing's size in CSS pixels: a cue shows only where its selectable has a
    *  pick area. The stage calls it on each pick, and on each change of the drawing's size where the browser reports
    *  one. */
@@ -592,10 +600,30 @@ export function renderFlat(
     cost?: CostState;
     /** Where the drawing's pointer reports its targeting inputs (spec 008, FR-008 (a) and (b)). */
     target?: PointerTarget;
+    /** Spec 016 (FR-035): the page's fetch, for the twin's still; absent, no still is fetched. */
+    fetch?: (url: string, init: RequestInit) => Promise<Response>;
+    /** Spec 016 (FR-014, FR-052): the twin's picture in 2D, its still or its drawing, for the line slot and the log. */
+    onFigure?: (signal: FigureSignal) => void;
   },
 ): FlatStage {
   const reduced = (): boolean => options.motion?.reducedMotion ?? options.reducedMotion ?? false;
-  const drawing = drawFlat(doc, options.room, options.avatar);
+  const drawing = { ...drawFlat(doc, options.room, options.avatar), twinDrawing: null as SVGElement | null };
+  const still = options.room.twin?.still ?? null;
+  if (still) drawing.twinDrawing = drawing.items.get(still.placement) ?? null;
+  // Spec 016 (FR-034, FR-035; plan.md R-11): the twin's still, fetched once as the 2D room shows.
+  let disposed = false;
+  if (still && options.fetch) {
+    void fetchStill(still, options.fetch).then((url) => {
+      if (disposed) return;
+      if (url === null) {
+        options.onFigure?.({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
+        return;
+      }
+      drawStill(doc, drawing, still, options.room.flat.figures[0] ?? null, url);
+      stillShown = true;
+      options.onFigure?.({ kind: "picture", figure: "twin", shows: "still", why: null });
+    });
+  }
   const moving = turnsOf(options.room.flat);
   const element = h(doc, "div", { class: "flat", "aria-hidden": "true" }, drawing.root);
   const picker = flatPicker(options.room.flat.hits, options.room);
@@ -636,9 +664,13 @@ export function renderFlat(
   const Observer = doc.defaultView?.ResizeObserver;
   const observer = Observer ? new Observer(measure) : null;
   observer?.observe(element);
+  /** Spec 016 (FR-031; contracts/twin-states.md §6): while the twin's still shows, the paper appears with the visitor,
+   *  in its hands in every frame; the visitor's turns as before. */
+  let stillShown = false;
   const frame = (k: number): void => {
     element.setAttribute("data-handoff-frame", String(k));
-    drawing.papers.forEach((paper, i) => show(paper, i === k));
+    const paperAt = stillShown ? FLAT_FRAMES - 1 : k;
+    drawing.papers.forEach((paper, i) => show(paper, i === paperAt));
     turnTo(drawing.visitor, reduced() ? null : (moving[k] ?? null));
   };
   // Outside the hand-off, the paper is in the visitor's hands.
@@ -674,10 +706,96 @@ export function renderFlat(
       showCues();
     },
     dispose: () => {
+      disposed = true;
       unwatch?.();
       observer?.disconnect();
       unbind();
       element.remove();
     },
   };
+}
+
+// ---- Spec 016: the twin's still (its FR-034, FR-035; plan.md R-11; contracts/twin-states.md §6) ----
+
+type Still = NonNullable<NonNullable<RoomIndex["twin"]>["still"]>;
+
+/** The id of the still's clip, the drawing's own. */
+const STILL_CLIP = "h4-twin-still";
+
+/** A plain file's SHA-256 in hexadecimal, as Subresource Integrity's `sha256-<base64>`. */
+function integrityOf(sha256: string): string {
+  const bytes = sha256.match(/[0-9a-f]{2}/g) ?? [];
+  return `sha256-${btoa(String.fromCharCode(...bytes.map((b) => parseInt(b, 16))))}`;
+}
+
+/** The still's bytes as a `data:image/png;base64,…` URL, after one retry; null where both tries fail, or the bytes
+ *  aren't the ones the index names (checked here too, beside the browser's own integrity check). */
+async function fetchStill(
+  still: Still,
+  fetcher: (url: string, init: RequestInit) => Promise<Response>,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetcher(still.url, {
+        mode: "same-origin",
+        credentials: "same-origin",
+        redirect: "error",
+        integrity: integrityOf(still.sha256),
+      });
+      if (response.status !== 200) continue;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+      const hex = [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (hex !== still.sha256) continue;
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return `data:image/png;base64,${btoa(binary)}`;
+    } catch {
+      // A failed fetch is retried once, as the room's loader retries.
+    }
+  }
+  return null;
+}
+
+/** The still drawn in the twin's place: an `image` at its view-box rectangle, `xMidYMin slice`, under a clip of the
+ *  twin figure's projected box, just above the twin's drawing, which it hides. Made by code alone: its URL is the
+ *  verified bytes' data: URL, its clip the drawing's own id, so the allowlist's other elements stay as they are. */
+function drawStill(
+  doc: Document,
+  drawing: FlatStage["drawing"],
+  still: Still,
+  box: readonly [number, number, number, number] | null,
+  url: string,
+): void {
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(url) || !still.view.every(isNumber)) return;
+  const [x, y, w, h] = still.view;
+  const image = doc.createElementNS(SVG_NS, "image");
+  image.setAttribute("x", String(x));
+  image.setAttribute("y", String(y));
+  image.setAttribute("width", String(w));
+  image.setAttribute("height", String(h));
+  image.setAttribute("preserveAspectRatio", "xMidYMin slice");
+  image.setAttribute("href", url);
+  const group = doc.createElementNS(SVG_NS, "g");
+  if (box && box.every(isNumber)) {
+    const defs = doc.createElementNS(SVG_NS, "defs");
+    const clip = doc.createElementNS(SVG_NS, "clipPath");
+    clip.setAttribute("id", STILL_CLIP);
+    const rect = doc.createElementNS(SVG_NS, "rect");
+    const [bx, by, bw, bh] = box;
+    rect.setAttribute("x", String(bx));
+    rect.setAttribute("y", String(by));
+    rect.setAttribute("width", String(bw));
+    rect.setAttribute("height", String(bh));
+    clip.append(rect);
+    defs.append(clip);
+    drawing.root.prepend(defs);
+    group.setAttribute("clip-path", `url(#${STILL_CLIP})`);
+  }
+  group.append(image);
+  const twin = drawing.twinDrawing;
+  if (twin) {
+    twin.after(group);
+    show(twin, false);
+  } else drawing.root.append(group);
 }

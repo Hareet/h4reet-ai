@@ -712,3 +712,42 @@ def test_each_mark_passes_the_arrival_checks_container_rules(
     check = load(CHECK, "arrival_check_for_scrub_marks")
     clean = scrub.scrub_bytes(build(), kind, term=terms()[which])
     assert check.container_findings(clean, kind) == []
+
+
+# T069 (spec 016, FR-058; plan.md R-16; SC-015): the record's directory decides first. Under assets/twin, at any depth,
+# or docs/research/images (the arrival check's MODEL_ONLY), the mark is trainedAlgorithmicMedia whatever the steps say,
+# as the arrival check's C1 wants; under any other directory, the steps decide, as before.
+@pytest.mark.parametrize(
+    "directory, which",
+    [
+        ("assets/twin", "model"),
+        ("assets/twin/sub", "model"),
+        ("docs/research/images", "model"),
+        ("assets/room", "composite"),
+        ("assets/twinned", "composite"),
+        ("assets/visitors/man", "composite"),
+    ],
+)
+def test_record_under_the_twins_folder_takes_the_models_mark_whatever_the_steps(
+    tmp_path: Path, directory: str, which: str
+) -> None:
+    record = tmp_path / "records.json"
+    entry = {
+        "file": "still.png",
+        "kind": "still",
+        "source": {"type": "photo", "id": "H01"},
+        "steps": [MODEL_STEP, HAND_STEP, MODEL_STEP],
+    }
+    record.write_text(
+        json.dumps({"schema": 1, "directory": directory, "entries": [entry]}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    still = tmp_path / "still.png"
+    still.write_bytes(dirty_png())
+    done = run("--record", str(record), str(still))
+    assert done.returncode == 0, done.stderr
+    assert png_mark(still.read_bytes()) == (
+        b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + scrub.mark_packet(terms()[which])
+    )
+    assert scrub.term_from_record(record, "still.png") == terms()[which]

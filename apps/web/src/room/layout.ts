@@ -43,6 +43,20 @@ export interface HudApplied {
   readonly column: number;
   readonly dock: number;
   readonly clear: Box;
+  /** Spec 014 (FR-003, FR-009): the frame area the room is framed into, the clear area where there is none. */
+  readonly frame: Box;
+  /** Spec 014 (FR-017 to FR-021; plan.md §3.2): the column layout's compact clusters, compose/hud.ts's compactBoxes: the
+   *  strip's place and width, the bar's width, and the column's height; and the log's rest height in the column, in
+   *  CSS pixels. */
+  readonly compact: {
+    readonly strip: Box;
+    readonly bar: Box;
+    readonly column: Box | null;
+    /** T053 (W19): the walking control's box, and where it sits. */
+    readonly walk: Box;
+    readonly walkPlace: "column" | "stage";
+  };
+  readonly logRest: number;
   /** The stage's notes' reserve at the clear area's top, which no sheet reaches into (compose/hud.ts's notesReserve). */
   readonly notes: number;
   /** The on-screen keyboard's inset over the window's foot. */
@@ -69,8 +83,13 @@ export interface RoomLayout {
   offer(now: () => void, later: () => void): () => void;
   /** The room is in 2D for the rest of the visit: "2D view" stays, marked unavailable. */
   markFlat(): void;
-  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. */
-  setPlaceholders(on: boolean): void;
+  /** Shows the placeholder note while stand-ins are in use: from the bundle, or once a piece's load falls back. Since
+   *  spec 014 (its FR-053, FR-054; PD-18) it says what is missing: the room's pieces (standin.note), the visitor's
+   *  figure in 3D (standin.avatar), or both in one note, the pieces' first; hidden where nothing is. */
+  setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
+   *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
+  setLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -128,10 +147,14 @@ export function renderRoom(
     around: HTMLElement;
     /** The placeholder note's words: the UI word standin.note. */
     note: string;
+    /** Spec 014 (FR-054): the visitor's figure's placeholder words, the UI word standin.avatar; empty for none. */
+    noteAvatar?: string;
     /** Spec 009's stand-in line: the UI word twin.stand_in while the index's copy holds it; empty for none. */
     standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
+    /** Spec 016 (FR-042): the toolbar's credits link, the UI word toolbar.credits. */
+    credits?: string;
     /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help; and spec 005's helpFullscreen,
      *  walk.help_fullscreen. */
     walk?: {
@@ -178,6 +201,8 @@ export function renderRoom(
     pauseButton,
     ...(fullscreenButton ? [fullscreenButton] : []),
     tile(doc, "a", { href: "./disclosure/" }, "data", "How data flows"),
+    // Spec 016 (FR-042; plan.md R-14): the site's credits page, rendered from assets/CREDITS.md at build.
+    tile(doc, "a", { href: "./credits/" }, "credits", parts.credits ?? "Credits"),
     ...(fullscreenHelp ? [fullscreenHelp] : []),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
@@ -252,8 +277,15 @@ export function renderRoom(
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");
     },
+    setLine(words) {
+      if (standIn.textContent !== words) standIn.textContent = words;
+      standIn.hidden = words === "";
+    },
     setPlaceholders(on) {
-      note.hidden = !on || parts.note === "";
+      const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");
+      // One note (FR-055): the two joined, the first ending in a stop where its words don't.
+      note.textContent = words.map((w, k) => (k < words.length - 1 && !/[.!?]$/.test(w) ? `${w}.` : w)).join(" ");
+      note.hidden = words.length === 0;
     },
     setPaused(on) {
       pauseButton.setAttribute("aria-pressed", String(on));
@@ -279,6 +311,8 @@ export function renderRoom(
     applyHud(applied) {
       root.setAttribute("data-hud", applied.layout);
       root.setAttribute("data-list", applied.state.list);
+      // Spec 014, T053 (W19): where the walking control sits, which room.css's column layout reads with --walk-x/-y.
+      root.setAttribute("data-walk-place", applied.compact.walkPlace);
       const px = (n: number): string => `${n}px`;
       const { safe } = applied.metrics;
       const sizes: [string, number][] = [
@@ -296,6 +330,20 @@ export function renderRoom(
         ["--safe-left", safe.left],
         ["--keyboard", applied.keyboard],
         ["--notes-h", applied.notes],
+        // Spec 014 (FR-017 to FR-021; plan.md §3.2): the compact clusters, which room.css's column layout reads.
+        ["--strip-x", applied.compact.strip.x],
+        ["--strip-w", applied.compact.strip.w],
+        ["--bar-w", applied.compact.bar.w],
+        // Since T053 (W19): the walking control's place, at the column's head or in the clear area's corner.
+        ["--walk-x", applied.compact.walk.x],
+        ["--walk-y", applied.compact.walk.y],
+        ["--column-h", applied.compact.column?.h ?? 0],
+        ["--log-rest", applied.logRest],
+        // Spec 014 (FR-003; plan.md §2.5, §3.2): the frame area, where the 2D drawing's view sits.
+        ["--frame-x", applied.frame.x],
+        ["--frame-y", applied.frame.y],
+        ["--frame-w", applied.frame.w],
+        ["--frame-h", applied.frame.h],
       ];
       for (const [name, value] of sizes) root.style.setProperty(name, px(value));
       // The stacked layout's header is sticky in the page's flow, its own height: the scroll padding takes its 4rem

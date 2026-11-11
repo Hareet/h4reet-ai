@@ -3,9 +3,11 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
+import type { TwinActivity, TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
+import type { Protect } from "./compose/frame";
 import type { TierValue } from "./compose/vocabulary";
 import type { TypefaceLoader } from "./faces/fonts";
 import type { RoomText } from "./faces/words";
@@ -66,10 +68,16 @@ export interface Stage3D extends Stage {
   readonly figures?: Promise<void>;
   /** The scene's wait_ms: the longest the room waits for `figures`. */
   readonly waitMs?: number;
+  /** Spec 014 (FR-010, FR-016; plan.md §2.2): the frame area's protector over the stage's own 3D part, which the room's
+   *  re-fit takes (compose/protect.ts). Absent, the room frames into the clear area. */
+  readonly protect?: Protect;
   /** Spec 012 (contracts/loading-progress.md §3): what the stage will load, each figure's file and each set model with
    *  its bytes as served, once its loader's chunk has built them; [] where nothing loads or that chunk fails. It never
    *  rejects. Absent, as on a stand-in stage, the room counts no file. */
   readonly expected?: Promise<readonly ExpectedFile[]>;
+  /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
+   *  on a stand-in stage, nothing reads it. */
+  twinActivity?(activity: TwinActivity): void;
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */
@@ -103,9 +111,17 @@ export interface SceneOptions {
    *  window, as it is in the room's HUD, and into the whole canvas otherwise: null or absent (the stacked layout), or a
    *  canvas of another size (a frame between a resize and its re-fit). */
   clear?(): ClearArea | null;
+  /** Spec 014 (FR-009 to FR-015; contracts/frame-area.md §7): the frame area the room is framed into, read each frame,
+   *  in place of `clear`: the window it was computed for, the area, its ease, the HUD's compact boxes, and the clear
+   *  area it eases toward, which the stage frames into where the area isn't finite (FR-004). Absent or null, `clear`'s,
+   *  as before spec 014. */
+  frame?(): FrameGiven | null;
   /** Where the stage reports a leave of the walking view it made itself (spec 008): Escape, or a failed step (FR-005).
    *  Absent, nothing is reported. */
   walkEnded?(why: WalkEnd): void;
+  /** Spec 014 (FR-064): the walking view's hold at entry, `hold`, and its hand-over, `follow` with its cause (a turn,
+   *  a tilt, a zoom, or the edge), for a drafts build's frame log. Absent, nothing is reported. */
+  walkHeld?(state: "hold" | "follow", cause: "turn" | "tilt" | "zoom" | "edge" | null): void;
   // What the room's loader takes from the room (spec 004, T134; R-28): absent, models load at once, unheld, at full
   // size, and their events go nowhere.
   /** Whether studio models may load here: ADR 0010's floor, which the room reads once, behind the choice, with spec
@@ -137,6 +153,18 @@ export interface SceneOptions {
   onFigure?: (signal: FigureSignal) => void;
 }
 
+/** The frame area the room gives its 3D stage (spec 014), and the window it was computed for, in CSS pixels. */
+export interface FrameGiven {
+  readonly window: { readonly w: number; readonly h: number };
+  readonly area: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  readonly ease: number;
+  /** The HUD's compact boxes over the window, which the picker reserves and the walking view's hold keeps clear. */
+  readonly hud: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number }[];
+  readonly clear: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  /** The root font size, for the walking view's 0.5rem hold margin; absent, 16. */
+  readonly rem?: number;
+}
+
 /** The clear area the room gives its 3D stage (spec 005), and the window it was computed for, in CSS pixels. */
 export interface ClearArea {
   readonly area: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
@@ -151,15 +179,19 @@ export type FigureId = "twin" | "visitor";
  *  wasn't ready within the hand-off's wait (Phase 2); or its model measured no height. */
 export type FigureWhy = "no-file" | "failed" | "skipped" | "floor" | "2d" | "late" | "degenerate";
 
-/** What the 3D stage reports of its figures (spec 009, FR-032, FR-035; plan.md §3.4). */
+/** What the 3D stage reports of its figures (spec 009, FR-032, FR-035; plan.md §3.4). Spec 016 (FR-014, FR-052;
+ *  contracts/twin-states.md §4, §7): the twin's own model shows as `own`, which the room's line slot reads; its 2D still
+ *  as `still` and its 2D drawing as `drawing`, from the 2D room; the stand-in avatar stays `avatar`, as spec 009 logs it;
+ *  and each state change of the twin's own model. */
 export type FigureSignal =
   | {
       readonly kind: "picture";
       readonly figure: FigureId;
-      readonly shows: "avatar" | "fallback";
+      readonly shows: "avatar" | "fallback" | "own" | "still" | "drawing";
       readonly why: FigureWhy | null;
     }
-  | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole }
+  | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
+  | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

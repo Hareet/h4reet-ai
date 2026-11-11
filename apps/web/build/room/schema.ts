@@ -20,6 +20,7 @@ import {
   TYPEFACE_USES,
 } from "../../src/room/compose/vocabulary";
 import { isUiKey } from "../../src/room/ui-keys";
+import { AVATARS } from "../../src/choice/avatars";
 
 /** IDs `^[a-z][a-z0-9-]{1,40}$` (§3.1), and every other name (§3.2). */
 export const ID = /^[a-z][a-z0-9-]{1,40}$/;
@@ -119,21 +120,46 @@ const liveFace = z
     up: unit.optional(),
     px: z.tuple([z.number().int().min(16).max(2048), z.number().int().min(16).max(2048)]),
     readable: z.boolean(),
+    // Spec 016 (FR-036, FR-037; Amendment M18): `quad`, a plane the room builds, or `model`, its avatar's own mesh of
+    // the role's name, which the room draws into; RI8 holds `model` to a figure's piece.
+    surface: z.enum(["quad", "model"]).default("quad"),
   })
   .superRefine((f, ctx) => {
     if (f.up === undefined && f.facing[0] === 0 && f.facing[2] === 0)
       ctx.addIssue({ code: "custom", message: "RD3: up is required where facing is ±Y", path: ["up"] });
   });
 
-/** `glows[]`: `radius` "metres above 0"; `motion` flicker, breathe, or steady; `level` "0 to 1, default 1". */
-const glow = z.strictObject({
-  id: name("a glow's name"),
-  at: vec3,
-  radius: positive,
-  tone: z.string(),
-  motion: z.enum(GLOW_MOTIONS),
-  level: z.number().min(0).max(1).default(1),
-});
+/** Spec 014 (FR-045; T001's RD6): a path glow's spread, its half-width in metres at scale 1, above 0 and at most 0.05. */
+const SPREAD_MAX = 0.05;
+
+/** `glows[]`: `radius` "metres above 0"; `motion` flicker, breathe, or steady; `level` "0 to 1, default 1". Since spec
+ *  014 (its FR-045; Amendment W9) a glow gives exactly one of a `radius`, with its `at`, and a `path` of at least two
+ *  points with a `spread` in (0, 0.05]; RD6 refuses anything else, and RG10 a path point outside the piece's bounds. */
+const glow = z
+  .strictObject({
+    id: name("a glow's name"),
+    at: vec3.optional(),
+    radius: positive.optional(),
+    path: z.array(vec3).optional(),
+    spread: z.number().optional(),
+    tone: z.string(),
+    motion: z.enum(GLOW_MOTIONS),
+    level: z.number().min(0).max(1).default(1),
+  })
+  .superRefine((g, ctx) => {
+    const fail = (message: string): void => ctx.addIssue({ code: "custom", message: `RD6: ${message}` });
+    if (g.radius !== undefined && g.path !== undefined) return fail("both a radius and a path");
+    if (g.radius === undefined && g.path === undefined) return fail("neither a radius nor a path");
+    if (g.radius !== undefined) {
+      if (g.spread !== undefined) return fail("a spread without a path");
+      if (g.at === undefined)
+        ctx.addIssue({ code: "custom", message: "RD3: a disc glow's at is required", path: ["at"] });
+      return;
+    }
+    if ((g.path?.length ?? 0) < 2) return fail("a path of fewer than two points");
+    if (g.spread === undefined) return fail("a path without a spread");
+    if (!(g.spread > 0) || g.spread > SPREAD_MAX) return fail("a spread not above 0 and at most 0.05");
+  });
 
 /** `claims`: `{signal: tier, poses}`, each pose to the tier value it claims, or null. */
 const claims = z.strictObject({
@@ -470,6 +496,77 @@ const walking = z
  *  side, and the hand-off's wait of 1,500 ms. */
 export const FIGURES_DEFAULTS = { texture_px: 1024, wait_ms: 1500 } as const;
 
+/** Spec 014 (FR-039; plan.md PD-16; T001's RD7): a grip, the held edge's middle `at` in the hand bone's frame, each
+ *  coordinate within ±0.15 m, and the sheet's `turn` from its axes, each within ±180°. */
+const GRIP_AT = 0.15;
+const GRIP_TURN = 180;
+const gripCoordinate = z.number().refine((v) => Math.abs(v) <= GRIP_AT, own("RD7", "past ±0.15 m"));
+const gripDegrees = z.number().refine((v) => Math.abs(v) <= GRIP_TURN, own("RD7", "past ±180°"));
+const grip = z.strictObject({
+  at: z.tuple([gripCoordinate, gripCoordinate, gripCoordinate]),
+  turn: z.strictObject({ x: gripDegrees, y: gripDegrees, z: gripDegrees }),
+});
+/** `figures.grips`: from an avatar of the room's table to `right` and `left`, RD7 refusing any other key. */
+const grips = z.record(z.string(), z.record(z.string(), grip)).superRefine((value, ctx) => {
+  for (const [avatar, hands] of Object.entries(value)) {
+    if (!AVATARS.some((a) => a.id === avatar))
+      ctx.addIssue({ code: "custom", message: "RD7: not an avatar of the room's table", path: [avatar] });
+    for (const hand of Object.keys(hands))
+      if (hand !== "right" && hand !== "left")
+        ctx.addIssue({ code: "custom", message: "RD7: a hand but right and left", path: [avatar, hand] });
+  }
+});
+
+/** Spec 016's twin block's defaults (its FR-021, FR-029, FR-054; contracts/twin-data.md §1): the resting time, the
+ *  speaking pace and its bounds, and the lean's figures, the hand-back's for the delivered desk and clip. The clip map's
+ *  are twin-states.ts's TWIN_CLIPS_DEFAULT; the texture side's is the block's texture_px; the still's rectangle is the
+ *  twin figure's box's width, at its top (emit.ts). */
+export const TWIN_DEFAULTS = {
+  rest_after_s: 20,
+  speak_wpm: 150,
+  speak_s: [3, 20] as readonly [number, number],
+  behind_m: 0.679,
+  right_m: 0.45,
+} as const;
+
+/** `figures.twin` (spec 016, FR-054; plan.md R-15): every key optional. `clips`, from a state to a clip role, whose
+ *  closed lists RI8 holds (ri.ts), so a key or value outside them is RI8's, never RD2's; `rest_after_s` "an integer, 5
+ *  to 600"; `speak_wpm` "an integer, 60 to 400"; `speak_s` "[min, max], 0.5 ≤ min ≤ max ≤ 60"; `lean` with `against` a
+ *  placement ID (RI8: the survey's desk's piece), `behind_m` 0.1 to 2 and `right_m` 0 to 2, defaulting to the
+ *  hand-back's; `texture_px` "a power of two, 256 to 4,096"; and `still.rect`, `[x, y, w, h]` in metres, w and h above
+ *  0. */
+const twinBlock = z.strictObject({
+  clips: z.record(z.string(), z.string()).optional(),
+  rest_after_s: z.number().int().min(5).max(600).optional(),
+  speak_wpm: z.number().int().min(60).max(400).optional(),
+  speak_s: z
+    .array(z.number())
+    .refine(
+      (v) =>
+        v.length === 2 && 0.5 <= (v[0] as number) && (v[0] as number) <= (v[1] as number) && (v[1] as number) <= 60,
+      own("RD3", "not [min, max] with 0.5 ≤ min ≤ max ≤ 60"),
+    )
+    .optional(),
+  lean: z
+    .strictObject({
+      against: z.string(),
+      behind_m: z.number().min(0.1).max(2).default(TWIN_DEFAULTS.behind_m),
+      right_m: z.number().min(0).max(2).default(TWIN_DEFAULTS.right_m),
+    })
+    .optional(),
+  texture_px: z.number().int().min(256).max(4096).refine(isPowerOfTwo, own("RD3", "not a power of two")).optional(),
+  still: z
+    .strictObject({
+      rect: z
+        .array(z.number())
+        .refine(
+          (v) => v.length === 4 && (v[2] as number) > 0 && (v[3] as number) > 0,
+          own("RD3", "not [x, y, w, h] with w and h above 0"),
+        ),
+    })
+    .optional(),
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -484,6 +581,9 @@ const figures = z
       .refine(isPowerOfTwo, own("RD3", "not a power of two"))
       .default(FIGURES_DEFAULTS.texture_px),
     wait_ms: z.number().int().min(0).max(3000).default(FIGURES_DEFAULTS.wait_ms),
+    grips: grips.optional(),
+    // Spec 016 (FR-054): the twin's own block, optional, its defaults resolved by the compositor.
+    twin: twinBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 
@@ -724,11 +824,13 @@ export const fixtureSchema = z.strictObject({
   turns: z.array(turnOutcome),
 });
 
-/** `apps/web/room/lookdev.yaml` (§12): `vignette.show` and `close_up.frame`, each "at least one". */
+/** `apps/web/room/lookdev.yaml` (§12): `vignette.show` and `close_up.frame`, each "at least one"; since spec 014 (its
+ *  FR-042; PD-24), the hands view's `hands.avatars`, optional, at least one, which RI10 holds to the avatar table. */
 export const lookdevSchema = z.strictObject({
   version: version(),
   vignette: z.strictObject({ show: z.array(z.string()).min(1) }),
   close_up: z.strictObject({ frame: z.array(z.string()).min(1) }),
+  hands: z.strictObject({ avatars: z.array(z.string()).min(1) }).optional(),
 });
 
 export type CatalogEntry = z.output<typeof catalogSchema>;

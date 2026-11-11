@@ -5,7 +5,7 @@
 // looks for the data's IDs in code, never meets a vocabulary word.
 
 export const BEHAVIOUR_KINDS = ["mount", "frame", "live-face", "glow", "switch", "cable", "selectable"] as const;
-export const RENDERERS = ["terminal", "desktop-session", "neon", "chalk", "sign"] as const;
+export const RENDERERS = ["terminal", "desktop-session", "neon", "chalk", "sign", "print"] as const;
 export const SIGNALS = ["tier", "turn-cost"] as const;
 /** FR-041's tier values. */
 export const TIER_VALUES = [

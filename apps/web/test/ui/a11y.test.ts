@@ -190,6 +190,8 @@ describe("keyboard", () => {
         "2D view",
         "Pause the room",
         "How data flows",
+        // Spec 016 (FR-042; changed with T064, plan.md R-18): the toolbar's Credits link, after How data flows.
+        "Credits",
         ...walk,
         ...HEADS.list,
         ...OBJECT_BUTTONS,
@@ -208,14 +210,16 @@ describe("keyboard", () => {
       button(v.doc, "Resume").click();
       await flush();
       const order = tabOrder(v.doc).map(nameOf);
-      // The toolbar's four stops ("Pause the room", spec 004's, T161), a button per selectable, the conversation
-      // panel's three, and "Around the room" come first.
-      const room = 4 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
+      // The toolbar's five stops ("Pause the room", spec 004's, T161; "Credits", spec 016's), a button per
+      // selectable, the conversation panel's three, and "Around the room" come first.
+      const room = 5 + walk.length + HEADS.list.length + OBJECT_BUTTONS.length + HEADS.talk.length + 3 + 1;
       expect(order.slice(0, room)).toEqual([
         "Resume",
         "2D view",
         "Pause the room",
         "How data flows",
+        // Spec 016 (FR-042; changed with T064, plan.md R-18): the toolbar's Credits link, after How data flows.
+        "Credits",
         ...walk,
         ...HEADS.list,
         ...OBJECT_BUTTONS,
@@ -781,4 +785,34 @@ describe("the HUD, in every layout and panel state (spec 005, T021)", () => {
           expect(await axeViolations(v), `${layout}, walking`).toEqual([]);
         }
       });
+});
+
+// T074 (spec 016; FR-059; SC-016): the room with the twin: its line in the stage's note and first in "Around the room",
+// the shirt's words under its label, and the Credits link, with 0 WCAG 2.2 AA violations in 3D and 2D; the twin, its
+// still, and the shirt are pictures only, so nothing new is focusable but the link. The 320 × 568 screen's text box and
+// talk button are spec 014's HUD model's (hud-model.test.ts), with Credits among the bar's six tiles.
+describe("the twin's room's accessibility (spec 016, FR-059; SC-016)", () => {
+  const signal = (v: Visit, s: Parameters<NonNullable<Visit["scene"]["created"][number]["onFigure"]>>[0]): void =>
+    v.scene.created.at(-1)?.onFigure?.(s);
+
+  it("has 0 axe violations with the twin's line shown, in 3D and after the switch to 2D", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
+    const line = roomIndex().twin?.line ?? "";
+    expect(textOf(v.doc.querySelector(".room-stand-in"))).toBe(line);
+    expect(await axeViolations(v)).toEqual([]);
+    button(v.doc, "2D view").click();
+    await flush();
+    expect(await axeViolations(v)).toEqual([]);
+  }, 60_000);
+
+  it("adds no focusable element but the Credits link: the twin's pictures are aria-hidden", async () => {
+    const v = start({ webgl: true });
+    await intoRoom(v);
+    const names = tabOrder(v.doc).map(nameOf);
+    expect(names.filter((n) => n === "Credits")).toHaveLength(1);
+    for (const el of v.doc.querySelectorAll("canvas, .flat"))
+      expect(el.closest("[aria-hidden='true']") ?? el.getAttribute("aria-hidden"), el.localName).toBeTruthy();
+  });
 });

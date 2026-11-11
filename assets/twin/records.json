@@ -2,5 +2,3339 @@
   "schema": 1,
   "directory": "assets/twin",
   "license": "all-rights-reserved-2026",
-  "entries": []
+  "entries": [
+    {
+      "file": "desk-lean.glb",
+      "sha256": "51c424bc6a4be6c24cb4290ab68d7ed1ec6c3844c066c20cd6174174f6500e72",
+      "kind": "animation",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the desk-lean keyed on the skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-desk-lean"
+    },
+    {
+      "file": "greeting.glb",
+      "sha256": "eb97713eacc0197f1ca5f99ccc701cbd4f5f43ff43252498ef361a152c98160a",
+      "kind": "animation",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the greeting keyed on the skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-greeting"
+    },
+    {
+      "file": "idle.glb",
+      "sha256": "a9097c1f211e65403b52a408eb8b0c38936ab1f25e34048b737ae33658da1d2d",
+      "kind": "animation",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the idle keyed on the skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-idle"
+    },
+    {
+      "file": "listening.glb",
+      "sha256": "5793fb05e1967f574e396ef17e9bdc1b370e2938bf76fd47bbe1e7699c49ee61",
+      "kind": "animation",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the listening keyed on the skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-listening"
+    },
+    {
+      "file": "still.png",
+      "sha256": "3c10d76f3151ba474e30042f66a5c6fab33749ba37cbf7913b709eec22d2930c",
+      "kind": "still",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the model exported at rest, skinned, with its face shapes as morph targets, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        },
+        {
+          "name": "the still rendered from the exported model in a neutral light, the shirt's live face left out, and stripped to its image chunks, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "639f1c7bf2249aca6ed491edb43552e3f96bb0f97976af20954c810cd6719f2e"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-still"
+    },
+    {
+      "file": "talking.glb",
+      "sha256": "33471de133d1d18bfe6f2ba3c2c57d76d61a555ddf5582658f3b156d0bb66a02",
+      "kind": "animation",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the talking keyed on the skeleton and exported alone, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin-talking"
+    },
+    {
+      "file": "twin.glb",
+      "sha256": "a8bf4c188fd9cbd685e4cf231f5371e85a5571a10f59073847eda81e7d62915a",
+      "kind": "avatar",
+      "made": "2026-11-11",
+      "source": {
+        "type": "photo",
+        "id": "H01"
+      },
+      "likeness": true,
+      "steps": [
+        {
+          "name": "a style frame of his head and shoulders from his headshot, glasses removed, on plain grey, under the studio's twin exception",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "8fe9302a22d08ecb7541076ac7531d9e43a1b9fe3ec48eb396c9370b4a46ef46"
+        },
+        {
+          "name": "the Author's choice of the frame",
+          "by": "hand"
+        },
+        {
+          "name": "the body's concept, from the prompt alone",
+          "by": "model",
+          "models": [
+            {
+              "name": "FLUX.2 [klein] 4B base",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "primary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "Qwen3-4B, its text encoder",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            },
+            {
+              "name": "FLUX.2 VAE",
+              "repository": "Comfy-Org/Flux-2-Klein-4B",
+              "revision": "533c4cbc",
+              "role": "auxiliary",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "b13284478a695b0d54dd652fcb014f3f908dd8088570cec5d2ce2c3268b0e09a"
+        },
+        {
+          "name": "the Author's choice of the concept",
+          "by": "hand"
+        },
+        {
+          "name": "the head's mesh from the frame and the body's from the concept, each with its base-colour texture",
+          "by": "model",
+          "models": [
+            {
+              "name": "Pixal3D, int8",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "primary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "DINOv3 ViT-L, patch 16, with NAF",
+              "repository": "Comfy-Org/Pixal3D",
+              "revision": "f37641be",
+              "role": "auxiliary",
+              "license": "dinov3",
+              "license_version": "2026-10-26"
+            },
+            {
+              "name": "MoGe-2 ViT-L with normals",
+              "repository": "Comfy-Org/MoGe",
+              "revision": "14849852",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "BiRefNet",
+              "repository": "ZhengPeng7/BiRefNet",
+              "revision": "e2bf8e44",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 shape VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            },
+            {
+              "name": "TRELLIS.2 texture VAE",
+              "repository": "Comfy-Org/TRELLIS.2",
+              "revision": "430a9d09",
+              "role": "auxiliary",
+              "license": "mit",
+              "license_version": "1"
+            }
+          ],
+          "tools": [
+            {
+              "name": "ComfyUI",
+              "version": "0.42.5",
+              "license": "gpl-3.0",
+              "license_version": "3"
+            }
+          ],
+          "models_checked": "2026-11-10",
+          "workflow_sha256": "05174136df057d17e43e1fa6acaff90ddcfe701bf60dfe60cd3eb77ec0ac098a"
+        },
+        {
+          "name": "the Author's review of both meshes",
+          "by": "hand"
+        },
+        {
+          "name": "the head from the neck up placed on the body by the eyes' spacing, both cut at the neck and cleaned, the body's skin matched to the face, scaled to his height, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "9bf0b6fecc2b4b00bfa17452cb92822260cf4ccd8a9fef3941a41710cc0fcd42"
+        },
+        {
+          "name": "both meshes welded and reduced, the head to 110,000 triangles with the beard thinned first and the body to 60,000, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "d73030200c6132284270c1f7d3bdd1223a079e71f372eef89492b0aa73a647ca"
+        },
+        {
+          "name": "the textures cleaned in place: the beard, moustache and brows made solid black with clean edges, the chin's shape filled, the ears, stray flecks, and the sneakers recoloured to the turban's navy, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "e40fb75cd4043e607e98fbef32e81890fcf3cdd3d121becabf7610d79e0c63de"
+        },
+        {
+          "name": "the turban's tail, the glasses and the shirt's live face modelled in flat colours, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "239542391a6ef6039229d2c2b7a155665efea8e5f3f1ed709e17292bf8b55e4f"
+        },
+        {
+          "name": "parts named, textures stored as WebP, exported through the studio's export helper and checked, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "43b272e71e7ef4f86ea36991d24eb8dfdbd85f1634f59ef8766ba51765822470"
+        },
+        {
+          "name": "a Mixamo-named skeleton of 55 bones placed from the mesh's cross-sections and his hands' fingers, and skinned, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "65178e01770e8a2b8f2b1fc00cd37f0aacf35d2560e8d93053462045d1f2fde5"
+        },
+        {
+          "name": "the mouth opened along the lips with a dark inside, and ARKit's 52 face shapes and the 15 visemes made as shape keys, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "46ee029a67d2b443cf341db53ade08551830adfe406b61707564eaea11df64c2"
+        },
+        {
+          "name": "the model exported at rest, skinned, with its face shapes as morph targets, by the studio's agent's script run in Blender",
+          "by": "model",
+          "models": [
+            {
+              "name": "Claude Opus 5.5",
+              "repository": "anthropic/claude-opus-5-5",
+              "revision": "claude-opus-5-5",
+              "role": "primary",
+              "license": "anthropic-consumer-terms",
+              "license_version": "2025-10-08"
+            }
+          ],
+          "tools": [
+            {
+              "name": "Blender",
+              "version": "5.2.3",
+              "license": "gpl-3.0-or-later",
+              "license_version": "3"
+            },
+            {
+              "name": "numpy, bundled with Blender",
+              "version": "2.3.4",
+              "license": "bsd-3-clause",
+              "license_version": "1"
+            },
+            {
+              "name": "glTF exporter, bundled with Blender",
+              "version": "5.2.41",
+              "license": "apache-2.0",
+              "license_version": "2.0"
+            }
+          ],
+          "service": {
+            "name": "Claude Code",
+            "license": "anthropic-consumer-terms",
+            "license_version": "2025-10-08",
+            "disclosure_row": "D4"
+          },
+          "models_checked": "2026-11-11",
+          "workflow_sha256": "788a63ea7e2184d34c9a3b97b4de270d5b2f239d22c1d48d885b9c742d7c6029"
+        }
+      ],
+      "media_license": "all-rights-reserved-2026",
+      "approval": "A-20261110-twin"
+    }
+  ]
 }

@@ -9,10 +9,10 @@
 // event kinds. config/room-events.yaml is room:generate's since T108, its objects the selectables' IDs, and
 // test/room/generated.test.ts holds the committed file fresh; spec 002's generator and its item reader went with it.
 // T234 (spec 004; FR-013, User Story 4 scenario 1): with every piece's studio file set, the manifest names no stand-in,
-// so `placeholders` is the avatars' alone, true until spec 003's files arrive; the stand-in rule is held on the room as
-// it stood before (`withoutModels`).
+// so `placeholders` is false: since spec 014 (its FR-053; Amendment W11) the flag is the room's stand-ins alone, the
+// avatars' files no longer setting it; the stand-in rule is held on the room as it stood before (`withoutModels`).
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -138,14 +138,9 @@ describe("room-manifest.json (Amendment B7)", () => {
     expect(unset).toEqual([]);
     expect(scene.switches.filter((s) => s.model === null).map((s) => s.id)).toEqual([]);
     expect(scene.placements.filter((p) => figures.has(p.id) && p.model !== null).map((p) => p.id)).toEqual([]);
-    // So placeholders is the avatars' alone (build/room/emit.ts): true until the twin's GLB is under assets/twin/ and
-    // each visitor's under assets/visitors/<avatar>/ (spec 003's files).
-    const twin = join(REPO, "assets/twin");
-    const arrived =
-      existsSync(twin) &&
-      readdirSync(twin).some((name) => name.endsWith(".glb")) &&
-      AVATARS.every((a) => existsSync(join(REPO, `assets/visitors/${a.id}/${a.id}.glb`)));
-    expect(manifest.placeholders).toBe(!arrived);
+    // So placeholders is false: since spec 014 (its FR-053; Amendment W11; plan.md §9) the flag is the room's stand-ins
+    // alone, and the avatars' models no longer set it (the visitor's figure has its own words at run time, FR-054).
+    expect(manifest.placeholders).toBe(false);
   });
 
   it("says the live source is the scene's, off, and the build's kind", () => {

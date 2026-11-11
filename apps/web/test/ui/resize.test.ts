@@ -7,14 +7,15 @@
 // inset changes only --keyboard, never the clear area.
 import { describe, expect, it } from "vitest";
 
-import { fitsHud, hudBoxes } from "../../src/room/compose/hud";
-import type { HudMetrics } from "../../src/room/compose/hud";
+import type { Protect } from "../../src/room/compose/frame";
+import { compactBoxes, fitsHud, hudBoxes } from "../../src/room/compose/hud";
+import type { Box, HudMetrics } from "../../src/room/compose/hud";
 import type { WindowMeasures } from "../../src/room/hud/viewport";
 import { bufferRatio } from "../../src/room/fit";
 import { qualitySettings } from "../../src/room/scene/levels";
 import { createFrameLog } from "../../src/room/signals/frame-log";
 import type { FrameLogEntry } from "../../src/room/signals/frame-log";
-import { button, flush, intoRoom, start, stubViewport, talkLog } from "../helpers/room";
+import { button, flush, intoRoom, roomIndex, start, stubViewport, talkLog } from "../helpers/room";
 import type { Visit } from "../helpers/room";
 
 /** The steps of SC-001, at pixel ratios of 1, 2, and 1.5, then full screen entered and left on 1920 × 1200. */
@@ -206,5 +207,85 @@ describe("a re-fit's frame-log entry (FR-063)", () => {
     }
     // The level's cap binds at 2560 × 1440 at a ratio of 2: the buffer's ratio is 1, not the device's.
     expect(bufferRatio(2, qualitySettings(0), 2560, 1440)).toBe(1);
+  });
+});
+
+// T015 (spec 014; FR-004, FR-013, FR-064; contracts/frame-area.md §2, §4, §7; plan.md §2.4): the room computes the frame
+// area at each re-fit with the 3D stage's protector, and gives it through SceneOptions.frame(): the window, the frame
+// area, its ease, and the compact boxes, recomputed on the next frame after a resize, a collapse, or full screen, with
+// at most 17 protector calls a re-fit; a protector that throws gives the clear area, which a drafts build's frame log
+// records as frame_fallback; and each re-fit's entry carries its frame area and ease.
+describe("the frame area at each re-fit (spec 014, T015)", () => {
+  function counted(boxes: Protect["boxes"]): Protect & { calls: number } {
+    const p = {
+      calls: 0,
+      boxes(area: Box, clear: Box): readonly Box[] | null {
+        p.calls += 1;
+        return boxes(area, clear);
+      },
+    };
+    return p;
+  }
+  const entries = (v: Visit): FrameLogEntry[] =>
+    (JSON.parse((v.win as unknown as { h4FrameLog(): string }).h4FrameLog()) as { entries: FrameLogEntry[] }).entries;
+
+  it("gives the stage the frame area, its ease, and the compact boxes, recomputed at each re-fit", async () => {
+    const viewport = stubViewport({ w: 1920, h: 1200 });
+    const v = start({ webgl: true, viewport: viewport.factory });
+    // A protector whose one box sits at the window's centre: clear of every compact box, so the area is the window.
+    const protect = counted((area) => [{ x: area.x + area.w / 2 - 22, y: area.y + area.h / 2 - 22, w: 44, h: 44 }]);
+    v.scene.protect = protect;
+    await intoRoom(v);
+    for (const step of [
+      { w: 1920, h: 1200 },
+      { w: 2560, h: 1440 },
+      { w: 390, h: 844 },
+    ]) {
+      viewport.set(step);
+      const before = protect.calls;
+      v.clock.advance(16);
+      const given = v.scene.created[0]?.frame?.();
+      const where = `${step.w} × ${step.h}`;
+      expect(given?.window, where).toEqual({ w: step.w, h: step.h });
+      expect(given?.area, where).toEqual({ x: 0, y: 0, w: step.w, h: step.h });
+      expect(given?.ease, where).toBe(0);
+      expect(given?.hud, where).toEqual(compactBoxes({ w: step.w, h: step.h }).all);
+      expect(protect.calls - before, where).toBeLessThanOrEqual(17);
+    }
+    // The list collapsed in the dock re-frames too.
+    viewport.set({ w: 390, h: 844 });
+    const before = protect.calls;
+    button(v.doc, roomIndex().ui["list.heading"] ?? "In the room").click();
+    expect(protect.calls).toBeGreaterThan(before);
+    expect(v.scene.created[0]?.frame?.()?.hud).toEqual(compactBoxes({ w: 390, h: 844 }, { list: "collapsed" }).all);
+  });
+
+  it("frames into the clear area, and logs frame_fallback, where the protector throws (FR-004)", async () => {
+    const viewport = stubViewport({ w: 1920, h: 1200 });
+    const v = start({ webgl: true, viewport: viewport.factory, frameLog: createFrameLog });
+    v.scene.protect = {
+      boxes: () => {
+        throw new Error("no scene");
+      },
+    };
+    await intoRoom(v);
+    viewport.set({ w: 2560, h: 1440 });
+    const given = v.scene.created[0]?.frame?.();
+    expect(given?.area).toEqual(hudBoxes({ w: 2560, h: 1440 }).clear);
+    expect(given?.ease).toBe(1);
+    expect(entries(v).some((e) => e.event === "frame_fallback")).toBe(true);
+  });
+
+  it("records each re-fit's frame area and ease in a drafts build's frame log (FR-064)", async () => {
+    const viewport = stubViewport({ w: 1920, h: 1200 });
+    const v = start({ webgl: true, viewport: viewport.factory, frameLog: createFrameLog });
+    v.scene.protect = { boxes: (area) => [{ x: area.x + area.w / 2, y: area.y + area.h / 2, w: 44, h: 44 }] };
+    await intoRoom(v);
+    viewport.set({ w: 2560, h: 1440 });
+    const entry = entries(v)
+      .filter((e) => e.event === "refit")
+      .at(-1);
+    // The entry's own `frame` is its frame count, so the area is `frame_area`.
+    expect(entry).toMatchObject({ frame_area: "0,0,2560,1440", ease: 0 });
   });
 });

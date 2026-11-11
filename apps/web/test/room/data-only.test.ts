@@ -71,6 +71,7 @@ import {
   intoRoom,
   makeWindow,
   nameOf,
+  repositoryBundle,
   talkLog,
   textOf,
 } from "../helpers/room";
@@ -784,7 +785,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
   function visit(bundle: ComposeResult): Visit {
     const dom = makeWindow({ webgl: true });
     const win = dom.window as unknown as TestWindow;
-    const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+    const spies: Spies = { storage: [], history: [], network: [], assets: [], beacons: [], microphone: 0 };
     Object.defineProperty(win, "fetch", {
       configurable: true,
       value: (input: unknown) => {
@@ -1008,5 +1009,99 @@ describe("the proof set, spec 008's walking data (FR-056, SC-006)", () => {
     expectDataOnly(c);
     expect(read(c.result.scene)).toBe(value);
     expect(read(base.scene)).not.toBe(value);
+  });
+});
+
+// T037 (spec 014; FR-044, FR-045, FR-049; SC-007; Amendment W10): the neon sign's glow is a path along its tube, the
+// arrow's outline, a data edit: the composed part's sign gives a path and a spread and no radius, so the room draws no
+// disc behind it; and the ribbon covers less of the sign's plane than the disc did, 0.3 m in radius, both at the sign's
+// stylized scale, so less of any screen it is projected onto.
+describe("the neon sign's path glow (spec 014, T037)", () => {
+  it("gives the sign's tube-glow a path and a spread, no radius, and less area than the disc", () => {
+    const { scene: part } = repositoryBundle();
+    // The sign by its glow's ID, the scan keeping the room's piece IDs out of code (FR-007).
+    const sign = Object.values(part.pieces).find((p) => Object.hasOwn(p.glows, "tube-glow"));
+    const glow = (sign?.glows["tube-glow"] ?? {}) as {
+      path?: [number, number, number][];
+      spread?: number;
+      radius?: number;
+    };
+    expect(glow.radius).toBeUndefined();
+    expect(glow.path?.length).toBeGreaterThanOrEqual(2);
+    expect(glow.spread).toBeGreaterThan(0);
+    const s = sign?.scale ?? 1;
+    let length = 0;
+    for (let i = 0; i + 1 < (glow.path?.length ?? 0); i += 1) {
+      const a: [number, number, number] = glow.path?.[i] ?? [0, 0, 0];
+      const b: [number, number, number] = glow.path?.[i + 1] ?? [0, 0, 0];
+      length += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    }
+    const ribbon = length * 2 * (glow.spread ?? 0) * s * s;
+    const disc = Math.PI * (0.3 * s) ** 2;
+    expect(ribbon).toBeLessThan(disc);
+    // The laptop's charge light and the screens keep their discs (FR-048).
+    for (const piece of Object.values(part.pieces))
+      for (const [id, g] of Object.entries(piece.glows))
+        if (id !== "tube-glow") expect((g as { radius?: number }).radius, id).toBeGreaterThan(0);
+  });
+});
+
+// T036 (spec 016; FR-054; SC-014): the twin block's proof set, each a data edit to the repository's own scene, each
+// composing in a strict build with no source file read or changed: the lean given to listening, the resting time 10 s,
+// the pace 120, and the twin's texture side 512.
+describe("the twin block's data-only proof set (spec 016, SC-014)", () => {
+  const scene = (edit: (twin: Record<string, unknown>) => void): Tree => {
+    const doc = parse(readFileSync(join(REPO, SCENE_FILE), "utf8")) as Scene & { figures: Record<string, unknown> };
+    const twin = { ...((doc.figures.twin as Record<string, unknown> | undefined) ?? {}) };
+    edit(twin);
+    doc.figures = { ...doc.figures, twin };
+    return overlayTree(
+      fileTree(REPO),
+      new Map([[SCENE_FILE, new TextEncoder().encode(stringify(doc, { aliasDuplicateObjects: false }))]]),
+    );
+  };
+  const policy = readRoomPolicy({ env: {}, root: REPO });
+  type Edit = (t: Record<string, unknown>) => void;
+  const cases: [string, Edit, Record<string, unknown>][] = [
+    [
+      "the lean given to listening",
+      (t) => {
+        t.clips = { ...(t.clips as object), listening: "desk-lean" };
+      },
+      { clips: { listening: "desk-lean" } },
+    ],
+    [
+      "the resting time to 10 s",
+      (t) => {
+        t.rest_after_s = 10;
+      },
+      { rest_after_s: 10 },
+    ],
+    [
+      "the pace to 120",
+      (t) => {
+        t.speak_wpm = 120;
+      },
+      { speak_wpm: 120 },
+    ],
+    [
+      "the twin's texture side to 512",
+      (t) => {
+        t.texture_px = 512;
+      },
+      { texture_px: 512 },
+    ],
+  ];
+  it.each(cases)("%s", (_, edit, expected) => {
+    const tree = scene(edit);
+    const result = compose(tree, policy, { mode: "strict", drafts: false });
+    expect(result.findings.filter((f) => !f.lenient).map((f) => f.rule)).toEqual([]);
+    expect(result.scene.twin?.block).toMatchObject(expected);
+    // No source file changed: the edit is the scene's alone, and the compose reads no source file it didn't read
+    // before the edit.
+    const before = scene(() => undefined);
+    compose(before, policy, { mode: "strict", drafts: false });
+    const sources = (t: Tree): string[] => [...new Set(t.log.filter((p) => p.startsWith("apps/web/src/")))].sort();
+    expect(sources(tree)).toEqual(sources(before));
   });
 });

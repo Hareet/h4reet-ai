@@ -35,6 +35,8 @@ words:
   toolbar.credits: Credits
   standin.label: "{name} (placeholder)"
   standin.note: Placeholder shapes stand in for the room's pieces until their models arrive
+  # Spec 014 (FR-054; D11): the note's words while the 3D room shows the visitor's figure as its flat shape.
+  standin.avatar: Your figure is a flat placeholder until its model arrives.
   draft.badge: Draft
   flat-failed: This drawing of the room could not be shown. The list of things in the room still works.
   walk.enter: Walk around
@@ -82,3 +84,5 @@ words:
   label.bicycle: Bicycle
   label.window: Window
   label.artwork: Artwork
+  # Spec 016 (FR-040; D8): the shirt's live face's label, under which "Around the room" says its words.
+  label.twin-shirt: The twin's shirt

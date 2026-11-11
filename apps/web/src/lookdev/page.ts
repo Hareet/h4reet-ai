@@ -320,13 +320,33 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     choices: [
       { value: "room", label: "Room" },
       { value: "vignette", label: "Vignette" },
+      // Spec 014's hands view (FR-042; PD-24), where lookdev.yaml lists its avatars.
+      ...(stage.hands.length > 0 ? [{ value: "hands" as const, label: "Hands" }] : []),
     ],
     value: stage.scene,
     onChange: (s) => {
       stage.setScene(s);
       showCandidates();
+      showHands();
     },
   });
+  // ---- Spec 014's hands view: each case and its state, while the scene is Hands; it measures nothing ----
+  const handsList = h(doc, "ul", { class: "lookdev-hands-cases" });
+  const handsPanel = h(
+    doc,
+    "section",
+    { class: "lookdev-hands", "aria-labelledby": "lookdev-hands-heading" },
+    h(doc, "h2", { id: "lookdev-hands-heading" }, "Hands: the sheet at each grip, the forearm's 4 cm volume as a wire"),
+    handsList,
+  );
+  handsPanel.hidden = true;
+  function showHands(): void {
+    handsPanel.hidden = stage.scene !== "hands";
+    handsList.replaceChildren(
+      ...stage.hands.map((c) => h(doc, "li", {}, c.why === null ? `${c.label}: drawn` : `${c.label}: ${c.why}`)),
+    );
+  }
+  stage.onHands(showHands);
   const lookSelect = selectControl(doc, {
     label: "Look",
     choices: lookdev.looks.map((l) => ({ value: l.id, label: `${l.id} (${l.method})` })),
@@ -395,6 +415,7 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
     highlightSelect.element,
     sampleSelect.element,
     samplePanel,
+    handsPanel,
     qualityGroup.element,
     h(
       doc,
@@ -695,6 +716,11 @@ function buildPage(root: HTMLElement, options: LookdevOptions, deps: LookdevDeps
             window: stage.window === null ? null : [stage.window.w, stage.window.h],
             buffer: stage.buffer,
             cap: stage.cap,
+            frame:
+              stage.frame === null
+                ? null
+                : [stage.frame.area.x, stage.frame.area.y, stage.frame.area.w, stage.frame.area.h],
+            ease: stage.frame?.ease ?? null,
             look: stage.look.id,
             sample: stage.sample?.id ?? "",
             quality: stage.quality,

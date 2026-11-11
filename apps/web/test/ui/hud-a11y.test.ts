@@ -87,7 +87,9 @@ describe("the Tab order in the HUD (FR-043, FR-046)", () => {
       // "Around the room".
       expect(order.slice(0, 3)).toEqual(["Resume", "2D view", UI["pause.button"]]);
       expect(order.indexOf(UI["list.heading"] ?? "")).toBeGreaterThan(order.indexOf("How data flows"));
-      if (webgl) expect(order.indexOf(UI["walk.enter"] ?? "")).toBe(order.indexOf("How data flows") + 1);
+      // Spec 016 (FR-042; changed with T064, plan.md R-18): Credits after How data flows, then the walking control.
+      expect(order.indexOf("Credits")).toBe(order.indexOf("How data flows") + 1);
+      if (webgl) expect(order.indexOf(UI["walk.enter"] ?? "")).toBe(order.indexOf("Credits") + 1);
       expect(order.indexOf(UI["hud.log_toggle"] ?? "")).toBeGreaterThan(order.indexOf(UI["list.heading"] ?? ""));
       expect(order.indexOf("Your message")).toBeGreaterThan(order.indexOf(UI["hud.log_toggle"] ?? ""));
       expect(order.at(-1)).toBe(UI["around.heading"]);
@@ -278,5 +280,80 @@ describe("no control in the Tab order that isn't drawn (T046, finding 1)", () =>
       hidden.some((r) => r.selectors.includes(".room [hidden]") && r.decls.get("display") === "none !important"),
     ).toBe(true);
     expect(hidden.some((r) => r.selectors.includes(".disclosure [hidden]"))).toBe(true);
+  });
+});
+
+// T046 (spec 014; FR-062; SC-011, SC-012): the compact HUD, the new look, the held walking view, and each note's cause
+// keep WCAG 2.2 AA. axe finds 0 violations in the column and dock layouts, in 3D and 2D, with the note naming its causes
+// (both in 3D, the pieces' alone in 2D) and a piece's target marked in the list; in the column, in and out of full
+// screen and with the log collapsed and in its larger view; in 3D, with the walking view entered and held at the room's
+// view. The Tab order's tests above run with the compact HUD, which is the room's only HUD now; no compact box clips
+// what it holds, so a focused control scrolls into view inside it.
+describe("axe with spec 014's HUD (T046)", () => {
+  for (const [layout, screen] of [
+    ["column", { w: 1920, h: 1200 }],
+    ["dock", { w: 390, h: 844 }],
+  ] as const)
+    for (const webgl of [true, false])
+      it(`finds 0 violations in the ${layout} layout, in ${webgl ? "3D" : "2D"}, with the note's causes and the held walk`, async () => {
+        const viewport = stubViewport(screen);
+        const v = start({
+          webgl,
+          viewport: viewport.factory,
+          room: { ...roomIndex(), build: { ...roomIndex().build, placeholders: true } },
+        });
+        await intoRoom(v);
+        expect(v.doc.documentElement.getAttribute("data-hud")).toBe(layout);
+        v.scene.created[0]?.onFigure?.({
+          kind: "picture",
+          figure: "visitor",
+          shows: "fallback",
+          why: "no-file",
+        } as never);
+        // A piece the room targets, its list button marked aria-current (FR-025).
+        v.scene.created[0]?.target?.("pointer", roomIndex().selectables[0]?.id ?? null);
+        const note = v.doc.querySelector<HTMLElement>(".room-note:not(.room-stand-in)");
+        expect(note?.hidden).toBe(false);
+        expect(note?.textContent?.includes(UI["standin.avatar"] ?? "?")).toBe(webgl);
+        expect(await axeViolations(v)).toEqual([]);
+        if (layout === "column") {
+          fullScreen(v, true);
+          expect(await axeViolations(v)).toEqual([]);
+          fullScreen(v, false);
+          button(v.doc, UI["talk.larger"] ?? "").click();
+          expect(await axeViolations(v)).toEqual([]);
+          button(v.doc, UI["talk.smaller"] ?? "").click();
+          button(v.doc, UI["hud.log_toggle"] ?? "").click();
+          expect(await axeViolations(v)).toEqual([]);
+          button(v.doc, UI["hud.log_toggle"] ?? "").click();
+        }
+        if (webgl) {
+          const walk = v.doc.querySelector<HTMLButtonElement>("button.room-walk");
+          expect(walk?.hidden).toBe(false);
+          walk?.click();
+          await flush();
+          expect(v.scene.walks.at(-1)?.call).toBe("enter");
+          // The held view, the room's own, as the stage reports it (FR-058).
+          v.scene.created[0]?.walkHeld?.("hold", "edge");
+          expect(await axeViolations(v)).toEqual([]);
+        }
+      });
+
+  it("clips nothing a compact box holds: the column's list and log scroll, the strip and the bar wrap", () => {
+    const all = rules();
+    const declared = (selector: string, prop: string): string[] =>
+      all.filter((r) => r.selectors.includes(selector)).flatMap((r) => r.decls.get(prop) ?? []);
+    expect(declared('html[data-hud="column"] .room-list', "overflow-y")).toEqual(["auto"]);
+    expect(declared('html[data-hud="column"] .talk-log', "overflow-y")).toEqual(["auto"]);
+    for (const selector of [
+      'html[data-hud="column"] .disclosure',
+      'html[data-hud="column"] .hud-bar',
+      'html[data-hud="column"] .hud-panels',
+      ".disclosure",
+      ".hud-bar",
+      ".hud-panels",
+    ])
+      for (const r of all.filter((x) => x.selectors.includes(selector)))
+        expect(r.decls.get("overflow") ?? "visible", selector).not.toBe("hidden");
   });
 });

@@ -34,7 +34,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { JSDOM } from "jsdom";
-import { Mesh, MeshBasicMaterial, MeshToonMaterial, Vector3 } from "three";
+import { Mesh, MeshBasicMaterial, MeshToonMaterial, Quaternion, Vector3 } from "three";
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
@@ -46,7 +46,9 @@ import type { LookdevDeps, LookdevPage } from "../../src/lookdev/page";
 import type { Probe } from "../../src/lookdev/results";
 import { framing } from "../../src/room/compose/framing";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../../src/room/compose/stages";
-import { clearArea } from "../../src/room/compose/hud";
+import { frameArea } from "../../src/room/compose/frame";
+import { DEFAULT_METRICS, OPENING, clearArea } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { bufferRatio, viewOffsetFor } from "../../src/room/fit";
 import { readImage } from "../../src/room/glb/images";
 import { REASON, count } from "../../src/room/glb/rules";
@@ -70,9 +72,15 @@ import type { RoomText } from "../../src/room/faces/words";
 import { FakeClock, REPO, flush, repositoryBundle } from "../helpers/room";
 import { goodTree } from "../helpers/room-fixtures";
 import type { TestWindow } from "../helpers/room";
-import { asExported, ascii, desk, item, pngHeader } from "../helpers/glb";
+import { asExported, ascii, avatarClips, avatarGlb, clipGlb, desk, IDLE_TRACKS, item, pngHeader } from "../helpers/glb";
 import type { PackOptions } from "../helpers/glb";
 import { cleanModel } from "../helpers/room-models";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { AnimationClip } from "three";
+import type { AvatarId, ClipRole } from "../../src/choice/avatars";
+import { FOREARM_RADIUS, HANDS_NODE, caseLabel, drawHands, handsCases } from "../../src/lookdev/hands";
+import type { HandsAvatar } from "../../src/lookdev/hands";
+import { gripCentre } from "../../src/room/scene/grip";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -1271,6 +1279,9 @@ describe("runs and their results (contracts/lookdev.md §5, §6)", () => {
       "window_css",
       "buffer_px",
       "pixel_cap",
+      // Spec 014 (FR-063; contracts/lookdev.md §6): the frame area's ease and the frame area.
+      "ease",
+      "frame_css",
       "look",
       "sample",
       "quality",
@@ -1441,12 +1452,14 @@ describe("User Story 5's faces on the page (T192; FR-067, FR-070)", () => {
     const { page, root, clock, inputs: given } = open();
     clock.advance(50);
     const quads = page.stage.faces.quads;
-    expect([...quads.keys()].sort()).toEqual(given.index.faces.map((f) => f.id).sort());
+    // Spec 016 (FR-036; changed with T059, plan.md R-18): a face drawn into an avatar's own mesh has no quad.
+    const quadFaces = given.index.faces.filter((f) => f.surface !== "model");
+    expect([...quads.keys()].sort()).toEqual(quadFaces.map((f) => f.id).sort());
     for (const [id, quad] of quads) expect(shows(quad), id).toBe(true);
     choose(control<HTMLInputElement>(root, "Vignette"));
     clock.advance(50);
     const shown = new Set(given.lookdev.vignette.show);
-    for (const face of given.index.faces)
+    for (const face of quadFaces)
       expect(shows(quads.get(face.id) as Object3D), face.id).toBe(shown.has(face.placement));
     choose(control<HTMLInputElement>(root, "Room"));
     clock.advance(50);
@@ -1693,7 +1706,15 @@ describe("the window views (spec 005, T026)", () => {
       expect([canvas.style.width, canvas.style.height]).toEqual([`${screen.w}px`, `${screen.h}px`]);
       expect(renderer.size).toEqual([screen.w, screen.h]);
       expect(renderer.ratio).toBeCloseTo(bufferRatio(dpr, qualitySettings(0), screen.w, screen.h), 12);
-      const clear = clearArea(screen);
+      // Spec 014 (FR-063): framed into the window's frame area, by the room's kernel over the part, which holds the
+      // clear area.
+      const clear = frameArea(
+        screen,
+        OPENING,
+        DEFAULT_METRICS,
+        protectorFor(protectSceneOf(given.part, given.index)),
+      ).area;
+      expect(clear.w).toBeGreaterThanOrEqual(clearArea(screen).w);
       expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
       const camera = page.stage.camera;
       expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);
@@ -1754,6 +1775,37 @@ describe("the window views (spec 005, T026)", () => {
     expect(results.pixel_cap).toBe(qualitySettings(settled).pixelCap);
   });
 
+  // T019 (spec 014; FR-063; contracts/lookdev.md §6, "(spec 014)"): a window run's results give the frame area's ease
+  // and the frame area itself, which the room's kernel computes from the part's protector; a stage view gives null.
+  it("gives a window run's results the frame area's ease and frame, and a stage view's null (spec 014, T019)", async () => {
+    for (const [label, screen] of [
+      ["Reference desktop's window", { w: 1920, h: 1200 }],
+      ["A large monitor's window", { w: 2560, h: 1440 }],
+    ] as const) {
+      const { root, clock, inputs: given } = open();
+      choose(control<HTMLInputElement>(root, label));
+      clock.advance(50);
+      buttonNamed(root, "Run 2 minutes").click();
+      await settle(clock);
+      clock.advance(120_000, 100);
+      await settle(clock);
+      const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+      const f = frameArea(screen, OPENING, DEFAULT_METRICS, protectorFor(protectSceneOf(given.part, given.index)));
+      expect(results.ease, label).toBe(f.ease);
+      expect(results.frame_css, label).toEqual([f.area.x, f.area.y, f.area.w, f.area.h]);
+    }
+    const { root, clock } = open();
+    choose(control<HTMLInputElement>(root, "Reference desktop"));
+    clock.advance(50);
+    buttonNamed(root, "Run 2 minutes").click();
+    await settle(clock);
+    clock.advance(120_000, 100);
+    await settle(clock);
+    const results = JSON.parse(root.querySelector("textarea")?.value ?? "{}") as Record<string, unknown>;
+    expect(results.ease).toBeNull();
+    expect(results.frame_css).toBeNull();
+  });
+
   it("gives the phone copy's own view its device's clear area", () => {
     const probe: Probe = {
       webgl2: true,
@@ -1768,5 +1820,118 @@ describe("the window views (spec 005, T026)", () => {
     clock.advance(50);
     const clear = clearArea({ w: 412, h: 780 });
     expect(page.stage.stage).toEqual({ w: clear.w, h: clear.h });
+  });
+});
+
+// T033 (spec 014; FR-042; plan.md PD-24; contracts/lookdev.md §3, "(spec 014)"): the hands view. In a drafts build the
+// scene offers Hands, which lists the man and the woman, each hand, at rest, in "idle-holding", and mid-walk, twelve
+// cases in that order, each with its state, and draws them in place of the room: each case its own instance of the
+// avatar, the sheet at the hand's grip by the room's maths, and the forearm's 4 cm volume as a wire capsule from the
+// hand bone's parent to the hand bone. A case that can't draw says why. A release build has no lookdev page. It
+// measures nothing, so the Author's look (T054) judges it; these tests check what it draws.
+describe("the hands view (spec 014, T033)", () => {
+  const gltf = new GLTFLoader();
+  const parsed = async (bytes: Uint8Array): Promise<Object3D> =>
+    (await gltf.parseAsync(bytes.slice().buffer, "")).scene;
+  const clipOf = async (bytes: Uint8Array): Promise<AnimationClip> =>
+    (await gltf.parseAsync(bytes.slice().buffer, "")).animations[0] as AnimationClip;
+  async function fixtureAvatar(o: { hands?: boolean; walk?: boolean } = {}): Promise<HandsAvatar> {
+    const clips = new Map<ClipRole, AnimationClip>();
+    clips.set("idle-holding", await clipOf(avatarClips()["idle-holding"].bytes));
+    if (o.walk !== false) clips.set("walk", await clipOf(clipGlb("walk", { tracks: IDLE_TRACKS, duration: 1 }).bytes));
+    return { model: await parsed(avatarGlb({ hands: o.hands ?? true }).bytes), clips, missed: false };
+  }
+
+  it("lists the cases of lookdev.yaml's hands.avatars, the man and the woman, each hand and pose, in order", () => {
+    const given = inputs();
+    expect(given.lookdev.hands?.avatars).toEqual(["man", "woman"]);
+    const labels = handsCases(["man", "woman"]).map(caseLabel);
+    expect(labels).toHaveLength(12);
+    expect(labels.slice(0, 6)).toEqual([
+      "Man, right hand, at rest",
+      'Man, right hand, in "idle-holding"',
+      "Man, right hand, mid-walk",
+      "Man, left hand, at rest",
+      'Man, left hand, in "idle-holding"',
+      "Man, left hand, mid-walk",
+    ]);
+    expect(labels[6]).toBe("Woman, right hand, at rest");
+  });
+
+  it("offers Hands as a scene, lists each case with its state, and draws the cases in place of the room", () => {
+    const { page, root, inputs: given } = open();
+    choose(control<HTMLInputElement>(root, "Hands"));
+    expect(page.stage.scene).toBe("hands");
+    const rows = [...root.querySelectorAll(".lookdev-hands li")].map((li) => collapse(li.textContent));
+    expect(rows).toHaveLength(12);
+    handsCases(["man", "woman"]).forEach((c, i) => expect(rows[i]?.startsWith(caseLabel(c)), rows[i]).toBe(true));
+    // The test's network refuses every file, so each case says its model is on its way or missing.
+    for (const row of rows) expect(row).toMatch(/waiting for its model|no model/);
+    for (const p of given.part.placements) expect(drawn(page, p.id), p.id).toBe(false);
+    expect(page.stage.room.scene.getObjectByName(HANDS_NODE)?.visible).toBe(true);
+    choose(control<HTMLInputElement>(root, "Room"));
+    expect(page.stage.room.scene.getObjectByName(HANDS_NODE)?.visible ?? false).toBe(false);
+    expect(root.querySelector<HTMLElement>(".lookdev-hands")?.hidden).toBe(true);
+  });
+
+  it("draws each case's sheet at the hand's grip and the forearm's 4 cm capsule as a wire, from the forearm to the hand", async () => {
+    const avatar = await fixtureAvatar();
+    const avatars = new Map<AvatarId, HandsAvatar>([
+      ["man", avatar],
+      ["woman", avatar],
+    ]);
+    const { group, drawn: cases } = drawHands(handsCases(["man", "woman"]), avatars, undefined);
+    expect(group.name).toBe(HANDS_NODE);
+    expect(cases).toHaveLength(12);
+    group.updateMatrixWorld(true);
+    for (const d of cases) {
+      const what = caseLabel(d.case);
+      expect(d.why, what).toBeNull();
+      const hand = d.node.getObjectByName(d.case.hand === "right" ? "mixamorigRightHand" : "mixamorigLeftHand");
+      if (!hand?.parent) throw new Error(`${what}: no hand bone`);
+      // The capsule: a wire, 4 cm around the segment, its ends at the forearm's bone and the hand bone.
+      const capsule = d.capsule;
+      if (!capsule) throw new Error(`${what}: no capsule`);
+      expect((capsule.material as MeshBasicMaterial).wireframe, what).toBe(true);
+      expect(FOREARM_RADIUS).toBe(0.04);
+      const from = hand.parent.getWorldPosition(new Vector3());
+      const to = hand.getWorldPosition(new Vector3());
+      const centre = capsule.getWorldPosition(new Vector3());
+      expect(centre.distanceTo(from.clone().add(to).multiplyScalar(0.5)), what).toBeLessThan(1e-6);
+      const axis = new Vector3(0, 1, 0).applyQuaternion(capsule.getWorldQuaternion(new Quaternion()));
+      expect(Math.abs(axis.dot(to.clone().sub(from).normalize())), what).toBeGreaterThan(1 - 1e-6);
+      // The sheet's centre where the room's maths puts it for that hand, the default grip here.
+      const sheet = d.sheet;
+      if (!sheet) throw new Error(`${what}: no sheet`);
+      const front = new Vector3(0, 0, 1);
+      expect(
+        sheet.getWorldPosition(new Vector3()).distanceTo(gripCentre(hand, front, null) as Vector3),
+        what,
+      ).toBeLessThan(1e-6);
+    }
+    // Each case its own instance, at its own place in its row.
+    expect(new Set(cases.map((d) => d.node.children[0])).size).toBe(12);
+    expect(new Set(cases.map((d) => `${d.node.position.x},${d.node.position.z}`)).size).toBe(12);
+  });
+
+  it("says why a case can't draw: its model on its way or missing, its pose's clip missing, or no hand bone", async () => {
+    const cases = handsCases(["woman"]);
+    const waiting = drawHands(cases, new Map(), undefined).drawn;
+    for (const d of waiting) expect(d.why).toBe("waiting for its model");
+    const missed = drawHands(cases, new Map([["woman", { model: null, clips: new Map(), missed: true }]]), undefined);
+    for (const d of missed.drawn) expect(d.why).toBe("no model");
+    const noWalk = drawHands(cases, new Map([["woman", await fixtureAvatar({ walk: false })]]), undefined).drawn;
+    expect(noWalk.filter((d) => d.case.pose === "walk").map((d) => d.why)).toEqual([
+      'no "walk" clip',
+      'no "walk" clip',
+    ]);
+    const handless = drawHands(cases, new Map([["woman", await fixtureAvatar({ hands: false })]]), undefined).drawn;
+    for (const d of handless.filter((x) => x.case.pose !== "walk" || x.why === null))
+      expect(d.why).toBe("no hand bone");
+    for (const d of handless) expect(d.sheet).toBeNull();
+  });
+
+  it("is a drafts build's alone: a release build has no lookdev modules", () => {
+    expect(repositoryBundle({ drafts: false }).drafts).toBeNull();
   });
 });

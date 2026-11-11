@@ -18,6 +18,13 @@
 // problems by path, never quoting a value, and the RK family (T078) reports them; such a block gives no caps. Since
 // spec 009, the same file's `per_asset.avatar` and `per_asset.animation` come with them (`avatar_caps`, absent where
 // it holds neither), under which the visitor avatars are bundled (build/room/avatars.ts).
+// Spec 016 (its FR-015; plan.md R-03; contracts/twin-data.md §5): main's assets/policy/approvals.json, the likeness
+// approvals, from which the twin's line is read and never copied, from the first source that holds the file: the policy
+// directory's approvals.json; else refs/heads/main's, by its full ref, where the root holds a .git; else the tree's own
+// copy, which spec 003's rule A9 holds to main's at the branch's base (the human-only gate's policy directory holds three
+// files, so its build reads the export's). Kept as `{id, sha256, disclosure_line}` per entry; a file that isn't strict
+// JSON or has no list of approvals is no approvals, and an entry without its ID and digest is left out. Absent where no
+// source holds the file. Its `still` caps come with the avatar's (`avatar_caps.still`).
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -60,6 +67,17 @@ export interface AssetCaps {
   readonly texture_bytes?: number;
 }
 
+/** One likeness approval (spec 016, FR-015): its ID, the file's SHA-256 it approves, and its disclosure line, null or
+ *  empty where it carries none, which RA6 refuses for the twin's model. */
+export interface LikenessApproval {
+  readonly id: string;
+  readonly sha256: string;
+  readonly disclosure_line: string | null;
+}
+
+/** Where the likeness approvals came from (contracts/twin-data.md §5). */
+export type LikenessSource = "policy-dir" | "main" | "tree";
+
 /** contracts/room-bundle.md §1's RoomPolicy, with the raw block and its problems for RK4, and the name RT2 needs. */
 export interface RoomPolicy {
   /** Null while main has no room block, or a malformed one. */
@@ -80,7 +98,15 @@ export interface RoomPolicy {
   /** Spec 009: main's `per_asset.avatar` and `per_asset.animation`, each null where caps.json lacks it; absent where it
    *  lacks both, or there is no caps.json. A visitor avatar is bundled only under the first, and a clip only under both,
    *  as a room model is set only under main's room block (plan.md R-12). */
-  readonly avatar_caps?: { readonly avatar: AssetCaps | null; readonly animation: AssetCaps | null };
+  readonly avatar_caps?: {
+    readonly avatar: AssetCaps | null;
+    readonly animation: AssetCaps | null;
+    /** Spec 016: main's per_asset.still, the twin's still's caps; absent where caps.json lacks it. */
+    readonly still?: AssetCaps | null;
+  };
+  /** Spec 016 (FR-015): main's likeness approvals, assets/policy/approvals.json, and which source held them; absent
+   *  where no source holds the file. */
+  readonly likeness?: { readonly source: LikenessSource; readonly approvals: readonly LikenessApproval[] };
 }
 
 /** FR-053's starting figures: the caps while main has no room block. */
@@ -99,14 +125,23 @@ export const PHASE3_DEFAULT = 25_000_000;
 export const CAPS_PATH = "assets/policy/caps.json";
 export const APPROVALS_PATH = "assets/policy/content-approvals.json";
 export const HEADER_PATH = "assets/policy/resume-header.json";
+/** Spec 016: the likeness approvals, the policy's fourth file. */
+export const LIKENESS_PATH = "assets/policy/approvals.json";
 /** The same files in a policy directory, as build/approvals.ts's POLICY_FILES names them. */
-const IN_POLICY_DIR = { caps: "caps.json", approvals: "content-approvals.json", header: "resume-header.json" } as const;
+const IN_POLICY_DIR = {
+  caps: "caps.json",
+  approvals: "content-approvals.json",
+  header: "resume-header.json",
+  likeness: "approvals.json",
+} as const;
 
-/** The policy's three files, as one source holds them; null for a file it lacks. */
+/** The policy's files, as one source holds them; null for a file it lacks. `likeness`, spec 016's, is optional: absent,
+ *  the policy carries no likeness approvals. */
 export interface PolicyFiles {
   readonly caps: Uint8Array | null;
   readonly approvals: Uint8Array | null;
   readonly header: Uint8Array | null;
+  readonly likeness?: Uint8Array | null;
 }
 
 /** The caps a check takes: main's, or FR-053's starting figures. */
@@ -190,11 +225,27 @@ function assetCaps(block: Json | undefined): AssetCaps | null {
   return out;
 }
 
-/** Spec 009's avatar caps from caps.json's per_asset, or nothing where it holds neither block. */
+/** Spec 009's avatar caps from caps.json's per_asset, or nothing where it holds neither block; with spec 016's still
+ *  caps where it holds them. */
 function avatarCaps(perAsset: JsonObject | null): Pick<RoomPolicy, "avatar_caps"> {
   const avatar = assetCaps(perAsset?.avatar);
   const animation = assetCaps(perAsset?.animation);
-  return avatar === null && animation === null ? {} : { avatar_caps: { avatar, animation } };
+  const still = assetCaps(perAsset?.still);
+  if (avatar === null && animation === null) return {};
+  return { avatar_caps: { avatar, animation, ...(still === null ? {} : { still }) } };
+}
+
+/** The likeness approvals in approvals.json's bytes (spec 016, FR-015): each entry with a string ID and a 64-hex
+ *  SHA-256, its line a string or null; a file that isn't strict JSON, or has no list of approvals, is none. */
+export function likenessOf(data: Uint8Array): LikenessApproval[] {
+  const read = strictJson(data);
+  if (!read.ok || !isObject(read.value) || !Array.isArray(read.value.approvals)) return [];
+  return read.value.approvals.flatMap((entry) => {
+    if (!isObject(entry) || typeof entry.id !== "string" || typeof entry.sha256 !== "string") return [];
+    if (!SHA256.test(entry.sha256)) return [];
+    const line = entry.disclosure_line;
+    return [{ id: entry.id, sha256: entry.sha256, disclosure_line: typeof line === "string" ? line : null }];
+  });
 }
 
 /** Main's approvals, `{sha256, kind}` each; a malformed file stops the build, as spec 002's approvals.ts does. */
@@ -228,9 +279,21 @@ function fullNameOf(data: Uint8Array | null): string | null {
   return typeof name === "string" && name !== "" ? name : null;
 }
 
-/** The policy from its files as `source` holds them. Pure. */
+/** The policy from its files as `source` holds them. Pure. The likeness approvals, where `files` holds them, take the
+ *  same source's name ("tree" for the export's own). */
 export function policyFrom(files: PolicyFiles, source: Exclude<CapsSource, "defaults">): RoomPolicy {
-  const base = { ...noPolicy(), approvals: approvalsOf(files.approvals), full_name: fullNameOf(files.header) };
+  const likeness =
+    files.likeness === undefined || files.likeness === null
+      ? {}
+      : {
+          likeness: { source: source === "export" ? ("tree" as const) : source, approvals: likenessOf(files.likeness) },
+        };
+  const base = {
+    ...noPolicy(),
+    approvals: approvalsOf(files.approvals),
+    full_name: fullNameOf(files.header),
+    ...likeness,
+  };
   if (files.caps === null) return base;
   const caps_sha256 = sha256(files.caps);
   const read = strictJson(files.caps);
@@ -294,9 +357,30 @@ function nextCaps(io: PolicyIo): { readonly caps: Uint8Array | null; readonly so
   return { caps: fileIn(join(io.root, "assets", "policy"), IN_POLICY_DIR.caps), source: "export" };
 }
 
+/** The likeness approvals (spec 016, FR-015; contracts/twin-data.md §5), from the first source that holds the file:
+ *  the policy directory's approvals.json; else main's by its full ref, where the root holds a .git; else the tree's own
+ *  copy. Absent where none holds it. */
+function readLikeness(io: PolicyIo): Pick<RoomPolicy, "likeness"> {
+  const at = (source: LikenessSource, data: Uint8Array | null): Pick<RoomPolicy, "likeness"> | null =>
+    data === null ? null : { likeness: { source, approvals: likenessOf(data) } };
+  const dir = io.env.ROOM_POLICY_DIR;
+  const fromDir = dir ? at("policy-dir", fileIn(dir, IN_POLICY_DIR.likeness)) : null;
+  if (fromDir) return fromDir;
+  if (existsSync(join(io.root, ".git"))) {
+    const data = (io.show ?? gitShow)(io.root, LIKENESS_PATH);
+    const fromMain = at("main", data === null ? null : new Uint8Array(data));
+    if (fromMain) return fromMain;
+  }
+  return at("tree", fileIn(join(io.root, "assets", "policy"), IN_POLICY_DIR.likeness)) ?? {};
+}
+
 /** The room's policy, from the first source that exists (contracts/room-bundle.md §2); a policy directory without
- *  caps.json takes the caps alone from the next source. */
+ *  caps.json takes the caps alone from the next source; and spec 016's likeness approvals by their own order. */
 export function readRoomPolicy(io: PolicyIo): RoomPolicy {
+  return { ...readRoomCaps(io), ...readLikeness(io) };
+}
+
+function readRoomCaps(io: PolicyIo): RoomPolicy {
   const dir = io.env.ROOM_POLICY_DIR;
   if (dir) {
     const files = {

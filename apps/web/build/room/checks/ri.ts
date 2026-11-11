@@ -5,7 +5,8 @@
 // a vocabulary word; RI6 too many selectables, a repeated member, or a placement in two; RI7 a model not directly under
 // assets/room/, off its piece's ID, or not recorded with the kind room and its SHA-256; RI8 the root, the figures, and
 // the hand-off, each hand on the side the other figure's lies on, and spec 009's stand-in, an avatar of the table;
-// RI10 lookdev.yaml's placements, in a drafts build; RI11 a label nothing references.
+// RI10 lookdev.yaml's placements, and since spec 014 its hands view's avatars, in a drafts build; RI11 a label nothing
+// references.
 // A reference into a file the loader refused (or a required file that is missing) isn't reported again: that file's
 // finding is the one to fix. No reason holds a value from the data.
 import { createHash } from "node:crypto";
@@ -16,6 +17,7 @@ import { anchorWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountPiece } from "../../../src/room/compose/mount";
 import { isVocabulary } from "../../../src/room/compose/vocabulary";
 import { sideOf } from "../../../src/room/handoff";
+import { isTwinClipRole, isTwinState } from "../../../src/room/scene/twin-states";
 import { isObject, strictJson } from "../../../src/room/glb/json";
 import { pathOf, TOPICS_FILE } from "../load";
 import type { Loaded } from "../load";
@@ -387,6 +389,41 @@ function figures(ctx: Context): void {
   const named = s.figures.twin_stand_in;
   if (named !== undefined && !isAvatarId(named))
     ri8(ctx.path("figures", "twin_stand_in"), "a stand-in that isn't an avatar of the room's table");
+  twinBlock(ctx, ri8);
+  // Spec 016 (FR-036; Amendment M18): a live face drawn into its avatar's own mesh only on a figure's piece.
+  const figurePieces = new Set(s.placements.flatMap((p) => (p.role === undefined ? [] : [p.piece])));
+  for (const c of ctx.room.catalog)
+    c.value.live_faces.forEach((f, i) => {
+      if (f.surface === "model" && !figurePieces.has(c.value.id))
+        ri8(
+          ctx.path("live_faces", i, "surface"),
+          "a face drawn into an avatar's mesh on a piece that isn't a figure's",
+          c.file,
+        );
+    });
+}
+
+/** RI8 over spec 016's twin block (its FR-054; contracts/twin-data.md §1, §7): each state of its clip map in the closed
+ *  list, and each clip role in its own; and the lean against the work desk, the piece the scene's survey names as the
+ *  desk (its desk_corner's placement), placed by a placement that isn't a figure's. */
+function twinBlock(ctx: Context, ri8: (path: string, reason: string) => void): void {
+  const s = ctx.room.scene?.value;
+  const twin = s?.figures.twin;
+  if (!s || !twin) return;
+  for (const [state, role] of Object.entries(twin.clips ?? {})) {
+    if (!isTwinState(state)) ri8(ctx.path("figures", "twin", "clips", state), "a state outside the twin's closed list");
+    else if (!isTwinClipRole(role))
+      ri8(ctx.path("figures", "twin", "clips", state), "a clip role outside the twin's closed list");
+  }
+  if (twin.lean) {
+    const deskPiece = s.placements.find((p) => p.id === s.survey.desk_corner.placement)?.piece;
+    const against = s.placements.find((p) => p.id === twin.lean?.against);
+    if (!against || against.role !== undefined || deskPiece === undefined || against.piece !== deskPiece)
+      ri8(
+        ctx.path("figures", "twin", "lean", "against"),
+        "a lean against a placement that isn't the work desk's, the piece the survey's desk_corner names",
+      );
+  }
 }
 
 /**
@@ -436,7 +473,7 @@ function handSides(ctx: Context, ri8: (path: string, reason: string) => void): v
       );
 }
 
-/** RI10: in a drafts build, lookdev.yaml naming a placement the scene doesn't have. */
+/** RI10: in a drafts build, lookdev.yaml naming a placement the scene doesn't have, or an avatar outside the table. */
 function lookdev(ctx: Context): void {
   const { scene, lookdev: file } = ctx.room;
   if (!ctx.options.drafts || !scene || !file) return;
@@ -447,6 +484,11 @@ function lookdev(ctx: Context): void {
     });
   check(file.value.vignette.show, "vignette", "show");
   check(file.value.close_up.frame, "close_up", "frame");
+  // Spec 014 (FR-042; PD-24): the hands view's avatars, each of the room's avatar table.
+  file.value.hands?.avatars.forEach((id, k) => {
+    if (!isAvatarId(id))
+      ctx.report("RI10", file.file, ctx.path("hands", "avatars", k), "no avatar of that ID in the room's avatar table");
+  });
 }
 
 /** RI11: a `label.<name>` UI word that no placement, face binding, or switch references. */

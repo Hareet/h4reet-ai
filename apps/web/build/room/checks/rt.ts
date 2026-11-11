@@ -201,11 +201,11 @@ function sources(ctx: Context): void {
     if (name === undefined) continue;
     const rt1 = (reason: string): void => ctx.report("RT1", scene.file, ctx.path(...at, "text"), reason);
     const block = blocks.get(name);
-    if (region.renderer === "sign") {
+    if (region.renderer === "sign" || region.renderer === "print") {
       if (block !== undefined && !outlines.has(name))
-        rt1("names a room-text block, where a sign region draws only an outline");
+        rt1(`names a room-text block, where a ${region.renderer} region draws only an outline`);
     } else if (block === undefined) {
-      if (outlines.has(name)) rt1("names an outline, which only a sign region draws");
+      if (outlines.has(name)) rt1("names an outline, which only a sign or print region draws");
     } else if (block !== region.renderer) {
       rt1(`names a ${block} block, which a ${region.renderer} region doesn't draw`);
     }

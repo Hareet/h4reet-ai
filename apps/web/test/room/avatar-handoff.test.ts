@@ -22,7 +22,8 @@ import type { AvatarId, ClipRole } from "../../src/choice/avatars";
 import { handoffDuration } from "../../src/room/handoff";
 import { buildRoom, showHandoff } from "../../src/room/scene/bundle3d";
 import type { Room3D } from "../../src/room/scene/bundle3d";
-import { PAPER_LIFT, createAvatarFigures } from "../../src/room/scene/avatars";
+import { AVATAR_NODE, createAvatarFigures } from "../../src/room/scene/avatars";
+import { gripCentre } from "../../src/room/scene/grip";
 import type { AvatarFigures } from "../../src/room/scene/avatars";
 import { avatarClips, avatarGlb } from "../helpers/glb";
 import { overlay } from "../helpers/room-fixtures";
@@ -60,8 +61,22 @@ const worldOf = (o: Object3D): Vector3 => {
   o.updateWorldMatrix(true, false);
   return new Vector3().setFromMatrixPosition(o.matrixWorld);
 };
-/** The sheet's lower edge, which the hand holds: its centre less PAPER_LIFT. */
-const lowerEdge = (s: Setup): Vector3 => worldOf(s.room.paper.sheet).sub(new Vector3(0, PAPER_LIFT, 0));
+/** Spec 014 (FR-038 to FR-041; W15): where a figure's holding hand holds the sheet's centre, at its grip: the scene's
+ *  for that avatar and hand, or the default from the hand's bones; the figure's front its avatar node's +z. */
+function gripPoint(s: Setup, figure: "twin" | "visitor", chosen: AvatarId): Vector3 {
+  const hand = s.figures.handOf(figure) as Object3D;
+  let node: Object3D | null = hand;
+  while (node && node.name !== AVATAR_NODE) node = node.parent;
+  const front = new Vector3(0, 0, 1).transformDirection((node ?? hand).matrixWorld);
+  const side = /Left/.test(hand.name) ? "left" : "right";
+  const avatar = figure === "visitor" ? chosen : night.scene.figures.stand_in;
+  const grip = avatar === null ? null : (night.scene.figures.grips?.[avatar]?.[side] ?? null);
+  return gripCentre(hand, front, grip) ?? worldOf(hand);
+}
+/** How far the travelling sheet's centre is from the visitor's grip (spec 014: the grip's, where it was the lower edge
+ *  over the wrist before). */
+const offGrip = (s: Setup, chosen: AvatarId): number =>
+  worldOf(s.room.paper.sheet).distanceTo(gripPoint(s, "visitor", chosen));
 const D = handoffDuration("3d", false);
 const TAKE_MS = 1500;
 
@@ -83,11 +98,8 @@ describe("before the hand-off (FR-019 (b))", () => {
     expect(s.figures.playing("visitor")).toBe("idle");
     s.figures.update(16, true, 0);
     const hand = s.figures.handOf("twin") as Object3D;
-    expect(
-      worldOf(s.room.paper.sheet)
-        .sub(worldOf(hand))
-        .distanceTo(new Vector3(0, PAPER_LIFT, 0)),
-    ).toBeLessThan(1e-4);
+    expect(hand).not.toBeNull();
+    expect(worldOf(s.room.paper.sheet).distanceTo(gripPoint(s, "twin", "woman"))).toBeLessThan(1e-4);
   });
 });
 
@@ -97,14 +109,16 @@ describe("the hand-off between the avatars (FR-019; R-10; SC-006)", () => {
     await feed(s, "man");
     await feed(s, "woman");
     s.figures.update(16, true, 0);
-    const start = worldOf(s.figures.handOf("twin") as Object3D).add(new Vector3(0, PAPER_LIFT, 0));
+    const start = gripPoint(s, "twin", "woman");
     s.figures.showHandoff(0, false);
     expect(worldOf(s.room.paper.sheet).distanceTo(start)).toBeLessThan(1e-4);
     expect(s.figures.playing("twin")).toBe("idle");
     play(s, 0, D);
     // The sheet's lower edge within 2 cm of the visitor's holding hand at the end.
     const hand = s.figures.handOf("visitor") as Object3D;
-    expect(lowerEdge(s).distanceTo(worldOf(hand))).toBeLessThan(0.02);
+    expect(hand).not.toBeNull();
+    // Spec 014: the sheet's centre within 2 cm of the visitor's grip.
+    expect(offGrip(s, "woman")).toBeLessThan(0.02);
     s.figures.handoffEnded();
     expect(s.figures.playing("visitor")).toBe("idle-holding");
     expect(s.room.paper.kept.parent).toBe(hand);
@@ -149,7 +163,7 @@ describe("under reduced motion (FR-020)", () => {
     s.figures.update(16, false, 0);
     s.figures.showHandoff(0, true);
     expect(s.figures.playing("twin")).toBe("idle");
-    const visitorPaper = worldOf(s.figures.handOf("visitor") as Object3D).add(new Vector3(0, PAPER_LIFT, 0));
+    const visitorPaper = gripPoint(s, "visitor", "woman");
     for (const p of [0.25, 0.5, 0.75]) {
       s.figures.update(250, false, 0);
       s.figures.showHandoff(p, true);

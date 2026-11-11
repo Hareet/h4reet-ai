@@ -143,6 +143,7 @@ interface RoomIndex {
              cable: { from: [number, number]; control: [number, number]; to: [number, number] } | null }[];
     faces: { face: string; matrix: Matrix2D; size: [number, number] }[];
     hits: { selectable: string; rects: [number, number, number, number][]; depths: number[] }[];
+    figures: [number, number, number, number][];   // (spec 014) the twin's and the visitor's framed boxes, as hits are
     labels: { placement: string; label: string; at: [number, number] }[];
     papers: [[number, number], [number, number], [number, number]];
     visitor: { x: number; baseline: number; scale: number };
