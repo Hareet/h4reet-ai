@@ -106,9 +106,10 @@ The policy also refuses an EC2 instance whose market options aren't spot with `i
 
 **EC2, the stack's host.**
 - **Size:** the smallest instance type that holds the measured stack without the model server with headroom (R-33). The measurement, not the session's estimate, decides it, and the Author's figure bounds it (spec question 14).
+  - **Chosen on 2026-11-11: `t4g.large`** (2 vCPU, 8 GiB, Graviton2, burstable, so standard credits). The Author asked: "can you pick a instance size", and the session picked it. Of the 8 GiB sizes R-33 names, `r7g.medium` costs about $3 a month less on spot. It has 1 vCPU and a higher interruption rate on the trackers (above 20% against 15 to 20%), and the stack's merges and trace ingest are bursty. `m7g.large` costs more than both.
 - **Architecture:** Graviton (arm64) if every image the stack runs has an arm64 build, which R-33 checks; x86-64 otherwise. September R-04's reasons for Graviton hold: a lower interruption rate on the trackers it cited (2026-10-18, to confirm) and multi-architecture releases (R-17).
 - **Credits:** if the chosen type is burstable, standard credits, as September R-04 required: a busy instance slows down instead of billing surplus credits.
-- **Market:** spot, persistent, stopping on interruption (spec question 15; R-30).
+- **Market:** spot, persistent, stopping on interruption (spec question 15; R-30). From W1, 12 hours a day: the Author's answer of 2026-11-11, "$45, with 12 h a day" (R-05).
 - **Storage:** an encrypted gp3 root volume, and a data volume for Langfuse's stores, Prometheus, and Loki, both kept while EC2 is stopped. Their sizes come from R-33.
 - **Network:** one interface in a public subnet, with an address AWS assigns at each start, used only for egress through the proxy (R-10). No inbound rule except the relay block's port from the tunnel end's security group (R-12). An auto-assigned address is released while the instance is stopped (to confirm), so EC2 holds no fixed address.
 
@@ -396,20 +397,22 @@ All run in the Author's terminal only (R-16), each with an audit record:
 
 **Model spend** is spec 010's and `config/budgets.yaml`'s: the $5 daily and $20 monthly ceilings, the $2-a-day fallback sub-budget on the laptop, and the Anthropic adapter's $20 monthly cap. The price table's current version is 2026-11-09.1: Claude Haiku 5.5 at $0.10 input and $0.50 output per million tokens, on both the Anthropic API and Bedrock (`config/prices.yaml`, "read 2026-11-09"). Spec 010's estimate per turn, and the spec's Expected Cost Impact, stand.
 
-**The server budget's lines.** Repository figures carry their date and are to confirm. Lines without one are to price.
+The Author, 2026-11-11: "prices for the bedrock calls was $0.99". The session reads it as Bedrock's charges to date on AWS's bill, which count against `h4-model-month`, not the server budget (R-22).
+
+**The server budget's lines.** Repository figures carry their date and are to confirm. Lines without one are to price. Prices read on 2026-11-11 came from third-party trackers and summaries found by a web search, not from AWS's pages, so they are to confirm there (or with `aws ec2 describe-spot-price-history`).
 
 | Line | Repository figure, and its source | Status |
 |---|---|---|
-| EC2, running, on spot | none for the measured type | to price, after R-33 |
-| EC2's volumes, running or stopped | gp3 at $0.08 per GiB a month (September R-05, 2026-10-18) | to confirm; sizes from R-33 |
+| EC2, running, on spot | `t4g.large` (R-04) in us-east-1: spot $0.0238 to $0.0356 an hour by zone, about $17.40 to $26.00 a month around the clock; on demand $0.0672 an hour (DoiT, Holori, Usage AI; read 2026-11-11). For the reserve, 12 hours a day is about $8.70 to $13.00, 8 hours about $5.80 to $8.70. `r7g.medium`: spot $0.0159 to $0.0312 (same trackers) | priced 2026-11-11 from trackers; to confirm |
+| EC2's volumes, running or stopped | gp3 at $0.08 per GiB a month (September R-05, 2026-10-18). Sizes from R-33: a 20 GiB root (the stack's images were 9.4 GiB as the engine stores them) and a 20 GiB data volume (243.6 MiB after the run), $3.20 a month | to confirm the price |
 | EC2's address, while running | AWS's public IPv4 charge, $0.005 per address-hour since 2024-02-01 (September R-05) | to confirm that an auto-assigned address isn't charged while stopped |
 | The tunnel end, `t4g.micro` | spot about $0.0030 an hour, about $2.20 a month; on demand $0.0084 an hour, $6.13 a month (September R-04 and R-05, 2026-10-18, spot from trackers) | to confirm; spot, the Author's answer to plan question 2 ("About $2.20 a month (October's figure)") |
 | The tunnel end's Elastic IP | $0.005 per address-hour, $3.65 a month (September R-05) | to confirm |
 | The tunnel end's root volume | 8 GiB gp3 at $0.08, $0.64 a month (September R-05) | to confirm |
-| RDS for PostgreSQL, the instance and its storage | none | to price |
+| RDS for PostgreSQL, the instance and its storage | `db.t4g.micro` (2 vCPU, 1 GiB, Graviton2), single-AZ, on demand: $0.016 an hour, $11.68 a month; gp3 storage $0.115 per GB a month, 20 GB minimum, $2.30 (cloudprice.net and two 2026 summaries; read 2026-11-11) | priced 2026-11-11 from summaries; to confirm |
 | RDS's master password in Secrets Manager | about $0.40 a secret a month (September R-26, 2026-10-18) | to confirm |
 | The Route 53 zone and its queries | about $0.51 a month (September R-05) | to confirm |
-| The Route 53 health check | none | to price |
+| The Route 53 health check | about $0.50 a month for an AWS endpoint, $0.75 for another, before optional features (the session's reading, not from a page, 2026-11-11) | to price on AWS's page |
 | The failover's CloudWatch alarm | $0.10 an alarm a month (September R-05) | to confirm |
 | CloudFront, and its VPC origin | inside the always-free tier for a portfolio's traffic (September R-05) | to confirm, and whether a VPC origin adds a charge |
 | S3: state, site, public view, release records | about $0.15 a month (September R-05) | to confirm |
@@ -417,10 +420,18 @@ All run in the Author's terminal only (R-16), each with an audit record:
 | Lambda, EventBridge, SNS, Session Manager, Parameter Store standard tier | inside the always-free tier, or free (September R-05) | to confirm, with EventBridge's rules on AWS service events |
 | AWS Budgets | the first two action-enabled budgets free (September R-05; from a web-search summary) | to confirm: this design has two actions, plus their rehearsals while they run |
 | The uptime probe's alarm, `GetMetricData` | $0.10 an alarm; $0.01 per 1,000 metrics (September R-05) | to confirm, with the tunnel end's dashboard reads (plan §11) |
-| AWS's fault-injection service, for SC-018's rehearsed interruptions (eight in group 9) | none | to price; the console's interruption test is the alternative (tasks.md T133) |
-| `h4-rehearsal-instance`, the server rehearsal's target: a `t4g.nano`, started for each rehearsal and stopped by it | none | to price: its running minutes per rehearsal, and its root volume while stopped |
+| AWS's fault-injection service, for SC-018's rehearsed interruptions (eight in group 9) | about $0.10 per action-minute (the session's reading, not from a page, 2026-11-11) | to price on AWS's page; the console's interruption test is the alternative (tasks.md T133) |
+| `h4-rehearsal-instance`, the server rehearsal's target: a `t4g.nano`, started for each rehearsal and stopped by it | on demand about $0.0042 an hour (the session's reading, not from a page, 2026-11-11), so cents per rehearsal; an 8 GiB gp3 root at $0.08, $0.64 a month | to confirm |
 
 **What the Author prices from.** R-33's measurement, these lines, and spot first (question 15), with the 8-to-12-hour schedule only as the reserve. He sets the server budget's figure before the first apply, since the state bucket is already a resource the server budget covers (spec FR-021).
+
+**The month, as priced on 2026-11-11** (the session's sums of the lines above):
+- **EC2 around the clock** is about $24.60: `t4g.large` on spot about $17.70, its address $3.65, its volumes $3.20.
+- **The parts that run regardless** are about $24.20: RDS about $14.00, the tunnel end about $6.50, ECR about $2, and Route 53, the alarms, S3 and the secret about $1.75.
+- **The total** is about $49 a month, and about $57 if spot sits in the priciest zone.
+
+Asked for a $10 budget ("we are good with $10 a month budget for the ec2"), the session showed that $10 doesn't cover the parts that run regardless. Asked to choose, the Author answered: **"$45, with 12 h a day"**, so `TF_VAR_server_budget_usd=45`. At 12 hours a day EC2 is about $14 to $18 (its address is charged only while it runs), and the month is about $38 to $42.
+- **Named deviation:** this reverses question 15's "Spot, around the clock" and FR-069's rule that the schedule stays in reserve until a measured month passes the budget. As FR-069 requires, the schedule arrives by the Author's patch with an ADR. It is planned in W1's regrouping commit, before EC2 exists, together with its hours and how it combines with the start function and the guard (R-29, R-30). Until W1, nothing runs EC2, so the figure binds only the bootstrap and account resources.
 
 ### R-06: No breaker that switches the edge off (carried)
 
