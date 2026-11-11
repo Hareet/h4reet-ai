@@ -13,8 +13,10 @@ import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
 import { formatPath } from "../../build/room/checks/family";
+import { compose } from "../../build/room/compose";
 import { loadRoom, namespaceIds, readFile, readJson, readYaml } from "../../build/room/load";
 import type { DataKind } from "../../build/room/load";
+import { noPolicy } from "../../build/room/policy";
 import { fileTree } from "../../build/room/source";
 import { FIXTURES_DIR, goodFiles, overlay } from "../helpers/room-fixtures";
 
@@ -1135,5 +1137,114 @@ describe("a path glow's shape (spec 014, T035)", () => {
       seen.some((p) => p.startsWith("RD6 glows[0]")),
       seen.join(", "),
     ).toBe(true);
+  });
+});
+
+// T009 (spec 016; FR-054; plan.md R-15; contracts/twin-data.md §1): the scene's figures block's optional `twin` block,
+// every key optional: `clips`, from a state to a clip role (RI8 holds both to their closed lists, below); `rest_after_s`
+// an integer from 5 to 600; `speak_wpm` an integer from 60 to 400; `speak_s` [min, max] with 0.5 ≤ min ≤ max ≤ 60;
+// `lean` {against, behind_m 0.1 to 2, right_m 0 to 2}; `texture_px` a power of two from 256 to 4,096; and `still`'s
+// `rect`, [x, y, w, h] with w and h above 0. Read whole when good; RD2 and RD3 refuse the rest.
+describe("the figures' twin block (spec 016, T009)", () => {
+  const FULL = {
+    clips: {
+      arriving: "greeting",
+      answering: "talking",
+      listening: "listening",
+      resting: "desk-lean",
+      present: "idle",
+    },
+    rest_after_s: 20,
+    speak_wpm: 150,
+    speak_s: [3, 20],
+    lean: { against: "fx-desk", behind_m: 0.679, right_m: 0.45 },
+    texture_px: 1024,
+    still: { rect: [-0.3, 1.0, 0.6, 0.8] },
+  };
+  const withTwin = (twin: unknown): Uint8Array =>
+    variant(FILES.scene, (d) => {
+      d.figures = { ...(d.figures as Doc | undefined), twin: JSON.parse(JSON.stringify(twin)) as unknown };
+    });
+
+  it("reads a full block whole, and an empty one, every key optional", () => {
+    const full = judge("scene", withTwin(FULL));
+    expect(full.seen).toEqual([]);
+    expect(at(full.value as Doc, "figures", "twin")).toEqual(FULL);
+    const empty = judge("scene", withTwin({}));
+    expect(empty.seen).toEqual([]);
+    expect(at(empty.value as Doc, "figures", "twin")).toEqual({});
+    expect(
+      at(
+        judge(
+          "scene",
+          variant(FILES.scene, () => undefined),
+        ).value as Doc,
+        "figures",
+        "twin",
+      ),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["rest_after_s", 4, "RD3 figures.twin.rest_after_s"],
+    ["rest_after_s", 601, "RD3 figures.twin.rest_after_s"],
+    ["rest_after_s", 20.5, "RD3 figures.twin.rest_after_s"],
+    ["speak_wpm", 59, "RD3 figures.twin.speak_wpm"],
+    ["speak_wpm", 401, "RD3 figures.twin.speak_wpm"],
+    ["speak_s", [0.4, 20], "RD3 figures.twin.speak_s"],
+    ["speak_s", [3, 61], "RD3 figures.twin.speak_s"],
+    ["speak_s", [20, 3], "RD3 figures.twin.speak_s"],
+    ["lean", { against: "fx-desk", behind_m: 0.05, right_m: 0.45 }, "RD3 figures.twin.lean.behind_m"],
+    ["lean", { against: "fx-desk", behind_m: 0.679, right_m: 2.5 }, "RD3 figures.twin.lean.right_m"],
+    ["texture_px", 1000, "RD3 figures.twin.texture_px"],
+    ["texture_px", 8192, "RD3 figures.twin.texture_px"],
+    ["still", { rect: [0, 0, 0, 1] }, "RD3 figures.twin.still.rect"],
+    ["still", { rect: [0, 0, 1] }, "RD3 figures.twin.still.rect"],
+  ])("refuses %s %j", (key, value, expected) => {
+    expect(judge("scene", withTwin({ [key]: value })).seen).toContain(expected);
+  });
+
+  it("refuses a key the block doesn't define, and one the lean doesn't, with RD2", () => {
+    expect(judge("scene", withTwin({ pace: 1 })).seen).toContain("RD2 figures.twin.pace");
+    expect(judge("scene", withTwin({ lean: { against: "fx-desk", tilt: 1 } })).seen).toContain(
+      "RD2 figures.twin.lean.tilt",
+    );
+  });
+
+  it("takes the lean's figures by default: 0.679 m behind and 0.45 m to the right", () => {
+    const read = judge("scene", withTwin({ lean: { against: "fx-desk" } }));
+    expect(read.seen).toEqual([]);
+    expect(at(read.value as Doc, "figures", "twin", "lean")).toEqual({
+      against: "fx-desk",
+      behind_m: 0.679,
+      right_m: 0.45,
+    });
+  });
+});
+
+// T052 is below with US6. T009's RI8: the compose's, since it reads the scene's placements.
+describe("RI8 over the twin block (spec 016, T009)", () => {
+  const scene = (twin: unknown): Uint8Array =>
+    variant(FILES.scene, (d) => {
+      d.figures = { ...(d.figures as Doc | undefined), twin: JSON.parse(JSON.stringify(twin)) as unknown };
+    });
+  const ri8 = (twin: unknown): string[] =>
+    compose(overlay({ [FILES.scene]: scene(twin) }), noPolicy(), { mode: "strict", drafts: true })
+      .findings.filter((f) => f.rule === "RI8")
+      .map((f) => `${f.rule} ${f.file}:${f.path}`);
+
+  it("passes the closed lists and a lean against the survey's desk", () => {
+    expect(ri8({ clips: { resting: "idle", listening: "desk-lean" }, lean: { against: "fx-desk" } })).toEqual([]);
+  });
+
+  it("refuses a state outside the closed list, and a clip role outside its own", () => {
+    expect(ri8({ clips: { sleeping: "idle" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.sleeping`]);
+    expect(ri8({ clips: { resting: "dance" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.clips.resting`]);
+  });
+
+  it("refuses a lean against a placement that isn't the desk's, or none", () => {
+    expect(ri8({ lean: { against: "fx-board" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
+    expect(ri8({ lean: { against: "fx-nowhere" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
+    expect(ri8({ lean: { against: "fx-twin" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
   });
 });
