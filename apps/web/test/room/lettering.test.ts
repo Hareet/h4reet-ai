@@ -41,7 +41,7 @@ describe("the shirt's outline (FR-039; SC-018)", () => {
       sign: "twin-shirt-lettering",
       intent_ref: "intent-016",
       source: { type: "design", id: "D-0002" },
-      tool: { name: "the room's outline converter", version: "1", license: "mit" },
+      tool: { name: "the room's outline converter", version: "spec-016.1", license: "mit" },
     });
   });
 

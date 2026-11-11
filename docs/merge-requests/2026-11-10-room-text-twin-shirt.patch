@@ -7,7 +7,7 @@
 -     "date": "2026-11-10", "reason": "official website is up"}
 +     "date": "2026-11-10", "reason": "official website is up"},
 +    {"id": "C-0004", "path_when_approved": "apps/web/content/room/outlines/twin-shirt-lettering.outline.json",
-+     "kind": "room-text", "sha256": "be3a01e73fd01f945b37bc5278cf3c5b39fcf2465e2d73846716810120a155b4",
++     "kind": "room-text", "sha256": "961d566167bf452adf9e387bb3a2a3d5508063ee4e98bd1c1cce4badb391567d",
 +     "date": "<the day you apply it>", "reason": "<your words>"}
    ]
  }

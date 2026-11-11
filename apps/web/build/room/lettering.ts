@@ -34,7 +34,9 @@ export interface LetteringOutline {
 
 /** D4's provisional provenance (spec 016, Defaults): an opaque design ID, and this converter as the tool. */
 const SOURCE = { type: "design", id: "D-0002" } as const;
-const TOOL = { name: "the room's outline converter", version: "1", license: "mit" } as const;
+// The version names this spec, so the outline's private fields hold no value short enough to turn up by chance in
+// what ships (dist.test.ts holds every one of them to nowhere in dist/).
+const TOOL = { name: "the room's outline converter", version: "spec-016.1", license: "mit" } as const;
 const VIEW_BOX = "0 0 180 70";
 const SVG_ATTRS = new Set(["xmlns", "width", "height", "viewBox"]);
 const PATH_ATTRS = new Set(["d", "fill", "fill-rule"]);
