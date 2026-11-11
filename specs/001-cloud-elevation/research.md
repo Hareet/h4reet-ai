@@ -319,6 +319,11 @@ The rules that make two writers safe are already in spec 000's code: migrations 
 
 If the Author's price check puts RDS's line out of proportion to the server budget, DynamoDB is the alternative to return to, with its rewrite.
 
+**Changed on 2026-11-11 by the Author.** The session priced RDS at about $14 of the $45 server budget and offered three choices: keep RDS; Postgres in a container on the tunnel end; or one meter on EC2 alone. The Author answered: **"Postgres in a container on the tunnel end"**. So the shared state becomes the compose stack's own Postgres image, run on the tunnel end, with its data on a volume the spot stop keeps (R-30).
+- **The risk the alternative named,** that an interruption takes the meter away from EC2 too, adds no outage for visitors: while the tunnel end is gone the site already rests (R-30, plan question 2). What it does add is durability work that RDS did for us. Backups, the TLS certificate, and the role passwords become the stack's own, in Parameter Store rather than an RDS-managed secret.
+- **The tunnel end grows** to fit Postgres beside the tunnel, the relay, the sink, and the collector: probably `t4g.small` (2 GiB), measured when those services exist (group 5 or 8).
+- **Named deviation:** it reverses this section's decision and widens the spec's Terms for the tunnel end ("the tunnel, the relay, the sink, and a collector"). It changes FR-017 and FR-019's store, the data-flow row C2, and tasks T068, T073 and T080. The rework lands in W1's regrouping commit, with the 12-hour schedule (R-05). Gate A's code has no RDS in it.
+
 ---
 
 ## The handover
@@ -409,7 +414,7 @@ The Author, 2026-11-11: "prices for the bedrock calls was $0.99". The session re
 | The tunnel end, `t4g.micro` | spot about $0.0030 an hour, about $2.20 a month; on demand $0.0084 an hour, $6.13 a month (September R-04 and R-05, 2026-10-18, spot from trackers) | to confirm; spot, the Author's answer to plan question 2 ("About $2.20 a month (October's figure)") |
 | The tunnel end's Elastic IP | $0.005 per address-hour, $3.65 a month (September R-05) | to confirm |
 | The tunnel end's root volume | 8 GiB gp3 at $0.08, $0.64 a month (September R-05) | to confirm |
-| RDS for PostgreSQL, the instance and its storage | `db.t4g.micro` (2 vCPU, 1 GiB, Graviton2), single-AZ, on demand: $0.016 an hour, $11.68 a month; gp3 storage $0.115 per GB a month, 20 GB minimum, $2.30 (cloudprice.net and two 2026 summaries; read 2026-11-11) | priced 2026-11-11 from summaries; to confirm |
+| RDS for PostgreSQL, the instance and its storage (replaced on 2026-11-11 by Postgres on the tunnel end, R-20; the tunnel end's larger size is to price in W1) | `db.t4g.micro` (2 vCPU, 1 GiB, Graviton2), single-AZ, on demand: $0.016 an hour, $11.68 a month; gp3 storage $0.115 per GB a month, 20 GB minimum, $2.30 (cloudprice.net and two 2026 summaries; read 2026-11-11) | priced 2026-11-11 from summaries; to confirm |
 | RDS's master password in Secrets Manager | about $0.40 a secret a month (September R-26, 2026-10-18) | to confirm |
 | The Route 53 zone and its queries | about $0.51 a month (September R-05) | to confirm |
 | The Route 53 health check | about $0.50 a month for an AWS endpoint, $0.75 for another, before optional features (the session's reading, not from a page, 2026-11-11) | to price on AWS's page |
