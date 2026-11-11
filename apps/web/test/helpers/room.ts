@@ -113,14 +113,21 @@ export interface Spies {
   history: string[];
   /** Every request but a beacon: fetch, XMLHttpRequest, WebSocket, EventSource, window.open. */
   network: string[];
+  /** Spec 016 (FR-034, FR-035): each fetch of the twin's 2D still, a static file of the site's own origin which the 2D
+   *  room fetches in every 2D visit whatever the live source says (FR-001), answered with its file's bytes and kept
+   *  apart from `network`, which holds the visit's other requests (plan.md R-18). */
+  assets: string[];
   /** Each sendBeacon, with its URL and body. */
   beacons: { url: string; body: string }[];
   /** Calls to getUserMedia. */
   microphone: number;
 }
 
+/** The twin's 2D still's served name (spec 016, FR-048). */
+const STILL_URL = /^a\/twin-still\.[0-9a-f]{16}\.png$/;
+
 function spyOnEverything(win: Window, answer?: (url: string, init: RequestInit) => Promise<Response>): Spies {
-  const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+  const spies: Spies = { storage: [], history: [], network: [], assets: [], beacons: [], microphone: 0 };
   const define = (target: object, name: string, descriptor: PropertyDescriptor): void => {
     Object.defineProperty(target, name, { configurable: true, ...descriptor });
   };
@@ -137,6 +144,13 @@ function spyOnEverything(win: Window, answer?: (url: string, init: RequestInit) 
   }
   define(win, "fetch", {
     value: (input: unknown, init: RequestInit = {}) => {
+      if (STILL_URL.test(String(input))) {
+        spies.assets.push(`fetch ${String(input)}`);
+        return Promise.resolve({
+          status: 200,
+          arrayBuffer: () => Promise.resolve(new Uint8Array(readFileSync(join(REPO, "assets/twin/still.png"))).buffer),
+        } as Response);
+      }
       spies.network.push(`fetch ${String(input)}`);
       return answer ? answer(String(input), init) : Promise.reject(new Error("no network in the room's tests"));
     },

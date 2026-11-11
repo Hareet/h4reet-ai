@@ -785,7 +785,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
   function visit(bundle: ComposeResult): Visit {
     const dom = makeWindow({ webgl: true });
     const win = dom.window as unknown as TestWindow;
-    const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+    const spies: Spies = { storage: [], history: [], network: [], assets: [], beacons: [], microphone: 0 };
     Object.defineProperty(win, "fetch", {
       configurable: true,
       value: (input: unknown) => {
