@@ -346,11 +346,12 @@ describe("the RA family (FR-038; plan.md §3.5)", () => {
     // The woman larger: the visitor's term is hers.
     const hers = ctx(night({ woman: big }));
     expect([hers.twin, hers.visitor]).toEqual([woman, cap]);
-    // The twin's own models, larger than the stand-in's files, count instead.
+    // The twin's own model, larger than the stand-in's files, counts instead, at its decoded size (spec 016, FR-046;
+    // plan.md R-18, changed with T011): its 2,048 image at 1,024 a side.
     const own = ctx(
-      overlay({ ...nightFiles(), "assets/twin/fx-twin.glb": avatarModel({ images: [pngHeader(2048, 2048)] }).bytes }),
+      overlay({ ...nightFiles(), "assets/twin/twin.glb": avatarModel({ images: [pngHeader(2048, 2048)] }).bytes }),
     );
-    expect([own.twin_own, own.stand_in, own.twin]).toEqual([textureMemory(2048, 2048), 0, textureMemory(2048, 2048)]);
+    expect([own.twin_own, own.stand_in, own.twin]).toEqual([cap, 0, cap]);
     // Without a stand-in, today's count.
     const plain = ctx(overlay({ ...nightFiles({ man: big }), [SCENE]: sceneWith(null) }));
     expect([plain.twin, plain.stand_in, plain.visitor]).toEqual([null, null, cap]);

@@ -8,7 +8,7 @@
 // - RK3, the scene's texture memory on the reference phone over `scene_texture_bytes`, by class: each piece the scene
 //   places, by a placement that isn't a figure's or by a switch, its budget's `texture_bytes` once (a set model never
 //   exceeds it), split into image cards (a piece whose card is set) and models (the rest); the figures once each, by
-//   their models as measured: the twin's, every model under assets/twin/ together, and the largest visitor avatar's,
+//   their models as measured: the twin's, its model assets/twin/twin.glb (spec 016), and the largest visitor avatar's,
 //   each folder of assets/visitors/ one avatar, read with the same reader, a model that can't be read counting 0 and
 //   counted in `unread`, and a figure with no model counting 0, both of which the report notes; and each bound live
 //   face's canvas, min(px, its largest on-screen size at the reference stages × the phone's pixel ratio) on each side,
@@ -17,8 +17,11 @@
 // - RK5 (spec 009, FR-038), the first visit with both figures' files over main's phase-3 budget: the room's set models
 //   and cards as served, the stand-in avatar's bundled files, and the largest other visitor avatar's, by their gzip-9
 //   copies, lenient, as RK2 is.
-// Since spec 009, RK3's twin is the larger of its own models and the stand-in avatar's files, and every visitor avatar
-// is counted at its decoded size, at most the scene's texture_px a side, as the room decodes it (its FR-024).
+// Since spec 009, RK3's twin is the larger of its own model and the stand-in avatar's files, and every visitor avatar
+// is counted at its decoded size, at most the scene's texture_px a side, as the room decodes it (its FR-024). Since spec
+// 016 (its FR-046; plan.md R-02; Amendment M16), the twin's own is its model alone, assets/twin/twin.glb, at its decoded
+// size, at most the twin's texture side (the scene's figures.twin.texture_px, else texture_px), as the room decodes it
+// (FR-045); no clip and no other file under assets/twin/ counts, since none is a model the room shows.
 // RK1, RK3, and RK4 fail every build. A reason names keys and figures, never a value from the data.
 //
 // A figure's piece isn't counted by its budget: the figure shows an avatar, which RK3 measures, and RI8 gives its piece
@@ -44,7 +47,12 @@ import type { Geometry } from "./rg";
 import { modelChecks, overBudget, setModels } from "./rx";
 
 export const TWIN_DIR = "assets/twin";
+/** The twin's own model (spec 016, FR-009): the one file under assets/twin/ that RK3 counts. */
+export const TWIN_MODEL = `${TWIN_DIR}/twin.glb`;
 export { VISITORS_DIR };
+
+/** The twin's texture side (spec 016, FR-045): the scene's figures.twin.texture_px, else the avatars' texture_px. */
+const twinSide = (block: ReturnType<typeof figureBlock>): number => block.twin_texture_px;
 
 /** A figure's model is read by the fit check's reader, for its texture memory alone. */
 const NO_FIT: FitInput = { bounds: { min: [0, 0, 0], max: [0, 0, 0] }, faces: [], smallPropTexturePx: null };
@@ -77,7 +85,8 @@ export interface SceneTextureMemory {
   /** The twin's figure (spec 009, FR-038): the larger of its own models (`twin_own`) and the stand-in avatar's files
    *  (`stand_in`); null while neither has a model, which the report notes. */
   readonly twin: number | null;
-  /** Every model under assets/twin/, measured together at its own size, as before spec 009; null while it holds none. */
+  /** The twin's own model, assets/twin/twin.glb, at its decoded size, at most the twin's texture side (spec 016,
+   *  FR-046); null while the tree holds none. */
   readonly twin_own: number | null;
   /** The stand-in avatar's files together, at their decoded size (spec 009, FR-024); null where the scene names no
    *  stand-in, or its folder holds no model. */
@@ -162,8 +171,8 @@ function modelsAt(tree: Tree, path: string, maxSide: number | null = null): Mode
   return entries.map((name) => modelsAt(tree, `${path}/${name}`, maxSide)).reduce(together, NO_MODELS);
 }
 
-/** The twin's figure and the largest visitor avatar's (spec 009, FR-038; plan.md R-19): the twin's own models together
- *  at their own size, as before, against the stand-in avatar's folder at its decoded size, the larger counting; each
+/** The twin's figure and the largest visitor avatar's (spec 009, FR-038; plan.md R-19): the twin's own model at its
+ *  decoded size (spec 016, FR-046), against the stand-in avatar's folder at its decoded size, the larger counting; each
  *  folder of assets/visitors/ (or a model directly in it) one avatar at its decoded size, the visitor's the largest
  *  folder other than the stand-in's, as RK5's first visit counts it, so the stand-in's folder never counts twice; null
  *  for either while it holds no model; and how many of either's models can't be read. The stand-in is the scene's, read
@@ -172,7 +181,8 @@ function figures(
   tree: Tree,
   block: ReturnType<typeof figureBlock>,
 ): Pick<SceneTextureMemory, "twin" | "twin_own" | "stand_in" | "visitor" | "unread"> {
-  const twin = modelsAt(tree, TWIN_DIR);
+  // The twin's model alone, where the folder lists it: a missing twin.glb is no model, never one that can't be read.
+  const twin = tree.list(TWIN_DIR).includes("twin.glb") ? modelsAt(tree, TWIN_MODEL, twinSide(block)) : NO_MODELS;
   const folders = tree.list(VISITORS_DIR).map((name) => ({
     name,
     models: modelsAt(tree, `${VISITORS_DIR}/${name}`, block.texture_px),
