@@ -390,6 +390,17 @@ function figures(ctx: Context): void {
   if (named !== undefined && !isAvatarId(named))
     ri8(ctx.path("figures", "twin_stand_in"), "a stand-in that isn't an avatar of the room's table");
   twinBlock(ctx, ri8);
+  // Spec 016 (FR-036; Amendment M18): a live face drawn into its avatar's own mesh only on a figure's piece.
+  const figurePieces = new Set(s.placements.flatMap((p) => (p.role === undefined ? [] : [p.piece])));
+  for (const c of ctx.room.catalog)
+    c.value.live_faces.forEach((f, i) => {
+      if (f.surface === "model" && !figurePieces.has(c.value.id))
+        ri8(
+          ctx.path("live_faces", i, "surface"),
+          "a face drawn into an avatar's mesh on a piece that isn't a figure's",
+          c.file,
+        );
+    });
 }
 
 /** RI8 over spec 016's twin block (its FR-054; contracts/twin-data.md §1, §7): each state of its clip map in the closed

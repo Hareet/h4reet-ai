@@ -138,8 +138,10 @@ function regionInput(face: IndexFace, region: IndexRegion, sources: FaceSources)
   if ("room_text" in source) {
     const block = sources.text?.blocks.get(source.room_text);
     if (!block) return null;
-    const outline = region.renderer === "sign" ? block.outline : null;
-    if (region.renderer === "sign" ? outline === null : block.lines.length === 0) return null;
+    // A sign's and the shirt's print draw an outline (spec 016, FR-036).
+    const outlined = region.renderer === "sign" || region.renderer === "print";
+    const outline = outlined ? block.outline : null;
+    if (outlined ? outline === null : block.lines.length === 0) return null;
     return { ...base, lines: [...block.lines], badge: draftBadge(sources, block.state === "draft"), outline };
   }
   if ("resume_titles" in source) {

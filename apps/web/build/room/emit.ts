@@ -905,7 +905,8 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     const d = drawn.get(face.placement);
     const p = c.placements.get(face.placement);
     const live = p && c.pieces.get(p.piece)?.value.live_faces.find((f) => f.role === face.role);
-    if (!d || !live) continue;
+    // The shirt's face is drawn only on the twin's own model, never in 2D (spec 016, FR-041).
+    if (!d || !live || live.surface === "model") continue;
     const geometry = faceGeometry(live);
     const local = (u: number, v: number): [number, number] => {
       const q = facePoint(geometry, u, v);
@@ -1015,6 +1016,8 @@ function facesOf(c: Composed): RoomIndex["faces"] {
       px: [live.px[0], live.px[1]],
       screen_css: screen ? point(screen) : [live.px[0], live.px[1]],
       regions: binding.regions.map(regionOf),
+      // Spec 016 (FR-036; Amendment M18): a face drawn into its avatar's own mesh, which no quad or 2D frame shows.
+      ...(live.surface === "model" ? { surface: "model" as const } : {}),
     });
   }
   return out;

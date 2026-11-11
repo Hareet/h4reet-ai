@@ -120,6 +120,9 @@ export interface RoomIndex {
     /** Its largest on-screen size at the reference stages; its px where a corner of it falls behind a reference
      *  camera, so its canvas, min(px, screen_css × the pixel ratio), is its px, as RK3 counts it (plan.md §10). */
     screen_css: [number, number];
+    /** Spec 016 (FR-036; Amendment M18): present, `model`, where the face is drawn into its avatar's own mesh of the
+     *  role's name, never as a quad or in the 2D drawing. */
+    surface?: "model";
     regions: {
       rect: [number, number, number, number];
       renderer: Renderer;

@@ -120,6 +120,9 @@ const liveFace = z
     up: unit.optional(),
     px: z.tuple([z.number().int().min(16).max(2048), z.number().int().min(16).max(2048)]),
     readable: z.boolean(),
+    // Spec 016 (FR-036, FR-037; Amendment M18): `quad`, a plane the room builds, or `model`, its avatar's own mesh of
+    // the role's name, which the room draws into; RI8 holds `model` to a figure's piece.
+    surface: z.enum(["quad", "model"]).default("quad"),
   })
   .superRefine((f, ctx) => {
     if (f.up === undefined && f.facing[0] === 0 && f.facing[2] === 0)

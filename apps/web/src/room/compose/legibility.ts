@@ -43,6 +43,7 @@ export interface CapRegion {
 export function typefaceFor(renderer: Renderer, source: RegionSourceRef): TypefaceUse | null {
   switch (renderer) {
     case "sign":
+    case "print":
       return null;
     case "neon":
       return "signal" in source ? "counters" : "neon";
@@ -71,7 +72,9 @@ export function regionCap(
 ): number | null {
   const box = regionBox(region.rect, face.size);
   if ("outline" in source) {
-    return region.renderer === "sign" ? source.outline.cap_height * fitOutline(source.outline, box).scale : null;
+    return region.renderer === "sign" || region.renderer === "print"
+      ? source.outline.cap_height * fitOutline(source.outline, box).scale
+      : null;
   }
   const grid = textGrid(region.renderer, region.grid, box);
   return grid ? source.capRatio * grid.em : null;

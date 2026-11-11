@@ -11,6 +11,7 @@ import { chalk } from "./chalk";
 import { desktopSession } from "./desktop-session";
 import type { BadgeKind, Op } from "./display-list";
 import { neon } from "./neon";
+import { print } from "./print";
 import { sign } from "./sign";
 import { terminal } from "./terminal";
 
@@ -74,4 +75,6 @@ export const REGISTRY: Readonly<Record<Renderer, FaceRenderer>> = Object.freeze(
   neon,
   chalk,
   sign,
+  // Spec 016 (FR-036): the twin's shirt's lettering, an outline's ink alone on a transparent canvas.
+  print,
 });

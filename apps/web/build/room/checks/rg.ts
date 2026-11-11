@@ -818,7 +818,7 @@ function capOf(
 ): number | null {
   // The loader holds each region to its renderer's grid.
   const region = { rect: r.rect, renderer: r.renderer, grid: (r.grid ?? null) as Grid | null };
-  if (r.renderer === "sign") {
+  if (r.renderer === "sign" || r.renderer === "print") {
     const outline = room.outlines.find((o) => o.value.sign === r.text);
     return outline ? regionCap(face, region, { outline: outline.value }) : null;
   }
