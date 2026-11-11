@@ -465,7 +465,7 @@
     },
     {
       "id": "A-20261110-twin",
-      "sha256": "f3cf87c54ef46016aa4233612b20bdb0de824f6cea3c07dd9ec4b266aaf8ccdf",
+      "sha256": "a30a0bafad0d691d745c90d895baf6b3cd54913f1cc39057443d6c0af3cbe9c0",
       "path_when_approved": "assets/twin/twin.glb",
       "kind": "avatar",
       "date": "2026-11-10",
@@ -481,7 +481,7 @@
     },
     {
       "id": "A-20261110-twin-idle",
-      "sha256": "25d1097a4d33496020e688b44b2afddf31c3b9ec58608ae555c936328591bd0f",
+      "sha256": "3f04f7ef3de4ae353e9808fbec5c88ba1e3f9ed5c4d948630a70c3f29e598c36",
       "path_when_approved": "assets/twin/idle.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -497,7 +497,7 @@
     },
     {
       "id": "A-20261110-twin-talking",
-      "sha256": "6885798fd08f293e7289ea98428af1c4280b3a936383e8e0183e236a9109742a",
+      "sha256": "ccca52f3fee240eb3fa2b4f86eee758ed31ffe326f346c2b4deb1c8768318582",
       "path_when_approved": "assets/twin/talking.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -513,7 +513,7 @@
     },
     {
       "id": "A-20261110-twin-listening",
-      "sha256": "953c307478ae74f8453e65e47e1e06df5de773d13d20d978a50f9e072a0c9383",
+      "sha256": "ae6cc28dec736f20e79739bba42e7855a8d55dbc2bf77e6d2e35bb0d420d9490",
       "path_when_approved": "assets/twin/listening.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -529,7 +529,7 @@
     },
     {
       "id": "A-20261110-twin-greeting",
-      "sha256": "559d640a0e8d8d4f0a8b3a4697a8d2f25fc6c5285c6608abcfa86317a330fcd0",
+      "sha256": "d6b25baf2f45aebda3dcc3083a32e92219cb3dc715f9890927d6aecca98f8112",
       "path_when_approved": "assets/twin/greeting.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -545,7 +545,7 @@
     },
     {
       "id": "A-20261110-twin-still",
-      "sha256": "73b12c1c421fa7c2d4980a6595fa83c2fb021e9fa49edc72177f1d42edd7a530",
+      "sha256": "e62ea0258d9a492e2ebf77e8dfd4138759238caa1b4d49b4809e9ef951a36add",
       "path_when_approved": "assets/twin/still.png",
       "kind": "still",
       "date": "2026-11-10",
