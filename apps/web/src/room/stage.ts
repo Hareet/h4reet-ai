@@ -3,6 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
+import type { TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
@@ -175,15 +176,19 @@ export type FigureId = "twin" | "visitor";
  *  wasn't ready within the hand-off's wait (Phase 2); or its model measured no height. */
 export type FigureWhy = "no-file" | "failed" | "skipped" | "floor" | "2d" | "late" | "degenerate";
 
-/** What the 3D stage reports of its figures (spec 009, FR-032, FR-035; plan.md §3.4). */
+/** What the 3D stage reports of its figures (spec 009, FR-032, FR-035; plan.md §3.4). Spec 016 (FR-014, FR-052;
+ *  contracts/twin-states.md §4, §7): the twin's own model shows as `own`, which the room's line slot reads; its 2D still
+ *  as `still` and its 2D drawing as `drawing`, from the 2D room; the stand-in avatar stays `avatar`, as spec 009 logs it;
+ *  and each state change of the twin's own model. */
 export type FigureSignal =
   | {
       readonly kind: "picture";
       readonly figure: FigureId;
-      readonly shows: "avatar" | "fallback";
+      readonly shows: "avatar" | "fallback" | "own" | "still" | "drawing";
       readonly why: FigureWhy | null;
     }
-  | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole }
+  | { readonly kind: "clip"; readonly figure: FigureId; readonly role: ClipRole | TwinClipRole }
+  | { readonly kind: "twin-state"; readonly state: TwinState; readonly role: TwinClipRole }
   | { readonly kind: "failed" };
 
 /** The 3D chunk's interface, which the room imports only after the WebGL 2 check. */

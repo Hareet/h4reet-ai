@@ -41,12 +41,19 @@
 // - Spec 012 (its FR-021; Amendment L11): close() is the room's loader giving way, which the 3D stage passes on; from
 //   then, before the hand-off's first frame too, an avatar that becomes ready waits for the hand-off's end to show, as
 //   one ready during it does (FR-022).
+// - Spec 016 (its FR-002, FR-008, FR-010, FR-011, FR-013; plan.md R-01, R-06, R-07): the twin's own avatar, a third kind
+//   of source keyed `twin` beside the visitors' table. The twin's figure wants it where the 3D part has it, else the
+//   stand-in, as before. Its instance is unscaled, its lowest point lifted to the floor; its meshes' morph targets are
+//   stripped as its model is taken, before it is cloned or drawn, so no face shape costs memory. Its picture's signal is
+//   `own`. Where its model fails, the figure falls back to its capsule at once and wants the stand-in: from the source
+//   already in hand (the chosen avatar's, where the visitor chose it), or from the stage, asked once through
+//   `standIn`; the stand-in then shows at the catalog's height, as spec 009 scales it, or the capsule stays.
 import { AnimationMixer, Box3, LoopOnce, LoopRepeat, PropertyBinding, Quaternion, Vector3 } from "three";
-import type { AnimationAction, AnimationClip, Bone, Euler, Object3D } from "three";
+import type { AnimationAction, AnimationClip, Bone, Euler, Mesh, Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { AVATAR_SHAPES } from "../../choice/avatars";
-import type { AvatarId, ClipRole } from "../../choice/avatars";
+import type { AvatarId } from "../../choice/avatars";
 import type { RoomScene } from "../compose/bundle";
 import { handoffDuration } from "../handoff";
 import type { FigureId, FigureSignal, FigureWhy } from "../stage";
@@ -56,6 +63,7 @@ import type { FigureDriver } from "./figure";
 import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
 import { disposeModel } from "./loader";
+import type { FigureRole, FigureSource } from "./loader";
 
 /** The name an avatar instance takes in its figure's picture group. */
 export const AVATAR_NODE = "avatar";
@@ -76,26 +84,30 @@ export interface AvatarFiguresOptions {
   readonly chosen: AvatarId;
   /** Where each figure's picture and clip changes go: the stage's outcomes and the frame log. */
   readonly signal?: (signal: FigureSignal) => void;
+  /** Spec 016 (FR-002, FR-044): the twin's own model has failed and the stand-in's files aren't in hand or on their way:
+   *  the stage fetches them (loader.ts's standInEntries). Called at most once. */
+  readonly standIn?: () => void;
 }
 
 export interface AvatarFigures {
-  /** The avatar each figure shows once ready: the visitor's chosen avatar and the twin's stand-in, each where the 3D
-   *  part bundles its model; null for a figure that keeps its fallback. */
-  readonly wants: Readonly<Record<FigureId, AvatarId | null>>;
+  /** The avatar each figure shows once ready: the visitor's chosen avatar, and the twin's own (`twin`) where the 3D part
+   *  has it, else its stand-in, each where the 3D part bundles its model; null for a figure that keeps its fallback. The
+   *  twin's turns to the stand-in where its own model fails (spec 016, FR-002). */
+  readonly wants: Readonly<Record<FigureId, FigureSource | null>>;
   /** An avatar's parsed model, readied as the room's: each figure that wants it takes its own instance. False where it
    *  can't be placed (a degenerate height), which the loader takes as a failed parse. */
-  model(avatar: AvatarId, model: Object3D): boolean;
+  model(avatar: FigureSource, model: Object3D): boolean;
   /** A clip file's animations, its first the role's clip. */
-  clip(avatar: AvatarId, role: ClipRole, clips: readonly AnimationClip[]): void;
+  clip(avatar: FigureSource, role: FigureRole, clips: readonly AnimationClip[]): void;
   /** A figure file's load ended without it: its model (role null) or a clip failed after its retry, or was skipped,
    *  below the floor, or as the room went to 2D. */
-  missed(avatar: AvatarId, role: ClipRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
+  missed(avatar: FigureSource, role: FigureRole | null, why: "failed" | "skipped" | "floor" | "2d"): void;
   /** Whether a figure shows its avatar. */
   shows(figure: FigureId): boolean;
   /** The figure's holding hand's bone, or null. */
   handOf(figure: FigureId): Object3D | null;
   /** The clip role a figure plays now, or null (its fallback, or its rest pose). */
-  playing(figure: FigureId): ClipRole | null;
+  playing(figure: FigureId): FigureRole | null;
   /** Each frame: advances each shown figure's mixer by `dtMs` while `animate`, at quality 1 or more only the twin's. */
   update(dtMs: number, animate: boolean, level: number): void;
   /** Draws the hand-off at its progress, 0 to 1, of `durationMs` (spec 002's by default), with the avatars' hands as
@@ -125,20 +137,22 @@ interface Source {
   model: Object3D | null;
   /** The model has failed for good. */
   failed: boolean;
-  readonly clips: Map<ClipRole, AnimationClip>;
+  readonly clips: Map<FigureRole, AnimationClip>;
   /** The roles whose loads have ended, loaded or not. */
-  readonly ended: Set<ClipRole>;
+  readonly ended: Set<FigureRole>;
 }
 
 interface Figure {
   readonly id: FigureId;
   readonly group: Object3D;
-  readonly wants: AvatarId | null;
-  readonly target: number;
+  /** Spec 016: the twin's figure wants the stand-in once its own model fails. */
+  wants: FigureSource | null;
+  /** Its target height in metres; the twin's own stands at its own height (OWN). */
+  target: number;
   instance: Object3D | null;
   mixer: AnimationMixer | null;
-  readonly actions: Map<ClipRole, AnimationAction>;
-  playing: ClipRole | null;
+  readonly actions: Map<FigureRole, AnimationAction>;
+  playing: FigureRole | null;
   hand: Object3D | null;
   /** Which hand holds, for its grip (spec 014). */
   side: "right" | "left" | null;
@@ -155,6 +169,7 @@ interface Figure {
 /** Whether every track of a clip names a node the instance has. PropertyBinding.findNode returns null for a name it
  *  doesn't find, so both null and undefined are a miss. */
 function binds(instance: Object3D, clip: AnimationClip): boolean {
+  if (clip.tracks.length === 0) return true;
   return clip.tracks.every((track) => {
     const { nodeName } = PropertyBinding.parseTrackName(track.name);
     if (nodeName === undefined) return false;
@@ -201,13 +216,33 @@ function yawOf(node: Object3D | null): number {
   return 2 * Math.atan2(turn.y, turn.w);
 }
 
+/** The twin's own instance's target: its own size, unscaled (spec 016, FR-010). */
+const OWN = -1;
+
+/** Strips a model's morph targets, on every mesh, before it is cloned or drawn (spec 016, FR-013; plan.md R-07): three
+ *  would upload each as a float texture for shapes nothing drives. The clones share geometry, so it is done once. */
+export function stripMorphs(model: Object3D): void {
+  model.traverse((node) => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.morphAttributes = {};
+    mesh.geometry.morphTargetsRelative = false;
+    mesh.morphTargetInfluences = undefined;
+    mesh.morphTargetDictionary = undefined;
+  });
+}
+
 export function createAvatarFigures(
   room: Room3D,
-  part: Pick<RoomScene, "figures" | "avatars">,
+  part: Pick<RoomScene, "figures" | "avatars"> & Partial<Pick<RoomScene, "twin">>,
   options: AvatarFiguresOptions,
 ): AvatarFigures {
   const signal = options.signal ?? ((): void => undefined);
   const bundled = (id: AvatarId | null): AvatarId | null => (id !== null && part.avatars[id] ? id : null);
+  /** The twin's own avatar, where the 3D part has its model (spec 016). */
+  const ownTwin = part.twin ? ("twin" as const) : null;
+  /** The stand-in was asked of the stage once (spec 016, FR-002). */
+  let standInAsked = false;
   /** The hand-off's two anchors as buildRoom placed them: the paper's fallback places. */
   const anchors = { twin: room.anchors.twinHand.clone(), visitor: room.anchors.visitorHand.clone() };
   /** A picture's fallback meshes: its children now, less the kept paper and an avatar, should either be in it. */
@@ -217,8 +252,8 @@ export function createAvatarFigures(
     twin: {
       id: "twin",
       group: room.twin,
-      wants: bundled(part.figures.stand_in),
-      target: part.figures.twin_height,
+      wants: ownTwin ?? bundled(part.figures.stand_in),
+      target: ownTwin ? OWN : part.figures.twin_height,
       instance: null,
       mixer: null,
       actions: new Map(),
@@ -247,8 +282,8 @@ export function createAvatarFigures(
       hidden: new Map(),
     },
   };
-  const sources = new Map<AvatarId, Source>();
-  const sourceOf = (id: AvatarId): Source => {
+  const sources = new Map<FigureSource, Source>();
+  const sourceOf = (id: FigureSource): Source => {
     let s = sources.get(id);
     if (!s) {
       s = { model: null, failed: false, clips: new Map(), ended: new Set() };
@@ -279,12 +314,13 @@ export function createAvatarFigures(
   };
 
   const picture = (f: Figure, shows: "avatar" | "fallback", why: FigureWhy | null): void =>
-    signal({ kind: "picture", figure: f.id, shows, why });
+    signal({ kind: "picture", figure: f.id, shows: shows === "avatar" && f.wants === "twin" ? "own" : shows, why });
   for (const f of both()) if (f.wants === null) picture(f, "fallback", "no-file");
   checkSettled();
 
-  /** The roles an avatar's part bundles. */
-  const roles = (id: AvatarId): ClipRole[] => Object.keys(part.avatars[id]?.clips ?? {}) as ClipRole[];
+  /** The roles an avatar's part bundles; the twin's own, its clips'. */
+  const roles = (id: FigureSource): FigureRole[] =>
+    (id === "twin" ? Object.keys(part.twin?.clips ?? {}) : Object.keys(part.avatars[id]?.clips ?? {})) as FigureRole[];
 
   /** An instance of the source model, placed in its figure's frame, or null for a degenerate height. */
   function instanceFor(f: Figure, model: Object3D): Object3D | null {
@@ -297,8 +333,9 @@ export function createAvatarFigures(
     const box = new Box3().setFromObject(instance, true);
     const height = box.max.y - box.min.y;
     if (!Number.isFinite(height) || !(height > MIN_HEIGHT) || !Number.isFinite(box.min.y)) return null;
-    // The group's own scale (a figure piece's stylized scale) is undone, so the target is in metres.
-    const s = f.target / height / (f.group.scale.y || 1);
+    // The group's own scale (a figure piece's stylized scale) is undone, so the target is in metres; the twin's own
+    // stands at its own size (spec 016, FR-010).
+    const s = (f.target === OWN ? 1 : f.target / height) / (f.group.scale.y || 1);
     instance.scale.setScalar(s);
     instance.position.set(0, -box.min.y * s, 0);
     return instance;
@@ -359,7 +396,7 @@ export function createAvatarFigures(
   }
 
   /** Starts a role's action from `time`, its pose applied at once. */
-  function start(f: Figure, role: ClipRole, time: number): void {
+  function start(f: Figure, role: FigureRole, time: number): void {
     const action = f.actions.get(role);
     if (!action || !f.mixer) return;
     action.reset();
@@ -371,8 +408,8 @@ export function createAvatarFigures(
   /** The role a figure plays now (FR-018, FR-019): the twin holding the paper before the hand-off, and the visitor
    *  after it, play "idle-holding"; the visitor plays "take" once its time in the hand-off has come; every other time
    *  the idle, which also stands in for a missing clip; with no idle, the rest pose. */
-  function wanted(f: Figure): ClipRole | null {
-    const has = (role: ClipRole): boolean => f.actions.has(role);
+  function wanted(f: Figure): FigureRole | null {
+    const has = (role: FigureRole): boolean => f.actions.has(role);
     if (f.id === "visitor") {
       // While it walks, its walk where it has one (FR-028); otherwise it slides in what it stands in.
       if (walkingNow && has("walk")) return "walk";
@@ -384,7 +421,7 @@ export function createAvatarFigures(
 
   /** A figure's grip from the scene's data, for its avatar and holding hand, or null for the computed default. */
   function gripOf(f: Figure): GripData | null {
-    if (f.wants === null || f.side === null) return null;
+    if (f.wants === null || f.wants === "twin" || f.side === null) return null;
     return part.figures.grips?.[f.wants]?.[f.side] ?? null;
   }
 
@@ -433,13 +470,17 @@ export function createAvatarFigures(
     if (role !== null) signal({ kind: "clip", figure: f.id, role });
   }
 
-  /** An action for a role's clip on a figure's instance; the idle and "idle-holding" loop, "take" plays once. */
-  function addAction(f: Figure, role: ClipRole, clip: AnimationClip): void {
+  /** An action for a role's clip on a figure's instance; the idle and "idle-holding" loop, "take" plays once; the twin's
+   *  greeting plays once and lets go (spec 016, R-09). */
+  function addAction(f: Figure, role: FigureRole, clip: AnimationClip): void {
     if (!f.mixer || f.actions.has(role)) return;
     const action = f.mixer.clipAction(clip);
     if (role === "take") {
       action.setLoop(LoopOnce, 1);
       action.clampWhenFinished = true;
+    } else if (role === "greeting") {
+      action.setLoop(LoopOnce, 1);
+      action.clampWhenFinished = false;
     } else action.setLoop(LoopRepeat, Infinity);
     f.actions.set(role, action);
   }
@@ -597,30 +638,58 @@ export function createAvatarFigures(
     },
   };
 
+  /** Places a source's model in the figures that want it and have none yet; false where one can't be placed. */
+  function place(avatar: FigureSource, model: Object3D): boolean {
+    const wanting = both().filter((f) => f.wants === avatar && !f.instance);
+    if (wanting.length === 0) return false;
+    const placed = wanting.map((f) => ({ f, instance: instanceFor(f, model) }));
+    if (placed.some((p) => p.instance === null)) {
+      for (const { f } of placed) picture(f, "fallback", "degenerate");
+      return false;
+    }
+    const source = sourceOf(avatar);
+    source.model = model;
+    // A clip parsed before its model is checked now: one that names a bone the model lacks failed (FR-003).
+    for (const [role, clip] of [...source.clips])
+      if (!placed.every((p) => binds(p.instance as Object3D, clip))) source.clips.delete(role);
+    for (const { f, instance } of placed) {
+      f.instance = instance;
+      f.mixer = new AnimationMixer(instance as Object3D);
+      for (const [role, clip] of source.clips) addAction(f, role, clip);
+    }
+    for (const { f } of placed) tryShow(f);
+    return true;
+  }
+
+  /** Spec 016 (FR-002, FR-011, FR-044): the twin's own model has failed: the twin's figure wants the stand-in, scaled
+   *  to the catalog's height, from the source in hand where it has a model, else from its files on their way (the
+   *  chosen avatar's) or asked of the stage once; with no bundled stand-in, or one that failed, the capsule stays. */
+  function toStandIn(): void {
+    const f = figures.twin;
+    const standIn = bundled(part.figures.stand_in);
+    if (standIn === null || sourceOf(standIn).failed) return;
+    f.wants = standIn;
+    f.target = part.figures.twin_height;
+    f.gone = false;
+    const source = sourceOf(standIn);
+    if (source.model) place(standIn, source.model);
+    else if (standIn !== options.chosen && !standInAsked) {
+      standInAsked = true;
+      options.standIn?.();
+    }
+    checkSettled();
+  }
+
   return {
-    wants: { twin: figures.twin.wants, visitor: figures.visitor.wants },
+    get wants() {
+      return { twin: figures.twin.wants, visitor: figures.visitor.wants };
+    },
     driver,
     model(avatar, model) {
       if (disposed) return false;
-      const wanting = both().filter((f) => f.wants === avatar && !f.instance);
-      if (wanting.length === 0) return false;
-      const placed = wanting.map((f) => ({ f, instance: instanceFor(f, model) }));
-      if (placed.some((p) => p.instance === null)) {
-        for (const { f } of placed) picture(f, "fallback", "degenerate");
-        return false;
-      }
-      const source = sourceOf(avatar);
-      source.model = model;
-      // A clip parsed before its model is checked now: one that names a bone the model lacks failed (FR-003).
-      for (const [role, clip] of [...source.clips])
-        if (!placed.every((p) => binds(p.instance as Object3D, clip))) source.clips.delete(role);
-      for (const { f, instance } of placed) {
-        f.instance = instance;
-        f.mixer = new AnimationMixer(instance as Object3D);
-        for (const [role, clip] of source.clips) addAction(f, role, clip);
-      }
-      for (const { f } of placed) tryShow(f);
-      return true;
+      // The twin's face shapes go before anything clones or draws them (FR-013; plan.md R-07).
+      if (avatar === "twin") stripMorphs(model);
+      return place(avatar, model);
     },
     clip(avatar, role, clips) {
       if (disposed) return;
@@ -647,6 +716,9 @@ export function createAvatarFigures(
       if (role === null) {
         source.failed = true;
         for (const f of both().filter((g) => g.wants === avatar)) fallBack(f, why);
+        // The twin's own model gone: its figure turns to the stand-in, unless the room has left for 2D, where the
+        // still is the twin's picture and no more 3D file is fetched (FR-005).
+        if (avatar === "twin" && why !== "2d") toStandIn();
         return;
       }
       source.ended.add(role);
@@ -715,6 +787,12 @@ export function createAvatarFigures(
       for (const f of both()) fallBack(f, null);
       for (const source of sources.values()) if (source.model) disposeModel(source.model);
       sources.clear();
+      // The twin's figure wants what it wanted at the start (FR-006): its own model again, from the HTTP cache.
+      if (ownTwin) {
+        figures.twin.wants = ownTwin;
+        figures.twin.target = OWN;
+        standInAsked = false;
+      }
     },
     dispose() {
       this.reset();

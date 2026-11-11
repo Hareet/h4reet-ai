@@ -433,6 +433,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!log) return;
     if (signal.kind === "picture")
       log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else if (signal.kind === "twin-state") log.record("twin-state", { state: signal.state, role: signal.role });
     else log.record("clip", { figure: signal.figure, role: signal.role });
   }
 
