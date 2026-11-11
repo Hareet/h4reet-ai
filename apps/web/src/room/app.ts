@@ -416,9 +416,24 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
   }
 
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, the stage's note's second paragraph and the text
+   *  copy's first line: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
+   *  line otherwise, swapped in place on each picture signal of the twin's figure. */
+  let twinOwn = false;
+  function showLine(): void {
+    const stand = uiWord(deps.room.ui, "twin.stand_in") ?? "";
+    const own = twinOwn && deps.room.twin ? deps.room.twin.line : stand;
+    room?.setLine(own);
+    copy?.setTwinOwn(twinOwn);
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
+    if (signal.kind === "picture" && signal.figure === "twin") {
+      twinOwn = signal.shows === "own" || signal.shows === "still";
+      showLine();
+    }
     // Spec 014 (FR-054): the visitor's figure's flat shape in 3D, named by the note; its avatar takes it away.
     if (signal.kind === "picture" && signal.figure === "visitor") {
       placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
@@ -997,6 +1012,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     visit.mode = "2d";
     // Spec 014 (FR-054): in 2D every figure is flat by design, so the note drops the figure's words.
     showPlaceholders();
+    // Spec 016 (FR-014): the twin's 3D model is gone with the 3D stage; the 2D room says when its still shows.
+    twinOwn = false;
+    showLine();
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);

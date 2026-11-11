@@ -29,7 +29,8 @@ import { uiWord } from "./ui-keys";
 
 /** What the text copy reads of the index: its words, its order of entries, its switches, and its faces with what words
  *  them. */
-export type CopyIndex = Pick<RoomIndex, "ui" | "copy" | "switches" | "faces" | "build" | "live" | "typefaces">;
+export type CopyIndex = Pick<RoomIndex, "ui" | "copy" | "switches" | "faces" | "build" | "live" | "typefaces"> &
+  Partial<Pick<RoomIndex, "twin">>;
 
 export interface TextCopy {
   /** The "Around the room" section. */
@@ -42,6 +43,9 @@ export interface TextCopy {
   setText(text: RoomText | null): void;
   /** The cost channel's state: the neon sign's counters' entries take their readings, in place (FR-048, FR-063). */
   setCost(state: CostState): void;
+  /** Spec 016 (FR-014): whether the twin's own picture shows: the line slot says the index's twin.line while it does,
+   *  the stand-in line otherwise, in place. */
+  setTwinOwn(own: boolean): void;
 }
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
@@ -66,6 +70,8 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
   /** Each face's place in the list, in copy[]'s order: its entry while it has words, and a marker where it would go,
    *  so an entry comes and goes in its place. */
   const faces: { face: RoomIndex["faces"][number]; marker: Comment; item: HTMLElement | null }[] = [];
+  /** Spec 016's line slot's entry, where copy[] holds the slot. */
+  let lineSlot: HTMLElement | null = null;
   for (const entry of room.copy) {
     if ("face" in entry) {
       const face = room.faces.find((f) => f.id === entry.face);
@@ -90,9 +96,9 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       const words = uiWord(room.ui, entry.line);
       if (words !== null) list.append(h(doc, "li", {}, words));
     } else if ("twin_line" in entry) {
-      // Spec 016's line slot (FR-014): spec 009's stand-in line until the twin's own picture shows.
-      const words = uiWord(room.ui, STAND_IN);
-      if (words !== null) list.append(h(doc, "li", {}, words));
+      // Spec 016's line slot (FR-014): spec 009's stand-in line until the twin's own picture shows (setTwinOwn).
+      lineSlot = h(doc, "li", {}, uiWord(room.ui, STAND_IN) ?? "");
+      list.append(lineSlot);
     }
     // `figures`: the counters' readings are their faces' entries, above, so the copy holds them once.
   }
@@ -154,6 +160,11 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
     },
     setTier(value) {
       for (const state of states) state.textContent = sentence(value);
+    },
+    setTwinOwn(own) {
+      if (!lineSlot) return;
+      const words = own && room.twin ? room.twin.line : (uiWord(room.ui, STAND_IN) ?? "");
+      if (lineSlot.textContent !== words) lineSlot.textContent = words;
     },
     setPausedAt(time) {
       const words = time === null || pausedAfter === null ? null : pausedAtWords(room.ui, time);
