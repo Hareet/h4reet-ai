@@ -531,3 +531,59 @@ describe("the twin's served files (spec 016, T010)", () => {
     expect(result.scene.figures.stand_in).toBe("man");
   });
 });
+
+// T054 (spec 016; FR-038; plan.md R-12; SC-007): the shirt's words in what ships. A release build whose policy doesn't
+// approve the outline publishes none of its words: "Denver Local AI Solutions" is no whole string of dist/, and the
+// face stays unbound; with the Author's approval of the outline's SHA-256 under the kind room-text, a release build
+// publishes the outline's words in room-data.json's room text, unmarked.
+describe("the shirt's words in the release build (spec 016, T054)", () => {
+  const OUTLINE = "apps/web/content/room/outlines/twin-shirt-lettering.outline.json";
+  const WORDS = "Denver Local AI Solutions";
+  /** Whether a file holds the words as a whole string: a quoted literal, or a markup text node. */
+  const wholeIn = (text: string): boolean =>
+    text.includes(`"${WORDS}"`) || text.includes(`'${WORDS}'`) || text.includes(`>${WORDS}<`);
+
+  it("holds the words as no whole string of dist/ without the approval", () => {
+    const root = builds.release;
+    const holding = builtFiles(root).filter((name) => {
+      if (!/\.(js|html|json|css|txt|svg)$/.test(name)) return false;
+      return wholeIn(readFileSync(join(root, name), "utf8"));
+    });
+    expect(holding).toEqual([]);
+  });
+
+  it("publishes the words, unmarked, in a release build whose policy approves the outline", async () => {
+    const { buildSite } = await import("../global-build");
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const dir = mkdtempSync(join(tmpdir(), "h4-shirt-policy-"));
+    const digest = sha256(new Uint8Array(readFileSync(join(REPO, OUTLINE))));
+    writeFileSync(
+      join(dir, "content-approvals.json"),
+      `${JSON.stringify({
+        schema: 1,
+        approvals: [
+          {
+            id: "C-0904",
+            path_when_approved: OUTLINE,
+            kind: "room-text",
+            sha256: digest,
+            date: "2026-11-10",
+            reason: "Fixture approval.",
+          },
+        ],
+      })}\n`,
+    );
+    const site = await buildSite({ drafts: false, policy: dir });
+    try {
+      const data = JSON.parse(readFileSync(join(site.out, "room-data.json"), "utf8")) as {
+        room_text?: { blocks?: { id: string; words?: string; draft?: boolean; outline?: { words?: string } }[] };
+        published: { path: string; draft?: true }[];
+      };
+      expect(data.published).toContainEqual({ path: OUTLINE, sha256: digest });
+      expect(JSON.stringify(data.room_text)).toContain(WORDS);
+    } finally {
+      site.remove();
+    }
+  }, 240_000);
+});
