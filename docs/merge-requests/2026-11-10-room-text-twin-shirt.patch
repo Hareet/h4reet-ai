@@ -1,0 +1,13 @@
+--- a/assets/policy/content-approvals.json
++++ b/assets/policy/content-approvals.json
+@@ -9,6 +9,9 @@
+      "date": "2026-11-09", "reason": "I also want the downloaded resume to be the one that we built"},
+     {"id": "C-0003", "path_when_approved": "apps/web/content/room/chalk-denverlocal.yaml", "kind": "room-text",
+      "sha256": "b68917b0e1698631bd643a4cce65e3edbb604814b81b31d0efcf861f4017686a",
+-     "date": "2026-11-10", "reason": "official website is up"}
++     "date": "2026-11-10", "reason": "official website is up"},
++    {"id": "C-0004", "path_when_approved": "apps/web/content/room/outlines/twin-shirt-lettering.outline.json",
++     "kind": "room-text", "sha256": "be3a01e73fd01f945b37bc5278cf3c5b39fcf2465e2d73846716810120a155b4",
++     "date": "<the day you apply it>", "reason": "<your words>"}
+   ]
+ }
