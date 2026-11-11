@@ -273,7 +273,8 @@ export function createScene(options: SceneOptions): Stage3D {
   let figures: AvatarFigures | null = null;
   let leaving = false;
   const bundled = (id: string | null): boolean => id !== null && Object.hasOwn(part.avatars, id);
-  const wantsAvatars = bundled(part.figures.stand_in) || bundled(options.avatar);
+  // Spec 016 (FR-044): the twin's own model counts as the twin's figure's avatar where the part has it.
+  const wantsAvatars = part.twin !== null || bundled(part.figures.stand_in) || bundled(options.avatar);
   // Phase 2 (FR-019; R-10): the room waits for both figures before the hand-off, at most wait_ms, and not at all where
   // no avatar loads; a figure file parses before the hand-off starts (the stage's first showHandoff) or after it ends.
   let figuresSettled: () => void = () => undefined;
@@ -299,7 +300,7 @@ export function createScene(options: SceneOptions): Stage3D {
   if (part.load_order.length > 0 || wantsAvatars)
     // The avatars' chunk failing to load leaves the figures their fallbacks, and the room's models load all the same.
     void Promise.all([import("./scene/loader"), wantsAvatars ? import("./scene/avatars").catch(() => null) : null])
-      .then(([{ createLoader, figureEntries, modelEntries, prepareModel, showModel }, avatars]) => {
+      .then(([{ createLoader, figureEntries, modelEntries, prepareModel, showModel, standInEntries }, avatars]) => {
         const entries = modelEntries(part);
         // Without the avatars' chunk nothing could show them, so their files aren't fetched.
         const figureFiles = avatars ? figureEntries(part, options.avatar) : [];
@@ -311,6 +312,11 @@ export function createScene(options: SceneOptions): Stage3D {
           avatars?.createAvatarFigures(room, part, {
             chosen: options.avatar,
             ...(options.onFigure ? { signal: options.onFigure } : {}),
+            // Spec 016 (FR-002, FR-044; plan.md R-05): the stand-in's files, fetched only once the twin's own model
+            // has failed; after `expected` resolved, so the loader counts them for nothing (spec 012).
+            standIn: () => {
+              if (!disposed && !leaving) void loader?.loadFigures(standInEntries(part, options.avatar));
+            },
           }) ?? null;
         if (closed) figures?.close();
         if (figures) void figures.settled.then(figuresSettled);
@@ -334,7 +340,7 @@ export function createScene(options: SceneOptions): Stage3D {
           prepare: (piece, model) => {
             const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
             // An avatar's model, by its file's key: readied as a room model with no face of its own.
-            if (!own && !piece.startsWith("avatar:")) return;
+            if (!own && !piece.startsWith("avatar:") && piece !== "twin") return;
             prepareModel(model, own ?? { faces: {} }, part.look, room.materials);
             // The lines' one set of parameters, the stand-ins', so the stage's height reaches the model's too.
             ink.prepare(model);
@@ -345,6 +351,8 @@ export function createScene(options: SceneOptions): Stage3D {
             highlight.refresh();
           },
           avatar: (entry, model) => figures?.model(entry.figure.avatar, model) ?? false,
+          // Spec 016 (FR-045): the twin's own model decodes at its block's side.
+          ...(part.twin ? { twinMaxSide: part.twin.block.texture_px } : {}),
           clip: (entry, clips) => {
             if (entry.figure.role !== null) figures?.clip(entry.figure.avatar, entry.figure.role, clips);
           },
