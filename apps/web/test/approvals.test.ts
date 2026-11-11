@@ -182,7 +182,9 @@ describe("the policy files", () => {
     );
     const capsOnly = readPolicy(policyDir({ "caps.json": CAPS }));
     expect(policyDigest(capsOnly)).toBe(
-      sha256(`content-approvals.json:absent\nresume-header.json:absent\ncaps.json:${sha256(CAPS)}\napprovals.json:absent\n`),
+      sha256(
+        `content-approvals.json:absent\nresume-header.json:absent\ncaps.json:${sha256(CAPS)}\napprovals.json:absent\n`,
+      ),
     );
   });
 

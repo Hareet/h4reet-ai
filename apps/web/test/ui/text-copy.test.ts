@@ -73,9 +73,7 @@ describe("the text copy (renderTextCopy)", () => {
   it("leaves out each face bound to room text until its words come, the sign's figures, and Paused at until paused", () => {
     const { index } = fixture();
     const lines = linesOf(renderTextCopy(page(), index).element);
-    const lineEntries = index.copy.filter(
-      (e) => ("line" in e && e.line !== "pause.paused_at") || "twin_line" in e,
-    );
+    const lineEntries = index.copy.filter((e) => ("line" in e && e.line !== "pause.paused_at") || "twin_line" in e);
     const worded = index.faces.filter((f) => faceWords(f, { index, text: null }) !== null);
     expect(lines).toHaveLength(worded.length + index.switches.length + lineEntries.length);
     for (const face of index.faces) {

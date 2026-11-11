@@ -285,7 +285,9 @@ export function policyFrom(files: PolicyFiles, source: Exclude<CapsSource, "defa
   const likeness =
     files.likeness === undefined || files.likeness === null
       ? {}
-      : { likeness: { source: source === "export" ? ("tree" as const) : source, approvals: likenessOf(files.likeness) } };
+      : {
+          likeness: { source: source === "export" ? ("tree" as const) : source, approvals: likenessOf(files.likeness) },
+        };
   const base = {
     ...noPolicy(),
     approvals: approvalsOf(files.approvals),

@@ -269,7 +269,8 @@ describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004
     });
     for (const a of avatars)
       expect(a.path.startsWith(`${VISITORS_DIR}/${a.avatar}/`) && existsSync(join(REPO, a.path)), a.path).toBe(true);
-    for (const t of twin) expect(t.path.startsWith("assets/twin/") && existsSync(join(REPO, t.path)), t.path).toBe(true);
+    for (const t of twin)
+      expect(t.path.startsWith("assets/twin/") && existsSync(join(REPO, t.path)), t.path).toBe(true);
     const urls = [
       ...models.map((m) => m.url),
       ...cards.map((c) => c.url),
