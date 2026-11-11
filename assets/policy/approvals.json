@@ -462,6 +462,102 @@
       },
       "disclosure_line": null,
       "reason": "Judged on the lookdev page on 2026-11-07"
+    },
+    {
+      "id": "A-20261110-twin",
+      "sha256": "f3cf87c54ef46016aa4233612b20bdb0de824f6cea3c07dd9ec4b266aaf8ccdf",
+      "path_when_approved": "assets/twin/twin.glb",
+      "kind": "avatar",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": "The twin is an AI-made, stylized likeness of the Author, shown by his choice.",
+      "reason": "it's working for a first run"
+    },
+    {
+      "id": "A-20261110-twin-idle",
+      "sha256": "25d1097a4d33496020e688b44b2afddf31c3b9ec58608ae555c936328591bd0f",
+      "path_when_approved": "assets/twin/idle.glb",
+      "kind": "animation",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "it's working for a first run"
+    },
+    {
+      "id": "A-20261110-twin-talking",
+      "sha256": "6885798fd08f293e7289ea98428af1c4280b3a936383e8e0183e236a9109742a",
+      "path_when_approved": "assets/twin/talking.glb",
+      "kind": "animation",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "it's working for a first run"
+    },
+    {
+      "id": "A-20261110-twin-listening",
+      "sha256": "953c307478ae74f8453e65e47e1e06df5de773d13d20d978a50f9e072a0c9383",
+      "path_when_approved": "assets/twin/listening.glb",
+      "kind": "animation",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "it's working for a first run"
+    },
+    {
+      "id": "A-20261110-twin-greeting",
+      "sha256": "559d640a0e8d8d4f0a8b3a4697a8d2f25fc6c5285c6608abcfa86317a330fcd0",
+      "path_when_approved": "assets/twin/greeting.glb",
+      "kind": "animation",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "its working for a first run"
+    },
+    {
+      "id": "A-20261110-twin-still",
+      "sha256": "73b12c1c421fa7c2d4980a6595fa83c2fb021e9fa49edc72177f1d42edd7a530",
+      "path_when_approved": "assets/twin/still.png",
+      "kind": "still",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "its working and want to see a complete iteration"
     }
   ]
 }
