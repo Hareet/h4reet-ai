@@ -662,6 +662,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     },
     // Spec 014's hands view: the listed avatars' models and clips, as the room's figures take theirs.
     avatar: (entry, model) => {
+      if (entry.figure.avatar === "twin") return false;
       const own = handsFiles.get(entry.figure.avatar);
       if (!own) return false;
       own.model = model;
@@ -669,13 +670,15 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       return true;
     },
     clip: (entry, clips) => {
+      if (entry.figure.avatar === "twin") return;
       const own = handsFiles.get(entry.figure.avatar);
       const first = clips[0];
       if (!own || entry.figure.role === null || !first) return;
-      own.clips.set(entry.figure.role, first);
+      own.clips.set(entry.figure.role as ClipRole, first);
       handsChanged();
     },
     figureEnded: (entry, outcome) => {
+      if (entry.figure.avatar === "twin") return;
       const own = handsFiles.get(entry.figure.avatar);
       if (!own || outcome === "loaded" || entry.figure.role !== null) return;
       own.missed = true;
