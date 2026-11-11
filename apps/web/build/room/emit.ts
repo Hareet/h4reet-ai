@@ -1104,6 +1104,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
   }));
   // FR-064's carve-out (see listOnly): the side-wall selectables, read from the scene's mounts.
   const sideWall = c.geometry === null ? [] : sideWallsOf(c.geometry);
+  const flat = flatOf(c, faces);
   return {
     schema: 1,
     build: { kind: c.options.drafts ? "drafts" : "release", placeholders },
@@ -1130,7 +1131,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
     })),
     faces,
     switches,
-    flat: flatOf(c, faces),
+    flat,
     copy: copyOf(faces, switches),
     typefaces: c.typefaces.map((t) => ({
       use: t.use,
@@ -1146,7 +1147,7 @@ function indexBody(c: Composed, placeholders: boolean, models: readonly string[]
       fillHints(c.room.hints?.value ?? null, c.reader.tree, words),
       c.options.readiness?.freeTalk ?? false,
     ),
-    twin: twinIndexOf(c),
+    twin: twinIndexOf(c, flat),
   };
 }
 
@@ -1188,12 +1189,31 @@ function stillRect(c: Composed): [number, number, number, number] {
 }
 
 /** The index's twin: its line and its still, where the twin's line was read and its model or its still is bundled. */
-function twinIndexOf(c: Composed): RoomIndex["twin"] {
+function twinIndexOf(c: Composed, flat: RoomIndex["flat"]): RoomIndex["twin"] {
   const { line, still, model } = c.twin;
   if (line === null || !(model?.bundled || still?.bundled)) return null;
+  const rect = stillRect(c);
+  // The still's rectangle in the 2D drawing's view box (plan.md R-11, as built): its corners through the twin figure's
+  // drawing's matrix, the compositor's projection, so the 2D room draws it with no projection of its own.
+  const placement = c.scene?.placements.find((p) => p.role === "twin")?.id ?? "";
+  const item = flat.items.find((i) => i.placement === placement);
+  const view = (): [number, number, number, number] => {
+    if (!item) return [0, 0, 0, 0];
+    const [a, b, cc, d, e, f] = item.matrix;
+    const at = (x: number, y: number): [number, number] => [a * x + cc * y + e, b * x + d * y + f];
+    const [p, q] = [at(rect[0], rect[1]), at(rect[0] + rect[2], rect[1] + rect[3])];
+    return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.abs(q[0] - p[0]), Math.abs(q[1] - p[1])].map(m6) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+  };
   return {
     line: line.line,
-    still: still?.bundled ? { url: still.url, sha256: still.sha256, bytes: still.bytes, rect: stillRect(c) } : null,
+    still: still?.bundled
+      ? { url: still.url, sha256: still.sha256, bytes: still.bytes, rect, view: view(), placement }
+      : null,
   };
 }
 

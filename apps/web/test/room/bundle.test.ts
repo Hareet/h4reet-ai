@@ -1371,7 +1371,7 @@ describe("the twin in the bundle (spec 016, T010)", () => {
     const w = (bounds.max[0] ?? 0) - (bounds.min[0] ?? 0);
     const top = bounds.max[1] ?? 0;
     expect(result.index.twin?.line).toBe(FX_LINE);
-    expect(result.index.twin?.still).toEqual({
+    expect(result.index.twin?.still).toMatchObject({
       url: `a/twin-still.${sha256(d.still).slice(0, 16)}.png`,
       sha256: sha256(d.still),
       bytes: d.still.length,

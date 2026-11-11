@@ -180,7 +180,16 @@ export interface RoomIndex {
    *  lower-left corner; null where the twin isn't bundled. */
   twin: {
     line: string;
-    still: { url: string; sha256: string; bytes: number; rect: [number, number, number, number] } | null;
+    still: {
+      url: string;
+      sha256: string;
+      bytes: number;
+      rect: [number, number, number, number];
+      /** The rectangle in the 2D drawing's view box, projected by the compositor (plan.md R-11, as built). */
+      view: [number, number, number, number];
+      /** The twin figure's placement, whose drawing the still hides while it shows. */
+      placement: string;
+    } | null;
   } | null;
 }
 
