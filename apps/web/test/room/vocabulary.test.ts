@@ -34,7 +34,8 @@ import { WEB } from "../helpers/room";
 describe("the closed vocabulary (compose/vocabulary.ts)", () => {
   it("holds exactly room-data-files.md §3.4's lists, in its order", () => {
     expect(BEHAVIOUR_KINDS).toEqual(["mount", "frame", "live-face", "glow", "switch", "cable", "selectable"]);
-    expect(RENDERERS).toEqual(["terminal", "desktop-session", "neon", "chalk", "sign"]);
+    // Spec 016's print, by its Amendment M18 to §5.3 (changed with T057, plan.md R-18).
+    expect(RENDERERS).toEqual(["terminal", "desktop-session", "neon", "chalk", "sign", "print"]);
     expect(SIGNALS).toEqual(["tier", "turn-cost"]);
     expect(TIER_VALUES).toEqual([
       "local",

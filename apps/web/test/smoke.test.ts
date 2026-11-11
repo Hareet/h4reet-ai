@@ -245,6 +245,9 @@ describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004
     for (const script of files.filter((f) => f.endsWith(".js"))) {
       for (const m of readFileSync(join(root, script), "utf8").matchAll(RESOURCE)) {
         const url = m[1] ?? "";
+        // A room-text block's source, its repository path, names where the words came from, never a file the page
+        // fetches: spec 016's outline is the first such path ending in .json (changed with T056, plan.md R-18).
+        if (url.startsWith("apps/web/content/")) continue;
         named.push(url);
         expect(isRelative(url) && !url.startsWith("//"), `${script}: ${url}`).toBe(true);
         // From the page's own folder, the site's root; a model is served from its gzip copy (contracts/serving.md).

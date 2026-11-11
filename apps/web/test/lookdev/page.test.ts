@@ -1452,12 +1452,14 @@ describe("User Story 5's faces on the page (T192; FR-067, FR-070)", () => {
     const { page, root, clock, inputs: given } = open();
     clock.advance(50);
     const quads = page.stage.faces.quads;
-    expect([...quads.keys()].sort()).toEqual(given.index.faces.map((f) => f.id).sort());
+    // Spec 016 (FR-036; changed with T059, plan.md R-18): a face drawn into an avatar's own mesh has no quad.
+    const quadFaces = given.index.faces.filter((f) => f.surface !== "model");
+    expect([...quads.keys()].sort()).toEqual(quadFaces.map((f) => f.id).sort());
     for (const [id, quad] of quads) expect(shows(quad), id).toBe(true);
     choose(control<HTMLInputElement>(root, "Vignette"));
     clock.advance(50);
     const shown = new Set(given.lookdev.vignette.show);
-    for (const face of given.index.faces)
+    for (const face of quadFaces)
       expect(shows(quads.get(face.id) as Object3D), face.id).toBe(shown.has(face.placement));
     choose(control<HTMLInputElement>(root, "Room"));
     clock.advance(50);

@@ -213,12 +213,18 @@ describe("the site's builds of the committed room text (FR-029, FR-030; SC-008)"
     const data = JSON.parse(readFileSync(join(builds.drafts, "room-data.json"), "utf8")) as RoomData;
     const blocks = blocksOf(data);
     expect(blocks.map((b) => b.state)).toEqual(blocks.map(() => "draft"));
-    expect(blocks.map((b) => b.id)).toEqual([...committed.blocks.map((b) => b.value.block)].sort());
-    expect(blocks.flatMap((b) => b.lines.map((l) => l.text))).toEqual(
-      [...committed.blocks]
-        .sort((a, b) => (a.value.block < b.value.block ? -1 : 1))
-        .flatMap((b) => b.value.lines.filter((l) => !l.pending).map((l) => l.text)),
-    );
+    // Spec 016's outline, the shirt's lettering, is room text too, published as a draft beside the blocks, its words
+    // its one line (changed with T056, plan.md R-18).
+    const outlines = committed.outlines.map((o) => ({ id: o.value.sign, lines: [o.value.words] }));
+    const expected = [
+      ...committed.blocks.map((b) => ({
+        id: b.value.block,
+        lines: b.value.lines.filter((l) => !l.pending).map((l) => l.text),
+      })),
+      ...outlines,
+    ].sort((a, b) => (a.id < b.id ? -1 : 1));
+    expect(blocks.map((b) => b.id)).toEqual(expected.map((e) => e.id));
+    expect(blocks.flatMap((b) => b.lines.map((l) => l.text))).toEqual(expected.flatMap((e) => e.lines));
     const pending = committed.blocks.flatMap((b) => b.value.lines.filter((l) => l.pending).map((l) => l.text));
     for (const line of pending) expect(JSON.stringify(data), line).not.toContain(line);
   });
