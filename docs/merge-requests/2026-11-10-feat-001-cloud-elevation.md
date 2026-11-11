@@ -25,7 +25,7 @@ Authorized by:
 | d3ce1dba | the session's merge of `refs/heads/main` (2e942990: spec 016, C-0004, spec 014, and more), `git --no-replace-objects merge --no-ff refs/heads/main`, no conflict; tree 02b762d9, as `git merge-tree --write-tree` predicted |
 | 37d13175 | section 2, fact a: the permission set's name in P-I2's `iam.tf`, test-first; P-I2 rebuilt from plain copies |
 | 678f7b97 | section 2, fact c: the base's digest in `deploy/images.lock` and its hosts row, the probe's and the credential audit's Dockerfiles, and the bridge's in P-I2, test-first; P-I2 rebuilt from plain copies and dry-run again |
-| this commit | this note: section 2 done, the patches' hashes, the merge, the checks, and the Backlog |
+| 862ab88f, this commit | this note: section 2 done, the patches' hashes, the merge, the checks, and the Backlog |
 
 **The blocker, and P-E.** With P-1 applied, `make test` failed `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`. P-1 adds three in-tree read denies that are bare file-name patterns, `Read(*.tfstate*)`, `Read(*.tfplan)`, and `Read(*.tfvars*)`, and the agents' engine refused to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds: its mask check let only the `.env` globs through. It was P-1's from group 1, not the combination's. Your decision: "Derive from settings (Recommended)". P-E takes every bare file-name read deny from the settings: the check lets each through and refuses while a file one matches sits outside a mask, so a later `*.pem` or `*.key` needs no engine patch, and stage E's E7 proves it. `deploy/agents-engine/` is protected, so P-E is yours to apply, after P-1 (For the Author, 5). With all five patches the whole Python suite passes (Verification).
 
@@ -125,6 +125,7 @@ Each finding, and what was done:
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
 - **Groups 1, 3, and 4's own guards are superseded, with the same flaw as I1:** each allowed all of `docs/merge-requests/` after its anchor, where the agent-written patches live. This note's guard allows only this note there. Don't run theirs.
+- **A web test of main's can flake under load:** `apps/web/test/room/twin-2d.test.ts`'s integrity case waits 40 flushes for a signal, and failed once in `make test` here while another suite loaded the machine; it passed alone and in the rerun (Verification, "Section 2 and main's merge"). It is spec 016's, on main; if the gate's `test` step fails on it alone, rerun the gate before anything else.
 - **The behavioral tier's WARN in `make evals`:** main's newest run for main's trigger hash (2026-11-09, feat-011's denies) reads failed. It is main's, not this branch's; your branch's own run, with P-1 and P-3, is a new trigger hash (For the Author, 7).
 - **From the groups' notes, still open:** the devcontainer's Terraform (`WITH_TERRAFORM=1` refuses until the release's checksum is confirmed with the pin), and a shell write to a protected `.tf` file, a gap row until a deny on each path lands with its patch (group 1); the unix-socket test skips in the sandbox, the stub answers about 20 calls a run, a SIGKILL isn't caught, and the laptop's repeat and the tunnel end's measurement are groups 5 and 8's (group 2); the state bucket's policy in agent-editable `main.tf`, `h4-alerts` unencrypted, and the state's move (group 3); Budgets' notices' text to confirm at the rehearsal, the probe's alarm in group 8, `h4reet-ai-cloud` left in IAM after the detach, `LAPTOP_PERMISSION_SET` after the detach, the bridge's failure queue without an alarm, `local.rehearsal` and `local.lambda_images` in `main.tf`, and Lambda's unreserved concurrency (group 4).
 - **Resolved by the combination:** the four links to `docs/001-ec2-default`'s files (main has them: docs links, 0 failed); `TF_VAR_bedrock_service_names`'s deny (P-1 has it); the tests that skipped for want of P-1 (they run on the patched export); and the engine's mask check under P-1's denies (P-E). **By your facts** (section 2): `infra/lambdas/test_images.py`'s PLANNED, now each Dockerfile held to the pin; and the trust's 16 characters, your count.
@@ -132,6 +133,161 @@ Each finding, and what was done:
 ## Verification
 
 Each check ran one at a time, in this worktree, while another session built spec 014 on the same machine. The first round ran on f843d182, before the combined review; after the review's fixes, the reruns below ran on the tip they name.
+
+### Section 2 and main's merge, 2026-11-11
+
+#### Main's merge (d3ce1dba)
+
+Predicted first, read-only: `git --no-replace-objects merge-tree --write-tree --name-only refs/heads/feat/001-cloud-elevation refs/heads/main` printed tree 02b762d9 and no conflict; the merge, `git --no-replace-objects merge --no-ff refs/heads/main`, made tree 02b762d9. Main brought 205 files, 32fb2bc3 to 2e942990, mostly `apps/web` and `assets/`: specs 014 and 016, C-0003 and C-0004, ADR 0046. The files both sides changed, `docs/adr/README.md`, `docs/data-flow-disclosure.md`, and `evals/test_disclosure.py`, merged cleanly, with no ADR number and no disclosure row ID twice. **None of the five patches' 29 target files is among main's 205,** so no patch needed a rebuild for the merge: P-1, P-E, P-3, and P-I1 are byte for byte as before, and each applies on a fresh export of the merged tree with no offset, no fuzz, and no reject.
+
+#### Fact a, the set's name (37d13175): RED, then GREEN
+
+On a fresh `git archive` export with the five patches, P-I2 as it was, and the new test copied in:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line infra/test/test_account.py::test_the_permission_sets_name_is_the_one_the_author_read
+/tmp/claude-1000/exp-red1/infra/test/test_account.py:1350: assert None == 'h4reet-ai-cloud'
+FAILED infra/test/test_account.py::test_the_permission_sets_name_is_the_one_the_author_read
+1 failed in 0.04s
+exit 1
+```
+
+GREEN, a fresh export with P-I2 rebuilt from plain copies (its `iam.tf` byte for byte the edited plain copy):
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line infra/test/test_account.py
+70 passed in 1.03s
+exit 0
+```
+
+#### Fact c, the base's digest (678f7b97): RED, then GREEN
+
+On the branch, the tests alone (`infra/lambdas/test_images.py` rewritten, and one test in `deploy/scripts/test_arch_inventory.py`):
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line infra/lambdas/test_images.py deploy/scripts/test_arch_inventory.py
+FAILED infra/lambdas/test_images.py::test_the_base_is_awss_python_314_lambda_base_for_arm64_by_the_authors_digest
+FAILED infra/lambdas/test_images.py::test_each_dockerfile_copies_its_module_onto_the_pinned_base[alert_bridge]
+FAILED infra/lambdas/test_images.py::test_each_dockerfile_copies_its_module_onto_the_pinned_base[credential_audit]
+FAILED infra/lambdas/test_images.py::test_each_dockerfile_copies_its_module_onto_the_pinned_base[probe]
+FAILED infra/lambdas/test_images.py::test_p_i2_carries_the_bridges_dockerfile_whole
+FAILED deploy/scripts/test_arch_inventory.py::test_the_functions_base_runs_on_none_of_section_3s_hosts
+6 failed, 22 passed, 1 skipped in 0.66s
+exit 1
+```
+
+GREEN, with the lock line, the hosts row, the two Dockerfiles, and P-I2 with the bridge's:
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line infra/lambdas/test_images.py deploy/scripts/test_arch_inventory.py
+28 passed, 1 skipped in 0.57s
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/compose_policy.py   # the branch, and the patched export, with the bridge's Dockerfile
+compose policy: PASS (deploy/compose.yaml with 3 env files, the Dockerfiles, the env-file placement, .devcontainer, .npmrc)
+exit 0
+```
+
+The skip is the unix-socket test, which skips in the sandbox (group 2's Backlog).
+
+#### The patches, and P-I2's dry run, on a fresh export of 678f7b97
+
+A `git archive` of 678f7b97 in a new folder, 2225 files; each patch applied there from the export's own copy by `patch -p1`, in your order, never in a worktree:
+
+```text
+== p1-guards sha256 b0c1148f0d786321cc64160d9f3812dc566f3c0efbff027abacf3dce5db323ed
+applied, exit 0
+== pe-engine sha256 20445b515dbe800a55eaf95e1668e7e95e253c375d3c9ee2717427279327f3af
+applied, exit 0
+== p3-claude-md sha256 415742e1f22921b318459a98791b551a90bbc1e77be7ad30b3f50cd01322576c
+applied, exit 0
+== pi1-bootstrap sha256 e32b2148ef3ddbedbf7fd7984a3d22824b49da7d62452f86a58bcc3645d02bc2
+applied, exit 0
+== pi2-account sha256 fd1b3e8ac6736d1ed8b825bc05a386d88dc4065b65dbf47657a1c94b01bbe661
+$ patch -p1 --dry-run < docs/merge-requests/2026-11-10-feat-001-pi2-account.patch
+checking file infra/account/iam.tf
+checking file infra/account/killswitch.tf
+checking file infra/account/alerts.tf
+checking file infra/lambdas/alert_bridge/bridge.py
+checking file infra/lambdas/alert_bridge/test_bridge.py
+checking file infra/lambdas/alert_bridge/Dockerfile
+exit 0
+applied, exit 0
+b33de881cfafd73ef298fc0d28a378470dff4c1a6d4adda4af7e5a63413a43a0  infra/account/iam.tf  = plain copy
+644ff4807ac0564b8e10f12d807ce1854bd0d27a9357a2f722179a219d4bee17  infra/account/killswitch.tf  = plain copy
+b1d64072338d5a1edf975f324128e1be6e711e6392c40747ba5110bd6270bd91  infra/account/alerts.tf  = plain copy
+232e97775234534e8a9b021c0d361be220dcfd860ae719cf9e24486ed2ee2730  infra/lambdas/alert_bridge/bridge.py  = plain copy
+c4fc2c622e2518c40c814892b788353ad29e4bba3c382df23b16d2aa78982bc8  infra/lambdas/alert_bridge/test_bridge.py  = plain copy
+101f4ecb3f8fdc28181298711df48f8f752f25bd483cfd2f3699623fd99b2eae  infra/lambdas/alert_bridge/Dockerfile  = plain copy
+```
+
+**P-I2** is 81,883 bytes, SHA-256 fd1b3e8ac6736d1ed8b825bc05a386d88dc4065b65dbf47657a1c94b01bbe661 (it was 1d5cfb49…, then ba075cd7… at 37d13175). The plain copies came from P-I2 itself (`git show` into `$TMPDIR`, each new file's added lines), and the builder, its preamble then `diff -u /dev/null` per file with `b/` labels, rebuilt the old patch byte for byte before any edit. The other four are unchanged: P-1 b0c1148f…, P-E 20445b51…, P-3 415742e1…, P-I1 e32b2148….
+
+#### The patched export's checks, the five patches
+
+```text
+$ pytest -q -p no:cacheprovider --import-mode=importlib --tb=line corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra
+4771 passed, 1 skipped in 428.73s (0:07:08)
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/infra_policy.py
+T10 infra/account:0 no .terraform.lock.hcl
+T10 infra/bootstrap:0 no .terraform.lock.hcl
+infra-policy: 2 findings in 15 files
+exit 1
+$ python3 -I -B -X pycache_prefix=/dev/null tools/gates/disclosure_check.py
+disclosure-check: PASS, every outward thing the tree holds has its row
+exit 0
+$ python3 -I -B -X pycache_prefix=/dev/null evals/agent-config/static.py
+agent-config static: 0 failed, 0 planned
+exit 0
+$ ruff check --no-cache tools/gates infra deploy/scripts
+All checks passed!
+$ ruff format --check --no-cache tools/gates infra deploy/scripts
+77 files already formatted
+```
+
+The policy's findings are the two lockfiles, yours, as before. 20 more pass than at 065aa4cd, and 4 fewer skip: section 2's new tests, `infra/lambdas/test_images.py`'s four that no longer skip, and main's new tests.
+
+#### make lint, make test, and make evals, in this worktree
+
+`make lint` at 678f7b97; `make test` and `make evals` at 862ab88f, whose tree differs from 678f7b97's only in this note:
+
+```text
+$ make lint
+All matched files use Prettier code style!
+All checks passed!
+561 files already formatted
+exit 0
+$ make test
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+ Test Files  95 passed (95)
+      Tests  1657 passed | 13 skipped (1670)
+ Test Files  162 passed (162)
+      Tests  3470 passed | 1 skipped (3471)
+4363 passed, 67 skipped in 419.62s (0:06:59)
+exit 0
+$ make evals
+evals product (fake): 187 passed, 0 failed
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+WARN (behavioral tier): 2026-11-09T152345Z-feat-011-pa-anthropic-denies-09522968ea48, the newest run for trigger hash 05cec03a74a5, failed: conduct regressed against main's last entry 2026-11-08T151546Z-feat-007-p1-69ab1428d23d: held in 10 of 12 runs, against 11 of 12, over pastes-check-output, refuses-to-widen-allowlist, reviewer-reads-room-data, stays-on-branch
+docs links: 0 failed, 2181 relative links in 335 files
+exit 0
+```
+
+**`make test`'s first run failed one web test,** main's, not this branch's: `apps/web` is as on main. `test/room/twin-2d.test.ts > … > refuses bytes that fail their integrity: the drawing, never the image` read no signal after its 40 flushes (`expected undefined to deeply equal { kind: 'picture', …(3) }`), while the patched export's suite had just loaded the machine. It passed three times alone, then in the whole rerun above, run alone. It waits a fixed number of flushes for an integrity check, so it can flake under load (Backlog). The WARN is main's, as before (Backlog).
+
+#### gitleaks dir, at this note
+
+As the gate's gitleaks-tree step scans: a fresh export of the tip this note sits on, with this note copied in (this section then still pending). The tree's `.gitleaks.toml` is main's checkout's, byte for byte.
+
+```text
+export of 862ab88f7124824848efbc56e849ce44741094e4 into a new folder, with this note copied in: 2225 files, scanned from inside it
+$ gitleaks dir --no-banner --no-color --redact --config .gitleaks.toml --gitleaks-ignore-path <an empty folder> --ignore-gitleaks-allow --exit-code 99 .
+v8.30.1
+3:44PM INF scanned ~77216306 bytes (77.22 MB) in 3.28s
+3:44PM INF no leaks found
+exit=0
+```
 
 ### After the combined review: P-E and the reruns
 
