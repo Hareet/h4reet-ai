@@ -1039,6 +1039,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         cost: cost.state,
         target: targetInput,
         ...(typefaces ? { typefaces } : {}),
+        // Spec 016 (FR-034, FR-035): the twin's still, fetched once, same-origin, its picture to the line slot.
+        fetch: (url, init) => win.fetch(url, init),
+        onFigure: figureSignal,
       });
       showTier(flat, live.tier.tier);
     } catch {
