@@ -1,0 +1,41 @@
+{
+  "piece": "twin",
+  "face": "twin-shirt-lettering",
+  "face_mm": {
+    "width": 180.0,
+    "height": 70.0
+  },
+  "words": "Denver Local AI Solutions",
+  "set_as": [
+    "Denver Local AI",
+    "Solutions"
+  ],
+  "words_source": "the Author, studio session 2026-11-10: 'Denver Local AI Solutions' on the t-shirt, 'Denver Local AI' bigger than 'Solutions'; IBM Plex Bold, black",
+  "typeface": {
+    "name": "IBM Plex Sans Bold",
+    "version": "3.005",
+    "license": "SIL OFL 1.1",
+    "license_from": "the font's license description (name ID 13)",
+    "sha256": "60d74851e9ed71a407aa3738cf1239dce3bab0e1572d673d24b2ad23c37db66b"
+  },
+  "cap_height_mm": [
+    14.674,
+    8.795
+  ],
+  "fill": "#000000",
+  "lines_ink_box_mm": [
+    {
+      "x": 13.5,
+      "y": 19.367,
+      "width": 153,
+      "height": 15.808
+    },
+    {
+      "x": 62.595,
+      "y": 41.045,
+      "width": 54.81,
+      "height": 9.588
+    }
+  ],
+  "note": "the face is skinned to the chest (it moves with breathing and turns); draw in its UVs, 0-1 left to right and bottom to top"
+}
