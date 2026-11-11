@@ -57,6 +57,7 @@ import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
 import { leanMeasure } from "./checks/ra";
+import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
@@ -412,6 +413,8 @@ function twinLines(c: Composed, memory: SceneTextureMemory): string[] {
           `${fixed(lean.turn_deg, 1)}° from the twin's facing, and ${fixed(lean.right_m, 2)} m of its top to the ` +
           `twin's right, from ${fixed(lean.gap_m * 100, 1)} cm off its root.`,
   );
+  // The twin's reach toward the shell's walls (plan.md R-19), RA8's measure.
+  out.push(reachLine(twinReachOf(c.reader.tree, c.scene, c.twin, c.geometry)));
   out.push(
     `RK3's twin term: ${memory.twin === null ? "nothing yet" : count(memory.twin)}, the larger of its own model at ` +
       `${px} px (${memory.twin_own === null ? DASH : count(memory.twin_own)}) and the stand-in's files ` +

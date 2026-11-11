@@ -150,7 +150,7 @@ placements:
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.469], estimated: true }
+    mount: { on: room-shell, anchor: floor, offset: [0.66, 0, 0.469], estimated: true }
     frame: true
     # Spec 016 (FR-036, FR-038, FR-040): the shirt's lettering, the Author's words as the studio's outline sets them,
     # drawn into the twin's own model; an atmosphere face, its words in "Around the room" under its label, and room

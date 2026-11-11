@@ -12,7 +12,7 @@ None.
 
 ## Measurements
 
-- Measure: where `twin-figure` sits, now estimated: on `room-shell`'s anchor `floor`, offset (0.78, 0, 0.469) m.
+- Measure: where `twin-figure` sits, now estimated: on `room-shell`'s anchor `floor`, offset (0.66, 0, 0.469) m.
 
 ## Size, origin, and bounds
 

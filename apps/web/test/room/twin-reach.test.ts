@@ -40,7 +40,7 @@ import { clipGlb } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { SCENE } from "../helpers/room-avatars";
 import { goodFiles, overlay, sideWallFiles, sideWallTree } from "../helpers/room-fixtures";
-import { TWIN_DIR, twinFolder, twinPolicy } from "../helpers/room-twin";
+import { TWIN_DIR, twinDefaults, twinFolder, twinPolicy } from "../helpers/room-twin";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
 const LENIENT: ComposeOptions = { mode: "lenient", drafts: true };
@@ -204,11 +204,16 @@ const turning = (): Uint8Array =>
   }).bytes;
 
 describe("RA8 in the fixtures (plan.md R-19)", () => {
+  // The talking clip turns; listening and greeting take the idle's motion, which turns nothing, so the talking clip
+  // alone reaches toward the side wall. The default desk-lean stays: its quaternion's half-angle 0.25 rad turns the
+  // hips 0.5 rad, 0.2769 m along x, past the wall at 0.27 m, but the twin never plays it without a lean.
   const sideWall = (o: { offset: Vec3; policy?: RoomPolicy; options?: ComposeOptions }): ComposeResult =>
     compose(
       sideWallTree({
         [SCENE]: sceneAt(sideWallFiles().get(SCENE), o.offset),
-        ...twinFolder({ clips: { talking: turning() } }),
+        ...twinFolder({
+          clips: { talking: turning(), listening: twinDefaults().clips.idle, greeting: twinDefaults().clips.idle },
+        }),
       }),
       o.policy ?? twinPolicy({ room: { legibility_floor_css_px: 5 } }),
       o.options ?? STRICT,
@@ -226,7 +231,7 @@ describe("RA8 in the fixtures (plan.md R-19)", () => {
   });
 
   it("leaves a clip the twin doesn't play unmeasured: with no lean in the scene, the desk lean", () => {
-    // The fixture's desk-lean turns the hips 0.25 rad, 0.2719 m along x: past the wall at 0.27 m, but never played.
+    // The desk lean would reach 0.7 cm past the wall (above), but the scene gives no lean.
     const strict = sideWall({ offset: [1.73, 0, 0] });
     expect(ofRule(strict.findings, "RA8").some((f) => f.reason.includes("`desk-lean`"))).toBe(false);
   });

@@ -123,6 +123,8 @@ export const RULES = {
   // (RA7) out and builds.
   RA6: rule("RA", model), // the twin's files without main's approval naming its model's SHA-256 with a line
   RA7: rule("RA", model), // the twin's lean off its spot: the desk not behind_m behind, turned, or short of right_m
+  // RA8 (plan.md R-19): lenient, so a lenient build warns and keeps the twin; nothing in the bundle stands on it.
+  RA8: rule("RA", model), // the twin's own model, at rest or in a clip it plays, reaching past a wall of the shell
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

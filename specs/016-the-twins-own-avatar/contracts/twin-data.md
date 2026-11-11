@@ -54,7 +54,7 @@ live_faces:
 - id: twin-figure
   piece: twin-figure
   role: twin
-  mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.469] }
+  mount: { on: room-shell, anchor: floor, offset: [0.66, 0, 0.469] }
   frame: true
   faces:
     twin-shirt-lettering:
@@ -133,6 +133,7 @@ Reasons name keys and figures, never a value from the data, as spec 004's rules 
 | RA5, extended | A file under `assets/twin/` that is none of the twin's files, but `records.json` and `LICENSE.md` | reports | reports | FR-009 |
 | RA6 | The twin's model bundled without an approval in the likeness approvals naming its current SHA-256 with a non-empty `disclosure_line` | warns; the twin's files all left out | refuses | FR-015 |
 | RA7 | A `lean` block whose desk's origin isn't within 1 cm of `behind_m` straight behind the twin placement's root, or whose facing differs by more than 1°, or with under `right_m` of the desk's top to the twin's right | warns; the lean left out | refuses | FR-029 |
+| RA8 (plan.md R-19) | The twin's own model, at rest or in a clip it plays, sampled every 1/30 s and skinned as three skins it, reaching past a side wall the shell's side-wall anchors stand on, or past its back | warns; the twin kept | refuses | FR-010 |
 | RI8, extended | In `figures.twin`, a state or a clip role outside its closed list; `lean.against` not a placement of the `work-desk` piece; a `surface: model` face on a piece that isn't a figure's | refuses | refuses | FR-054 |
 | RK3, changed | The scene's texture memory over `scene_texture_bytes`, the twin counted as the larger of its model at `figures.twin.texture_px` and the stand-in's files at `texture_px` | refuses | refuses | FR-046 |
 | RK5, changed | The first visit over `main`'s phase-3 budget: the room's served files, the twin's served GLBs, and the largest of the visitor folders, by their gzip-9 copies | warns | refuses | FR-046 |

@@ -19,9 +19,14 @@
 // of its root (its −x, glTF's), from within 5 cm of the root, so the forearm and hand lie on it (the hand-back's figures).
 // The root's height and its side position along the desk aren't held: the twin may stand at the desk's end, the desk
 // behind and to its right, as the room's does. Lenient: a lenient build leaves the lean out, the twin resting in its idle.
+// RA8 (spec 016; plan.md R-19; the Author's lookdev, T079): the twin's own model, at rest and in each clip it plays,
+// sampled every 1/30 s and skinned as three skins it (../reach.ts), reaching past a wall of the shell: a side wall its
+// side-wall anchors stand on, or its back. One finding a source and wall, at the twin placement's offset. Lenient: a
+// lenient build warns and keeps the twin, since nothing in the bundle stands on it; a strict one refuses.
 import { DEG, invert, origin, transformDirection, transformPoint } from "../../../src/room/compose/math";
 import type { Vec3 } from "../../../src/room/compose/math";
 import { avatarsOf, twinOf } from "../avatars";
+import { REACH_FPS, sourceName, twinReachOf } from "../reach";
 import type { Scene } from "../schema";
 import type { Context, Family } from "./family";
 import { geometryOf } from "./rg";
@@ -92,10 +97,32 @@ function leanCheck(ctx: Context): void {
     );
 }
 
-/** RA: every rule of the family, in its order: the visitors' folders, then the twin's, then its lean. */
+/** RA8 over the twin's reach: each source and wall it passes. */
+function reachCheck(ctx: Context): void {
+  const scene = ctx.room.scene;
+  if (!scene) return;
+  const reach = twinReachOf(ctx.tree, scene.value, twinOf(ctx.tree, ctx.policy, scene.value), geometryOf(ctx));
+  if (!reach) return;
+  const index = scene.value.placements.findIndex((p) => p.role === "twin");
+  for (const s of reach.sources)
+    for (const w of s.walls) {
+      const wall = reach.walls.find((x) => x.name === w.wall);
+      if (!wall || !(w.reach > wall.at)) continue;
+      ctx.report(
+        "RA8",
+        scene.file,
+        ctx.path("placements", index, "mount", "offset"),
+        `the twin's ${sourceName(s.source)} reaches ${((w.reach - wall.at) * 100).toFixed(1)} cm past the shell's ` +
+          `${w.wall} at ${w.at_s.toFixed(2)} s, sampled every 1/${REACH_FPS} s`,
+      );
+    }
+}
+
+/** RA: every rule of the family, in its order: the visitors' folders, then the twin's, then its lean, then its reach. */
 export const ra: Family = (ctx) => {
   const scene = ctx.room.scene?.value ?? null;
   for (const p of avatarsOf(ctx.tree, ctx.policy, scene).problems) ctx.report(p.rule, p.file, p.path, p.reason);
   for (const p of twinOf(ctx.tree, ctx.policy, scene).problems) ctx.report(p.rule, p.file, p.path, p.reason);
   leanCheck(ctx);
+  reachCheck(ctx);
 };
