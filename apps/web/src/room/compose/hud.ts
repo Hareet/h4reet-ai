@@ -14,6 +14,14 @@
 // Every size is in rem of the window's root font size, so 200% text needs twice the window; the width bands, where a
 // part's rows or lines change, are test/ui/hud-model.ts's findings with the index's words, rounded inward to a whole
 // rem, which test/ui/hud-model.test.ts holds to the model at every screen of the sweep.
+// Spec 014 (FR-017 to FR-021; plan.md §3, PD-3 to PD-7; contracts/frame-area.md §1, §3): beside the bands, which stay
+// the floor's definition and what spec 005's and spec 012's rules read, the table holds the compact boxes the visitor
+// sees at rest, each taking its own pointer: in the column layout the strip as wide as its words' bound, centred at the
+// top; the bar's tiles one cluster at the foot's right, under the column (PD-6); the column its content's height at its
+// band's foot (D8), its log at a rest height by the window's height (PD-7); in the dock layout the bands themselves;
+// and in both the walking control in the clear area's corner. Each bound is test/ui/hud-model.ts's finding with the
+// index's words, rounded up to a whole rem, which test/ui/hud-model.test.ts holds; the always-on interface, those
+// boxes and the notes' reserve, covers at most a quarter of every landscape window from 1280 × 720 (FR-019).
 import type { Rect } from "./pick";
 
 /** A window's box or a panel's, in CSS pixels from the window's top left. */
@@ -81,6 +89,9 @@ export const HUD_PLACEMENTS = {
     padYRem: 0.25,
     padXRem: 0.5,
     lines: [{ belowRem: 27, n: 2 }] as readonly Band[],
+    /** Spec 014: the strip's compact box at most this wide, its words on one line with its padding and border (the
+     *  model: 26.3rem), centred at the top; narrower windows take the band's width, and its lines. */
+    maxRem: 27,
   },
   /** The bar of controls at the foot: tiles of an icon over words, one row on every landscape screen of the sweep. */
   bar: {
@@ -90,9 +101,29 @@ export const HUD_PLACEMENTS = {
     gapRem: 0.25,
     padRem: 0.25,
     rows: [{ belowRem: 35, n: 2 }] as readonly Band[],
+    /** Spec 014: the tiles' cluster at most this wide, the six in one row with their gaps and padding (the model:
+     *  34.4rem), at the foot's right, under the column (PD-6). */
+    maxRem: 35,
+    align: "right",
   },
   /** The column, on the right between the strip and the bar: two fifths of the window, between 15rem and 28rem. */
-  column: { share: 0.4, minRem: 15, maxRem: 28, padRem: 0.25 },
+  column: {
+    share: 0.4,
+    minRem: 15,
+    maxRem: 28,
+    padRem: 0.25,
+    /** Spec 014: the column's compact box sits at its band's foot (D8), as tall as its content. */
+    anchor: "foot",
+    /** Spec 014, T053 (W19): the gap between the column's content and the walking control at its head, and the
+     *  control's inset from the column's right. */
+    walkGapRem: 0.25,
+    /** Spec 014: the list's rows beside its header button in the column, by the column's width (the model: three
+     *  rows under 20rem, two from there to 28rem), which its content's height counts. */
+    listRows: [
+      { belowRem: 20, n: 3 },
+      { belowRem: Number.POSITIVE_INFINITY, n: 2 },
+    ] as readonly Band[],
+  },
   /** The dock, across the foot above the bar: its padding around the list's strip and the text box's row. */
   dock: { padRem: 0.25 },
   /** The list: its header button (an icon, then list.heading's words) floated before its buttons, each row a
@@ -118,8 +149,10 @@ export const HUD_PLACEMENTS = {
     buttonPadXRem: 0.75,
     statusRem: 1.25,
   },
-  /** The conversation's log: a sheet above the dock in the dock layout, at most 4.75rem, shown once it holds a line. */
-  log: { sheetMaxRem: 4.75 },
+  /** The conversation's log: a sheet above the dock in the dock layout, at most 4.75rem, shown once it holds a line.
+   *  Spec 014: in the column, at rest, at most `restRem` where the window is at least `tallFromRem` tall, and
+   *  `shortRestRem` below it (PD-7; D12), and scrolling inside. */
+  log: { sheetMaxRem: 4.75, restRem: 8, shortRestRem: 5, tallFromRem: 56.25 },
   /** The stage's notes in the clear area's top left (the placeholder note and the stand-in line, both counted): their
    *  type, line height, padding, inset, and gap, room.css's `.room-notes` and `.room-note`, and the clear widths where
    *  their words take two lines. No sheet reaches into this reserve, so none covers them (FR-021; the review of
@@ -132,6 +165,17 @@ export const HUD_PLACEMENTS = {
     gapRem: 0.25,
     count: 2,
     lines: [{ belowRem: 27, n: 2 }] as readonly Band[],
+    /** Spec 014: a note's widest words on one line, its padding and border included (the model: 25.99rem for
+     *  `standin.note`): room.css holds each note to it, and it is the notes' reserve's width in the always-on
+     *  interface's coverage. */
+    maxRem: 26,
+    /** Spec 014 (FR-054, FR-055; PD-18): the placeholder note's lines, which may hold `standin.note` and
+     *  `standin.avatar` joined, wrapped at maxRem: two, and three where the clear area is under 27rem; the stand-in line
+     *  keeps `lines`. */
+    placeholderLines: [
+      { belowRem: 27, n: 3 },
+      { belowRem: Number.POSITIVE_INFINITY, n: 2 },
+    ] as readonly Band[],
   },
 } as const;
 
@@ -243,9 +287,11 @@ export function fitsHud(
  *  reach into (FR-021). */
 export function notesReserve(clear: { readonly w: number }, rem = DEFAULT_METRICS.rem): number {
   const n = HUD_PLACEMENTS.notes;
-  const lines = band(n.lines, clear.w, rem);
-  const note = lines * n.fontRem * n.lineHeight * rem + 2 * n.padYRem * rem;
-  return 2 * n.insetRem * rem + n.count * note + (n.count - 1) * n.gapRem * rem;
+  const height = (lines: number): number => lines * n.fontRem * n.lineHeight * rem + 2 * n.padYRem * rem;
+  // Spec 014: the placeholder note by its own band, since it may say two things; the stand-in line by the notes'.
+  const first = height(band(n.placeholderLines, clear.w, rem));
+  const rest = height(band(n.lines, clear.w, rem));
+  return 2 * n.insetRem * rem + first + (n.count - 1) * (rest + n.gapRem * rem);
 }
 
 /** The walking control's box (spec 008, FR-021; plan.md R-09): `.room-walk`'s width, height, and inset from the clear
@@ -263,4 +309,154 @@ export function walkControlBox(clear: { readonly w: number; readonly h: number }
  *  every other control sitting in a docked panel outside the clear area. */
 export function reservedBoxes(clear: { readonly w: number; readonly h: number }, rem = DEFAULT_METRICS.rem): Rect[] {
   return [walkControlBox(clear, rem)];
+}
+
+// ---- Spec 014: the compact boxes (FR-017 to FR-021; contracts/frame-area.md §1, §3) ----
+
+/** The log's rest height in the column, in rem: `restRem` where the window is at least `tallFromRem` tall, and
+ *  `shortRestRem` below it (PD-7; D12). */
+export function logRestRem(
+  screen: { readonly w: number; readonly h: number },
+  metrics: HudMetrics = DEFAULT_METRICS,
+): number {
+  const t = HUD_PLACEMENTS.log;
+  return screen.h >= t.tallFromRem * metrics.rem ? t.restRem : t.shortRestRem;
+}
+
+/** The column's content height at a window, in CSS pixels: its padding, the list's rows beside its header button by
+ *  the column's width, the conversation's header row, the log at its rest height, the status line, and the text box's
+ *  label and row (PD-5). */
+export function columnContentHeight(
+  screen: { readonly w: number; readonly h: number },
+  metrics: HudMetrics = DEFAULT_METRICS,
+  columnWidth: number,
+): number {
+  const t = HUD_PLACEMENTS;
+  const rem = metrics.rem;
+  const rows = band(t.column.listRows, columnWidth, rem);
+  const row = (t.list.rowRem + t.list.gapRem) * rem;
+  const talk = (t.talk.labelRem * t.talk.lineHeight + t.talk.gapRem + t.talk.rowRem) * rem;
+  return (
+    2 * t.column.padRem * rem + rows * row + row + logRestRem(screen, metrics) * rem + t.talk.statusRem * rem + talk
+  );
+}
+
+/** The HUD boxes the visitor sees at rest at a window: the compact clusters of the column layout, or the dock layout's
+ *  bands, and the walking control's box; `all` holds each once, in that order. */
+export interface CompactBoxes {
+  readonly layout: HudLayout;
+  readonly strip: Box;
+  readonly bar: Box;
+  /** The column's compact box, in the column layout; null in the dock layout. */
+  readonly column: Box | null;
+  /** The dock, in the dock layout; null in the column layout. */
+  readonly dock: Box | null;
+  /** The walking control's box, in the window's pixels: since T053 (Amendment W19), at the column's head where
+   *  `walkPlace` is "column"; else in the clear area's bottom-right corner, spec 008's place. */
+  readonly walk: Box;
+  /** Where the walking control sits: at the column's head, or in the stage's corner (spec 008's FR-021). */
+  readonly walkPlace: "column" | "stage";
+  readonly all: readonly Box[];
+}
+
+/** The compact boxes a window's table gives (contracts/frame-area.md §1): each inside its band. */
+export function compactBoxes(
+  screen: { readonly w: number; readonly h: number },
+  state: HudState = OPENING,
+  metrics: HudMetrics = DEFAULT_METRICS,
+): CompactBoxes {
+  const t = HUD_PLACEMENTS;
+  const rem = metrics.rem;
+  const bands = hudBoxes(screen, state, metrics);
+  const [wx, wy, ww, wh] = walkControlBox(bands.clear, rem);
+  const walk: Box = { x: bands.clear.x + wx, y: bands.clear.y + wy, w: ww, h: wh };
+  if (bands.layout === "dock" || !bands.column) {
+    const all = [bands.strip, bands.bar, ...(bands.dock ? [bands.dock] : []), walk];
+    return {
+      layout: bands.layout,
+      strip: bands.strip,
+      bar: bands.bar,
+      column: null,
+      dock: bands.dock,
+      walk,
+      walkPlace: "stage",
+      all,
+    };
+  }
+  const width = across(screen, metrics);
+  const stripW = Math.min(t.strip.maxRem * rem, width);
+  const strip: Box = { x: metrics.safe.left + (width - stripW) / 2, y: 0, w: stripW, h: bands.strip.h };
+  const barW = Math.min(t.bar.maxRem * rem, width);
+  const bar: Box = { x: screen.w - metrics.safe.right - barW, y: bands.bar.y, w: barW, h: bands.bar.h };
+  const band = bands.column;
+  const contentW = band.w - metrics.safe.right;
+  const h = Math.min(band.h, columnContentHeight(screen, metrics, contentW));
+  const column: Box = { x: band.x, y: band.y + band.h - h, w: band.w, h };
+  // T053 (Amendment W19; the Author's answer of 2026-11-10, "Move the walk control (Recommended)"): where the column's
+  // band has room above its content, the walking control sits at the column's head, at its right, a gap above it;
+  // else in the clear area's corner, as spec 008 put it.
+  const gap = t.column.walkGapRem * rem;
+  if (h + gap + wh <= band.h) {
+    const head: Box = { x: column.x + column.w - metrics.safe.right - gap - ww, y: column.y - gap - wh, w: ww, h: wh };
+    return {
+      layout: "column",
+      strip,
+      bar,
+      column,
+      dock: null,
+      walk: head,
+      walkPlace: "column",
+      all: [strip, bar, column, head],
+    };
+  }
+  return {
+    layout: "column",
+    strip,
+    bar,
+    column,
+    dock: null,
+    walk,
+    walkPlace: "stage",
+    all: [strip, bar, column, walk],
+  };
+}
+
+/** The notes' reserve as a box at the clear area's top left: as wide as the notes' widest words and their inset, at
+ *  most the clear area, as tall as `notesReserve`. */
+export function notesBox(clear: Box, rem = DEFAULT_METRICS.rem): Box {
+  const n = HUD_PLACEMENTS.notes;
+  return {
+    x: clear.x,
+    y: clear.y,
+    w: Math.min(clear.w, (n.maxRem + 2 * n.insetRem) * rem),
+    h: notesReserve(clear, rem),
+  };
+}
+
+/** The area a union of boxes covers, each overlap counted once: the plane cut at every box's edges into cells, each
+ *  cell counted where a box holds it. */
+export function unionArea(boxes: readonly Box[]): number {
+  const xs = [...new Set(boxes.flatMap((b) => [b.x, b.x + b.w]))].sort((a, b) => a - b);
+  const ys = [...new Set(boxes.flatMap((b) => [b.y, b.y + b.h]))].sort((a, b) => a - b);
+  let area = 0;
+  for (let i = 0; i + 1 < xs.length; i += 1) {
+    const [x0, x1] = [xs[i] as number, xs[i + 1] as number];
+    for (let j = 0; j + 1 < ys.length; j += 1) {
+      const [y0, y1] = [ys[j] as number, ys[j + 1] as number];
+      const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2];
+      if (boxes.some((b) => cx > b.x && cx < b.x + b.w && cy > b.y && cy < b.y + b.h)) area += (x1 - x0) * (y1 - y0);
+    }
+  }
+  return area;
+}
+
+/** The always-on interface's share of a window (FR-019; D7): its compact boxes in the opening state, the log at its
+ *  rest height and the walking control included, and the notes' reserve, as one union, over the window's area. */
+export function alwaysOnCoverage(
+  screen: { readonly w: number; readonly h: number },
+  metrics: HudMetrics = DEFAULT_METRICS,
+): number {
+  const c = compactBoxes(screen, OPENING, metrics);
+  const clear = hudBoxes(screen, OPENING, metrics).clear;
+  return unionArea([...c.all, notesBox(clear, metrics.rem)]) / (screen.w * screen.h);
 }

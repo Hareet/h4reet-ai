@@ -38,13 +38,14 @@
 // It never polls the status, sends a turn or an event, or stores anything: its asset events go to the page's log with
 // the live switch held off, and to the page's status line, which says how a candidate's load ended; and a pick on the
 // canvas logs spec 002's object_selected in the log too.
-import { PerspectiveCamera, SRGBColorSpace } from "three";
-import type { Material, Mesh, Object3D, WebGLRenderer } from "three";
+import { Box3, PerspectiveCamera, SRGBColorSpace } from "three";
+import type { AnimationClip, Group, Material, Mesh, Object3D, WebGLRenderer } from "three";
 
 import type { RoomFixture, RoomLookdev } from "../../build/room/emit";
 import { createAssetEvents } from "../asset-events";
 import type { AssetEvent } from "../asset-events";
 import { AVATARS } from "../choice/avatars";
+import type { AvatarId, ClipRole } from "../choice/avatars";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "../room/clock";
 import type { MotionStore } from "../room/motion";
@@ -56,7 +57,9 @@ import type { RoomText } from "../room/faces/words";
 import { loadOrder } from "../room/compose/load-order";
 import type { LoadEntry } from "../room/compose/load-order";
 import { framing } from "../room/compose/framing";
-import { clearArea, hudBoxes } from "../room/compose/hud";
+import { frameArea } from "../room/compose/frame";
+import { DEFAULT_METRICS, OPENING, compactBoxes, hudBoxes } from "../room/compose/hud";
+import { protectSceneOf, protectorFor } from "../room/compose/protect";
 import type { Box as ClearBox } from "../room/compose/hud";
 import { REFERENCE_DESKTOP, REFERENCE_PHONE, stageFor } from "../room/compose/stages";
 import type { Screen, Stage } from "../room/compose/stages";
@@ -84,7 +87,7 @@ import type { GlowCards } from "../room/scene/glows";
 import { LABEL_LAYER, createHighlight, drawFrame } from "../room/scene/highlight";
 import type { Highlight } from "../room/scene/highlight";
 import { createTextureLedger } from "../room/scene/ledger";
-import { createLoader, modelEntries, prepareModel, showModel } from "../room/scene/loader";
+import { createLoader, figureEntries, modelEntries, prepareModel, showModel } from "../room/scene/loader";
 import { caseFor } from "../room/signals/tier";
 import { createCostChannel } from "../room/signals/turn-cost";
 import type { CostState, TurnOutcome } from "../room/signals/turn-cost";
@@ -92,6 +95,8 @@ import type { ModelEntry } from "../room/scene/loader";
 import { createInk } from "../room/scene/look";
 import type { Ink } from "../room/scene/look";
 import type { FrameSample } from "./metrics";
+import { HANDS_NODE, caseLabel, disposeHands, drawHands, handsCases } from "./hands";
+import type { HandsDrawn } from "./hands";
 import type { QualityChoice, SceneChoice, ViewChoice } from "./results";
 
 /** The drafts build's inputs: the 3D part, the index, the lookdev inputs, the fixtures, and the room text. */
@@ -150,6 +155,9 @@ export interface LookdevStage {
    *  cap in force; and the HUD's docked boxes, static, over a window view's canvas. */
   readonly window: Screen | null;
   readonly clear: ClearBox;
+  /** Spec 014 (FR-063; contracts/lookdev.md §6): in a window view, the frame area the room is framed into, its ease, as
+   *  the room's kernel gives them; null in a stage view. `clear` is then the frame area too. */
+  readonly frame: { readonly area: ClearBox; readonly ease: number } | null;
   readonly buffer: readonly [number, number];
   readonly cap: number;
   readonly hud: HTMLElement;
@@ -170,6 +178,11 @@ export interface LookdevStage {
   readonly textureBytes: number;
   /** The selectable drawn with the highlight (spec 008, FR-050), or none. */
   readonly highlight: string | null;
+  /** Spec 014's hands view (FR-042; PD-24): each case of lookdev.yaml's `hands.avatars`, its words, and why it doesn't
+   *  draw, or null where it does; empty where the file lists none. */
+  readonly hands: readonly { readonly label: string; readonly why: string | null }[];
+  /** Called after each change of the hands view's cases: a model or a clip taken, or a load ended without one. */
+  onHands(fn: () => void): void;
   setView(view: ViewChoice): void;
   setScene(scene: SceneChoice): void;
   setLook(id: string): void;
@@ -242,6 +255,8 @@ const LARGE_MONITOR: Screen = { w: 2560, h: 1440 };
 function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   const { win, clock, inputs } = options;
   const { part, index, lookdev, fixtures } = inputs;
+  /** Spec 014: the frame area's protector over the part, as the room's 3D stage builds it. */
+  const protect = protectorFor(protectSceneOf(part, index));
   const doc = win.document;
   const canvas = doc.createElement("canvas");
   canvas.className = "lookdev-canvas";
@@ -269,6 +284,18 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     return p ? [p.frame_box] : [];
   });
   const vignette = new Set(lookdev.vignette.show);
+  // Spec 014's hands view (FR-042; PD-24): the listed avatars' files through the loader's figure hooks, asked for the
+  // first time the view shows, from the site's a/ on the site's page; none in the phone copy, which makes no request.
+  const handsCaseList = handsCases(lookdev.hands?.avatars ?? []);
+  const handsFiles = new Map<
+    AvatarId,
+    { model: Object3D | null; clips: Map<ClipRole, AnimationClip>; missed: boolean }
+  >();
+  for (const c of handsCaseList)
+    if (!handsFiles.has(c.avatar)) handsFiles.set(c.avatar, { model: null, clips: new Map(), missed: !options.site });
+  let handsAsked = false;
+  let handsShown: { group: Group; drawn: HandsDrawn[] } | null = null;
+  const handsListeners: (() => void)[] = [];
   const figures = new Set([part.figures.twin, part.figures.visitor]);
   const memberOf = new Map<string, number>();
   index.selectables.forEach((s, i) => {
@@ -325,6 +352,8 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   let ratio = 1;
   let windowed: Screen | null = null;
   let clear: ClearBox = { x: 0, y: 0, w: stage.w, h: stage.h };
+  /** Spec 014: the window view's frame area and its ease, or null. */
+  let framedArea: { readonly area: ClearBox; readonly ease: number } | null = null;
   let buffer: readonly [number, number] = [0, 0];
   let holds = 0;
   let disposed = false;
@@ -387,12 +416,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
   function viewOf(v: ViewChoice): { stage: Stage; dpr: number; window?: Screen } {
     const device = options.device;
     const own = device && { stage: stageFor({ w: device.viewport[0], h: device.viewport[1] }), dpr: device.dpr };
-    // Spec 005's window views: the screen's whole window, its clear area the stage (FR-059; PD-25).
-    const windowed = (screen: Screen, dpr: number): { stage: Stage; dpr: number; window: Screen } => ({
-      stage: stageFor(screen),
-      dpr,
-      window: screen,
-    });
+    // Spec 005's window views: the screen's whole window, its clear area the stage (FR-059; PD-25); since spec 014, its
+    // frame area, by the room's own kernel over the part (its FR-063).
+    const windowed = (screen: Screen, dpr: number): { stage: Stage; dpr: number; window: Screen } => {
+      const f = frameArea(screen, OPENING, DEFAULT_METRICS, protect);
+      return { stage: { w: f.area.w, h: f.area.h }, dpr, window: screen };
+    };
     if (v === "window-desktop") return windowed(REFERENCE_DESKTOP.screen, REFERENCE_DESKTOP.dpr);
     if (v === "window-phone") return windowed(REFERENCE_PHONE.screen, REFERENCE_PHONE.dpr);
     if (v === "window-monitor") return windowed(LARGE_MONITOR, 1);
@@ -411,8 +440,10 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       root.removeAttribute("data-blur");
       return;
     }
+    // Spec 014: the compact boxes the room draws at rest, inside spec 005's bands.
     const b = hudBoxes(windowed);
-    const boxes = [b.strip, b.bar, b.column ?? b.dock ?? b.bar];
+    const c = compactBoxes(windowed);
+    const boxes = [c.strip, c.bar, c.column ?? c.dock ?? c.bar];
     hudParts.forEach((el, k) => {
       const box = boxes[k];
       if (!box) return;
@@ -436,9 +467,12 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     const v = viewOf(view);
     stage = v.stage;
     windowed = v.window ?? null;
-    // The canvas: the stage, or in a window view the whole window, the room framed into its clear area (spec 005).
+    // The canvas: the stage, or in a window view the whole window, the room framed into its clear area (spec 005), since
+    // spec 014 its frame area (its FR-063).
     const size = windowed ?? stage;
-    clear = windowed ? clearArea(windowed) : { x: 0, y: 0, w: stage.w, h: stage.h };
+    const f = windowed ? frameArea(windowed, OPENING, DEFAULT_METRICS, protect) : null;
+    framedArea = f ? { area: f.area, ease: f.ease } : null;
+    clear = f ? f.area : { x: 0, y: 0, w: stage.w, h: stage.h };
     // The room's buffer ratio: the device's, capped by the level's ratio and its pixel cap (spec 005, PD-11).
     ratio = bufferRatio(v.dpr, settings, size.w, size.h);
     buffer = [Math.floor(size.w * ratio), Math.floor(size.h * ratio)];
@@ -447,7 +481,11 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     canvas.style.height = `${size.h}px`;
     renderer.setPixelRatio(ratio);
     renderer.setSize(size.w, size.h, false);
-    spec = frameCamera(camera, stage.w / stage.h, view === "close-up" ? closeUp : framed);
+    spec = frameCamera(
+      camera,
+      stage.w / stage.h,
+      scene === "hands" && handsShown ? handsBoxes(handsShown.group) : view === "close-up" ? closeUp : framed,
+    );
     if (windowed) {
       const o = viewOffsetFor(clear, windowed);
       camera.setViewOffset(o.fullWidth, o.fullHeight, o.x, o.y, o.width, o.height);
@@ -506,8 +544,66 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
         mark(child, on);
       }
     };
-    for (const [id, node] of room.placements) mark(node, scene === "room" || vignette.has(id));
-    for (const child of room.scene.children) if (!nodes.has(child) && drawable(child)) set(child, scene === "room");
+    for (const [id, node] of room.placements)
+      mark(node, scene === "room" || (scene === "vignette" && vignette.has(id)));
+    for (const child of room.scene.children)
+      if (!nodes.has(child) && child.name !== HANDS_NODE && drawable(child)) set(child, scene === "room");
+    // Spec 014's hands view, in place of the room: drawn once its scene first shows, and again as its files arrive.
+    if (scene === "hands") {
+      askHands();
+      if (!handsShown) drawHandsNow();
+    }
+    if (handsShown) {
+      if (handsShown.group.parent !== room.scene) room.scene.add(handsShown.group);
+      handsShown.group.visible = scene === "hands";
+    }
+  }
+
+  /** The hands group's box in world metres, framed as the room's boxes are. */
+  function handsBoxes(group: Object3D): Box[] {
+    group.updateMatrixWorld(true);
+    const b = new Box3().setFromObject(group, true);
+    if (b.isEmpty()) return [{ min: [-0.5, 0, -0.5], max: [0.5, 1.8, 0.5] }];
+    return [{ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] }];
+  }
+
+  /** The hands view's cases drawn again from the files the page has now, in place of the last drawing. */
+  function drawHandsNow(): void {
+    if (handsShown) disposeHands(handsShown.group);
+    handsShown = handsCaseList.length > 0 ? drawHands(handsCaseList, handsFiles, part.figures.grips) : null;
+    if (handsShown) {
+      room.scene.add(handsShown.group);
+      handsShown.group.visible = scene === "hands";
+    }
+    for (const fn of handsListeners) fn();
+  }
+
+  /** The listed avatars' files, asked for once, the site's page alone. */
+  function askHands(): void {
+    if (handsAsked || !options.site || handsCaseList.length === 0) return;
+    handsAsked = true;
+    const avatars = [...handsFiles.keys()];
+    const entries = avatars.flatMap((avatar) =>
+      figureEntries({ figures: { ...part.figures, stand_in: null }, avatars: part.avatars }, avatar, "../"),
+    );
+    for (const avatar of avatars)
+      if (!part.avatars[avatar]) {
+        const own = handsFiles.get(avatar);
+        if (own) own.missed = true;
+      }
+    void loader.loadFigures(entries);
+  }
+
+  /** A hands file's change: the view drawn again where it shows, its list told. */
+  function handsChanged(): void {
+    if (scene === "hands") {
+      drawHandsNow();
+      fit();
+    } else {
+      if (handsShown) disposeHands(handsShown.group);
+      handsShown = null;
+      for (const fn of handsListeners) fn();
+    }
   }
 
   /** The sample state: the fixture's tier applied to each tier switch through the room's own apply, its case by the
@@ -554,8 +650,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     uploader: renderer,
     prepare: (piece, model) => {
       const own = Object.hasOwn(part.pieces, piece) ? part.pieces[piece] : undefined;
-      if (!own) return;
-      prepareModel(model, own, look, room.materials);
+      // Spec 014's hands view: an avatar's model, by its file's key, readied as the room's 3D stage readies one.
+      if (!own && !piece.startsWith("avatar:")) return;
+      prepareModel(model, own ?? { faces: {} }, look, room.materials);
       ink.prepare(model);
     },
     swap: (piece, model) => {
@@ -563,6 +660,28 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       applyScene();
       highlight.refresh();
     },
+    // Spec 014's hands view: the listed avatars' models and clips, as the room's figures take theirs.
+    avatar: (entry, model) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      if (!own) return false;
+      own.model = model;
+      handsChanged();
+      return true;
+    },
+    clip: (entry, clips) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      const first = clips[0];
+      if (!own || entry.figure.role === null || !first) return;
+      own.clips.set(entry.figure.role, first);
+      handsChanged();
+    },
+    figureEnded: (entry, outcome) => {
+      const own = handsFiles.get(entry.figure.avatar);
+      if (!own || outcome === "loaded" || entry.figure.role !== null) return;
+      own.missed = true;
+      handsChanged();
+    },
+    maxSide: part.figures.texture_px,
   });
 
   /** The models from the site's a/, the site's page alone; the page's candidates. */
@@ -684,6 +803,9 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get window() {
       return windowed;
     },
+    get frame() {
+      return framedArea;
+    },
     get clear() {
       return clear;
     },
@@ -725,6 +847,17 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     get highlight() {
       return highlighted;
     },
+    get hands() {
+      const drawn = handsShown?.drawn;
+      return handsCaseList.map((c, i) => {
+        const own = handsFiles.get(c.avatar);
+        const why = drawn?.[i]?.why ?? (own?.missed ? "no model" : "waiting for its model");
+        return { label: caseLabel(c), why: drawn ? (drawn[i]?.why ?? null) : why };
+      });
+    },
+    onHands(fn) {
+      handsListeners.push(fn);
+    },
     setView(next) {
       view = next;
       fit();
@@ -732,6 +865,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
     setScene(next) {
       scene = next;
       applyScene();
+      fit();
     },
     setLook(id) {
       const next = lookdev.looks.find((l) => l.id === id);
@@ -801,6 +935,7 @@ function buildStage(options: StageOptions, undo: (() => void)[]): LookdevStage {
       glows?.dispose();
       highlight.dispose();
       fonts.dispose();
+      if (handsShown) disposeHands(handsShown.group);
       disposeRoom(room);
       renderer.dispose();
       canvas.remove();

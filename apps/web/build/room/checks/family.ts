@@ -50,6 +50,8 @@ export const RULES = {
   RD3: rule("RD", read), // a required key missing, or a value outside its type or range
   RD4: rule("RD", read), // a version other than 1
   RD5: rule("RD", read), // a file in the data folders that isn't one of their kinds
+  RD6: rule("RD", read), // spec 014: a glow's radius or path, its points, and its spread
+  RD7: rule("RD", read), // spec 014: a figures grip's avatar, hand, point, or turn
   RI1: rule("RI", read), // an ID or a name outside its grammar
   RI2: rule("RI"), // a duplicate ID or name
   RI3: rule("RI"), // a retired ID taken again
@@ -59,7 +61,7 @@ export const RULES = {
   RI7: rule("RI"), // a model not under assets/room/, or not recorded
   RI8: rule("RI"), // the root, the figures, and the hand-off
   RI9: rule("RI", read), // a corpus path outside its form
-  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks
+  RI10: rule("RI"), // lookdev.yaml naming a placement the scene lacks, or an avatar outside the table
   RI11: rule("RI"), // a label nothing references
   RG1: rule("RG"), // mounts that aren't one tree
   RG2: rule("RG", readPart), // bounds, faces, glows, and stand-ins; unit vectors (the loader's); px's aspect
@@ -70,6 +72,7 @@ export const RULES = {
   RG7: rule("RG"), // a face under the legibility floor
   RG8: rule("RG", { refuses: false }), // poses apart by less than the floor: reported, never refused
   RG9: rule("RG"), // a region outside its face, or two that overlap
+  RG10: rule("RG"), // spec 014: a path glow's point outside its piece's bounds
   RS1: rule("RS", readPart), // a switch's signal (the loader's), and its cases
   RS2: rule("RS"), // poses against claims; a placed switch piece; two poses claiming one value
   RS3: rule("RS"), // a case showing a pose that claims another value

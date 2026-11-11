@@ -152,6 +152,9 @@ export interface RoomIndex {
     }[];
     faces: { face: string; matrix: Matrix2D; size: [number, number] }[];
     hits: { selectable: string; rects: [number, number, number, number][]; depths: number[] }[];
+    /** Spec 014 (FR-003; PD-23): the two figures' framed boxes in the view box, the twin's then the visitor's, as the
+     *  hits are projected: what the 2D drawing's frame area keeps clear of the HUD. */
+    figures: [number, number, number, number][];
     labels: { placement: string; label: string; at: [number, number] }[];
     papers: [[number, number], [number, number], [number, number]];
     visitor: { x: number; baseline: number; scale: number };
@@ -205,7 +208,12 @@ export interface RoomScene {
       anchors: Record<string, { at: Vec3; turn: Turn }>;
       standin: Shape[];
       faces: Record<string, { at: Vec3; size: [number, number]; facing: Vec3; up: Vec3 }>;
-      glows: Record<string, { at: Vec3; radius: number; tone: string; motion: GlowMotion; level: number }>;
+      /** A disc glow's `at` and `radius`, or since spec 014 a path glow's `path` and `spread` (its FR-045), in the
+       *  piece's frame at scale 1. */
+      glows: Record<
+        string,
+        { at?: Vec3; radius?: number; path?: Vec3[]; spread?: number; tone: string; motion: GlowMotion; level: number }
+      >;
     }
   >;
   placements: {
@@ -254,6 +262,9 @@ export interface RoomScene {
     texture_px: number;
     wait_ms: number;
     twin_height: number;
+    /** Spec 014 (FR-039; W16): each avatar's grip per hand, from the scene's figures block, in the hand bone's frame
+     *  (metres at the room's scale, degrees); an absent avatar or hand takes the computed default (scene/grip.ts). */
+    grips?: Partial<Record<AvatarId, Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>>>>;
   };
   handoff: { from: { placement: string; anchor: string }; to: { placement: string; anchor: string } };
   /** Placement IDs with a set model, a switch's pose named `<switch>.<pose>` (plan.md §10). */

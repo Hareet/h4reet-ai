@@ -120,6 +120,28 @@ body.in-room .disclosure p {
   --safe-left: 0px;
   --keyboard: 0px;
   --notes-h: 0px;
+  /* Spec 014 (FR-022 to FR-026; plan.md §4, PD-8): the look's new properties, beside spec 005's, which keep their
+     values: the neon's warm tone as the hover and selection edge, a tint lighter than its tube's #ffb08a so the edge
+     reaches 3:1 against the glass over white too; a tile's lit face, one step lighter; the notes' chips, the glass
+     itself; and the faces the site already serves, the chalkboard's for headings and the mono for figures. */
+  --accent-neon: #ffc8a8;
+  --tile-face-lit: rgb(40 46 56 / 0.55);
+  --chip-face: rgb(var(--glass) / var(--glass-alpha));
+  /* T053 (the review's I3): the walking control's hover face, the glass a step denser, opaque with the glass. */
+  --glass-alpha-lit: 0.75;
+  --heading-font: "Patrick Hand", cursive;
+  --figure-font: "IBM Plex Mono", ui-monospace, monospace;
+  --strip-x: 0px;
+  --strip-w: 0px;
+  --bar-w: 0px;
+  --column-h: 0px;
+  --log-rest: 0px;
+  --frame-x: 0px;
+  --frame-y: 0px;
+  --frame-w: 0px;
+  --frame-h: 0px;
+  --walk-x: 0px;
+  --walk-y: 0px;
 }
 
 /* The glass is opaque, with no blur, where the visitor asks for less transparency or more contrast, and where the
@@ -129,6 +151,12 @@ body.in-room .disclosure p {
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
+  }
+
+  /* T053's second review: the walking control's hover opaque whatever its own rule says. */
+  :root[data-hud] .room-walk:hover {
+    background: rgb(var(--glass));
   }
 
   .hud-glass,
@@ -141,6 +169,7 @@ body.in-room .disclosure p {
 @media (prefers-contrast: more) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
   }
 
   .hud-glass,
@@ -153,6 +182,7 @@ body.in-room .disclosure p {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --glass-alpha: 1;
+    --glass-alpha-lit: 1;
   }
 
   .hud-glass,
@@ -211,8 +241,9 @@ html[data-hud="dock"] .room-stage {
   inset: 0;
 }
 
-/* The stage's view: the canvas's place. In 3D it fills the stage; loading, and in 2D, it sits in the clear area, the
-   drawing at its 8:5 shape inside it (`.flat`, its container). */
+/* The stage's view: the canvas's place. In 3D it fills the stage; loading, it sits in the clear area; in 2D, since spec
+   014, in the 2D drawing's frame area (its FR-003; plan.md §2.5), the drawing at its 8:5 shape inside it (`.flat`, its
+   container), centred, so the backdrop shows around it across the window. */
 .room-stage-view {
   position: absolute;
   inset: 0;
@@ -222,8 +253,6 @@ html[data-hud="dock"] .room-stage {
   container-type: size;
 }
 
-html[data-hud="column"] .room-stage-view[data-stage="2d"],
-html[data-hud="dock"] .room-stage-view[data-stage="2d"],
 html[data-hud="column"] .room-stage-view[data-stage="loading"],
 html[data-hud="dock"] .room-stage-view[data-stage="loading"] {
   inset: auto;
@@ -231,6 +260,15 @@ html[data-hud="dock"] .room-stage-view[data-stage="loading"] {
   top: var(--clear-y);
   width: var(--clear-w);
   height: var(--clear-h);
+}
+
+html[data-hud="column"] .room-stage-view[data-stage="2d"],
+html[data-hud="dock"] .room-stage-view[data-stage="2d"] {
+  inset: auto;
+  left: var(--frame-x);
+  top: var(--frame-y);
+  width: var(--frame-w);
+  height: var(--frame-h);
 }
 
 .room-loading,
@@ -469,6 +507,29 @@ html[data-hud="dock"] .hud-panels {
   background: rgb(var(--glass) / var(--glass-alpha));
 }
 
+/* Spec 014's compact clusters (its FR-017 to FR-021; plan.md §3.2, PD-3 to PD-7): in the column layout, inside spec
+   005's bands, the strip as wide as its words' bound and centred at the top, the bar's tiles one cluster at the foot's
+   right under the column, and the column as tall as its content at its band's foot, its log resting at --log-rest. Each
+   size is compose/hud.ts's compactBoxes, set by layout.ts; the dock keeps spec 005's bands. */
+html[data-hud="column"] .disclosure {
+  left: var(--strip-x);
+  right: auto;
+  width: var(--strip-w);
+}
+
+html[data-hud="column"] .hud-bar {
+  left: auto;
+  right: var(--safe-right);
+  width: var(--bar-w);
+  justify-content: flex-end;
+  padding: 0.25rem 0.25rem calc(0.25rem + var(--safe-bottom));
+}
+
+html[data-hud="column"] .hud-panels {
+  top: auto;
+  height: var(--column-h);
+}
+
 /* One place for each press (spec 005, FR-030 to FR-033; plan.md §7): the strip, the bar, and the panels take their own
    pointer over the canvas, so the scene sees none of it; the column, the dock, and the log keep a wheel at their end to
    themselves, so it never scrolls the page under them; the notes and the clear box let a pointer through. */
@@ -512,7 +573,9 @@ html[data-hud="column"] .talk {
 html[data-hud="column"] .talk-log {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: none;
+  /* Spec 014 (FR-018; PD-7): at rest, a few lines that scroll; the larger view's rule lifts it. */
+  max-height: var(--log-rest);
+  overflow-y: auto;
 }
 
 /* The dock: the conversation's log is a sheet above it, at most 4.75rem, shown once it holds a line; its form stays in
@@ -596,9 +659,6 @@ html[data-hud="dock"] .hud-tile {
   border: 1px solid var(--tile-border);
   border-radius: 0.5rem;
   text-decoration: none;
-  transition:
-    transform 150ms ease-out,
-    opacity 150ms ease-out;
 }
 
 html[data-hud="column"] .hud-tile:active,
@@ -637,9 +697,22 @@ html[data-hud="dock"] .hud-glass a:focus-visible,
 html[data-hud="column"] .hud-glass input:focus-visible,
 html[data-hud="dock"] .hud-glass input:focus-visible,
 html[data-hud="column"] .hud-glass.room-walk:focus-visible,
-html[data-hud="dock"] .hud-glass.room-walk:focus-visible {
+html[data-hud="dock"] .hud-glass.room-walk:focus-visible,
+html[data-hud="column"] .room-offer button:focus-visible,
+html[data-hud="dock"] .room-offer button:focus-visible {
   outline: 2px solid var(--hud-focus);
   outline-offset: 2px;
+}
+
+/* Since T053 (spec 014's Amendment W19; the Author's answer, "Move the walk control (Recommended)"): on a column window
+   whose band has room above the column's content, the walking control sits at the column's head, at its right, at
+   compose/hud.ts's compactBoxes place, which the room sets as --walk-x and --walk-y in the window's pixels. Its DOM
+   place, and so the Tab order, stays spec 008's. */
+html[data-hud="column"][data-walk-place="column"] .room-walk {
+  left: calc(var(--walk-x) - var(--clear-x));
+  top: calc(var(--walk-y) - var(--clear-y));
+  right: auto;
+  bottom: auto;
 }
 
 /* The walking control over the scene: a glass tile of its own, where no panel lies behind it. */
@@ -661,6 +734,120 @@ html[data-hud="dock"] .hud-glass .talk-link,
 html[data-hud="dock"] .hud-glass .talk-message a {
   color: var(--hud-text);
   text-decoration: underline;
+}
+
+/* Spec 014's look (its FR-022 to FR-028; plan.md §4, PD-8, PD-9; Q3): every HUD control a tile on the glass. The panels'
+   buttons (the list's and its header toggle, the conversation's Send or Stop, talk, header, and larger-view controls)
+   and the hand-off's offer's take the tile's face, border, radius, and size; the bar's tiles and the walking control
+   keep their own rules, which outrank this one, and the resume, outside the panels, stays spec 005's document. */
+html[data-hud="column"] .hud-panels button,
+html[data-hud="dock"] .hud-panels button,
+html[data-hud="column"] .room-offer button,
+html[data-hud="dock"] .room-offer button {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  color: var(--hud-text);
+  background: var(--tile-face);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.5rem;
+}
+
+/* A link-like button in the conversation stays a link on the glass. */
+html[data-hud="column"] .hud-panels .talk-link,
+html[data-hud="dock"] .hud-panels .talk-link {
+  background: none;
+  border: 0;
+}
+
+/* Hover and selection (FR-025): the neon's warm edge, a 1-pixel ring inside it, and a lighter face, beyond colour;
+   pressed keeps spec 005's inset ring and underline; focus keeps the yellow ring. Since T053 (the review's I3) both
+   name the HUD's own buttons alone, the panels', the bar's, and the offer's, so the resume keeps resume.css's look
+   (FR-022); and hover applies only where the pointer can hover, so a tap leaves none behind. */
+html[data-hud="column"] .hud-panels button[aria-current="true"],
+html[data-hud="dock"] .hud-panels button[aria-current="true"] {
+  border-color: var(--accent-neon);
+  background: var(--tile-face-lit);
+  box-shadow: inset 0 0 0 1px var(--accent-neon);
+}
+
+@media (hover: hover) {
+  html[data-hud="column"] .hud-panels button:hover,
+  html[data-hud="dock"] .hud-panels button:hover,
+  html[data-hud="column"] .hud-bar button:hover,
+  html[data-hud="dock"] .hud-bar button:hover,
+  html[data-hud="column"] .hud-bar a.hud-tile:hover,
+  html[data-hud="dock"] .hud-bar a.hud-tile:hover,
+  html[data-hud="column"] .room-offer button:hover,
+  html[data-hud="dock"] .room-offer button:hover {
+    border-color: var(--accent-neon);
+    background: var(--tile-face-lit);
+    box-shadow: inset 0 0 0 1px var(--accent-neon);
+  }
+
+  /* The walking control lies over the scene, not on a panel: its hover is the glass a step denser, which keeps its
+     words at 4.5:1 over a light scene and is opaque where the glass is. */
+  html[data-hud="column"] .room-walk:hover,
+  html[data-hud="dock"] .room-walk:hover {
+    border-color: var(--accent-neon);
+    background: rgb(var(--glass) / var(--glass-alpha-lit));
+    box-shadow: inset 0 0 0 1px var(--accent-neon);
+  }
+}
+
+html[data-hud="column"] .hud-panels button[aria-pressed="true"],
+html[data-hud="dock"] .hud-panels button[aria-pressed="true"] {
+  color: var(--hud-text);
+  background: var(--tile-face);
+  box-shadow: inset 0 0 0 2px var(--hud-text);
+  text-decoration: underline;
+}
+
+/* The notes are glass chips with light words, letting a pointer through (FR-023); the offer sits on the glass. */
+html[data-hud="column"] .room-note,
+html[data-hud="dock"] .room-note {
+  /* At most compose/hud.ts's notes.maxRem wide, so a note that says two things wraps into its reserved lines. */
+  max-width: 26rem;
+  box-sizing: border-box;
+  color: var(--hud-text);
+  background: var(--chip-face);
+  border: 1px solid var(--tile-border);
+  border-radius: 0.375rem;
+}
+
+html[data-hud="column"] .room-offer,
+html[data-hud="dock"] .room-offer {
+  color: var(--hud-text);
+  background: rgb(var(--glass) / var(--glass-alpha));
+  border-color: var(--tile-border);
+}
+
+/* The type (FR-024): the headings in the chalkboard's hand-lettered face, the words in the site's sans (fonts.css's
+   body), the figures in its mono. */
+html[data-hud="column"] .room-list-heading,
+html[data-hud="dock"] .room-list-heading,
+html[data-hud="column"] .talk-head,
+html[data-hud="dock"] .talk-head {
+  font-family: var(--heading-font);
+}
+
+html[data-hud="column"] .talk-counter,
+html[data-hud="dock"] .talk-counter {
+  font-family: var(--figure-font);
+}
+
+/* Motion (FR-027): at most 150 ms, and none under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-hud="column"] .hud-tile,
+  html[data-hud="dock"] .hud-tile,
+  html[data-hud="column"] .hud-panels button,
+  html[data-hud="dock"] .hud-panels button {
+    transition:
+      border-color 120ms ease-out,
+      background-color 120ms ease-out,
+      transform 120ms ease-out,
+      opacity 120ms ease-out;
+  }
 }
 
 /* The header buttons, the list's and the log's (FR-023): a chevron down while open, turned while collapsed. */
@@ -710,10 +897,12 @@ html[data-hud="dock"] .room-list li {
 }
 
 /* The column's larger conversation view (FR-028): the sheet beside the column, over the scene, up to half the window's
-   width, its foot clear of the walking control; never a re-fit. */
+   width, its foot clear of the walking control; never a re-fit. Since spec 014 its containing block, the panels, is the
+   compact column at its band's foot, so its top reaches back up the band to the notes' foot, where spec 005 put it
+   (T053's second review; FR-019 counts what the visitor opens in no HUD box). */
 html[data-hud="column"] .talk[data-larger="on"] .talk-sheet {
   position: absolute;
-  top: var(--notes-h);
+  top: calc(var(--notes-h) + var(--column-h) - var(--clear-h));
   right: 100%;
   bottom: 3.75rem;
   width: 50vw;
@@ -878,10 +1067,18 @@ html[data-hud="dock"] .resume-panel {
 
   .hud-bar button,
   .hud-bar a,
-  :root[data-hud] .hud-tile {
+  :root[data-hud] .hud-tile,
+  :root[data-hud] .hud-panels button,
+  :root[data-hud] .room-offer button {
     color: ButtonText;
     background: ButtonFace;
     border-color: ButtonText;
+  }
+
+  :root[data-hud] .room-note,
+  :root[data-hud] .room-offer {
+    color: CanvasText;
+    background: Canvas;
   }
 
   .room button:focus-visible,
@@ -890,8 +1087,16 @@ html[data-hud="dock"] .resume-panel {
   :root[data-hud] .hud-glass a:focus-visible,
   :root[data-hud] .hud-glass input:focus-visible,
   :root[data-hud] .hud-glass.room-walk:focus-visible,
+  :root[data-hud] .room-offer button:focus-visible,
   :root[data-hud] .room-stage-view[role="application"]:focus-visible + .room-clear {
     outline-color: Highlight;
+  }
+
+  /* T053's second review: the walking control's hover in the system's colours, outranking its glass hover. */
+  :root[data-hud] .room-walk:hover {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: Highlight;
   }
 }
 

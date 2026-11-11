@@ -13,8 +13,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RoomScene } from "../../src/room/compose/bundle";
 import { framing } from "../../src/room/compose/framing";
-import { clearArea, reservedBoxes } from "../../src/room/compose/hud";
+import { frameArea, reservedIn } from "../../src/room/compose/frame";
+import { DEFAULT_METRICS, OPENING, clearArea, compactBoxes, reservedBoxes } from "../../src/room/compose/hud";
 import type { Box } from "../../src/room/compose/hud";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import { listOnly } from "../../src/room/compose/pick";
 import { bufferRatio, viewOffsetFor } from "../../src/room/fit";
 import { createScene } from "../../src/room/scene";
@@ -86,7 +88,7 @@ const STEPS = [
 ] as const;
 const RATIOS = [1, 2, 1.5] as const;
 
-function run() {
+function run(withFrame = false) {
   const { scene: part, index } = repositoryBundle() as {
     scene: RoomScene;
     index: ReturnType<typeof repositoryBundle>["index"];
@@ -114,6 +116,15 @@ function run() {
   const selected: string[] = [];
   const window = { w: 1280, h: 720, dpr: 1 };
   let clear: Box = clearArea(window);
+  // Spec 014 (T015): the room's frame area, as app.ts computes it from the stage's protector, given through frame().
+  const protect = protectorFor(protectSceneOf(part, index));
+  let broken = false;
+  const given = () => {
+    const screen = { w: window.w, h: window.h };
+    const f = frameArea(screen, OPENING, DEFAULT_METRICS, protect);
+    const area = broken ? { x: Number.NaN, y: 0, w: screen.w, h: screen.h } : f.area;
+    return { window: screen, area, ease: f.ease, hud: compactBoxes(screen).all, clear: clearArea(screen) };
+  };
   const stage = createScene({
     win,
     doc: win.document,
@@ -124,6 +135,7 @@ function run() {
     select: (id) => selected.push(id),
     onFrame: () => undefined,
     clear: () => ({ area: clear, window: { w: window.w, h: window.h } }),
+    ...(withFrame ? { frame: given } : {}),
   });
   Object.defineProperty(stage.canvas, "clientWidth", { configurable: true, get: () => window.w });
   Object.defineProperty(stage.canvas, "clientHeight", { configurable: true, get: () => window.h });
@@ -142,7 +154,10 @@ function run() {
     stage.canvas.dispatchEvent(new win.PointerEvent("pointerup", init));
   };
   const view = win.document.getElementById("view") as HTMLElement;
-  return { part, index, stage, clock, calls, drawn, selected, resize, tap, view, window };
+  const breakFrame = (on: boolean): void => {
+    broken = on;
+  };
+  return { part, index, stage, clock, calls, drawn, selected, resize, tap, view, window, given, breakFrame };
 }
 
 describe("the 3D stage at the window (spec 005, T015)", () => {
@@ -249,6 +264,105 @@ describe("the 3D stage at the window (spec 005, T015)", () => {
     expect(r.selected).toEqual([]);
     const end = figure();
     expect(Math.hypot(end.x - goal.x, end.z - goal.z), "the figure's distance from the goal").toBeLessThan(0.05);
+    r.stage.dispose();
+  });
+});
+
+// T015 (spec 014; FR-004, FR-012 to FR-015; contracts/frame-area.md §7; plan.md §2.4): the room's frame area given
+// through SceneOptions.frame(), as app.ts computes it from the stage's protector. At 1920 × 1200 and 2560 × 1440 the
+// camera is framed at the frame area's aspect and its projection shifted by viewOffsetFor(area, canvas); a press at each
+// pressable selectable's core selects it and a press on each compact box selects nothing; a frame area that isn't finite
+// frames into the clear area it came with; and the hand-off and the walking view's end take the room's view.
+describe("the 3D stage in its frame area (spec 014, T015)", () => {
+  const SCREENS = [
+    { w: 1920, h: 1200 },
+    { w: 2560, h: 1440 },
+  ] as const;
+
+  it("frames the camera at the frame area's aspect, shifted by viewOffsetFor(area, canvas)", () => {
+    const r = run(true);
+    for (const { w, h } of SCREENS) {
+      r.resize(w, h, 1);
+      const { area } = r.given();
+      const camera = r.drawn.camera;
+      if (!camera) throw new Error("no frame drawn");
+      expect(camera.aspect).toBeCloseTo(area.w / area.h, 12);
+      const o = viewOffsetFor(area, { w, h });
+      if (area.x === 0 && area.y === 0 && area.w === w && area.h === h)
+        expect(camera.view?.enabled ?? false).toBe(false);
+      else
+        expect(camera.view).toMatchObject({
+          enabled: true,
+          fullWidth: o.fullWidth,
+          fullHeight: o.fullHeight,
+          offsetX: o.x,
+          offsetY: o.y,
+          width: o.width,
+          height: o.height,
+        });
+      const spec = framing(area.w / area.h, framedBoxes(r.part));
+      expect(camera.position.toArray()).toEqual(spec.position);
+    }
+    r.stage.dispose();
+  });
+
+  it("selects each pressable selectable at its core, and nothing at a compact box", () => {
+    const r = run(true);
+    const sideWall = new Set(r.index.selectables.filter((s) => s.side_wall).map((s) => s.id));
+    for (const { w, h } of SCREENS) {
+      r.resize(w, h, 1);
+      const { area, hud } = r.given();
+      const camera = framing(area.w / area.h, framedBoxes(r.part));
+      const areas = pickAreasOn(r.part, r.index, camera, area);
+      const held = listOnly(areas, [0, 0, area.w, area.h], sideWall, reservedIn(area, hud));
+      let pressed = 0;
+      for (const a of areas) {
+        if (held.has(a.id) || !a.core) continue;
+        const [x, y, cw, ch] = a.core;
+        r.selected.length = 0;
+        r.tap(area.x + x + cw / 2, area.y + y + ch / 2);
+        expect(r.selected, `${a.id} at ${w} × ${h}`).toEqual([a.id]);
+        pressed += 1;
+      }
+      expect(pressed).toBeGreaterThan(0);
+      for (const b of hud) {
+        r.selected.length = 0;
+        r.tap(b.x + b.w / 2, b.y + b.h / 2);
+        expect(r.selected, `a press at a compact box at ${w} × ${h}`).toEqual([]);
+      }
+    }
+    r.stage.dispose();
+  });
+
+  it("frames into the clear area it came with when the frame area isn't finite (FR-004)", () => {
+    const r = run(true);
+    r.resize(1920, 1200, 1);
+    r.breakFrame(true);
+    r.clock.advance(16);
+    const clear = clearArea({ w: 1920, h: 1200 });
+    const camera = r.drawn.camera;
+    if (!camera) throw new Error("no frame drawn");
+    expect(camera.aspect).toBeCloseTo(clear.w / clear.h, 12);
+    expect(camera.view).toMatchObject({ enabled: true, fullWidth: clear.w, fullHeight: clear.h, offsetY: -clear.y });
+    r.stage.dispose();
+  });
+
+  it("draws the hand-off and ends the walking view at the room's view in its frame area (FR-015)", () => {
+    const r = run(true);
+    r.resize(1920, 1200, 1);
+    const { area } = r.given();
+    r.stage.showHandoff(0.5);
+    r.clock.advance(16);
+    const spec = framing(area.w / area.h, framedBoxes(r.part));
+    expect(r.drawn.camera?.position.toArray()).toEqual(spec.position);
+    r.stage.walk.enter(r.view);
+    for (let k = 0; k < 10; k += 1) r.clock.advance(16);
+    r.stage.walk.leave();
+    for (let k = 0; k < 60; k += 1) r.clock.advance(16);
+    const camera = r.drawn.camera;
+    if (!camera) throw new Error("no frame drawn");
+    expect(camera.aspect).toBeCloseTo(area.w / area.h, 12);
+    expect(camera.position.toArray()).toEqual(spec.position);
     r.stage.dispose();
   });
 });

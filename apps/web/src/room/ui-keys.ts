@@ -47,6 +47,8 @@ export const UI_KEYS = {
   // A stand-in's label, the placeholder note, and the drafts' badge (FR-013, FR-029, FR-030).
   "standin.label": ["name"],
   "standin.note": [],
+  // Spec 014 (FR-054, FR-066; Amendment W12; D11): the visitor's figure's placeholder note.
+  "standin.avatar": [],
   "draft.badge": [],
   // The stage's line when the 2D drawing can't be drawn (FR-081).
   "flat-failed": [],

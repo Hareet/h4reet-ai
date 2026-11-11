@@ -30,6 +30,7 @@ import {
   flatScale,
   supportedStages,
 } from "../../src/room/compose/stages";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
 import type { Stage } from "../../src/room/compose/stages";
 import { flatPicker } from "../../src/room/flat";
 import { framedBoxes, pickAreasOn, selectablePicker } from "../../src/room/scene/bundle3d";
@@ -319,7 +320,9 @@ describe("FR-064's carve-out, as the report lists it (T302)", () => {
     const { scene: part, index } = room();
     const walls = [...sideWalls()];
     const picker = selectablePicker(part, index);
-    for (const stage of supportedStages()) {
+    // Spec 014 (FR-060): the supported stages are the frame areas, each with its HUD boxes reserved, which the runtime's
+    // picker takes as the room's 3D stage gives them.
+    for (const stage of supportedStages(protectorFor(protectSceneOf(part, index)))) {
       picker.resize(stage);
       const areas = areas3d(stage);
       for (const id of walls) {

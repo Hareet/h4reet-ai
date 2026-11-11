@@ -37,7 +37,7 @@ import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
 
-import { AVATARS } from "../../src/choice/avatars";
+import { isAvatarId } from "../../src/choice/avatars";
 import type { AvatarId } from "../../src/choice/avatars";
 import type {
   Highlight,
@@ -71,10 +71,11 @@ import { gzip9 } from "../../src/room/glb/gzip";
 import { readImage } from "../../src/room/glb/images";
 import { roomEventsFile, roomManifest, roomTopicsFile } from "../manifest";
 import { avatarsOf, bundledFiles } from "./avatars";
+import type { FigureBlock } from "./avatars";
 import type { AvatarSet, FileRole } from "./avatars";
 import { RULE_IDS } from "./checks/family";
 import type { ComposeOptions, Finding } from "./checks/family";
-import { faceScreens, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
+import { faceScreens, flatFigures, flatMembers, geometry, lookTypefaces, sideWallsOf } from "./checks/rg";
 import type { Geometry } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { fillHints, indexHints } from "./hints";
@@ -112,6 +113,8 @@ export interface RoomFixture {
 export interface RoomLookdev {
   readonly vignette: { readonly show: readonly string[] };
   readonly close_up: { readonly frame: readonly string[] };
+  /** Spec 014 (FR-042; PD-24): the hands view's avatars, where lookdev.yaml lists any. */
+  readonly hands?: { readonly avatars: readonly AvatarId[] };
   readonly looks: readonly Look[];
   /** Each piece's fit inputs: its expected bounds and live faces at the stylized scale, its budget, whether the caps
    *  list it as a small prop. */
@@ -934,6 +937,7 @@ function flatOf(c: Composed, faces: readonly RoomIndex["faces"][number][]): Room
     poses,
     faces: frames,
     hits,
+    figures: c.geometry ? flatFigures(c.geometry) : [],
     labels,
     papers: [paper(from), paper(middle), paper(to)],
     visitor: at
@@ -1174,9 +1178,11 @@ function pieceOf(c: Composed, entry: CatalogEntry): RoomScene["pieces"][string] 
       facing: vec(f.facing),
       up: vec(f.up ?? UP),
     })),
+    // A disc glow's centre and radius, or since spec 014 a path glow's points and spread (its FR-045).
     glows: sortedMap(glows, (g) => ({
-      at: vec(g.at),
-      radius: m6(g.radius),
+      ...(g.path === undefined
+        ? { at: vec(g.at ?? [0, 0, 0]), radius: m6(g.radius ?? 0) }
+        : { path: g.path.map(vec), spread: m6(g.spread ?? 0) }),
       tone: g.tone,
       motion: g.motion,
       level: m6(g.level),
@@ -1331,6 +1337,8 @@ function sceneBody(c: Composed): Omit<RoomScene, "digest"> {
       texture_px: c.avatars.figures.texture_px,
       wait_ms: c.avatars.figures.wait_ms,
       twin_height: m6((twin && c.pieces.get(twin.piece)?.value.size.h) ?? 0),
+      // Spec 014 (FR-039): the grips, each avatar of the table's and each hand's, as the scene gives them.
+      ...(c.avatars.figures.grips === undefined ? {} : { grips: gripsOf(c.avatars.figures.grips) }),
     },
     handoff: {
       from: { placement: scene?.handoff.from.placement ?? "", anchor: scene?.handoff.from.anchor ?? "" },
@@ -1467,6 +1475,7 @@ function lookdevOf(c: Composed): RoomLookdev {
   return {
     vignette: { show: [...(lookdev?.vignette.show ?? [])] },
     close_up: { frame: [...(lookdev?.close_up.frame ?? [])] },
+    ...(lookdev?.hands ? { hands: { avatars: lookdev.hands.avatars.filter(isAvatarId) } } : {}),
     looks: c.room.looks.map((l) => lookOf(l.value)),
     pieces,
     caps: {
@@ -1537,13 +1546,6 @@ function standinsOf(c: Composed): RoomManifest["standins"] {
   return out;
 }
 
-/** Whether an avatar is still a placeholder: the twin without its GLB under assets/twin/, or a visitor's avatar
- *  without assets/visitors/<avatar>/<avatar>.glb (spec 003's files). */
-function avatarsPlaceholder(tree: Tree): boolean {
-  const twin = tree.list("assets/twin").some((name) => name.endsWith(".glb"));
-  return !twin || AVATARS.some((a) => !tree.list(`assets/visitors/${a.id}`).includes(`${a.id}.glb`));
-}
-
 const ITEM_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
 /** The resume's item IDs, in order, once each: spec 002's manifest's items; none where the source doesn't read. */
@@ -1573,7 +1575,9 @@ function itemIds(tree: Tree): string[] {
 export const emit: Emit = (room, policy, options, findings, reader) => {
   const c = prepare(room, policy, options, findings, reader);
   const standins = standinsOf(c);
-  const placeholders = standins.length > 0 || avatarsPlaceholder(reader.tree);
+  // Spec 014 (FR-053; PD-17; Amendment W11): the room's stand-ins alone; the page adds a piece that falls back, and the
+  // visitor's figure says its own words.
+  const placeholders = standins.length > 0;
   const scenePart = sceneBody(c);
   const indexPart = indexBody(c, placeholders, loadedModels(scenePart));
   const digest = sha256(`${serialize(indexPart)}\n${serialize(scenePart)}`);
@@ -1646,3 +1650,24 @@ export const emit: Emit = (room, policy, options, findings, reader) => {
     report: roomReport(c, digest, index),
   };
 };
+
+/** The scene's grips as the 3D part carries them (spec 014, FR-039): only the table's avatars and the two hands, which
+ *  RD7 holds the data to, each number on the bundle's grid. */
+function gripsOf(grips: NonNullable<FigureBlock["grips"]>): NonNullable<RoomScene["figures"]["grips"]> {
+  type GripIn = { readonly at: readonly [number, number, number]; readonly turn: Turn };
+  const out: NonNullable<RoomScene["figures"]["grips"]> = {};
+  for (const [avatar, hands] of Object.entries(grips) as [string, Readonly<Record<string, GripIn>>][]) {
+    if (!isAvatarId(avatar)) continue;
+    const entry: Partial<Record<"right" | "left", { at: Vec3; turn: Turn }>> = {};
+    for (const hand of ["right", "left"] as const) {
+      const g = hands[hand];
+      if (g)
+        entry[hand] = {
+          at: [m6(g.at[0]), m6(g.at[1]), m6(g.at[2])],
+          turn: { x: m6(g.turn.x), y: m6(g.turn.y), z: m6(g.turn.z) },
+        };
+    }
+    out[avatar] = entry;
+  }
+  return out;
+}

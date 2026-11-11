@@ -1030,3 +1030,110 @@ describe("a finding's path (contracts/room-data-files.md §14)", () => {
     expect(formatPath(["Bad Key"])).toBe("-");
   });
 });
+
+// T031 (spec 014; FR-039; plan.md PD-16; T001's RD7): the scene's figures block's grips, from an avatar of the room's
+// table to `right` and `left`, each `{ at, turn }`: an avatar outside the table, a hand but the two, an `at` past ±0.15,
+// and a turn past ±180 are each refused by RD7; a good grip is read whole, with its numbers.
+describe("the figures' grips (spec 014, T031)", () => {
+  const GOOD = { at: [0.02, -0.06, 0.03], turn: { x: 0, y: 10, z: 180 } };
+  const withGrips = (grips: unknown): Uint8Array =>
+    variant(FILES.scene, (d) => {
+      // Copied whole, so YAML writes no anchor for a value used twice (RD1 refuses one).
+      d.figures = { ...(d.figures as Doc | undefined), grips: JSON.parse(JSON.stringify(grips)) as unknown };
+    });
+  it("reads a good grip whole", () => {
+    const { value, seen } = judge("scene", withGrips({ man: { right: GOOD, left: GOOD }, woman: { left: GOOD } }));
+    expect(seen).toEqual([]);
+    expect(at(value as Doc, "figures", "grips", "man", "right")).toEqual(GOOD);
+  });
+  it.each([
+    ["an avatar outside the room's table", { robot: { right: GOOD } }, "RD7 figures.grips.robot"],
+    ["a hand but right and left", { man: { middle: GOOD } }, "RD7 figures.grips.man.middle"],
+    ["an at past 0.15", { man: { right: { ...GOOD, at: [0.16, 0, 0] } } }, "RD7 figures.grips.man.right.at[0]"],
+    ["an at past -0.15", { man: { right: { ...GOOD, at: [0, -0.2, 0] } } }, "RD7 figures.grips.man.right.at[1]"],
+    [
+      "a turn past 180",
+      { man: { right: { ...GOOD, turn: { x: 181, y: 0, z: 0 } } } },
+      "RD7 figures.grips.man.right.turn.x",
+    ],
+    [
+      "a turn past -180",
+      { woman: { left: { ...GOOD, turn: { x: 0, y: 0, z: -190 } } } },
+      "RD7 figures.grips.woman.left.turn.z",
+    ],
+  ])("refuses %s", (_, grips, expected) => {
+    expect(judge("scene", withGrips(grips)).seen).toContain(expected);
+  });
+});
+
+// T035 (spec 014; FR-006, FR-045; plan.md PD-16; T001's RD6): a catalog glow gives exactly one of `radius` and `path`,
+// a path at least two points with a `spread` in (0, 0.05]. Both, neither, one point, a spread of 0 or above 0.05, a
+// spread without a path, and a path without a spread are each refused by RD6; a path glow without a radius is read
+// whole. (A point outside the piece's bounds is RG10's, the compose's: bad/RG10-glow-path.)
+describe("a path glow's shape (spec 014, T035)", () => {
+  const NEON_FILE = "apps/web/room/catalog/fx-neon.yaml";
+  const PATH = [
+    [-0.2, 0.05, 0.01],
+    [0.2, 0.05, 0.01],
+    [0.2, 0.15, 0.01],
+    [-0.2, 0.05, 0.01],
+  ];
+  const glowWith = (change: (g: Doc) => void): Uint8Array =>
+    variant(NEON_FILE, (d) => {
+      const g = at(d, "glows", 0);
+      change(g);
+    });
+  it("reads a path glow with a spread and no radius whole", () => {
+    const { value, seen } = judge(
+      "catalog",
+      glowWith((g) => {
+        delete g.radius;
+        delete g.at;
+        g.path = PATH;
+        g.spread = 0.015;
+      }),
+      NEON_FILE,
+    );
+    expect(seen).toEqual([]);
+    expect(at(value as Doc, "glows", 0).path).toEqual(PATH);
+  });
+  it.each([
+    ["both a radius and a path", (g: Doc) => Object.assign(g, { path: PATH, spread: 0.01 })],
+    ["neither a radius nor a path", (g: Doc) => delete g.radius],
+    [
+      "a path of one point",
+      (g: Doc) => {
+        delete g.radius;
+        Object.assign(g, { path: [PATH[0]], spread: 0.01 });
+      },
+    ],
+    [
+      "a spread of 0",
+      (g: Doc) => {
+        delete g.radius;
+        Object.assign(g, { path: PATH, spread: 0 });
+      },
+    ],
+    [
+      "a spread above 0.05",
+      (g: Doc) => {
+        delete g.radius;
+        Object.assign(g, { path: PATH, spread: 0.06 });
+      },
+    ],
+    [
+      "a path without a spread",
+      (g: Doc) => {
+        delete g.radius;
+        Object.assign(g, { path: PATH });
+      },
+    ],
+    ["a spread without a path", (g: Doc) => Object.assign(g, { spread: 0.01 })],
+  ])("refuses %s with RD6", (_, change) => {
+    const seen = judge("catalog", glowWith(change), NEON_FILE).seen;
+    expect(
+      seen.some((p) => p.startsWith("RD6 glows[0]")),
+      seen.join(", "),
+    ).toBe(true);
+  });
+});

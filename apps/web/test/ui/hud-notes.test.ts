@@ -85,7 +85,11 @@ const REVIEWED = [
 
 describe("no sheet covers the stage's notes (T046, finding 2)", () => {
   it("reads the reserve in room.css's formulas: the larger view starts below it, the dock's sheet stops above it", () => {
-    expect(declared('html[data-hud="column"] .talk[data-larger="on"] .talk-sheet', "top")).toBe("var(--notes-h)");
+    // Spec 014 (T053's second review): the panels are the compact column at its band's foot, so the sheet's top reaches
+    // back up the band to the notes' reserve, the same box as before.
+    expect(declared('html[data-hud="column"] .talk[data-larger="on"] .talk-sheet', "top")).toBe(
+      "calc(var(--notes-h) + var(--column-h) - var(--clear-h))",
+    );
     expect(declared('html[data-hud="dock"] .talk-sheet', "max-height")).toBe(
       "calc(var(--clear-h) - var(--notes-h) - var(--keyboard))",
     );

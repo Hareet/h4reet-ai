@@ -5,7 +5,16 @@
 // `test/room/stages-floor.test.ts` holds every screen of spec 004's sweep to its stage before spec 005, frozen in
 // `test/room/legacy-stages.ts`, so a data edit can't weaken the checks and a layout edit can't shrink a stage. Sizes are
 // CSS pixels.
-import { DEFAULT_METRICS, OPENING, clearArea, layoutFor } from "./hud";
+// Spec 014 (FR-060, FR-061; contracts/frame-area.md §5; plan.md §11): given the composed scene's protector, each stage
+// is the frame area the kernel gives its screen and docked-panel state (compose/frame.ts), between the window and the
+// clear area, with the compact boxes that overlap it, the walking control's among them, in its pixels, as its
+// `reserved` boxes, which RG6 reserves. Every frame area holds its clear area, so the floor holds. Without a protector
+// a stage is spec 005's clear area, the walking control's box its one reserved box, as before.
+import { frameArea, reservedIn } from "./frame";
+import type { Protect } from "./frame";
+import { DEFAULT_METRICS, OPENING, clearArea, compactBoxes, layoutFor } from "./hud";
+import type { Box, HudState } from "./hud";
+import type { Rect } from "./pick";
 
 /** A screen: the browser's viewport, in CSS pixels. */
 export interface Screen {
@@ -13,20 +22,27 @@ export interface Screen {
   readonly h: number;
 }
 
-/** The room's stage: the clear area the 3D room is framed into or the 2D drawing fills, in CSS pixels. */
+/** The room's stage: the clear area the 3D room is framed into or the 2D drawing fills, in CSS pixels; since spec 014,
+ *  given the scene's protector, its frame area, with the HUD boxes over it reserved, in its pixels, and its ease. */
 export interface Stage {
   readonly w: number;
   readonly h: number;
+  /** The HUD boxes over the stage, in its pixels, which RG6 and the room's picker reserve; absent, the walking
+   *  control's box alone (spec 005's reservedBoxes). */
+  readonly reserved?: readonly Rect[];
+  /** The frame area's ease, 0 (the window) to 1 (the clear area), in sixteenths; absent for spec 005's stages. */
+  readonly ease?: number;
 }
 
 /** Spec 002's six framing aspects, width over height (FR-009). */
 const SPEC_002_ASPECTS = [0.45, 0.6, 0.8, 1.15, 1.5, 2.4] as const;
 
 /** The aspect series' factor outward from spec 002's six, and how many steps it takes each way to cover the supported
- *  stages' narrowest aspect (about 0.30, a tall portrait screen's) and widest (about 9.4, 5120 × 576's): PD-10. The
- *  stages test pins the cover, and that it stops one step past each end. */
+ *  stages' narrowest aspect and widest (about 9.4, 5120 × 576's): PD-10. Since spec 014 the narrowest is a frame
+ *  area's, about 0.27, a 320 × 1200 window's at ease 0, a step below the clear areas' 0.30, so the series takes one
+ *  more step down (its plan §11). The stages test pins the cover, and that it stops one step past each end. */
 const ASPECT_STEP = 1.25;
-const STEPS_DOWN = 2;
+const STEPS_DOWN = 3;
 const STEPS_UP = 7;
 
 /** A series value without binary noise: 0.288, not 0.28800000000000003, as RG5's reasons print it. */
@@ -40,10 +56,21 @@ export const ASPECTS: readonly number[] = [
 ];
 
 /** The stage for a screen: the clear area the HUD leaves it with every panel open, at the compositor's metrics (a
- *  16-pixel root, no safe areas). Its name stays spec 004's, since lookdev and the tests call it. */
-export function stageFor(screen: Screen): Stage {
-  const clear = clearArea(screen, OPENING, DEFAULT_METRICS);
-  return { w: clear.w, h: clear.h };
+ *  16-pixel root, no safe areas); since spec 014, given the scene's protector, the frame area there, with the compact
+ *  boxes over it reserved, in a docked-panel state (the opening one unless named). Its name stays spec 004's, since
+ *  lookdev and the tests call it. */
+export function stageFor(screen: Screen, protect?: Protect, state: HudState = OPENING): Stage {
+  if (!protect) {
+    const clear = clearArea(screen, state, DEFAULT_METRICS);
+    return { w: clear.w, h: clear.h };
+  }
+  const f = frameArea(screen, state, DEFAULT_METRICS, protect);
+  return framedStage(f.area, f.ease, compactBoxes(screen, state, DEFAULT_METRICS).all);
+}
+
+/** A frame area as a stage: its size, its reserved boxes, and its ease. */
+export function framedStage(area: Box, ease: number, hud: readonly Box[]): Stage {
+  return { w: area.w, h: area.h, reserved: reservedIn(area, hud), ease };
 }
 
 /** A screen and the stage it gets. */
@@ -140,7 +167,8 @@ export function sweepScreens(): Screen[] {
  * a pick area's size at one aspect grows with the stage's height, so a check may keep only the smallest stage of each
  * aspect.
  */
-export function supportedStages(): Stage[] {
+export function supportedStages(protect?: Protect): Stage[] {
+  if (protect) return [...framedStages(protect).stages];
   const seen = new Map<string, Stage>();
   const add = (s: Stage): void => {
     seen.set(`${s.w}x${s.h}`, { w: s.w, h: s.h });
@@ -153,6 +181,57 @@ export function supportedStages(): Stage[] {
   return [...seen.values()].sort((a, b) => a.w - b.w || a.h - b.h);
 }
 
+/** A screen of the sweep, a docked-panel state, and its frame area's stage. */
+export interface FramedScreen {
+  readonly screen: Screen;
+  readonly state: HudState;
+  readonly stage: Stage;
+}
+
+/** Spec 014's stages for one protector, made once: each sweep screen's frame area (and a dock screen's with its list
+ *  collapsed), the reference and smallest screens' first, and the supported stages, once each by size and reserved
+ *  boxes, sorted by width, height, then their reserved boxes. */
+export interface FramedStages {
+  readonly screens: readonly FramedScreen[];
+  readonly stages: readonly Stage[];
+}
+
+const framedCache = new WeakMap<Protect, FramedStages>();
+/** The last few sweeps by their protector's key: a compose of an unchanged scene, as a test's fixtures make many,
+ *  reuses its frame areas. */
+const keyedCache = new Map<string, FramedStages>();
+const KEYED_CACHE_SIZE = 8;
+
+export function framedStages(protect: Protect): FramedStages {
+  const known = framedCache.get(protect) ?? (protect.key === undefined ? undefined : keyedCache.get(protect.key));
+  if (known) {
+    framedCache.set(protect, known);
+    return known;
+  }
+  const screens: FramedScreen[] = [];
+  const seen = new Map<string, Stage>();
+  const add = (screen: Screen, state: HudState): void => {
+    const stage = stageFor(screen, protect, state);
+    screens.push({ screen, state, stage });
+    const key = `${stage.w}x${stage.h}:${JSON.stringify(stage.reserved ?? [])}`;
+    if (!seen.has(key)) seen.set(key, stage);
+  };
+  for (const r of [REFERENCE_DESKTOP, REFERENCE_PHONE, ...SMALLEST]) add(r.screen, OPENING);
+  for (const screen of sweepScreens()) {
+    add(screen, OPENING);
+    if (layoutFor(screen) === "dock") add(screen, { list: "collapsed" });
+  }
+  const order = (s: Stage): string => JSON.stringify(s.reserved ?? []);
+  const stages = [...seen.values()].sort((a, b) => a.w - b.w || a.h - b.h || (order(a) < order(b) ? -1 : 1));
+  const made = { screens, stages };
+  framedCache.set(protect, made);
+  if (protect.key !== undefined) {
+    keyedCache.set(protect.key, made);
+    if (keyedCache.size > KEYED_CACHE_SIZE) keyedCache.delete(keyedCache.keys().next().value ?? "");
+  }
+  return made;
+}
+
 /** The walking control's box (spec 008, FR-021; plan.md R-09), in the clear area's bottom-right corner: compose/hud.ts
  *  holds it with the HUD's other places, and RG6 reserves it (its reservedBoxes). */
 export { WALK_CONTROL, walkControlBox } from "./hud";
@@ -160,9 +239,21 @@ export { WALK_CONTROL, walkControlBox } from "./hud";
 /** The 2D drawing's view box, 320 × 200: room.css keeps its 8:5 shape inside the stage (`.flat`). */
 export const FLAT_VIEW = { w: 320, h: 200 } as const;
 
-/** The 2D drawing's scale on a stage, CSS pixels per view-box unit: min(W ÷ 320, H ÷ 200). */
+/** The 2D drawing's scale on a stage, CSS pixels per view-box unit: min(W ÷ 320, H ÷ 200). Since spec 014 the stage is
+ *  the drawing's frame area (FR-003; PD-23). */
 export function flatScale(stage: Stage): number {
   return Math.min(stage.w / FLAT_VIEW.w, stage.h / FLAT_VIEW.h);
+}
+
+/** Where the 2D drawing's view box lies in a frame area, in the window's CSS pixels (spec 014, FR-003; plan.md §2.5):
+ *  its top left, at the largest scale that fits the area, centred in it. */
+export function flatPlacement(area: Box): { readonly x: number; readonly y: number; readonly scale: number } {
+  const scale = flatScale(area);
+  return {
+    x: area.x + (area.w - FLAT_VIEW.w * scale) / 2,
+    y: area.y + (area.h - FLAT_VIEW.h * scale) / 2,
+    scale,
+  };
 }
 
 let supported: readonly Stage[] | null = null;

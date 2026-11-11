@@ -127,6 +127,8 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "toolbar.credits": [],
       "standin.label": ["name"],
       "standin.note": [],
+      // Spec 014 (FR-054; plan.md §9; D11): the visitor's figure showing its flat shape in 3D.
+      "standin.avatar": [],
       "draft.badge": [],
       // The stage's line when the 2D drawing can't be drawn (FR-081; the Author, 2026-10-30: "flat-failed is good").
       "flat-failed": [],
@@ -165,7 +167,7 @@ describe("the UI words' closed keys (ui-keys.ts)", () => {
       "hints.previous": [],
       "hints.next": [],
     });
-    expect(Object.keys(UI_KEYS)).toHaveLength(61);
+    expect(Object.keys(UI_KEYS)).toHaveLength(62);
   });
 
   // T013 (spec 012; FR-051; D8): the loader's twelve words join the closed list, two with their live counts' slots, and

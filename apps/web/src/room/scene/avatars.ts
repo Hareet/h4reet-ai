@@ -26,8 +26,10 @@
 //   2026-11-09, "Count the fingers"); the right on a tie; with no "idle-holding", the hand nearer the other figure's
 //   hand anchor; with neither bone, none, and the paper stays at the anchor (FR-018).
 // - The kept paper (R-09): once the hand-off has ended and the visitor's avatar shows with a holding hand, the kept
-//   sheet goes into that hand with Object3D.attach, keeping its world transform, then lifted so the hand holds its
-//   lower edge, and moves with it; a reset puts it back at the visitor's anchor.
+//   sheet goes into that hand with Object3D.attach, and moves with it; a reset puts it back at the visitor's anchor.
+//   Since spec 014 (its FR-038 to FR-041; Amendment W15) it sits at the hand's grip (scene/grip.ts): the scene's
+//   `figures.grips` for that avatar and hand, or the default computed from the hand's bones, the held edge between
+//   the thumb and the fingers, never the wrist lifted by half the sheet; the twin's sheet and the hand-off's ends too.
 // - Signals: each picture's and clip's change, for the frame log; the stage adds each failed file (avatar_failed).
 // - The hand-off between them (Phase 2; FR-019, FR-020; R-10): before it, the twin's avatar holds the paper in
 //   "idle-holding", the sheet in its holding hand; at its start (the stage's first showHandoff) the sheet's start is
@@ -51,15 +53,14 @@ import type { FigureId, FigureSignal, FigureWhy } from "../stage";
 import { showHandoff as drawHandoff } from "./bundle3d";
 import type { Room3D } from "./bundle3d";
 import type { FigureDriver } from "./figure";
+import { gripCentre, gripMatrix } from "./grip";
+import type { GripData } from "./grip";
 import { disposeModel } from "./loader";
 
 /** The name an avatar instance takes in its figure's picture group. */
 export const AVATAR_NODE = "avatar";
 /** A change of clip's crossfade while the motion store animates, in seconds: at most 0.25 (FR-025). */
 export const CROSSFADE_S = 0.25;
-/** Half the A4 sheet's height: the kept paper's centre over the holding hand, so the hand holds its lower edge (R-09);
- *  a constant lookdev judges (L1). */
-export const PAPER_LIFT = 0.297 / 2;
 /** The least height a model may measure, in metres before its scale; less is a failed parse (R-05). */
 const MIN_HEIGHT = 0.01;
 /** ADR 0010's hand bones, as three's loader names them. */
@@ -139,6 +140,8 @@ interface Figure {
   readonly actions: Map<ClipRole, AnimationAction>;
   playing: ClipRole | null;
   hand: Object3D | null;
+  /** Which hand holds, for its grip (spec 014). */
+  side: "right" | "left" | null;
   shown: boolean;
   /** It keeps its fallback for good: its model failed, or it has none to show. */
   gone: boolean;
@@ -221,6 +224,7 @@ export function createAvatarFigures(
       actions: new Map(),
       playing: null,
       hand: null,
+      side: null,
       shown: false,
       gone: false,
       fallback: fallbackOf(room.twin),
@@ -236,6 +240,7 @@ export function createAvatarFigures(
       actions: new Map(),
       playing: null,
       hand: null,
+      side: null,
       shown: false,
       gone: false,
       fallback: fallbackOf(room.visitor),
@@ -349,6 +354,7 @@ export function createAvatarFigures(
       hand = rest.left.at.distanceTo(other) < rest.right.at.distanceTo(other) - TIE ? "left" : "right";
     }
     f.hand = hand === null ? null : (instance.getObjectByName(HANDS[hand]) ?? null);
+    f.side = f.hand === null ? null : hand;
     if (playing !== null) start(f, playing, time);
   }
 
@@ -376,12 +382,24 @@ export function createAvatarFigures(
     return has("idle") ? "idle" : null;
   }
 
-  /** Where the paper's centre sits in a figure's holding hand, so the hand holds its lower edge; null where the figure
-   *  shows no avatar or its avatar has no hand. */
+  /** A figure's grip from the scene's data, for its avatar and holding hand, or null for the computed default. */
+  function gripOf(f: Figure): GripData | null {
+    if (f.wants === null || f.side === null) return null;
+    return part.figures.grips?.[f.wants]?.[f.side] ?? null;
+  }
+
+  /** The figure's front in the world: its avatar's +z, glTF's, which the figure's turns carry. */
+  function frontOf(f: Figure): Vector3 {
+    const node = f.instance ?? f.group;
+    node.updateWorldMatrix(true, false);
+    return new Vector3(0, 0, 1).transformDirection(node.matrixWorld);
+  }
+
+  /** Where the paper's centre sits in a figure's holding hand, at its grip (spec 014, FR-038 to FR-041); null where
+   *  the figure shows no avatar, its avatar has no hand, or the grip can't be built (FR-005). */
   function paperAt(f: Figure): Vector3 | null {
     if (!f.shown || !f.hand) return null;
-    f.hand.updateWorldMatrix(true, false);
-    return worldOf(f.hand).add(new Vector3(0, PAPER_LIFT, 0));
+    return gripCentre(f.hand, frontOf(f), gripOf(f));
   }
 
   /** Before the hand-off, the sheet in the twin's holding hand, where it shows its avatar (FR-019 (b)). */
@@ -445,9 +463,14 @@ export function createAvatarFigures(
       };
     }
     f.hand.updateWorldMatrix(true, false);
+    // Spec 014: the sheet's world transform at the grip, set in the hand's own frame, so it moves with the hand; where
+    // the grip can't be built it stays where attach put it, at the visitor's anchor (FR-005).
+    const grip = gripMatrix(f.hand, frontOf(f), gripOf(f));
     f.hand.attach(kept);
-    const lifted = worldOf(f.hand).add(new Vector3(0, PAPER_LIFT, 0));
-    kept.position.copy(f.hand.worldToLocal(lifted));
+    if (grip) {
+      const local = f.hand.matrixWorld.clone().invert().multiply(grip);
+      local.decompose(kept.position, kept.quaternion, kept.scale);
+    }
   }
 
   /** The kept paper, wherever the visitor's avatar holds it, back where it was before: in walking's picture as it sat
@@ -502,7 +525,15 @@ export function createAvatarFigures(
     if (f.id === "visitor") dropPaper();
     else room.anchors.twinHand.copy(anchors.twin);
     const was = f.shown;
-    Object.assign(f, { instance: null, mixer: null, playing: null, hand: null, shown: false, gone: why !== null });
+    Object.assign(f, {
+      instance: null,
+      mixer: null,
+      playing: null,
+      hand: null,
+      side: null,
+      shown: false,
+      gone: why !== null,
+    });
     f.actions.clear();
     if (why !== null || was) picture(f, "fallback", why);
     checkSettled();

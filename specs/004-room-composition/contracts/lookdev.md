@@ -43,6 +43,8 @@ The spec's Terms: "A drafts build: spec 002's `-drafts` images of dev and dev-cp
 
 **(spec 005)** The views gain three window views (spec 005's FR-059; its plan.md §10.4, PD-25; Amendment H16): `window-desktop`, `window-phone`, and `window-monitor`, the reference desktop's 1920 × 1200 window at a pixel ratio of 1, the reference phone's 384 × 740 at 2.8125, and a large monitor's 2560 × 1440 at 1. The canvas fills the whole window, the room is framed into its clear area by the room's shifted camera, and the HUD's docked boxes lie over it as static glass with the room's classes, blurred at quality levels 0 and 1. Every view draws at the room's buffer ratio (`fit.ts`'s `bufferRatio`), the level's pixel cap among its bounds, and the readouts gain the buffer, the ratio, and the cap. Spec 005's look is judged on the live room, not here (its Q2 answer); these views measure its cost.
 
+**(spec 014)** The window views frame the room into its frame area, the window eased toward the clear area only as far as keeps every pressable piece and both figures clear of the HUD's compact boxes, by the room's own `compose/frame.ts` and `compose/protect.ts`, and draw the compact boxes as the room does (its FR-063; plan §11). A **hands view** joins them in drafts builds (its FR-042; PD-24): each avatar `lookdev.yaml`'s `hands.avatars` lists, holding the sheet in its right hand and in its left, at rest, in "idle-holding", and mid-walk, the sheet at the hand's grip (room-data-files.md §5, "(spec 014)") and the forearm's 4 cm capsule drawn as a wire, for the Author's look. It measures nothing.
+
 ## 4. Candidates, in memory only (FR-067, FR-068, FR-023)
 
 - **Reading.** A picked file is read with `File.arrayBuffer()` and held as a `Uint8Array`, and nothing else is done with the file.
@@ -106,9 +108,10 @@ At a run's end, the page shows its readouts as text and as one JSON block in a r
 | `build` | `drafts`, always: no other build has the page |
 | `bundle` | the digest both parts of the bundle carry, which names what was composed |
 | `probe` | §7.2's fields in the phone copy; `null` on the site's page |
-| `scene` | `room` or `vignette` |
+| `scene` | `room` or `vignette`; **(spec 014)** or `hands`, the hands view, whose run judges nothing |
 | `view`, `stage_css`, `dpr` | `desktop`, `phone`, or `close-up`; the stage drawn, in CSS pixels, and the pixel ratio drawn at, which in the phone copy re-measure the reference phone's stage |
 | `window_css`, `buffer_px`, `pixel_cap` | **(spec 005)** the window a window view's canvas fills, in CSS pixels, or `null` in a stage view; the drawing buffer, in device pixels; and the quality level's pixel cap in force, in device pixels (spec 005's FR-059) |
+| `ease`, `frame_css` | **(spec 014)** in a window view, the frame area's ease, 0 to 1 in sixteenths, and the frame area, `[x, y, w, h]` in CSS pixels from the window's top left; `null` in a stage view (its FR-063) |
 | `look`, `sample` | the look's and the fixture's IDs |
 | `quality` | `mode`, `"auto"` or the pinned level, 0 to 3; `settled`, the level at the run's end; `step_downs`, in all, and `step_downs_while_loading`, while any hold is held or any piece loads |
 | `duration_s`, `scripted_load` | 120 for SC-005's visit, 600 for its soak; whether the run began with the scripted load. A run stopped early produces no results |

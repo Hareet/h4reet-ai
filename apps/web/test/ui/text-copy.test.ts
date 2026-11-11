@@ -151,7 +151,9 @@ describe("in the room", () => {
       const v = start({ room: { ...index, build: { ...index.build, placeholders } } });
       await intoRoom(v);
       const note = v.doc.querySelector(".room-note");
-      expect(textOf(note)).toBe(index.ui["standin.note"]);
+      // Spec 014 (FR-053 to FR-055; plan.md §9): the note's words are its causes', so with nothing missing it is hidden
+      // and says nothing.
+      expect(textOf(note)).toBe(placeholders ? index.ui["standin.note"] : "");
       expect(note?.hasAttribute("hidden"), String(placeholders)).toBe(!placeholders);
     }
   });

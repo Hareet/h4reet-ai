@@ -49,7 +49,20 @@ live_faces:
     px: [2048, 89]
     readable: false
 glows:
-  - { id: tube-glow, at: [0.038, 0.146, 0.013], radius: 0.3, tone: neon-warm, motion: flicker }
+  # Spec 014 (FR-044, FR-045; PD-15; D3; Amendment W10): the glow follows the tube that frames the arrow, the stand-in's
+  # tubes' polyline at their z, closed, with a spread of 1.5 cm at scale 1 (about 4 cm at the sign's 2.6), in place of
+  # the 0.3 m disc behind the sign; the letters keep their own tube pass. Lookdev may tune both, a data edit.
+  - id: tube-glow
+    path:
+      - [-0.244, 0.04, 0.0137]
+      - [0.254, 0.04, 0.0137]
+      - [0.318, 0.136, 0.0137]
+      - [0.254, 0.232, 0.0137]
+      - [-0.244, 0.232, 0.0137]
+      - [-0.244, 0.04, 0.0137]
+    spread: 0.015
+    tone: neon-warm
+    motion: flicker
 standin:
   - { shape: box, size: [0.03, 0.04, 0.03], at: [0, 0, 0], color: graphite }
   - shape: polygon

@@ -54,6 +54,13 @@ import {
 import { floorOfPart } from "./compose/floor";
 import type { Box } from "./compose/hud";
 import { bufferRatio, clearNdc, fillsCanvas, viewOffsetFor } from "./fit";
+import { reservedIn } from "./compose/frame";
+import type { Rect } from "./compose/pick";
+import { protectSceneOf, protectorFor } from "./compose/protect";
+import { memberRect } from "./compose/pick";
+import type { Box as WorldBox } from "./compose/framing";
+import { nearsEdge } from "./walk/hold";
+import { startPose } from "./walk/movement";
 import type { Camera as ViewCamera } from "./compose/project";
 import { cutoutDriver, figureDriverFor } from "./scene/figure";
 import { createWalking } from "./scene/walking";
@@ -68,7 +75,34 @@ import { createTextureLedger } from "./scene/ledger";
 import type { Loader } from "./scene/loader";
 import { qualitySettings } from "./scene/levels";
 import { createInk } from "./scene/look";
-import type { ExpectedFile, SceneOptions, Stage3D } from "./stage";
+import type { ExpectedFile, FrameGiven, SceneOptions, Stage3D } from "./stage";
+
+/** A figure's framed box moved from its start to a pose (spec 014, PD-11): its corners turned about Y by the heading's
+ *  change about the start, then moved by the pose's offset, as an axis-aligned box. */
+function poseBox(
+  box: WorldBox,
+  start: { readonly x: number; readonly z: number; readonly heading: number } | null,
+  pose: { readonly x: number; readonly z: number; readonly heading: number },
+): WorldBox {
+  if (!start) return box;
+  const turn = pose.heading - start.heading;
+  const [c, s] = [Math.cos(turn), Math.sin(turn)];
+  const xs: number[] = [];
+  const zs: number[] = [];
+  for (const x of [box.min[0], box.max[0]])
+    for (const z of [box.min[2], box.max[2]]) {
+      const [dx, dz] = [x - start.x, z - start.z];
+      xs.push(pose.x + c * dx + s * dz);
+      zs.push(pose.z - s * dx + c * dz);
+    }
+  return {
+    min: [Math.min(...xs), box.min[1], Math.min(...zs)],
+    max: [Math.max(...xs), box.max[1], Math.max(...zs)],
+  };
+}
+
+/** A frame area the stage can frame into: finite, and of some size (spec 014, FR-004). */
+const usable = (b: Box): boolean => [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(v)) && b.w > 0 && b.h > 0;
 
 /** A label without a renderer: an empty node with the label's name, for the tests and a page with no 2D canvas. */
 const namedLabel: LabelFactory = (text) => {
@@ -364,6 +398,9 @@ export function createScene(options: SceneOptions): Stage3D {
   // canvas, and the orchestrator, which reach and the walking control's room callbacks reach the room through. Where
   // the part gives no floor or no figure, there is no walking view, and entering does nothing.
   const walkable = floorOfPart(part, part.walking.radius_m);
+  /** Spec 014: the visitor figure's framed box at its place, and its start, for the hold's edge (PD-11). */
+  const visitorBox = part.placements.find((p) => p.id === part.figures.visitor)?.frame_box ?? null;
+  const floorStart = walkable ? startPose(walkable) : null;
   const visitorNode = room.placements.get(part.figures.visitor);
   const cutout = visitorNode ? cutoutDriver({ node: visitorNode, picture: room.visitor }) : null;
   // Spec 009 (FR-028; R-16): the visitor's avatar's driver while its avatar shows, the cut-out's otherwise, each
@@ -394,21 +431,41 @@ export function createScene(options: SceneOptions): Stage3D {
             leaveWalk();
             options.walkEnded?.("escape");
           },
+          // Spec 014 (FR-032 (b); plan.md PD-11): the visitor figure's framed box moved to its pose, projected at the
+          // camera into the area and onto the canvas, against the HUD's compact boxes and the window's edge.
+          nearsEdge: (camera, pose, stage) => {
+            if (!visitorBox || hud.length === 0) return false;
+            const moved = poseBox(visitorBox, floorStart, pose);
+            const r = memberRect(moved, camera, { w: stage.w, h: stage.h });
+            if (!r) return false;
+            const box = { x: area.x + r.rect[0], y: area.y + r.rect[1], w: r.rect[2], h: r.rect[3] };
+            return nearsEdge(box, hud, size, rem);
+          },
+          held: (state, cause) => options.walkHeld?.(state, cause),
         })
       : null;
-  /** The clear area the room is framed into, in the canvas's CSS pixels (spec 005, FR-015; plan.md §5): the room's,
-   *  or the whole canvas where it gives none (the stacked layout). */
-  let clear: Box = { x: 0, y: 0, w: 0, h: 0 };
-  /** The clear area's size, the stage the kernel's framing, the picker, and the walking view measure. */
-  const clearStage = (): { w: number; h: number } => ({ w: clear.w, h: clear.h });
-  /** The camera's projection shifted so the clear area's frustum spans the canvas at its own scale (PD-12): the room in
-   *  the clear area, the scene continuing behind the panels. A clear area that is the canvas needs no shift. */
+  /** The box the room is framed into, in the canvas's CSS pixels: since spec 014 the room's frame area (its FR-009 to
+   *  FR-015; contracts/frame-area.md §7), else spec 005's clear area (its FR-015; plan.md §5), or the whole canvas where
+   *  the room gives neither (the stacked layout). */
+  let area: Box = { x: 0, y: 0, w: 0, h: 0 };
+  /** The HUD's compact boxes over the window, in the canvas's CSS pixels, while the room gives a frame (spec 014): what
+   *  the picker reserves, and what a point under one picks: nothing. */
+  let hud: readonly Box[] = [];
+  /** The root font size the room's metrics gave with the frame, for the hold's 0.5rem (spec 014). */
+  let rem = 16;
+  /** The area's size, the stage the kernel's framing, the picker, and the walking view measure, with the HUD boxes over
+   *  it reserved in its pixels (FR-060); spec 005's walking control's box where the room gives no frame. */
+  let reserved: readonly Rect[] | undefined;
+  const areaStage = (): { w: number; h: number; reserved?: readonly Rect[] } =>
+    reserved === undefined ? { w: area.w, h: area.h } : { w: area.w, h: area.h, reserved };
+  /** The camera's projection shifted so the area's frustum spans the canvas at its own scale (PD-12): the room in the
+   *  area, the scene continuing behind the panels. An area that is the canvas needs no shift. */
   const shift = (): void => {
-    if (fillsCanvas(clear, size)) {
+    if (fillsCanvas(area, size)) {
       if (camera.view?.enabled) camera.clearViewOffset();
       return;
     }
-    const o = viewOffsetFor(clear, size);
+    const o = viewOffsetFor(area, size);
     camera.setViewOffset(o.fullWidth, o.fullHeight, o.x, o.y, o.width, o.height);
   };
   /** A camera of the kernel's on the stage's camera. */
@@ -434,26 +491,32 @@ export function createScene(options: SceneOptions): Stage3D {
     }
     returning = false;
     if (size.w > 0 && size.h > 0) {
-      frameCamera(camera, clear.w / clear.h, boxes);
+      frameCamera(camera, area.w / area.h, boxes);
       shift();
-      picker.setCamera(null, clearStage());
+      picker.setCamera(null, areaStage());
     }
     options.walkEnded?.("failed");
   };
   let lastTime: number | null = null;
-  // A point of the canvas picks and walks in the clear area's own coordinates, where the picker's areas are RG6's; a
-  // point outside it, under a panel or a safe area, picks nothing (spec 005, PD-13).
-  const inClear = (ndc: { x: number; y: number }): { x: number; y: number } | null => clearNdc(ndc, size, clear);
+  // A point of the canvas picks and walks in the area's own coordinates, where the picker's areas are RG6's; a point
+  // outside it, under a panel or a safe area, picks nothing (spec 005, PD-13). Since spec 014 a point under a HUD box
+  // picks nothing either: the box takes its own pointer in the page (its FR-014), and the stage holds to that too.
+  const inArea = (ndc: { x: number; y: number }): { x: number; y: number } | null => {
+    const px = ((ndc.x + 1) / 2) * size.w;
+    const py = ((1 - ndc.y) / 2) * size.h;
+    if (hud.some((b) => px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h)) return null;
+    return clearNdc(ndc, size, area);
+  };
   const unbind = bindPointerSelection(
     canvas,
     (ndc) => {
-      const at = inClear(ndc);
+      const at = inArea(ndc);
       return at ? picker.pick(at) : null;
     },
     options.select,
     options.target,
     (ndc) => {
-      const at = inClear(ndc);
+      const at = inArea(ndc);
       if (walking?.on && at) input.miss(at);
     },
   );
@@ -472,8 +535,17 @@ export function createScene(options: SceneOptions): Stage3D {
     const h = canvas.clientHeight;
     if (!w || !h) return;
     const ratio = bufferRatio(win.devicePixelRatio || 1, settings, w, h);
-    // The room's clear area while the canvas is the window it was computed for; else the whole canvas.
-    const given = options.clear?.() ?? null;
+    // The room's frame area while the canvas is the window it was computed for (spec 014), its clear area where the
+    // frame area isn't finite (FR-004), or spec 005's clear area where the room gives no frame; else the whole canvas.
+    let framed: FrameGiven | null;
+    try {
+      framed = options.frame?.() ?? null;
+    } catch {
+      framed = null;
+    }
+    const given = framed
+      ? { area: usable(framed.area) ? framed.area : framed.clear, window: framed.window }
+      : (options.clear?.() ?? null);
     const fits =
       given !== null &&
       Math.abs(given.window.w - w) <= 1 &&
@@ -481,14 +553,26 @@ export function createScene(options: SceneOptions): Stage3D {
       given.area.w > 0 &&
       given.area.h > 0;
     const next: Box = fits ? given.area : { x: 0, y: 0, w, h };
-    if (w === size.w && h === size.h && ratio === size.ratio && same(next, clear)) return;
+    const nextHud: readonly Box[] = fits && framed ? framed.hud : [];
+    const nextReserved = fits && framed ? reservedIn(next, nextHud) : undefined;
+    if (
+      w === size.w &&
+      h === size.h &&
+      ratio === size.ratio &&
+      same(next, area) &&
+      JSON.stringify(nextReserved) === JSON.stringify(reserved)
+    )
+      return;
     size = { w, h, ratio };
-    clear = next;
+    area = next;
+    hud = nextHud;
+    rem = fits && framed ? (framed.rem ?? 16) : 16;
+    reserved = nextReserved;
     renderer.setPixelRatio(ratio);
     renderer.setSize(w, h, false);
-    if (!walking?.on && !returning) frameCamera(camera, clear.w / clear.h, boxes);
+    if (!walking?.on && !returning) frameCamera(camera, area.w / area.h, boxes);
     shift();
-    picker.resize(clearStage());
+    picker.resize(areaStage());
     ink.setStageHeight(h);
     highlight.setStage(w, h);
   };
@@ -510,21 +594,21 @@ export function createScene(options: SceneOptions): Stage3D {
     const dt = lastTime === null ? 0 : Math.min(0.1, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
     if (walking && size.w > 0 && size.h > 0) {
-      // The walking view measures the clear area, and its follow camera takes the production camera's shift, so the
-      // figure stays centred in it (spec 005, FR-018).
-      const stage = clearStage();
+      // The walking view measures the frame area, and its follow camera takes the production camera's shift, so the
+      // figure stays centred in it (spec 005, FR-018; spec 014, FR-034).
+      const stage = areaStage();
       if (walking.on) {
         try {
-          applyCamera(walking.frame(input.take(dt, rates), stage, time, dt, moving), clear.w / clear.h);
+          applyCamera(walking.frame(input.take(dt, rates), stage, time, dt, moving), area.w / area.h);
         } catch {
           failWalk();
         }
       } else if (returning) {
         const back = walking.returning(stage, time, moving);
-        if (back) applyCamera(back, clear.w / clear.h);
+        if (back) applyCamera(back, area.w / area.h);
         else {
           returning = false;
-          frameCamera(camera, clear.w / clear.h, boxes);
+          frameCamera(camera, area.w / area.h, boxes);
           shift();
           picker.setCamera(null, stage);
         }
@@ -556,6 +640,8 @@ export function createScene(options: SceneOptions): Stage3D {
     mode: "3d",
     element: canvas,
     canvas,
+    // Spec 014 (FR-010, FR-016): the frame area's protector over this part, which the room's re-fit takes.
+    protect: protectorFor(protectSceneOf(part, options.room)),
     showHandoff(progress) {
       // Its first call is the hand-off's start: no figure file or set model parses from then until it ends (R-10), if
       // the loader's giving way hasn't closed the gate already (spec 012).

@@ -7,7 +7,15 @@
 import { describe, expect, it } from "vitest";
 
 import { createContext } from "../../build/room/checks/family";
-import { faceCaps, faceScreens, geometryOf, lookTypefaces, pickSweep } from "../../build/room/checks/rg";
+import {
+  faceCaps,
+  faceScreens,
+  geometryOf,
+  lookTypefaces,
+  pickSweep,
+  protectSceneOfGeometry,
+  sideWallsOf,
+} from "../../build/room/checks/rg";
 import type { Geometry } from "../../build/room/checks/rg";
 import { sceneTextureMemory, sceneTextureTotal } from "../../build/room/checks/rk";
 import { compose } from "../../build/room/compose";
@@ -17,6 +25,11 @@ import type { RoomPolicy } from "../../build/room/policy";
 import { fileTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
 import { framing } from "../../src/room/compose/framing";
+import { memberRect, unionOf } from "../../src/room/compose/pick";
+import type { Rect } from "../../src/room/compose/pick";
+import { protectSceneOf, protectorFor } from "../../src/room/compose/protect";
+import { frameArea } from "../../src/room/compose/frame";
+import { DEFAULT_METRICS, OPENING } from "../../src/room/compose/hud";
 import {
   REFERENCE_DESKTOP,
   REFERENCE_PHONE,
@@ -87,7 +100,14 @@ describe("the faces' on-screen sizes and texture memory at the new reference sta
     const { index } = repositoryBundle();
     const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
     if (!g) throw new Error("no geometry");
-    expect(g.reference.map((r) => r.stage)).toEqual([REFERENCE_DESKTOP.stage, REFERENCE_PHONE.stage]);
+    // Spec 014 (its FR-060; plan.md §11): each reference stage is its screen's frame area, which holds spec 005's.
+    expect(g.reference.map((r) => r.stage)).toEqual(
+      [REFERENCE_DESKTOP, REFERENCE_PHONE].map(({ screen }) => {
+        const s = stageFor(screen, g.protect);
+        return { w: s.w, h: s.h };
+      }),
+    );
+    expect(g.reference[0]?.stage.w).toBeGreaterThanOrEqual(REFERENCE_DESKTOP.stage.w);
     const screens = faceScreens(g);
     for (const face of index.faces) {
       const s = screens.find((x) => `${x.placement}.${x.role}` === face.id);
@@ -129,7 +149,8 @@ describe("the report's stages and reserved boxes (FR-055, FR-057; plan.md §10.2
         `(1920 × 1200 at a pixel ratio of 1) and the reference phone's 384 × 422 (384 × 740 at 2.8125).`,
     );
     expect(md).toContain(
-      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021), 8rem × 2.75rem, 0.5rem in from " +
+      "Reserved boxes (spec 005, FR-055): the walking control's (spec 008, FR-021) where it stands in the clear area " +
+        "(since spec 014's W19, on short column windows and in the dock), 8rem × 2.75rem, 0.5rem in from " +
         "the clear area's bottom-right corner, holds no side-wall selectable at any supported stage.",
     );
     expect(md).not.toContain("The walking control's box (spec 008, FR-021)");
@@ -170,4 +191,90 @@ describe("the side-wall selectables' list-only stages, no more than spec 004's (
       expect(more.slice(0, 3)).toEqual([]);
       if (name === "the side-wall overlay") expect(before).toBeGreaterThan(0);
     });
+});
+
+// T009 (spec 014; FR-060, FR-061, SC-002; contracts/frame-area.md §5): RG6 at the frame areas. RG6 reserves each
+// stage's `reserved` boxes: a stage whose reserved box covers a selectable's core refuses that selectable by name; and,
+// run at the frame areas and at spec 005's clear areas, each side-wall selectable is list-only at a screen's frame area
+// only where it was at that screen's clear area.
+describe("RG6 at the frame areas (spec 014, T009)", () => {
+  it("refuses a selectable whose core lies under a stage's reserved box, by name", () => {
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    const stage = { w: 1472, h: 1120.5 };
+    const clean = pickSweep(g, [{ ...stage, reserved: [] }]);
+    expect(clean.problems.filter((p) => p.mode === "3D")).toEqual([]);
+    // A box over the first selectable's core, at the clear area's framing.
+    const camera = framing(stage.w / stage.h, g.framed);
+    const first = g.scene.value.selectables[0];
+    const boxes = (first?.members ?? []).flatMap((m) => {
+      const b = g.boxes.get(m);
+      const r = b && memberRect(b, camera, stage);
+      return r ? [r.rect] : [];
+    });
+    const union = unionOf(boxes);
+    if (!union) throw new Error("no union");
+    const over: Rect = [union[0] + union[2] / 2 - 30, union[1] + union[3] / 2 - 30, 60, 60];
+    const sweep = pickSweep(g, [{ ...stage, reserved: [over] }]);
+    const found = sweep.problems.filter((p) => p.mode === "3D" && p.problem.problem === "reserved");
+    const sideWall = sideWallsOf(g)[0] ?? false;
+    if (sideWall) expect(sweep.sideWalls.find((s) => s.index === 0)?.stages).toHaveLength(1);
+    else expect(found.map((p) => p.problem.selectable)).toEqual(["0"]);
+  });
+
+  for (const [name, tree, policy] of [
+    ["the repository's room", repositoryTree, mainPolicy],
+    ["the side-wall overlay", sideWallTree, sideWallPolicy],
+  ] as const)
+    it(`lists a side-wall selectable of ${name} at a frame area only where spec 005 listed it at the clear area`, () => {
+      const g = geometryOf(contextOf(tree(), policy()));
+      if (!g) throw new Error("no geometry");
+      const protect = protectorFor(protectSceneOfGeometry(g));
+      const screens = sweepScreens().filter((_, i) => i % 7 === 0);
+      const framed = screens.map((s) => stageFor(s, protect));
+      const clear = screens.map((s) => stageFor(s));
+      const now = pickSweep(g, framed);
+      const then = pickSweep(g, clear);
+      const at = (sweep: ReturnType<typeof pickSweep>, stages: readonly Stage[]) =>
+        new Map(sweep.sideWalls.map((p) => [p.id, new Set(p.stages.map((s) => stages.indexOf(s)))]));
+      const [a, b] = [at(now, framed), at(then, clear)];
+      const more: string[] = [];
+      for (const [id, set] of a)
+        for (const i of set) if (!b.get(id)?.has(i)) more.push(`${id} at ${JSON.stringify(screens[i])}`);
+      expect(more.slice(0, 3)).toEqual([]);
+    });
+});
+
+// T053 (spec 014, the review's N3; FR-016): the room's protector, built from the bundle (protectSceneOf), and the
+// compositor's, built from the compose's own geometry over the sweep (protectSceneOfGeometry), give one frame area
+// at each screen, so the room is framed where the checks judged it.
+describe("one frame area for the room and the checks (spec 014, T053; FR-016)", () => {
+  it("gives the bundle's protector and the sweep's the same frame area and ease", () => {
+    const { scene: part, index } = repositoryBundle();
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    const room = protectorFor(protectSceneOf(part, index));
+    const sweep = protectorFor(protectSceneOfGeometry(g));
+    for (const screen of [
+      { w: 1920, h: 1200 },
+      { w: 1920, h: 1080 },
+      { w: 2560, h: 1440 },
+      { w: 1280, h: 720 },
+      { w: 390, h: 844 },
+      { w: 768, h: 1024 },
+    ]) {
+      const a = frameArea(screen, OPENING, DEFAULT_METRICS, room);
+      const b = frameArea(screen, OPENING, DEFAULT_METRICS, sweep);
+      expect(a.ease, `${screen.w} × ${screen.h}`).toBe(b.ease);
+      expect(a.area, `${screen.w} × ${screen.h}`).toEqual(b.area);
+    }
+  });
+
+  // The Author's answer of 2026-11-10, "Move the walk control (Recommended)": with the walking control at the column's
+  // head, the reference desktop's frame no longer eases around it at the clear area's corner (plan.md E1).
+  it("eases the reference desktop's frame less than 10/16 with the walking control at the column's head", () => {
+    const g = geometryOf(contextOf(repositoryTree(), mainPolicy()));
+    if (!g) throw new Error("no geometry");
+    expect(stageFor(REFERENCE_DESKTOP.screen, g.protect).ease).toBeLessThan(10 / 16);
+  });
 });

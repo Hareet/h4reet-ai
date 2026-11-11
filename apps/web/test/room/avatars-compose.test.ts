@@ -48,7 +48,8 @@ const composed = (tree: Tree, policy: RoomPolicy = avatarPolicy(), options = STR
 
 describe("the scene's figures block (FR-037; plan.md §3.1)", () => {
   it("is optional: without it, no stand-in, texture_px 1,024, and wait_ms 1,500, and the figures' placements", () => {
-    const result = composed(goodTree(), noPolicy());
+    // Spec 014 (FR-039): the good fixture's scene gives a figures block for its grips, so the block comes out here.
+    const result = composed(overlay({ [SCENE]: sceneWith(null) }), noPolicy());
     expect(result.findings).toEqual([]);
     expect(result.scene.figures).toEqual({
       twin: "fx-twin",
@@ -444,7 +445,9 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
   >;
 
   it("names the man as the stand-in in the committed scene, with the defaults written out", () => {
-    expect(committed.figures).toEqual({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
+    // Spec 014 (FR-039; D1; plan.md E15): the committed scene's grips beside them, the man's and the woman's left.
+    expect(committed.figures).toMatchObject({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
+    expect(Object.keys(committed.figures ?? {}).sort()).toEqual(["grips", "texture_px", "twin_stand_in", "wait_ms"]);
   });
 
   it.each([

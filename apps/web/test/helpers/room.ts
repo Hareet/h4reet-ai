@@ -4,6 +4,7 @@
 // index as the build bundles them, composed from the repository's data (spec 004, T096). Nothing here reaches the
 // network: jsdom loads no subresource, and every request API is a spy.
 import type { Viewport, ViewportChange, WindowMeasures } from "../../src/room/hud/viewport";
+import type { Protect } from "../../src/room/compose/frame";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -301,6 +302,9 @@ export interface FakeScene {
   /** Called inside createScene, before it returns, with the room's options: a test's way to report asset events as
    *  the room's loader does below ADR 0010's floor, before the stage has said what it will load. */
   onCreate?: (options: SceneOptions) => void;
+  /** Spec 014: the stage's frame-area protector, which the room's re-fit asks; absent, the room frames into the clear
+   *  area, as before spec 014. */
+  protect?: Protect;
 }
 
 export function fakeScene(): FakeScene {
@@ -361,6 +365,7 @@ export function fakeScene(): FakeScene {
           },
           ...(fake.figures ? { figures: fake.figures, waitMs: fake.waitMs ?? 0 } : {}),
           ...(fake.expected ? { expected: fake.expected } : {}),
+          ...(fake.protect ? { protect: fake.protect } : {}),
         };
         fake.stage = stage;
         fake.onCreate?.(options);
