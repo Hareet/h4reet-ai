@@ -237,6 +237,18 @@ All paths under `apps/web/test/` unless named otherwise; the twin's runtime test
 - **L4**: the phone copy's 2-minute run, with the twin and a visitor animating (SC-013).
 - **L5**: the shirt, marked as a draft: upright, black, the shirt showing around it, moving with the chest.
 
+## 9. As built: what the implementation changed or left
+
+Recorded with the build (2026-11-10 and 11), beside the *As built* notes under R-02, R-06, R-11, R-14, R-15, R-15a, and R-18:
+
+- **The frame log's names** (contracts/twin-states.md §7): the twin's own model is `shows: "own"`, its 2D still `still`, and its drawing `drawing`; the stand-in avatar in the twin's figure stays `avatar`, as spec 009's log names it, rather than `stand-in`; the capsule stays `fallback`. The state changes are `twin-state` entries with `state` and `role`.
+- **The print renderer's draft badge** (contracts/twin-data.md §3): the raster's own badge, as every renderer's, beside the ink, in a drafts build only; a release build draws the ink alone.
+- **The arrival waits for the greeting's file**: where the twin shows before its greeting's file has ended, its arrival waits for that file, loaded or failed, so the greeting plays its whole length (FR-019).
+- **The outline's tool version** is `spec-016.1`, not `1`: an outline's private fields must turn up nowhere in what ships, and a one-character value turned up by chance in a served GLB's copy.
+- **RA5 over the twin** has no `bad/RA5-twin` fixture: RA5 only reports, and the known-bad cases need a finding, so twin-compose.test.ts holds it through the report.
+- **The checkpoints' make check** ran at T001 and T031 and at the end; between them each phase's checkpoint ran the web workspace's whole suite (T043, T061), whose results the merge-request note gives.
+- **Left for later, the Author's to schedule**: T067 and T068, the lookdev page's twin controls (each state, the lean, the hand-off normal and reduced, the shirt marked, the 2D still with its line; FR-057). The room shows each of these already; the Author's lookdev L1 to L5 runs on the room's drafts build until the page's controls land.
+
 ## Complexity Tracking
 
 | Departure | Why needed | Simpler alternative rejected because |
