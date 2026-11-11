@@ -207,13 +207,16 @@ describe("RA8 in the fixtures (plan.md R-19)", () => {
   // The talking clip turns; listening and greeting take the idle's motion, which turns nothing, so the talking clip
   // alone reaches toward the side wall. The default desk-lean stays: its quaternion's half-angle 0.25 rad turns the
   // hips 0.5 rad, 0.2769 m along x, past the wall at 0.27 m, but the twin never plays it without a lean.
+  const idleMotion = (): Uint8Array => {
+    const bytes = twinDefaults().clips.idle;
+    if (!bytes) throw new Error("the fixture twin has no idle");
+    return bytes;
+  };
   const sideWall = (o: { offset: Vec3; policy?: RoomPolicy; options?: ComposeOptions }): ComposeResult =>
     compose(
       sideWallTree({
         [SCENE]: sceneAt(sideWallFiles().get(SCENE), o.offset),
-        ...twinFolder({
-          clips: { talking: turning(), listening: twinDefaults().clips.idle, greeting: twinDefaults().clips.idle },
-        }),
+        ...twinFolder({ clips: { talking: turning(), listening: idleMotion(), greeting: idleMotion() } }),
       }),
       o.policy ?? twinPolicy({ room: { legibility_floor_css_px: 5 } }),
       o.options ?? STRICT,
