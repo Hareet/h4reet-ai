@@ -150,7 +150,7 @@ placements:
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.395] }
+    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.469], estimated: true }
     frame: true
   - id: visitor-figure
     piece: visitor-figure

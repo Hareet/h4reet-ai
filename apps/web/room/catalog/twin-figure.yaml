@@ -1,37 +1,39 @@
-# The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (its src/room/scene.ts), at LAYOUT's
-# size (its src/room/framing.ts), widened to hold the arm, which reaches to its −x side, toward the visitor, who
-# stands on its left in the cube (FR-008; handoff.ts reads the side from the anchors). Its picture is the twin's
-# avatar (spec 003), so the piece has no model (RI8); until the twin's own avatar exists, a visitor avatar stands in,
-# the scene's figures.twin_stand_in (spec 009, FR-011), scaled to this entry's height and labelled a stand-in in the
-# room's words, and this entry's stand-in shape shows wherever that avatar has no files or fails. It gives the stand-in
-# shape, the size, and the hand the paper leaves from (FR-008). Its budget is nominal: the avatars' files carry their
-# own.
+# The twin's figure: spec 002's placeholder, a body, a head, and an arm held out (its src/room/scene.ts), widened to
+# hold the arm, which reaches to its −x side, toward the visitor, who stands on its left in the cube (FR-008;
+# handoff.ts reads the side from the anchors). Its picture is the twin's own avatar, assets/twin/twin.glb (spec 016),
+# so the piece has no model (RI8). Spec 016 (its FR-010, FR-011; plan.md R-06; Clarifications, Q5): its height is the
+# model's measured rest pose, 1.82 m to the turban's top, which the model stands at unscaled; its bounds hold the model
+# at rest, measured by the compositor's report (x −0.354 to 0.357, z −0.223 to 0.182), with z extended back by the
+# lean's 0.1 m hip shift, x kept wide enough for the arm of the stand-in shape, and z forward to the hand anchor. The
+# stand-in shape and the 2D drawing are spec 009's scaled by 1.82 ÷ 1.75 = 1.04 in height, so the stand-in avatar,
+# the scene's figures.twin_stand_in, scaled to this height, and the capsule stand as tall as the twin. Its budget is
+# nominal: the avatars' files carry their own.
 version: 1
 id: twin-figure
 name: The twin's figure
-size: { w: 0.65, h: 1.75, d: 0.4 }
+size: { w: 0.73, h: 1.82, d: 0.524 }
 stylized_scale: 1
 origin:
   point: on the floor, between the figure's feet.
-  bounds: { min: [-0.37, 0, -0.2], max: [0.28, 1.75, 0.2] }
+  bounds: { min: [-0.37, 0, -0.324], max: [0.36, 1.82, 0.2] }
 anchors:
-  hand: { at: [-0.33, 1.02, 0.2] }
+  hand: { at: [-0.33, 1.0608, 0.2] }
 standin:
-  - { shape: capsule, radius: 0.2, length: 0.95, at: [0, 0.7, 0], color: twin-violet }
-  - { shape: sphere, radius: 0.15, at: [0, 1.55, 0], color: twin-lilac }
-  - { shape: tube, from: [-0.18, 1.25, 0], to: [-0.33, 1.02, 0.15], radius: 0.04, at: [0, 0, 0], color: twin-violet }
+  - { shape: capsule, radius: 0.2, length: 0.988, at: [0, 0.728, 0], color: twin-violet }
+  - { shape: sphere, radius: 0.15, at: [0, 1.612, 0], color: twin-lilac }
+  - { shape: tube, from: [-0.18, 1.3, 0], to: [-0.33, 1.0608, 0.15], radius: 0.04, at: [0, 0, 0], color: twin-violet }
 drawing:
   primitives:
-    - { primitive: circle, cx: 0, cy: 1.56, r: 0.19, fill: twin-violet }
-    - { primitive: rect, x: -0.211, y: 0.506, w: 0.422, h: 0.843, fill: twin-violet }
-    - { primitive: rect, x: -0.169, y: 0, w: 0.127, h: 0.548, fill: twin-violet }
-    - { primitive: rect, x: 0.042, y: 0, w: 0.127, h: 0.548, fill: twin-violet }
-    - { primitive: rect, x: -0.274, y: 0.801, w: 0.105, h: 0.38, fill: twin-violet }
+    - { primitive: circle, cx: 0, cy: 1.6224, r: 0.19, fill: twin-violet }
+    - { primitive: rect, x: -0.211, y: 0.5262, w: 0.422, h: 0.8767, fill: twin-violet }
+    - { primitive: rect, x: -0.169, y: 0, w: 0.127, h: 0.5699, fill: twin-violet }
+    - { primitive: rect, x: 0.042, y: 0, w: 0.127, h: 0.5699, fill: twin-violet }
+    - { primitive: rect, x: -0.274, y: 0.833, w: 0.105, h: 0.3952, fill: twin-violet }
 budget: { gzip_bytes: 1, triangles: 1, texture_px: 1, texture_bytes: 1 }
 work_order:
   method: >-
-    No room model: the twin's picture is its avatar, which comes after the room (the intent's order, step 5), through
-    spec 003's avatar intake. Until then a visitor avatar stands in, the one the scene's figures block names (spec 009),
+    No room model: the twin's picture is its own avatar, assets/twin/, which came through spec 003's avatar intake
+    (spec 016). Where it can't show, a visitor avatar stands in, the one the scene's figures block names (spec 009),
     and the room says the figure is a stand-in.
   shots: []
   measurements: []
