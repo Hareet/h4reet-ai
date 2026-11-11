@@ -114,10 +114,7 @@ export function figureBlock(scene: Scene | null | undefined): FigureBlock {
   return {
     stand_in: named !== undefined && AVATAR_IDS.includes(named) ? (named as AvatarId) : null,
     texture_px: block?.texture_px ?? FIGURES_DEFAULTS.texture_px,
-    twin_texture_px:
-      (block as { twin?: { texture_px?: number } } | undefined)?.twin?.texture_px ??
-      block?.texture_px ??
-      FIGURES_DEFAULTS.texture_px,
+    twin_texture_px: block?.twin?.texture_px ?? block?.texture_px ?? FIGURES_DEFAULTS.texture_px,
     wait_ms: block?.wait_ms ?? FIGURES_DEFAULTS.wait_ms,
     ...(block?.grips === undefined ? {} : { grips: block.grips }),
   };

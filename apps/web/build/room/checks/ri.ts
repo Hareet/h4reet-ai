@@ -17,6 +17,7 @@ import { anchorWorld, resolveMounts } from "../../../src/room/compose/mount";
 import type { MountPiece } from "../../../src/room/compose/mount";
 import { isVocabulary } from "../../../src/room/compose/vocabulary";
 import { sideOf } from "../../../src/room/handoff";
+import { isTwinClipRole, isTwinState } from "../../../src/room/scene/twin-states";
 import { isObject, strictJson } from "../../../src/room/glb/json";
 import { pathOf, TOPICS_FILE } from "../load";
 import type { Loaded } from "../load";
@@ -388,6 +389,30 @@ function figures(ctx: Context): void {
   const named = s.figures.twin_stand_in;
   if (named !== undefined && !isAvatarId(named))
     ri8(ctx.path("figures", "twin_stand_in"), "a stand-in that isn't an avatar of the room's table");
+  twinBlock(ctx, ri8);
+}
+
+/** RI8 over spec 016's twin block (its FR-054; contracts/twin-data.md §1, §7): each state of its clip map in the closed
+ *  list, and each clip role in its own; and the lean against the work desk, the piece the scene's survey names as the
+ *  desk (its desk_corner's placement), placed by a placement that isn't a figure's. */
+function twinBlock(ctx: Context, ri8: (path: string, reason: string) => void): void {
+  const s = ctx.room.scene?.value;
+  const twin = s?.figures.twin;
+  if (!s || !twin) return;
+  for (const [state, role] of Object.entries(twin.clips ?? {})) {
+    if (!isTwinState(state)) ri8(ctx.path("figures", "twin", "clips", state), "a state outside the twin's closed list");
+    else if (!isTwinClipRole(role))
+      ri8(ctx.path("figures", "twin", "clips", state), "a clip role outside the twin's closed list");
+  }
+  if (twin.lean) {
+    const deskPiece = s.placements.find((p) => p.id === s.survey.desk_corner.placement)?.piece;
+    const against = s.placements.find((p) => p.id === twin.lean?.against);
+    if (!against || against.role !== undefined || deskPiece === undefined || against.piece !== deskPiece)
+      ri8(
+        ctx.path("figures", "twin", "lean", "against"),
+        "a lean against a placement that isn't the work desk's, the piece the survey's desk_corner names",
+      );
+  }
 }
 
 /**
