@@ -3,7 +3,7 @@
 // quality controller, a lost context, or the visitor asks; never back.
 import type { AssetEvent } from "../asset-events";
 import type { AvatarId, ClipRole } from "../choice/avatars";
-import type { TwinClipRole, TwinState } from "./scene/twin-states";
+import type { TwinActivity, TwinClipRole, TwinState } from "./scene/twin-states";
 import type { Mode } from "../choice/visit";
 import type { Clock } from "./clock";
 import type { RoomIndex } from "./compose/bundle";
@@ -75,6 +75,9 @@ export interface Stage3D extends Stage {
    *  its bytes as served, once its loader's chunk has built them; [] where nothing loads or that chunk fails. It never
    *  rejects. Absent, as on a stand-in stage, the room counts no file. */
   readonly expected?: Promise<readonly ExpectedFile[]>;
+  /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states; absent, as
+   *  on a stand-in stage, nothing reads it. */
+  twinActivity?(activity: TwinActivity): void;
 }
 
 /** A file the 3D stage will load (spec 012): its asset events' `asset`, and its bytes as served (C11). */

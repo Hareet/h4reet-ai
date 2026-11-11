@@ -312,6 +312,8 @@ export function createScene(options: SceneOptions): Stage3D {
           avatars?.createAvatarFigures(room, part, {
             chosen: options.avatar,
             ...(options.onFigure ? { signal: options.onFigure } : {}),
+            // Spec 016 (FR-019 to FR-021): the twin's states on the room's clock.
+            clock: () => clock.now(),
             // Spec 016 (FR-002, FR-044; plan.md R-05): the stand-in's files, fetched only once the twin's own model
             // has failed; after `expected` resolved, so the loader counts them for nothing (spec 012).
             standIn: () => {
@@ -660,6 +662,10 @@ export function createScene(options: SceneOptions): Stage3D {
     figures: figuresReady,
     waitMs: part.figures.wait_ms,
     expected,
+    // Spec 016 (FR-022): the conversation's activity, to the twin's states; nothing before the figures' chunk loads.
+    twinActivity(activity) {
+      figures?.twinActivity(activity);
+    },
     apply(value) {
       // The case shows on the next frame the loop draws (spec 004, FR-042, FR-043; scene/cables.ts), its glows with it.
       room.cases.apply(value);

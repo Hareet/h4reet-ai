@@ -701,6 +701,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       },
     );
     talk = renderTalk(doc, {
+      // Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, to the 3D stage's twin alone; in
+      // 2D nothing reads it.
+      onActivity: (activity) => walker(stage)?.twinActivity?.(activity),
       messages: content.messages,
       clock,
       emit,
