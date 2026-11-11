@@ -46,6 +46,8 @@ export interface TextCopy {
 
 /** The tier the room shows until its signal applies another: not-live's case is the one the 3D and 2D rooms draw. */
 const SHOWN: TierValue = "not-live";
+/** Spec 009's stand-in line, the UI word the twin's line slot shows while the twin shows anything but its own picture. */
+const STAND_IN = "twin.stand_in";
 /** The line shown only while the room is paused, with the time it paused. */
 const PAUSED = "pause.paused_at";
 /** What the counters' "est." abbreviates (contracts/turn-cost.md §8). */
@@ -86,6 +88,10 @@ export function renderTextCopy(doc: Document, room: CopyIndex): TextCopy {
       list.append(h(doc, "li", {}, `${label}: `, state));
     } else if ("line" in entry) {
       const words = uiWord(room.ui, entry.line);
+      if (words !== null) list.append(h(doc, "li", {}, words));
+    } else if ("twin_line" in entry) {
+      // Spec 016's line slot (FR-014): spec 009's stand-in line until the twin's own picture shows.
+      const words = uiWord(room.ui, STAND_IN);
       if (words !== null) list.append(h(doc, "li", {}, words));
     }
     // `figures`: the counters' readings are their faces' entries, above, so the copy holds them once.

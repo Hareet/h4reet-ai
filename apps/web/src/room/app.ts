@@ -737,7 +737,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
           }
         : {}),
       // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
-      standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
+      standIn: deps.room.copy.some((e) => ("line" in e && e.line === "twin.stand_in") || "twin_line" in e)
         ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
         : "",
     });
