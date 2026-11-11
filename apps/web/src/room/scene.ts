@@ -68,7 +68,7 @@ import { createWalkInput } from "./walk/input";
 import { reachTargets } from "./walk/reach";
 import type { LabelFactory } from "./scene/bundle3d";
 import type { AvatarFigures } from "./scene/avatars";
-import { buildFaceQuads } from "./scene/faces3d";
+import { buildFaceQuads, dressSurface } from "./scene/faces3d";
 import { buildGlows } from "./scene/glows";
 import { LABEL_LAYER, createHighlight, drawFrame } from "./scene/highlight";
 import { createTextureLedger } from "./scene/ledger";
@@ -314,6 +314,12 @@ export function createScene(options: SceneOptions): Stage3D {
             ...(options.onFigure ? { signal: options.onFigure } : {}),
             // Spec 016 (FR-019 to FR-021): the twin's states on the room's clock.
             clock: () => clock.now(),
+            // Spec 016 (FR-036, FR-041): the shirt's lettering into the twin's own model's face, never the stand-in's.
+            dress: (instance) => {
+              for (const face of options.room.faces)
+                if (face.surface === "model" && face.placement === part.figures.twin)
+                  dressSurface(faces, face.id, instance);
+            },
             // Spec 016 (FR-002, FR-044; plan.md R-05): the stand-in's files, fetched only once the twin's own model
             // has failed; after `expected` resolved, so the loader counts them for nothing (spec 012).
             standIn: () => {
@@ -672,6 +678,8 @@ export function createScene(options: SceneOptions): Stage3D {
     },
     setText(text) {
       faces.setText(text);
+      // The shirt's words have come: the twin's own model, if it shows, takes them (spec 016, FR-036).
+      figures?.redress();
     },
     setCost(state) {
       faces.setCost(state);

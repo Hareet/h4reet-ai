@@ -53,13 +53,15 @@ describe("the print renderer (FR-036; SC-007)", () => {
     expect(REGISTRY.print.background).toBe("transparent");
     const face = shirtOf(drafts.index);
     if (!face) throw new Error("no shirt face in the drafts build");
-    const text = roomTextOf(drafts.roomText);
+    const text = roomTextOf({ room_text: drafts.roomText });
     const list = faceList(face, { index: drafts.index, text });
     expect(list).not.toBeNull();
     const [clear, ...rest] = list?.ops ?? [];
     expect(clear).toEqual({ op: "fill", color: "transparent" });
-    const colours = new Set(rest.map((op) => ("color" in op ? op.color : null)));
+    // Every coloured op is the ink; the draft's badge is the raster's own mark, as every face's (FR-038).
+    const colours = new Set(rest.flatMap((op) => ("color" in op ? [op.color] : [])));
     expect([...colours]).toEqual(["#000000"]);
+    expect(rest.every((op) => op.op === "path" || op.op === "badge")).toBe(true);
     const paths = rest.filter((op) => op.op === "path");
     expect(paths.length).toBeGreaterThan(0);
     // A drafts build marks it as a draft (FR-038).
@@ -97,9 +99,10 @@ describe("the face drawn into the twin's own mesh (FR-036, FR-037, FR-041; plan.
       doc,
       placements: new Map(drafts.scene.placements.map((p) => [p.id, new Object3D()])),
       level: 0,
+      dpr: 1,
       clock: { now: () => 0 } as never,
-      motion: { animates: () => false } as never,
-    } as never);
+      motion: () => ({ animate: false }),
+    });
 
   it("builds no quad for a surface: model face", () => {
     const face = shirtOf(drafts.index);
@@ -115,6 +118,10 @@ describe("the face drawn into the twin's own mesh (FR-036, FR-037, FR-041; plan.
     mesh.name = face.role;
     instance.add(mesh);
     const quads = faces();
+    // Nothing to dress with until the room text has come (FR-038): the shirt stays plain.
+    expect(dressSurface(quads, face.id, instance)).toBe(false);
+    expect(mesh.material).toBe(original);
+    quads.setText(roomTextOf({ room_text: drafts.roomText }));
     expect(dressSurface(quads, face.id, instance)).toBe(true);
     const material = mesh.material as MeshStandardMaterial;
     expect(material).not.toBe(original);
@@ -146,7 +153,7 @@ describe("the face drawn into the twin's own mesh (FR-036, FR-037, FR-041; plan.
 
 describe("the release build without the Author's approval (FR-038)", () => {
   it("binds no lettering: the face's words are no room text the release build publishes", () => {
-    const text = roomTextOf(release.roomText);
+    const text = roomTextOf({ room_text: release.roomText });
     const face = shirtOf(release.index);
     expect(face).toBeDefined();
     expect(faceList(face as never, { index: release.index, text })).toBeNull();

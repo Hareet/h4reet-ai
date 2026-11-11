@@ -93,6 +93,9 @@ export interface AvatarFiguresOptions {
   readonly standIn?: () => void;
   /** Spec 016 (FR-019 to FR-021): the room's clock, in milliseconds, which the twin's states run on; absent, 0. */
   readonly clock?: () => number;
+  /** Spec 016 (FR-036, FR-041): draws the room's faces into the twin's own instance's meshes as it shows (the shirt's
+   *  lettering); never into the stand-in's or the capsule. */
+  readonly dress?: (instance: Object3D) => void;
 }
 
 export interface AvatarFigures {
@@ -127,6 +130,8 @@ export interface AvatarFigures {
   close(): void;
   /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states. */
   twinActivity(activity: TwinActivity): void;
+  /** Spec 016 (FR-036): the faces' words have come: the twin's own instance, if it shows, is dressed again. */
+  redress(): void;
   /** Resolves once both figures show their avatars or keep their fallbacks for good (R-10): the room's wait. */
   readonly settled: Promise<void>;
   /** Walking's driver for the visitor's avatar (FR-028; R-16), which figure.ts's figureDriverFor uses while the
@@ -577,6 +582,7 @@ export function createAvatarFigures(
     if (roles(f.wants).includes("idle") && !source.ended.has("idle")) return;
     f.hidden = new Map(f.fallback.map((c) => [c, c.visible] as const));
     for (const child of f.fallback) child.visible = false;
+    if (f.id === "twin" && f.wants === "twin") options.dress?.(f.instance);
     f.group.add(f.instance);
     f.shown = true;
     picture(f, "avatar", null);
@@ -807,6 +813,10 @@ export function createAvatarFigures(
           f.mixer.update(dtMs / 1000);
         }
       holdSheet();
+    },
+    redress() {
+      const f = figures.twin;
+      if (!disposed && f.shown && f.wants === "twin" && f.instance) options.dress?.(f.instance);
     },
     twinActivity(activity) {
       if (disposed || !twinStates) return;

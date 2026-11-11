@@ -23,7 +23,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from "three";
-import type { Object3D } from "three";
+import type { Material, Object3D } from "three";
 
 import type { Clock } from "../clock";
 import type { RoomIndex, RoomScene } from "../compose/bundle";
@@ -40,9 +40,20 @@ import { qualitySettings } from "./levels";
 /** How far a quad stands off its face, along its normal, in metres at scale 1, beside its polygon offset. */
 const LIFT = 0.0005;
 
+/** Spec 016 (FR-036, FR-037; plan.md R-12): a face drawn into its avatar's own mesh, its canvas and texture. */
+export interface FaceSurface {
+  readonly face: IndexFace;
+  readonly canvas: HTMLCanvasElement;
+  readonly texture: CanvasTexture;
+  /** The mesh's name in the avatar's instance: the face's role. */
+  readonly role: string;
+}
+
 export interface FaceQuads {
   /** Each bound face's quad, by face ID, named `face:<id>`. */
   readonly quads: ReadonlyMap<string, Mesh>;
+  /** Spec 016: each face drawn into an avatar's own mesh, by face ID. */
+  readonly surfaces: ReadonlyMap<string, FaceSurface>;
   /** The display list each face drew last, by face ID; none for a face drawn plain. */
   readonly lists: ReadonlyMap<string, DisplayList>;
   /** The room text, once room-data.json has loaded: the faces it words are drawn, and the screens begin to type. */
@@ -107,6 +118,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
   const states = new Map<string, FaceState>();
   const quads = new Map<string, Mesh>();
   const lists = new Map<string, DisplayList>();
+  const surfaces = new Map<string, FaceSurface>();
 
   const sources = (): FaceSources => ({
     index,
@@ -128,6 +140,17 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     const geometry = piece && Object.hasOwn(piece.faces, face.role) ? piece.faces[face.role] : undefined;
     const node = p && options.placements.get(p.id);
     if (!piece || !geometry || !node || states.has(face.id)) continue;
+    // Spec 016 (FR-036, FR-037; plan.md R-12): a face drawn into its avatar's own mesh has a canvas and no quad;
+    // dressSurface puts the canvas on the mesh while the twin's own model shows.
+    if (face.surface === "model") {
+      const canvas = doc.createElement("canvas");
+      const texture = canvasTexture(canvas);
+      // glTF's texture coordinates run from the image's top-left (the delivered face's (0, 0) is its top-left from the
+      // front, K3's test), so the canvas uploads as it is drawn.
+      texture.flipY = false;
+      surfaces.set(face.id, { face, canvas, texture, role: face.role });
+      continue;
+    }
     const canvas = doc.createElement("canvas");
     const texture = canvasTexture(canvas);
     const material = new MeshBasicMaterial({
@@ -194,9 +217,29 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     s.quad.visible = true;
   };
 
+  /** A surface face's canvas, sized once for the device at the level it began at, drawn at its final frame, or left
+   *  out of `lists` where it has no words now (a release build without the Author's approval), so nothing dresses it. */
+  const drawSurface = (s: FaceSurface): void => {
+    const list = ready(s.face) ? faceList(s.face, sources()) : null;
+    if (list === null) {
+      lists.delete(s.face.id);
+      return;
+    }
+    if (s.canvas.width === 0) {
+      const [w, h] = faceCanvasSize(s.face, options.dpr, qualitySettings(level));
+      s.canvas.width = w;
+      s.canvas.height = h;
+    }
+    lists.set(s.face.id, list);
+    const ctx = s.canvas.getContext("2d");
+    if (ctx) rasterize(ctx, list, s.canvas.width, s.canvas.height);
+    s.texture.needsUpdate = true;
+  };
+
   /** Draws every face as it stands now: its final frame once typed, else where its typing has reached. */
   const redraw = (): void => {
     for (const s of states.values()) draw(s, s.typed ? Infinity : s.at);
+    for (const s of surfaces.values()) drawSurface(s);
   };
 
   /** Moves a face's typing on to `now`, ending it at once while the room is still or the level types nothing. */
@@ -230,6 +273,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
 
   return {
     quads,
+    surfaces,
     lists,
     setText(next) {
       text = next;
@@ -252,6 +296,7 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
     },
     dispose() {
       unwatch?.();
+      for (const s of surfaces.values()) s.texture.dispose();
       for (const s of states.values()) {
         s.texture.dispose();
         (s.quad.material as MeshBasicMaterial).dispose();
@@ -259,4 +304,32 @@ export function buildFaceQuads(options: FaceQuadOptions): FaceQuads {
       }
     },
   };
+}
+
+/**
+ * Spec 016 (FR-036, FR-037, FR-041; plan.md R-12, K4): a surface face drawn into an avatar instance's own mesh of the
+ * face's role: its material cloned, the face's canvas as its map, an alpha cut-off of 0.5, opaque, marked as a face's
+ * surface, and its ink lines off, which the look's Ink.prepare leaves as it is. False, and nothing changed, where the
+ * instance has no such mesh (the stand-in or the capsule) or the face has no words now (FR-038).
+ */
+export function dressSurface(
+  faces: Pick<FaceQuads, "surfaces" | "lists">,
+  faceId: string,
+  instance: Object3D,
+): boolean {
+  const surface = faces.surfaces.get(faceId);
+  if (!surface || !faces.lists.has(faceId)) return false;
+  const mesh = instance.getObjectByName(surface.role) as Mesh | undefined;
+  if (!mesh?.isMesh) return false;
+  const source = mesh.material as Material | Material[];
+  if (Array.isArray(source)) return false;
+  if (source.userData.h4FaceSurface === true) return true;
+  const material = source.clone() as Material & { map?: CanvasTexture | null; alphaTest: number };
+  material.map = surface.texture;
+  material.alphaTest = 0.5;
+  material.transparent = false;
+  material.userData = { ...material.userData, h4FaceSurface: true, outlineParameters: { visible: false } };
+  material.needsUpdate = true;
+  mesh.material = material;
+  return true;
 }
