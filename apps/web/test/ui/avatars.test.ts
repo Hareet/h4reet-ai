@@ -174,6 +174,34 @@ describe("the frame log's figures (FR-035)", () => {
     signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
     expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
   });
+
+  // T072 (spec 016; FR-052; contracts/twin-states.md §7): the twin's pictures (its own model, its still, its drawing),
+  // its state changes, and its clips, in page memory, in a drafts build only.
+  it("records the twin's pictures, states, and clips in a drafts build (spec 016, FR-052)", async () => {
+    const v = start({ webgl: true, frameLog: (o) => createFrameLog(o) });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
+    signal(v, { kind: "twin-state", state: "arriving", role: "greeting" });
+    signal(v, { kind: "clip", figure: "twin", role: "greeting" });
+    signal(v, { kind: "picture", figure: "twin", shows: "still", why: null });
+    const log = JSON.parse((v.win as unknown as { h4FrameLog(): string }).h4FrameLog()) as {
+      entries: (FrameLogEntry & { state?: string })[];
+    };
+    const twin = log.entries.filter((e) => ["figure", "clip", "twin-state"].includes(e.event));
+    expect(twin.map(({ event, figure, shows, state, role }) => ({ event, figure, shows, state, role }))).toEqual([
+      { event: "figure", figure: "twin", shows: "own", state: undefined, role: undefined },
+      { event: "twin-state", figure: undefined, shows: undefined, state: "arriving", role: "greeting" },
+      { event: "clip", figure: "twin", shows: undefined, state: undefined, role: "greeting" },
+      { event: "figure", figure: "twin", shows: "still", state: undefined, role: undefined },
+    ]);
+  });
+
+  it("keeps no log of the twin in a release build", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "twin-state", state: "resting", role: "desk-lean" });
+    expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
+  });
 });
 
 describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
