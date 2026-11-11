@@ -370,24 +370,36 @@ def test_spec_000s_part_closes_with_fr_040s_sentence() -> None:
 def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     # specs/002-the-room/spec.md's Data-Flow Disclosure Entries give V1's Carries, Never carries, and Why; the
     # web service has its row, as every service does (tools/gates/compose_policy.py's disclosure rule). Spec 009's
-    # Amendment M6 adds the avatar files to V1's Carries, in its own words, after spec 002's.
+    # Amendment M6 added the avatar files to V1's Carries, after spec 002's words; spec 016's Amendment M17 (its
+    # FR-053) puts its own avatar files in their place, and adds to V1's Trigger and Why, in its own words (changed
+    # with T073, specs/016-the-twins-own-avatar/plan.md R-18).
     room = TEXT.split("\n## Spec 002: the room\n", 1)[1]
     assert "| S14 | `web` →" in room and "| V1 |" in room
     spec = (REPO / "specs" / "002-the-room" / "spec.md").read_text(encoding="utf-8")
     (entry,) = [ln for ln in spec.splitlines() if ln.startswith("| V1 |")]
     _, _, carries, never, why = [c.strip() for c in entry.strip().strip("|").split("|")]
-    amended = (REPO / "specs" / "009-room-avatars" / "spec.md").read_text(
+    amended = (REPO / "specs" / "016-the-twins-own-avatar" / "spec.md").read_text(
         encoding="utf-8"
     )
-    (m6,) = [ln for ln in amended.splitlines() if ln.startswith("| M6 |")]
-    gains = re.search(r'V1\'s Carries gains "([^"]+)"', m6)
-    assert gains, "spec 009's M6 doesn't read as this test reads it"
-    _from_to, _trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
-    assert (row_carries, row_never, row_why) == (
-        f"{carries}, and {gains.group(1)}",
-        never,
-        why,
+    (m17,) = [
+        ln for ln in amended.splitlines() if ln.startswith("| V1, amended (M17) |")
+    ]
+    cells = [c.strip() for c in m17.strip().strip("|").split("|")]
+    trigger = re.fullmatch(r"as before, (and following .*)", cells[2])
+    files = re.fullmatch(r"as before, with (the avatar files now: .*)", cells[3])
+    reason = re.fullmatch(
+        r"as before: the room's static assets and pages; (.*)", cells[5]
     )
+    assert trigger and files and reason, (
+        "spec 016's M17 doesn't read as this test reads it"
+    )
+    _from_to, row_trigger, row_carries, row_never, row_why, *_ = rows()["V1"]
+    assert (row_carries, row_never, row_why) == (
+        f"{carries}, and {files.group(1)}",
+        never,
+        f"{why}; {reason.group(1)}",
+    )
+    assert row_trigger.endswith(f", {trigger.group(1)}")
     assert named(rows()["S14"][0].split("→", 1)[0]) == {"web"}
 
 
