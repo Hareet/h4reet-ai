@@ -17,6 +17,7 @@ import { compose } from "../../build/room/compose";
 import { loadRoom, namespaceIds, readFile, readJson, readYaml } from "../../build/room/load";
 import type { DataKind } from "../../build/room/load";
 import { noPolicy } from "../../build/room/policy";
+import { RENDERERS } from "../../src/room/compose/vocabulary";
 import { fileTree } from "../../build/room/source";
 import { FIXTURES_DIR, goodFiles, overlay } from "../helpers/room-fixtures";
 
@@ -1246,5 +1247,56 @@ describe("RI8 over the twin block (spec 016, T009)", () => {
     expect(ri8({ lean: { against: "fx-board" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
     expect(ri8({ lean: { against: "fx-nowhere" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
     expect(ri8({ lean: { against: "fx-twin" } })).toEqual([`RI8 ${FILES.scene}:figures.twin.lean.against`]);
+  });
+});
+
+// T052 (spec 016; FR-036, FR-037; plan.md R-12; Amendment M18; contracts/twin-data.md §2, §3): a live face's `surface`,
+// `quad` by default or `model`; the renderers' closed list with `print`; and RI8 refusing a `surface: model` face on a
+// piece that isn't a figure's.
+describe("a live face's surface and the print renderer (spec 016, T052)", () => {
+  const DESK = FILES.catalog;
+  const withFace = (file: string, face: Record<string, unknown>): Uint8Array =>
+    variant(file, (d) => {
+      d.live_faces = [...((d.live_faces as unknown[] | undefined) ?? []), face];
+    });
+  const FACE = {
+    role: "fx-shirt",
+    at: [0, 0.3, 0.07],
+    size: [0.18, 0.07],
+    facing: [0, 0, 1],
+    up: [0, 1, 0],
+    px: [512, 199],
+    readable: false,
+  };
+
+  it("reads surface quad by default, and model where given", () => {
+    const quad = judge("catalog", withFace(DESK, FACE));
+    expect(quad.seen).toEqual([]);
+    const faces = at(quad.value as Doc, "live_faces") as unknown as Doc[];
+    expect(faces.at(-1)?.surface).toBe("quad");
+    const model = judge("catalog", withFace(DESK, { ...FACE, surface: "model" }));
+    expect(model.seen).toEqual([]);
+    expect((at(model.value as Doc, "live_faces") as unknown as Doc[]).at(-1)?.surface).toBe("model");
+    expect(judge("catalog", withFace(DESK, { ...FACE, surface: "plane" })).seen).toContain(
+      `RD3 live_faces[${faces.length - 1}].surface`,
+    );
+  });
+
+  it("takes print among the renderers", () => {
+    expect(RENDERERS).toContain("print");
+  });
+
+  it("refuses a surface: model face on a piece that isn't a figure's with RI8, and takes one on the twin's", () => {
+    const ri8 = (file: string): string[] =>
+      compose(overlay({ [file]: withFace(file, { ...FACE, surface: "model" }) }), noPolicy(), {
+        mode: "strict",
+        drafts: true,
+      })
+        .findings.filter((f) => f.rule === "RI8")
+        .map((f) => `${f.rule} ${f.file}:${f.path}`);
+    expect(ri8(DESK)).toEqual([
+      `RI8 ${DESK}:live_faces[${(docOf(DESK).live_faces as unknown[] | undefined)?.length ?? 0}].surface`,
+    ]);
+    expect(ri8("apps/web/room/catalog/fx-twin.yaml")).toEqual([]);
   });
 });
