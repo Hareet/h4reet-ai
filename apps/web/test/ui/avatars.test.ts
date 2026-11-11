@@ -208,3 +208,54 @@ describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
     expect(v.spies.network).toEqual([]);
   });
 });
+
+// T024's line rule (spec 016; FR-014; contracts/twin-states.md §4; SC-003): one slot, the stage's note's second
+// paragraph and the text copy's first line, saying the twin's line, read from main's approval, while and only while the
+// twin's own picture shows, and the stand-in line otherwise; never both, nor neither; in place, in no live region.
+describe("the twin's line slot (spec 016, FR-014; SC-003)", () => {
+  const TWIN_LINE = roomIndex().twin?.line ?? "";
+
+  it("is bundled: the index carries the twin's line, which the page shows nowhere before its picture does", async () => {
+    expect(TWIN_LINE).not.toBe("");
+    expect(TWIN_LINE).not.toBe(STAND_IN);
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    expect(v.doc.body.textContent).not.toContain(TWIN_LINE);
+  });
+
+  it("says the twin's line while its own model shows, and the stand-in line again when it falls back", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    const note = standInLine(v);
+    signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
+    expect(textOf(standInLine(v))).toBe(TWIN_LINE);
+    expect(standInLine(v)).toBe(note);
+    expect(aroundLines(v)[0]).toBe(TWIN_LINE);
+    expect(aroundLines(v)).not.toContain(STAND_IN);
+    expect(note?.closest("[aria-live]")).toBeNull();
+    signal(v, { kind: "picture", figure: "twin", shows: "fallback", why: "failed" });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    expect(aroundLines(v)[0]).toBe(STAND_IN);
+    expect(aroundLines(v)).not.toContain(TWIN_LINE);
+    // The stand-in avatar in the twin's figure keeps the stand-in line.
+    signal(v, { kind: "picture", figure: "twin", shows: "avatar", why: null });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+  });
+
+  it("says the twin's line while its 2D still shows, and the stand-in line with its drawing", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "twin", shows: "still", why: null });
+    expect(textOf(standInLine(v))).toBe(TWIN_LINE);
+    signal(v, { kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+  });
+
+  it("ignores the visitor's figure's pictures", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+  });
+});
