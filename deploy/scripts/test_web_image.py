@@ -657,6 +657,7 @@ def test_no_policy_on_main_is_an_empty_context(
     argv = built(fake)
     absent = hashlib.sha256(
         b"content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n"
+        b"approvals.json:absent\n"
     ).hexdigest()
     assert absent == digest({})
     assert argv[argv.index("--label") + 1] == f"org.h4reet.web.policy={absent}"
@@ -714,6 +715,7 @@ def test_git_reads_main_without_replace_objects_or_the_callers_config(
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{APPROVALS}"],
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{HEADER}"],
         ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{CAPS}"],
+        ["git", "-C", str(repo), "cat-file", "blob", f"refs/heads/main:{LIKENESS}"],
     ]
     for _, git_env in seen:
         assert git_env.get("GIT_NO_REPLACE_OBJECTS") == "1"
@@ -1198,19 +1200,28 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     ]
     assert len(builds) == 2
     assert all(copy < i for i in builds)
-    # Of the files the build context gives (a COPY or ADD with no --from), the caps are the only one under assets/.
-    # The models come from the named room-assets stage instead (T219), never from the context's assets/room, and the
-    # visitor avatars from the visitor-assets stage (spec 009, FR-023).
+    # Of the files the build context gives (a COPY or ADD with no --from), the caps and spec 016's likeness approvals
+    # (its plan.md R-03) are the only ones under assets/. The models come from the named room-assets stage instead
+    # (T219), never from the context's assets/room, the visitor avatars from the visitor-assets stage (spec 009,
+    # FR-023), and the twin from the twin-assets stage (spec 016, FR-048).
+    likeness = "COPY assets/policy/approvals.json assets/policy/approvals.json"
+    assert all(copy < i for i in builds) and instructions.index(likeness) < min(builds)
     assert [
         ln
         for ln in instructions
         if ln.startswith(("COPY ", "ADD ")) and "--from=" not in ln and "assets/" in ln
-    ] == [caps]
+    ] == [caps, likeness]
     assert [
         ln
         for ln in instructions
-        if ln.startswith(("COPY ", "ADD ")) and "assets/" in ln and ln != caps
-    ] == [ROOM_ASSETS_COPY, VISITOR_ASSETS_COPY]
+        if ln.startswith(("COPY ", "ADD "))
+        and "assets/" in ln
+        and ln not in (caps, likeness)
+    ] == [
+        ROOM_ASSETS_COPY,
+        VISITOR_ASSETS_COPY,
+        "COPY --from=twin-assets / /src/assets/twin/",
+    ]
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1332,20 +1343,25 @@ def test_the_matcher_reads_dockerignore_as_docker_does() -> None:
 
 
 def test_the_policy_reaches_the_build_only_through_its_named_context() -> None:
-    # The approvals and the PDF's header never enter a context from the tree: the build reads them from the policy
-    # context, main's, or not at all. The caps are the exception, which the install stage copies (T328).
+    # The content approvals and the PDF's header never enter a context from the tree: the build reads them from the
+    # policy context, main's, or not at all. The caps are the exception, which the install stage copies (T328), and spec
+    # 016's likeness approvals (its plan.md R-03; changed with T013, R-18), which the room reads only where the policy
+    # context holds none, and which rule A9 holds to main's at the commit's base, as it holds the caps.
     ignore = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert "assets/policy" in ignore
     assert "!assets/policy/caps.json" in ignore
+    assert "!assets/policy/approvals.json" in ignore
     assert ignore.index("assets/policy") < ignore.index("!assets/policy/caps.json")
+    assert ignore.index("assets/policy") < ignore.index("!assets/policy/approvals.json")
     for name in (
         "content-approvals.json",
         "resume-header.json",
-        "approvals.json",
+        "licenses.json",
         "anything-else.json",
     ):
         assert dockerignored(f"assets/policy/{name}"), name
     assert not dockerignored("assets/policy/caps.json")
+    assert not dockerignored("assets/policy/approvals.json")
 
 
 def test_every_file_the_dockerfile_copies_from_the_context_is_in_it() -> None:

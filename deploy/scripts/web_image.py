@@ -26,11 +26,12 @@ bakes in what the gateway's doesn't:
     assets/policy/caps.json, which the Dockerfile copies (spec 004, T328): spec 003's rule A9 holds that copy to
     main's at the commit's base, but on dev-cpu the tree is the working tree, so that guarantee rests on main
     keeping caps.json. A commit without caps.json fails at the Dockerfile's copy, closed. The build stage reads only
-    that directory and that one file, and runs no git: a host stack builds a git archive export, and .dockerignore
-    drops .git anyway. The
-    three files' digest is the image's label org.h4reet.web.policy: SHA-256 over "<name>:<the file's SHA-256 or
-    absent>\\n" for content-approvals.json, then resume-header.json, then caps.json, as apps/web/build/approvals.ts's
-    policyDigest computes room-data.json's built_from.
+    that directory and the tree's caps.json and approvals.json (spec 016: the likeness approvals, which the room reads
+    only where the context holds none, as the human-only gate's build does), and runs no git: a host stack builds a git
+    archive export, and .dockerignore drops .git anyway. The policy files' digest is the image's label
+    org.h4reet.web.policy: SHA-256 over "<name>:<the file's SHA-256 or absent>\\n" for content-approvals.json, then
+    resume-header.json, then caps.json, then approvals.json, as apps/web/build/approvals.ts's policyDigest computes
+    room-data.json's built_from.
 
 The room's models come from the tree it builds, never from main (spec 004, FR-013, FR-053; its contracts/serving.md
 §3): when <tree>/assets/room is a directory of the tree's own, neither it nor assets/ a link, it is handed over as the
@@ -40,12 +41,15 @@ place of the directory, or of assets/, would hand over a directory the commit do
 Without one the Dockerfile's empty room-assets stage stands in, and every piece builds as its stand-in. The visitor
 avatars come the same way (spec 009, FR-023): <tree>/assets/visitors, on the same terms, as the named context
 `visitor-assets`, which the Dockerfile copies to /src/assets/visitors/; without it both figures build as their
-fallbacks.
+fallbacks. The twin's own avatar comes the same way (spec 016, FR-048; its Amendment M20): <tree>/assets/twin, on the
+same terms, as the named context `twin-assets`, which the Dockerfile copies to /src/assets/twin/; without it the twin's
+figure shows its stand-in. Spec 016 also adds main's assets/policy/approvals.json to the policy context, fourth, the
+likeness approvals the twin's line is read from (its FR-015, Amendment M21), and the label digests the four files.
 
 Otherwise as the gateway's: a host stack builds the export its run file names, and only in the Author's terminal;
 dev-cpu builds the working tree on the agents' engine only. The build is `docker buildx build --load` with this tree's
 Dockerfile and context, the env file's H4_BUILD_PROXY as the proxy arguments, ROOM_DRAFTS, the policy context, the
-models' and the avatars' contexts where the tree has them, and the label, and nothing else: no --ssh, --secret, cache import or export,
+models', the avatars', and the twin's contexts where the tree has them, and the label, and nothing else: no --ssh, --secret, cache import or export,
 --add-host, --allow, or --network. Docker and git get only their own settings from the environment.
 
 Exit codes: 0 the image is built; 1 the build failed; 2 usage, or refused.
@@ -74,12 +78,14 @@ HOST_STACKS = ("prod", "dev")
 SUFFIX = {"prod": "", "dev": "-drafts", "dev-cpu": "-drafts"}
 DRAFTS_SUFFIX = "-drafts"
 # main's policy files, by their path on main and their name in the context (contracts/resume-source.md §5), the caps
-# third (spec 004's contracts/serving.md §3), in the order of apps/web/build/approvals.ts's POLICY_FILES and
-# apps/web/build/policy.ts's POLICY_PATHS, so the label and room-data.json's built_from digest the same files.
+# third (spec 004's contracts/serving.md §3), the likeness approvals fourth (spec 016, FR-015; its plan.md R-03), in the
+# order of apps/web/build/approvals.ts's POLICY_FILES and apps/web/build/policy.ts's POLICY_PATHS, so the label and
+# room-data.json's built_from digest the same files.
 POLICY_FILES = (
     ("assets/policy/content-approvals.json", "content-approvals.json"),
     ("assets/policy/resume-header.json", "resume-header.json"),
     ("assets/policy/caps.json", "caps.json"),
+    ("assets/policy/approvals.json", "approvals.json"),
 )
 POLICY_LABEL = "org.h4reet.web.policy"
 # The tree's models (spec 004, contracts/serving.md §3), and the named context the Dockerfile's room-assets stage takes.
@@ -88,6 +94,9 @@ ROOM_ASSETS_CONTEXT = "room-assets"
 # The tree's visitor avatars (spec 009, FR-023; its Amendment M19), and the named context of the visitor-assets stage.
 VISITOR_ASSETS = "assets/visitors"
 VISITOR_ASSETS_CONTEXT = "visitor-assets"
+# The tree's twin (spec 016, FR-048; its Amendment M20), and the named context of the twin-assets stage.
+TWIN_ASSETS = "assets/twin"
+TWIN_ASSETS_CONTEXT = "twin-assets"
 RELAY_HOST = "tcp://127.0.0.1:2376"
 AGENTS_ENGINE = "tcp://198.18.0.1:2376"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -318,6 +327,12 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             f"web image: {root} has no {VISITOR_ASSETS} directory of its own, so both figures build as their fallbacks",
             flush=True,
         )
+    twin = room_assets(root, TWIN_ASSETS)
+    if twin is None:
+        print(
+            f"web image: {root} has no {TWIN_ASSETS} directory of its own, so the twin's figure shows its stand-in",
+            flush=True,
+        )
     try:
         print(
             f"web image: building {image} from {root}{' with drafts' if drafts else ''}",
@@ -347,6 +362,11 @@ def main(argv: list[str], run: Runner = docker, root: Path = ROOT) -> int:
             *(
                 ("--build-context", f"{VISITOR_ASSETS_CONTEXT}={avatars}")
                 if avatars is not None
+                else ()
+            ),
+            *(
+                ("--build-context", f"{TWIN_ASSETS_CONTEXT}={twin}")
+                if twin is not None
                 else ()
             ),
             "--label",

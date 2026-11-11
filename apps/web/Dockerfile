@@ -2,7 +2,7 @@
 # deploy/scripts/web_image.py, with the repository root as its context: on a host stack the run's export of the
 # commit, on dev-cpu the working tree. deploy/compose.yaml names it h4reet-web:<ref><suffix> and never builds or pulls
 # it. .dockerignore keeps .git, env files, node_modules, dist, and dist-phone out, and assets/policy but its caps.json
-# (spec 004, contracts/serving.md §3; its plan.md §10).
+# (spec 004, contracts/serving.md §3; its plan.md §10) and its approvals.json (spec 016, plan.md R-03).
 #
 # Every base is pinned by digest, as deploy/images.lock pins it (base:node, and edge's nginx-unprivileged). There is
 # no `# syntax=` line: it would pull an unpinned frontend image.
@@ -25,6 +25,11 @@ FROM scratch AS room-assets
 # web_image.py replaces this stage with the named build context `visitor-assets` when the tree has the folder. A build
 # that names none gets this empty stage, and both figures build as their fallbacks.
 FROM scratch AS visitor-assets
+
+# ---- twin-assets: the tree's assets/twin, as web_image.py hands it over (spec 016, FR-048) ----
+# web_image.py replaces this stage with the named build context `twin-assets` when the tree has the folder. A build
+# that names none gets this empty stage, and the twin's figure shows its stand-in.
+FROM scratch AS twin-assets
 
 # ---- install: the workspace's dependencies from the lockfile, and what the builds read ----
 FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS install
@@ -58,6 +63,9 @@ COPY apps/web apps/web
 # 003's rule A9 refuses a branch that changes assets/policy/, so this copy is main's at the commit's base. The caps
 # alone: the approvals and the PDF's header come from the policy context or not at all (spec 004, T328).
 COPY assets/policy/caps.json assets/policy/caps.json
+# Spec 016 (FR-015; plan.md R-03): the likeness approvals, which the room reads the twin's line from, the same way: the
+# policy context's where it holds them, else this copy, which rule A9 holds to main's at the commit's base.
+COPY assets/policy/approvals.json assets/policy/approvals.json
 COPY --from=policy / /src/policy/
 
 # ---- build: the static site ----
@@ -70,6 +78,9 @@ COPY --from=room-assets / /src/assets/room/
 # The visitor avatars, where the compositor reads them, assets/visitors/: the commit's own, or none (spec 009, FR-023).
 # The build writes their bundled files' gzip-9 copies into dist/a/ beside the models.
 COPY --from=visitor-assets / /src/assets/visitors/
+# The twin's own avatar, where the compositor reads it, assets/twin/: the commit's own, or none (spec 016, FR-048). The
+# build writes its GLBs' gzip-9 copies and its still into dist/a/; no plain model, record, or notice reaches nginx.
+COPY --from=twin-assets / /src/assets/twin/
 # ROOM_DRAFTS is 1 for the -drafts images of dev and dev-cpu, and empty for prod's (contracts/web-serving.md §1).
 # ROOM_POLICY_DIR is where the build reads main's policy from, and nowhere else. --ignore-scripts keeps a checkout's
 # prebuild (build/policy.ts, which reads main with git) from running here: the context already holds main's policy.
