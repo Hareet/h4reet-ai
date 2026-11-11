@@ -118,6 +118,10 @@ export const RULES = {
   RA3: rule("RA", model), // the stand-in's model recorded as a likeness, or from a photo
   RA4: rule("RA", model), // an avatar's file over main's per_asset cap for its kind
   RA5: rule("RA", { refuses: false }), // a file in a visitor's folder with no role: reported, never refused
+  // Spec 016's twin (its FR-015, FR-029, FR-055; contracts/twin-data.md §7): RA1, RA2, RA4, and RA5 extend to
+  // assets/twin/; RA6 and RA7 are new, lenient as RA1 is, so a lenient build leaves the twin's files (RA6) or its lean
+  // (RA7) out and builds.
+  RA6: rule("RA", model), // the twin's files without main's approval naming its model's SHA-256 with a line
   RK1: rule("RK"), // a budget above the caps
   RK2: rule("RK", model), // a model over its budget
   RK3: rule("RK"), // the scene's texture memory over its cap

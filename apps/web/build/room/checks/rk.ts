@@ -16,7 +16,9 @@
 // - RK4, a malformed caps.json: each of policy.ts's problems, by its path in the file;
 // - RK5 (spec 009, FR-038), the first visit with both figures' files over main's phase-3 budget: the room's set models
 //   and cards as served, the stand-in avatar's bundled files, and the largest other visitor avatar's, by their gzip-9
-//   copies, lenient, as RK2 is.
+//   copies, lenient, as RK2 is. Since spec 016 (its FR-046; Amendment M16), where the twin's model is bundled, its
+//   served GLBs take the stand-in's place, and the visitor's share is the largest of every visitor folder, the
+//   stand-in's among them, as the arrival check's F3 counts it.
 // Since spec 009, RK3's twin is the larger of its own model and the stand-in avatar's files, and every visitor avatar
 // is counted at its decoded size, at most the scene's texture_px a side, as the room decodes it (its FR-024). Since spec
 // 016 (its FR-046; plan.md R-02; Amendment M16), the twin's own is its model alone, assets/twin/twin.glb, at its decoded
@@ -35,8 +37,8 @@ import { readImage } from "../../../src/room/glb/images";
 import { readGlb } from "../../../src/room/glb/read";
 import { count } from "../../../src/room/glb/rules";
 import { capSides } from "../../../src/room/scene/ledger";
-import { avatarsOf, bundledFiles, figureBlock, VISITORS_DIR } from "../avatars";
-import type { AvatarSet } from "../avatars";
+import { avatarsOf, bundledFiles, figureBlock, twinGlbs, twinOf, VISITORS_DIR } from "../avatars";
+import type { AvatarSet, TwinSet } from "../avatars";
 import type { Loaded } from "../load";
 import { CAPS_PATH, capsOf } from "../policy";
 import type { CatalogEntry } from "../schema";
@@ -301,27 +303,35 @@ function capsFile(ctx: Context): void {
 }
 
 /** The figures' share of the first visit (spec 009, FR-038; plan.md R-19), by their bundled files' gzip-9 copies: the
- *  stand-in avatar's, and the largest other visitor avatar's, which a visitor who chooses it fetches beside them. */
+ *  twin's own files where its model is bundled (spec 016, FR-044, FR-046), else the stand-in avatar's; and the largest
+ *  other visitor avatar's, which a visitor who chooses it fetches beside them: with the twin's own, the largest of every
+ *  folder, the stand-in's among them, since it is then fetched only as the visitor's. */
 export interface FiguresVisit {
+  /** The twin's served GLBs, its model and its bundled clips; 0 where its model isn't bundled. */
+  readonly twin: number;
+  /** The stand-in's files; 0 where the twin's own model is bundled. */
   readonly stand_in: number;
-  /** The largest bundled avatar's but the stand-in's, and which; null with none. */
+  /** The largest bundled avatar's, and which; null with none. */
   readonly other: number;
   readonly other_id: string | null;
 }
 
-export function figuresVisit(set: AvatarSet): FiguresVisit {
+export function figuresVisit(set: AvatarSet, twin: TwinSet | null = null): FiguresVisit {
   const served = (id: string): number => {
     const avatar = set.avatars.find((a) => a.id === id);
     return avatar ? sum(bundledFiles(avatar).map((f) => f.gz?.length ?? 0)) : 0;
   };
-  const standIn = set.figures.stand_in === null ? 0 : served(set.figures.stand_in);
+  const own = twin === null ? [] : twinGlbs(twin);
+  const twinBytes = sum(own.map((f) => f.gz?.length ?? 0));
+  const standing = own.length > 0 ? null : set.figures.stand_in;
+  const standIn = standing === null ? 0 : served(standing);
   let [other, otherId] = [0, null as string | null];
   for (const a of set.avatars) {
-    if (a.id === set.figures.stand_in) continue;
+    if (a.id === standing) continue;
     const bytes = served(a.id);
     if (bytes > other || (otherId === null && bytes > 0)) [other, otherId] = [bytes, a.id];
   }
-  return { stand_in: standIn, other, other_id: otherId };
+  return { twin: twinBytes, stand_in: standIn, other, other_id: otherId };
 }
 
 /** RK5 (spec 009, FR-038): the first visit with both figures' files, the room's set models and cards by what the site
@@ -339,17 +349,18 @@ function firstVisit(ctx: Context): void {
       .filter((c) => placed.has(c.entry.value.id) && set.has(c.entry.value.id))
       .map((c) => c.measures?.served ?? 0),
   );
-  const figures = figuresVisit(avatarsOf(ctx.tree, ctx.policy, scene.value));
-  const total = room + figures.stand_in + figures.other;
+  const figures = figuresVisit(avatarsOf(ctx.tree, ctx.policy, scene.value), twinOf(ctx.tree, ctx.policy, scene.value));
+  const total = room + figures.twin + figures.stand_in + figures.other;
   const budget = ctx.policy.phase3_bytes;
+  const twin = figures.twin > 0 ? `${count(figures.twin)} in the twin's files, ` : "";
   if (total > budget)
     ctx.report(
       "RK5",
       scene.file,
       "-",
       `${count(total)} bytes in the first visit with both figures' files, over main's phase-3 budget of ` +
-        `${count(budget)}: ${count(room)} in the room's set models and cards, ${count(figures.stand_in)} in the ` +
-        `stand-in's files, and ${count(figures.other)} in the largest other visitor avatar's`,
+        `${count(budget)}: ${count(room)} in the room's set models and cards, ${twin}${count(figures.stand_in)} in ` +
+        `the stand-in's files, and ${count(figures.other)} in the largest other visitor avatar's`,
     );
 }
 
