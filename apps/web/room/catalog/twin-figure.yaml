@@ -18,6 +18,19 @@ origin:
   bounds: { min: [-0.37, 0, -0.324], max: [0.36, 1.82, 0.2] }
 anchors:
   hand: { at: [-0.33, 1.0608, 0.2] }
+# Spec 016 (FR-036 to FR-038, FR-040; contracts/twin-data.md §2): the shirt's live face, the twin's own model's mesh of
+# that name, which the room draws the approved outline into (surface: model), never a quad; at rest it is the hand-back's
+# 0.18 × 0.07 m face centred on the chest at 1.285 m, its front a little in front of the chest, so RG2, RG7, and RK3
+# measure it as they measure a quad.
+live_faces:
+  - role: twin-shirt-lettering
+    at: [0, 1.285, 0.133]
+    size: [0.18, 0.07]
+    facing: [0, 0, 1]
+    up: [0, 1, 0]
+    px: [512, 199]
+    readable: false
+    surface: model
 standin:
   - { shape: capsule, radius: 0.2, length: 0.988, at: [0, 0.728, 0], color: twin-violet }
   - { shape: sphere, radius: 0.15, at: [0, 1.612, 0], color: twin-lilac }

@@ -100,7 +100,9 @@ describe("the registry (R-36)", () => {
     // The fixture binds a terminal, the neon word and both counters, a chalk block, and a sign; the desktop session is
     // the terminal's block in its own renderer.
     const all = [...found, ...regions(desktopIndex()).filter((r) => r.renderer === "desktop-session")];
-    expect(new Set(all.map((r) => r.renderer))).toEqual(new Set(RENDERERS));
+    // Spec 016's print, the twin's shirt's, is drawn into the twin's own mesh, which the fixture set doesn't hold;
+    // twin-shirt.test.ts holds it (changed with T058, plan.md R-18).
+    expect(new Set(all.map((r) => r.renderer))).toEqual(new Set(RENDERERS.filter((r) => r !== "print")));
     for (const { face, renderer, input } of all) {
       const what = `${face} (${renderer})`;
       const layout = REGISTRY[renderer].layout(input);
@@ -467,7 +469,13 @@ describe("the faces in 3D (R-37; FR-054)", () => {
       level: 0,
       motion: () => ({ animate: false }),
     });
-    expect([...built.quads.keys()].sort()).toEqual(repo.index.faces.map((f) => f.id).sort());
+    // Spec 016 (FR-036; changed with T059, plan.md R-18): a face drawn into an avatar's own mesh has no quad.
+    expect([...built.quads.keys()].sort()).toEqual(
+      repo.index.faces
+        .filter((f) => f.surface !== "model")
+        .map((f) => f.id)
+        .sort(),
+    );
     for (const face of unbound) {
       expect(built.quads.has(face.id), face.id).toBe(false);
       const quadsUnder: string[] = [];

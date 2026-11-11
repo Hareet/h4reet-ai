@@ -84,3 +84,5 @@ words:
   label.bicycle: Bicycle
   label.window: Window
   label.artwork: Artwork
+  # Spec 016 (FR-040; D8): the shirt's live face's label, under which "Around the room" says its words.
+  label.twin-shirt: The twin's shirt

@@ -32,7 +32,11 @@ At the model's scale, in the piece's frame (FR-003):
 
 ## Live faces
 
-None: no face of this piece is live.
+At the model's scale, in the piece's frame. Each is its own object, named for its role: one quad in one plain colour, its texture coordinates filling 0 to 1 in reading order as the GLB stores them (Blender's v runs bottom to top, and its exporter flips it), within 1 mm and 1° of the figures below (FR-017).
+
+| Object name | Centre (m) | Size (m) | Facing | Up |
+|---|---|---|---|---|
+| `twin-shirt-lettering` | (0, 1.285, 0.133) | 0.18 × 0.07 | (0, 0, 1) | (0, 1, 0) |
 
 ## States
 

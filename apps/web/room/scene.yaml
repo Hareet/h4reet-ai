@@ -152,6 +152,16 @@ placements:
     role: twin
     mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.469], estimated: true }
     frame: true
+    # Spec 016 (FR-036, FR-038, FR-040): the shirt's lettering, the Author's words as the studio's outline sets them,
+    # drawn into the twin's own model; an atmosphere face, its words in "Around the room" under its label, and room
+    # text, so a release build leaves it plain until the Author approves the outline's SHA-256 (C-0004's patch).
+    faces:
+      twin-shirt-lettering:
+        label: label.twin-shirt
+        atmosphere: true
+        max_chars: 25
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: print, text: twin-shirt-lettering }
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
