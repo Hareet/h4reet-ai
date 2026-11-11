@@ -17,8 +17,9 @@
 // - `virtual:room-frame-log`, which the room's entry (src/main.ts) imports in every build (spec 004, T246; R-70): in a
 //   drafts build it re-exports src/room/signals/frame-log.ts's `createFrameLog`, so the log lands in the entry; in a
 //   release build it is `createFrameLog = null`, so the release build holds neither the log's code nor its names.
-// - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each bundled avatar file's (spec 009), each set
-//   card plain, and room-manifest.json, each through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
+// - generateBundle emits each set model's `a/<stem>.<hash16>.glb.gz`, each bundled avatar file's (spec 009), the twin's
+//   GLBs' `a/twin….<hash16>.glb.gz` and its still plain (spec 016), each set card plain, and room-manifest.json, each
+//   through this.emitFile, so under dist/. The plugin writes nothing else, anywhere: the committed generated files
 //   are `room:generate`'s alone (cli.ts), and room_text reaches room-data.json through roomTextPart (T186).
 // Every module is the compose's output serialized as §11 has it, so two builds of one commit and policy agree.
 import { fileURLToPath } from "node:url";
@@ -129,7 +130,7 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
       }
     },
     generateBundle() {
-      const { models, cards, avatars, manifest } = result();
+      const { models, cards, avatars, twin, manifest } = result();
       const emit = (fileName: string, source: string | Uint8Array): void => {
         // Each name is a/<stem>.<hash16>.<ext> or the manifest's: a path under dist/, never out of it.
         if (!isTreePath(fileName) || fileName === "") throw new Error("roomBundle: a file name outside dist/");
@@ -140,6 +141,10 @@ export function roomBundle(options: RoomBundleOptions): Plugin {
       // Spec 009's avatars (its FR-023; plan.md R-15): each bundled file's copy, with the room's pako call, beside the
       // models, and never a plain .glb.
       for (const a of avatars) emit(`${a.url}.gz`, a.gz);
+      // Spec 016's twin (its FR-017, FR-048; plan.md R-04): each GLB's gzip-9 copy beside the avatars', never a plain
+      // .glb, so the IPTC mark the arrival check holds reaches the visitor in the plain bytes; the still as its own bytes,
+      // a PNG gaining nothing from gzip.
+      for (const t of twin) emit(t.url.endsWith(".glb") ? `${t.url}.gz` : t.url, t.data);
       emit("room-manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
