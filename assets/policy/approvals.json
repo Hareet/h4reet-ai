@@ -465,7 +465,7 @@
     },
     {
       "id": "A-20261110-twin",
-      "sha256": "a30a0bafad0d691d745c90d895baf6b3cd54913f1cc39057443d6c0af3cbe9c0",
+      "sha256": "a8bf4c188fd9cbd685e4cf231f5371e85a5571a10f59073847eda81e7d62915a",
       "path_when_approved": "assets/twin/twin.glb",
       "kind": "avatar",
       "date": "2026-11-10",
@@ -481,7 +481,7 @@
     },
     {
       "id": "A-20261110-twin-idle",
-      "sha256": "3f04f7ef3de4ae353e9808fbec5c88ba1e3f9ed5c4d948630a70c3f29e598c36",
+      "sha256": "a9097c1f211e65403b52a408eb8b0c38936ab1f25e34048b737ae33658da1d2d",
       "path_when_approved": "assets/twin/idle.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -497,7 +497,7 @@
     },
     {
       "id": "A-20261110-twin-talking",
-      "sha256": "ccca52f3fee240eb3fa2b4f86eee758ed31ffe326f346c2b4deb1c8768318582",
+      "sha256": "33471de133d1d18bfe6f2ba3c2c57d76d61a555ddf5582658f3b156d0bb66a02",
       "path_when_approved": "assets/twin/talking.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -513,7 +513,7 @@
     },
     {
       "id": "A-20261110-twin-listening",
-      "sha256": "ae6cc28dec736f20e79739bba42e7855a8d55dbc2bf77e6d2e35bb0d420d9490",
+      "sha256": "5793fb05e1967f574e396ef17e9bdc1b370e2938bf76fd47bbe1e7699c49ee61",
       "path_when_approved": "assets/twin/listening.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -529,7 +529,7 @@
     },
     {
       "id": "A-20261110-twin-greeting",
-      "sha256": "d6b25baf2f45aebda3dcc3083a32e92219cb3dc715f9890927d6aecca98f8112",
+      "sha256": "eb97713eacc0197f1ca5f99ccc701cbd4f5f43ff43252498ef361a152c98160a",
       "path_when_approved": "assets/twin/greeting.glb",
       "kind": "animation",
       "date": "2026-11-10",
@@ -545,7 +545,7 @@
     },
     {
       "id": "A-20261110-twin-still",
-      "sha256": "e62ea0258d9a492e2ebf77e8dfd4138759238caa1b4d49b4809e9ef951a36add",
+      "sha256": "3c10d76f3151ba474e30042f66a5c6fab33749ba37cbf7913b709eec22d2930c",
       "path_when_approved": "assets/twin/still.png",
       "kind": "still",
       "date": "2026-11-10",
@@ -558,6 +558,22 @@
       },
       "disclosure_line": null,
       "reason": "its working and want to see a complete iteration"
+    },
+    {
+      "id": "A-20261110-twin-desk-lean",
+      "sha256": "51c424bc6a4be6c24cb4290ab68d7ed1ec6c3844c066c20cd6174174f6500e72",
+      "path_when_approved": "assets/twin/desk-lean.glb",
+      "kind": "animation",
+      "date": "2026-11-10",
+      "confirms": {
+        "likeness_accepted": true,
+        "nothing_locates": true,
+        "no_screen_logo_text_or_art": true,
+        "recreation_not_photo": true,
+        "record_complete": true
+      },
+      "disclosure_line": null,
+      "reason": "typical lean when talking to someone"
     }
   ]
 }
