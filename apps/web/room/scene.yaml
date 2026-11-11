@@ -233,6 +233,19 @@ figures:
   twin_stand_in: man
   texture_px: 1024
   wait_ms: 1500
+  # Spec 016's twin block (its FR-054; contracts/twin-data.md §1): every figure here is the spec's default, written out
+  # so each is a data edit. Each is provisional, taken under the Author's "Yes, take those (Recommended)" and "okay that
+  # is finished, update the runbook and go ahead", and his to overturn: the map's lean as the resting pose (Q1), the
+  # speaking time at 150 words a minute within 3 s and 20 s (Q3), the twin's 1,024 texture side (Q4), and the lean
+  # against the work desk at the hand-back's 0.679 m behind and 0.45 m to the right (Q5, D12). The still's rectangle
+  # takes its default, the figure's box's width at its top (D2).
+  twin:
+    clips: { arriving: greeting, answering: talking, listening: listening, resting: desk-lean, present: idle }
+    rest_after_s: 20
+    speak_wpm: 150
+    speak_s: [3, 20]
+    lean: { against: work-desk, behind_m: 0.679, right_m: 0.45 }
+    texture_px: 1024
   grips:
     man:
       left: { at: [0, 0.049, 0], turn: { x: 0, y: -88, z: 180 } } # estimated
