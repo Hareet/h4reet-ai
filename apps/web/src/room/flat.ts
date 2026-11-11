@@ -620,6 +620,7 @@ export function renderFlat(
         return;
       }
       drawStill(doc, drawing, still, options.room.flat.figures[0] ?? null, url);
+      stillShown = true;
       options.onFigure?.({ kind: "picture", figure: "twin", shows: "still", why: null });
     });
   }
@@ -663,9 +664,13 @@ export function renderFlat(
   const Observer = doc.defaultView?.ResizeObserver;
   const observer = Observer ? new Observer(measure) : null;
   observer?.observe(element);
+  /** Spec 016 (FR-031; contracts/twin-states.md §6): while the twin's still shows, the paper appears with the visitor,
+   *  in its hands in every frame; the visitor's turns as before. */
+  let stillShown = false;
   const frame = (k: number): void => {
     element.setAttribute("data-handoff-frame", String(k));
-    drawing.papers.forEach((paper, i) => show(paper, i === k));
+    const paperAt = stillShown ? FLAT_FRAMES - 1 : k;
+    drawing.papers.forEach((paper, i) => show(paper, i === paperAt));
     turnTo(drawing.visitor, reduced() ? null : (moving[k] ?? null));
   };
   // Outside the hand-off, the paper is in the visitor's hands.

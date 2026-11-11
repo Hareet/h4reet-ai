@@ -116,7 +116,7 @@ describe("the paper appearing in the 2D room (FR-031; contracts/twin-states.md Â
     const papers = (): string[] => flat.drawing.papers.map((p) => p.getAttribute("visibility") ?? "");
     flat.showHandoff(0);
     expect(papers()[0]).toBe("visible");
-    for (let i = 0; i < 4; i += 1) await flush();
+    for (let i = 0; i < 40 && flat.element.querySelector("image") === null; i += 1) await flush();
     for (const p of [0, 0.5, 1]) {
       flat.showHandoff(p);
       expect(papers().at(-1), `at ${p}`).toBe("visible");

@@ -58,8 +58,7 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("is fetched once, same-origin with its integrity, and drawn as a data: image, clipped, the drawing hidden", async () => {
     const s = stage(() => ({ status: 200, body: STILL }));
-    await flush();
-    await flush();
+    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
     expect(s.fetched.map((f) => f.url)).toEqual([index.twin?.still?.url]);
     expect(s.fetched[0]?.init).toMatchObject({ mode: "same-origin", redirect: "error", integrity: integrityOf(STILL) });
     const image = s.flat.element.querySelector("image");
@@ -87,7 +86,7 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("falls back to the drawing after one retry, signalled as the drawing, the hit areas unchanged", async () => {
     const s = stage(() => ({ status: 404, body: new Uint8Array() }));
-    for (let i = 0; i < 4; i += 1) await flush();
+    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
     expect(s.fetched).toHaveLength(2);
     expect(s.flat.element.querySelector("image")).toBeNull();
     expect(s.signals).toContainEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
@@ -96,7 +95,8 @@ describe("the twin's still in the 2D room (FR-034, FR-035; SC-010)", () => {
 
   it("refuses bytes that fail their integrity: the drawing, never the image", async () => {
     const s = stage(() => ({ status: 200, body: new Uint8Array([1, 2, 3]) }));
-    for (let i = 0; i < 4; i += 1) await flush();
+    // Two tries, each through the digest, which settles over several ticks.
+    for (let i = 0; i < 40 && s.signals.length === 0; i += 1) await flush();
     expect(s.flat.element.querySelector("image")).toBeNull();
     expect(s.signals.at(-1)).toEqual({ kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
   });
