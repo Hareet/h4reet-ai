@@ -217,6 +217,15 @@ description: "Task list for spec 016, the twin's own avatar"
 - [ ] T080 [US10] **Author**: his yes or no to D4's outline provenance; then he applies `docs/merge-requests/2026-11-10-room-text-twin-shirt.patch` on `main` himself (before or after the gate; a release build leaves the shirt plain until then).
 - [ ] T081 [US10] **Author**: the one gate, `tools/gates/gate feat/016-the-twins-own-avatar`, from `main`'s checkout, covering the intake, this spec, and the code; then his merge.
 
+## Phase 13: The Author's lookdev findings (T079, 2026-11-11)
+
+His words: "the right arm bends inverted when leaning on the desk, and the twin's left foot and arm can sometimes go thru the wall. Everything else looks good". plan.md R-19 measures both and records the fix.
+
+- [ ] T082 RED: in a new `apps/web/test/room/twin-reach.test.ts`, the twin's reach (plan.md R-19): `build/room/reach.ts`'s measure of each sampled frame equals three's own skinning of the delivered model, along each direction, for the rest pose and every clip; this branch's room passes RA8, with the report's reach line, and the placement the lookdev saw, 12 cm to the twin's left, crosses the right wall; in fixtures, a clip's turn past a side wall, the rest pose past the back, and a clip the twin doesn't play, each as RA8 reads it, strict and lenient; no RA8 where RA6 leaves the twin's own model out, or where the shell names no side wall.
+- [ ] T083 GREEN: `apps/web/build/room/reach.ts` (the rest pose and each clip the twin plays, every 1/30 s, skinned as three skins them, exactly, against the shell's side walls and back), RA8 in `checks/ra.ts` and `checks/family.ts` (lenient: a lenient build warns and keeps the twin), and the report's reach line in `report.ts`.
+- [ ] T084 Data: the twin's placement 12 cm to its left in `apps/web/room/scene.yaml` (x 0.78 to 0.66), so every sampled frame stays at least 2.5 cm inside the right wall, the lean's desk still behind it; the pinned tests that hold its place, and `room/README.md`.
+- [ ] T085 The right elbow's inversion in the lean (plan.md R-19): measured, not patched; baked in `desk-lean.glb`, so the Author chooses between the lean off for this release (a data edit) and the studio's re-export through his intake. The merge-request note records the evidence and the choice.
+
 ---
 
 ## Dependencies and execution order
