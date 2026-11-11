@@ -44,6 +44,8 @@ COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts -w apps/web
 COPY tsconfig.base.json ./
 COPY docs/data-flow-disclosure.md docs/
+# Spec 016 (FR-042): the credits page's source, which build/credits.ts renders into dist/credits/.
+COPY assets/CREDITS.md assets/CREDITS.md
 # The resume's citation check reads the corpus it cites (build/content.ts). .dockerignore keeps corpus/intake/private,
 # the Author's denylist and uncleared sources, out of every context, so C9 here checks the public list only.
 COPY corpus corpus

@@ -1206,17 +1206,19 @@ def test_the_builds_have_the_trees_caps_and_no_other_policy_file() -> None:
     # FR-023), and the twin from the twin-assets stage (spec 016, FR-048).
     likeness = "COPY assets/policy/approvals.json assets/policy/approvals.json"
     assert all(copy < i for i in builds) and instructions.index(likeness) < min(builds)
+    # And spec 016's credits page's source (its FR-042; changed with T063, plan.md R-18), which isn't policy.
+    credits = "COPY assets/CREDITS.md assets/CREDITS.md"
     assert [
         ln
         for ln in instructions
         if ln.startswith(("COPY ", "ADD ")) and "--from=" not in ln and "assets/" in ln
-    ] == [caps, likeness]
+    ] == [credits, caps, likeness]
     assert [
         ln
         for ln in instructions
         if ln.startswith(("COPY ", "ADD "))
         and "assets/" in ln
-        and ln not in (caps, likeness)
+        and ln not in (caps, likeness, credits)
     ] == [
         ROOM_ASSETS_COPY,
         VISITOR_ASSETS_COPY,
