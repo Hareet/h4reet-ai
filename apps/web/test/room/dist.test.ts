@@ -39,9 +39,9 @@ import { serialize } from "../../build/room/emit";
 import { loadRoom, UI_WORDS_FILE } from "../../build/room/load";
 import type { LoadedRoom } from "../../build/room/load";
 import { roomBundle } from "../../build/room/plugin";
-import { noPolicy, policyFrom } from "../../build/room/policy";
+import { noPolicy, policyFrom, readRoomPolicy } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
-import { fileTree } from "../../build/room/source";
+import { fileTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
 import { REPO, repositoryBundle } from "../helpers/room";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
@@ -434,6 +434,12 @@ describe.each(["release", "drafts"] as const)("the site's %s build (contracts/ro
       named.set(`${avatar.model.url}.gz`, avatar.model);
       for (const clip of Object.values(avatar.clips)) if (clip) named.set(`${clip.url}.gz`, clip);
     }
+    // And the twin's model and clips (spec 016, FR-017, FR-048): a/twin.<hash16>.glb and a/twin-<role>.<hash16>.glb,
+    // each a gzip-9 copy whose plain bytes are the file's, so the IPTC mark the arrival check holds reaches the visitor.
+    if (scene.twin) {
+      named.set(`${scene.twin.model.url}.gz`, scene.twin.model);
+      for (const clip of Object.values(scene.twin.clips)) if (clip) named.set(`${clip.url}.gz`, clip);
+    }
     const copies = files.filter((n) => n.endsWith(".glb.gz"));
     expect(copies).toEqual([...named.keys()].sort());
     for (const name of copies) {
@@ -474,5 +480,54 @@ describe("the site's release build (FR-066; R-43)", () => {
     }
     expect(found).toEqual([]);
     expect(JSON.parse(readFileSync(join(root, "room-manifest.json"), "utf8"))).toMatchObject({ build_kind: "release" });
+  });
+});
+
+// T010's served names (spec 016; FR-017, FR-048; plan.md R-04): the twin's GLBs as gzip-9 copies under a/twin… names,
+// each gunzipping to its plain file's bytes, and its still plain, at a/twin-still.<hash16>.png; and a tree with no
+// assets/twin/ builds, the index's and the 3D part's twin null.
+describe("the twin's served files (spec 016, T010)", () => {
+  const { scene, index } = repositoryBundle({ drafts: false, policy: "empty", readiness: "tree" });
+
+  it("are bundled from this branch's tree, under main's approval", () => {
+    expect(scene.twin).not.toBeNull();
+    expect(index.twin?.still).not.toBeNull();
+  });
+
+  it.each(["release", "drafts"] as const)(
+    "are in the %s build by their served names, each as the plain file's bytes",
+    (kind) => {
+      const files = builtFiles(builds[kind]);
+      const twin = scene.twin;
+      if (!twin) throw new Error("no twin");
+      expect(twin.model.url).toMatch(/^a\/twin\.[0-9a-f]{16}\.glb$/);
+      expect(files).toContain(`${twin.model.url}.gz`);
+      const plain = (name: string): Uint8Array => new Uint8Array(readFileSync(join(REPO, "assets/twin", name)));
+      expect(sha256(gunzipSync(readFileSync(join(builds[kind], `${twin.model.url}.gz`))))).toBe(
+        sha256(plain("twin.glb")),
+      );
+      for (const [role, clip] of Object.entries(twin.clips)) {
+        if (!clip) continue;
+        expect(clip.url).toMatch(new RegExp(`^a/twin-${role}\\.[0-9a-f]{16}\\.glb$`));
+        const gz = readFileSync(join(builds[kind], `${clip.url}.gz`));
+        expect(sha256(gunzipSync(gz))).toBe(sha256(plain(`${role}.glb`)));
+      }
+      const still = index.twin?.still;
+      if (!still) throw new Error("no still");
+      expect(still.url).toMatch(/^a\/twin-still\.[0-9a-f]{16}\.png$/);
+      expect(sha256(new Uint8Array(readFileSync(join(builds[kind], still.url))))).toBe(sha256(plain("still.png")));
+      expect(files.filter((n) => /^a\/twin-still\./.test(n))).toEqual([still.url]);
+    },
+  );
+
+  it("builds from a tree with no assets/twin/, the twin null in the index and the 3D part (FR-048)", () => {
+    const tree = overlayTree(fileTree(REPO), new Map([["assets/twin", null]]));
+    const result = compose(tree, readRoomPolicy({ env: {}, root: REPO }), { mode: "lenient", drafts: false });
+    expect(result.findings.filter((f) => !f.lenient)).toEqual([]);
+    expect(result.index.twin).toBeNull();
+    expect(result.scene.twin).toBeNull();
+    expect(result.twin).toEqual([]);
+    // The stand-in in its place (spec 009).
+    expect(result.scene.figures.stand_in).toBe("man");
   });
 });

@@ -37,6 +37,9 @@ import { png } from "../helpers/glb";
 import { goodFiles, goodTree, overlay } from "../helpers/room-fixtures";
 import { capsPolicy, modelChanges } from "../helpers/room-models";
 import { repositoryBundle } from "../helpers/room";
+import { avatarFolder, SCENE as TWIN_SCENE, sceneWith } from "../helpers/room-avatars";
+import { FX_LINE, twinDefaults, twinFolder, twinPolicy } from "../helpers/room-twin";
+import { gzipBytes } from "../../src/room/glb/gzip";
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -127,6 +130,8 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
       "models",
       // Spec 012's loader hints (its Amendment L7).
       "hints",
+      // Spec 016's twin, last (contracts/twin-data.md §4).
+      "twin",
     ]);
     expect(Object.keys(index.build)).toEqual(["kind", "placeholders"]);
     expect(Object.keys(index.live)).toEqual(["source", "turn", "asset_events", "poll_ms", "freshness_ms"]);
@@ -352,11 +357,12 @@ describe("the index (contracts/room-bundle.md §3.1)", () => {
     expect(Object.keys(index.switches[0]?.cases ?? {})).toEqual([...TIER_VALUES]);
   });
 
-  it("lists the text copy by reference: the stand-in line, the bound faces, the switches, the figures, the fixed lines", () => {
-    // Spec 009's stand-in line comes first while the twin's figure shows anything but the twin's own avatar, which in
-    // that spec is always (its FR-013, R-13).
+  it("lists the text copy by reference: the twin's line slot, the bound faces, the switches, the figures, the fixed lines", () => {
+    // Spec 016 (FR-014; contracts/twin-data.md §4, twin-states.md §4): one slot, first, which the room resolves to the
+    // twin's line while the twin's own picture shows and to spec 009's stand-in line otherwise. Changed with T017, the
+    // stand-in line's place before (spec 009, its FR-013, R-13; plan.md R-18).
     expect(good().index.copy).toEqual([
-      { line: "twin.stand_in" },
+      { twin_line: true },
       { face: "fx-monitor.screen" },
       { face: "fx-neon.panel" },
       { face: "fx-board.slate" },
@@ -728,8 +734,10 @@ describe("the 3D part (contracts/room-bundle.md §3.2)", () => {
       "scene_texture_bytes",
       // Spec 008's Amendment M12: the walking block, resolved.
       "walking",
-      // Spec 009's avatars, last (its plan.md §3.2).
+      // Spec 009's avatars (its plan.md §3.2).
       "avatars",
+      // Spec 016's twin, last (contracts/twin-data.md §4).
+      "twin",
     ]);
     expect(Object.keys(scene.placements[0] ?? {})).toEqual([
       "id",
@@ -1327,5 +1335,142 @@ describe("the placeholders flag (spec 014, T040)", () => {
     const all = repositoryBundle({ standins: true });
     expect(all.manifest.standins.length).toBeGreaterThan(0);
     expect(all.index.build.placeholders).toBe(true);
+  });
+});
+
+// T010 (spec 016; FR-014, FR-034, FR-044, FR-048, FR-054; plan.md R-01, R-04, R-11; contracts/twin-data.md §1, §4): the
+// index's `twin`, its line and its still, and the 3D part's `twin`, its model, its clips, and its block resolved; each
+// null where the twin's files aren't bundled.
+describe("the twin in the bundle (spec 016, T010)", () => {
+  const withTwin = (figures: Record<string, unknown> = {}): ComposeResult =>
+    compose(
+      overlay({
+        [TWIN_SCENE]: sceneWith({ twin_stand_in: "man", ...figures }),
+        ...avatarFolder("man"),
+        ...twinFolder(),
+      }),
+      twinPolicy(),
+      { mode: "strict", drafts: true },
+    );
+
+  it("is null in the index and the 3D part without the twin's files", () => {
+    const result = good();
+    expect(result.index.twin).toBeNull();
+    expect(result.scene.twin).toBeNull();
+    expect(result.twin).toEqual([]);
+  });
+
+  it("gives the index the line and the still, with the still's default rectangle: the box's width, at its top", () => {
+    const result = withTwin();
+    expect(result.findings.filter((f) => !f.lenient || f.rule.startsWith("RA"))).toEqual([]);
+    const d = twinDefaults();
+    const bounds = (loadRoom(goodTree()).catalog.find((c) => c.value.id === "fx-twin")?.value.origin.bounds ?? {
+      min: [0, 0, 0],
+      max: [0, 0, 0],
+    }) as { min: number[]; max: number[] };
+    const w = (bounds.max[0] ?? 0) - (bounds.min[0] ?? 0);
+    const top = bounds.max[1] ?? 0;
+    expect(result.index.twin?.line).toBe(FX_LINE);
+    expect(result.index.twin?.still).toEqual({
+      url: `a/twin-still.${sha256(d.still).slice(0, 16)}.png`,
+      sha256: sha256(d.still),
+      bytes: d.still.length,
+      rect: [bounds.min[0], top - (w * 4) / 3, w, (w * 4) / 3].map((n) => Math.round((n as number) * 1e6) / 1e6),
+    });
+  });
+
+  it("gives the 3D part the model, the clips by role, and the block, its defaults where the scene gives none", () => {
+    const result = withTwin();
+    const d = twinDefaults();
+    expect(result.scene.twin?.model).toEqual({
+      url: `a/twin.${sha256(d.model).slice(0, 16)}.glb`,
+      sha256: sha256(d.model),
+      bytes: gzipBytes(d.model),
+      texture_bytes: 0,
+    });
+    expect(Object.keys(result.scene.twin?.clips ?? {})).toEqual([
+      "idle",
+      "talking",
+      "listening",
+      "greeting",
+      "desk-lean",
+    ]);
+    expect(result.scene.twin?.clips.greeting?.url).toBe(
+      `a/twin-greeting.${sha256(d.clips.greeting as Uint8Array).slice(0, 16)}.glb`,
+    );
+    expect(result.scene.twin?.block).toEqual({
+      clips: {
+        arriving: "greeting",
+        answering: "talking",
+        listening: "listening",
+        resting: "desk-lean",
+        present: "idle",
+      },
+      rest_after_s: 20,
+      speak_wpm: 150,
+      speak_s: [3, 20],
+      lean: null,
+      texture_px: 1024,
+    });
+    // The served copies, for the plugin: the GLBs' gzip-9 copies and the still's plain bytes.
+    expect(result.twin.map((t) => t.url).sort()).toEqual(
+      [
+        result.scene.twin?.model.url,
+        ...Object.values(result.scene.twin?.clips ?? {}).map((c) => c?.url),
+        result.index.twin?.still?.url,
+      ].sort(),
+    );
+    for (const t of result.twin)
+      if (t.url.endsWith(".glb")) expect(sha256(gunzipSync(t.data)), t.url).toBe(t.sha256);
+      else expect(sha256(t.data), t.url).toBe(t.sha256);
+  });
+
+  it("takes the block's values, each a data edit: a map, the timings, the side, and the still's rectangle", () => {
+    const result = withTwin({
+      twin: {
+        clips: { listening: "desk-lean" },
+        rest_after_s: 10,
+        speak_wpm: 120,
+        speak_s: [2, 12],
+        texture_px: 512,
+        still: { rect: [-0.2, 0.9, 0.4, 0.5] },
+      },
+    });
+    expect(result.scene.twin?.block).toMatchObject({
+      clips: {
+        arriving: "greeting",
+        answering: "talking",
+        listening: "desk-lean",
+        resting: "desk-lean",
+        present: "idle",
+      },
+      rest_after_s: 10,
+      speak_wpm: 120,
+      speak_s: [2, 12],
+      texture_px: 512,
+    });
+    expect(result.index.twin?.still?.rect).toEqual([-0.2, 0.9, 0.4, 0.5]);
+  });
+
+  it("takes the twin's side from figures.texture_px where the block gives none", () => {
+    expect(withTwin({ texture_px: 512 }).scene.twin?.block.texture_px).toBe(512);
+  });
+
+  it("leaves the still out of the index where it isn't bundled, the line kept", () => {
+    const result = compose(
+      overlay({
+        [TWIN_SCENE]: sceneWith({ twin_stand_in: "man" }),
+        ...avatarFolder("man"),
+        ...twinFolder({ still: null }),
+      }),
+      twinPolicy(),
+      { mode: "strict", drafts: true },
+    );
+    expect(result.index.twin).toEqual({ line: FX_LINE, still: null });
+  });
+
+  it("gives figures.twin_height the twin figure's catalog height, which the stand-in scales to", () => {
+    const h = loadRoom(goodTree()).catalog.find((c) => c.value.id === "fx-twin")?.value.size.h;
+    expect(withTwin().scene.figures.twin_height).toBe(h);
   });
 });
