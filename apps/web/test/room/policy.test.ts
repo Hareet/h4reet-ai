@@ -16,6 +16,8 @@ import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { POLICY_FILES, policyDigest, readPolicy } from "../../build/approvals";
+import { POLICY_PATHS } from "../../build/policy";
 import { compose, formatFinding } from "../../build/room/compose";
 import { CAPS_DEFAULTS, noPolicy, PHASE3_DEFAULT, readRoomPolicy } from "../../build/room/policy";
 import { goodTree, overlay } from "../helpers/room-fixtures";
@@ -349,5 +351,121 @@ describe("a malformed room block (RK4's, reported by T078's RK family)", () => {
       ]);
       expect(rk4.every((f) => !f.lenient)).toBe(true);
     }
+  });
+});
+
+// T004 (spec 016; FR-015; plan.md R-03; contracts/twin-data.md §5): the likeness approvals, main's
+// assets/policy/approvals.json, from which the twin's line is read and never copied: ROOM_POLICY_DIR/approvals.json
+// where the directory holds it, else refs/heads/main's by its full ref, else the tree's own copy, which spec 003's rule
+// A9 holds to main's at the branch's base. A malformed file is no approvals. The policy's fourth file, last in
+// build/approvals.ts's POLICY_FILES, so the image's label and room-data.json's built_from digest all four.
+describe("the likeness approvals, the policy's fourth file (spec 016, FR-015; plan.md R-03)", () => {
+  const LIKENESS = "assets/policy/approvals.json";
+  const likenessText = (entries: { id: string; sha256: string; line: string | null }[]): string =>
+    `${JSON.stringify(
+      {
+        schema: 1,
+        approvals: entries.map((e) => ({
+          id: e.id,
+          sha256: e.sha256,
+          path_when_approved: "assets/twin/twin.glb",
+          kind: "avatar",
+          date: "2026-11-10",
+          confirms: {},
+          disclosure_line: e.line,
+          reason: "Fixture approval.",
+        })),
+      },
+      null,
+      2,
+    )}\n`;
+  const entry = (id: string, line: string | null): { id: string; sha256: string; line: string | null } => ({
+    id,
+    sha256: sha256(id),
+    line,
+  });
+  const read = (entries: { id: string; sha256: string; line: string | null }[]) =>
+    entries.map((e) => ({ id: e.id, sha256: e.sha256, disclosure_line: e.line }));
+
+  it("is ROOM_POLICY_DIR's approvals.json first, even beside a repository whose main holds another", () => {
+    const root = repository({ [LIKENESS]: likenessText([entry("A-fx-main", "Main's line.")]) });
+    const dir = temp();
+    write(dir, { "approvals.json": likenessText([entry("A-fx-dir", "The directory's line.")]) });
+    const policy = readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root });
+    expect(policy.likeness).toEqual({
+      source: "policy-dir",
+      approvals: read([entry("A-fx-dir", "The directory's line.")]),
+    });
+  });
+
+  it("is main's next, by refs/heads/main: never the branch's copy or a tag named main", () => {
+    const root = repository(
+      { [LIKENESS]: likenessText([entry("A-fx-main", "Main's line.")]) },
+      { [LIKENESS]: likenessText([entry("A-fx-branch", "The branch's line.")]) },
+    );
+    git(root, "tag", "main", "feature");
+    // A policy directory without approvals.json, as the human-only gate's holds three files, gives way to main.
+    for (const env of [{}, { ROOM_POLICY_DIR: temp() }]) {
+      const policy = readRoomPolicy({ env, root });
+      expect(policy.likeness).toEqual({ source: "main", approvals: read([entry("A-fx-main", "Main's line.")]) });
+    }
+  });
+
+  it("is the tree's own copy last: where there is no .git, or main holds none", () => {
+    const tree = temp();
+    write(tree, { [LIKENESS]: likenessText([entry("A-fx-tree", "The tree's line.")]) });
+    const noMain = repository({}, { [LIKENESS]: likenessText([entry("A-fx-tree", "The tree's line.")]) });
+    for (const root of [tree, noMain])
+      for (const env of [{}, { ROOM_POLICY_DIR: temp() }])
+        expect(readRoomPolicy({ env, root }).likeness).toEqual({
+          source: "tree",
+          approvals: read([entry("A-fx-tree", "The tree's line.")]),
+        });
+  });
+
+  it("is absent where no source holds the file", () => {
+    for (const root of [temp(), repository({})]) expect(readRoomPolicy({ env: {}, root }).likeness).toBeUndefined();
+  });
+
+  it("is no approvals where the file is malformed: not strict JSON, no list, or an entry without its ID and digest", () => {
+    for (const text of ["{", '{"schema": 1, "schema": 1}', `${JSON.stringify({ schema: 1, approvals: {} })}\n`]) {
+      const dir = temp();
+      write(dir, { "approvals.json": text });
+      expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root: temp() }).likeness).toEqual({
+        source: "policy-dir",
+        approvals: [],
+      });
+    }
+    const dir = temp();
+    const good = entry("A-fx-good", "A line.");
+    const doc = JSON.parse(likenessText([good])) as { approvals: unknown[] };
+    doc.approvals.push("not an entry", { id: "A-fx-no-digest", disclosure_line: "x" }, { id: 7, sha256: sha256("7") });
+    write(dir, { "approvals.json": JSON.stringify(doc) });
+    expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root: temp() }).likeness?.approvals).toEqual(read([good]));
+  });
+
+  it("keeps a null or empty line as it is, for RA6 to refuse", () => {
+    const dir = temp();
+    const entries = [entry("A-fx-null", null), entry("A-fx-empty", "")];
+    write(dir, { "approvals.json": likenessText(entries) });
+    expect(readRoomPolicy({ env: { ROOM_POLICY_DIR: dir }, root: temp() }).likeness?.approvals).toEqual(read(entries));
+  });
+
+  it("is POLICY_FILES' fourth file, approvals.json last, in build/policy.ts's paths, and the digest covers all four", () => {
+    expect(POLICY_FILES).toEqual(["content-approvals.json", "resume-header.json", "caps.json", "approvals.json"]);
+    expect(POLICY_PATHS).toContainEqual(["assets/policy/approvals.json", "approvals.json"]);
+    expect(POLICY_PATHS.map(([, name]) => name)).toEqual([...POLICY_FILES]);
+    const dir = temp();
+    const likeness = likenessText([entry("A-fx-dir", "A line.")]);
+    write(dir, { "approvals.json": likeness, "caps.json": capsText(ROOM) });
+    expect(policyDigest(readPolicy(dir))).toBe(
+      sha256(
+        "content-approvals.json:absent\nresume-header.json:absent\n" +
+          `caps.json:${sha256(capsText(ROOM))}\napprovals.json:${sha256(likeness)}\n`,
+      ),
+    );
+    expect(policyDigest(readPolicy(temp()))).toBe(
+      sha256("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\napprovals.json:absent\n"),
+    );
   });
 });
