@@ -47,10 +47,12 @@ const standInLine = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLEl
 const aroundLines = (v: Visit): string[] => [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
 
 describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
-  it("is the UI word twin.stand_in, first in the index's copy", () => {
+  it("is the UI word twin.stand_in, and the twin's line slot is first in the index's copy", () => {
+    // Spec 016 (FR-014; changed with T017, plan.md R-18): the slot, which shows this line while the twin shows anything
+    // but its own picture.
     const index = roomIndex();
     expect(index.ui["twin.stand_in"]).toBe(STAND_IN);
-    expect(index.copy[0]).toEqual({ line: "twin.stand_in" });
+    expect(index.copy[0]).toEqual({ twin_line: true });
   });
 
   it("shows in the stage's note and first in Around the room in 3D, as text a screen reader reads", async () => {

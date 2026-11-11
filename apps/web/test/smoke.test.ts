@@ -102,10 +102,11 @@ describe("the built disclosure page", () => {
 describe("the built room-data.json", () => {
   it("names the policy and the lock it was built with, and lists the drafts it left out", () => {
     // Nothing is approved in an empty policy directory, so the resume's source is a draft, withheld without drafts.
-    // The policy's digest covers its three files, caps.json third, each absent here (spec 004, T004; R-13).
+    // The policy's digest covers its four files, caps.json third and spec 016's approvals.json fourth (its plan.md
+    // R-03; changed with T012, R-18), each absent here (spec 004, T004; R-13).
     const data = JSON.parse(readFileSync(join(out, "room-data.json"), "utf8")) as unknown;
     const absent = createHash("sha256")
-      .update("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n")
+      .update("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\napprovals.json:absent\n")
       .digest("hex");
     const lock = createHash("sha256")
       .update(readFileSync(join(WEB, "content/resume.lock.json")))
@@ -259,19 +260,28 @@ describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004
     // compose()'s models and cards, and each avatar file it bundles from the tree's assets/visitors/<id>/ folders, as
     // the build composed them: computed from the tree, never listed, so an intake changes nothing here (spec 009,
     // FR-023, FR-043; its intake gate, F3).
-    const { models, cards, avatars } = repositoryBundle({
+    // Spec 016 (FR-048; changed with T018, plan.md R-18): and the twin's files from assets/twin/, its GLBs' gzip copies
+    // and its still plain, computed from the bundle as the visitors' are.
+    const { models, cards, avatars, twin } = repositoryBundle({
       drafts: kind === "drafts",
       policy: "empty",
       readiness: "tree",
     });
     for (const a of avatars)
       expect(a.path.startsWith(`${VISITORS_DIR}/${a.avatar}/`) && existsSync(join(REPO, a.path)), a.path).toBe(true);
-    const urls = [...models.map((m) => m.url), ...cards.map((c) => c.url), ...avatars.map((a) => a.url)];
+    for (const t of twin) expect(t.path.startsWith("assets/twin/") && existsSync(join(REPO, t.path)), t.path).toBe(true);
+    const urls = [
+      ...models.map((m) => m.url),
+      ...cards.map((c) => c.url),
+      ...avatars.map((a) => a.url),
+      ...twin.map((t) => t.url),
+    ];
     for (const url of urls) expect(url, url).toMatch(/^a\/[^/]+$/);
     const copies = [
       ...models.map((m) => `${m.url}.gz`),
       ...cards.map((c) => c.url),
       ...avatars.map((a) => `${a.url}.gz`),
+      ...twin.map((t) => (t.url.endsWith(".glb") ? `${t.url}.gz` : t.url)),
     ];
     expect(filesUnder(join(root, "a"))).toEqual(copies.map((u) => u.slice(2)).sort());
   });
