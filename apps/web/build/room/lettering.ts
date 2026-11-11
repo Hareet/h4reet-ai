@@ -10,8 +10,8 @@
 //   and its tool this converter, under the repository's own MIT license (the typeface and its license are named in the
 //   committed JSON). Written as two-space JSON with a final newline.
 // It reads the two sources only; it never reads the brief, which stays outside the repository.
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** The sources' folder and the outline's path, from the repository's root. */
@@ -122,9 +122,10 @@ export function formatOutline(outline: LetteringOutline): string {
 
 /** `npm run room:lettering -w apps/web`: writes the outline from the committed sources. */
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const root = fileURLToPath(new URL("../../../../", import.meta.url));
   const read = (name: string): string => readFileSync(join(root, LETTERING_DIR, name), "utf8");
   const outline = convertLettering(read("twin-shirt-lettering.svg"), read("twin-shirt-lettering.json"));
+  mkdirSync(dirname(join(root, OUTLINE_PATH)), { recursive: true });
   writeFileSync(join(root, OUTLINE_PATH), formatOutline(outline));
   console.log(`lettering: wrote ${OUTLINE_PATH}, ${outline.paths.length} paths`);
 }
