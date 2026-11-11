@@ -4,11 +4,13 @@ Spec: specs/016-the-twins-own-avatar/ · Intent: specs/016-the-twins-own-avatar/
 Session: the main session's implementer, in the worktree `/tmp/claude-1000/wt-feat016` · Repo hooks active: yes (the pre-commit hook's gitleaks and arrival check ran on every commit)
 Authorized by: the spec, plan, and tasks at d4ffac10, approved to build ("I want you to keep going and build it!")
 
-## Status: built, waiting for its review
+## Status: reviewed, ready for your lookdev and the gate
 
-Built test-first from tasks.md, T001 to T077 but T067 and T068 (the lookdev page's twin controls, left for later: plan.md
-§9). The review (T078) comes next, by a reviewer that wrote none of it; its findings go below. Then your lookdev (T079),
-your yes or no to D4's provenance and the shirt's patch (T080), and the one gate (T081).
+Built test-first from tasks.md, T001 to T077 but T067 and T068 (the lookdev page's twin controls, left for a follow-up:
+plan.md §9). The review (T078), by a reviewer that wrote none of it, found it ready, with no blocker (Review, below).
+Its round changed only this note, so `rv` stays 4a99aeb3 and the checks below stand. Next, in order: your lookdev on
+dev at `rv` (T079, step 0), before the gate; your yes or no to D4's provenance; the one gate (T081); and, after the
+merge, the shirt's patch (T080).
 
 The branch carries your intake commit 6821d121 at its base, then the intent, the spec's documents, T002's lettering
 sources, and the build. One gate covers all of it.
@@ -20,6 +22,69 @@ parses under `zsh -n` and `bash -n`. No `!` stands inside double quotes, and no 
 paid: the gate's evals stage runs its fake adapter, and this branch touches no file that turns on the behavioral tier
 (`CLAUDE.md`, `REVIEW.md`, `.claude/`, the Claude Code pin) or stage E (`deploy/agents-engine/`,
 `.claude/settings.json`).
+
+**0. Your lookdev, before the gate** (T079; plan.md §4.8 and §8, L1 to L5). On dev, the drafts build, at the reviewed
+commit `rv`, from main's checkout while it is still parked off `main`:
+
+```bash
+cd ~/h4reet-ai/h4reet-ai
+git symbolic-ref HEAD
+```
+
+Expect your park branch, `refs/heads/wip-park/11-10-2026`. If dev and prod can't share the GPU, stop prod first; step
+4 starts it again:
+
+```bash
+make down ENV=prod
+```
+
+Then dev at `rv`, the full SHA (the Makefile's `up` takes `REF=` for prod and dev):
+
+```bash
+r=4a99aeb30c59a68205be6d0d77c861a1d8907937
+make up ENV=dev REF="$r"
+```
+
+Open the room on dev's site port (`http://127.0.0.1:18105/` by its env template), and look at:
+
+- **L1, the twin's place, height, facing, and line**: the twin at its placement by the desk, 1.82 m to the turban's
+  top, facing the open front, on the reference desktop and the phone's stage; the stage's note and the first line of
+  "Around the room" saying the stand-in line before the twin loads, then your approved line while it shows. The
+  model's front reaches just past the room's open front, and its box, in the rest pose, past the right wall (plan.md
+  R-06, as built). That eases spec 014's frame more: on the reference desktop from 3/16 to 9/16, the room 3.1% larger
+  on screen, not 5.8%; on the reference phone from 15/16 to 1, so spec 014's whole-window growth is lost there. A no
+  is a data edit: the placement's offset, or the catalog's bounds.
+- **L2, the memory: open.** No morph texture with the twin shown, and the scene's texture memory beside RK3's
+  184,344,483, need the lookdev page's twin controls (FR-057; T067, T068), which aren't built. It stays open, not
+  passed (Backlog).
+- **L3, the lean**: after 20 s with nothing typed, the twin settles back on the desk, its right elbow and forearm on
+  the desktop, nothing through it, the 0.4 s crossfade in place; typing brings it back to listening. The laptop's
+  stand and the dog sign sit near the forearm (plan.md K7): a no moves a piece, or the twin's x. In the idle, the
+  lean, and listening, its left arm stays near the right wall, not through it.
+- **L4, the phone: open.** The 2-minute run with both figures animating, a median of 30 frames a second (SC-013),
+  needs the same controls. It stays open, not passed (Backlog).
+- **L5, the shirt, marked as a draft**: "Denver Local AI" over "Solutions" in black on the chest, upright and left to
+  right from the front, the shirt showing around the letters, moving with the chest, the draft's badge beside them;
+  in "Around the room", "The twin's shirt:" with the words, marked. On prod, before C-0004, a plain chest with no ink
+  rectangle (step 6).
+- **The greeting**: once as you arrive, easing into the idle with no flash of the A-pose between them.
+- **The states**: listening while you type and while a turn is out, talking while its answer shows (about 0.4 s a
+  word, 3 s to 20 s), the idle otherwise; with reduced motion or "Pause the room", still poses that cut between
+  states.
+- **The paper**: no sheet at the twin's hand before the hand-off; it fades in at your figure's grip while the twin
+  greets, a 1 s fade under reduced motion.
+- **The whole body**, front and back, for any mark.
+- **The 2D room** ("2D view", or below the floor): your still in the twin's place, clipped to its box, with your
+  line; "Credits" in the toolbar, and its page listing `assets/twin` with its records.
+
+Then stop dev:
+
+```bash
+make down ENV=dev
+```
+
+Record each yes or no, and each provisional answer's, in a follow-up note, or tell the session. A no before the gate
+changes the branch: `rv` moves, and the session reruns its checks and this note's blocks. A yes goes on to the gate.
 
 **1. The gate.** It exits 2 unless your checkout is on `main`:
 
@@ -116,8 +181,9 @@ grep -q . "$w/o" && ok=no
 echo "guard: $ok"
 ```
 
-**Why `rv`, and why two merge-trees.** `rv` is 4a99aeb3, the build's last content commit: what the reviewer reads.
-If the review's fixes change anything, the session moves `rv` and says so here. After `rv`, the branch changes only
+**Why `rv`, and why two merge-trees.** `rv` is 4a99aeb3, the build's last content commit: what the reviewer read.
+The review's round changed only this note, so `rv` stayed; a later change would move it, and the session would say so
+here. After `rv`, the branch changes only
 this note, and the guard lets nothing else change, the shirt's patch included. Comparing `main`'s merge with the gated
 SHA against `main`'s merge with `rv` holds the content to the reviewed one whether or not `main` has moved, and `git
 merge-tree --write-tree` writes no worktree. On `guard: no`, don't merge: tell the session.
@@ -135,51 +201,14 @@ o+=("$sha")
 [ "$ok" = go ] && git "${o[@]}"
 ```
 
-**4. The room on main**, after the merge:
+**4. The room on main**, after the merge; it starts prod again if step 0 stopped it:
 
 ```bash
 git symbolic-ref HEAD
 make up ENV=prod
 ```
 
-**5. Your lookdev and live look** (T079; plan.md §8, L1 to L5). On dev, from main's checkout after the merge, the
-drafts build:
-
-```bash
-git symbolic-ref HEAD
-make up ENV=dev
-```
-
-Then open the room on dev's site port (`http://127.0.0.1:18105/` by its env template), and look at:
-
-- **L1, the twin's place, height, and line**: the twin at its placement by the desk, 1.82 m to the turban's top,
-  facing the open front, on the reference desktop and the phone's stage; the stage's note and the first line of
-  "Around the room" saying your approved line while it shows, and the stand-in line before it loads. Its box now
-  reaches past the room's open front and, in its rest pose, its right wall (plan.md R-06, as built), which eases spec
-  014's frame more: the desktop's room 3.1% larger on screen, not 5.8%. A no is a data edit: the placement's offset,
-  or the catalog's bounds.
-- **L2, the memory**: with the twin shown, no morph texture (the face shapes are stripped as it loads, FR-013), and
-  the scene's texture memory beside RK3's 184.4 million.
-- **L3, the lean**: after 20 s with nothing typed, the twin settles back on the desk, its right forearm on the top,
-  nothing through it, the 0.4 s crossfade in place; typing brings it back to listening. The laptop's stand and the dog
-  sign sit near the forearm (plan.md K7): a no moves a piece, or the twin's x.
-- **L4, the phone**: the 2-minute run, both figures animating; a median of 30 frames a second (SC-013).
-- **L5, the shirt, marked as a draft**: "Denver Local AI" over "Solutions" in black on the chest, upright and left to
-  right from the front, the shirt showing around the letters, moving with the chest, the draft's badge beside them;
-  in "Around the room", "The twin's shirt:" with the words, marked.
-- **The states**: greeting once as you arrive, listening while you type and while a turn is out, talking while its
-  answer shows (about 0.4 s a word, 3 s to 20 s), the idle otherwise; with reduced motion or "Pause the room", still
-  poses that cut between states.
-- **The paper**: it fades in at your figure's holding hand while the twin greets, no sheet leaving the twin; under
-  reduced motion, a 1 s fade.
-- **The 2D room** ("2D view", or below the floor): your still in the twin's place, clipped to its box, with your line;
-  "Credits" in the toolbar, and its page listing `assets/twin` with its records.
-
-The lookdev page's own twin controls (FR-057) aren't built yet (T067, T068, plan.md §9): look in the room itself.
-Record each yes or no, and each provisional answer's, in a follow-up note; a no changes the branch before the gate if
-you look before it, or a follow-up branch after.
-
-**6. The shirt's words** (T080). First your yes or no to D4's provenance below; a no regenerates the outline and this
+**5. The shirt's words** (T080). First your yes or no to D4's provenance below; a no regenerates the outline and this
 patch. After the merge, on `main`: the outline's digest, computed here, must equal the one the patch adds
 (`961d566167bf452adf9e387bb3a2a3d5508063ee4e98bd1c1cce4badb391567d`), and only then does the patch apply:
 
@@ -219,8 +248,11 @@ t='policy: C-0004, the shirt'
 [ "$ok" = go ] && make up ENV=prod
 ```
 
-The second `make up ENV=prod` draws the words on the shirt, unmarked. If you apply the patch before the gate instead,
-the guard still holds: the file is one this branch doesn't change.
+The second `make up ENV=prod` draws the words on the shirt, unmarked.
+
+**6. The live look**, on prod's site port (`http://127.0.0.1:18005/` by its env template): after step 4, before
+C-0004, the twin with your line and a plain chest, no ink and no rectangle where the words go; after step 5, the
+words, unmarked, with no draft badge; the lean, the 2D still, and Credits as on dev.
 
 **7. Park off `main` again** when you step away:
 
@@ -270,8 +302,10 @@ the desk at rest, hands the paper over by letting it appear with the visitor, sh
 ## Acceptance criteria
 
 FR-001 to FR-056, FR-058, FR-059 are built and tested; FR-057 (the lookdev page) is left with T067 and T068. SC-001 to
-SC-012 and SC-014 to SC-018 are tested; SC-013 (the phone's frame rate) and the lookdev halves of SC-001, SC-009, and
-SC-017 are yours (L1 to L5). Each test file names the criteria it holds.
+SC-012 and SC-014 to SC-018 are tested; the lookdev halves of SC-001 (L1) and SC-017 (L3) are yours, with L5, on dev
+before the gate (step 0). SC-009's lookdev half (L2, the memory figures) and SC-013 (L4, the phone's frame rate) stay
+open, not passed, until T067 and T068 build the lookdev page's twin controls (Backlog). Each test file names the
+criteria it holds.
 
 ## Departures from the plan
 
@@ -306,8 +340,9 @@ ahead", not answered; the spec's Open Questions give every option. Each change i
   the twin's hand. B and C are code.
 - **Q3, talking**: from the answer's arrival at 150 words a minute, 3 s to 20 s (A). B, while the turn is out; C, one
   loop per answer.
-- **Q4, the texture side**: 1,024 (A). B, 2,048, needs your raise of `scene_texture_bytes` to at least 215,109,289
-  first (RK3 at the base read 217,966,047 at the twin's own size).
+- **Q4, the texture side**: 1,024 (A). B, 2,048, needs your raise of `scene_texture_bytes` to at least about 217.9
+  million first: 217,898,915 by the reviewed tree's figures (184,344,483 with the twin's 44,739,242 at 2,048 in place
+  of its 11,184,810), and RK3 at the base read 217,966,047. The spec's 215,109,289 was its estimate (Backlog).
 - **Q5, height and place**: 1.82 m, unscaled, at the lean's spot, 7.4 cm forward (A). B, 1.75 m, the lean left out; C,
   the old place with a step into the lean.
 - **D1** the stand-in fetched only after failure; **D2** the still's rectangle, the box's width at its top; **D3** the
@@ -319,10 +354,11 @@ ahead", not answered; the spec's Open Questions give every option. Each change i
 
 ## The report's lines
 
-From `npm run room:report -w apps/web` on this branch, under main's policy:
+From `npm run room:report -w apps/web` on the reviewed tree, `rv`, under main's policy, run again for the review's
+round. The earlier draft's 184,411,615 and 4,056,543 were stale: 4,056,543 is the base's canvases figure.
 
 ```text
-Scene texture memory: 184,411,615 of 200,000,000 bytes (models 157,985,452 · image cards 0 · avatars 22,369,620 · live-face canvases 4,056,543).
+Scene texture memory: 184,344,483 of 200,000,000 bytes (models 157,985,452 · image cards 0 · avatars 22,369,620 · live-face canvases 3,989,411).
 RK3's twin term: 11,184,810, the larger of its own model at 1024 px (11,184,810) and the stand-in's files (11,184,810).
 First visit with both figures' files (RK5): 18,575,582 gzip-9 bytes, 6,593,757 of the room's placed models and cards, 8,734,538 of the twin's own files, 0 of the stand-in's files, and 3,247,287 of the largest visitor avatar's (`woman`), against the phase-3 budget of 25,000,000; spec 003's F3 view, which counts one visitor folder (assets/animations/ aside): 18,580,391.
 The twin's model at rest: 1.818 m tall; bounds from [-0.354, 0.000, -0.223] to [0.357, 1.817, 0.182] m.
@@ -330,7 +366,8 @@ The twin's line: from approval `A-20261110-twin` in main's likeness approvals, r
 The lean: the desk's origin 0.0 cm off its spot behind the twin, 0.0° from the twin's facing, and 1.53 m of its top to the twin's right, from 3.0 cm off its root.
 ```
 
-The arrival check's own first visit, at the base: 18,575,582 of 25,000,000.
+The report also prints "The twin shows `man`, a stand-in, not the Author's likeness.", though the twin's own model is
+bundled: a stale line (Backlog). The arrival check's own first visit, at the base: 18,575,582 of 25,000,000.
 
 ## The shirt's outline and D4
 
@@ -379,9 +416,51 @@ adds C-0004 for it, built from plain copies and checked on a fresh copy of main'
 
 ## Review
 
-Pending (T078): a reviewer that wrote none of this branch runs REVIEW.md's six passes over `git diff
-main...feat/016-the-twins-own-avatar`, the Arriving-assets pass over your intake at the base and the Room-data pass
-over the scene, the catalog, the UI word, the outline, and the lettering's sources.
+T078, by a reviewer that wrote none of this branch: REVIEW.md's six passes over `git diff
+main...feat/016-the-twins-own-avatar`, the Arriving-assets pass over your intake at the base, and the Room-data pass
+over the scene, the catalog, the UI word, the outline, and the lettering's sources. **Verdict: ready, no blocker.**
+The session's round changed only this note, in note-only commits, so `rv` stays 4a99aeb3 and the checks stand. Each
+finding, and what was done:
+
+- **I-1, lookdev comes before the gate.** The runbook had it after the merge, against T079, the spec's Deviations,
+  plan.md §4.8, and this note's own Status. Done: step 0, on dev at `rv` before the gate, with `make down ENV=prod`
+  first if dev and prod can't share the GPU, and `make down ENV=dev` after; then the gate, the guard, the merge,
+  `make up ENV=prod`, the shirt's patch, the live look, and parking.
+- **I-2, FR-057 is unbuilt.** Without T067 and T068, L2 (no morph texture in memory) and L4 (the phone's median 30
+  frames a second) can't be done anywhere. Done: both marked open, not passed, in step 0 and the acceptance criteria;
+  backlogged, with publication waiting on them.
+- **Nit 1, the report's figures.** Done: RK3's 184,344,483 and the canvases' 3,989,411, the reviewed tree's, in the
+  report's lines and L2. Backlogged: the report's stale stand-in line.
+- **Nit 2, Q4's option B.** Done: at least about 217.9 million, not 215,109,289. Backlogged: the spec's two lines that
+  carry the old figure.
+- **Nit 3, the 2D hand-off.** Backlogged.
+- **Nit 4, the shirt's patch before the gate.** Done: the sentence offering it is gone. Its digest block can't pass
+  before the merge brings the outline to `main`.
+- **Nit 5, the phone's ease.** Done: L1 says the reference phone's ease goes from 15/16 to 1, so spec 014's
+  whole-window growth is lost there (plan.md R-06).
+- **The smaller items.** Recorded below: tasks.md unticked until the next content change; `holdSheet`'s brief sheet at
+  the twin's open hand; the A-pose's left hand past the right wall when the idle fails.
+- **The reviewer's lookdev list** is in step 0's checks.
+
+## Backlog
+
+For follow-up branches; none of it blocks this merge.
+
+- **T067 and T068**, the lookdev page's twin controls (FR-057). L2 (no morph texture in memory, and the scene's
+  texture memory beside RK3's) and L4 (the phone's 2-minute run, a median of 30 frames a second, SC-013) need them, so
+  publication waits on L2 and L4.
+- **The report's stand-in line.** `apps/web/build/room/report.ts:304-305` prints "The twin shows `man`, a stand-in, not
+  the Author's likeness." even when the twin's own model is bundled (FR-056): a code fix.
+- **The spec's Q4 figure.** `specs/016-the-twins-own-avatar/spec.md:22` and `:567` give 215,109,289 as option B's
+  raise; it is about 217.9 million (Q4, above).
+- **The 2D hand-off.** `apps/web/src/room/flat.ts:672` puts the paper in the visitor's hands from the first frame
+  while the still shows, with no fade (FR-031(b)); and the mode can flip in the middle of a hand-off if the still
+  arrives late (contracts/twin-states.md §5).
+- **`holdSheet`'s sheet.** The review found that `holdSheet`, in `apps/web/src/room/scene/avatars.ts`, shows a sheet
+  briefly at the twin's open hand; step 0's paper check looks for it.
+- **The A-pose's left hand.** When the idle clip fails, the twin stands in its A-pose, whose left hand reaches past
+  the right wall (plan.md R-06: x 1.14 against 1.0668).
+- **tasks.md's boxes** stay unticked until the next content change, so that `rv` and the checks stand.
 
 ## Cost and data-flow impact
 
@@ -390,10 +469,12 @@ the still, 239 KB, in a 2D visit; cached a year. Row V1 amended in `docs/data-fl
 
 ## For the Author
 
-- Your lookdev (step 5) and your yes or no to each provisional answer and default.
-- Your yes or no to D4, then the shirt's patch (step 6).
-- The gate (steps 1 to 3).
-- T067 and T068, the lookdev page's twin controls, wait for a follow-up branch if you want them.
+- Your lookdev on dev at `rv`, before the gate (step 0), and your yes or no to each provisional answer and default.
+- Your yes or no to D4.
+- The gate, the guard, and the merge (steps 1 to 3), then the room on `main` (step 4).
+- The shirt's patch after the merge (step 5), the live look on prod (step 6), and parking (step 7).
+- T067 and T068, the lookdev page's twin controls, come in a follow-up branch; publication waits on L2 and L4, which
+  need them (Backlog).
 - **A refusal to report**: while drafting this note's blocks, the bash gate refused a shell command whose heredoc held
   step 1's text (`switching to main`). Nothing ran; the session didn't retry it in the shell, and wrote this note and
   the blocks' test copies with the editor instead, its mock repository naming its main branch `trunk`.
@@ -401,7 +482,7 @@ the still, 239 KB, in a 2D visit; cached a year. Row V1 amended in `docs/data-fl
 ## Verification
 
 Run in the worktree at Node 24.21.0, `node_modules` from `npm ci --cache "$TMPDIR/npm-cache-feat016"`, on 4a99aeb3
-(the build's last content commit, `rv`; this note's commit adds nothing else).
+(the build's last content commit, `rv`; this note's commits add nothing else).
 
 - **RED before GREEN.** Each story's tests were committed failing before its code, as separate commits named by task
   (`git log --oneline 06ae13f4..` shows each pair); T065's and T072's tests passed when written, since their code had
@@ -420,13 +501,13 @@ Run in the worktree at Node 24.21.0, `node_modules` from `npm ci --cache "$TMPDI
   first final run's `make test`, beside other test runs, failed it again with `test/unit/twin-bench.test.ts`'s
   20 ms bound, and each file then passed alone, 3 of 3 and 1 of 1. In the run below, every gateway test passed: 1,655
   in `make check` and in `make test`.
-- **The blocks.** `/tmp/claude-1000/feat016-mock/mock.py` read this note's ten bash blocks: every line 45 characters or
-  fewer, no `!` inside double quotes, no comment, each parsing under `bash -n` and `zsh -n`. In scratch repositories
-  whose `trunk` stands in for `main` and whose own commit stands in for `rv`, the guard ran failing first, then
-  passing, under bash and zsh:
+- **The blocks.** `/tmp/claude-1000/feat016-mock/mock.py` read this note's thirteen bash blocks, run again after the
+  review's round: every line 45 characters or fewer, no `!` inside double quotes (and none in any block), no
+  comment, each parsing under `bash -n` and `zsh -n`. In scratch repositories whose `trunk` stands in for `main` and
+  whose own commit stands in for `rv`, the guard ran failing first, then passing, under bash and zsh:
 
 ```text
-10 bash blocks
+13 bash blocks
 widths, bangs, comments, parses: 0 problems
 ok  bash: a gated log that names a failure: guard: no
 ok  bash: a change after rv beside the note: guard: no
