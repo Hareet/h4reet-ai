@@ -12,7 +12,9 @@ The mark follows the record (spec 004, Amendment C1). With --record, it reads th
 file is the output's name, and only that entry's steps' `by`: every step by a model, trainedAlgorithmicMedia; model
 and hand steps mixed, compositeWithTrainedAlgorithmicMedia; every step by hand, MARK_HUMAN. A step the studio's
 session scripted is recorded as a model step. It never reads the entry's sha256, which the Author fills in after the
-scrub. Without --record, the mark is trainedAlgorithmicMedia, which the twin's files and the research images keep.
+scrub. Without --record, the mark is trainedAlgorithmicMedia, which the twin's files and the research images keep;
+and since spec 016 (FR-058), with --record too where the record's directory is assets/twin, under it, or
+docs/research/images, whatever the steps say, as the arrival check's C1 wants there.
 
 - PNG: IHDR, PLTE, IDAT, tRNS, gAMA, cHRM, sRGB, pHYs, and IEND stay; the mark's iTXt goes after IHDR; text chunks,
   eXIf, iCCP, tIME, and anything after IEND go.
@@ -490,9 +492,16 @@ def scrub_bytes(
     raise ScrubError(f"{kind} isn't a format the arrival check admits")
 
 
+# The record directories whose files take the model's mark whatever their steps say (spec 016, FR-058): the twin's
+# folder, at any depth, and the research images, as the arrival check's C1 and its MODEL_ONLY want.
+MODEL_ONLY_DIRS = ("assets/twin", "docs/research/images")
+
+
 def term_from_record(records: Path, name: str) -> str:
     """The mark the steps of the entry naming `name` call for (spec 004, Amendment C1). It reads each step's `by`
-    and nothing else of the entry: never its sha256, which the Author fills in after the scrub."""
+    and nothing else of the entry: never its sha256, which the Author fills in after the scrub. Since spec 016
+    (FR-058; plan.md R-16), the record's `directory` first: under assets/twin, at any depth, or docs/research/images,
+    the mark is trainedAlgorithmicMedia before any step is read, as the arrival check's C1 wants there."""
     try:
         doc = json.loads(records.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
@@ -504,6 +513,11 @@ def term_from_record(records: Path, name: str) -> str:
     if len(found) != 1:
         which = "no entry" if not found else "more than one entry"
         raise RecordError(f"{records.name} has {which} for {name}")
+    directory = doc.get("directory") if isinstance(doc, dict) else None
+    if isinstance(directory, str) and any(
+        directory == d or directory.startswith(f"{d}/") for d in MODEL_ONLY_DIRS
+    ):
+        return MARK_MODEL
     steps = found[0].get("steps")
     if not isinstance(steps, list) or not steps:
         raise RecordError(f"the entry for {name} has no steps")

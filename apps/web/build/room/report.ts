@@ -56,6 +56,8 @@ import { faceCaps, pickSweep, poseSeparations, sideWallPicks, stagesPhrase } fro
 import type { FaceCaps } from "./checks/rg";
 import { MODELS_DIR } from "./checks/ri";
 import { contrastText, figureStart, highlightContrasts } from "./checks/rw";
+import { leanMeasure } from "./checks/ra";
+import { reachLine, twinReachOf } from "./reach";
 import { figuresVisit, sceneTextureTotal, TWIN_DIR, VISITORS_DIR } from "./checks/rk";
 import type { SceneTextureMemory } from "./checks/rk";
 import type { Switch } from "./schema";
@@ -215,6 +217,9 @@ export function roomReport(c: Composed, digest: string, index: RoomIndex): RoomR
   // Spec 009's avatars (its FR-040).
   lines.push(...avatars(c, memory, share, f3), "");
 
+  // Spec 016's twin (its FR-056; contracts/twin-data.md §8).
+  lines.push(...twinLines(c, memory), "");
+
   // Legibility, RG7's measure, on both reference stages.
   lines.push(...legibility(c, index), "");
 
@@ -309,15 +314,16 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const twinTerm =
     memory.twin === null
       ? "nothing yet"
-      : `${count(memory.twin)} (its own models ${memory.twin_own === null ? DASH : count(memory.twin_own)}, the ` +
-        `stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ${px} px)`;
+      : `${count(memory.twin)} (its own model ${memory.twin_own === null ? DASH : count(memory.twin_own)} at ` +
+        `${c.twin.texture_px} px, the stand-in's files ${memory.stand_in === null ? DASH : count(memory.stand_in)} at ` +
+        `${px} px)`;
   out.push(
     `RK3's figures with the stand-in: the twin's figure counts ${twinTerm}; the visitor's, ` +
       `${memory.visitor === null ? "nothing yet" : count(memory.visitor)}, the largest ` +
       `${stand === null ? "" : "other "}visitor avatar at ${px} px.`,
   );
   // RK5's sum, and spec 003's F3, which counts the largest visitor folder alone (arrival-check.md §3; M13).
-  const visit = figuresVisit(set);
+  const visit = figuresVisit(set, c.twin);
   const tree = c.reader.tree;
   const glbsUnder = (dir: string): number =>
     filesUnder(tree, dir)
@@ -326,13 +332,93 @@ function avatars(c: Composed, memory: SceneTextureMemory, share: number, f3: num
   const largestFolder = Math.max(0, ...tree.list(VISITORS_DIR).map((name) => glbsUnder(`${VISITORS_DIR}/${name}`)));
   // assets/animations/ aside, which the compositor never reads (contracts/room-data-files.md §1).
   const f3View = f3 + glbsUnder(TWIN_DIR) + largestFolder;
-  const total = share + visit.stand_in + visit.other;
+  const total = share + visit.twin + visit.stand_in + visit.other;
+  const twinShare = visit.twin > 0 ? `${count(visit.twin)} of the twin's own files, ` : "";
   out.push(
     `First visit with both figures' files (RK5): ${count(total)} gzip-9 bytes, ${count(share)} of the room's placed ` +
-      `models and cards, ${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of the largest ` +
-      `other visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
+      `models and cards, ${twinShare}${count(visit.stand_in)} of the stand-in's files, and ${count(visit.other)} of ` +
+      `the largest ${visit.twin > 0 ? "" : "other "}visitor avatar's${visit.other_id === null ? "" : ` (\`${visit.other_id}\`)`}, against the phase-3 ` +
       `budget of ${count(c.policy.phase3_bytes)}; spec 003's F3 view, which counts one visitor folder (assets/animations/ ` +
       `aside): ${count(f3View)}.`,
+  );
+  return out;
+}
+
+/**
+ * Spec 016's twin (its FR-056; contracts/twin-data.md §8): each file of assets/twin/ with its role, bytes, gzip-9
+ * bytes, triangles, and texture memory at its own size and at the twin's side, bundled or why not; the model's
+ * measured height and bounds; its clips with their lengths; each file with no role (RA5); the line's approval by ID
+ * and its source, never its words; and RK3's twin term.
+ */
+function twinLines(c: Composed, memory: SceneTextureMemory): string[] {
+  const twin = c.twin;
+  const out = ["### The twin", ""];
+  const files = [
+    ...(twin.model ? [twin.model] : []),
+    ...twin.clips,
+    ...(twin.still ? [twin.still] : []),
+    ...twin.others,
+  ];
+  if (files.length === 0) {
+    out.push("The twin has no file under assets/twin/ yet: its figure shows the stand-in.");
+    return out;
+  }
+  const px = twin.texture_px;
+  out.push(
+    `| File | Role | Bytes | gzip-9 bytes | Triangles | Texture memory | At ${px} px | Bundled |`,
+    "|---|---|---:|---:|---:|---:|---:|---|",
+  );
+  for (const f of files) {
+    const m = f.measures?.kind === "glb" ? f.measures : null;
+    const cells = [
+      `\`${f.path}\``,
+      f.role ?? DASH,
+      count(f.bytes),
+      f.gz === null ? DASH : count(f.gz.length),
+      m === null ? DASH : count(m.triangles),
+      m === null ? DASH : count(m.texture_bytes),
+      m === null ? DASH : count(m.decoded_bytes),
+      f.bundled ? "yes" : `no (${f.why ?? DASH})`,
+    ];
+    out.push(`| ${cells.join(" | ")} |`);
+  }
+  out.push("");
+  const model = twin.model?.measures?.kind === "glb" ? twin.model.measures : null;
+  if (model?.height != null && model.bounds !== null)
+    out.push(
+      `The twin's model at rest: ${fixed(model.height, 3)} m tall; bounds from ` +
+        `[${model.bounds.min.map((v) => fixed(v, 3)).join(", ")}] to [${model.bounds.max.map((v) => fixed(v, 3)).join(", ")}] m.`,
+    );
+  const clips = twin.clips.map((f) => {
+    const length = f.measures?.kind === "glb" ? f.measures.length_s : null;
+    return `\`${f.role}\` ${length === null ? DASH : `${fixed(length, 2)} s`}`;
+  });
+  if (clips.length > 0) out.push(`Its clips: ${clips.join(", ")}.`);
+  if (twin.still?.measures?.kind === "still")
+    out.push(`Its still: ${twin.still.measures.width} × ${twin.still.measures.height} pixels.`);
+  for (const f of twin.others)
+    out.push(`RA5: \`${f.path}\` has no role: reported, never refused, never bundled or fetched.`);
+  out.push(
+    twin.line === null
+      ? "The twin's line: none, so none of its files is shown (RA6)."
+      : `The twin's line: from approval \`${twin.line.approval}\` in main's likeness approvals, read from ` +
+          `${twin.line.source === "policy-dir" ? "the policy directory" : twin.line.source === "main" ? "refs/heads/main" : "the tree's own copy"}.`,
+  );
+  // The lean's spot against the placement (contracts/twin-data.md §8), RA7's measure.
+  const lean = leanMeasure(c.scene, c.geometry);
+  out.push(
+    lean === null
+      ? "The lean: none in the scene's twin block, so the twin rests in its idle."
+      : `The lean: the desk's origin ${fixed(lean.off_m * 100, 1)} cm off its spot behind the twin, ` +
+          `${fixed(lean.turn_deg, 1)}° from the twin's facing, and ${fixed(lean.right_m, 2)} m of its top to the ` +
+          `twin's right, from ${fixed(lean.gap_m * 100, 1)} cm off its root.`,
+  );
+  // The twin's reach toward the shell's walls (plan.md R-19), RA8's measure.
+  out.push(reachLine(twinReachOf(c.reader.tree, c.scene, c.twin, c.geometry)));
+  out.push(
+    `RK3's twin term: ${memory.twin === null ? "nothing yet" : count(memory.twin)}, the larger of its own model at ` +
+      `${px} px (${memory.twin_own === null ? DASH : count(memory.twin_own)}) and the stand-in's files ` +
+      `(${memory.stand_in === null ? DASH : count(memory.stand_in)}).`,
   );
   return out;
 }

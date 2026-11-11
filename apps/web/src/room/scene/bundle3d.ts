@@ -423,10 +423,31 @@ const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2)
  * visitorTurnShare), each toward the side the other stands on; under reduced motion nothing moves, and the paper
  * crossfades from one hand to the other.
  */
-export function showHandoff(room: Room3D, progress: number, reducedMotion: boolean): void {
+export function showHandoff(
+  room: Room3D,
+  progress: number,
+  reducedMotion: boolean,
+  mode: "travel" | "appear" = "travel",
+): void {
   const p = Math.min(1, Math.max(0, progress));
   const { twinHand, visitorHand } = room.anchors;
   const { sheet, atTwin, atVisitor } = room.paper;
+  // Spec 016 (FR-031; plan.md R-10; contracts/twin-states.md §5): while the twin shows its own picture, the paper
+  // appears with the visitor: no sheet at the twin, the visitor's fading in with the progress at its hand, the turns
+  // spec 002's, none under reduced motion.
+  if (mode === "appear") {
+    sheet.position.copy(visitorHand);
+    atTwin.opacity = 0;
+    atVisitor.opacity = p;
+    if (reducedMotion) {
+      room.twin.rotation.y = 0;
+      room.visitor.rotation.y = 0;
+      return;
+    }
+    room.twin.rotation.y = room.facing.twin * TWIN_TURN * Math.min(1, p / 0.3) * Math.min(1, (1 - p) / 0.2);
+    room.visitor.rotation.y = room.facing.visitor * VISITOR_TURN * visitorTurnShare(p);
+    return;
+  }
   if (reducedMotion) {
     sheet.position.copy(twinHand);
     atTwin.opacity = 1 - p;

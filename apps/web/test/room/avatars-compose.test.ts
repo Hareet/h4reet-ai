@@ -168,10 +168,15 @@ describe("the avatars in the bundle (FR-009, FR-023, FR-024; plan.md §3.2, R-01
     expect(result.scene.avatars.dog).toBeUndefined();
   });
 
-  it("puts the stand-in line first in the index's copy, in every build: the twin never shows its own avatar here", () => {
+  it("puts the twin's line slot first in the index's copy, in every build, and no twin here to fill it", () => {
+    // Spec 016 (FR-014; plan.md R-18, changed with T017): the slot the room resolves to the stand-in line while the twin
+    // shows anything but its own picture; with no twin in the bundle, always.
     for (const tree of [goodTree(), night()])
-      for (const options of [STRICT, { ...STRICT, drafts: false }])
-        expect(composed(tree, avatarPolicy(), options).index.copy[0]).toEqual({ line: "twin.stand_in" });
+      for (const options of [STRICT, { ...STRICT, drafts: false }]) {
+        const result = composed(tree, avatarPolicy(), options);
+        expect(result.index.copy[0]).toEqual({ twin_line: true });
+        expect(result.index.twin).toBeNull();
+      }
   });
 
   it("writes the same bundle twice from one tree", () => {
@@ -346,11 +351,12 @@ describe("the RA family (FR-038; plan.md §3.5)", () => {
     // The woman larger: the visitor's term is hers.
     const hers = ctx(night({ woman: big }));
     expect([hers.twin, hers.visitor]).toEqual([woman, cap]);
-    // The twin's own models, larger than the stand-in's files, count instead.
+    // The twin's own model, larger than the stand-in's files, counts instead, at its decoded size (spec 016, FR-046;
+    // plan.md R-18, changed with T011): its 2,048 image at 1,024 a side.
     const own = ctx(
-      overlay({ ...nightFiles(), "assets/twin/fx-twin.glb": avatarModel({ images: [pngHeader(2048, 2048)] }).bytes }),
+      overlay({ ...nightFiles(), "assets/twin/twin.glb": avatarModel({ images: [pngHeader(2048, 2048)] }).bytes }),
     );
-    expect([own.twin_own, own.stand_in, own.twin]).toEqual([textureMemory(2048, 2048), 0, textureMemory(2048, 2048)]);
+    expect([own.twin_own, own.stand_in, own.twin]).toEqual([cap, 0, cap]);
     // Without a stand-in, today's count.
     const plain = ctx(overlay({ ...nightFiles({ man: big }), [SCENE]: sceneWith(null) }));
     expect([plain.twin, plain.stand_in, plain.visitor]).toEqual([null, null, cap]);
@@ -447,7 +453,14 @@ describe("the data-only proof set on the repository's own data (FR-037, SC-008)"
   it("names the man as the stand-in in the committed scene, with the defaults written out", () => {
     // Spec 014 (FR-039; D1; plan.md E15): the committed scene's grips beside them, the man's and the woman's left.
     expect(committed.figures).toMatchObject({ twin_stand_in: "man", texture_px: 1024, wait_ms: 1500 });
-    expect(Object.keys(committed.figures ?? {}).sort()).toEqual(["grips", "texture_px", "twin_stand_in", "wait_ms"]);
+    // Spec 016 (FR-054; changed with T042, plan.md R-18): the twin's own block beside spec 009's and spec 014's keys.
+    expect(Object.keys(committed.figures ?? {}).sort()).toEqual([
+      "grips",
+      "texture_px",
+      "twin",
+      "twin_stand_in",
+      "wait_ms",
+    ]);
   });
 
   it.each([

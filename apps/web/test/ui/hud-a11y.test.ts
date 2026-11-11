@@ -87,7 +87,9 @@ describe("the Tab order in the HUD (FR-043, FR-046)", () => {
       // "Around the room".
       expect(order.slice(0, 3)).toEqual(["Resume", "2D view", UI["pause.button"]]);
       expect(order.indexOf(UI["list.heading"] ?? "")).toBeGreaterThan(order.indexOf("How data flows"));
-      if (webgl) expect(order.indexOf(UI["walk.enter"] ?? "")).toBe(order.indexOf("How data flows") + 1);
+      // Spec 016 (FR-042; changed with T064, plan.md R-18): Credits after How data flows, then the walking control.
+      expect(order.indexOf("Credits")).toBe(order.indexOf("How data flows") + 1);
+      if (webgl) expect(order.indexOf(UI["walk.enter"] ?? "")).toBe(order.indexOf("Credits") + 1);
       expect(order.indexOf(UI["hud.log_toggle"] ?? "")).toBeGreaterThan(order.indexOf(UI["list.heading"] ?? ""));
       expect(order.indexOf("Your message")).toBeGreaterThan(order.indexOf(UI["hud.log_toggle"] ?? ""));
       expect(order.at(-1)).toBe(UI["around.heading"]);

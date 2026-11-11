@@ -16,7 +16,8 @@ import { noPolicy, policyFrom } from "../../build/room/policy";
 import type { RoomPolicy } from "../../build/room/policy";
 import { memoryTree, overlayTree } from "../../build/room/source";
 import type { Tree } from "../../build/room/source";
-import { avatarClips, avatarGlb, clipGlb, desk, rxVariants, sign } from "./glb";
+import { avatarClips, avatarGlb, clipGlb, desk, pngHeader, rxVariants, sign } from "./glb";
+import { FX_LINE, likenessText, TWIN_DIR, TWIN_ROLES, twinDefaults, twinKindOf, twinModel } from "./room-twin";
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 export const FIXTURES_DIR = here("../fixtures/room/");
@@ -197,6 +198,13 @@ const AVATAR_GENERATORS: Readonly<Record<string, () => Uint8Array>> = {
   "glb:avatar-idle-holding": () => avatarClips()["idle-holding"].bytes,
   "glb:avatar-take": () => avatarClips().take.bytes,
   "glb:avatar-still": () => clipGlb("idle").bytes,
+  // Spec 016's twin (its T006 to T008): the model, each clip by role, a clip with no animation, the still, and a model
+  // whose two 4,096-pixel images take RK3 over at their own size.
+  "glb:twin": () => twinDefaults().model,
+  ...Object.fromEntries(TWIN_ROLES.map((role) => [`glb:twin-${role}`, () => twinDefaults().clips[role] as Uint8Array])),
+  "glb:twin-handless": () => twinModel({ hands: false }),
+  "glb:twin-heavy": () => twinModel({ images: [pngHeader(4096, 4096), pngHeader(4096, 4096)] }),
+  "png:twin-still": () => twinDefaults().still,
 };
 
 /** A visitor avatar's records.json (spec 009, FR-009): every file of its folder in the tree, sorted, the model, named
@@ -221,8 +229,29 @@ function visitorRecords(path: string, files: ReadonlyMap<string, Uint8Array | nu
   return bytes(`${JSON.stringify(record, null, 2)}\n`);
 }
 
-/** A generator's output: a GLB (glb:desk, glb:sign, glb:<rxVariants id>, spec 009's glb:avatar…), `records` over the
- *  tree's models, or `visitor-records` over the folder of `path`. */
+/** Spec 016's twin's records.json: every file under assets/twin/ in the tree but its records and notice, sorted, each
+ *  with its kind (twin.glb `avatar`, still.png `still`, every other `animation`), from a photo, a likeness. */
+function twinRecords(files: ReadonlyMap<string, Uint8Array | null>): Uint8Array {
+  const entries = [...files]
+    .filter(([p, data]) => data !== null && p.startsWith(`${TWIN_DIR}/`) && !/\/(records\.json|LICENSE\.md)$/.test(p))
+    .map(([p, data]) => ({ file: p.slice(TWIN_DIR.length + 1), data: data as Uint8Array }))
+    .sort((a, b) => (a.file < b.file ? -1 : 1))
+    .map(({ file, data }) => ({
+      file,
+      sha256: sha256(data),
+      kind: twinKindOf(file),
+      made: "2026-11-10",
+      source: { type: "photo", id: "H01" },
+      likeness: true,
+      media_license: "all-rights-reserved-2026",
+    }));
+  const record = { schema: 1, directory: TWIN_DIR, license: "all-rights-reserved-2026", entries };
+  return bytes(`${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** A generator's output: a GLB (glb:desk, glb:sign, glb:<rxVariants id>, spec 009's glb:avatar…, spec 016's
+ *  glb:twin…), the twin's still (png:twin-still), `records` over the tree's models, `visitor-records` over the folder
+ *  of `path`, or spec 016's `twin-records`. */
 function generated(
   name: string,
   files: ReadonlyMap<string, Uint8Array | null>,
@@ -234,6 +263,7 @@ function generated(
   const avatar = Object.hasOwn(AVATAR_GENERATORS, name) ? AVATAR_GENERATORS[name] : undefined;
   if (avatar) return avatar();
   if (name === "visitor-records") return visitorRecords(path, files);
+  if (name === "twin-records") return twinRecords(files);
   if (name.startsWith("glb:")) {
     variants ??= new Map(rxVariants().map((v) => [v.id, v.bytes]));
     const found = variants.get(name.slice(4));
@@ -267,6 +297,7 @@ const CASE_KEYS = new Set([
   "generate",
   "caps",
   "full_name",
+  "likeness",
 ]);
 const stringMap = (v: unknown, where: string): Record<string, string> => {
   if (v === undefined) return {};
@@ -310,7 +341,7 @@ function readCase(name: string): BadCase {
   for (const [rel, data] of existsSync(files) ? walk(files) : []) changes.set(rel, data);
   for (const [p, text] of Object.entries(stringMap(spec.raw, `${where} raw`))) changes.set(p, rawBytes(text, where));
   const generate = stringMap(spec.generate, `${where} generate`);
-  const late = (g: string): number => Number(g === "records" || g === "visitor-records");
+  const late = (g: string): number => Number(g === "records" || g === "visitor-records" || g === "twin-records");
   const order = Object.entries(generate).sort(([, a], [, b]) => late(a) - late(b));
   for (const [p, generator] of order) {
     const tree = new Map<string, Uint8Array | null>([...base, ...changes]);
@@ -325,17 +356,35 @@ function readCase(name: string): BadCase {
   }
   for (const [p, list] of byFile) changes.set(p, edited(current(p), p, list, where));
 
-  // The policy: caps.json as text (written byte for byte) or as a value (written as JSON), and the header's name.
-  const { caps, full_name: fullName } = spec;
+  // The policy: caps.json as text (written byte for byte) or as a value (written as JSON), and the header's name; and
+  // spec 016's likeness approvals: `approve` approves the case tree's twin model with the fixture's line, `none` gives
+  // an approvals.json with no entry.
+  const { caps, full_name: fullName, likeness } = spec;
   if (fullName !== undefined && typeof fullName !== "string") throw new Error(`${where}: full_name is a string`);
+  if (likeness !== undefined && likeness !== "approve" && likeness !== "none")
+    throw new Error(`${where}: likeness is approve or none`);
+  const model = changes.has(`${TWIN_DIR}/twin.glb`)
+    ? changes.get(`${TWIN_DIR}/twin.glb`)
+    : base.get(`${TWIN_DIR}/twin.glb`);
+  const likenessFile =
+    likeness === undefined
+      ? {}
+      : {
+          likeness: bytes(
+            likenessText(
+              likeness === "approve" && model ? [{ id: "A-fx-twin", sha256: sha256(model), line: FX_LINE }] : [],
+            ),
+          ),
+        };
   const policy =
-    caps === undefined && fullName === undefined
+    caps === undefined && fullName === undefined && likeness === undefined
       ? noPolicy()
       : policyFrom(
           {
             caps: caps === undefined ? null : bytes(typeof caps === "string" ? caps : `${JSON.stringify(caps)}\n`),
             approvals: null,
             header: fullName === undefined ? null : bytes(`${JSON.stringify({ schema: 1, full_name: fullName })}\n`),
+            ...likenessFile,
           },
           "policy-dir",
         );

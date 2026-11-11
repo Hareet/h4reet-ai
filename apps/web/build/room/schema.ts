@@ -120,6 +120,9 @@ const liveFace = z
     up: unit.optional(),
     px: z.tuple([z.number().int().min(16).max(2048), z.number().int().min(16).max(2048)]),
     readable: z.boolean(),
+    // Spec 016 (FR-036, FR-037; Amendment M18): `quad`, a plane the room builds, or `model`, its avatar's own mesh of
+    // the role's name, which the room draws into; RI8 holds `model` to a figure's piece.
+    surface: z.enum(["quad", "model"]).default("quad"),
   })
   .superRefine((f, ctx) => {
     if (f.up === undefined && f.facing[0] === 0 && f.facing[2] === 0)
@@ -514,6 +517,56 @@ const grips = z.record(z.string(), z.record(z.string(), grip)).superRefine((valu
   }
 });
 
+/** Spec 016's twin block's defaults (its FR-021, FR-029, FR-054; contracts/twin-data.md §1): the resting time, the
+ *  speaking pace and its bounds, and the lean's figures, the hand-back's for the delivered desk and clip. The clip map's
+ *  are twin-states.ts's TWIN_CLIPS_DEFAULT; the texture side's is the block's texture_px; the still's rectangle is the
+ *  twin figure's box's width, at its top (emit.ts). */
+export const TWIN_DEFAULTS = {
+  rest_after_s: 20,
+  speak_wpm: 150,
+  speak_s: [3, 20] as readonly [number, number],
+  behind_m: 0.679,
+  right_m: 0.45,
+} as const;
+
+/** `figures.twin` (spec 016, FR-054; plan.md R-15): every key optional. `clips`, from a state to a clip role, whose
+ *  closed lists RI8 holds (ri.ts), so a key or value outside them is RI8's, never RD2's; `rest_after_s` "an integer, 5
+ *  to 600"; `speak_wpm` "an integer, 60 to 400"; `speak_s` "[min, max], 0.5 ≤ min ≤ max ≤ 60"; `lean` with `against` a
+ *  placement ID (RI8: the survey's desk's piece), `behind_m` 0.1 to 2 and `right_m` 0 to 2, defaulting to the
+ *  hand-back's; `texture_px` "a power of two, 256 to 4,096"; and `still.rect`, `[x, y, w, h]` in metres, w and h above
+ *  0. */
+const twinBlock = z.strictObject({
+  clips: z.record(z.string(), z.string()).optional(),
+  rest_after_s: z.number().int().min(5).max(600).optional(),
+  speak_wpm: z.number().int().min(60).max(400).optional(),
+  speak_s: z
+    .array(z.number())
+    .refine(
+      (v) =>
+        v.length === 2 && 0.5 <= (v[0] as number) && (v[0] as number) <= (v[1] as number) && (v[1] as number) <= 60,
+      own("RD3", "not [min, max] with 0.5 ≤ min ≤ max ≤ 60"),
+    )
+    .optional(),
+  lean: z
+    .strictObject({
+      against: z.string(),
+      behind_m: z.number().min(0.1).max(2).default(TWIN_DEFAULTS.behind_m),
+      right_m: z.number().min(0).max(2).default(TWIN_DEFAULTS.right_m),
+    })
+    .optional(),
+  texture_px: z.number().int().min(256).max(4096).refine(isPowerOfTwo, own("RD3", "not a power of two")).optional(),
+  still: z
+    .strictObject({
+      rect: z
+        .array(z.number())
+        .refine(
+          (v) => v.length === 4 && (v[2] as number) > 0 && (v[3] as number) > 0,
+          own("RD3", "not [x, y, w, h] with w and h above 0"),
+        ),
+    })
+    .optional(),
+});
+
 /** `figures` (spec 009, FR-037; plan.md §3.1): `twin_stand_in` an avatar of the room's table, which RI8 holds to it,
  *  absent for none; `texture_px` "a power of two from 256 to 4,096", 1,024 by default; `wait_ms` "an integer from 0 to
  *  3,000", 1,500 by default. */
@@ -529,6 +582,8 @@ const figures = z
       .default(FIGURES_DEFAULTS.texture_px),
     wait_ms: z.number().int().min(0).max(3000).default(FIGURES_DEFAULTS.wait_ms),
     grips: grips.optional(),
+    // Spec 016 (FR-054): the twin's own block, optional, its defaults resolved by the compositor.
+    twin: twinBlock.optional(),
   })
   .default(() => ({ ...FIGURES_DEFAULTS }));
 

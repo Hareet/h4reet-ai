@@ -52,7 +52,8 @@ describe("the HUD's places (FR-019, FR-020)", () => {
     expect(bar?.getAttribute("role")).toBe("group");
     const tiles = [...(bar?.children ?? [])].map((el) => textOf(el));
     expect(tiles.slice(0, 3)).toEqual(["Resume", "2D view", WORDS["pause.button"]]);
-    expect(tiles.at(-1)).toBe("How data flows");
+    // Spec 016 (FR-042; changed with T064, plan.md R-18): Credits after How data flows, the bar's last tile.
+    expect(tiles.slice(-2)).toEqual(["How data flows", "Credits"]);
     const panels = v.doc.querySelector(".hud-panels");
     expect([...(panels?.children ?? [])].map((el) => el.className.split(" ")[0])).toEqual(["room-list", "talk"]);
     // The stand-in line, where the index's copy holds it, in the clear box's notes at its top left.

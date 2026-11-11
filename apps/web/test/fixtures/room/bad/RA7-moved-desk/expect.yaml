@@ -1,0 +1,6 @@
+rule: RA7
+file: apps/web/room/scene.yaml
+path: figures.twin.lean.behind_m
+why: the lean against a desk whose origin isn't behind_m behind the twin's root, as a moved desk leaves it (spec 016, FR-029)
+edits:
+  - { file: apps/web/room/scene.yaml, at: [figures, twin], set: { lean: { against: fx-desk } } }

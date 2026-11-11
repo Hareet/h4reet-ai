@@ -416,9 +416,24 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     room?.setPlaceholders({ pieces: placeholders.pieces, figure: placeholders.figure && visit.mode !== "2d" });
   }
 
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot, the stage's note's second paragraph and the text
+   *  copy's first line: the twin's line while its own picture shows (its model in 3D, its still in 2D), the stand-in
+   *  line otherwise, swapped in place on each picture signal of the twin's figure. */
+  let twinOwn = false;
+  function showLine(): void {
+    const stand = uiWord(deps.room.ui, "twin.stand_in") ?? "";
+    const own = twinOwn && deps.room.twin ? deps.room.twin.line : stand;
+    room?.setLine(own);
+    copy?.setTwinOwn(twinOwn);
+  }
+
   /** Spec 009's figures as the 3D stage reports them: avatar_failed once a visit (FR-032), and the frame log (FR-035). */
   let avatarFailed = false;
   function figureSignal(signal: FigureSignal): void {
+    if (signal.kind === "picture" && signal.figure === "twin") {
+      twinOwn = signal.shows === "own" || signal.shows === "still";
+      showLine();
+    }
     // Spec 014 (FR-054): the visitor's figure's flat shape in 3D, named by the note; its avatar takes it away.
     if (signal.kind === "picture" && signal.figure === "visitor") {
       placeholders.figure = signal.shows === "fallback" && signal.why !== "2d";
@@ -433,6 +448,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     if (!log) return;
     if (signal.kind === "picture")
       log.record("figure", { figure: signal.figure, shows: signal.shows, why: signal.why });
+    else if (signal.kind === "twin-state") log.record("twin-state", { state: signal.state, role: signal.role });
     else log.record("clip", { figure: signal.figure, role: signal.role });
   }
 
@@ -685,6 +701,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       },
     );
     talk = renderTalk(doc, {
+      // Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, to the 3D stage's twin alone; in
+      // 2D nothing reads it.
+      onActivity: (activity) => walker(stage)?.twinActivity?.(activity),
       messages: content.messages,
       clock,
       emit,
@@ -720,6 +739,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
       note: uiWord(deps.room.ui, "standin.note") ?? "",
       noteAvatar: uiWord(deps.room.ui, "standin.avatar") ?? "",
       pause: uiWord(deps.room.ui, "pause.button") ?? "",
+      credits: uiWord(deps.room.ui, "toolbar.credits") ?? "Credits",
       walk: {
         enter: uiWord(deps.room.ui, "walk.enter") ?? "",
         leave: uiWord(deps.room.ui, "walk.leave") ?? "",
@@ -737,7 +757,7 @@ export function startRoom(deps: RoomDeps): RoomHandle {
           }
         : {}),
       // Spec 009's stand-in line, while the index's copy holds it (its FR-013; plan.md R-13).
-      standIn: deps.room.copy.some((e) => "line" in e && e.line === "twin.stand_in")
+      standIn: deps.room.copy.some((e) => ("line" in e && e.line === "twin.stand_in") || "twin_line" in e)
         ? (uiWord(deps.room.ui, "twin.stand_in") ?? "")
         : "",
     });
@@ -996,6 +1016,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
     visit.mode = "2d";
     // Spec 014 (FR-054): in 2D every figure is flat by design, so the note drops the figure's words.
     showPlaceholders();
+    // Spec 016 (FR-014): the twin's 3D model is gone with the 3D stage; the 2D room says when its still shows.
+    twinOwn = false;
+    showLine();
     // Spec 008: the target clears with the 3D stage, and the 2D room starts with none (plan.md R-06).
     retarget({ kind: "reset" });
     controller?.toFlat(reason);
@@ -1016,6 +1039,9 @@ export function startRoom(deps: RoomDeps): RoomHandle {
         cost: cost.state,
         target: targetInput,
         ...(typefaces ? { typefaces } : {}),
+        // Spec 016 (FR-034, FR-035): the twin's still, fetched once, same-origin, its picture to the line slot.
+        fetch: (url, init) => win.fetch(url, init),
+        onFigure: figureSignal,
       });
       showTier(flat, live.tier.tier);
     } catch {

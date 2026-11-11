@@ -785,7 +785,7 @@ describe("the runtime half: a bundle with an added selectable (R-68)", () => {
   function visit(bundle: ComposeResult): Visit {
     const dom = makeWindow({ webgl: true });
     const win = dom.window as unknown as TestWindow;
-    const spies: Spies = { storage: [], history: [], network: [], beacons: [], microphone: 0 };
+    const spies: Spies = { storage: [], history: [], network: [], assets: [], beacons: [], microphone: 0 };
     Object.defineProperty(win, "fetch", {
       configurable: true,
       value: (input: unknown) => {
@@ -1043,5 +1043,65 @@ describe("the neon sign's path glow (spec 014, T037)", () => {
     for (const piece of Object.values(part.pieces))
       for (const [id, g] of Object.entries(piece.glows))
         if (id !== "tube-glow") expect((g as { radius?: number }).radius, id).toBeGreaterThan(0);
+  });
+});
+
+// T036 (spec 016; FR-054; SC-014): the twin block's proof set, each a data edit to the repository's own scene, each
+// composing in a strict build with no source file read or changed: the lean given to listening, the resting time 10 s,
+// the pace 120, and the twin's texture side 512.
+describe("the twin block's data-only proof set (spec 016, SC-014)", () => {
+  const scene = (edit: (twin: Record<string, unknown>) => void): Tree => {
+    const doc = parse(readFileSync(join(REPO, SCENE_FILE), "utf8")) as Scene & { figures: Record<string, unknown> };
+    const twin = { ...((doc.figures.twin as Record<string, unknown> | undefined) ?? {}) };
+    edit(twin);
+    doc.figures = { ...doc.figures, twin };
+    return overlayTree(
+      fileTree(REPO),
+      new Map([[SCENE_FILE, new TextEncoder().encode(stringify(doc, { aliasDuplicateObjects: false }))]]),
+    );
+  };
+  const policy = readRoomPolicy({ env: {}, root: REPO });
+  type Edit = (t: Record<string, unknown>) => void;
+  const cases: [string, Edit, Record<string, unknown>][] = [
+    [
+      "the lean given to listening",
+      (t) => {
+        t.clips = { ...(t.clips as object), listening: "desk-lean" };
+      },
+      { clips: { listening: "desk-lean" } },
+    ],
+    [
+      "the resting time to 10 s",
+      (t) => {
+        t.rest_after_s = 10;
+      },
+      { rest_after_s: 10 },
+    ],
+    [
+      "the pace to 120",
+      (t) => {
+        t.speak_wpm = 120;
+      },
+      { speak_wpm: 120 },
+    ],
+    [
+      "the twin's texture side to 512",
+      (t) => {
+        t.texture_px = 512;
+      },
+      { texture_px: 512 },
+    ],
+  ];
+  it.each(cases)("%s", (_, edit, expected) => {
+    const tree = scene(edit);
+    const result = compose(tree, policy, { mode: "strict", drafts: false });
+    expect(result.findings.filter((f) => !f.lenient).map((f) => f.rule)).toEqual([]);
+    expect(result.scene.twin?.block).toMatchObject(expected);
+    // No source file changed: the edit is the scene's alone, and the compose reads no source file it didn't read
+    // before the edit.
+    const before = scene(() => undefined);
+    compose(before, policy, { mode: "strict", drafts: false });
+    const sources = (t: Tree): string[] => [...new Set(t.log.filter((p) => p.startsWith("apps/web/src/")))].sort();
+    expect(sources(tree)).toEqual(sources(before));
   });
 });

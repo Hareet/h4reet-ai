@@ -179,8 +179,9 @@ describe("the report's totals", () => {
     const signMemory = textureMemory(4, 4) + textureMemory(8, 8);
     const tree = overlay({
       ...cardChanges(png({ width: 8, height: 8 })),
-      // The twin in two models, and three avatars: two models, one, and one that can't be read.
-      "assets/twin/fx-twin.glb": desk().bytes,
+      // The twin's model and another file, which counts nothing (spec 016, FR-046; changed with T011), and three
+      // avatars: two models, one, and one that can't be read.
+      "assets/twin/twin.glb": desk().bytes,
       "assets/twin/fx-hands/fx-hands.glb": sign().bytes,
       "assets/visitors/fx-dog/fx-dog.glb": desk().bytes,
       "assets/visitors/fx-dog/fx-collar.glb": sign().bytes,
@@ -192,7 +193,7 @@ describe("the report's totals", () => {
     const result = compose(tree, policy, options);
     expect(result.findings).toEqual([]);
     const rk3 = sceneTextureMemory(createContext(loadRoom(tree), policy, options, tree).ctx);
-    expect([rk3.figures, rk3.unread]).toEqual([2 * (deskMemory + signMemory), { twin: 0, visitor: 1 }]);
+    expect([rk3.figures, rk3.unread]).toEqual([2 * deskMemory + signMemory, { twin: 0, visitor: 1 }]);
     expect(rk3.cards).toBe(349_525);
     expect(rk3.models + rk3.cards).toBe(rk3.pieces);
     expect(rk3.total).toBe(rk3.pieces + rk3.figures + rk3.canvases);

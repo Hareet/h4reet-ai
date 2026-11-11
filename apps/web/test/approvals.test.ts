@@ -153,14 +153,19 @@ describe("the policy files", () => {
 
   it("have the digest web_image.py labels the image with: each file's name and SHA-256, or absent", () => {
     const a = approvals();
-    const expected = sha256(`content-approvals.json:${sha256(a)}\nresume-header.json:absent\ncaps.json:absent\n`);
+    // Spec 016 (FR-015; plan.md R-03, R-18): the likeness approvals fourth; changed with T012.
+    const expected = sha256(
+      `content-approvals.json:${sha256(a)}\nresume-header.json:absent\ncaps.json:absent\napprovals.json:absent\n`,
+    );
     expect(policyDigest(readPolicy(policyDir({ "content-approvals.json": a })))).toBe(expected);
-    const none = sha256("content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\n");
+    const none = sha256(
+      "content-approvals.json:absent\nresume-header.json:absent\ncaps.json:absent\napprovals.json:absent\n",
+    );
     expect(policyDigest(readPolicy(policyDir({})))).toBe(none);
   });
 
-  it("are the approvals, the header, and the caps, in the order the digest takes them (spec 004, R-13)", () => {
-    expect(POLICY_FILES).toEqual(["content-approvals.json", "resume-header.json", "caps.json"]);
+  it("are the approvals, the header, the caps, and the likeness approvals, in the order the digest takes them (spec 004, R-13; spec 016, R-03)", () => {
+    expect(POLICY_FILES).toEqual(["content-approvals.json", "resume-header.json", "caps.json", "approvals.json"]);
     // build/policy.ts fills the directory with the same names, in the same order.
     expect(POLICY_PATHS.map(([, name]) => name)).toEqual([...POLICY_FILES]);
   });
@@ -170,11 +175,16 @@ describe("the policy files", () => {
     const h = JSON.stringify({ schema: 1, full_name: null, contact: null });
     const all = readPolicy(policyDir({ "content-approvals.json": a, "resume-header.json": h, "caps.json": CAPS }));
     expect(policyDigest(all)).toBe(
-      sha256(`content-approvals.json:${sha256(a)}\nresume-header.json:${sha256(h)}\ncaps.json:${sha256(CAPS)}\n`),
+      sha256(
+        `content-approvals.json:${sha256(a)}\nresume-header.json:${sha256(h)}\ncaps.json:${sha256(CAPS)}\n` +
+          "approvals.json:absent\n",
+      ),
     );
     const capsOnly = readPolicy(policyDir({ "caps.json": CAPS }));
     expect(policyDigest(capsOnly)).toBe(
-      sha256(`content-approvals.json:absent\nresume-header.json:absent\ncaps.json:${sha256(CAPS)}\n`),
+      sha256(
+        `content-approvals.json:absent\nresume-header.json:absent\ncaps.json:${sha256(CAPS)}\napprovals.json:absent\n`,
+      ),
     );
   });
 
@@ -300,11 +310,13 @@ describe("build/policy.ts, a checkout's prebuild", () => {
   const MAIN_APPROVALS = approvals(sha256(RESUME));
   const MAIN_HEADER = JSON.stringify({ schema: 1, full_name: null, contact: null });
 
-  it("reads main's three paths, the caps third (spec 004, R-13)", () => {
+  it("reads main's four paths, the caps third and the likeness approvals fourth (spec 004, R-13; spec 016, R-03)", () => {
+    // Changed with T012 (spec 016, plan.md R-18): the likeness approvals join the policy fourth.
     expect(POLICY_PATHS).toEqual([
       ["assets/policy/content-approvals.json", "content-approvals.json"],
       ["assets/policy/resume-header.json", "resume-header.json"],
       ["assets/policy/caps.json", "caps.json"],
+      ["assets/policy/approvals.json", "approvals.json"],
     ]);
   });
 
@@ -333,6 +345,7 @@ describe("build/policy.ts, a checkout's prebuild", () => {
       ["/the/repository", "assets/policy/content-approvals.json"],
       ["/the/repository", "assets/policy/resume-header.json"],
       ["/the/repository", "assets/policy/caps.json"],
+      ["/the/repository", "assets/policy/approvals.json"],
     ]);
     expect(readdirSync(dir)).toEqual(["caps.json"]);
     expect(readFileSync(join(dir, "caps.json"), "utf8")).toBe(CAPS);
@@ -394,6 +407,7 @@ describe("build/policy.ts, a checkout's prebuild", () => {
       "assets/policy/content-approvals.json",
       "assets/policy/resume-header.json",
       "assets/policy/caps.json",
+      "assets/policy/approvals.json",
     ]);
   });
 

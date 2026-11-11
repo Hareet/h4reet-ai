@@ -33,6 +33,9 @@ assets/policy/
 # The desk signs' outline files (spec 004, FR-032; R-06): their approved SHA-256 is of their bytes as they arrived, so
 # reformatting one would make it a draft again.
 apps/web/content/room/outlines/
+# Spec 016 (D3; FR-039): the shirt lettering's sources, the studio's SVG and JSON byte for byte as delivered and checked
+# against its SHA256SUMS, from which the outline is converted; reformatting them would change what was checked.
+apps/web/content/lettering/
 docs/
 intent/
 specs/

@@ -324,8 +324,9 @@ COMPOSE_BUILD = (
 # The room's image (spec 002, contracts/web-serving.md §1): dev-cpu's holds the drafts, so its tag says so, and
 # main's policy files come in as the named context `policy`, from a fresh temporary directory, whose digest is a label.
 # The working tree's models, under assets/room/ since the room's intake, come in as the named context `room-assets`
-# (spec 004, T220; its contracts/serving.md §3), and its visitor avatars' folder, assets/visitors/, as
-# `visitor-assets` (spec 009, FR-023; its Amendment M19).
+# (spec 004, T220; its contracts/serving.md §3), its visitor avatars' folder, assets/visitors/, as
+# `visitor-assets` (spec 009, FR-023; its Amendment M19), and the twin's folder, assets/twin/, as `twin-assets`
+# (spec 016, its plan's R-03; changed with T013, its R-18).
 WEB_BUILD = re.compile(
     re.escape(
         f"buildx build --load --file {ROOT}/apps/web/Dockerfile --tag h4reet-web:working-tree-drafts "
@@ -335,6 +336,7 @@ WEB_BUILD = re.compile(
     + r"/\S+ "
     + re.escape(f"--build-context room-assets={ROOT}/assets/room ")
     + re.escape(f"--build-context visitor-assets={ROOT}/assets/visitors ")
+    + re.escape(f"--build-context twin-assets={ROOT}/assets/twin ")
     + r"--label org\.h4reet\.web\.policy=[0-9a-f]{64} "
     + re.escape(str(ROOT))
 )

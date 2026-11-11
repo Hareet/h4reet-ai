@@ -150,8 +150,18 @@ placements:
   - id: twin-figure
     piece: twin-figure
     role: twin
-    mount: { on: room-shell, anchor: floor, offset: [0.78, 0, 0.395] }
+    mount: { on: room-shell, anchor: floor, offset: [0.66, 0, 0.469], estimated: true }
     frame: true
+    # Spec 016 (FR-036, FR-038, FR-040): the shirt's lettering, the Author's words as the studio's outline sets them,
+    # drawn into the twin's own model; an atmosphere face, its words in "Around the room" under its label, and room
+    # text, so a release build leaves it plain until the Author approves the outline's SHA-256 (C-0004's patch).
+    faces:
+      twin-shirt-lettering:
+        label: label.twin-shirt
+        atmosphere: true
+        max_chars: 25
+        regions:
+          - { rect: [0, 0, 1, 1], renderer: print, text: twin-shirt-lettering }
   - id: visitor-figure
     piece: visitor-figure
     role: visitor
@@ -233,6 +243,20 @@ figures:
   twin_stand_in: man
   texture_px: 1024
   wait_ms: 1500
+  # Spec 016's twin block (its FR-054; contracts/twin-data.md §1): every figure here is the spec's default, written out
+  # so each is a data edit. Each is provisional, taken under the Author's "Yes, take those (Recommended)" and "okay that
+  # is finished, update the runbook and go ahead", and his to overturn: the speaking time at 150 words a minute within
+  # 3 s and 20 s (Q3), and the twin's 1,024 texture side (Q4). The still's rectangle takes its default, the figure's
+  # box's width at its top (D2). No lean, by the Author's answer of 2026-11-11, "Lean off for now (Recommended)"
+  # (spec Q1; plan.md R-19): desk-lean.glb bends the right elbow backward, so the twin rests in its idle between
+  # conversations, and the map's resting clip waits for the studio's re-export, which brings back this line:
+  #   lean: { against: work-desk, behind_m: 0.679, right_m: 0.45 }
+  twin:
+    clips: { arriving: greeting, answering: talking, listening: listening, resting: desk-lean, present: idle }
+    rest_after_s: 20
+    speak_wpm: 150
+    speak_s: [3, 20]
+    texture_px: 1024
   grips:
     man:
       left: { at: [0, 0.049, 0], turn: { x: 0, y: -88, z: 180 } } # estimated

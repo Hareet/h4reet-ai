@@ -47,10 +47,12 @@ const standInLine = (v: Visit): HTMLElement | null => v.doc.querySelector<HTMLEl
 const aroundLines = (v: Visit): string[] => [...v.doc.querySelectorAll(".room-around li")].map((li) => textOf(li));
 
 describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
-  it("is the UI word twin.stand_in, first in the index's copy", () => {
+  it("is the UI word twin.stand_in, and the twin's line slot is first in the index's copy", () => {
+    // Spec 016 (FR-014; changed with T017, plan.md R-18): the slot, which shows this line while the twin shows anything
+    // but its own picture.
     const index = roomIndex();
     expect(index.ui["twin.stand_in"]).toBe(STAND_IN);
-    expect(index.copy[0]).toEqual({ line: "twin.stand_in" });
+    expect(index.copy[0]).toEqual({ twin_line: true });
   });
 
   it("shows in the stage's note and first in Around the room in 3D, as text a screen reader reads", async () => {
@@ -67,20 +69,29 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(v.doc.body.textContent).not.toContain(LIKENESS);
   });
 
-  it("stays in the note and the text copy in 2D, from the start and after the visitor's switch", async () => {
+  it("gives way in 2D to the twin's line once its still shows, from the start and after the visitor's switch", async () => {
+    // Spec 016 (FR-014, FR-034; changed with T050, plan.md R-18): the 2D room shows the twin's still, its own
+    // picture, so the slot says the twin's line once the still has loaded; the stand-in line until then.
+    const own = roomIndex().twin?.line ?? "";
+    const settle = async (x: Visit): Promise<void> => {
+      for (let i = 0; i < 40 && textOf(standInLine(x)) !== own; i += 1) await flush();
+    };
     const flat = start({ webgl: false });
     await enter(flat, "engineer", "woman");
     expect(flat.room.visit.mode).toBe("2d");
-    expect(textOf(standInLine(flat))).toBe(STAND_IN);
-    expect(aroundLines(flat)[0]).toBe(STAND_IN);
+    await settle(flat);
+    expect(flat.spies.assets.filter((a) => a.includes("twin-still"))).toHaveLength(1);
+    expect(textOf(standInLine(flat))).toBe(own);
+    expect(aroundLines(flat)[0]).toBe(own);
     const v = start({ webgl: true });
     await intoRoom(v);
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
     button(v.doc, "2D view").click();
     await flush();
     expect(v.room.visit.mode).toBe("2d");
-    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    await settle(v);
+    expect(textOf(standInLine(v))).toBe(own);
     expect(v.doc.body.textContent).toContain(AI_DISCLOSURE);
-    expect(v.doc.body.textContent).not.toContain(LIKENESS);
   });
 
   it("keeps the placeholder note its own paragraph beside it, shown only while stand-ins are in use", async () => {
@@ -172,6 +183,34 @@ describe("the frame log's figures (FR-035)", () => {
     signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
     expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
   });
+
+  // T072 (spec 016; FR-052; contracts/twin-states.md §7): the twin's pictures (its own model, its still, its drawing),
+  // its state changes, and its clips, in page memory, in a drafts build only.
+  it("records the twin's pictures, states, and clips in a drafts build (spec 016, FR-052)", async () => {
+    const v = start({ webgl: true, frameLog: (o) => createFrameLog(o) });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
+    signal(v, { kind: "twin-state", state: "arriving", role: "greeting" });
+    signal(v, { kind: "clip", figure: "twin", role: "greeting" });
+    signal(v, { kind: "picture", figure: "twin", shows: "still", why: null });
+    const log = JSON.parse((v.win as unknown as { h4FrameLog(): string }).h4FrameLog()) as {
+      entries: (FrameLogEntry & { state?: string })[];
+    };
+    const twin = log.entries.filter((e) => ["figure", "clip", "twin-state"].includes(e.event));
+    expect(twin.map(({ event, figure, shows, state, role }) => ({ event, figure, shows, state, role }))).toEqual([
+      { event: "figure", figure: "twin", shows: "own", state: undefined, role: undefined },
+      { event: "twin-state", figure: undefined, shows: undefined, state: "arriving", role: "greeting" },
+      { event: "clip", figure: "twin", shows: undefined, state: undefined, role: "greeting" },
+      { event: "figure", figure: "twin", shows: "still", state: undefined, role: undefined },
+    ]);
+  });
+
+  it("keeps no log of the twin in a release build", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "twin-state", state: "resting", role: "desk-lean" });
+    expect((v.win as unknown as { h4FrameLog?: unknown }).h4FrameLog).toBeUndefined();
+  });
 });
 
 describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
@@ -204,5 +243,56 @@ describe("degraded (FR-001, FR-002, FR-007; SC-002)", () => {
     ).toEqual(index.selectables.map((s) => s.id));
     // Nothing went to the network for the failure: the event rides the room's EventSink alone.
     expect(v.spies.network).toEqual([]);
+  });
+});
+
+// T024's line rule (spec 016; FR-014; contracts/twin-states.md §4; SC-003): one slot, the stage's note's second
+// paragraph and the text copy's first line, saying the twin's line, read from main's approval, while and only while the
+// twin's own picture shows, and the stand-in line otherwise; never both, nor neither; in place, in no live region.
+describe("the twin's line slot (spec 016, FR-014; SC-003)", () => {
+  const TWIN_LINE = roomIndex().twin?.line ?? "";
+
+  it("is bundled: the index carries the twin's line, which the page shows nowhere before its picture does", async () => {
+    expect(TWIN_LINE).not.toBe("");
+    expect(TWIN_LINE).not.toBe(STAND_IN);
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    expect(v.doc.body.textContent).not.toContain(TWIN_LINE);
+  });
+
+  it("says the twin's line while its own model shows, and the stand-in line again when it falls back", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    const note = standInLine(v);
+    signal(v, { kind: "picture", figure: "twin", shows: "own", why: null });
+    expect(textOf(standInLine(v))).toBe(TWIN_LINE);
+    expect(standInLine(v)).toBe(note);
+    expect(aroundLines(v)[0]).toBe(TWIN_LINE);
+    expect(aroundLines(v)).not.toContain(STAND_IN);
+    expect(note?.closest("[aria-live]")).toBeNull();
+    signal(v, { kind: "picture", figure: "twin", shows: "fallback", why: "failed" });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    expect(aroundLines(v)[0]).toBe(STAND_IN);
+    expect(aroundLines(v)).not.toContain(TWIN_LINE);
+    // The stand-in avatar in the twin's figure keeps the stand-in line.
+    signal(v, { kind: "picture", figure: "twin", shows: "avatar", why: null });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+  });
+
+  it("says the twin's line while its 2D still shows, and the stand-in line with its drawing", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "twin", shows: "still", why: null });
+    expect(textOf(standInLine(v))).toBe(TWIN_LINE);
+    signal(v, { kind: "picture", figure: "twin", shows: "drawing", why: "failed" });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
+  });
+
+  it("ignores the visitor's figure's pictures", async () => {
+    const v = start({ webgl: true });
+    await enter(v, "engineer", "woman");
+    signal(v, { kind: "picture", figure: "visitor", shows: "avatar", why: null });
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
   });
 });

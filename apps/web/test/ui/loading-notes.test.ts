@@ -15,7 +15,10 @@ import { textLines, textWidth } from "./hud-model";
 
 const REM = 16;
 const UI = roomIndex().ui;
-const NOTES = [UI["standin.note"] ?? "", UI["twin.stand_in"] ?? ""];
+/** Spec 016 (FR-014; contracts/twin-states.md §4; changed with T029, plan.md R-18): the line slot says the stand-in
+ *  line or the twin's line, one at a time, so the notes' box is measured with the longer of the two. */
+const LINE = [UI["twin.stand_in"] ?? "", roomIndex().twin?.line ?? ""].reduce((a, b) => (b.length > a.length ? b : a));
+const NOTES = [UI["standin.note"] ?? "", LINE];
 const CSS = parseCss(stylesheets().find((s) => s.path.endsWith("src/room/loading/loading.css"))?.text ?? "");
 
 /** A declaration of loading.css's rule for the card in the column layout. */

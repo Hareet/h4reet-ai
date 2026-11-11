@@ -245,7 +245,7 @@ export function smallestCap(
       const use = typefaceFor(r.renderer, r.source);
       const ratio = index.typefaces.find((t) => t.use === use)?.cap_ratio;
       const cap =
-        r.renderer === "sign"
+        r.renderer === "sign" || r.renderer === "print"
           ? outline
             ? regionCap(geometry, r, { outline })
             : null

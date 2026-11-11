@@ -1,5 +1,6 @@
 // A checkout's prebuild (spec 002, T017; contracts/resume-source.md §5): fills the policy directory with main's
-// assets/policy/content-approvals.json, resume-header.json, and caps.json (spec 004, R-13), read with
+// assets/policy/content-approvals.json, resume-header.json, caps.json (spec 004, R-13), and approvals.json (spec 016,
+// its plan.md R-03, the likeness approvals the twin's line is read from), read with
 // `git cat-file blob refs/heads/main:<path>` from the repository this workspace sits in, never from the branch's
 // working tree, so a branch can neither approve its own content nor raise its own caps. The branch's full ref, as
 // spec 003 reads its policy: a bare `main` resolves to refs/tags/main before refs/heads/main, and an agent session can
@@ -12,11 +13,13 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** main's paths, and their names in the policy directory, in approvals.ts's POLICY_FILES order: the caps third. */
+/** main's paths, and their names in the policy directory, in approvals.ts's POLICY_FILES order: the caps third, the
+ *  likeness approvals fourth. */
 export const POLICY_PATHS = [
   ["assets/policy/content-approvals.json", "content-approvals.json"],
   ["assets/policy/resume-header.json", "resume-header.json"],
   ["assets/policy/caps.json", "caps.json"],
+  ["assets/policy/approvals.json", "approvals.json"],
 ] as const;
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));

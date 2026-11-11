@@ -23,7 +23,7 @@ export interface RegionBox {
 export type Grid =
   { readonly cols: number; readonly rows: number } | { readonly rows: number } | { readonly chars: number };
 
-export type TextRenderer = Exclude<Renderer, "sign">;
+export type TextRenderer = Exclude<Renderer, "sign" | "print">;
 
 /**
  * Each text renderer's line pitch and cell width, per em of its typeface. A terminal cell is 0.6 em wide, IBM Plex
@@ -76,7 +76,7 @@ export function textGrid(
   grid: Grid | null,
   region: { readonly w: number; readonly h: number },
 ): TextGrid | null {
-  if (renderer === "sign" || grid === null) return null;
+  if (renderer === "sign" || renderer === "print" || grid === null) return null;
   const g = grid as { cols?: unknown; rows?: unknown; chars?: unknown };
   switch (renderer) {
     case "terminal":

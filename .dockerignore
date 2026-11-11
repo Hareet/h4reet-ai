@@ -18,6 +18,9 @@ deploy/env
 # exception comes after the directory, since the last pattern that matches a file decides.
 assets/policy
 !assets/policy/caps.json
+# Spec 016 (FR-015; plan.md R-03): the likeness approvals too, the twin's line's source for a build whose policy context
+# holds none; A9 holds them to main's at the commit's base, as it holds the caps.
+!assets/policy/approvals.json
 corpus/intake/private
 .cache
 .pytest_cache

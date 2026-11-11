@@ -55,6 +55,20 @@ function amendmentM6(): { v1: string; v4: string } {
   return { v1: `and ${v1}`, v4 };
 }
 
+/** Spec 016's V1 (its FR-053; Amendment M17): its Carries' avatar files, which replace spec 009's M6 words, and its
+ *  Why's addition, each in the spec's own words, from its Data-Flow Disclosure Entries table. */
+function amendmentM17(): { carries: string; why: string; trigger: string } {
+  const spec = readFileSync(resolve(WEB, "../../specs/016-the-twins-own-avatar/spec.md"), "utf8");
+  const row = markdownTables(spec)
+    .flatMap((t) => t.slice(1))
+    .find((r) => r[0] === "V1, amended (M17)");
+  const carries = /^as before, with (the avatar files now: .*)$/.exec(row?.[3] ?? "")?.[1];
+  const why = /^as before: the room's static assets and pages; (.*)$/.exec(row?.[5] ?? "")?.[1];
+  const trigger = /^as before, (and following .*)$/.exec(row?.[2] ?? "")?.[1];
+  if (!carries || !why || !trigger) throw new Error("spec 016's V1 doesn't read as this test reads it");
+  return { carries: `and ${carries}`, why, trigger };
+}
+
 function htmlTables(html: string): string[][][] {
   const doc = new JSDOM(html).window.document;
   return [...doc.querySelectorAll("table")].map((table) =>
@@ -93,14 +107,18 @@ describe("the disclosure page", () => {
         .flatMap((t) => t.slice(1))
         .map((row) => [row[0], row] as const),
     );
-    const { v1 } = amendmentM6();
+    // Spec 016's M17 replaces M6's avatar files in V1's Carries, and adds to its Trigger and Why, in its own words
+    // (changed with T073, plan.md R-18).
+    const m17 = amendmentM17();
     for (const id of ["V1", "V4"]) {
       const entry = entries.get(id);
       const row = rows.get(id);
       expect(entry, id).toBeDefined();
-      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${v1}` : entry?.[2];
-      expect(row?.slice(3, 6), id).toEqual([carries, ...(entry?.slice(3, 5) ?? [])]);
+      const carries = id === "V1" ? `${entry?.[2] ?? ""}, ${m17.carries}` : entry?.[2];
+      const why = id === "V1" ? `${entry?.[4] ?? ""}; ${m17.why}` : entry?.[4];
+      expect(row?.slice(3, 6), id).toEqual([carries, entry?.[3], why]);
     }
+    expect(rows.get("V1")?.[2]).toContain(m17.trigger);
   });
 
   it("names the walking view in row V4's trigger, its first entry in a visit (spec 008, Amendment M4)", () => {
@@ -154,7 +172,13 @@ describe("the disclosure page", () => {
     );
     const { v1, v4 } = amendmentM6();
     expect(v1).toMatch(/^and the avatar files: .*whose paths show which avatar the visitor chose$/);
-    expect(rows.get("V1")?.[3]).toContain(v1);
+    // Spec 016's M17 words in its place: the twin's own files, its still, the stand-in's on failure (T073).
+    const { carries } = amendmentM17();
+    expect(carries).toMatch(
+      /^and the avatar files now: the twin's model and clips .*whose paths show which avatar the visitor chose$/,
+    );
+    expect(rows.get("V1")?.[3]).toContain(carries);
+    expect(rows.get("V1")?.[3]).not.toContain(v1);
     expect(v4).toBe("and a figure's avatar failing to load, once a visit");
     expect(rows.get("V4")?.[2]?.endsWith(`, ${v4}`)).toBe(true);
   });

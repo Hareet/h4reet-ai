@@ -87,6 +87,9 @@ export interface RoomLayout {
    *  spec 014 (its FR-053, FR-054; PD-18) it says what is missing: the room's pieces (standin.note), the visitor's
    *  figure in 3D (standin.avatar), or both in one note, the pieces' first; hidden where nothing is. */
   setPlaceholders(on: { readonly pieces: boolean; readonly figure: boolean }): void;
+  /** Spec 016 (FR-014; contracts/twin-states.md §4): the line slot's words, in place: the twin's line while its own
+   *  picture shows, the stand-in line otherwise. The paragraph isn't a live region, so nothing is announced. */
+  setLine(words: string): void;
   /** Shows whether the room is paused, in "Pause the room"'s aria-pressed. */
   setPaused(on: boolean): void;
   /** Spec 008's walking control (FR-020, FR-021; R-09): in the stage's bottom-right corner, inert with the rest. */
@@ -150,6 +153,8 @@ export function renderRoom(
     standIn?: string;
     /** "Pause the room": the UI word pause.button. */
     pause: string;
+    /** Spec 016 (FR-042): the toolbar's credits link, the UI word toolbar.credits. */
+    credits?: string;
     /** Spec 008's walking words: walk.enter, walk.leave, walk.region, and walk.help; and spec 005's helpFullscreen,
      *  walk.help_fullscreen. */
     walk?: {
@@ -196,6 +201,8 @@ export function renderRoom(
     pauseButton,
     ...(fullscreenButton ? [fullscreenButton] : []),
     tile(doc, "a", { href: "./disclosure/" }, "data", "How data flows"),
+    // Spec 016 (FR-042; plan.md R-14): the site's credits page, rendered from assets/CREDITS.md at build.
+    tile(doc, "a", { href: "./credits/" }, "credits", parts.credits ?? "Credits"),
     ...(fullscreenHelp ? [fullscreenHelp] : []),
   );
   // Until the 3D scene or the 2D drawing replaces it (at most SCENE_WAIT_MS after "Enter").
@@ -269,6 +276,10 @@ export function renderRoom(
     },
     markFlat() {
       flatButton.setAttribute("aria-disabled", "true");
+    },
+    setLine(words) {
+      if (standIn.textContent !== words) standIn.textContent = words;
+      standIn.hidden = words === "";
     },
     setPlaceholders(on) {
       const words = [on.pieces ? parts.note : "", on.figure ? (parts.noteAvatar ?? "") : ""].filter((w) => w !== "");

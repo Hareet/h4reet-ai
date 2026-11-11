@@ -1,0 +1,6 @@
+rule: RA7
+file: apps/web/room/scene.yaml
+path: figures.twin.lean.right_m
+why: the lean against a desk with less of its top to the twin's right than right_m (spec 016, FR-029)
+edits:
+  - { file: apps/web/room/scene.yaml, at: [figures, twin], set: { lean: { against: fx-desk, right_m: 2 } } }
