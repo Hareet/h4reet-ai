@@ -342,8 +342,10 @@ describe("RA7, the lean against the desk (FR-029; SC-017)", () => {
     const { tree, policy, result } = onBranch();
     expect(ofRules(result.findings, "RA7")).toEqual([]);
     const room = loadRoom(tree);
+    // The desk by the survey's desk_corner, the data's own name for it (spec 004, FR-007: no room ID in code).
+    const desk = room.scene?.value.survey.desk_corner.placement;
     expect(room.scene?.value.figures.twin?.lean).toMatchObject({
-      against: "work-desk",
+      against: desk,
       behind_m: 0.679,
       right_m: 0.45,
     });
@@ -352,7 +354,7 @@ describe("RA7, the lean against the desk (FR-029; SC-017)", () => {
     expect(m?.turn_deg).toBeLessThan(1);
     expect(m?.right_m).toBeGreaterThanOrEqual(0.45);
     expect(m?.gap_m).toBeLessThanOrEqual(0.05);
-    expect(result.scene.twin?.block.lean).toEqual({ against: "work-desk", behind_m: 0.679, right_m: 0.45 });
+    expect(result.scene.twin?.block.lean).toEqual({ against: desk, behind_m: 0.679, right_m: 0.45 });
     expect(result.report.markdown).toMatch(
       /The lean: the desk's origin \d+\.\d cm off its spot behind the twin, \d+\.\d° from the twin's facing, and \d+\.\d\d m of its top to the twin's right/,
     );
