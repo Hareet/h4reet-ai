@@ -82,8 +82,10 @@ by a new intake and the same data line. No delay to this merge." Done in T086 an
   its idle after 20 s of quiet.
 - RA8 samples the rest pose and four clips, not the lean, and the twin at x 0.66 still clears every wall: 2.6 cm
   inside the right wall at its nearest (`listening`), 92.6 cm inside the left wall, and 85.5 cm inside the back.
-- `desk-lean.glb` stays bundled and untouched in `assets/twin/`: FR-009 bundles every recorded clip within its caps,
-  and FR-044 fetches the twin's clips in their order, so the unplayed lean costs its 23,643 gzip-9 bytes.
+- `desk-lean.glb` stays bundled and untouched in `assets/twin/`: the build bundles every clip FR-009 allows (recorded,
+  readable, within its caps), and FR-044 fetches the twin's clips in their order, so the unplayed lean costs its
+  23,643 gzip-9 bytes. FR-009 allows it but doesn't require it; fetching only the clips the twin plays waits in the
+  backlog (the second review's N3).
 - The tests hold the default scene to no lean, and the lean's line, put back, to RA7 and RA8 at the twin's place, so
   the studio's re-export needs only that line.
 
@@ -258,9 +260,9 @@ echo "guard: $ok"
 **Why `rv`, and why two merge-trees.** `rv` is efdcffc5, the last content commit: what the reviewers read. It moved
 from 4a99aeb3, the first review's, for your lookdev's findings and your answer on the lean; a later change would
 move it again, and the session would say so here. After `rv`, the branch changes only this note, and the guard lets
-nothing else change, the shirt's patch included. Comparing `main`'s merge with the gated SHA against `main`'s merge with `rv` holds the
-content to the reviewed one whether or not `main` has moved, and `git merge-tree --write-tree` writes no worktree. On
-`guard: no`, don't merge: tell the session.
+nothing else change, the shirt's patch included. Comparing `main`'s merge with the gated SHA against `main`'s merge
+with `rv` holds the content to the reviewed one whether or not `main` has moved, and `git merge-tree --write-tree`
+writes no worktree. On `guard: no`, don't merge: tell the session.
 
 **3. The merge, only after `guard: go`**, the gate's merge line rebuilt from its log, "by hand" with its reason after
 2b:
@@ -326,7 +328,7 @@ The second `make up ENV=prod` draws the words on the shirt, unmarked.
 
 **6. The live look**, on prod's site port (`http://127.0.0.1:18005/` by its env template): after step 4, before
 C-0004, the twin with your line and a plain chest, no ink and no rectangle where the words go; after step 5, the
-words, unmarked, with no draft badge; the lean, the 2D still, and Credits as on dev.
+words, unmarked, with no draft badge; the twin resting in its idle, the 2D still, and Credits as on dev.
 
 **7. Park off `main` again** when you step away:
 
@@ -338,9 +340,10 @@ git --no-replace-objects switch -C "$p"
 The blocks were mock-tested in a scratch repository, the guard failing first, then passing (Verification, below).
 ## What changed and why
 
-The twin's figure shows your own avatar, `assets/twin/`, with your approved line, follows the conversation, leans on
-the desk at rest, hands the paper over by letting it appear with the visitor, shows your still in 2D, can draw
-"Denver Local AI Solutions" on its shirt behind your approval, and keeps the stand-in as its fallback. By story:
+The twin's figure shows your own avatar, `assets/twin/`, with your approved line, follows the conversation, rests in
+its idle between conversations (the lean is built but off for this release, by your answer), hands the paper over by
+letting it appear with the visitor, shows your still in 2D, can draw "Denver Local AI Solutions" on its shirt behind
+your approval, and keeps the stand-in as its fallback. By story:
 
 - **Foundation** (T004 to T020): `build/room/policy.ts` reads main's `assets/policy/approvals.json`, the likeness
   approvals, from the policy directory, else `refs/heads/main`, else the tree's own copy; it is the policy's fourth file
@@ -524,8 +527,23 @@ what was done:
   the twin's open hand; the A-pose's left hand past the right wall when the idle fails.
 - **The reviewer's lookdev list** is in step 0's checks.
 
-**Your lookdev's round** (T082 to T087, `git diff 16fe272a efdcffc5`): a short second review reads only this round's
-diff; its findings go here.
+**Your lookdev's round** (T082 to T087): a short second review read only this round's diff, `git diff 16fe272a
+efdcffc5`. **Verdict: ready, no Important finding.** This note-only commit keeps `rv` at efdcffc5. Each finding, and
+what was done:
+
+- **N1, the hand-off's turn.** RA8 doesn't sample the twin group's turn during the hand-off, up to 0.45 rad toward
+  the visitor (`apps/web/build/room/reach.ts:18`; `apps/web/src/room/scene/bundle3d.ts:70, 447, 464`). Backlogged:
+  sample at ±TWIN_TURN, or name it among what isn't sampled.
+- **N2, SC-017 with no lean.** It can't pass while the lean is off. Backlogged: its deferral goes in spec.md at the
+  next content change (spec.md:404, :17).
+- **N3, FR-009 read as "bundles every recorded clip".** Its words are "only WHERE…": a condition, not a requirement.
+  Done in this note (your answer's third point); backlogged: plan.md:163 and tasks.md:229 carry the same reading, and
+  a later change can fetch only the clips `playedRoles` returns.
+- **N4, stale text.** Done in this note: step 6's live look no longer names the lean, and "What changed and why" says
+  the twin rests in its idle. Backlogged: `apps/web/room/catalog/room-shell.yaml:9-12` still says the twin's box passes
+  the right wall at x 1.14; it now reaches about 1.02. That file is content, so it waits for the next content change.
+- **N5, the lift's sign.** `apps/web/build/room/reach.ts:286-287, 603` lift by +min_y where the room lifts by −min_y.
+  The twin's rest pose has its lowest point at 0, so nothing changes today. Backlogged.
 
 ## Backlog
 
@@ -546,7 +564,17 @@ For follow-up branches; none of it blocks this merge.
 - **The lean returns** when the studio re-exports `desk-lean.glb` with the right elbow bent forward: a new intake
   through your hands, then the line in the scene's twin-block comment back in (plan.md R-19; spec.md's Q1).
 - **RA8's reach** doesn't sample the crossfades between clips, nor the stand-in, which shows only where the twin's
-  own model doesn't (plan.md R-19).
+  own model doesn't (plan.md R-19), nor the hand-off's turn of the twin's group, up to 0.45 rad toward the visitor
+  (the second review's N1: `reach.ts:18`; `bundle3d.ts:70, 447, 464`): sample at ±TWIN_TURN, or name it here.
+- **RA8's lift** (N5): `reach.ts:286-287, 603` lift by +min_y where the room lifts by −min_y; no effect while the
+  rest pose's lowest point is at 0.
+- **SC-017's deferral** (N2): it can't pass with no lean; record it in spec.md at the next content change (spec.md:404,
+  :17).
+- **FR-009's reading** (N3): plan.md:163 and tasks.md:229 read it as bundling every recorded clip; its words are "only
+  WHERE…". A later change can fetch only the clips `playedRoles` returns, which would save the unplayed lean's 23,643
+  bytes.
+- **The shell's comment** (N4): `apps/web/room/catalog/room-shell.yaml:9-12` says the twin's box passes the right wall
+  at x 1.14; since R-19 it reaches about 1.02.
 - **Done in your lookdev's round**: the A-pose's left hand past the right wall, now 5.02 cm inside it; and tasks.md's
   boxes, ticked with that content change (T067, T068, and your T079 to T081 stay open).
 
@@ -566,6 +594,9 @@ the still, 239 KB, in a 2D visit; cached a year. Row V1 amended in `docs/data-fl
 - The shirt's patch after the merge (step 5), the live look on prod (step 6), and parking (step 7).
 - T067 and T068, the lookdev page's twin controls, come in a follow-up branch; publication waits on L2 and L4, which
   need them (Backlog).
+- **A line for CLAUDE.md, yours to add.** The second review proposes, word for word: "Changing a figure or a feature's
+  state (a placement, a rule, a clip on or off) without searching the note, catalog comments, plan, and spec for the
+  old one." CLAUDE.md is nearly full, and it changes only by your hand, so the session hasn't touched it.
 - **A refusal to report**: while drafting this note's blocks, the bash gate refused a shell command whose heredoc held
   step 1's text (`switching to main`). Nothing ran; the session didn't retry it in the shell, and wrote this note and
   the blocks' test copies with the editor instead, its mock repository naming its main branch `trunk`.
