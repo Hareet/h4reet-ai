@@ -321,6 +321,9 @@ export function createAvatarFigures(
   let closed = false;
   /** The visitor's "take" has started in this hand-off. */
   let taking = false;
+  /** Spec 016 (FR-031; contracts/twin-states.md §5): how this hand-off draws its paper, decided at its first frame:
+   *  `appear` where the twin shows its own model, `travel` otherwise. */
+  let handoffMode: "travel" | "appear" = "travel";
   /** The sheet's start: the twin's holding hand's place at the hand-off's start, where it showed its avatar. */
   let sheetFrom: Vector3 | null = null;
   /** The visitor walks now, by walking's last pose to the avatar's driver (FR-028). */
@@ -449,6 +452,8 @@ export function createAvatarFigures(
       // While it walks, its walk where it has one (FR-028); otherwise it slides in what it stands in.
       if (walkingNow && has("walk")) return "walk";
       if (phase === "after" && has("idle-holding")) return "idle-holding";
+      // The paper appearing with the visitor: "idle-holding" from the hand-off's start, and never "take" (FR-031 (c)).
+      if (phase === "during" && handoffMode === "appear" && has("idle-holding")) return "idle-holding";
       if (phase === "during" && taking && has("take")) return "take";
     } else if (phase === "before" && has("idle-holding")) return "idle-holding";
     return has("idle") ? "idle" : null;
@@ -827,16 +832,27 @@ export function createAvatarFigures(
       if (phase === "before") {
         // The start: the sheet leaves from the twin's hand as it holds it now, and the twin lets go, to its idle.
         sheetFrom = paperAt(figures.twin);
+        handoffMode = figures.twin.shown && figures.twin.wants === "twin" ? "appear" : "travel";
         phase = "during";
         // Spec 016 (FR-019): the twin's own model shown at the hand-off's start arrives now, its greeting once.
         arriveTwin();
         play(figures.twin);
+        // With the paper appearing, the visitor holds it from the start (FR-031 (c)).
+        if (handoffMode === "appear") play(figures.visitor);
         // A figure whose avatar isn't ready yet keeps its fallback through it (FR-022), and the frame log says why.
         for (const f of both()) if (f.wants !== null && !f.shown && !f.gone) picture(f, "fallback", "late");
       }
       const visitor = figures.visitor;
       const take = visitor.actions.get("take");
-      if (phase === "during" && !taking && take && visitor.shown && animate && !reducedMotion) {
+      if (
+        phase === "during" &&
+        handoffMode === "travel" &&
+        !taking &&
+        take &&
+        visitor.shown &&
+        animate &&
+        !reducedMotion
+      ) {
         // "take" ends as the hand-off ends (R-10): it starts at max(0, D − its length).
         const length = take.getClip().duration * 1000;
         if (progress * durationMs >= Math.max(0, durationMs - length)) {
@@ -849,7 +865,7 @@ export function createAvatarFigures(
       room.anchors.visitorHand.copy(to ?? anchors.visitor);
       // The kept sheet, which reduced motion fades in, at the visitor's hand while it isn't in it yet.
       if (to && room.paper.kept.parent === room.scene) room.paper.kept.position.copy(to);
-      drawHandoff(room, progress, reducedMotion);
+      drawHandoff(room, progress, reducedMotion, handoffMode);
     },
     close() {
       closed = true;
