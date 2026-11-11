@@ -64,11 +64,15 @@ import { gripCentre, gripMatrix } from "./grip";
 import type { GripData } from "./grip";
 import { disposeModel } from "./loader";
 import type { FigureRole, FigureSource } from "./loader";
+import { createTwinStates } from "./twin-states";
+import type { TwinActivity, TwinClipRole, TwinState } from "./twin-states";
 
 /** The name an avatar instance takes in its figure's picture group. */
 export const AVATAR_NODE = "avatar";
 /** A change of clip's crossfade while the motion store animates, in seconds: at most 0.25 (FR-025). */
 export const CROSSFADE_S = 0.25;
+/** Spec 016 (FR-023; Amendment M14): into and out of the twin's lean, the hand-back's figure. */
+export const LEAN_CROSSFADE_S = 0.4;
 /** The least height a model may measure, in metres before its scale; less is a failed parse (R-05). */
 const MIN_HEIGHT = 0.01;
 /** ADR 0010's hand bones, as three's loader names them. */
@@ -87,6 +91,8 @@ export interface AvatarFiguresOptions {
   /** Spec 016 (FR-002, FR-044): the twin's own model has failed and the stand-in's files aren't in hand or on their way:
    *  the stage fetches them (loader.ts's standInEntries). Called at most once. */
   readonly standIn?: () => void;
+  /** Spec 016 (FR-019 to FR-021): the room's clock, in milliseconds, which the twin's states run on; absent, 0. */
+  readonly clock?: () => number;
 }
 
 export interface AvatarFigures {
@@ -119,6 +125,8 @@ export interface AvatarFigures {
   /** Spec 012: the room's loader has given way; an avatar that becomes ready from now until the hand-off ends shows
    *  only once it ends. One already shown stays. */
   close(): void;
+  /** Spec 016 (FR-022; contracts/twin-states.md §1): the conversation's activity, for the twin's own states. */
+  twinActivity(activity: TwinActivity): void;
   /** Resolves once both figures show their avatars or keep their fallbacks for good (R-10): the room's wait. */
   readonly settled: Promise<void>;
   /** Walking's driver for the visitor's avatar (FR-028; R-16), which figure.ts's figureDriverFor uses while the
@@ -243,6 +251,15 @@ export function createAvatarFigures(
   const ownTwin = part.twin ? ("twin" as const) : null;
   /** The stand-in was asked of the stage once (spec 016, FR-002). */
   let standInAsked = false;
+  /** Spec 016 (FR-019 to FR-024; plan.md R-08, R-09): the twin's own states, on the room's clock, kept across a
+   *  restored context, so its greeting comes once a visit. */
+  const now = options.clock ?? ((): number => 0);
+  const twinStates = part.twin ? createTwinStates(part.twin.block) : null;
+  let twinState: TwinState | null = null;
+  /** The twin's own model has shown in this visit: its first show after the hand-off is its arrival. */
+  let twinArrived = false;
+  /** The arrival is due, waiting for the greeting's file to end, loaded or not, so it plays its whole length. */
+  let twinArrivalDue = false;
   /** The hand-off's two anchors as buildRoom placed them: the paper's fallback places. */
   const anchors = { twin: room.anchors.twinHand.clone(), visitor: room.anchors.visitorHand.clone() };
   /** A picture's fallback meshes: its children now, less the kept paper and an avatar, should either be in it. */
@@ -410,6 +427,19 @@ export function createAvatarFigures(
    *  the idle, which also stands in for a missing clip; with no idle, the rest pose. */
   function wanted(f: Figure): FigureRole | null {
     const has = (role: FigureRole): boolean => f.actions.has(role);
+    // Spec 016: the twin's own model plays its state's clip by the block's map, the idle in a role's place where its
+    // clip isn't loaded, or the lean where the scene gives no lean (FR-003, FR-020, FR-029); the rest pose with no idle.
+    if (f.id === "twin" && f.wants === "twin" && twinStates && part.twin) {
+      const state = twinStates.tick(now());
+      let role: TwinClipRole = part.twin.block.clips[state];
+      if (role === "desk-lean" && part.twin.block.lean === null) role = "idle";
+      if (!has(role)) role = "idle";
+      if (state !== twinState) {
+        twinState = state;
+        signal({ kind: "twin-state", state, role });
+      }
+      return has(role) ? role : null;
+    }
     if (f.id === "visitor") {
       // While it walks, its walk where it has one (FR-028); otherwise it slides in what it stands in.
       if (walkingNow && has("walk")) return "walk";
@@ -455,6 +485,7 @@ export function createAvatarFigures(
     if (role === f.playing) return;
     const from = f.playing === null ? null : (f.actions.get(f.playing) ?? null);
     const to = role === null ? null : (f.actions.get(role) ?? null);
+    const was = f.playing;
     f.playing = role;
     if (to === null) {
       f.mixer.stopAllAction();
@@ -462,7 +493,9 @@ export function createAvatarFigures(
     }
     to.reset();
     to.play();
-    if (from && animate) from.crossFadeTo(to, CROSSFADE_S, false);
+    // Into or out of the twin's lean in 0.4 s, every other change in 0.25 s (spec 016, FR-023).
+    const lean = role === "desk-lean" || was === "desk-lean";
+    if (from && animate) from.crossFadeTo(to, lean ? LEAN_CROSSFADE_S : CROSSFADE_S, false);
     else {
       from?.stop();
       f.mixer.update(0);
@@ -547,6 +580,8 @@ export function createAvatarFigures(
     f.group.add(f.instance);
     f.shown = true;
     picture(f, "avatar", null);
+    // Spec 016 (FR-019): the twin's own model shown after the hand-off's start is its arrival, where it hasn't arrived.
+    if (f.id === "twin" && f.wants === "twin" && phase !== "before") arriveTwin();
     findHand(f);
     play(f);
     if (f.id === "visitor") keepPaper();
@@ -638,6 +673,22 @@ export function createAvatarFigures(
     },
   };
 
+  /** Spec 016 (FR-019): the twin's arrival, once a visit, for one play of its greeting; the greeting's end ends it. */
+  function arriveTwin(): void {
+    const f = figures.twin;
+    if (!twinStates || twinArrived || f.wants !== "twin" || !f.shown) return;
+    const role = part.twin?.block.clips.arriving ?? "greeting";
+    if (roles("twin").includes(role) && !sourceOf("twin").ended.has(role)) {
+      twinArrivalDue = true;
+      return;
+    }
+    twinArrived = true;
+    twinArrivalDue = false;
+    const greeting = sourceOf("twin").clips.get(role);
+    twinStates.arrive(now(), greeting?.duration ?? 0);
+    play(f);
+  }
+
   /** Places a source's model in the figures that want it and have none yet; false where one can't be placed. */
   function place(avatar: FigureSource, model: Object3D): boolean {
     const wanting = both().filter((f) => f.wants === avatar && !f.instance);
@@ -654,8 +705,17 @@ export function createAvatarFigures(
       if (!placed.every((p) => binds(p.instance as Object3D, clip))) source.clips.delete(role);
     for (const { f, instance } of placed) {
       f.instance = instance;
-      f.mixer = new AnimationMixer(instance as Object3D);
+      const mixer = new AnimationMixer(instance as Object3D);
+      f.mixer = mixer;
       for (const [role, clip] of source.clips) addAction(f, role, clip);
+      // The greeting's end ends the twin's arrival at once (contracts/twin-states.md §3).
+      if (f.id === "twin" && avatar === "twin")
+        mixer.addEventListener("finished", (event) => {
+          if (event.action.getClip() === sourceOf("twin").clips.get(part.twin?.block.clips.arriving ?? "greeting")) {
+            twinStates?.arrived(now());
+            play(f);
+          }
+        });
     }
     for (const { f } of placed) tryShow(f);
     return true;
@@ -709,6 +769,8 @@ export function createAvatarFigures(
           if (f.id === "visitor") keepPaper();
         }
       }
+      // The twin's arrival waited for its greeting's file (FR-019).
+      if (avatar === "twin" && twinArrivalDue) arriveTwin();
     },
     missed(avatar, role, why) {
       if (disposed) return;
@@ -722,6 +784,7 @@ export function createAvatarFigures(
         return;
       }
       source.ended.add(role);
+      if (avatar === "twin" && twinArrivalDue) arriveTwin();
       for (const f of both().filter((g) => g.wants === avatar)) {
         if (!f.shown) tryShow(f);
         else if (role === "idle-holding") {
@@ -733,9 +796,11 @@ export function createAvatarFigures(
     shows: (figure) => figures[figure].shown,
     handOf: (figure) => figures[figure].hand,
     playing: (figure) => figures[figure].playing,
-    update(dtMs, now, level) {
-      animate = now;
-      if (now)
+    update(dtMs, moving, level) {
+      animate = moving;
+      // The twin's own states move on the clock whether or not the motion store animates (FR-024).
+      if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
+      if (moving)
         for (const f of both()) {
           if (!f.shown || !f.mixer) continue;
           if (level >= 1 && f.id !== "twin") continue;
@@ -743,11 +808,18 @@ export function createAvatarFigures(
         }
       holdSheet();
     },
+    twinActivity(activity) {
+      if (disposed || !twinStates) return;
+      twinStates.signal(activity, now());
+      if (figures.twin.shown && figures.twin.wants === "twin") play(figures.twin);
+    },
     showHandoff(progress, reducedMotion, durationMs = handoffDuration("3d", reducedMotion)) {
       if (phase === "before") {
         // The start: the sheet leaves from the twin's hand as it holds it now, and the twin lets go, to its idle.
         sheetFrom = paperAt(figures.twin);
         phase = "during";
+        // Spec 016 (FR-019): the twin's own model shown at the hand-off's start arrives now, its greeting once.
+        arriveTwin();
         play(figures.twin);
         // A figure whose avatar isn't ready yet keeps its fallback through it (FR-022), and the frame log says why.
         for (const f of both()) if (f.wants !== null && !f.shown && !f.gone) picture(f, "fallback", "late");
