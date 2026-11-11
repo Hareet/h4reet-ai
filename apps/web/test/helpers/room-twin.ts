@@ -8,8 +8,12 @@
 // hold his (SC-003).
 import { createHash } from "node:crypto";
 
+import { parseDocument } from "yaml";
+
 import { policyFrom } from "../../build/room/policy";
 import type { RoomCaps, RoomPolicy } from "../../build/room/policy";
+import { overlayTree } from "../../build/room/source";
+import type { Tree } from "../../build/room/source";
 import { avatarGlb, clipGlb, IDLE_TRACKS, png } from "./glb";
 import type { AvatarGlbOptions, ClipTrack } from "./glb";
 
@@ -217,4 +221,22 @@ export function twinPolicy(o: TwinPolicyOptions = {}): RoomPolicy {
     },
     "policy-dir",
   );
+}
+
+/** The room's scene, as the repository holds it. */
+const ROOM_SCENE = "apps/web/room/scene.yaml";
+
+/** A tree whose scene has the lean's data line put back in its twin block, as it stood until the Author's answer of
+ *  2026-11-11, "Lean off for now (Recommended)", took it out (plan.md R-19): against the survey's desk, at the
+ *  hand-back's 0.679 m behind and 0.45 m to the right. It comes back so with the studio's re-export of the lean. */
+export function withLean(tree: Tree): Tree {
+  const text = new TextDecoder().decode(tree.read(ROOM_SCENE) ?? new Uint8Array());
+  const doc = parseDocument(text);
+  const desk = doc.getIn(["survey", "desk_corner", "placement"]);
+  if (typeof desk !== "string") throw new Error("the scene's survey names no desk");
+  doc.setIn(
+    ["figures", "twin", "lean"],
+    doc.createNode({ against: desk, behind_m: 0.679, right_m: 0.45 }, { flow: true }),
+  );
+  return overlayTree(tree, new Map([[ROOM_SCENE, new TextEncoder().encode(doc.toString())]]));
 }

@@ -43,6 +43,7 @@ import {
   twinFolder,
   twinModel,
   twinPolicy,
+  withLean,
 } from "../helpers/room-twin";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
@@ -335,11 +336,25 @@ describe("the report's twin (FR-056)", () => {
 });
 
 // T035 (spec 016; FR-029, FR-030; contracts/twin-data.md §7, §8; SC-017): RA7, the lean's spot, from the resolved
-// placements: the default scene's twin within 1 cm and 1° of it with at least 0.45 m of desk to its right; the known-bad
-// fixtures refused in a strict build, the lean left out of a lenient one; and the report's lean line.
+// placements: the lean's data line, put back, with the twin within 1 cm and 1° of it and at least 0.45 m of desk to its
+// right; the known-bad fixtures refused in a strict build, the lean left out of a lenient one; and the report's lean
+// line. Since the Author's answer of 2026-11-11, "Lean off for now (Recommended)" (plan.md R-19; T086), the default
+// scene has no lean, so the twin rests in its idle until the studio's re-export brings the lean and its line back.
 describe("RA7, the lean against the desk (FR-029; SC-017)", () => {
-  it("passes the default scene: the twin within 1 cm and 1° of the spot, with 0.45 m of desk to its right", () => {
-    const { tree, policy, result } = onBranch();
+  it("leaves the default scene without a lean: the twin rests in its idle, the map's resting clip kept for its return", () => {
+    const { tree, result } = onBranch();
+    expect(loadRoom(tree).scene?.value.figures.twin?.lean).toBeUndefined();
+    expect(result.scene.twin?.block.lean).toBeNull();
+    expect(result.scene.twin?.block.clips.resting).toBe("desk-lean");
+    expect(result.report.markdown).toContain(
+      "The lean: none in the scene's twin block, so the twin rests in its idle.",
+    );
+  });
+
+  it("passes the lean's data line put back: the twin within 1 cm and 1° of the spot, with 0.45 m of desk to its right", () => {
+    const { tree: branchTree, policy } = onBranch();
+    const tree = withLean(branchTree);
+    const result = compose(tree, policy, { mode: "strict", drafts: false });
     expect(ofRules(result.findings, "RA7")).toEqual([]);
     const room = loadRoom(tree);
     // The desk by the survey's desk_corner, the data's own name for it (spec 004, FR-007: no room ID in code).

@@ -40,7 +40,7 @@ import { clipGlb } from "../helpers/glb";
 import { REPO } from "../helpers/room";
 import { SCENE } from "../helpers/room-avatars";
 import { goodFiles, overlay, sideWallFiles, sideWallTree } from "../helpers/room-fixtures";
-import { TWIN_DIR, twinDefaults, twinFolder, twinPolicy } from "../helpers/room-twin";
+import { TWIN_DIR, twinDefaults, twinFolder, twinPolicy, withLean } from "../helpers/room-twin";
 
 const STRICT: ComposeOptions = { mode: "strict", drafts: true };
 const LENIENT: ComposeOptions = { mode: "lenient", drafts: true };
@@ -139,8 +139,9 @@ describe("RA8 on this branch's room (plan.md R-19)", () => {
     expect(REACH_FPS).toBe(30);
     if (!reach) throw new Error("no reach measured");
     expect(reach.walls.map((w) => w.name)).toEqual(["left-wall", "right-wall", "back"]);
-    // The scene's twin block maps every state to its default clip, the lean among them, so the twin plays all five.
-    expect(reach.sources.map((s) => s.source)).toEqual(["rest", ...TWIN_CLIP_ROLES]);
+    // The scene's twin block maps every state to its default clip, but since the Author's "Lean off for now" (T086)
+    // it has no lean, so the twin rests in its idle and plays four of the five: the lean's clip is never sampled.
+    expect(reach.sources.map((s) => s.source)).toEqual(["rest", "idle", "talking", "listening", "greeting"]);
     for (const s of reach.sources) {
       expect(s.frames, s.source).toBeGreaterThan(0);
       for (const w of s.walls) {
@@ -149,8 +150,25 @@ describe("RA8 on this branch's room (plan.md R-19)", () => {
       }
     }
     expect(result.report.markdown).toMatch(
-      /The twin's reach \(RA8\), over its rest pose and 5 clips every 1\/30 s: \d+\.\d cm inside the shell's right-wall at its nearest \(`[a-z-]+` at \d+\.\d\d s\); \d+\.\d cm inside its left-wall \(.+\); \d+\.\d cm inside its back \(.+\)\./,
+      /The twin's reach \(RA8\), over its rest pose and 4 clips every 1\/30 s: \d+\.\d cm inside the shell's right-wall at its nearest \(`[a-z-]+` at \d+\.\d\d s\); \d+\.\d cm inside its left-wall \(.+\); \d+\.\d cm inside its back \(.+\)\./,
     );
+  });
+
+  it("passes with the lean's data line put back, when the studio's re-export brings it: the lean sampled too", () => {
+    const { tree: branchTree, policy } = onBranch();
+    const tree = withLean(branchTree);
+    const result = compose(tree, policy, { mode: "strict", drafts: false });
+    expect(where(ofRule(result.findings, "RA8"))).toEqual([]);
+    const room = loadRoom(tree);
+    const scene = room.scene?.value ?? null;
+    const g = geometryOf(createContext(room, policy, { mode: "strict", drafts: false }, tree).ctx);
+    const reach = twinReachOf(tree, scene, twinOf(tree, policy, scene), g);
+    expect(reach?.sources.map((s) => s.source)).toEqual(["rest", ...TWIN_CLIP_ROLES]);
+    for (const s of reach?.sources ?? [])
+      for (const w of s.walls)
+        expect(w.reach, `${s.source} toward the ${w.wall}`).toBeLessThan(
+          reach?.walls.find((x) => x.name === w.wall)?.at ?? Number.NEGATIVE_INFINITY,
+        );
   });
 
   it("refuses the placement the Author's lookdev saw, 12 cm to the twin's left: over 9 cm past the right wall", () => {
