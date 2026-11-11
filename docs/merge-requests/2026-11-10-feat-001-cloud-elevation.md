@@ -8,7 +8,7 @@ Authorized by:
 - his direction for the groups, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to";
 - his two answers, as the coordinator relayed them: "One gate, named deviation (Recommended)", for the account root's plan; and "Keep them protected (Recommended)", for spec 000's protected names.
 
-## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; your facts in (section 2, 2026-11-11), and main merged at 2e942990; group 4's second, short pass waits for T016 and T017, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
+## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; your facts in (section 2, 2026-11-11), and main merged at 2e942990; T016's memory run done (2026-11-11, research.md R-33); group 4's second, short pass waits for T017, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
 
 | Commit | What |
 |---|---|
@@ -120,7 +120,7 @@ Each finding, and what was done:
 
 ## Backlog
 
-- **T016's measurement** and **T017's prices** (For the Author, 3), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4). Group 4's section 2 is done (For the Author, 2).
+- **T017's prices** (For the Author, 3; T016's measurement is done), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4). Group 4's section 2 is done (For the Author, 2).
 - **The agents' engine now seeds the functions' base too.** The engine's seed, and so its reset and stage E's E10, moves every image `deploy/images.lock` pins but `model-server-gpu` and `probe:cuda`, pulling on the host whatever the host lacks, and E10 checks each is back. `base:lambda-python` is an arm64 tag: if the host's pull of it fails on this amd64 machine, the seed, the reset, and E10 in the gate's `--prove` fail with it. Whether it does is a fact this session can't read (the registry is outside its reach); the check is yours, in section 2. If it would fail, the fix is in the engine, so yours: P-E rebuilt to skip the Lambda base as it skips the GPU-only images, test-first on a patched export, which the session builds when you say.
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
@@ -2139,6 +2139,8 @@ docker buildx imagetools inspect "$r" |
 An index whose platforms include `linux/amd64`, or a single manifest the host's `docker pull "$r"` takes, and the engine's seed moves it as it moves the rest. An index of `linux/arm64` alone, or a pull that fails, and tell the session before the gate: P-E then skips the Lambda base, as it skips the GPU-only images.
 
 ### 3. Group 2's memory run (T016), then your prices (T017)
+
+**T016 is done (2026-11-11).** The run lasted 30 minutes on dev-cpu, with its model server stopped, and took 129 samples. The stub answered 20 of 1,800 requests (1.1%), the expected share. The largest total in one sample was 3,497.3 MiB, and the sum of the services' peaks 3,558.4 MiB. The data volumes grew from 118.9 MiB to 243.6 MiB. By memory alone, the smallest types that fit with headroom have 8 GiB: `t4g.large`, `m7g.large` and `r7g.medium`. Every table, and what the run doesn't show, is in research.md R-33. dev-cpu is down. The checks and steps below that led to the run are kept as a record. What's left for you is T017 and the park.
 
 The checks, each printing OK or nothing; with no other agent session using the engine (spec 014's build, today):
 

@@ -147,7 +147,47 @@ The record goes in this file under R-33 and in the group's note. The Author pric
 
 **The record.**
 - **Architectures: read on 2026-11-10** from the agents' engine's store by `make arch-inventory` (read-only; nothing pulled). Every pinned image and build base EC2 runs has a `linux/arm64` build: `edge`, `otel-collector`, `prometheus`, `loki`, `grafana`, `langfuse-web`, `langfuse-worker`, `langfuse-db`, `clickhouse`, `valkey`, and `seaweedfs`. The gateway's and web's images are built here, not pinned, so the inventory covers their bases: `base:node` for both, and `edge`'s image as web's runtime stage. The tunnel end's collector has an arm64 build too. **So EC2 can be Graviton (R-04), and releases build for `linux/arm64` (R-17).** The two GPU-only images, `model-server-gpu` and `probe:cuda`, aren't in that store; they run on the laptop alone. The inventory's whole output is in the group's note.
-- **Memory and disks: pending the run** (tasks.md T016). It needs at least 30 GB free on the Windows drive that holds WSL's disk, at least 16 GB of memory available, and no other agent session using the engine. It starts from the main working tree on the branch. On 2026-11-10 the drive had 29.0 GB free (`df -B1 /mnt/c`: 29,004,742,656 bytes), so it didn't run. The group's note gives the Author the morning's steps. Until then, no instance type is named from a measurement.
+- **Memory and disks: measured on 2026-11-11** by `make measure-stack ENV=dev-cpu` on the agents' engine. It ran from the main working tree on the branch at b22a559f, from 23:02:52Z to 23:35:14Z, and took 129 samples, one every 10 s. `model-server-cpu` was stopped for the run, and dev-cpu was taken down after it.
+  - **The load, as built:** 30 minutes. Hello came at 44 a minute over 8 labels, and turns at 16 a minute. It sent 1,320 hello and 480 turns, and none was late.
+  - **Answered by the stub: 20 of 1,800 requests (1.1%):** 15 hello and 5 turns. The rest answered `503 fallback_awaiting_renewal` once the day's $2 grant was spent. So these peaks are of a mostly degraded stack, at the share expected below.
+
+  | Service | Peak (MiB) | Limit (MiB) |
+  |---|---|---|
+  | langfuse-web | 1060.9 | 1536.0 |
+  | clickhouse | 657.8 | 4096.0 |
+  | langfuse-worker | 597.9 | 1024.0 |
+  | grafana | 341.9 | 512.0 |
+  | seaweedfs | 204.6 | 512.0 |
+  | langfuse-db | 173.2 | 512.0 |
+  | otel-collector | 160.5 | 256.0 |
+  | gateway | 83.4 | 512.0 |
+  | loki | 70.1 | 512.0 |
+  | prometheus | 67.4 | 1024.0 |
+  | gateway-state | 55.3 | 256.0 |
+  | telegram-standin | 49.1 | 64.0 |
+  | valkey | 14.2 | 384.0 |
+  | mailpit | 11.6 | 64.0 |
+  | edge | 5.2 | 64.0 |
+  | web | 5.2 | 32.0 |
+  | All services, the sum of each one's peak | 3558.4 | 11360.0 |
+  | All services, the largest total in one sample | 3497.3 | |
+
+  The sum includes dev-cpu's two stand-ins, `telegram-standin` and `mailpit`, at 60.7 MiB together.
+
+  | Volume | Before (MiB) | After (MiB) |
+  |---|---|---|
+  | clickhouse-data | 0.6 | 92.3 |
+  | gateway-state-data | 46.6 | 46.8 |
+  | grafana-data | 1.7 | 1.7 |
+  | langfuse-db-data | 68.8 | 68.8 |
+  | loki-data | 0.1 | 0.3 |
+  | prometheus-data | 1.0 | 6.6 |
+  | seaweedfs-data | 0.0 | 23.3 |
+  | valkey-data | 0.1 | 3.8 |
+
+  - **Disks:** the data volumes grew from 118.9 MiB to 243.6 MiB in the 30 minutes, mostly ClickHouse (+91.7) and SeaweedFS (+23.3). The stack runs 14 images, 9,402.4 MiB as the engine stores them. Those are x86-64 builds, and layers two images share count twice, so the arm64 figure will differ. `telegram-standin` is built locally and isn't in `docker system df`'s image list.
+  - **The smallest instance types that fit, by memory alone, have 8 GiB.** The largest sample, 3,497.3 MiB, would leave about 0.6 GiB of a 4 GiB size (`t4g.medium`, `m7g.medium`) for the OS and Docker, with nothing left for an answered load: no headroom. The 8 GiB arm64 sizes are `t4g.large` and `m7g.large` (2 vCPU each) and `r7g.medium` (1 vCPU). The services' limits sum to 11,360 MiB, more than 8 GiB, so the limits alone don't bound the host. No price is written here: the prices are the Author's (T017, R-05).
+  - **What the run doesn't show:** these are x86-64 peaks on the agents' engine, not Graviton's. With 1.1% of requests answered, Langfuse and ClickHouse ingested few traces, so an answered load may peak higher.
 - **The record must show, beside the peaks,** the share of requests the stub answered (the table's first line, and the record's `answered`). About 20 of some 1,800 is the expected share: the peaks are then of a mostly degraded stack. The Author can accept that figure, or ask for a longer answered window (plan.md §16, group 2's departure 3).
 
 ---
