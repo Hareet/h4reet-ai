@@ -69,20 +69,29 @@ describe("the stand-in line (FR-013, FR-029, FR-030; R-13; SC-003)", () => {
     expect(v.doc.body.textContent).not.toContain(LIKENESS);
   });
 
-  it("stays in the note and the text copy in 2D, from the start and after the visitor's switch", async () => {
+  it("gives way in 2D to the twin's line once its still shows, from the start and after the visitor's switch", async () => {
+    // Spec 016 (FR-014, FR-034; changed with T050, plan.md R-18): the 2D room shows the twin's still, its own
+    // picture, so the slot says the twin's line once the still has loaded; the stand-in line until then.
+    const own = roomIndex().twin?.line ?? "";
+    const settle = async (x: Visit): Promise<void> => {
+      for (let i = 0; i < 40 && textOf(standInLine(x)) !== own; i += 1) await flush();
+    };
     const flat = start({ webgl: false });
     await enter(flat, "engineer", "woman");
     expect(flat.room.visit.mode).toBe("2d");
-    expect(textOf(standInLine(flat))).toBe(STAND_IN);
-    expect(aroundLines(flat)[0]).toBe(STAND_IN);
+    await settle(flat);
+    expect(flat.spies.assets.filter((a) => a.includes("twin-still"))).toHaveLength(1);
+    expect(textOf(standInLine(flat))).toBe(own);
+    expect(aroundLines(flat)[0]).toBe(own);
     const v = start({ webgl: true });
     await intoRoom(v);
+    expect(textOf(standInLine(v))).toBe(STAND_IN);
     button(v.doc, "2D view").click();
     await flush();
     expect(v.room.visit.mode).toBe("2d");
-    expect(textOf(standInLine(v))).toBe(STAND_IN);
+    await settle(v);
+    expect(textOf(standInLine(v))).toBe(own);
     expect(v.doc.body.textContent).toContain(AI_DISCLOSURE);
-    expect(v.doc.body.textContent).not.toContain(LIKENESS);
   });
 
   it("keeps the placeholder note its own paragraph beside it, shown only while stand-ins are in use", async () => {
