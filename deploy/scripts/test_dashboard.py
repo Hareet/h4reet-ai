@@ -1047,6 +1047,13 @@ def test_the_avatar_failure_share_reads_as_the_2d_share_reads() -> None:
         assert words in panel["description"], words
 
 
+def test_the_avatar_failure_panel_is_the_twins_graph_too() -> None:
+    # Spec 016's FR-051: the same panel, no new one, its reading naming the twin's own files among those it counts.
+    panel = by_title()["Visits whose avatar failed"]
+    for words in ("the twin's own model", "its clips", "spec 016"):
+        assert words in panel["description"], words
+
+
 # Spec 010 (FR-036; its plan §9): the paid adapter's month beside its cap and its warning, in the Spend row, and the
 # adapters' months as the store holds them, beside the store-state panel.
 ADAPTER_MONTH_PANEL = "Paid adapter's month against its cap"
