@@ -177,6 +177,13 @@ def test_the_hosts_are_contracts_env_cloud_section_3s() -> None:
     assert ai.CLOUD_HOSTS == ("ec2", "tunnel-end")
 
 
+def test_the_functions_base_runs_on_none_of_section_3s_hosts() -> None:
+    # Spec 001's three functions' base (infra/lambdas/test_images.py): AWS Lambda runs the images built from it, on
+    # arm64, so no host of §3 does, and EC2's and the tunnel end's answers don't count it.
+    assert "base:lambda-python" in {pin.service for pin in pins()}
+    assert ai.HOSTS["base:lambda-python"][0] == ()
+
+
 def test_a_lock_line_without_a_hosts_row_is_refused() -> None:
     text = (
         LOCK.read_text(encoding="utf-8")

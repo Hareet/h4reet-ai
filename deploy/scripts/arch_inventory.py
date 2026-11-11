@@ -79,6 +79,10 @@ HOSTS: dict[str, tuple[tuple[str, ...], str]] = {
     "base:node": (("laptop", "ec2", "dev"), "built into the gateway and web images"),
     "base:python": (("dev",), "built into the breach probe and the Telegram stand-in"),
     "base:ubuntu": ((), "the devcontainer's base"),
+    "base:lambda-python": (
+        (),
+        "the three functions' base, for arm64: AWS Lambda runs them",
+    ),
     "tool:uv": ((), "the gate and the devcontainer"),
     "tool:ruff": ((), "the gate and the devcontainer"),
     "tool:gitleaks": ((), "the gate"),

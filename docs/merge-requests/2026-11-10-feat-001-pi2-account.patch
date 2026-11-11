@@ -1,5 +1,5 @@
 P-I2, spec 001 group 4's protected files (tasks.md T031, T034, T035, T038; plan.md §3.2, §14, §16; research.md R-15,
-R-22 to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All five are new files. For the Author's hand only: the
+R-22 to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All six are new files. For the Author's hand only: the
 protected names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform file names and spec 000's
 infra/*alert*) keep them from agent sessions.
 
@@ -26,6 +26,9 @@ needs nothing of P-I1's: it creates files only.
   - infra/lambdas/alert_bridge/bridge.py and test_bridge.py: h4-alerts' Telegram half, stdlib but for Parameter
     Store through the runtime's SDK, its token held to a bot token's shape before any URL; and its tests (T031),
     every kind of contracts/aws-alerts.md §2.
+  - infra/lambdas/alert_bridge/Dockerfile: the bridge's image, on AWS's python3.14 Lambda base for arm64 by the
+    digest deploy/images.lock pins as base:lambda-python, the Author's resolve on 2026-11-11, as the probe's and the
+    credential audit's Dockerfiles, which the branch holds; infra/lambdas/test_images.py holds all three to the pin.
 
 To confirm at T037, before any apply (the merge-request note's "For the Author"): that Terraform takes Identity
 Center's data sources in the import block's id; that the hand-made set shows no other change than its tags,
@@ -2073,3 +2076,15 @@ AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console sh
 +
 +    monkeypatch.setattr(bridge, "_urlopen", failing)
 +    assert bridge.http_post(url, b"{}", 5) == 403
+--- /dev/null
++++ b/infra/lambdas/alert_bridge/Dockerfile
+@@ -0,0 +1,9 @@
++# The image of h4-alert-bridge, h4-alerts' Telegram half (spec 001; contracts/aws-alerts.md §1, §2; tasks.md T035).
++# Its base is AWS's python3.14 Lambda base for arm64, by the digest deploy/images.lock pins as base:lambda-python (the
++# Author's resolve, 2026-11-11), which the compose policy requires and infra/lambdas/test_images.py holds this file to.
++# Built from this folder as its context, for linux/arm64. There is no `# syntax=` line, which would pull an unpinned
++# frontend image; nothing is installed or fetched, and nothing runs at build.
++FROM public.ecr.aws/lambda/python:3.14-arm64@sha256:9ffc23f871c4db05f101f457e1742655f7629459bd3623c0ce60a65a01872904
++# The one module, into the runtime's task root, with its handler() as the entry.
++COPY bridge.py ${LAMBDA_TASK_ROOT}/
++CMD ["bridge.handler"]
