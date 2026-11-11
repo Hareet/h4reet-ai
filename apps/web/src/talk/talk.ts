@@ -24,6 +24,7 @@ import "./talk.css";
 import type { Turn, VisitPath } from "../choice/visit";
 import { PDF_HREF, pdfFileName } from "../resume/download";
 import type { Clock } from "../room/clock";
+import type { TwinActivity } from "../room/scene/twin-states";
 import type { RoomIndex } from "../room/compose/bundle";
 import { h } from "../room/dom";
 import { browserOwnsEscape } from "../room/fullscreen";
@@ -87,6 +88,9 @@ interface Flight {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** Spec 016's activity, the twin's states' input (contracts/twin-states.md §1). */
+export type TalkActivity = TwinActivity;
+
 export function renderTalk(
   doc: Document,
   options: {
@@ -117,8 +121,13 @@ export function renderTalk(
     words?: { readonly logToggle: string; readonly larger: string; readonly smaller: string };
     /** Each change of the log's state, for a drafts build's frame log (spec 005, FR-063). */
     onPanel?(part: "log" | "larger", state: "open" | "collapsed"): void;
+    /** Spec 016 (FR-022; contracts/twin-states.md §1): what the twin's states need from the conversation, and nothing
+     *  else: whether the text box holds unsent text, a turn's going and ending, the twin's answer's words, and a
+     *  piece's selection. No activity carries a word, a topic, a feature, a cost, or a time. */
+    onActivity?(activity: TalkActivity): void;
   },
 ): TalkPanel {
+  const activity = (a: TalkActivity): void => options.onActivity?.(a);
   const limits = options.limits ?? DEFAULT_TALK_LIMITS;
   const log = h(doc, "div", {
     id: "talk-log",
@@ -247,6 +256,7 @@ export function renderTalk(
     counter.textContent = `${limits.turnMaxChars - used} characters left`;
   };
   textBox.addEventListener("input", updateCounter);
+  textBox.addEventListener("input", () => activity({ kind: "draft", holds: textBox.value.trim() !== "" }));
 
   // The conversation: the active one's feature, or none; the topic's phrase, for a 409's message; one turn in flight.
   let conversation: string | null = null;
@@ -279,6 +289,8 @@ export function renderTalk(
       if (text !== "") {
         options.turns.push({ role: "twin", text });
         entry("twin", text);
+        // The twin's answer, by its words alone (FR-022); a fixed message never is one.
+        activity({ kind: "answer", words: text.split(/\s+/).filter((w) => w !== "").length });
         return;
       }
     }
@@ -308,6 +320,7 @@ export function renderTalk(
     const f: Flight = { controller: new AbortController(), feature, visitor, stopped: false };
     flight = f;
     waiting(true);
+    activity({ kind: "turn", out: true });
     let reported = false;
     const ended = (result: TurnResult): void => {
       // The turn's end, reported once: a second report of the same turn is the sender's mistake, and counts nothing.
@@ -317,6 +330,7 @@ export function renderTalk(
       if (flight !== f) return; // superseded by a new conversation: it shows nothing
       flight = null;
       waiting(false);
+      activity({ kind: "turn", out: false });
       finish(f, result);
     };
     sender({ feature, path, turns: historyWindow(options.turns, limits) }, ended, f.controller.signal);
@@ -346,6 +360,7 @@ export function renderTalk(
     entry("visitor", words);
     textBox.value = "";
     updateCounter();
+    activity({ kind: "draft", holds: false });
     begin(feature, visitor);
   });
   send.addEventListener("click", (event) => {
@@ -438,6 +453,7 @@ export function renderTalk(
       showHead();
     },
     topicSelected(id, topic) {
+      activity({ kind: "selected" });
       if (!topic.ready) {
         show("topic_not_ready", { topic: topic.phrase });
         return;
@@ -450,6 +466,7 @@ export function renderTalk(
         flight = null;
         waiting(false);
         old.controller.abort();
+        activity({ kind: "turn", out: false });
       }
       options.turns.length = 0;
       phrase = topic.phrase;
