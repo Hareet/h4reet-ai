@@ -41,6 +41,7 @@ Each run, as September §3:
 
 - `make rollback ENV=ec2|tunnel-end|prod` sets that host's deployer to the previous release: EC2's and the tunnel end's through a Systems Manager command, the laptop's directly.
 - A hand-started stack (`make up ENV=… REF=…`) writes `started_by=author`. The deployer leaves it alone until `make deployer-resume`.
+- **The tunnel end's hold** (group 5's fixes' review, 3): a file, `hold`, in its deployer's state folder, which the Author makes in a Systems Manager session; while it stands the deployer starts, restarts, and deploys nothing, at boot or on its timer, and the key's revocation still restarts the sshd (`docs/runbooks/tunnel-end.md`, "Stopping the stack on purpose").
 - **Across migration 0007** a rollback fails closed: spec 000's gateway refuses a store whose schema is newer than its code.
 
 ## 5. The deployment record

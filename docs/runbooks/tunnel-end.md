@@ -39,6 +39,23 @@ aws ssm send-command --profile h4reet-admin --region us-east-1 \
 
 A reboot does the same, and more slowly: `aws ec2 reboot-instances --instance-ids "$id"`. The laptop's tunnel reconnects within its backoff, 1 to 30 seconds.
 
+### Stopping the stack on purpose
+
+Hold the deployer first, and stop its timer: otherwise its next run, within a minute, starts the release again, and its
+unit's `Requires=docker.service` starts Docker again even after `systemctl stop docker`. In a session
+(`make cloud-session HOST=tunnel-end`), as root:
+
+```bash
+touch /var/lib/h4reet/deploy/hold
+systemctl stop h4-deployer.timer
+systemctl stop h4-stack.service
+```
+
+While `hold` is there the deployer starts, restarts, and deploys nothing, at boot too, and says so on its stderr; the
+key's revocation still restarts the sshd. To resume: `rm /var/lib/h4reet/deploy/hold`, then
+`systemctl start h4-deployer.timer`, and its next run brings the release up. Group 7 gives the laptop and EC2 their own form
+of the same (contracts/releases-deployer.md §4).
+
 ### A crash, a failed deploy, or a revoked key
 
 Open a session and read the host's own record:

@@ -470,6 +470,10 @@ def run(
     deployer = Deployer(host, env_file, state, aws, docker, plugin, now)
     if restart is not None:
         return deployer.restart(restart)
+    # The Author's hold (releases-deployer.md §4): nothing starts, restarts, or deploys while it stands.
+    if (state / "hold").exists():
+        print(f"{PROG}: held ({state / 'hold'}): nothing changes", file=sys.stderr)
+        return 0
     return deployer.boot() if boot else deployer.check()
 
 
