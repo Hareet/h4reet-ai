@@ -88,7 +88,12 @@ if answer is None:
 if isinstance(answer, dict) and "__error__" in answer:
     sys.stderr.write("An error occurred (" + answer["__error__"] + ") when calling it\\n")
     sys.exit(254)
-sys.stdout.write(json.dumps(answer))
+# The real CLI's plain-text answers, whatever --output says: `aws s3 presign` prints its URL and a line break (group 6's
+# review, I-1). Everything else answers in JSON.
+if key in ("s3 presign",):
+    sys.stdout.write(str(answer) + "\\n")
+else:
+    sys.stdout.write(json.dumps(answer))
 """
 
 # A stand-in for infra/lambdas/credential_audit/audit.py in the scratch repository: infra-verify runs the audit by
