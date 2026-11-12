@@ -88,11 +88,15 @@ def test_each_layer(role):
     )
     allow = perms.get("allow", [])
     if role in READING:
+        # Headless, a tool that isn't allowed is refused. Claude Code's Edit rules cover every file-editing tool,
+        # so the outbox is allowed as Edit(...), and no Edit deny may stand (a deny would win over it).
         assert perms["defaultMode"] == "default"
         for rule in allow:
             tool = rule.split("(", 1)[0]
             if tool in ("Edit", "Write", "NotebookEdit"):
-                assert rule in ("Write(//night/io/out/**)",), rule
+                assert rule == "Edit(//night/io/out/**)", rule
+        assert "Edit(//night/io/out/**)" in allow
+        assert not [r for r in perms.get("deny", []) if r.split("(", 1)[0] == "Edit"]
     else:
         assert role in WRITING
         assert "Edit" in allow and "Write" in allow

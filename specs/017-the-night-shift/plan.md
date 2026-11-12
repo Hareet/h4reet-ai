@@ -130,7 +130,8 @@ the Author's terminal
 └─ night.py (the runner: the only process that uses the host's Docker socket)
    ├─ h4-night (internal network: no route out)
    │   ├─ egress           (also on a normal network; egress-proxy.py with the night allowlist, :3128)
-   │   ├─ engine-fwd       (also on a normal network; forwards :2376 to 198.18.0.1:2376 only)
+   │   ├─ engine-fwd       (also on a normal network; forwards :2376 to 198.18.0.1:2376 only; on h4-night-engine,
+   │   │                    not h4-night, so only the roles whose specs name that network reach it: the build, runner.md §2)
    │   ├─ supervisor       (its worktree)
    │   └─ workers ×≤10     (each: its worktree, its Claude folder, its io folder)
    │        └─ Claude Code: the project's hooks and permissions, its role's settings layer,

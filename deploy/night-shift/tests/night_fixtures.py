@@ -167,6 +167,11 @@ class Home:
             self.state,
             self.night_root,
             self.engine_certs,
+            self.blender,
+            self.comfyui_dir,
+            self.comfyui_venv,
+            self.home / ".config/h4reet-ai/infra/data",
+            self.home / ".config/h4reet-ai/infra/plans",
         ):
             d.mkdir(parents=True, exist_ok=True)
         git = self.repo / ".git"
@@ -181,6 +186,9 @@ class Home:
             (git / d).mkdir(parents=True, exist_ok=True)
         (git / "config").write_text("[core]\n\tbare = false\n")
         (git / "packed-refs").write_text("")
+        # The main checkout's own HEAD and index, which the runner masks too (contracts/runner.md §3).
+        (git / "HEAD").write_text("ref: refs/heads/main\n")
+        (git / "index").write_bytes(b"DIRC")
         (git / "refs" / "heads" / "main").write_text(sha40("main") + "\n")
         for role in SESSION_ROLES:
             (self.prompts / f"{role}.md").write_text(

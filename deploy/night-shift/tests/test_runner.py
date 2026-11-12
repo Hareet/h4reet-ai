@@ -361,7 +361,7 @@ class TestUsageLimit:
         ok, reset = night.parse_limit(
             "usage limit reached, resets 2027-01-15T11:00:00+01:00", now=1_800_000_000.0
         )
-        assert ok and reset == 1_800_000_000.0 + 3600
+        assert ok and reset == 1_800_000_000.0 + 7200  # 11:00+01:00 is 10:00Z
 
     def test_the_matcher_reads_resets_at_with_a_zone(self, night):
         # 1800000000 is 2027-01-15T08:00:00Z. "resets 3pm (UTC)" is that day at 15:00Z.
@@ -802,6 +802,8 @@ class TestDockerRun:
             "-v", f"{g}/refs/heads/main:{g}/refs/heads/main:ro",
             "-v", f"{g}/refs/tags:{g}/refs/tags:ro",
             "-v", f"{g}/objects/info:{g}/objects/info:ro",
+            "-v", f"{g}/HEAD:{g}/HEAD:ro",
+            "-v", f"{g}/index:{g}/index:ro",
             "-v", f"{g}/worktrees/t-1/commondir:{g}/worktrees/t-1/commondir:ro",
             "-v", f"{g}/refs/replace:{g}/refs/replace:ro",
             "-v", f"{wt}/CLAUDE.md:{wt}/CLAUDE.md:ro",
@@ -899,6 +901,8 @@ class TestDockerRun:
             "refs/heads/main",
             "refs/tags",
             "objects/info",
+            "HEAD",
+            "index",
         ):
             assert (str(g / p), "ro") in v, p
         assert (str(admin / "commondir"), "ro") in v
@@ -1417,6 +1421,87 @@ class TestRequests:
         runner.dispatch(("line", t.key, nf.event_line({"type": "system"})))
         a = answer(runner, t, 1)
         assert a["ok"] is False and nf.token_value() not in json.dumps(a)
+
+
+# ================================================================================================================
+# A whole night, and a second start
+# ================================================================================================================
+
+
+class ScriptedFx(nf.FakeFx):
+    """Sessions that end at once: the supervisor writes the queue on its first run; each worker succeeds."""
+
+    def __init__(self, night, h, runner_ref):
+        super().__init__(night, h)
+        self.runner_ref = runner_ref
+        self.waits = 0
+
+    def spawn(self, key, argv, log_path=None):
+        super().spawn(key, argv, log_path)
+        if key == "supervisor#1":
+            nf.write_queue(
+                self.runner_ref[0],
+                nf.queue(nf.task("aaa"), nf.task("bbb", after=["aaa"])),
+            )
+        self.events.append(("line", key, nf.result_event()))
+        self.events.append(("exit", key, 0))
+
+    def wait(self, timeout):
+        self.waits += 1
+        assert self.waits < 500, "the loop didn't end"
+        return super().wait(timeout)
+
+
+class TestTheNight:
+    def test_a_whole_night_runs_event_by_event(self, night, h):
+        ref = []
+        fx = ScriptedFx(night, h, ref)
+        runner, _ = nf.make_runner(night, h, fx)
+        ref.append(runner)
+        assert runner.run_night() == 0
+        assert runner.tasks["aaa"].state == "done"
+        assert runner.tasks["bbb"].state == "done"
+        assert fx.sleeps == []  # no limit, so no sleep
+        names = [c[c.index("--name") + 1] for c in fx.docker_calls("run")]
+        assert names[:3] == [
+            "h4-night-egress",
+            "h4-night-egress-studio",
+            "h4-night-engine-fwd",
+        ]
+        assert ["docker", "stop", "-t", "10", "h4-night-egress"] == fx.docker_calls(
+            "stop"
+        )[-1][:5]
+        assert "the night ends: 2 of 2 tasks done" in nf.page_text(runner)
+        order = [k.split("#")[0] for k, _ in fx.spawned]
+        assert order.index("aaa") < order.index("bbb")
+
+    def test_a_second_start_keeps_what_finished(self, night, h):
+        runner, fx = ready_runner(night, h, nf.task("aaa"), nf.task("bbb"))
+        fx.t += 10
+        runner.schedule()
+        runner.dispatch(("exit", runner.tasks["aaa"].key, 0))
+        runner.save_state()
+        again, _fx2 = nf.make_runner(night, h)
+        again.start_supervisor()
+        assert again.load_queue() is True
+        assert again.tasks["aaa"].state == "done"
+        assert again.tasks["bbb"].state == "queued"
+
+    def test_a_worktree_the_runner_didnt_make_refuses(self, night, h):
+        runner, _fx = nf.make_runner(night, h)
+        (h.night_root / nf.NIGHT / "supervisor").mkdir(parents=True)
+        with pytest.raises(night.Refused) as e:
+            runner.start_supervisor()
+        assert "didn't make it" in str(e.value)
+
+    def test_a_tampered_commondir_refuses(self, night, h):
+        runner, _fx = nf.make_runner(night, h)
+        runner.start_supervisor()
+        runner.dispatch(("exit", runner.sup.key, 0))
+        (Path(runner.sup.admin) / "commondir").write_text("/tmp/elsewhere\n")
+        with pytest.raises(night.Refused) as e:
+            runner.start_supervisor()
+        assert "commondir" in str(e.value)
 
 
 # ================================================================================================================
