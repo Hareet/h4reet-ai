@@ -71,7 +71,8 @@ def is_public(address: str) -> bool:
 
 
 def resolve(host: str) -> list[str]:
-    found = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    # IPv4 alone: the VPC has none of IPv6 (group 7's review B, I3).
+    found = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
     return sorted({str(info[4][0]) for info in found})
 
 

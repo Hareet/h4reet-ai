@@ -1409,6 +1409,12 @@ def p17(ctx: Context) -> Result:
         problems.append(
             f"{', '.join(named)}: only EC2's deployer names an image, never an env file"
         )
+    # Compose reads the process environment too (group 7's review B, nit 1); P5 refuses it, and this says why.
+    shell = sorted(k for k in ctx.host.environ if k.startswith("H4_IMAGE_"))
+    if shell:
+        problems.append(
+            f"{', '.join(shell)}: set in the shell, it would run an image no lock pins"
+        )
     for name, service in sorted((model.get("services") or {}).items()):
         image = service.get("image")
         if image:
@@ -1915,30 +1921,39 @@ def ec2_checks(
 
 
 def e6_credentials(aws_dir: Path, now: Callable[[], float]) -> Result:
-    """E6: the gateway's Bedrock profile, which EC2's host step writes (deploy/hosts/ec2/ec2_host.py), in place and not
-    expired, and the gateway's user's alone to read."""
-    problems = []
+    """E6: the gateway's Bedrock profile, which EC2's host step writes (deploy/hosts/ec2/ec2_host.py), in place and the
+    gateway's user's alone to read. Its document missing or expired warns: Bedrock, EC2's second route, answers degraded
+    until the credential timer's next run, and the stack starts on the Anthropic API (group 7's review B, I4)."""
     try:
         config = (aws_dir / "config").read_text(encoding="utf-8")
-        document = json.loads(
-            (aws_dir / "credentials.json").read_text(encoding="utf-8")
-        )
-        mode = (aws_dir / "credentials.json").stat().st_mode & 0o777
-        expires = datetime.datetime.fromisoformat(
-            str(document["Expiration"]).replace("Z", "+00:00")
-        ).timestamp()
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError:
         return fail("E6", f"the gateway's Bedrock profile isn't in place in {aws_dir}")
+    problems, warnings = [], []
     if "[profile h4reet-bedrock]" not in config or "credential_process" not in config:
         problems.append(
             "its config isn't the h4reet-bedrock profile's credential_process"
         )
-    if mode & 0o377:
+    document = aws_dir / "credentials.json"
+    try:
+        mode = document.stat().st_mode & 0o777
+    except OSError:
+        mode = None
+    if mode is not None and mode & 0o377:
         problems.append("credentials.json is open beyond 0400")
-    if expires <= now():
-        problems.append("its credentials have expired")
+    try:
+        expires = datetime.datetime.fromisoformat(
+            str(json.loads(document.read_text(encoding="utf-8"))["Expiration"]).replace(
+                "Z", "+00:00"
+            )
+        ).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        expires = None
+    if expires is None or expires <= now():
+        warnings.append(
+            "its credentials are missing or expired: Bedrock answers degraded until the credential timer's next run"
+        )
     return summarize(
-        "E6", problems, "the gateway's Bedrock profile is in place and fresh"
+        "E6", problems, "the gateway's Bedrock profile is in place and fresh", warnings
     )
 
 

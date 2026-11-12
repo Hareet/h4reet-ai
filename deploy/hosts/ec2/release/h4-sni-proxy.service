@@ -16,6 +16,8 @@ RuntimeDirectory=h4-sni-proxy
 ExecStartPre=+/bin/sh -c 'sed -n "s/^SMTP_HOST=//p" /run/h4reet/ec2.env > /run/h4-sni-proxy/smtp-host'
 ExecStart=/usr/bin/python3 -I -B /opt/h4reet/release/sni_proxy.py --allowlist /opt/h4reet/release/gateway-allowlist.txt --listen 10.42.0.20:3129=443 --listen 10.42.0.20:3130=465 --smtp-host-file /run/h4-sni-proxy/smtp-host
 Restart=always
+# Two descriptors for each of sni_proxy.py's MAX_CONNECTIONS, and room to spare (group 7's review B, nit 4).
+LimitNOFILE=2048
 RestartSec=2
 NoNewPrivileges=yes
 ProtectSystem=strict

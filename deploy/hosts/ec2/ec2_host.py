@@ -7,12 +7,15 @@ role itself.
     python3 -I -B ec2_host.py prepare --tree TREE    (the deployer, before compose pulls or starts anything)
     python3 -I -B ec2_host.py credentials             (h4-gateway-credentials.timer, every 15 minutes)
 
-prepare installs, from the tree, the gateway's proxy (deploy/scripts/sni_proxy.py, beside the egress proxy it reads),
-its allowlist, and its unit, and the credential timer's units and this script; writes the gateway's AWS profile; runs
-credentials once; and enables the timer and restarts the proxy. A failure is a failed start. credentials assumes h4-prod-gateway with the
-instance role for an hour, and writes the answer as a credential_process document the gateway's profile reads with
-cat, so the SDK refreshes on its own before each document's Expiration. Each file is replaced whole, on tmpfs, and is
-the gateway's user's to read alone. No key is printed. The standard library alone, in Python 3.9's syntax.
+prepare makes the gateway's journal folder, ${H4_STATE_DIR}/gateway on the data volume, which compose's bind never
+makes (group 7's review B, B1); installs, from the tree, the gateway's proxy (deploy/scripts/sni_proxy.py, beside the
+egress proxy it reads), its allowlist, and its unit, and the credential timer's units and this script; writes the
+gateway's AWS profile; runs credentials once; and enables the timer and restarts the proxy. A failure is a failed
+start, but a failed assume: Bedrock is EC2's second route, so it answers degraded until the timer's next run, and the
+stack starts on the Anthropic API (review B, I4). credentials assumes h4-prod-gateway with the instance role for an
+hour, and writes the answer as a credential_process document the gateway's profile reads with cat, so the SDK
+refreshes on its own before each document's Expiration. Each file is replaced whole, on tmpfs, and is the gateway's
+user's to read alone. No key is printed. The standard library alone, in Python 3.9's syntax.
 """
 
 from __future__ import annotations
@@ -117,6 +120,14 @@ def prepare(
     tree: Path, env_file: Path, aws_dir: Path, units: Path, run=subprocess.run
 ) -> int:
     release = tree / "deploy" / "hosts" / "ec2" / "release"
+    state = read_env(env_file).get("H4_STATE_DIR", "")
+    if not state.startswith("/"):
+        print(f"{PROG}: the env file names no H4_STATE_DIR", file=sys.stderr)
+        return 1
+    journal = Path(state) / "gateway"
+    journal.mkdir(parents=True, exist_ok=True)
+    os.chmod(str(journal), 0o700)
+    os.chown(str(journal), GATEWAY_UID, GATEWAY_UID)
     INSTALLED.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(str(Path(__file__).resolve()), str(INSTALLED))
     os.chmod(str(INSTALLED), 0o755)
@@ -129,8 +140,12 @@ def prepare(
         shutil.copyfile(str(source), str(target))
     for unit in sorted(release.glob("h4-*")):
         shutil.copyfile(str(unit), str(units / unit.name))
+    write(aws_dir / "config", CONFIG, GATEWAY_UID, 0o444)
     if credentials(env_file, aws_dir, run) != 0:
-        return 1
+        print(
+            f"{PROG}: Bedrock answers degraded until the credential timer's next run",
+            file=sys.stderr,
+        )
     for argv in (
         ["systemctl", "daemon-reload"],
         ["systemctl", "enable", "--now", "h4-gateway-credentials.timer"],

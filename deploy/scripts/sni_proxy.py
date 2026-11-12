@@ -24,6 +24,11 @@ from pathlib import Path
 PROG = "sni-proxy"
 HELLO_LIMIT = 16389  # one TLS record: its 5-byte header and at most 16,384 bytes
 SMTP_PORT = 465
+# At most this many connections at once, each two descriptors, under its unit's LimitNOFILE; and a splice with no byte
+# either way for this long is closed (group 7's review B, nit 4). The gateway's calls are short; a stream's tokens
+# arrive well within it.
+MAX_CONNECTIONS = 512
+IDLE_SECONDS = 300
 
 
 def _egress_proxy():
@@ -84,9 +89,13 @@ class Proxy:
         resolve=ep.resolve,
         public=ep.is_public,
         upstream_port=lambda port: port,
+        max_connections: int = MAX_CONNECTIONS,
+        idle_seconds: float = IDLE_SECONDS,
     ) -> None:
         self.patterns, self.smtp_host = patterns, (smtp_host or "").lower() or None
         self.resolve, self.public, self.upstream_port = resolve, public, upstream_port
+        self.max_connections, self.idle_seconds = max_connections, idle_seconds
+        self.active = 0
 
     def permits(self, name: str, port: int) -> bool:
         if port == SMTP_PORT:
@@ -94,6 +103,15 @@ class Proxy:
         return ep.allowed(name, self.patterns)
 
     async def handle(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, port: int
+    ) -> None:
+        self.active += 1
+        try:
+            await self.handled(reader, writer, port)
+        finally:
+            self.active -= 1
+
+    async def handled(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, port: int
     ) -> None:
         name, why, upstream, hello = None, "", None, b""
@@ -104,6 +122,8 @@ class Proxy:
                 why = "not a TLS hello with a name"
             elif not self.permits(name, port):
                 why = "not allowed"
+            elif self.active > self.max_connections:
+                why = "busy"
             else:
                 addresses = await asyncio.get_running_loop().run_in_executor(
                     None, self.resolve, name
@@ -111,10 +131,8 @@ class Proxy:
                 if not addresses or not all(self.public(a) for a in addresses):
                     why = "not public"
                 else:
-                    upstream = await asyncio.wait_for(
-                        asyncio.open_connection(addresses[0], self.upstream_port(port)),
-                        10,
-                    )
+                    upstream = await self.connect(addresses, self.upstream_port(port))
+                    why = "unreachable"
         except (asyncio.IncompleteReadError, asyncio.TimeoutError, OSError):
             why = "unreachable"
         if upstream is None:
@@ -127,15 +145,28 @@ class Proxy:
         await asyncio.gather(self.pipe(reader, up_writer), self.pipe(up_reader, writer))
 
     @staticmethod
-    async def pipe(source: asyncio.StreamReader, sink: asyncio.StreamWriter) -> None:
+    async def connect(addresses: list[str], port: int):
+        """Each public address in turn, the first that answers (group 7's review B, I3); None if none does."""
+        for address in addresses:
+            try:
+                return await asyncio.wait_for(
+                    asyncio.open_connection(address, port), 10
+                )
+            except (asyncio.TimeoutError, OSError):
+                continue
+        return None
+
+    async def pipe(
+        self, source: asyncio.StreamReader, sink: asyncio.StreamWriter
+    ) -> None:
         try:
             while True:
-                data = await source.read(65536)
+                data = await asyncio.wait_for(source.read(65536), self.idle_seconds)
                 if not data:
                     break
                 sink.write(data)
                 await sink.drain()
-        except OSError:
+        except (OSError, asyncio.TimeoutError):
             pass
         finally:
             sink.close()

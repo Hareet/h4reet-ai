@@ -125,6 +125,7 @@ VOLUME_OWNERS = {
     "tunnel-end": {"tunnel-end-collector-queue": 10001},
 }
 PROJECT = "h4reet-prod"
+DOCKER_ROOTS = ("/var/lib/docker/", "/srv/h4reet/data/docker/")
 # main's exit for a run that refused or rolled back and alerted; anything else non-zero is a deployer that didn't run,
 # which the first step alerts (deploy/scripts/deploy_first_step.py).
 EXIT_ALERTED = 75
@@ -655,20 +656,29 @@ class Deployer:
         """EC2's boot: the bucket is asked before anything starts (FR-046)."""
         return self.booting and self.host in BUCKET_FIRST
 
-    def unread_at_boot(self, reason: str) -> None:
-        """EC2's boot couldn't read the bucket: its last release starts, from its cached images, and is alerted."""
+    def unread_at_boot(self, reason: str) -> bool:
+        """EC2's boot couldn't read the bucket: its last release starts, from its cached images, and the alert says
+        whether it did (group 7's review B, I4). False if it didn't."""
         current = self.recorded("current")
         if current is None:
-            return
-        self.restart_cached(current, "the last release didn't start at boot")
+            return True
+        started = self.restart_cached(current, "the last release didn't start at boot")
+        rid = current["release"]
         self.alert_once(
             f"boot-{reason}@boot{self.boot_mark()}",
             alert(
                 "deploy_refused",
-                f"{self.host} started its last release, {current['release']}, without the release bucket",
-                [("reason", reason), ("release", str(current["release"]))],
+                f"{self.host} started its last release, {rid}, without the release bucket"
+                if started
+                else f"{self.host} couldn't start its last release, {rid}, without the release bucket",
+                [
+                    ("reason", reason),
+                    ("release", str(rid)),
+                    ("started", "yes" if started else "no"),
+                ],
             ),
         )
+        return started
 
     def count_boot(self) -> None:
         try:
@@ -724,8 +734,8 @@ class Deployer:
                 f"{PROG}: the release bucket can't be reached; nothing changes",
                 file=sys.stderr,
             )
-            if self.bucket_first():
-                self.unread_at_boot("unreachable")
+            if self.bucket_first() and not self.unread_at_boot("unreachable"):
+                return 1
             return 0
         except Misconfigured:
             if self.bucket_first():
@@ -1005,7 +1015,8 @@ class DockerCli:
         if (
             made.returncode != 0
             or found.returncode != 0
-            or not found.stdout.strip().startswith("/var/lib/docker/")
+            # Docker's data root: the default, or EC2's on its data volume (group 7's review B, nit 6).
+            or not found.stdout.strip().startswith(DOCKER_ROOTS)
         ):
             return False
         os.chown(found.stdout.strip(), uid, uid)
