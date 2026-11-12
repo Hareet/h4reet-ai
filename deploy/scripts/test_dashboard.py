@@ -49,6 +49,10 @@ TUNNEL = (REPO / "specs/001-cloud-elevation/contracts/tunnel.md").read_text(
 SHARED_STATE = (REPO / "specs/001-cloud-elevation/contracts/shared-state.md").read_text(
     encoding="utf-8"
 )
+# Group 7's, the release's, are contracts/releases-deployer.md §6's (tasks.md T091).
+RELEASES = (
+    REPO / "specs/001-cloud-elevation/contracts/releases-deployer.md"
+).read_text(encoding="utf-8")
 HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
@@ -158,7 +162,11 @@ def contract_section(text: str, heading: str) -> str:
 def hosts_section() -> str:
     """The Hosts row's panels: tunnel.md §7, group 5's, and shared-state.md §10, group 6's, each up to its next "## "
     heading."""
-    return contract_section(TUNNEL, "7.") + contract_section(SHARED_STATE, "10.")
+    return (
+        contract_section(TUNNEL, "7.")
+        + contract_section(SHARED_STATE, "10.")
+        + contract_section(RELEASES, "6.")
+    )
 
 
 def hosts_panels() -> dict[str, tuple[str, list[str]]]:
@@ -1141,6 +1149,9 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         "Shared state latency, p95",
         "Shared state errors",
         "Last good backup's age",
+        # Group 7's (tasks.md T091; contracts/releases-deployer.md §6).
+        "The release on each host",
+        "Deployments",
     }
     found = by_title()
     for title, (kind, queries_) in expected.items():

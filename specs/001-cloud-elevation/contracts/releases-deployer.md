@@ -69,3 +69,16 @@ It runs under an exclusive lock on `<state>/.lock`, so the boot's run, the timer
 ## 5. The deployment record
 
 As September §5, with `host` added. It goes to a JSON line in each host's state directory, and to a log event that the dashboard's release panel shows per host.
+
+## 6. The dashboard's Hosts row: the release (group 7)
+
+(new in group 7; tasks.md T091; FR-049, FR-060.) `deploy/grafana/dashboards/h4-runtime.json`'s "Hosts" row, below group 6's panels (contracts/shared-state.md §10):
+
+| Panel | Type | Query |
+|---|---|---|
+| The release on each host (FR-049) | table | `max by (h4_host, h4_release, h4_commit, h4_started_by) (max_over_time(h4_release_info[1h]))` |
+| Deployments (FR-046) | time series | `sum by (h4_host, outcome) (increase(h4_deploy_events_total[1h]))` |
+
+- **`h4_release_info`** is `h4.release.info`, a gauge of 1 each cloud host's deployer pushes on each run, labelled `h4.host`, `h4.release`, `h4.commit` (its first 12 hex), and `h4.started_by` (`deployer`), never an address, an account, or a digest.
+- **`h4_deploy_events_total`** is `h4.deploy.events`, a counter the deployer adds 1 to for each attempt it records, labelled `h4.host` and `outcome` (`deployed`, `refused`, `rolled_back`, `rollback_failed`).
+- Both reach the host's collector as OTLP/HTTP's JSON from the host itself: EC2's through `ec2-relay-block`'s 4318, the tunnel end's at its collector's address on the stack's egress bridge. The laptop's line waits for its deployer (plan.md §16, "Group 7, as built", 11): meanwhile a hand-started stack's commit and who started it are its run file's, which the laptop's status shows.

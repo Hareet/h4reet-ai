@@ -620,3 +620,16 @@ def test_the_credential_timer_comes_from_the_release() -> None:
     )
     assert "/opt/h4reet/release/ec2_host.py credentials" in service
     assert dp.HOST_STEPS["ec2"] == ("deploy/hosts/ec2/ec2_host.py", "prepare")
+
+
+def test_every_parameter_ec2s_template_reads_is_one_the_secrets_check_lists() -> None:
+    # The Author's T096 writes EC2's secrets by the names infra/parameters.txt lists, which his secrets check reads.
+    listed = {
+        line.split()[0]
+        for line in (REPO / "infra" / "parameters.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.startswith("/h4reet/")
+    }
+    wanted = set(we.wanted("ec2", template()).values())
+    assert wanted <= listed, sorted(wanted - listed)
