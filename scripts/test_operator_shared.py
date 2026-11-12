@@ -243,3 +243,22 @@ def test_the_admin_only_stack_runs_the_tunnel_with_its_one_forward_and_no_relay_
         overrides["RELAY_TOKEN_SELF"] == "" and overrides["TELEMETRY_BLOCK_TOKEN"] == ""
     )
     assert any(" down" in j or " stop " in j for j in joined)
+
+
+def test_the_admin_only_stack_stops_its_own_services_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Group 6's review, nit 4: under prod's project, `down --remove-orphans` would stop every prod container, not
+    # the three the stack started.
+    ran: list[list[str]] = []
+    monkeypatch.setattr(op, "run_docker", lambda argv, env: ran.append(argv) or 0)
+    stack = op.AdminOnlyStack(tmp_path, tmp_path / "prod.env")
+    stack.start()
+    stack.stop()
+    words = [" ".join(argv) for argv in ran]
+    assert not any(" down" in w for w in words), words
+    started = [a for a in ran if "run" in a]
+    (tunnel,) = started
+    name = tunnel[tunnel.index("--name") + 1]
+    assert [w for w in words if w.endswith("rm --stop --force gateway edge")], words
+    assert ran[-1] == ["docker", "rm", "--force", name], ran[-1]

@@ -309,6 +309,25 @@ def test_prepare_never_formats_a_volume_that_holds_a_filesystem(
     assert not [c for c in ran(host) if c.startswith(("mkfs", "mount "))]
 
 
+def test_prepare_formats_only_what_blkid_calls_blank_and_probes_no_mounted_volume(
+    world, tmp_path: Path, capsys
+) -> None:
+    # Group 6's review, nit 3: blkid exits 2 for a device with no filesystem; any other failure is no reason to
+    # format. A volume mounted already at the data folder isn't probed at all.
+    host, paths = world
+    (tmp_path / "tree").mkdir()
+    host.answer("findmnt", 1)
+    host.answer("blkid", 1)
+    assert ss.prepare(host, paths, tmp_path / "tree") == 1
+    assert not [c for c in ran(host) if c.startswith(("mkfs", "mount "))]
+    assert "blkid" in capsys.readouterr().err
+    host.calls.clear()
+    host.answer("findmnt", 0, b"/srv\n")
+    host.answer("blkid", 2)
+    ss.prepare(host, paths, tmp_path / "tree")
+    assert not [c for c in ran(host) if c.startswith(("blkid", "mkfs", "mount "))]
+
+
 def test_prepare_refuses_a_store_without_its_key_or_certificate(
     world, tmp_path: Path, capsys
 ) -> None:
