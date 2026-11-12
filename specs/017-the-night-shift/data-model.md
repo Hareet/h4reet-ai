@@ -30,7 +30,7 @@ One line, `CLAUDE_CODE_OAUTH_TOKEN=<the setup-token value>`, mode 0600, made by 
 The shape, invariants, and placeholders are in contracts/containers.md. `role` and `parent` (the lattice parent, plan §2, `ceiling`, or `runner` for the runner-only specs) are top-level keys, and `x-h4` holds `example: true` and `task` (the runner's task mounts) in the repository. The install's fill step drops `x-h4` and records the live file's SHA-256. Invariants (tested):
 - every mount, network, device, and capability is the parent's;
 - no never-mounted path, or an ancestor of one, is mounted;
-- the masks over main's settings' denyWrite paths are present in every writing spec;
+- the masks over main's settings' denyWrite paths are the runner's task mounts, for the paths that exist in the worktree; the merge-time refusal (contracts/runner.md §6) covers the absent ones and any change made through the index;
 - no `{{` survives the fill.
 
 ## Queue (`queue.json`, in the supervisor's worktree)

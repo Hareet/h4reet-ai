@@ -850,7 +850,7 @@ class TestDockerRun:
         g = str(h.repo / ".git")
         prompt = argv[argv.index("-p") + 1]
         expected = [
-            "docker", "run", "--rm", "--name", "h4-night-t-1", "--user", "1000:1000",
+            "docker", "run", "--rm", "--name", "h4-night-t-1", "--init", "--user", "1000:1000",
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
             "--tmpfs", "/tmp:rw,nosuid,size=2g",
             "--memory", "4g", "--cpus", "2", "--pids-limit", "512",
@@ -1912,3 +1912,314 @@ class TestReviewFixes:
         with pytest.raises(night.Refused) as e:
             runner.load_live_spec(role)
         assert "h4-night-engine" in str(e.value)
+
+
+# ================================================================================================================
+# The integration review (G2 fed its specs to the runner): the merge-time refusal, and the should-fixes
+# ================================================================================================================
+
+G2_SETTINGS = (nf.HERE / "fixtures" / "main-settings.json").read_text()
+
+# Paths main's settings deny or main's protected-paths.sh guards. Some are absent from a fresh worktree, so no
+# mask can cover them; others a session can change through the index and objects without touching a masked file.
+HUMAN_ONLY = [
+    ".mcp.json",  # absent from a fresh worktree, then created on the branch
+    "CLAUDE.md",  # changed through the index: hash-object -w, then update-index --cacheinfo
+    ".claude/settings.json",
+    ".claude/hooks/bash-gate.sh",
+    "REVIEW.md",
+    ".specify/memory/constitution.md",
+    "tools/gates/gate",
+    "evals/agent-config/static.py",
+    "deploy/night-shift/runner/night.py",
+    "deploy/night-shift/containers/implementer.json",
+    "deploy/env/prod.env",
+    "config/prices.yaml",
+    "makefile",
+    "GNUmakefile",
+    ".github/workflows/ci.yml",
+    ".gitleaksignore",
+    "infra/account/iam.tf",
+    "corpus/00-profile.md",
+    "assets/policy/caps.json",
+]
+NOT_HUMAN_ONLY = [
+    "apps/web/src/room.ts",
+    "corpus/proposals/x.md",
+    "specs/018-x/spec.md",
+    "Makefile",
+]
+
+
+def named_branches(fx) -> list[list[str]]:
+    n = len(nf.GIT_PREFIX)
+    return [c for c, _ in fx.git_calls() if c[n + 1 : n + 2] == ["branch"]]
+
+
+def finish(runner, fx, tid: str) -> None:
+    fx.t += 10
+    runner.schedule()
+    runner.dispatch(("line", runner.tasks[tid].key, nf.result_event()))
+    runner.dispatch(("exit", runner.tasks[tid].key, 0))
+
+
+class TestMergeTimeRefusal:
+    @pytest.mark.parametrize("path", HUMAN_ONLY)
+    def test_naming_refuses_a_stack_that_touches_a_human_only_path(
+        self, night, h, path
+    ):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01", slug="links", name="feat/018-resume-links")
+        )
+        fx.branch_changes = ["apps/web/src/room.ts", path]
+        finish(runner, fx, "res-01")
+        assert named_branches(fx) == []
+        page = nf.page_text(runner)
+        lines = [ln for ln in page.splitlines() if "touches a human-only path" in ln]
+        assert [
+            ln
+            for ln in lines
+            if ln.endswith(
+                f"touches a human-only path: {path}; the Author's patch route"
+            )
+        ]
+        assert not [ln for ln in lines if "apps/web/src/room.ts" in ln]
+        assert "feat/018-resume-links not named" in page
+
+    def test_each_path_is_one_line(self, night, h):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01", name="feat/018-resume-links")
+        )
+        fx.branch_changes = [".mcp.json", "CLAUDE.md"]
+        finish(runner, fx, "res-01")
+        nf.write_queue(
+            runner, nf.queue(nf.task("res-01", name="feat/018-resume-links"))
+        )
+        runner.load_queue()
+        page = nf.page_text(runner)
+        for p in (".mcp.json", "CLAUDE.md"):
+            assert page.count(f"touches a human-only path: {p};") == 1, p
+
+    @pytest.mark.parametrize("path", NOT_HUMAN_ONLY)
+    def test_an_ordinary_stack_is_named(self, night, h, path):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01", slug="links", name="feat/018-resume-links")
+        )
+        fx.branch_changes = [path]
+        finish(runner, fx, "res-01")
+        assert len(named_branches(fx)) == 1
+        assert "human-only" not in nf.page_text(runner)
+
+    def test_every_worker_end_is_checked(self, night, h):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01")
+        )  # no name: not a finished stack
+        fx.branch_changes = [".claude/agents/new.md"]
+        finish(runner, fx, "res-01")
+        assert (
+            "res-01 touches a human-only path: .claude/agents/new.md"
+            in nf.page_text(runner)
+        )
+
+    def test_the_diff_is_from_the_merge_base_with_main(self, night, h):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01", slug="links", name="feat/018-resume-links")
+        )
+        finish(runner, fx, "res-01")
+        n = len(nf.GIT_PREFIX)
+        bases = [c for c, _ in fx.git_calls() if c[n + 1 : n + 2] == ["merge-base"]]
+        assert bases and bases[0][-2:] == [
+            "refs/heads/main",
+            nf.sha40("refs/heads/night/res-01/links"),
+        ]
+        trees = [c for c, _ in fx.git_calls() if c[n + 1 : n + 2] == ["diff-tree"]]
+        assert trees and trees[0][-2:] == [
+            nf.sha40("merge-base"),
+            nf.sha40("refs/heads/night/res-01/links"),
+        ]
+        assert "--no-renames" in trees[0] and "-z" in trees[0]
+        reads = [c[-1] for c, _ in fx.git_calls() if "cat-file" in c]
+        assert "refs/heads/main:.claude/hooks/protected-paths.sh" in reads
+
+    @pytest.mark.parametrize("hook", [None, "#!/usr/bin/env bash\nexit 0\n"])
+    def test_an_unreadable_human_only_list_refuses_every_name(self, night, h, hook):
+        runner, fx = ready_runner(
+            night, h, nf.task("res-01", name="feat/018-resume-links")
+        )
+        fx.main_hook = hook
+        fx.branch_changes = ["apps/web/src/room.ts"]
+        finish(runner, fx, "res-01")
+        assert named_branches(fx) == []
+        assert "human-only list" in nf.page_text(runner)
+
+    def test_the_matcher_follows_the_hooks_first_match(self, night):
+        hook = nf.HOOK_FIXTURE.read_text()
+        settings = json.loads(G2_SETTINGS)
+        found = night.human_only_paths(HUMAN_ONLY + NOT_HUMAN_ONLY, settings, hook)
+        assert found == HUMAN_ONLY
+
+
+class TestNeverMountedMore:
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "{home}/.local/state/h4reet",
+            "{home}/.local/state/h4reet/agents-engine",
+            "{home}/.local/state/h4reet-ai",
+            "{home}/.local/share/h4reet/terraform-providers",
+            "/srv/studio/workflows",
+            "{home}/.gnupg",  # main's denyRead
+            "{home}/.npmrc",  # main's denyRead
+            "/mnt/c/Users",  # main's denyRead
+        ],
+    )
+    def test_a_session_spec_may_not_mount(self, night, h, host):
+        runner, fx = nf.make_runner(night, h)
+        fx.main_settings = G2_SETTINGS
+        host = host.format(home=h.home)
+        fx.present.add(host)
+        spec = h.spec_for("supervisor")
+        spec["mounts"].append({"host": host, "container": "/x", "mode": "ro"})
+        h.write_spec("supervisor", spec)
+        with pytest.raises(night.Refused):
+            runner.start_supervisor()
+        assert fx.spawned == []
+
+    def test_a_credentials_file_entry_is_never_mounted(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        settings = json.loads(G2_SETTINGS)
+        settings["sandbox"].setdefault("credentials", {}).setdefault(
+            "files", []
+        ).append({"path": "~/.config/some-tool/token"})
+        fx.main_settings = json.dumps(settings)
+        host = f"{h.home}/.config/some-tool"
+        fx.present.add(host)
+        spec = h.spec_for("supervisor")
+        spec["mounts"].append({"host": host, "container": "/x", "mode": "ro"})
+        h.write_spec("supervisor", spec)
+        with pytest.raises(night.Refused):
+            runner.start_supervisor()
+
+    def test_the_studio_may_mount_its_workflows(self, night, h):
+        runner, fx = ready_runner(night, h, nf.task("st-1", role="studio"))
+        fx.main_settings = G2_SETTINGS
+        fx.t += 10
+        runner.schedule()
+        assert runner.tasks["st-1"].state == "running"
+
+    def test_the_plan_may_mount_the_provider_mirror(self, night, h):
+        h.set_fact("NIGHT_PLAN", "on")
+        mirror = h.home / ".local/share/h4reet/terraform-providers"
+        mirror.mkdir(parents=True)
+        spec = h.spec_for("plan")
+        spec["mounts"].append(
+            {"host": str(mirror), "container": str(mirror), "mode": "ro"}
+        )
+        h.write_spec("plan", spec)
+        runner, fx = nf.make_runner(night, h)
+        fx.main_settings = G2_SETTINGS
+        assert runner.load_live_spec("plan")["image"]
+
+
+class TestThePlanContainer:
+    def test_it_mounts_the_repositorys_git_read_only_and_sets_no_aws_variable(
+        self, night, h
+    ):
+        h.set_fact("NIGHT_PLAN", "on")
+        runner, fx, t = running_task(night, h, "ops")
+        a = ask(
+            runner, t, 1, {"kind": "plan", "root": "bootstrap", "sha": nf.sha40("p")}
+        )
+        assert a["ok"] is True, a
+        argv = fx.plan_seen[0]["argv"]
+        g = str(h.repo / ".git")
+        assert (g, g, "ro") in vols(argv)
+        assert not [k for k in envs(argv) if k.startswith("AWS_")]
+
+    def test_a_plan_spec_naming_an_aws_variable_is_refused(self, night, h):
+        h.set_fact("NIGHT_PLAN", "on")
+        spec = h.spec_for("plan")
+        spec["env"]["AWS_PROFILE"] = "h4-agent-plan"
+        h.write_spec("plan", spec)
+        runner, _fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused):
+            runner.load_live_spec("plan")
+
+
+class TestInit:
+    @pytest.mark.parametrize("role", nf.SESSION_ROLES)
+    def test_every_session_runs_with_init(self, night, h, role):
+        _r, _f, _t, argv = TestDockerRun().start_role(night, h, role)
+        assert argv.index("--init") < argv.index("--user")
+
+    def test_every_helper_runs_with_init(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        runner.start_network_helpers()
+        for c in fx.docker_calls("run"):
+            assert "--init" in c, c
+
+    def test_comfyui_and_the_plan_run_with_init(self, night, h):
+        runner, fx, t = running_task(night, h, "studio")
+        ask(runner, t, 1, {"kind": "comfyui", "action": "start", "params": []})
+        comfy = [c for c in fx.docker_calls("run") if "h4-night-comfyui" in c]
+        assert comfy and "--init" in comfy[0]
+        h2 = nf.Home(h.root / "second")
+        h2.set_fact("NIGHT_PLAN", "on")
+        runner2, fx2, t2 = running_task(night, h2, "ops")
+        ask(runner2, t2, 1, {"kind": "plan", "root": "bootstrap", "sha": nf.sha40("p")})
+        assert "--init" in fx2.plan_seen[0]["argv"]
+
+
+class TestMemorySum:
+    def test_starts_stop_at_total_memory_less_eight_gb(self, night, h):
+        fx = nf.FakeFx(night, h)
+        fx.mem_total_bytes = (
+            40 * 2**30
+        )  # 32 GB to give: the supervisor's 2, then seven workers of 4
+        runner, fx = ready_runner(
+            night, h, *(nf.task(f"t-{i:02d}") for i in range(10)), fx=fx
+        )
+        for _ in range(12):
+            fx.t += 10
+            runner.schedule()
+        assert len(running_ids(runner)) == 7
+        lines = [
+            ln
+            for ln in nf.page_text(runner).splitlines()
+            if "t-07" in ln and "memory" in ln
+        ]
+        assert len(lines) == 1
+        runner.dispatch(("exit", runner.tasks["t-00"].key, 0))
+        fx.t += 10
+        runner.schedule()
+        assert runner.tasks["t-07"].state == "running"
+
+    def test_the_helpers_count(self, night, h):
+        runner, _fx = nf.make_runner(night, h)
+        runner.start_network_helpers()
+        runner.start_supervisor()
+        assert runner.mem_committed() == 2 * 2**30 + (256 + 256 + 128) * 2**20
+
+    def test_comfyui_counts_and_is_refused_over_the_sum(self, night, h):
+        fx = nf.FakeFx(night, h)
+        fx.mem_total_bytes = (
+            17 * 2**30
+        )  # 9 GB to give: the supervisor's 2 and the studio's 4 fit; ComfyUI's 4 doesn't
+        runner, fx, t = running_task(night, h, "studio", fx=fx)
+        a = ask(runner, t, 1, {"kind": "comfyui", "action": "start", "params": []})
+        assert a["ok"] is False and "memory" in a["answer"]
+        assert not [c for c in fx.docker_calls("run") if "h4-night-comfyui" in c]
+
+    def test_a_supervisor_over_the_sum_refuses_the_start(self, night, h):
+        fx = nf.FakeFx(night, h)
+        fx.mem_total_bytes = 9 * 2**30
+        runner, fx = nf.make_runner(night, h, fx)
+        with pytest.raises(night.Refused) as e:
+            runner.start_supervisor()
+        assert "memory" in str(e.value)
+
+    @pytest.mark.parametrize(
+        ("text", "n"), [("4g", 4 * 2**30), ("512m", 512 * 2**20), ("1024k", 2**20)]
+    )
+    def test_memory_limits_parse(self, night, text, n):
+        assert night.mem_bytes(text) == n

@@ -268,10 +268,89 @@ def denied_paths(settings: dict) -> list[str]:
     return out
 
 
+# Paths main's denyWrite names that a fresh worktree of main doesn't hold (G2's integration review). Docker would
+# make a mask's missing source as root, so the runner masks none of them; a session can create them on its branch, and
+# the runner's merge-time refusal (contracts/runner.md §6) is what keeps them, and any change made through the index
+# and objects, off a named stack. Read from main's tree when this checkout can; this list otherwise.
+ABSENT_IN_A_FRESH_WORKTREE = [
+    "makefile",
+    ".mcp.json",
+    ".gitleaksignore",
+    ".github/workflows",
+    "deploy/env",
+]
+
+
+def main_tree() -> set[str] | None:
+    """Every file and folder in refs/heads/main's tree, or None (an export, or no main)."""
+    if shutil.which("git") is None:
+        return None
+    done = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(REPO_ROOT),
+            "ls-tree",
+            "-r",
+            "-z",
+            "--name-only",
+            "refs/heads/main",
+        ],
+        capture_output=True,
+        env=git_env(),
+        check=False,
+    )
+    if done.returncode != 0 or not done.stdout:
+        return None
+    files = {f for f in done.stdout.decode().split("\0") if f}
+    dirs = {
+        str(PurePosixPath(*PurePosixPath(f).parts[:i]))
+        for f in files
+        for i in range(1, len(PurePosixPath(f).parts))
+    }
+    return files | dirs
+
+
+def absent(settings: dict) -> set[str]:
+    """The worktree's denied paths (resolved) that a fresh worktree doesn't hold."""
+    tree = main_tree()
+    out = set()
+    for p in denied_paths(settings):
+        if not under(p, WT):
+            continue
+        rel = p[len(WT) + 1 :]
+        if (
+            (rel not in tree)
+            if tree is not None
+            else (rel in ABSENT_IN_A_FRESH_WORKTREE)
+        ):
+            out.add(p)
+    return out
+
+
 def expected_masks(settings: dict) -> list[str]:
-    """The read-only binds a writing task needs: only where a read-write mount would otherwise cover a path."""
+    """The read-only binds a writing task needs: only where a read-write mount would otherwise cover a path, and
+    only for paths that exist (contracts/containers.md §4)."""
     out = [f"{GIT}/objects/info", f"{GIT}/worktrees/t-01/commondir"]
-    return out + [p for p in denied_paths(settings) if under(p, WT)]
+    gone = absent(settings)
+    return out + [p for p in denied_paths(settings) if under(p, WT) and p not in gone]
+
+
+def night_runner():
+    """The runner itself, loaded by path, so these tests call its real checks rather than copies of them."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "night_runner", NIGHT / "runner" / "night.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["night_runner"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+HOOK_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "protected-paths.sh.txt"
 
 
 def protected(settings: dict) -> list[str]:
@@ -552,22 +631,23 @@ def test_shape(specs: dict[str, dict], name: str) -> None:
 
 @pytest.mark.parametrize("name", ALL_SPECS)
 def test_the_runner_would_take_the_filled_spec(name: str) -> None:
-    """The live checks of contracts/runner.md §3 on the filled copy: what the install writes must start."""
+    """The runner's own live check (night.py's validate_spec, called, not copied) on the filled copy: what the
+    install writes must start, against main's settings' never-read paths too."""
     spec = filled(name)
     assert "{{" not in json.dumps(spec)
-    assert re.fullmatch(r"h4-night-[a-z0-9-]+:[A-Za-z0-9._-]+", spec["image"])
-    assert spec["user"] == "1000:1000"
-    for t in spec["tmpfs"]:
-        assert re.fullmatch(r"/[A-Za-z0-9/_.-]+(?::[a-z0-9,=]+)?", t), t
-    for k, v in spec["env"].items():
-        assert re.fullmatch(r"[A-Z_][A-Z0-9_]*", k), k
-        assert "\n" not in v and "\0" not in v
-    for m in spec["mounts"]:
-        assert set(m) == {"host", "container", "mode"} and m["mode"] in ("ro", "rw"), m
-        for p in (m["host"], m["container"]):
-            assert os.path.isabs(p) and os.path.normpath(p) == p, p
-            assert not any(c in p for c in ":,\n\0"), p
-            assert not p.endswith(".sock"), p
+    night = night_runner()
+    why = night.validate_spec(
+        spec,
+        name,
+        uid_gid="1000:1000",
+        token=fill(TOKEN_FILE),
+        home=HOME,
+        repo=REPO,
+        realpath=lambda p: p,
+        exists=lambda p: True,
+        never_extra=night.settings_never(fixture_settings(), HOME),
+    )
+    assert why is None, why
     if name in SESSION_ROLES:
         assert spec["env_file"] == fill(TOKEN_FILE)
     else:
@@ -704,7 +784,19 @@ def test_every_protected_path_stays_read_only_with_the_spec_mounts(name: str) ->
         [json.loads(b)] if (b := main_blob(".claude/settings.json")) else []
     ):
         spec = whole(name, settings)
+        gone = absent(settings)
+        hook = main_blob(".claude/hooks/protected-paths.sh")
+        hook_text = hook.decode() if hook else HOOK_FIXTURE.read_text()
         for p in protected(settings):
+            if p in gone:
+                # No mask can cover a path that isn't there. The merge-time refusal does: a stack that creates it,
+                # or changes any human-only path through the index, isn't named (contracts/runner.md §6).
+                rel = p[len(WT) + 1 :]
+                for probe in (rel, f"{rel}/x"):
+                    assert night_runner().human_only_paths(
+                        [probe], settings, hook_text
+                    ) == [probe], (name, probe)
+                continue
             assert effective(spec, p) == "ro", (name, p)
         for p in OWN_GIT:
             assert effective(spec, f"{GIT}/{p}") == "rw", (name, p)
@@ -755,6 +847,29 @@ def test_the_masks_are_only_where_a_read_write_mount_covers_a_protected_path() -
         "refs/replace",
     ):
         assert f"{GIT}/{p}" in protected(settings) and f"{GIT}/{p}" not in masks, p
+
+
+def test_the_absent_paths_are_the_merge_time_refusals() -> None:
+    """Each denied path a fresh worktree lacks is unmasked, and the runner's refusal names it instead."""
+    settings = fixture_settings()
+    gone = absent(settings)
+    assert gone, (
+        "a fresh worktree holds every denied path: then this test has nothing to show"
+    )
+    masks = expected_masks(settings)
+    rels = sorted(p[len(WT) + 1 :] for p in gone)
+    assert not [p for p in gone if p in masks]
+    assert (
+        night_runner().human_only_paths(rels, settings, HOOK_FIXTURE.read_text())
+        == rels
+    )
+
+
+def test_the_hook_fixture_is_mains_copy() -> None:
+    blob = main_blob(".claude/hooks/protected-paths.sh")
+    if blob is None:
+        pytest.skip("no refs/heads/main here (an export)")
+    assert HOOK_FIXTURE.read_bytes() == blob
 
 
 def test_the_fixture_is_mains_copy() -> None:

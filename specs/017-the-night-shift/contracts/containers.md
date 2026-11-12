@@ -30,13 +30,15 @@ Plan §1 and §2 hold the design; this file is what the tests check (`deploy/nig
    - `writing` (supervisor, spec-writer, implementer, ops): the worktree read-write, and `{{REPO}}/.git` **read-only**, with only the task's own parts of it read-write (FR-012). Those parts are `.git/objects`, `.git/worktrees/<task>`, `.git/refs/heads/night/<task>/`, and `.git/logs/refs/heads/night/<task>/`. No container mounts `.git` itself read-write: a session that could would change the repository's `commondir` and steer git outside the container (G1's review);
    - `reading` (reviewer, red-teamer, gate-runner): the worktree and `.git` read-only;
    - `none` (studio, comfyui): no worktree;
-   - `plan`: its detached worktree, read-only;
+   - `plan`: its detached worktree, read-only, and `{{REPO}}/.git` read-only (the detached worktree's `.git` file points into `.git/worktrees/`; G2's integration review);
    - every session, besides: its role's Claude folder at `/night/claude` and its io folder at `/night/io`, read-write.
 
    The masks are read-only binds, which the runner adds only where a read-write mount would otherwise cover a protected path:
    - `.git/objects/info`, which holds the alternates, over the read-write `objects`;
    - the task's own `.git/worktrees/<task>/commondir`, over its read-write folder;
-   - each worktree path that `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:.claude/settings.json` lists in `sandbox.filesystem.denyWrite`, meaning each `./` entry but `./.git/…`. The runner computes these at each start, so the masks follow main.
+   - each worktree path that `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:.claude/settings.json` lists in `sandbox.filesystem.denyWrite`, meaning each `./` entry but `./.git/…`, **that exists in the worktree**. The runner computes these at each start, so the masks follow main.
+
+   A denied path a fresh worktree lacks isn't masked: docker would make a missing source as root, in the worktree. On main today those are `makefile`, `.mcp.json`, `.gitleaksignore`, `.github/workflows`, and `deploy/env` (G2's integration review). A session can create them on its branch, and with the index and objects writable it can also commit any content for a masked path without writing the file. The **merge-time refusal** covers both (contracts/runner.md §6). At every writing session's end, and before naming a stack, the runner lists what the branch changes since its merge base with `refs/heads/main`. It refuses each path that main's denyWrite names, that main's `.claude/hooks/protected-paths.sh` guards, or that lies under `deploy/night-shift/`. So the masks keep a session from writing a protected file in place, and the refusal keeps any change to one off a named stack.
 
    Everything else in `.git` stays read-only under the read-only `.git`, with no mask. That covers `hooks`, `config`, `info`, `packed-refs`, `HEAD`, `index`, `refs/heads/main`, `refs/tags` (a tag named main would shadow the branch), `refs/replace`, `commondir`, and the other tasks' folders and branches. The tests read main's settings the same way.
 

@@ -1,0 +1,36 @@
+P-4 (spec 017, the night shift; plan.md §10; tasks.md T067): the bash gate's refusal of make plan with a ROOT names
+the night shift's route.
+
+What it changes: the refusal's message only, and a comment above it. The rule stays as it is: make plan with a ROOT is
+refused to every agent session, in every spelling it refuses today. The message now says that, once plans are on, a
+night-shift ops task writes a plan request for its runner, which plans that commit as the plan-only role; otherwise you
+run it in your terminal.
+
+Spec IDs: decision 1, FR-014 and FR-015 (plans off until your patches merge), research.md R-06.
+
+Needed for: plan on.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p4.patch
+  git show "refs/heads/$B:$F" > /tmp/p4.patch
+  sha256sum /tmp/p4.patch
+  patch -p1 --dry-run < /tmp/p4.patch
+  patch -p1 < /tmp/p4.patch
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; bash -n and
+shellcheck -x clean; the hook, fed the payload of "make plan ROOT=account", exits 2 with the new route in its message.
+No test or matrix row matches the message's text (searched).
+
+--- a/.claude/hooks/bash-gate.sh
++++ b/.claude/hooks/bash-gate.sh
+@@ -385,7 +385,8 @@
+ fi
+ if has "$make_word" && has "${tb}$(spelled plan)${te}" && # Quotes in or around the name count as part of it (make plan "ROOT"=prod), as only_dev_cpu reads ENV.
+ has "(^|[^[:alnum:]_.-])${eq}$(spelled ROOT)${eq}[[:space:]]*[:+?!]*${eq}="; then
+-  block "make plan with a ROOT, the real plan" "make plan alone runs the offline checks; $p1_route"
++  # Spec 017 (P-4): once the night shift's plans are on, its ops task asks the runner instead (ADR 0051). The rule stays.
++  block "make plan with a ROOT, the real plan" "make plan alone runs the offline checks; in the night shift, once plans are on, an ops task writes a plan request for its runner ({\"kind\": \"plan\", \"root\": …, \"sha\": …} in /night/io/out/), which plans that commit as the plan-only role; otherwise $p1_route"
+ fi
+ if has "${nb}$(spelled aws)${ne}" && { { has "${nb}($(spelled put-parameter)|$(spelled delete-parameter)|$(spelled delete-parameters))${ne}" \
+   && has "$(spelled /h4reet/)"; } || { has "${nb}$(spelled invoke)" && has "$(spelled h4-ec2-)"; }; }; then
