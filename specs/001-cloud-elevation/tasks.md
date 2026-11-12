@@ -7,10 +7,10 @@ description: "Task list for spec 001, Cloud Elevation: EC2 as prod's default hos
 
 **Input**: the documents in `specs/001-cloud-elevation/`:
 - [spec.md](spec.md): FR-001 to FR-076, SC-001 to SC-018 (SC-015 moved), User Stories 1 to 8, and Clarifications, including the Author's answers to the plan's questions 1 to 4;
-- [plan.md](plan.md): §1 to §17, the patches P-1 to P-6 and P-I1 to P-I6, the task groups of §16, and its risks;
+- [plan.md](plan.md): §1 to §17, the patches P-1 to P-6, P-I1 to P-I7, P-G1, P-G2, and P-W2, the task groups and four gates of §16, and its risks;
 - [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/), and [quickstart.md](quickstart.md).
 
-It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11-09 after `/speckit-analyze` over 8acc2686: the tasks are renumbered, and the note's 2026-11-09 section maps the old numbers to the new. **Regrouped on 2026-11-13,** in W1's first commit, for the Author's four gates (Organization; plan.md §16, "Four gates"; the note `docs/merge-requests/2026-11-13-spec-001-w1-regroup.md`). No ID is renumbered. New tasks start at T156.
+It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11-09 after `/speckit-analyze` over 8acc2686: the tasks are renumbered, and the note's 2026-11-09 section maps the old numbers to the new. **Regrouped on 2026-11-12,** in W1's first commit, for the Author's four gates (Organization; plan.md §16, "Four gates"; the note `docs/merge-requests/2026-11-13-spec-001-w1-regroup.md`). No ID is renumbered. New tasks start at T156.
 
 **Prerequisites**:
 - **T000** (the Author's approval of spec.md and plan.md) comes before every other task. CLAUDE.md: "Never write code without an approved `specs/NNN-*/spec.md` and `plan.md`."
@@ -22,7 +22,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 **Tests**: required. In each group the test tasks come first and must fail (RED) before the code that makes them pass (GREEN), and the branch's note records both runs. Terraform has no agent-run tests beyond the offline checks: `terraform test` is refused to agents (FR-006). Its proofs are the policy's fixtures, `make infra-check`, the redacted plan in the note, and the Author's quickstart runs.
 
-**Organization** (regrouped 2026-11-13):
+**Organization** (regrouped 2026-11-12):
 - **Eleven groups, four gates.** The groups stay as plan §16 lists them, built in that order. They merge through four gates, by the Author's answers: "Let's do the least amount of gates as possible", then "4 gates in all (Recommended)", and, on building later groups in parallel, "Might as well do it in our original order" (spec.md Assumptions, "Four gates for spec 001"):
   - **Gate A:** groups 1 to 4, merged and applied on 2026-11-12, with the fixes after it (T150 to T156).
   - **W1:** groups 5 to 10. Each group's branch is stacked on the one before, starting from this regrouping commit (`spec/001-w1-regroup`), each in its own worktree. One gate takes the Author's `-p` copy of group 10's tip, with W1's patches (T171, T172). A resource that needs an earlier apply waits behind a switch, `local.wired = false` (plan §16, "Why a switch").
@@ -50,7 +50,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - `config/budgets.yaml`, `config/prices.yaml`, and `config/alerts.yaml`;
   - the protected Terraform files: `iam*.tf`, `budgets*.tf`, `alerts*.tf`, `killswitch*.tf`, `handover*.tf`, `failover*.tf`, `ec2-market*.tf`, `edge-limits*.tf`, and `infra/policy/**`.
 
-  An agent task writes such a change as a `.patch` beside the branch's note. The plan's patches keep their names, P-1 to P-6 (plan §14); the protected Terraform arrives as P-I1 to P-I6, one per group that has any. From W1 there are three more: P-I7, group 6's, which had none before (T073); P-G1, the policy's list of taggable types (T158); and P-W2, the switch-on (T175). It builds the patch from plain copies (`git show`, `git diff --no-index`), never by `git apply` or a write into any worktree.
+  An agent task writes such a change as a `.patch` beside the branch's note. The plan's patches keep their names, P-1 to P-6 (plan §14); the protected Terraform arrives as P-I1 to P-I6, one per group that has any. From W1 there are four more: P-I7, group 6's, which had none before (T073); P-G1, the policy's list of taggable types (T158); P-G2, the guards for W1's new Author-only targets (T165); and P-W2, the switch-on (T175). It builds the patch from plain copies (`git show`, `git diff --no-index`), never by `git apply` or a write into any worktree.
 
 ## Path conventions
 
@@ -166,7 +166,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the "to confirm" lines, the tunnel end's Elastic IP among them.
 
   Then set the server budget's figure as `TF_VAR_server_budget_usd` in `~/.config/h4reet-ai/infra/bootstrap.env`. He records his prices on the branch, in his own commit. Check: research.md R-05's lines carry his prices and their dates, with the figure where he chooses to record it (FR-021, FR-022) (feat/001-measure)
-  - **Done 2026-11-11** (2d6cdc4c; the combined note's status): the figure, in his words, "$45, with 12 h a day", confirmed "Keep 12 h a day, $45" (research.md R-05). RDS's line is gone since his answer "Postgres in a container on the tunnel end"; the lines W1 adds are priced in T167.
+  - **Done 2026-11-11, but for the confirmations** (2d6cdc4c; the combined note's status). The figure, in his words: "$45, with 12 h a day", confirmed "Keep 12 h a day, $45" (research.md R-05). R-05's prices of 2026-11-11 come from trackers and summaries, not AWS's pages, and are each marked "to confirm". Those confirmations move to T167, with the lines W1 adds. RDS's line is gone since his answer "Postgres in a container on the tunnel end".
 
 ### Close
 
@@ -352,8 +352,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - **From W1** (plan.md §16, "No root holds another root's instance or health-check ID"):
     - the warning rule is prod's, in `infra/prod/handover.tf`, with the instance's ID from the same root, not the account's;
     - `infra/prod/handover.tf` and `infra/account/handover.tf` each hold `local.wired = false`;
-    - nothing under `infra/account` names an instance or health-check ID, nor reads prod's state;
-    - the tunnel end's type is the local T166's measurement sets, not `t4g.micro` by default.
+    - **both directions:** nothing under `infra/account` names a prod instance or health-check ID, nor reads prod's state; and nothing in `infra/prod` reads, by a data source or a remote state, what the account's W1 apply makes. Prod names the account's repositories only by their name-built ARNs. The account's own rehearsal instance, `h4-rehearsal-instance`, and its references in the account's `killswitch.tf` are the account's, and exempt;
+    - **the tunnel end's type** is a named local, `local.tunnel_end_type`, in the unprotected `infra/prod/tunnel-end.tf`, holding the placeholder `"measure-in-T166"`. The instance in the protected `ec2-market.tf` reads it, and no other file sets a type. A `precondition` on that instance refuses the placeholder, so prod's plan (T171) fails until T166 sets the local. The test checks the local's place, the reference, and the precondition. Group 5 asserts no measured type.
 
 ### Implementation
 
@@ -363,6 +363,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T050 [US4] Write `deploy/otel/collector-tunnel-end.yaml` and the collector's service in the `tunnel-end` profile. Check: T045 passes (FR-060) (feat/001-tunnel-end)
 - [ ] T051 [US4] Write `infra/prod/{main,network,tunnel-end,ssm}.tf`. Write `ec2-market.tf` (the tunnel end's spot options), `iam.tf` (its role), and the warning rule in `infra/account/handover.tf` as P-I3. Check: on a patched copy, T046 passes, and `make infra-check` passes (feat/001-tunnel-end)
   - **From W1:** the warning rule goes in `infra/prod/handover.tf`, with `local.wired = false`. `infra/account/handover.tf` starts with the account's `local.wired = false`. P-I3 also carries T161's two files.
+  - **The repositories the tunnel end pulls from** (the review's I4): `infra/account/registry.tf`'s `stack` list gains `tunnel` (both ends' image), `relay` (group 8), and `snapshot` (the sink and the publisher, groups 9 and 10). The deployer's first pull needs them before those groups' images exist. Test-first in `infra/test/test_account.py`: each image a `tunnel-end`-class service runs has its repository, tagged, with the lifecycle policy the others have.
 - [ ] T052 [P] [US4] Write `make tunnel-keys` (the client key, the host key, the relay's host tokens, `SNAPSHOT_SINK_TOKEN`, and `TELEMETRY_BLOCK_TOKEN`), `make tunnel-revoke`, and `make cloud-session HOST=ec2|tunnel-end` (a Systems Manager port-forwarding session; FR-050), all Author-only, and `h4.tunnel.up` and `h4.tunnel.reconnects` from both ends. Check: their unit tests pass; the bash gate refuses them in an agent session (FR-050, FR-055, FR-060) (feat/001-tunnel-end)
 - [ ] T053 [P] [US4] Add the "Hosts" row's first panels to the provisioned dashboard: the tunnel's state and reconnects, and telemetry delayed or lost (the tunnel end's collector's queue and drop counters) (plan §11). Check: the dashboard's provisioning test passes with them (FR-060) (feat/001-tunnel-end)
 - [ ] T054 [P] [US4] Add the disclosure rows S16, S17, and C3, and S1's change, in the same commit as T047; C15 in the same commit as T050; the tunnel end's egress rows and C7's tunnel-end part (its deployer, ECR, the secrets store, Systems Manager, and SNS) in the same commit as T049. Write `docs/runbooks/tunnel-end.md` (a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot interruption; a move to another zone) and the laptop runbook's tunnel part. Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-tunnel-end)
@@ -392,8 +393,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Documents first
 
-- [ ] T162 [US2] Amend the documents that name RDS, before the code, each passage marked "(amended 2026-11-13; spec.md Assumptions, "The shared state on the tunnel end")":
-  - contracts/shared-state.md: §1 becomes the `shared-state` service and its volume; §2's roles without `h4admin`; §3's TLS against the shared state's CA; §8's restore from the last backup;
+- [ ] T162 [US2] Amend the documents that name RDS, before the code, each passage marked "(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")":
+  - contracts/shared-state.md: §1 becomes the `shared-state` service and its volume; §2's roles without `h4admin`; §3's TLS against the shared state's CA; §8's restore from the last backup, fetched by a presigned GET made in the Author's terminal (T164);
   - contracts/tunnel.md: `PermitOpen` `shared-state:5432`;
   - contracts/env-cloud.md: `GATEWAY_DB_URL`'s host, `GATEWAY_DB_TLS_SERVERNAME`, and the CA certificate's name in each env file;
   - data-model.md §1;
@@ -466,7 +467,25 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T073 [US2] Write `infra/prod/rds.tf`, and the RDS endpoint's permit in the tunnel's server configuration. Check: T066 passes; `make infra-check` passes (feat/001-shared-state)
   - **Rewritten for W1:** write `infra/prod/shared-state.tf` (the data volume, its attachment, the backups' bucket, and 5432's rule), and the tunnel end role's bucket and Parameter Store grants in prod's `iam.tf`, as P-I7, group 6's protected patch: the group had no protected file before, and the number comes after P-I6 so that no other patch is renamed. No `rds.tf`. The tunnel's permit is `shared-state:5432` (T041). Check: T066 passes; `make infra-check` passes.
 - [ ] T164 [US2] Write the `shared-state` service in `deploy/compose.yaml`'s `tunnel-end` profile, its configuration, and the tunnel end's host parts: the volume's mount, the certificate's write to tmpfs from Parameter Store, and the backup timer. Write `make shared-state-tls` (the CA in `~/.config/h4reet-ai/shared-state/`, the server's key and certificate for Parameter Store, the CA certificate for each env file), `make shared-state-roles` (rewritten for the tunnel end), and `make shared-state-restore`, each Author-only. Add `shared_state_backup_failed` to contracts/aws-alerts.md §2 with its runbook section. Check: T163 passes (FR-019, FR-056, FR-060) (feat/001-shared-state)
-- [ ] T165 [US2] List every secret name groups 5 and 6 add, and check each against `.claude/settings.json`'s `credentials.envVars` and P-1's matrix rows. The design adds none: the superuser has no password over TCP, the TLS key is a file on tmpfs, and the four role passwords are P-1's `DB_*_PASSWORD` names. If the build finds one after all, write its deny by name as a patch for the Author's hand, from plain copies, to apply before he writes its value (CLAUDE.md: a secret "gets its deny in the same patch that creates it, or an earlier one"). Check: the note lists each name and its deny (FR-011) (feat/001-shared-state)
+  - **The repository** (the review's I4): `infra/account/registry.tf`'s `stack` list gains `shared-state`, the copy of spec 000's pinned Postgres image by its index digest, test-first in `infra/test/test_account.py`.
+  - **The restore's fetch** (the review's I8; plan.md §16, "The shared state on the tunnel end", Restore):
+    - `make shared-state-restore` runs in the Author's terminal. It lists the backups' prefix with his session and picks the dump he names, or the latest;
+    - it makes a presigned GET for that one object, valid for 15 minutes, and passes it to the tunnel end in a Systems Manager command;
+    - the command fetches the dump, empties `shared-state`, and loads the dump over the socket. It prints neither the URL nor the dump.
+
+    The tunnel end's role still only puts. T163's cases gain: the URL's expiry at 15 minutes; one object only; nothing of the URL in the target's output; and a refusal while EC2 runs or the laptop's prod does (contracts/shared-state.md §8, step 1).
+- [ ] T165 [US2] List every secret, secret name, and Author-only target groups 5 and 6 add, and check each against `.claude/settings.json`'s denies and `credentials.envVars`, the bash gate, and P-1's matrix rows. The design adds no new environment name: the superuser has no password over TCP, and the four role passwords are P-1's `DB_*_PASSWORD` names. The note's table holds at least these:
+
+  | Item | Where it lives | Deny status |
+  |---|---|---|
+  | the shared state's CA key | `~/.config/h4reet-ai/shared-state/`, in the Author's terminal | denied: spec 000's `Read(~/.config/h4reet-ai/**)` and the sandbox's deny of that folder |
+  | the server's TLS private key | made there by `make shared-state-tls`; written by him to the SecureString `/h4reet/tunnel-end/SHARED_STATE_TLS_KEY` | the folder is denied; Parameter Store is AWS's, which agent sessions don't reach (`AWS_*` in `credentials.envVars`, no cloud call); Terraform never reads it (rule T9) |
+  | the same key on the tunnel end | `/run/h4reet/shared-state/server.key`, on tmpfs, mode 0400, owned by the container's user, written by the host script at each boot | outside any agent's reach: a cloud host. Not in any image, log, or env file |
+  | the server's certificate and the CA certificate | `/h4reet/tunnel-end/SHARED_STATE_TLS_CERT`; the CA certificate in each env file | public material; no deny needed |
+  | `make shared-state-tls`, `make shared-state-restore` | new Author-only targets | **not yet guarded:** no bash-gate rule or matrix row names them. Hence P-G2 |
+  | the restore's presigned URL | the Author's terminal, then one Systems Manager command | a 15-minute bearer credential, never written to a file or printed |
+
+  Write **P-G2** for the Author's hand, from plain copies: both new targets' rules in `.claude/hooks/bash-gate.sh`, and their rows in `redteam/forbidden-actions.sh` and `tools/gates/matrix-required.txt`, in every spelling the gate already covers, with a gap row for any that gets through. It applies before W1's gate (T171). If the build finds a new environment name after all, its deny by name goes in P-G2 too, before he writes its value (CLAUDE.md: a secret "gets its deny in the same patch that creates it, or an earlier one"). Check: the note holds the table; on a patched export the matrix refuses both targets in each spelling (FR-006, FR-011) (feat/001-shared-state)
 - [ ] T074 [P] [US2] Amend the other specs by name, in this branch, since its code needs them (plan §13), each passage marked "(spec 001)":
   - spec 000's FR-030 (the sub-budget is the laptop's fallback rule) and FR-031 (one shared meter for prod, in the account), its contracts/config-files.md (R1), contracts/env-files.md (`H4_HOST`, `GATEWAY_DB_URL`), its operator actions (`restore`), and data-model.md (§2 to §7: the shared store, `host`);
   - spec 010's FR-001 and FR-026, and its Out list;
@@ -476,7 +495,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T075 [P] [US2] Add the shared state's panel to the "Hosts" row: latency and errors per host (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-shared-state)
   - **From W1:** and the last good backup's age, `h4.shared_state.backup_age_seconds`.
 - [ ] T076 [P] [US2] Add the disclosure rows C2 and C13, and S2's shared-state change, in the same commit as T068.
-  - **From W1:** C2 in T162's words, and C16, the backups, in the same commit as T164's backup timer; the tunnel end's egress rows gain S3 for the backups' bucket. `docs/runbooks/shared-state.md`'s restore is from the last backup (contracts/shared-state.md §8, as T162 amends it), and its move of the tunnel end to another zone is that restore. Write `docs/runbooks/shared-state.md` (unreachable; the move; a restore from backup, with contracts/shared-state.md §8's five steps), and the laptop runbook's sentence that prod needs the network and an offline demo runs `make up ENV=dev` (plan Q4). Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-shared-state)
+  - **From W1:** C2 in T162's words, and C16, the backups, in the same commit as T164's backup timer; the tunnel end's egress rows gain S3 for the backups' bucket. `docs/runbooks/shared-state.md`'s restore is from the last backup (contracts/shared-state.md §8, as T162 amends it), and its move of the tunnel end to another zone is that restore. The data volume's `prevent_destroy` blocks a plan that replaces it, so the move is a reviewed change: a second volume in the new zone, filled from the last backup, with the old one kept until a later change lifts its `prevent_destroy` (plan.md §16). Write `docs/runbooks/shared-state.md` (unreachable; the move; a restore from backup, with contracts/shared-state.md §8's five steps), and the laptop runbook's sentence that prod needs the network and an offline demo runs `make up ENV=dev` (plan Q4). Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-shared-state)
 
 ### The Author's plan block
 
@@ -543,7 +562,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   Check: RED (FR-013, FR-023, FR-069) (feat/001-us6-ec2)
   - **From W1** (plan.md §16, "Four gates"):
     - the server action and its execution role are prod's, in `infra/prod/killswitch.tf`, with EC2's ID from the same root, so a replace updates them in its own plan;
-    - the model action's second target stays in the account's `killswitch.tf`, by the role's name, behind the account's `local.wired`, since the role is made by W1's prod apply;
+    - the model action for `h4-prod-gateway` is prod's too, in the same file (T180). The account's model action gains no target;
+    - `aws_ec2_instance_state.ec2_w1`, `state = "stopped"`, with `count = local.wired ? 0 : 1`, so W1's apply makes EC2 stopped (spec.md Assumptions, "From W1 to W2");
+    - `/h4reet/prod/ec2-instance-id`, a String parameter holding EC2's ID, in `infra/prod/handover.tf`;
     - `terraform_data.ec2_generation`, from `local.ec2_generation = 1`, is in EC2's `replace_triggered_by` (T097);
     - the data volume is a resource of its own, kept across a replace;
     - EC2's root and data volumes carry `project` and `component` (T154).
@@ -561,7 +582,15 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T087 [US6] Write `deploy/hosts/` for EC2: cloud-init, systemd units (the deployer at boot, the egress proxy, the credential timer for `h4-prod-gateway`), nftables, and `daemon.json`. Add the `ec2` class to compose and preflight, and extend `write_env.py`. Check: T081 and T086 pass (feat/001-us6-ec2)
 - [ ] T088 [US6] Extend `deploy/scripts/deployer.py` and `release.py`. Check: T082 and T083 pass (feat/001-us6-ec2)
 - [ ] T089 [US6] Write `infra/prod/ec2.tf`. Write `ec2-market.tf` (EC2's spot), `iam.tf` (EC2's roles), and `killswitch.tf` (the model action's second target, the server action) as P-I4. Check: on a patched copy, T084 passes, and `make infra-check` passes (feat/001-us6-ec2)
-  - **From W1:** P-I4 holds `infra/prod/killswitch.tf` (the server action and its role), and the account's `killswitch.tf` with the second target behind `local.wired`. `ec2.tf` holds the generation's `terraform_data`, and the volumes' tags.
+  - **From W1:** P-I4 holds `infra/prod/killswitch.tf`, with the server action, EC2's model action, and their two execution roles (T180), and `infra/prod/handover.tf`'s parameter. `ec2.tf` holds the generation's `terraform_data`, `aws_ec2_instance_state.ec2_w1`, and the volumes' tags. The account's `killswitch.tf` doesn't change.
+  - **Every image a host runs has its repository** (the review's I4): a test in `infra/test/test_account.py` reads each host class's services from `deploy/compose.yaml`, EC2's among them, and checks each image in `registry.tf`'s lists. T051 and T164 add the tunnel end's, and T122 the functions'.
+- [ ] T180 [US2] EC2's model action, in prod (FR-023; plan.md §16, W1's departure 10; ADR 0049, proposed). Tests first, in `infra/test/test_prod_ec2.py`, with fixtures:
+  - an `aws_budgets_budget_action` on `h4-model-month` by its name, at 100% of actual, automatic, `APPLY_IAM_POLICY`, attaching `h4-deny-paid-models` to `h4-prod-gateway` alone, tagged;
+  - its own execution role, which may attach and detach that one policy on that one role, and trusts `budgets.amazonaws.com` for this account alone;
+  - both in `infra/prod/killswitch.tf`, made in the same plan as `h4-prod-gateway`;
+  - no target added to the account's model action.
+
+  Then write it into P-I4, and a runbook line in `docs/runbooks/aws-budget-action.md`: the reverse of each of the two model actions. Check: RED, then GREEN on a patched copy; `make infra-check` passes. In W1's plan, confirm that one budget may hold two actions of the same type; if it may not, the fallback is the account's second target behind the switch, with EC2 stopped meanwhile (feat/001-us6-ec2)
 - [ ] T090 [P] [US3] Write the SC-017 harness, `evals/sc017_ec2_routes.py`, reading a routing fixture with EC2's route until the Author's line is in. Check: T085 passes against stand-ins (feat/001-us6-ec2)
 - [ ] T091 [P] [US6] Add the release panel to the "Hosts" row: the release on each host, and who started a hand-started stack (plan §11; FR-049). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us6-ec2)
 - [ ] T092 [P] [US5] Make the disclosure's EC2 changes in the same commit as T087:
@@ -575,7 +604,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### The Author's plan block
 
 - [ ] T093 Author: as T027, with P-I4, for `ROOT=prod` (EC2) and `ROOT=account` (the model action's second target and the server action). Check: as T027 (feat/001-us6-ec2)
-  - **Impossible as written:** the account's half named EC2's instance, for the server action, and `h4-prod-gateway`, for the second target, before prod's apply made either. **Combined (W1):** the server action moves to prod, beside EC2 (T084), so it's in prod's block in T171. The second target waits behind the account's switch, and is planned in W2's account block (T176).
+  - **Impossible as written:** the account's half named EC2's instance, for the server action, and `h4-prod-gateway`, for the second target, before prod's apply made either. **Combined (W1):** the server action moves to prod, beside EC2 (T084). EC2's model action is a second action on `h4-model-month`, also prod's (T180), in place of a second target. So the group's resources are all in prod's block in T171, and the account's block gains nothing from this group.
 
 ### Close
 
@@ -583,10 +612,17 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T095 Author: apply P-I4 on the branch, as in T093. Then add EC2's route line to `config/routing.yaml`, `ec2: { first: anthropic, second: bedrock }` (contracts/env-cloud.md §4), in his own commit on the branch: ADR 0041 makes prod's route change his, so no agent writes it. Gate; merge. Check: the gate passes, `make test`'s placeholder gate among it, over the `ec2` route with his adopted F3 words (FR-068) (feat/001-us6-ec2, then main)
   - **Combined (W1):** P-I4 on W1's `-p` branch, and his route line in his own commit there, before T171's blocks; W1's one gate (T172).
 - [ ] T096 Author: on `main`, verify, apply, and record both roots. Write EC2's secrets, among them the Anthropic key in Parameter Store. Set the Anthropic account's monthly spend limit at or under $20 where the account offers one, and record that it is set (FR-073). Run the first `make release`, then start EC2 from the console (`make ec2-start` arrives in group 9). Check: quickstart §7 (FR-068) (main)
-  - **Combined (W1):** the applies are T173's; prod's makes EC2, which starts as it is made. Then the secrets, the limit, and the release, after the move (T080). EC2's deployer finds the release at its next poll, or the Author restarts it. Until W2 nothing starts or stops EC2 but his hand, so the task ends, after T097's SC-017, with `make ec2-stop` (plan.md §16, "Between W1's applies and W2's").
+  - **Combined (W1):** the applies are T173's; prod's makes EC2 stopped (`aws_ec2_instance_state.ec2_w1`; spec.md Assumptions, "From W1 to W2"). Then the secrets, the limit, and the release, after the move (T080). He starts EC2 from the console, inside the hours, for T097's SC-017 and T115's red-team runs, and its deployer takes the release at boot. The task ends with `make ec2-stop` (plan.md §16, "Between W1's applies and W2's").
 - [ ] T097 Author: run SC-017's recorded run, then destroy and recreate EC2. Check: SC-017; SC-005, the digests match and the shared state is unchanged (main)
   - **Impossible as written:** nothing could destroy and recreate EC2. `make infra-verify` applies only a saved plan whose block a merged note holds for `infra/`'s tree, and a `-replace` plan of an unchanged tree is a second block for the same tree, which no note can hold (plan.md §16, group 4's departure 4). And had the account root named EC2's ID, the replace would have left it on a gone instance.
-  - **Fixed (plan.md §16, W1's departure 6):** SC-017's run stays in W1, after T096. The replace is a reviewed change in W2: `local.ec2_generation` from 1 to 2 (T175), so W2's prod block shows EC2 replaced and the server action updated with it, and nothing in the account changes. Check SC-005 after W2's apply (T178): the new EC2's digests match the release's, and `make operator-status ENV=shared` matches its reading before the apply. Whether the provider cancels the persistent spot request on the replace, so that AWS doesn't launch a second instance, is to confirm in W2's plan.
+  - **Fixed (plan.md §16, W1's departure 6):** SC-017's run stays in W1, after T096. The replace is a reviewed change in W2: `local.ec2_generation` from 1 to 2 (T175), so W2's prod block shows EC2 replaced and the server action updated with it, and nothing in the account changes. Check SC-005 after W2's apply (T178): the new EC2's digests match the release's, and `make operator-status ENV=shared` matches its reading before the apply.
+  - **The old spot request** (the review's I6; plan.md §16, W1's departure 13). Whether the provider cancels a persistent spot request when it destroys the instance is to confirm. If it doesn't, AWS may launch a second instance from it, which Terraform doesn't manage. So the runbook's step after the replace, in `docs/runbooks/ec2.md` (T128):
+    1. find the old instance's spot request (`aws ec2 describe-spot-instance-requests`, by the old instance's ID from the apply record), and cancel it if it is still open;
+    2. check that exactly one instance carries `h4-prod-ec2`, the one `/h4reet/prod/ec2-instance-id` names, and that no instance the request launched is left, tagged or not;
+    3. record both in the apply record.
+
+    The guard also stops any running tagged instance the parameter doesn't name, and alerts `ec2_unrecognised_instance` (T117).
+    That kind arrives with the guard, test-first: its row in contracts/aws-alerts.md §2 (who sends it: `h4-ec2-guard`; a running instance tagged `h4-prod-ec2` that `/h4reet/prod/ec2-instance-id` doesn't name, stopped; the page `ec2.md`) and its notice in the alert bridge, in P-I6. The bridge's test holds every kind the contract lists to a notice, so the row can't land before the bridge's patch (W1's `make check`, 2026-11-12).
 
 ---
 
@@ -626,7 +662,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   Check: RED (FR-027 to FR-029, FR-061) (feat/001-us3-us5-edge)
   - **From W1** (plan.md §16, "Four gates"; T115's fix):
     - the zone and its name servers' output are made without the switch;
-    - behind prod's `local.wired`: the certificate, its validation records and `aws_acm_certificate_validation`, the distribution, its VPC origin, and the alias records;
+    - behind prod's `local.wired`: the certificate, its validation records and `aws_acm_certificate_validation`, the distribution, its VPC origin, the alias records, and the site's and the public view's bucket policies, whose `aws:SourceArn` is the distribution's. The buckets themselves, and their public access blocks, don't wait;
     - behind the account's: the probe's schedule enabled, and the probe's alarm with missing data breaching (group 4's departure 2).
 
     The checks pass with each switch off and on.
@@ -644,18 +680,20 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### The tunnel end, measured, and the new lines priced (W1)
 
-- [ ] T166 Measure the tunnel end's five services on dev-cpu, as T016 measured the stack: `tunnel-end`, `relay`, `snapshot-sink`, the collector, and `shared-state`, under the relay's load at the gateway's global metered limit, against a stub host. Record each service's peak, and the data volume's size after the run, in research.md R-33 and the note. Name the smallest arm64 type that fits by memory alone (R-20 expects `t4g.small`, 2 GiB), set the tunnel end's type local to it, and write no price. This replaces T115's "Confirm the tunnel end's measured memory on its `t4g.micro`", since the type is in prod's block (plan.md §16, W1's departure 7). Check: the record names the type and the run's length and load; T046 passes with the local set (FR-021, FR-052) (feat/001-us3-us5-edge)
+- [ ] T166 Measure the tunnel end's five services on dev-cpu, as T016 measured the stack: `tunnel-end`, `relay`, `snapshot-sink`, the collector, and `shared-state`, under the relay's load at the gateway's global metered limit, against a stub host. Record each service's peak, and the data volume's size after the run, in research.md R-33 and the note. Name the smallest arm64 type that fits by memory alone (R-20 expects `t4g.small`, 2 GiB), and write no price. Set `local.tunnel_end_type` in `infra/prod/tunnel-end.tf` to it, in place of T046's placeholder. That file isn't protected, so no patch changes: `ec2-market.tf` only reads the local. This replaces T115's "Confirm the tunnel end's measured memory on its `t4g.micro`", since the type is in prod's block (plan.md §16, W1's departure 7). Check: the record names the type and the run's length and load; T046 passes with the local set (FR-021, FR-052) (feat/001-us3-us5-edge)
 - [ ] T167 Author: price, from AWS's pages in his terminal, the lines W1 adds or changes in research.md R-05:
   - the tunnel end at T166's type, on spot, in place of `t4g.micro`;
   - its data volume, and the backups' storage (question 4);
-  - the "to confirm" lines W1's resources use: the health check, the alarms, CloudFront's VPC origin, Scheduler, and EventBridge's rules on AWS events.
+  - the "to confirm" lines W1's resources use: the health check, the alarms, CloudFront's VPC origin, Scheduler, and EventBridge's rules on AWS events;
+  - T017's confirmations: each R-05 line priced on 2026-11-11 from trackers or summaries, `t4g.large`'s spot price among them, read again from AWS's pages or `aws ec2 describe-spot-price-history`.
 
-  Then confirm that the $45 figure holds, or set a new one in `~/.config/h4reet-ai/infra/bootstrap.env`, as at T017. RDS's lines and its secret go. Check: R-05's lines carry his prices and their dates (FR-021) (feat/001-us3-us5-edge)
+  Then confirm that the $45 figure holds, or set a new one in `~/.config/h4reet-ai/infra/bootstrap.env`, as at T017. RDS's lines and its secret go. Check: R-05's lines carry his prices and their dates, and none is still "to confirm" (FR-021) (feat/001-us3-us5-edge)
+- [ ] T179 Amend spec.md's Expected Cost Impact with T167's prices: the server budget's paragraph and the rows for EC2, the tunnel end, and the shared state's store. They already name the hours, the larger tunnel end, the data volume, and the backups, since the regrouping (2026-11-12), but without prices. Check: each row's figure is T167's, with its date; the figure is the Author's (FR-021) (feat/001-us3-us5-edge)
 
 ### The Author's plan block
 
 - [ ] T112 Author: as T027, with P-I5, for `ROOT=prod` (the edge) and `ROOT=account` (the probe's schedule). Check: as T027 (feat/001-us3-us5-edge)
-  - **Impossible as written:** the edge's plan held the certificate and the distribution, which need the name servers to point at a zone that only this apply makes (T115). And enabling the probe before the site answers would page every five minutes. **Combined (W1):** the zone and CloudFront's policies are in prod's block in T171. The certificate, the distribution, the records, and the probe are W2's (T176).
+  - **Impossible as written:** the edge's plan held the certificate and the distribution, which need the name servers to point at a zone that only this apply makes (T115). And enabling the probe before the site answers would page every five minutes. **Combined (W1):** the zone, the buckets, and CloudFront's policies are in prod's block in T171. The certificate, the distribution, the records, the buckets' policies, and the probe are W2's (T176).
 
 ### Close
 
@@ -692,18 +730,19 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### The hours, first
 
 - [x] T168 Write ADR 0048, proposed, at the next free number in `docs/adr/README.md` (0048 at 4785107e), with its index row: EC2 on 12 hours a day, two schedules that invoke the start function and the guard, and the hours as a check in both. It quotes the Author's three answers verbatim, extends ADR 0027's decision 1, and leaves the zone to question 1a. Check: the docs-links check passes; the ADR quotes his words (FR-062, FR-069) (spec/001-w1-regroup)
-  - **Done** in W1's first commit, 2026-11-13. It's accepted with W1's merge, once it holds his answers.
+  - **Done** in W1's first commit, 2026-11-12. It's accepted with W1's merge, once it holds his answers.
 - [ ] T169 Amend spec.md by name, after his answers to questions 1a, 2, and 3, each passage marked "(amended; ADR 0048)":
   - FR-065: the start function also refuses outside the hours;
   - FR-069: the list of what starts and stops EC2 gains the two schedules, which act only through the functions;
   - FR-071: the guard also stops EC2 outside its hours;
+  - FR-070's provisional reading: the guard's role reads "the health check's status" as the alarm `h4-laptop-away`'s state, by its name, and both functions read `/h4reet/prod/ec2-instance-id`; the guard may stop any instance tagged `h4-prod-ec2`, to stop one it doesn't recognise (research.md R-15, amended);
   - FR-059 and FR-065's dashboard: the hours, and each scheduled start and stop;
   - Degraded Modes: a row, "EC2 outside its hours, and the laptop off": the site, the resting message, and the public view's "no host serving"; for the operator, the scheduled outcomes on the dashboard;
   - Edge Cases: a start at the hours' open that fails for want of spot capacity;
-  - contracts/handover.md §2 to §4, and research.md R-29 and R-30.
+  - the hours in contracts/handover.md §3 and §4, and research.md R-29 and R-30. Where the moved resources live is amended already, in W1's first commit (contracts/handover.md §2, contracts/aws-alerts.md §4, research.md R-02, R-15, and R-22).
 
   Check: the docs-links check passes; ADR 0048 and the spec agree (feat/001-us4-us7-handover)
-- [ ] T170 [US8] Only if his answer to question 1b is that the site states the hours: extend `services/relay/test/**` and `apps/web`'s `/status/` tests so that the status document carries the hours, in the zone his answer names, read from one place in the release's configuration. The room's resting words stay spec 002's, in his words (P-5). Then make them pass. Check: RED, then GREEN; FR-038 holds, since the hours are the system's, not a fact about the Author (feat/001-us4-us7-handover)
+- [ ] T170 [US8] Only if his answer to question 1b is that the site states the hours: extend `services/relay/test/**` and `apps/web`'s `/status/` tests so that the status document carries the hours, in the zone his answer names, read from `local.ec2_hours` only. No second copy is kept in the release's configuration: `snapshot-sink`'s cloud part reads the two schedules, `scheduler:GetSchedule` on their names, which `local.ec2_hours` sets, and the tunnel end's role gains that one read. The room's resting words stay spec 002's, in his words (P-5). Then make them pass. Check: RED, then GREEN; FR-038 holds, since the hours are the system's, not a fact about the Author (feat/001-us4-us7-handover)
 
 ### Tests first
 
@@ -721,7 +760,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - `outside_hours` after `paused` and before `server_budget_stopped`, for every trigger, and for a hand start as question 2's answer says;
     - `from: hours_open` runs the `laptop_serving` check;
     - the window comes from one environment value, which `local.ec2_hours` sets. The cases cover both of question 1a's zones, a day on each side of each daylight-saving change, and each edge of the window. Whether the base carries the time-zone database is to confirm here;
-    - EC2 is found by its tag at run time, and the laptop's serving is read from `h4-laptop-away` by its name, so no ID from prod is in the function's environment;
+    - EC2's ID is read at run time from `/h4reet/prod/ec2-instance-id`, by its path, and the start acts on that instance only if it carries `h4-prod-ec2`. The laptop's serving is read from `h4-laptop-away`, by `cloudwatch:DescribeAlarms` on its name-built ARN (the review's I7). So no ID from prod is in the function's configuration;
     - alerts follow question 3's answer.
 - [ ] T117 [P] [US7] Write `infra/lambdas/ec2_guard/test_guard.py`, with stub SSM, Budgets, EC2, and Route 53:
   - it stops EC2 when the health check is healthy (`ec2_stopped_laptop_serving`);
@@ -736,6 +775,10 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - `from: hours_close` stops EC2 if it runs, and writes only its log line if it doesn't;
     - the same window value as T116's;
     - alerts follow question 3's answer.
+  - **From W1** (the review's I7 and I6; contracts/handover.md §2 and §4, amended):
+    - "the health check is healthy" is read as `h4-laptop-away` in `OK`, by `cloudwatch:DescribeAlarms` on its name-built ARN, since Route 53's health checks can't be scoped by tag in IAM and the check's ID is prod's. The stub is CloudWatch's, not Route 53's;
+    - **more than one tagged instance:** with two running instances tagged `h4-prod-ec2`, it stops the one `/h4reet/prod/ec2-instance-id` doesn't name, alerts `ec2_unrecognised_instance` with its ID, and then applies its table to the named one. It never stops the named one for being a second;
+    - with the parameter unreadable, it stops nothing, and alerts once.
 - [ ] T118 [P] [US4] Write `deploy/scripts/test_handover.py`, with a stub status and a stub EC2:
   - waiting reads `serving`, then stops EC2 once it is `laptop` and records the window;
   - serving stops EC2 again after a flap, and after a start on the tunnel end's return while the laptop was reconnecting;
@@ -757,7 +800,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - **in prod:** the health check and `h4-laptop-away` in `failover.tf`; the four instance rules in `handover.tf`, each naming its instance from the same root;
     - **in the account:** the functions, their roles and permissions, the autostart switch, `h4-laptop-away-rule` matching the alarm by name, and in `handover.tf`, `local.ec2_hours` and the two schedules, `h4-ec2-hours-open` and `h4-ec2-hours-close`, in its zone, with a role that may invoke only the two functions;
     - **behind `local.wired`:** the functions, their permissions, the schedules, `h4-laptop-away-rule`, and the two rules' function targets. The rules' SNS targets don't wait;
-    - **no ID across roots:** nothing under `infra/account` names an instance or health-check ID, nor reads `infra/prod`'s state;
+    - **no ID across roots:** nothing under `infra/account` names a prod instance or health-check ID, nor reads `infra/prod`'s state (the rehearsal instance, the account's own, is exempt);
+    - **the functions' roles** (research.md R-15, amended): each reads `h4-laptop-away` by its name-built ARN, and `/h4reet/prod/ec2-instance-id` by its path. Neither reads a Route 53 health check. The guard may stop any instance tagged `h4-prod-ec2`, and the start function may start only the one that carries the tag;
+    - **the parameter:** `/h4reet/prod/ec2-instance-id`, a String in `infra/prod/handover.tf`, takes its value from EC2's resource, so a replace updates it in the same plan;
     - each check passes with the switch off and on.
 - [ ] T120 [P] [US7] Write the tests of `make ec2-status`, `ec2-start`, `ec2-stop`, `ec2-autostart`, and `server-budget-restore`, with stubs: each is refused in an agent session; `ec2-start` invokes the function with `manual: true`; `ec2-autostart STATE=on` writes the switch, invokes the start once, and writes the audit row. Check: RED (FR-012, FR-065) (feat/001-us4-us7-handover)
   - **From W1:** `ec2-status` shows the hours and whether it is inside them; `ec2-stop` works in W1, before the functions exist, since its permission set is on the tag (plan.md §16, "Between W1's applies and W2's").
@@ -766,6 +811,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 ### Implementation
 
 - [ ] T122 [US4] Write `infra/lambdas/ec2_start/` and `ec2_guard/`. Check: T116 and T117 pass (feat/001-us4-us7-handover)
+  - **From W1** (the review's I4): `infra/account/registry.tf`'s `lambda` list gains `h4-ec2-start` and `h4-ec2-guard`, made by W1's account apply so the Author can push to them before W2 (T174), test-first in `infra/test/test_account.py`. The functions themselves read `local.lambda_images`, empty until W2, so the account's W1 plan makes the repositories without the functions. Each function's Dockerfile is held to `deploy/images.lock`'s base by `infra/lambdas/test_images.py`.
 - [ ] T123 [US4] Write `deploy/scripts/handover.py`, started by `make up ENV=prod` and stopped by `make down ENV=prod`, with `h4.handover.window_seconds`. Check: T118 passes (FR-060) (feat/001-us4-us7-handover)
 - [ ] T124 [US4] Write `infra/prod/failover.tf`, `infra/account/handover.tf`, and the roles' changes in `iam.tf` as P-I6. Check: on a patched copy, T119 passes, and `make infra-check` passes (feat/001-us4-us7-handover)
   - **From W1:** P-I6 also holds `infra/prod/handover.tf`'s rules, the schedules, their role, and `local.ec2_hours`, in the zone his answer to question 1a names. That is FR-069's "by the Author's patch, with an ADR", with ADR 0048.
@@ -775,6 +821,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - **From W1:** and the hours, with each scheduled start and stop, and `outside_hours`' refusals.
 - [ ] T128 [P] [US4] Write `docs/runbooks/handover.md` (with EC2 started on the tunnel end's return while the laptop reconnects, and stopped by the loop) and `spot-interruption.md`, and update `tunnel-end.md` and `server-budget.md` (the guard's `ec2_stopped_server_budget`). Add the disclosure row C6 and C5's change. Check: each alert kind of contracts/aws-alerts.md §2 names its runbook; `disclosure_check` passes (FR-040, FR-056) (feat/001-us4-us7-handover)
   - **From W1:** `docs/runbooks/ec2.md` and `handover.md` gain the hours: what happens at the open and the close, a failed start at the open, and how the Author changes the hours (his patch). Each new kind, `outside_hours` and `ec2_stopped_outside_hours`, names its runbook. No new flow leaves a device: the schedules invoke functions inside the account.
+  - **From W1** (the review's I6): `docs/runbooks/ec2.md` gains the step after any replace of EC2, T097's three, and the page for `ec2_unrecognised_instance`: what the guard stopped, then the spot request to cancel.
 
 ### The Author's plan block
 
@@ -840,9 +887,9 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 **Purpose**: groups 5 to 10 through one gate (Organization; plan.md §16, "Four gates"). **Precondition:** groups 5 to 10 are each reviewed; T166 and T167 are done; the session's next branch (`rehearsal = false`, the bootstrap's state in S3; T030 step 2, T040 step 6) is on `main` and merged into W1's last branch; the Author has answered the regrouping note's questions 1a, 2, 3, and 4, which T116, T117, T124, and T163 build on.
 
-- [ ] T171 Author: make W1's `-p` branch, a copy of group 10's reviewed tip. In a scratch clone of it, commit W1's patches (P-I3 to P-I7, P-6 with his figures, P-G1) and his route line (T095). Then run `make plan` for each of the three roots, with both switches off: `ROOT=bootstrap` (T160's publishers), `ROOT=account`, and `ROOT=prod`. Paste each redacted block into W1's note on the `-p` branch. Check: as T027, for each root; each block's `tree` is the one `infra/` will have once the same patches are committed byte for byte; nothing in the account's plan reads prod's state (main's checkout, then W1's `-p`)
+- [ ] T171 Author: make W1's `-p` branch, a copy of group 10's reviewed tip. In a scratch clone of it, commit W1's patches (P-I3 to P-I7, P-6 with his figures, P-G1, P-G2) and his route line (T095). Then run `make plan` for each of the three roots, with both switches off: `ROOT=bootstrap` (T160's publishers), `ROOT=account`, and `ROOT=prod`. Paste each redacted block into W1's note on the `-p` branch. Read them: prod makes EC2 with `aws_ec2_instance_state.ec2_w1` stopped, and two actions on `h4-model-month` exist, the account's and prod's. Check: as T027, for each root; each block's `tree` is the one `infra/` will have once the same patches are committed byte for byte; neither root's plan reads the other's resources (main's checkout, then W1's `-p`)
 - [ ] T172 Author: commit the same patches and his route line on W1's `-p` branch, byte for byte; run `tools/gates/gate` on it from main's checkout; merge. Check: the gate passes, its `infra-plan-note` step on all three roots, and `make test`'s placeholder gate over the `ec2` route with his adopted F3 words (FR-005, FR-068) (W1's `-p`, then main)
-- [ ] T173 Author: on `main`, verify, apply, and record the three roots, in order: bootstrap, then account, then prod. Each apply's record is on its `ops/apply-<root>-<date>` branch, which W2's branch carries to its gate. Then his steps, in "Dependencies" order: T058, T080, T096, T097's SC-017, T115's steps 2 to 4, and `make ec2-stop`. Check: quickstart §5 to §8's W1 parts; SC-006; SC-017; `make ec2-status` shows EC2 stopped; Cost Explorer filtered on `project` shows the new resources (T154) (main)
+- [ ] T173 Author: on `main`, verify, apply, and record the three roots, in order: bootstrap, then account, then prod. Each apply's record is on its `ops/apply-<root>-<date>` branch, which W2's branch carries to its gate. Then his steps, in "Dependencies" order: T058, T080, T096, T097's SC-017, T115's steps 2 to 4, and `make ec2-stop`. EC2 runs only for SC-017 and the red-team runs, started by his hand inside the hours (spec.md Assumptions, "From W1 to W2"). Check: quickstart §5 to §8's W1 parts; SC-006; SC-017; `make ec2-status` shows EC2 stopped; Budgets shows both model actions and the server action on their budgets; Cost Explorer filtered on `project` shows the new resources (T154) (main)
 
 ## W2: the switch-on and the digests
 
@@ -856,18 +903,19 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - with P-W2 on a patched copy, T046's, T084's, T104's, T119's, and T159's checks pass with both switches on.
 
   Then a review by an agent that wrote none of it, and the note. Check: RED with the switches off for the wired checks, GREEN with them on; `make check`'s and `gitleaks dir`'s whole output in the note (W2's branch)
-- [ ] T176 Author: in a scratch clone of W2's `-p` branch with P-W2 committed, `make plan ROOT=account`, then `ROOT=prod`, after W1's applies. Paste both blocks into the note. Read them:
-  - the account makes the functions, their permissions, `h4-laptop-away-rule`, the schedules, the model action's second target, and the probe's schedule and alarm;
-  - prod makes the certificate and its validation, the distribution, its VPC origin, the records, and the rules' function targets, and replaces EC2.
+- [ ] T176 Author: with EC2 stopped, in a scratch clone of W2's `-p` branch with P-W2 committed, `make plan ROOT=prod`, then `ROOT=account`, after W1's applies. Paste both blocks into the note. Read them:
+  - prod makes the certificate and its validation, the distribution, its VPC origin, the records, the buckets' policies, and the rules' function targets. It replaces EC2, updating the server action, EC2's model action, and the ID parameter with it, and drops `aws_ec2_instance_state.ec2_w1`, which leaves the instance as it is (to confirm);
+  - the account makes the functions, their permissions, `h4-laptop-away-rule`, the schedules, and the probe's schedule and alarm, and nothing that reads prod.
 
   Check: as T027, for each root (W2's `-p`)
 - [ ] T177 Author: commit P-W2 on W2's `-p` branch byte for byte; gate; merge. Check: the gate passes, its `infra-plan-note` step on both roots (W2's `-p`, then main)
-- [ ] T178 Author: on `main`, read `make operator-status ENV=shared` and record it. Verify, apply, and record the account, then prod. Then:
+- [ ] T178 Author: on `main`, inside the hours, read `make operator-status ENV=shared` and record it. Verify, apply, and record **prod first, then the account** (plan.md §16, "W2's order"; the review's I3), so the probe starts against a site that answers. If EventBridge refuses prod's function targets before the account's apply makes the functions, apply the account first instead, and record the probe's alarm during prod's apply as expected. Then:
   1. the certificate is issued, and hareet.ai loads from the edge;
   2. the probe passes;
-  3. SC-005: the new EC2's digests match its release, and `make operator-status ENV=shared` matches the reading before the apply;
-  4. set the autostart switch `on` (T132);
-  5. watch one open and one close of the hours.
+  3. T097's step after the replace: the old spot request cancelled, and exactly one instance tagged `h4-prod-ec2`, the parameter's;
+  4. SC-005: the new EC2's digests match its release, and `make operator-status ENV=shared` matches the reading before the apply;
+  5. set the autostart switch `on` (T132);
+  6. watch one open and one close of the hours.
 
   Check: quickstart §8 and §9's W2 parts; SC-005; the apply records are on `ops/apply-*` branches, which Close's branch carries (main)
 
@@ -914,7 +962,7 @@ The Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it t
 - [x] T155 The budget actions tagged: the Author's T037 plan (2026-11-12) found `aws_budgets_budget_action.model`'s `tags_all` without `component` (rule T2 on the saved plan).
   - **RED:** `infra/test/test_account.py`'s tag check now covers `aws_budgets_budget_action`, which the policy's source list lacks, with the fixture `action-untagged`.
   - **GREEN:** P-A1 tags the three actions.
-  - **Split on 2026-11-13:** the Author's half is T156; the policy's own list is T158 (P-G1); and the same check over two more types is T157.
+  - **Split on 2026-11-12:** the Author's half is T156; the policy's own list is T158 (P-G1); and the same check over two more types is T157.
 - [x] T156 Author: P-A1 on `fix/001-action-tags-p`, T037's account block in that branch's note, one gate for that and the bootstrap's apply record, and the merge. Check: `make infra-verify ROOT=account` passes on `main` (main)
   - **Done 2026-11-12:** the account's apply ran from `main` at d0a34d44, and names the block in `docs/merge-requests/2026-11-12-fix-001-action-tags.md` (`docs/infra/applies/2026-11-12-account.md`); `infra/account/killswitch.tf` on `main` tags each action.
 
@@ -924,9 +972,9 @@ The Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it t
 - **T001's check** is a precondition of groups 3 to 9. T020, group 3's first test task, writes the first file under `infra/`.
 - **Within a group** (plan §16): the tests, which fail; the code, each feature with its span, panel, runbook, and disclosure row; the review and the note. In W1 the next group's branch starts from this one's reviewed tip, and the plan blocks, patches, gate, merge, and applies come once, for all six (T171 to T173).
 - **Inside group 5,** gate A's backlog (T157 to T161) comes first. **Inside group 6,** T162 (the documents) comes before its tests, and T069 (the placeholder gate) lands before T070 (schema 2). **Inside group 8,** T105 (P-6's draft) comes before T106 (the relay), and T166 (the tunnel end's measurement) after T106. **Inside group 9,** T169 follows the Author's answers to questions 1a, 2, and 3, and T116 and T117's hours cases follow T169.
-- **The Author's answers each task waits for** (the regrouping note): questions 1a, 2, and 3 before T116 and T117's hours cases; question 1b before T170; question 4 before T163's backup cases; question 5 before T154's check closes; question 6 before T115's step 2; question 7 before T146.
+- **The Author's answers each task waits for** (the regrouping note): questions 1a, 2, and 3 before T116 and T117's hours cases; question 1b before T170; question 4 before T163's backup cases; question 5 before T154's check closes; question 6 before T115's step 2; question 7 before T146. Questions 8 (T180), 9 (T084, T089, T096), and 10 (T097, T117) are taken on their recommended options, which the tasks build; a different answer changes those tasks before they start.
 - **W1's steps on `main`, in order** (T173): the three applies, bootstrap, then account, then prod; then T058's tunnel keys and the parameters; T080's TLS, role passwords, `make secrets-check`, the tunnel end's release, and `make shared-state-roles`; T058's laptop prod on the tunnel, the scans, and the revocation; T080's move; T096's EC2 secrets, the Anthropic limit, and the release; T097's SC-017 with T115's red-team runs; `make ec2-stop`; and T115's name servers.
-- **W2** follows T173: T174 (his push), T175 (the digests, the generation, and P-W2), T176, T177, and T178. Then T133, T134, and T141, and Close.
+- **W2** follows T173: T174 (his push), T175 (the digests, the generation, and P-W2), T176, T177, and T178, whose applies run prod first, then the account. Then T133, T134, and T141, and Close. T179 follows T167.
 - **Cross-group dependencies:**
   - group 5 needs group 4's alert path for the tunnel end's warning;
   - group 6 needs group 5's tunnel for the laptop's connection to the store, and `feat/010-anthropic-switch` on `main`;

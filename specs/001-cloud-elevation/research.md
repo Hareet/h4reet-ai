@@ -61,6 +61,17 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 - **`infra/account`:** the two budget actions and their rehearsals (R-22); the alert bridge, the probe, and the credential audit (R-23, R-24); the start function and the guard, their EventBridge rules, and the autostart switch's parameter (R-29, R-30); the probe's and the audit's EventBridge schedules, in the protected `alerts.tf` (rule T5); the registry and the release bucket.
 - **`infra/prod`:** the VPC and its subnets; the tunnel end (R-04, R-11); RDS (R-20); EC2 and its spot request (R-04, R-30); the Route 53 zone, the certificate, the health check and its alarm (R-29); the edge and the site's bucket (R-07); the roles (R-15).
 
+**Amended on 2026-11-12, in W1's regrouping** (plan.md §16, "No root holds another root's instance or health-check ID"; ADR 0049, proposed, which amends ADR 0007's decision 2). No root holds another root's instance or health-check ID, so that a replace of EC2 or the tunnel end is planned and applied in one root. Between roots, a reference is a fixed name only. So:
+- **`infra/account`** keeps the model action on `h4-laptop-bedrock`, the AWS-side functions, the start function and the guard with their roles and permissions, the autostart switch, `h4-laptop-away-rule` (which matches the alarm by its name), the hours' two schedules (ADR 0048), the registry, the release bucket, and the rehearsals.
+- **`infra/prod`** gains everything that names one of its instances or its health check:
+  - the server action, and a second model action on `h4-model-month` for `h4-prod-gateway`, each with its own execution role (`killswitch.tf`);
+  - `h4-laptop-away` (`failover.tf`, beside the health check);
+  - `h4-ec2-spot-warning`, `h4-ec2-running`, `h4-tunnel-end-spot-warning`, and `h4-tunnel-end-running` (`handover.tf`);
+  - `/h4reet/prod/ec2-instance-id`, a String parameter holding EC2's ID, which the functions read by its name at run time.
+- **RDS** is replaced by the tunnel end's `shared-state` service, its data volume, and its backups' bucket (R-20, changed on 2026-11-11).
+
+The functions and their IAM still don't share a root with the instances they act on, so this entry's reason holds.
+
 **The versions, pinned in group 1 (tasks.md T008),** for the Author's "Use the latest dependenices adn versions for aws services, plugins" (T000, 2026-11-10):
 
 | What | Pinned | Released | Source | Status |
@@ -456,6 +467,13 @@ In `infra/account/killswitch.tf` (protected):
 
 **Why.** Spec FR-022 and FR-023, as answered. The server action stops only EC2: the laptop, the tunnel end, RDS, and the safety net keep running, so the laptop can still serve and the meter stays the control.
 
+**Amended on 2026-11-12, in W1's regrouping** (R-02's amendment; ADR 0049, proposed). Three actions now, not two:
+- **The model action on the laptop:** on `h4-model-month`, `h4-deny-paid-models` on `h4-laptop-bedrock`, in `infra/account/killswitch.tf`, as applied on 2026-11-12.
+- **The model action on EC2:** a second action on the same budget, by its name, in `infra/prod/killswitch.tf`, with its own execution role, which may attach and detach that one policy on `h4-prod-gateway` alone. It is W1's, made in the same apply as the role. So from the role's first minute FR-023's revocation reaches it, and no W2 switch is needed for it. The account's model action doesn't gain a second target.
+- **The server action:** in `infra/prod/killswitch.tf`, with its execution role, on EC2's ID from the same root, so a replace of EC2 updates it in the same plan.
+
+Whether a budget may hold two actions of the same type is to confirm in W1's plan. If it may not, the fallback is the account's second target behind the W2 switch, which leaves FR-023 short on EC2's role until W2. Since W1 makes EC2 stopped, EC2's gateway calls nothing in that window but by the Author's hand (spec.md Assumptions, "From W1 to W2").
+
 ### R-23: AWS-side alerts through a bridge (carried)
 
 September R-23 unchanged: one topic, `h4-alerts`, with email through SNS and Telegram through `h4-alert-bridge`, which reads its token from Parameter Store and logs neither. It now also carries the start function's and the guard's outcomes, the spot interruption warning, and the server budget's alerts.
@@ -476,6 +494,8 @@ September R-24 unchanged: `h4-probe`, once a minute, fetches `https://hareet.ai/
 | `h4-ec2-stop` permission set (question 16's default) | `ec2:StopInstances` on the tagged instance; `ec2:DescribeInstances` | `h4-handover` and `make ec2-stop`, through the Author's SSO session |
 | `h4-ec2-start-fn` | `ec2:StartInstances` on the tagged instance; read the autostart switch, the server action's status, the health check's status, and the tunnel end's state; publish to `h4-alerts` | `h4-ec2-start` |
 | `h4-ec2-guard-fn` | `ec2:StopInstances` on the tagged instance; read the autostart switch, the health check's status, and the server action's status; publish to `h4-alerts` | `h4-ec2-guard` |
+
+**Amended on 2026-11-12, in W1's regrouping.** Route 53's health checks can't be scoped by tag in IAM, and a health check's ID is prod's, which the account root may not hold (R-02's amendment). So both functions read the laptop's serving from the alarm `h4-laptop-away` instead: `cloudwatch:DescribeAlarms` on its name-built ARN, `arn:aws:cloudwatch:us-east-1:<account>:alarm:h4-laptop-away`, read as healthy while it is `OK`. Neither role reads the health check. Both also read `/h4reet/prod/ec2-instance-id` by its name (R-02's amendment), so they act on the instance Terraform made. The guard may stop any instance tagged `h4-prod-ec2`, so that it can stop one it doesn't recognise (plan.md §16, W2). The tunnel end's dashboard read of the health check's status stays: it is prod's own, in the same root. FR-070's reading changes with it (tasks.md T169).
 | The Author's administrator permission set | as September | Terraform, by hand |
 
 Every role and permission set is in protected Terraform (FR-012). Nothing changes IAM at run time (spec FR-070).

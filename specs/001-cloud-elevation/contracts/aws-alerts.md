@@ -50,6 +50,16 @@ The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap boun
 
 ## 4. The two actions (infra/account/killswitch.tf, protected)
 
+**Amended on 2026-11-12, in W1's regrouping** (research.md R-02 and R-22, amended; plan.md §16; ADR 0049, proposed). There are three actions, in two roots, since no root may hold another root's instance ID:
+
+| Action | Root and file | Budget, threshold | Does | Execution role |
+|---|---|---|---|---|
+| The model action on the laptop (applied 2026-11-12) | `infra/account/killswitch.tf` | `h4-model-month`, 100% of actual | attaches `h4-deny-paid-models` to `h4-laptop-bedrock` | may attach and detach that one policy on that one role |
+| The model action on EC2 (W1) | `infra/prod/killswitch.tf` | `h4-model-month`, by its name, 100% of actual | attaches `h4-deny-paid-models` to `h4-prod-gateway` | its own; may attach and detach that one policy on that one role |
+| The server action (W1) | `infra/prod/killswitch.tf` | `h4-server-month`, 100% of actual | `AWS-StopEC2Instance` on EC2's ID, from the same root | its own; that document on that instance alone |
+
+Each is automatic, and each is reversed as the table below says. Both model actions publish `model_action_executed`. The table below stands for each column's settings; where it names "both hosts' Bedrock identities" in one action, read the two model actions above. Whether one budget may hold two actions of the same type is to confirm in W1's plan (research.md R-22's amendment).
+
 | Setting | The model action | The server action |
 |---|---|---|
 | Budget, threshold | `h4-model-month`, 100% of actual | `h4-server-month`, 100% of actual |
@@ -76,3 +86,5 @@ As September §4: `h4-probe`, once a minute, from AWS's side. Its schedule, an E
 - **The alarm:** after 5 failed minutes. **As built in group 4:** it moves to group 8, with the line that enables the schedule (plan.md §16, group 4's departure 2): an alarm that reads missing data as breaching would fire while the schedule is off, and it needs `cloudwatch.amazonaws.com` among the bootstrap topic's publishers (§1). A failed run raises, so Lambda counts an error, which that alarm reads; Lambda retries none, since the next minute is the retry.
 
 It never calls hello or a turn. **As built:** it sends no cookie and no credential, and follows no redirect (`infra/lambdas/probe/probe.py`).
+
+**Amended on 2026-11-12, in W1's regrouping:** the line that enables the schedule, and the probe's alarm, read the account's `local.wired`, so they switch on in W2, whose prod apply comes first and makes the site the probe checks (plan.md §16, "Four gates"; tasks.md T178). W1 adds two alarms of its own to `h4-alerts`, both with missing data not breaching: `h4-credential-audit-errors` and `h4-alert-bridge-failed` (tasks.md T159).
