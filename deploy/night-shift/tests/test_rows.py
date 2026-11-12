@@ -228,6 +228,11 @@ def test_every_forbidden_write_has_every_spelling(rows) -> None:
     }
     for target in (*FORBIDDEN_WRITES, *(f"@WT@/{m}" for m in MASKS)):
         for spelling in WRITE_SPELLINGS:
+            if (target, spelling) == ("@GIT@/config", "git"):
+                # G4's review, S3: a git spelling that got through would write his real config; the plain append,
+                # which writes nothing, proves the read-only mount.
+                assert (target, spelling) not in have
+                continue
             assert (target, spelling) in have, (target, spelling)
 
 
@@ -244,14 +249,34 @@ def test_the_masked_paths_are_main_settings_denied_writes() -> None:
         assert m in denied, m
 
 
-def test_git_config_has_the_git_c_and_git_config_spellings(rows) -> None:
-    cmds = [
-        r["command"]
-        for r in rows
-        if r["category"] == "write" and r["target"] == "@GIT@/config"
-    ]
-    assert any(c.startswith("git -C @WT@ -c core.hooksPath=") for c in cmds)
-    assert any(c.startswith("git -C @WT@ config ") for c in cmds)
+def test_no_row_writes_his_real_config_or_hooks_without_a_restore(rows) -> None:
+    """S3: no row runs a git config on the repository's own config, and every row that would make a file in his .git
+    (a hook, a ref, alternates, a commondir) names it in `creates`, so the rehearsal removes it if it got through."""
+    ids = {r["id"] for r in rows}
+    assert "write-git-config-git" not in ids and "write-git-config-git-c" not in ids
+    for r in rows:
+        c = r["command"]
+        if re.search(r"\bgit\b[^|;&]*\sconfig\s", c):
+            assert "--file " in c, r["id"]
+            f = c.split("--file ", 1)[1].split()[0]
+            assert not f.startswith("@GIT@/config"), r["id"]
+            if f.startswith("@GIT@"):
+                assert r.get("creates") == f, r["id"]
+        if "@GIT@/hooks" in c:
+            assert r.get("creates", "").startswith("@GIT@/hooks/rt-@ID@"), r["id"]
+        if "@GIT@/config" in c:
+            # only `: >>` (open for append, write nothing), python's open(…, "a").close(), and links
+            assert not re.search(r"\bgit\b", c), r["id"]
+            assert not re.search(r"(?<!: )>>? ", c.replace(": >> ", ": >>_")), r["id"]
+        makes = r.get("target") in (
+            "@GIT@/hooks",
+            "@GIT@/refs/tags",
+            "@GIT@/objects/info",
+            "@GIT@",
+            "@GIT@/refs/heads/night",
+        )
+        if r["category"] == "write" and makes and r["spelling"] != "hardlink":
+            assert r.get("creates"), r["id"]
 
 
 def test_main_tags_and_branches_are_written_by_git_too(rows) -> None:
@@ -429,7 +454,9 @@ def test_substitute_refuses_an_unknown_or_unquotable_value() -> None:
         rehearse.substitute("ls @HOME@", {"HOME": "/home/a b"})
 
 
-CHECK_OK = """== lint
+SUMMARY_LINE = "make check: 1 PASS, 0 SKIP, 0 WARN, 0 PLANNED, 1 PENDING, 2 FAIL; failing: toolchain-check FAIL"
+CHECK_OK = (
+    """== lint
 -> PASS lint
 == toolchain-check
 claude: 2.1.322, want 2.1.296
@@ -442,10 +469,13 @@ FAIL        stage-S-unreadable    ~/.aws: its contents are readable
 == evals
 -> PENDING evals
 """
+    + SUMMARY_LINE
+    + "\n"
+)
 
 
 def test_r3_allows_the_known_environmental_items_and_names_them() -> None:
-    ok, detail = rehearse.judge_check(CHECK_OK)
+    ok, detail = rehearse.judge_check(CHECK_OK, 2)
     assert ok, detail
     assert "toolchain-check" in detail and "P-8" in detail
     assert "2 stage-S rows" in detail and "P-5" in detail
@@ -453,7 +483,7 @@ def test_r3_allows_the_known_environmental_items_and_names_them() -> None:
 
 
 def test_r3_fails_on_any_other_failure() -> None:
-    ok, detail = rehearse.judge_check(CHECK_OK + "== test\n-> FAIL test\n")
+    ok, detail = rehearse.judge_check(CHECK_OK + "== test\n-> FAIL test\n", 2)
     assert not ok and "test" in detail
 
 
@@ -462,7 +492,7 @@ def test_r3_fails_on_a_matrix_failure_outside_stage_s() -> None:
         "-> FAIL matrix",
         "FAIL        bash-gate.sh          git push: expected block\n-> FAIL matrix",
     )
-    ok, detail = rehearse.judge_check(text)
+    ok, detail = rehearse.judge_check(text, 2)
     assert not ok and "matrix" in detail
 
 
@@ -470,6 +500,29 @@ def test_r3_fails_when_make_check_printed_no_gates() -> None:
     assert (
         rehearse.judge_check("make: *** No rule to make target 'check'.\n")[0] is False
     )
+
+
+def test_r3_fails_when_make_check_was_killed_partway() -> None:
+    ok, detail = rehearse.judge_check(CHECK_OK.replace(SUMMARY_LINE, ""), 137)
+    assert not ok and "didn't finish (exit 137)" in detail
+    ok, detail = rehearse.judge_check(CHECK_OK, 137)
+    assert not ok
+
+
+def test_r3_fails_without_the_summary_line_whatever_the_gates_said() -> None:
+    ok, detail = rehearse.judge_check(CHECK_OK.replace(SUMMARY_LINE, ""), 2)
+    assert not ok and "no summary line" in detail
+
+
+def test_r3_fails_on_a_non_zero_exit_with_nothing_failing() -> None:
+    text = "== lint\n-> PASS lint\nmake check: 1 PASS, 0 SKIP, 0 WARN, 0 PLANNED, 0 PENDING, 0 FAIL\n"
+    assert rehearse.judge_check(text, 0)[0] is True
+    assert rehearse.judge_check(text, 2)[0] is False
+
+
+def test_r4_needs_most_of_its_rows_to_run() -> None:
+    assert rehearse.enough_ran(90, 100) and not rehearse.enough_ran(89, 100)
+    assert not rehearse.enough_ran(0, 0)
 
 
 def test_the_engine_dependent_gate_is_named() -> None:
