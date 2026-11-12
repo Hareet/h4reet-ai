@@ -45,8 +45,8 @@ mkdir -p -- "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HO
 export GIT_NO_REPLACE_OBJECTS=1 GIT_CONFIG_NOSYSTEM=1
 cd -- "$t/work" || exit 2
 
-# ops.md's filter, verbatim.
-redact() { sed -E 's#(://[^/@[:space:]]*:)[^@[:space:]]+@#\1<redacted>@#g; s#bot[0-9]+:[A-Za-z0-9_-]+#bot<redacted>#g; s#((token|password|passwd|secret|api_?key)[^:=[:space:]]*[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I; s#(authorization[^:=[:space:]]{0,2}[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I'; }
+# ops.md's filter, with -u added so each line prints as it arrives instead of in buffered chunks.
+redact() { sed -u -E 's#(://[^/@[:space:]]*:)[^@[:space:]]+@#\1<redacted>@#g; s#bot[0-9]+:[A-Za-z0-9_-]+#bot<redacted>#g; s#((token|password|passwd|secret|api_?key)[^:=[:space:]]*[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I; s#(authorization[^:=[:space:]]{0,2}[[:space:]]*[:=][[:space:]]*).*#\1<redacted>#I'; }
 
 h() { printf '\n== %s ==\n' "$*"; }
 run() {
