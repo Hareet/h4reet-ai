@@ -78,13 +78,56 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# EC2's security group (group 7 makes EC2 and gives it its rules, T084). It is here from group 6, since the shared
-# state's 5432 admits it alone (tunnel-end.tf). Until group 7 it admits nothing, and holds no egress rule, so Terraform
-# removes AWS's default one.
+# EC2's security group (group 6 made it, since the shared state's 5432 admits it alone, tunnel-end.tf; group 7 gives it
+# its rules, T084). In: the relay block's 8085 and EC2's collector's 4318 from the tunnel end's two fixed addresses
+# alone, its relay and its collector (contracts/tunnel.md §4), by address rather than by group, since the tunnel end's
+# private group names this one and two inline groups naming each other would be a cycle. Out: HTTPS and SMTP's 465,
+# which nftables keeps to the egress proxies' user (deploy/hosts/ec2/nftables.nft), and the VPC. Nothing is applied yet, so the
+# description's change replaces nothing.
 resource "aws_security_group" "ec2" {
   name        = "h4-ec2"
-  description = "EC2's interface: group 7 gives it its rules"
+  description = "EC2's interface: 8085 and 4318 from the tunnel end alone"
   vpc_id      = aws_vpc.prod.id
+
+  ingress {
+    description = "The relay block, for the tunnel end's relay"
+    protocol    = "tcp"
+    from_port   = 8085
+    to_port     = 8085
+    cidr_blocks = ["10.42.0.10/32", "10.42.1.10/32"]
+  }
+
+  ingress {
+    description = "EC2's collector, for the tunnel end's collector"
+    protocol    = "tcp"
+    from_port   = 4318
+    to_port     = 4318
+    cidr_blocks = ["10.42.0.10/32", "10.42.1.10/32"]
+  }
+
+  egress {
+    description = "HTTPS, through the egress proxies alone"
+    protocol    = "tcp"
+    from_port   = 443
+    to_port     = 443
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "The alerts mailbox's SMTP, implicit TLS, through the gateway's proxy alone"
+    protocol    = "tcp"
+    from_port   = 465
+    to_port     = 465
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Inside the VPC"
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = [aws_vpc.prod.cidr_block]
+  }
 
   tags = {
     component = "ec2"

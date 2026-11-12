@@ -86,9 +86,9 @@ data "aws_iam_policy_document" "ec2" {
 
   # The deployer's reads of the release bucket, by its name's prefix, in this account.
   statement {
-    sid       = "ReadReleases"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
+    sid     = "ReadReleases"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
     resources = [
       "arn:aws:s3:::h4reet-ai-releases-*/releases/*",
       "arn:aws:s3:::h4reet-ai-releases-*/trees/*",

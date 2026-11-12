@@ -7,6 +7,6 @@ resource "aws_ebs_volume" "ec2_data" {
   encrypted         = true
 
   tags = {
-    Name      = "h4-ec2-data"
+    Name = "h4-ec2-data"
   }
 }

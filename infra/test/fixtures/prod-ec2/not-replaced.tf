@@ -57,6 +57,6 @@ resource "aws_instance" "ec2" {
     # holds the user data's SHA-256 and local.ec2_generation (ec2.tf), and W2 sets the generation to 2 for SC-005
     # (tasks.md T097). The server action, EC2's model action's role, and /h4reet/prod/ec2-instance-id name this
     # instance from this root, so the same plan updates them.
-    ignore_changes       = [ami, user_data_base64]
+    ignore_changes = [ami, user_data_base64]
   }
 }

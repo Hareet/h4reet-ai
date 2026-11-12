@@ -1,6 +1,6 @@
 # Runbook: the model action ran
 
-`h4-model-month` reached 100% of its $20, and AWS Budgets attached `h4-deny-paid-models` to the Bedrock roles by itself: `h4-laptop-bedrock`, the role the laptop's permission set assumes, and, from spec 001's group 7, EC2's `h4-prod-gateway`. This page covers the alert `model_action_executed` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#4-the-two-actions-infraaccountkillswitchtf-protected)). The action is `infra/account/killswitch.tf`'s (spec 001 FR-023).
+`h4-model-month` reached 100% of its $20, and AWS Budgets attached `h4-deny-paid-models` to the Bedrock roles by itself: `h4-laptop-bedrock`, the role the laptop's permission set assumes, and, from spec 001's group 7, EC2's `h4-prod-gateway`. This page covers the alert `model_action_executed` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#4-the-two-actions-infraaccountkillswitchtf-protected)). Two actions on `h4-model-month` do it (spec 001 FR-023; tasks.md T180): the laptop's, `infra/account/killswitch.tf`'s, on `h4-laptop-bedrock`; and EC2's, `infra/prod/killswitch.tf`'s, on `h4-prod-gateway`. Each is reversed on its own.
 
 ## Symptoms
 
@@ -45,6 +45,8 @@ In your own terminal, with your SSO session (`pf` your administrator profile).
     --role-name "$r" --profile "$pf"
   ```
 
+  and again with `r=h4-prod-gateway`, EC2's.
+
 - After the Undo, the same list is empty, and `make operator-status ENV=prod` shows Bedrock's adapter healthy again within its health interval.
 
 ## Undo
@@ -67,6 +69,8 @@ e+=(--execution-type REVERSE_BUDGET_ACTION)
 aws "${e[@]}" "${a[@]}" --account-id "$id" \
   --budget-name "$n" --action-id "$x"
 ```
+
+**The reverse of each of the two model actions.** The list above prints both of `h4-model-month`'s actions, each with its `ActionId`: the one whose `Definition` names `h4-laptop-bedrock` is the account's, and the one that names `h4-prod-gateway` is EC2's (prod's). Run the reverse once for each, with its own `x`, and check each role's list in Verify: reversing one leaves the other's deny on its role.
 
 For the rehearsal's, the budget is `h4-rehearsal-model`, and the role `h4-rehearsal-target`. Never detach the policy by hand in the console: the action would read as executed while the policy is gone.
 
