@@ -501,6 +501,42 @@ def test_restore_fetches_the_dump_from_the_url_on_stdin_empties_the_store_and_lo
     assert "X-Amz-Signature" not in out.out + out.err and url not in "\n".join(commands)
 
 
+# Group 6's review, I-2: a pg_dump without --create carries no database ACLs, so the restore's CREATE DATABASE must
+# give the gateway back the grant the roles target set, or its CREATE SCHEMA IF NOT EXISTS fails at its next start; and
+# the load is one transaction, so one that fails part way keeps nothing and the store is empty, as its message says.
+def test_restore_gives_the_gateway_its_database_grant_back_before_the_load(
+    world,
+) -> None:
+    host, paths = world
+    assert ss.restore(host, paths, "https://x.invalid/d", fetch=lambda u: DUMP) == 0
+    commands = ran(host)
+    create = next(i for i, c in enumerate(commands) if "CREATE DATABASE h4reet" in c)
+    grant = next(
+        i
+        for i, c in enumerate(commands)
+        if "GRANT CREATE, CONNECT ON DATABASE h4reet TO gateway" in c
+    )
+    load = next(i for i, c in enumerate(commands) if " pg_restore " in c)
+    assert create < grant < load
+    # The very grant the roles target sets.
+    assert ss.DATABASE_GRANT in ss.roles_sql(
+        dict.fromkeys(ss.ROLE_ATTRIBUTES, "x" * 32)
+    )
+    assert ss.DATABASE_GRANT in commands[grant]
+
+
+def test_restore_loads_in_one_transaction_and_a_part_way_failure_keeps_nothing(
+    world, capsys
+) -> None:
+    host, paths = world
+    host.answer("docker exec -i -u postgres h4reet-prod-shared-state-1 pg_restore", 1)
+    assert ss.restore(host, paths, "https://x.invalid/d", fetch=lambda u: DUMP) == 1
+    (load,) = [args for args, _ in host.calls if "pg_restore" in args]
+    assert "--single-transaction" in load and "--exit-on-error" in load
+    err = capsys.readouterr().err
+    assert "nothing of it was kept" in err and "the store is empty" in err
+
+
 def test_restore_refuses_what_isnt_a_dump_and_touches_nothing(world) -> None:
     host, paths = world
     assert (
