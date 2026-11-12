@@ -14,6 +14,9 @@ What the root must hold:
     parameter in the account);
   - the warning rule, h4-tunnel-end-spot-warning, in prod's own handover.tf, naming the tunnel end from this root, to
     h4-alerts as tunnel_end_interruption;
+  - the return rule, h4-tunnel-end-running, beside it, the tunnel end entering running, to h4-alerts as tunnel_end_back
+    (FR-076, "its return SHALL be alerted"; contracts/handover.md §2: its h4-alerts target in W1, its start-function
+    target behind the switch in W2; group 5's review, "Missing");
   - both roots' handover.tf holding local.wired as a boolean literal, so no plan's value decides it; false in W1, a
     W1-only test T175 flips with P-W2 (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
@@ -668,6 +671,51 @@ def check_warning_rule(root: dict[str, list]) -> list[str]:
     return found
 
 
+def check_return_rule(root: dict[str, list]) -> list[str]:
+    """h4-tunnel-end-running: the tunnel end's return, to h4-alerts as tunnel_end_back, from W1 (FR-076)."""
+    found = []
+    rules = [
+        r
+        for r in resource(root, "aws_cloudwatch_event_rule")
+        if lit(r, "name") == "h4-tunnel-end-running"
+    ]
+    if len(rules) != 1:
+        return ["return: h4-tunnel-end-running is missing"]
+    rule = rules[0]
+    if where(root, rule) != "handover.tf":
+        found.append("return: the rule lives outside prod's handover.tf")
+    pattern = raw(rule, "event_pattern")
+    if not (
+        '"aws.ec2"' in pattern
+        and '"EC2 Instance State-change Notification"' in pattern
+        and re.search(r'state\s*=\s*\["running"\]', pattern)
+        and "aws_instance.tunnel_end.id" in pattern
+    ):
+        found.append(
+            "return: the rule doesn't match the tunnel end entering running, from this root"
+        )
+    if raw(rule, "count") or raw(rule, "for_each"):
+        found.append("return: the rule waits behind a switch, though its alert needs no other root")
+    targets = [
+        t
+        for t in resource(root, "aws_cloudwatch_event_target")
+        if raw(t, "rule") == f"aws_cloudwatch_event_rule.{rule.labels[1]}.name"
+        and raw(t, "arn") == f'"{TOPIC_ARN}"'
+    ]
+    if len(targets) != 1 or raw(targets[0], "count"):
+        found.append("return: no one target to h4-alerts, by its name-built ARN, outside the switch")
+    else:
+        transformer = targets[0].block("input_transformer")
+        template = raw(transformer, "input_template") if transformer else ""
+        if "[hareet.ai aws] tunnel_end_back:" not in template:
+            found.append("return: it doesn't publish tunnel_end_back in §2's format")
+        if transformer is not None and re.search(
+            r"account|\$\.detail\.instance-id|\$\.resources", raw(transformer, "input_paths")
+        ):
+            found.append("return: its message carries the account or the instance's ID")
+    return found
+
+
 def wired(root: dict[str, list]) -> object:
     attr = locals_in(root, "handover.tf").get("wired")
     return None if attr is None else ip.literal(attr)
@@ -720,6 +768,7 @@ CHECKS = (
     check_groups,
     check_role,
     check_warning_rule,
+    check_return_rule,
     check_switch,
     check_reads,
     check_files,
@@ -837,6 +886,18 @@ def test_the_warnings_message_reaches_the_bridge_as_tunnel_end_interruption() ->
     ), alert
 
 
+def test_the_returns_message_reaches_the_bridge_as_tunnel_end_back() -> None:
+    message = delivered(
+        rule_target(parsed(root_texts()), "h4-tunnel-end-running"),
+        {"at": "2026-11-13T05:09:00Z"},
+    )
+    alert = bridge().classify(message)
+    assert (alert.kind, alert.facts) == (
+        "tunnel_end_back",
+        [("at", "2026-11-13T05:09:00Z")],
+    ), alert
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # The fixtures: one defect each.
 
@@ -939,6 +1000,10 @@ def test_the_role_holds_r_15s_grants_by_name_built_arns() -> None:
 
 def test_the_warning_rule_is_prods_naming_its_own_instance_to_h4_alerts() -> None:
     assert check_warning_rule(parsed(root_texts())) == []
+
+
+def test_the_return_rule_is_prods_naming_its_own_instance_to_h4_alerts() -> None:
+    assert check_return_rule(parsed(root_texts())) == []
 
 
 def test_both_roots_hold_the_switch_as_a_literal() -> None:
