@@ -42,6 +42,8 @@ def pem(body: str) -> str:
 def store() -> dict[str, str]:
     return {
         "/h4reet/tunnel-end/TELEMETRY_BLOCK_TOKEN": secrets.token_urlsafe(32),
+        # Group 10: the public view's sink's token.
+        "/h4reet/tunnel-end/SNAPSHOT_SINK_TOKEN": secrets.token_urlsafe(32),
         "/h4reet/tunnel-end/HOST_KEY": pem(secrets.token_hex(24)),
         "/h4reet/tunnel-end/AUTHORIZED_KEY": "ssh-ed25519 "
         + secrets.token_hex(24)

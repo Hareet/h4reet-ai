@@ -60,6 +60,10 @@ RELAY = (REPO / "specs/001-cloud-elevation/contracts/relay-http.md").read_text(
 HANDOVER = (REPO / "specs/001-cloud-elevation/contracts/handover.md").read_text(
     encoding="utf-8"
 )
+# Group 10's, the public view's, are contracts/public-view.md §5's (tasks.md T137).
+PUBLIC_VIEW = (REPO / "specs/001-cloud-elevation/contracts/public-view.md").read_text(
+    encoding="utf-8"
+)
 HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
@@ -176,6 +180,8 @@ def hosts_section() -> str:
         + contract_section(RELAY, "9.")
         # Group 9's (tasks.md T127): the handover's panels.
         + contract_section(HANDOVER, "10.")
+        # Group 10's (tasks.md T137): the public view's.
+        + contract_section(PUBLIC_VIEW, "5.")
     )
 
 
@@ -1182,6 +1188,9 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         "The laptop's health check",
         "The handover window",
         "The server's month against its budget",
+        # Group 10's (tasks.md T137; contracts/public-view.md §5).
+        "The public view's age",
+        "The public view's writes and posts",
     }
     found = by_title()
     for title, (kind, queries_) in expected.items():

@@ -1778,7 +1778,10 @@ def test_each_image_the_tunnel_end_runs_has_its_repository() -> None:
 # The repositories EC2 pulls from (tasks.md T089; the regrouping review's I4): each image an ec2-class service runs, by
 # the repository the release pushes or copies it to: a shared service's own name, the relay block's forwarder edge's.
 def ec2_repository(name: str) -> str:
-    return {"ec2-relay-block": "edge"}.get(name, name)
+    # Group 10: EC2's publisher runs the public view's image, the snapshot repository the sink's comes from too.
+    return {"ec2-relay-block": "edge", "ec2-snapshot-publisher": "snapshot"}.get(
+        name, name
+    )
 
 
 def test_each_image_ec2_runs_has_its_repository() -> None:

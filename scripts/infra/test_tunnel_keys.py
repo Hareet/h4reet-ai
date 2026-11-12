@@ -51,6 +51,8 @@ ADDRESS = "198.51.100.7"
 TUNNEL_KEYS = (
     "RELAY_TOKEN_SELF",
     "TELEMETRY_BLOCK_TOKEN",
+    # Group 10: the laptop's publisher's token to the public view's sink.
+    "SNAPSHOT_SINK_TOKEN",
     "TUNNEL_END_ADDRESS",
     "H4_TUNNEL_DIR",
 )
@@ -171,11 +173,16 @@ def test_keys_makes_and_writes_everything_once(world: dict) -> None:
     assert (
         len(values["RELAY_TOKEN_SELF"]) >= 43
         and len(values["TELEMETRY_BLOCK_TOKEN"]) >= 43
+        and len(values["SNAPSHOT_SINK_TOKEN"]) >= 43
     )
     assert values["OTHER"] == "kept" and values["COMPOSE_PROFILES"] == "gpu"
     assert world["prod"].stat().st_mode & 0o777 == 0o600
     said = done.stdout + done.stderr
-    for value in (values["RELAY_TOKEN_SELF"], values["TELEMETRY_BLOCK_TOKEN"]):
+    for value in (
+        values["RELAY_TOKEN_SELF"],
+        values["TELEMETRY_BLOCK_TOKEN"],
+        values["SNAPSHOT_SINK_TOKEN"],
+    ):
         assert value not in said
         assert all(
             value not in " ".join(c["argv"]) for c in kit.calls(world["bin"], "aws")

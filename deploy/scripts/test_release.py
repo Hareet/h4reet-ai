@@ -224,7 +224,19 @@ def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> N
         f"{REGISTRY}/h4reet/tunnel": "linux/amd64,linux/arm64",
         # Group 8: the relay, on the tunnel end.
         f"{REGISTRY}/h4reet/relay": "linux/amd64,linux/arm64",
+        # Group 10: the public view's image, built once for the tunnel end's sink and EC2's publisher.
+        f"{REGISTRY}/h4reet/snapshot": "linux/amd64,linux/arm64",
     }
+    assert (
+        len([c for c in pushed if "/h4reet/snapshot:" in c[c.index("--tag") + 1]]) == 1
+    )
+    services = written(tmp_path)["services"]
+    assert (
+        services["snapshot-sink"]["digest"]
+        == services["ec2-snapshot-publisher"]["digest"]
+    )
+    assert services["snapshot-sink"]["hosts"] == ["tunnel-end"]
+    assert services["ec2-snapshot-publisher"]["hosts"] == ["ec2"]
     for c in pushed:
         assert "--push" in c and c[c.index("--tag") + 1].endswith(f":{COMMIT}")
     assert rl.platforms(["laptop"]) == ["linux/amd64"]

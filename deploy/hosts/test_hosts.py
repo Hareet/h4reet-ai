@@ -87,8 +87,9 @@ def test_new_inbound_reaches_2222_and_8087_publicly_and_8080_privately_only() ->
     assert pre[1:] == [
         f'iifname "{PUBLIC_IF}" ct state new tcp dport {{ 2222, 8087 }} accept',
         f'iifname "{PUBLIC_IF}" ct state new drop',
-        # Group 6's shared state on 5432 (tasks.md T163), from EC2 alone by the security group.
-        f'iifname "{PRIVATE_IF}" ct state new tcp dport {{ 5432, 8080 }} accept',
+        # Group 6's shared state on 5432 (tasks.md T163), and group 10's sink on 2301, from EC2 alone by the security
+        # group.
+        f'iifname "{PRIVATE_IF}" ct state new tcp dport {{ 2301, 5432, 8080 }} accept',
         f'iifname "{PRIVATE_IF}" ct state new drop',
     ]
 
@@ -123,8 +124,10 @@ def test_the_security_groups_admit_what_nftables_admits_and_route_53_alone_on_80
 ):
     found = groups()
     assert {port for port, _ in found["tunnel_end_public"]} == {2222, 8087}
-    assert {port for port, _ in found["tunnel_end_private"]} == {5432, 8080}
+    assert {port for port, _ in found["tunnel_end_private"]} == {2301, 5432, 8080}
     assert (5432, "[aws_security_group.ec2.id]") in found["tunnel_end_private"]
+    # Group 10: the public view's sink, for EC2's publisher alone.
+    assert (2301, "[aws_security_group.ec2.id]") in found["tunnel_end_private"]
     assert (8087, "data.aws_ip_ranges.route53_health_checks.cidr_blocks") in found[
         "tunnel_end_public"
     ]
@@ -413,8 +416,11 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # 14,000, so a new host file shows here before it nears the limit: 304 bytes to spare at a59d52a9, and EC2's
     # 16,384 less 768 for Go's encoder, 15,616, still 1,920 away. b10e8446 raised this bound from 12,800, test and code
     # in one GREEN, when the first step's fixes took it to 13,316 (group 7's review A, I-C); the message prints the run.
+    # Group 10 raises it to 14,400, test-first: 13,960 at 080eb731, and 14,069 with the public view's five egress names
+    # (the write's cloud reads and its one key), the sink's port in nftables, and its token in the template; 1,216
+    # bytes still under 15,616. The next host file goes in the release's tree instead (shared_state.py's host step).
     size = len(gzip.compress(text.encode(), 6))
-    assert size < 14000, (
+    assert size < 14400, (
         f"the tunnel end's user data is {size} bytes gzipped at level 6"
     )
 
@@ -469,6 +475,8 @@ def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
         "shared-state": "h4reet/shared-state",
         # Group 8: the relay, which the release builds.
         "relay": "h4reet/relay",
+        # Group 10: the sink, the public view's image, which the release builds too.
+        "snapshot-sink": "h4reet/snapshot",
     }
     assert set(mine) <= set(repositories), mine
     commit = secrets.token_hex(20)

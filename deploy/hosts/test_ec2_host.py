@@ -236,7 +236,7 @@ def test_the_class_is_the_stack_but_the_model_server_and_the_local_store() -> No
     assert not [s for s in mine if s.startswith("model-server")]
     assert set(mine) == {
         n for n, s in COMPOSE["services"].items() if not s.get("profiles")
-    } - {"gateway-state"} | {"ec2-relay-block"}
+    } - {"gateway-state"} | {"ec2-relay-block", "ec2-snapshot-publisher"}
     block = COMPOSE["services"]["ec2-relay-block"]
     assert block["profiles"] == ["ec2"]
     assert block["ports"] == [f"{ADDRESS}:8085:8085", f"{ADDRESS}:4318:4318"]
@@ -437,6 +437,13 @@ def release_for(mine: list[str]) -> dict:
                 "digest": "sha256:" + secrets.token_hex(32),
                 "hosts": ["ec2", "laptop"],
             }
+        elif name in dp.DIGESTED:
+            # Group 10: EC2's publisher, the release's own image by its digest.
+            services[name] = {
+                "repository": "h4reet/snapshot",
+                "digest": "sha256:" + secrets.token_hex(32),
+                "hosts": ["ec2"],
+            }
         else:
             tag, digest = pins[dp.COPIES.get(name, name)]
             services[name] = {
@@ -518,6 +525,11 @@ def test_the_env_file_loads_the_class_in_compose_every_image_the_accounts_copy(
                 name,
                 image,
             )
+        elif name in dp.DIGESTED:
+            # Group 10: EC2's publisher, the release's image, by the release's digest.
+            assert (
+                image == f"{registry}snapshot@{release['services'][name]['digest']}"
+            ), (name, image)
         else:
             tag, digest = pins[dp.COPIES.get(name, name)]
             assert image == f"{registry}{dp.COPIES.get(name, name)}:{tag}@{digest}", (

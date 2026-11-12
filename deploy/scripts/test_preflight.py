@@ -1473,6 +1473,7 @@ def with_tunnel(stage: Stage) -> Path:
         H4_TUNNEL_DIR=str(folder),
         RELAY_TOKEN_SELF=TUNNEL_TOKEN,
         TELEMETRY_BLOCK_TOKEN=TUNNEL_TOKEN[::-1] + "u",
+        SNAPSHOT_SINK_TOKEN=TUNNEL_TOKEN[::-1] + "s",
     )
     return folder
 
@@ -1512,6 +1513,8 @@ def test_p22_passes_with_the_tunnels_address_keys_and_tokens(prod: Stage) -> Non
         ({"RELAY_TOKEN_SELF": ""}, "RELAY_TOKEN_SELF"),
         ({"RELAY_TOKEN_SELF": "short"}, "RELAY_TOKEN_SELF"),
         ({"TELEMETRY_BLOCK_TOKEN": ""}, "TELEMETRY_BLOCK_TOKEN"),
+        # Group 10: the publisher's token to the public view's sink.
+        ({"SNAPSHOT_SINK_TOKEN": ""}, "SNAPSHOT_SINK_TOKEN"),
         ({"H4_TUNNEL_DIR": "/nonexistent/tunnel"}, "H4_TUNNEL_DIR"),
     ],
 )

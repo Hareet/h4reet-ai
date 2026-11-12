@@ -1067,6 +1067,14 @@ class Ec2World(World):
         for name in dp.HOST_CLASSES["ec2"]:
             if name in services:
                 continue
+            # Group 10: EC2's own release-built image, the public view's publisher, by its digest alone.
+            if name == "ec2-snapshot-publisher":
+                services[name] = {
+                    "repository": "h4reet/snapshot",
+                    "digest": digest(),
+                    "hosts": ["ec2"],
+                }
+                continue
             source = dp.COPIES.get(name, name)
             tag, d = EC2_LOCK[source]
             services[name] = {
@@ -1135,6 +1143,11 @@ def test_ec2_takes_its_class_its_copies_by_the_locks_digests_and_tags_its_builds
     ]
     (pull,) = [a for _, a, _ in w.docker.calls if a[0] == "pull"]
     assert "gateway" not in pull and "web" not in pull and "edge" in pull
+    # Group 10: EC2's publisher runs the release's own image by its digest, as the tunnel end's do; compose pulls it.
+    snapshot = release["services"]["ec2-snapshot-publisher"]["digest"]
+    assert env["H4_DIGEST_SNAPSHOT"] == snapshot
+    assert "H4_IMAGE_EC2_SNAPSHOT_PUBLISHER" not in env
+    assert "ec2-snapshot-publisher" in pull
     # Its host step, from the release's tree: the gateway's proxy and its Bedrock credentials.
     assert ["host-step", "ec2"] in [a for _, a, _ in w.docker.calls]
     assert w.records()[-1]["host"] == "ec2"

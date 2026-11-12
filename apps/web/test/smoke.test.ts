@@ -248,6 +248,12 @@ describe.each(["release", "drafts"] as const)("what the %s build loads (spec 004
         // A room-text block's source, its repository path, names where the words came from, never a file the page
         // fetches: spec 016's outline is the first such path ending in .json (changed with T056, plan.md R-18).
         if (url.startsWith("apps/web/content/")) continue;
+        // Spec 001's public view (contracts/public-view.md §3): /status/'s script reads the document beside its page,
+        // which the tunnel end's sink writes into the site's bucket, never the build; relative, from its own origin.
+        if (url === "./latest.json") {
+          expect(isRelative(url), `${script}: ${url}`).toBe(true);
+          continue;
+        }
         named.push(url);
         expect(isRelative(url) && !url.startsWith("//"), `${script}: ${url}`).toBe(true);
         // From the page's own folder, the site's root; a model is served from its gzip copy (contracts/serving.md).

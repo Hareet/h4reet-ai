@@ -500,14 +500,16 @@ def check_groups(root: dict[str, list]) -> list[str]:
             "groups: the public interface doesn't admit exactly 2222 from anywhere and 8087 from Route 53's checkers"
         )
     private = group_rules(root, "tunnel_end_private")
-    # Group 6 (tasks.md T066): the shared state's 5432, from EC2's group alone.
+    # Group 6 (tasks.md T066): the shared state's 5432, from EC2's group alone; group 10 (tasks.md T137): the public
+    # view's sink's 2301, for EC2's publisher, from EC2's group alone too.
     if private != [
         (8080, "prefix_list_ids=[data.aws_ec2_managed_prefix_list.cloudfront.id]"),
         (5432, "security_groups=[aws_security_group.ec2.id]"),
+        (2301, "security_groups=[aws_security_group.ec2.id]"),
     ]:
         found.append(
             "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and 5432 "
-            "from EC2's group"
+            "and 2301 from EC2's group"
         )
     ranges = one(root, "aws_ip_ranges", "route53_health_checks", "data")
     if ranges is None or lit(ranges, "services") != ["route53_healthchecks"]:

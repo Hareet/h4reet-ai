@@ -29,6 +29,8 @@ ENV_FILES = {
 # release builds (deploy/scripts/deployer.py; spec 001 contracts/releases-deployer.md §1).
 # Group 8: the relay's image, which the release builds, by its digest too.
 RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL", "H4_DIGEST_RELAY"}
+# Group 10: the public view's image, which the release builds for the tunnel end's sink and EC2's publisher.
+RELEASE_FILE_KEYS |= {"H4_DIGEST_SNAPSHOT"}
 # On EC2 (group 7), each shared service's upstream image runs as the account's registry's copy, which the deployer
 # names in the release's env file alone; on every other host the pinned reference after ":-" runs as written.
 MIRRORED = {
@@ -53,6 +55,10 @@ SPEC_001 = {
     "tunnel-end-collector",
     "shared-state",
     "ec2-relay-block",
+    # Group 10's public view: the tunnel end's sink, and each host's publisher.
+    "snapshot-sink",
+    "snapshot-publisher",
+    "ec2-snapshot-publisher",
 }
 RUN_FILE_KEYS = {
     "H4_TREE",
@@ -198,8 +204,12 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "tunnel-end",
         "shared-state",
         "relay",
+        "snapshot-sink",
         "ec2-relay-block",
     ]
+    # Group 10: the sink, for EC2's publisher, on the private interface's fixed address alone, which the security
+    # group holds to EC2's group; the laptop's reaches it through the tunnel (contracts/public-view.md §1).
+    assert SERVICES["snapshot-sink"]["ports"] == ["10.42.1.10:2301:8080"]
     # Group 8: the relay's edge listener on the private interface's fixed address, for CloudFront's VPC origin, and
     # its internal listener on the tunnel end's loopback alone (contracts/relay-http.md §1).
     assert SERVICES["relay"]["ports"] == [
@@ -225,13 +235,17 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "tunnel-end",
         "shared-state",
         "relay",
+        "snapshot-sink",
         "ec2-relay-block",
     ]
+    # Group 10: EC2's publisher reaches the sink inside the VPC, as the gateway reaches the shared state.
     assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
         "gateway",
         "tunnel",
         "tunnel-end-collector",
+        "ec2-snapshot-publisher",
     ]
+    assert SERVICES["snapshot-publisher"]["networks"] == ["internal"]
     assert SERVICES["gateway-state"]["networks"] == ["internal"]
 
 
@@ -239,7 +253,13 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 # commit, outside compose (tasks.md T184), and so does the room's web service, whose tag ends in the env file's
 # H4_WEB_SUFFIX, -drafts where the stack's image holds the room's drafts (spec 002, contracts/web-serving.md §1);
 # every other service runs a pinned image.
-BUILT = ("tunnel", "dev-relay", "telegram-standin", "breach-probe")
+BUILT = (
+    "tunnel",
+    "snapshot-publisher",
+    "dev-relay",
+    "telegram-standin",
+    "breach-probe",
+)
 # Spec 001's tunnel end runs its release's images from the account's registry: an image the release builds by the
 # release's digest, which its deployer writes (deploy/scripts/deployer.py).
 CLOUD = {
@@ -252,6 +272,9 @@ CLOUD = {
     # Group 6's shared state: gateway-state's Postgres, copied as h4reet/shared-state by the lock's tag and digest.
     "shared-state": "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@"
     + "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+    # Group 10's public view: the release's own image, by its digest, for the sink and EC2's publisher.
+    "snapshot-sink": "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}",
+    "ec2-snapshot-publisher": "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}",
     # Group 7's EC2 doors: edge's nginx, copied by the lock's own tag and digest.
     "ec2-relay-block": "${H4_REGISTRY:-registry.invalid}/h4reet/edge:1.30.5-alpine@"
     + "sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3",
@@ -683,6 +706,10 @@ def test_read_only_roots_where_the_image_allows() -> None:
         "ec2-relay-block": ["/tmp"],
         "relay": ["/tmp"],
         "dev-relay": ["/tmp"],
+        # Group 10's public view: the sink and both publishers.
+        "snapshot-sink": ["/tmp"],
+        "snapshot-publisher": ["/tmp"],
+        "ec2-snapshot-publisher": ["/tmp"],
     }
     for name, tmpfs in tunnel.items():
         assert SERVICES[name]["read_only"] is True and SERVICES[name]["tmpfs"] == tmpfs
@@ -724,8 +751,14 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         "tunnel",
         "tunnel-end",
         "relay",
+        "snapshot-sink",
+        "snapshot-publisher",
+        "ec2-snapshot-publisher",
         "dev-relay",
     ]
+    # Group 10: the public view's image's one user, as the tunnel's.
+    for name in ("snapshot-sink", "snapshot-publisher", "ec2-snapshot-publisher"):
+        assert SERVICES[name]["user"] == "10001:10001", name
     # Group 8: the relay runs as its image's node user, as the gateway's image does.
     assert SERVICES["relay"]["user"] == SERVICES["dev-relay"]["user"] == "1000:1000"
 
@@ -1163,6 +1196,7 @@ EC2_CLASS = (
     "valkey",
     "seaweedfs",
     "ec2-relay-block",
+    "ec2-snapshot-publisher",
 )
 
 

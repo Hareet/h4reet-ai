@@ -39,6 +39,7 @@ COMPOSE = yaml.safe_load((REPO / "deploy" / "compose.yaml").read_text(encoding="
 SERVICE = COMPOSE["services"].get("shared-state", {})
 CONF = REPO / "deploy" / "shared-state"
 SCRIPT = HOST / "shared_state.py"
+SINK = REPO / "deploy" / "scripts" / "snapshot_sink.py"
 RELEASE_UNITS = HOST / "release"
 ROLES = ("gateway", "grafana_ro", "relay_ro", "relay_rw")
 PRIVATE = "10.42.1.10"
@@ -231,6 +232,7 @@ def world(tmp_path: Path) -> tuple[StubHost, object]:
         state=tmp_path / "var" / "shared-state",
         install=tmp_path / "opt",
         units=tmp_path / "etc" / "systemd",
+        snapshot=tmp_path / "opt-snapshot",
     )
     return host, paths
 
@@ -259,6 +261,8 @@ def test_prepare_mounts_the_volume_and_writes_the_key_and_certificate_to_tmpfs(
         shutil.copy2(
             unit, tree / "deploy" / "hosts" / "tunnel-end" / "release" / unit.name
         )
+    (tree / "deploy" / "scripts").mkdir(parents=True)
+    shutil.copy2(SINK, tree / "deploy" / "scripts" / "snapshot_sink.py")
     host.answer("blkid", 2)  # a blank volume: no filesystem yet
     host.answer("findmnt", 1)
     host.answer(
@@ -286,6 +290,12 @@ def test_prepare_mounts_the_volume_and_writes_the_key_and_certificate_to_tmpfs(
     assert (paths.units / "h4-shared-state-backup.timer").is_file()
     assert (paths.install / "shared_state.py").read_bytes() == SCRIPT.read_bytes()
     assert "systemctl enable --now h4-shared-state-backup.timer" in commands
+    # Group 10: the public view's write, the same way (deploy/scripts/snapshot_sink.py; plan.md §16, "Group 10, as
+    # built"): its script and its unit from the release's tree, enabled, and restarted so each release's runs.
+    assert (paths.snapshot / "snapshot_sink.py").read_bytes() == SINK.read_bytes()
+    assert (paths.units / "h4-snapshot-sink.service").is_file()
+    assert "systemctl enable h4-snapshot-sink.service" in commands
+    assert "systemctl restart h4-snapshot-sink.service" in commands
     assert KEY_PEM not in "\n".join(commands)
 
 

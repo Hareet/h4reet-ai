@@ -74,6 +74,8 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
         "TUNNEL_END_ADDRESS",
         "RELAY_TOKEN_SELF",
         "TELEMETRY_BLOCK_TOKEN",
+        # spec 001 group 10: the public view's sink's token, for the laptop's publisher.
+        "SNAPSHOT_SINK_TOKEN",
         # spec 001's shared state (its contracts/env-cloud.md §2): empty until the Author's move (tasks.md T080).
         "GATEWAY_DB_URL",
         "GATEWAY_DB_TLS_SERVERNAME",
