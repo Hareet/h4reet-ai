@@ -144,6 +144,8 @@ resource "aws_lambda_function" "credential_audit" {
     variables = {
       H4_AUDIT_BUCKET     = aws_s3_bucket.releases.bucket
       H4_ALERTS_TOPIC_ARN = data.aws_sns_topic.alerts.arn
+      # The Author's allowlist, out of the repository (ADR 0047): his SecureString, read by its name.
+      H4_AUDIT_ALLOW_PARAMETER = "/h4reet/audit/IAM_ALLOW"
     }
   }
 

@@ -7,3 +7,8 @@
 # Group 4: the alert bridge's, h4-alerts' Telegram half (contracts/aws-alerts.md §1; infra/account/lambdas.tf).
 /h4reet/alerts/TELEGRAM_BOT_TOKEN SecureString
 /h4reet/alerts/TELEGRAM_CHAT_ID SecureString
+
+# The credential audit's allowlist, the Author's, kept out of the repository (spec 001 Assumptions, "One account, shared
+# with the Author's other work"; ADR 0047; infra/account/lambdas.tf). The same lines as his terminal's
+# ~/.config/h4reet-ai/infra/iam-allow.txt.
+/h4reet/audit/IAM_ALLOW SecureString
