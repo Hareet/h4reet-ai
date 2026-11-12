@@ -36,7 +36,7 @@ ClientAliveInterval 10
 ClientAliveCountMax 3
 ```
 
-From W1 the store is the tunnel end's own `shared-state` (plan.md §16, "The shared state on the tunnel end"), so no endpoint is written at boot; T162 brings the rest of this contract to it. The keys come from Parameter Store at boot (§5). **As built in group 5:** `deploy/tunnel/sshd_config` holds these lines and closes every other kind of session and forward (`PermitTTY no`, `X11Forwarding no`, `AllowAgentForwarding no`, `AllowStreamLocalForwarding no`, `PermitTunnel no`, `PermitUserRC no`, `UsePAM no`, `PidFile none`); the image is Ubuntu's OpenSSH on the pinned `base:ubuntu` (plan.md §16, group 5's departure 4).
+From W1 the store is the tunnel end's own `shared-state` (plan.md §16, "The shared state on the tunnel end"), so no endpoint is written at boot (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"). The keys come from Parameter Store at boot (§5). **As built in group 5:** `deploy/tunnel/sshd_config` holds these lines and closes every other kind of session and forward (`PermitTTY no`, `X11Forwarding no`, `AllowAgentForwarding no`, `AllowStreamLocalForwarding no`, `PermitTunnel no`, `PermitUserRC no`, `UsePAM no`, `PidFile none`); the image is Ubuntu's OpenSSH on the pinned `base:ubuntu` (plan.md §16, group 5's departure 4).
 
 ## 3. `tunnel` (the client, on the laptop)
 

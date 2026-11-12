@@ -63,7 +63,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 6. Group 6: the shared state, and the move
 
-1. Apply RDS. Write the role passwords to Parameter Store and the laptop's env file, then run `make shared-state-roles`.
+1. (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") After W1's applies: run `make shared-state-tls`, and write the four role passwords to Parameter Store and the laptop's two to its prod env file. Run `make secrets-check`, then `make release` for the tunnel end, whose deployer starts `shared-state` with the rest. Then run `make shared-state-roles`, and check that the first hourly backup reached its bucket (docs/runbooks/shared-state.md).
 2. Start any prod gateway against it: migrations 0001–0007 run once, and the store is `uninitialized`, so it answers degraded.
 3. Move the meter (data-model.md §1.5):
    - stop the laptop's paid route;

@@ -6,9 +6,9 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 
 | Host | Env file | Written by | Secrets in it |
 |---|---|---|---|
-| The laptop | `~/.config/h4reet-ai/env/prod.env` (spec 000's) | the Author | as today, plus `GATEWAY_DB_URL`, the gateway's and `grafana_ro`'s passwords for the shared state, the relay block's token, the telemetry block's token, and the sink's token |
+| The laptop | `~/.config/h4reet-ai/env/prod.env` (spec 000's) | the Author | as today, plus `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, and the CA certificate `GATEWAY_DB_TLS_CA` (amended 2026-11-12), the gateway's and `grafana_ro`'s passwords for the shared state, the relay block's token, the telemetry block's token, and the sink's token |
 | EC2 | `/run/h4reet/ec2.env`, on tmpfs, mode 0600 | `deploy/scripts/write_env.py` at boot, from Parameter Store `/h4reet/ec2/*` and the String parameters Terraform writes | the Anthropic key, Telegram's and SMTP's credentials, the shared state's passwords, its relay block's token, the sink's token |
-| The tunnel end | `/run/h4reet/tunnel-end.env`, on tmpfs | `write_env.py`, from `/h4reet/tunnel-end/*` | the host key, the authorized key, the relay's two host tokens, the sink's token, the telemetry block's token, `relay_ro`'s and `relay_rw`'s passwords |
+| The tunnel end | `/run/h4reet/tunnel-end.env`, on tmpfs | `write_env.py`, from `/h4reet/tunnel-end/*` | the host key, the authorized key, the relay's two host tokens, the sink's token, the telemetry block's token, `relay_ro`'s and `relay_rw`'s passwords ; and, outside the env file (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"), the shared state's TLS key and certificate, which `deploy/hosts/tunnel-end/shared_state.py` writes to `/run/h4reet/shared-state/` on tmpfs at each start (contracts/shared-state.md §3) |
 
 `write_env.py` refuses to start the stack while an expected name is missing, naming it, never a value. `make secrets-check` (the Author) lists which names exist, by name and type only.
 
@@ -20,8 +20,9 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 | `H4_STACK` | `prod` | `prod` | `prod` | `dev` | `dev-cpu` | spec 000's rule, unchanged |
 | `H4_ENV` | `prod` | `prod` | `prod` | `dev` | `dev` | unchanged |
 | `COMPOSE_PROFILES` | spec 000's, plus `tunnel` | `ec2` | `tunnel-end` | spec 000's, plus `dev-relay` | spec 000's, plus `dev-relay` | preflight, per class (§3) |
-| `GATEWAY_DB_URL` (new) | `postgres://gateway@tunnel:5432/h4reet` | `postgres://gateway@<rds-endpoint>:5432/h4reet` | — | unset (local `gateway-state`) | unset | preflight: on prod, TLS required and the local store refused |
-| `GATEWAY_DB_TLS_SERVERNAME` (new) | `<rds-endpoint>` | `<rds-endpoint>` | — | — | — | preflight |
+| `GATEWAY_DB_URL` (new; amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") | `postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full` | `postgres://gateway@10.42.1.10:5432/h4reet?sslmode=verify-full`, the tunnel end's private address | — | unset (local `gateway-state`) | unset | preflight P23; the gateway (exit 78): `sslmode=verify-full`, no password in it, never the local `gateway-state`. **As built in group 6:** on the laptop it stays empty, and prod uses its local store, until the Author's move (T080); preflight warns meanwhile |
+| `GATEWAY_DB_TLS_SERVERNAME` (new; amended 2026-11-12) | `shared-state` | `shared-state` | — | — | — | preflight P23, with `GATEWAY_DB_URL` |
+| `GATEWAY_DB_TLS_CA` (new in group 6; amended 2026-11-12) | the shared state's CA certificate, base64 of its PEM on one line, which `make shared-state-tls` writes | the same, from `/h4reet/hosts/SHARED_STATE_TLS_CA` (group 7's `write_env.py`) | — | — | — | preflight P23, with `GATEWAY_DB_URL`: it must decode to one PEM certificate. Public material, so no deny (tasks.md T165) |
 | `RELAY_TOKEN_SELF` (new) | the laptop's | EC2's | — | — | — | the relay block |
 | `RELAY_TOKEN_LAPTOP`, `RELAY_TOKEN_EC2` (new) | — | — | both | — | — | the relay |
 | `SNAPSHOT_SINK_TOKEN` (new) | the publisher's | the publisher's | the sink's | — | — | the sink (contracts/public-view.md §1) |
@@ -44,6 +45,7 @@ The ports keep spec 000's prod values on both serving hosts (18000 to 18005): di
 | `tunnel` | yes (`tunnel`) | no | no | no |
 | `snapshot-publisher` | yes | yes | no | no |
 | `tunnel-end`, `relay`, `snapshot-sink` | no | no | yes | `relay` only, in `dev-relay` |
+| `shared-state` (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") | no | no | yes | no |
 | the tunnel end's small collector, `tunnel-end-collector` (group 5: one compose file can't hold two `otel-collector`s) | no | no | yes | no |
 | `telegram-standin`, `mailpit`, `breach-probe` | no | no | no | as spec 000 |
 

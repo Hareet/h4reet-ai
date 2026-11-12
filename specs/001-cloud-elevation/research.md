@@ -52,14 +52,14 @@ Phase 0 output of `/speckit-plan`, **drafted on 2026-11-09 for the Author's revi
 
 ### R-01: One region, us-east-1 (carried)
 
-**Decision.** Everything that has a region runs in us-east-1: EC2, the tunnel end, RDS, the network, the registry, the buckets, the functions, the SNS topic, and the parameters. Carried from September R-01: CloudFront's certificate must be in us-east-1; the Bedrock inference profile is called from us-east-1 (`config/routing.yaml`); the spec's Out of scope excludes "more than one AWS region for the stack". The Anthropic API is not an AWS service and has no region here.
+**Decision.** Everything that has a region runs in us-east-1: EC2, the tunnel end and its shared state (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"), the network, the registry, the buckets, the functions, the SNS topic, and the parameters. Carried from September R-01: CloudFront's certificate must be in us-east-1; the Bedrock inference profile is called from us-east-1 (`config/routing.yaml`); the spec's Out of scope excludes "more than one AWS region for the stack". The Anthropic API is not an AWS service and has no region here.
 
 ### R-02: Terraform, pinned, in three roots (changed)
 
 **Decision.** As September R-02: Terraform and `hashicorp/aws` pinned in `.devcontainer/toolchain.vars`, each root's `required_version`, and its lockfile; the versions chosen in the first infra task from the Author's terminal; no other provider; environments by root, not by workspace; `default_tags` with `project` and `environment`, and `component` on every resource. What each root holds changes:
 - **`infra/bootstrap`:** the state bucket; the model-spend budgets and the server budget (R-22); the anomaly monitor; the `h4-alerts` topic and its email subscription. Applied first (FR-003, FR-022).
 - **`infra/account`:** the two budget actions and their rehearsals (R-22); the alert bridge, the probe, and the credential audit (R-23, R-24); the start function and the guard, their EventBridge rules, and the autostart switch's parameter (R-29, R-30); the probe's and the audit's EventBridge schedules, in the protected `alerts.tf` (rule T5); the registry and the release bucket.
-- **`infra/prod`:** the VPC and its subnets; the tunnel end (R-04, R-11); RDS (R-20); EC2 and its spot request (R-04, R-30); the Route 53 zone, the certificate, the health check and its alarm (R-29); the edge and the site's bucket (R-07); the roles (R-15).
+- **`infra/prod`:** the VPC and its subnets; the tunnel end (R-04, R-11); the shared state's data volume and its backups' bucket (R-20, amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"); EC2 and its spot request (R-04, R-30); the Route 53 zone, the certificate, the health check and its alarm (R-29); the edge and the site's bucket (R-07); the roles (R-15).
 
 **Amended on 2026-11-12, in W1's regrouping** (plan.md §16, "No root holds another root's instance or health-check ID"; ADR 0049, proposed, which amends ADR 0007's decision 2). No root holds another root's instance or health-check ID, so that a replace of EC2 or the tunnel end is planned and applied in one root. Between roots, a reference is a fixed name only. So:
 - **`infra/account`** keeps the model action on `h4-laptop-bedrock`, the AWS-side functions, the start function and the guard with their roles and permissions, the autostart switch, `h4-laptop-away-rule` (which matches the alarm by its name), the hours' two schedules (ADR 0048), the registry, the release bucket, and the rehearsals.
@@ -125,7 +125,7 @@ The policy also refuses an EC2 instance whose market options aren't spot with `i
 - **Network:** one interface in a public subnet, with an address AWS assigns at each start, used only for egress through the proxy (R-10). No inbound rule except the relay block's port from the tunnel end's security group (R-12). An auto-assigned address is released while the instance is stopped (to confirm), so EC2 holds no fixed address.
 
 **The tunnel end.**
-- **Size:** `t4g.micro` (arm64, 1 GiB), the size September R-04 chose for thin services. Its own services are smaller than September's VM's: no gateway and no store (R-20). R-33 measures it too.
+- **Size:** `t4g.micro` (arm64, 1 GiB), the size September R-04 chose for thin services. Its own services are smaller than September's VM's: no gateway, and, until W1, no store (R-20). R-33 measures it too. (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") With the shared state on it, its type is T166's measurement of five services, likely `t4g.small`.
 - **Market:** spot, the Author's answer to plan question 2 ("Spot": "AWS can take it back, and while it's gone the site rests, even if the laptop or EC2 is up"). A persistent request that stops on interruption, as EC2's (R-30). The plan had recommended on demand, since every dynamic request passes through it (question 1).
 - **Network:** two interfaces, as September's VM had (September R-07): a private one in a private subnet for CloudFront's VPC origin, and a public one with an Elastic IP for the tunnel's port and the health port.
 - **Root volume:** encrypted gp3, 8 GiB (September R-05's size, to confirm).
@@ -137,7 +137,7 @@ The policy also refuses an EC2 instance whose market options aren't spot with `i
 - **EC2's env file** is written at boot by its host script from Parameter Store, on the instance itself, with `H4_HOST=ec2`. Its preflight confirms through the instance metadata service (IMDSv2, from the host) that it runs on the instance tagged `h4-prod-ec2`. On the laptop no such service answers, so `H4_HOST=ec2` refuses to start there (exit 78).
 - **The laptop's preflight** refuses `H4_HOST=ec2` or `tunnel-end`.
 - **The gateway** reads `H4_HOST` to select its route (R-27), to label its spans and ledger rows (data-model.md §1.2), and to refuse a mismatch: `ec2` with a model-server profile, or `laptop` without one.
-- **The tunnel end** runs no gateway. Its preflight class selects only `tunnel-end`, `relay`, `snapshot-sink`, and the collector.
+- **The tunnel end** runs no gateway. Its preflight class selects only `tunnel-end`, `relay`, `snapshot-sink`, the collector, and `shared-state` (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end").
 
 **Why.** One key, checked at start against something the host can't fake by configuration, is the smallest change to spec 000's environment contract. A stack name per host would split the kill switch's row, which decision 7 forbids.
 
@@ -236,13 +236,13 @@ The record goes in this file under R-33 and in the group's note. The Author pric
   - `-R 2201` → the laptop `edge`'s relay block, 8085 (visitors' requests, from the relay);
   - `-R 2202` → the laptop `edge`'s telemetry block, 8086 (the tunnel end's collector, R-25);
   - `-R 2203` → the laptop `edge`'s health block, 8087 (Route 53's health check, R-29);
-  - `-L 5432` → RDS's endpoint, port 5432 (the shared state, R-20);
+  - `-L 5432` → `shared-state:5432`, the tunnel end's own store (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") (the shared state, R-20);
   - `-L 2301` → `snapshot-sink:8080` (the public view, R-19).
-- **`tunnel-end`** on the tunnel end: OpenSSH's server, unprivileged, with public-key authentication only and one authorized key. The host key is pinned on the laptop's side, and `MaxSessions 0` allows no shell. `PermitListen` allows exactly 2201, 2202, and 2203, and `PermitOpen` exactly RDS's endpoint on 5432 and `snapshot-sink:8080`. `GatewayPorts clientspecified` lets the listens bind the container's interface, so the relay and the published health port reach them.
+- **`tunnel-end`** on the tunnel end: OpenSSH's server, unprivileged, with public-key authentication only and one authorized key. The host key is pinned on the laptop's side, and `MaxSessions 0` allows no shell. `PermitListen` allows exactly 2201, 2202, and 2203, and `PermitOpen` exactly `shared-state:5432` (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") and `snapshot-sink:8080`. `GatewayPorts clientspecified` lets the listens bind the container's interface, so the relay and the published health port reach them.
 - **Its port** is published on the public interface; the security group admits that one port from anywhere, because the laptop's network address changes.
 - **Keys:** `make tunnel-keys` (the Author) makes the client key and the host key. The client key and the pinned host key stay in `~/.config/h4reet-ai/tunnel/`, denied to agents. The host key and the client's public key go to Parameter Store, written by the Author, never by Terraform (R-26). `make tunnel-revoke` empties the authorized key and restarts `tunnel-end` through a Systems Manager command.
 
-**Why.** September R-11's reasons hold: no capabilities, `PermitListen` and `PermitOpen` as the least reach, and the tunnel ends in the account with no third party (FR-052). The two forwards September didn't have, to RDS and to the health block, follow from R-20 and R-29.
+**Why.** September R-11's reasons hold: no capabilities, `PermitListen` and `PermitOpen` as the least reach, and the tunnel ends in the account with no third party (FR-052). The two forwards September didn't have, to the shared state and to the health block, follow from R-20 and R-29.
 
 ### R-12: The relay block and the health block on each host's `edge` (changed)
 
@@ -335,6 +335,13 @@ If the Author's price check puts RDS's line out of proportion to the server budg
 - **The tunnel end grows** to fit Postgres beside the tunnel, the relay, the sink, and the collector: probably `t4g.small` (2 GiB), measured when those services exist (group 5 or 8).
 - **Named deviation:** it reverses this section's decision and widens the spec's Terms for the tunnel end ("the tunnel, the relay, the sink, and a collector"). It changes FR-017 and FR-019's store, the data-flow row C2, and tasks T068, T073 and T080. The rework lands in W1's regrouping commit, with the 12-hour schedule (R-05). Gate A's code has no RDS in it.
 
+**As built for W1** (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"). The design the regrouping planned (plan.md §16, "The shared state on the tunnel end"), as group 6 builds it:
+- **The store:** `shared-state`, in the compose file's `tunnel-end` profile, on spec 000's pinned Postgres 17 image, copied to the account's registry as `h4reet/shared-state` by its index digest. Its data is on its own encrypted gp3 volume, `prevent_destroy`, mounted at `/srv/h4reet/shared-state` (contracts/shared-state.md §1).
+- **TLS:** `ssl = on` with `hostssl` lines only, against a CA the Author makes in his terminal (`make shared-state-tls`). Every client verifies the chain against that CA and the name `shared-state`, whichever address it dials (§3).
+- **Roles:** no `h4admin`. The superuser connects through the container's socket alone, and `make shared-state-roles` sets the four role passwords on the tunnel end through Systems Manager (§2).
+- **Backups:** the regrouping note's question 4, answered with option A as relayed by the main session: a `pg_dump` every hour to a bucket of its own, kept 7 days, which the tunnel end's role may only put to. A failed dump alerts `shared_state_backup_failed`, and the dashboard shows the last good dump's age (disclosure row C16).
+- **Restore:** from the last dump, through a presigned GET made in the Author's terminal (`make shared-state-restore`), then contracts/shared-state.md §8's `operator-restore` and `operator-init`.
+
 ---
 
 ## The handover
@@ -401,7 +408,9 @@ All run in the Author's terminal only (R-16), each with an audit record:
 | `make ec2-autostart STATE=on\|off` | sets the autostart switch: `on` lets EC2 start automatically, `off` stops that (spec FR-065, FR-012), and writes an audit row to the shared state. Setting it `on` also invokes `h4-ec2-start` once, since the alarm won't change again while the laptop stays away |
 | `make operator-status\|reset\|renew\|init\|restore ENV=shared` | spec 000's operator actions on the shared state, whichever host serves, or none (spec FR-074). While the laptop's prod runs, it uses that prod's own admin listener, `127.0.0.1:18003`, whose gateway is already on the shared state. Otherwise it starts a short-lived admin-only stack on the laptop: `tunnel` with only its `-L 5432` forward, and a `gateway` with its admin listener on the same loopback port and no public route. So the two never hold the port together, the stack can't take visitors, and the relay never sees the laptop as healthy. It runs the operator CLI, then stops. `restore` is new: it marks a store restored from a backup uninitialized, so that `init` can confirm its values (contracts/shared-state.md §8) |
 | `make cloud-session HOST=ec2\|tunnel-end` | a Systems Manager port-forwarding session to a host's admin listener (spec FR-050) |
-| `make shared-state-roles` | once, as RDS's master user: sets the shared state's role passwords from the values the Author wrote to Parameter Store (contracts/shared-state.md §2) |
+| `make shared-state-roles` | (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") on the tunnel end through Systems Manager, as the superuser over the container's socket: sets the shared state's role passwords from the values the Author wrote to Parameter Store (contracts/shared-state.md §2) |
+| `make shared-state-tls` | (new in W1) the shared state's CA, kept in his terminal, and the server's key and certificate for Parameter Store (contracts/shared-state.md §3) |
+| `make shared-state-restore` | (new in W1) the last backup, or one he names, loaded into an emptied `shared-state` through a presigned GET made in his terminal (contracts/shared-state.md §8) |
 | `make server-budget-restore` | reverses the server budget's action after the seven-day incident note (spec FR-023) |
 | `make tunnel-keys`, `make tunnel-revoke`, `make secrets-check`, `make aws-login` | keys, revocation, the secrets' presence by name, and the SSO session (tasks.md: `aws-login` and `infra-mirror` in group 1, `cloud-session` in group 5) |
 
@@ -465,7 +474,7 @@ In `infra/account/killswitch.tf` (protected):
 - **The server action:** on `h4-server-month` at 100% of actual, automatic, of type "run an SSM document", `AWS-StopEC2Instance` on the tagged instance (to confirm the action type's name and its target form). The start function reads its status and refuses while it is executed (R-29). `make server-budget-restore` reverses it.
 - **Rehearsals (spec FR-026):** while `rehearsal = true`, two $0.01 budgets with the same actions against `h4-rehearsal-target`, an ordinary role of the same shape as `h4-laptop-bedrock`, which no one assumes, and `h4-rehearsal-instance` (a `t4g.nano` with no volume of note; to price). The Author starts the rehearsal instance before each server rehearsal, since stopping a stopped instance proves nothing, and records the SSM run's status from the action's history (`AWS-StopEC2Instance` succeeded, and the instance reached `stopped`). Each run records when AWS evaluated, when each channel got the alert, and when the action took effect. Then `rehearsal = false`.
 
-**Why.** Spec FR-022 and FR-023, as answered. The server action stops only EC2: the laptop, the tunnel end, RDS, and the safety net keep running, so the laptop can still serve and the meter stays the control.
+**Why.** Spec FR-022 and FR-023, as answered. The server action stops only EC2: the laptop, the tunnel end with the shared state (amended 2026-11-12), and the safety net keep running, so the laptop can still serve and the meter stays the control.
 
 **Amended on 2026-11-12, in W1's regrouping** (R-02's amendment; ADR 0049, proposed). Three actions now, not two:
 - **The model action on the laptop:** on `h4-model-month`, `h4-deny-paid-models` on `h4-laptop-bedrock`, in `infra/account/killswitch.tf`, as applied on 2026-11-12.
@@ -541,7 +550,7 @@ It writes `site/status/latest.json` (spec FR-057 to FR-059). The rest is as Sept
 - the relay's two host tokens (`RELAY_TOKEN_*`);
 - the sink's token, which the publishers send (`SNAPSHOT_SINK_TOKEN`), and the laptop's telemetry block's token, which the tunnel end's collector sends (`TELEMETRY_BLOCK_TOKEN`). Each is named in FR-011's deny list (contracts/env-cloud.md §5; P-1).
 
-RDS's master password is RDS's own, in Secrets Manager (R-20). This stays a named exception to FR-001 (plan Complexity Tracking).
+RDS's master password was RDS's own, in Secrets Manager (R-20). (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") There is no RDS and no Secrets Manager secret: the shared state's superuser has no password any client holds, and its four role passwords and its TLS key are the Author's SecureStrings (contracts/shared-state.md §2, §3).
 
 ---
 

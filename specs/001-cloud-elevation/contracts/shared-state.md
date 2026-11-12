@@ -1,44 +1,54 @@
-# Contract: the shared state (prod's meter and kill switch, in RDS)
+# Contract: the shared state (prod's meter and kill switch, in Postgres on the tunnel end)
 
 Spec 001, re-planned 2026-11-09. New. Spec FR-017 to FR-020, FR-030, FR-074. Research: R-20. Data model: [data-model.md §1](../data-model.md#1-the-shared-state-spec-fr-017-fr-019-researchmd-r-20).
 
-## 1. The instance
+**Amended 2026-11-12** (spec.md Assumptions, "The shared state on the tunnel end"; plan.md §16): the store is no longer RDS. The Author's answer of 2026-11-11 was "Postgres in a container on the tunnel end". Sections 1, 2, 3, and 8 below are rewritten for it. Sections 4 to 7 and 9 stand as written. The RDS design is at 00309c47 and in research.md R-20's first decision.
+
+## 1. The service
+
+(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")
 
 | Setting | Value |
 |---|---|
-| Engine | PostgreSQL 17, the newest minor RDS offers. Spec 000 pins `postgres:17.11-alpine3.24` |
-| Class | the smallest Graviton class RDS offers (to price) |
-| Placement | single-AZ, a DB subnet group over two private subnets, no public access |
-| Storage | encrypted gp3, at RDS's minimum size |
-| Parameters | `rds.force_ssl = 1`; `log_statement = none`; `log_min_duration_statement = -1`, so no statement or value reaches a log |
-| Backups | automated, kept 7 days; a final snapshot on deletion; deletion protection on |
-| Master user | `h4admin`, with its password managed by RDS in Secrets Manager (`manage_master_user_password`), never in Terraform |
-| Security group | 5432 from EC2's and the tunnel end's security groups only |
+| Service | `shared-state`, in `deploy/compose.yaml`'s `tunnel-end` profile and the tunnel end's class (contracts/env-cloud.md §3) |
+| Image | spec 000's pinned `postgres:17.11-alpine3.24` (`gateway-state`'s line in `deploy/images.lock`), copied by its index digest to the account's registry as `h4reet/shared-state`; the deployer pulls it by that digest |
+| Its data | `/srv/h4reet/shared-state` on the tunnel end: the mount of its own encrypted gp3 volume (`aws_ebs_volume.shared_state`, `prevent_destroy`, in the tunnel end's zone, attached as `/dev/sdf`). A spot stop keeps it (research.md R-30). Its size is T166's measurement |
+| Configuration | `deploy/shared-state/postgresql.conf` and `pg_hba.conf`, from the release's tree, read-only. `ssl = on`, TLS 1.3 at least, with the key and certificate from `/run/h4reet/shared-state/` on tmpfs. `hostssl` lines only, with `scram-sha-256`, for `gateway`, `grafana_ro`, `relay_ro`, and `relay_rw`. The superuser `postgres` connects through the container's local socket alone (`peer`). `log_statement = none` and `log_min_duration_statement = -1`, so no statement or value reaches a log |
+| Listens | inside the container, on its compose networks; on the host, on the private interface's fixed address alone, `10.42.1.10:5432` |
+| Security group | 5432 on the tunnel end's private interface, from EC2's security group only |
 | Database | `h4reet` |
+| Backups | `pg_dump` every hour, by the host timer `h4-shared-state-backup.timer`, inside the container over its socket, put to its own bucket in the account under `dumps/`, kept 7 days (the regrouping note's question 4, option A, relayed by the main session as the Author's answer). §8 restores from it |
 
-Terraform defines the instance, its subnet group, its parameter group, and its security group in `infra/prod/rds.tf`. Nothing in Terraform reads a password.
+Terraform defines the data volume, its attachment, the backups' bucket, and 5432's rule in `infra/prod/shared-state.tf` and `tunnel-end.tf`, and the tunnel end role's grants in `infra/prod/iam.tf` (P-I7). Nothing in Terraform reads a password or a key (rule T9).
 
 ## 2. Roles
 
+(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")
+
 | Role | Created by | Rights | Password |
 |---|---|---|---|
-| `gateway` | the Author's one-time setup, as `h4admin`, from `make shared-state-roles` in his terminal | owner of schema `gateway`; runs the migrations | Parameter Store `/h4reet/ec2/DB_GATEWAY_PASSWORD`; the laptop's prod env file |
-| `grafana_ro` | migration 0002 (spec 000) | `v_state`, `audit_log`, and the views spec 000 and 010 grant, and `v_handovers` (0007) | Parameter Store; the laptop's prod env file |
-| `relay_ro` | migration 0007 | `SELECT` on `gateway.v_state`; read-only; `statement_timeout = 250ms` | Parameter Store `/h4reet/tunnel-end/` |
-| `relay_rw` | migration 0007 | `INSERT` on `gateway.handover_events` and its sequence | the same |
+| `postgres` | the image's first start, on an empty data volume | the superuser, through the container's local socket only: no `hostssl` line names it, so no TCP connection can use it | none that any client holds: the first start sets one from a random file the host writes to tmpfs and never keeps |
+| `gateway` | `make shared-state-roles`, on the tunnel end through Systems Manager, as `postgres` over the socket | `LOGIN CREATEROLE`; `CREATE` on database `h4reet`, so its migrations make schema `gateway` and own it | Parameter Store `/h4reet/ec2/DB_GATEWAY_PASSWORD`; the laptop's prod env file, as `GATEWAY_DB_PASSWORD` |
+| `grafana_ro` | migration 0002 (spec 000) | `v_state`, `audit_log`, and the views spec 000 and 010 grant, and `v_handovers` (0007) | Parameter Store `/h4reet/ec2/DB_GRAFANA_RO_PASSWORD`; the laptop's prod env file, as `GATEWAY_GRAFANA_RO_PASSWORD`. Each gateway sets it at start, as spec 000's does, so both hold the same value |
+| `relay_ro` | migration 0007 | `SELECT` on `gateway.v_state`; read-only; `statement_timeout = 250ms` | Parameter Store `/h4reet/tunnel-end/DB_RELAY_RO_PASSWORD` |
+| `relay_rw` | migration 0007 | `INSERT` on `gateway.handover_events` and its sequence | Parameter Store `/h4reet/tunnel-end/DB_RELAY_RW_PASSWORD` |
 
-Migration 0007 creates the two relay roles without passwords. The Author's `make shared-state-roles` sets them from the values he wrote to Parameter Store, so no password is in a migration, a log, or the repository.
+There is no `h4admin` and no Secrets Manager secret. Migration 0007 creates the two relay roles without passwords. `make shared-state-roles` reads the four passwords from Parameter Store on the tunnel end, with the tunnel end's role, and sets each as a SCRAM-SHA-256 verifier computed on the host, over the socket, on standard input. So no password is in a migration, a log, a command line, a Systems Manager command, or the repository. A role a migration hasn't made yet is skipped and named, and a second run after the gateway's first start sets it.
 
 ## 3. Connections
 
+(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")
+
 | Client | URL form (`GATEWAY_DB_URL` and the like) | TLS |
 |---|---|---|
-| EC2's gateway | `postgres://gateway@<rds-endpoint>:5432/h4reet` | `verify-full` against RDS's certificate bundle, pinned by SHA-256 in the image |
-| The laptop's gateway | `postgres://gateway@tunnel:5432/h4reet`, through the tunnel's `-L 5432` | verified against the same bundle, with the server name set to `<rds-endpoint>`, since the client connects to `tunnel` |
-| The relay | `postgres://relay_ro@<rds-endpoint>:5432/h4reet` (and `relay_rw`) | `verify-full` |
+| EC2's gateway | `postgres://gateway@10.42.1.10:5432/h4reet?sslmode=verify-full` | verified against the shared state's CA certificate, `GATEWAY_DB_TLS_CA`, with the server name `GATEWAY_DB_TLS_SERVERNAME=shared-state` |
+| The laptop's gateway | `postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full`, through the tunnel's `-L 5432` to `shared-state:5432` | the same CA and the same server name, since the client connects to `tunnel` |
+| The relay | `postgres://relay_ro@shared-state:5432/h4reet?sslmode=verify-full` (and `relay_rw`), over the compose network | the same CA and name (group 8, T106) |
 | Grafana on each host | as its gateway, as `grafana_ro` | the same |
 
-Preflight refuses a prod `GATEWAY_DB_URL` without TLS, or one that names the local `gateway-state` on `H4_HOST=laptop` or `ec2` (exit 78).
+**The certificates.** `make shared-state-tls` (the Author's terminal) makes a CA whose key stays in `~/.config/h4reet-ai/shared-state/`, under spec 000's deny, and a server key and certificate for the one name `shared-state`. It writes the key to the SecureString `/h4reet/tunnel-end/SHARED_STATE_TLS_KEY`, the server's certificate to `/h4reet/tunnel-end/SHARED_STATE_TLS_CERT`, and the CA certificate to `/h4reet/hosts/SHARED_STATE_TLS_CA` for EC2 and the relay. It then puts the CA certificate into the laptop's prod env file as `GATEWAY_DB_TLS_CA`. The env file holds the certificate itself, base64 of its PEM on one line, since a container sees only the files its five bind roots hold. The tunnel end's host script writes the key to `/run/h4reet/shared-state/server.key` on tmpfs at each start, mode 0400, owned by the container's user.
+
+Preflight refuses a prod `GATEWAY_DB_URL` without `sslmode=verify-full`, without `GATEWAY_DB_TLS_SERVERNAME` and `GATEWAY_DB_TLS_CA`, with a password in it, or naming the local `gateway-state`, on `H4_HOST=laptop` or `ec2` (exit 78 from the gateway too). The gateway checks the server's certificate chain against that CA and its name against the server name, whatever host it dials.
 
 ## 4. Two writers (data-model.md §1.3)
 
@@ -70,15 +80,19 @@ Both production gateways run with `H4_STACK=prod`, so both use `stack_state`'s o
 
 ## 8. Restore
 
-A restored store isn't empty: it holds the meters and the kill switch as they were at the restore point, and §6's `init` refuses it. Spend after the restore point is missing from it. So the runbook, all in the Author's terminal:
+(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"; plan.md §16, "Restore")
+
+A restored store isn't empty: it holds the meters and the kill switch as they were at the last backup, and §6's `init` refuses it. Spend after that dump is missing from it. So the runbook (`docs/runbooks/shared-state.md`), all in the Author's terminal:
 1. **Stop both hosts:** `make ec2-autostart STATE=off`, `make ec2-stop`, and `make down ENV=prod` on the laptop. No gateway may use the restored store before step 4.
-2. **Restore** from RDS's automated backups to a new instance, and give it the original instance's identifier, keeping the old one's final snapshot, so the endpoint, the tunnel's permit, and every `GATEWAY_DB_URL` stay as they are. The rename steps, and how Terraform's state then matches the instance, are to confirm against AWS's guide in group 6, and the runbook records them.
+2. **Restore** from the last backup: `make shared-state-restore [DUMP=<key>]`. It refuses while EC2 runs or the laptop's prod does. It lists the backups' prefix with his own session and picks the dump he names, or the latest. It makes a presigned GET for that one object, valid for 15 minutes, and passes it to the tunnel end in one Systems Manager command. The command fetches the dump through the tunnel end's egress proxy, empties `shared-state` (the database dropped and made again, over the socket), and loads the dump over the socket. The target prints the dump's name, its time, and the command's ID, never the URL or the dump. The tunnel end's role may still only put objects in the bucket, so a compromised tunnel end can't read a dump. The URL is a bearer credential for 15 minutes, and Systems Manager's command history keeps it past its expiry, which the runbook says.
 3. **`make operator-restore ENV=shared`** (new; spec 000's operator actions, amended by name): it refuses unless EC2 is stopped and the laptop's prod isn't running. Through the admin-only stack (§7), it prints the restored meters, then, under the initialization lock, sets `stack_state` to `uninitialized`. It keeps the ledger and the audit log. From then on, every gateway and the relay answer degraded, as for a store found empty.
-4. **`make operator-init ENV=shared`** with the values the Author confirms: never lower than the restored meters step 3 printed, and raised by the spend since the restore point that the providers' own usage shows (Bedrock's cost in AWS's data, and the Anthropic account's usage). Nothing restarts at zero (FR-019).
+4. **`make operator-init ENV=shared`** with the values the Author confirms: never lower than the restored meters step 3 printed, and raised by the spend since the dump that the providers' own usage shows (Bedrock's cost in AWS's data, and the Anthropic account's usage). Nothing restarts at zero (FR-019).
 5. **Start the hosts again:** `make ec2-autostart STATE=on`, or the laptop's prod.
 
 Steps 3 and 4 each take the operator credential and a reason naming the restore, and write an audit row with `host`.
 
+**A move to another zone** is this restore: the data volume stays in its zone, and its `prevent_destroy` blocks a plan that replaces it. So the move is a reviewed change that adds a second volume in the new zone and keeps the old one until a later change lifts its `prevent_destroy`. The new volume starts empty, and steps 1 to 5 fill it from the last backup.
+
 ## 9. What it never holds
 
-No payload, message, answer, visitor address, or client label. Spec 000's ledger and audit columns are unchanged, apart from `host` (FR-042; SC-011's scan covers the store).
+No payload, message, answer, visitor address, or client label. Spec 000's ledger and audit columns are unchanged, apart from `host` (FR-042; SC-011's scan covers the store). Its backups hold what it holds, and nothing more (disclosure row C16).
