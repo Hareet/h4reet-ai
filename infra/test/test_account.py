@@ -1192,10 +1192,15 @@ def check_registry(root: dict[str, list]) -> list[str]:
     return found
 
 
+# The policy's source list (tools/gates/infra_policy.py, TAGGABLE) lacks aws_budgets_budget_action, which takes tags:
+# the Author's T037 plan, 2026-11-12, found the model action's tags_all without component (rule T2 on the saved plan).
+TAGGABLE_HERE = ip.TAGGABLE | {"aws_budgets_budget_action"}
+
+
 def check_tags(root: dict[str, list]) -> list[str]:
     found = []
     for b in blocks(root, "resource"):
-        if len(b.labels) != 2 or b.labels[0] not in ip.TAGGABLE:
+        if len(b.labels) != 2 or b.labels[0] not in TAGGABLE_HERE:
             continue
         tags = ip.literal(b.attr("tags"))
         if not (

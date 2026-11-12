@@ -24,5 +24,9 @@ resource "aws_budgets_budget_action" "model" {
     subscription_type = "SNS"
   }
 
+  tags = {
+    component = "kill-switch"
+  }
+
   depends_on = [aws_iam_role_policy.model_action]
 }

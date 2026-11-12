@@ -24,4 +24,8 @@ resource "aws_budgets_budget_action" "model" {
     address           = data.aws_sns_topic.alerts.arn
     subscription_type = "SNS"
   }
+
+  tags = {
+    component = "kill-switch"
+  }
 }
