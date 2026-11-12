@@ -1,0 +1,81 @@
+P-G2, spec 001 group 6 (W1; tasks.md T165; plan.md §14, §16 W1's departure 14): the guards for W1's two new
+Author-only targets, for the Author's hand.
+
+.claude/hooks/bash-gate.sh, redteam/forbidden-actions.sh, and tools/gates/matrix-required.txt are the enforcement
+layer's and the gate's, so their change is the Author's (tasks.md Format, "Patches"). Group 6 adds two Author-only
+targets that no rule names yet: the shared state's CA and server certificate (`shared-state-tls`) and its restore from
+a backup (`shared-state-restore`). The roles target, `shared-state-roles`, is P-1's already. This patch:
+  - adds both to the bash gate's P-1 list of Author-only targets, so every spelling the gate reads for that list
+    refuses them (a path to make, gmake, -C, a wrapper, ./, quotes in or around the name, a subshell, bash -c);
+  - adds thirteen matrix rows, twelve blocks in those spellings and one allow, `shared-state-tlsx`, a name the
+    rule's word boundary keeps out, each in matrix-required.txt so none can be dropped quietly.
+No row is a gap: on an export with this patch, each block row blocks. The design adds no environment name (tasks.md
+T165's table): the CA certificate, GATEWAY_DB_TLS_CA, is public material, and the role passwords are P-1's DB_*
+names. Applies to main's copies, which no other W1 patch changes.
+
+Built from plain copies (git show HEAD:<path> into $TMPDIR), edited, then diff -u with a/ and b/ labels; never git
+apply. Apply it on W1's -p branch before W1's gate (T171), with `patch -p1 < <this file>` at the repository's root.
+--- a/.claude/hooks/bash-gate.sh
++++ b/.claude/hooks/bash-gate.sh
+@@ -374,12 +374,13 @@
+ # The Author-only targets (research.md R-16, R-32; contracts/infra-records.md §1): make plan with a ROOT (the real plan,
+ # with his SSO session; make plan alone is the offline checks), infra-verify, infra-record, infra-mirror, infra-audit,
+ # secrets-check, release, rollback, the ec2-* commands, cloud-session, shared-state-roles, server-budget-restore,
+-# tunnel-keys, and tunnel-revoke, by make's two matches above. make aws-login, already refused, takes a named profile
++# tunnel-keys, and tunnel-revoke, by make's two matches above; and, from spec 001 group 6 (its tasks.md T165, P-G2),
++# shared-state-tls and shared-state-restore, the shared state's CA and its restore from a backup. make aws-login, already refused, takes a named profile
+ # now; operator-* with ENV=shared is refused by the dev-cpu rule below. Their API equivalents too: the AWS CLI writing or
+ # deleting a /h4reet/ parameter (the secrets and the autostart switch, R-26; FR-012) or invoking h4-ec2-start or
+ # h4-ec2-guard (make ec2-start's function).
+ p1_route="the Author runs it in his terminal (spec 001 research.md R-32); ask the Author"
+-p1_targets="$(spelled infra-verify)|$(spelled infra-record)|$(spelled infra-mirror)|$(spelled infra-audit)|$(spelled secrets-check)|$(spelled release)|$(spelled rollback)|$(spelled ec2-)[[:alnum:]_\"'\\\$-]*|$(spelled cloud-session)|$(spelled shared-state-roles)|$(spelled server-budget-restore)|$(spelled tunnel-keys)|$(spelled tunnel-revoke)"
++p1_targets="$(spelled infra-verify)|$(spelled infra-record)|$(spelled infra-mirror)|$(spelled infra-audit)|$(spelled secrets-check)|$(spelled release)|$(spelled rollback)|$(spelled ec2-)[[:alnum:]_\"'\\\$-]*|$(spelled cloud-session)|$(spelled shared-state-roles)|$(spelled server-budget-restore)|$(spelled tunnel-keys)|$(spelled tunnel-revoke)|$(spelled shared-state-tls)|$(spelled shared-state-restore)"
+ if has "$make_word" && has "${tb}(${p1_targets})${te}"; then
+   block "an Author-only make target (spec 001)" "$p1_route"
+ fi
+--- a/redteam/forbidden-actions.sh
++++ b/redteam/forbidden-actions.sh
+@@ -1349,6 +1349,21 @@
+ cmd block 'make server-budget-restore'
+ cmd block 'make tunnel-keys'
+ cmd block 'make tunnel-revoke'
++# Spec 001 group 6's two Author-only targets (tasks.md T165, P-G2): the shared state's CA and its restore, in each of
++# the spellings the gate already covers. The roles target is P-1's, above.
++cmd block 'make shared-state-tls'
++cmd block 'make shared-state-tls ROTATE=1'
++cmd block 'make shared-state-restore'
++cmd block 'make shared-state-restore DUMP=dumps/2026-11-13T06:00:00Z.dump'
++cmd block 'gmake shared-state-tls'
++cmd block 'make -C . shared-state-restore'
++cmd block 'bash -c "make shared-state-tls"'
++cmd block 'make ./shared-state-restore'
++cmd block 'make "shared-state-"tls'
++cmd block 'make shared-state-"restore"'
++cmd block '(make shared-state-restore)'
++cmd block 'env PROFILE=x make shared-state-tls'
++cmd allow 'make shared-state-tlsx'
+ cmd block 'make aws-login PROFILE=h4reet-admin'
+ cmd block 'bash deploy/scripts/aws-sso-profile.sh h4reet-admin'
+ cmd block './deploy/scripts/aws-sso-profile.sh h4reet-admin'
+--- a/tools/gates/matrix-required.txt
++++ b/tools/gates/matrix-required.txt
+@@ -440,6 +440,19 @@
+ H/bash-gate.sh/make server-budget-restore
+ H/bash-gate.sh/make tunnel-keys
+ H/bash-gate.sh/make tunnel-revoke
++H/bash-gate.sh/make shared-state-tls
++H/bash-gate.sh/make shared-state-tls ROTATE=1
++H/bash-gate.sh/make shared-state-restore
++H/bash-gate.sh/make shared-state-restore DUMP=dumps/2026-11-13T06:00:00Z.dump
++H/bash-gate.sh/gmake shared-state-tls
++H/bash-gate.sh/make -C . shared-state-restore
++H/bash-gate.sh/bash -c "make shared-state-tls"
++H/bash-gate.sh/make ./shared-state-restore
++H/bash-gate.sh/make "shared-state-"tls
++H/bash-gate.sh/make shared-state-"restore"
++H/bash-gate.sh/(make shared-state-restore)
++H/bash-gate.sh/env PROFILE=x make shared-state-tls
++H/bash-gate.sh/make shared-state-tlsx
+ H/bash-gate.sh/make aws-login PROFILE=h4reet-admin
+ H/bash-gate.sh/bash deploy/scripts/aws-sso-profile.sh h4reet-admin
+ H/bash-gate.sh/./deploy/scripts/aws-sso-profile.sh h4reet-admin
