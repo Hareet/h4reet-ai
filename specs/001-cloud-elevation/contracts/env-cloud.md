@@ -31,6 +31,7 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 | `H4_TUNNEL_DIR` (new, group 5) | `~/.config/h4reet-ai/tunnel/client`: the client's key and the pinned host key | — | — | `deploy/tunnel-none` | `deploy/tunnel-none` | preflight P22; the compose policy's bind (P-G3) |
 | `H4_REGISTRY` (new, group 5) | — | — | the account's ECR registry, from the instance's identity document | — | — | preflight's tunnel-end class (T4) |
 | `RELEASE_BUCKET`, `EC2_COLLECTOR_ENDPOINT` (new, group 5) | — | — | `/h4reet/hosts/RELEASE_BUCKET`; EC2's collector in the VPC | — | — | preflight's tunnel-end class (T4) |
+| `H4_STATE_DIR`, `H4_AWS_DIR`, `H4_MODEL_DIR` (spec 000's; on the tunnel end after group 5's review, I5) | spec 000's | spec 000's | `/var/lib/h4reet/none`: compose requires each of every stack (`:?`), and none of the tunnel end's services binds them | spec 000's | spec 000's | compose's interpolation; preflight's tunnel-end class (T2, the template's keys) |
 | `GATEWAY_ANTHROPIC_API_KEY` | as spec 010 | from Parameter Store | — | absent | absent | spec 010's preflight |
 
 The ports keep spec 000's prod values on both serving hosts (18000 to 18005): different machines, the same numbers. On EC2 they bind its loopback, for the operator's session; its relay block binds its private address (contracts/tunnel.md §4). The tunnel end's relay listener binds its private address, and its internal listener `127.0.0.1:18505`.
