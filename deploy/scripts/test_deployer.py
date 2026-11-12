@@ -632,3 +632,28 @@ def test_a_release_refused_once_isnt_alerted_again(tmp_path: Path) -> None:
     w.release("r3", commit="not-a-commit")
     assert w.run() == 1 and w.run() == 1
     assert len(w.aws.alerts) == 2 and "- reason: commit" in w.aws.alerts[1]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 5's fixes' review, 3: the Author's hold (contracts/releases-deployer.md §4): while the state folder holds
+# `hold`, the deployer neither restarts what he stopped nor deploys, at boot or on the timer.
+
+
+def test_a_hold_keeps_the_deployer_from_starting_or_deploying_anything(
+    tmp_path: Path, capsys
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    (w.state / "hold").write_text("the Author, for maintenance\n", encoding="utf-8")
+    w.docker.calls.clear()
+    w.docker.up = set()  # stopped on purpose
+    w.release("r2")
+    assert w.run() == 0
+    assert w.run(boot=True) == 0
+    assert w.docker.calls == [] and w.aws.alerts == []
+    assert "held" in capsys.readouterr().err
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
+    (w.state / "hold").unlink()
+    assert w.run() == 0
+    assert [env["H4_RELEASE"] for _, env in ups(w)][-1] == "r2"
