@@ -157,6 +157,8 @@ envs:
 | R10 | `envs: must have exactly the keys prod and dev` | |
 | R11 | any unknown key, wrong type, or out-of-range value, named by its path | |
 
+(spec 001) **R1, amended,** with `config/routing.yaml`'s schema 2 (spec 001 data-model.md §2.1): every `primary` names a local adapter; a route with `first` names paid adapters only, in `first` and an optional `second`, and appears only as `envs.prod.hosts.ec2`. Its new rules: **H1**, `envs.prod.hosts` holds `laptop`, may hold `ec2`, and no other host; **H2**, the gateway selects `envs.<H4_ENV>.hosts.<H4_HOST>` where `hosts` exists, else `envs.<H4_ENV>`, and EC2 with no route of its own exits 78, `route_missing`; **A1**, the calls of a `first` route are attributed `metered`, and of a `fallback`, `fallback`. Schema 1 holds as written.
+
 **R12 (spec 010).** An `anthropic-messages` adapter's `api_key_env` never names a variable beginning `ANTHROPIC_`, which the SDK reads on its own: `config/routing.yaml: adapters.anthropic.api_key_env: must not begin ANTHROPIC_, a name the SDK reads on its own`.
 
 ### 1.4 Startup refusals (exit 78)

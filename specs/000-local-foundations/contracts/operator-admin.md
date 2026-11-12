@@ -530,6 +530,8 @@ The `status` and `init` summaries name the CLI's own `--stack`, in the first lin
 | `operator-incidents` | `ENV`, `ID=` | `incidents --show` | the same |
 | `operator-alert-samples` **(spec 011, Amendment 0-8)** | `ENV`, `REASON`, `KIND=` | `alert-samples` | the Author; agents for `ENV=dev-cpu` only |
 
+(spec 001) **The shared state's actions** (spec 001 contracts/shared-state.md §7, §8): `ENV=shared` takes the operator's targets alone, `status`, `init`, `reset`, `renew`, `audit`, and the new `restore`, through the laptop prod's admin listener while it runs, else an admin-only stack. `POST /admin/restore`, prod's alone, with a reason: after a backup's load, it answers the restored meters, sets the store uninitialized under the initialization lock, and keeps the ledger, the meters, and the audit log; `init` then refuses a stated value below a restored meter, `below_restored_meters`. Each action's audit row carries `host`.
+
 - **The reason.** Recipes pass it as `--reason="$$REASON"`, so make never splices the text into a shell line, and the `=` keeps a reason that starts with `-` a value. A write target without `REASON` on the command line fails before any call, with exit 2.
 - **The flags.** `RENEW=1` and `CONFIRM_ZERO=1` become `--renew` and `--confirm-zero`. `DAY_USD`, `MONTH_USD`, and `FALLBACK_TODAY_USD` become the stated values, as `--day-usd="$$DAY_USD"` and so on.
 - **The command line only.** Like `ENV` and `REF`, each of these is taken only from make's command line, so a value left in the shell's environment never renews or states anything. `RENEW` or `CONFIRM_ZERO` with any value but `1` stops make before the recipe runs.
