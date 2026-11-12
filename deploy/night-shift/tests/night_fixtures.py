@@ -24,6 +24,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 NIGHT_PY = HERE.parent / "runner" / "night.py"
 COMFY_PARAMS = HERE / "fixtures" / "comfyui-params.json"
+# main's .claude/hooks/protected-paths.sh, verbatim (named .txt so shellcheck leaves the copy alone).
+HOOK_FIXTURE = HERE / "fixtures" / "protected-paths.sh.txt"
 
 SESSION_ROLES = (
     "supervisor",
@@ -446,6 +448,9 @@ class FakeFx:
         self.environ: dict[str, str] = {"PATH": "/usr/bin:/bin", "HOME": str(h.home)}
         self.disk = {"/": 200 * 2**30, "/mnt/c": 100 * 2**30}
         self.mem = 32 * 2**30
+        self.mem_total_bytes = 62 * 2**30
+        self.branch_changes: list[str] = []
+        self.main_hook: str | None = HOOK_FIXTURE.read_text()
         self.internal = {
             "h4-night": "true",
             "h4-night-studio": "true",
@@ -497,6 +502,9 @@ class FakeFx:
 
     def mem_available(self) -> int:
         return self.mem
+
+    def mem_total(self) -> int:
+        return self.mem_total_bytes
 
     def exists(self, path: str) -> bool:
         return path in self.present or os.path.lexists(path)
@@ -617,7 +625,16 @@ class FakeFx:
         while a and a[0].startswith(("--git-dir=", "--work-tree=")):
             a = a[1:]
         if a[:2] == ["cat-file", "blob"]:
+            if a[-1] == "refs/heads/main:.claude/hooks/protected-paths.sh":
+                if self.main_hook is None:
+                    return Result(128, "", "fatal: path not in refs/heads/main")
+                return Result(0, self.main_hook)
             return Result(0, self.main_settings)
+        if a[:1] == ["merge-base"]:
+            return Result(0, sha40("merge-base") + "\n")
+        if a[:1] == ["diff-tree"]:
+            # The paths a branch changes since its merge base with main, NUL-separated (-z).
+            return Result(0, "".join(f"{x}\0" for x in self.branch_changes))
         if a[:1] == ["rev-parse"]:
             target = a[-1].removesuffix("^{commit}")
             if target in self.unresolvable:
