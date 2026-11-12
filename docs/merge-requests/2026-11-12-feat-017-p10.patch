@@ -1,0 +1,196 @@
+P-10 (spec 017, the night shift; plan.md §10, Q13; tasks.md T071): the night shift's settings layers and prompts
+trigger the agent-config evals, as .claude/ does.
+
+What it changes:
+  - tools/gates/gate: the agent-config-evals step is triggered by a branch that touches deploy/night-shift/claude/ or
+    deploy/night-shift/runner/prompts/, beside CLAUDE.md, REVIEW.md, .claude/, and the Claude Code pin; its docstring
+    and its SKIP line name them. The runner's code and the container specs stay code (make test holds them).
+  - evals/agent-config/behavioral.py: TRIGGER_PATHS gains the same two folders, so the trigger hash covers them. Without
+    this, a branch that changed only a prompt would hash as main does, and main's attested run would pass it: the
+    trigger would be hollow. Folders that don't exist add nothing to the hash, so main's hash doesn't move until the
+    night shift's files are on main; from then on, the first make evals-agent-config after that merge records it.
+  - tools/gates/test/test_gate.py: two parametrize cases (a settings layer, a prompt: PENDING until a run exists), a
+    SKIP test for night.py, a container spec, and a neighbour folder, and a "triggered by" test.
+  - evals/agent-config/test_behavioral.py: the hash covers a prompt and a settings layer, not night.py or a spec, and
+    an export hashes as the work tree does.
+behavioral.py is in evals/agent-config/, also human-only; it's here because the gate's trigger and the hash must name
+the same paths.
+
+Spec IDs: the Assumptions' named deviation "Agent configuration outside .claude/" ("P-10 adds it to the gate's
+agent-configuration trigger, so a change there runs the same evals"), Q13.
+
+Needed for: the merge.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p10.patch
+  git show "refs/heads/$B:$F" > /tmp/p10.patch
+  sha256sum /tmp/p10.patch
+  patch -p1 --dry-run < /tmp/p10.patch
+  patch -p1 < /tmp/p10.patch
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; `pytest
+tools/gates/test/test_gate.py evals/agent-config/`: 589 passed in 198 s.
+
+--- a/evals/agent-config/behavioral.py
++++ b/evals/agent-config/behavioral.py
+@@ -12,8 +12,9 @@
+ Standard library plus PyYAML.
+ 
+ `status` runs everywhere and starts nothing. It checks the cases, thresholds.yaml, and every history entry as data,
+-then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, and evals/agent-config/** (without
+-history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
++then computes the trigger hash: SHA-256 over CLAUDE.md, REVIEW.md, .claude/**, the night shift's settings layers and
++prompts (deploy/night-shift/claude/** and deploy/night-shift/runner/prompts/**, spec 017 Q13), and evals/agent-config/**
++(without history/, so committing an entry doesn't change the hash it records), the files git lists there, tracked or new
+ but not ignored (every file there, in a git archive export), with their executable bits, plus the Claude Code pin
+ in .devcontainer/toolchain.vars, a floor (ADR 0023). The gate calls status(export=True) on its export, which walks the tree and never
+ runs git, even where the tree holds a .git folder or file, whose config could name programs git runs. An entry
+@@ -125,7 +126,16 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ REPO = HERE.parents[1]
+-TRIGGER_PATHS = ("CLAUDE.md", "REVIEW.md", ".claude", "evals/agent-config")
++# The night shift's settings layers and prompts are agent configuration outside .claude/ (spec 017, Q13; its P-10): the
++# gate's step is triggered by them, and the hash covers them, so a run for the hash before they changed doesn't count.
++TRIGGER_PATHS = (
++    "CLAUDE.md",
++    "REVIEW.md",
++    ".claude",
++    "deploy/night-shift/claude",
++    "deploy/night-shift/runner/prompts",
++    "evals/agent-config",
++)
+ PIN_FILE = ".devcontainer/toolchain.vars"
+ PIN_KEY = "CLAUDE_CODE_VERSION"
+ COMMAND = "make evals-agent-config"
+--- a/evals/agent-config/test_behavioral.py
++++ b/evals/agent-config/test_behavioral.py
+@@ -795,6 +795,24 @@
+     assert bh.trigger_hash(repo) != before
+ 
+ 
++def test_the_night_shifts_settings_layers_and_prompts_are_in_the_hash(
++    repo: Path, tmp_path: Path
++) -> None:
++    # Spec 017's P-10 (Q13): its agent configuration outside .claude/; its runner and its specs aren't.
++    before = bh.trigger_hash(repo)
++    write(repo / "deploy" / "night-shift" / "runner" / "night.py", "# the runner\n")
++    write(repo / "deploy" / "night-shift" / "containers" / "ops.json", "{}\n")
++    assert bh.trigger_hash(repo) == before
++    write(repo / "deploy" / "night-shift" / "runner" / "prompts" / "ops.md", "# ops\n")
++    with_prompt = bh.trigger_hash(repo)
++    assert with_prompt != before
++    write(repo / "deploy" / "night-shift" / "claude" / "ops.settings.json", "{}\n")
++    assert bh.trigger_hash(repo) != with_prompt
++    export = tmp_path / "export"
++    shutil.copytree(repo, export, ignore=shutil.ignore_patterns(".git"))
++    assert bh.trigger_hash(export, export=True) == bh.trigger_hash(repo)
++
++
+ def test_the_executable_bit_is_in_the_hash(repo: Path) -> None:
+     before = bh.trigger_hash(repo)
+     (repo / ".claude" / "hooks" / "bash-gate.sh").chmod(0o644)
+--- a/tools/gates/gate
++++ b/tools/gates/gate
+@@ -97,8 +97,9 @@
+      h4reet-web:<SHA> without drafts and with the Dockerfile's own empty policy; then the compose images;
+    - matrix-e: stage E, when the branch touches deploy/agents-engine/ or .claude/settings.json. It is Heavy, so it
+      waits (PENDING) for --prove, which runs deploy/agents-engine/engine.sh prove;
+-   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, or the Claude
+-     Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
++   - agent-config-evals: the behavioral tier, when the branch touches CLAUDE.md, REVIEW.md, .claude/, the night shift's
++     settings layers and prompts (deploy/night-shift/claude/ and deploy/night-shift/runner/prompts/, spec 017 Q13), or
++     the Claude Code pin (spec 006 FR-004): the main tree's evals/agent-config/behavioral.py,
+      loaded into this process like check_corpus, whose status reads the export's cases, thresholds, history, and
+      trigger files as data and starts nothing; in export mode it walks the tree and never runs git. An entry counts
+      only when this machine attests its exact bytes (make evals-agent-config writes the SHA-256 under
+@@ -207,6 +208,12 @@
+     ("credits", "credits-check"),
+ )
+ STAGE_E_PATHS = ("deploy/agents-engine/", ".claude/settings.json")
++# The night shift's agent configuration outside .claude/ (spec 017, Q13; its P-10): each worker's Claude Code settings
++# layer and the role prompts it runs, which trigger the agent-config evals as .claude/ does.
++NIGHT_SHIFT_TRIGGERS = (
++    "deploy/night-shift/claude/",
++    "deploy/night-shift/runner/prompts/",
++)
+ # The room's content policy on main (spec 002, contracts/resume-source.md §5): each file's path there, and its name in
+ # the directory the room's build reads; and that build, without drafts, with no pre- or post-scripts (T080). Spec 004
+ # adds main's caps, so the release-like build applies main's caps and legibility floor, as prod's image does; a file
+@@ -1731,7 +1738,11 @@
+             "no merge base with main, so the branch's changes can't be read"
+         )
+     touched = sorted(
+-        p for p in paths if p in ("CLAUDE.md", "REVIEW.md") or p.startswith(".claude/")
++        p
++        for p in paths
++        if p in ("CLAUDE.md", "REVIEW.md")
++        or p.startswith(".claude/")
++        or p.startswith(NIGHT_SHIFT_TRIGGERS)
+     )
+     # Spec 006 FR-004: a change to the runner, its checks, the cases, or the thresholds alone is held to its own tests,
+     # and the tier's next run exercises it. The trigger hash still covers it, so each entry names what it tested.
+@@ -1755,7 +1766,8 @@
+         )
+         return step.set(
+             "SKIP",
+-            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the Claude Code pin"
++            "the branch touches none of the triggers: CLAUDE.md, REVIEW.md, .claude/, the night shift's "
++            "deploy/night-shift/claude/ and runner/prompts/, the Claude Code pin"
+             + held,
+         )
+     shown = ", ".join(touched[:3]) + (", ..." if len(touched) > 3 else "")
+--- a/tools/gates/test/test_gate.py
++++ b/tools/gates/test/test_gate.py
+@@ -2568,6 +2568,11 @@
+     [
+         {".claude/agents/reviewer.md": "# the reviewer, changed\n"},
+         {"REVIEW.md": "# review, changed\n", **HARNESS_CHANGE},
++        # Spec 017's P-10 (Q13): the night shift's settings layers and prompts are agent configuration too.
++        {"deploy/night-shift/claude/ops.settings.json": "{}\n"},
++        {
++            "deploy/night-shift/runner/prompts/supervisor.md": "# the supervisor, changed\n"
++        },
+     ],
+ )
+ def test_a_change_to_the_agent_configuration_still_waits_for_its_run(
+@@ -2582,6 +2587,38 @@
+     assert "failing: agent-config-evals PENDING" in summary(done)
+ 
+ 
++def test_the_night_shifts_other_files_dont_trigger_the_evals(fx: Fixture) -> None:
++    # Spec 017's P-10: only its settings layers and prompts are agent configuration; its runner and specs are code.
++    fx.branch(
++        {
++            "deploy/night-shift/runner/night.py": "# the runner, changed\n",
++            "deploy/night-shift/containers/ops.json": "{}\n",
++            "deploy/night-shift/runner/prompts-notes.md": "# a neighbour\n",
++        }
++    )
++    tier(fx, NO_RUN_STUB)
++    done = gate(fx, "feature")
++    assert status_of(done, "agent-config-evals") == "SKIP", done.stdout
++    assert "deploy/night-shift/claude/ and runner/prompts/" in row(
++        done, "agent-config-evals"
++    )
++
++
++def test_a_night_shift_prompt_names_the_step_it_triggered(fx: Fixture) -> None:
++    fx.branch({"deploy/night-shift/runner/prompts/ops.md": "# ops, changed\n"})
++    tier(
++        fx,
++        [
++            "PASS  behavioral tier: 2026-11-12T120000Z-feature-0123abc passed for trigger hash 0123abcd4567"
++        ],
++    )
++    done = gate(fx, "feature")
++    assert status_of(done, "agent-config-evals") == "PASS", done.stdout
++    assert row(done, "agent-config-evals").endswith(
++        "triggered by deploy/night-shift/runner/prompts/ops.md"
++    )
++
++
+ def test_a_triggered_branch_is_named_by_its_triggers_alone(fx: Fixture) -> None:
+     fx.branch({".claude/hooks/a-hook.sh": "#!/bin/sh\nexit 0\n", **HARNESS_CHANGE})
+     tier(
