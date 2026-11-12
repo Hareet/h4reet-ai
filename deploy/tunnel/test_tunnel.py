@@ -202,6 +202,42 @@ def test_the_image_is_the_pinned_base_one_user_and_no_host_key() -> None:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+# The one build failure that skips (group 5's review, I2): the agents' engine's egress proxy doesn't reach Ubuntu's
+# archive, so apt can't resolve it and finds no package. Any other failure of the build fails these checks.
+
+# The build's own lines on the agents' engine, 2026-11-12 (`docker build --progress=plain deploy/tunnel`), shortened.
+ARCHIVE_UNREACHABLE = """\
+#6 4.830 W: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/noble/InRelease  Temporary failure resolving 'archive.ubuntu.com'
+#6 4.830 W: Failed to fetch http://security.ubuntu.com/ubuntu/dists/noble-security/InRelease  Temporary failure resolving 'security.ubuntu.com'
+#6 4.830 W: Some index files failed to download. They have been ignored, or old ones used instead.
+#6 4.854 E: Unable to locate package openssh-server
+#6 4.854 E: Unable to locate package openssh-client
+#6 ERROR: process "/bin/sh -c apt-get update  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssh-server openssh-client" did not complete successfully: exit code: 100
+ERROR: failed to build: failed to solve: process "/bin/sh -c apt-get update" did not complete successfully: exit code: 100
+"""
+
+
+def test_only_the_archive_out_of_reach_reads_as_the_engines_own_failure() -> None:
+    assert archive_unreachable(ARCHIVE_UNREACHABLE)
+    for other in (
+        # the archive reached, and something else wrong with it
+        ARCHIVE_UNREACHABLE.replace(
+            "Temporary failure resolving 'archive.ubuntu.com'", "Hash Sum mismatch"
+        ),
+        # a package the archive doesn't have
+        ARCHIVE_UNREACHABLE.replace(
+            "Temporary failure resolving 'archive.ubuntu.com'", ""
+        ).replace("Temporary failure resolving 'security.ubuntu.com'", ""),
+        # another step failing
+        "ERROR: failed to build: failed to solve: failed to compute cache key: \"/sshd_config\": not found\n",
+        ARCHIVE_UNREACHABLE.replace("exit code: 100", "exit code: 1"),
+        ARCHIVE_UNREACHABLE.replace("openssh-server", "openssh-sftp-server"),
+        "",
+    ):
+        assert not archive_unreachable(other), other
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 # The containers, on the agents' engine.
 
 
