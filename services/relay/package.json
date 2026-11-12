@@ -1,0 +1,38 @@
+{
+  "name": "@h4reet/relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The relay on the tunnel end: the public cap, the kill-switch read, and the host choice (spec 001, contracts/relay-http.md).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint --max-warnings 0 . && tsc --noEmit -p .",
+    "fmt": "prettier --write src test vitest.config.ts package.json tsconfig.json tsconfig.build.json"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/exporter-metrics-otlp-proto": "0.223.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.223.0",
+    "@opentelemetry/resources": "2.12.0",
+    "@opentelemetry/sdk-metrics": "2.12.0",
+    "@opentelemetry/sdk-node": "0.223.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.1",
+    "pino": "10.4.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "@types/pg": "8.23.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3"
+  }
+}

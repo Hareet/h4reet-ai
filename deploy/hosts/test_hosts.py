@@ -467,6 +467,8 @@ def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
         "tunnel-end": "h4reet/tunnel",
         "tunnel-end-collector": "h4reet/otel-collector",
         "shared-state": "h4reet/shared-state",
+        # Group 8: the relay, which the release builds.
+        "relay": "h4reet/relay",
     }
     assert set(mine) <= set(repositories), mine
     commit = secrets.token_hex(20)

@@ -99,3 +99,20 @@ No model call, no address, nothing per client (FR-037).
 ## 8. While AWS has the tunnel end back (spec FR-076)
 
 The relay is gone with it. CloudFront's error responses answer every dynamic request with `no_host_serving` (contracts/edge.md §4), and `GET /api/status` gets the same fixed body. On its return, the relay starts with empty caps, an unknown kill switch until its first read, and both hosts unhealthy until their checks pass.
+
+## 9. The dashboard's Hosts row: the relay (group 8)
+
+(new in group 8; tasks.md T110; FR-060.) `deploy/grafana/dashboards/h4-runtime.json`'s "Hosts" row, below group 7's panels (contracts/releases-deployer.md §6):
+
+| Panel | Type | Query |
+|---|---|---|
+| Which host serves (FR-060) | state timeline | `max by (h4_relay_host) (h4_serving_host)` |
+| Handovers and their gaps (SC-007, SC-016) | table (SQL) | `SELECT at AS "time", from_host, to_host, reason, gap_ms / 1000.0 AS gap_s FROM gateway.v_handovers ORDER BY at DESC LIMIT 50` |
+| The relay's requests by host and outcome (FR-060) | time series | `sum by (h4_relay_host, h4_relay_outcome) (rate(h4_relay_requests_total[5m]))` |
+| The public cap's refusals (FR-033) | time series | `sum by (h4_cap_limit) (increase(h4_cap_refused_total[1h]))` |
+
+- **`h4_serving_host`** is `h4.serving_host`, a one-hot gauge the relay observes every export, labelled `h4.relay.host` (`laptop`, `ec2`, `none`): 1 for the host it sends to now. The timeline shows `none` in red. Beside it the relay reports `h4.relay.host_healthy`, 1 while it counts a host healthy (§4).
+- **The handovers** come from the shared state's `gateway.v_handovers` (data-model.md §1.2), through `grafana_ro`, so the panel answers while telemetry is down: each change of serving host, its reason, and the gap, in seconds, on a move out of `none`. The relay also counts `h4.handover.events` by direction and reason, and records `h4.handover.gap_seconds`.
+- **`h4_relay_requests_total`** is `h4.relay.requests`, labelled `h4.relay.host` (the host the relay sent to, or `none`), `h4.relay.outcome` (`answered`, `degraded`, `refused`, `status`), and `http.route`. Never an address.
+- **`h4_cap_refused_total`** is `h4.cap.refused`, labelled `h4.cap.limit` (`per_minute`, `per_day`, `global_in_flight`), never by address.
+- The relay's spans, `relay.request`, carry `h4.relay.host`, `h4.relay.reason`, `h4.degraded.cause`, `h4.cap.refused`, and `h4.probe`, and reach the serving host's collector through the tunnel end's (C15), so the gateway's spans are their children. `deploy/scripts/test_dashboard.py` reads this section's table with the other Hosts sections'.

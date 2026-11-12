@@ -47,6 +47,12 @@ def store() -> dict[str, str]:
         + secrets.token_hex(24)
         + " laptop\n",
         "/h4reet/hosts/RELEASE_BUCKET": "h4reet-ai-releases-" + secrets.token_hex(6),
+        # Group 8: the relay's two tokens, its two roles' passwords, and the shared state's CA certificate.
+        "/h4reet/tunnel-end/RELAY_TOKEN_LAPTOP": secrets.token_urlsafe(32),
+        "/h4reet/tunnel-end/RELAY_TOKEN_EC2": secrets.token_urlsafe(32),
+        "/h4reet/tunnel-end/DB_RELAY_RO_PASSWORD": secrets.token_urlsafe(24),
+        "/h4reet/tunnel-end/DB_RELAY_RW_PASSWORD": secrets.token_urlsafe(24),
+        "/h4reet/hosts/SHARED_STATE_TLS_CA": secrets.token_hex(48),
     }
 
 

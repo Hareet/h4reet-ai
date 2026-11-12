@@ -6,6 +6,7 @@ service of the topology is: its image, binds, health check, limits, and exactly 
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -26,7 +27,8 @@ ENV_FILES = {
 }
 # The keys the tunnel end's deployer writes to each release's env file: the release, and the digest of each image the
 # release builds (deploy/scripts/deployer.py; spec 001 contracts/releases-deployer.md §1).
-RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL"}
+# Group 8: the relay's image, which the release builds, by its digest too.
+RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL", "H4_DIGEST_RELAY"}
 # On EC2 (group 7), each shared service's upstream image runs as the account's registry's copy, which the deployer
 # names in the release's env file alone; on every other host the pinned reference after ":-" runs as written.
 MIRRORED = {
@@ -114,6 +116,9 @@ def test_the_topology_of_this_branch() -> None:
             "telegram-standin",
             "mailpit",
             "breach-probe",
+            # Spec 001 group 8: the relay on the tunnel end, and its twin for dev's kill-switch rehearsal.
+            "relay",
+            "dev-relay",
         }
         | SPEC_001
     )
@@ -192,8 +197,14 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "edge",
         "tunnel-end",
         "shared-state",
+        "relay",
         "ec2-relay-block",
     ]
+    # Group 8: the relay's edge listener on the private interface's fixed address, for CloudFront's VPC origin, and
+    # its internal listener on the tunnel end's loopback alone (contracts/relay-http.md §1).
+    assert SERVICES["relay"]["ports"] == ["10.42.1.10:8080:8080", "127.0.0.1:18505:8081"]
+    assert SERVICES["relay"]["profiles"] == ["tunnel-end"]
+    assert "ports" not in SERVICES["dev-relay"]
     # Group 7: EC2's relay block and its collector, on EC2's private address alone, a literal, in EC2's class alone.
     assert SERVICES["ec2-relay-block"]["ports"] == [
         "10.42.0.20:8085:8085",
@@ -210,6 +221,7 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "edge",
         "tunnel-end",
         "shared-state",
+        "relay",
         "ec2-relay-block",
     ]
     assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
@@ -224,11 +236,13 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 # commit, outside compose (tasks.md T184), and so does the room's web service, whose tag ends in the env file's
 # H4_WEB_SUFFIX, -drafts where the stack's image holds the room's drafts (spec 002, contracts/web-serving.md §1);
 # every other service runs a pinned image.
-BUILT = ("tunnel", "telegram-standin", "breach-probe")
+BUILT = ("tunnel", "dev-relay", "telegram-standin", "breach-probe")
 # Spec 001's tunnel end runs its release's images from the account's registry: an image the release builds by the
 # release's digest, which its deployer writes (deploy/scripts/deployer.py).
 CLOUD = {
     "tunnel-end": "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}",
+    # Group 8's relay, which the release builds too.
+    "relay": "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}",
     # An upstream image's copy, by the lock's own tag and digest.
     "tunnel-end-collector": "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@"
     + "sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6",
@@ -664,6 +678,8 @@ def test_read_only_roots_where_the_image_allows() -> None:
         "tunnel-end": ["/run:uid=10001,gid=10001,mode=0700"],
         "tunnel-end-collector": ["/tmp"],
         "ec2-relay-block": ["/tmp"],
+        "relay": ["/tmp"],
+        "dev-relay": ["/tmp"],
     }
     for name, tmpfs in tunnel.items():
         assert SERVICES[name]["read_only"] is True and SERVICES[name]["tmpfs"] == tmpfs
@@ -704,7 +720,11 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         "seaweedfs",
         "tunnel",
         "tunnel-end",
+        "relay",
+        "dev-relay",
     ]
+    # Group 8: the relay runs as its image's node user, as the gateway's image does.
+    assert SERVICES["relay"]["user"] == SERVICES["dev-relay"]["user"] == "1000:1000"
 
 
 @pytest.mark.parametrize(
@@ -1080,7 +1100,8 @@ def test_each_secret_reaches_only_the_services_that_use_it() -> None:
     """contracts/env-files.md §1: a container never sees a key it doesn't consume."""
     expected = {
         "GATEWAY_DB_PASSWORD": {"gateway", "gateway-state"},
-        "GATEWAY_GRAFANA_RO_PASSWORD": {"gateway", "grafana"},
+        # dev-relay reads dev's kill switch as grafana_ro, the store's read-only role (group 8).
+        "GATEWAY_GRAFANA_RO_PASSWORD": {"gateway", "grafana", "dev-relay"},
         "LANGFUSE_PUBLIC_KEY": {"otel-collector", "langfuse-web", "breach-probe"},
         "LANGFUSE_SECRET_KEY": {"otel-collector", "langfuse-web", "breach-probe"},
         "LANGFUSE_SALT": {"langfuse-web", "langfuse-worker"},
@@ -1184,3 +1205,49 @@ def test_every_variable_compose_reads_is_in_the_env_files() -> None:
                 )
             ]
             assert not missing, f"{name}: missing from {missing}"
+
+
+# Spec 001 group 8 (contracts/relay-http.md; contracts/env-cloud.md §2): the relay's environment. The hosts' addresses,
+# the refused peers, and the roles are literals, so no env file can move them; the tokens, the passwords, and the CA
+# come from the tunnel end's env file. dev-relay reads its own stack's gateway and store, and records no handover.
+def test_the_relay_receives_its_literals_and_the_tunnel_ends_secrets() -> None:
+    env = SERVICES["relay"]["environment"]
+    assert {k: v for k, v in env.items() if not k.startswith("OTEL_")} == {
+        "H4_STACK": "${H4_STACK}",
+        "RELAY_LAPTOP_URL": "http://tunnel-end:2201",
+        "RELAY_EC2_URL": "http://10.42.0.20:8085",
+        "RELAY_TOKEN_LAPTOP": "${RELAY_TOKEN_LAPTOP:-}",
+        "RELAY_TOKEN_EC2": "${RELAY_TOKEN_EC2:-}",
+        "RELAY_REFUSED_PEERS": "127.0.0.0/8,::1/128,172.30.0.0/16,10.42.0.10/32,10.42.1.10/32",
+        "RELAY_DB_HOST": "shared-state",
+        "RELAY_DB_PORT": "5432",
+        "RELAY_DB_NAME": "h4reet",
+        "RELAY_DB_RO_USER": "relay_ro",
+        "RELAY_DB_RO_PASSWORD": "${DB_RELAY_RO_PASSWORD:-}",
+        "RELAY_DB_RW_USER": "relay_rw",
+        "RELAY_DB_RW_PASSWORD": "${DB_RELAY_RW_PASSWORD:-}",
+        "RELAY_DB_TLS_CA": "${SHARED_STATE_TLS_CA:-}",
+        "RELAY_DB_TLS_SERVERNAME": "shared-state",
+    }
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://tunnel-end-collector:4318"
+    dev = SERVICES["dev-relay"]["environment"]
+    assert dev["RELAY_LAPTOP_URL"] == "http://gateway:8080"
+    assert dev["RELAY_DB_RO_USER"] == "grafana_ro"
+    assert "RELAY_EC2_URL" not in dev and "RELAY_DB_RW_USER" not in dev
+    assert dev["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://otel-collector:4318"
+    # The daemon's pool, as deploy/hosts/tunnel-end/daemon.json fixes it, is among the refused peers.
+    daemon = json.loads((REPO / "deploy/hosts/tunnel-end/daemon.json").read_text(encoding="utf-8"))
+    pools = [p["base"] for p in daemon["default-address-pools"]]
+    assert pools and all(p in env["RELAY_REFUSED_PEERS"].split(",") for p in pools)
+    for name in ("relay", "dev-relay"):
+        assert SERVICES[name]["volumes"] == [
+            {
+                "type": "bind",
+                "source": "${H4_TREE:?set by make up}/config/budgets.yaml",
+                "target": "/app/config/budgets.yaml",
+                "read_only": True,
+            }
+        ], name
+        assert SERVICES[name]["deploy"]["resources"]["limits"]["memory"] == "96M", name
+    assert SERVICES["dev-relay"]["networks"] == ["internal"]
+    assert SERVICES["relay"]["networks"] == ["internal", "edge"]

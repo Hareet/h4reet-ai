@@ -189,6 +189,8 @@ def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> N
         f"{REGISTRY}/h4reet/gateway": "linux/amd64,linux/arm64",
         f"{REGISTRY}/h4reet/web": "linux/amd64,linux/arm64",
         f"{REGISTRY}/h4reet/tunnel": "linux/amd64,linux/arm64",
+        # Group 8: the relay, on the tunnel end.
+        f"{REGISTRY}/h4reet/relay": "linux/amd64,linux/arm64",
     }
     for c in pushed:
         assert "--push" in c and c[c.index("--tag") + 1].endswith(f":{COMMIT}")
@@ -406,6 +408,7 @@ def test_release_json_and_the_pointer_last(tmp_path: Path) -> None:
     assert hosts["shared-state"] == ["tunnel-end"] and hosts["ec2-relay-block"] == [
         "ec2"
     ]
+    assert hosts["relay"] == ["tunnel-end"] and "dev-relay" not in hosts
     assert r.uploads[-1] == f"s3://{BUCKET}/releases/latest.json"
     assert f"s3://{BUCKET}/releases/{release['release']}/release.json" in r.uploads
     assert f"s3://{BUCKET}/trees/{COMMIT}.tar.gz" in r.uploads

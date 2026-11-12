@@ -53,6 +53,10 @@ SHARED_STATE = (REPO / "specs/001-cloud-elevation/contracts/shared-state.md").re
 RELEASES = (
     REPO / "specs/001-cloud-elevation/contracts/releases-deployer.md"
 ).read_text(encoding="utf-8")
+# Group 8's, the relay's, are contracts/relay-http.md §9's (tasks.md T110).
+RELAY = (REPO / "specs/001-cloud-elevation/contracts/relay-http.md").read_text(
+    encoding="utf-8"
+)
 HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
@@ -166,6 +170,7 @@ def hosts_section() -> str:
         contract_section(TUNNEL, "7.")
         + contract_section(SHARED_STATE, "10.")
         + contract_section(RELEASES, "6.")
+        + contract_section(RELAY, "9.")
     )
 
 
@@ -463,6 +468,8 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         "The model each turn used",
         # Spec 010's table of the paid adapters' months reads gateway.v_adapter_months (its FR-036).
         "Paid adapters' months (authoritative)",
+        # Spec 001 group 8's handovers read the shared state's gateway.v_handovers (contracts/relay-http.md §9).
+        "Handovers and their gaps",
     }
     for panel in sql:
         (target,) = panel["targets"]
@@ -1010,13 +1017,17 @@ def test_room_live_states_metrics_are_named_in_the_contracts_text() -> None:
 
 def test_the_dashboard_holds_none_of_room_live_state_yet() -> None:
     # The section is all or nothing (test_each_section_is_all_or_nothing), and nothing yet: no panel by its titles,
-    # no query of its series, and no row named for it.
+    # no query of its series as the room's live state reads them, and no row named for it. Spec 001 group 8's relay
+    # brings h4_relay_requests_total itself, which its own Hosts panel reads by host and outcome (contracts/relay-
+    # http.md §9); the room's live state reads it by its route label, which spec 004's Amendment A2 adds later.
     assert not set(contract_panels("7.9")) & set(by_title())
     for panel in panels():
         for expr in queries(panel):
-            assert not LIVE_SERIES & set(re.findall(r"\bh4_[a-z_]+\b", expr)), panel[
+            names = set(re.findall(r"\bh4_[a-z_]+\b", expr))
+            assert not (LIVE_SERIES - {"h4_relay_requests_total"}) & names, panel[
                 "title"
             ]
+            assert "h4_relay_route" not in names, panel["title"]
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
     assert "Room live state" not in rows
 
@@ -1152,6 +1163,11 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         # Group 7's (tasks.md T091; contracts/releases-deployer.md §6).
         "The release on each host",
         "Deployments",
+        # Group 8's (tasks.md T110; contracts/relay-http.md §9).
+        "Which host serves",
+        "Handovers and their gaps",
+        "The relay's requests by host and outcome",
+        "The public cap's refusals",
     }
     found = by_title()
     for title, (kind, queries_) in expected.items():
@@ -1179,3 +1195,28 @@ def test_the_tunnel_reads_up_and_down_as_words() -> None:
             for k in m["options"]
         }
         assert words == {"up", "down"}, title
+
+
+def test_which_host_serves_reads_none_in_red() -> None:
+    # Spec 001 group 8 (contracts/relay-http.md §9): the timeline shows each host's one-hot series, none's in red.
+    panel = by_title()["Which host serves"]
+    assert panel["type"] == "state-timeline"
+    steps = panel["fieldConfig"]["defaults"]["thresholds"]["steps"]
+    assert steps[0]["color"] == "transparent" and steps[-1] == {
+        "color": "green",
+        "value": 1,
+    }
+    (override,) = panel["fieldConfig"]["overrides"]
+    assert override["matcher"] == {"id": "byName", "options": "none"}
+    colors = [p["value"] for p in override["properties"] if p["id"] == "color"]
+    assert colors == [{"mode": "fixed", "fixedColor": "red"}]
+
+
+def test_the_relays_panels_read_no_address() -> None:
+    for title in (
+        "The relay's requests by host and outcome",
+        "The public cap's refusals",
+        "Handovers and their gaps",
+    ):
+        for query in queries(by_title()[title]):
+            assert "address" not in query and "client" not in query, title
