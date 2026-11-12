@@ -86,8 +86,11 @@ resource "aws_budgets_budget" "model_day" {
   depends_on = [aws_sns_topic_policy.alerts]
 }
 
-# Every cost of the account but Bedrock's (FR-021): model spend has the two budgets above, and the meter. Its figure is
-# the Author's, which nothing here sets.
+# Every cost of this project but Bedrock's (FR-021): model spend has the two budgets above, and the meter. Its
+# figure is the Author's, which nothing here sets. The account is shared with the Author's other work (spec 001
+# Assumptions, "One account, shared with the Author's other work"; ADR 0047), so the budget counts only costs
+# tagged project = h4reet-ai, as every provider's default_tags writes it: the other work's spend never trips the
+# server action. The project tag must be an active cost-allocation tag (T030), or this budget sees nothing.
 resource "aws_budgets_budget" "server_month" {
   name         = "h4-server-month"
   budget_type  = "COST"
@@ -99,10 +102,18 @@ resource "aws_budgets_budget" "server_month" {
   metrics = ["UnblendedCost"]
 
   filter_expression {
-    not {
-      dimensions {
-        key    = "SERVICE"
-        values = var.bedrock_service_names
+    and {
+      not {
+        dimensions {
+          key    = "SERVICE"
+          values = var.bedrock_service_names
+        }
+      }
+    }
+    and {
+      tags {
+        key    = "project"
+        values = ["h4reet-ai"]
       }
     }
   }
