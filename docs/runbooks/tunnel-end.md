@@ -5,7 +5,7 @@ The tunnel end is the small spot instance in the account that runs around the cl
 ## Symptoms
 
 - **`[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes`**, from the rule `h4-tunnel-end-spot-warning`, with the action and the time as its facts.
-- **`[hareet.ai aws] tunnel_end_back: …`**, from `h4-tunnel-end-running` once AWS starts it again (group 9 adds the rule).
+- **`[hareet.ai aws] tunnel_end_back: …`**, from `h4-tunnel-end-running` once AWS starts it again, with its time as its fact; a replace's first boot sends it too. From W2 the same rule also invokes the start function (group 9).
 - **`[hareet.ai aws] ec2_start_refused (tunnel_end_down): …`**: the start function wouldn't start EC2, since nothing could reach it while the tunnel end is down (group 9).
 - **The dashboard's Hosts row:** "Tunnel up" reads `down` for `tunnel-end`, or for `laptop`; "Tunnel reconnects" climbs; "Telemetry delayed at the tunnel end" fills.
 - **The laptop's tunnel logs** `tunnel: the connection ended after … s; trying again in … s`, again and again, with ssh's own line before it: `Connection timed out` (the tunnel end is down), `Permission denied (publickey)` (its key was revoked), or `Host key verification failed` (the pinned host key isn't the tunnel end's).
@@ -68,7 +68,7 @@ An instance that is gone, or a root volume that won't boot: your prod plan shows
 
 ### A spot interruption
 
-`tunnel_end_interruption` gives two minutes. Nothing to do: the request is persistent and stops on interruption, so the instance, its volumes, its interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns, with `tunnel_end_back` (from group 9). Its boot starts the release it last recorded before its deployer asks the bucket. If it stays stopped for hours, the next case.
+`tunnel_end_interruption` gives two minutes. Nothing to do: the request is persistent and stops on interruption, so the instance, its volumes, its interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns, with `tunnel_end_back`. Its boot starts the release it last recorded before its deployer asks the bucket. If it stays stopped for hours, the next case.
 
 ### An OS update, or a changed host file
 

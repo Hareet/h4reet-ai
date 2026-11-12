@@ -13,8 +13,9 @@ What it holds:
                                 paths, the release bucket's reads, sns:Publish on h4-alerts, each by a name-built ARN,
                                 and Session Manager's and Run Command's own actions inline, with no managed policy
                                 (group 5's review, I1: AmazonSSMManagedInstanceCore reads every parameter);
-      infra/prod/handover.tf    prod's local.wired = false, and h4-tunnel-end-spot-warning to h4-alerts, naming the
-                                tunnel end from this root;
+      infra/prod/handover.tf    prod's local.wired = false; h4-tunnel-end-spot-warning to h4-alerts, naming the tunnel
+                                end from this root; and h4-tunnel-end-running's h4-alerts target, tunnel_end_back
+                                (FR-076's return alert; group 5's review, "Missing");
       infra/account/handover.tf the account's local.wired = false, alone;
   - tasks.md T160: infra/bootstrap/alerts.tf, h4-alerts' policy lets CloudWatch's alarms and EventBridge publish, each
     for this account alone (aws:SourceAccount), and grants nothing else;
@@ -404,12 +405,12 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +}
 --- /dev/null
 +++ b/infra/prod/handover.tf
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,81 @@
 +# Prod's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072, FR-076; contracts/handover.md §2;
 +# contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
 +# ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
-+# switch and the tunnel end's interruption warning; groups 7 and 9 add EC2's rules, the ID parameter, and the rules'
-+# function targets behind the switch.
++# switch, the tunnel end's interruption warning, and its return's alert; groups 7 and 9 add EC2's rules, the ID
++# parameter, and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target among them.
 +
 +locals {
 +  # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
@@ -450,6 +451,40 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +      at     = "$.time"
 +    }
 +    input_template = "\"[hareet.ai aws] tunnel_end_interruption: AWS will <action> the tunnel end in two minutes\\n- action: <action>\\n- at: <at>\""
++  }
++}
++
++# The tunnel end's return (spec FR-076, "its return SHALL be alerted"; contracts/handover.md §2): AWS starting it again
++# after an interruption, or a replace's first boot. Its h4-alerts target is W1's and needs no other root; its
++# start-function target, invoked `from: tunnel_end_back`, waits behind the switch with the function (W2; group 9).
++resource "aws_cloudwatch_event_rule" "tunnel_end_running" {
++  name        = "h4-tunnel-end-running"
++  description = "The tunnel end entering running, to h4-alerts (spec 001 FR-076)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Instance State-change Notification"]
++    detail = {
++      instance-id = [aws_instance.tunnel_end.id]
++      state       = ["running"]
++    }
++  })
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++# tunnel_end_back in §2's format, with the time alone: never the account or the instance's ID.
++resource "aws_cloudwatch_event_target" "tunnel_end_running" {
++  rule      = aws_cloudwatch_event_rule.tunnel_end_running.name
++  target_id = "h4-alerts"
++  arn       = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++
++  input_transformer {
++    input_paths = {
++      at = "$.time"
++    }
++    input_template = "\"[hareet.ai aws] tunnel_end_back: the tunnel end runs again\\n- at: <at>\""
 +  }
 +}
 --- /dev/null
