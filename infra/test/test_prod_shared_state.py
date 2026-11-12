@@ -123,7 +123,7 @@ def check_bucket(r: dict[str, list]) -> list[str]:
     if b is None:
         return ["backups: aws_s3_bucket.shared_state_backups is missing"]
     found = []
-    if lit(b, "bucket") != BUCKET:
+    if raw(b, "bucket") != f'"{BUCKET}"':
         found.append(f"backups: the bucket isn't named {BUCKET}")
     tags = lit(b, "tags")
     if not (isinstance(tags, dict) and tags.get("component") == "shared-state"):

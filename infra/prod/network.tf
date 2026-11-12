@@ -77,3 +77,16 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private.id
   route_table_id = aws_route_table.private.id
 }
+
+# EC2's security group (group 7 makes EC2 and gives it its rules, T084). It is here from group 6, since the shared
+# state's 5432 admits it alone (tunnel-end.tf). Until group 7 it admits nothing, and holds no egress rule, so Terraform
+# removes AWS's default one.
+resource "aws_security_group" "ec2" {
+  name        = "h4-ec2"
+  description = "EC2's interface: group 7 gives it its rules"
+  vpc_id      = aws_vpc.prod.id
+
+  tags = {
+    component = "ec2"
+  }
+}

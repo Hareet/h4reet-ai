@@ -106,10 +106,12 @@ resource "aws_security_group" "tunnel_end_public" {
   }
 }
 
-# The private interface: the relay's edge listener, 8080, from CloudFront's VPC origin alone (group 8 makes the origin).
+# The private interface: the relay's edge listener, 8080, from CloudFront's VPC origin alone (group 8 makes the origin);
+# and, from group 6, the shared state's 5432, from EC2's group alone (contracts/shared-state.md §1). Nothing is applied
+# yet, so the description's change replaces nothing.
 resource "aws_security_group" "tunnel_end_private" {
   name        = "h4-tunnel-end-private"
-  description = "The tunnel end's private interface: 8080 from CloudFront's origin-facing addresses"
+  description = "The tunnel end's private interface: 8080 from CloudFront's origin-facing addresses, 5432 from EC2"
   vpc_id      = aws_vpc.prod.id
 
   ingress {
@@ -118,6 +120,14 @@ resource "aws_security_group" "tunnel_end_private" {
     from_port       = 8080
     to_port         = 8080
     prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
+  }
+
+  ingress {
+    description     = "The shared state, for EC2's gateway"
+    protocol        = "tcp"
+    from_port       = 5432
+    to_port         = 5432
+    security_groups = [aws_security_group.ec2.id]
   }
 
   egress {

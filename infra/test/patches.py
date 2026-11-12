@@ -22,7 +22,9 @@ REPO = Path(__file__).resolve().parents[2]
 MERGE_REQUESTS = REPO / "docs" / "merge-requests"
 # W1's patches for infra/ and the files they carry, in the order the Author applies them (tasks.md T171).
 PI3 = MERGE_REQUESTS / "2026-11-13-feat-001-pi3-tunnel-end.patch"
-W1_PATCHES = (PI3,)
+# Group 6's, on top of P-I3's iam.tf, bridge, and contract rows (tasks.md T073).
+PI7 = MERGE_REQUESTS / "2026-11-13-feat-001-pi7-shared-state.patch"
+W1_PATCHES = (PI3, PI7)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
