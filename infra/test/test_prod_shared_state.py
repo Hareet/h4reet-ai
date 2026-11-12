@@ -208,11 +208,20 @@ def check_put_only(r: dict[str, list]) -> list[str]:
         if "shared_state_backups" in s["resources"]
         or "h4reet-ai-shared-state" in s["resources"]
     ]
-    if [(s["effect"], s["actions"], s["resources"]) for s in touching] != [
+    # Group 9 (tasks.md T119; P-I6): the same put statement also holds the public view's one key, since a role's
+    # check takes each action once (test_prod_network.py, check_role). The backups' part stays dumps/* alone.
+    if [
+        (
+            s["effect"],
+            s["actions"],
+            re.findall(r'"([^"]*shared_state_backups[^"]*)"', s["resources"]),
+        )
+        for s in touching
+    ] != [
         (
             "Allow",
             {"s3:PutObject"},
-            '["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]',
+            ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"],
         )
     ]:
         found.append("backups: the tunnel end's role does more than put under dumps/")
@@ -230,6 +239,8 @@ READS = {
     f"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/hosts/*",
     f"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
     f"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
+    # Group 9 (tasks.md T119; P-I6): the autostart switch, a String, which the dashboard shows.
+    f"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/prod/ec2-autostart",
 }
 
 

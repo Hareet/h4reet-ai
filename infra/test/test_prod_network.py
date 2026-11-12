@@ -71,6 +71,8 @@ FILES = (
     "site.tf",
     "edge.tf",
     "edge-limits.tf",
+    # Group 9's failover (tasks.md T119, T124; test_handover.py): the health check and h4-laptop-away (P-I6).
+    "failover.tf",
 )
 PROTECTED_FILES = (
     "ec2-market.tf",
@@ -79,6 +81,7 @@ PROTECTED_FILES = (
     "killswitch.tf",
     "edge.tf",
     "edge-limits.tf",
+    "failover.tf",
 )
 PLACEHOLDER = "measure-in-T166"
 PUBLIC_ADDRESS = "10.42.0.10"
@@ -531,7 +534,9 @@ PARAMETERS = (
     f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/hosts/*", '
     # Group 6 (tasks.md T066): the two role passwords of /h4reet/ec2/ the shared state's roles target sets, by name.
     f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD", '
-    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD", ]'
+    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD", '
+    # Group 9 (tasks.md T119; P-I6): the autostart switch, a String, for the dashboard.
+    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/prod/ec2-autostart", ]'
 )
 ROLE_GRANTS = {
     "ecr:GetAuthorizationToken": '["*"]',
@@ -546,8 +551,18 @@ ROLE_GRANTS = {
     '"arn:aws:s3:::h4reet-ai-releases-*/tools/*", ]',
     "s3:ListBucket": '["arn:aws:s3:::h4reet-ai-releases-*"]',
     "sns:Publish": f'["{TOPIC_ARN}"]',
-    # Group 6 (tasks.md T066): the hourly backup's put, under its one prefix; nothing reads or deletes there.
-    "s3:PutObject": '["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]',
+    # Group 6 (tasks.md T066): the hourly backup's put, under its one prefix; nothing reads or deletes there. Group 9
+    # (tasks.md T119; contracts/public-view.md §2): and the public view's one key, which group 10's sink writes.
+    "s3:PutObject": '[ "${aws_s3_bucket.shared_state_backups.arn}/dumps/*", '
+    '"${aws_s3_bucket.site.arn}/site/status/latest.json", ]',
+    # Group 9 (tasks.md T119; research.md R-15; plan.md §11): the sink's cloud reads for the dashboard. EC2's describe
+    # calls and CloudWatch's GetMetricData take no narrower resource; the rest are by name, or prod's own check.
+    "ec2:DescribeInstances": '["*"]',
+    "ec2:DescribeSpotInstanceRequests": '["*"]',
+    "cloudwatch:GetMetricData": '["*"]',
+    "route53:GetHealthCheckStatus": '["arn:aws:route53:::healthcheck/${aws_route53_health_check.laptop.id}"]',
+    "budgets:ViewBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
+    "budgets:DescribeBudgetActionsForBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
 }
 # Session Manager and Run Command, the one way in (FR-050), as AWS documents an instance profile's own policy for them
 # without AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in
@@ -964,10 +979,12 @@ def rule_target(root: dict[str, list], name: str):
         r for r in resource(root, "aws_cloudwatch_event_rule") if lit(r, "name") == name
     ]
     assert len(rules) == 1, name
+    # The rule's h4-alerts target: group 9 gives h4-tunnel-end-running a second, the start function (test_handover.py).
     (target,) = [
         t
         for t in resource(root, "aws_cloudwatch_event_target")
         if raw(t, "rule") == f"aws_cloudwatch_event_rule.{rules[0].labels[1]}.name"
+        and raw(t, "arn") == f'"{TOPIC_ARN}"'
     ]
     return target
 

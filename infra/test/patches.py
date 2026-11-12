@@ -28,7 +28,10 @@ PI7 = MERGE_REQUESTS / "2026-11-13-feat-001-pi7-shared-state.patch"
 PI4 = MERGE_REQUESTS / "2026-11-13-feat-001-pi4-ec2.patch"
 # Group 8's, after P-I4: the edge's two protected files, and the probe's switch in the account's alerts.tf (T107).
 PI5 = MERGE_REQUESTS / "2026-11-13-feat-001-pi5-edge.patch"
-W1_PATCHES = (PI3, PI7, PI4, PI5)
+# Group 9's, after P-I5: the handover's health check, alarm, rules, functions, roles, schedules, and the hours, with
+# the tunnel end's dashboard reads and the bridge's new kinds (tasks.md T124).
+PI6 = MERGE_REQUESTS / "2026-11-13-feat-001-pi6-handover.patch"
+W1_PATCHES = (PI3, PI7, PI4, PI5, PI6)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

@@ -78,6 +78,9 @@ EVENTS = (
     "aws_cloudwatch_event_target",
     "aws_scheduler_schedule",
 )
+# Group 9's, by their resource names, in handover.tf (tasks.md T119): h4-laptop-away-rule and its target, and the
+# hours' two schedules.
+HANDOVER_EVENTS = {"laptop_away", "ec2_hours_open", "ec2_hours_close"}
 INVOKE = {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"}
 TOPIC = "data.aws_sns_topic.alerts.arn"
 SSO_PATH = "aws-reserved/sso.amazonaws.com/"
@@ -114,6 +117,12 @@ FUNCTIONS = {
     "alert_bridge": "h4-alert-bridge",
     "probe": "h4-probe",
     "credential_audit": "h4-credential-audit",
+}
+# Group 9's two (tasks.md T119, T122; test_handover.py holds them): their digests and repositories are the account's
+# too, the repositories made by W1's apply so the Author can push before W2 (T174), the functions behind the switch.
+HANDOVER_FUNCTIONS = {
+    "ec2_start": "h4-ec2-start",
+    "ec2_guard": "h4-ec2-guard",
 }
 
 if not READER.is_file():
@@ -450,7 +459,12 @@ def check_variables(root: dict[str, list]) -> list[str]:
 
 def check_permission_set(root: dict[str, list]) -> list[str]:
     found = []
-    sets = resource(root, "aws_ssoadmin_permission_set")
+    # Group 9 adds h4-ec2-stop, a literal name, which test_handover.py holds; every other set is the laptop's.
+    sets = [
+        s
+        for s in resource(root, "aws_ssoadmin_permission_set")
+        if ip.literal(s.attr("name")) != "h4-ec2-stop"
+    ]
     if len(sets) != 1:
         return [
             "permission set: the root doesn't hold the laptop's Bedrock permission set alone"
@@ -988,7 +1002,10 @@ def check_rehearsal(
 def check_schedules(root: dict[str, list]) -> list[str]:
     found = []
     for b in [x for t in EVENTS for x in resource(root, t)]:
-        if where(root, b) != "alerts.tf":
+        # Group 9's: the handover's rule and the hours' schedules are handover.tf's (test_handover.py; rule T5).
+        if where(root, b) != "alerts.tf" and not (
+            where(root, b) == "handover.tf" and b.labels[1] in HANDOVER_EVENTS
+        ):
             found.append(f"schedules: {address(b)} lives outside alerts.tf")
     rules = {
         ip.literal(r.attr("name")): r
@@ -1045,9 +1062,11 @@ def check_schedules(root: dict[str, list]) -> list[str]:
 def check_functions(root: dict[str, list]) -> list[str]:
     found = []
     images = locals_of(root).get("lambda_images")
-    if not isinstance(images, dict) or set(images) != set(FUNCTIONS):
+    if not isinstance(images, dict) or set(images) != set(FUNCTIONS) | set(
+        HANDOVER_FUNCTIONS
+    ):
         found.append(
-            "functions: local.lambda_images doesn't name the three functions' digests"
+            "functions: local.lambda_images doesn't name the five functions' digests"
         )
     for key, name in FUNCTIONS.items():
         fns = named(root, "aws_lambda_function", name, "function_name")
@@ -1159,9 +1178,9 @@ def check_registry(root: dict[str, list]) -> list[str]:
             "registry: a repository's tags can move, or it isn't scanned on push"
         )
     names = set(as_list(locals_of(root).get("lambda_repositories")))
-    if names != set(FUNCTIONS.values()):
+    if names != set(FUNCTIONS.values()) | set(HANDOVER_FUNCTIONS.values()):
         found.append(
-            "registry: the three functions' repositories aren't local.lambda_repositories"
+            "registry: the five functions' repositories aren't local.lambda_repositories"
         )
     buckets = resource(root, "aws_s3_bucket")
     releases = [

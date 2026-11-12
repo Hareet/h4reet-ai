@@ -9,7 +9,9 @@ locals {
     alert_bridge     = ""
     probe            = ""
     credential_audit = ""
+    ec2_start        = ""
+    ec2_guard        = ""
   }
-  lambda_repositories = ["h4-alert-bridge", "h4-probe", "h4-credential-audit"]
+  lambda_repositories = ["h4-alert-bridge", "h4-probe", "h4-credential-audit", "h4-ec2-start", "h4-ec2-guard"]
   stack_repositories  = ["edge", "web", "gateway"]
 }
