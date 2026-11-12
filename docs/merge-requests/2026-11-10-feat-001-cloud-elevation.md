@@ -2200,7 +2200,7 @@ The session then takes its worktree back.
 
 ### 4. The session: the second pass, then the anchor
 
-Your decision on the blocker, "Derive from settings (Recommended)", is built: P-E, `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch` (Verification, "P-E"). Group 4's second, short review pass, by an agent that wrote none of it, then reads what came after the combined review: section 2's commits, P-E, T016's R-33 record, your T017 commit, and the review's fixes (Review). The reviewer reads the tip after T016's and your commits, as group 2's note planned. The session writes that pass's tip, after its fixes, into section 7's guard as `rv=`, and records the pass here. Until it does, the guard prints `guard: no`.
+Your decision on the blocker, "Derive from settings (Recommended)", is built: P-E, `docs/merge-requests/2026-11-10-feat-001-pe-engine.patch` (Verification, "P-E"). Group 4's second, short review pass, by an agent that wrote none of it, then reads what came after the combined review: section 2's commits, P-E, T016's R-33 record, your T017 commit, and the review's fixes (Review). The reviewer reads the tip after T016's and your commits, as group 2's note planned. Done 2026-11-11: the pass reviewed 718901f2, its fixes are ed5d9852, and section 7's guard has `rv=ed5d9852…` (Review).
 
 ### 5. Your branch: the patches, the mirror, both lockfiles
 
@@ -2354,12 +2354,12 @@ Then tell the session "done", and it takes dev-cpu down.
 
 It is ready when its summary names no FAIL or PENDING step and it prints a `merge:` line. It runs main's checkers, so no `infra-plan-note`, `infra-check`, or `disclosure` step (spec.md Assumptions; the disclosure check above and T027's policy stand in). On anything else, don't merge: tell the session.
 
-Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in human-only files (the patches' targets: P-1's, P-E's four, CLAUDE.md, P-I1's, and P-I2's), the two lockfiles, the behavioral tier's entry, and this one note, where your block goes; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. The patch files themselves, under `docs/merge-requests/`, are agent-writable, so the guard allows none of them after the anchor (the combined review's I1). Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. Until the session writes the anchor in, `rv=PENDING-REVIEW` makes it print `guard: no`:
+Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in human-only files (the patches' targets: P-1's, P-E's four, CLAUDE.md, P-I1's, and P-I2's), the two lockfiles, the behavioral tier's entry, and this one note, where your block goes; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. The patch files themselves, under `docs/merge-requests/`, are agent-writable, so the guard allows none of them after the anchor (the combined review's I1). Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. The anchor is ed5d9852, the tip after group 4's second pass and its fixes (Review). Copy this block from `git show ed5d9852:docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`, where it still reads `rv=PENDING-REVIEW`, and set `rv` to the anchor:
 
 ```bash
 pb=feat/001-cloud-elevation-p
 log=~/gate-001.log
-rv=PENDING-REVIEW
+rv=ed5d9852747e28e86851a3707367000c64a62b23
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
