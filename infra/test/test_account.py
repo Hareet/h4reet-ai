@@ -1479,17 +1479,31 @@ def test_true_needs_the_marker_and_a_note_that_says_so(tmp_path: Path) -> None:
         assert len(found) == 1 and found[0].startswith(want), (m, found)
 
 
+def rehearsal_off() -> dict[str, list]:
+    """The root with local.rehearsal false, whichever way the tree sets it: the rehearsal's own change sets it true."""
+    texts = dict(root_texts())
+    main = next(name for name in texts if name.endswith("main.tf"))
+    assert texts[main].count("rehearsal = true") <= 1
+    texts[main] = texts[main].replace("rehearsal = true", "rehearsal = false")
+    return parsed(texts)
+
+
 def test_the_marker_goes_when_the_rehearsal_ends(tmp_path: Path) -> None:
     _, marker = rehearsal_on(tmp_path)
-    found = problems(parsed(root_texts()), marker=marker, repo=tmp_path)
+    found = problems(rehearsal_off(), marker=marker, repo=tmp_path)
     assert found == [
         "rehearsal: infra/account/rehearsal-on.txt stands while local.rehearsal is false"
     ]
 
 
-def test_the_tree_holds_no_marker_while_its_rehearsal_is_false() -> None:
-    assert locals_of(parsed(root_texts()))["rehearsal"] is False
-    assert rehearsal_marker() is None
+def test_the_trees_marker_stands_exactly_while_its_rehearsal_is_on() -> None:
+    # Off: no marker. On, on the rehearsal's own change: the marker, naming a note that says it is the rehearsal's.
+    on = locals_of(parsed(root_texts()))["rehearsal"]
+    marker = rehearsal_marker()
+    if on is True:
+        assert marker_note(marker, REPO)
+    else:
+        assert on is False and marker is None
 
 
 @pytest.mark.parametrize(
@@ -1574,7 +1588,8 @@ def test_each_fixture_is_found_as_its_defect(path: Path) -> None:
     assert problems(root) == [], "the root itself must be clean first"
     changed, expect = mutated(root, path)
     assert expect, f"{path.name} names no problem it expects"
-    found = problems(changed)
+    # The rehearsal set on outside its own change: read with no marker, whatever the tree holds.
+    found = problems(changed, marker=None) if path == ON else problems(changed)
     for want in expect:
         assert any(want in f for f in found), (want, found)
     assert len(found) == len(expect), found

@@ -260,6 +260,12 @@ def aws() -> StubAws:
     return StubAws()
 
 
+@pytest.fixture(autouse=True)
+def no_laptop_set_named(monkeypatch) -> None:
+    """The fake accounts here hold no laptop set; the tests that check one name it themselves (T040b's cutover)."""
+    monkeypatch.setattr(audit, "LAPTOP_PERMISSION_SET", None)
+
+
 def findings(aws: StubAws, **config: object) -> list[tuple[str, str]]:
     result = audit.run_audit(aws, source="terminal", **config)
     return [(f["check"], f["resource"]) for f in result["findings"]]
@@ -733,13 +739,39 @@ def terminal(
     )
 
 
+# A clean account after T040b's cutover (2026-11-12), which the module's named set now asks for: h4-laptop-bedrock,
+# Terraform's, and the laptop's set, Terraform's, holding only the assume.
+LAPTOP_SET_ARN = (
+    f"{INSTANCE_ARN.replace(':instance/', ':permissionSet/')}/ps-0123456789abcdef"
+)
 CLEAN = {
     "sts get-caller-identity": {"Account": ACCOUNT},
     "iam list-users": {"Users": []},
     "iam get-account-summary": {"SummaryMap": {"AccountAccessKeysPresent": 0}},
-    "iam list-roles": {"Roles": []},
+    "iam list-roles": {
+        "Roles": [
+            {
+                "RoleName": "h4-laptop-bedrock",
+                "Path": "/",
+                "AssumeRolePolicyDocument": trust(allow({"AWS": SSO_ROLE})),
+            }
+        ]
+    },
+    "iam get-role": {"Role": {"RoleName": "h4-laptop-bedrock", "Tags": TERRAFORM_TAGS}},
     "iam list-open-id-connect-providers": {"OpenIDConnectProviderList": []},
-    "sso-admin list-instances": {"Instances": []},
+    "sso-admin list-instances": {"Instances": [{"InstanceArn": INSTANCE_ARN}]},
+    "sso-admin list-permission-sets": {"PermissionSets": [LAPTOP_SET_ARN]},
+    "sso-admin describe-permission-set": {"PermissionSet": {"Name": "h4reet-ai-cloud"}},
+    "sso-admin list-tags-for-resource": {"Tags": TERRAFORM_TAGS},
+    "sso-admin get-inline-policy-for-permission-set": {
+        "InlinePolicy": json.dumps(ASSUME_ONLY)
+    },
+    "sso-admin list-managed-policies-in-permission-set": {
+        "AttachedManagedPolicies": []
+    },
+    "sso-admin list-customer-managed-policy-references-in-permission-set": {
+        "CustomerManagedPolicyReferences": []
+    },
 }
 
 
@@ -915,3 +947,25 @@ def test_ssms_own_code_for_a_missing_parameter_is_not_found() -> None:
     # The SDK names a missing parameter ParameterNotFound; were it not in NOT_FOUND, BotoAws would raise AwsError and
     # the weekly run would die before the audit, storing nothing and alerting no one (the second review, I-1).
     assert "ParameterNotFound" in audit.NOT_FOUND
+
+
+def test_the_audit_names_the_set_iam_tf_imports_once_the_cutover_is_done() -> None:
+    # T040b, 2026-11-12: the laptop's profile chains to h4-laptop-bedrock and the hand-made policy is detached, so the
+    # audit holds the set by its name from then on (group 4's note, section 7b). The name is iam.tf's own local.
+    source = (HERE / "audit.py").read_text(encoding="utf-8")
+    named = re.search(
+        r'^LAPTOP_PERMISSION_SET: str \| None = "([^"]+)"$', source, re.MULTILINE
+    )
+    iam = (HERE.parents[1] / "account" / "iam.tf").read_text(encoding="utf-8")
+    local = re.search(r'^\s*laptop_permission_set\s*=\s*"([^"]+)"', iam, re.MULTILINE)
+    assert named and local and named.group(1) == local.group(1) == "h4reet-ai-cloud"
+
+
+def test_the_named_set_is_read_when_the_audit_runs(aws: StubAws, monkeypatch) -> None:
+    # Not at import: the weekly function and the terminal both take the module's name at each run.
+    laptop_role(aws)
+    aws.permission_set("h4reet-ai-cloud", tags=TERRAFORM_TAGS, inline=ASSUME_ONLY)
+    monkeypatch.setattr(audit, "LAPTOP_PERMISSION_SET", "h4reet-ai-cloud")
+    assert findings(aws) == []
+    monkeypatch.setattr(audit, "LAPTOP_PERMISSION_SET", "some-other-set")
+    assert findings(aws) == [("laptop_identity_not_terraform", "some-other-set")]

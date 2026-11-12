@@ -61,9 +61,12 @@ from urllib.parse import unquote
 REGION = "us-east-1"
 PROJECT = "h4reet-ai"
 LAPTOP_ROLE = "h4-laptop-bedrock"
-# The name of spec 000's permission set, which group 4 imports into Terraform and narrows (tasks.md T034). Group 4
-# writes it here when it imports the set; until then the laptop check waits for h4-laptop-bedrock to exist.
-LAPTOP_PERMISSION_SET: str | None = None
+# The name of spec 000's permission set, which group 4 imports into Terraform and narrows (tasks.md T034): iam.tf's
+# local.laptop_permission_set. Named here from T040b's cutover (2026-11-12: the laptop's profile chains to
+# h4-laptop-bedrock and the hand-made policy is detached), so the audit holds the set to the one policy. Read at each
+# run, not at import.
+LAPTOP_PERMISSION_SET: str | None = "h4reet-ai-cloud"
+_THE_MODULES = object()
 TAGGED_INSTANCE = "h4-prod-ec2"
 HANDOVER_ROLES = {
     "h4-ec2-start-fn": {"ec2:startinstances"},
@@ -410,9 +413,11 @@ def laptop_findings(
 def run_audit(
     aws,
     source: str,
-    laptop_permission_set: str | None = LAPTOP_PERMISSION_SET,
+    laptop_permission_set: str | None | object = _THE_MODULES,
     allow: Allowlist | None = None,
 ) -> dict:
+    if laptop_permission_set is _THE_MODULES:
+        laptop_permission_set = LAPTOP_PERMISSION_SET
     account = str(aws.call("sts", "GetCallerIdentity")["Account"])
     found: list[dict] = []
     for user in aws.call("iam", "ListUsers").get("Users") or []:
