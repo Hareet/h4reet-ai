@@ -20,7 +20,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `feat/017-the-night-shift` from `spec/017-the-night-shift`'s reviewed tip, in a worktree. Record the container probe's rows in `specs/017-the-night-shift/research.md`: whether Claude Code's sandbox starts inside a container, the engine forwarder, and the GPU runtime.
+- [x] T001 Create `feat/017-the-night-shift` from `spec/017-the-night-shift`'s reviewed tip, in a worktree. Record the container probe's rows in `specs/017-the-night-shift/research.md`: whether Claude Code's sandbox starts inside a container, the engine forwarder, and the GPU runtime.
 - [ ] T002 Pin the night images' bases by digest, and Claude Code at `CLAUDE_VERSION`, in `deploy/night-shift/images/pins.json`. The pins are read by `install.sh` and checked by P-8.
 - [x] T003 Add `deploy/night-shift` to `PYTEST_DIRS` in `Makefile`. `deploy/night-shift/tests/` has no `conftest.py`; tests load modules by path, as `tools/gates/test/` does.
 
@@ -56,19 +56,19 @@
 - [x] T018 [US3] GREEN: `deploy/night-shift/runner/night.py` (standard library, `python3 -I -B`), with `start`, `stop`, `status`, and `check`.
 - [x] T019 [P] [US3] `deploy/night-shift/runner/prompts/{supervisor,spec-writer,implementer,reviewer,red-teamer,ops,gate-runner,studio}.md`. Each states its role's limits, the save point before each step, how to ask for a plan, a gate, or ComfyUI, and that questions go to the decision page with a recommended answer.
 - [x] T020 [P] [US3] `deploy/night-shift/claude/managed-settings.json` (the proven `forceLoginMethod` with the two variables blanked, baked into every image) and `deploy/night-shift/claude/<role>.settings.json`: each role's permission mode, no `apiKeyHelper`, no credential in `env`, and Claude Code's sandbox off (the probe: it can't start in a container). A test checks both.
-- [ ] T021 [US3] Review G1; fix blockers; backlog the rest.
+- [x] T021 [US3] Review G1; fix blockers; backlog the rest.
 
 ## Phase 3: G2, images and container specs (US2, P1)
 
 **Goal**: the four images and ten specs, each in its lattice parent, none mounting a never-mounted path, every writing spec masked over main's human-only paths. **Independent test**: `pytest deploy/night-shift/tests/test_containers.py`.
 
-- [ ] T030 [P] [US2] RED: `deploy/night-shift/tests/test_containers.py`, covering contracts/containers.md 1 to 11: shape, never-mounted paths and their ancestors, the masks computed from `refs/heads/main:.claude/settings.json`, the environment rules, `forceLoginMethod` in every layer, internal networks only, placeholders, the example marker, and `build.py --check`.
-- [ ] T031 [P] [US2] RED: the lattice (plan §2), mount by mount, network by network, with the runner's task mounts.
-- [ ] T032 [US2] GREEN: `deploy/night-shift/containers/fragments.json`, `build.py`, and the ten specs.
-- [ ] T033 [P] [US2] `deploy/night-shift/images/worker.Dockerfile`: the devcontainer's base and toolchain, with Claude Code at the pin, `jq`, `socat`, and the role layers at `/night/settings-<role>.json`. `egress.Dockerfile`: `python:3.12-slim` by digest, with main's `egress-proxy.py` copied in at build time from `git show refs/heads/main:deploy/agents-engine/egress-proxy.py`.
-- [ ] T034 [P] [US4] `deploy/night-shift/images/studio.Dockerfile` (Claude Code, Blender 5.2.3 at its published checksum, as `oc-studio-agent.sh` does) and `comfyui.Dockerfile` (Ubuntu 24.04, whose Python 3.12 runs his `~/flux-env` read-only).
-- [ ] T035 [US2] `deploy/night-shift/allowlist.json` in settings shape. The night list is main's `allowedDomains` plus `api.anthropic.com`. `allowlist-studio.json` holds `api.anthropic.com` alone, and `allowlist-plan.json` the AWS hosts `infra/` uses. A test checks each list's shape with main's `egress-proxy.py --list`.
-- [ ] T036 Review G2; fix blockers; backlog the rest.
+- [x] T030 [P] [US2] RED: `deploy/night-shift/tests/test_containers.py`, covering contracts/containers.md 1 to 11: shape, never-mounted paths and their ancestors, the masks computed from `refs/heads/main:.claude/settings.json`, the environment rules, `forceLoginMethod` in every layer, internal networks only, placeholders, the example marker, and `build.py --check`.
+- [x] T031 [P] [US2] RED: the lattice (plan §2), mount by mount, network by network, with the runner's task mounts.
+- [x] T032 [US2] GREEN: `deploy/night-shift/containers/fragments.json`, `build.py`, and the ten specs.
+- [x] T033 [P] [US2] `deploy/night-shift/images/worker.Dockerfile`: the devcontainer's base and toolchain, with Claude Code at the pin, `jq`, `socat`, and the role layers at `/night/settings-<role>.json`. `egress.Dockerfile`: `python:3.12-slim` by digest, with main's `egress-proxy.py` copied in at build time from `git show refs/heads/main:deploy/agents-engine/egress-proxy.py`.
+- [x] T034 [P] [US4] `deploy/night-shift/images/studio.Dockerfile` (Claude Code, Blender 5.2.3 at its published checksum, as `oc-studio-agent.sh` does) and `comfyui.Dockerfile` (Ubuntu 24.04, whose Python 3.12 runs his `~/flux-env` read-only).
+- [x] T035 [US2] `deploy/night-shift/allowlist.json` in settings shape. The night list is main's `allowedDomains` plus `api.anthropic.com`. `allowlist-studio.json` holds `api.anthropic.com` alone, and `allowlist-plan.json` the AWS hosts `infra/` uses. A test checks each list's shape with main's `egress-proxy.py --list`.
+- [x] T036 Review G2; fix blockers; backlog the rest.
 
 ## Phase 4: G3, the studio line (US4, P2)
 
@@ -83,7 +83,7 @@
 - [x] T043 [US4] GREEN: `scripts/studio/line.py`.
 - [x] T044 [US4] The arrival check's step: `line.py candidate` ends by running main's `tools/gates/arrival_check.py`, read from `refs/heads/main` by `git cat-file` and run as `python3 -I -B` from a temp file, on a scratch repository. A test uses a stand-in arrival check.
 - [x] T045 [US4] The ComfyUI allowlist: `deploy/night-shift/comfyui-params.json`, seeded from `start-comfyui.sh` and his answer to Q15, with `--listen`, `--port`, and the folder flags fixed by the runner, never by the agent.
-- [ ] T046 Review G3; fix blockers; backlog the rest.
+- [x] T046 Review G3; fix blockers; backlog the rest.
 
 ## Phase 5: G4, red-team rows and the install (US1, P1; US2)
 
@@ -101,33 +101,33 @@
   - `--undo` leaves the fake home as it was, but the token and facts files, which it names.
 - [x] T053 [P] [US1] RED: `deploy/night-shift/tests/test_container_probe.py`, the container probe with a stub `docker`. It writes only in its folder, removes its containers and networks on success and on failure, passes the token only by `--env-file`, prints no planted secret, and ends with every row of contracts/probe.md §2.
 - [x] T054 [US1] GREEN: `deploy/night-shift/install.sh` per plan §6 and contracts/install.md.
-- [ ] T055 Review G4; fix blockers; backlog the rest.
+- [x] T055 Review G4; fix blockers; backlog the rest.
 
 ## Phase 6: G5, ADRs, docs, the plan role, the patches (US5, US6, P2)
 
-- [ ] T060 [P] `docs/adr/0050-containers-around-every-agent-session.md` (with the nono evaluation), `docs/adr/0051-agents-plan-and-run-the-gate.md`, and `docs/adr/0052-the-studio-line.md`, with plan §11's content and the Author's words verbatim. Add their rows to `docs/adr/README.md`, and renumber if W1 has claimed them by then.
-- [ ] T061 [P] `docs/how-we-build/night-shift.md` and `docs/runbooks/night-shift.md` (start, stop, status, resume, undo, the token's renewal and revocation, the second install).
-- [ ] T062 [P] [US5] RED: `infra/test/test_account.py` gains `h4-agent-plan`'s tests:
+- [x] T060 [P] `docs/adr/0050-containers-around-every-agent-session.md` (with the nono evaluation), `docs/adr/0051-agents-plan-and-run-the-gate.md`, and `docs/adr/0052-the-studio-line.md`, with plan §11's content and the Author's words verbatim. Add their rows to `docs/adr/README.md`, and renumber if W1 has claimed them by then.
+- [x] T061 [P] `docs/how-we-build/night-shift.md` and `docs/runbooks/night-shift.md` (start, stop, status, resume, undo, the token's renewal and revocation, the second install).
+- [x] T062 [P] [US5] RED: `infra/test/test_account.py` gains `h4-agent-plan`'s tests:
   - trust only the Author's Identity Center permission-set role, with a one-hour maximum session;
   - `ReadOnlyAccess`, minus decrypted parameter and secret reads, plus `s3:PutObject` and `s3:DeleteObject` on `*.tflock` only;
   - the tags.
-- [ ] T063 [US5] P-6: `infra/account/iam.tf`'s role, as a patch, verified on an export where T062 passes.
-- [ ] T064 P-1: `.claude/settings.json` (`deploy/night-shift/**` human-only, `CLAUDE_CODE_OAUTH_TOKEN` among the denied variables) and `.claude/hooks/protected-paths.sh`.
-- [ ] T065 [US5] [US6] P-2: `CLAUDE.md`'s Infra and Verifying lines, within 6,144 bytes and 60 lines (R-13), checked with main's `evals/agent-config/static.py` on the export.
-- [ ] T066 [US5] [US6] P-3: `.claude/agents/supervisor.md`, `studio.md`, `gate-runner.md`, and `ops.md`'s plan request.
-- [ ] T067 [US5] P-4: `.claude/hooks/bash-gate.sh`'s `make plan ROOT=` message names the night shift's route.
-- [ ] T068 P-5: `redteam/forbidden-actions.sh` rows for P-1, and stage S's container rows if R3 shows they're needed; and `tools/gates/matrix-required.txt`.
-- [ ] T069 [US4] P-7: `assets/policy/studio-tools.json`, from his ComfyUI install, each entry's licence from `licenses.json`, with Qwen-Image-2.1 and FLUX [dev] at `outputs_ship: false`.
-- [ ] T070 P-8: `tools/gates/toolchain_check.py` checks the night images' Claude Code pin.
-- [ ] T071 P-10: `tools/gates/gate`'s agent-config-evals trigger gains `deploy/night-shift/claude/` and `deploy/night-shift/runner/prompts/`, with its test.
-- [ ] T072 P-9: `.specify/memory/constitution.md` 1.2.0 (the roles list), if Q10's answer is "amend".
-- [ ] T073 Review G5; fix blockers; backlog the rest.
+- [x] T063 [US5] P-6: `infra/account/iam.tf`'s role, as a patch, verified on an export where T062 passes.
+- [x] T064 P-1: `.claude/settings.json` (`deploy/night-shift/**` human-only, `CLAUDE_CODE_OAUTH_TOKEN` among the denied variables) and `.claude/hooks/protected-paths.sh`.
+- [x] T065 [US5] [US6] P-2: `CLAUDE.md`'s Infra and Verifying lines, within 6,144 bytes and 60 lines (R-13), checked with main's `evals/agent-config/static.py` on the export.
+- [x] T066 [US5] [US6] P-3: `.claude/agents/supervisor.md`, `studio.md`, `gate-runner.md`, and `ops.md`'s plan request.
+- [x] T067 [US5] P-4: `.claude/hooks/bash-gate.sh`'s `make plan ROOT=` message names the night shift's route.
+- [x] T068 P-5: `redteam/forbidden-actions.sh` rows for P-1, and stage S's container rows if R3 shows they're needed; and `tools/gates/matrix-required.txt`.
+- [x] T069 [US4] P-7: `assets/policy/studio-tools.json`, from his ComfyUI install, each entry's licence from `licenses.json`, with Qwen-Image-2.1 and FLUX [dev] at `outputs_ship: false`.
+- [x] T070 P-8: `tools/gates/toolchain_check.py` checks the night images' Claude Code pin.
+- [x] T071 P-10: `tools/gates/gate`'s agent-config-evals trigger gains `deploy/night-shift/claude/` and `deploy/night-shift/runner/prompts/`, with its test.
+- [x] T072 P-9: `.specify/memory/constitution.md` 1.2.0 (the roles list), if Q10's answer is "amend".
+- [x] T073 Review G5; fix blockers; backlog the rest.
 
 ## Phase 7: G6, the note and verification
 
-- [ ] T080 `make lint`, `make test`, `make evals` (and `make check ENGINE_MODE=none-yet`) in the worktree; paste each whole output into the note. Run `gitleaks` over the branch.
-- [ ] T081 `docs/merge-requests/<date>-feat-017-the-night-shift.md`: the template's sections, every patch with its SHA-256, the reviews' findings and backlog, and the Author's steps.
-- [ ] T082 The install-and-rehearse runbook artifact: the guard on the reviewed SHA, then the one command, in lines of 45 characters or fewer.
+- [x] T080 `make lint`, `make test`, `make evals` (and `make check ENGINE_MODE=none-yet`) in the worktree; paste each whole output into the note. Run `gitleaks` over the branch.
+- [x] T081 `docs/merge-requests/<date>-feat-017-the-night-shift.md`: the template's sections, every patch with its SHA-256, the reviews' findings and backlog, and the Author's steps.
+- [x] T082 The install-and-rehearse runbook artifact: the guard on the reviewed SHA, then the one command, in lines of 45 characters or fewer.
 
 ## Phase 8: After his run (US1, then US7)
 

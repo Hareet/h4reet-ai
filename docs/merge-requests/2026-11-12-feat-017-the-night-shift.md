@@ -1,0 +1,164 @@
+# feat/017-the-night-shift: the night shift, containers around every agent session
+
+Spec: specs/017-the-night-shift/ · Intent: intent/017-the-night-shift.md (uncommitted, the Author's) · Written by: implementer agents per group (G1 to G5), the docs agent (ADRs, how-we-build, runbook), the main session (merges, the runbook's sections, this note) · Date: 2026-11-12
+Session: /home/h4reet/h4reet-ai/h4reet-ai, with each group in its own worktree under /tmp/claude-1000 (wt-017 for the integration branch) · Repo hooks active: yes (the bash gate refused several scratch commands whose text named a refused word, and one commit while the main checkout's HEAD was main; each was redone with the Write and Edit tools or after the checkout was parked, never respelled)
+Authorized by: the spec and plan, approved by the Author on 2026-11-12 ("Approve, all recommended", T000, 18e2dcf1), and his answers in spec.md's Clarifications (Q1, Q5, Q8, Q15, Q17, and the move to containers)
+
+## Status: built in five groups, each reviewed once by an agent that didn't write it; every blocker fixed; nothing installed, applied, or merged
+
+The night shift's code, configuration, tests, and documents are on this branch. Its protected-path changes are eleven patches for the Author's hand, P-1 to P-11 ([index](2026-11-12-feat-017-patches.md)). The install-and-rehearse script runs only on the Author's machine, from his runbook, by `git show <sha>:<path>`.
+
+## What changed and why
+
+The Author wants the night shift: a supervisor and up to ten Claude Code workers, plus a studio agent driving Blender and ComfyUI, spec and build his improvements list overnight, so only decisions and merges reach him. nono, the first plan, couldn't hold it on WSL2. Its probe found that Claude Code's own sandbox can't nest inside Landlock (bwrap's uid map is denied), and that there's no socket mediation or host filter without `insecure_proxy` ([ADR 0050](../adr/0050-containers-around-every-agent-session.md), research R-14). So every session runs in a container on his Docker engine, started only by the runner, and the container probe proved that boundary on his machine (`BOUNDARY holds`, `PLAN-ONLY yes`; research R-16 to R-18).
+
+| Group | What | Where |
+|---|---|---|
+| Probes | The nono probe (kept as the record) and the container probe, which passed on his machine in its third version | `deploy/night-shift/probe.sh`, `deploy/night-shift/container-probe.sh` |
+| G1 | The runner: queue, locks (matrix, gate, GPU), the ten-worker cap, save points, one sleep until the weekly reset, the idle stop, the decision page's runner lines, plan, gate and ComfyUI requests (plan and gate ship off), FR-012's narrow `.git` mount, and the merge-time refusal of human-only paths; prompts and per-role settings layers; the managed settings that keep sessions on the subscription | `deploy/night-shift/runner/`, `deploy/night-shift/claude/` |
+| G2 | Four images (worker, studio, ComfyUI, egress), the pins, ten container specs built from fragments with `--check` and `--fill`, the three egress allowlists | `deploy/night-shift/images/`, `deploy/night-shift/containers/`, `deploy/night-shift/allowlist*.json` |
+| G3 | The studio line: brief, candidate, and round checks, with policy read from main only and rounds counted from the studio's handoff folders; ComfyUI's launch allowlist (`--birefnet`) ([G3's note](2026-11-12-feat-017-g3-studio.md)) | `scripts/studio/line.py`, `deploy/night-shift/comfyui-params.json` |
+| G4 | `install.sh <sha> [--branch <name>] [--undo]` and its rehearsal R1 to R4; 359 red-team rows | `deploy/night-shift/install.sh`, `deploy/night-shift/rehearse.py`, `redteam/night-shift/` |
+| G5 | ADRs 0050 to 0052, the how-we-build page, the runbook; the patches P-1 to P-11 and T062's tests for the plan role | `docs/adr/`, `docs/how-we-build/night-shift.md`, `docs/runbooks/night-shift.md`, `docs/merge-requests/2026-11-12-feat-017-p*.patch`, `infra/test/` |
+| G6 | The runbook's six sections and its test line; this note | `docs/runbooks/night-shift.md`, `evals/test_runbooks.py`, `specs/017-the-night-shift/plan.md` |
+
+117 files, every group test-first: a RED commit, then GREEN, and the same for each review's fixes. Departures from the plan are in plan.md and the contracts in the same commits (G3's, G4's "Changed while building", the narrow `.git` mount, the merge-time refusal).
+
+## Acceptance criteria
+
+- US1 (install and rehearse with one script): FR-003 to FR-009, SC-001, SC-003. Built and tested against a stub engine; proven only by his run (T090).
+- US2 (every session in its role's container): FR-010 to FR-016, FR-036 to FR-038, FR-041, SC-002. The probe proved the boundary; R2 and R4 prove the installed one.
+- US3 (the supervisor runs the night): FR-017 to FR-025, SC-005. FR-025's role file is P-3.
+- US4 (repo agents and the studio finish an asset): FR-026 to FR-031, FR-040, SC-006. Blocked on P-7 until he sets licences.
+- US5 and US6 (plan and gate): FR-032, FR-033, FR-039. Built and off (FR-015) until P-2, P-3, and P-6 merge and a second install (T092).
+- US7 (the pilot): T091, after his install.
+- FR-034 (red-team rows) and FR-035 (a review per group, the three make targets): below.
+
+## Constitution check
+
+plan.md's Constitution Check table, re-checked at the end:
+
+| Clause | Status |
+|---|---|
+| III. Intent, spec, plan before code | Pass: no code before T000. |
+| III. Only a human merges, applies, or amends | Pass: the gate prints its merge command and never merges; the plan role's apply, the constitution patch (P-9), and every protected path are his. |
+| IV. Each role scoped; the implementer never reviews | Pass: one container spec per role; every group was reviewed by another agent. |
+| IV. Policy in enforcement points | Pass: mounts, internal networks, the egress proxy, capabilities, the managed settings, and the merge-time refusal, with 359 red-team rows. |
+| IV. Short-lived identity-based cloud access | **Deviation, named**: an agent's plan uses a role assumed from his SSO session for one hour (decision 1, ADR 0051). |
+| IV. No secrets in agent context | Pass, with the named limit: the Claude token is in each session's environment; it reaches only the allowlist's hosts, signs in only on the plan, and is revoked on its own. |
+| Governance: the roles list | **Deviation until P-9**: supervisor, studio, and gate-runner. |
+| Development standard: the committed sandbox settings | **Deviation, named**: inside a container the container replaces Claude Code's sandbox; the live specs stay outside (ADR 0050). |
+| CLAUDE.md: the Author plans and runs the gate | **Reversed by decisions 1 and 2**, and off until his patches merge (FR-015, P-2). |
+| V. Cost | Pass: sessions sign in on the plan; an API key makes them refuse to start or is neutralized (FR-041). |
+
+## Review
+
+One pass per group, by a reviewer agent that didn't write it, then RED tests for the fixes, then GREEN. Blockers block; the rest was fixed where cheap and otherwise is in the backlog.
+
+| Review | Blockers, and what was done | Should-fixes and nits |
+|---|---|---|
+| Probes | The container probe counted any non-zero exit as "refused to start": now a refusal is read from the egress log, after a turn that proves the log records calls (7b756e2d, b2b9074b, 4db9dd78) | Its run-scoped cleanup and no leftover secrets |
+| G1 | B1: every writing session had `.git` read-write, so it could plant `.git/commondir` and steer the runner's own git. Now FR-012's narrow mount: `.git` read-only; read-write only `objects` (`objects/info` masked), the task's `worktrees/<admin>` (`commondir` masked), and its own night ref and log; `GIT_COMMON_DIR` on every runner git call; the preflight refuses a `commondir` or any ref named main but `refs/heads/main` (af02fa86, 5ed200bf) | All four should-fixes (a reset in the past or over 8 days ahead, a second limit soon after resuming, a clean stop with a gate or plan running, ComfyUI's disk and memory check) and all five nits |
+| G2, with G1 merged | B1: five paths main denies are absent from a fresh worktree, so no mask covers them, and the index and objects are writable. Now the merge-time refusal: at every writing session's end and before naming a stack, the runner diffs the branch from its merge base with `refs/heads/main` and matches each path against main's denyWrite, the first case of main's `protected-paths.sh`, and `deploy/night-shift/`; one page line per path, and the stack isn't named (6d18bea7, 66a568d0) | The never-mounted check covers contracts/containers.md §3 whole; the plan container's `.git` is read-only and it names no `AWS_` variable; `--init`; the memory sum; FR-014's wording (e95536a5); the filled-spec test calls the runner's own `validate_spec` |
+| G3 | 1: policy read from any file the agent named; now from `refs/heads/main` only. 2: deleting a result reset the round limit; now rounds count from the studio's handoff folders (a0881d67) | Importants 2 and 3, nits 1 to 3; Importants 4 to 6 to the backlog |
+| G4 | B1: R2 trusted an egress log nothing had proven records calls; now R1's signed-in turn must add an `api.anthropic.com` line, and R2 runs its own proof turn before reading a refusal (b34b5cb9, aabde41a) | S1 to S9 and all five nits; then R4's floor counts a target absent on the host and in the container as checked (44f34f54, 8febc6ca) |
+| G5 patches | None | Seven should-fixes, all made (88998c1b, 3988f5eb): P-1's timing, P-2's restored words, P-3's narrowed scopes, P-5's stage S row, P-6's denies, P-7's `outputs_ship: false`, P-10's pins trigger. Two of three nits made; P-2's pointer to the how-we-build page doesn't fit CLAUDE.md's 6,144 bytes |
+
+The docs (G5's ADRs, how-we-build page, and runbook) were reviewed with the integration review; the runbook's sections were fixed when `make test` found them (bc44418e).
+
+### Backlog
+
+- Studio image: Claude Code is installed with `npm install -g` at a pinned version but no integrity hash, and apt packages float (G2 nit 4).
+- Studio line (G3 Importants 4 to 6 and the rest of its list): custom nodes named in the workflow file and a step's `service` items checked against the tools list; the decision-page entry for `decide` written by the runner; standalone PNG and JPEG sizes against `texture_px`; more spellings in the by-name refusal; the studio copying the brief into its handoff folder so a rewritten brief can't move the target.
+- FR-020's save point at a step's start is in the prompts only; the runner records uncommitted changes at a worker's end.
+- P-6: the precondition checks only the name's characters, so a typo passes until the first plan; whether AWS checks the anomaly reads against their ARNs is shown by R5.
+- P-2 has no pointer to `docs/how-we-build/night-shift.md` (size).
+- No telemetry span or dashboard panel: the night shift is build-time tooling with no runtime path. Its record is the nightly decision page, `installed.txt`, and the egress log. The G1 review asked for this to be confirmed; see "For the Author".
+
+## Verification
+
+Run in /tmp/claude-1000/wt-017 at f7d5a34b, the integration tip with every group and the rebuilt patches merged. This note and tasks.md's ticks are the only change after it.
+
+`make lint`: exit 0.
+
+```text
+node_modules/.bin/eslint --max-warnings 0 .
+for ws in services/gateway apps/web; do node_modules/.bin/tsc --noEmit -p "$ws" || exit 1; done
+node_modules/.bin/prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+ruff check .
+All checks passed!
+ruff format --check --no-cache --extend-exclude corpus .
+621 files already formatted
+… | xargs -0 -t shellcheck -- … deploy/night-shift/container-probe.sh deploy/night-shift/images/entrypoint.sh deploy/night-shift/install.sh deploy/night-shift/probe.sh … redteam/night-shift/run.sh … (no findings)
+```
+
+`make test`: exit 2. Every failure is environmental, and none is in a file this branch touches.
+
+```text
+corpus-check: OK — 44 slots, 26 filled, denylist missing or hidden from this session, so rule 4 was skipped, 0 problems
+services/gateway:  Test Files  95 passed (95)   Tests  1657 passed | 13 skipped (1670)
+apps/web:          Test Files  7 failed | 155 passed (162)   Tests  7 failed | 3463 passed | 1 skipped (3471)
+  each of the 7: Error: Test timed out in 60000ms.
+  test/manifest.test.ts, test/ui/hud-faults.test.ts, test/ui/loading-degraded.test.ts, test/ui/pick.test.ts,
+  test/room/data-only.test.ts, test/room/objects.test.ts, test/room/text.test.ts
+make: *** [Makefile:248: test] Error 1
+```
+
+The load average was 32 on 24 cores while other sessions ran, and the branch changes nothing under `apps/` or `services/`. The seven files rerun alone (`npx vitest run <the seven>` in apps/web):
+
+```text
+ Test Files  7 passed (7)
+      Tests  148 passed (148)
+```
+
+make stops after npm, so its pytest step ran directly, with the Makefile's own arguments and `PYTEST_DIRS`:
+
+```text
+FAILED scripts/infra/test_infra_targets.py::test_infra_check_runs_the_policy_then_waits_for_terraform
+  AssertionError: mktemp: failed to create file via template '/tmp/tmp.XXXXXXXXXX': Read-only file system
+1 failed, 5670 passed, 1 skipped in 653.99s (0:10:53)
+```
+
+That one comes from the agent sandbox. The target under test makes a temp file in `/tmp`, which is read-only here, and it failed the same way on G3's run before any of this branch's Makefile or `scripts/infra/` changes (it has none). The earlier run at 033bc292 had two real failures in `evals/test_runbooks.py`, the runbook's six sections and spec 017's Runbooks line, fixed at bc44418e.
+
+`make evals` (fake adapter): exit 0.
+
+```text
+evals product (fake): 187 passed, 0 failed
+evals narration (fake): 44 passed, 0 failed
+agent-config static: 0 failed, 0 planned
+PASS  behavioral tier: 2026-11-12T015050Z-feat-001-cloud-elevation-p-f95459fa7292 passed for trigger hash 95025bddfe03, the newest run for it, on Claude Code 2.1.322
+agent-config behavioral: pass, 0 planned
+docs links: 0 failed, 2269 relative links in 363 files
+```
+
+`gitleaks git --log-opts=5f8790b2..HEAD --redact`: `46 commits scanned … no leaks found`.
+
+`make check ENGINE_MODE=none-yet` wasn't run separately. Its lint, test, and evals are above. Its container stages can't run in this sandbox, and the Author's gate runs them.
+
+Not verified here, and proven only by his install (T090): the images' builds, the containers on his engine, and R1 to R4. The probe proved the boundary, and every script and runner path is tested against a stub engine. The patches' own verification is in their [index](2026-11-12-feat-017-patches.md).
+
+## Cost and data-flow impact
+
+- **Model spend**: none added. Sessions draw on the Author's subscription inside its weekly limits; the managed settings blank `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` and force the claude.ai login, so no session can bill API credits (FR-041; proven by the probe's third run). The runner sleeps until the weekly reset instead of buying more.
+- **AWS**: the plan-only role is free; plans' read calls are free; the S3 lock's writes are fractions of a cent a month. Off until P-6.
+- **Electricity**: the GPU on studio nights.
+- **Data flow**: no visitor byte; nothing here runs at runtime, so `docs/data-flow-disclosure.md` is unchanged. On the build side, sessions reach only the egress allowlist's hosts, and the plan's command reaches AWS's read APIs (ADR 0051).
+
+## For the Author
+
+The steps, in order, are on the runbook artifact as lines of 45 characters or fewer.
+
+1. **Base digests**: `pins.json`'s bases are null, and the install refuses until they're set. The agents' engine can't reach Docker Hub (Forbidden), so read three digests on your machine and paste them back: `node:22-bookworm-slim`, `python:3.12-slim`, `docker:28.3.3-cli`. `ubuntu:24.04` takes the digest `.devcontainer/Dockerfile` already pins. I commit them, and that commit is the reviewed SHA you install.
+2. **Before the install**: `facts.env` and the token file (`claude setup-token`, mode 0600) in `~/.config/h4reet-ai/night-shift/`; `/srv/studio/outputs` empty (your Q5); `/srv/studio/workflows` present.
+3. **Install and rehearse**: the guard on the reviewed SHA, then `install.sh <sha> --branch feat/017-the-night-shift`. Paste back the summary; each failure is fixed on this branch, test-first, with a new SHA (T090).
+4. **GitHub**: push before the first night (Q17), since the objects store is writable to sessions.
+5. **Merge**: after spec 001's W1 gate, unless you say otherwise. `toolchain-check` is WARN until P-8 moves the floor to 2.1.322.
+6. **Patches** ([index](2026-11-12-feat-017-patches.md), with each SHA-256): P-1 only where `deploy/night-shift/` already exists, then P-5; P-6 needs your permission set's name in its one local; P-7 on main, with each licence and `outputs_ship` set by you (nothing ships until one is true); plan and gate stay off until P-2, P-3, and P-6 merge and a second install sets `NIGHT_PLAN=on` and `NIGHT_GATE=on` (T092).
+7. **Questions, each with a recommendation**:
+   - Commit identity for night commits: `night-<role>@night-shift.invalid`. **Recommended: keep it.** It can't be mistaken for yours, and publish_check only scans it for denylisted phrases.
+   - The pilot's size (Q14): the Resume stream at two or three workers. **Recommended: two on the first night**, three once the morning page shows no interruption that isn't a decision or a merge.
+   - Telemetry: **recommended: none for this build-time tool.** Its record is the decision page, `installed.txt`, and the egress log. If you want a dashboard panel, it would be a follow-up spec.
+8. **Seen on the way**: `git rev-list --all` fails in your checkout with `fatal: bad object refs/replace`, a ref or file named `refs/replace` itself. Replace objects are off everywhere this branch reads, but you may want to look at it.
