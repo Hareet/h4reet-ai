@@ -519,6 +519,14 @@ CATALOG = (
         "M",
         "the rebuilt meters read 0.10 today and this month, with renewal awaited",
     ),
+    Assertion(
+        "11f",
+        11,
+        "US2-7",
+        "M",
+        "with the store stopped, the relay answers hello degraded, store_unreachable, at once (spec 001 FR-030, SC-008)",
+        relay=True,
+    ),
     # Spec 011 (FR-040, SC-006; its plan §8.2, D16): the samples, in stand-in mode only.
     Assertion(
         "12a",
@@ -2018,6 +2026,20 @@ class Steps:
                 ),
                 self.log(
                     "11b", "state.unknown", stopped, condition="store_unreachable"
+                ),
+                # Spec 001 group 8's review A, I3: the relay reads the same store, and fails closed at once.
+                *(
+                    [
+                        {
+                            "op": "relay_hello",
+                            "assert": "11f",
+                            "after": "s11.hello",
+                            "within_s": 10,
+                            "expect": {"status": 503, "cause": "store_unreachable"},
+                        }
+                    ]
+                    if self.ctx.relay_started
+                    else []
                 ),
             ],
         )

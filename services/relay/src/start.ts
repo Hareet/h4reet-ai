@@ -5,11 +5,11 @@ import { metrics, trace } from "@opentelemetry/api";
 import type pino from "pino";
 
 import { buildRelay, type RelayDeps } from "./app.js";
-import { PublicCap } from "./cap.js";
+import { PublicCap, StatusBucket } from "./cap.js";
 import { readEnv, readPublicCap, type HostTarget, type RelayEnv } from "./config.js";
 import { CHECK_INTERVAL_MS, checkHost, HostChoice, type HandoverEvent, type HostName } from "./hosts.js";
 import { KillSwitch, type StateSource } from "./killswitch.js";
-import { RelayTelemetry } from "./telemetry.js";
+import { RelayTelemetry, type StatusClass } from "./telemetry.js";
 
 export const EXIT_CONFIG = 78;
 
@@ -54,7 +54,7 @@ export function assemble(
   check: (target: HostTarget) => Promise<boolean> = (t) => checkHost(t),
 ): Running {
   const targets = new Map<HostName, HostTarget>(ready.env.hosts.map((h) => [h.name, h]));
-  const holder: { telemetry?: RelayTelemetry } = {};
+  const holder: { telemetry?: RelayTelemetry; statusClass?: () => StatusClass } = {};
   const hosts = new HostChoice([...targets.keys()], now, (event) => {
     holder.telemetry?.handover(event);
     logger.info(
@@ -65,11 +65,17 @@ export function assemble(
       logger.warn({ event: "relay.handover_unrecorded" }, "A handover couldn't be written to the shared state."),
     );
   });
-  const telemetry = new RelayTelemetry(metrics.getMeter("h4reet-relay"), trace.getTracer("h4reet-relay"), hosts);
+  const telemetry = new RelayTelemetry(
+    metrics.getMeter("h4reet-relay"),
+    trace.getTracer("h4reet-relay"),
+    hosts,
+    () => holder.statusClass?.() ?? "unknown",
+  );
   holder.telemetry = telemetry;
   const deps: RelayDeps = {
     stack: ready.env.stack,
     cap: ready.cap,
+    statusCap: new StatusBucket(now),
     hosts,
     targets,
     killSwitch: new KillSwitch(stateSource, now),
@@ -86,13 +92,18 @@ export function assemble(
     try {
       const results = await Promise.all([...targets.values()].map(async (t) => [t.name, await check(t)] as const));
       hosts.reportRound(results);
+      // No address outlives its day, or its bucket's refill, for want of a request (FR-042; nit 4).
+      deps.cap.sweep();
+      deps.statusCap.sweep();
     } finally {
       checking = false;
     }
   };
+  const listeners = buildRelay(deps);
+  holder.statusClass = listeners.statusClass;
   return {
     deps,
-    listeners: buildRelay(deps),
+    listeners,
     check: round,
     start: () => {
       timer ??= setInterval(() => void round(), CHECK_INTERVAL_MS);

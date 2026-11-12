@@ -904,22 +904,39 @@ class Deployer:
         return 1
 
     def clear_sc017(self, hold: Path, run_dir: Path) -> None:
-        """A dead SC-017 harness's stale hold: gone, its refused copy gone, and the gateway recreated from the real env
-        file, since a gateway still running on the refused key passes every check that it runs (I3)."""
-        print(
-            f"{PROG}: SC-017's hold is stale: cleared, and the gateway recreated with the real key",
-            file=sys.stderr,
-        )
-        hold.unlink(missing_ok=True)
+        """A dead SC-017 harness's stale hold: the refused copy gone, the gateway recreated from the real env file,
+        since a gateway still running on the refused key passes every check that it runs (I3), and then the hold
+        gone. If the recreate fails, the hold stays, so nothing else changes under it, and an alert says so; the next
+        run tries again (group 8's review A, nit 3)."""
         (run_dir / "sc017.env").unlink(missing_ok=True)
         current = self.recorded("current")
-        if current is None or "gateway" not in verify(self.host, current):
+        ok = True
+        if current is not None and "gateway" in verify(self.host, current):
+            env_files = [self.env_file, self.release_env(current)]
+            ok = self.docker.compose(
+                self.tree(current),
+                env_files,
+                ["up", "-d", "--no-deps", "--force-recreate", "--wait", "gateway"],
+            )
+        if not ok:
+            print(
+                f"{PROG}: SC-017's hold is stale, and the gateway couldn't be recreated with the real key: the hold "
+                "stays (docs/runbooks/ec2.md)",
+                file=sys.stderr,
+            )
+            self.alert_once(
+                f"sc017@{hold.stat().st_mtime_ns if hold.exists() else 0}",
+                alert(
+                    "deploy_refused",
+                    f"{self.host} couldn't recreate its gateway with the real key after a dead SC-017 run",
+                    [("reason", "sc017_recovery_failed")],
+                ),
+            )
             return
-        env_files = [self.env_file, self.release_env(current)]
-        self.docker.compose(
-            self.tree(current),
-            env_files,
-            ["up", "-d", "--no-deps", "--force-recreate", "--wait", "gateway"],
+        hold.unlink(missing_ok=True)
+        print(
+            f"{PROG}: SC-017's hold was stale: the gateway recreated with the real key, and the hold cleared",
+            file=sys.stderr,
         )
 
     def restart(self, service: str) -> int:

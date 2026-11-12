@@ -4696,10 +4696,10 @@
             "type": "prometheus",
             "uid": "prom"
           },
-          "expr": "max by (h4_relay_host) (h4_serving_host)",
+          "expr": "max by (h4_serving) (h4_serving_host)",
           "range": true,
           "instant": false,
-          "legendFormat": "{{h4_relay_host}}"
+          "legendFormat": "{{h4_serving}}"
         }
       ],
       "fieldConfig": {
@@ -4750,11 +4750,24 @@
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": " ",
+                        "color": "transparent",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "no host serving",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
               }
             ]
           }

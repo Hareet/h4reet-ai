@@ -3,7 +3,8 @@
 //
 // Every request reads gateway.v_state as relay_ro, whose statement_timeout is 250 ms. The switch reads `normal` only
 // from a row that says so; `degraded` answers kill_switch_tripped, no row store_uninitialized, and a read that fails
-// leans on the last good one for at most 10 s, then answers store_unreachable. Unknown is degraded.
+// answers store_unreachable at once: no grace on the last good read (FR-030; SC-008, "While the relay can't read the
+// state, 100% of its answers are degraded"; contract §3 step 4; group 8's review A, I3). Unknown is degraded.
 
 export interface StateRow {
   readonly state: string;
@@ -27,7 +28,6 @@ export type Verdict =
       readonly ceilings: readonly string[] | null;
     };
 
-export const MAX_AGE_MS = 10_000;
 
 const iso = (v: Date | string | null): string | null => {
   if (v === null) return null;
@@ -54,35 +54,29 @@ export function verdictOf(row: StateRow | null): Verdict {
 }
 
 export class KillSwitch {
-  private last: { verdict: Verdict; at: number } | null = null;
   private failingSince: number | null = null;
   private latest: Verdict | null = null;
 
   constructor(
     private readonly source: StateSource,
     private readonly now: () => number = Date.now,
-    private readonly maxAgeMs: number = MAX_AGE_MS,
   ) {}
 
-  /** The verdict for a request starting now. */
+  /** The verdict for a request starting now: the store's row, or store_unreachable the moment it can't be read. */
   async verdict(): Promise<Verdict> {
     let verdict: Verdict;
     try {
       const row = await this.source.read();
       verdict = verdictOf(row);
-      this.last = { verdict, at: this.now() };
       this.failingSince = null;
     } catch {
-      const now = this.now();
-      this.failingSince ??= now;
-      if (this.last !== null && now - this.last.at <= this.maxAgeMs) verdict = this.last.verdict;
-      else
-        verdict = {
-          kind: "degraded",
-          cause: "store_unreachable",
-          since: iso(new Date(this.failingSince)),
-          ceilings: null,
-        };
+      this.failingSince ??= this.now();
+      verdict = {
+        kind: "degraded",
+        cause: "store_unreachable",
+        since: iso(new Date(this.failingSince)),
+        ceilings: null,
+      };
     }
     this.latest = verdict;
     return verdict;

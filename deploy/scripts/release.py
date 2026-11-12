@@ -71,10 +71,11 @@ CLOUD_CLASSES = ("ec2", "tunnel-end")
 # primary and fallback, EC2's first and second. FR-039's four adapters are these, each on its own host (group 7's
 # fixes' review, I1): a laptop run of Bedrock doesn't stand for EC2's, whose prompt route and model may differ.
 ROUTE_KEYS = {"laptop": ("primary", "fallback"), "ec2": ("first", "second")}
-# The release runs only as main's own code (group 7's fixes' review, I2): these two, the Makefile that calls it and
-# itself, must be refs/heads/main's blobs, so a checkout parked on an agent's branch can't run its own with the
-# Author's administrator session.
-SELF_FILES = ("deploy/scripts/release.py", "Makefile")
+# The release runs only as main's own code (group 7's fixes' review, I2): these three, the makefiles GNU make reads
+# (GNUmakefile first; group 8's review A, nit 2) and itself, must be refs/heads/main's blobs. The check is
+# self-referential: it catches a checkout parked on an agent's branch by mistake, not a copy of this file written to
+# skip it, which only main's gate and the Author's merge keep out.
+SELF_FILES = ("deploy/scripts/release.py", "Makefile", "GNUmakefile")
 DIGEST_LINE = re.compile(r"^Digest:\s+(sha256:[0-9a-f]{64})\s*$", re.MULTILINE)
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # The site in the web image, where its Dockerfile's runtime stage copies dist/.

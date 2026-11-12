@@ -58,6 +58,8 @@ STATE = Path("/var/lib/h4reet/deploy")
 # hold is stamped, so the deployer clears one a dead run left (deploy/scripts/deployer.py, SC017_STALE_S).
 RUN_DIR = Path("/run/h4reet")
 LOCK_WAIT_S = 120
+# The deployer's SC017_STALE_S (deploy/scripts/deployer.py): a stamped hold older than this is a dead run's.
+STALE_S = 3600
 PROGRESS_EVERY = 10
 
 
@@ -315,8 +317,10 @@ class Ec2Key:
             raise RuntimeError("the gateway didn't start again with the refused key")
 
     def restore(self) -> bool:
-        """The gateway with the real file; the copy and the run's own hold go whatever happens, so the deployer's
-        next run brings the real gateway back if this didn't. Nothing to do if the key was never refused."""
+        """The gateway with the real file. The refused copy goes whatever happens; the run's own hold goes only once
+        the gateway runs the real key, so if this failed, the stamped hold stays for the deployer's stale-hold
+        recovery, which recreates the gateway with the real file (group 8's review A, nit 3). Nothing to do if the key
+        was never refused."""
         if not self.refused:
             self.release_hold()
             return True
@@ -325,7 +329,8 @@ class Ec2Key:
             self.refused_env.unlink()
         except OSError:
             pass
-        self.release_hold()
+        if ok:
+            self.release_hold()
         return ok
 
     def release_hold(self) -> None:
@@ -390,6 +395,15 @@ def main(argv: list[str], env: dict[str, str] | None = None) -> int:
     if env.get("SANDBOX_RUNTIME") == "1":
         print(
             "sc017: the Author's run, in his terminal: its calls are paid",
+            file=sys.stderr,
+        )
+        return 2
+    # Both phases must end inside the hold's hour, with ten minutes to spare, or the deployer would take the run's own
+    # stamped hold for a dead run's and clear it mid-phase (group 8's review A, nit 3).
+    longest = int((STALE_S - 600) / (2 * args.interval))
+    if args.turns > longest:
+        print(
+            f"sc017: --turns {args.turns} outlasts the hold's hour at {args.interval} s a turn: at most {longest}",
             file=sys.stderr,
         )
         return 2

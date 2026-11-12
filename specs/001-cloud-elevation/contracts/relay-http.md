@@ -26,9 +26,9 @@ Any other method or path: 404, not forwarded.
 ## 3. Processing order (spec FR-030 to FR-033, FR-063, FR-066)
 
 1. **The probe mark.** `X-H4-Probe: 1` sets `h4.probe=true` on the spans. On anything but `GET /api/status` it gets 400 `probe_not_allowed`: probes never cause a model call (FR-061).
-2. **The client's address** from `CloudFront-Viewer-Address` (the address, without the port), on 8080 only. Missing: 403 `edge_required` (FR-032).
+2. **The client's address** from `CloudFront-Viewer-Address` (the address, without the port), on 8080 only. Missing: 403 `edge_required` (FR-032). An IPv6 address is keyed by its /64, the network one subscriber holds, written as that network's first address (`2001:db8:1:2::`), in the cap and in `X-H4-Viewer` alike, so rotating the lower 64 bits rotates nothing past either cap (group 8's review A, I1).
 3. **The public cap** (FR-033): a token bucket and a UTC-day count per address, in memory, sized by `config/budgets.yaml`'s `public` section (the Author's patch). Over it: spec 000's 429 shape, cause `public_cap`, counted with no address.
-4. **The kill switch**, from the shared state's `gateway.v_state` as `relay_ro`, `statement_timeout = 250ms` (contracts/shared-state.md §2). If it is `degraded`, unknown, unreadable, or not read successfully within the last 10 s: spec 000's degraded 503 with its cause, not forwarded (FR-030).
+4. **The kill switch**, from the shared state's `gateway.v_state` as `relay_ro`, `statement_timeout = 250ms` (contracts/shared-state.md §2), read on every forwarded request, so a trip reaches the relay within 10 s (SC-008). If it is `degraded`, unknown, or unreadable: spec 000's degraded 503 with its cause, not forwarded (FR-030). A failed read is `store_unreachable` at once, with no grace on the last good read (group 8's review A, I3).
 5. **The host** (§4). If none: 503 `no_host_serving` (§5).
 6. **Forward,** with:
    - `Authorization: Bearer <that host's relay token>`;
@@ -76,7 +76,10 @@ Bodies use spec 000's degraded shape, with `X-H4-Degraded-Cause`.
   "ec2": "stopped",
   "kill_switch": "normal",
   "hello_would_get": "answer",
-  "taken_at": "2026-11-12T09:20:00Z"
+  "taken_at": "2026-11-12T09:20:00Z",
+  "local_tier": "up",
+  "state": "normal",
+  "cause_now": null
 }
 ```
 
@@ -86,8 +89,11 @@ Bodies use spec 000's degraded shape, with `X-H4-Degraded-Cause`.
 | `ec2` | `running`, `pending`, `stopping`, `stopped`, `interrupted`, `unknown` | the sink's last read (contracts/public-view.md §2), at most 2 minutes old |
 | `kill_switch` | `normal`, `degraded`, `unknown` | §3 step 4 |
 | `hello_would_get` | `answer` or the cause | §3 |
+| `local_tier` | `up` while the laptop serves, else `down` | spec 004's Amendment A1 |
+| `state` | `kill_switch`'s value | A1 |
+| `cause_now` | `hello_would_get`'s cause, or `null` for `answer` | A1 |
 
-No model call, no address, nothing per client (FR-037).
+No model call, no address, nothing per client (FR-037). **From spec 004's Amendments A1 and A2** (group 8's review A, I2): the status has its own bucket, 30 a minute with a burst of 10 per address, apart from hello's; over it, 429 `{"error": "relay_cap_exceeded", "limit": "status_per_minute", "retry_after_s": <n>, "request_id": "…"}` with `Retry-After: <n>`. It reads the store at most once in 5 s; hello reads it every request. A status answered below 500 makes no span, and its requests and 429s are counted apart from hello's (§9).
 
 ## 7. What the relay never keeps or logs
 
@@ -106,13 +112,13 @@ The relay is gone with it. CloudFront's error responses answer every dynamic req
 
 | Panel | Type | Query |
 |---|---|---|
-| Which host serves (FR-060) | state timeline | `max by (h4_relay_host) (h4_serving_host)` |
+| Which host serves (FR-060) | state timeline | `max by (h4_serving) (h4_serving_host)` |
 | Handovers and their gaps (SC-007, SC-016) | table (SQL) | `SELECT at AS "time", from_host, to_host, reason, gap_ms / 1000.0 AS gap_s FROM gateway.v_handovers ORDER BY at DESC LIMIT 50` |
 | The relay's requests by host and outcome (FR-060) | time series | `sum by (h4_relay_host, h4_relay_outcome) (rate(h4_relay_requests_total[5m]))` |
 | The public cap's refusals (FR-033) | time series | `sum by (h4_cap_limit) (increase(h4_cap_refused_total[1h]))` |
 
-- **`h4_serving_host`** is `h4.serving_host`, a one-hot gauge the relay observes every export, labelled `h4.relay.host` (`laptop`, `ec2`, `none`): 1 for the host it sends to now. The timeline shows `none` in red. Beside it the relay reports `h4.relay.host_healthy`, 1 while it counts a host healthy (§4).
+- **`h4_serving_host`** is `h4.serving_host`, a one-hot gauge the relay observes every export, labelled `h4.serving` (`laptop`, `ec2`, `none`): 1 for the host it sends to now. The timeline shows `none`'s 1 in red, by a value mapping of its own, since a mapping's colour wins over a field's. Beside it the relay reports `h4.relay.host_healthy`, labelled `h4.relay.checked`, 1 while it counts a host healthy (§4). Neither label is `h4.relay.host`, which the tunnel end's collector routes on per datapoint: each series reaches both hosts' Prometheus, and the one-hot set stays whole in either (group 8's review A, I4).
 - **The handovers** come from the shared state's `gateway.v_handovers` (data-model.md §1.2), through `grafana_ro`, so the panel answers while telemetry is down: each change of serving host, its reason, and the gap, in seconds, on a move out of `none`. The relay also counts `h4.handover.events` by direction and reason, and records `h4.handover.gap_seconds`.
-- **`h4_relay_requests_total`** is `h4.relay.requests`, labelled `h4.relay.host` (the host the relay sent to, or `none`), `h4.relay.outcome` (`answered`, `degraded`, `refused`, `status`), and `http.route`. Never an address.
-- **`h4_cap_refused_total`** is `h4.cap.refused`, labelled `h4.cap.limit` (`per_minute`, `per_day`, `global_in_flight`), never by address.
+- **`h4_relay_requests_total`** is `h4.relay.requests`, labelled `h4.relay.host` (the host the relay sent to, or `none`), `h4.relay.outcome` (`answered`, `degraded`, `refused`, `status`), `http.route`, and, from spec 004's Amendment A2, `h4.relay.route` (`hello`, `status`, or `other`). Never an address. A status answered below 500 makes no span (A2), and the relay observes `h4.relay.status.class`, one-hot by `h4.class` (`local`, `cloud`, `resting`, `budget`, `unavailable`, `unknown`), the class its status would reduce to now; spec 004's "Room live state" panel reads both.
+- **`h4_cap_refused_total`** is `h4.cap.refused`, labelled `h4.cap.limit` (`per_minute`, `per_day`, `global_in_flight`, and the status bucket's `status_per_minute`) and `h4.relay.route`, never by address.
 - The relay's spans, `relay.request`, carry `h4.relay.host`, `h4.relay.reason`, `h4.degraded.cause`, `h4.cap.refused`, and `h4.probe`, and reach the serving host's collector through the tunnel end's (C15), so the gateway's spans are their children. `deploy/scripts/test_dashboard.py` reads this section's table with the other Hosts sections'.

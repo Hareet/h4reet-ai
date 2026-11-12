@@ -95,10 +95,64 @@ export class PublicCap {
     return this.inFlight;
   }
 
+  /** Drops every entry of a past UTC day, run in the relay's 1 s round, so no address outlives its day for want of a
+   *  request (FR-042; group 8's review A, nit 4). */
+  sweep(): void {
+    this.evict(dayOf(this.now()));
+  }
+
   private evict(day: string): void {
     for (const [key, entry] of this.entries) {
       if (this.entries.size <= this.maxAddresses && entry.day === day) break;
       if (entry.day !== day || this.entries.size > this.maxAddresses) this.entries.delete(key);
     }
+  }
+}
+
+/** Spec 004's Amendment A1 (contracts/tier-signal.md §7): the status bucket, 30 a minute with a burst of 10 per
+ *  address, apart from hello's. It holds an address only while its bucket isn't full again: an entry idle for the
+ *  burst's refill time is dropped, so it keeps nothing a full bucket wouldn't. */
+export const STATUS_PER_MINUTE = 30;
+export const STATUS_BURST = 10;
+
+export type StatusDecision = { readonly ok: true } | { readonly ok: false; readonly retryAfterS: number };
+
+export class StatusBucket {
+  private readonly entries = new Map<string, { tokens: number; at: number }>();
+
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly perMinute: number = STATUS_PER_MINUTE,
+    private readonly burst: number = STATUS_BURST,
+    private readonly maxAddresses: number = MAX_ADDRESSES,
+  ) {}
+
+  admit(key: string): StatusDecision {
+    const now = this.now();
+    const perMs = this.perMinute / 60_000;
+    const entry = this.entries.get(key) ?? { tokens: this.burst, at: now };
+    entry.tokens = Math.min(this.burst, entry.tokens + (now - entry.at) * perMs);
+    entry.at = now;
+    this.entries.delete(key);
+    this.entries.set(key, entry);
+    while (this.entries.size > this.maxAddresses) {
+      const first = this.entries.keys().next().value;
+      if (first === undefined) break;
+      this.entries.delete(first);
+    }
+    if (entry.tokens < 1) return { ok: false, retryAfterS: Math.max(1, Math.ceil((1 - entry.tokens) / perMs / 1000)) };
+    entry.tokens -= 1;
+    return { ok: true };
+  }
+
+  /** Drops each entry whose bucket would be full again by now. */
+  sweep(): void {
+    const now = this.now();
+    const full = (this.burst / this.perMinute) * 60_000;
+    for (const [key, entry] of this.entries) if (now - entry.at >= full) this.entries.delete(key);
+  }
+
+  get size(): number {
+    return this.entries.size;
   }
 }
