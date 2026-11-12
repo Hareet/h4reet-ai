@@ -51,7 +51,7 @@ systemctl stop h4-deployer.timer
 systemctl stop h4-stack.service
 ```
 
-While `hold` is there the deployer starts, restarts, and deploys nothing, at boot too, and says so on its stderr; the
+`h4-stack.service`'s stop stops the class's containers (`docker compose -p h4reet-prod stop`), and they stay stopped. While `hold` is there the deployer starts, restarts, and deploys nothing, at boot too, says so on its stderr, and alerts `deploy_refused` (reason `held`) once per hold, so a forgotten one doesn't stand unseen; the
 key's revocation still restarts the sshd. To resume: `rm /var/lib/h4reet/deploy/hold`, then
 `systemctl start h4-deployer.timer`, and its next run brings the release up. Group 7 gives the laptop and EC2 their own form
 of the same (contracts/releases-deployer.md §4).
