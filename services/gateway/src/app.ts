@@ -38,11 +38,13 @@ import { Gateway } from "./core/gateway.js";
 import { ClientCap } from "./core/limits.js";
 import { Journal } from "./meter/journal.js";
 import { Meter } from "./meter/meter.js";
+import { instrumentDatabase } from "./meter/store-telemetry.js";
 import {
   FatalStoreError,
   Store,
   pgDatabase,
   pgSettingsFromEnv,
+  StoreSettingsError,
   readMigrations,
   type Database,
   type Migration,
@@ -505,10 +507,31 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
     );
   }
 
+  // The store's connection (spec 001 contracts/shared-state.md §3): the local gateway-state, or the shared state over
+  // TLS by its own CA; a setting the gateway can't use refuses, exit 78, before anything connects.
+  let database = opts.database;
+  if (database === undefined) {
+    try {
+      const settings = pgSettingsFromEnv(env);
+      database = pgDatabase(settings);
+      // The shared state's latency and errors, by host (FR-060); spec 000's local store keeps its own telemetry.
+      if (settings.tls !== undefined) {
+        database = instrumentDatabase(database, {
+          meter: otelMetrics.getMeter("h4-gateway"),
+          host: settings.h4Host ?? "laptop",
+        });
+      }
+    } catch (err) {
+      if (!(err instanceof StoreSettingsError)) throw err;
+      logFatal(logger, err.exitCode, err.reason);
+      return { kind: "refused", exitCode: err.exitCode, lines: [`${err.message} (${err.reason})`] };
+    }
+  }
+
   // 2. The route's adapters, and the services around them; then the store: the first attempt now, retries in the
   //    background while it is down.
   const store = new Store({
-    db: opts.database ?? pgDatabase(pgSettingsFromEnv(env)),
+    db: database,
     migrations: opts.migrations ?? (await readMigrations()),
     envClass,
     logger,

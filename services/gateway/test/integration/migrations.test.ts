@@ -1229,8 +1229,9 @@ describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
   const roleOf = async (name: string) =>
     (
       await db.pg.query<Record<string, unknown>>(
-        `SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolconfig, rolpassword IS NULL AS nopw
-         FROM pg_authid WHERE rolname = $1`,
+        `SELECT r.rolcanlogin, r.rolsuper, r.rolcreatedb, r.rolcreaterole, r.rolinherit, r.rolconfig,
+           a.rolpassword IS NULL AS nopw
+         FROM pg_roles r JOIN pg_authid a ON a.oid = r.oid WHERE r.rolname = $1`,
         [name],
       )
     ).rows[0];

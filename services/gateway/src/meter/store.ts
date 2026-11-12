@@ -17,6 +17,7 @@
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { checkServerIdentity, type ConnectionOptions } from "node:tls";
 
 import type pg from "pg";
 
@@ -52,22 +53,137 @@ export interface Database extends Queryable {
   close(): Promise<void>;
 }
 
+export type H4Host = "laptop" | "ec2";
+export const H4_HOSTS: readonly H4Host[] = ["laptop", "ec2"];
+
+/** TLS to spec 001's shared state: its own CA's certificate, and the one name its certificate holds. */
+export interface StoreTls {
+  /** The CA certificate, PEM. */
+  ca: string;
+  /** The server name the certificate must hold, whatever address the URL dials (GATEWAY_DB_TLS_SERVERNAME). */
+  servername: string;
+}
+
 export interface PgSettings {
   host: string;
   port: number;
   database: string;
   user: string;
   password: string;
+  /** H4_HOST: every session names it as h4.host, which each ledger and audit row takes (0007_hosts); the laptop's
+   * when unset. */
+  h4Host?: H4Host;
+  /** Set for the shared state alone; spec 000's local store runs without TLS on its internal network. */
+  tls?: StoreTls;
 }
 
-/** Compose sets these on the gateway (env-files.md §4); the password stays its own variable, never in a URL. */
+/** A store setting the gateway refuses at start, exit 78 (spec 001 contracts/env-cloud.md §2). Names keys only. */
+export class StoreSettingsError extends Error {
+  readonly exitCode = 78;
+  constructor(
+    readonly reason: "invalid_host" | "store_url_invalid" | "store_tls_required" | "local_store_on_shared_host",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const PEM_CERTIFICATE = /^-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\r?\n?$/;
+/** The local store's service name, which the shared state's URL never names. */
+const LOCAL_STORE = "gateway-state";
+
+/**
+ * Compose sets these on the gateway (env-files.md §4); the password stays its own variable, never in a URL. With
+ * GATEWAY_DB_URL (spec 001 contracts/shared-state.md §3), the store is the shared state: its URL names the host, the
+ * port, the database, and the user, with sslmode=verify-full and no password; GATEWAY_DB_TLS_SERVERNAME the name its
+ * certificate holds; and GATEWAY_DB_TLS_CA its CA's certificate, base64 of the PEM. EC2 has no local store, so its
+ * gateway refuses to start without the URL.
+ */
 export function pgSettingsFromEnv(env: Readonly<Record<string, string | undefined>>): PgSettings {
+  const host = env.H4_HOST === undefined || env.H4_HOST === "" ? "laptop" : env.H4_HOST;
+  if (!H4_HOSTS.includes(host as H4Host)) {
+    throw new StoreSettingsError("invalid_host", "H4_HOST must be laptop or ec2: no other host runs a gateway");
+  }
+  const h4Host = host as H4Host;
+  const password = env.GATEWAY_DB_PASSWORD ?? "";
+  const url = env.GATEWAY_DB_URL ?? "";
+  if (url === "") {
+    if (h4Host === "ec2") {
+      throw new StoreSettingsError(
+        "local_store_on_shared_host",
+        "H4_HOST=ec2 needs GATEWAY_DB_URL: EC2 has no local store, and its meter is the shared state's (FR-018)",
+      );
+    }
+    return {
+      host: env.GATEWAY_DB_HOST ?? LOCAL_STORE,
+      port: Number(env.GATEWAY_DB_PORT ?? 5432),
+      database: env.GATEWAY_DB_NAME ?? "gateway",
+      user: env.GATEWAY_DB_USER ?? "gateway",
+      password,
+      h4Host,
+    };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new StoreSettingsError("store_url_invalid", "GATEWAY_DB_URL isn't a URL");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    throw new StoreSettingsError("store_url_invalid", "GATEWAY_DB_URL must be a postgres:// URL");
+  }
+  if (parsed.password !== "" || parsed.username === "" || !/^\/[a-z0-9_]+$/.test(parsed.pathname)) {
+    throw new StoreSettingsError(
+      "store_url_invalid",
+      "GATEWAY_DB_URL names its user and database, and never a password (GATEWAY_DB_PASSWORD holds it)",
+    );
+  }
+  const params = [...parsed.searchParams.keys()];
+  if (parsed.searchParams.get("sslmode") !== "verify-full" || params.some((k) => k !== "sslmode")) {
+    throw new StoreSettingsError(
+      "store_tls_required",
+      "GATEWAY_DB_URL must carry sslmode=verify-full, and nothing else",
+    );
+  }
+  if (parsed.hostname === LOCAL_STORE) {
+    throw new StoreSettingsError(
+      "local_store_on_shared_host",
+      "GATEWAY_DB_URL names the local gateway-state: the shared state is the tunnel end's",
+    );
+  }
+  const servername = env.GATEWAY_DB_TLS_SERVERNAME ?? "";
+  if (!/^[a-z0-9][a-z0-9.-]{0,252}$/.test(servername)) {
+    throw new StoreSettingsError("store_tls_required", "GATEWAY_DB_URL needs GATEWAY_DB_TLS_SERVERNAME");
+  }
+  const ca = Buffer.from(env.GATEWAY_DB_TLS_CA ?? "", "base64").toString("utf8");
+  if (!PEM_CERTIFICATE.test(ca)) {
+    throw new StoreSettingsError(
+      "store_tls_required",
+      "GATEWAY_DB_URL needs GATEWAY_DB_TLS_CA, the shared state's CA certificate as base64 of its PEM",
+    );
+  }
   return {
-    host: env.GATEWAY_DB_HOST ?? "gateway-state",
-    port: Number(env.GATEWAY_DB_PORT ?? 5432),
-    database: env.GATEWAY_DB_NAME ?? "gateway",
-    user: env.GATEWAY_DB_USER ?? "gateway",
-    password: env.GATEWAY_DB_PASSWORD ?? "",
+    host: parsed.hostname,
+    port: parsed.port === "" ? 5432 : Number(parsed.port),
+    database: decodeURIComponent(parsed.pathname.slice(1)),
+    user: decodeURIComponent(parsed.username),
+    password,
+    h4Host,
+    tls: { ca, servername },
+  };
+}
+
+/**
+ * TLS against the shared state's own CA (spec 001 contracts/shared-state.md §3): the chain to that CA alone, and the
+ * name the settings give. pg sets SNI to the host it dials (`tunnel`, or an address), so the name is checked here
+ * instead of by tls.connect's default, against the configured name.
+ */
+function tlsOptions(tls: StoreTls): ConnectionOptions {
+  return {
+    ca: tls.ca,
+    rejectUnauthorized: true,
+    minVersion: "TLSv1.3",
+    checkServerIdentity: (_host, cert) => checkServerIdentity(tls.servername, cert),
   };
 }
 
@@ -85,6 +201,9 @@ export function buildPoolConfig(s: PgSettings): pg.PoolConfig {
     idle_in_transaction_session_timeout: 2_000,
     connectionTimeoutMillis: 500,
     stream: aresSocket,
+    // Every session names its host, which 0007's rows take as their default (spec 001 data-model.md §1.2).
+    options: `-c h4.host=${s.h4Host ?? "laptop"}`,
+    ...(s.tls === undefined ? {} : { ssl: tlsOptions(s.tls) }),
   };
 }
 

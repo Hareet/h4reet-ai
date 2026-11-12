@@ -86,8 +86,8 @@ describe("two gateways on one shared state (FR-017)", () => {
     // spec 000's bound: what was in flight when the ceiling was reached, at most 4 a gateway at $0.10 each.
     expect(await spent(db, "day", day)).toBeLessThanOrEqual(5_000_000n + 2n * 4n * 100_000n);
     expect(await spent(db, "day", day)).toBeGreaterThanOrEqual(5_000_000n);
-    const reserved = await db.pg.query<{ n: string }>("SELECT count(*) AS n FROM gateway.reservations");
-    expect(reserved.rows[0]?.n).toBe("0");
+    const reserved = await db.pg.query<{ n: number | string }>("SELECT count(*) AS n FROM gateway.reservations");
+    expect(Number(reserved.rows[0]?.n)).toBe(0);
     // Each row names the host whose gateway wrote it (0007, from H4_HOST: dev's is the laptop).
     const hosts = await db.pg.query<Rec>("SELECT DISTINCT host FROM gateway.ledger");
     expect(hosts.rows).toEqual([{ host: "laptop" }]);

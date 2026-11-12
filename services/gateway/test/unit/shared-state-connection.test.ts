@@ -4,7 +4,8 @@
 // h4.shared_state.latency and h4.shared_state.errors, labelled with h4.host. The certificates are made at run time
 // (test/helpers/test-certs.ts), so no key or certificate sits in a file.
 import { once } from "node:events";
-import { createServer, connect, type TLSSocket } from "node:tls";
+import { createServer as createNetServer } from "node:net";
+import { connect, TLSSocket } from "node:tls";
 
 import { metrics as sdkMetrics } from "@opentelemetry/sdk-node";
 import { afterEach, describe, expect, it } from "vitest";
@@ -100,7 +101,12 @@ describe("TLS, verified by the CA and the server name, whatever the address", ()
 
   async function serve(dnsNames: string[], ca = authority): Promise<number> {
     const cert = ca.issue({ subject: "shared-state", dnsNames });
-    const server = createServer({ secureContext: cert.context }, (socket) => socket.end());
+    // As the email channel's TLS tests serve: a TLS socket over each plain one, with the certificate's context.
+    const server = createNetServer((plain) => {
+      const encrypted = new TLSSocket(plain, { isServer: true, secureContext: cert.context });
+      encrypted.on("error", () => plain.destroy());
+      encrypted.on("secure", () => encrypted.end());
+    });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
     servers.push(server);
@@ -110,7 +116,7 @@ describe("TLS, verified by the CA and the server name, whatever the address", ()
   /** What pg does with the pool's ssl options: tls.connect with the socket's host, and SNI for a name. */
   async function handshake(port: number, env = sharedEnv()): Promise<"ok" | string> {
     const ssl = buildPoolConfig(pgSettingsFromEnv(env)).ssl as Record<string, unknown>;
-    const socket: TLSSocket = connect({ ...ssl, host: "127.0.0.1", port, servername: "tunnel" });
+    const socket = connect({ ...ssl, host: "127.0.0.1", port, servername: "tunnel" });
     try {
       await once(socket, "secureConnect");
       return "ok";
