@@ -145,13 +145,13 @@ the Author's terminal
 ```
 
 **Each session container**:
-- runs as `--user <his uid>:<gid>`, with `--cap-drop ALL` and `--security-opt no-new-privileges`;
-- has `--read-only` root with a `tmpfs` at `/tmp`;
-- has limits: `--pids-limit 512`, `--memory 4g`, `--cpus 2`, and the supervisor `--memory 2g`. Ten workers then fit 62 GB and 24 cores, with the GPU's model off on studio nights;
+- runs as `--user <his uid>:<gid>`, with `--init`, `--cap-drop ALL`, and `--security-opt no-new-privileges` (FR-014);
+- has `--read-only` root with a `tmpfs` at `/tmp` (the GPU containers' root stays writable, §2);
+- has limits: `--pids-limit 512`, `--memory 4g`, `--cpus 2`, and the supervisor `--memory 2g`. Ten workers then fit 62 GB and 24 cores, with the GPU's model off on studio nights. The runner starts a container only while the memory limits of every running night container plus the new one sum to no more than total memory less 8 GB, so a studio night (the studio's 8 GB and ComfyUI's 24 GB) holds fewer workers (FR-014; contracts/runner.md §3);
 - has these mounts, and nothing else:
   - its worktree, read-write, at the same path as on the host;
   - the repository's `.git`, read-only, at the same path, with only the task's own parts read-write (FR-012): `.git/objects`, `.git/worktrees/<task>`, and its branch's refs and logs (`refs/heads/night/<task>/`, `logs/refs/heads/night/<task>/`). Read-only binds sit over `.git/objects/info` and the task's `.git/worktrees/<task>/commondir`. Everything else in `.git` (`hooks`, `config`, `HEAD`, `index`, `refs/heads/main`, `refs/tags`, …) stays read-only without a mask. A session that could write `.git` itself could change its `commondir` and steer git outside the container (G1's review). These are the runner's task mounts (contracts/runner.md §3, contracts/containers.md §4). The container probe proved `.git` read-write with masks; the rehearsal's R3 proves this narrower shape;
-  - read-only binds over every path `refs/heads/main:.claude/settings.json` denies writing, inside the worktree (`.claude`, `CLAUDE.md`, `REVIEW.md`, `tools/gates`, …). Claude Code's own sandbox may be off in the container, so these binds do what its masks do today;
+  - read-only binds over every path `refs/heads/main:.claude/settings.json` denies writing that exists inside the worktree (`.claude`, `CLAUDE.md`, `REVIEW.md`, `tools/gates`, …). Claude Code's own sandbox may be off in the container, so these binds do what its masks do today. A denied path a fresh worktree lacks (`makefile`, `.mcp.json`, `.gitleaksignore`, `.github/workflows`, `deploy/env`) can't be masked, and with the index and objects writable a session can commit any content for a masked path without writing it; so the runner refuses, at each writing session's end and before naming a stack, any branch that changes a human-only path (the merge-time refusal, §4 and contracts/runner.md §6);
   - its role's Claude folder (`CLAUDE_CONFIG_DIR`);
   - its io folder;
   - per role: the engine's client certificates (read-only), and the studio folders listed in §2;
@@ -190,7 +190,7 @@ ceiling (computed: the union)
 | ops | as implementer | as implementer | as implementer | plan request: **off** |
 | gate-runner | — | its worktree, `.git` | h4-night | gate request: **off** |
 | studio | `/srv/studio/handoff`, `/srv/studio/outputs` | `/srv/studio/briefs`, `/srv/studio/workflows` | h4-night-studio | `--gpus all` (Blender), under the GPU lock; the ComfyUI request |
-| plan (runner only) | `~/.config/h4reet-ai/infra/{data,plans,state}` | the detached worktree, `~/.config/h4reet-ai/infra`, the provider mirror | h4-night-plan | the role's credentials for that run |
+| plan (runner only) | `~/.config/h4reet-ai/infra/{data,plans,state}` | the detached worktree (under `<NIGHT_ROOT>/.plan/`), the repository's `.git` (its worktree's `.git` file points there), `~/.config/h4reet-ai/infra`, the provider mirror | h4-night-plan | the role's credentials for that run, by `--env-file` only, with no `AWS_` variable |
 | comfyui (runner only) | `/srv/studio/outputs`, `/comfyui/user`; `/comfyui/temp` and its input folder as `tmpfs` | `~/ComfyUI`, `~/flux-env` | h4-night-studio | `--gpus all`; its port on the studio network only |
 
 Every session also has its role's Claude folder (`/night/claude`) and its io folder (`/night/io`), read-write. A request (plan, gate, ComfyUI) is a file in the io folder's `out/`, so the plan's and the gate's outboxes are the io folder, and the spec's `requests` names the kinds the runner takes from the role. The worktree, `.git`, the masks, and those two folders are the runner's task mounts (contracts/runner.md §3); a spec holds only the role's own mounts, and none lies over a task mount, so none can reopen a mask (contracts/containers.md §4).
@@ -202,7 +202,7 @@ Every session also has its role's Claude folder (`/night/claude`) and its io fol
 - The session images bake a passwd entry for his uid, since the runner mounts nothing at `/etc`.
 - The specs name their image as `h4-night-<name>:{{IMAGE_TAG}}`, the tag the install builds.
 
-**Never mounted in any session container**: `~/.aws`, `~/.ssh`, `~/.config/h4reet-ai`, `~/.config/gh`, `~/.git-credentials`, `~/.docker`, the Author's `~/.claude` and `~/.claude.json`, `/srv/studio/photos`, `/srv/studio/key`, `/var/run/docker.sock`, and the main checkout's working tree. Nor is anything main's settings deny reading outside the worktree, the engine's and the runner's state, or the provider mirror. A test checks every spec, with the runner's task mounts, against that list and each path's ancestors.
+**Never mounted in any session container**: `~/.aws`, `~/.ssh`, `~/.config/h4reet-ai`, `~/.config/gh`, `~/.git-credentials`, `~/.docker`, the Author's `~/.claude` and `~/.claude.json`, `/srv/studio/photos`, `/srv/studio/key`, `/var/run/docker.sock`, and the main checkout's working tree. Nor is anything main's settings deny reading outside the worktree (`denyRead`, `credentials.files`), the engine's and the runner's state (`~/.local/state/h4reet`, `~/.local/state/h4reet-ai`), the provider mirror (but for the plan), or, but for the studio, `/srv/studio/workflows` and `/srv/studio/outputs`. A test checks every spec, with the runner's task mounts, against that list and each path's ancestors, and the runner checks it again at every start with its own validate step, which G2's test calls.
 
 ## §3 Requests to the runner
 
@@ -234,7 +234,8 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
 - **Save points**: every role prompt commits `wip(<task>): <step>` before each step. The runner records a dirty worktree at a session's end and never commits for it.
 - **The weekly limit**: on a stream's usage-limit event, the runner parses the reset time and stops every container. It sleeps once until the reset plus five minutes, then restarts the unfinished tasks from their branches' tips, the supervisor first. No interval check anywhere (decision 3). Extra usage is never accepted (FR-041).
 - **Idle stop**: 15 minutes of a silent stream with a clean worktree stops the container, and the stop is recorded.
-- **Naming a stack**: `git branch feat/NNN-… <tip>` outside, when the supervisor marks it done.
+- **Naming a stack**: `git branch feat/NNN-… <tip>` outside, when the supervisor marks it done, unless the branch changes a human-only path since its merge base with main: main's denyWrite, main's `protected-paths.sh`, or `deploy/night-shift/`. Each such path is a page line, at every writing session's end too ("touches a human-only path: <path>; the Author's patch route"), and the change goes the Author's patch route (the merge-time refusal, contracts/runner.md §6).
+- **Memory**: a start waits while the running night containers' memory limits plus the new one's would pass total memory less 8 GB (FR-014).
 - **The decision page**: `docs/night-shift/<date>.md` on `night/supervisor/<date>` (contracts/decision-page.md). The runner appends what it alone sees.
 
 ## §5 The container probe

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime as dt
 import fcntl
+import fnmatch
 import hashlib
 import json
 import os
@@ -96,6 +97,10 @@ LIMIT_AGAIN_S = (
 STOP_GRACE_S = 60  # docker stop: SIGTERM, then SIGKILL after 60 s
 MIN_DISK = 30 * 2**30  # the 2026-10-08 rule: / and /mnt/c
 MIN_MEM = 8 * 2**30
+EGRESS_MEM, FWD_MEM = "256m", "128m"  # the helpers' memory limits
+MEM_HEADROOM = (
+    8 * 2**30
+)  # the containers' memory limits sum to at most total memory less this (FR-014)
 DISKS = ("/", "/mnt/c")
 FAST_FAIL_S = 120  # three sessions failing this soon after starting stop the night (a missed limit, probably)
 FAST_FAIL_COUNT = 3
@@ -302,6 +307,13 @@ class Effects:
                     return int(line.split()[1]) * 1024
         raise OSError("no MemAvailable in /proc/meminfo")
 
+    def mem_total(self) -> int:
+        with open("/proc/meminfo", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) * 1024
+        raise OSError("no MemTotal in /proc/meminfo")
+
     def exists(self, path: str) -> bool:
         return os.path.lexists(path)
 
@@ -335,6 +347,7 @@ class Effects:
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
+                errors="surrogateescape",  # a non-UTF-8 name or line never raises here
                 timeout=timeout,
                 check=False,
             )
@@ -362,6 +375,7 @@ class Effects:
             stdout=subprocess.PIPE,
             stderr=err,
             text=True,
+            errors="surrogateescape",  # a non-UTF-8 name or line never raises here
             bufsize=1,
         )
 
@@ -400,6 +414,7 @@ class Effects:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                errors="surrogateescape",  # a non-UTF-8 name or line never raises here
                 start_new_session=True,
             )
         except OSError as e:
@@ -683,8 +698,10 @@ def is_under(path: str, root: str) -> bool:
     return path != root and path.startswith(root.rstrip("/") + "/")
 
 
-def never_mounted(home: str, role: str) -> list[str]:
-    """contracts/containers.md §3. The plan's container (runner-only) may mount its own ~/.config/h4reet-ai/infra."""
+def never_mounted(home: str, role: str, extra=()) -> list[str]:
+    """contracts/containers.md §3, whole, for `role`. The plan's container (runner-only) may mount its own
+    ~/.config/h4reet-ai/infra and the provider mirror. `extra` is main's settings' never-read paths
+    (`settings_never`), which bind the session roles; the studio keeps its outputs and workflows."""
     out = [
         f"{home}/.aws",
         f"{home}/.ssh",
@@ -693,6 +710,8 @@ def never_mounted(home: str, role: str) -> list[str]:
         f"{home}/.docker",
         f"{home}/.claude",
         f"{home}/.claude.json",
+        f"{home}/.local/state/h4reet",
+        f"{home}/.local/state/h4reet-ai",
         "/srv/studio/photos",
         "/srv/studio/key",
         "/var/run/docker.sock",
@@ -704,9 +723,44 @@ def never_mounted(home: str, role: str) -> list[str]:
             f"{home}/.config/h4reet-ai/env",
         ]
     else:
-        out.append(f"{home}/.config/h4reet-ai")
+        out += [f"{home}/.config/h4reet-ai", f"{home}/{PROVIDER_MIRROR}"]
     if role not in GPU_ROLES:
         out.append("/srv/studio/outputs")
+    if role != "studio":
+        out.append("/srv/studio/workflows")
+    if role in ROLES:
+        for p in extra:
+            if role == "studio" and p in (
+                "/srv/studio/outputs",
+                "/srv/studio/workflows",
+            ):
+                continue
+            if p not in out:
+                out.append(p)
+    return out
+
+
+PROVIDER_MIRROR = ".local/share/h4reet/terraform-providers"  # the plan's Terraform providers, under $HOME
+
+
+def settings_never(settings, home: str) -> list[str]:
+    """main's `sandbox.filesystem.denyRead` and `sandbox.credentials.files` paths outside the worktree, `~` expanded:
+    no session mounts them (G2's integration review)."""
+    sandbox = settings.get("sandbox", {}) if isinstance(settings, dict) else {}
+    fs = sandbox.get("filesystem", {}) if isinstance(sandbox, dict) else {}
+    entries = list(fs.get("denyRead", []) or []) if isinstance(fs, dict) else []
+    creds = sandbox.get("credentials", {}) if isinstance(sandbox, dict) else {}
+    for f in (creds.get("files", []) or []) if isinstance(creds, dict) else []:
+        entries.append(f.get("path") if isinstance(f, dict) else f)
+    out: list[str] = []
+    for e in entries:
+        if not isinstance(e, str) or e.startswith("./"):
+            continue  # worktree paths are the masks' and the merge-time refusal's
+        if e.startswith("~/"):
+            e = f"{home}/{e[2:]}"
+        e = os.path.normpath(e)
+        if os.path.isabs(e) and e != "/" and e not in out:
+            out.append(e)
     return out
 
 
@@ -719,15 +773,23 @@ def path_shape_refusal(p) -> str | None:
 
 
 def host_refusal(
-    host: str, *, role: str, home: str, repo: str, realpath, allow_git: bool
+    host: str,
+    *,
+    role: str,
+    home: str,
+    repo: str,
+    realpath,
+    allow_git: bool,
+    extra=(),
 ) -> str | None:
     """Why `host` may not be mounted for `role`, or None. `allow_git` is the runner's own task mounts' exception."""
     why = path_shape_refusal(host)
     if why:
         return why
     git = f"{repo}/.git"
+    never = never_mounted(home, role, extra)
     for p in {host, realpath(host)}:
-        for f in never_mounted(home, role):
+        for f in never:
             if p == f or is_under(p, f) or is_under(f, p):
                 return f"{host} is, holds, or sits in a never-mounted path ({f})"
         if p == repo or is_under(repo, p):
@@ -794,6 +856,90 @@ def mask_lists(settings) -> tuple[list[str], list[str]]:
     return git_rel, wt_rel
 
 
+# ---- the merge-time refusal (contracts/runner.md §6) ------------------------------------------------------------
+# Masks can't cover a denied path a fresh worktree lacks (docker would make the source as root), and with the index
+# and objects writable a session can commit any content for a masked path without writing it. So before naming a
+# stack, and at every writing session's end, the runner diffs the branch from its merge base with refs/heads/main and
+# refuses a path that main's settings deny writing, that main's protected-paths.sh guards, or that the night shift
+# itself keeps human-only.
+HOOK_PATH = ".claude/hooks/protected-paths.sh"
+RUNNER_HUMAN_ONLY = (
+    "deploy/night-shift",
+)  # human-only by P-1; held here until main's hook says so
+# The hook's second case (spec 001's protected Terraform files), by file name, in any case, under infra/ but infra/test/.
+TF_PROTECTED = (
+    "iam*.tf",
+    "budgets*.tf",
+    "alerts*.tf",
+    "killswitch*.tf",
+    "handover*.tf",
+    "failover*.tf",
+    "ec2-market*.tf",
+    "edge-limits*.tf",
+)
+
+
+def hook_rules(text: str):
+    """The first `case "$1" in` of protected-paths.sh's check(): [(patterns, blocks)], in order (the first match
+    wins, as in bash), or None when the text doesn't parse that way."""
+    lines = text.splitlines() if isinstance(text, str) else []
+    try:
+        start = next(i for i, ln in enumerate(lines) if ln.strip() == "check() {")
+        case = next(
+            i for i in range(start, len(lines)) if lines[i].strip() == 'case "$1" in'
+        )
+    except StopIteration:
+        return None
+    rules: list[tuple[list[str], bool]] = []
+    for ln in lines[case + 1 :]:
+        s = ln.strip()
+        if s == "esac":
+            break
+        if not s or s.startswith("#"):
+            continue
+        m = re.match(r"([^()]+?)\)\s*(.*)", s)
+        if not m:
+            return None
+        pats = [p.strip() for p in m.group(1).split("|")]
+        action = m.group(2)
+        if not all(pats) or not (action.startswith(("block ", ";;"))):
+            return None
+        rules.append((pats, action.startswith("block ")))
+    else:
+        return None
+    return rules if any(b for _p, b in rules) else None
+
+
+def hook_blocks(rules, path: str) -> bool:
+    for pats, blocks in rules:
+        if any(fnmatch.fnmatchcase(path, p) for p in pats):
+            return blocks
+    low = path.lower()
+    if (
+        low.startswith("infra/")
+        and not low.startswith("infra/test/")
+        and low.endswith((".tf", ".tf.json"))
+    ):
+        name = low.rsplit("/", 1)[-1].removesuffix(".json")
+        return any(fnmatch.fnmatchcase(name, p) for p in TF_PROTECTED)
+    return False
+
+
+def human_only_paths(paths, settings, hook_text: str) -> list[str]:
+    """The paths, in order, that a night branch may not change: main's denyWrite (inside the repository), main's
+    protected-paths.sh, and RUNNER_HUMAN_ONLY. An unparsable hook refuses (fails closed)."""
+    rules = hook_rules(hook_text)
+    if rules is None:
+        raise Refused(f"main's human-only list ({HOOK_PATH}) can't be read")
+    _git_rel, wt_rel = mask_lists(settings)
+    roots = [*wt_rel, *RUNNER_HUMAN_ONLY]
+    out = []
+    for p in paths:
+        if any(p == r or p.startswith(r + "/") for r in roots) or hook_blocks(rules, p):
+            out.append(p)
+    return out
+
+
 def env_items(env) -> list[tuple[str, str]]:
     """A spec's env: a mapping, or a list of NAME=value strings or {"name", "value"} objects."""
     if env is None:
@@ -841,7 +987,16 @@ REQUIRED_SPEC_KEYS = (
 
 
 def validate_spec(
-    spec, role: str, *, uid_gid: str, token: str, home: str, repo: str, realpath, exists
+    spec,
+    role: str,
+    *,
+    uid_gid: str,
+    token: str,
+    home: str,
+    repo: str,
+    realpath,
+    exists,
+    never_extra=(),
 ) -> str | None:
     """Why a live spec may not start, or None (contracts/containers.md §2 to §7, checked again at every start)."""
     if not isinstance(spec, dict):
@@ -946,6 +1101,7 @@ def validate_spec(
             repo=repo,
             realpath=realpath,
             allow_git=False,
+            extra=never_extra,
         )
         if why:
             return why
@@ -957,8 +1113,18 @@ def validate_spec(
     return None
 
 
+def mem_bytes(text) -> int:
+    """A docker memory limit (`4g`, `512m`, `1024k`) in bytes."""
+    m = re.fullmatch(r"(\d+)([kmg])", str(text))
+    if not m:
+        raise Refused(f"memory limit {text!r} is malformed")
+    return int(m.group(1)) * {"k": 2**10, "m": 2**20, "g": 2**30}[m.group(2)]
+
+
 def common_flags(spec) -> list[str]:
+    """The flags every container from a spec takes. `--init` reaps the session's children (FR-014)."""
     argv = [
+        "--init",
         "--user",
         spec["user"],
         "--cap-drop",
@@ -1222,6 +1388,7 @@ class Task:
     started: float = 0.0
     last_event: float = 0.0
     result: dict | None = None
+    mem: int = 0  # its container's memory limit, in bytes
     held: dict = field(default_factory=dict)
     held_reason: str | None = None
     named: bool = False
@@ -1258,6 +1425,12 @@ class Runner:
         self.runner_lock = None
         self.saved: dict[str, tuple[str, bool]] = {}
         self.resumed_at: float | None = None
+        self.helper_mem = 0  # the egress helpers' and engine-fwd's limits, once started
+        self.comfy_mem = 0
+        self.job_mem: dict[str, int] = {}  # a running plan's containers
+        self.flagged: set[tuple[str, str]] = (
+            set()
+        )  # (task, path) already on the page as human-only
         self._load_state()
 
     # ---- small helpers -------------------------------------------------------------------------------------------
@@ -1454,6 +1627,7 @@ class Runner:
             repo=self.repo,
             realpath=self.fx.realpath,
             exists=self.fx.exists,
+            never_extra=settings_never(self.main_settings(), self.p.home),
         )
         if why:
             raise Refused(f"spec {role}: {why}")
@@ -1849,6 +2023,18 @@ class Runner:
                         t.held_reason = why
                         self.page(f"{t.id} stays queued: {why} (FR-031)")
                     continue
+            try:
+                spec = self.load_live_spec(t.role)
+            except Refused as e:
+                t.state = "refused"
+                self.page(f"{t.id} refused: {e}")
+                continue
+            why = self.mem_refusal(mem_bytes(spec["limits"]["memory"]))
+            if why:
+                if t.held_reason != why:
+                    t.held_reason = why
+                    self.page(f"{t.id} stays queued: {why} (FR-014)")
+                continue
             if not self.take_locks(t):
                 continue
             t.held_reason = None
@@ -1866,7 +2052,32 @@ class Runner:
     def start_supervisor(self, extra: str = "") -> None:
         if self.sup.state == "running":
             return
+        spec = self.load_live_spec("supervisor")
+        why = self.mem_refusal(mem_bytes(spec["limits"]["memory"]))
+        if why:
+            raise Refused(f"the supervisor can't start: {why}")
         self.start_session(self.sup, extra)
+
+    # ---- the memory sum (FR-014): every night container's limit, plus the next, within total memory less 8 GB --------
+    def mem_committed(self) -> int:
+        total = sum(t.mem for t in self.running())
+        total += self.helper_mem + sum(self.job_mem.values())
+        if self.comfy_owner:
+            total += self.comfy_mem
+        return total
+
+    def mem_refusal(self, more: int) -> str | None:
+        try:
+            budget = self.fx.mem_total() - MEM_HEADROOM
+        except OSError:
+            return "can't read the total memory"
+        after = self.mem_committed() + more
+        if after > budget:
+            return (
+                f"memory limits would sum to {after / 2**30:.1f} GB, over {budget / 2**30:.1f} GB "
+                "(total memory less 8 GB)"
+            )
+        return None
         self.next_start_at = self.now() + STAGGER_S
 
     # ---- starting a session (contracts/runner.md §3) ---------------------------------------------------------------
@@ -2053,6 +2264,7 @@ class Runner:
                 repo=self.repo,
                 realpath=self.fx.realpath,
                 allow_git=True,
+                extra=settings_never(self.main_settings(), self.p.home),
             )
             if why:
                 raise Refused(f"{t.id}: {why}")
@@ -2097,6 +2309,7 @@ class Runner:
 
     def start_session(self, t: Task, extra: str = "") -> None:
         spec = self.load_live_spec(t.role)
+        t.mem = mem_bytes(spec["limits"]["memory"])
         if t.role not in NO_WT:
             self.ensure_worktree(t)
         io = self.ensure_io(t)
@@ -2132,7 +2345,7 @@ class Runner:
     # ---- the egress helpers ----------------------------------------------------------------------------------------
     def helper_flags(self, name: str, mem: str) -> list[str]:
         return [
-            "docker", "run", "-d", "--rm", "--name", name, "--user", self.uid_gid,
+            "docker", "run", "-d", "--rm", "--name", name, "--init", "--user", self.uid_gid,
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
             "--tmpfs", "/tmp:rw,nosuid,size=64m", "--memory", mem, "--cpus", "1", "--pids-limit", "256",
             "--network", OUT_NETWORK,
@@ -2140,7 +2353,7 @@ class Runner:
 
     def egress_argv(self, name: str, allowlist: str, logdir: str) -> list[str]:
         return [
-            *self.helper_flags(name, "256m"),
+            *self.helper_flags(name, EGRESS_MEM),
             "-e", "H4_EGRESS_SETTINGS=/etc/h4-egress/settings.json",
             "-e", "H4_EGRESS_LOG=/log/egress.jsonl",
             "-e", "H4_EGRESS_LIST_FILE=/tmp/egress-list.json",
@@ -2180,9 +2393,10 @@ class Runner:
             os.makedirs(logdir, mode=0o700, exist_ok=True)
             self.start_helper(name, self.egress_argv(name, allow, logdir), net, alias)
         worker = self.image_id(self.load_live_spec("implementer")["image"])
-        fwd = [*self.helper_flags("h4-night-engine-fwd", "128m"), worker]
+        fwd = [*self.helper_flags("h4-night-engine-fwd", FWD_MEM), worker]
         fwd += ["socat", "TCP-LISTEN:2376,fork,reuseaddr", ENGINE]
         self.start_helper("h4-night-engine-fwd", fwd, "h4-night-engine", "engine-fwd")
+        self.helper_mem = 2 * mem_bytes(EGRESS_MEM) + mem_bytes(FWD_MEM)
 
     def stop_helpers(self) -> None:
         self.docker(
@@ -2251,6 +2465,10 @@ class Runner:
             self.page(
                 f"{t.id} ended with uncommitted changes in {t.worktree}; the runner never commits for it"
             )
+        if t.worktree and t.role in WRITING_WT:
+            self.check_stack(
+                t
+            )  # every writing session's end: its branch's human-only paths go on the page
         if ok and t.name and not t.named:
             self.name_stack(t)
         if ok:
@@ -2400,10 +2618,52 @@ class Runner:
         if self.git("rev-parse", "--verify", "--quiet", f"refs/heads/{t.name}").rc == 0:
             self.page(f"stack {t.name} is taken; {t.branch} at {tip[:12]} left unnamed")
             return
+        if not self.check_stack(t):
+            self.page(
+                f"stack {t.name} not named: {t.branch} touches a human-only path, or the list can't be read"
+            )
+            return
         if self.git("branch", t.name, tip).rc != 0:
             self.page(f"stack {t.name}: git branch failed")
             return
         self.page(f"stack {t.name} at {tip[:12]} (from {t.branch})")
+
+    def human_only_changes(self, t: Task) -> list[str]:
+        """The human-only paths `t`'s branch changes since its merge base with main. Refused if it can't tell."""
+        r = self.git(
+            "rev-parse", "--verify", "--quiet", f"refs/heads/{t.branch}^{{commit}}"
+        )
+        tip = r.out.strip()
+        if r.rc != 0 or not SHA40.fullmatch(tip):
+            raise Refused(f"{t.branch} doesn't resolve")
+        r = self.git("merge-base", MAIN, tip)
+        base = r.out.strip()
+        if r.rc != 0 or not SHA40.fullmatch(base):
+            raise Refused(f"{t.branch} has no merge base with refs/heads/main")
+        # Plumbing, so no diff configuration applies; -z so no name is quoted; --no-renames so a rename shows both.
+        r = self.git("diff-tree", "-r", "-z", "--name-only", "--no-renames", base, tip)
+        if r.rc != 0:
+            raise Refused(f"can't list what {t.branch} changes")
+        paths = [x for x in r.out.split("\0") if x]
+        hook = self.git("cat-file", "blob", f"{MAIN}:{HOOK_PATH}")
+        if hook.rc != 0:
+            raise Refused(f"main's human-only list ({HOOK_PATH}) can't be read")
+        return human_only_paths(paths, self.main_settings(), hook.out)
+
+    def check_stack(self, t: Task) -> bool:
+        """True if `t`'s branch touches no human-only path. One page line per path, once per task."""
+        try:
+            bad = self.human_only_changes(t)
+        except Refused as e:
+            self.page(f"{t.id}: {e}")
+            return False
+        for p in bad:
+            if (t.id, p) not in self.flagged:
+                self.flagged.add((t.id, p))
+                self.page(
+                    f"{t.id} touches a human-only path: {p}; the Author's patch route"
+                )
+        return not bad
 
     # ---- requests (contracts/runner.md §5) --------------------------------------------------------------------------
     def scan_requests(self, t: Task) -> None:
@@ -2586,9 +2846,15 @@ class Runner:
             spec = self.load_live_spec("plan")
         except Refused as e:
             return self.refuse("plan", f"refused: {e}")
+        more = mem_bytes(spec["limits"]["memory"]) + mem_bytes(EGRESS_MEM)
+        why = self.mem_refusal(more)
+        if why:
+            return self.refuse("plan", f"refused: {why}")
         base = f"{self.p.state}/plan"
         os.makedirs(base, mode=0o700, exist_ok=True)
-        wt = f"{base}/wt-{sha[:12]}-{t.id}-{n}"
+        # The detached worktree sits under NIGHT_ROOT, not the runner's state folder, which no container mounts.
+        wt = f"{self.night_root}/.plan/{sha[:12]}-{t.id}-{n}"
+        os.makedirs(os.path.dirname(wt), mode=0o755, exist_ok=True)
         creds = f"{base}/{t.id}-{n}.env"
         profile = self.facts["PLAN_AWS_PROFILE"]
         name = f"h4-night-plan-{t.id}-{n}"
@@ -2643,7 +2909,11 @@ class Runner:
                     argv += ["-e", f"{k}={v}"]
                 for m in spec["mounts"]:
                     argv += vol(m["host"], m["container"], m["mode"])
-                argv += [*vol(wt, wt, "ro"), "-w", wt, self.image_id(spec["image"])]
+                # The detached worktree's .git file points into the repository's .git/worktrees/, so the plan
+                # reads .git too: read-only, a runner task mount (G2's integration review).
+                g = self.git_dir
+                argv += [*vol(wt, wt, "ro"), *vol(g, g, "ro")]
+                argv += ["-w", wt, self.image_id(spec["image"])]
                 argv += [
                     "/usr/bin/python3",
                     "-I",
@@ -2671,6 +2941,7 @@ class Runner:
 
         key = f"job:{t.id}:{n}"
         self.pending[key] = ("plan", t, n, None, sha)
+        self.job_mem[key] = more
         self.log(f"plan {root} at {sha[:12]} for {t.id}: started")
         self.fx.start_job(key, job)
         return None
@@ -2766,6 +3037,10 @@ class Runner:
             spec = self.load_live_spec("comfyui")
         except Refused as e:
             return self.refuse("comfyui", f"refused: {e}")
+        comfy_mem = mem_bytes(spec["limits"]["memory"])
+        why = self.mem_refusal(comfy_mem)
+        if why:
+            return self.refuse("comfyui", f"refused: {why}")
         f = self.facts
         argv = [
             "docker",
@@ -2809,6 +3084,7 @@ class Runner:
         if r.rc != 0:
             return self.refuse("comfyui", "refused: the comfyui container didn't start")
         self.comfy_owner = t.id
+        self.comfy_mem = comfy_mem
         probe = [
             "exec",
             "h4-night-comfyui",
@@ -2849,6 +3125,7 @@ class Runner:
 
     def on_job(self, key: str, result: dict) -> None:
         pending = self.pending.pop(key, None)
+        self.job_mem.pop(key, None)
         if pending is None:
             return
         kind, t, n, handle, sha = pending
@@ -2976,6 +3253,7 @@ class Runner:
                 self.stop_comfyui()
             self.log(f"{kind} request {n} for {t.id}: ended by the stop")
         self.pending.clear()
+        self.job_mem.clear()
 
     def sweep_plan_credentials(self) -> None:
         base = f"{self.p.state}/plan"
