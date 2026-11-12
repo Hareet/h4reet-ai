@@ -76,9 +76,9 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 | Phase | Behavior |
 |---|---|
 | Waiting | every 5 s, read the public `https://hareet.ai/api/status` (contracts/relay-http.md §6), marked as a probe (disclosure row C6, with the describe and stop calls below). When `serving` is `laptop`: stop EC2 with the `h4-ec2-stop` permission set (question 7), record the handover's window, and move to serving |
-| Serving | every 60 s: if EC2's state is `running` or `pending`, stop it and record why (`flap`) |
-| No session | if the SSO session has expired or the stop fails: one alert through the laptop's prod alert path, keep serving, retry each minute. `make up` never fails for this |
-| Window | from the relay's first `laptop` to EC2's `stopped`: at most 5 minutes (FR-063); recorded in the stack's state directory and as `h4.handover.window_seconds` |
+| Serving | every 60 s, the status again: while it says `laptop`, if EC2's state is `running` or `pending`, stop it and record why (`flap`); on anything else (`ec2`, `none`, or unread), record `released` and go back to waiting, so EC2 that the start function started while the relay sends elsewhere is left to serve (FR-064, "WHILE ... the relay sends to it"; group 9's review A, I1) |
+| No session | if the SSO session has expired, the CLI hangs or is missing, or the stop fails: one alert, `handover_stop_failed`, published to `h4-alerts` through the `h4-ec2-stop` permission set's `sns:Publish` (both channels, as `make ec2-stop`'s alert goes; contracts/aws-alerts.md §2), and its line in the loop's own log, which keeps it when it can't be published; keep serving, retry each minute. Any other error in a round is recorded and the loop goes on. `make up` never fails for this, and says on its terminal when the stop profile's session can't be used (group 9's review A, I2, I3; plan.md §16, "Group 9, as built", item 13). Spec 000's dispatcher has no host-script kind, so the alert goes through AWS's path, not the laptop's |
+| Window | from the relay's first `laptop` to EC2's `stopped`: at most 5 minutes (FR-063); recorded in the stack's state directory and as `h4.handover.window_seconds`, posted to the stack's own collector on the port `make up` reads from the env file's `H4_OTLP_PORT` and passes to the loop (group 9's review A, I4) |
 
 ## 7. The operator's commands (the Author's terminal; refused to agents)
 
@@ -87,7 +87,7 @@ A stdlib host script, `deploy/scripts/handover.py`. `make up ENV=prod` starts it
 | `make ec2-status` | EC2's state, its spot request's state, the autostart switch, the server action's status, the relay's `serving` | — |
 | `make ec2-start` | invokes `h4-ec2-start` with `manual: true`, so §3's four checks apply | the function's alert |
 | `make ec2-stop` | `ec2:StopInstances` through the `h4-ec2-stop` permission set | a line in `~/.local/state/h4reet/ec2-actions.jsonl`, and an alert |
-| `make ec2-autostart STATE=on\|off` | writes the parameter; with `on`, also invokes `h4-ec2-start` once | an audit row in the shared state, through `ENV=shared` |
+| `make ec2-autostart STATE=on\|off` | writes the parameter; with `on`, also invokes `h4-ec2-start` once | a line in `~/.local/state/h4reet/ec2-actions.jsonl`, as `make ec2-stop`'s: no admin route writes an arbitrary audit row in the shared state (plan.md §16, "Group 9, as built", item 12) |
 | `make server-budget-restore` | reverses the server action (`execute-budget-action --execution-type REVERSE_BUDGET_ACTION`), after the incident note | the action's history; an alert |
 | `make operator-* ENV=shared` | contracts/shared-state.md §7, `operator-restore` among them (§8) | spec 000's audit rows |
 | `make cloud-session HOST=ec2\|tunnel-end` | a Systems Manager port-forwarding session to that host's admin listener and the relay's internal listener | Systems Manager's session history |

@@ -14,7 +14,7 @@ for the dashboard's Hosts row (contracts/handover.md §10):
     h4.server.month_usd             the server budget's month to date, read once an hour
     h4.server.budget_usd            the server budget's figure, read with it
     h4.ec2.outcomes_last_hour       the start function's and the guard's outcomes in the last hour, by `function`,
-                                    `trigger`, and `outcome`, from their embedded-metric lines
+                                    `trigger`, and `outcome`, from their embedded-metric lines, read once in 30 minutes
     h4.sink.read_errors             a counter of the reads that failed, by `read`
 
 A read that fails is counted as an error, and its metric gets no point: a gauge never shows a stale or guessed value
@@ -46,6 +46,9 @@ SERVER_BUDGET = "h4-server-month"
 NAMESPACE = "h4reet/handover"
 EVERY_S = 120
 BUDGET_EVERY_S = 3600
+# The functions' outcomes, already a last-hour sum, once in 30 minutes: GetMetricData has no free tier and bills each
+# metric its SEARCH returns (group 9's review A, I5): about 1,440 calls a month, not 21,600 at every 2 minutes.
+OUTCOMES_EVERY_S = 1800
 EC2_STATES = (
     "pending",
     "running",
@@ -281,6 +284,8 @@ class Sink:
     clock: Callable[[], float] = time.time
     budget_at: float | None = None
     budget_points: list[Point] = field(default_factory=list)
+    outcomes_at: float | None = None
+    outcome_points: list[Point] = field(default_factory=list)
 
     def read(self) -> Reads:
         out = Reads()
@@ -298,7 +303,15 @@ class Sink:
             else:
                 self.budget_points = []
         out.points += self.budget_points
-        read_outcomes(self.aws, now, out)
+        if self.outcomes_at is None or now - self.outcomes_at >= OUTCOMES_EVERY_S:
+            hour = Reads()
+            read_outcomes(self.aws, now, hour)
+            out.errors += hour.errors
+            if not hour.errors:
+                self.outcome_points, self.outcomes_at = hour.points, now
+            else:
+                self.outcome_points = []
+        out.points += self.outcome_points
         return out
 
 

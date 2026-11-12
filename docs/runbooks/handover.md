@@ -15,7 +15,7 @@ One host serves at a time: the laptop while you run its prod, else EC2, inside i
     - with `- unread: <code>` when the step couldn't read what it checks, and refused for it: a failed read always alerts;
   - `[hareet.ai aws] ec2_stopped_laptop_serving` or `ec2_stopped_paused`: the guard stopped EC2 when it entered `running`; its `ec2_stopped_server_budget` is [server-budget.md](server-budget.md)'s;
   - `[hareet.ai aws] ec2_stopped_by_author: EC2 stopped by hand`: your stop target.
-- **The loop, on the laptop:** `h4-handover: ALERT handover_stop_failed: EC2's describe failed (ExpiredToken)…` in `~/.local/state/h4reet/prod/handover.log`, and an `alert` line in `handover.jsonl` beside it: your SSO session expired, or the stop failed.
+- **The loop, on the laptop:** `[hareet.ai aws] handover_stop_failed: the laptop's loop couldn't stop EC2…`, with `- step:` (`describe` or `stop`) and `- code:` (AWS's, or `timeout`), on both channels through `h4-alerts`, published with your h4-ec2-stop profile; the same line in `~/.local/state/h4reet/prod/handover.log`, and an `alert` line in `handover.jsonl` beside it. An expired session can't publish either, so then the log alone has it, and `make up ENV=prod` said so on its terminal when it started the loop.
 - **The dashboard's Hosts row:** EC2's starts and refusals and the guard's stops, by outcome; the autostart switch; the health check; the handover window; the hours, with each scheduled start and stop.
 
 ## Impact
@@ -41,7 +41,7 @@ In your terminal, with your SSO session (`pf` your administrator profile, `sp` y
 
 ## Verify
 
-- `make ec2-status PROFILE=$pf` shows what you expect: `running` with the laptop off inside the hours and the switch `on`; `stopped` otherwise.
+- `make ec2-status PROFILE=$pf` shows what you expect: `running` with the laptop off inside the hours and the switch `on`; `stopped` otherwise. While the relay sends visitors elsewhere, the loop leaves EC2 running: `handover.jsonl` has a `released` line, and the loop stops EC2 again only once the relay serves the laptop.
 - After a takeover, `handover.jsonl` has a `window` line under 300 seconds (FR-063), and the dashboard's handover window shows it.
 
 ## Undo

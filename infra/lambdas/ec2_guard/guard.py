@@ -9,7 +9,8 @@ What invokes it, and how it knows which:
 
 Each run:
 
-    1. reads /h4reet/prod/ec2-instance-id; unreadable, it stops nothing and alerts ec2_guard_failed once;
+    1. reads /h4reet/prod/ec2-instance-id; unreadable, it alerts ec2_guard_failed once, and stops nothing but at the
+       close, which needs no parameter: every running instance tagged Name = h4-prod-ec2 stops (review A, nit 1);
     2. lists the pending and running instances tagged Name = h4-prod-ec2; stops each the parameter doesn't name and
        alerts ec2_unrecognised_instance with its ID (a replace's open spot request can launch a second; the
        regrouping note's question 10). It never stops the named one for being a second;
@@ -291,11 +292,15 @@ def guard(event: object, context: object, aws, now: datetime) -> Run:
         return run
     run = Run(trigger)
     # 1. The instance Terraform made, by its parameter (research.md R-15, amended).
+    # At the close no parameter is needed: every running tagged instance stops (group 9's review A, nit 1).
+    named: str | None
     try:
         named = parameter(aws, INSTANCE_PARAMETER)
     except AwsError as exc:
         run.record("ec2_guard_failed", unread=True, unread_code=exc.code)
-        return run
+        if trigger != "hours_close":
+            return run
+        named = None
     # 2. Every pending or running instance that carries the tag.
     try:
         answer = aws.call(
@@ -316,7 +321,10 @@ def guard(event: object, context: object, aws, now: datetime) -> Run:
         if isinstance(i, dict) and isinstance(i.get("InstanceId"), str)
     ]
     for other in [i for i in found if i != named]:
-        stop(aws, run, other, "ec2_unrecognised_instance", instance=other)
+        if named is None:
+            stop(aws, run, other, "ec2_stopped_outside_hours")
+        else:
+            stop(aws, run, other, "ec2_unrecognised_instance", instance=other)
     # 3. The table, for the named one if it runs.
     if named in found:
         reason = why(trigger, aws, context, now)

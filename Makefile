@@ -402,7 +402,7 @@ up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEA
 	[ "$$up" -eq 0 ] && [ "$$status" -eq 0 ]
 	@# Spec 001's h4-handover (contracts/handover.md §6; tasks.md T123): on prod alone, the laptop's loop that stops EC2
 	@# once the relay serves the laptop. Its start returns at once and never fails make up.
-	@$(if $(filter prod,$(ENV)),[ ! -f $(TREE)/deploy/scripts/handover.py ] || $(PY_HOST) $(TREE)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod start || true,:)
+	@$(if $(filter prod,$(ENV)),[ ! -f $(TREE)/deploy/scripts/handover.py ] || $(PY_HOST) $(TREE)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod start --env-file $(ENVFILE) || true,:)
 
 down: ## Stop the stack: its volumes, meters, and journal stay, because it never passes -v (FR-031)
 	@$(if $(filter prod,$(ENV)),[ ! -f $(CURDIR)/deploy/scripts/handover.py ] || $(PY_HOST) $(CURDIR)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod stop || true,:)

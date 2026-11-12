@@ -2,20 +2,26 @@
 """h4-handover, the laptop's loop (spec 001 tasks.md T118, T123; FR-060, FR-063, FR-064; contracts/handover.md §6 and
 §8; research.md R-31; disclosure row C6). One host at a time: once the relay sends visitors to the laptop, EC2 stops.
 
-    python3 -I -B deploy/scripts/handover.py start --state-dir DIR     make up ENV=prod: starts the loop, returns at once
-    python3 -I -B deploy/scripts/handover.py stop --state-dir DIR      make down ENV=prod: ends it
-    python3 -I -B deploy/scripts/handover.py run --state-dir DIR       the loop itself
+    python3 -I -B deploy/scripts/handover.py --state-dir DIR start --env-file FILE   make up ENV=prod: returns at once
+    python3 -I -B deploy/scripts/handover.py --state-dir DIR stop                    make down ENV=prod: ends it
+    python3 -I -B deploy/scripts/handover.py --state-dir DIR run [--otlp-port N]     the loop itself
 
 waiting   every 5 s, the public status (https://hareet.ai/api/status, or H4_HANDOVER_STATUS_URL), marked as a probe
           (X-H4-Probe: 1). A status it can't read is waited out, never read as `laptop`. Once it says `laptop`, EC2 is
           stopped through the Author's h4-ec2-stop profile (H4_EC2_STOP_PROFILE, by default h4-ec2-stop), and the loop
           serves. Until EC2 reads `stopped`, it is checked every 5 s, and stopped again if it runs.
 window    from the relay's first `laptop` to EC2's `stopped`: one line in DIR/handover.jsonl, and the gauge
-          h4.handover.window_seconds, posted to the stack's own collector on 127.0.0.1:H4_OTLP_PORT (x004).
-serving   every 60 s, EC2's state; `pending` or `running` is stopped again and recorded as a flap.
-failing   a describe or a stop that fails, an expired session among them: one alert line, `handover_stop_failed`,
-          in DIR/handover.jsonl and the loop's log, DIR/handover.log, and the loop keeps serving and retries each
-          minute; a later failure after a success alerts again. `make up` never fails for it: start returns 0.
+          h4.handover.window_seconds, posted to the stack's own collector on 127.0.0.1:<x004>, the port start reads
+          from the env file's H4_OTLP_PORT and passes as --otlp-port (make up's env file reaches compose alone).
+serving   every 60 s, the status again: while it says `laptop`, EC2's state, and `pending` or `running` is stopped
+          again and recorded as a flap; on anything else, `released` is recorded and the loop goes back to waiting,
+          so EC2 started while the relay sends elsewhere is left to serve (FR-064, "WHILE ... the relay sends to it").
+failing   a describe or a stop that fails, an expired session or a hung CLI among them: one alert,
+          `handover_stop_failed`, published to h4-alerts through the stop profile (both channels, as make ec2-stop's
+          alert goes), and its line in DIR/handover.jsonl and the loop's log, DIR/handover.log; the loop keeps serving
+          and retries each minute, and a later failure after a success alerts again. Any other error in a round is
+          recorded and the loop goes on. `make up` never fails for it: start returns 0, and says on make up's terminal
+          when the stop profile's session can't be used.
 
 It records no address, no instance ID, and no secret: each line is the time, the event, its reason, and a count. The
 loop asks EC2 for the instances tagged h4-prod-ec2 alone, and the stop permission set holds that tag (P-I6).
@@ -36,6 +42,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 STATUS_URL = "https://hareet.ai/api/status"
+PREFIX = "[hareet.ai aws]"
+SERVING = ("laptop", "ec2", "none")
 EC2_NAME = "h4-prod-ec2"
 WAIT_S = 5
 SERVE_S = 60
@@ -75,14 +83,20 @@ class CliEc2:
         self.profile = profile
 
     def _aws(self, *args: str) -> dict:
-        done = subprocess.run(
-            aws_argv(self.profile, *args),
-            capture_output=True,
-            text=True,
-            check=False,
-            stdin=subprocess.DEVNULL,
-            timeout=60,
-        )
+        # A hung or missing CLI is the step's failure, never a raise out of the loop (group 9's review A, I2).
+        try:
+            done = subprocess.run(
+                aws_argv(self.profile, *args),
+                capture_output=True,
+                text=True,
+                check=False,
+                stdin=subprocess.DEVNULL,
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            raise Ec2Error("timeout") from None
+        except OSError as exc:
+            raise Ec2Error(type(exc).__name__) from None
         if done.returncode != 0:
             text = done.stderr
             code = (
@@ -91,7 +105,10 @@ class CliEc2:
                 else ""
             )
             raise Ec2Error(code if code.isalnum() else f"exit {done.returncode}")
-        answer = json.loads(done.stdout or "{}")
+        try:
+            answer = json.loads(done.stdout or "{}")
+        except ValueError:
+            raise Ec2Error("unreadable_answer") from None
         return answer if isinstance(answer, dict) else {}
 
     def describe(self) -> list[tuple[str, str]]:
@@ -195,9 +212,8 @@ class Handover:
     def failed(self, step: str, exc: Ec2Error) -> None:
         if not self.failing:
             self.failing = True
-            text = f"handover_stop_failed: EC2's {step} failed ({exc}); the laptop keeps serving and retries each minute"
             self.record("alert", kind="handover_stop_failed", step=step, code=str(exc))
-            self.alert(text)
+            self.alert(stop_failed_message(step, str(exc)))
 
     def stop_running(self, reason: str) -> list[tuple[str, str]] | None:
         """EC2's states, after stopping any instance that runs; None when the describe or the stop failed."""
@@ -239,14 +255,90 @@ class Handover:
         self.record("window", reason="takeover", seconds=None)
 
     def serve_once(self) -> None:
+        """One minute of serving: EC2 is stopped again only while the relay still sends to the laptop (I1)."""
         self.sleep(SERVE_S)
+        serving = self.status()
+        if serving != "laptop":
+            self.phase = "waiting"
+            self.record(
+                "released", serving=serving if serving in SERVING else "unread"
+            )
+            return
         self.stop_running("flap")
 
     def run(self) -> None:
-        self.wait_for_laptop()
-        self.settle()
         while True:
-            self.serve_once()
+            try:
+                if self.phase == "waiting":
+                    self.wait_for_laptop()
+                    self.settle()
+                else:
+                    self.serve_once()
+            # One round's unexpected error is recorded, and the loop goes on (I2): a dead loop would leave EC2 running.
+            except Exception as exc:  # noqa: BLE001 - any round's failure is recorded by its class alone
+                self.record("error", kind=type(exc).__name__)
+                self.sleep(WAIT_S)
+
+
+def stop_failed_message(step: str, code: str) -> str:
+    """handover_stop_failed, in the bridge's form (contracts/aws-alerts.md §2): its line, then its facts."""
+    return "\n".join(
+        [
+            f"{PREFIX} handover_stop_failed: the laptop's loop couldn't stop EC2; the laptop keeps serving and retries"
+            " each minute",
+            f"- step: {step}",
+            f"- code: {code}",
+        ]
+    )
+
+
+def notify(profile: str, text: str, run=subprocess.run) -> None:
+    """The alert: its line in the loop's log, then h4-alerts through the stop profile, which may publish there (P-I6),
+    as make ec2-stop's alert goes. One that can't be published, an expired session's among them, stays in the log."""
+    print(f"h4-handover: ALERT {text.splitlines()[0]}", file=sys.stderr, flush=True)
+
+    def aws(*args: str) -> dict:
+        done = run(
+            aws_argv(profile, *args),
+            capture_output=True,
+            text=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+        )
+        if done.returncode != 0:
+            raise Ec2Error(f"exit {done.returncode}")
+        answer = json.loads(done.stdout or "{}")
+        return answer if isinstance(answer, dict) else {}
+
+    try:
+        account = str(aws("sts", "get-caller-identity").get("Account", ""))
+        if not (len(account) == 12 and account.isdigit()):
+            raise Ec2Error("no_account")
+        topic = f"arn:aws:sns:us-east-1:{account}:h4-alerts"
+        aws("sns", "publish", "--topic-arn", topic, "--message", text)
+    except (Ec2Error, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        print(
+            f"h4-handover: the alert was not published ({type(exc).__name__}); this log keeps it",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def session_usable(profile: str, run=subprocess.run) -> bool:
+    """Whether the stop profile's session answers now (sts get-caller-identity)."""
+    try:
+        done = run(
+            aws_argv(profile, "sts", "get-caller-identity"),
+            capture_output=True,
+            text=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return done.returncode == 0
 
 
 def read_status(url: str) -> str | None:
@@ -260,9 +352,19 @@ def read_status(url: str) -> str | None:
     return serving if isinstance(serving, str) else None
 
 
-def post_window(seconds: float) -> None:
-    port = os.environ.get("H4_OTLP_PORT", "")
-    if not port.isdigit():
+def default_open(request: urllib.request.Request, timeout: float) -> None:
+    urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
+        request, timeout=timeout
+    ).close()
+
+
+def post_window(seconds: float, port: str | None, open_url=default_open) -> None:
+    """The window's gauge, to the stack's own collector on 127.0.0.1:<port> (x004); without a port, said, not sent."""
+    if not (port or "").isdigit():
+        print(
+            "h4-handover: no OTLP port, so the window's metric didn't post; handover.jsonl has it",
+            file=sys.stderr,
+        )
         return
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/v1/metrics",
@@ -271,9 +373,7 @@ def post_window(seconds: float) -> None:
         method="POST",
     )
     try:
-        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
-            request, timeout=5
-        ).close()
+        open_url(request, timeout=5)
     except (OSError, urllib.error.URLError):
         print(
             "h4-handover: the window's metric didn't post; handover.jsonl has it",
@@ -314,13 +414,49 @@ def read_pid(state_dir: Path) -> int | None:
     return int(text) if text.isdigit() else None
 
 
-def start(state_dir: Path, spawn=default_spawn, alive=default_alive) -> int:
+def env_value(env_file: Path | None, key: str) -> str | None:
+    """One key of the env file, read as data (never sourced); None if the file or the key is missing."""
+    if env_file is None:
+        return None
+    try:
+        lines = env_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        name, sep, value = line.partition("=")
+        if sep and name.strip() == key:
+            return value.strip()
+    return None
+
+
+def start(
+    state_dir: Path,
+    spawn=default_spawn,
+    alive=default_alive,
+    session=None,
+    env_file: Path | None = None,
+) -> int:
     """Starts the loop, unless one runs; returns 0 whatever happens, so `make up` never fails for it."""
     try:
+        profile = os.environ.get("H4_EC2_STOP_PROFILE", "h4-ec2-stop")
+        usable = session if session is not None else lambda: session_usable(profile)
+        if not usable():
+            print(
+                f"h4-handover: the {profile} profile's session can't be used, so a failed stop can't stop EC2 or "
+                f"alert: make aws-login PROFILE={profile} (docs/runbooks/handover.md)",
+                file=sys.stderr,
+            )
         pid = read_pid(state_dir)
         if pid is not None and alive(pid):
             print("h4-handover: already running")
             return 0
+        port = env_value(env_file, "H4_OTLP_PORT")
+        if not (port or "").isdigit():
+            port = None
+            print(
+                "h4-handover: the env file has no H4_OTLP_PORT, so the window's metric won't post",
+                file=sys.stderr,
+            )
         argv = [
             sys.executable,
             "-I",
@@ -329,6 +465,7 @@ def start(state_dir: Path, spawn=default_spawn, alive=default_alive) -> int:
             "--state-dir",
             str(state_dir),
             "run",
+            *(["--otlp-port", port] if port else []),
         ]
         pid = spawn(argv, state_dir / "handover.log")
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -358,19 +495,20 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("command", choices=("start", "stop", "run"))
+    parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--otlp-port")
     args = parser.parse_args(argv)
     if args.command == "start":
-        return start(args.state_dir)
+        return start(args.state_dir, env_file=args.env_file)
     if args.command == "stop":
         return stop(args.state_dir)
     url = os.environ.get("H4_HANDOVER_STATUS_URL", STATUS_URL)
+    profile = os.environ.get("H4_EC2_STOP_PROFILE", "h4-ec2-stop")
     loop = Handover(
         status=lambda: read_status(url),
-        ec2=CliEc2(os.environ.get("H4_EC2_STOP_PROFILE", "h4-ec2-stop")),
-        alert=lambda text: print(
-            f"h4-handover: ALERT {text}", file=sys.stderr, flush=True
-        ),
-        window=post_window,
+        ec2=CliEc2(profile),
+        alert=lambda text: notify(profile, text),
+        window=lambda seconds: post_window(seconds, args.otlp_port),
         state_dir=args.state_dir,
     )
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))

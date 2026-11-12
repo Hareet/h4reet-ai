@@ -1,8 +1,9 @@
 P-I6, spec 001 group 9 (W1): the handover's protected Terraform, the bridge's new kinds, and the hours, for the
 Author's hand.
 
-Built from plain copies: each file as W1's earlier patches leave it (a git archive export of 8418fd0b with P-I3, P-G1,
-P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, and P-G6 applied in order), and /dev/null for the one new file; edited
+Built from plain copies: each file as W1's earlier patches leave it (a git archive export of 8418fd0b, and for the
+rebuild a92e4846, whose protected files are the same, with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5,
+and P-G6 applied in order), and /dev/null for the one new file; edited
 in $TMPDIR, then diff -u with a/ and b/ labels after this preamble; never git apply, and nothing written into any
 worktree. Apply it on W1's -p branch after P-G6 (it needs P-I3, P-I7, and P-I4, whose files it changes), with
 `patch -p1 < <this file>` at the repository's root, and commit the result byte for byte (tasks.md T124, T171, T172).
@@ -29,7 +30,9 @@ built"; ADR 0048 and ADR 0049, proposed):
     instance, whose assignment to your user stays yours, by hand in IAM Identity Center;
   - infra/lambdas/alert_bridge/bridge.py and its test, and contracts/aws-alerts.md §2's table, which the test reads:
     the reason outside_hours, and the guard's ec2_stopped_outside_hours, ec2_unrecognised_instance, and
-    ec2_guard_failed, each with its page.
+    ec2_guard_failed, each with its page; and, rebuilt after group 9's review A (I3), handover_stop_failed, the
+    laptop's loop's failed stop, which the loop publishes to h4-alerts through the stop permission set's
+    sns:Publish, with its page, handover.md, and its row; no IAM change.
 
 W1 holds both switches off, so W1's blocks make the check, the alarm, EC2's two rules, the roles, the permission set,
 the switch, and the log groups; P-W2 makes the rest in W2, with the functions' digests.
@@ -599,10 +602,12 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
 +}
 --- a/infra/lambdas/alert_bridge/bridge.py
 +++ b/infra/lambdas/alert_bridge/bridge.py
-@@ -71,6 +71,11 @@
+@@ -71,6 +71,13 @@
      "ec2_stopped_paused": "handover.md",
      "ec2_stopped_server_budget": "server-budget.md",
      "ec2_stopped_by_author": "handover.md",
++    # Group 9's review A (I3): the laptop's loop's failed stop, published through the Author's stop profile.
++    "handover_stop_failed": "handover.md",
 +    # Group 9 (P-I6; ADR 0048; contracts/handover.md §4, amended): the guard's stop outside the hours, its stop of a
 +    # second tagged instance, and its own failure.
 +    "ec2_stopped_outside_hours": "ec2.md",
@@ -611,7 +616,7 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
      "spot_interruption": "spot-interruption.md",
      "deploy_rolled_back": "deploy.md",
      "deploy_rollback_failed": "deploy.md",
-@@ -83,6 +88,8 @@
+@@ -83,6 +90,8 @@
  REASONS: dict[str, dict[str, str]] = {
      "ec2_start_refused": {
          "paused": "handover.md",
@@ -622,10 +627,17 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
          "start_failed": "handover.md",
 --- a/infra/lambdas/alert_bridge/test_bridge.py
 +++ b/infra/lambdas/alert_bridge/test_bridge.py
-@@ -213,6 +213,23 @@
+@@ -213,6 +213,30 @@
          "ec2_stopped_server_budget", "EC2 stopped: the server action has run"
      ),
      "ec2_stopped_by_author": ours("ec2_stopped_by_author", "EC2 stopped by hand"),
++    # Group 9's review A (I3): the laptop's loop's failed stop, in deploy/scripts/handover.py's own form.
++    "handover_stop_failed": ours(
++        "handover_stop_failed",
++        "the laptop's loop couldn't stop EC2; the laptop keeps serving and retries each minute",
++        "- step: stop",
++        "- code: ExpiredToken",
++    ),
 +    # Group 9 (P-I6): the hours, and the guard's second instance and its own failure.
 +    "ec2_start_refused outside_hours": ours(
 +        "ec2_start_refused (outside_hours)", "EC2 not started", "- trigger: alarm"
@@ -886,7 +898,7 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
  
 --- a/specs/001-cloud-elevation/contracts/aws-alerts.md
 +++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
-@@ -27,8 +27,9 @@
+@@ -27,9 +27,11 @@
  | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
  | `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
  | `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
@@ -895,5 +907,16 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
  | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
 +| `ec2_stopped_outside_hours`, `ec2_unrecognised_instance`, `ec2_guard_failed` | `h4-ec2-guard` | from W1 (ADR 0048; contracts/handover.md §4, amended): EC2 running outside its hours, but the close's routine stop (provisional: question 3, option A); a running instance tagged `h4-prod-ec2` that `/h4reet/prod/ec2-instance-id` doesn't name, with its ID; a read or a stop that failed | `ec2.md` |
  | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
++| `handover_stop_failed` | the laptop's loop, `h4-handover`, through the Author's stop profile (`sns:Publish` on `h4-alerts`, P-I6) | a describe or a stop of EC2 that failed, once a failing streak; one that can't be published stays in the loop's log (group 9's review A, I3) | `handover.md` |
  | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
  | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
+ | `tunnel_end_interruption` | `h4-tunnel-end-spot-warning` | AWS's warning for the tunnel end (spec FR-076) | `tunnel-end.md` |
+@@ -37,7 +39,7 @@
+ | `shared_state_backup_failed` | the tunnel end's backup timer, `h4-shared-state-backup.timer` (group 6) | an hourly dump, or its put to the backups' bucket, failed: once per failing streak, the last good dump kept | `shared-state.md` |
+ | `ec2_start_refused (tunnel_end_down)` | `h4-ec2-start` | the laptop gone while the tunnel end is down | `tunnel-end.md` |
+ 
+-The laptop's own alerts, such as the handover loop's failed stop, go through spec 000's dispatcher, as its other alerts do.
++The laptop's own alerts go through spec 000's dispatcher, as its other alerts do, but the handover loop's failed stop, which goes to `h4-alerts` through the Author's stop profile, since the dispatcher has no host-script kind (plan.md §16, "Group 9, as built", item 13, after the review).
+ 
+ ## 3. The budgets (infra/bootstrap/budgets.tf, protected)
+ 
