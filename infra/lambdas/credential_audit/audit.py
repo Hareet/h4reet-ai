@@ -137,6 +137,8 @@ NOT_FOUND = {
     "ResourceNotFoundException",
     "NotFound",
     "NoSuchEntityException",
+    # Parameter Store's, for the function's allowlist (ADR 0047): a missing one is no allowlist, not a failed run.
+    "ParameterNotFound",
 }
 
 

@@ -60,6 +60,15 @@ that h4-server-month's actual matches; if the budget reads $0 while Cost Explore
    }
 --- a/infra/account/killswitch.tf
 +++ b/infra/account/killswitch.tf
+@@ -109,7 +109,7 @@
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
+ # The rehearsals (FR-026; SC-009), while local.rehearsal is true: two $0.01 budgets of the real ones' shape, the model
+-# rehearsal's on Bedrock's spend (var.bedrock_service_names) and the server rehearsal's on every cost but Bedrock's, so
++# rehearsal's on Bedrock's spend (var.bedrock_service_names) and the server rehearsal's on h4-server-month's filter, so
+ # each fires on spend the month already holds, and proves its filter too. Each acts, automatically, at 100%, as the
+ # real ones do: the model rehearsal attaches the deny to h4-rehearsal-target, and the server rehearsal stops
+ # h4-rehearsal-instance through Systems Manager (main.tf). The model rehearsal fires only once the month holds a cent of
 @@ -224,11 +224,20 @@
    # the account has no credits (the Author's answer, 2026-11-11).
    metrics = ["UnblendedCost"]
