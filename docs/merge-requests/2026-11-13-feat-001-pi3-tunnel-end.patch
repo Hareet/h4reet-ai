@@ -21,7 +21,9 @@ What it holds:
   - tasks.md T159: infra/account/alerts.tf, the alarms h4-credential-audit-errors and h4-alert-bridge-failed to
     h4-alerts, missing data not breaching; infra/lambdas/alert_bridge/bridge.py and its test, which read each alarm's
     ALARM as its kind; contracts/aws-alerts.md §2's two rows, which arrive with the bridge that knows them (the bridge's
-    test holds every kind there to a notice).
+    test holds every kind there to a notice);
+  - group 5's review, I6: the bridge reads an EventBridge rule's string template, which arrives as a JSON string, once,
+    as the notice it encodes, with its test of exactly that shape.
 
 Its checks, on a patched export: infra/test, infra/lambdas, deploy/hosts, and evals/test_runbooks.py pass; the policy
 passes both roots' files but for T10 on infra/prod, whose lockfile is the Author's step from his mirror, as each root's
@@ -154,9 +156,12 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
        values   = [data.aws_caller_identity.current.account_id]
 --- a/infra/lambdas/alert_bridge/bridge.py
 +++ b/infra/lambdas/alert_bridge/bridge.py
-@@ -12,7 +12,8 @@
+@@ -10,9 +10,10 @@
+ The kinds and their pages are contracts/aws-alerts.md §2's. It knows a notice by its shape:
+   - this project's own, already in the format, from the credential audit, the handover's functions, the hosts'
      deployers, and the EventBridge rules' input transformers: its kind must be one §2 lists, and only its fact lines,
-     `- <key>: <value>`, pass;
+-    `- <key>: <value>`, pass;
++    `- <key>: <value>`, pass; a rule's string template arrives as a JSON string, read once as its text;
    - AWS Budgets' threshold notices and its actions' notices, by the budget's name;
 -  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's), and EventBridge's events (ACM's expiry, EC2's spot
 +  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's, and from W1 the credential audit's errors and the
@@ -210,6 +215,27 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
          if state == "ALARM":
              return Alert(
                  "alarm",
+@@ -313,7 +333,7 @@
+     return None
+ 
+ 
+-def classify(message: str) -> Alert:
++def classify(message: str, decoded: bool = False) -> Alert:
+     text = message or ""
+     for reader in (from_ours, from_budgets):
+         found = reader(text)
+@@ -323,6 +343,11 @@
+         doc = json.loads(text)
+     except ValueError:
+         doc = None
++    # An EventBridge rule's input transformer, given a string template, publishes that string's JSON text: its quotes,
++    # and its line breaks as \n (infra/prod/handover.tf's rules; group 5's review, I6). Read it once, as the text it
++    # encodes; a string inside that string is no shape of ours.
++    if isinstance(doc, str) and not decoded:
++        return classify(doc, decoded=True)
+     return from_json(doc) or unrecognized("unknown")
+ 
+ 
 --- a/infra/lambdas/alert_bridge/test_bridge.py
 +++ b/infra/lambdas/alert_bridge/test_bridge.py
 @@ -126,16 +126,16 @@
