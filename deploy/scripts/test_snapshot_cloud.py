@@ -229,6 +229,23 @@ def test_the_server_budget_is_read_once_an_hour() -> None:
     assert "h4.server.month_usd" in points(second)
 
 
+def test_the_outcomes_are_read_once_in_30_minutes() -> None:
+    # Group 9's review A, I5: GetMetricData has no free tier and bills each metric its SEARCH returns, so the outcomes,
+    # already a last-hour sum, are read once in 30 minutes, not every 2: about 1,440 calls a month, not 21,600.
+    aws, clock = Aws(), Clock()
+    s = sink.Sink(aws, ACCOUNT, clock)
+    s.read()
+    clock.t += 120
+    second = s.read()
+    clock.t += 1800
+    s.read()
+    reads = [c for c in aws.calls if c[:2] == ("cloudwatch", "GetMetricData")]
+    assert len(reads) == 2
+    assert sink.OUTCOMES_EVERY_S == 1800
+    # Between its reads, the last good hour's sums stand, as the budget's month does.
+    assert "h4.ec2.outcomes_last_hour" in points(second)
+
+
 def test_the_reads_ask_by_name_and_tag_alone() -> None:
     aws = Aws()
     sink.Sink(aws, ACCOUNT, Clock()).read()

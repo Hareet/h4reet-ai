@@ -4,7 +4,8 @@
 
 On `h4-ec2-running` (EC2 entering `running`) and at the hours' close (`from: hours_close`), the guard:
 
-  1. reads /h4reet/prod/ec2-instance-id; unreadable, it stops nothing and alerts `ec2_guard_failed` once;
+  1. reads /h4reet/prod/ec2-instance-id; unreadable, it alerts `ec2_guard_failed` once, and stops nothing but at the
+     close, where every running instance tagged Name = h4-prod-ec2 stops (group 9's review A, nit 1);
   2. lists the running instances tagged Name = h4-prod-ec2, stops each the parameter doesn't name, and alerts
      `ec2_unrecognised_instance` with its ID. It never stops the named one for being a second;
   3. applies its table to the named one, if it runs, in the start function's order: the switch `off`
@@ -376,6 +377,25 @@ def test_the_close_writes_only_its_line_while_ec2_is_stopped(
     assert result["outcome"] == "nothing" and aws.stops() == [] and aws.alerts() == []
     (line,) = emf_lines(capsys)
     assert (line["Outcome"], line["Trigger"]) == ("nothing", "hours_close")
+
+
+def test_at_the_close_an_unreadable_parameter_still_stops_every_tagged_instance() -> None:
+    # Group 9's review A, nit 1: the close needs no parameter, so every running instance tagged h4-prod-ec2 stops, and
+    # the failed read is still alerted.
+    aws = Aws(
+        {
+            ("ssm", "/h4reet/prod/ec2-instance-id"): guard.AwsError("ThrottlingException"),
+            ("ec2", "DescribeInstances"): {
+                "Reservations": [{"Instances": [instance(EC2_ID), instance(OTHER_ID)]}]
+            },
+        }
+    )
+    result = run(CLOSE, aws)
+    assert sorted(i for ids in aws.stops() for i in ids) == sorted([EC2_ID, OTHER_ID])
+    assert result["outcome"] == "ec2_stopped_outside_hours"
+    (alert,) = aws.alerts()
+    assert alert.startswith("[hareet.ai aws] ec2_guard_failed: ")
+    assert "- unread: ThrottlingException" in alert.splitlines()
 
 
 def test_an_unknown_event_stops_nothing_and_alerts() -> None:

@@ -296,3 +296,231 @@ def test_make_up_starts_the_loop_on_prod_alone_and_never_fails_for_it() -> None:
     assert "$(filter prod,$(ENV))" in up
     down = recipe("down")
     assert "deploy/scripts/handover.py --state-dir" in down and " stop" in down
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 9's review A (I1 to I4).
+
+
+@pytest.mark.parametrize("elsewhere", ["ec2", "none", None])
+def test_serving_leaves_ec2_running_once_the_relay_sends_elsewhere(
+    tmp_path: Path, elsewhere: str | None
+) -> None:
+    # I1, FR-064: the loop stops EC2 only WHILE the relay sends to the laptop. A laptop whose tunnel, edge, or gateway
+    # fails stays up, the relay moves to EC2 or to none, and the start function starts EC2: the loop must leave it.
+    ec2 = Ec2("stopped", "running")
+    h, _, _ = loop(tmp_path, Status("laptop", elsewhere), ec2)
+    h.wait_for_laptop()
+    h.settle()
+    h.serve_once()
+    assert ec2.stops == []
+    assert h.phase == "waiting"
+    (row,) = [r for r in records(tmp_path) if r["event"] == "released"]
+    assert row["serving"] == (elsewhere or "unread")
+
+
+def test_back_in_waiting_it_stops_ec2_again_once_the_relay_serves_the_laptop(
+    tmp_path: Path,
+) -> None:
+    ec2 = Ec2("stopped", "running", "running", "stopped")
+    h, _, _ = loop(tmp_path, Status("laptop", "none", "laptop"), ec2)
+    h.wait_for_laptop()
+    h.settle()
+    h.serve_once()
+    assert h.phase == "waiting" and ec2.stops == []
+    h.wait_for_laptop()
+    assert ec2.stops == [[EC2_ID]] and h.phase == "serving"
+
+
+class StopLoop(BaseException):
+    """Ends run()'s endless loop in a test; a BaseException, so the loop's own catch-all never takes it."""
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        lambda: handover.subprocess.TimeoutExpired(["aws"], 60),
+        lambda: FileNotFoundError(2, "No such file or directory", "aws"),
+    ],
+)
+def test_a_hung_or_missing_cli_is_an_ec2_error(
+    monkeypatch: pytest.MonkeyPatch, raised
+) -> None:
+    # I2: subprocess.run's timeout, and a missing aws binary, are the describe's failure, never a raise out of it.
+    def run(*args: object, **kwargs: object) -> object:
+        raise raised()
+
+    monkeypatch.setattr(handover.subprocess, "run", run)
+    with pytest.raises(handover.Ec2Error):
+        handover.CliEc2("h4-ec2-stop").describe()
+
+
+def test_an_answer_that_isnt_json_is_an_ec2_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Done:
+        returncode = 0
+        stdout = "not json"
+        stderr = ""
+
+    monkeypatch.setattr(handover.subprocess, "run", lambda *a, **k: Done())
+    with pytest.raises(handover.Ec2Error):
+        handover.CliEc2("h4-ec2-stop").describe()
+
+
+def test_an_unexpected_error_in_a_round_is_recorded_and_the_loop_goes_on(
+    tmp_path: Path,
+) -> None:
+    # I2: one round's unexpected error is a record, and the loop keeps running, never a traceback and a dead loop.
+    class Flaky(Ec2):
+        def describe(self) -> list[tuple[str, str]]:
+            if self.describes == 1:
+                self.describes += 1
+                raise RuntimeError("boom")
+            return super().describe()
+
+    ec2 = Flaky("stopped")
+    h, clock, _ = loop(tmp_path, Status("laptop"), ec2)
+    sleeps = 0
+
+    def sleep(seconds: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        clock.t += seconds
+        if sleeps > 6:
+            raise StopLoop
+
+    h.sleep = sleep
+    with pytest.raises(StopLoop):
+        h.run()
+    assert [r["kind"] for r in records(tmp_path) if r["event"] == "error"] == [
+        "RuntimeError"
+    ]
+    assert ec2.describes > 2
+
+
+class Runner:
+    """subprocess.run's stand-in for the CLI: each call's argv, and an answer by its first words."""
+
+    def __init__(self, fail: tuple[str, ...] = ()) -> None:
+        self.calls: list[list[str]] = []
+        self.fail = fail
+
+    def __call__(self, argv: list[str], **kwargs: object) -> object:
+        self.calls.append(list(argv))
+
+        class Done:
+            returncode = 0
+            stdout = "{}"
+            stderr = ""
+
+        done = Done()
+        if tuple(argv[1:3]) == self.fail:
+            done.returncode, done.stderr = 255, "An error occurred (ExpiredToken)"
+        elif argv[1:3] == ["sts", "get-caller-identity"]:
+            done.stdout = json.dumps({"Account": "1" * 4 + "2" * 4 + "3" * 4})
+        return done
+
+
+def test_a_failed_stop_is_published_to_h4_alerts_through_the_stop_profile(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # I3, FR-064: the failed stop alerts on both channels through h4-alerts, with the stop profile's sns:Publish, as
+    # make ec2-stop's alert does; the loop's log keeps its line too.
+    run = Runner()
+    text = handover.stop_failed_message("stop", "ExpiredToken")
+    handover.notify("h4-ec2-stop", text, run=run)
+    publish = [c for c in run.calls if c[1:3] == ["sns", "publish"]]
+    (argv,) = publish
+    assert argv[argv.index("--profile") + 1] == "h4-ec2-stop"
+    topic = argv[argv.index("--topic-arn") + 1]
+    assert topic.startswith("arn:aws:sns:us-east-1:") and topic.endswith(":h4-alerts")
+    message = argv[argv.index("--message") + 1]
+    lines = message.splitlines()
+    assert lines[0].startswith("[hareet.ai aws] handover_stop_failed: ")
+    assert "- step: stop" in lines and "- code: ExpiredToken" in lines
+    assert "handover_stop_failed" in capsys.readouterr().err
+
+
+def test_an_alert_that_cant_be_published_stays_in_the_log(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run = Runner(fail=("sts", "get-caller-identity"))
+    handover.notify(
+        "h4-ec2-stop", handover.stop_failed_message("describe", "x"), run=run
+    )
+    err = capsys.readouterr().err
+    assert "handover_stop_failed" in err and "not published" in err
+
+
+def test_start_warns_on_make_ups_terminal_when_the_stop_profiles_session_is_gone(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # I3, FR-064's "say why": an expired session is said at make up, which still exits 0.
+    def spawn(argv: list[str], log: Path) -> int:
+        return 4242
+
+    assert (
+        handover.start(
+            tmp_path, spawn=spawn, alive=lambda pid: False, session=lambda: False
+        )
+        == 0
+    )
+    err = capsys.readouterr().err
+    assert "h4-ec2-stop" in err and "aws-login" in err
+    (tmp_path / "handover.pid").unlink()
+    assert (
+        handover.start(
+            tmp_path, spawn=spawn, alive=lambda pid: False, session=lambda: True
+        )
+        == 0
+    )
+    assert "aws-login" not in capsys.readouterr().err
+
+
+def test_start_passes_the_env_files_otlp_port_to_the_loop(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # I4: the prod env file reaches compose alone, so the port goes to the loop as an argument.
+    env = tmp_path / "prod.env"
+    env.write_text("H4_STACK=prod\nH4_OTLP_PORT=18004\n", encoding="utf-8")
+    spawned: list[list[str]] = []
+
+    def spawn(argv: list[str], log: Path) -> int:
+        spawned.append(argv)
+        return 4242
+
+    state = tmp_path / "state"
+    handover.start(
+        state, spawn=spawn, alive=lambda pid: False, session=lambda: True, env_file=env
+    )
+    (argv,) = spawned
+    assert argv[argv.index("--otlp-port") + 1] == "18004"
+    # With no port in the file, the loop starts without one, and make up's terminal says so.
+    env.write_text("H4_STACK=prod\n", encoding="utf-8")
+    (state / "handover.pid").unlink()
+    handover.start(
+        state, spawn=spawn, alive=lambda pid: False, session=lambda: True, env_file=env
+    )
+    assert "--otlp-port" not in spawned[1]
+    assert "H4_OTLP_PORT" in capsys.readouterr().err
+
+
+def test_the_window_posts_to_the_port_it_is_given(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sent: list[str] = []
+
+    def opener(request, timeout: float) -> None:
+        sent.append(request.full_url)
+
+    handover.post_window(12.5, "18004", open_url=opener)
+    assert sent == ["http://127.0.0.1:18004/v1/metrics"]
+    handover.post_window(12.5, None, open_url=opener)
+    assert len(sent) == 1
+    assert "no OTLP port" in capsys.readouterr().err
+
+
+def test_make_up_gives_the_loop_its_env_file() -> None:
+    up = recipe("up")
+    assert "start --env-file $(ENVFILE)" in up
