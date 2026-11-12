@@ -1,0 +1,56 @@
+{
+  "role": "comfyui",
+  "parent": "runner",
+  "image": "h4-night-comfyui:{{IMAGE_TAG}}",
+  "user": "{{UID}}:{{GID}}",
+  "mounts": [
+    {
+      "host": "{{COMFYUI_DIR}}",
+      "container": "{{COMFYUI_DIR}}",
+      "mode": "ro"
+    },
+    {
+      "host": "{{COMFYUI_VENV}}",
+      "container": "{{COMFYUI_VENV}}",
+      "mode": "ro"
+    },
+    {
+      "host": "{{NIGHT_ROOT}}/.comfyui/user",
+      "container": "/comfyui/user",
+      "mode": "rw"
+    },
+    {
+      "host": "/srv/studio/outputs",
+      "container": "/srv/studio/outputs",
+      "mode": "rw"
+    }
+  ],
+  "networks": ["h4-night-studio"],
+  "env": {
+    "HF_HUB_OFFLINE": "1",
+    "HOME": "/night/home",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TMPDIR": "/tmp"
+  },
+  "env_file": null,
+  "cap_drop": ["ALL"],
+  "security_opt": ["no-new-privileges"],
+  "read_only": false,
+  "tmpfs": [
+    "/tmp:rw,nosuid,size=4g",
+    "/night/home:rw,nosuid,size=1g",
+    "/comfyui/temp:rw,nosuid,size=4g",
+    "{{COMFYUI_DIR}}/input:rw,nosuid,size=2g"
+  ],
+  "limits": {
+    "memory": "24g",
+    "cpus": "6",
+    "pids": 1024
+  },
+  "gpus": "all",
+  "requests": [],
+  "x-h4": {
+    "example": true,
+    "task": "none"
+  }
+}

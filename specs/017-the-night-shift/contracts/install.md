@@ -12,7 +12,7 @@
   Nothing runs from a working tree.
 - **Writes**:
   - the images `h4-night-{worker,studio,comfyui,egress}:<sha12>`;
-  - the networks `h4-night`, `h4-night-studio`, `h4-night-plan` (internal) and `h4-night-out`;
+  - the networks `h4-night`, `h4-night-engine`, `h4-night-studio`, `h4-night-plan` (internal) and `h4-night-out`;
   - `~/.config/h4reet-ai/night-shift/{containers,claude}/` and `allowlist.json` (files 0444, folders 0555);
   - `~/.local/share/h4reet-ai/night-shift/**` and `~/.local/state/h4reet-ai/night-shift/{locks,log}`;
   - `/srv/studio/{briefs,handoff}` and `~/h4reet-ai/night/`;

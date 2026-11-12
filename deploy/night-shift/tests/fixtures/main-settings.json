@@ -1,0 +1,102 @@
+{
+  "x-h4": {
+    "fixture": "A trimmed copy of refs/heads/main:.claude/settings.json (main d4870ec8, 2026-11-12): the sandbox lists the night shift reads. test_containers.py also checks the committed specs against the real main copy when it can read it."
+  },
+  "sandbox": {
+    "filesystem": {
+      "denyWrite": [
+        "./CLAUDE.md",
+        "./REVIEW.md",
+        "./.claude",
+        "./.specify/memory/constitution.md",
+        "./corpus/00-profile.md",
+        "./corpus/01-ai-strategy-and-cht.md",
+        "./corpus/02-production-infrastructure-national-scale.md",
+        "./corpus/03-grants-and-credits.md",
+        "./corpus/INTAKE.md",
+        "./corpus/README.md",
+        "./corpus/.gitignore",
+        "./corpus/facts",
+        "./corpus/intake",
+        "./corpus/tools",
+        "./.git/hooks",
+        "./.git/config",
+        "./deploy/env",
+        "./config/prices.yaml",
+        "./config/budgets.yaml",
+        "./config/alerts.yaml",
+        "./config/twin-readiness.yaml",
+        "./GNUmakefile",
+        "./makefile",
+        "./deploy/agents-engine",
+        "./.gitleaks.toml",
+        "./.gitleaksignore",
+        "./tools/gates",
+        "./evals/agent-config",
+        "./assets/policy/content-approvals.json",
+        "./assets/policy/resume-header.json",
+        "./.mcp.json",
+        "./.git/info",
+        "./.git/refs/heads/main",
+        "./.git/refs/replace",
+        "./.github/workflows",
+        "~/.config/h4reet-ai",
+        "~/.aws",
+        "~/.local/state/h4reet",
+        "./assets/policy",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
+      ],
+      "denyRead": [
+        "./corpus/intake/private",
+        "./deploy/env",
+        "~/.config/h4reet-ai",
+        "~/.docker/config.json",
+        "~/.npmrc",
+        "~/.pypirc",
+        "~/.netrc",
+        "~/.gnupg",
+        "~/.bash_history",
+        "~/.zsh_history",
+        "~/.python_history",
+        "~/.node_repl_history",
+        "/mnt/c/Users",
+        "/etc/h4agents/pki",
+        "/srv/studio/photos",
+        "/srv/studio/outputs",
+        "/srv/studio/workflows",
+        "/srv/studio/key"
+      ]
+    },
+    "network": {
+      "allowedDomains": ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "ghcr.io", "198.18.0.1:2376"],
+      "deniedDomains": ["github.com", "api.github.com"]
+    },
+    "credentials": {
+      "files": [
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/h4reet-ai",
+          "mode": "deny"
+        }
+      ]
+    }
+  }
+}
