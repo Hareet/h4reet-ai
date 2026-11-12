@@ -287,6 +287,9 @@ def test_the_units_order_the_boot() -> None:
     timer = unit("h4-deployer.timer")
     assert timer["OnUnitActiveSec"] == ["60"]
     deployer = unit("h4-deployer.service")
+    # The deployer's review, nit 4: Wants, not Requires, the env file's unit, as the stack's.
+    assert deployer["Requires"] == ["docker.service"]
+    assert deployer["Wants"] == ["h4-write-env.service"]
     assert any(
         "deploy/scripts/deploy_first_step.py --host tunnel-end" in v
         for v in deployer["ExecStart"]

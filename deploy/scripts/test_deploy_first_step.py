@@ -295,6 +295,8 @@ def test_it_keeps_to_amazon_linux_2023s_python_and_the_standard_library() -> Non
         "subprocess",
         "sys",
         "tarfile",
+        "fcntl",
+        "signal",
         "time",
         "pathlib",
         "collections",
@@ -318,3 +320,124 @@ def test_an_alert_sns_refused_is_sent_on_the_next_run(tmp_path: Path) -> None:
     w.aws.publish_ok = True
     w.run()
     assert len(w.aws.alerts) == 1
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The deployer's review (58d5a676..23622319): the first boot's deployer that doesn't run, a restart's exit, the lock,
+# the S3 errors that aren't the network's, and a missing env file.
+
+
+def test_on_first_boot_a_deployer_that_doesnt_run_alerts_once(tmp_path: Path) -> None:
+    # Review 4: no release started yet, the newest one's deployer fails: deploy_refused, reason deployer, once.
+    w = World(tmp_path)
+    release = w.release("r1")
+    w.runner.codes[release["commit"]] = 1
+    assert w.run("--boot") == 1
+    assert w.run() == 1
+    (alert,) = w.aws.alerts
+    assert alert.splitlines() == [
+        "[hareet.ai aws] deploy_refused: tunnel-end couldn't run release r1's deployer",
+        "- reason: deployer",
+        "- release: r1",
+        "- fallback: none",
+    ]
+
+
+def test_a_restarts_exit_passes_through_with_no_fallback(tmp_path: Path) -> None:
+    # Review 3: the key's revocation restarts the sshd; its failure must fail the unit, and nothing else runs.
+    w = World(tmp_path)
+    w.started(w.release("r1"), "previous")
+    new = w.started(w.release("r2"))
+    w.runner.codes[new.name] = 1
+    assert w.run("--restart", "tunnel-end") == 1
+    assert w.runner.ran == [deployer_argv(new, w, "--restart", "tunnel-end")]
+    assert w.aws.alerts == []
+    w.runner.codes[new.name] = fs.DEPLOYER_ALERTED
+    assert w.run("--restart", "tunnel-end") == fs.DEPLOYER_ALERTED
+
+
+def test_runs_take_a_lock_on_the_state_folder(tmp_path: Path) -> None:
+    # Review nit 4: --boot and the timer's run never share a tree's partial folder.
+    import fcntl
+
+    w = World(tmp_path)
+    w.started(w.release("r1"))
+    seen = []
+
+    def runner(argv: list[str]) -> int:
+        with open(w.state / ".lock", "a+") as other:
+            try:
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                seen.append("free")
+            except BlockingIOError:
+                seen.append("held")
+        return 0
+
+    w.runner = runner  # type: ignore[assignment]
+    assert w.run() == 0
+    assert seen == ["held"]
+
+
+class Denied(Aws):
+    def get(self, bucket: str, key: str) -> bytes | None:
+        raise fs.Misconfigured("AccessDenied")
+
+
+def test_an_s3_error_that_isnt_the_networks_alerts_once_per_boot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Review nit 5.
+    boot = ["boot-1"]
+    monkeypatch.setattr(fs, "boot_id", lambda: boot[0])
+    w = World(tmp_path)
+    w.aws = Denied()
+    assert w.run("--boot") == 1
+    assert w.run() == 1
+    (alert,) = w.aws.alerts
+    assert "- reason: bucket" in alert
+    boot[0] = "boot-2"
+    assert w.run("--boot") == 1
+    assert len(w.aws.alerts) == 2
+
+
+def test_an_empty_release_bucket_alerts_rather_than_waits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fs, "boot_id", lambda: "boot-1")
+    w = World(tmp_path)
+    w.env_file.write_text("H4_HOST=tunnel-end\nRELEASE_BUCKET=\n", encoding="utf-8")
+    assert w.run("--boot") == 1
+    assert "- reason: bucket" in w.aws.alerts[0]
+
+
+def test_a_missing_env_file_doesnt_crash_the_alert(tmp_path: Path) -> None:
+    # Review nit 5: write_env.py refused, so no env file; the AWS CLI's publish can't find the account.
+    w = World(tmp_path)
+    w.env_file.unlink()
+    cli = fs.AwsCli(w.env_file)
+    fs.alert_once(w.state, cli, "k", ["[hareet.ai aws] deploy_refused: x"])
+    assert w.run("--boot") == 1
+
+
+def test_the_real_runner_waits_for_the_deployers_worst_case_and_kills_its_group() -> (
+    None
+):
+    # Review nit 4: the deployer's worst case is about 2,760 s; the runner's timeout is longer, and kills the group.
+    import inspect
+
+    source = inspect.getsource(fs.process)
+    assert "start_new_session=True" in source and "killpg" in source
+    assert fs.DEPLOYER_TIMEOUT >= 3600
+
+
+def test_the_tree_key_is_pinned_to_the_commits(tmp_path: Path) -> None:
+    # Review nit 2: the first step and the deployer take one key, trees/<commit>.tar.gz.
+    w = World(tmp_path)
+    release = w.release("r1")
+    tar = w.aws.objects[release["tree"]["key"]]
+    release["tree"]["key"] = "trees/another.tar.gz"
+    w.aws.objects["trees/another.tar.gz"] = tar
+    w.aws.objects["releases/r1/release.json"] = json.dumps(release).encode()
+    assert w.run() == 1
+    assert w.runner.ran == []
+    assert "- reason: tree" in w.aws.alerts[0]

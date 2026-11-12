@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import io
+import itertools
 import json
 import secrets
 import sys
@@ -787,3 +788,202 @@ def test_a_hold_alerts_once_per_hold(tmp_path: Path) -> None:
     )
     w.run()
     assert len(w.aws.alerts) == 2
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The deployer's review (58d5a676..23622319): the retry rule, the record, exit 75, and the S3 errors that aren't the
+# network's. The alert memory (refused.json) only deduplicates alerts; the attempt marker (attempts.json) holds which
+# release was tried and when it may be tried again; and each attempt is recorded whether or not SNS took its alert.
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.t = 1_800_000_000.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+def timed_run(w: World, clock: Clock, boot: bool = False) -> int:
+    return dp.run(
+        "tunnel-end",
+        env_file=w.env_file,
+        state=w.state,
+        aws=w.aws,
+        docker=w.docker,
+        boot=boot,
+        plugin=w.plugin,
+        now=lambda: "2026-11-13T01:02:03Z",
+        clock=clock,
+    )
+
+
+def test_a_host_running_nothing_tries_again_whatever_was_tried(tmp_path: Path) -> None:
+    # Review 1: a replaced host starts with nothing running; one failed first start mustn't strand it.
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    w.docker.fail_for = {"r1"}
+    assert timed_run(w, clock) == 1
+    w.docker.fail_for = set()
+    clock.t += 60
+    assert timed_run(w, clock) == 0
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
+
+
+def test_the_first_steps_alert_key_doesnt_poison_the_release(tmp_path: Path) -> None:
+    # Review 1: the first step's own {rid}:tree key, in the alert memory, isn't an attempt of the deployer's.
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    assert timed_run(w, clock) == 0
+    w.release("r2")
+    (w.state / "refused.json").write_text(json.dumps({"r2:tree": "first-step"}))
+    assert timed_run(w, clock) == 0
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r2"
+
+
+def test_a_rolled_back_release_is_tried_again_at_boot(tmp_path: Path) -> None:
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    assert timed_run(w, clock) == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    assert timed_run(w, clock) == 1
+    w.docker.fail_for = set()
+    assert timed_run(w, clock, boot=True) == 0
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r2"
+
+
+def test_a_rolled_back_release_is_tried_again_after_a_capped_backoff(
+    tmp_path: Path,
+) -> None:
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    assert timed_run(w, clock) == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    tries = []
+    for _ in range(400):
+        clock.t += 60
+        before = len(ups(w))
+        timed_run(w, clock)
+        if len(ups(w)) > before and ups(w)[before][1]["H4_RELEASE"] == "r2":
+            tries.append(clock.t)
+    gaps = [b - a for a, b in itertools.pairwise(tries)]
+    assert len(tries) >= 3, tries
+    assert gaps == sorted(gaps), gaps  # it backs off
+    assert max(gaps) <= dp.RETRY_CAP_SECONDS + 60, gaps  # and the backoff is capped
+    # One alert for the incident, a record for each attempt.
+    assert len(w.aws.alerts) == 1
+    assert [r["outcome"] for r in w.records()].count("rolled_back") == len(tries)
+
+
+def test_each_attempt_is_recorded_and_marked_whether_or_not_sns_takes_the_alert(
+    tmp_path: Path,
+) -> None:
+    # Review 2: while SNS refuses, the release isn't started again each minute, and the record still says so.
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    assert timed_run(w, clock) == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    w.aws.publish_ok = False
+    assert timed_run(w, clock) == 1
+    clock.t += 60
+    timed_run(w, clock)
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1", "r2", "r1"]
+    assert [r["outcome"] for r in w.records()] == ["deployed", "rolled_back"]
+    assert w.aws.alerts == []
+    # The alert itself waits for SNS, and goes once SNS takes it.
+    w.aws.publish_ok = True
+    clock.t += 60
+    timed_run(w, clock)
+    assert len(w.aws.alerts) == 1 and "deploy_rolled_back" in w.aws.alerts[0]
+    clock.t += 60
+    timed_run(w, clock)
+    assert len(w.aws.alerts) == 1
+
+
+def test_the_aws_clis_account_comes_from_the_env_file_it_was_given(
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "ec2.env"
+    env_file.write_text(
+        "H4_REGISTRY=" + "4" * 12 + ".dkr.ecr.us-east-1.amazonaws.com\n",
+        encoding="utf-8",
+    )
+    assert dp.AwsCli(env_file).account() == "4" * 12
+
+
+def test_main_exits_75_for_check_and_boot_but_not_for_a_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Review 3: a failed restart (the key's revocation, FR-055) must fail its unit, never read as "refused and alerted".
+    monkeypatch.setattr(dp, "run", lambda *a, **k: 1)
+    assert dp.main(["--host", "tunnel-end"]) == 75
+    assert dp.main(["--host", "tunnel-end", "--boot"]) == 75
+    assert dp.main(["--host", "tunnel-end", "--restart", "tunnel-end"]) == 1
+
+
+class Denied(Aws):
+    def get(self, bucket: str, key: str) -> bytes | None:
+        raise dp.Misconfigured("AccessDenied")
+
+
+def test_an_s3_error_that_isnt_the_networks_alerts_once_per_boot(
+    tmp_path: Path,
+) -> None:
+    # Review nit 5: AccessDenied, a bucket that doesn't exist, or an empty RELEASE_BUCKET is no network hiccup.
+    w, clock = World(tmp_path), Clock()
+    w.aws = Denied()
+    assert timed_run(w, clock, boot=True) == 1
+    timed_run(w, clock)
+    timed_run(w, clock)
+    (alert,) = w.aws.alerts
+    assert "- reason: bucket" in alert
+    assert timed_run(w, clock, boot=True) == 1
+    assert len(w.aws.alerts) == 2
+
+
+def test_an_empty_release_bucket_is_misconfigured_not_out_of_reach(
+    tmp_path: Path,
+) -> None:
+    w, clock = World(tmp_path), Clock()
+    w.env_file.write_text("H4_HOST=tunnel-end\nRELEASE_BUCKET=\n", encoding="utf-8")
+    assert timed_run(w, clock, boot=True) == 1
+    assert "- reason: bucket" in w.aws.alerts[0]
+
+
+@pytest.mark.parametrize(
+    ("said", "kind"),
+    [
+        (b"fatal error: Could not connect to the endpoint URL", "Unreachable"),
+        (b"fatal error: Connect timeout on endpoint URL", "Unreachable"),
+        (
+            b"An error occurred (AccessDenied) when calling the GetObject",
+            "Misconfigured",
+        ),
+        (
+            b"An error occurred (403) when calling the HeadObject operation",
+            "Misconfigured",
+        ),
+        (
+            b"An error occurred (NoSuchBucket) when calling the GetObject",
+            "Misconfigured",
+        ),
+        (b"Invalid bucket name", "Misconfigured"),
+    ],
+)
+def test_the_aws_cli_tells_the_network_from_a_refusal(said: bytes, kind: str) -> None:
+    assert type(dp.s3_error(said)).__name__ == kind
+
+
+def test_the_tree_key_is_pinned_to_the_commits(tmp_path: Path) -> None:
+    # Review nit 2 (contracts/releases-deployer.md §1): trees/<commit>.tar.gz, and nothing else.
+    w = World(tmp_path)
+    release = w.release("r1")
+    tar = w.aws.objects[release["tree"]["key"]]
+    release["tree"]["key"] = "trees/another.tar.gz"
+    w.aws.objects["trees/another.tar.gz"] = tar
+    w.aws.objects["releases/r1/release.json"] = json.dumps(release).encode()
+    assert w.run() == 1
+    assert "- reason: tree" in w.aws.alerts[0]

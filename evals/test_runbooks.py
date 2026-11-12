@@ -336,6 +336,26 @@ def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
+# Spec 001's deployer (the deployer's review, 1: the bridge names deploy.md, which didn't exist) and group 7's EC2
+# (its tasks.md T092): the deploy page holds the deployer's three kinds and the manual retry; EC2's its host.
+SPEC_001_GROUP_7 = ("deploy.md", "ec2.md")
+
+
+def test_spec_001s_group_7_pages_cover_their_alerts_and_the_index_names_them() -> None:
+    assert set(SPEC_001_GROUP_7) <= spec_001_runbooks()
+    for page in SPEC_001_GROUP_7:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_GROUP_7):
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+    deploy = (RUNBOOKS / "deploy.md").read_text(encoding="utf-8")
+    # The manual retry of a release the deployer won't try again until its backoff ends (the review's 1).
+    assert "attempts.json" in deploy and "h4-deployer.service" in deploy
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses
