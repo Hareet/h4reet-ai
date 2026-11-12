@@ -2546,23 +2546,40 @@ class Runner:
             os.close(fd)
 
     # comfyui
-    def comfy_allowlist(self) -> set[str]:
+    def comfy_allowlist(self) -> tuple[set[str], set[str]]:
+        """(allowed flags, fixed flags) from G3's file (T045):
+        {"schema": 1, "fixed_by_runner": ["--listen", ...], "allowed": [{"flag": "--birefnet", "value": null, ...}]}.
+
+        Flags only for now: an entry whose `value` isn't null allows nothing. `fixed_by_runner` adds to COMFY_FIXED,
+        never removes from it. Any other shape fails closed: nothing allowed.
+        """
+        closed: tuple[set[str], set[str]] = (set(), set(COMFY_FIXED))
         try:
             data = json.loads(Path(self.p.comfyui_params).read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return set()
-        params = (
-            data.get("params")
-            if isinstance(data, dict) and data.get("schema") == 1
-            else None
-        )
-        if not isinstance(params, list):
-            return set()
-        return {
-            p
-            for p in params
-            if isinstance(p, str) and p.startswith("--") and p not in COMFY_FIXED
-        }
+            return closed
+        if not isinstance(data, dict) or data.get("schema") != 1:
+            return closed
+        fixed, allowed = data.get("fixed_by_runner"), data.get("allowed")
+        if not isinstance(fixed, list) or not all(
+            isinstance(f, str) and f.startswith("--") for f in fixed
+        ):
+            return closed
+        if not isinstance(allowed, list):
+            return closed
+        flags: set[str] = set()
+        for e in allowed:
+            if (
+                not isinstance(e, dict)
+                or "value" not in e
+                or not isinstance(e.get("flag"), str)
+                or not re.fullmatch(r"--[a-z0-9][a-z0-9-]*", e["flag"])
+            ):
+                return closed
+            if e["value"] is None:
+                flags.add(e["flag"])
+        fixed_all = set(COMFY_FIXED) | set(fixed)
+        return flags - fixed_all, fixed_all
 
     def req_comfyui(self, t: Task, n: int, req: dict) -> dict | None:
         if t.role != "studio" or "gpu" not in t.held or t.state != "running":
@@ -2588,9 +2605,11 @@ class Runner:
         params = req.get("params", [])
         if not isinstance(params, list) or not all(isinstance(p, str) for p in params):
             return self.refuse("comfyui", "refused: params must be a list of strings")
-        allow = self.comfy_allowlist()
+        allow, fixed = self.comfy_allowlist()
         for p in params:
-            if p in COMFY_FIXED or p not in allow:
+            if p in fixed or p.split("=", 1)[0] in fixed:
+                return self.refuse("comfyui", f"refused: {p} is the runner's alone")
+            if p not in allow:
                 return self.refuse(
                     "comfyui", f"refused: {p} isn't on the ComfyUI allowlist"
                 )
