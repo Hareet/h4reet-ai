@@ -18,7 +18,10 @@ What the root must hold:
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
   - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, holding "measure-in-T166" until
-    T166 measures it; the instance reads it, no other file sets a type, and a precondition refuses the placeholder.
+    T166 measures it; the instance reads it, no other file sets a type, and a precondition refuses the placeholder;
+  - a changed host file, or a new local.tunnel_end_generation (an OS update), replaces the tunnel end in the plan:
+    terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation, and the instance
+    is replace_triggered_by it, though it ignores its user data's and its image's drift (group 5's review, I3).
 
 ec2-market.tf, iam.tf, and handover.tf (both roots') are protected, so they reach the branch only with the Author's
 patch, P-I3 (docs/merge-requests/2026-11-13-feat-001-pi3-tunnel-end.patch). Until he applies it these tests read them
@@ -403,6 +406,40 @@ def check_type(root: dict[str, list]) -> list[str]:
     return found
 
 
+def check_host_replace(root: dict[str, list]) -> list[str]:
+    """A changed host file, or a new generation, plans as the tunnel end's replace (group 5's review, I3)."""
+    found = []
+    held = one(root, "terraform_data", "tunnel_end_host")
+    generation = locals_in(root, "tunnel-end.tf").get("tunnel_end_generation")
+    if (
+        held is None
+        or where(root, held) != "tunnel-end.tf"
+        or "sha256(local.tunnel_end_user_data)" not in raw(held, "input")
+        or "local.tunnel_end_generation" not in raw(held, "input")
+    ):
+        found.append(
+            "host: no terraform_data.tunnel_end_host in tunnel-end.tf holds the user data's SHA-256 and the generation"
+        )
+    if generation is None or not isinstance(ip.literal(generation), int):
+        found.append("host: tunnel-end.tf's local.tunnel_end_generation isn't a number")
+    i = instance(root)
+    triggers = (
+        [raw(lc, "replace_triggered_by") for lc in i.blocks("lifecycle")]
+        if i is not None
+        else []
+    )
+    if triggers != ["[terraform_data.tunnel_end_host]"]:
+        found.append(
+            "host: a changed host file or a new generation doesn't replace the tunnel end"
+        )
+    metadata = i.block("metadata_options") if i is not None else None
+    if metadata is not None and lit(metadata, "instance_metadata_tags") == "enabled":
+        found.append(
+            "host: the instance's tags are in its metadata, which nothing on it reads"
+        )
+    return found
+
+
 def group_rules(root: dict[str, list], name: str) -> list[tuple[int | None, str]]:
     """A security group's ingress rules: (port, the source as written)."""
     g = one(root, "aws_security_group", name)
@@ -677,6 +714,7 @@ CHECKS = (
     check_network,
     check_instance,
     check_type,
+    check_host_replace,
     check_groups,
     check_role,
     check_warning_rule,
@@ -827,6 +865,10 @@ def test_the_tunnel_end_two_interfaces_its_address_imdsv2_and_spot_that_stops() 
 
 def test_the_type_is_the_unprotected_local_and_the_placeholder_is_refused() -> None:
     assert check_type(parsed(root_texts())) == []
+
+
+def test_a_changed_host_file_or_generation_replaces_the_tunnel_end() -> None:
+    assert check_host_replace(parsed(root_texts())) == []
 
 
 def test_only_2222_from_anywhere_8087_from_route_53_and_8080_from_cloudfront() -> None:

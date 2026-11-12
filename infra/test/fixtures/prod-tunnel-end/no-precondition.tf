@@ -20,7 +20,6 @@ resource "aws_instance" "tunnel_end" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled"
   }
 
   # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
@@ -50,8 +49,11 @@ resource "aws_instance" "tunnel_end" {
 
   lifecycle {
     # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
-    # a later plan (docs/runbooks/tunnel-end.md).
-    ignore_changes = [ami, user_data_base64]
+    # a later plan: terraform_data.tunnel_end_host holds the user data's SHA-256 and local.tunnel_end_generation
+    # (tunnel-end.tf), so a changed host file or a new generation plans as the replace (group 5's review, I3;
+    # docs/runbooks/tunnel-end.md).
+    ignore_changes       = [ami, user_data_base64]
+    replace_triggered_by = [terraform_data.tunnel_end_host]
 
   }
 }
