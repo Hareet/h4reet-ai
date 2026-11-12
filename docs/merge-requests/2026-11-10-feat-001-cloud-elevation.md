@@ -2028,8 +2028,6 @@ The policy's only findings are the lockfiles, yours. The plan note's two FAILs a
 
 ### The plan block (T027)
 
-Pending: yours, on your branch (For the Author, 6).
-
 ### gitleaks dir
 
 As the gate's gitleaks-tree step scans: a fresh `git archive` export of the tip this note sits on, with this note copied in (its gitleaks section then still pending); the export's own `.gitleaks.toml`; an empty folder as the ignore path, so no `.gitleaksignore` entry applies; `--ignore-gitleaks-allow`.
