@@ -77,7 +77,6 @@ class Aws:
     def publish(self, message: str) -> None:
         self.alerts.append(message)
 
-
     def login(self, registry: str) -> None:
         if not self.registry_reachable:
             raise dp.Unreachable("ecr")
@@ -103,9 +102,9 @@ class Docker:
 
     def preflight(self, host: str, tree: Path, env_file: Path) -> bool:
         self.calls.append((str(tree), ["preflight", host, str(env_file)], {}))
-        return (tree / "deploy/compose.yaml").read_text().split("# ")[-1].strip() not in (
-            self.preflight_fails_for
-        )
+        return (tree / "deploy/compose.yaml").read_text().split("# ")[
+            -1
+        ].strip() not in (self.preflight_fails_for)
 
     def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
         return set(services) <= self.up

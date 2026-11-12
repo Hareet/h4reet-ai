@@ -695,7 +695,9 @@ def check_return_rule(root: dict[str, list]) -> list[str]:
             "return: the rule doesn't match the tunnel end entering running, from this root"
         )
     if raw(rule, "count") or raw(rule, "for_each"):
-        found.append("return: the rule waits behind a switch, though its alert needs no other root")
+        found.append(
+            "return: the rule waits behind a switch, though its alert needs no other root"
+        )
     targets = [
         t
         for t in resource(root, "aws_cloudwatch_event_target")
@@ -703,14 +705,17 @@ def check_return_rule(root: dict[str, list]) -> list[str]:
         and raw(t, "arn") == f'"{TOPIC_ARN}"'
     ]
     if len(targets) != 1 or raw(targets[0], "count"):
-        found.append("return: no one target to h4-alerts, by its name-built ARN, outside the switch")
+        found.append(
+            "return: no one target to h4-alerts, by its name-built ARN, outside the switch"
+        )
     else:
         transformer = targets[0].block("input_transformer")
         template = raw(transformer, "input_template") if transformer else ""
         if "[hareet.ai aws] tunnel_end_back:" not in template:
             found.append("return: it doesn't publish tunnel_end_back in §2's format")
         if transformer is not None and re.search(
-            r"account|\$\.detail\.instance-id|\$\.resources", raw(transformer, "input_paths")
+            r"account|\$\.detail\.instance-id|\$\.resources",
+            raw(transformer, "input_paths"),
         ):
             found.append("return: its message carries the account or the instance's ID")
     return found
@@ -724,7 +729,9 @@ def wired(root: dict[str, list]) -> object:
 def check_switch(root: dict[str, list]) -> list[str]:
     # A literal either way: W1 holds it false and W2's P-W2 true (test_w1_holds_both_switches_off, below).
     if not isinstance(wired(root), bool):
-        return ["switch: prod's handover.tf doesn't hold local.wired as a boolean literal"]
+        return [
+            "switch: prod's handover.tf doesn't hold local.wired as a boolean literal"
+        ]
     return []
 
 
@@ -846,22 +853,18 @@ def delivered(target, values: dict[str, str]) -> str:
     return template
 
 
-def bridge():
+def bridge(tmp_path: Path):
+    """The alert bridge as the patches leave it, loaded from a copy in the test's own folder."""
     text = patches.patched_text("infra/lambdas/alert_bridge/bridge.py")
     assert text is not None
-    path = HERE / ".bridge_as_patched.py"
-    module = type(sys)("alert_bridge_as_patched")
-    module.__file__ = str(path)
-    sys.modules[module.__name__] = module
-    exec(compile(text, str(path), "exec"), module.__dict__)
-    return module
+    path = tmp_path / "bridge_as_patched.py"
+    path.write_text(text, encoding="utf-8")
+    return _load("alert_bridge_as_patched", path)
 
 
 def rule_target(root: dict[str, list], name: str):
     rules = [
-        r
-        for r in resource(root, "aws_cloudwatch_event_rule")
-        if lit(r, "name") == name
+        r for r in resource(root, "aws_cloudwatch_event_rule") if lit(r, "name") == name
     ]
     assert len(rules) == 1, name
     (target,) = [
@@ -872,26 +875,33 @@ def rule_target(root: dict[str, list], name: str):
     return target
 
 
-def test_the_warnings_message_reaches_the_bridge_as_tunnel_end_interruption() -> None:
+def test_the_warnings_message_reaches_the_bridge_as_tunnel_end_interruption(
+    tmp_path: Path,
+) -> None:
     message = delivered(
         rule_target(parsed(root_texts()), "h4-tunnel-end-spot-warning"),
         {"action": "stop", "at": "2026-11-13T05:00:00Z"},
     )
     # EventBridge's own shape: a JSON string, quoted, its line breaks escaped.
-    assert message.startswith('"[hareet.ai aws] tunnel_end_interruption: ') and "\\n- action: stop" in message
-    alert = bridge().classify(message)
+    assert (
+        message.startswith('"[hareet.ai aws] tunnel_end_interruption: ')
+        and "\\n- action: stop" in message
+    )
+    alert = bridge(tmp_path).classify(message)
     assert (alert.kind, alert.facts) == (
         "tunnel_end_interruption",
         [("action", "stop"), ("at", "2026-11-13T05:00:00Z")],
     ), alert
 
 
-def test_the_returns_message_reaches_the_bridge_as_tunnel_end_back() -> None:
+def test_the_returns_message_reaches_the_bridge_as_tunnel_end_back(
+    tmp_path: Path,
+) -> None:
     message = delivered(
         rule_target(parsed(root_texts()), "h4-tunnel-end-running"),
         {"at": "2026-11-13T05:09:00Z"},
     )
-    alert = bridge().classify(message)
+    alert = bridge(tmp_path).classify(message)
     assert (alert.kind, alert.facts) == (
         "tunnel_end_back",
         [("at", "2026-11-13T05:09:00Z")],
@@ -1028,7 +1038,9 @@ def switched_on(root: dict[str, list]) -> dict[str, list]:
         ]
         for name, body in root.items()
     }
-    out.setdefault("handover.tf", []).extend(ip.parse_hcl("locals {\n  wired = true\n}\n"))
+    out.setdefault("handover.tf", []).extend(
+        ip.parse_hcl("locals {\n  wired = true\n}\n")
+    )
     return out
 
 

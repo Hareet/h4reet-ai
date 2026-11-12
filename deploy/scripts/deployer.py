@@ -115,7 +115,9 @@ class Aws(Protocol):
 class Docker(Protocol):
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool: ...
 
-    def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool: ...
+    def running(
+        self, tree: Path, env_files: list[Path], services: list[str]
+    ) -> bool: ...
 
     def own_volume(self, name: str, uid: int) -> bool: ...
 
@@ -323,7 +325,8 @@ class Deployer:
         if self.docker.running(self.tree(current), env_files, services):
             return
         self.restart_cached(
-            current, f"release {current['release']} isn't running, and didn't start again"
+            current,
+            f"release {current['release']} isn't running, and didn't start again",
         )
 
     def boot(self) -> int:

@@ -24,7 +24,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 import yaml
 
 HERE = Path(__file__).resolve().parent
@@ -478,7 +477,11 @@ def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
             *mine,
         ],
         cwd=REPO,
-        env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(tmp_path), "H4_TREE": str(REPO)},
+        env={
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+            "H4_TREE": str(REPO),
+        },
         capture_output=True,
         text=True,
         check=False,
