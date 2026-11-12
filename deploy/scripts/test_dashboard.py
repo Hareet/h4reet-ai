@@ -474,8 +474,9 @@ ROWS = {
     "Telemetry health": "7.6",
     "Room": "7.8",
     "Room conversation": "7.10",
-    "Studio GPU windows": STUDIO_ROW,
+    # Spec 001's hosts, below the room's rows; the studio's window stays just above the dev-time row.
     "Hosts": HOSTS_ROW,
+    "Studio GPU windows": STUDIO_ROW,
     dev_time_row(): "7.7",
 }
 

@@ -1,7 +1,7 @@
 {
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
-  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; §7.8), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md §3), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md §7). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
+  "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; §7.8), the cloud's hosts (spec 001; specs/001-cloud-elevation/contracts/tunnel.md §7), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md §3), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md §7). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
   "tags": ["h4reet", "spec-000", "spec-003"],
   "timezone": "utc",
   "refresh": "10s",
@@ -4044,12 +4044,364 @@
     },
     {
       "type": "row",
+      "id": 85,
+      "title": "Hosts",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 153,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 86,
+      "title": "Tunnel up",
+      "description": "Each end of the laptop's tunnel: the laptop's connection, and the tunnel end's three reverse forwards (spec 001 FR-060; contracts/tunnel.md §7).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 154,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_tunnel_end) (h4_tunnel_up)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_tunnel_end}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "state-timeline",
+      "id": 87,
+      "title": "Tunnel up (state timeline)",
+      "description": "When each end of the tunnel was up and down, in the dashboard's time range (spec 001 FR-060).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 154,
+        "w": 18,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_tunnel_end) (h4_tunnel_up)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_tunnel_end}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 88,
+      "title": "Tunnel reconnects",
+      "description": "New connections after the first, per hour, on each end: a flapping tunnel shows here before visitors see it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 160,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_tunnel_end) (increase(h4_tunnel_reconnects_total[1h]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_tunnel_end}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 89,
+      "title": "Telemetry delayed at the tunnel end",
+      "description": "How full the tunnel end's collector's file-backed queue is, per host it sends to: a host that's gone fills its queue, and the queue empties when it's back.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 160,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (exporter) (otelcol_exporter_queue_size{service_name=\"tunnel-end-collector\"} / otelcol_exporter_queue_capacity{service_name=\"tunnel-end-collector\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{exporter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 90,
+      "title": "Telemetry lost at the tunnel end",
+      "description": "What the tunnel end's collector's full queue refused, per host it sends to: spans, metric points, and log records lost.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 160,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total{service_name=\"tunnel-end-collector\"}[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{exporter}} spans"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points_total{service_name=\"tunnel-end-collector\"}[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{exporter}} metric points"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_enqueue_failed_log_records_total{service_name=\"tunnel-end-collector\"}[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{exporter}} log records"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
       "id": 49,
       "title": "Studio GPU windows",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 153,
+        "y": 168,
         "w": 24,
         "h": 1
       },
@@ -4066,7 +4418,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 154,
+        "y": 169,
         "w": 24,
         "h": 6
       },
@@ -4155,7 +4507,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 161,
+        "y": 176,
         "w": 24,
         "h": 1
       },
@@ -4172,7 +4524,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 162,
+        "y": 177,
         "w": 10,
         "h": 7
       },
@@ -4231,7 +4583,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 162,
+        "y": 177,
         "w": 4,
         "h": 7
       },
@@ -4285,7 +4637,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 162,
+        "y": 177,
         "w": 10,
         "h": 7
       },
@@ -4351,7 +4703,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 169,
+        "y": 184,
         "w": 4,
         "h": 7
       },
@@ -4405,7 +4757,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 169,
+        "y": 184,
         "w": 8,
         "h": 7
       },
@@ -4471,7 +4823,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 169,
+        "y": 184,
         "w": 12,
         "h": 7
       },

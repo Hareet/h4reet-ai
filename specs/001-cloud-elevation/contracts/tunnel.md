@@ -90,7 +90,7 @@ On EC2 and on the tunnel end, as September: a host proxy with a hostname allowli
 
 ## 7. The dashboard's Hosts row: the tunnel (group 5)
 
-`deploy/grafana/dashboards/h4-runtime.json`, in its own row, "Hosts", above the dev-time row (plan.md §11). Later groups add their panels to the row, each in the contract of its feature. Group 5's:
+`deploy/grafana/dashboards/h4-runtime.json`, in its own row, "Hosts", below the room's rows and above the studio's (plan.md §11). Later groups add their panels to the row, each in the contract of its feature. Group 5's:
 
 | Panel | Type | Query |
 |---|---|---|
