@@ -1752,3 +1752,23 @@ def test_each_image_the_tunnel_end_runs_has_its_repository() -> None:
     ]
     assert raw(repos, "for_each") == "toset(local.stack_repositories)"
     assert check_registry(root) == [] and check_tags(root) == []
+
+
+# The repositories EC2 pulls from (tasks.md T089; the regrouping review's I4): each image an ec2-class service runs, by
+# the repository the release pushes or copies it to: a shared service's own name, the relay block's forwarder edge's.
+def ec2_repository(name: str) -> str:
+    return {"ec2-relay-block": "edge"}.get(name, name)
+
+
+def test_each_image_ec2_runs_has_its_repository() -> None:
+    compose = yaml.safe_load(
+        (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    )
+    preflight = _load("preflight_for_account", REPO / "deploy" / "scripts" / "preflight.py")
+    in_class = preflight.HOST_CLASSES["ec2"]
+    assert set(in_class) <= set(compose["services"]), set(in_class) - set(
+        compose["services"]
+    )
+    stack = locals_of(parsed(root_texts()))["stack_repositories"]
+    wanted = {ec2_repository(n) for n in in_class}
+    assert wanted <= set(stack), wanted - set(stack)

@@ -429,7 +429,9 @@ def test_the_real_host_step_runs_the_trees_own_script_with_the_hosts_python(
     tmp_path: Path,
 ) -> None:
     assert dp.HOST_STEPS == {
-        "tunnel-end": ("deploy/hosts/tunnel-end/shared_state.py", "prepare")
+        "tunnel-end": ("deploy/hosts/tunnel-end/shared_state.py", "prepare"),
+        # Group 7's EC2: the gateway's Bedrock credentials and their timer, from the release's tree.
+        "ec2": ("deploy/hosts/ec2/ec2_host.py", "prepare"),
     }
     argv = dp.host_step_argv("tunnel-end", tmp_path)
     assert argv == [
@@ -987,3 +989,253 @@ def test_the_tree_key_is_pinned_to_the_commits(tmp_path: Path) -> None:
     w.aws.objects["releases/r1/release.json"] = json.dumps(release).encode()
     assert w.run() == 1
     assert "- reason: tree" in w.aws.alerts[0]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001 group 7 (tasks.md T082): EC2's part. Its boot asks the bucket before anything starts, and starts its last
+# release, alerted, only when the bucket can't be read; it takes its own class's services by their digests, each copy
+# its lock line's image, the two the release builds tagged with the laptop's own build names; the hold, the rollback,
+# and the record are the tunnel end's; and each run tells its collector h4.deploy.events and h4.release.info.
+
+REGISTRY = "5" * 12 + ".dkr.ecr.us-east-1.amazonaws.com"
+EC2_LOCK = {
+    name: ("1.0", "sha256:" + format(i, "x") * 64)
+    for i, name in enumerate(
+        (
+            "edge",
+            "otel-collector",
+            "prometheus",
+            "loki",
+            "grafana",
+            "langfuse-web",
+            "langfuse-worker",
+            "langfuse-db",
+            "clickhouse",
+            "valkey",
+            "seaweedfs",
+        )
+    )
+}
+
+
+class Ec2Docker(Docker):
+    def __init__(self) -> None:
+        super().__init__()
+        self.tagged: list[tuple[str, str]] = []
+        self.metrics: list[dict] = []
+
+    def retag(self, source: str, target: str) -> bool:
+        self.calls.append(("", ["retag", source, target], {}))
+        self.tagged.append((source, target))
+        return True
+
+    def post_metrics(self, host: str, payload: dict) -> None:
+        assert host == "ec2"
+        self.metrics.append(payload)
+
+
+class Ec2World(World):
+    def __init__(self, tmp_path: Path) -> None:
+        super().__init__(tmp_path)
+        self.docker = Ec2Docker()
+        self.env_file = tmp_path / "ec2.env"
+        self.env_file.write_text(
+            f"H4_HOST=ec2\nRELEASE_BUCKET={BUCKET}\nH4_REGISTRY={REGISTRY}\n",
+            encoding="utf-8",
+        )
+
+    def release(self, rid: str, **override: object) -> dict:  # type: ignore[override]
+        lock_text = "".join(
+            f"{name} repo {tag} {d} r 2026-11-13\n"
+            for name, (tag, d) in EC2_LOCK.items()
+        )
+        files = {
+            "deploy/compose.yaml": f"services: {{}}  # {rid}\n",
+            "deploy/images.lock": lock_text,
+        }
+        tar = tree_tar(files)
+        c = commit()
+        compose_binary = b"#!compose " + rid.encode()
+        services: dict[str, dict] = {
+            name: {
+                "repository": f"h4reet/{name}",
+                "digest": digest(),
+                "hosts": ["ec2", "laptop"],
+            }
+            for name in ("gateway", "web")
+        }
+        for name in dp.HOST_CLASSES["ec2"]:
+            if name in services:
+                continue
+            source = dp.COPIES.get(name, name)
+            tag, d = EC2_LOCK[source]
+            services[name] = {
+                "repository": f"h4reet/{source}",
+                "tag": tag,
+                "digest": d,
+                "hosts": ["ec2"],
+            }
+        release = {
+            "release": rid,
+            "commit": c,
+            "tree": {
+                "key": f"trees/{c}.tar.gz",
+                "sha256": hashlib.sha256(tar).hexdigest(),
+            },
+            "compose": {
+                "version": "2.39.1",
+                "key": "tools/docker-compose-2.39.1-linux-aarch64",
+                "sha256": hashlib.sha256(compose_binary).hexdigest(),
+            },
+            "services": services,
+        }
+        release.update(override)
+        self.aws.objects[release["tree"]["key"]] = tar  # type: ignore[index]
+        self.aws.objects[release["compose"]["key"]] = compose_binary  # type: ignore[index]
+        self.aws.objects[f"releases/{rid}/release.json"] = json.dumps(release).encode()
+        self.aws.objects["releases/latest.json"] = json.dumps({"release": rid}).encode()
+        return release
+
+    def run(self, boot: bool = False) -> int:
+        return dp.run(
+            "ec2",
+            env_file=self.env_file,
+            state=self.state,
+            aws=self.aws,
+            docker=self.docker,
+            boot=boot,
+            plugin=self.plugin,
+            now=lambda: "2026-11-13T01:02:03Z",
+        )
+
+
+def test_ec2_takes_its_class_its_copies_by_the_locks_digests_and_tags_its_builds(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    release = w.release("r1")
+    assert w.run() == 0
+    (up,) = ups(w)
+    args, env = up
+    assert args[-len(dp.HOST_CLASSES["ec2"]) :] == list(dp.HOST_CLASSES["ec2"])
+    assert env["H4_REF"] == release["commit"] and env["H4_WEB_SUFFIX"] == ""
+    tag, d = EC2_LOCK["edge"]
+    assert env["H4_IMAGE_EDGE"] == f"{REGISTRY}/h4reet/edge:{tag}@{d}"
+    assert "H4_IMAGE_EC2_RELAY_BLOCK" not in env and "H4_IMAGE_GATEWAY" not in env
+    # In the class's order: web, then the gateway.
+    assert w.docker.tagged == [
+        (
+            f"{REGISTRY}/h4reet/web@{release['services']['web']['digest']}",
+            f"h4reet-web:{release['commit']}",
+        ),
+        (
+            f"{REGISTRY}/h4reet/gateway@{release['services']['gateway']['digest']}",
+            f"h4reet-gateway:{release['commit']}",
+        ),
+    ]
+    (pull,) = [a for _, a, _ in w.docker.calls if a[0] == "pull"]
+    assert "gateway" not in pull and "web" not in pull and "edge" in pull
+    # Its host step, from the release's tree: the gateway's proxy and its Bedrock credentials.
+    assert ["host-step", "ec2"] in [a for _, a, _ in w.docker.calls]
+    assert w.records()[-1]["host"] == "ec2"
+
+
+def test_a_copy_that_isnt_its_lock_lines_image_is_refused(tmp_path: Path) -> None:
+    w = Ec2World(tmp_path)
+    release = w.release("r1")
+    release["services"]["loki"]["digest"] = digest()
+    w.aws.objects["releases/r1/release.json"] = json.dumps(release).encode()
+    assert w.run() == 1
+    assert ups(w) == []
+    assert "- reason: pin" in w.aws.alerts[0]
+
+
+def test_ec2s_boot_asks_the_bucket_before_anything_starts(tmp_path: Path) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.calls.clear()
+    w.docker.up = set()
+    assert w.run(boot=True) == 0
+    # The new release, and never the old one first.
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r2"]
+
+
+def test_ec2s_boot_with_the_bucket_out_of_reach_starts_its_last_release_and_alerts(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.docker.up = set()
+    w.aws.reachable = False
+    assert w.run(boot=True) == 0
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1"]
+    (alert,) = w.aws.alerts
+    assert alert.startswith(
+        "[hareet.ai aws] deploy_refused: ec2 started its last release, r1, without the release bucket"
+    )
+    assert "- reason: unreachable" in alert
+
+
+def test_ec2s_boot_with_the_latest_already_running_starts_it_once(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.docker.up = set()
+    assert w.run(boot=True) == 0
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1"]
+    assert w.aws.alerts == []
+
+
+def test_ec2s_failed_start_rolls_back_and_its_hold_holds(tmp_path: Path) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    assert w.run() == 1
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1", "r2", "r1"]
+    assert "deploy_rolled_back: ec2 returned from r2 to r1" in w.aws.alerts[0]
+    assert [r["host"] for r in w.records()] == ["ec2", "ec2"]
+    (w.state / "hold").write_text("the Author\n", encoding="utf-8")
+    w.docker.calls.clear()
+    w.release("r3")
+    assert w.run() == 0 and ups(w) == []
+
+
+def metric(payloads: list[dict], name: str) -> list[dict]:
+    return [
+        {a["key"]: a["value"]["stringValue"] for a in p["attributes"]}
+        for payload in payloads
+        for m in payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        if m["name"] == name
+        for p in (m.get("sum") or m.get("gauge"))["dataPoints"]
+    ]
+
+
+def test_each_run_tells_the_collector_its_deployments_and_its_release(
+    tmp_path: Path,
+) -> None:
+    # FR-049 and FR-060: h4.deploy.events by host and outcome, h4.release.info by host with who started it.
+    w = Ec2World(tmp_path)
+    release = w.release("r1")
+    assert w.run() == 0
+    assert w.run() == 0
+    events = metric(w.docker.metrics, "h4.deploy.events")
+    assert events == [{"h4.host": "ec2", "outcome": "deployed"}]
+    info = metric(w.docker.metrics, "h4.release.info")
+    assert info[-1] == {
+        "h4.host": "ec2",
+        "h4.release": "r1",
+        "h4.commit": release["commit"][:12],
+        "h4.started_by": "deployer",
+    }
+    assert len(info) == 2  # each run says what runs
+    text = json.dumps(w.docker.metrics)
+    assert REGISTRY not in text and "sha256:" not in text

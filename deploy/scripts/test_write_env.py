@@ -194,3 +194,93 @@ def test_an_account_that_isnt_twelve_digits_refuses(
     assert code == 1
     assert "H4_REGISTRY" in said
     assert not w.out.exists()
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001 group 7 (tasks.md T081): EC2's env file, after its instance's metadata confirms it is h4-prod-ec2.
+
+EC2_TEMPLATE = REPO / "deploy" / "hosts" / "ec2" / "ec2.env.example"
+
+
+def ec2_store() -> dict[str, str]:
+    values, _ = we.parse_env(EC2_TEMPLATE.read_text(encoding="utf-8"))
+    return {
+        param: (
+            "h4reet-ai-releases-" + secrets.token_hex(6)
+            if param.endswith("RELEASE_BUCKET")
+            else secrets.token_urlsafe(24)
+        )
+        for param in we.wanted("ec2", values).values()
+    }
+
+
+def ec2_run(
+    tmp_path: Path, held: dict[str, str], tag: str, capsys: pytest.CaptureFixture[str]
+) -> tuple[int, str, Path]:
+    out = tmp_path / "run" / "h4reet" / "ec2.env"
+    code = we.main(
+        [
+            "--host",
+            "ec2",
+            "--template",
+            str(EC2_TEMPLATE),
+            "--out",
+            str(out),
+            "--keys-dir",
+            str(tmp_path / "run" / "h4reet" / "ec2"),
+        ],
+        fetch=lambda names: {n: held[n] for n in names if n in held},
+        account=lambda: ACCOUNT,
+        chown=lambda path, uid: None,
+        name_tag=lambda: tag,
+    )
+    captured = capsys.readouterr()
+    return code, captured.out + captured.err, out
+
+
+def test_ec2s_env_file_is_written_on_h4_prod_ec2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    held = ec2_store()
+    code, said, out = ec2_run(tmp_path, held, "h4-prod-ec2", capsys)
+    assert code == 0, said
+    values, errors = we.parse_env(out.read_text(encoding="utf-8"))
+    assert errors == [] and values["H4_HOST"] == "ec2"
+    assert (
+        values["GATEWAY_ANTHROPIC_API_KEY"]
+        == held["/h4reet/ec2/GATEWAY_ANTHROPIC_API_KEY"]
+    )
+    assert values["GATEWAY_DB_PASSWORD"] == held["/h4reet/ec2/DB_GATEWAY_PASSWORD"]
+    assert out.stat().st_mode & 0o777 == 0o600
+    for value in held.values():
+        assert value not in said
+
+
+@pytest.mark.parametrize("tag", ["", "h4-prod-tunnel-end", "h4-prod-ec2x"])
+def test_ec2s_env_file_is_refused_on_any_other_instance(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], tag: str
+) -> None:
+    # The IMDSv2 tag check (research.md R-28), against a stub: EC2's secrets reach no other instance's tmpfs.
+    code, said, out = ec2_run(tmp_path, ec2_store(), tag, capsys)
+    assert code == 1 and "h4-prod-ec2" in said
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "/h4reet/ec2/GATEWAY_ANTHROPIC_API_KEY",
+        "/h4reet/ec2/DB_GATEWAY_PASSWORD",
+        "/h4reet/hosts/SHARED_STATE_TLS_CA",
+    ],
+)
+def test_ec2s_missing_name_refuses_naming_it_never_a_value(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], missing: str
+) -> None:
+    held = ec2_store()
+    del held[missing]
+    code, said, out = ec2_run(tmp_path, held, "h4-prod-ec2", capsys)
+    assert code == 1 and missing in said
+    assert not out.exists()
+    for value in held.values():
+        assert value not in said

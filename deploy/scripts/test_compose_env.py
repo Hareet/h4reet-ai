@@ -21,13 +21,37 @@ ENV_FILES = {
     "dev-cpu": REPO / "deploy" / "env.agents" / "dev-cpu.vars",
     # Spec 001's tunnel end: write_env.py fills its template at boot (contracts/env-cloud.md §1).
     "tunnel-end": REPO / "deploy" / "hosts" / "tunnel-end" / "tunnel-end.env.example",
+    # Spec 001's EC2 (group 7): its template, which write_env.py fills the same way.
+    "ec2": REPO / "deploy" / "hosts" / "ec2" / "ec2.env.example",
 }
 # The keys the tunnel end's deployer writes to each release's env file: the release, and the digest of each image the
 # release builds (deploy/scripts/deployer.py; spec 001 contracts/releases-deployer.md §1).
 RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL"}
+# On EC2 (group 7), each shared service's upstream image runs as the account's registry's copy, which the deployer
+# names in the release's env file alone; on every other host the pinned reference after ":-" runs as written.
+MIRRORED = {
+    "edge",
+    "otel-collector",
+    "prometheus",
+    "loki",
+    "grafana",
+    "langfuse-web",
+    "langfuse-worker",
+    "langfuse-db",
+    "clickhouse",
+    "valkey",
+    "seaweedfs",
+}
+RELEASE_FILE_KEYS |= {"H4_IMAGE_" + s.upper().replace("-", "_") for s in MIRRORED}
 # The services spec 001 adds, each in its host's class (its contracts/env-cloud.md §3): the laptop's tunnel, and the
 # tunnel end's.
-SPEC_001 = {"tunnel", "tunnel-end", "tunnel-end-collector", "shared-state"}
+SPEC_001 = {
+    "tunnel",
+    "tunnel-end",
+    "tunnel-end-collector",
+    "shared-state",
+    "ec2-relay-block",
+}
 RUN_FILE_KEYS = {
     "H4_TREE",
     "H4_REF",
@@ -168,7 +192,14 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "edge",
         "tunnel-end",
         "shared-state",
+        "ec2-relay-block",
     ]
+    # Group 7: EC2's relay block and its collector, on EC2's private address alone, a literal, in EC2's class alone.
+    assert SERVICES["ec2-relay-block"]["ports"] == [
+        "10.42.0.20:8085:8085",
+        "10.42.0.20:4318:4318",
+    ]
+    assert SERVICES["ec2-relay-block"]["profiles"] == ["ec2"]
     assert SERVICES["tunnel-end"]["ports"] == [
         "10.42.0.10:2222:2222",
         "10.42.0.10:8087:2203",
@@ -179,6 +210,7 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "edge",
         "tunnel-end",
         "shared-state",
+        "ec2-relay-block",
     ]
     assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
         "gateway",
@@ -203,6 +235,9 @@ CLOUD = {
     # Group 6's shared state: gateway-state's Postgres, copied as h4reet/shared-state by the lock's tag and digest.
     "shared-state": "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@"
     + "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+    # Group 7's EC2 doors: edge's nginx, copied by the lock's own tag and digest.
+    "ec2-relay-block": "${H4_REGISTRY:-registry.invalid}/h4reet/edge:1.30.5-alpine@"
+    + "sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3",
 }
 SHARED = {
     "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
@@ -219,6 +254,9 @@ def test_images_are_the_locked_pins() -> None:
             assert (service["image"], service["pull_policy"]) == (SHARED[name], "never")
         elif name in CLOUD:
             assert service["image"] == CLOUD[name], name
+        elif name in MIRRORED:
+            var = "H4_IMAGE_" + name.upper().replace("-", "_")
+            assert service["image"] == f"${{{var}:-{pins[name]}}}", name
         else:
             assert service["image"] == pins[name], name
     assert [n for n, s in SERVICES.items() if "build" in s] == list(BUILT)
@@ -625,6 +663,7 @@ def test_read_only_roots_where_the_image_allows() -> None:
         "tunnel": ["/run/tunnel:uid=10001,gid=10001,mode=0700"],
         "tunnel-end": ["/run:uid=10001,gid=10001,mode=0700"],
         "tunnel-end-collector": ["/tmp"],
+        "ec2-relay-block": ["/tmp"],
     }
     for name, tmpfs in tunnel.items():
         assert SERVICES[name]["read_only"] is True and SERVICES[name]["tmpfs"] == tmpfs
@@ -1083,6 +1122,34 @@ def test_the_build_proxy_is_a_build_argument_never_a_variable() -> None:
         assert "H4_BUILD_PROXY" not in str(environment), name
 
 
+# What EC2's deployer writes to each release's env file besides the images (deploy/scripts/deployer.py).
+EC2_RELEASE_KEYS = {"H4_REF", "H4_WEB_SUFFIX"}
+EC2_CLASS = (
+    "edge",
+    "web",
+    "gateway",
+    "otel-collector",
+    "prometheus",
+    "loki",
+    "grafana",
+    "langfuse-web",
+    "langfuse-worker",
+    "langfuse-db",
+    "clickhouse",
+    "valkey",
+    "seaweedfs",
+    "ec2-relay-block",
+)
+
+
+def read_by_ec2(name: str) -> bool:
+    return any(
+        any(name in found for found, _ in VAR.findall(text))
+        for service in EC2_CLASS
+        for text in strings(COMPOSE["services"][service])
+    )
+
+
 def test_every_variable_compose_reads_is_in_the_env_files() -> None:
     """A variable without a default is in every env file (H4_TREE comes from the run file on host stacks); one
     with a default is in at least one, or is a run-file key (H4_REF, the gateway's tag on host stacks: tasks.md T184),
@@ -1104,12 +1171,16 @@ def test_every_variable_compose_reads_is_in_the_env_files() -> None:
                 f"{name}: in no env file"
             )
         else:
-            # The tunnel end's file is read by its own class alone, whose services read no default-less name.
+            # The tunnel end's file is read by its own class alone, whose services read no default-less name; EC2's by
+            # its own class alone too, whose names are in its file or in the deployer's release env file (H4_WEB_SUFFIX).
             missing = [
                 s
                 for s in every
                 if s != "tunnel-end"
                 and name not in every[s]
                 and not (name in RUN_FILE_KEYS and s != "dev-cpu")
+                and not (
+                    s == "ec2" and (name in EC2_RELEASE_KEYS or not read_by_ec2(name))
+                )
             ]
             assert not missing, f"{name}: missing from {missing}"

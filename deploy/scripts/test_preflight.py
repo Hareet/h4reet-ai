@@ -1744,3 +1744,130 @@ def test_the_tunnel_end_class_refuses_a_store_without_its_certificate(
     results = {r.check: r for r in pf.tunnel_end_checks(REPO, env, folder)}
     assert results["T5"].status == "FAIL" and "server.key" in results["T5"].reason
     assert "K" * 64 not in results["T5"].reason
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001 group 7 (tasks.md T081): EC2's class, E1 to E6, and the image overrides no host's own env file may name.
+
+EC2_TEMPLATE = REPO / "deploy" / "hosts" / "ec2" / "ec2.env.example"
+
+
+def ec2_env(tmp_path: Path, **change: str) -> Path:
+    import base64
+    import secrets
+
+    values, _ = pf.parse_env(EC2_TEMPLATE.read_text(encoding="utf-8"))
+    dashes = "-" * 5
+    pem = f"{dashes}BEGIN CERTIFICATE{dashes}\nQUJD\n{dashes}END CERTIFICATE{dashes}\n"
+    for key, value in values.items():
+        if value.startswith("__PARAMETER"):
+            values[key] = secrets.token_urlsafe(32)
+    values.update(
+        {
+            "H4_REGISTRY": "3" * 12 + ".dkr.ecr.us-east-1.amazonaws.com",
+            "RELEASE_BUCKET": "h4reet-ai-releases-abc123",
+            "GATEWAY_DB_TLS_CA": base64.b64encode(pem.encode()).decode(),
+        }
+    )
+    values.update(change)
+    path = tmp_path / "ec2.env"
+    path.write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def ec2_aws(tmp_path: Path, expires: str = "2999-01-01T00:00:00Z") -> Path:
+    import json
+
+    aws = tmp_path / "aws"
+    aws.mkdir(exist_ok=True)
+    (aws / "credentials.json").unlink(missing_ok=True)
+    (aws / "config").write_text(
+        "[profile h4reet-bedrock]\nregion = us-east-1\ncredential_process = /bin/cat /home/node/.aws/credentials.json\n",
+        encoding="utf-8",
+    )
+    (aws / "credentials.json").write_text(
+        json.dumps({"Version": 1, "Expiration": expires}), encoding="utf-8"
+    )
+    (aws / "credentials.json").chmod(0o400)
+    return aws
+
+
+def ec2_statuses(results) -> dict[str, str]:
+    return {r.check: r.status for r in results}
+
+
+def test_ec2s_class_passes_its_template_on_h4_prod_ec2(tmp_path: Path) -> None:
+    results = pf.ec2_checks(
+        REPO, ec2_env(tmp_path), ec2_aws(tmp_path), name_tag=lambda: "h4-prod-ec2"
+    )
+    assert ec2_statuses(results) == {f"E{n}": "PASS" for n in range(1, 7)}, [
+        r.line() for r in results
+    ]
+
+
+@pytest.mark.parametrize(
+    ("change", "check"),
+    [
+        # No model-server profile and no local store: EC2's profile is its class's alone.
+        ({"COMPOSE_PROFILES": "ec2,gpu"}, "E3"),
+        ({"COMPOSE_PROFILES": "ec2,cpu"}, "E3"),
+        ({"H4_HOST": "laptop"}, "E3"),
+        ({"GATEWAY_DB_URL": "postgres://gateway@gateway-state:5432/gateway"}, "E4"),
+        (
+            {
+                "GATEWAY_DB_URL": "postgres://gateway:pw@10.42.1.10:5432/h4reet?sslmode=verify-full"
+            },
+            "E4",
+        ),
+        ({"SMTP_PORT": "587"}, "E4"),
+        ({"GATEWAY_ANTHROPIC_API_KEY": ""}, "E4"),
+        ({"H4_IMAGE_EDGE": "elsewhere/edge@sha256:" + "0" * 64}, "E2"),
+    ],
+)
+def test_ec2s_class_refuses_what_isnt_its_own(
+    tmp_path: Path, change: dict, check: str
+) -> None:
+    results = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path, **change),
+        ec2_aws(tmp_path),
+        name_tag=lambda: "h4-prod-ec2",
+    )
+    assert ec2_statuses(results)[check] == "FAIL", [r.line() for r in results]
+    for value in change.values():
+        if value:
+            assert not any(value in r.reason for r in results)
+
+
+def test_the_imdsv2_tag_check_against_a_stub(tmp_path: Path) -> None:
+    for tag in ("", "h4-prod-tunnel-end"):
+        results = pf.ec2_checks(
+            REPO, ec2_env(tmp_path), ec2_aws(tmp_path), name_tag=lambda t=tag: t
+        )
+        assert ec2_statuses(results)["E5"] == "FAIL"
+
+
+def test_ec2s_phases_split_at_the_host_step(tmp_path: Path) -> None:
+    before = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path),
+        tmp_path / "none",
+        phase="before",
+        name_tag=lambda: "h4-prod-ec2",
+    )
+    assert [r.check for r in before] == ["E1", "E2", "E3", "E4", "E5"]
+    after = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path),
+        ec2_aws(tmp_path, "2000-01-01T00:00:00Z"),
+        phase="after",
+    )
+    assert [(r.check, r.status) for r in after] == [("E6", "FAIL")]
+
+
+def test_an_image_override_is_read_as_its_pin_and_named_by_no_env_file() -> None:
+    pin = "ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:" + "1" * 64
+    assert pf.as_pinned("edge", "${H4_IMAGE_EDGE:-" + pin + "}") == pin
+    # Another service's variable isn't this one's override: read as written, and P17 refuses it.
+    assert pf.as_pinned("edge", "${H4_IMAGE_LOKI:-" + pin + "}").startswith("${")

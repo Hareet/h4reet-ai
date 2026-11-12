@@ -409,7 +409,8 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # Go's encoder, which writes a little more than zlib's (group 5's review, nits).
     # From the release (plan.md §16): with the deployer out of it, 12,208 bytes on 2026-11-13 (the deployer's review,
     # nit 1: the earlier 11,975 wasn't the run's own figure); 13,316 after that review's fixes to the first step (its
-    # lock, its timeout, its alerts). Held under 14,000, so a new host file shows here before it nears the limit.
+    # lock, its timeout, its alerts); 13,696 once the first step names EC2's env file too (group 7). Held under
+    # 14,000, so a new host file shows here before it nears the limit.
     size = len(gzip.compress(text.encode(), 6))
     assert size < 14000, (
         f"the tunnel end's user data is {size} bytes gzipped at level 6"
