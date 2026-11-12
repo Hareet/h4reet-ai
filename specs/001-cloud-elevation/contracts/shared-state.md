@@ -96,3 +96,18 @@ Steps 3 and 4 each take the operator credential and a reason naming the restore,
 ## 9. What it never holds
 
 No payload, message, answer, visitor address, or client label. Spec 000's ledger and audit columns are unchanged, apart from `host` (FR-042; SC-011's scan covers the store). Its backups hold what it holds, and nothing more (disclosure row C16).
+
+## 10. The dashboard's Hosts row: the shared state (group 6)
+
+(new in group 6; tasks.md T075.) `deploy/grafana/dashboards/h4-runtime.json`'s "Hosts" row, below group 5's panels (contracts/tunnel.md §7):
+
+| Panel | Type | Query |
+|---|---|---|
+| Shared state latency, p95 (FR-060) | time series | `histogram_quantile(0.95, sum by (le, h4_host) (rate(h4_shared_state_latency_seconds_bucket[5m])))` |
+| Shared state errors (FR-060) | time series | `sum by (h4_host, error_type) (rate(h4_shared_state_errors_total[5m]))` |
+| Last good backup's age (FR-019) | stat | `max(h4_shared_state_backup_age_seconds)` |
+
+- **`h4_shared_state_latency_seconds`** is `h4.shared_state.latency`, a histogram each host's gateway records for every query and session on the store, labelled `h4.host`.
+- **`h4_shared_state_errors_total`** is `h4.shared_state.errors`, a counter of the store's failures, labelled `h4.host` and `error.type`, the error's class (`ECONNREFUSED`, a SQLSTATE, or `timeout`), never its message.
+- **`h4_shared_state_backup_age_seconds`** is `h4.shared_state.backup_age_seconds`, the gauge the tunnel end's backup timer pushes to its collector after each run: the seconds since the last good dump. It reads green under 2 hours, and red from 2 hours, and on no data, when no dump has reached the bucket.
+- `deploy/scripts/test_dashboard.py` reads this section's table with contracts/tunnel.md §7's.

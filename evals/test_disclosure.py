@@ -756,3 +756,36 @@ def test_the_alert_rows_add_spec_011s_words() -> None:
     assert checked == 14
     # No row is added: spec 011's entries change four rows that exist.
     assert {"A1", "A2", "S12", "S13"} <= set(found)
+
+
+# Spec 001 (tasks.md T062; FR-068; spec 010 FR-039): the gate over every host route of schema 2, and schema 1's
+# envs.prod.fallback as before. Each fixture in evals/fixtures/routing/ names the Anthropic API in one place, but the
+# last, which names it nowhere.
+ROUTING_FIXTURES = REPO / "evals" / "fixtures" / "routing"
+NAMES_ANTHROPIC = (
+    "schema1-fallback-anthropic.yaml",
+    "schema2-laptop-fallback-anthropic.yaml",
+    "schema2-ec2-first-anthropic.yaml",
+    "schema2-ec2-second-anthropic.yaml",
+)
+
+
+def test_the_placeholder_gate_reads_every_host_route() -> None:
+    before = before_the_authors_words(TEXT)
+    worded = with_the_authors_words(before)
+    for name in NAMES_ANTHROPIC:
+        text = (ROUTING_FIXTURES / name).read_text(encoding="utf-8")
+        assert placeholder_gate(text, before) != [], name
+        assert placeholder_gate(text, worded) == [], name
+    clear = (ROUTING_FIXTURES / "schema2-no-anthropic.yaml").read_text(encoding="utf-8")
+    assert placeholder_gate(clear, before) == []
+    assert placeholder_gate(clear, worded) == []
+
+
+def test_the_placeholder_gate_names_the_route_it_found() -> None:
+    before = before_the_authors_words(TEXT)
+    text = (ROUTING_FIXTURES / "schema2-ec2-second-anthropic.yaml").read_text(
+        encoding="utf-8"
+    )
+    (found,) = placeholder_gate(text, before)
+    assert "envs.prod.hosts.ec2.second" in found

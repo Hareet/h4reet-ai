@@ -47,6 +47,8 @@ FILES = (
     "network.tf",
     "tunnel-end.tf",
     "ssm.tf",
+    # Group 6's shared state (tasks.md T073), its data volume and its backups' bucket.
+    "shared-state.tf",
     "ec2-market.tf",
     "iam.tf",
     "handover.tf",
@@ -429,11 +431,14 @@ def check_groups(root: dict[str, list]) -> list[str]:
             "groups: the public interface doesn't admit exactly 2222 from anywhere and 8087 from Route 53's checkers"
         )
     private = group_rules(root, "tunnel_end_private")
+    # Group 6 (tasks.md T066): the shared state's 5432, from EC2's group alone.
     if private != [
-        (8080, "prefix_list_ids=[data.aws_ec2_managed_prefix_list.cloudfront.id]")
+        (8080, "prefix_list_ids=[data.aws_ec2_managed_prefix_list.cloudfront.id]"),
+        (5432, "security_groups=[aws_security_group.ec2.id]"),
     ]:
         found.append(
-            "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list"
+            "groups: the private interface doesn't admit exactly 8080 from CloudFront's origin-facing list and 5432 "
+            "from EC2's group"
         )
     ranges = one(root, "aws_ip_ranges", "route53_health_checks", "data")
     if ranges is None or lit(ranges, "services") != ["route53_healthchecks"]:
@@ -457,7 +462,10 @@ ACCOUNT_ID = "${data.aws_caller_identity.current.account_id}"
 ECR = f"arn:aws:ecr:us-east-1:{ACCOUNT_ID}:repository/h4reet/*"
 PARAMETERS = (
     f'[ "arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/tunnel-end/*", '
-    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/hosts/*", ]'
+    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/hosts/*", '
+    # Group 6 (tasks.md T066): the two role passwords of /h4reet/ec2/ the shared state's roles target sets, by name.
+    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD", '
+    f'"arn:aws:ssm:us-east-1:{ACCOUNT_ID}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD", ]'
 )
 ROLE_GRANTS = {
     "ecr:GetAuthorizationToken": '["*"]',
@@ -471,6 +479,8 @@ ROLE_GRANTS = {
     '"arn:aws:s3:::h4reet-ai-releases-*/tools/*", ]',
     "s3:ListBucket": '["arn:aws:s3:::h4reet-ai-releases-*"]',
     "sns:Publish": f'["{TOPIC_ARN}"]',
+    # Group 6 (tasks.md T066): the hourly backup's put, under its one prefix; nothing reads or deletes there.
+    "s3:PutObject": '["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]',
 }
 SESSION_MANAGER = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 

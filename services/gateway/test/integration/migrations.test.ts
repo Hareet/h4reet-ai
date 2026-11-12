@@ -48,7 +48,7 @@ const fatal = async (p: Promise<unknown>): Promise<FatalStoreError> => {
 };
 
 describe("the migration files", () => {
-  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, 0005_adapter_month, and 0006_alert_forms, in order, each with the SHA-256 of its bytes", async () => {
+  it("are 0001_state, 0002_grafana_ro, 0003_studio_window, 0004_twin, 0005_adapter_month, 0006_alert_forms, and 0007_hosts, in order, each with the SHA-256 of its bytes", async () => {
     expect(migrations.map((m) => [m.version, m.name])).toEqual([
       [1, "0001_state"],
       [2, "0002_grafana_ro"],
@@ -56,6 +56,7 @@ describe("the migration files", () => {
       [4, "0004_twin"],
       [5, "0005_adapter_month"],
       [6, "0006_alert_forms"],
+      [7, "0007_hosts"],
     ]);
     const text = await readFile(new URL("../../migrations/0001_state.sql", import.meta.url), "utf8");
     expect(migrations[0]?.sha256).toBe(sha256(text));
@@ -73,7 +74,7 @@ describe("applying them", () => {
   });
 
   it("applies each, records each with its SHA-256, and holds the advisory lock throughout", async () => {
-    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(await runMigrations(db, migrations)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     const { rows } = await db.pg.query<{ version: number; name: string; sha256: string }>(
       "SELECT version, name, sha256 FROM gateway.schema_migrations ORDER BY version",
     );
@@ -108,7 +109,7 @@ describe("applying them", () => {
     const err = await fatal(runMigrations(db, migrations.slice(0, 1)));
     expect([err.exitCode, err.reason]).toEqual([78, "schema_newer_than_code"]);
     expect(err.message).toContain("2");
-    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (7, '0007_later', $1, now())", [HEX64]);
+    await db.pg.query("INSERT INTO gateway.schema_migrations VALUES (8, '0008_later', $1, now())", [HEX64]);
     expect((await fatal(runMigrations(db, migrations))).reason).toBe("schema_newer_than_code");
   });
 
@@ -122,14 +123,14 @@ describe("applying them", () => {
 
   it("rolls back a migration that fails, and records nothing for it", async () => {
     const broken: Migration = {
-      version: 7, // spec 011's 0006_alert_forms is the newest real one
-      name: "0007_broken",
+      version: 8, // spec 001's 0007_hosts is the newest real one
+      name: "0008_broken",
       sql: "CREATE TABLE gateway.half_done (id int); SELECT no_such_function();",
       sha256: sha256("x"),
     };
     await expect(runMigrations(db, [...migrations, broken])).rejects.toThrow(/no_such_function/);
     const { rows } = await db.pg.query<{ version: number }>("SELECT version FROM gateway.schema_migrations");
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect((await db.pg.query("SELECT to_regclass('gateway.half_done') AS t")).rows[0]).toEqual({ t: null });
   });
 });
@@ -562,6 +563,7 @@ describe("grafana_ro (§2.9)", () => {
     expect(tables.map((t) => t.name)).toEqual([
       "alert_outbox",
       "audit_log",
+      "handover_events",
       "incidents",
       "ledger",
       "meters",
@@ -725,7 +727,7 @@ describe("the store", () => {
     ]);
     expect(logged[0]?.record).toMatchObject({ condition: "store_unreachable", error_class: "ECONNREFUSED" });
     expect(JSON.stringify(logged)).not.toContain("10.0.0.1");
-    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4, 5, 6] });
+    expect(logged[1]?.record).toMatchObject({ versions: [1, 2, 3, 4, 5, 6, 7] });
     await store.close();
   });
 
@@ -833,7 +835,7 @@ describe("the store", () => {
     expect(await store.readStackState()).toEqual({ kind: "unreachable" });
     expect(store.status).toBe("ready");
     expect(logged.filter((l) => l.record.event === "migrations.applied").map((l) => l.record.versions)).toEqual([
-      [1, 2, 3, 4, 5, 6],
+      [1, 2, 3, 4, 5, 6, 7],
       [],
     ]);
     expect(logged.at(-1)?.record).toMatchObject({ event: "state.unknown", error_class: "42P01" });
@@ -865,10 +867,11 @@ describe("the store", () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     // One run, for both reads, and no outage: the store answered throughout.
     expect(logged.map((l) => [l.level, l.record.event, l.record.versions])).toEqual([
-      ["info", "migrations.applied", [1, 2, 3, 4, 5, 6]],
+      ["info", "migrations.applied", [1, 2, 3, 4, 5, 6, 7]],
     ]);
     expect(store.outageStartedAt()).toBeUndefined();
     await store.close();
@@ -1097,5 +1100,207 @@ describe("0006_alert_forms (spec 011, Amendment 0-7; FR-030, FR-033, FR-044)", (
     }
     const text = await readFile(new URL("../../migrations/0006_alert_forms.sql", import.meta.url), "utf8");
     expect(migrations.find((m) => m.name === "0006_alert_forms")?.sha256).toBe(sha256(text));
+  });
+});
+
+// Spec 001's 0007_hosts (its data-model.md §1.2; tasks.md T059): the host on each ledger and audit row, the relay's
+// handover events and its two roles, and the view grafana_ro reads them by. The gateway sets the host for its session
+// (h4.host, from H4_HOST; src/meter/store.ts), and each row takes it as its default, so every writer sets it.
+describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
+  let db: TestDatabase;
+  beforeEach(async () => {
+    db = await migrated();
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  // 0001 to 0006 as they were before spec 001, by their SHA-256, each in two halves built at run time.
+  const BEFORE: [string, string, string][] = [
+    ["0001_state", "0355f5a956200f9ef0f726951f5d628a", "e6323b79f22eccdc965c4c8be5659a0a"],
+    ["0002_grafana_ro", "c903c71005c325f14a2d3f1edde3b10d", "a83970cd142f6b2df71a414bb9d05542"],
+    ["0003_studio_window", "cbb34a3f78f043303deb106e89dae2b1", "a728cae59ba119d87b7f1b7928774622"],
+    ["0004_twin", "57261417280fb02dfec14b1430ca4d2b", "04f64a07bd61dd19a55395a1bea73d9c"],
+    ["0005_adapter_month", "66b947ca298b7d4264d218baad5c16cd", "d853702fb2628b1a00bdbd7f4a68fd5c"],
+    ["0006_alert_forms", "3dff1d6398571c05067e8e06eb84adbc", "1d1eb008dfbd79a762f99704c19634af"],
+  ];
+
+  it("leaves 0001 to 0006 byte-identical", () => {
+    for (const [name, a, b] of BEFORE) {
+      expect(migrations.find((m) => m.name === name)?.sha256, name).toBe(`${a}${b}`);
+    }
+  });
+
+  const ledgerRow = (host?: string) =>
+    db.pg.query(
+      `INSERT INTO gateway.ledger (id, reservation_id, ts, started_at, stack, request_id, trace_id, purpose,
+         route_decision, route_reason, attribution, adapter_id, provider, request_model, response_model, input_tokens,
+         output_tokens, cache_read_tokens, latency_ms, finish_reason, outcome, error_kind, cost_micro, cost_basis,
+         price_version, routing_sha, period_day, period_month, client_label${host === undefined ? "" : ", host"})
+       VALUES (gen_random_uuid(), NULL, now(), now(), 'prod', 'r1', $1, 'hello', 'local', NULL, 'none', 'local', 'local',
+         'stand-in', 'stand-in', 10, 5, NULL, 12, 'stop', 'ok', NULL, 0, 'none', '2026-10-08.1', $2, '2026-11-07',
+         '2026-11', NULL${host === undefined ? "" : ", $3"})`,
+      host === undefined ? [HEX32, HEX64] : [HEX32, HEX64, host],
+    );
+  const auditRow = () =>
+    db.pg.query(
+      `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+       VALUES (now(), 'prod', 'gateway', 'trip', NULL, '{}')`,
+    );
+  const hosts = async (table: string): Promise<(string | null)[]> =>
+    (await db.pg.query<{ host: string | null }>(`SELECT host FROM gateway.${table} ORDER BY ts`)).rows.map(
+      (r) => r.host,
+    );
+
+  it("gives ledger and audit_log a host, laptop or ec2, from the session's h4.host, and null without one", async () => {
+    await ledgerRow();
+    await auditRow();
+    await db.pg.exec("SET h4.host = 'ec2'");
+    await ledgerRow();
+    await auditRow();
+    await db.pg.exec("SET h4.host = 'laptop'");
+    await ledgerRow();
+    await auditRow();
+    expect(await hosts("ledger")).toEqual([null, "ec2", "laptop"]);
+    expect(await hosts("audit_log")).toEqual([null, "ec2", "laptop"]);
+    await expect(ledgerRow("tunnel-end")).rejects.toThrow(/ledger_host_check|check constraint/);
+    await db.pg.exec("SET h4.host = 'tunnel-end'");
+    await expect(auditRow()).rejects.toThrow(/check constraint/);
+    await db.pg.exec("RESET h4.host");
+  });
+
+  it("keeps the rows from before 0007 at a null host", async () => {
+    const fresh = await testDatabase();
+    try {
+      await runMigrations(
+        fresh,
+        migrations.filter((m) => m.version < 7),
+      );
+      await fresh.pg.exec("SET h4.host = 'ec2'");
+      await fresh.pg.query(
+        `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+         VALUES (now(), 'prod', 'gateway', 'trip', NULL, '{}')`,
+      );
+      await runMigrations(fresh, migrations);
+      const { rows } = await fresh.pg.query<{ host: string | null }>("SELECT host FROM gateway.audit_log");
+      expect(rows).toEqual([{ host: null }]);
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  it("admits restore among the operator's audited writes, with its reason", async () => {
+    await db.pg.query(
+      `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+       VALUES (now(), 'prod', 'operator:prod#1a2b3c4d', 'restore', 'Restored from the 06:00 dump.', '{}')`,
+    );
+    await expect(
+      db.pg.query(
+        `INSERT INTO gateway.audit_log (ts, stack, actor, action, reason, detail)
+         VALUES (now(), 'prod', 'operator:prod#1a2b3c4d', 'restore', NULL, '{}')`,
+      ),
+    ).rejects.toThrow(/audit_log_reason_iff_operator_write/);
+  });
+
+  const handover = (from: string, to: string, reason: string, gap: number | null = null) =>
+    db.pg.query(
+      "INSERT INTO gateway.handover_events (at, from_host, to_host, reason, gap_ms) VALUES (now(), $1, $2, $3, $4)",
+      [from, to, reason, gap],
+    );
+
+  it("records handover events with their hosts, their reason, and a gap only on a move out of none", async () => {
+    await handover("laptop", "none", "laptop_unhealthy");
+    await handover("none", "ec2", "ec2_healthy", 41_000);
+    await handover("ec2", "laptop", "laptop_healthy");
+    const { rows } = await db.pg.query<Record<string, unknown>>(
+      "SELECT from_host, to_host, reason, gap_ms FROM gateway.handover_events ORDER BY id",
+    );
+    expect(rows).toEqual([
+      { from_host: "laptop", to_host: "none", reason: "laptop_unhealthy", gap_ms: null },
+      { from_host: "none", to_host: "ec2", reason: "ec2_healthy", gap_ms: 41_000 },
+      { from_host: "ec2", to_host: "laptop", reason: "laptop_healthy", gap_ms: null },
+    ]);
+    await expect(handover("tunnel-end", "ec2", "ec2_healthy")).rejects.toThrow();
+    await expect(handover("laptop", "ec2", "moved")).rejects.toThrow();
+    await expect(handover("laptop", "ec2", "ec2_healthy", 5)).rejects.toThrow(/handover_events_gap/);
+    await expect(handover("none", "ec2", "ec2_healthy", -1)).rejects.toThrow();
+  });
+
+  const roleOf = async (name: string) =>
+    (
+      await db.pg.query<Record<string, unknown>>(
+        `SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolconfig, rolpassword IS NULL AS nopw
+         FROM pg_authid WHERE rolname = $1`,
+        [name],
+      )
+    ).rows[0];
+
+  it("makes relay_ro and relay_rw login roles with no password and no other powers", async () => {
+    expect(await roleOf("relay_ro")).toEqual({
+      rolcanlogin: true,
+      rolsuper: false,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolinherit: false,
+      rolconfig: ["default_transaction_read_only=on", "statement_timeout=250ms"],
+      nopw: true,
+    });
+    expect(await roleOf("relay_rw")).toMatchObject({
+      rolcanlogin: true,
+      rolsuper: false,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolinherit: false,
+      nopw: true,
+    });
+  });
+
+  it("lets relay_ro read v_state and nothing else, and relay_rw insert handover events and nothing else", async () => {
+    await db.pg.exec("SET ROLE relay_ro");
+    try {
+      await expect(db.pg.query("SELECT * FROM gateway.v_state")).resolves.toBeDefined();
+      for (const t of ["stack_state", "meters", "ledger", "audit_log", "handover_events", "v_handovers"]) {
+        await expect(db.pg.query(`SELECT 1 FROM gateway.${t} LIMIT 1`), t).rejects.toThrow(/permission denied/);
+      }
+    } finally {
+      await db.pg.exec("RESET ROLE");
+    }
+    await db.pg.exec("SET ROLE relay_rw");
+    try {
+      await expect(handover("laptop", "none", "laptop_unhealthy")).resolves.toBeDefined();
+      for (const t of ["v_state", "stack_state", "handover_events", "ledger"]) {
+        await expect(db.pg.query(`SELECT 1 FROM gateway.${t} LIMIT 1`), t).rejects.toThrow(/permission denied/);
+      }
+      await expect(db.pg.query("DELETE FROM gateway.handover_events")).rejects.toThrow(/permission denied/);
+      await expect(db.pg.query("UPDATE gateway.handover_events SET gap_ms = 1")).rejects.toThrow(/permission denied/);
+    } finally {
+      await db.pg.exec("RESET ROLE");
+    }
+  });
+
+  it("gives grafana_ro the last 30 days of handovers through v_handovers, and still not the table", async () => {
+    await db.pg.query(
+      `INSERT INTO gateway.handover_events (at, from_host, to_host, reason)
+       VALUES (now() - interval '31 days', 'ec2', 'laptop', 'laptop_healthy')`,
+    );
+    await handover("laptop", "ec2", "ec2_healthy");
+    await db.pg.exec("SET ROLE grafana_ro");
+    try {
+      const { rows } = await db.pg.query<{ to_host: string }>("SELECT to_host FROM gateway.v_handovers");
+      expect(rows).toEqual([{ to_host: "ec2" }]);
+      await expect(db.pg.query("SELECT 1 FROM gateway.handover_events")).rejects.toThrow(/permission denied/);
+    } finally {
+      await db.pg.exec("RESET ROLE");
+    }
+  });
+
+  it("runs again on a store whose relay roles exist already, as a restored store's do", async () => {
+    const fresh = await testDatabase();
+    try {
+      await fresh.pg.exec("CREATE ROLE relay_ro LOGIN; CREATE ROLE relay_rw LOGIN");
+      await expect(runMigrations(fresh, migrations)).resolves.toEqual([1, 2, 3, 4, 5, 6, 7]);
+    } finally {
+      await fresh.close();
+    }
   });
 });

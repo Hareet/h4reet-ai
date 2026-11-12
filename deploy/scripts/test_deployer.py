@@ -87,6 +87,10 @@ class Docker:
         self.owned.append((name, uid))
         return True
 
+    def host_step(self, host: str, tree: Path) -> bool:
+        self.calls.append((str(tree), ["host-step", host], {}))
+        return host not in self.fail_for
+
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
         env: dict[str, str] = {}
         for path in env_files:
@@ -355,4 +359,47 @@ def test_alerts_carry_no_address_and_no_account() -> None:
         "[hareet.ai aws] deploy_refused: tunnel-end refused release r1",
         "- reason: tree",
         "- release: r1",
+    ]
+
+
+# Group 6 (tasks.md T164): the tunnel end's host step from the release's tree, before compose pulls or starts
+# anything: the shared state's volume, its key and certificate on tmpfs, and its backup timer
+# (deploy/hosts/tunnel-end/shared_state.py prepare), so none of it travels in the user data.
+def test_the_host_step_runs_from_the_releases_tree_before_anything_starts(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    kinds = [args[0] for _, args, _ in w.docker.calls]
+    assert kinds[:3] == ["host-step", "pull", "up"]
+    (step,) = [c for c in w.docker.calls if c[1][0] == "host-step"]
+    assert step[1] == ["host-step", "tunnel-end"]
+    assert Path(step[0]) == Path(w.docker.calls[1][0])
+
+
+def test_a_failed_host_step_is_a_failed_start(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    w.docker.fail_for.add("tunnel-end")
+    assert w.run() == 1
+    assert [args[0] for _, args, _ in w.docker.calls if args[0] in ("pull", "up")] == []
+    assert w.aws.alerts and "deploy_rollback_failed" in w.aws.alerts[0]
+
+
+def test_the_real_host_step_runs_the_trees_own_script_with_the_hosts_python(
+    tmp_path: Path,
+) -> None:
+    assert dp.HOST_STEPS == {
+        "tunnel-end": ("deploy/hosts/tunnel-end/shared_state.py", "prepare")
+    }
+    argv = dp.host_step_argv("tunnel-end", tmp_path)
+    assert argv == [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        str(tmp_path / "deploy/hosts/tunnel-end/shared_state.py"),
+        "prepare",
+        "--tree",
+        str(tmp_path),
     ]

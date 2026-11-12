@@ -1724,6 +1724,8 @@ TUNNEL_END_IMAGES = {
     "tunnel-end-collector": "otel-collector",
     "relay": "relay",
     "snapshot-sink": "snapshot",
+    # Spec 001's shared state (tasks.md T164): spec 000's pinned Postgres, copied by its index digest.
+    "shared-state": "shared-state",
 }
 
 

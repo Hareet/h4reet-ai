@@ -82,7 +82,8 @@ def test_new_inbound_reaches_2222_and_8087_publicly_and_8080_privately_only() ->
     assert pre[1:] == [
         f'iifname "{PUBLIC_IF}" ct state new tcp dport {{ 2222, 8087 }} accept',
         f'iifname "{PUBLIC_IF}" ct state new drop',
-        f'iifname "{PRIVATE_IF}" ct state new tcp dport 8080 accept',
+        # Group 6's shared state on 5432 (tasks.md T163), from EC2 alone by the security group.
+        f'iifname "{PRIVATE_IF}" ct state new tcp dport {{ 5432, 8080 }} accept',
         f'iifname "{PRIVATE_IF}" ct state new drop',
     ]
 
@@ -100,7 +101,11 @@ def groups() -> dict[str, set[tuple[int, str]]]:
                 re.sub(
                     r"\s+",
                     " ",
-                    (i.attr("cidr_blocks") or i.attr("prefix_list_ids")).raw,
+                    (
+                        i.attr("cidr_blocks")
+                        or i.attr("prefix_list_ids")
+                        or i.attr("security_groups")
+                    ).raw,
                 ),
             )
             for i in b.blocks("ingress")
@@ -113,7 +118,8 @@ def test_the_security_groups_admit_what_nftables_admits_and_route_53_alone_on_80
 ):
     found = groups()
     assert {port for port, _ in found["tunnel_end_public"]} == {2222, 8087}
-    assert {port for port, _ in found["tunnel_end_private"]} == {8080}
+    assert {port for port, _ in found["tunnel_end_private"]} == {5432, 8080}
+    assert (5432, "[aws_security_group.ec2.id]") in found["tunnel_end_private"]
     assert (8087, "data.aws_ip_ranges.route53_health_checks.cidr_blocks") in found[
         "tunnel_end_public"
     ]
@@ -166,6 +172,8 @@ def test_the_proxys_allowlist_is_awss_endpoints_ecr_and_sns_among_them() -> None
         "*.dkr.ecr.us-east-1.amazonaws.com",
         "prod-us-east-1-starport-layer-bucket.s3.us-east-1.amazonaws.com",
         "sns.us-east-1.amazonaws.com",
+        # Group 6's backups (disclosure row C16): its own bucket, by the account's ID in its name.
+        "h4reet-ai-shared-state-*.s3.us-east-1.amazonaws.com",
     } <= set(hosts)
     for host in hosts:
         assert re.fullmatch(
@@ -219,12 +227,13 @@ def test_the_env_files_template_names_the_tunnel_end() -> None:
     assert values["TELEMETRY_BLOCK_TOKEN"] == "__PARAMETER__"
 
 
-def test_the_class_is_the_tunnel_ends_four_services() -> None:
+def test_the_class_is_the_tunnel_ends_five_services() -> None:
     assert pf.HOST_CLASSES["tunnel-end"] == (
         "tunnel-end",
         "relay",
         "snapshot-sink",
         "tunnel-end-collector",
+        "shared-state",
     )
     raw = yaml.safe_load((REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8"))
     assert raw["services"]["tunnel"]["profiles"] == ["tunnel"]

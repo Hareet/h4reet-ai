@@ -45,6 +45,10 @@ STUDIO_ROW = "gpu-window §3"
 TUNNEL = (REPO / "specs/001-cloud-elevation/contracts/tunnel.md").read_text(
     encoding="utf-8"
 )
+# Group 6's, the shared state's, are contracts/shared-state.md §10's (tasks.md T075).
+SHARED_STATE = (REPO / "specs/001-cloud-elevation/contracts/shared-state.md").read_text(
+    encoding="utf-8"
+)
 HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
@@ -145,11 +149,16 @@ def all_contract_panels() -> dict[str, tuple[str, list[str]]]:
     return expected
 
 
+def contract_section(text: str, heading: str) -> str:
+    start = text.index(f"\n## {heading} ")
+    end = text.find("\n## ", start + 1)
+    return text[start : end if end > 0 else None]
+
+
 def hosts_section() -> str:
-    """tunnel.md §7, the Hosts row's group 5 panels, up to its next "## " heading."""
-    start = TUNNEL.index("\n## 7. ")
-    end = TUNNEL.find("\n## ", start + 1)
-    return TUNNEL[start : end if end > 0 else None]
+    """The Hosts row's panels: tunnel.md §7, group 5's, and shared-state.md §10, group 6's, each up to its next "## "
+    heading."""
+    return contract_section(TUNNEL, "7.") + contract_section(SHARED_STATE, "10.")
 
 
 def hosts_panels() -> dict[str, tuple[str, list[str]]]:

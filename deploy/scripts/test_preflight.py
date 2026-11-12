@@ -1563,6 +1563,8 @@ def test_the_tunnel_end_class_selects_its_services_only() -> None:
         "relay",
         "snapshot-sink",
         "tunnel-end-collector",
+        # Spec 001's shared state, on the tunnel end from W1 (tasks.md T163).
+        "shared-state",
     )
     in_profile = {
         name
@@ -1575,9 +1577,14 @@ def test_the_tunnel_end_class_selects_its_services_only() -> None:
 
 
 def test_the_tunnel_end_class_passes_its_env_file(tmp_path: Path) -> None:
-    results = {r.check: r for r in pf.tunnel_end_checks(REPO, tunnel_end_env(tmp_path))}
+    results = {
+        r.check: r
+        for r in pf.tunnel_end_checks(
+            REPO, tunnel_end_env(tmp_path), shared_state_tls(tmp_path)
+        )
+    }
     assert {k: r.reason for k, r in results.items() if r.status != "PASS"} == {}
-    assert set(results) == {"T1", "T2", "T3", "T4"}
+    assert set(results) == {"T1", "T2", "T3", "T4", "T5"}
 
 
 @pytest.mark.parametrize(
@@ -1596,7 +1603,9 @@ def test_the_tunnel_end_class_names_what_is_wrong(
 ) -> None:
     results = {
         r.check: r
-        for r in pf.tunnel_end_checks(REPO, tunnel_end_env(tmp_path, **change))
+        for r in pf.tunnel_end_checks(
+            REPO, tunnel_end_env(tmp_path, **change), shared_state_tls(tmp_path)
+        )
     }
     assert results[check].status == "FAIL" and named in results[check].reason
     assert TUNNEL_TOKEN not in results[check].reason
@@ -1605,5 +1614,128 @@ def test_the_tunnel_end_class_names_what_is_wrong(
 def test_the_tunnel_end_class_refuses_a_file_others_can_read(tmp_path: Path) -> None:
     path = tunnel_end_env(tmp_path)
     path.chmod(0o644)
-    results = {r.check: r for r in pf.tunnel_end_checks(REPO, path)}
+    results = {
+        r.check: r for r in pf.tunnel_end_checks(REPO, path, shared_state_tls(tmp_path))
+    }
     assert results["T1"].status == "FAIL"
+
+
+# Spec 001 group 6 (tasks.md T063, T163; FR-018, FR-019; contracts/env-cloud.md §2; contracts/shared-state.md §3): the
+# shared state's connection on the laptop's prod, H4_HOST per class, and the tunnel end's store certificate. The CA
+# certificate and the server's are certificate-shaped text built here, at run time.
+PEM = (
+    "-----BEGIN "
+    + "CERTIFICATE-----\n"
+    + "M" * 64
+    + "\n-----END "
+    + "CERTIFICATE-----\n"
+)
+CA_B64 = __import__("base64").b64encode(PEM.encode()).decode()
+SHARED_URL = "postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full"
+
+
+def with_shared_state(stage: Stage) -> None:
+    with_tunnel(stage)
+    stage.set(
+        GATEWAY_DB_URL=SHARED_URL,
+        GATEWAY_DB_TLS_SERVERNAME="shared-state",
+        GATEWAY_DB_TLS_CA=CA_B64,
+    )
+
+
+def shared_state_tls(tmp_path: Path) -> Path:
+    """/run/h4reet/shared-state as the tunnel end's host script leaves it: the key 0400, the certificate 0444."""
+    folder = tmp_path / "shared-state-tls"
+    folder.mkdir(exist_ok=True)
+    key = folder / "server.key"
+    key.write_text(
+        "-----BEGIN "
+        + "PRIVATE KEY-----\n"
+        + "K" * 64
+        + "\n-----END "
+        + "PRIVATE KEY-----\n"
+    )
+    key.chmod(0o400)
+    cert = folder / "server.crt"
+    cert.write_text(PEM)
+    cert.chmod(0o444)
+    return folder
+
+
+def test_p23_warns_while_the_laptops_prod_keeps_its_own_store(prod: Stage) -> None:
+    # Before the Author's move (tasks.md T080), prod's meter is the laptop's own gateway-state: make up still works.
+    result = prod.results()["P23"]
+    assert result.status == "WARN", result.reason
+    assert "T080" in result.reason and "FR-018" in result.reason
+
+
+def test_p23_passes_with_the_shared_state_over_tls(prod: Stage) -> None:
+    with_shared_state(prod)
+    result = prod.results()["P23"]
+    assert result.status == "PASS", result.reason
+    assert CA_B64 not in result.reason and SHARED_URL not in result.reason
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("verify-full", "require")},
+            "sslmode=verify-full",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("?sslmode=verify-full", "")},
+            "sslmode=verify-full",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("gateway@", "gateway:pw@")},
+            "password",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("tunnel:", "gateway-state:")},
+            "gateway-state",
+        ),
+        ({"GATEWAY_DB_TLS_SERVERNAME": ""}, "GATEWAY_DB_TLS_SERVERNAME"),
+        ({"GATEWAY_DB_TLS_CA": ""}, "GATEWAY_DB_TLS_CA"),
+        ({"GATEWAY_DB_TLS_CA": "bm90IGEgY2VydGlmaWNhdGU="}, "GATEWAY_DB_TLS_CA"),
+        ({"COMPOSE_PROFILES": "gpu"}, "tunnel"),
+    ],
+)
+def test_p23_names_what_the_shared_states_connection_lacks_never_a_value(
+    prod: Stage, change: dict, named: str
+) -> None:
+    with_shared_state(prod)
+    prod.set(**change)
+    result = prod.results()["P23"]
+    assert result.status == "FAIL" and named in result.reason, result.reason
+    assert "pw@" not in result.reason and CA_B64 not in result.reason
+
+
+@pytest.mark.parametrize("value", ["ec2", "tunnel-end", "", "server"])
+def test_p23_holds_each_laptop_stack_to_h4_host_laptop(
+    any_stack: Stage, value: str
+) -> None:
+    any_stack.set(H4_HOST=value)
+    result = any_stack.results()["P23"]
+    assert result.status == "FAIL" and "H4_HOST" in result.reason, result.reason
+
+
+def test_p23_refuses_the_shared_state_on_dev(dev: Stage) -> None:
+    dev.set(GATEWAY_DB_URL=SHARED_URL)
+    result = dev.results()["P23"]
+    assert result.status == "FAIL" and "GATEWAY_DB_URL" in result.reason
+
+
+def test_the_tunnel_end_class_refuses_a_store_without_its_certificate(
+    tmp_path: Path,
+) -> None:
+    env = tunnel_end_env(tmp_path)
+    folder = shared_state_tls(tmp_path)
+    (folder / "server.crt").unlink()
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, env, folder)}
+    assert results["T5"].status == "FAIL" and "server.crt" in results["T5"].reason
+    folder = shared_state_tls(tmp_path)
+    (folder / "server.key").chmod(0o644)
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, env, folder)}
+    assert results["T5"].status == "FAIL" and "server.key" in results["T5"].reason
+    assert "K" * 64 not in results["T5"].reason

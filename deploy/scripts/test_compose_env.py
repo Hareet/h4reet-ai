@@ -27,7 +27,7 @@ ENV_FILES = {
 RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL"}
 # The services spec 001 adds, each in its host's class (its contracts/env-cloud.md §3): the laptop's tunnel, and the
 # tunnel end's.
-SPEC_001 = {"tunnel", "tunnel-end", "tunnel-end-collector"}
+SPEC_001 = {"tunnel", "tunnel-end", "tunnel-end-collector", "shared-state"}
 RUN_FILE_KEYS = {
     "H4_TREE",
     "H4_REF",
@@ -164,14 +164,21 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
     ]
     # Spec 001's tunnel end publishes the tunnel and the health port on its public interface's fixed address, a
     # literal no other host has (its contracts/tunnel.md §1), from the edge bridge; the laptop's tunnel dials out.
-    assert [n for n, s in SERVICES.items() if s.get("ports")] == ["edge", "tunnel-end"]
+    assert [n for n, s in SERVICES.items() if s.get("ports")] == [
+        "edge",
+        "tunnel-end",
+        "shared-state",
+    ]
     assert SERVICES["tunnel-end"]["ports"] == [
         "10.42.0.10:2222:2222",
         "10.42.0.10:8087:2203",
     ]
+    # Group 6's shared state, on the private interface's fixed address alone (its contracts/shared-state.md §1).
+    assert SERVICES["shared-state"]["ports"] == ["10.42.1.10:5432:5432"]
     assert [n for n, s in SERVICES.items() if "edge" in s["networks"]] == [
         "edge",
         "tunnel-end",
+        "shared-state",
     ]
     assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
         "gateway",
@@ -193,6 +200,9 @@ CLOUD = {
     # An upstream image's copy, by the lock's own tag and digest.
     "tunnel-end-collector": "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@"
     + "sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6",
+    # Group 6's shared state: gateway-state's Postgres, copied as h4reet/shared-state by the lock's tag and digest.
+    "shared-state": "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@"
+    + "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
 }
 SHARED = {
     "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
@@ -627,7 +637,7 @@ def test_read_only_roots_where_the_image_allows() -> None:
 
 def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> None:
     # The two Postgres and Valkey: their entrypoints chown their data, then drop to their own user (plan §1).
-    for name in ("gateway-state", "langfuse-db", "valkey"):
+    for name in ("gateway-state", "langfuse-db", "valkey", "shared-state"):
         assert SERVICES[name]["cap_add"] == [
             "CHOWN",
             "SETUID",
@@ -639,6 +649,7 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         "gateway-state",
         "langfuse-db",
         "valkey",
+        "shared-state",
     ]
     # ClickHouse and SeaweedFS run as their images' own users instead, with nothing added back (plan §1 and §2).
     # ClickHouse's is how Langfuse's compose runs it, so its entrypoint changes no ownership. SeaweedFS's, seaweed, owns
@@ -679,6 +690,7 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
         ("telegram-standin", "0.1", "64M"),
         ("mailpit", "0.1", "64M"),
         ("breach-probe", "0.25", "128M"),
+        ("shared-state", "0.5", "256M"),
     ],
 )
 def test_limits_are_plan_2s(name: str, cpus: str, memory: str) -> None:
@@ -827,6 +839,12 @@ GATEWAY_FROM_ENV_FILE = {
     "TELEMETRY_PAYLOAD_SAMPLING": "${TELEMETRY_PAYLOAD_SAMPLING}",
     "AWS_PROFILE": "${GATEWAY_AWS_PROFILE:-none}",
     "GATEWAY_ANTHROPIC_API_KEY": "${GATEWAY_ANTHROPIC_API_KEY:-}",  # spec 010, FR-030
+    # Spec 001 group 6 (its contracts/env-cloud.md §2): the host, and the shared state's connection, empty until the
+    # Author's move, so prod keeps its local store meanwhile.
+    "H4_HOST": "${H4_HOST:-laptop}",
+    "GATEWAY_DB_URL": "${GATEWAY_DB_URL:-}",
+    "GATEWAY_DB_TLS_SERVERNAME": "${GATEWAY_DB_TLS_SERVERNAME:-}",
+    "GATEWAY_DB_TLS_CA": "${GATEWAY_DB_TLS_CA:-}",
 }
 GATEWAY_FIXED = {
     "GATEWAY_STATE_DIR": "/var/lib/h4-gateway",

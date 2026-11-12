@@ -28,6 +28,8 @@ data "aws_iam_policy_document" "tunnel_end" {
     resources = [
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
     ]
   }
 
@@ -84,5 +86,13 @@ data "aws_iam_policy_document" "tunnel_end" {
     effect    = "Allow"
     actions   = ["sns:Publish"]
     resources = ["*"]
+  }
+
+  # The shared state's hourly backup (group 6): its one prefix, put only.
+  statement {
+    sid       = "PutTheBackups"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]
   }
 }

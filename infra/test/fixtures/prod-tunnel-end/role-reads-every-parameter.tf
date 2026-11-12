@@ -85,4 +85,12 @@ data "aws_iam_policy_document" "tunnel_end" {
     actions   = ["sns:Publish"]
     resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
   }
+
+  # The shared state's hourly backup (group 6): its one prefix, put only.
+  statement {
+    sid       = "PutTheBackups"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]
+  }
 }
