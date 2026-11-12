@@ -55,15 +55,19 @@ def too_new(path: Path) -> list[str]:
                 and "UTC" in names
             ):
                 found.append(f"{line}: datetime's UTC is 3.11's")
-        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "zip":
-            if any(k.arg == "strict" for k in node.keywords):
-                found.append(f"{line}: zip's strict is 3.10's")
-        if isinstance(node, ast.Call) and getattr(node.func, "id", None) in (
-            "isinstance",
-            "issubclass",
+        if (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "zip"
+            and any(k.arg == "strict" for k in node.keywords)
         ):
-            if len(node.args) == 2 and isinstance(node.args[1], ast.BinOp):
-                found.append(f"{line}: a union in isinstance is 3.10's")
+            found.append(f"{line}: zip's strict is 3.10's")
+        if (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) in ("isinstance", "issubclass")
+            and len(node.args) == 2
+            and isinstance(node.args[1], ast.BinOp)
+        ):
+            found.append(f"{line}: a union in isinstance is 3.10's")
     return found
 
 
