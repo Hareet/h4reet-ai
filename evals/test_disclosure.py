@@ -597,20 +597,36 @@ def test_s2_d1_and_v2_change_as_spec_010s_entries_give_them() -> None:
     assert found["V2"][4].endswith(v2_sentence())
 
 
+def anthropic_routes(routing: dict) -> list[str]:
+    """Every place a prod route names an anthropic-messages adapter: schema 1's envs.prod.fallback, and each host
+    route's first, second, and fallback in schema 2 (spec 001, tasks.md T069; FR-068)."""
+    adapters = routing.get("adapters") or {}
+    prod = (routing.get("envs") or {}).get("prod") or {}
+    routes = {"envs.prod": prod}
+    for host, route in (prod.get("hosts") or {}).items():
+        routes[f"envs.prod.hosts.{host}"] = route or {}
+    found = []
+    for where, route in routes.items():
+        for role in ("first", "second", "fallback"):
+            adapter = adapters.get(route.get(role)) or {}
+            if adapter.get("type") == "anthropic-messages":
+                found.append(f"{where}.{role}")
+    return found
+
+
 def placeholder_gate(routing_text: str, disclosure_text: str) -> list[str]:
-    """What stops the Anthropic API's route (FR-039): F3's placeholder, while prod's fallback is anthropic-messages."""
-    routing = yaml.safe_load(routing_text)
-    fallback = ((routing.get("envs") or {}).get("prod") or {}).get("fallback")
-    adapter = (routing.get("adapters") or {}).get(fallback) or {}
-    if adapter.get("type") != "anthropic-messages":
+    """What stops the Anthropic API's route (FR-039): F3's placeholder, while any prod route names
+    anthropic-messages."""
+    routes = anthropic_routes(yaml.safe_load(routing_text) or {})
+    if not routes:
         return []
     (f3,) = [ln for ln in disclosure_text.splitlines() if ln.startswith("| F3 |")]
     from_to = [c.strip() for c in f3.strip().strip("|").split("|")][1]
     if PLACEHOLDER in from_to:
         return [
             (
-                "config/routing.yaml names the Anthropic API as prod's fallback while F3 holds the placeholder for "
-                "the Author's words about what Anthropic keeps (spec 010, FR-039)"
+                f"config/routing.yaml names the Anthropic API at {', '.join(routes)} while F3 holds the placeholder "
+                "for the Author's words about what Anthropic keeps (spec 010, FR-039)"
             )
         ]
     return []
