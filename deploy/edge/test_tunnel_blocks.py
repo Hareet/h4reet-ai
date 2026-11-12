@@ -12,7 +12,9 @@ that writes the blocks' token maps.
   - every other path on the three gets 404, and compose publishes none of them.
 
 The entrypoint, deploy/edge/entrypoint.sh, writes /tmp/h4-blocks/tokens.conf from the two tokens in edge's
-environment, each a map whose only match is "Bearer <token>"; with no token, nothing matches. A token outside its shape
+environment, each a map whose only match is "Bearer <token>", exactly, case and all: a regular expression, since nginx
+matches a map's plain strings without case, and hashes them in buckets a long token overflows (group 5's review, its
+nit and I2's nginx -t, deploy/edge/test_edge_on_engine.py); with no token, nothing matches. A token outside its shape
 stops edge, naming the key and never the value. Test tokens are built at run time.
 """
 
@@ -240,11 +242,11 @@ def test_the_entrypoint_writes_a_map_per_token(tmp_path: Path) -> None:
     assert text == (
         "map $http_authorization $h4_relay_authorized {\n"
         "  default 0;\n"
-        f'  "Bearer {relay}" 1;\n'
+        f'  "~^Bearer {relay}$" 1;\n'
         "}\n"
         "map $http_authorization $h4_telemetry_authorized {\n"
         "  default 0;\n"
-        f'  "Bearer {telemetry}" 1;\n'
+        f'  "~^Bearer {telemetry}$" 1;\n'
         "}\n"
     )
     assert out.stat().st_mode & 0o077 == 0
@@ -254,7 +256,7 @@ def test_the_entrypoint_writes_a_map_per_token(tmp_path: Path) -> None:
 def test_with_no_token_nothing_matches(tmp_path: Path) -> None:
     done, out = run_entrypoint(tmp_path)
     assert done.returncode == 0, done.stderr
-    assert '"Bearer' not in out.read_text(encoding="utf-8")
+    assert "Bearer" not in out.read_text(encoding="utf-8")
     assert out.read_text(encoding="utf-8").count("default 0;") == 2
 
 
