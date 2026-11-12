@@ -56,10 +56,19 @@ export async function restoreStore(deps: RestoreDeps, reason: string, operator: 
         [day, month],
       );
       const spent = (meter: string): bigint => toBigInt(meters.rows.find((r) => r.meter === meter)?.spent_micro ?? 0);
+      // FR-019's carry-over list beside the meters (group 6's review, I-3): the current periods' crossed ceilings
+      // and the fallback's renewal flag as the dump held them. Init holds the ceilings again from the restored meters,
+      // and sets the flag as the operator's renew says, so the operator reads both here first.
+      const row = state.rows[0] ?? {};
+      const crossed = (Array.isArray(row.crossed) ? (row.crossed as unknown[]) : [])
+        .map(String)
+        .filter((c) => c === `day:${day}` || c === `month:${month}`);
       const restored = {
         day_usd: usd(spent("day")),
         month_usd: usd(spent("month")),
         fallback_today_usd: usd(spent("fallback_day")),
+        crossed,
+        fallback_awaiting_renewal: row.fallback_awaiting_renewal !== false,
       };
       await q.query("DELETE FROM gateway.stack_state WHERE id = 1");
       const { rows } = await q.query<{ id: unknown }>(

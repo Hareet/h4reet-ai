@@ -1769,6 +1769,16 @@ def restore_lines(body: dict[str, Any]) -> list[str]:
             f"restored day {text(restored.get('day_usd'))} USD, month {text(restored.get('month_usd'))} USD, "
             f"fallback today {text(restored.get('fallback_today_usd'))} USD"
         ),
+        "restored crossed ceilings: "
+        + (
+            ", ".join(text(c) for c in restored.get("crossed") or [])
+            or "none: the restored meters hold every ceiling again at init"
+        ),
+        (
+            "restored renewal: the fallback awaited renewal: init without RENEW=1 keeps it waiting"
+            if restored.get("fallback_awaiting_renewal") is not False
+            else "restored renewal: the fallback was renewed: init with RENEW=1 keeps it"
+        ),
         (
             "next: make operator-init ENV=shared, never lower than these, raised by the spend since the dump "
             "(contracts/shared-state.md §8, step 4)"
