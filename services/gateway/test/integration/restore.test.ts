@@ -35,9 +35,10 @@ async function restored(): Promise<TestStack> {
   await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 7500000 WHERE meter = 'month' AND period_key = $1", [
     monthKey(now),
   ]);
-  await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 400000 WHERE meter = 'fallback_day' AND period_key = $1", [
-    dayKey(now),
-  ]);
+  await s.db.pg.query(
+    "UPDATE gateway.meters SET spent_micro = 400000 WHERE meter = 'fallback_day' AND period_key = $1",
+    [dayKey(now)],
+  );
   // The capped adapter's month (spec 010, FR-022), as the dump held it.
   await s.db.pg.query(
     `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, created_at, updated_at)
