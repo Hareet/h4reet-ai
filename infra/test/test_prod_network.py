@@ -570,7 +570,7 @@ def check_role(root: dict[str, list]) -> list[str]:
     wide = sorted(
         a
         for a, r in granted.items()
-        if r == '["*"]'
+        if re.sub(r"[\s,]", "", r) == '["*"]'
         and re.match(r"(ssm|kms|s3|secretsmanager):", a)
         and a != "ssm:UpdateInstanceInformation"
     )

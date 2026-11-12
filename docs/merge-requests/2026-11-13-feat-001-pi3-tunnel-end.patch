@@ -10,8 +10,9 @@ What it holds:
                                 limit 1, its type local.tunnel_end_type, which a precondition refuses while it holds
                                 T166's placeholder, so prod's plan stops there until T166 measures it;
       infra/prod/iam.tf         h4-prod-tunnel-end, its instance role: ECR pulls from h4reet/*, its Parameter Store
-                                paths, the release bucket's reads, sns:Publish on h4-alerts, Session Manager, each by a
-                                name-built ARN;
+                                paths, the release bucket's reads, sns:Publish on h4-alerts, each by a name-built ARN,
+                                and Session Manager's and Run Command's own actions inline, with no managed policy
+                                (group 5's review, I1: AmazonSSMManagedInstanceCore reads every parameter);
       infra/prod/handover.tf    prod's local.wired = false, and h4-tunnel-end-spot-warning to h4-alerts, naming the
                                 tunnel end from this root;
       infra/account/handover.tf the account's local.wired = false, alone;
@@ -397,7 +398,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +}
 --- /dev/null
 +++ b/infra/prod/iam.tf
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,164 @@
 +# The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
 +# provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
 +# it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
@@ -468,18 +469,51 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +    ]
 +  }
 +
-+  # Its SecureStrings, decrypted by Parameter Store alone.
++  # Its SecureStrings, decrypted by Parameter Store alone, with this account's keys. AWS's aws/ssm key may grant this by
++  # its own key policy already; to confirm at T058, after which a later patch can drop the statement.
 +  statement {
 +    sid       = "DecryptThroughParameterStore"
 +    effect    = "Allow"
 +    actions   = ["kms:Decrypt"]
-+    resources = ["*"]
++    resources = ["arn:aws:kms:us-east-1:${data.aws_caller_identity.current.account_id}:key/*"]
 +
 +    condition {
 +      test     = "StringEquals"
 +      variable = "kms:ViaService"
 +      values   = ["ssm.us-east-1.amazonaws.com"]
 +    }
++  }
++
++  # Session Manager and Run Command, the one way in for the Author (FR-050; his cloud-session target), and the Systems
++  # Manager commands his targets send: the actions AWS documents for an instance profile without the managed
++  # AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in the
++  # account, EC2's and the Author's among them (group 5's review, I1). AWS documents each on "*"; none reads a
++  # parameter, a secret, or an object.
++  statement {
++    sid    = "SessionManager"
++    effect = "Allow"
++    actions = [
++      "ssm:UpdateInstanceInformation",
++      "ssmmessages:CreateControlChannel",
++      "ssmmessages:CreateDataChannel",
++      "ssmmessages:OpenControlChannel",
++      "ssmmessages:OpenDataChannel",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "RunCommand"
++    effect = "Allow"
++    actions = [
++      "ec2messages:AcknowledgeMessage",
++      "ec2messages:DeleteMessage",
++      "ec2messages:FailMessage",
++      "ec2messages:GetEndpoint",
++      "ec2messages:GetMessages",
++      "ec2messages:SendReply",
++    ]
++    resources = ["*"]
 +  }
 +
 +  # The deployer's reads of the release bucket (infra/account/registry.tf), by its name's prefix, in this account.
@@ -528,12 +562,6 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +  name   = "tunnel-end"
 +  role   = aws_iam_role.tunnel_end.id
 +  policy = data.aws_iam_policy_document.tunnel_end.json
-+}
-+
-+# Session Manager, the one way in for the Author (FR-050; make cloud-session HOST=tunnel-end).
-+resource "aws_iam_role_policy_attachment" "tunnel_end_ssm" {
-+  role       = aws_iam_role.tunnel_end.name
-+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 +}
 --- a/specs/001-cloud-elevation/contracts/aws-alerts.md
 +++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
