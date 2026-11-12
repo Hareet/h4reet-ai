@@ -309,6 +309,9 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     positions = [run.find(step) for step in order]
     assert -1 not in positions and positions == sorted(positions), positions
     assert not re.search(r"\b(curl|wget)\b", text)
+    # Amazon Linux's own sshd goes at the first boot: nothing reaches 22, and nothing should listen there (group 5's
+    # review, nits). The way in is Session Manager.
+    assert "systemctl disable --now sshd.service" in run
 
 
 HOST_SCRIPTS = ("write_env.py", "egress_proxy.py", "deployer.py")
@@ -392,6 +395,9 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # EC2 takes 16 KB of user data before its base64; ec2-market.tf sends it gzipped. Later groups' host files would
     # pass it: they come from the release's tree instead (the note's backlog).
     assert len(gzip.compress(text.encode())) < 15 * 1024
+    # Terraform's base64gzip writes at Go's default level, 6, not 9: held under EC2's 16,384 bytes with 768 to spare for
+    # Go's encoder, which writes a little more than zlib's (group 5's review, nits).
+    assert len(gzip.compress(text.encode(), 6)) < 16384 - 768
 
 
 # ----------------------------------------------------------------------------------------------------------------------

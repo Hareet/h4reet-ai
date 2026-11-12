@@ -34,10 +34,14 @@ def test_two_exporters_the_laptops_through_the_tunnel_and_ec2s_in_the_vpc() -> N
     assert set(exporters) == {"otlphttp/laptop", "otlphttp/ec2"}
     assert exporters["otlphttp/laptop"]["endpoint"] == "http://tunnel-end:2202"
     assert exporters["otlphttp/ec2"]["endpoint"] == "${env:EC2_COLLECTOR_ENDPOINT}"
+    # The telemetry block's token is the laptop's 8086 block's alone: EC2 holds none, and its collector in the VPC
+    # takes none, so the token never goes there (contracts/env-cloud.md §2; group 5's review, nits).
+    assert exporters["otlphttp/laptop"]["headers"] == {
+        "Authorization": "Bearer ${env:TELEMETRY_BLOCK_TOKEN}"
+    }
+    assert "headers" not in exporters["otlphttp/ec2"]
+    assert "TELEMETRY_BLOCK_TOKEN" not in str(exporters["otlphttp/ec2"])
     for name, exporter in exporters.items():
-        assert exporter["headers"] == {
-            "Authorization": "Bearer ${env:TELEMETRY_BLOCK_TOKEN}"
-        }, name
         assert exporter["compression"] == "gzip", name
 
 
