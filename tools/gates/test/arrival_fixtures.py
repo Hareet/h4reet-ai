@@ -16,6 +16,12 @@ runs. The containers follow the formats themselves:
   BIN chunk (0x004E4942, padded with zeros). The mark is KHR_xmp_json_ld's packet on the asset.
 - TIFF and DNG: II*\\0 and an IFD whose tags include GPSInfo (0x8825); HEIC, AVIF, and MOV: ISO BMFF's ftyp box at
   byte 4, with an EXIF block in an mdat box.
+- A film's MP4 (rule A11, ADR 0050): ffmpeg's layout, as `ffprobe` and a box walk read a real render on 2026-11-11:
+  ftyp (isom, with isom iso2 avc1 mp41), moov holding mvhd, one video trak (its hdlr vide, VideoHandler), and udta >
+  meta > hdlr mdir and ilst > ©too "Lavf60.16.100", then free and mdat. Boxes are a 4-byte big-endian size counting
+  itself and a 4-byte type.
+- A film's GIF: GIF89a, a 1x1 logical screen with a two-colour table, NETSCAPE2.0's loop count, a graphic control,
+  one image, and the trailer (3B), as ffmpeg's palette pass writes them.
 """
 
 from __future__ import annotations
@@ -129,6 +135,113 @@ def isobmff(brand: bytes, *compatible: bytes) -> bytes:
         b"ftyp", brand + struct.pack(">I", 0) + b"".join(compatible or (brand,))
     )
     return ftyp + _box(b"mdat", struct.pack(">I", 6) + exif_block() + bytes(range(16)))
+
+
+XMP_UUID = bytes.fromhex("be7acfcb97a942e89c71999491e3afac")
+
+
+def _hdlr(kind: bytes, name: bytes) -> bytes:
+    return _box(b"hdlr", bytes(8) + kind + bytes(12) + name + b"\x00")
+
+
+def mp4_tag(kind: bytes, value: bytes) -> bytes:
+    """An iTunes-style tag as ffmpeg writes one in ilst: the tag's box holding a data box (type 1, UTF-8)."""
+    return _box(kind, _box(b"data", struct.pack(">II", 1, 0) + value))
+
+
+def film_mp4(
+    *,
+    brand: bytes = b"isom",
+    tags: bytes = b"",
+    udta: bytes = b"",
+    moov: bytes = b"",
+    top: bytes = b"",
+    handler: bytes = b"vide",
+    mdat: int = 64,
+    trailing: bytes = b"",
+) -> bytes:
+    """A film's render as ffmpeg lays it out: `tags` go into ilst beside ©too, `udta` into udta beside meta, `moov`
+    into moov, `top` between moov and free; `mdat` is the media data's length in bytes."""
+    ftyp = _box(b"ftyp", brand + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    stbl = _box(b"stbl", _box(b"stsd", bytes(8)))
+    minf = _box(b"minf", _box(b"vmhd", bytes(12)) + stbl)
+    mdia = _box(
+        b"mdia", _box(b"mdhd", bytes(24)) + _hdlr(handler, b"VideoHandler") + minf
+    )
+    trak = _box(b"trak", _box(b"tkhd", bytes(84)) + mdia)
+    ilst = _box(b"ilst", mp4_tag(b"\xa9too", b"Lavf60.16.100") + tags)
+    # ISO's meta, a full box: its version and flags, then hdlr mdir (ffmpeg writes "appl" as the first reserved word).
+    mdir = _box(b"hdlr", bytes(8) + b"mdirappl" + bytes(9))
+    meta = _box(b"meta", bytes(4) + mdir + ilst)
+    return (
+        ftyp
+        + _box(
+            b"moov",
+            _box(b"mvhd", bytes(100)) + trak + moov + _box(b"udta", meta + udta),
+        )
+        + top
+        + _box(b"free", b"")
+        + _box(b"mdat", bytes(mdat))
+        + trailing
+    )
+
+
+def film_gif(
+    *, extensions: bytes = b"", image: int = 2, trailing: bytes = b""
+) -> bytes:
+    """A film's GIF: `extensions` go after the loop count's; `image` is the image's LZW data length, in sub-blocks of at
+    most 255 bytes."""
+    screen = (
+        b"GIF89a"
+        + struct.pack("<HH", 1, 1)
+        + b"\x80\x00\x00"
+        + b"\xff\xff\xff\x00\x00\x00"
+    )
+    loop = b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
+    control = b"\x21\xf9\x04\x00\x00\x00\x00\x00"
+    data = b"D\x01" + bytes(max(0, image - 2))
+    blocks = b"".join(
+        bytes([len(data[i : i + 255])]) + data[i : i + 255]
+        for i in range(0, len(data), 255)
+    )
+    descriptor = b"\x2c" + struct.pack("<HHHH", 0, 0, 1, 1) + b"\x00"
+    return (
+        screen
+        + loop
+        + extensions
+        + control
+        + descriptor
+        + b"\x02"
+        + blocks
+        + b"\x00"
+        + b"\x3b"
+        + trailing
+    )
+
+
+def gif_application(ident: bytes, payload: bytes) -> bytes:
+    """An application extension: 11 bytes of identifier and code, then `payload` in sub-blocks."""
+    blocks = b"".join(
+        bytes([len(payload[i : i + 255])]) + payload[i : i + 255]
+        for i in range(0, len(payload), 255)
+    )
+    return b"\x21\xff\x0b" + ident + blocks + b"\x00"
+
+
+def gif_xmp(packet: bytes) -> bytes:
+    """XMP in a GIF as Adobe writes it: XMP DataXMP, the packet's bytes as they are, then the 258-byte magic trailer
+    (01, FF down to 00, then the terminator) that lets a decoder skip it as sub-blocks."""
+    return (
+        b"\x21\xff\x0bXMP DataXMP"
+        + packet
+        + b"\x01"
+        + bytes(range(255, -1, -1))
+        + b"\x00"
+    )
+
+
+def gif_comment(text: bytes) -> bytes:
+    return b"\x21\xfe" + bytes([len(text)]) + text + b"\x00"
 
 
 def safetensors_header() -> bytes:
