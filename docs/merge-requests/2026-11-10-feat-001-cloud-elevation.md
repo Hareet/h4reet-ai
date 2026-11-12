@@ -236,6 +236,19 @@ c4fc2c622e2518c40c814892b788353ad29e4bba3c382df23b16d2aa78982bc8  infra/lambdas/
 
 **P-I2** is 81,883 bytes, SHA-256 fd1b3e8ac6736d1ed8b825bc05a386d88dc4065b65dbf47657a1c94b01bbe661 (it was 1d5cfb49…, then ba075cd7… at 37d13175). The plain copies came from P-I2 itself (`git show` into `$TMPDIR`, each new file's added lines), and the builder, its preamble then `diff -u /dev/null` per file with `b/` labels, rebuilt the old patch byte for byte before any edit. The other four are unchanged: P-1 b0c1148f…, P-E 20445b51…, P-3 415742e1…, P-I1 e32b2148….
 
+**After your T027 plan, 2026-11-11: P-I1 and P-I2 rebuilt for `metrics`.** Your plan stopped at `aws_budgets_budget.server_month`: "`filter_expression`": all of `filter_expression,metrics` must be specified. hashicorp/aws 6.72.0 needs `metrics` beside `filter_expression`, and P-I1's preamble had left that "to confirm at T027". The two budgets that exclude Bedrock by `filter_expression` now carry `metrics = ["UnblendedCost"]`: `h4-server-month` (P-I1, `infra/bootstrap/budgets.tf`) and `h4-rehearsal-server` (P-I2, `infra/account/killswitch.tf`). Unblended cost is right because your answer was "No credits, keep it simple". The two model budgets keep `cost_filter` and `cost_types`, which need no metric.
+- **RED:** 24682f0a. The bootstrap and account checks now require that metric. One fixture for each budget lacks it, and the two existing server-month fixtures were given it, so each still fails only on its own defect. On a copy with all five patches as they were, 83 failed, every one on `metrics`.
+- **The rebuild,** from plain copies:
+  - the two files as a patched export holds them;
+  - each edited to add the metric and two comment lines;
+  - each file's new-file hunk regenerated with `diff -u /dev/null`, under the patch's own header lines;
+  - one sentence in each preamble.
+  
+  Nothing else in either patch changed. `terraform fmt -check` passes on both edited copies. On a fresh export with P-1, P-E and P-3 as they are and the two rebuilt patches, each created file matches its edited copy byte for byte.
+- **GREEN:** `infra/test` and `scripts/infra`, on that export: 229 passed. One test failed because of the sandbox: `test_infra_check_runs_the_policy_then_waits_for_terraform` can't `mktemp` in this sandbox's read-only `/tmp`. It doesn't touch the budgets.
+- **P-I1** is now 9,261 bytes, SHA-256 9a5369b13f4a788c0f59543cb2a59fd5abd4b8a93283309bc879721ed99c4b2a. **P-I2** is 82,253 bytes, SHA-256 bcde67afe90003329c06924d747f8120b9a2c61ee11a47547b813bb696850f85. P-1, P-E and P-3 are unchanged.
+- **Not run here:** `terraform validate` with the provider. The sandbox refuses the provider plugin's socket. So the attribute's exact form is checked first by your re-run of the plan.
+
 #### The patched export's checks, the five patches
 
 ```text

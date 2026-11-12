@@ -16,12 +16,13 @@ from the repository's top with `patch -p1`, which skips this preamble, byte for 
 Before T027 (the merge-request note's "For the Author"): the service names Bedrock's cost shows under in his Cost
 Explorer, as TF_VAR_bedrock_service_names in ~/.config/h4reet-ai/infra/bootstrap.env. To confirm at T027, before any
 apply: that the provider takes aws_budgets_budget's filter_expression with not, and cost_types, which make plan
-ROOT=bootstrap validates; and that the account has no AWS services anomaly monitor of its own already, since an
-account holds one.
+ROOT=bootstrap validates (its first run, 2026-11-11, refused filter_expression without metrics, so h4-server-month
+now carries metrics = ["UnblendedCost"]: rebuilt that day from plain copies, the account having no credits); and
+that the account has no AWS services anomaly monitor of its own already, since an account holds one.
 
 --- /dev/null
 +++ b/infra/bootstrap/budgets.tf
-@@ -0,0 +1,163 @@
+@@ -0,0 +1,166 @@
 +# The model-spend budgets and the server budget, and the account's anomaly monitor (spec 001 FR-021, FR-022;
 +# research.md R-22; contracts/aws-alerts.md §3), applied first. Each budget notifies h4-alerts (alerts.tf) at 70% and
 +# 100% of actual cost; the monitor, at once, on any anomaly of $1 or more. Protected (FR-012; contracts/infra-records.md
@@ -118,6 +119,9 @@ account holds one.
 +  limit_amount = tostring(var.server_budget_usd)
 +  limit_unit   = "USD"
 +  time_unit    = "MONTHLY"
++  # hashicorp/aws 6.72.0 refuses filter_expression without metrics (the T027 plan, 2026-11-11). Unblended cost:
++  # the account has no credits (the Author's answer, 2026-11-11).
++  metrics = ["UnblendedCost"]
 +
 +  filter_expression {
 +    not {

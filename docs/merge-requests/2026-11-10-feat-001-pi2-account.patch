@@ -1,5 +1,7 @@
 P-I2, spec 001 group 4's protected files (tasks.md T031, T034, T035, T038; plan.md §3.2, §14, §16; research.md R-15,
-R-22 to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All six are new files. For the Author's hand only: the
+R-22 to R-24; contracts/aws-alerts.md §1, §2, §4, §5). All six are new files. Rebuilt on 2026-11-11 after the
+T027 plan: h4-rehearsal-server carries metrics = ["UnblendedCost"], which hashicorp/aws 6.72.0 needs beside
+filter_expression. For the Author's hand only: the
 protected names (FR-012; .claude/hooks/protected-paths.sh, spec 001's Terraform file names and spec 000's
 infra/*alert*) keep them from agent sessions.
 
@@ -393,7 +395,7 @@ AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console sh
 +}
 --- /dev/null
 +++ b/infra/account/killswitch.tf
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,335 @@
 +# The budget actions (spec 001 FR-023, FR-026; research.md R-22; contracts/aws-alerts.md §4): the model action on
 +# h4-model-month, which attaches h4-deny-paid-models to h4-laptop-bedrock (and, from group 7, to EC2's h4-prod-gateway),
 +# and, while main.tf's local.rehearsal is true, both actions' rehearsals on $0.01 budgets of the real ones' shape. The
@@ -616,6 +618,9 @@ AWSBudgetsActions_RolePolicyForResourceAdministrationWithSSM as IAM's console sh
 +  limit_amount = "0.01"
 +  limit_unit   = "USD"
 +  time_unit    = "MONTHLY"
++  # hashicorp/aws 6.72.0 refuses filter_expression without metrics (the T027 plan, 2026-11-11). Unblended cost:
++  # the account has no credits (the Author's answer, 2026-11-11).
++  metrics = ["UnblendedCost"]
 +
 +  filter_expression {
 +    not {
