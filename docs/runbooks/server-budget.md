@@ -1,6 +1,6 @@
 # Runbook: the server budget
 
-`h4-server-month`, AWS's budget on every cost of the account but Bedrock's, at your figure, crossed 70% or 100%; or, from spec 001's group 7, its action stopped EC2. This page covers the alerts `server_budget_warn`, `server_budget_reached`, `server_action_executed`, and `ec2_stopped_server_budget` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts)). The budget is `infra/bootstrap/budgets.tf`'s (spec 001 FR-021, FR-022); the server action is group 7's, and its rehearsal, on `h4-rehearsal-server`, is `infra/account/killswitch.tf`'s (FR-026).
+`h4-server-month`, AWS's budget on every cost tagged `project = h4reet-ai` but Bedrock's (the account is shared with your other work, whose costs it doesn't count: ADR 0047), at your figure, crossed 70% or 100%; or, from spec 001's group 7, its action stopped EC2. This page covers the alerts `server_budget_warn`, `server_budget_reached`, `server_action_executed`, and `ec2_stopped_server_budget` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts)). The budget is `infra/bootstrap/budgets.tf`'s (spec 001 FR-021, FR-022); the server action is group 7's, and its rehearsal, on `h4-rehearsal-server`, is `infra/account/killswitch.tf`'s (FR-026).
 
 ## Symptoms
 
@@ -22,7 +22,7 @@
 
 In your own terminal, with your SSO session (`pf` your administrator profile).
 
-1. **See what costs:** Cost Explorer, Billing console, this month, grouped by Service, then by the cost-allocation tag `component` (tasks.md T030 activated it). EC2's hours, the volumes, RDS, and the addresses are the usual lines (research.md R-05).
+1. **See what costs:** Cost Explorer, Billing console, this month, filtered on the cost-allocation tag `project` = `h4reet-ai`, as the budget counts, then grouped by Service and by the tag `component` (tasks.md T030 activated both). EC2's hours, the volumes, RDS, and the addresses are the usual lines (research.md R-05).
 2. **Stop what shouldn't run.** Before group 7 there is no EC2: the account holds the state bucket, the registry, the release bucket, the functions, and the logs, all cents.
 3. **Don't raise the figure** to get past an alert: it is your figure, in `~/.config/h4reet-ai/infra/bootstrap.env`, and a change goes through your plan of the bootstrap root.
 

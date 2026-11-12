@@ -181,7 +181,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [x] T020 [P] [US1] Write `infra/test/fixtures/bootstrap/` and `infra/test/test_bootstrap.py`, the first files under `infra/`, which parse the root's HCL with group 1's standard-library reader, `tools/gates/infra_policy.py`'s, from the guard patch P-1 (plan.md Technical Context; research.md R-14):
   - the state bucket: versioned, encrypted, public access blocked, TLS-only;
   - `h4-model-month` at $20 and `h4-model-day` at $5, on Bedrock's cost, with notifications at 70% and 100%;
-  - `h4-server-month` at `var.server_budget_usd`, on every cost but Bedrock's, at 70% and 100%;
+  - `h4-server-month` at `var.server_budget_usd`, on every cost but Bedrock's (from T150, every cost tagged `project = h4reet-ai` but Bedrock's; ADR 0047), at 70% and 100%;
   - the anomaly monitor with its $1 subscription;
   - `h4-alerts` with its email subscription from a sensitive variable;
   - the tags.
@@ -662,7 +662,29 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ---
 
-## Dependencies and execution order
+## After gate A: the shared account — `fix/001-shared-account`
+
+The Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it too", and of 2026-11-12, "Keep them out of the repo" (spec.md Assumptions, "One account, shared with the Author's other work"; ADR 0047).
+
+- [x] T150 Tests first. Each fails on main:
+  - the credential audit's allowlist (`infra/lambdas/credential_audit/test_audit.py`): allowed findings listed apart, each kind apart, four kinds only and never this project's names, a refused line a finding; the terminal's file under the Author's home; the function's parameter;
+  - the account (`infra/test/test_account.py`): the audit's role reads that one parameter, and its environment names it; `h4-rehearsal-server` on the project's filter;
+  - `h4-server-month`'s two `and` terms (`infra/test/test_bootstrap.py`).
+- [x] T151 The audit reads the Author's allowlist: his file in the terminal, his SecureString in the function. `lambdas.tf` names it, and `infra/parameters.txt` lists it.
+- [x] T152 P-S1, `docs/merge-requests/2026-11-12-fix-001-ps1-shared-account.patch`, for the Author's hand, built from plain copies:
+  - `budgets.tf`'s and `killswitch.tf`'s budgets on the project tag;
+  - `iam.tf`'s read of the parameter.
+- [ ] T153 Author:
+  - writes `~/.config/h4reet-ai/infra/iam-allow.txt` (mode 0600);
+  - applies P-S1 on `fix/001-shared-account-p`;
+  - plans the bootstrap again, with its block in the branch's note;
+  - runs the gate, merges;
+  - runs T030's apply.
+
+  Once the project tag is active, Cost Explorer filtered on it shows the project's costs, and `h4-server-month`'s actual matches. At T040, his SecureString `/h4reet/audit/IAM_ALLOW` holds the same lines, before the function's first run.
+- [ ] T154 Group 7: EC2's volumes and its public address carry the `project` tag, and the server budget counts them. FR-021 says "EC2's while stopped included", which a tag-scoped budget sees only if the volumes are tagged. Check it in Cost Explorer after group 7's first apply.
+
+## Dependencies and execution order## Dependencies and execution order
 
 - **T000** first, then **T001**, the constitution, as the default order he confirms at T000. Then the groups in order: each branch is cut from `refs/heads/main` after the one before it merges.
 - **T001's check** is a precondition of groups 3 to 9. T020, group 3's first test task, writes the first file under `infra/`.
