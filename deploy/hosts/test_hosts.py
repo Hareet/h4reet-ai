@@ -274,7 +274,12 @@ def test_the_units_order_the_boot() -> None:
         write_env.get("Requires", []) + write_env.get("BindsTo", [])
     )
     stack = unit("h4-stack.service")
-    assert stack["Requires"] == ["docker.service h4-write-env.service"]
+    # Its stop stops the class's containers, so "Stopping the stack on purpose" stops them (the second review, I-D);
+    # and it only Wants the env file's unit, so the key's revocation, which restarts that unit, never stops the stack.
+    assert stack["Requires"] == ["docker.service"]
+    assert stack["Wants"] == ["h4-write-env.service"]
+    assert stack["After"] == ["docker.service h4-write-env.service"]
+    assert stack["ExecStop"] == ["/usr/bin/docker compose -p h4reet-prod stop"]
     assert any(
         "deploy/scripts/deploy_first_step.py --host tunnel-end --boot" in v
         for v in stack["ExecStart"]
