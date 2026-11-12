@@ -67,7 +67,7 @@ describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
     expect(res.json()).toMatchObject({
       stack: "prod",
       status: "uninitialized",
-      restored: { day_usd: "1.25", month_usd: "7.50" },
+      restored: { day_usd: "1.25", month_usd: "7.50", crossed: [], fallback_awaiting_renewal: true },
     });
     expect((await s.db.pg.query("SELECT * FROM gateway.stack_state")).rows).toEqual([]);
     const health = (await s.api.inject({ method: "GET", url: "/health" })).json() as Rec;

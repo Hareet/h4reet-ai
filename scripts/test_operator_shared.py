@@ -167,7 +167,13 @@ RESTORE_BODY = {
     "stack": "prod",
     "action": "restore",
     "status": "uninitialized",
-    "restored": {"day_usd": "1.25", "month_usd": "7.50", "fallback_today_usd": "0.40"},
+    "restored": {
+        "day_usd": "1.25",
+        "month_usd": "7.50",
+        "fallback_today_usd": "0.40",
+        "crossed": ["day:2026-11-13"],
+        "fallback_awaiting_renewal": False,
+    },
 }
 
 
@@ -199,6 +205,12 @@ def test_restore_prints_the_restored_meters_through_the_admin_only_stack(
     (posted,) = world.listener.requests
     assert posted["path"] == "/admin/restore" and posted["body"] == {"reason": REASON}
     assert "restored day 1.25 USD, month 7.50 USD, fallback today 0.40 USD" in out
+    # FR-019's carry-over list (group 6's review, I-3): the crossed ceilings, which the restored meters hold again at
+    # init, and the renewal flag, which init sets as RENEW=1 says.
+    assert "restored crossed ceilings: day:2026-11-13" in out
+    assert (
+        "restored renewal: the fallback was renewed: init with RENEW=1 keeps it" in out
+    )
     assert "make operator-init ENV=shared" in out
 
 
