@@ -26,7 +26,9 @@ PI3 = MERGE_REQUESTS / "2026-11-13-feat-001-pi3-tunnel-end.patch"
 PI7 = MERGE_REQUESTS / "2026-11-13-feat-001-pi7-shared-state.patch"
 # Group 7's, on top of both: EC2's spot instance, its two roles, its ID's parameter, and the two budget actions (T089).
 PI4 = MERGE_REQUESTS / "2026-11-13-feat-001-pi4-ec2.patch"
-W1_PATCHES = (PI3, PI7, PI4)
+# Group 8's, after P-I4: the edge's two protected files, and the probe's switch in the account's alerts.tf (T107).
+PI5 = MERGE_REQUESTS / "2026-11-13-feat-001-pi5-edge.patch"
+W1_PATCHES = (PI3, PI7, PI4, PI5)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

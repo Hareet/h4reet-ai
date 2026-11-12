@@ -901,8 +901,15 @@ def test_no_two_live_cases_send_the_same_turn() -> None:
         if "live" not in case:
             continue
         live = case["live"]
+        # Spec 001 group 8's hello cases carry {route: hello} alone (redteam/test_hello_cases.py).
         key = rt.json.dumps(
-            [live["feature"], live["path"], live["turns"], case["prompt"]],
+            [
+                live.get("route", "twin"),
+                live.get("feature"),
+                live.get("path"),
+                live.get("turns"),
+                case["prompt"],
+            ],
             sort_keys=True,
         )
         assert key not in sent, f"{case['id']} sends {sent.get(key)}'s turn"

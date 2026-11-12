@@ -1001,10 +1001,12 @@ def check_schedules(root: dict[str, list]) -> list[str]:
     if (
         probe is None
         or ip.literal(probe.attr("schedule_expression")) != "rate(1 minute)"
-        or ip.literal(probe.attr("state")) != "DISABLED"
+        # Group 8's P-I5: enabled by the account's switch, which W1 holds off (test_prod_cdn.py, check_probe).
+        or re.sub(r"\s+", " ", probe.attr("state").raw if probe.attr("state") else "")
+        != 'local.wired ? "ENABLED" : "DISABLED"'
     ):
         found.append(
-            "schedules: the probe's isn't once a minute, written disabled (group 8's P-I5 enables it)"
+            "schedules: the probe's isn't once a minute, enabled by the account's switch alone"
         )
     if (
         audit is None

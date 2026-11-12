@@ -480,10 +480,25 @@ GROUP_7_CHANGES = {
         ),
     ),
 }
+# Spec 001 group 8's changes (tasks.md T111): V2's path, in spec 001's Data-Flow Disclosure Entries' own words, which
+# replace "after spec 001, through its edge and relay".
+GROUP_8_CHANGES = {
+    ("V2", 0): (
+        "after spec 001, through its edge and relay",
+        (
+            "after spec 001, through hareet.ai's edge to the one relay, on the tunnel end (C1), which sends it to the "
+            "serving host's relay block: EC2's by default, inside the account, or the laptop's through its tunnel "
+            "while the Author runs it (C14)"
+        ),
+    ),
+}
 
 
 def before_group_7(found: dict[str, list[str]]) -> dict[str, list[str]]:
     out = {rid: list(cells) for rid, cells in found.items()}
+    for (rid, i), (old, new) in GROUP_8_CHANGES.items():
+        assert new in out[rid][i], (rid, i)
+        out[rid][i] = out[rid][i].replace(new, old, 1)
     for (rid, i), text in GROUP_7_ADDS.items():
         assert out[rid][i].endswith(f" {text}"), (rid, i)
         out[rid][i] = out[rid][i][: -len(text) - 1]
@@ -491,6 +506,14 @@ def before_group_7(found: dict[str, list[str]]) -> dict[str, list[str]]:
         assert new in out[rid][i], (rid, i)
         out[rid][i] = out[rid][i].replace(new, old, 1)
     return out
+
+
+def test_group_8s_v2_path_is_spec_001s_words() -> None:
+    spec = (REPO / "specs" / "001-cloud-elevation" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    for old, new in GROUP_8_CHANGES.values():
+        assert f'"{old}" becomes "{new}"' in spec
 
 
 def test_group_7s_ec2_parts_stand_beside_the_earlier_words_and_f3s_adopted_words_are_untouched() -> (

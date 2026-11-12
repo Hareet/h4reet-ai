@@ -65,8 +65,21 @@ FILES = (
     "iam.tf",
     "handover.tf",
     "killswitch.tf",
+    # Group 8's edge (tasks.md T104, T107; test_prod_cdn.py): the zone and the site's bucket, and the protected
+    # edge.tf and edge-limits.tf, the certificate, the distribution, and CloudFront's policies (P-I5).
+    "dns.tf",
+    "site.tf",
+    "edge.tf",
+    "edge-limits.tf",
 )
-PROTECTED_FILES = ("ec2-market.tf", "iam.tf", "handover.tf", "killswitch.tf")
+PROTECTED_FILES = (
+    "ec2-market.tf",
+    "iam.tf",
+    "handover.tf",
+    "killswitch.tf",
+    "edge.tf",
+    "edge-limits.tf",
+)
 PLACEHOLDER = "measure-in-T166"
 PUBLIC_ADDRESS = "10.42.0.10"
 PRIVATE_ADDRESS = "10.42.1.10"
@@ -80,6 +93,8 @@ PROD_DATA = {
     "aws_ip_ranges",
     "aws_ec2_managed_prefix_list",
     "aws_iam_policy_document",
+    # Group 8: CloudFront's own managed CachingDisabled, AWS's fact, read in edge-limits.tf.
+    "aws_cloudfront_cache_policy",
 }
 # The account's own rehearsal instance, and killswitch.tf's references to it, are the account's (tasks.md T046).
 ACCOUNT_OWN_INSTANCE = "aws_instance.rehearsal"

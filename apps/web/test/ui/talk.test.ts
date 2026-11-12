@@ -463,7 +463,15 @@ describe("the fixed messages", () => {
   });
 
   it("map spec 000's degraded causes to the three cannot_talk classes, an unknown cause to unavailable", () => {
-    for (const cause of ["local_unhealthy", "local_error", "no_fallback_in_stack", "fallback_unavailable"]) {
+    // Spec 001's relay adds no_host_serving and host_error to the class (spec 002's contract §3, amended).
+    for (const cause of [
+      "local_unhealthy",
+      "local_error",
+      "no_fallback_in_stack",
+      "fallback_unavailable",
+      "no_host_serving",
+      "host_error",
+    ]) {
       expect(cannotTalkFor(cause), cause).toBe("cannot_talk.resting");
     }
     for (const cause of [

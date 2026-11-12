@@ -44,6 +44,15 @@ DEVCPU_TOKEN = breach.operator_module().read_devcpu_token(
     REPO / "deploy" / "env.agents" / "dev-cpu.vars"
 )
 START = "2026-10-09T12:00:00.000Z"
+# The harness's own reading of config/budgets.yaml, before the fixture below stands in for it.
+RELAY_READY = breach.relay_ready
+
+
+@pytest.fixture(autouse=True)
+def relay_can_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Spec 001 group 8: these runs are a stack whose config/budgets.yaml holds the Author's public figures, so dev-relay
+    starts and the relay's rows run; the tests of the tree as it is, before P-6, set relay_ready themselves."""
+    monkeypatch.setattr(breach, "relay_ready", lambda root: None)
 
 
 def set_path(node: dict[str, Any], path: str, value: Any) -> None:
@@ -348,7 +357,8 @@ def test_a_full_run_feeds_every_assertion_from_an_operation_of_its_source() -> N
     assert code == 0, text
     kinds = {
         "T": {"trace"},
-        "M": {"metric"},
+        # Spec 001 group 8: the relay's rows, read from the relay's own answer, as a metric reads the gateway's.
+        "M": {"metric", "relay_hello"},
         "L": {"log", "telegram", "mailpit", "audit", "incident"},
     }
     fed: dict[str, set[str]] = {}
@@ -411,7 +421,19 @@ def test_the_steps_run_their_lifecycle_in_plan_8s_order() -> None:
         # step 5 and step 6: restarts keep today's fallback spend and the renewal flag
         ["restart", "gateway"],
         ["restart", "gateway"],
-        # step 7: the local model back
+        # step 7: spec 001's dev-relay beside the stack, then the local model back
+        [
+            "--profile",
+            "dev-relay",
+            "up",
+            "--detach",
+            "--no-deps",
+            "--build",
+            "--wait",
+            "--wait-timeout",
+            "120",
+            "dev-relay",
+        ],
         ["start", "model-server-cpu"],
         # step 11: the store stopped, then wiped
         ["stop", "gateway-state"],
@@ -425,6 +447,8 @@ def test_the_steps_run_their_lifecycle_in_plan_8s_order() -> None:
             "120",
             "gateway-state",
         ],
+        # the cleanup: dev-relay removed, as make up left the stack
+        ["--profile", "dev-relay", "rm", "--force", "--stop", "dev-relay"],
     ]
     assert volume == [
         [
@@ -1200,7 +1224,11 @@ def test_the_run_takes_sigterm_and_sighup_and_puts_their_handlers_back() -> None
 
     code, _ = run(["--stack", "dev-cpu"], stack, runner=watching)
     assert code == 0
-    assert set(during) == {(breach.on_signal, breach.on_signal)}
+    # Every command of the run under its handlers; the cleanup's one, dev-relay's removal (spec 001 group 8), under
+    # the ignored signals that let it finish.
+    assert set(during[:-1]) == {(breach.on_signal, breach.on_signal)}
+    assert during[-1] == (signal.SIG_IGN, signal.SIG_IGN)
+    assert "dev-relay" in stack.commands[-1]
     assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGHUP)) == before
 
 
@@ -1712,3 +1740,104 @@ def test_step_12_is_skipped_with_real_delivery_so_the_authors_run_sends_nothing_
         o for o in stack.ops_seen if o.get("assert") in DESIGNED_BESIDE.values()
     ]
     assert all(table[a][1] == "SKIP" for a in DESIGNED_BESIDE.values())
+
+
+# --- spec 001 group 8: the relay (tasks.md T099; FR-025) -----------------------------------------------------------------
+
+
+def test_the_relays_two_rows_are_in_the_catalog_in_steps_7_and_9() -> None:
+    by_id = {a.id: a for a in breach.CATALOG}
+    assert by_id["7h"].step == 7 and by_id["7h"].relay and by_id["7h"].source == "M"
+    assert by_id["9f"].step == 9 and by_id["9f"].relay and by_id["9f"].source == "M"
+    assert "10 s" in by_id["7h"].text
+
+
+def test_without_the_authors_public_figures_the_relays_rows_are_skipped_and_nothing_starts_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        breach,
+        "relay_ready",
+        lambda root: "config/budgets.yaml has no public figures yet",
+    )
+    stack = FakeStack()
+    code, text = run(["--stack", "dev-cpu"], stack)
+    table = rows(text)
+    assert table["7h"][1] == "SKIP" and "public figures" in table["7h"][2]
+    assert table["9f"][1] == "SKIP"
+    assert not [c for c in stack.commands if "dev-relay" in c]
+    assert not [op for op in stack.ops_seen if op["op"] == "relay_hello"]
+    assert code == 0
+
+
+def test_with_them_the_relay_starts_before_the_trip_and_goes_after_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(breach, "relay_ready", lambda root: None)
+    stack = FakeStack()
+    code, text = run(["--stack", "dev-cpu"], stack)
+    lifecycle = [
+        c[c.index("--env-file") + 2 :]
+        for c in stack.commands
+        if "compose" in c and "breach-probe" not in c
+    ]
+    up = ["--profile", "dev-relay", "up", "--detach", "--no-deps", "--build", "--wait", "--wait-timeout", "120",
+          "dev-relay"]  # fmt: skip
+    down = ["--profile", "dev-relay", "rm", "--force", "--stop", "dev-relay"]
+    assert up in lifecycle and down in lifecycle
+    assert lifecycle.index(up) < lifecycle.index(["start", "model-server-cpu"])
+    assert lifecycle[-1] == down
+    relay_ops = [op for op in stack.ops_seen if op["op"] == "relay_hello"]
+    assert [(op["assert"], op["expect"]) for op in relay_ops] == [
+        ("7h", {"status": 503, "cause": "kill_switch_tripped"}),
+        ("9f", {"status": 200}),
+    ]
+    # Timed from the gateway's own degraded hello, which sees the trip: within 10 s of it (SC-008).
+    assert relay_ops[0]["after"] == "s7.hello" and relay_ops[0]["within_s"] == 10
+    assert relay_ops[1]["after"] == "s9.reset" and relay_ops[1]["within_s"] == 10
+    table = rows(text)
+    assert table["7h"][1] == "PASS" and table["9f"][1] == "PASS"
+    assert code == 0
+
+
+def test_the_relay_is_removed_even_when_the_run_stops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(breach, "relay_ready", lambda root: None)
+    stack = FakeStack(fail={"s7.spend"})
+    run(["--stack", "dev-cpu"], stack)
+    assert ["--profile", "dev-relay", "rm", "--force", "--stop", "dev-relay"] in [
+        c[c.index("--env-file") + 2 :] for c in stack.commands if "compose" in c
+    ]
+
+
+def test_relay_ready_reads_the_public_sections_figures(tmp_path: Path) -> None:
+    (tmp_path / "config").mkdir()
+    budgets = tmp_path / "config" / "budgets.yaml"
+    budgets.write_text("schema: 1\n", encoding="utf-8")
+    assert "public" in (RELAY_READY(tmp_path) or "")
+    budgets.write_text(
+        "public:\n  per_address: {requests_per_minute: , burst: 3, requests_per_day: 10}\n"
+        "  global: {in_flight: 2}\n",
+        encoding="utf-8",
+    )
+    assert "requests_per_minute" in (RELAY_READY(tmp_path) or "")
+    budgets.write_text(
+        "public:\n  per_address: {requests_per_minute: 6, burst: 3, requests_per_day: 10}\n"
+        "  global: {in_flight: 2}\n",
+        encoding="utf-8",
+    )
+    assert RELAY_READY(tmp_path) is None
+    # P-6 as drafted, each figure blank: the relay can't start, and its rows wait.
+    patch = (
+        REPO / "docs" / "merge-requests" / "2026-11-13-feat-001-p6-public-cap.patch"
+    ).read_text(encoding="utf-8")
+    added = [
+        line[1:]
+        for line in patch.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+    budgets.write_text("schema: 1\n" + "\n".join(added) + "\n", encoding="utf-8")
+    assert "requests_per_minute" in (RELAY_READY(tmp_path) or "")
+    # And the tree as it is today, before P-6.
+    assert RELAY_READY(REPO) is not None
