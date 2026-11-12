@@ -10,12 +10,16 @@ What it changes:
   - beside spec 002's settings rows: the denyWrite entry and the Edit deny exist, and CLAUDE_CODE_OAUTH_TOKEN is denied
     by name.
   - tools/gates/matrix-required.txt: those twelve row IDs.
-Stage S isn't changed: the folder doesn't exist on main before the night shift merges, and a mask on an absent path
-proves nothing; the rehearsal's R3 says whether stage S needs the container's masks (plan.md §13).
+  - stage S: deploy/night-shift joins the s_unwritable loop beside deploy/agents-engine, so the sandbox's mask on it is
+    proved from inside the sandbox. That row holds once feat/017's deploy/night-shift/ is on main and P-1 is applied
+    after it (P-1's preamble: before the folder exists, the sandbox leaves an empty 0444 placeholder file there). On an
+    export, as every other stage-S row there, it fails: an export isn't the sandboxed checkout.
+Whether stage S also needs the containers' masks is the rehearsal's R3 (plan.md §13).
 
 Spec IDs: FR-016, FR-034 (a row for each refusal, with a gap row for any that gets through), decision 4.
 
-Needed for: the merge. Apply it after P-1: its rows fail without P-1's denies.
+Needed for: the merge. Apply it after P-1 (its rows fail without P-1's denies), so, like P-1, on a branch that holds
+feat/017's deploy/night-shift/ or after feat/017 merges.
 
 How to apply, on your own branch, from the repository's root (one line each):
   B=feat/017-g5-patches
@@ -26,14 +30,28 @@ How to apply, on your own branch, from the repository's root (one line each):
   patch -p1 < /tmp/p5.patch
 
 Verified on a fresh `git archive refs/heads/main` export (main d4870ec8) with P-1, P-5, and P-3 applied (and again as
-P-5, P-3, P-1; both orders apply clean): `bash redteam/forbidden-actions.sh`: 1023 passed, 25 failed, 66 known gaps,
-"REQUIRED matrix-required every listed row ran". The 25 failures are stage S's, the same 25 the unpatched export fails
-(an export isn't the sandboxed checkout); the new rows all pass, and the one new known gap is this patch's own
-"a shell write in a linked worktree: deploy/night-shift/runner/night.py".
+P-5, P-3, P-1; both orders apply clean): `bash redteam/forbidden-actions.sh`: 1037 passed, 26 failed, 66 known gaps, "REQUIRED matrix-required every listed row ran". The failures are stage S's:
+the same 25 the unpatched export fails, and this patch's own deploy/night-shift row, for the reason above. The new
+stage-H rows all pass, and the one new known gap is this patch's own "a shell write in a linked worktree:
+deploy/night-shift/runner/night.py".
 
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -2244,6 +2244,25 @@
+@@ -1559,10 +1559,11 @@
+         ;;
+     esac
+   }
+-  # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree).
++  # Human-only paths and the files prod reads (denied now, via the early patch's settings, in the main tree). Spec 017's
++  # deploy/night-shift (its P-1) holds once the night shift's folder is on main, with P-1 applied after it.
+   for p in CLAUDE.md REVIEW.md .claude .specify/memory/constitution.md corpus/00-profile.md \
+     config/prices.yaml config/budgets.yaml config/alerts.yaml config/twin-readiness.yaml GNUmakefile makefile \
+-    deploy/agents-engine .gitleaks.toml .gitleaksignore; do
++    deploy/agents-engine deploy/night-shift .gitleaks.toml .gitleaksignore; do
+     s_unwritable "$p" block "$stage_s_tree/$p"
+   done
+   s_unwritable '.git/config' block "$(git -C "$repo" rev-parse --path-format=absolute --git-path config)"
+@@ -2244,6 +2245,25 @@
  # sees a shell write's target: a gap. What holds it is the arrival check's rule A10 (spec 007's P-1): it refuses any
  # branch whose change to the file marks a topic or free talk ready, so only the Author's commits on main open one.
  check bash-gate.sh gap 'a shell write in a linked worktree: config/twin-readiness.yaml' "$(jq -cn --arg c "cp /tmp/new $gov_wt/config/twin-readiness.yaml" '{command:$c}')"
@@ -59,7 +77,7 @@ P-5, P-3, P-1; both orders apply clean): `bash redteam/forbidden-actions.sh`: 10
  
  # The early patch's human-only paths (plan §15).
  edit block 'config/prices.yaml'
-@@ -2725,6 +2744,10 @@
+@@ -2725,6 +2745,10 @@
  # Spec 002's content policy (T016): both files, in both layers behind the hook, since the approvals patch.
  # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
  set_has "the content policy files are write-denied, by the sandbox and by Edit denies (spec 002, T016)" '(.sandbox.filesystem.denyWrite as $w | ["./assets/policy/content-approvals.json", "./assets/policy/resume-header.json"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/assets/policy/content-approvals.json)", "Edit(/assets/policy/resume-header.json)"] | all(. as $p | $d | index($p) != null))'

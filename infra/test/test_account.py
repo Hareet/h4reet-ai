@@ -1712,6 +1712,29 @@ VALUE_READS = {
 LOCK_ACTIONS = {"s3:PutObject", "s3:DeleteObject"}
 # The bootstrap's bucket is h4reet-ai-tfstate-<suffix>, the suffix the Author's alone; S3's lock file is <key>.tflock.
 STATE_LOCKS = ["arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock"]
+# The plan reads state and nothing else's contents (the patches' review): no log event, no cost or usage figure, and
+# no object outside the state bucket. Cost Explorer is denied whole but for the two resources Terraform refreshes,
+# the bootstrap's anomaly monitor and subscription; GetAnomalies, which takes a monitor, is denied on its own.
+LOG_READS = {"logs:GetLogEvents", "logs:FilterLogEvents", "logs:StartQuery"}
+_CE = "arn:aws:ce::${data.aws_caller_identity.current.account_id}:"
+COST_CARVE_OUT = [f"{_CE}anomalymonitor/*", f"{_CE}anomalysubscription/*"]
+STATE_OBJECTS = ["arn:aws:s3:::h4reet-ai-tfstate-*/*"]
+OBJECT_READS = {"s3:GetObject", "s3:GetObjectVersion"}
+
+
+def not_resource_denies(doc) -> list[tuple[set, list[str]]]:
+    """Each Deny statement's actions and quoted not_resources, for the statements that name not_resources."""
+    out = []
+    for st in doc.blocks("statement") if doc is not None else []:
+        effect = ip.literal(st.attr("effect")) if st.attr("effect") else "Allow"
+        if effect == "Deny" and st.attr("not_resources") and not st.blocks("condition"):
+            out.append(
+                (
+                    set(as_list(ip.literal(st.attr("actions")))),
+                    quoted(raw(st, "not_resources")),
+                )
+            )
+    return out
 
 
 def check_plan_role(root: dict[str, list]) -> list[str]:
@@ -1757,8 +1780,11 @@ def check_plan_role(root: dict[str, list]) -> list[str]:
             "plan role: the permission set's name isn't a local of iam.tf alone"
         )
     life = plan.block("lifecycle")
+    # The refusal says where the name is: IAM Identity Center's permission sets.
     if life is None or not any(
         refs(raw(p, "condition"), "local.plan_permission_set")
+        and "IAM Identity Center" in raw(p, "error_message")
+        and "Permission sets" in raw(p, "error_message")
         for p in life.blocks("precondition")
     ):
         found.append(
@@ -1784,6 +1810,19 @@ def check_plan_role(root: dict[str, list]) -> list[str]:
     )
     if not VALUE_READS <= denied:
         found.append("plan role: it may read a parameter's or a secret's value")
+    if not LOG_READS <= denied:
+        found.append("plan role: it may read log events")
+    carved = [
+        d
+        for p in inline_policies(root, plan)
+        for d in not_resource_denies(document(root, raw(p, "policy")))
+    ]
+    if "ce:GetAnomalies" not in denied or not any(
+        "ce:*" in acts and nots == COST_CARVE_OUT for acts, nots in carved
+    ):
+        found.append("plan role: it may read cost and usage figures")
+    if not any(OBJECT_READS <= acts and nots == STATE_OBJECTS for acts, nots in carved):
+        found.append("plan role: it may read objects outside the state bucket")
     grants = [s for s in sts if s["effect"] == "Allow"]
     if len(inline_policies(root, plan)) != 1 or not (
         len(grants) == 1
