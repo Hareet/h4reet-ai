@@ -268,18 +268,17 @@ describe("§3: the processing order", () => {
     expect(res.json().cause).toBe("store_uninitialized");
   });
 
-  it("4. a failed read leans on the last good one for 10 s, then answers store_unreachable", async () => {
+  // Group 8's review A, I3: FR-030, SC-008 ("While the relay can't read the state, 100% of its answers are degraded"),
+  // and contract §3 step 4 allow no grace; this test pinned 10 s of one.
+  it("4. a failed read is store_unreachable at once, whatever the last read said", async () => {
     const r = await rig();
     await r.checks(3);
     expect((await hello(r)).statusCode).toBe(200);
     r.store.failing = true;
-    r.clock.advance(9_000);
-    expect((await hello(r)).statusCode).toBe(200);
-    r.clock.advance(1_001);
     const res = await hello(r);
     expect(res.statusCode).toBe(503);
     expect(res.json().cause).toBe("store_unreachable");
-    expect(r.laptop.received).toHaveLength(2);
+    expect(r.laptop.received).toHaveLength(1);
   });
 
   it("4. a relay that has never read the store answers store_unreachable while it can't", async () => {
@@ -657,13 +656,13 @@ describe("SC-008: the kill switch reaches the relay within 10 s", () => {
     expect((await hello(r)).statusCode).toBe(200);
   });
 
-  it("never holds a stale normal past 10 s of failed reads", async () => {
+  // Group 8's review A, I3: no stale normal at all, as SC-008 says.
+  it("never holds a stale normal: the first failed read is store_unreachable", async () => {
     const clock = new Clock();
     const store = new StubStore();
     const ks = new KillSwitch(store, clock.now);
     expect((await ks.verdict()).kind).toBe("normal");
     store.failing = true;
-    clock.advance(10_001);
     expect(await ks.verdict()).toMatchObject({ kind: "degraded", cause: "store_unreachable" });
     expect(ks.state()).toBe("unknown");
   });

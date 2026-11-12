@@ -28,7 +28,9 @@ const withPublic = (section: string): string => `${budgetsText.trimEnd()}\n${sec
 const P6 = `${REPO}docs/merge-requests/2026-11-13-feat-001-p6-public-cap.patch`;
 
 /** config/budgets.yaml as P-6 leaves it, as drafted: the patch's added lines appended to the real file, as its one hunk
- *  does. On a tree that holds P-6 already, the Author's `-p` branch, the file is first taken back to before it. */
+ *  does. On a tree that holds a `public` section already, the Author's `-p` branch, the file is first taken back to
+ *  before it by parsing, never by the text of P-6's comments, which he may reword (group 8's review A, I5): the
+ *  section is the last top-level key, as P-6 appends it, so everything from its key's line on goes. */
 function patchedBudgets(): string {
   const patch = readFileSync(P6, "utf8");
   const added = patch
@@ -36,9 +38,15 @@ function patchedBudgets(): string {
     .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
     .map((l) => l.slice(1));
   const real = readFileSync(`${REPO}config/budgets.yaml`, "utf8");
-  const first = added.find((l) => l.trim() !== "") ?? "";
-  const at = first === "" ? -1 : real.indexOf(`\n${first}\n`);
-  const before = at === -1 ? real : real.slice(0, at + 1);
+  const data = parseYaml("config/budgets.yaml", real).data as Record<string, unknown> | undefined;
+  let before = real;
+  if (data !== undefined && data !== null && "public" in data) {
+    const lines = real.split("\n");
+    let at = lines.findIndex((l) => /^public:\s*(#.*)?$/.test(l));
+    // The comment lines directly above the key are the section's, P-6's preamble, whatever their words.
+    while (at > 0 && /^#/.test(lines[at - 1] ?? "")) at -= 1;
+    before = lines.slice(0, at).join("\n");
+  }
   return `${before.trimEnd()}\n${added.join("\n")}\n`;
 }
 

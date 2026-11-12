@@ -1840,7 +1840,22 @@ def test_relay_ready_reads_the_public_sections_figures(tmp_path: Path) -> None:
     budgets.write_text("schema: 1\n" + "\n".join(added) + "\n", encoding="utf-8")
     assert "requests_per_minute" in (RELAY_READY(tmp_path) or "")
     # And the tree as it is: before P-6 the relay can't start; with the Author's figures, on his -p branch, it can.
-    real = (REPO / "config" / "budgets.yaml").read_text(encoding="utf-8")
-    assert (RELAY_READY(REPO) is None) == (
-        "\npublic:" in f"\n{real}" and "the Author's figure" not in real
+    # Readiness by the figures themselves, parsed, never by P-6's comment text, which the Author may keep or reword
+    # (group 8's review A, I5): all four are numbers.
+    real = yaml.safe_load(
+        (REPO / "config" / "budgets.yaml").read_text(encoding="utf-8")
     )
+    public = real.get("public") if isinstance(real, dict) else None
+    figures = (
+        [
+            (public.get("per_address") or {}).get(k)
+            for k in ("requests_per_minute", "burst", "requests_per_day")
+        ]
+        + [(public.get("global") or {}).get("in_flight")]
+        if isinstance(public, dict)
+        else [None]
+    )
+    numeric = all(
+        isinstance(f, int | float) and not isinstance(f, bool) for f in figures
+    )
+    assert (RELAY_READY(REPO) is None) == numeric
