@@ -236,13 +236,15 @@ def test_the_admin_only_stack_runs_the_tunnel_with_its_one_forward_and_no_relay_
     assert up.endswith("up -d --wait --no-deps gateway edge")
     assert "-p h4reet-prod" in up and f"--env-file {env_file}" in up
     run = next(j for j in joined if " run " in j)
-    assert run.endswith("run -d --rm --no-deps --use-aliases tunnel admin")
+    assert run.endswith(
+        "run -d --rm --no-deps --use-aliases --name h4reet-prod-tunnel-admin tunnel admin"
+    )
     overrides = next(env for argv, env in calls if " up " in " ".join(argv))
     # No relay block and no telemetry block: their tokens are empty, so both answer 401.
     assert (
         overrides["RELAY_TOKEN_SELF"] == "" and overrides["TELEMETRY_BLOCK_TOKEN"] == ""
     )
-    assert any(" down" in j or " stop " in j for j in joined)
+    assert any(" rm --stop " in j for j in joined)
 
 
 def test_the_admin_only_stack_stops_its_own_services_alone(

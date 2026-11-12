@@ -156,18 +156,27 @@ def write_private(host, path: Path, text: str, mode: int, uid: int) -> None:
 
 
 def prepare(host, paths: Paths, tree: Path) -> int:
-    # 1. The data volume: formatted once, while it holds no filesystem; never again.
-    code, out = host.run(["blkid", "-o", "value", "-s", "TYPE", DEVICE])
-    blank = code != 0 or not out.strip()
-    if blank and host.run(["mkfs.ext4", "-L", LABEL, DEVICE])[0] != 0:
-        print("shared_state: the data volume couldn't be formatted", file=sys.stderr)
-        return 1
+    # 1. The data volume: formatted once, while it holds no filesystem; never again. A volume mounted already isn't
+    # probed; blkid's exit 2 alone means no filesystem, and any other failure formats nothing (group 6's review).
     paths.data.mkdir(parents=True, exist_ok=True)
     mounted = host.run(["findmnt", "-n", str(paths.data)])[0] == 0
-    mount = ["mount", "-o", "nodev,nosuid,noexec", DEVICE, str(paths.data)]
-    if not mounted and host.run(mount)[0] != 0:
-        print("shared_state: the data volume couldn't be mounted", file=sys.stderr)
-        return 1
+    if not mounted:
+        code, out = host.run(["blkid", "-o", "value", "-s", "TYPE", DEVICE])
+        if code not in (0, 2) or (code == 0 and not out.strip()):
+            print(
+                f"shared_state: blkid couldn't read the data volume (exit {code}): nothing formatted",
+                file=sys.stderr,
+            )
+            return 1
+        if code == 2 and host.run(["mkfs.ext4", "-L", LABEL, DEVICE])[0] != 0:
+            print(
+                "shared_state: the data volume couldn't be formatted", file=sys.stderr
+            )
+            return 1
+        mount = ["mount", "-o", "nodev,nosuid,noexec", DEVICE, str(paths.data)]
+        if host.run(mount)[0] != 0:
+            print("shared_state: the data volume couldn't be mounted", file=sys.stderr)
+            return 1
     # 2. The store's key and certificate, from Parameter Store to tmpfs, before anything is written there.
     values, missing = get_parameters(host, list(TLS_PARAMETERS.values()))
     if missing:

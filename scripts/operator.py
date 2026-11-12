@@ -1717,6 +1717,10 @@ def ec2_running(profile: str | None) -> bool:
     return any(r.get("Instances") for r in found.get("Reservations") or [])
 
 
+# The admin-only stack's one-off tunnel, named so its stop removes it alone.
+ADMIN_TUNNEL = "h4reet-prod-tunnel-admin"
+
+
 class AdminOnlyStack:
     """The tunnel's -L 5432, the gateway, and edge, under prod's project, for one command (shared-state.md §7)."""
 
@@ -1751,6 +1755,8 @@ class AdminOnlyStack:
             "--rm",
             "--no-deps",
             "--use-aliases",
+            "--name",
+            ADMIN_TUNNEL,
             "tunnel",
             "admin",
         ]
@@ -1758,7 +1764,9 @@ class AdminOnlyStack:
             raise StackProblem("the admin-only stack's tunnel didn't start")
 
     def stop(self) -> None:
-        run_docker([*self.base, "down", "--remove-orphans"], self.env)
+        # What it started alone: `down` under prod's project would stop every prod container (group 6's review).
+        run_docker([*self.base, "rm", "--stop", "--force", "gateway", "edge"], self.env)
+        run_docker(["docker", "rm", "--force", ADMIN_TUNNEL], self.env)
 
 
 def restore_lines(body: dict[str, Any]) -> list[str]:
