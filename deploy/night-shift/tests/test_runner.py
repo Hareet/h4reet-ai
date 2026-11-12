@@ -151,6 +151,11 @@ class TestQueue:
         qp.symlink_to(outside)
         assert runner.load_queue() is False
         assert runner.tasks == {}
+        assert runner.load_queue() is None  # the same refusal isn't written again
+        lines = [
+            ln for ln in nf.page_text(runner).splitlines() if "queue refused" in ln
+        ]
+        assert len(lines) == 1
 
     def test_the_queue_is_read_again_only_when_its_mtime_changes(self, night, h):
         runner, _fx = nf.make_runner(night, h)
@@ -463,11 +468,14 @@ class TestUsageLimit:
         assert runner.tasks["aaa"].state == "stopped-limit"
         assert "no reset time" in nf.page_text(runner)
 
-    def test_a_reset_in_the_past_waits_only_the_margin(self, night, h):
+    @pytest.mark.parametrize("offset", [-50, 0, 8 * 86400 + 1, 30 * 86400])
+    def test_a_reset_past_or_over_eight_days_ahead_stops_the_night(
+        self, night, h, offset
+    ):
         runner, fx = ready_runner(night, h, nf.task("aaa"))
         fx.t += 10
         runner.schedule()
-        reset = int(fx.t) - 50
+        reset = int(fx.t) + offset
         runner.dispatch(
             (
                 "line",
@@ -475,7 +483,65 @@ class TestUsageLimit:
                 nf.assistant_text(f"usage limit reached|{reset}"),
             )
         )
-        assert fx.sleeps == [reset + 300 - (fx.t - fx.sleeps[0])]
+        assert fx.sleeps == []
+        assert runner.ended
+        assert "no usable reset time" in nf.page_text(runner)
+
+    def test_a_reset_eight_days_ahead_is_waited_for(self, night, h):
+        runner, fx = ready_runner(night, h, nf.task("aaa"))
+        fx.t += 10
+        runner.schedule()
+        t0 = fx.t
+        reset = int(t0) + 8 * 86400
+        runner.dispatch(
+            (
+                "line",
+                runner.tasks["aaa"].key,
+                nf.assistant_text(f"usage limit reached|{reset}"),
+            )
+        )
+        assert fx.sleeps == [reset + 300 - t0]
+
+    def test_a_second_limit_soon_after_resuming_stops_the_night(self, night, h):
+        runner, fx = ready_runner(night, h, nf.task("aaa"))
+        fx.t += 10
+        runner.schedule()
+        reset = int(fx.t) + 3600
+        runner.dispatch(
+            (
+                "line",
+                runner.tasks["aaa"].key,
+                nf.assistant_text(f"usage limit reached|{reset}"),
+            )
+        )
+        assert len(fx.sleeps) == 1 and not runner.ended
+        fx.t += 9 * 60
+        again = int(fx.t) + 3600
+        runner.dispatch(
+            ("line", runner.sup.key, nf.assistant_text(f"usage limit reached|{again}"))
+        )
+        assert len(fx.sleeps) == 1
+        assert runner.ended
+        assert "within 10 minutes" in nf.page_text(runner)
+
+    def test_a_second_limit_later_waits_again(self, night, h):
+        runner, fx = ready_runner(night, h, nf.task("aaa"))
+        fx.t += 10
+        runner.schedule()
+        reset = int(fx.t) + 3600
+        runner.dispatch(
+            (
+                "line",
+                runner.tasks["aaa"].key,
+                nf.assistant_text(f"usage limit reached|{reset}"),
+            )
+        )
+        fx.t += 11 * 60
+        again = int(fx.t) + 3600
+        runner.dispatch(
+            ("line", runner.sup.key, nf.assistant_text(f"usage limit reached|{again}"))
+        )
+        assert len(fx.sleeps) == 2 and not runner.ended
 
     def test_three_fast_failures_stop_the_night(self, night, h):
         runner, fx = ready_runner(night, h, *(nf.task(f"f-{i}") for i in range(4)))
@@ -794,18 +860,13 @@ class TestDockerRun:
             "-e", "CLAUDE_CONFIG_DIR=/night/claude", "-e", "DISABLE_AUTOUPDATER=1", "-e", "DISABLE_TELEMETRY=1",
             "-e", "DISABLE_ERROR_REPORTING=1", "-e", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
             "-v", f"{wt}:{wt}:rw",
-            "-v", f"{g}:{g}:rw",
-            "-v", f"{g}/hooks:{g}/hooks:ro",
-            "-v", f"{g}/config:{g}/config:ro",
-            "-v", f"{g}/info:{g}/info:ro",
-            "-v", f"{g}/packed-refs:{g}/packed-refs:ro",
-            "-v", f"{g}/refs/heads/main:{g}/refs/heads/main:ro",
-            "-v", f"{g}/refs/tags:{g}/refs/tags:ro",
+            "-v", f"{g}:{g}:ro",
+            "-v", f"{g}/objects:{g}/objects:rw",
             "-v", f"{g}/objects/info:{g}/objects/info:ro",
-            "-v", f"{g}/HEAD:{g}/HEAD:ro",
-            "-v", f"{g}/index:{g}/index:ro",
+            "-v", f"{g}/worktrees/t-1:{g}/worktrees/t-1:rw",
             "-v", f"{g}/worktrees/t-1/commondir:{g}/worktrees/t-1/commondir:ro",
-            "-v", f"{g}/refs/replace:{g}/refs/replace:ro",
+            "-v", f"{g}/refs/heads/night/t-1:{g}/refs/heads/night/t-1:rw",
+            "-v", f"{g}/logs/refs/heads/night/t-1:{g}/logs/refs/heads/night/t-1:rw",
             "-v", f"{wt}/CLAUDE.md:{wt}/CLAUDE.md:ro",
             "-v", f"{wt}/REVIEW.md:{wt}/REVIEW.md:ro",
             "-v", f"{wt}/.claude:{wt}/.claude:ro",
@@ -817,7 +878,7 @@ class TestDockerRun:
             "-v", f"{h.engine_certs}:/night/engine-certs:ro",
             "-v", f"{h.share}/claude/implementer:/night/claude:rw",
             "-v", f"{h.night_root}/.io/t-1:/night/io:rw",
-            "-w", wt, f"h4-night-worker:{nf.SHA12}",
+            "-w", wt, h.images[f"h4-night-worker:{nf.SHA12}"],
             "claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
             "--settings", "/night/settings-implementer.json",
         ]  # fmt: skip
@@ -893,6 +954,21 @@ class TestDockerRun:
         v = {(host, mode) for host, _c, mode in vols(argv)}
         g = h.repo / ".git"
         admin = Path(t.admin)
+        task = t.id
+        # FR-012: .git read-only, and read-write only where a commit on the task's own branch writes.
+        assert (str(g), "ro") in v
+        rw_git = {host for host, mode in v if mode == "rw" and host.startswith(str(g))}
+        assert rw_git == {
+            str(g / "objects"),
+            str(admin),
+            str(g / "refs/heads/night" / task),
+            str(g / "logs/refs/heads/night" / task),
+        }
+        assert (str(g / "objects/info"), "ro") in v
+        assert (str(admin / "commondir"), "ro") in v
+        for p in rw_git:
+            assert Path(p).is_dir(), p  # made outside, before the run
+        # Paths under the read-only .git need no mask of their own.
         for p in (
             "hooks",
             "config",
@@ -900,13 +976,9 @@ class TestDockerRun:
             "packed-refs",
             "refs/heads/main",
             "refs/tags",
-            "objects/info",
-            "HEAD",
-            "index",
+            "refs/replace",
         ):
-            assert (str(g / p), "ro") in v, p
-        assert (str(admin / "commondir"), "ro") in v
-        assert (str(g / "refs/replace"), "ro") in v  # from main's denyWrite
+            assert not [x for x in v if x[0] == str(g / p)], p
         wt = Path(t.worktree)
         for p in (
             "CLAUDE.md",
@@ -916,7 +988,41 @@ class TestDockerRun:
             "tools/gates",
         ):
             assert (str(wt / p), "ro") in v, p
-        assert (str(wt), "rw") in v and (str(g), "rw") in v
+        assert (str(wt), "rw") in v
+
+    @pytest.mark.parametrize("role", nf.SESSION_ROLES)
+    def test_no_session_binds_git_itself_read_write(self, night, h, role):
+        _runner, _fx, _t, argv = self.start_role(night, h, role)
+        g = str(h.repo / ".git")
+        for host, cont, mode in vols(argv):
+            if host == g or cont == g:
+                assert mode == "ro"
+            if mode == "rw" and host.startswith(g + "/"):
+                rel = host[len(g) + 1 :]
+                assert rel == "objects" or rel.startswith(
+                    ("worktrees/", "refs/heads/night/", "logs/refs/heads/night/")
+                ), rel
+
+    def test_a_denied_git_path_under_a_read_write_mount_is_masked(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        settings = json.loads(fx.main_settings)
+        settings["sandbox"]["filesystem"]["denyWrite"].append("./.git/objects/pack")
+        fx.main_settings = json.dumps(settings)
+        (h.repo / ".git/objects/pack").mkdir(parents=True)
+        runner.start_supervisor()
+        g = str(h.repo / ".git")
+        assert (f"{g}/objects/pack", f"{g}/objects/pack", "ro") in vols(
+            fx.spawned[-1][1]
+        )
+
+    def test_a_denied_git_path_over_a_read_write_mount_refuses(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        settings = json.loads(fx.main_settings)
+        settings["sandbox"]["filesystem"]["denyWrite"].append("./.git/objects")
+        fx.main_settings = json.dumps(settings)
+        with pytest.raises(night.Refused) as e:
+            runner.start_supervisor()
+        assert "objects" in str(e.value)
 
     @pytest.mark.parametrize("role", ["reviewer", "red-teamer", "gate-runner"])
     def test_reading_roles_mount_the_worktree_and_git_read_only(self, night, h, role):
@@ -974,17 +1080,12 @@ class TestDockerRun:
             runner.start_supervisor()
         assert ".claude" in str(e.value)
 
-    def test_a_missing_loose_main_ref_is_written_then_masked(self, night, h):
+    def test_a_missing_loose_main_ref_needs_no_mask(self, night, h):
+        # .git is read-only, so a session can't create a loose refs/heads/main; the runner writes nothing there.
         (h.repo / ".git/refs/heads/main").unlink()
-        runner, fx = nf.make_runner(night, h)
+        runner, _fx = nf.make_runner(night, h)
         runner.start_supervisor()
-        g = str(h.repo / ".git")
-        assert (f"{g}/refs/heads/main", f"{g}/refs/heads/main", "ro") in vols(
-            fx.spawned[-1][1]
-        )
-        assert (h.repo / ".git/refs/heads/main").read_text().strip() == nf.sha40(
-            "refs/heads/main"
-        )
+        assert not (h.repo / ".git/refs/heads/main").exists()
 
     @pytest.mark.parametrize(
         "bad",
@@ -1093,6 +1194,8 @@ class TestDockerRun:
             assert nf.token_value() not in " ".join(c)
         fwd = runs[2]
         assert fwd[-1] == "TCP:198.18.0.1:2376"
+        assert runs[0][-1] == h.images[f"h4-night-egress:{nf.SHA12}"]
+        assert h.images[f"h4-night-worker:{nf.SHA12}"] in fwd
         connects = fx.docker_calls("network")
         connects = [c for c in connects if c[2:3] == ["connect"]]
         assert [
@@ -1339,7 +1442,7 @@ class TestRequests:
         assert run[run.index("--network") + 1] == "h4-night-studio"
         assert run[run.index("--gpus") + 1] == "all"
         assert "--env-file" not in run
-        tail = run[run.index(f"h4-night-comfyui:{nf.SHA12}") + 1 :]
+        tail = run[run.index(h.images[f"h4-night-comfyui:{nf.SHA12}"]) + 1 :]
         assert tail == [
             f"{h.comfyui_venv}/bin/python", "main.py", "--listen", "0.0.0.0", "--port", "8188",
             "--output-directory", "/srv/studio/outputs", "--temp-directory", "/comfyui/temp",
@@ -1648,3 +1751,164 @@ class TestComfyAllowlist:
         p.write_text(data if isinstance(data, str) else json.dumps(data))
         a, runs = comfy_start(night, h, ["--birefnet"])
         assert a["ok"] is False and runs == []
+
+
+# ================================================================================================================
+# G1's review: B1 (the narrow .git mount and the runner's own git), and the should-fixes
+# ================================================================================================================
+
+
+class TestReviewFixes:
+    def test_every_runner_git_call_names_the_common_dir(self, night, h):
+        h.set_fact("NIGHT_GATE", "on")
+        h.set_fact("NIGHT_PLAN", "on")
+        runner, fx = ready_runner(
+            night,
+            h,
+            nf.task("aaa", name="feat/018-a"),
+            nf.task("gat", role="gate-runner"),
+            nf.task("opx", role="ops"),
+        )
+        for _ in range(3):
+            fx.t += 10
+            runner.schedule()
+        ask(runner, runner.tasks["gat"], 1, {"kind": "gate", "sha": nf.sha40("x")})
+        ask(
+            runner,
+            runner.tasks["opx"],
+            1,
+            {"kind": "plan", "root": "bootstrap", "sha": nf.sha40("y")},
+        )
+        fx.t += 16 * 60
+        runner.check_idle()
+        runner.dispatch(("exit", runner.tasks["aaa"].key, 0))
+        calls = fx.git_calls()
+        assert len(calls) >= 8
+        for argv, kw in calls:
+            assert kw["env"].get("GIT_COMMON_DIR") == str(h.repo / ".git"), argv
+            assert kw["env"].get("GIT_DIR"), argv
+
+    @pytest.mark.parametrize(
+        "rel", ["commondir", "main", "refs/main", "refs/remotes/main", "refs/tags/main"]
+    )
+    def test_a_planted_git_path_refuses_the_preflight(self, night, h, capsys, rel):
+        p = h.repo / ".git" / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n")
+        rc, out = run_check(night, h, nf.FakeFx(night, h), capsys)
+        assert rc == 1 and len(out.strip().splitlines()) == 1
+        assert f".git/{rel}" in out
+
+    @pytest.mark.parametrize(
+        "ref", ["refs/tags/main", "refs/main", "refs/remotes/main"]
+    )
+    def test_a_packed_ref_named_main_refuses_the_preflight(self, night, h, capsys, ref):
+        (h.repo / ".git/packed-refs").write_text(f"{nf.sha40('x')} {ref}\n")
+        rc, out = run_check(night, h, nf.FakeFx(night, h), capsys)
+        assert rc == 1 and ref in out
+
+    def gate_pending(self, night, h):
+        h.set_fact("NIGHT_GATE", "on")
+        fx = nf.FakeFx(night, h)
+        fx.defer_jobs = True
+        runner, fx, t = running_task(night, h, "gate-runner", fx=fx)
+        put_request(runner, t, 1, {"kind": "gate", "sha": nf.sha40("tip")})
+        runner.dispatch(("line", t.key, nf.event_line({"type": "system"})))
+        assert runner.pending
+        return runner, fx, t
+
+    def test_stopping_with_a_gate_running_ends_it_before_the_lock_goes(self, night, h):
+        import signal as sig
+
+        runner, fx, t = self.gate_pending(night, h)
+        runner.abort_night()
+        assert [d["key"] for d in fx.terminated] == [f"job:{t.id}:1"]
+        assert fx.terminated[0]["gate_lock_held"] is True
+        probe = fx.lock(str(h.state / "locks" / "gate"))
+        assert probe is not None
+        fx.unlock(probe)
+        assert (sig.SIGTERM, sig.SIG_IGN) in fx.signals
+        assert (sig.SIGINT, sig.SIG_IGN) in fx.signals
+        assert runner.pending == {}
+        assert t.state == "queued"
+
+    def test_stopping_with_a_plan_running_stops_its_containers(self, night, h):
+        h.set_fact("NIGHT_PLAN", "on")
+        fx = nf.FakeFx(night, h)
+        fx.defer_jobs = True
+        runner, fx, t = running_task(night, h, "ops", fx=fx)
+        put_request(
+            runner, t, 1, {"kind": "plan", "root": "bootstrap", "sha": nf.sha40("p")}
+        )
+        runner.dispatch(("line", t.key, nf.event_line({"type": "system"})))
+        assert runner.pending
+        plan_dir = h.state / "plan"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        (plan_dir / "t-1-1.env").write_text("left over\n")
+        runner.abort_night()
+        stopped = {n for c in fx.docker_calls("stop") for n in c[4:]}
+        assert {"h4-night-plan-t-1-1", "h4-night-egress-plan"} <= stopped
+        assert not (plan_dir / "t-1-1.env").exists()
+
+    def test_the_helpers_stop_includes_the_plan_egress(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        runner.stop_helpers()
+        names = {n for c in fx.docker_calls("stop") for n in c[4:]}
+        assert names == {
+            "h4-night-egress",
+            "h4-night-egress-studio",
+            "h4-night-engine-fwd",
+            "h4-night-egress-plan",
+        }
+
+    def test_ctrl_c_mid_night_is_a_clean_stop(self, night, h):
+        class InterruptFx(nf.FakeFx):
+            def wait(self, timeout):
+                raise KeyboardInterrupt
+
+        fx = InterruptFx(night, h)
+        runner, _ = nf.make_runner(night, h, fx)
+        assert runner.run_night() == 0
+        assert runner.sup.state == "queued"
+        assert "night.py stop" in nf.page_text(runner)
+        names = {n for c in fx.docker_calls("stop") for n in c[4:]}
+        assert "h4-night-egress-plan" in names
+
+    def test_comfyui_reruns_the_disk_and_memory_checks(self, night, h):
+        runner, fx, t = running_task(night, h, "studio")
+        fx.disk["/mnt/c"] = 5 * 2**30
+        a = ask(
+            runner,
+            t,
+            1,
+            {"kind": "comfyui", "action": "start", "params": ["--birefnet"]},
+        )
+        assert a["ok"] is False and "/mnt/c" in a["answer"]
+        assert not [c for c in fx.docker_calls("run") if "h4-night-comfyui" in c]
+
+    def test_idle_skips_a_task_with_a_pending_request(self, night, h):
+        runner, fx, t = self.gate_pending(night, h)
+        fx.t += 16 * 60
+        runner.check_idle()
+        assert t.state == "running"
+
+    def test_an_engine_role_needs_no_proxy_for_the_forwarder(self, night, h):
+        spec = h.spec_for("implementer")
+        spec["env"].pop("NO_PROXY")
+        h.write_spec("implementer", spec)
+        runner, _fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused) as e:
+            runner.load_live_spec("implementer")
+        assert "NO_PROXY" in str(e.value)
+
+    @pytest.mark.parametrize(
+        "role", ["supervisor", "spec-writer", "reviewer", "gate-runner"]
+    )
+    def test_only_engine_roles_join_the_engine_network(self, night, h, role):
+        spec = h.spec_for(role)
+        spec["networks"] = ["h4-night", "h4-night-engine"]
+        h.write_spec(role, spec)
+        runner, _fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused) as e:
+            runner.load_live_spec(role)
+        assert "h4-night-engine" in str(e.value)

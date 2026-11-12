@@ -465,6 +465,9 @@ class FakeFx:
         self.gate_seen: list[dict] = []
         self.comfy_ready = True
         self.signals: list = []
+        self.defer_jobs = False
+        self.deferred: dict = {}
+        self.terminated: list[dict] = []
         self.kills: list = []
         self.cmdlines: dict[int, bytes] = {}
         self.present = {
@@ -510,7 +513,18 @@ class FakeFx:
 
     # ---- processes ------------------------------------------------------------------------------------------------
     def signal(self, signum, handler) -> None:
-        self.signals.append(signum)
+        self.signals.append((signum, handler))
+
+    def run_proc(self, key: str, argv, *, env=None, cwd=None, timeout=None):
+        """A job's long process (the gate), which terminate(key) can end."""
+        return self.run(argv, env=env, cwd=cwd, timeout=timeout)
+
+    def terminate(self, key: str) -> None:
+        gate_path = str(self.h.state / "locks" / "gate")
+        probe = self._real.lock(gate_path)
+        if probe is not None:
+            self._real.unlock(probe)
+        self.terminated.append({"key": key, "gate_lock_held": probe is None})
 
     def kill(self, pid: int, signum: int) -> None:
         self.kills.append((pid, signum))
@@ -525,7 +539,11 @@ class FakeFx:
         self.spawned.append((key, list(argv)))
 
     def start_job(self, key: str, fn) -> None:
-        # Jobs run at once here; their result arrives as an event, as the real thread's would.
+        # Jobs run at once here; their result arrives as an event, as the real thread's would. With defer_jobs,
+        # they stay pending (a gate still running when the night is stopped).
+        if self.defer_jobs:
+            self.deferred[key] = fn
+            return
         self.events.append(("job", key, fn()))
 
     def wait(self, timeout):
