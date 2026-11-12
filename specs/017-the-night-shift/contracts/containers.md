@@ -15,6 +15,9 @@ Plan §1 and §2 hold the design; this file is what the tests check.
    Nor is any ancestor of these mounted (`$HOME`, `/`, `/srv`, `/srv/studio`, `/var/run`, `/run`).
 4. **The masks**: every writing spec mounts these read-only over its read-write mounts:
    - `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, and `.git/refs/heads/main`;
+   - `.git/refs/tags`, since a tag named main would shadow the branch;
+   - `.git/objects/info`, which holds the alternates;
+   - the task's own `.git/worktrees/<task>/commondir`;
    - each path `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:.claude/settings.json` lists in `sandbox.filesystem.denyWrite` that falls inside the worktree.
 
    The test reads main's settings the same way, so the masks follow main.

@@ -278,7 +278,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
   - each session's settings layer SHALL set `forceLoginMethod` to `"claudeai"`, which makes Claude Code refuse to start when an `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `apiKeyHelper` is present (research R-16);
   - THE runner SHALL start no container whose environment holds any of `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, or `CLAUDE_CODE_USE_FOUNDRY`;
   - no session SHALL run with `--bare`, which ignores the token;
-  - the container probe SHALL prove both refusals, and the runner's preflight SHALL check them on every start;
+  - the two refusals are Claude Code's and the runner's. THE container probe SHALL prove Claude Code's, for an `ANTHROPIC_API_KEY` and for an `ANTHROPIC_AUTH_TOKEN`: it refuses to start, and the egress log shows no API call. THE runner's tests and the rehearsal SHALL prove the runner's, and its preflight SHALL check them on every start;
   - WHEN a session reports the plan's limit, THE runner SHALL wait for the reset and never accept extra usage. The Author turns extra usage off in his account (plan, his step).
 
 **The layers (research.md R-07, R-08)**

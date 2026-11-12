@@ -194,3 +194,26 @@ From Anthropic's documentation, through a docs-research agent's search extracts 
 - **Extra usage**: past the plan's limits, extra usage bills at API rates. The Author turns it off in his account; the runner waits for resets.
 - **Terms**: OAuth is "intended for ordinary Claude Code use"; developers building products should use API keys; no reselling and no passing subscription credentials to end users. The consumer terms on unattended, concurrent use couldn't be confirmed (Q14).
 - **In containers**: pass the token at run time as a secret, never baked into an image, and don't mount host SSH or cloud credentials (code.claude.com/docs/en/devcontainer). `CLAUDE_CONFIG_DIR` keeps each role's Claude folder.
+
+## R-17: the container probe's review
+
+A reviewer agent (read-only) reviewed the first version at 26d25c64.
+
+**The blocker, fixed.** `failclosed` read any non-zero exit as "refused to start". A key Claude Code had actually sent, and seen rejected ("Invalid API key"), would have passed. So would a timeout. The row now needs a non-zero exit within the timeout, and no new `api.anthropic.com` line in the egress proxy's log during that turn. The proxy is the container's only way out, so that is ground truth. The row runs for `ANTHROPIC_API_KEY` and for `ANTHROPIC_AUTH_TOKEN`.
+
+**The important findings, fixed:**
+- `claude-sandbox-in-container` couldn't tell a sandboxed run from an unsandboxed one, because the probe set `SANDBOX_RUNTIME=1` itself. It no longer does.
+- Cleanup could have removed networks and containers it didn't make. Names are now per run, networks carry the run's label, and only what the run made is removed.
+- The container's Claude folder and an unredacted rows file stayed where a session could read them. Both are deleted at the end, and the rows are redacted before they're kept.
+- `no-route` accepted any error. It now needs `ENETUNREACH` or `EHOSTUNREACH`, plus no default route in `/proc/net/route`, and a `dns` info row says whether outside names resolve.
+- The `gpu` row was missing; it's there now.
+
+**The nits, fixed:**
+- `--init`, so Ctrl-C reaches the checks;
+- the host-side git ignores his global and system configuration;
+- the mask sources are checked before the run;
+- each refusal prints its first error line;
+- masks were added over `refs/tags`, `objects/info`, and the worktree's `commondir` (also in contracts/containers.md §4);
+- the `PLAN-ONLY` line names any missing rows.
+
+**Kept:** while a container exists, `docker inspect` can show its environment, the token included. Only a holder of the host's socket can run it, and no session has the socket.

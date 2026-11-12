@@ -148,7 +148,7 @@ the Author's terminal
 - has limits: `--pids-limit 512`, `--memory 4g`, `--cpus 2`, and the supervisor `--memory 2g`. Ten workers then fit 62 GB and 24 cores, with the GPU's model off on studio nights;
 - has these mounts, and nothing else:
   - its worktree, read-write, at the same path as on the host;
-  - the repository's `.git`, read-write, at the same path, with read-only binds over `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, and `.git/refs/heads/main`;
+  - the repository's `.git`, read-write, at the same path, with read-only binds over `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, `.git/refs/heads/main`, `.git/refs/tags`, `.git/objects/info`, and its own `.git/worktrees/<task>/commondir`;
   - read-only binds over every path `refs/heads/main:.claude/settings.json` denies writing, inside the worktree (`.claude`, `CLAUDE.md`, `REVIEW.md`, `tools/gates`, …). Claude Code's own sandbox may be off in the container, so these binds do what its masks do today;
   - its role's Claude folder (`CLAUDE_CONFIG_DIR`);
   - its io folder;
@@ -156,7 +156,7 @@ the Author's terminal
 - gets this environment, and nothing else:
   - `CLAUDE_CODE_OAUTH_TOKEN`, from `--env-file ~/.config/h4reet-ai/night-shift/claude.env`;
   - `HTTPS_PROXY=http://egress:3128` and `NO_PROXY=engine-fwd`;
-  - `SANDBOX_RUNTIME=1`, so the Author-only make targets refuse, as in today's sandbox, and the relay runs;
+  - `SANDBOX_RUNTIME=1`, so the Author-only make targets refuse, as in today's sandbox, and the relay runs. If the container probe shows Claude Code's own sandbox starts inside a container, commands get the variable from that sandbox, and the runner doesn't set it;
   - `DISABLE_AUTOUPDATER=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`.
 - signs in on the plan only. The role's settings layer sets `forceLoginMethod: "claudeai"`, and the runner refuses to start a container whose environment names an API-billing variable (FR-041).
 
@@ -227,19 +227,19 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
 
 ## §5 The container probe
 
-`deploy/night-shift/container-probe.sh` (contracts/probe.md §2), at the runbook's commit. He runs it after making the night-shift token (his step, below). It makes one folder, `~/h4-cprobe.XXXXXX`, builds two small images (`h4-night-probe-worker`, `h4-night-probe-egress`), and makes one internal network. It removes its containers and network when it ends and names the images it leaves.
+`deploy/night-shift/container-probe.sh` (contracts/probe.md §2), at the runbook's commit. He runs it after making the night-shift token (his step, below). It makes one folder, `~/h4-cprobe.XXXXXX`, builds two small images (`h4-night-probe-worker`, `h4-night-probe-egress`), and makes two networks named for the run: one internal, one ordinary. When it ends, it removes only the containers and networks it made, deletes the container's Claude folder and the scratch files, and names the images it leaves (research R-17).
 
 **What it checks**:
-1. **The sign-in**: in the worker container, with only the token, `claude -p` answers. With the settings layer's `forceLoginMethod: "claudeai"`, and with `ANTHROPIC_API_KEY=probe-not-a-key` also set, Claude Code refuses to start. That's the fail-closed row; the stand-in key never reaches an API.
+1. **The sign-in**: in the worker container, with only the token, `claude -p` answers. Then, with the settings layer's `forceLoginMethod: "claudeai"`, a stand-in `ANTHROPIC_API_KEY` is added, and then a stand-in `ANTHROPIC_AUTH_TOKEN`. Each time, Claude Code must exit non-zero, and the egress proxy's log must gain no `api.anthropic.com` line for that turn. The proxy is the only way out, so that proves the stand-in was never sent.
 2. **The way out**:
    - `api.anthropic.com` through the egress proxy is reachable;
-   - `example.com` through the proxy is refused;
-   - a direct connection to `1.1.1.1:443` has no route.
-3. **What isn't there**: `/var/run/docker.sock`, `~/.aws`, `~/.ssh`, and `~/.config/h4reet-ai`.
+   - `example.com` through the proxy gets the proxy's 403;
+   - a direct connection to `1.1.1.1:443` fails as unreachable, and the container has no default route.
+3. **What isn't there**: the Docker socket, `~/.aws`, `~/.ssh`, `~/.config/h4reet-ai`, `~/.claude`, `/srv/studio/photos`, and `/srv/studio/key`.
 4. **The repository**:
    - in a scratch clone with a worktree, the session writes its worktree and commits;
-   - a write to `.git/hooks`, `.git/config`, or a masked `.claude/settings.json` is refused;
-   - `git config core.hooksPath` can't be set.
+   - each of these writes is refused: `.git/hooks`, `.git/config`, a masked `.claude/settings.json`, `refs/heads/main`, a tag named `main`, `objects/info/alternates`, and the worktree's `commondir`;
+   - git's hooks path can't be set.
 5. **The engine**: `engine-fwd` reaches `198.18.0.1:2376` (a TCP connect, nothing sent).
 6. **Claude Code's own sandbox inside the container**: the `printenv SANDBOX_RUNTIME` turn, as in the nono probe. This is information only; if it starts, it stays on as a second layer.
 7. **The GPU**: `docker info`'s runtimes, and `nvidia-smi` in a `--gpus all` container (name and memory only).
