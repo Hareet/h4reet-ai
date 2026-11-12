@@ -202,7 +202,10 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
     ]
     # Group 8: the relay's edge listener on the private interface's fixed address, for CloudFront's VPC origin, and
     # its internal listener on the tunnel end's loopback alone (contracts/relay-http.md §1).
-    assert SERVICES["relay"]["ports"] == ["10.42.1.10:8080:8080", "127.0.0.1:18505:8081"]
+    assert SERVICES["relay"]["ports"] == [
+        "10.42.1.10:8080:8080",
+        "127.0.0.1:18505:8081",
+    ]
     assert SERVICES["relay"]["profiles"] == ["tunnel-end"]
     assert "ports" not in SERVICES["dev-relay"]
     # Group 7: EC2's relay block and its collector, on EC2's private address alone, a literal, in EC2's class alone.
@@ -1236,7 +1239,9 @@ def test_the_relay_receives_its_literals_and_the_tunnel_ends_secrets() -> None:
     assert "RELAY_EC2_URL" not in dev and "RELAY_DB_RW_USER" not in dev
     assert dev["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://otel-collector:4318"
     # The daemon's pool, as deploy/hosts/tunnel-end/daemon.json fixes it, is among the refused peers.
-    daemon = json.loads((REPO / "deploy/hosts/tunnel-end/daemon.json").read_text(encoding="utf-8"))
+    daemon = json.loads(
+        (REPO / "deploy/hosts/tunnel-end/daemon.json").read_text(encoding="utf-8")
+    )
     pools = [p["base"] for p in daemon["default-address-pools"]]
     assert pools and all(p in env["RELAY_REFUSED_PEERS"].split(",") for p in pools)
     for name in ("relay", "dev-relay"):
