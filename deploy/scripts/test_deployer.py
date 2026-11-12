@@ -12,7 +12,8 @@ Each run, on the host's timer:
   5. record the deployment, one JSON line in the state folder.
 At boot it starts the last release it recorded before it asks the bucket, from the images it already holds
 (`--pull never`, no registry login), so a bucket or a registry it can't reach leaves the host on its last release; and
-each run brings that release up again when its services aren't running. (group 5's review, I4).
+each run brings that release up again when its services aren't running. Before each `up` it runs the release tree's
+own preflight for the host's class, and a refusal there starts nothing (group 5's review, I4 and I7).
 
 The AWS CLI, Docker, and the clock are stood in for: deployer.run takes them as objects.
 """
@@ -90,6 +91,7 @@ class Docker:
         self.owned: list[tuple[str, int]] = []
         # What runs: the services the last up started, until the test stops them.
         self.up: set[str] = set()
+        self.preflight_fails_for: set[str] = set()
 
     def own_volume(self, name: str, uid: int) -> bool:
         self.owned.append((name, uid))
@@ -98,6 +100,12 @@ class Docker:
     def host_step(self, host: str, tree: Path) -> bool:
         self.calls.append((str(tree), ["host-step", host], {}))
         return host not in self.fail_for
+
+    def preflight(self, host: str, tree: Path, env_file: Path) -> bool:
+        self.calls.append((str(tree), ["preflight", host, str(env_file)], {}))
+        return (tree / "deploy/compose.yaml").read_text().split("# ")[-1].strip() not in (
+            self.preflight_fails_for
+        )
 
     def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
         return set(services) <= self.up
@@ -386,7 +394,7 @@ def test_the_host_step_runs_from_the_releases_tree_before_anything_starts(
     w.release("r1")
     assert w.run() == 0
     kinds = [args[0] for _, args, _ in w.docker.calls]
-    assert kinds[:3] == ["host-step", "pull", "up"]
+    assert kinds[:4] == ["host-step", "preflight", "pull", "up"]
     (step,) = [c for c in w.docker.calls if c[1][0] == "host-step"]
     assert step[1] == ["host-step", "tunnel-end"]
     assert Path(step[0]) == Path(w.docker.calls[1][0])
@@ -488,3 +496,66 @@ def test_a_rollback_starts_the_previous_release_from_its_cached_images(
     back = ups(w)[-1]
     assert back[1]["H4_RELEASE"] == "r1"
     assert back[0][back[0].index("--pull") + 1] == "never"
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 5's review, I7: the release tree's own preflight for the host's class (deploy/scripts/preflight.py
+# --host-class tunnel-end) runs before each up, after the host step that writes what its T5 reads; a refusal starts
+# nothing and alerts deploy_refused, with the running release kept.
+
+
+def test_preflight_refuses_a_release_and_the_running_one_stays(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.preflight_fails_for = {"r2"}
+    assert w.run() == 1
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1"]
+    (alert,) = w.aws.alerts
+    assert alert.startswith(
+        "[hareet.ai aws] deploy_refused: tunnel-end refused release r2"
+    )
+    assert "- reason: preflight" in alert
+    assert w.records()[-1]["outcome"] == "refused"
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
+
+
+def test_preflight_refusing_the_first_release_starts_nothing(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    w.docker.preflight_fails_for = {"r1"}
+    assert w.run() == 1
+    assert ups(w) == []
+    assert "- reason: preflight" in w.aws.alerts[0]
+
+
+def test_preflight_refusing_at_boot_starts_nothing(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.docker.up = set()
+    w.aws.reachable = False
+    w.docker.preflight_fails_for = {"r1"}
+    assert w.run(boot=True) == 0
+    assert ups(w) == []
+    assert [args[0] for _, args, _ in w.docker.calls].count("preflight") >= 1
+
+
+def test_the_real_preflight_is_the_trees_own_for_the_hosts_class(
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "tunnel-end.env"
+    assert dp.preflight_argv("tunnel-end", tmp_path, env_file) == [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        str(tmp_path / "deploy/scripts/preflight.py"),
+        "--host-class",
+        "tunnel-end",
+        "--env-file",
+        str(env_file),
+        "--root",
+        str(tmp_path),
+    ]

@@ -495,3 +495,35 @@ def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
     assert loaded["tunnel-end"]["image"] == (
         registry + "tunnel@" + release["services"]["tunnel-end"]["digest"]
     )
+
+
+def test_the_rendered_env_file_passes_the_tunnel_end_classs_preflight(
+    tmp_path: Path,
+) -> None:
+    # Group 5's review, I7: the deployer runs this check before each up; the template, write_env.py, and preflight's
+    # T1 to T5 agree on the file the host writes.
+    we = _load("write_env_for_preflight", REPO / "deploy" / "scripts" / "write_env.py")
+
+    def fetch(names: list[str]) -> dict[str, str]:
+        return {
+            n: ("h4reet-ai-releases-" + secrets.token_hex(4))
+            if n.endswith("RELEASE_BUCKET")
+            else secrets.token_urlsafe(32)
+            for n in names
+        }
+
+    text, _ = we.render(
+        "tunnel-end", TEMPLATE.read_text(encoding="utf-8"), fetch, lambda: "1" * 12
+    )
+    env_file = tmp_path / "tunnel-end.env"
+    env_file.write_text(text, encoding="utf-8")
+    env_file.chmod(0o600)
+    tls = tmp_path / "tls"
+    tls.mkdir()
+    for name, mode in (("server.key", 0o600), ("server.crt", 0o644)):
+        (tls / name).write_text("-----BEGIN STAND-IN-----\n", encoding="utf-8")
+        (tls / name).chmod(mode)
+    results = pf.tunnel_end_checks(REPO, env_file, tls)
+    assert [(r.check, r.status) for r in results] == [
+        (f"T{n}", "PASS") for n in range(1, 6)
+    ], [r.line() for r in results]
