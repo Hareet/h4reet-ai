@@ -785,6 +785,37 @@ services:
           cpus: "0.25"
           memory: 32M
 
+  # The tunnel end's collector (spec 001 research.md R-25; disclosure row C15): spec 000's collector image, copied to
+  # the account's registry by its own digest, with deploy/otel/collector-tunnel-end.yaml, which routes each record to
+  # the host it concerns, the laptop's through the tunnel, EC2's inside the VPC, from a file-backed queue on its own
+  # volume, and redacts as spec 000's does. It joins egress to reach EC2's collector; the tunnel end's nftables keep
+  # it inside the VPC. Its image runs as its own user, 10001, whom the deployer gives the queue's volume.
+  tunnel-end-collector:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    networks: [internal, egress]
+    environment:
+      TELEMETRY_BLOCK_TOKEN: "${TELEMETRY_BLOCK_TOKEN:-}"
+      EC2_COLLECTOR_ENDPOINT: "${EC2_COLLECTOR_ENDPOINT:-}"
+      TELEMETRY_PAYLOAD_SAMPLING: "${TELEMETRY_PAYLOAD_SAMPLING:-off}"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/otel/collector-tunnel-end.yaml"
+        target: /etc/otelcol/config.yaml
+        read_only: true
+      - type: volume
+        source: tunnel-end-collector-queue
+        target: /var/lib/otelcol/queue
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
   # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
   # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the
   # real channels (contracts/env-files.md §7.2). Only the dev-receivers profile names them, which COMPOSE_PROFILES
@@ -905,3 +936,5 @@ volumes:
   clickhouse-data: {}
   valkey-data: {}
   seaweedfs-data: {}
+  # Spec 001's tunnel end: its collector's file-backed queue.
+  tunnel-end-collector-queue: {}

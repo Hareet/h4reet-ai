@@ -27,7 +27,7 @@ ENV_FILES = {
 RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL"}
 # The services spec 001 adds, each in its host's class (its contracts/env-cloud.md §3): the laptop's tunnel, and the
 # tunnel end's.
-SPEC_001 = {"tunnel", "tunnel-end"}
+SPEC_001 = {"tunnel", "tunnel-end", "tunnel-end-collector"}
 RUN_FILE_KEYS = {
     "H4_TREE",
     "H4_REF",
@@ -107,6 +107,7 @@ def test_the_topology_of_this_branch() -> None:
         "clickhouse-data": {},
         "valkey-data": {},
         "seaweedfs-data": {},
+        "tunnel-end-collector-queue": {},
     }
     assert "name" not in COMPOSE  # make passes -p h4reet-<stack>
 
@@ -175,6 +176,7 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
     assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
         "gateway",
         "tunnel",
+        "tunnel-end-collector",
     ]
     assert SERVICES["gateway-state"]["networks"] == ["internal"]
 
@@ -187,7 +189,10 @@ BUILT = ("tunnel", "telegram-standin", "breach-probe")
 # Spec 001's tunnel end runs its release's images from the account's registry: an image the release builds by the
 # release's digest, which its deployer writes (deploy/scripts/deployer.py).
 CLOUD = {
-    "tunnel-end": "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+    "tunnel-end": "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}",
+    # An upstream image's copy, by the lock's own tag and digest.
+    "tunnel-end-collector": "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@"
+    + "sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6",
 }
 SHARED = {
     "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
@@ -609,6 +614,7 @@ def test_read_only_roots_where_the_image_allows() -> None:
     tunnel = {
         "tunnel": ["/run/tunnel:uid=10001,gid=10001,mode=0700"],
         "tunnel-end": ["/run:uid=10001,gid=10001,mode=0700"],
+        "tunnel-end-collector": ["/tmp"],
     }
     for name, tmpfs in tunnel.items():
         assert SERVICES[name]["read_only"] is True and SERVICES[name]["tmpfs"] == tmpfs

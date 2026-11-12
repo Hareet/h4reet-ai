@@ -95,7 +95,11 @@ def test_spec_000s_redaction_again_statement_for_statement() -> None:
 
 
 def test_the_resource_names_this_collector_and_host() -> None:
-    attributes = {a["key"]: a for a in CONFIG["processors"]["resource"]["attributes"]}
+    attributes = {
+        a["key"]: a
+        for a in CONFIG["processors"]["resource"]["attributes"]
+        if "key" in a
+    }
     assert attributes["h4.host"] == {
         "key": "h4.host",
         "value": "tunnel-end",
@@ -106,11 +110,11 @@ def test_the_resource_names_this_collector_and_host() -> None:
 
 def test_its_own_counters_go_through_its_own_pipeline_labelled_as_its_own() -> None:
     telemetry = CONFIG["service"]["telemetry"]
-    resource = telemetry["resource"]
+    resource = {a["name"]: a["value"] for a in telemetry["resource"]["attributes"]}
     assert resource["service.name"] == "tunnel-end-collector"
     (reader,) = telemetry["metrics"]["readers"]
     exporter = reader["periodic"]["exporter"]["otlp"]
-    assert exporter["endpoint"] == "http://127.0.0.1:4318"
+    assert exporter["endpoint"] == "http://127.0.0.1:4318/v1/metrics"
     assert exporter["protocol"] == "http/protobuf"
     assert telemetry["metrics"]["level"] == "normal"
 
@@ -139,9 +143,11 @@ def test_the_service_runs_in_the_tunnel_ends_profile_with_its_queue_volume() -> 
         "source": "tunnel-end-collector-queue",
         "target": "/var/lib/otelcol/queue",
     }
-    assert set(service["environment"]) == {
-        "TELEMETRY_BLOCK_TOKEN",
-        "EC2_COLLECTOR_ENDPOINT",
+    assert service["environment"] == {
+        "TELEMETRY_BLOCK_TOKEN": "${TELEMETRY_BLOCK_TOKEN:-}",
+        "EC2_COLLECTOR_ENDPOINT": "${EC2_COLLECTOR_ENDPOINT:-}",
+        # spec 000's switch, from the env file: off on prod, whose file the compose policy never lets set it on.
+        "TELEMETRY_PAYLOAD_SAMPLING": "${TELEMETRY_PAYLOAD_SAMPLING:-off}",
     }
     assert set(service["networks"]) == {"internal", "egress"}
     assert "tunnel-end-collector-queue" in COMPOSE["volumes"]

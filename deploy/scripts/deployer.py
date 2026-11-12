@@ -47,6 +47,12 @@ PLUGIN = Path("/usr/local/lib/docker/cli-plugins/docker-compose")
 HOST_CLASSES = {
     "tunnel-end": ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector"),
 }
+# The named volumes a class's service writes as its image's own user, which a new volume's root isn't: the deployer
+# gives each its owner before compose starts the service (the tunnel end's collector's queue, deploy/compose.yaml).
+VOLUME_OWNERS = {
+    "tunnel-end": {"tunnel-end-collector-queue": 10001},
+}
+PROJECT = "h4reet-prod"
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX_RE = re.compile(r"[0-9a-f]{64}")
@@ -73,6 +79,8 @@ class Aws(Protocol):
 
 class Docker(Protocol):
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool: ...
+
+    def own_volume(self, name: str, uid: int) -> bool: ...
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -234,6 +242,9 @@ class Deployer:
         registry = self.env.get("H4_REGISTRY", "")
         if registry:
             self.aws.login(registry)
+        for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
+            if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
+                return False
         pulled = self.docker.compose(tree, env_files, ["pull", *services])
         return pulled and self.docker.compose(
             tree,
@@ -403,6 +414,30 @@ class AwsCli:
 
 
 class DockerCli:
+    def own_volume(self, name: str, uid: int) -> bool:
+        """The named volume, made if it isn't, with its root owned by uid, which the service's image runs as."""
+        made = subprocess.run(
+            ["docker", "volume", "create", name],
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+        found = subprocess.run(
+            ["docker", "volume", "inspect", "--format", "{{.Mountpoint}}", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        if (
+            made.returncode != 0
+            or found.returncode != 0
+            or not found.stdout.strip().startswith("/var/lib/docker/")
+        ):
+            return False
+        os.chown(found.stdout.strip(), uid, uid)
+        return True
+
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
         command = ["docker", "compose", "-f", str(tree / "deploy" / "compose.yaml")]
         for path in env_files:

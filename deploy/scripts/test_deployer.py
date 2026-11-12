@@ -81,6 +81,11 @@ class Docker:
     def __init__(self) -> None:
         self.calls: list[tuple[str, list[str], dict[str, str]]] = []
         self.fail_for: set[str] = set()
+        self.owned: list[tuple[str, int]] = []
+
+    def own_volume(self, name: str, uid: int) -> bool:
+        self.owned.append((name, uid))
+        return True
 
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
         env: dict[str, str] = {}
@@ -200,6 +205,8 @@ def test_a_release_starts_this_hosts_services_only_with_their_digests(
     assert pulls == [["pull", "tunnel-end", "tunnel-end-collector"]]
     tree = Path(w.docker.calls[0][0])
     assert (tree / "deploy/compose.yaml").read_text().endswith("# r1\n")
+    # The collector's queue volume is its image's user's before compose starts it.
+    assert w.docker.owned == [("h4reet-prod_tunnel-end-collector-queue", 10001)]
     assert (
         w.plugin.read_bytes() == b"#!compose r1"
         and w.plugin.stat().st_mode & 0o777 == 0o755

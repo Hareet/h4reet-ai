@@ -63,6 +63,7 @@ PORTS = {
     # state's and the sink's, inside the stack; the tunnel end's runs on the tunnel end alone.
     "tunnel": (5432, 2301),
     "tunnel-end": (2222, 2201, 2202, 2203),
+    "tunnel-end-collector": (4318, 13133),
 }
 
 Resolve = Callable[[str], list[str]]
