@@ -20,7 +20,8 @@ What the roots must hold:
     policy and its response headers; 502 and 504 answered as 503 with /_degraded/api.json, cached for 0 s, and no
     other error mapped, so the relay's 503s pass with their cause;
   - edge-limits.tf (rule T5, P-I5): CloudFront's policies, and only there: the relay's origin-request policy forwards
-    exactly CloudFront-Viewer-Address, Content-Type, Accept, and traceparent, with no cookie and no query string; the
+    exactly CloudFront-Viewer-Address, Content-Type, Accept, traceparent, and X-H4-Probe (group 8's review B, I1),
+    with no cookie and no query string; the
     site's response headers are spec 002's CSP, HSTS, Referrer-Policy no-referrer, nosniff, and a Permissions-Policy
     that turns off the camera, the microphone, and geolocation;
   - the account's alerts.tf (P-I5): the probe's schedule enabled behind the account's local.wired, and its alarm,
@@ -628,28 +629,78 @@ def test_the_certificate_validated_by_dns_behind_the_switch() -> None:
 # publishes 8080 on the tunnel end's second, 10.42.1.10. As built they differ, so W2 can't serve /api/* until the
 # Author answers the note's question (a private-subnet interface or instance, or a Network Load Balancer, each with its
 # cost line); tasks.md T176 holds it as W2's precondition. Strict: once they agree, this test's marker must go.
+# Corrected after the review of group 8's fixes (I1): the instance declares its first interface as
+# primary_network_interface, which the earlier parse missed, so the test failed on its parse, never on the comparison
+# it is named for. It now reads either form, and the parse has its own test below, which passes, so only the
+# comparison is left to fail; and it takes option B's shape too, an internal Network Load Balancer whose target is the
+# relay's address or the instance.
+
+
+def primary_eni(r: dict[str, list]):
+    """The tunnel end's primary interface: its primary_network_interface, or a network_interface at device 0."""
+    instance = one(r, "aws_instance", "tunnel_end")
+    if instance is None:
+        return None
+    found = list(instance.blocks("primary_network_interface")) + [
+        b
+        for b in instance.blocks("network_interface")
+        if lit(b, "device_index") in (0, None)
+    ]
+    if len(found) != 1:
+        return None
+    m = re.fullmatch(
+        r"aws_network_interface\.(\w+)\.id", raw(found[0], "network_interface_id") or ""
+    )
+    return one(r, "aws_network_interface", m.group(1)) if m else None
+
+
+def eni_addresses(eni) -> list[str]:
+    return list(lit(eni, "private_ips") or [lit(eni, "private_ip")])
+
+
+def reached_by_the_origin(r: dict[str, list]) -> list[str] | None:
+    """The addresses the VPC origin reaches: the instance's primary interface's, or the targets of the internal
+    Network Load Balancer it names (an address target as written, the instance's primary interface's otherwise)."""
+    origin = one(r, "aws_cloudfront_vpc_origin", "relay")
+    config = origin.block("vpc_origin_endpoint_config") if origin else None
+    arn = raw(config, "arn") if config is not None else None
+    if arn == "aws_instance.tunnel_end.arn":
+        eni = primary_eni(r)
+        return eni_addresses(eni) if eni is not None else None
+    m = re.fullmatch(r"aws_lb\.(\w+)\.arn", arn or "")
+    if m is None:
+        return None
+    lb = one(r, "aws_lb", m.group(1))
+    if lb is None or lit(lb, "internal") is not True or lit(lb, "load_balancer_type") != "network":
+        return None
+    reached: list[str] = []
+    for b in blocks(r, "resource"):
+        if b.labels[0] != "aws_lb_target_group_attachment":
+            continue
+        target = lit(b, "target_id")
+        if isinstance(target, str) and re.fullmatch(r"10\.42\.[01]\.[0-9]+", target):
+            reached.append(target)
+        elif raw(b, "target_id") == "aws_instance.tunnel_end.id":
+            eni = primary_eni(r)
+            reached += eni_addresses(eni) if eni is not None else []
+    return reached or None
+
+
+def test_the_tunnel_ends_primary_interface_parses_to_one_interface() -> None:
+    # Not the answer B-6 waits for: the parse alone, so the strict test below can fail only on its comparison.
+    eni = primary_eni(prod())
+    assert eni is not None
+    assert eni_addresses(eni) == ["10.42.0.10"]
+
+
 @pytest.mark.xfail(
     strict=True,
     reason="W2's precondition: the Author's answer to the VPC origin's interface (the note, group 8's review B, I6)",
 )
 def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
     r = prod()
-    origin = one(r, "aws_cloudfront_vpc_origin", "relay")
-    config = origin.block("vpc_origin_endpoint_config") if origin else None
-    assert config is not None and raw(config, "arn") == "aws_instance.tunnel_end.arn"
-    instance = one(r, "aws_instance", "tunnel_end")
-    primary = [
-        b
-        for b in instance.blocks("network_interface")
-        if lit(b, "device_index") in (0, None)
-    ]
-    assert len(primary) == 1
-    m = re.fullmatch(
-        r"aws_network_interface\.(\w+)\.id", raw(primary[0], "network_interface_id")
-    )
-    assert m
-    eni = one(r, "aws_network_interface", m.group(1))
-    reached = lit(eni, "private_ips") or [lit(eni, "private_ip")]
+    reached = reached_by_the_origin(r)
+    assert reached is not None, "the VPC origin names neither the tunnel end nor an internal NLB in front of it"
     compose = (net.REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
     published = re.findall(r'"(10\.42\.[01]\.10):8080:8080"', compose)
     assert published and set(published) <= set(reached), (reached, published)

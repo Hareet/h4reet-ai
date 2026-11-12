@@ -545,6 +545,9 @@ describe("§6: GET /api/status", () => {
   it("reads the store for the status at most once in 5 s", async () => {
     const r = await rig();
     await r.checks(3);
+    // The 1 s round reads it for the class gauge too (the review of group 8's fixes, nit 4): past its last read's 5 s,
+    // the first status request reads.
+    r.clock.advance(5_001);
     const before = r.store.reads;
     for (let i = 0; i < 3; i += 1) await r.internal.inject({ method: "GET", url: "/api/status" });
     expect(r.store.reads).toBe(before + 1);
@@ -589,6 +592,8 @@ describe("§6: GET /api/status", () => {
     const r = await rig();
     await r.checks(3);
     r.store.failing = true;
+    // Past the round's last read's 5 s (nit 4), so this status reads the failing store.
+    r.clock.advance(5_001);
     const doc = (await r.internal.inject({ method: "GET", url: "/api/status" })).json();
     expect(doc).toMatchObject({ state: "unknown", cause_now: "store_unreachable" });
   });
