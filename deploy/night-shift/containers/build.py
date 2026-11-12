@@ -2,6 +2,7 @@
 """Make the night shift's container specs and allowlists (spec 017; plan.md §2; contracts/containers.md).
 
     python3 -I -B deploy/night-shift/containers/build.py [--check] [--settings FILE]
+    python3 -I -B build.py --fill DIR --facts FILE --home PATH --tag SHA12 [--settings FILE]   (the install's)
 
 From `fragments.json` beside it, it writes one spec per role (`<role>.json` here) and the three allowlists
 (`../allowlist.json`, `../allowlist-studio.json`, `../allowlist-plan.json`). The night allowlist follows main's
@@ -16,6 +17,11 @@ a spec mount that touches any of them (contracts/containers.md §4; contracts/ru
 when every one matches. Exit 2: it couldn't run (unreadable settings or fragments, an unknown placeholder, or a
 runner token in a spec, which the runner never fills). The output is JSON in the shape Prettier gives it, so
 `make lint` and `--check` agree.
+
+`--fill DIR` is the install's fill step (contracts/install.md, G4), run from a temp copy of the commit: it refuses
+(exit 1) unless every committed file is what it would make, then writes each spec with `x-h4` dropped and every
+placeholder filled (from `--facts`, `--home`, and `--tag`) into `DIR/containers/`. A placeholder left over refuses the
+whole fill (exit 1), and nothing is written.
 
 Standard library only. It runs nothing but that one `git cat-file`.
 """
@@ -292,6 +298,69 @@ def outputs(settings: dict) -> dict[Path, str]:
     return files
 
 
+def read_facts_data(path: str) -> dict[str, str]:
+    """The facts file as data, never sourced (data-model.md); the install has already checked it with the runner's
+    own read_facts."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as e:
+        raise BuildError(f"can't read {path}: {e.strerror}") from None
+    facts: dict[str, str] = {}
+    for line in text.splitlines():
+        s = line.strip()
+        if s and not s.startswith("#") and "=" in s:
+            key, _, value = s.partition("=")
+            facts[key] = value
+    return facts
+
+
+def fill_value(value: object, values: dict[str, str]) -> object:
+    if isinstance(value, dict):
+        return {k: fill_value(v, values) for k, v in value.items()}
+    if isinstance(value, list):
+        return [fill_value(v, values) for v in value]
+    if isinstance(value, str):
+        return PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), value)
+    return value
+
+
+def fill(out: Path, facts_path: str, home: str, tag: str) -> int:
+    """The install's fill step (contracts/install.md; plan §6 step 2): each committed spec, the example marker
+    dropped and every placeholder filled from the facts file, `--home`, and `--tag`, into `<out>/containers/`.
+    A placeholder left over refuses the whole fill (exit 1), and nothing is written."""
+    if not re.fullmatch(r"[0-9a-f]{12}", tag):
+        raise BuildError("--tag must be the reviewed SHA's first twelve characters")
+    if not os.path.isabs(home) or os.path.normpath(home) != home:
+        raise BuildError("--home must be an absolute, normal path")
+    frag, _raw = read_fragments()
+    facts = read_facts_data(facts_path)
+    values = {k: facts[k] for k in frag["placeholders"] if k in facts}
+    values.update(HOME=home, IMAGE_TAG=tag)
+    for k, v in values.items():
+        if "{{" in v or "}}" in v or any(ord(c) < 32 for c in v):
+            raise BuildError(f"the value for {{{{{k}}}}} is malformed")
+    made: dict[str, str] = {}
+    for role in frag["roles"]:
+        try:
+            spec = json.loads((HERE / f"{role}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise BuildError(f"can't read {role}.json: {e}") from None
+        spec.pop("x-h4", None)
+        text = render(fill_value(spec, values))
+        left = PLACEHOLDER.findall(text)
+        if left or "{{" in text:
+            print(
+                f"build: {role}.json: a placeholder is left: {{{{{left[0] if left else '?'}}}}}"
+            )
+            return 1
+        made[f"{role}.json"] = text
+    (out / "containers").mkdir(parents=True, exist_ok=True)
+    for name, text in made.items():
+        (out / "containers" / name).write_text(text, encoding="utf-8")
+    print(f"build: filled {len(made)} specs into {out / 'containers'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Make the night shift's container specs and allowlists."
@@ -303,12 +372,41 @@ def main(argv: list[str] | None = None) -> int:
         "--settings",
         help="a copy of main's .claude/settings.json (default: refs/heads/main's)",
     )
+    parser.add_argument(
+        "--fill",
+        metavar="DIR",
+        help="the install's fill step: write the filled live specs into DIR/containers (needs --facts, --home, --tag)",
+    )
+    parser.add_argument("--facts", help="--fill: the facts file")
+    parser.add_argument("--home", help="--fill: the value of {{HOME}}")
+    parser.add_argument("--tag", help="--fill: the value of {{IMAGE_TAG}}")
     args = parser.parse_args(argv)
     try:
         files = outputs(read_settings(args.settings))
     except (BuildError, KeyError, TypeError) as e:
         print(f"build: {e}", file=sys.stderr)
         return 2
+    if args.fill is not None:
+        if not (args.facts and args.home and args.tag):
+            print("build: --fill needs --facts, --home, and --tag", file=sys.stderr)
+            return 2
+        stale = [
+            str(p.relative_to(NIGHT))
+            for p, text in files.items()
+            if not p.exists() or p.read_text(encoding="utf-8") != text
+        ]
+        if stale:
+            for r in stale:
+                print(f"build: differs: {r}")
+            print(
+                "build: can't fill: the committed specs aren't what fragments.json makes"
+            )
+            return 1
+        try:
+            return fill(Path(args.fill), args.facts, args.home, args.tag)
+        except (BuildError, KeyError, TypeError) as e:
+            print(f"build: {e}", file=sys.stderr)
+            return 2
     differ = []
     for path, text in files.items():
         try:
