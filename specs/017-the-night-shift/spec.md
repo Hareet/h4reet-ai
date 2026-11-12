@@ -28,7 +28,13 @@ The design page dates decisions 1 to 5 2026-11-13; this session's clock reads 20
 
 ### Session 2026-11-12
 
-Questions this spec raised beyond his answers are on one page with a recommended answer each (plan.md §"Questions for the Author"). Under the brief ("batch any other question onto one page with a recommended answer"), the spec and plan take each recommended answer provisionally. They are not his words, and he can overturn any of them when he approves `plan.md`.
+Questions this spec raised beyond his answers are on one page with a recommended answer each (plan.md §"Questions for the Author"). Under the brief ("batch any other question onto one page with a recommended answer"), the spec and plan take each recommended answer provisionally. **None of the answers below is his.** Each is the session's recommendation, which he confirms or overturns when he approves `plan.md`.
+
+- Q: Where does the gate run from, since it refuses unless its checkout's HEAD is `refs/heads/main`, and agents can't commit while the Author's checkout sits on main? → A (provisional, recommended): **a dedicated gate checkout**, a linked worktree of main at `~/h4reet-ai/gate`, which his install script creates and no profile may write. His own checkout stays parked off main, and he merges from the gate checkout (FR-033).
+- Q: How do workers sign in to Claude without holding the Author's own login? → A (provisional, recommended): **a token of their own**, made once by the Author with `claude setup-token`, kept by nono outside the repository, and passed to each worker as nono's environment credential. nono's proxy can't inject it on WSL2 without its `insecure_proxy` opt-in (research.md R-05). The settings patch hides the token's variable from every command the session runs. Each role gets its own Claude configuration folder, so no worker writes the Author's `~/.claude` (FR-036).
+- Q: Where does the example copy live, and must the Author apply a patch before the first install? → A (provisional, recommended): **on the branch, at `deploy/night-shift/profiles/`**, a path that his protection patch makes human-only when it merges. The install reads it by `git show` at the reviewed SHA, so it doesn't wait for the merge. The alternative was an existing human-only path, arriving only as his patch, with the install run from his patched branch (FR-016).
+- Q: Does an agent's plan take the state's lock? → A (provisional, recommended): **yes**: the plan-only role may write and delete only the state's `.tflock` objects, so an agent's plan never races his apply (FR-032).
+- Q: May the studio agent read `/srv/studio/outputs`? → A (provisional, recommended): **no**. It holds the twin, a likeness. References reach the studio agent through the brief, copied from the repository's public `assets/` (FR-027).
 
 ## Terms
 
@@ -209,13 +215,13 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 
 **The profiles (User Story 2)**
 
-- **FR-010**: THE configuration SHALL define one profile each for the supervisor, the spec-writer, the implementer, the reviewer, the red-teamer, ops, the gate runner, and the studio agent, each generated from nono's Claude Code base, and each a subset of the profile that starts it.
+- **FR-010**: THE configuration SHALL define one profile each for the supervisor, the spec-writer, the implementer, the reviewer, the red-teamer, ops, the gate runner, and the studio agent. Each SHALL be written out whole from what nono's Claude Code base needs (the probe's `profile init`), not by `extends` from its parent, since nono's inheritance only appends (research.md R-03). A test SHALL prove each profile's every grant is held by its parent.
 - **FR-011**: EVERY profile SHALL refuse reads of `~/.aws`, `~/.ssh`, env files, Terraform state and plan files, `/srv/studio/photos`, `/srv/studio/key`, and `~/.config/h4reet-ai/nono/`.
 - **FR-012**: THE reviewer and red-teamer profiles SHALL write nothing in the repository; every worker profile SHALL write only its worktree, its temp folder, and its own branch's refs and objects, and never `.git/hooks`, `.git/config`, `.git/info`, or `refs/heads/main`.
-- **FR-013**: EVERY profile's network SHALL be limited to Anthropic's API and the hosts the toolchain names; the studio profile's to Anthropic's API and ComfyUI's localhost port.
-- **FR-014**: THE configuration SHALL declare these command policies: `terraform plan` signed by a plan-only role through nono's proxy, with an endpoint policy naming read actions only; `terraform validate` with its plugins and no credential; `docker` reaching only the agents' engine relay's endpoint; `make check` with its own temp folder; `blender` with the GPU's paths and no network; and ComfyUI's localhost port only.
+- **FR-013**: EVERY profile's network SHALL be limited in the kernel to the TCP ports its role needs: 443 for every session, plus the agents' engine's 2376 for the roles that run containers, and, for the studio, ComfyUI's port. Landlock matches ports, not hosts, so the hosts (Anthropic's API, the toolchain's mirrors, `198.18.0.1`, localhost) are held by the layer FR-037 proves; where none holds them, the gap is a named red-team gap row.
+- **FR-014**: THE configuration SHALL declare these command policies: `terraform validate` with its plugins and no credential; `docker` reaching only the agents' engine's port; `make check` with its own temp folder; `blender` with the GPU's paths and no network; and ComfyUI's port only. `terraform plan` SHALL run outside the session: the worker asks, and the runner runs it in a fresh export of the asked commit, under the plan profile, with the plan-only role's short-lived credentials as nono's environment credential, never a key in the session (research.md R-06). Where nono supports an endpoint policy on that route, it SHALL allow S3's reads and the `.tflock` writes only; the IAM role is the enforcement point.
 - **FR-015**: THE `terraform plan` and gate command policies SHALL ship off, and SHALL turn on only in a later install from a commit on which the Author's CLAUDE.md and `.claude/**` patches have merged.
-- **FR-016**: THE example copy of the profiles SHALL live in the repository with every machine fact a placeholder, under a path that the Author's patch makes human-only; THE runner SHALL refuse any profile outside `~/.config/h4reet-ai/nono/` and any profile holding an unfilled placeholder, so the example never becomes what runs.
+- **FR-016**: THE example copy of the profiles SHALL live in the repository at `deploy/night-shift/profiles/`, with every machine fact a placeholder, a path that the Author's protection patch makes human-only when it merges, and the install SHALL read it from the reviewed commit without waiting for that merge; THE runner SHALL refuse any profile outside `~/.config/h4reet-ai/nono/` and any profile holding an unfilled placeholder, so the example never becomes what runs.
 
 **The supervisor and the runner (User Story 3)**
 
@@ -232,7 +238,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 **The studio line (User Story 4)**
 
 - **FR-026**: THE repository SHALL hold a brief schema and a candidate schema, with the intake's checks as tests.
-- **FR-027**: Repo agents SHALL write briefs only to `/srv/studio/briefs/`, and read candidates only from `/srv/studio/handoff/<asset>/<round>/`; THE studio agent SHALL read only the briefs and `/srv/studio/workflows`, and write only the handoff folder and its working folder.
+- **FR-027**: Repo agents SHALL write briefs only to `/srv/studio/briefs/`, and read candidates only from `/srv/studio/handoff/<asset>/<round>/`; THE studio agent SHALL read only the briefs and `/srv/studio/workflows`, and write only the handoff folder and its working folder; it SHALL NOT read `/srv/studio/outputs`, which holds the twin, so references reach it through the brief, copied from the repository's public `assets/`.
 - **FR-028**: WHEN a candidate fails its checks for the third round, THE line SHALL write no further brief and SHALL put the asset on the decision page.
 - **FR-029**: THE intake SHALL refuse any candidate whose record names a weight or custom node missing from the weights and nodes list, or one whose licence the list doesn't mark as shippable, and SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output.
 - **FR-030**: THE studio agent SHALL install no custom node and download no weight; a request for one SHALL go on the decision page.
@@ -240,8 +246,17 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 
 **Plan and gate (User Stories 5 and 6)**
 
-- **FR-032**: `infra/` SHALL define a plan-only IAM role, assumable only from the Author's SSO identity, allowed read actions and the state's lock only; its apply is the Author's.
-- **FR-033**: THE gate runner SHALL run main's gate from a checkout of main that no profile may write, under the gate lock, and SHALL never merge.
+- **FR-032**: `infra/` SHALL define a plan-only IAM role, assumable only from the Author's SSO identity, allowed read actions, and writes and deletes of the state's `.tflock` objects only, so an agent's plan never races his apply; its apply is the Author's.
+- **FR-033**: THE gate runner SHALL run main's gate from the gate checkout, a linked worktree of main at `~/h4reet-ai/gate` that no profile may write, under the gate lock, and SHALL never merge. THE install SHALL create the gate checkout; the Author merges from it.
+
+**Signing in**
+
+- **FR-036**: EACH worker SHALL sign in to Claude with a token the Author made for the night shift, passed as nono's environment credential from a source outside the repository; THE settings patch SHALL hide that variable from every command a session runs; and EACH role SHALL use its own Claude configuration folder, so no worker writes the Author's `~/.claude`.
+
+**The layers (research.md R-07, R-08)**
+
+- **FR-037**: THE rehearsal SHALL first try Claude Code's own sandbox nested inside nono's. IF it starts, THEN that is the layering. IF it can't (Landlock refuses the mounts its sandbox makes), THEN the runner SHALL start each session inside an outer mount namespace that masks the host's Docker socket and every never-readable path before nono starts, and run Claude Code with its own sandbox off, the hooks on. The rehearsal SHALL report which layering it proved, and prove the masks and the refusals under it.
+- **FR-038**: Under either layering, THE host's Docker socket SHALL be unreachable from every session and command policy but the gate runner's gate command (red-team row), since nono can't mediate Unix sockets on WSL2.
 
 **Red-team and review**
 
@@ -285,6 +300,11 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
   - Principle IV, "the agent that implements a change MUST NOT be the agent that reviews it": complies; the gate runner wrote nothing.
   - **Deviation, named:** the gate's container phase uses the host's Docker engine, and its image step the Author's engine certificate. The gate runner's command policy grants those to main's gate alone, never to a session. ADR "agents run the gate".
 - **The live profiles outside the repository (deviation, named).** The Development standard: "Claude Code as the agent harness, run under the project's committed permissions, hooks, and sandbox settings". Decision 4 keeps the live profiles outside. What holds: the example copy is committed and becomes human-only, and the live copy is the example filled with machine facts by the Author's script from a reviewed commit. ADR "nono as the build-time sandbox".
+- **Where the brief's design meets nono on WSL2 (departures, named).** The research (research.md R-03 to R-08, from search extracts of nono's docs and issues, to be checked against the pinned binary by the probe):
+  - The brief asked for "`terraform plan`: `aws_auth` on a plan-only profile, and an `endpoint_policy` with read actions only". nono has no per-command `aws_auth` yet (its issue #1987). Its `endpoint_policy` matches methods and paths, not AWS actions (#2274). And on WSL2, its credential proxy is off unless a profile opts into `insecure_proxy`. So the plan runs as FR-014 says, signed by the plan-only role's short-lived credentials, and the IAM role is the boundary.
+  - The brief's "`docker`: the relay socket only": the relay is a TCP tunnel to the agents' engine at `198.18.0.1:2376` over mutual TLS (`deploy/agents-engine/docker-relay`), not a socket. Landlock grants port 2376 on every host.
+  - The brief's "each narrower than its parent": proven by a test, not by `extends` (FR-010).
+  - The nesting the brief calls "untested so far" is likely to fail: Landlock refuses `mount(2)` to a sandboxed process, and Claude Code's sandbox mounts. FR-037 gives the fallback, which the rehearsal proves.
 - **Plan and gate off until his patches merge.** The brief: "the supervisor's workers get plan and gate powers only once his CLAUDE.md and `.claude/**` patches merge. Until then the profiles ship with those two command policies off, and you live by today's rules: no `make plan ROOT=`, no gate runs, no apply."
 - **The hourly check-in is off.** Decision 3: "turn off the hourly rate limit check, we only have weekly rate limts now and not hourly ones". The runner waits once for a stated reset.
 - **The studio line (ADR "the studio line").** Decision 5 and his studio words. The pipeline, ComfyUI's install, its workflows, its weights, and Blender's scripts stay outside the repository; only the outputs come in, through the intake.
@@ -328,10 +348,4 @@ None. No byte leaves a visitor's device, and nothing here runs at runtime. On th
 
 ## Open questions for /speckit-clarify
 
-1. Where the gate runs from, given that the gate needs a checkout whose HEAD is `refs/heads/main`, and agents can't commit while the Author's checkout is on main.
-2. How workers sign in to Claude without holding the Author's login.
-3. Where the decision page lives.
-4. Where the example copy lives, and whether the install reads it before his patches apply.
-5. Whether a plan takes the state's lock.
-6. Whether the gate runner may pass `--prove`.
-7. Whether the studio agent reads `/srv/studio/outputs`.
+Five were taken provisionally (Clarifications, Session 2026-11-12). Two are plan-level and go to plan.md's questions page: where the decision page lives, and whether the gate runner may pass `--prove`.
