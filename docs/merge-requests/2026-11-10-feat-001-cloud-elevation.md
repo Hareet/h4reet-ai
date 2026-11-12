@@ -8,7 +8,7 @@ Authorized by:
 - his direction for the groups, 2026-11-10: "Let's gropu them together to make them minimal and hand-merge if we have to";
 - his two answers, as the coordinator relayed them: "One gate, named deviation (Recommended)", for the account root's plan; and "Keep them protected (Recommended)", for spec 000's protected names.
 
-## Status: combined, verified, and reviewed once (not ready: B1, I1 to I4, and nits, each fixed below); P-E built for your hand; your facts in (section 2, 2026-11-11), and main merged at 2e942990; T016's memory run done (2026-11-11, research.md R-33); group 4's second, short pass waits for T017, and anchors the guard; not merged; nothing applied, nothing pushed, no cloud call
+## Status: combined, verified, and reviewed twice (the combined review: B1, I1 to I4, nits; group 4's second pass: I1 to I3, nits; each fixed below); P-E built for your hand; your facts in (section 2), main merged at 2e942990, T016 and T017 done, your design answers recorded (2026-11-11); the anchor goes into section 7's guard; not merged; nothing applied, nothing pushed, no cloud call
 
 | Commit | What |
 |---|---|
@@ -27,7 +27,7 @@ Authorized by:
 | 678f7b97 | section 2, fact c: the base's digest in `deploy/images.lock` and its hosts row, the probe's and the credential audit's Dockerfiles, and the bridge's in P-I2, test-first; P-I2 rebuilt from plain copies and dry-run again |
 | 862ab88f, this commit | this note: section 2 done, the patches' hashes, the merge, the checks, and the Backlog |
 
-**The blocker, and P-E.** With P-1 applied, `make test` failed `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`. P-1 adds three in-tree read denies that are bare file-name patterns, `Read(*.tfstate*)`, `Read(*.tfplan)`, and `Read(*.tfvars*)`, and the agents' engine refused to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds: its mask check let only the `.env` globs through. It was P-1's from group 1, not the combination's. Your decision: "Derive from settings (Recommended)". P-E takes every bare file-name read deny from the settings: the check lets each through and refuses while a file one matches sits outside a mask, so a later `*.pem` or `*.key` needs no engine patch, and stage E's E7 proves it. `deploy/agents-engine/` is protected, so P-E is yours to apply, after P-1 (For the Author, 5). With all five patches the whole Python suite passes (Verification).
+**The blocker, and P-E.** With P-1 applied, `make test` failed `deploy/agents-engine/test/test_engine_sh.py::test_masks_hold_every_in_tree_deny_of_the_repositorys_own_settings`. P-1 adds three in-tree read denies that are bare file-name patterns, `Read(*.tfstate*)`, `Read(*.tfplan)`, and `Read(*.tfvars*)`, and the agents' engine refused to start while the settings read-deny an in-tree pattern that no line of `deploy/agents-engine/tree-masks.txt` holds: its mask check let only the `.env` globs through. It was P-1's from group 1, not the combination's. Your decision: "Derive from settings (Recommended)". P-E takes every bare file-name read deny from the settings: the check lets each through and refuses while a file one matches sits outside a mask, so a later `*.pem` or `*.key` needs no engine patch. Stage E's E7 proves it, first live at the next `--prove` after the merge: this gate's `--prove` runs main's engine and settings (the second pass, nit 4). `deploy/agents-engine/` is protected, so P-E is yours to apply, after P-1 (For the Author, 5). With all five patches the whole Python suite passes (Verification).
 
 **Nothing merges and nothing is applied before your gate,** and the account root's apply waits for its plan block in a later merged note (spec.md Assumptions, "One gate for groups 1 to 4").
 
@@ -116,12 +116,26 @@ Each finding, and what was done:
 | N5 | P-E's paths missing from section 5's status and the guard | both list P-E's four files |
 | small | "(departure 13 above)"; the ADR rows named `feat/001-cloud-elevation`, where `-p` merges | "group 4's departure 13"; the rows name `feat/001-cloud-elevation-p` |
 
-**Next: group 4's second, short pass,** by an agent that wrote none of it, after T016 and T017 (For the Author, 3 and 4); your facts are in (section 2). It reads what came after 8b4fd0f1: P-E (eccca942), 065aa4cd's fixes, section 2's commits (37d13175 and 678f7b97), the merge of main (d3ce1dba), T016's R-33 record, and your T017 commit. The session writes its tip, after its fixes, into section 7's guard as `rv=`; until then the guard prints `guard: no`.
+**Group 4's second pass, 2026-11-11, of 718901f2, by an agent that wrote none of it: no blocker, three important findings.** It read the first-parent commits since 8b4fd0f1:
+- P-E (eccca942) and the combined review's fixes (065aa4cd, a17ff366);
+- section 2 (37d13175, 678f7b97, 862ab88f, b22a559f) and the merge of main (d3ce1dba);
+- T016's record (06962036), your T017 (2d6cdc4c), and R-20 (718901f2).
+
+In its words, P-E "fixes B1 correctly and exempts nothing wider". It found the merge of main intact, and every figure in R-33 re-adds. Each finding, and what was done:
+
+| Finding | What it found | Done |
+|---|---|---|
+| I1 | Your two reversals of 2026-11-11 were only in research.md. The spec, the plan, and ADRs 0024 and 0027, which this merge accepts, still said RDS and "around the clock". The spec's cost estimate read "No estimate yet" | The fix commit: <ul><li>spec.md's Assumptions name both deviations and define the four gates.</li><li>FR-069, the cost estimate, the store's cost row and Principle VI's row are amended.</li><li>plan.md's two RDS lines are marked replaced.</li><li>ADRs 0024 and 0027 are amended while still proposed, so they are accepted as amended and need no superseding ADR.</li><li>The ADR index row and infra/README's prod row follow.</li></ul> |
+| I2 | Section 7 had you run `make up ENV=dev-cpu` in your terminal. Your make doesn't relay, and preflight P11 refuses dev-cpu on the host's engine, so `--prove`'s E14 would fail | Section 7: the session brings dev-cpu up through the relay when you say "prove", and takes it down when you say "done" |
+| I3 | The Lambda base's seed risk falls after the merge, not in this gate, which runs main's engine script; so the check had to come before the anchor | Done before the anchor. Your check of 2026-11-11 printed `MediaType: application/vnd.docker.distribution.manifest.v2+json`, a single manifest, and you said "it downloaded the image". The host's pull takes it, so P-E needs no change (section 2; the Backlog corrected) |
+| Nits | <ul><li>T016's sub-bullet said "pending".</li><li>"W1" was undefined.</li><li>infra/README said "RDS".</li><li>plan.md's departure 5 opened "isn't in the repository".</li><li>Line 30's E7 claim.</li><li>This note's status and cost.</li><li>R-33 said "one every 10 s".</li><li>"reads 0 running".</li></ul> | Each fixed: <ul><li>T016's sub-bullet updated.</li><li>The four gates defined in spec.md's Assumptions.</li><li>The README corrected.</li><li>Departure 5 says "wasn't … (until 37d13175)".</li><li>Line 30: E7's first live run is the next `--prove` after the merge.</li><li>Status and cost updated here.</li><li>R-33's pace is "about every 15 s".</li><li>The engine check is now the session's.</li></ul> |
+
+The anchor is the fix commit, the tip after these fixes, written into section 7's guard as `rv=`. Copy the guard from `git show "$rv":docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`, not from a later tip: this note is the one file the guard lets change after the anchor.
 
 ## Backlog
 
-- **T017's prices** (For the Author, 3; T016's measurement is done), and then **group 4's second pass**, whose tip anchors the guard (For the Author, 4). Group 4's section 2 is done (For the Author, 2).
-- **The agents' engine now seeds the functions' base too.** The engine's seed, and so its reset and stage E's E10, moves every image `deploy/images.lock` pins but `model-server-gpu` and `probe:cuda`, pulling on the host whatever the host lacks, and E10 checks each is back. `base:lambda-python` is an arm64 tag: if the host's pull of it fails on this amd64 machine, the seed, the reset, and E10 in the gate's `--prove` fail with it. Whether it does is a fact this session can't read (the registry is outside its reach); the check is yours, in section 2. If it would fail, the fix is in the engine, so yours: P-E rebuilt to skip the Lambda base as it skips the GPU-only images, test-first on a patched export, which the session builds when you say.
+- **Your branch, the patches, and the one gate** (For the Author, 5 to 7). T016, T017, section 2, and group 4's second pass are done.
+- **The agents' engine now seeds the functions' base too.** The engine's seed, and so its reset and stage E's E10, moves every image `deploy/images.lock` pins except `model-server-gpu` and `probe:cuda`. It pulls whatever the host lacks, and E10 checks each image is back. `base:lambda-python` is an arm64 tag. Had the host's pull failed on this amd64 machine, the first seed or reset after the merge would have failed. This gate's `--prove` wouldn't have caught it, since it runs main's engine script (the second pass, I3). Your check of 2026-11-11 settled it: a single manifest, which the host's pull took (section 2). So P-E needs no change.
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
 - **Groups 1, 3, and 4's own guards are superseded, with the same flaw as I1:** each allowed all of `docs/merge-requests/` after its anchor, where the agent-written patches live. This note's guard allows only this note there. Don't run theirs.
@@ -2083,7 +2097,7 @@ Four, each a text match of the bash gate, none respelled:
 
 ## Cost and data-flow impact
 
-None tonight: nothing ran in the cloud and nothing paid ran. Once you apply them, the costs are the groups' (each "to confirm", from research.md R-05): the bootstrap, a few cents a month for the state bucket, with AWS Budgets' two action-enabled budgets free (group 3's note); the account, cents a month for the registry, the release bucket, and the functions inside the always-free tiers, with the rehearsal's `t4g.nano` and a third action-enabled budget while it runs (group 4's note). T016's run spends dev-cpu's $2 synthetic fallback grant for that day (group 2's note). The flows, C8 (email and Telegram), C9, C10, C11, and F2's change, are disclosed in T023's and T034's commits, before they happen; the combination adds none.
+None tonight: nothing ran in the cloud and nothing paid ran. Your server budget is $45 a month (T017), with EC2 on 12 hours a day and the shared state on the tunnel end, both named deviations built in W1 (spec.md Assumptions). Bedrock's charges, $0.99 by your reading, count against the model budget. Once you apply them, the costs are the groups' (each "to confirm", from research.md R-05): the bootstrap, a few cents a month for the state bucket, with AWS Budgets' two action-enabled budgets free (group 3's note); the account, cents a month for the registry, the release bucket, and the functions inside the always-free tiers, with the rehearsal's `t4g.nano` and a third action-enabled budget while it runs (group 4's note). T016's run spends dev-cpu's $2 synthetic fallback grant for that day (group 2's note). The flows, C8 (email and Telegram), C9, C10, C11, and F2's change, are disclosed in T023's and T034's commits, before they happen; the combination adds none.
 
 ## For the Author
 
@@ -2125,7 +2139,7 @@ The session's commits on `feat/001-cloud-elevation`, each RED, then GREEN (Verif
 - **678f7b97, c:** `deploy/images.lock`'s `base:lambda-python` line, written by `make pin-images`' own renderer (the file's columns realign, one wider); its row in `deploy/scripts/arch_inventory.py`, on none of contracts/env-cloud.md §3's hosts, since AWS Lambda runs the images; `infra/lambdas/probe/Dockerfile` and `infra/lambdas/credential_audit/Dockerfile`; and the bridge's, `infra/lambdas/alert_bridge/Dockerfile`, in P-I2, protected by spec 000's `infra/*alert*`. `infra/lambdas/test_images.py` holds the lock line and all three Dockerfiles to the pin, the bridge's read from P-I2 while the tree lacks it. `deploy/images.lock` and the other two Dockerfiles aren't protected paths, so they are on the branch, not in a patch.
 - **P-I2,** rebuilt from plain copies twice (a, then c) and dry-run on a fresh export after P-1 and P-E: six new files now, the Dockerfile the sixth. Its SHA-256 is under Verification.
 
-**One check of yours, before the gate's `--prove`** (Backlog, "The agents' engine now seeds the functions' base too"): what the host's pull of the base would get. From any checkout of the branch:
+**One check of yours, done 2026-11-11** (Backlog, "The agents' engine now seeds the functions' base too"): what the host's pull of the base would get. It printed `MediaType: application/vnd.docker.distribution.manifest.v2+json`, a single manifest, and you said "it downloaded the image". The check, as written:
 
 ```bash
 k=base:lambda-python
@@ -2326,14 +2340,7 @@ ok=go
 echo "disk: $ok"
 ```
 
-Don't run `--prove` unless it prints `disk: go`. `--prove`'s rows want the engine to themselves and dev-cpu up (E14 needs dev-cpu up; E10, its last row, resets the engine): first no agent session may be using the engine, spec 014's or any other, so tell the sessions to stop and check its containers, then bring dev-cpu up, from main's checkout:
-
-```bash
-make -f Makefile engine-status
-make -f Makefile up ENV=dev-cpu
-```
-
-`engine-status`'s `Containers` line reads 0 running before the `up`. Then the one gate, and dev-cpu down after it:
+Don't run `--prove` unless it prints `disk: go`. `--prove`'s rows want the engine to themselves and dev-cpu up (E14 needs dev-cpu up; E10, its last row, resets the engine): first no agent session may be using the engine, spec 014's or any other, so tell the other sessions to stop. Then tell this session "prove". Your terminal's make doesn't relay to the agents' engine, and preflight P11 refuses dev-cpu on the host's engine (the second pass, I2). So the session checks that no other containers run on the engine, and brings dev-cpu up through the relay, from main's checkout. When it says dev-cpu is up, run the one gate:
 
 ```bash
 o=--no-replace-objects
@@ -2341,8 +2348,9 @@ pb=feat/001-cloud-elevation-p
 git $o switch main
 tools/gates/gate --prove "$pb" 2>&1 |
   tee ~/gate-001.log
-make -f Makefile down ENV=dev-cpu
 ```
+
+Then tell the session "done", and it takes dev-cpu down.
 
 It is ready when its summary names no FAIL or PENDING step and it prints a `merge:` line. It runs main's checkers, so no `infra-plan-note`, `infra-check`, or `disclosure` step (spec.md Assumptions; the disclosure check above and T027's policy stand in). On anything else, don't merge: tell the session.
 

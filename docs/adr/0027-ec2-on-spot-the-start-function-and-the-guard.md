@@ -1,6 +1,6 @@
 # ADR 0027: EC2 on spot, stopping on interruption; the start function, the guard, and the autostart switch
 
-Status: proposed, 2026-11-10 · Spec: 001 (FR-021, FR-023, FR-063 to FR-065, FR-069 to FR-072; plan §5.1, §7; research.md R-15, R-29, R-30, R-31; contracts/handover.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
+Status: proposed, 2026-11-10; decision 1 amended 2026-11-11 · Spec: 001 (FR-021, FR-023, FR-063 to FR-065, FR-069 to FR-072; plan §5.1, §7; research.md R-15, R-29, R-30, R-31; contracts/handover.md) · Accepted when the Author merges spec 001's groups 1 to 4 (`feat/001-cloud-elevation-p`), after his approval at T000 · Number: one of 0024 to 0029, allocated to spec 001 since September
 
 ## Context
 
@@ -16,7 +16,7 @@ Question 16, the IAM, wasn't asked. The session took its recommended option prov
 
 ## Decision
 
-1. **EC2 is a persistent spot request with `instance_interruption_behavior = "stop"`** (rule T11), its volumes kept while it is stopped, IMDSv2 with hop limit 1 (rule T13). The schedule of 8 to 12 hours stays in reserve, and arrives only by his patch with an ADR.
+1. **EC2 is a persistent spot request with `instance_interruption_behavior = "stop"`** (rule T11), its volumes kept while it is stopped, IMDSv2 with hop limit 1 (rule T13). The schedule of 8 to 12 hours stays in reserve, and arrives only by his patch with an ADR. **Amended 2026-11-11:** the Author's answer "$45, with 12 h a day", confirmed as "Keep 12 h a day, $45" after the session said the twin then rests for the other 12 hours unless the laptop serves. From W1, a schedule runs EC2 12 hours a day. It arrives by his patch with an ADR in W1 (spec.md Assumptions, "EC2 on 12 hours a day").
 2. **`h4-ec2-start`,** fired once per change of the Route 53 health check's alarm and once on the tunnel end's return, starts the one tagged instance. It refuses while the autostart switch is `off`, while the server budget's action has run, while the tunnel end is down, or, when invoked by hand or on the tunnel end's return, while the laptop serves.
 3. **`h4-ec2-guard`,** on EC2 entering `running`, stops it again if the laptop serves, the switch is `off`, or the server budget's action has run, whatever AWS's own restart did (research.md R-30).
 4. **The laptop's `h4-handover` loop** stops EC2 within 5 minutes of the relay sending to the laptop, through the Author's SSO session and the `h4-ec2-stop` permission set; `make up` never fails because the stop fails (FR-064).
@@ -25,7 +25,7 @@ Question 16, the IAM, wasn't asked. The session took its recommended option prov
 
 ## Alternatives considered
 
-- **The schedule, 8 to 12 hours a day:** kept in reserve by his answer to Q15.
+- **The schedule, 8 to 12 hours a day:** kept in reserve by his answer to Q15, then chosen on 2026-11-11 for the server budget (decision 1, amended).
 - **A function that rewrites Route 53** (his first picture): replaced by the relay moving visitors (ADR 0025) and the approved points of 2026-11-09.
 
 ## Consequences
