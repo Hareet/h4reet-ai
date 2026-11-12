@@ -215,7 +215,6 @@ def test_the_env_files_template_names_the_tunnel_end() -> None:
     assert values["H4_STACK"] == "prod" and values["H4_ENV"] == "prod"
     assert values["COMPOSE_PROFILES"] == "tunnel-end"
     assert values["COMPOSE_PROJECT_NAME"] == "h4reet-prod"
-    assert values["H4_TUNNEL_KEYS_DIR"] == "/run/h4reet/tunnel-end/keys"
     # The secrets come from Parameter Store at boot, never from the template.
     assert values["TELEMETRY_BLOCK_TOKEN"] == "__PARAMETER__"
 

@@ -99,7 +99,7 @@ def test_the_token_maps_come_from_the_entrypoints_file() -> None:
 
 def test_the_relay_block_takes_its_four_routes_behind_its_token() -> None:
     locs = locations("8085")
-    assert set(locs) == set(RELAY_ROUTES) | {"/"}
+    assert set(locs) == set(RELAY_ROUTES) | {"/", "@relay_health_down"}
     for path, (method, upstream, cap) in RELAY_ROUTES.items():
         loc = locs[path]
         assert guarded(loc, "$h4_relay_authorized"), path

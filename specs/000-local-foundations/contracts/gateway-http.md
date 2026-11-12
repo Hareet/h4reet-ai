@@ -238,6 +238,8 @@ It comes after `meter_at_ceiling` and before `fallback_awaiting_renewal` in ever
 
 The process is live even while the stack is degraded. Liveness never depends on the model server or the store, so neither can trap the gateway in a restart loop.
 
+**Amended by spec 001** (its contracts/tunnel.md §4; tasks.md T043 and T048; FR-054): `GET /health/serving`, the hosts' blocks' status. It answers 200 while the store reads `stack_state`'s row, and 503 otherwise, each with an empty body and `Cache-Control: no-store`, with the store's timeouts and no other read. edge's relay block (8085) and health block (8088) pass its status on as it is, so the relay's check of a host, every second, and Route 53's of the laptop see 200 only while that host's gateway answers and its store can be read. Like the two above, it makes no span (`services/gateway/src/telemetry/otel.ts`).
+
 ## 5. `GET /health`
 
 200 with a JSON report, whatever the state: it reports, it doesn't gate. It reads `stack_state` live (with the store's timeouts) and uses the adapters' cached health, so it never calls a provider.

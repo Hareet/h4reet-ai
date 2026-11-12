@@ -79,9 +79,15 @@ services:
   edge:
     <<: *service
     image: ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
-    # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root.
-    entrypoint: ["nginx"]
-    command: ["-g", "daemon off;"]
+    # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root. Ours, a
+    # few lines of sh, first writes spec 001's hosts' blocks' token maps to tmpfs from the two tokens, then runs nginx
+    # without them in its environment (deploy/edge/entrypoint.sh; its contracts/tunnel.md §4). Unset, as on dev and
+    # dev-cpu, the blocks answer 401 to everyone.
+    entrypoint: ["/bin/sh", "/etc/nginx/h4-entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    environment:
+      RELAY_TOKEN_SELF: "${RELAY_TOKEN_SELF:-}"
+      TELEMETRY_BLOCK_TOKEN: "${TELEMETRY_BLOCK_TOKEN:-}"
     networks: [edge, internal]
     ports:
       - "127.0.0.1:${H4_API_PORT}:8080"
@@ -94,6 +100,10 @@ services:
       - type: bind
         source: "${H4_TREE:?set by make up}/deploy/edge/nginx.conf"
         target: /etc/nginx/nginx.conf
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/edge/entrypoint.sh"
+        target: /etc/nginx/h4-entrypoint.sh
         read_only: true
     read_only: true
     tmpfs: [/tmp]
@@ -710,6 +720,70 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
+
+  # Spec 001's tunnel (contracts/tunnel.md §2 and §3; research.md R-11; FR-052 to FR-055): one image, deploy/tunnel/,
+  # for both ends. Each end runs unprivileged as the image's `tunnel` user, with no capability, a read-only root, and
+  # its state on tmpfs.
+  #
+  # The laptop's end, in prod's `tunnel` profile, which the Author adds to COMPOSE_PROFILES once his tunnel-keys target
+  # has made the keys (tasks.md T058). Built here, from deploy/tunnel/ alone. It dials the tunnel end's Elastic IP, the
+  # one connection this stack opens to the internet besides the gateway's, so it joins egress; it opens no port. The
+  # stack reaches the shared state as tunnel:5432 and the sink as tunnel:2301 (contracts/tunnel.md §3). Its client key
+  # and pinned host key are the Author's, read-only, from H4_TUNNEL_DIR, which only prod's env file names.
+  tunnel:
+    <<: *service
+    profiles: [tunnel]
+    build:
+      context: tunnel
+    command: ["client"]
+    user: "10001:10001"
+    environment:
+      TUNNEL_END_ADDRESS: "${TUNNEL_END_ADDRESS:-}"
+      H4_OTLP_HTTP: http://otel-collector:4318
+    networks: [internal, egress]
+    volumes:
+      - type: bind
+        source: "${H4_TUNNEL_DIR}"
+        target: /run/tunnel-client
+        read_only: true
+    read_only: true
+    tmpfs: ["/run/tunnel:uid=10001,gid=10001,mode=0700"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+
+  # The tunnel end's sshd, in the tunnel end's `tunnel-end` class (contracts/env-cloud.md §3): the tunnel's image from
+  # ECR, by the release's digest, which the deployer writes to the release's env file (deploy/scripts/deployer.py). It
+  # publishes the tunnel's 2222 and the health port, 8087 to its reverse forward 2203, on the public interface's fixed
+  # address, a literal, so no env file can move them; on any other host that address doesn't exist, and Docker refuses
+  # to start it. It joins edge, an ordinary bridge, since a port can't be published from internal alone. Its host key
+  # and the laptop's authorized key are the host's files on tmpfs, which write_env.py writes at boot.
+  tunnel-end:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+    command: ["server"]
+    user: "10001:10001"
+    environment:
+      H4_OTLP_HTTP: http://tunnel-end-collector:4318
+    networks: [internal, edge]
+    ports:
+      - "10.42.0.10:2222:2222"
+      - "10.42.0.10:8087:2203"
+    volumes:
+      - type: bind
+        source: /run/h4reet/tunnel-end/keys
+        target: /run/keys
+        read_only: true
+    read_only: true
+    tmpfs: ["/run:uid=10001,gid=10001,mode=0700"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
 
   # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
   # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the

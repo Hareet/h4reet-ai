@@ -464,7 +464,7 @@ def test_main_prints_one_line_per_check_and_never_a_value(
     assert code == 0, out
     lines = out.splitlines()
     assert [ln.split()[1] for ln in lines[:-1]] == [
-        f"P{i}" for i in (*range(1, 20), 21)
+        f"P{i}" for i in (*range(1, 20), 21, 22)
     ]
     assert lines[-1].startswith("preflight: passed with warnings")
     values = pf.read_env(prod.env_file)
@@ -1541,7 +1541,13 @@ def tunnel_end_env(tmp_path: Path, **changes: str) -> Path:
     for line in template.read_text(encoding="utf-8").splitlines():
         key, sep, value = line.partition("=")
         if sep and not line.startswith("#"):
-            filled = TUNNEL_TOKEN if value.startswith("__PARAMETER") else value
+            filled = {
+                "__PARAMETER__": TUNNEL_TOKEN,
+                "__PARAMETER:/h4reet/hosts/RELEASE_BUCKET__": "h4reet-ai-releases-"
+                + "a" * 8,
+                "__ACCOUNT_REGISTRY__": "".join(str(i % 10) for i in range(12))
+                + ".dkr.ecr.us-east-1.amazonaws.com",
+            }.get(value, value)
             line = f"{key}={changes.pop(key, filled)}"
         lines.append(line)
     assert not changes, changes
@@ -1581,6 +1587,8 @@ def test_the_tunnel_end_class_passes_its_env_file(tmp_path: Path) -> None:
         ({"H4_STACK": "dev"}, "T3", "H4_STACK"),
         ({"COMPOSE_PROFILES": "tunnel-end,gpu"}, "T3", "COMPOSE_PROFILES"),
         ({"TELEMETRY_BLOCK_TOKEN": ""}, "T4", "TELEMETRY_BLOCK_TOKEN"),
+        ({"H4_REGISTRY": "elsewhere.example.invalid"}, "T4", "H4_REGISTRY"),
+        ({"RELEASE_BUCKET": "someone-elses-bucket"}, "T4", "RELEASE_BUCKET"),
     ],
 )
 def test_the_tunnel_end_class_names_what_is_wrong(

@@ -19,7 +19,15 @@ ENV_FILES = {
     "prod": REPO / "deploy" / "env.example" / "prod.env.example",
     "dev": REPO / "deploy" / "env.example" / "dev.env.example",
     "dev-cpu": REPO / "deploy" / "env.agents" / "dev-cpu.vars",
+    # Spec 001's tunnel end: write_env.py fills its template at boot (contracts/env-cloud.md §1).
+    "tunnel-end": REPO / "deploy" / "hosts" / "tunnel-end" / "tunnel-end.env.example",
 }
+# The keys the tunnel end's deployer writes to each release's env file: the release, and the digest of each image the
+# release builds (deploy/scripts/deployer.py; spec 001 contracts/releases-deployer.md §1).
+RELEASE_FILE_KEYS = {"H4_RELEASE", "H4_DIGEST_TUNNEL"}
+# The services spec 001 adds, each in its host's class (its contracts/env-cloud.md §3): the laptop's tunnel, and the
+# tunnel end's.
+SPEC_001 = {"tunnel", "tunnel-end"}
 RUN_FILE_KEYS = {
     "H4_TREE",
     "H4_REF",
@@ -60,27 +68,31 @@ def strings(node: object):
 
 
 def test_the_topology_of_this_branch() -> None:
-    assert set(SERVICES) == {
-        "edge",
-        "gateway",
-        "web",
-        "gateway-state",
-        "model-server-gpu",
-        "model-server-cpu",
-        "otel-collector",
-        "prometheus",
-        "loki",
-        "grafana",
-        "langfuse-web",
-        "langfuse-worker",
-        "langfuse-db",
-        "clickhouse",
-        "valkey",
-        "seaweedfs",
-        "telegram-standin",
-        "mailpit",
-        "breach-probe",
-    }
+    assert (
+        set(SERVICES)
+        == {
+            "edge",
+            "gateway",
+            "web",
+            "gateway-state",
+            "model-server-gpu",
+            "model-server-cpu",
+            "otel-collector",
+            "prometheus",
+            "loki",
+            "grafana",
+            "langfuse-web",
+            "langfuse-worker",
+            "langfuse-db",
+            "clickhouse",
+            "valkey",
+            "seaweedfs",
+            "telegram-standin",
+            "mailpit",
+            "breach-probe",
+        }
+        | SPEC_001
+    )
     assert COMPOSE["networks"] == {
         "internal": {"internal": True},
         "edge": {"driver": "bridge"},
@@ -149,9 +161,21 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
         "127.0.0.1:${H4_OTLP_PORT}:8084",
         "127.0.0.1:${H4_SITE_PORT}:8087",
     ]
-    assert [n for n, s in SERVICES.items() if s.get("ports")] == ["edge"]
-    assert [n for n, s in SERVICES.items() if "edge" in s["networks"]] == ["edge"]
-    assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == ["gateway"]
+    # Spec 001's tunnel end publishes the tunnel and the health port on its public interface's fixed address, a
+    # literal no other host has (its contracts/tunnel.md §1), from the edge bridge; the laptop's tunnel dials out.
+    assert [n for n, s in SERVICES.items() if s.get("ports")] == ["edge", "tunnel-end"]
+    assert SERVICES["tunnel-end"]["ports"] == [
+        "10.42.0.10:2222:2222",
+        "10.42.0.10:8087:2203",
+    ]
+    assert [n for n, s in SERVICES.items() if "edge" in s["networks"]] == [
+        "edge",
+        "tunnel-end",
+    ]
+    assert [n for n, s in SERVICES.items() if "egress" in s["networks"]] == [
+        "gateway",
+        "tunnel",
+    ]
     assert SERVICES["gateway-state"]["networks"] == ["internal"]
 
 
@@ -159,7 +183,12 @@ def test_only_edge_publishes_and_only_on_loopback() -> None:
 # commit, outside compose (tasks.md T184), and so does the room's web service, whose tag ends in the env file's
 # H4_WEB_SUFFIX, -drafts where the stack's image holds the room's drafts (spec 002, contracts/web-serving.md §1);
 # every other service runs a pinned image.
-BUILT = ("telegram-standin", "breach-probe")
+BUILT = ("tunnel", "telegram-standin", "breach-probe")
+# Spec 001's tunnel end runs its release's images from the account's registry: an image the release builds by the
+# release's digest, which its deployer writes (deploy/scripts/deployer.py).
+CLOUD = {
+    "tunnel-end": "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+}
 SHARED = {
     "gateway": "h4reet-gateway:${H4_REF:-working-tree}",
     "web": "h4reet-web:${H4_REF:-working-tree}${H4_WEB_SUFFIX}",
@@ -173,6 +202,8 @@ def test_images_are_the_locked_pins() -> None:
             assert "image" not in service  # built from this file's own tree
         elif name in SHARED:
             assert (service["image"], service["pull_policy"]) == (SHARED[name], "never")
+        elif name in CLOUD:
+            assert service["image"] == CLOUD[name], name
         else:
             assert service["image"] == pins[name], name
     assert [n for n, s in SERVICES.items() if "build" in s] == list(BUILT)
@@ -451,7 +482,13 @@ def test_binds_and_volumes() -> None:
             "${H4_TREE:?set by make up}/deploy/edge/nginx.conf",
             "/etc/nginx/nginx.conf",
             True,
-        )
+        ),
+        # Spec 001's hosts' blocks: the entrypoint that writes their token maps (its contracts/tunnel.md §4).
+        (
+            "${H4_TREE:?set by make up}/deploy/edge/entrypoint.sh",
+            "/etc/nginx/h4-entrypoint.sh",
+            True,
+        ),
     ]
     assert binds("gateway") == [
         ("${H4_STATE_DIR:?set by the env file}/gateway", "/var/lib/h4-gateway", False),
@@ -568,7 +605,16 @@ def test_read_only_roots_where_the_image_allows() -> None:
     for name in read_only:
         assert SERVICES[name]["read_only"] is True
         assert SERVICES[name]["tmpfs"] == ["/tmp"]
-    assert [n for n, s in SERVICES.items() if s.get("read_only")] == read_only
+    # Spec 001's tunnel, both ends, with their state on tmpfs owned by the image's user.
+    tunnel = {
+        "tunnel": ["/run/tunnel:uid=10001,gid=10001,mode=0700"],
+        "tunnel-end": ["/run:uid=10001,gid=10001,mode=0700"],
+    }
+    for name, tmpfs in tunnel.items():
+        assert SERVICES[name]["read_only"] is True and SERVICES[name]["tmpfs"] == tmpfs
+    assert sorted(n for n, s in SERVICES.items() if s.get("read_only")) == sorted(
+        read_only + list(tunnel)
+    )
     # SeaweedFS's root stays writable, but its S3 keys file goes to a tmpfs, never the image's layer.
     assert SERVICES["seaweedfs"]["tmpfs"] == ["/tmp"]
 
@@ -595,9 +641,13 @@ def test_only_the_entrypoints_that_take_ownership_add_capabilities_back() -> Non
     # prod start, 2026-10-09).
     assert SERVICES["clickhouse"]["user"] == "101:101"
     assert SERVICES["seaweedfs"]["user"] == "1000:1000"
+    # Spec 001's tunnel runs as its image's one user, both ends (deploy/tunnel/Dockerfile).
+    assert SERVICES["tunnel"]["user"] == SERVICES["tunnel-end"]["user"] == "10001:10001"
     assert [n for n, s in SERVICES.items() if "user" in s] == [
         "clickhouse",
         "seaweedfs",
+        "tunnel",
+        "tunnel-end",
     ]
 
 
@@ -738,8 +788,9 @@ def test_valkey_and_seaweedfs_run_as_plan_6_says() -> None:
 
 
 def test_edge_runs_nginx_without_the_entrypoint_scripts() -> None:
-    assert SERVICES["edge"]["entrypoint"] == ["nginx"]
-    assert SERVICES["edge"]["command"] == ["-g", "daemon off;"]
+    # Spec 001 (its tasks.md T048): our few lines of sh write the hosts' blocks' token maps, then exec nginx.
+    assert SERVICES["edge"]["entrypoint"] == ["/bin/sh", "/etc/nginx/h4-entrypoint.sh"]
+    assert SERVICES["edge"]["command"] == ["nginx", "-g", "daemon off;"]
 
 
 # The gateway's environment: contracts/env-files.md §2 and §4 ("Set by compose on the gateway") and
@@ -809,8 +860,13 @@ def test_the_database_receives_only_its_own() -> None:
         "POSTGRES_USER": "gateway",
         "POSTGRES_PASSWORD": "${GATEWAY_DB_PASSWORD}",
     }
-    for name in ("edge", "prometheus", "loki"):
+    for name in ("prometheus", "loki"):
         assert "environment" not in SERVICES[name], name
+    # edge holds the hosts' blocks' two tokens alone (spec 001 contracts/tunnel.md §4), each from the env file.
+    assert SERVICES["edge"]["environment"] == {
+        "RELAY_TOKEN_SELF": "${RELAY_TOKEN_SELF:-}",
+        "TELEMETRY_BLOCK_TOKEN": "${TELEMETRY_BLOCK_TOKEN:-}",
+    }
 
 
 def test_the_collector_receives_its_four_variables_and_nothing_else() -> None:
@@ -1020,12 +1076,16 @@ def test_every_variable_compose_reads_is_in_the_env_files() -> None:
     for name, has_default in sorted(used.items()):
         holders = [stack for stack, found in every.items() if name in found]
         if has_default:
-            assert holders or name in RUN_FILE_KEYS, f"{name}: in no env file"
+            assert holders or name in RUN_FILE_KEYS | RELEASE_FILE_KEYS, (
+                f"{name}: in no env file"
+            )
         else:
+            # The tunnel end's file is read by its own class alone, whose services read no default-less name.
             missing = [
                 s
                 for s in every
-                if name not in every[s]
+                if s != "tunnel-end"
+                and name not in every[s]
                 and not (name in RUN_FILE_KEYS and s != "dev-cpu")
             ]
             assert not missing, f"{name}: missing from {missing}"

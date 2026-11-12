@@ -70,6 +70,10 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
     assert set(ENV["prod"]) == (dev - TEST_SWITCHES) | {
         "GATEWAY_AWS_PROFILE",
         "GATEWAY_ANTHROPIC_API_KEY",  # spec 010, Amendment 0-9
+        # spec 001's tunnel (its contracts/env-cloud.md §2): the laptop's prod alone runs it.
+        "TUNNEL_END_ADDRESS",
+        "RELAY_TOKEN_SELF",
+        "TELEMETRY_BLOCK_TOKEN",
     }  # §4, §7.1
     assert (
         "H4_TREE" not in ENV["prod"] and "H4_TREE" not in ENV["dev"]
@@ -85,6 +89,7 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "__HOME__/.local/share/h4reet/models",
         "H4_STATE_DIR": "__HOME__/.local/state/h4reet/prod",
         "H4_AWS_DIR": "__HOME__/.config/h4reet-ai/aws-home/.aws",
+        "H4_TUNNEL_DIR": "__HOME__/.config/h4reet-ai/tunnel/client",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "",
     },
@@ -96,6 +101,7 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "__HOME__/.local/share/h4reet/models",
         "H4_STATE_DIR": "__HOME__/.local/state/h4reet/dev",
         "H4_AWS_DIR": "__REPO__/deploy/aws-none",
+        "H4_TUNNEL_DIR": "__REPO__/deploy/tunnel-none",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "",
     },
@@ -108,6 +114,7 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "/run/h4agents/models",
         "H4_STATE_DIR": "/var/lib/h4agents/state/dev-cpu",
         "H4_AWS_DIR": "/run/h4agents/tree/deploy/aws-none",
+        "H4_TUNNEL_DIR": "/run/h4agents/tree/deploy/tunnel-none",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "http://198.18.0.1:3128",
     },

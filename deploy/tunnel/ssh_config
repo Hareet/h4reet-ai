@@ -1,0 +1,41 @@
+# The laptop's end of the tunnel (spec 001 contracts/tunnel.md §3; research.md R-11; FR-052, FR-055): one connection
+# to the tunnel end's Elastic IP on 2222, with its host key pinned, and the five forwards. The `tunnel` service runs it
+# with -F, so no other file is read; the key and the pinned host key are the Author's, from his tunnel-keys target,
+# bound read-only into /run/tunnel-client.
+
+Host *
+  User tunnel
+  Port 2222
+  HostKeyAlias h4-tunnel-end
+  HostKeyAlgorithms ssh-ed25519
+  UserKnownHostsFile /run/tunnel-client/known_hosts
+  GlobalKnownHostsFile /dev/null
+  IdentityFile /run/tunnel-client/id_ed25519
+  IdentitiesOnly yes
+  StrictHostKeyChecking yes
+  UpdateHostKeys no
+  CheckHostIP no
+  BatchMode yes
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  ConnectTimeout 10
+  ServerAliveInterval 10
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes
+  SessionType none
+  RequestTTY no
+  ForwardAgent no
+  ForwardX11 no
+  PermitLocalCommand yes
+  LocalCommand /usr/local/bin/h4-tunnel connected
+  GatewayPorts yes
+
+  # Back to the laptop's edge: the relay block, the telemetry block, and the health block (on edge's 8088; the tunnel
+  # end publishes 2203 on its public 8087).
+  RemoteForward 0.0.0.0:2201 edge:8085
+  RemoteForward 0.0.0.0:2202 edge:8086
+  RemoteForward 0.0.0.0:2203 edge:8088
+
+  # From the laptop's stack: the shared state, as tunnel:5432, and the public view's sink, as tunnel:2301.
+  LocalForward 0.0.0.0:5432 shared-state:5432
+  LocalForward 0.0.0.0:2301 snapshot-sink:8080

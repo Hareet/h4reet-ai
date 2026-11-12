@@ -1097,6 +1097,14 @@ export class Gateway {
     };
   }
 
+  /**
+   * Whether the store reads now, stack_state's row among it (spec 001 FR-054): what GET /health/serving answers with.
+   * The same live read as report's, with the store's timeouts.
+   */
+  async storeReadable(): Promise<boolean> {
+    return (await this.readState()).kind === "ok";
+  }
+
   /** The cause a hello arriving now would get, with no reservation and no provider call. */
   private dryRun(read: StateRead, meters: MeterView | undefined = this.meterView): DegradedCause | null {
     const t = thresholds(this.opts.budgets.envs[this.opts.envClass]);

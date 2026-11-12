@@ -46,7 +46,7 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 |---|---|---|---|
 | `-R 0.0.0.0:2201` | the tunnel end | `edge:8085`, the relay block (§4) | visitors' requests from the relay |
 | `-R 0.0.0.0:2202` | the tunnel end | `edge:8086`, the telemetry block | the tunnel end's collector's export (research.md R-25) |
-| `-R 0.0.0.0:2203` | the tunnel end | `edge:8087`, the health block | Route 53's health checks (research.md R-29) |
+| `-R 0.0.0.0:2203` | the tunnel end | `edge:8088`, the health block (edge's 8087 is spec 002's site) | Route 53's health checks (research.md R-29) |
 | `-L 0.0.0.0:5432` | the laptop's stack (`tunnel:5432`) | `<rds-endpoint>:5432` | the laptop's gateway to the shared state, inside TLS (contracts/shared-state.md §3) |
 | `-L 0.0.0.0:2301` | the laptop's stack (`tunnel:2301`) | `snapshot-sink:8080` | the public view's panels |
 
@@ -60,9 +60,11 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 |---|---|---|---|---|---|
 | 8085, relay | the laptop; EC2 | the laptop: unpublished (the tunnel reaches it). EC2: its private address, a literal in the `ec2` class, admitted only from the tunnel end's security group | `POST /hello`, `POST /room/turn`, `POST /room/events` to `gateway:8080`; `GET /health` (below) | `Authorization: Bearer <relay token for this host>`, from the host's env file; 401 otherwise, logged with no address | it moves `X-H4-Viewer` into the one `X-Forwarded-For` value it sends on, drops any other, and keeps `traceparent` |
 | 8086, telemetry | the laptop | unpublished | `POST /v1/{traces,metrics,logs}` to `otel-collector:4318` | its own bearer token, `TELEMETRY_BLOCK_TOKEN` | EC2's collector is reached in the VPC instead |
-| 8087, health | the laptop | unpublished | `GET /health` only | none: Route 53's checkers can't send one (spec FR-053's conditional) | answers 200 or 503 with an empty body; rate-limited to 10 requests a second |
+| 8088, health (8087 until group 5, which found edge's 8087 taken) | the laptop | unpublished | `GET /health` only | none: Route 53's checkers can't send one (spec FR-053's conditional) | answers 200 or 503 with an empty body; rate-limited to 10 requests a second |
 
-**`GET /health` on 8085 and 8087** both ask `gateway:8080/health` and answer 200 only if it reports itself up and the shared state readable. The plan's gateway task adds that field to the gateway's health answer if it isn't there.
+**`GET /health` on 8085 and on the health block** both ask the gateway, and answer 200 only if it answers and the shared state reads. **As built in group 5** (tasks.md T043, T048): the gateway's health answer already carries the store's readability, `store`, but it answers 200 whatever the state (spec 000's contracts/gateway-http.md §5), so the blocks ask the gateway's `GET /health/serving`, which answers 200 while the store reads and 503 otherwise, each with an empty body, and pass that on as it is; a gateway that doesn't answer is 503 too. **The health block listens on edge's 8088,** since edge's 8087 is spec 002's site, x005: the tunnel's `-R 2203` leads to `edge:8088`, and the tunnel end still publishes 2203 on its public 8087 (§1, §3).
+
+**The tokens** reach nginx, which reads no environment, as two maps in a file on edge's tmpfs, which `deploy/edge/entrypoint.sh` writes from `RELAY_TOKEN_SELF` and `TELEMETRY_BLOCK_TOKEN` before nginx starts: each matches `Bearer <token>` and nothing else, and with no token, as on dev and dev-cpu, nothing matches.
 
 ## 5. Keys and revocation (FR-055)
 

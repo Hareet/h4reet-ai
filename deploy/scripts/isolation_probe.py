@@ -37,7 +37,8 @@ from dataclasses import dataclass, field
 TIMEOUT_S = 1.5
 # What each service of deploy/compose.yaml listens on, beside what its image exposes.
 PORTS = {
-    "edge": (8080, 8081, 8082, 8083, 8084, 8087, 8090),
+    # Spec 001's hosts' blocks: the relay's 8085, telemetry's 8086, and health's 8088 (its contracts/tunnel.md §4).
+    "edge": (8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8090),
     "gateway": (8080, 8081),
     # The room's site (spec 002): its nginx, behind edge's 8087.
     "web": (8080,),
@@ -58,6 +59,10 @@ PORTS = {
     "mailpit": (1025, 8025),
     # A one-off client in the breach profile (tasks.md T144): it listens on nothing.
     "breach-probe": (),
+    # Spec 001's tunnel (its contracts/tunnel.md §3): the laptop's end listens for its two local forwards, the shared
+    # state's and the sink's, inside the stack; the tunnel end's runs on the tunnel end alone.
+    "tunnel": (5432, 2301),
+    "tunnel-end": (2222, 2201, 2202, 2203),
 }
 
 Resolve = Callable[[str], list[str]]

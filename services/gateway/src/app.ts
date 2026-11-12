@@ -1,6 +1,6 @@
 // The gateway's two listeners and its startup order (plan §5.1; contracts/gateway-http.md §1; operator-admin.md §1).
 //
-// - The api listens on 8080: POST /hello, GET /health, and GET /health/live; and spec 002's POST /room/events, the
+// - The api listens on 8080: POST /hello, GET /health, GET /health/live, and spec 001's GET /health/serving; and spec 002's POST /room/events, the
 //   room's usage events, which reads config/room-events.yaml as server.ts loaded it (routes/room-events.ts).
 // - The admin listener listens on 8081. Authentication comes first, before anything else (operator-admin.md §1.1),
 //   and until it exists (tasks.md T055) every request there is unauthenticated, so every answer is 401.
@@ -48,7 +48,7 @@ import {
   type Migration,
 } from "./meter/store.js";
 import { registerAdmin } from "./routes/admin.js";
-import { registerHealth, registerHealthLive } from "./routes/health.js";
+import { registerHealth, registerHealthLive, registerHealthServing } from "./routes/health.js";
 import { registerHello } from "./routes/hello.js";
 import { registerRoomEvents } from "./routes/room-events.js";
 import { registerRoomTurn } from "./routes/room-turn.js";
@@ -348,6 +348,7 @@ export function buildApp(deps: AppDeps): { api: FastifyInstance; admin: FastifyI
   const s = deps.services;
   if (s !== undefined) {
     registerHealth(api, s.gateway);
+    registerHealthServing(api, s.gateway);
     registerHello(api, {
       stack: s.stack,
       gateway: s.gateway,

@@ -14,6 +14,9 @@ any check failed; make up stops there, before anything starts.
   with P13 counting every image and, with --models all, every model it will fetch.
 - --disk-only runs P13 and P14 for N bytes written under DIR (deploy/scripts/pull-models.sh, before each
   download).
+- --host-class tunnel-end --env-file PATH runs the tunnel end's class checks, T1 to T4, on the env file write_env.py
+  wrote, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3). The laptop's prod adds P22, its tunnel,
+  and may add the tunnel profile.
 - On a host stack make runs the copy of this script in the export of the commit being started, so the templates,
   locks, and compose file it checks are that commit's; --repo names the working tree, for P9, P20, and P21.
 
@@ -28,6 +31,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -122,6 +126,39 @@ STACKS = {
     "dev": Stack("dev", "dev", "gpu,dev-receivers", 18100),
     "dev-cpu": Stack("dev-cpu", "dev", "cpu,dev-receivers", 18300),
 }
+# Spec 001's host classes (its contracts/env-cloud.md §3; research.md R-28): the services a cloud host runs, by its
+# H4_HOST, each in the compose profile of the same name. The tunnel end's deployer starts its class's services by name,
+# so none of the laptop's runs there; and no laptop stack runs a cloud class's services, whose images its checks skip.
+HOST_CLASSES = {
+    "tunnel-end": ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector"),
+}
+CLOUD_PROFILES = frozenset(HOST_CLASSES)
+# The laptop's prod may add spec 001's tunnel profile, once the Author's tunnel-keys target has made its keys; P22 then
+# checks what it needs (contracts/env-cloud.md §2; contracts/tunnel.md §3 and §5).
+OPTIONAL_PROFILES = {"prod": ("tunnel",)}
+TUNNEL_TOKENS = ("RELAY_TOKEN_SELF", "TELEMETRY_BLOCK_TOKEN")
+TUNNEL_KEYS = ("TUNNEL_END_ADDRESS", *TUNNEL_TOKENS)
+TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{32,128}")
+# Ranges the tunnel end's Elastic IP can't be in.
+NOT_PUBLIC = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+    )
+)
+TUNNEL_END_TEMPLATE = Path("deploy") / "hosts" / "tunnel-end" / "tunnel-end.env.example"
+REGISTRY_RE = re.compile(r"[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com")
+RELEASE_BUCKET_RE = re.compile(r"h4reet-ai-releases-[a-z0-9]{1,40}")
+VPC_ENDPOINT_RE = re.compile(r"http://10\.42\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{2,5}")
+
 DEVCPU = {
     "H4_TREE": "/run/h4agents/tree",
     "H4_MODEL_DIR": "/run/h4agents/models",
@@ -337,6 +374,12 @@ def active(service: dict, profiles: set[str]) -> bool:
     return not wanted or bool(wanted & profiles)
 
 
+def other_host(service: dict) -> bool:
+    """The service is a cloud host's alone: each of its profiles is a host class's (HOST_CLASSES)."""
+    profiles = set(service.get("profiles") or [])
+    return bool(profiles) and profiles <= CLOUD_PROFILES
+
+
 def shared_build(name: str, service: dict) -> bool:
     """The service runs make up's own build, the gateway's or the room's, which compose never pulls (SHARED_IMAGES)."""
     return (
@@ -538,6 +581,9 @@ def p3(ctx: Context) -> Result:
             allowed_empty.add("GATEWAY_ANTHROPIC_API_KEY")
     if ctx.stack.name == "dev":
         allowed_empty |= set(CHANNELS)
+    if ctx.stack.name == "prod":
+        # Spec 001's tunnel: empty until the Author's tunnel-keys target fills them; P22 checks them with the profile.
+        allowed_empty |= set(TUNNEL_KEYS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
     empty = [k for k, v in ctx.values.items() if v == "" and k not in allowed_empty]
     problems = []
@@ -602,8 +648,10 @@ def p6(ctx: Context) -> Result:
     if v.get("COMPOSE_PROJECT_NAME") != f"h4reet-{s.name}":
         problems.append(f"COMPOSE_PROJECT_NAME isn't h4reet-{s.name}")
     profiles = v.get("COMPOSE_PROFILES", "").split(",")
-    if v.get("COMPOSE_PROFILES") != s.profiles:
-        problems.append(f"COMPOSE_PROFILES isn't {s.profiles}")
+    optional = OPTIONAL_PROFILES.get(s.name, ())
+    if ",".join(p for p in profiles if p not in optional) != s.profiles:
+        extra = f", with {', '.join(optional)} or without" if optional else ""
+        problems.append(f"COMPOSE_PROFILES isn't {s.profiles}{extra}")
     elif ("gpu" in profiles) == ("cpu" in profiles) or "breach" in profiles:
         problems.append(
             "COMPOSE_PROFILES needs exactly one of gpu and cpu, and never breach"
@@ -1290,7 +1338,12 @@ def p17(ctx: Context) -> Result:
     problems = []
     for name, service in sorted((model.get("services") or {}).items()):
         image = service.get("image")
-        if service.get("build") is not None or not image or shared_build(name, service):
+        if (
+            service.get("build") is not None
+            or not image
+            or shared_build(name, service)
+            or other_host(service)
+        ):
             continue
         repository, tag, digest = split_reference(str(image))
         if SHARED_IMAGES.get(name) == image:
@@ -1488,6 +1541,100 @@ def p21(ctx: Context) -> Result:
     return ok("P21", f"nothing uncommitted under {', '.join(WATCHED)}")
 
 
+def p22(ctx: Context) -> Result:
+    """Spec 001's tunnel, while prod's profiles add it: the tunnel end's address, the client's key and the tunnel end's
+    pinned host key in H4_TUNNEL_DIR, and the two tokens the laptop's edge blocks check (contracts/tunnel.md §3 to §5).
+    Names keys and files, never a value."""
+    if "tunnel" not in ctx.profiles():
+        return ok("P22", "no tunnel profile")
+    v = ctx.values
+    problems = []
+    try:
+        address = ipaddress.ip_address(v.get("TUNNEL_END_ADDRESS", ""))
+        public = address.version == 4 and not any(address in n for n in NOT_PUBLIC)
+    except ValueError:
+        public = False
+    if not public:
+        problems.append(
+            "TUNNEL_END_ADDRESS isn't the tunnel end's public IPv4 address (the Author's tunnel-keys target writes it)"
+        )
+    for key in TUNNEL_TOKENS:
+        if not TOKEN_RE.fullmatch(v.get(key, "")):
+            problems.append(
+                f"{key} isn't a token's shape (the tunnel-keys target writes it)"
+            )
+    folder = Path(v.get("H4_TUNNEL_DIR", "") or "/nonexistent")
+    if not folder.is_dir() or folder.stat().st_mode & 0o077:
+        problems.append("H4_TUNNEL_DIR isn't a folder only its owner can open (0700)")
+    else:
+        key = folder / "id_ed25519"
+        if not key.is_file() or key.stat().st_mode & 0o077:
+            problems.append(
+                f"{key.name} in H4_TUNNEL_DIR is missing or others can read it (0600)"
+            )
+        known = folder / "known_hosts"
+        lines = (
+            [ln for ln in known.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if known.is_file()
+            else []
+        )
+        if len(lines) != 1 or not lines[0].startswith("h4-tunnel-end ssh-ed25519 "):
+            problems.append(
+                "known_hosts in H4_TUNNEL_DIR doesn't pin the tunnel end's one host key, as h4-tunnel-end"
+            )
+    return summarize(
+        "P22",
+        problems,
+        "the tunnel's address, key, pinned host key, and tokens are in place",
+    )
+
+
+def tunnel_end_checks(root: Path, env_file: Path) -> list[Result]:
+    """The tunnel end's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3): its env file is
+    0600 and in the grammar (T1), with its template's keys (T2), names the tunnel end (T3), and holds values of their
+    shapes (T4). Names keys, never a value."""
+    out: list[Result] = []
+    try:
+        mode = env_file.stat().st_mode
+        values, errors = parse_env(env_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        return [fail("T1", f"{env_file} unreadable: {type(error).__name__}")]
+    problems = list(errors)
+    if mode & 0o077:
+        problems.append(f"{env_file} is readable by others: it must be 0600")
+    out.append(summarize("T1", problems, f"{env_file} is 0600 and in the grammar"))
+    template, _ = parse_env((root / TUNNEL_END_TEMPLATE).read_text(encoding="utf-8"))
+    missing, extra = (
+        sorted(set(template) - set(values)),
+        sorted(set(values) - set(template)),
+    )
+    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems += [f"not in the template: {', '.join(extra)}"] if extra else []
+    out.append(summarize("T2", problems, "the keys are the template's"))
+    want = {
+        "H4_HOST": "tunnel-end",
+        "H4_STACK": "prod",
+        "H4_ENV": "prod",
+        "COMPOSE_PROJECT_NAME": "h4reet-prod",
+        "COMPOSE_PROFILES": "tunnel-end",
+    }
+    problems = [f"{k} isn't {w}" for k, w in want.items() if values.get(k) != w]
+    out.append(summarize("T3", problems, "the file names the tunnel end, on prod"))
+    shapes = {
+        "TELEMETRY_BLOCK_TOKEN": TOKEN_RE,
+        "H4_REGISTRY": REGISTRY_RE,
+        "RELEASE_BUCKET": RELEASE_BUCKET_RE,
+        "EC2_COLLECTOR_ENDPOINT": VPC_ENDPOINT_RE,
+    }
+    problems = [
+        f"{k} isn't of its shape"
+        for k, shape in shapes.items()
+        if not shape.fullmatch(values.get(k, ""))
+    ]
+    out.append(summarize("T4", problems, "each value has its shape"))
+    return out
+
+
 UP = (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18)
 PULL = (p1, p2, p3, p4, p5, p6, p7, p10, p13, p14)
 
@@ -1509,6 +1656,8 @@ def run_checks(ctx: Context) -> list[Result]:
             checks.append(p20)
         if ctx.stack.host:
             checks.append(p21)
+        if ctx.stack.name == "prod":
+            checks.append(p22)
     results = []
     for check in checks:
         try:
@@ -1549,9 +1698,14 @@ def main(argv: list[str], host: Host | None = None) -> int:
     parser.add_argument("--bytes", type=int)
     parser.add_argument("--path")
     parser.add_argument("--vhdx-mount", default="/mnt/c")
+    parser.add_argument("--host-class", choices=sorted(HOST_CLASSES))
     args = parser.parse_args(argv)
     host = host or Host()
-    if args.disk_only:
+    if args.host_class:
+        if not args.env_file:
+            parser.error("--host-class needs --env-file")
+        results = tunnel_end_checks(args.root.resolve(), args.env_file)
+    elif args.disk_only:
         if args.bytes is None or not args.path:
             parser.error("--disk-only needs --bytes and --path")
         results = disk_only(host, args.bytes, args.path, args.vhdx_mount)

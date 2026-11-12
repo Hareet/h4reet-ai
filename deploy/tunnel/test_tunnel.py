@@ -218,9 +218,15 @@ def image(engine: None) -> str:
     tag = f"h4reet-tunnel-test:{secrets.token_hex(4)}"
     done = docker("build", "--quiet", "-t", tag, str(HERE), timeout=600)
     if done.returncode != 0:
-        last = (
-            (done.stderr or done.stdout).decode(errors="replace").strip().splitlines()
-        )
+        # The relay's own socat lines aren't the build's.
+        last = [
+            line
+            for line in (done.stderr or done.stdout)
+            .decode(errors="replace")
+            .strip()
+            .splitlines()
+            if "socat[" not in line
+        ]
         pytest.skip(
             "the tunnel's image doesn't build on the agents' engine, whose egress proxy doesn't reach Ubuntu's "
             f"archive; the Author's engine runs these: {last[-1] if last else done.returncode}"
