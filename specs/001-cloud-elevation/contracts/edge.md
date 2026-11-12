@@ -27,7 +27,7 @@ ACM in us-east-1, for `hareet.ai` and `www.hareet.ai`, validated by DNS in the z
 
 | Behavior | Origin | Cache policy | Origin request policy | Response headers |
 |---|---|---|---|---|
-| `/api/*` | `relay` | `CachingDisabled` | forward `CloudFront-Viewer-Address`, `Content-Type`, `Accept`, `traceparent`; no cookies, no query strings | none added |
+| `/api/*` | `relay` | `CachingDisabled` | forward `CloudFront-Viewer-Address`, `Content-Type`, `Accept`, `traceparent`, and `X-H4-Probe`, the probe's mark, so the relay knows a probe (group 8's review B, I1); no cookies, no query strings | none added |
 | default | `site` | cached; `index.html` short-lived | none | the CSP, HSTS, `Referrer-Policy: no-referrer`, and a `Permissions-Policy` that turns off camera, microphone, and geolocation |
 
 **The CSP** is spec 002's (its contracts/web-serving.md §3), with `connect-src 'self'`, so every request stays on hareet.ai (SC-010).

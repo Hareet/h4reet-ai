@@ -15,10 +15,13 @@ for the marker as written, JSON-escaped, or URL-encoded, and for the address as 
 IPv6, or with a port; it prints the sources that hold either, with counts, and never what it found around it.
 
 The plan holds, for every service of the host's class in deploy/compose.yaml: its container's log, and each of its
-named volumes as `docker cp` copies it; each Postgres's data as pg_dump writes it, the shared state's among them;
-ClickHouse's tables and Valkey's keys as their own clients print them; and the gateway's journal. Loki's chunks and
-Prometheus's blocks are compressed on disk, so the raw scan of their volumes reads their indexes and write-ahead logs
-alone; what they hold of a request came from the services' own records, which their logs and the collectors' are.
+named volumes as `docker cp` copies it; each Postgres's data as pg_dump writes it, run as the image's postgres user,
+whose socket peer rule the stores keep (group 8's review B, I4), the shared state's among them; ClickHouse's tables
+and Valkey's keys as their own clients print them; and the gateway's journal. Loki's chunks and Prometheus's blocks are
+compressed on disk, and the gateway's and the relay's OTLP logs and metrics reach them through the collector, not
+through any container's log (group 8's review B, I5). So where they run, the plan also asks each through its own API,
+from inside its stack, over the gateway's container, whose Node fetches it: Loki's query_range over every stream for
+the last two hours, the visit's window, and Prometheus's label names and every label's values.
 
 Exit codes: 0 nothing found; 1 a source holds the marker or the address; 2 usage, or a source couldn't be collected.
 """
@@ -68,6 +71,23 @@ VALKEY = (
     'stream) valkey-cli -a "$VALKEY_PASSWORD" --no-auth-warning XRANGE "$k" - +;; '
     "esac; done"
 )
+# Loki's and Prometheus's live answers, asked from the gateway's container on the stack's internal network: Node's
+# fetch prints each answer's text, which the scan reads as it reads every file. Two hours back covers the visit.
+LIVE_STORES = {
+    "loki": (
+        "const end=Date.now()*1e6,start=end-7200e9;"
+        "const q=encodeURIComponent('{service_name=~\".+\"}');"
+        "fetch(`http://loki:3100/loki/api/v1/query_range?query=${q}&start=${start}&end=${end}&limit=5000`)"
+        ".then(r=>r.text()).then(t=>process.stdout.write(t)).catch(()=>process.exit(2))"
+    ),
+    "prometheus": (
+        "(async()=>{const base='http://prometheus:9090/api/v1';"
+        "const names=(await (await fetch('http://prometheus:9090/api/v1/labels')).json()).data||[];"
+        "process.stdout.write(JSON.stringify(names)+'\\n');"
+        "for(const n of names){process.stdout.write(await (await fetch(`${base}/label/${encodeURIComponent(n)}/values`)).text()+'\\n')}"
+        "})().catch(()=>process.exit(2))"
+    ),
+}
 MARKER_RE = re.compile(r"[A-Za-z0-9-]{16,64}")
 
 
@@ -78,7 +98,7 @@ class Usage(Exception):
 @dataclass(frozen=True)
 class Source:
     name: str
-    kind: str  # logs, volume, postgres, clickhouse, valkey, journal
+    kind: str  # logs, volume, postgres, clickhouse, valkey, journal, loki, prometheus
     service: str
     argv: tuple[str, ...]
     volume: str | None = None
@@ -143,6 +163,8 @@ def plan(
                     (
                         "docker",
                         "exec",
+                        "-u",
+                        "postgres",
                         container,
                         "pg_dump",
                         "--data-only",
@@ -169,6 +191,22 @@ def plan(
                     "valkey",
                     name,
                     ("docker", "exec", container, "sh", "-c", VALKEY),
+                )
+            )
+        if name in LIVE_STORES and JOURNAL[0] in host_services(host, compose):
+            out.append(
+                Source(
+                    f"{name}-live.txt",
+                    name,
+                    name,
+                    (
+                        "docker",
+                        "exec",
+                        f"{project}-{JOURNAL[0]}-1",
+                        "node",
+                        "-e",
+                        LIVE_STORES[name],
+                    ),
                 )
             )
         if name == JOURNAL[0]:

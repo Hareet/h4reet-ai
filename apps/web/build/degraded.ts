@@ -24,7 +24,7 @@ export function degradedBody(): DegradedBody {
   return {
     state: "degraded",
     cause: "no_host_serving",
-    detail: "No host is serving: the Author's machine is resting, and the cloud host isn't up.",
+    detail: "No host is serving right now, so the twin can't answer; the site itself still works.",
     ceilings: null,
     stack: null,
     since: null,

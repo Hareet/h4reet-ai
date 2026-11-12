@@ -1,4 +1,5 @@
 P-I5, spec 001 group 8 (W1): the edge's protected Terraform and the probe's switch, for the Author's hand.
+Rebuilt after group 8's review B (I1, nit 5), on the same base: the files it touches are unchanged since.
 
 Built from plain copies: infra/account/alerts.tf as P-I3 leaves it (a git archive export of 7c5f1259 with W1's eight
 patches applied in order; P-I7 and P-I4 don't touch it), and /dev/null for the two new files; edited in $TMPDIR, then
@@ -14,11 +15,12 @@ What it holds (tasks.md T104, T107; contracts/edge.md; contracts/aws-alerts.md �
     VPC origin to the relay on the tunnel end, 8080; and the distribution, with the origins `site` and `relay`,
     /api/* uncached to the relay, 502 and 504 as 503 with /_degraded/api.json for 0 s, and no access log;
   - infra/prod/edge-limits.tf, new, rule T5: CloudFront's cache policy for the site, its managed CachingDisabled read
-    for /api/*, the relay's origin-request policy (CloudFront-Viewer-Address, Content-Type, Accept, traceparent; no
-    cookie, no query string), and the site's response headers (spec 002's CSP, HSTS, no-referrer, nosniff, and the
-    Permissions-Policy). W1 makes them; W2's distribution uses them;
+    for /api/*, the relay's origin-request policy (CloudFront-Viewer-Address, Content-Type, Accept, traceparent, and
+    X-H4-Probe, the probe's mark, so the relay knows a probe; no cookie, no query string), and the site's response
+    headers (spec 002's CSP, HSTS, no-referrer, nosniff, and the Permissions-Policy). W1 makes them; W2's distribution uses them;
   - infra/account/alerts.tf: the probe's schedule enabled by the account's local.wired, and its alarm,
-    h4-probe-failing, behind it: 5 failed minutes, missing data breaching, to h4-alerts on alarm and on recovery.
+    h4-probe-failing, behind it and behind the probe's function: 5 failed minutes, missing data breaching, to
+    h4-alerts on alarm and on recovery.
     W1 holds the switch off, so P-I5 enables nothing in W1; P-W2 enables both in W2, after prod's apply.
 
 Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, this patch, and P-G6, in that
@@ -48,15 +50,17 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
  
    tags = {
      component = "probe"
-@@ -128,6 +129,31 @@
+@@ -128,6 +129,33 @@
    }
  }
  
 +# The probe failed for 5 minutes in a row (contracts/aws-alerts.md §5; group 4's departure 2): probe_failing, and on its
 +# next pass probe_recovered. A run that didn't happen counts as a failed one, so the alarm reads missing data as
-+# breaching, and so it waits behind the switch with the schedule: in W1 it would page every five minutes.
++# breaching, and so it waits behind the switch with the schedule: in W1 it would page every five minutes. It also waits
++# for the probe's function, which exists once its digest is set: an alarm on a function that isn't there would page as
++# surely (group 8's review B, nit 5).
 +resource "aws_cloudwatch_metric_alarm" "probe_failing" {
-+  count               = local.wired ? 1 : 0
++  count               = local.wired && length(aws_lambda_function.probe) > 0 ? 1 : 0
 +  alarm_name          = "h4-probe-failing"
 +  alarm_description   = "h4-probe failed for 5 minutes: hareet.ai or its status request isn't answering (spec 001 FR-061)"
 +  namespace           = "AWS/Lambda"
@@ -256,7 +260,7 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +}
 --- /dev/null
 +++ b/infra/prod/edge-limits.tf
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,100 @@
 +# CloudFront's policies for hareet.ai (spec 001 FR-028, FR-033, FR-042; contracts/edge.md §3; plan.md §8.1): what the
 +# edge caches, what it forwards to the relay, and the headers it adds to the site. Protected (FR-012; rule T5: CloudFront's
 +# cache, origin-request, and response-headers policies live in edge-limits*.tf alone), so it changes only by the
@@ -296,11 +300,12 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +  }
 +}
 +
-+# What the relay receives of the viewer's request: the address CloudFront saw, the two content headers, and the trace
-+# context; no cookie, no query string, and no other header (contracts/relay-http.md §3, step 6).
++# What the relay receives of the viewer's request: the address CloudFront saw, the two content headers, the trace
++# context, and the probe's mark, X-H4-Probe, so the relay knows a probe (contracts/relay-http.md §3, step 1; group 8's
++# review B, I1); no cookie, no query string, and no other header (§3, step 6).
 +resource "aws_cloudfront_origin_request_policy" "relay" {
 +  name    = "h4-relay"
-+  comment = "The relay's four headers, and nothing else of the viewer's (spec 001 contracts/edge.md §3)"
++  comment = "The relay's five headers, and nothing else of the viewer's (spec 001 contracts/edge.md §3)"
 +
 +  cookies_config {
 +    cookie_behavior = "none"
@@ -310,7 +315,7 @@ finds nothing but prod's lockfile (T10, the Author's step since group 5); terraf
 +    header_behavior = "whitelist"
 +
 +    headers {
-+      items = ["CloudFront-Viewer-Address", "Content-Type", "Accept", "traceparent"]
++      items = ["CloudFront-Viewer-Address", "Content-Type", "Accept", "traceparent", "X-H4-Probe"]
 +    }
 +  }
 +

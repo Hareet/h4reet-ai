@@ -9,7 +9,7 @@ export type RelayCause =
 
 /** Each cause's fixed text (spec 000 §3's, and this contract's two). */
 export const DETAIL: Readonly<Record<RelayCause, string>> = {
-  no_host_serving: "No host is serving: the Author's machine is resting, and the cloud host isn't up.",
+  no_host_serving: "No host is serving right now, so the twin can't answer; the site itself still works.",
   host_error: "The serving host answered with an error and no cause.",
   kill_switch_tripped:
     "The kill switch set degraded when a spending ceiling was reached. Only an operator reset restores service.",

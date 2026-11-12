@@ -24,6 +24,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -85,6 +86,24 @@ def _take(argv: list[str], flag: str) -> tuple[list[str], str | None]:
     return argv[:i] + argv[i + 2 :], argv[i + 1]
 
 
+def token_file_problem(path: Path) -> str | None:
+    """The operator CLI's rules for a token file (its check_token_file; group 8's review B, nit 2): the file itself,
+    not a link; a regular file; the caller's; mode 0600 or 0400. None when it keeps them."""
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return f"{path} can't be read"
+    if stat.S_ISLNK(info.st_mode):
+        return f"{path} is a symbolic link; the token must be the file itself"
+    if not stat.S_ISREG(info.st_mode):
+        return f"{path} isn't a regular file"
+    if info.st_uid != os.getuid():
+        return f"{path} belongs to another user"
+    if stat.S_IMODE(info.st_mode) not in (0o600, 0o400):
+        return f"{path} is mode {stat.S_IMODE(info.st_mode):04o}; it must be 0600 or 0400"
+    return None
+
+
 def main(
     argv: list[str],
     token_file: Path | None = None,
@@ -117,8 +136,14 @@ def main(
             )
             return 2
 
+        problem = token_file_problem(token_file)
+        if problem is not None:
+            print(f"redteam: {problem}", file=sys.stderr)
+            return 2
+
         def ec2_client(stack: str) -> Any:
-            with open(token_file, encoding="utf-8") as stdin:
+            fd = os.open(token_file, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            with os.fdopen(fd, encoding="utf-8") as stdin:
                 return client_class(stack=stack, token_stdin=True, stdin=stdin)
 
         return run_main(

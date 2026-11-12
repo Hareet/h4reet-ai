@@ -948,14 +948,14 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - **after group 5's review (I8):** T046's checks hold each switch to a boolean literal either way, and "off in W1" is its own W1-only test, `infra/test/test_prod_network.py::test_w1_holds_both_switches_off`, which this branch flips to `is True`, test-first, with P-W2.
 
   Then a review by an agent that wrote none of it, and the note. Check: RED with the switches off for the wired checks, GREEN with them on; `make check`'s and `gitleaks dir`'s whole output in the note (W2's branch)
-- [ ] T176 Author: with EC2 stopped, in a scratch clone of W2's `-p` branch with P-W2 committed, `make plan ROOT=prod`, then `ROOT=account`, after W1's applies. Paste both blocks into the note. Read them:
+- [ ] T176 Author: **Precondition (group 8's review B, I6):** his answer to W1's note's question B-6, the interface CloudFront's VPC origin reaches, built and reviewed, and `infra/test/test_prod_cdn.py::test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on` passing without its `xfail` marker. Then, with EC2 stopped, in a scratch clone of W2's `-p` branch with P-W2 committed, `make plan ROOT=prod`, then `ROOT=account`, after W1's applies. Paste both blocks into the note. Read them:
   - prod makes the certificate and its validation, the distribution, its VPC origin, the records, the buckets' policies, and the rules' function targets. It replaces EC2, updating the server action, EC2's model action, and the ID parameter with it, and drops `aws_ec2_instance_state.ec2_w1`, which leaves the instance as it is (to confirm);
   - the account makes the functions, their permissions, `h4-laptop-away-rule`, the schedules, and the probe's schedule and alarm, and nothing that reads prod.
 
   Check: as T027, for each root (W2's `-p`)
 - [ ] T177 Author: commit P-W2 on W2's `-p` branch byte for byte; gate; merge. Check: the gate passes, its `infra-plan-note` step on both roots (W2's `-p`, then main)
 - [ ] T178 Author: on `main`, inside the hours, read `make operator-status ENV=shared` and record it. Verify, apply, and record **prod first, then the account** (plan.md §16, "W2's order"; the review's I3), so the probe starts against a site that answers. If EventBridge refuses prod's function targets before the account's apply makes the functions, apply the account first instead, and record the probe's alarm during prod's apply as expected. Then:
-  1. the certificate is issued, and hareet.ai loads from the edge;
+  1. the certificate is issued; then a release with `SITE_BUCKET=` and `DISTRIBUTION=`, between prod's apply and the account's (group 8's review B, nit 5), and hareet.ai loads from the edge;
   2. the probe passes;
   3. T097's step after the replace: the old spot request cancelled, and exactly one instance tagged `h4-prod-ec2`, the parameter's;
   4. SC-005: the new EC2's digests match its release, and `make operator-status ENV=shared` matches the reading before the apply;

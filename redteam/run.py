@@ -60,6 +60,37 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 CASES = REPO / "redteam" / "cases"
+
+# What the red team's live cases exercise (group 8's review B, I3; contracts/releases-deployer.md §2): the gateway's
+# code, the configuration and the corpus it reads, the cases, and this runner. An EC2 run is keyed by their SHA-256,
+# so a release whose export holds the same bytes counts a run made on an earlier release, and a release that changes
+# any of them needs a run of its own first. deploy/scripts/release.py carries the same function, and a test holds the
+# two alike.
+EXERCISED = (
+    "services/gateway/src",
+    "services/gateway/package.json",
+    "package-lock.json",
+    "config",
+    "corpus",
+    "redteam/cases",
+    "redteam/run.py",
+)
+
+
+def exercised(root: Path) -> str:
+    """The SHA-256 of every file EXERCISED names under root, each as its path, a NUL, its bytes, in path order."""
+    digest = hashlib.sha256()
+    files: list[Path] = []
+    for rel in EXERCISED:
+        path = root / rel
+        if path.is_file():
+            files.append(path)
+        elif path.is_dir():
+            files.extend(p for p in path.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    for path in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
+        digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+    return digest.hexdigest()
 HISTORY = REPO / "redteam" / "history"
 CORPUS = REPO / "corpus"
 CORPUS_CHECK = CORPUS / "tools" / "check_corpus.py"
@@ -645,7 +676,7 @@ def live_run(
     """Each case that has `live`, through the admin twin route on one adapter, judged as safe; its history written
     with each answer's hash and never its text, and the commit the stack runs, which the release's red-team gate
     matches (spec 001 contracts/releases-deployer.md §2; None when the stack's run file names none)."""
-    started = dt.datetime.now(dt.UTC)
+    started = dt.datetime.now(dt.timezone.utc)
     results: list[dict[str, Any]] = []
     errors = _client_errors(client)
     prompts: set[str] = set()
@@ -732,11 +763,13 @@ def live_run(
         "stack": stack,
         "commit": commit,
         "started": started.isoformat(timespec="seconds"),
-        "finished": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+        "finished": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "cases": len(results),
         "failed": failed,
         "unjudged": unjudged,
         "prompt_sha256": sorted(prompts),
+        # What the cases exercised, which the release's red-team gate matches for EC2 (group 8's review B, I3).
+        "exercised": exercised(REPO),
         "results": results,
     }
     history.mkdir(parents=True, exist_ok=True)

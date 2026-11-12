@@ -194,10 +194,49 @@ def check_self(runner: Runner, root: Path) -> None:
             )
 
 
-def check_redteam(folder: Path, commit: str, routing: dict | None = None) -> None:
-    """A passing run of this very commit on each host's route adapters, matched by each record's own commit field
-    (redteam/run.py's live record), never by its time: a run made after the merge needn't touch the checkout. A record
-    without a host is the laptop's, as every run was before EC2's had its own (I1)."""
+
+# What the red team's live cases exercise (group 8's review B, I3; contracts/releases-deployer.md §2): the gateway's
+# code, the configuration and the corpus it reads, the cases, and this runner. An EC2 run is keyed by their SHA-256,
+# so a release whose export holds the same bytes counts a run made on an earlier release, and a release that changes
+# any of them needs a run of its own first. deploy/scripts/release.py carries the same function, and a test holds the
+# two alike.
+EXERCISED = (
+    "services/gateway/src",
+    "services/gateway/package.json",
+    "package-lock.json",
+    "config",
+    "corpus",
+    "redteam/cases",
+    "redteam/run.py",
+)
+
+
+def exercised(root: Path) -> str:
+    """The SHA-256 of every file EXERCISED names under root, each as its path, a NUL, its bytes, in path order."""
+    digest = hashlib.sha256()
+    files: list[Path] = []
+    for rel in EXERCISED:
+        path = root / rel
+        if path.is_file():
+            files.append(path)
+        elif path.is_dir():
+            files.extend(p for p in path.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    for path in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
+        digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def check_redteam(
+    folder: Path, commit: str, routing: dict | None = None, exercised: str | None = None
+) -> None:
+    """A passing run on each host's route adapters, never matched by its time: a run made after the merge needn't
+    touch the checkout. The laptop's is of this very commit, by each record's own commit field (redteam/run.py's live
+    record); a record without a host is the laptop's, as every run was before EC2's had its own (I1). EC2's is of this
+    commit, or of an earlier release whose cases exercised the same bytes, by the record's `exercised` against the
+    export's (group 8's review B, I3): EC2 runs a release only once it is released, so a public release of a commit
+    that changes what the cases exercise needs EC2's run of a non-public release of it first, made while the laptop
+    serves (contracts/releases-deployer.md §2)."""
     required = required_runs(routing or {})
     if not any(host == "ec2" for host, _ in required):
         raise Refused(
@@ -211,9 +250,14 @@ def check_redteam(folder: Path, commit: str, routing: dict | None = None) -> Non
             finished = datetime.datetime.fromisoformat(str(run["finished"]))
         except (OSError, ValueError, KeyError, TypeError):
             continue
-        if run.get("commit") != commit:
+        host = str(run.get("host") or "laptop")
+        same_commit = run.get("commit") == commit
+        same_bytes = (
+            host == "ec2" and exercised is not None and run.get("exercised") == exercised
+        )
+        if not (same_commit or same_bytes):
             continue
-        pair = (str(run.get("host") or "laptop"), str(run.get("adapter")))
+        pair = (host, str(run.get("adapter")))
         if pair not in newest or finished >= newest[pair]["_at"]:
             newest[pair] = {**run, "_at": finished}
     failing = [
@@ -438,7 +482,7 @@ def released(
         raise Refused("the Compose plugin isn't the file its SHA-256 names")
     src = exported(head, work)
     if opts.public:
-        check_redteam(opts.redteam, head, routing_of(src))
+        check_redteam(opts.redteam, head, routing_of(src), exercised(src))
     check_site(runner, src, root, head, contexts, work)
 
     # 2. The images, from the export.
