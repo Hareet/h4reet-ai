@@ -830,9 +830,9 @@ shared-state-restore: ## (the Author) The last backup, or DUMP=dumps/<UTC>.dump,
 # gated merge, from a fresh export of it, whatever the checkout holds: the project's images for each host's platform,
 # the upstream copies by their lock's index digests, the tree, and release.json, the pointer last. PUBLIC=1 when it
 # makes hello or the twin's turns public: the red-team gate then, on the runs in REDTEAM= (default redteam/history).
-release: ## (the Author) A release of main's gated merge (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1] [REDTEAM=dir]
+release: ## (the Author) A release of main's gated merge (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1] [REDTEAM=dir] [SITE_BUCKET=… DISTRIBUTION=…]
 	$(call AUTHOR_ONLY,it pushes to the account's registry and its release bucket with his SSO session)
-	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)$(if $(call from_cli,REDTEAM), --redteam "$$REDTEAM")
+	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)$(if $(call from_cli,REDTEAM), --redteam "$$REDTEAM")$(if $(call from_cli,SITE_BUCKET), --site-bucket "$$SITE_BUCKET")$(if $(call from_cli,DISTRIBUTION), --distribution "$$DISTRIBUTION")
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \

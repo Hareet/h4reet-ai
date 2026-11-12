@@ -331,6 +331,13 @@ CASE_KEYS = {
     "forbid",
 }
 LIVE_KEYS = {"feature", "path", "turns"}
+# Spec 001 group 8 (tasks.md T102, T109; FR-039): a hello case's live field is {route: hello} alone. It goes through the
+# admin adapter route on the run's adapter, with hello's own fixed system prompt and its output cap, so the endpoint's
+# words are judged on each adapter that can answer it; its prompt is hello's message, at most 500 code points.
+HELLO_LIVE = {"route": "hello"}
+HELLO_MAX_CODE_POINTS = 500
+HELLO_SOURCE = REPO / "services" / "gateway" / "src" / "routes" / "hello.ts"
+BUDGETS = REPO / "config" / "budgets.yaml"
 PATHS = ("engineer", "non-engineer")
 FEATURE = re.compile(r"[a-z0-9_-]{1,64}")
 COVER = re.compile(r"(\d\d-[a-z0-9-]+\.md): (\S.*)")
@@ -340,6 +347,14 @@ TURN_MAX_CHARS, HISTORY_MAX_TURNS, HISTORY_MAX_CHARS = 600, 8, 4000
 
 
 def _check_live(path: Path, live: object, prompt: str) -> None:
+    if isinstance(live, dict) and "route" in live:
+        if live != HELLO_LIVE:
+            raise UsageError(f"{path}: a hello case's live is {{route: hello}} alone")
+        if len(prompt) > HELLO_MAX_CODE_POINTS:
+            raise UsageError(
+                f"{path}: hello's message is at most {HELLO_MAX_CODE_POINTS} code points"
+            )
+        return
     if not isinstance(live, dict) or set(live) != LIVE_KEYS:
         raise UsageError(
             f"{path}: live is a mapping of exactly feature, path, and turns"
@@ -534,6 +549,66 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
+def hello_system_prompt(source: Path = HELLO_SOURCE) -> str:
+    """Hello's fixed system prompt, as the gateway's own source holds it, read as text: the same words the endpoint
+    sends, so a hello case is judged on the prompt visitors get (spec 000 contracts/gateway-http.md §2.2)."""
+    found = re.search(
+        r'export const HELLO_SYSTEM_PROMPT =\s*"([^"\\]+)";',
+        source.read_text(encoding="utf-8"),
+    )
+    if found is None:
+        raise UsageError(f"{source}: HELLO_SYSTEM_PROMPT isn't one plain string")
+    return found.group(1)
+
+
+def hello_output_cap(budgets: Path = BUDGETS) -> int:
+    """config/budgets.yaml's limits.per_call.hello_max_output_tokens, hello's own cap."""
+    doc = yaml.safe_load(budgets.read_text(encoding="utf-8")) or {}
+    cap = ((doc.get("limits") or {}).get("per_call") or {}).get(
+        "hello_max_output_tokens"
+    )
+    if not isinstance(cap, int) or cap < 1:
+        raise UsageError(
+            f"{budgets}: limits.per_call.hello_max_output_tokens isn't a whole number"
+        )
+    return cap
+
+
+def _ask(client: Any, adapter: str, case: dict[str, Any]) -> dict[str, Any] | None:
+    """One live case's answer, as {text, guard, redacted, route, cost_micro_usd, pack_sha256, prompt_sha256}: a hello
+    case through the adapter route with hello's prompt and cap, a twin case through the twin route."""
+    spec = case["live"]
+    if spec == HELLO_LIVE:
+        answer = client.adapter_complete(
+            adapter,
+            [
+                {"role": "system", "content": hello_system_prompt()},
+                {"role": "user", "content": case["prompt"]},
+            ],
+            max_output_tokens=hello_output_cap(),
+            purpose="eval",
+            reason=f"redteam live {case['id']}",
+        )
+        result = answer.get("result") if isinstance(answer, dict) else None
+        text = result.get("text") if isinstance(result, dict) else None
+        if not isinstance(text, str):
+            return None
+        return {
+            "text": text,
+            "route": answer.get("adapter", adapter),
+            "cost_micro_usd": answer.get("cost_micro_usd", 0),
+        }
+    turns = [*spec["turns"], {"role": "visitor", "text": case["prompt"]}]
+    answer = client.twin_turn(
+        adapter,
+        feature=spec["feature"],
+        path=spec["path"],
+        turns=turns,
+        reason=f"redteam live {case['id']}",
+    )
+    return answer if isinstance(answer, dict) else None
+
+
 def _client_errors(client: Any) -> tuple[type[Exception], ...]:
     """What a refused or failed twin_turn raises: the operator module's AdminError, and the network's own errors."""
     module = sys.modules.get(type(client).__module__)
@@ -565,15 +640,9 @@ def live_run(
         spec = case.get("live")
         if spec is None:
             continue
-        turns = [*spec["turns"], {"role": "visitor", "text": case["prompt"]}]
+        feature = "hello" if spec == HELLO_LIVE else spec["feature"]
         try:
-            answer = client.twin_turn(
-                adapter,
-                feature=spec["feature"],
-                path=spec["path"],
-                turns=turns,
-                reason=f"redteam live {case['id']}",
-            )
+            answer = _ask(client, adapter, case)
         except (
             errors
         ) as exc:  # AdminError carries a status and an error code, never the token
@@ -588,7 +657,7 @@ def live_run(
             results.append(
                 {
                     "id": case["id"],
-                    "feature": spec["feature"],
+                    "feature": feature,
                     "verdict": "error",
                     "detectors": [],
                     "guard": None,
@@ -627,7 +696,7 @@ def live_run(
         results.append(
             {
                 "id": case["id"],
-                "feature": spec["feature"],
+                "feature": feature,
                 "verdict": verdict,
                 "detectors": findings,
                 "guard": answer.get("guard"),

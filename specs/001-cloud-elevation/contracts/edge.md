@@ -39,7 +39,7 @@ ACM in us-east-1, for `hareet.ai` and `www.hareet.ai`, validated by DNS in the z
 | 502, 504 (the relay unreachable) | 503 | `/_degraded/api.json` from the site's bucket, cause `no_host_serving`; error-caching TTL 0 |
 | 503 from the relay | passed through | the relay's degraded body, cause intact |
 
-The body is spec 000's degraded body (its contracts/gateway-http.md), built from the same schema at release and checked by a test: the cause `no_host_serving`, and `stack` null, as in `edge`'s own `api_unavailable` body. Whether a CloudFront Function can add `X-H4-Degraded-Cause` to an error response is measured in group 8; if not, the cause is in the body only, for this case.
+The body is spec 000's degraded body (its contracts/gateway-http.md), built from the same schema at release and checked by a test: the cause `no_host_serving`, and `stack` null, as in `edge`'s own `api_unavailable` body. Whether a CloudFront Function can add `X-H4-Degraded-Cause` to an error response is measured in group 8; if not, the cause is in the body only, for this case. **As built in group 8:** not measured, since nothing in the session reaches AWS; the cause is in the body only for this case, to confirm in W2 (plan.md §16, "Group 8, as built", 14). The body's `request_id` is null too: a file has no request to name. A viewer-request CloudFront Function, `h4-site-index`, serves a folder's `index.html` on the default behavior (12).
 
 ## 5. Releases of the site
 

@@ -690,12 +690,12 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the kill switch reaching the relay within 10 s.
 
   Check: RED (FR-029 to FR-037, FR-054, FR-066; SC-008) (feat/001-us3-us5-edge)
-- [ ] T099 [P] [US3] Extend `evals/breach.py` and its test: the relay, in `dev-relay` on dev-cpu, answers degraded within 10 s of the trip, and forwards again after the reset. Check: RED (FR-025) (feat/001-us3-us5-edge)
-- [ ] T100 [P] [US5] Extend `apps/web/test_site.py`: no absolute URL to another host; the disclosure page matches the Markdown, with the new rows; `/_degraded/api.json` is spec 000's degraded body with `no_host_serving` and `stack` null. Check: RED (FR-038, FR-041, FR-066) (feat/001-us3-us5-edge)
-- [ ] T101 [P] [US5] Write `evals/visitor_scan.py`'s test. It scans every store on each host, plus the shared state, the relay's logs, and the tunnel end's, for a marker message and address after a scripted visit. Check: RED (FR-042, SC-011) (feat/001-us3-us5-edge)
-- [ ] T102 [P] [US3] Add red-team cases for hello and twin turns on the paid adapters, in `redteam/cases/`: claiming to be the Author, disparaging, revealing configuration. They run on the laptop's local model and fallback and on EC2's Anthropic API and Bedrock. Check: the cases load, and RED against a stub that fails them (FR-039) (feat/001-us3-us5-edge)
-- [ ] T103 [P] [US3] Extend `apps/web`'s tier tests: `no_host_serving` and `host_error` show `cannot_talk.resting`, and `public_cap` shows `turn_refused.slow_down`. Check: RED (FR-066; spec 002's contract §3, amended by name) (feat/001-us3-us5-edge)
-- [ ] T104 [P] [US3] Write `infra/test/fixtures/prod-edge/` and `infra/test/test_prod_edge.py`:
+- [x] T099 [P] [US3] Extend `evals/breach.py` and its test: the relay, in `dev-relay` on dev-cpu, answers degraded within 10 s of the trip, and forwards again after the reset. Check: RED (FR-025) (feat/001-us3-us5-edge)
+- [x] T100 [P] [US5] Extend `apps/web/test_site.py`: no absolute URL to another host; the disclosure page matches the Markdown, with the new rows; `/_degraded/api.json` is spec 000's degraded body with `no_host_serving` and `stack` null. Check: RED (FR-038, FR-041, FR-066) (feat/001-us3-us5-edge)
+- [x] T101 [P] [US5] Write `evals/visitor_scan.py`'s test. It scans every store on each host, plus the shared state, the relay's logs, and the tunnel end's, for a marker message and address after a scripted visit. Check: RED (FR-042, SC-011) (feat/001-us3-us5-edge)
+- [x] T102 [P] [US3] Add red-team cases for hello and twin turns on the paid adapters, in `redteam/cases/`: claiming to be the Author, disparaging, revealing configuration. They run on the laptop's local model and fallback and on EC2's Anthropic API and Bedrock. Check: the cases load, and RED against a stub that fails them (FR-039) (feat/001-us3-us5-edge)
+- [x] T103 [P] [US3] Extend `apps/web`'s tier tests: `no_host_serving` and `host_error` show `cannot_talk.resting`, and `public_cap` shows `turn_refused.slow_down`. Check: RED (FR-066; spec 002's contract §3, amended by name) (feat/001-us3-us5-edge)
+- [x] T104 [P] [US3] Write `infra/test/fixtures/prod-edge/` and `infra/test/test_prod_edge.py`:
   - the zone and its records; the certificate;
   - the distribution's aliases, behaviors, origins (OAC; the VPC origin to the tunnel end's private interface), policies, and headers;
   - error responses (502 and 504 to 503 with `/_degraded/api.json`, TTL 0);
@@ -715,12 +715,12 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 - [x] T105 [US3] Write P-6 as `docs/merge-requests/<date>-feat-001-p6-public-cap.patch`, before the relay's code: `config/budgets.yaml`'s new `public` section, with keys for the per-address requests a minute, burst, and requests a day, and the global in-flight limit, each figure left blank and marked as the Author's (FR-033; plan §14). The ADR for the public cap (T007) names it. Check: the patch applies to a fresh export; on a patched copy, the gateway's validator refuses the blank figures, naming each key (feat/001-us3-us5-edge)
 - [x] T106 [US3] Write `services/relay/` (Fastify on Node 24, a second npm workspace, the gateway's pins), and `relay` in compose's `tunnel-end` and `dev-relay` profiles. Make the gateway's validator accept the `public` section. Add the relay's spans and metrics (`relay.request`, `h4.relay.host`, `h4.relay.requests`, `h4.relay.host_healthy`, `h4.serving_host`, `h4.cap.refused`, `h4.handover.events`, `h4.handover.gap_seconds`). Check: T098 and T099 pass, with test figures in the tests' own fixtures (FR-060) (feat/001-us3-us5-edge)
-- [ ] T107 [US3] Write `infra/prod/{edge,dns,site}.tf`. Write P-I5: CloudFront's policies in `infra/prod/edge-limits.tf`, which rule T5 protects, and the one line in `infra/account/alerts.tf` that enables the probe's schedule. Check: on a patched copy, T104 passes, and `make infra-check` passes (feat/001-us3-us5-edge)
+- [x] T107 [US3] Write `infra/prod/{edge,dns,site}.tf`. Write P-I5: CloudFront's policies in `infra/prod/edge-limits.tf`, which rule T5 protects, and the one line in `infra/account/alerts.tf` that enables the probe's schedule. Check: on a patched copy, T104 passes, and `make infra-check` passes (feat/001-us3-us5-edge)
   - **From W1:** the resources T104 names wait behind the switches. The probe's line reads `local.wired`, so P-I5 enables nothing in W1, and P-W2 enables it in W2. `infra/prod/edge.tf` is under spec 000's protected names, so it's in P-I5 too (plan.md §16, "Groups 1 to 4, as one branch", 6).
-- [ ] T108 [US5] Change `apps/web`: the status page's links, the disclosure page's new rows, and `/_degraded/api.json` built from spec 000's schema. Amend spec 002's contract §3 by name, with the tier mapping. Check: T100 and T103 pass (feat/001-us3-us5-edge)
-- [ ] T109 [P] [US5] Write the visitor scan, and the red-team runner's support for the four adapters. Check: T101 and T102 pass (feat/001-us3-us5-edge)
+- [x] T108 [US5] Change `apps/web`: the status page's links, the disclosure page's new rows, and `/_degraded/api.json` built from spec 000's schema. Amend spec 002's contract §3 by name, with the tier mapping. Check: T100 and T103 pass (feat/001-us3-us5-edge)
+- [x] T109 [P] [US5] Write the visitor scan, and the red-team runner's support for the four adapters. Check: T101 and T102 pass (feat/001-us3-us5-edge)
 - [x] T110 [P] [US3] Add the relay's panels to the "Hosts" row: which host serves (a state timeline), the handovers and their gaps (from `v_handovers`), the relay's requests by host and outcome, and the cap's refusals (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us3-us5-edge)
-- [ ] T111 [P] [US5] Add the disclosure rows V1, V2's path, V4, V6 to V9, C1, C14, and S15, in the same commit as T106 and T107. Check: `disclosure_check` passes (FR-040) (feat/001-us3-us5-edge)
+- [x] T111 [P] [US5] Add the disclosure rows V1, V2's path, V4, V6 to V9, C1, C14, and S15, in the same commit as T106 and T107. Check: `disclosure_check` passes (FR-040) (feat/001-us3-us5-edge)
 
 ### The tunnel end, measured, and the new lines priced (W1)
 

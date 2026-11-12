@@ -1,0 +1,358 @@
+P-I5, spec 001 group 8 (W1): the edge's protected Terraform and the probe's switch, for the Author's hand.
+
+Built from plain copies: infra/account/alerts.tf as P-I3 leaves it (a git archive export of 7c5f1259 with W1's eight
+patches applied in order; P-I7 and P-I4 don't touch it), and /dev/null for the two new files; edited in $TMPDIR, then
+diff -u with a/ and b/ labels after this preamble; never git apply, and nothing written into any worktree. Apply it on
+W1's -p branch after P-I4 (and so after P-I3), with `patch -p1 < <this file>` at the repository's root, and commit the
+result byte for byte (tasks.md T107, T114, T171, T172).
+
+What it holds (tasks.md T104, T107; contracts/edge.md; contracts/aws-alerts.md §5; plan.md §16, "Why a switch",
+"Group 8, as built"):
+  - infra/prod/edge.tf, new, under spec 000's protected names (infra/*edge*): the site's origin access control and
+    the CloudFront Function that serves a folder's index.html, from W1; and behind prod's local.wired, W2's: the
+    certificate for hareet.ai and www.hareet.ai, validated by DNS; the
+    VPC origin to the relay on the tunnel end, 8080; and the distribution, with the origins `site` and `relay`,
+    /api/* uncached to the relay, 502 and 504 as 503 with /_degraded/api.json for 0 s, and no access log;
+  - infra/prod/edge-limits.tf, new, rule T5: CloudFront's cache policy for the site, its managed CachingDisabled read
+    for /api/*, the relay's origin-request policy (CloudFront-Viewer-Address, Content-Type, Accept, traceparent; no
+    cookie, no query string), and the site's response headers (spec 002's CSP, HSTS, no-referrer, nosniff, and the
+    Permissions-Policy). W1 makes them; W2's distribution uses them;
+  - infra/account/alerts.tf: the probe's schedule enabled by the account's local.wired, and its alarm,
+    h4-probe-failing, behind it: 5 failed minutes, missing data breaching, to h4-alerts on alarm and on recovery.
+    W1 holds the switch off, so P-I5 enables nothing in W1; P-W2 enables both in W2, after prod's apply.
+
+Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, this patch, and P-G6, in that
+order: infra/test (test_prod_cdn.py among them) passes with each switch off and on; `make infra-check`'s policy
+finds nothing but prod's lockfile (T10, the Author's step since group 5); terraform fmt is clean.
+--- a/infra/account/alerts.tf
++++ b/infra/account/alerts.tf
+@@ -30,15 +30,16 @@
+ }
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
+-# The probe's schedule (FR-061): once a minute, written disabled. The line that enables it is group 8's P-I5, once the
+-# site and the status request exist, with its alarm after 5 failed minutes and h4-alerts' CloudWatch publisher (plan.md
+-# §16, group 4's departures). Until then the probe calls nothing (row C11).
++# The probe's schedule (FR-061): once a minute, enabled by the account's switch, local.wired, in handover.tf (group 8's
++# P-I5). W1 holds the switch off, so the schedule stays disabled until W2's apply, after prod's, has made the site and
++# the status request it checks (plan.md §16, "Why a switch", "W2's order"). Until then the probe calls nothing (row
++# C11).
+ 
+ resource "aws_cloudwatch_event_rule" "probe" {
+   name                = "h4-probe-every-minute"
+-  description         = "h4-probe once a minute; enabled in group 8 (spec 001 FR-061)"
++  description         = "h4-probe once a minute, from W2 (spec 001 FR-061)"
+   schedule_expression = "rate(1 minute)"
+-  state               = "DISABLED"
++  state               = local.wired ? "ENABLED" : "DISABLED"
+ 
+   tags = {
+     component = "probe"
+@@ -128,6 +129,31 @@
+   }
+ }
+ 
++# The probe failed for 5 minutes in a row (contracts/aws-alerts.md §5; group 4's departure 2): probe_failing, and on its
++# next pass probe_recovered. A run that didn't happen counts as a failed one, so the alarm reads missing data as
++# breaching, and so it waits behind the switch with the schedule: in W1 it would page every five minutes.
++resource "aws_cloudwatch_metric_alarm" "probe_failing" {
++  count               = local.wired ? 1 : 0
++  alarm_name          = "h4-probe-failing"
++  alarm_description   = "h4-probe failed for 5 minutes: hareet.ai or its status request isn't answering (spec 001 FR-061)"
++  namespace           = "AWS/Lambda"
++  metric_name         = "Errors"
++  dimensions          = { FunctionName = "h4-probe" }
++  statistic           = "Sum"
++  period              = 60
++  evaluation_periods  = 5
++  datapoints_to_alarm = 5
++  comparison_operator = "GreaterThanOrEqualToThreshold"
++  threshold           = 1
++  treat_missing_data  = "breaching"
++  alarm_actions       = [data.aws_sns_topic.alerts.arn]
++  ok_actions          = [data.aws_sns_topic.alerts.arn]
++
++  tags = {
++    component = "probe"
++  }
++}
++
+ # A notice the bridge couldn't send to Telegram, after Lambda's two retries, waits in its failure queue. The email half
+ # still has SNS's own copy, and this alarm's.
+ resource "aws_cloudwatch_metric_alarm" "bridge_failed" {
+--- /dev/null
++++ b/infra/prod/edge.tf
+@@ -0,0 +1,171 @@
++# The edge: hareet.ai's certificate and its CloudFront distribution (spec 001 FR-027 to FR-029, FR-034, FR-042,
++# FR-066, FR-076; contracts/edge.md §2 to §4 and §6; research.md R-07 to R-09; plan.md §8.1 and §16, "Why a switch").
++# Under spec 000's protected names (infra/*edge*), so it arrives as the Author's patch P-I5 (plan.md §16, "Groups 1 to
++# 4, as one branch", 6). CloudFront's policies are edge-limits.tf's (rule T5).
++#
++# W1 makes the origin access control alone. Behind prod's local.wired, W2's: the certificate, which ACM issues only once
++# the registrar's name servers point at the zone W1 makes (T115); the VPC origin to the relay on the tunnel end; and
++# the distribution. No access log is configured, anywhere: it would store visitors' addresses (FR-042).
++
++# CloudFront signs its reads of the site's bucket, which only this distribution may make (site.tf's policy).
++resource "aws_cloudfront_origin_access_control" "site" {
++  name                              = "h4-site"
++  description                       = "hareet.ai's reads of the site's bucket (spec 001 contracts/edge.md §3)"
++  origin_access_control_origin_type = "s3"
++  signing_behavior                  = "always"
++  signing_protocol                  = "sigv4"
++}
++
++# A path that ends in a slash is its folder's index.html, as the web image's nginx serves it: S3 through origin access
++# control serves no index document of its own (/disclosure/, /credits/, and group 10's /status/). It names nothing, so
++# W1 makes it.
++resource "aws_cloudfront_function" "index" {
++  name    = "h4-site-index"
++  runtime = "cloudfront-js-2.0"
++  comment = "A folder's path to its index.html (spec 001 contracts/edge.md §3)"
++  publish = true
++  code    = <<-EOT
++    function handler(event) {
++      var request = event.request;
++      if (request.uri.endsWith("/")) {
++        request.uri += "index.html";
++      }
++      return request;
++    }
++  EOT
++}
++
++# hareet.ai and www.hareet.ai, in us-east-1 as CloudFront requires, validated by DNS in the zone (dns.tf) and renewed
++# by ACM (contracts/edge.md §2).
++resource "aws_acm_certificate" "site" {
++  count                     = local.wired ? 1 : 0
++  domain_name               = "hareet.ai"
++  subject_alternative_names = ["www.hareet.ai"]
++  validation_method         = "DNS"
++
++  tags = {
++    component = "edge"
++  }
++
++  lifecycle {
++    create_before_destroy = true
++  }
++}
++
++# The relay's origin: the tunnel end, over CloudFront's private path into the VPC, to the relay's edge listener, 8080,
++# in HTTP inside AWS's network (contracts/edge.md §3). Which of the tunnel end's two interfaces CloudFront's VPC origin
++# reaches is to confirm in W2's plan: the relay listens on the private one, 10.42.1.10 (plan.md §16, "Group 8, as
++# built", 13).
++resource "aws_cloudfront_vpc_origin" "relay" {
++  count = local.wired ? 1 : 0
++
++  vpc_origin_endpoint_config {
++    name                   = "h4-relay"
++    arn                    = aws_instance.tunnel_end.arn
++    http_port              = 8080
++    https_port             = 443
++    origin_protocol_policy = "http-only"
++
++    origin_ssl_protocols {
++      items    = ["TLSv1.2"]
++      quantity = 1
++    }
++  }
++
++  tags = {
++    component = "edge"
++  }
++}
++
++resource "aws_cloudfront_distribution" "site" {
++  count               = local.wired ? 1 : 0
++  enabled             = true
++  is_ipv6_enabled     = true
++  http_version        = "http2and3"
++  comment             = "hareet.ai (spec 001 contracts/edge.md)"
++  aliases             = ["hareet.ai", "www.hareet.ai"]
++  default_root_object = "index.html"
++  price_class         = "PriceClass_100"
++
++  # The room's built site, synced to site/ by each release (contracts/edge.md §5).
++  origin {
++    origin_id                = "site"
++    domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
++    origin_path              = "/site"
++    origin_access_control_id = aws_cloudfront_origin_access_control.site.id
++  }
++
++  # The relay on the tunnel end, which picks the serving host (contracts/relay-http.md). Read for 30 s, the relay's
++  # 25 s deadline and its hops.
++  origin {
++    origin_id   = "relay"
++    domain_name = aws_instance.tunnel_end.private_dns
++
++    vpc_origin_config {
++      vpc_origin_id            = aws_cloudfront_vpc_origin.relay[0].id
++      origin_read_timeout      = 30
++      origin_keepalive_timeout = 5
++    }
++  }
++
++  # Every path but /api/*: the site, cached, with spec 002's headers.
++  default_cache_behavior {
++    target_origin_id           = "site"
++    viewer_protocol_policy     = "redirect-to-https"
++    allowed_methods            = ["GET", "HEAD"]
++    cached_methods             = ["GET", "HEAD"]
++    compress                   = true
++    cache_policy_id            = aws_cloudfront_cache_policy.site.id
++    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
++
++    function_association {
++      event_type   = "viewer-request"
++      function_arn = aws_cloudfront_function.index.arn
++    }
++  }
++
++  # /api/*: the relay, never cached, with the four headers it reads and nothing of the viewer's beyond them.
++  ordered_cache_behavior {
++    path_pattern             = "/api/*"
++    target_origin_id         = "relay"
++    viewer_protocol_policy   = "https-only"
++    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
++    cached_methods           = ["GET", "HEAD"]
++    compress                 = false
++    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
++    origin_request_policy_id = aws_cloudfront_origin_request_policy.relay.id
++  }
++
++  # The edge's own degraded answer (contracts/edge.md §4; research.md R-08): the relay unreachable, as while AWS has
++  # the tunnel end back (FR-076), is a 503 with spec 000's degraded body, cause no_host_serving, from the site's
++  # bucket, never cached. The relay's own 503s pass through with their cause: no 503 is mapped here.
++  custom_error_response {
++    error_code            = 502
++    response_code         = 503
++    response_page_path    = "/_degraded/api.json"
++    error_caching_min_ttl = 0
++  }
++
++  custom_error_response {
++    error_code            = 504
++    response_code         = 503
++    response_page_path    = "/_degraded/api.json"
++    error_caching_min_ttl = 0
++  }
++
++  restrictions {
++    geo_restriction {
++      restriction_type = "none"
++    }
++  }
++
++  viewer_certificate {
++    acm_certificate_arn      = aws_acm_certificate_validation.site[0].certificate_arn
++    ssl_support_method       = "sni-only"
++    minimum_protocol_version = "TLSv1.2_2021"
++  }
++
++  tags = {
++    component = "edge"
++  }
++}
+--- /dev/null
++++ b/infra/prod/edge-limits.tf
+@@ -0,0 +1,99 @@
++# CloudFront's policies for hareet.ai (spec 001 FR-028, FR-033, FR-042; contracts/edge.md §3; plan.md §8.1): what the
++# edge caches, what it forwards to the relay, and the headers it adds to the site. Protected (FR-012; rule T5: CloudFront's
++# cache, origin-request, and response-headers policies live in edge-limits*.tf alone), so it changes only by the
++# Author's patch, P-I5 here. None waits behind the switch: a policy names no other resource, so W1 makes them all, and
++# W2's distribution uses them (plan.md §16, "What W1 applies").
++
++# /api/*: CloudFront's own managed policy, CachingDisabled: no request is cached or answered from a cache.
++data "aws_cloudfront_cache_policy" "caching_disabled" {
++  name = "Managed-CachingDisabled"
++}
++
++# The site: cached at the edge as the bucket's objects say. Each release writes their Cache-Control: hashed assets for
++# a year, immutable; index.html and the room's data no-cache, so a release shows at once. No cookie, header, or query
++# string is in the key; gzip and Brotli copies are kept apart.
++resource "aws_cloudfront_cache_policy" "site" {
++  name        = "h4-site"
++  comment     = "hareet.ai's site, cached as its objects' Cache-Control says (spec 001 contracts/edge.md §3)"
++  min_ttl     = 0
++  default_ttl = 3600
++  max_ttl     = 31536000
++
++  parameters_in_cache_key_and_forwarded_to_origin {
++    enable_accept_encoding_gzip   = true
++    enable_accept_encoding_brotli = true
++
++    cookies_config {
++      cookie_behavior = "none"
++    }
++
++    headers_config {
++      header_behavior = "none"
++    }
++
++    query_strings_config {
++      query_string_behavior = "none"
++    }
++  }
++}
++
++# What the relay receives of the viewer's request: the address CloudFront saw, the two content headers, and the trace
++# context; no cookie, no query string, and no other header (contracts/relay-http.md §3, step 6).
++resource "aws_cloudfront_origin_request_policy" "relay" {
++  name    = "h4-relay"
++  comment = "The relay's four headers, and nothing else of the viewer's (spec 001 contracts/edge.md §3)"
++
++  cookies_config {
++    cookie_behavior = "none"
++  }
++
++  headers_config {
++    header_behavior = "whitelist"
++
++    headers {
++      items = ["CloudFront-Viewer-Address", "Content-Type", "Accept", "traceparent"]
++    }
++  }
++
++  query_strings_config {
++    query_string_behavior = "none"
++  }
++}
++
++# The site's headers, spec 002's (its contracts/web-serving.md §3), with HSTS at the edge: connect-src 'self', so every
++# request the room makes stays on hareet.ai (SC-010); no referrer; and the camera, the microphone, and geolocation off.
++resource "aws_cloudfront_response_headers_policy" "site" {
++  name    = "h4-site"
++  comment = "spec 002's CSP, HSTS, no referrer, and the Permissions-Policy (spec 001 contracts/edge.md §3)"
++
++  security_headers_config {
++    content_security_policy {
++      content_security_policy = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
++      override                = true
++    }
++
++    strict_transport_security {
++      access_control_max_age_sec = 63072000
++      include_subdomains         = true
++      preload                    = false
++      override                   = true
++    }
++
++    referrer_policy {
++      referrer_policy = "no-referrer"
++      override        = true
++    }
++
++    content_type_options {
++      override = true
++    }
++  }
++
++  custom_headers_config {
++    items {
++      header   = "Permissions-Policy"
++      value    = "microphone=(), camera=(), geolocation=()"
++      override = true
++    }
++  }
++}

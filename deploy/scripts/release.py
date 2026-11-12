@@ -76,6 +76,11 @@ COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 SITE_IN_IMAGE = "/usr/share/nginx/html"
 
 Runner = Callable[..., "tuple[int, str]"]
+# The site's sync (group 8; contracts/edge.md §5): the Cache-Control the web image's nginx sends, by path
+# (apps/web/nginx.conf's $h4_cache), and the bucket's name, the account's.
+IMMUTABLE = "public, max-age=31536000, immutable"
+SITE_BUCKET_RE = re.compile(r"h4reet-ai-site-[0-9]{12}")
+DISTRIBUTION_RE = re.compile(r"E[A-Z0-9]{8,20}")
 
 
 class Refused(Exception):
@@ -91,6 +96,10 @@ class Options:
     public: bool
     local: Path
     redteam: Path
+    # Group 8 (contract §2, step 5): the site's bucket and the distribution, once the edge exists (W2); without a
+    # bucket the site isn't synced, and without a distribution nothing is invalidated.
+    site_bucket: str | None = None
+    distribution: str | None = None
 
 
 def _load(name: str, path: Path):
@@ -262,6 +271,57 @@ def check_site(
         )
 
 
+def sync_site(runner: Runner, dist: Path, opts: Options, commit: str) -> None:
+    """Contract §2, step 5 (contracts/edge.md §5): the site the release checked, to releases/<commit>/, each file with
+    the Cache-Control the web image's nginx sends, each GLB's gzip copy under its own name with Content-Encoding gzip
+    as gzip_static serves it, and never the PDF's text file; then that copy to site/, deleting what the release lacks
+    but the public view's status/; then one invalidation of the distribution."""
+    bucket = opts.site_bucket
+    assert bucket is not None
+    if not SITE_BUCKET_RE.fullmatch(bucket):
+        raise Refused(
+            "the site's bucket isn't the account's (h4reet-ai-site-<the account's ID>)"
+        )
+    if opts.distribution is not None and not DISTRIBUTION_RE.fullmatch(
+        opts.distribution
+    ):
+        raise Refused("the distribution isn't a CloudFront distribution's ID")
+    copy = f"s3://{bucket}/releases/{commit}/"
+    steps: list[list[str]] = [
+        ["aws", "s3", "sync", str(dist), copy, "--no-progress", "--exclude", "*", "--include", "assets/*",
+         "--include", "a/*", "--exclude", "a/*.gz", "--cache-control", IMMUTABLE],
+    ]  # fmt: skip
+    for gz in sorted((dist / "a").glob("*.gz")) if (dist / "a").is_dir() else []:
+        steps.append(
+            ["aws", "s3", "cp", "--no-progress", "--content-encoding", "gzip", "--content-type", "model/gltf-binary",
+             "--cache-control", IMMUTABLE, str(gz), f"{copy}a/{gz.name[:-3]}"]
+        )  # fmt: skip
+    steps += [
+        ["aws", "s3", "sync", str(dist), copy, "--no-progress", "--exclude", "assets/*", "--exclude", "a/*",
+         "--exclude", "*.pdf.txt", "--cache-control", "no-cache"],
+        ["aws", "s3", "sync", copy, f"s3://{bucket}/site/", "--no-progress", "--delete", "--exclude", "status/*"],
+    ]  # fmt: skip
+    for argv in steps:
+        if runner(argv)[0] != 0:
+            raise Refused(
+                "the site didn't sync; the pointer still names the release before"
+            )
+    if opts.distribution is not None:
+        invalidate = [
+            "aws",
+            "cloudfront",
+            "create-invalidation",
+            "--distribution-id",
+            opts.distribution,
+            "--paths",
+            "/*",
+        ]
+        if runner(invalidate)[0] != 0:
+            raise Refused(
+                "the site synced, but its invalidation failed: run it again; the pointer names the release before"
+            )
+
+
 def run(
     opts: Options,
     runner: Runner,
@@ -358,6 +418,14 @@ def released(
             "digest": digest,
             "hosts": its_hosts,
         }
+
+    # The site, as the release checked it, before release.json and the pointer (contract §2, step 5; group 8).
+    if opts.site_bucket is not None:
+        sync_site(runner, work / "dist", opts, head)
+    else:
+        print(
+            f"{PROG}: the site isn't synced: no site bucket named (the edge is W2's; contracts/edge.md §5)"
+        )
 
     # 3. The tree, the plugin, release.json, and the pointer last.
     rid = f"{now()}-{head[:12]}"
@@ -464,6 +532,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--public", action="store_true")
     # The red-team runs: the checkout's redteam/history by default, outside the export the release builds from.
     parser.add_argument("--redteam", type=Path, default=ROOT / "redteam" / "history")
+    # Group 8: the site's bucket and the distribution, from W2's apply on (contracts/edge.md §5).
+    parser.add_argument("--site-bucket")
+    parser.add_argument("--distribution")
     args = parser.parse_args(argv)
     if os.environ.get("SANDBOX_RUNTIME") == "1":
         print(
@@ -486,6 +557,8 @@ def main(argv: list[str]) -> int:
         args.public,
         Path.home() / ".local" / "state" / "h4reet" / "releases",
         args.redteam,
+        args.site_bucket,
+        args.distribution,
     )
     return run(opts, subprocess_runner, contexts=web_contexts)
 
