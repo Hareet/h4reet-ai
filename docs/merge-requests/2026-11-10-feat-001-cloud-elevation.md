@@ -2028,6 +2028,509 @@ The policy's only findings are the lockfiles, yours. The plan note's two FAILs a
 
 ### The plan block (T027)
 
+<!-- h4-plan root=bootstrap tree=ba377dfc28a85ef17d14ab694047ebd6b53a64c6 sha256=437b7c05ec04c496f21c1b81581516762115af7eb579281fc6d92721d8446dfa terraform=1.17.1 made=2026-11-12T01:36:21Z -->
+```terraform-plan
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # data.aws_iam_policy_document.alerts will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "alerts" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "sns:Publish",
+            ]
+          + effect    = "Allow"
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "Budgets"
+
+          + condition {
+              + test     = "StringEquals"
+              + values   = [
+                  + "<account>",
+                ]
+              + variable = "aws:SourceAccount"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "budgets.amazonaws.com",
+                ]
+              + type        = "Service"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "sns:Publish",
+            ]
+          + effect    = "Allow"
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "CostAnomalyDetection"
+
+          + condition {
+              + test     = "StringEquals"
+              + values   = [
+                  + "<account>",
+                ]
+              + variable = "aws:SourceAccount"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "costalerts.amazonaws.com",
+                ]
+              + type        = "Service"
+            }
+        }
+    }
+
+  # data.aws_iam_policy_document.state will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "state" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "s3:*",
+            ]
+          + effect    = "Deny"
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "TlsOnly"
+
+          + condition {
+              + test     = "Bool"
+              + values   = [
+                  + "false",
+                ]
+              + variable = "aws:SecureTransport"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "*",
+                ]
+              + type        = "AWS"
+            }
+        }
+    }
+
+  # aws_budgets_budget.model_day will be created
+  + resource "aws_budgets_budget" "model_day" {
+      + account_id        = (known after apply)
+      + arn               = (known after apply)
+      + budget_type       = "COST"
+      + id                = (known after apply)
+      + limit_amount      = "5"
+      + limit_unit        = "USD"
+      + name              = "h4-model-day"
+      + name_prefix       = (known after apply)
+      + tags              = {
+          + "component" = "model-spend"
+        }
+      + tags_all          = {
+          + "component"   = "model-spend"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+      + time_period_end   = "2087-06-15_00:00"
+      + time_period_start = (known after apply)
+      + time_unit         = "DAILY"
+
+      + cost_filter {
+          + name   = "Service"
+          + values = [
+              + "Claude Haiku 5.5 (Bedrock Edition)",
+            ]
+        }
+
+      + cost_types {
+          + include_credit             = false
+          + include_discount           = true
+          + include_other_subscription = true
+          + include_recurring          = true
+          + include_refund             = true
+          + include_subscription       = true
+          + include_support            = true
+          + include_tax                = true
+          + include_upfront            = true
+          + use_amortized              = false
+          + use_blended                = false
+        }
+
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 70
+          + threshold_type             = "PERCENTAGE"
+        }
+    }
+
+  # aws_budgets_budget.model_month will be created
+  + resource "aws_budgets_budget" "model_month" {
+      + account_id        = (known after apply)
+      + arn               = (known after apply)
+      + budget_type       = "COST"
+      + id                = (known after apply)
+      + limit_amount      = "20"
+      + limit_unit        = "USD"
+      + name              = "h4-model-month"
+      + name_prefix       = (known after apply)
+      + tags              = {
+          + "component" = "model-spend"
+        }
+      + tags_all          = {
+          + "component"   = "model-spend"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+      + time_period_end   = "2087-06-15_00:00"
+      + time_period_start = (known after apply)
+      + time_unit         = "MONTHLY"
+
+      + cost_filter {
+          + name   = "Service"
+          + values = [
+              + "Claude Haiku 5.5 (Bedrock Edition)",
+            ]
+        }
+
+      + cost_types {
+          + include_credit             = false
+          + include_discount           = true
+          + include_other_subscription = true
+          + include_recurring          = true
+          + include_refund             = true
+          + include_subscription       = true
+          + include_support            = true
+          + include_tax                = true
+          + include_upfront            = true
+          + use_amortized              = false
+          + use_blended                = false
+        }
+
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 70
+          + threshold_type             = "PERCENTAGE"
+        }
+    }
+
+  # aws_budgets_budget.server_month will be created
+  + resource "aws_budgets_budget" "server_month" {
+      + account_id        = (known after apply)
+      + arn               = (known after apply)
+      + budget_type       = "COST"
+      + id                = (known after apply)
+      + limit_amount      = "45"
+      + limit_unit        = "USD"
+      + metrics           = [
+          + "UnblendedCost",
+        ]
+      + name              = "h4-server-month"
+      + name_prefix       = (known after apply)
+      + tags              = {
+          + "component" = "server-spend"
+        }
+      + tags_all          = {
+          + "component"   = "server-spend"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+      + time_period_end   = "2087-06-15_00:00"
+      + time_period_start = (known after apply)
+      + time_unit         = "MONTHLY"
+
+      + cost_filter (known after apply)
+
+      + cost_types (known after apply)
+
+      + filter_expression {
+          + not {
+              + dimensions {
+                  + key    = "SERVICE"
+                  + values = [
+                      + "Claude Haiku 5.5 (Bedrock Edition)",
+                    ]
+                }
+            }
+        }
+
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = []
+          + subscriber_sns_topic_arns  = (known after apply)
+          + threshold                  = 70
+          + threshold_type             = "PERCENTAGE"
+        }
+    }
+
+  # aws_ce_anomaly_monitor.account will be created
+  + resource "aws_ce_anomaly_monitor" "account" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + monitor_dimension = "SERVICE"
+      + monitor_type      = "DIMENSIONAL"
+      + name              = "h4-anomaly"
+      + tags              = {
+          + "component" = "anomaly"
+        }
+      + tags_all          = {
+          + "component"   = "anomaly"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+    }
+
+  # aws_ce_anomaly_subscription.account will be created
+  + resource "aws_ce_anomaly_subscription" "account" {
+      + account_id       = (known after apply)
+      + arn              = (known after apply)
+      + frequency        = "IMMEDIATE"
+      + id               = (known after apply)
+      + monitor_arn_list = (known after apply)
+      + name             = "h4-anomaly-at-once"
+      + tags             = {
+          + "component" = "anomaly"
+        }
+      + tags_all         = {
+          + "component"   = "anomaly"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+
+      + subscriber {
+          + address = (known after apply)
+          + type    = "SNS"
+        }
+
+      + threshold_expression {
+          + dimension {
+              + key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
+              + match_options = [
+                  + "GREATER_THAN_OR_EQUAL",
+                ]
+              + values        = [
+                  + "1",
+                ]
+            }
+        }
+    }
+
+  # aws_s3_bucket.state will be created
+  + resource "aws_s3_bucket" "state" {
+      + acceleration_status         = (known after apply)
+      + acl                         = (known after apply)
+      + arn                         = (known after apply)
+      + bucket                      = <redacted>
+      + bucket_domain_name          = (known after apply)
+      + bucket_namespace            = (known after apply)
+      + bucket_prefix               = (known after apply)
+      + bucket_region               = (known after apply)
+      + bucket_regional_domain_name = (known after apply)
+      + force_destroy               = false
+      + hosted_zone_id              = (known after apply)
+      + id                          = (known after apply)
+      + object_lock_enabled         = (known after apply)
+      + policy                      = (known after apply)
+      + region                      = "us-east-1"
+      + request_payer               = (known after apply)
+      + tags                        = {
+          + "component" = "terraform-state"
+        }
+      + tags_all                    = {
+          + "component"   = "terraform-state"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+      + website_domain              = (known after apply)
+      + website_endpoint            = (known after apply)
+
+      + cors_rule (known after apply)
+
+      + grant (known after apply)
+
+      + lifecycle_rule (known after apply)
+
+      + logging (known after apply)
+
+      + object_lock_configuration (known after apply)
+
+      + replication_configuration (known after apply)
+
+      + server_side_encryption_configuration (known after apply)
+
+      + versioning (known after apply)
+
+      + website (known after apply)
+    }
+
+  # aws_s3_bucket_ownership_controls.state will be created
+  + resource "aws_s3_bucket_ownership_controls" "state" {
+      + bucket = <redacted>
+      + id     = (known after apply)
+      + region = "us-east-1"
+
+      + rule {
+          + object_ownership = "BucketOwnerEnforced"
+        }
+    }
+
+  # aws_s3_bucket_policy.state will be created
+  + resource "aws_s3_bucket_policy" "state" {
+      + bucket = <redacted>
+      + id     = (known after apply)
+      + policy = (known after apply)
+      + region = "us-east-1"
+    }
+
+  # aws_s3_bucket_public_access_block.state will be created
+  + resource "aws_s3_bucket_public_access_block" "state" {
+      + block_public_acls       = true
+      + block_public_policy     = true
+      + bucket                  = <redacted>
+      + id                      = (known after apply)
+      + ignore_public_acls      = true
+      + region                  = "us-east-1"
+      + restrict_public_buckets = true
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.state will be created
+  + resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
+      + bucket = <redacted>
+      + id     = (known after apply)
+      + region = "us-east-1"
+
+      + rule {
+          + blocked_encryption_types = (known after apply)
+          + bucket_key_enabled       = (known after apply)
+
+          + apply_server_side_encryption_by_default {
+              + kms_master_key_id = (known after apply)
+              + sse_algorithm     = "AES256"
+            }
+        }
+    }
+
+  # aws_s3_bucket_versioning.state will be created
+  + resource "aws_s3_bucket_versioning" "state" {
+      + bucket = <redacted>
+      + id     = (known after apply)
+      + region = "us-east-1"
+
+      + versioning_configuration {
+          + mfa_delete = (known after apply)
+          + status     = "Enabled"
+        }
+    }
+
+  # aws_sns_topic.alerts will be created
+  + resource "aws_sns_topic" "alerts" {
+      + arn                         = (known after apply)
+      + beginning_archive_time      = (known after apply)
+      + content_based_deduplication = false
+      + fifo_throughput_scope       = (known after apply)
+      + fifo_topic                  = false
+      + id                          = (known after apply)
+      + maximum_message_size        = (known after apply)
+      + name                        = "h4-alerts"
+      + name_prefix                 = (known after apply)
+      + owner                       = (known after apply)
+      + policy                      = (known after apply)
+      + region                      = "us-east-1"
+      + signature_version           = (known after apply)
+      + tags                        = {
+          + "component" = "alerts"
+        }
+      + tags_all                    = {
+          + "component"   = "alerts"
+          + "environment" = "account"
+          + "project"     = "h4reet-ai"
+        }
+      + tracing_config              = (known after apply)
+    }
+
+  # aws_sns_topic_policy.alerts will be created
+  + resource "aws_sns_topic_policy" "alerts" {
+      + arn    = (known after apply)
+      + id     = (known after apply)
+      + owner  = (known after apply)
+      + policy = (known after apply)
+      + region = "us-east-1"
+    }
+
+  # aws_sns_topic_subscription.email will be created
+  + resource "aws_sns_topic_subscription" "email" {
+      + arn                             = (known after apply)
+      + confirmation_timeout_in_minutes = 1
+      + confirmation_was_authenticated  = (known after apply)
+      + endpoint                        = <redacted>
+      + endpoint_auto_confirms          = false
+      + filter_policy_scope             = (known after apply)
+      + id                              = (known after apply)
+      + owner_id                        = (known after apply)
+      + pending_confirmation            = (known after apply)
+      + protocol                        = "email"
+      + raw_message_delivery            = false
+      + region                          = "us-east-1"
+      + topic_arn                       = (known after apply)
+    }
+
+Plan: 14 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + alerts_topic_arn = (known after apply)
+  + state_bucket     = <redacted>
+```
+<!-- /h4-plan -->
+
 ### gitleaks dir
 
 As the gate's gitleaks-tree step scans: a fresh `git archive` export of the tip this note sits on, with this note copied in (its gitleaks section then still pending); the export's own `.gitleaks.toml`; an empty folder as the ignore path, so no `.gitleaksignore` entry applies; `--ignore-gitleaks-allow`.
