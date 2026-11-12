@@ -1740,7 +1740,7 @@ def test_each_image_the_tunnel_end_runs_has_its_repository() -> None:
         TUNNEL_END_IMAGES
     )
     root = parsed(root_texts())
-    stack = ip.literal(locals_of(root)["stack_repositories"])
+    stack = locals_of(root)["stack_repositories"]
     assert set(TUNNEL_END_IMAGES.values()) <= set(stack), set(
         TUNNEL_END_IMAGES.values()
     ) - set(stack)

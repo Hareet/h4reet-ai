@@ -5,12 +5,26 @@ then diff -u with a/ and b/ labels; never git apply. Apply it on W1's -p branch 
 the repository's root, and commit the result byte for byte (tasks.md T171, T172).
 
 What it holds:
+  - tasks.md T051, prod's protected files (plan.md §16, "No root holds another root's instance or health-check ID"):
+      infra/prod/ec2-market.tf  the tunnel end, a persistent spot instance that stops on interruption, IMDSv2 with hop
+                                limit 1, its type local.tunnel_end_type, which a precondition refuses while it holds
+                                T166's placeholder, so prod's plan stops there until T166 measures it;
+      infra/prod/iam.tf         h4-prod-tunnel-end, its instance role: ECR pulls from h4reet/*, its Parameter Store
+                                paths, the release bucket's reads, sns:Publish on h4-alerts, Session Manager, each by a
+                                name-built ARN;
+      infra/prod/handover.tf    prod's local.wired = false, and h4-tunnel-end-spot-warning to h4-alerts, naming the
+                                tunnel end from this root;
+      infra/account/handover.tf the account's local.wired = false, alone;
   - tasks.md T160: infra/bootstrap/alerts.tf, h4-alerts' policy lets CloudWatch's alarms and EventBridge publish, each
     for this account alone (aws:SourceAccount), and grants nothing else;
   - tasks.md T159: infra/account/alerts.tf, the alarms h4-credential-audit-errors and h4-alert-bridge-failed to
     h4-alerts, missing data not breaching; infra/lambdas/alert_bridge/bridge.py and its test, which read each alarm's
     ALARM as its kind; contracts/aws-alerts.md §2's two rows, which arrive with the bridge that knows them (the bridge's
-    test holds every kind there to a notice);
+    test holds every kind there to a notice).
+
+Its checks, on a patched export: infra/test, infra/lambdas, deploy/hosts, and evals/test_runbooks.py pass; the policy
+passes both roots' files but for T10 on infra/prod, whose lockfile is the Author's step from his mirror, as each root's
+was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change; GREEN 55 passed.
 --- a/infra/account/alerts.tf
 +++ b/infra/account/alerts.tf
 @@ -101,3 +101,50 @@
@@ -63,6 +77,20 @@ What it holds:
 +  tags = {
 +    component = "alert-bridge"
 +  }
++}
+--- /dev/null
++++ b/infra/account/handover.tf
+@@ -0,0 +1,11 @@
++# The account's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072; contracts/handover.md §2 to §5;
++# plan.md §16, "Why a switch"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch.
++# Group 5 writes the switch alone; group 9 adds h4-ec2-start, h4-ec2-guard, their permissions, the autostart switch,
++# the hours' schedules, and h4-laptop-away-rule behind it.
++
++locals {
++  # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
++  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2. Each resource
++  # behind it is written `count = local.wired ? 1 : 0`.
++  wired = false
 +}
 --- a/infra/bootstrap/alerts.tf
 +++ b/infra/bootstrap/alerts.tf
@@ -249,6 +277,264 @@ What it holds:
  def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:
      _, telegram, _ = deliver(NOTICES["credential_finding"])
      (text,) = telegram.texts
+--- /dev/null
++++ b/infra/prod/ec2-market.tf
+@@ -0,0 +1,65 @@
++# The tunnel end on spot (spec 001 FR-076; research.md R-04, R-30; the Author's answer to the plan's question 2;
++# contracts/tunnel.md §1): a persistent spot request that stops on interruption, so the instance, its volumes, its
++# interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns. Protected (FR-012; rule T5: what
++# holds instance_market_options lives only in ec2-market*): it changes only by the Author's patch.
++
++resource "aws_instance" "tunnel_end" {
++  ami                  = data.aws_ami.al2023.id
++  instance_type        = local.tunnel_end_type
++  iam_instance_profile = aws_iam_instance_profile.tunnel_end.name
++  user_data_base64     = base64gzip(local.tunnel_end_user_data)
++
++  instance_market_options {
++    market_type = "spot"
++
++    spot_options {
++      spot_instance_type             = "persistent"
++      instance_interruption_behavior = "stop"
++    }
++  }
++
++  # IMDSv2 alone, one hop, so no container reaches the instance's credentials (rule T13; research.md R-15).
++  metadata_options {
++    http_endpoint               = "enabled"
++    http_tokens                 = "required"
++    http_put_response_hop_limit = 1
++    instance_metadata_tags      = "enabled"
++  }
++
++  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
++  credit_specification {
++    cpu_credits = "standard"
++  }
++
++  root_block_device {
++    volume_type           = "gp3"
++    volume_size           = 8
++    encrypted             = true
++    delete_on_termination = true
++
++    tags = {
++      component = "tunnel-end"
++    }
++  }
++
++  primary_network_interface {
++    network_interface_id = aws_network_interface.tunnel_end_public.id
++  }
++
++  tags = {
++    Name      = "h4-prod-tunnel-end"
++    component = "tunnel-end"
++  }
++
++  lifecycle {
++    # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
++    # a later plan (docs/runbooks/tunnel-end.md).
++    ignore_changes = [ami, user_data_base64]
++
++    # T166 measures the type with the tunnel end's five services; until then prod's plan stops here.
++    precondition {
++      condition     = local.tunnel_end_type != "measure-in-T166"
++      error_message = "The tunnel end's type isn't measured yet: tasks.md T166 sets local.tunnel_end_type in infra/prod/tunnel-end.tf."
++    }
++  }
++}
+--- /dev/null
++++ b/infra/prod/handover.tf
+@@ -0,0 +1,47 @@
++# Prod's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072, FR-076; contracts/handover.md §2;
++# contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
++# ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
++# switch and the tunnel end's interruption warning; groups 7 and 9 add EC2's rules, the ID parameter, and the rules'
++# function targets behind the switch.
++
++locals {
++  # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
++  # may need another root's W1 apply. The Author's P-W2 sets it true for W2, whose blocks follow W1's applies. Each
++  # resource behind it is written `count = local.wired ? 1 : 0`.
++  wired = false
++}
++
++# AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the
++# instance from this root, so a replace or a move to another zone updates it in the same plan. It targets h4-alerts
++# directly, so it needs no other root's apply and waits behind no switch.
++resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
++  name        = "h4-tunnel-end-spot-warning"
++  description = "AWS's interruption warning for the tunnel end, to h4-alerts (spec 001 FR-076)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Spot Instance Interruption Warning"]
++    detail = {
++      instance-id = [aws_instance.tunnel_end.id]
++    }
++  })
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++# One line of kind and facts, as contracts/aws-alerts.md §2 gives it, and nothing of the event but its time and the
++# action AWS names: never the account or the instance's ID.
++resource "aws_cloudwatch_event_target" "tunnel_end_spot_warning" {
++  rule      = aws_cloudwatch_event_rule.tunnel_end_spot_warning.name
++  target_id = "h4-alerts"
++  arn       = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++
++  input_transformer {
++    input_paths = {
++      action = "$.detail.instance-action"
++      at     = "$.time"
++    }
++    input_template = "\"[hareet.ai aws] tunnel_end_interruption: AWS will <action> the tunnel end in two minutes\\n- action: <action>\\n- at: <at>\""
++  }
++}
+--- /dev/null
++++ b/infra/prod/iam.tf
+@@ -0,0 +1,137 @@
++# The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
++# provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
++# it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
++# makes (plan.md §16). Group 9 adds the dashboard's reads. Protected (FR-012; rule T5): it changes only by the Author's
++# patch.
++
++data "aws_iam_policy_document" "tunnel_end_trust" {
++  statement {
++    sid     = "TheInstanceItself"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["ec2.amazonaws.com"]
++    }
++  }
++}
++
++resource "aws_iam_role" "tunnel_end" {
++  name                 = "h4-prod-tunnel-end"
++  description          = "The tunnel end's host services (spec 001 research.md R-15)"
++  assume_role_policy   = data.aws_iam_policy_document.tunnel_end_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++resource "aws_iam_instance_profile" "tunnel_end" {
++  name = "h4-prod-tunnel-end"
++  role = aws_iam_role.tunnel_end.name
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++data "aws_iam_policy_document" "tunnel_end" {
++  # The deployer's pulls: a registry token, and the project's repositories alone (infra/account/registry.tf).
++  statement {
++    sid       = "RegistryToken"
++    effect    = "Allow"
++    actions   = ["ecr:GetAuthorizationToken"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "PullTheProjectsImages"
++    effect = "Allow"
++    actions = [
++      "ecr:BatchGetImage",
++      "ecr:GetDownloadUrlForLayer",
++      "ecr:BatchCheckLayerAvailability",
++    ]
++    resources = ["arn:aws:ecr:us-east-1:${data.aws_caller_identity.current.account_id}:repository/h4reet/*"]
++  }
++
++  # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name).
++  statement {
++    sid     = "ItsParameters"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter", "ssm:GetParameters"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++    ]
++  }
++
++  # Its SecureStrings, decrypted by Parameter Store alone.
++  statement {
++    sid       = "DecryptThroughParameterStore"
++    effect    = "Allow"
++    actions   = ["kms:Decrypt"]
++    resources = ["*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "kms:ViaService"
++      values   = ["ssm.us-east-1.amazonaws.com"]
++    }
++  }
++
++  # The deployer's reads of the release bucket (infra/account/registry.tf), by its name's prefix, in this account.
++  statement {
++    sid    = "ReadReleases"
++    effect = "Allow"
++    actions = [
++      "s3:GetObject",
++    ]
++    resources = [
++      "arn:aws:s3:::h4reet-ai-releases-*/releases/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/trees/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/tools/*",
++    ]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "ListReleases"
++    effect    = "Allow"
++    actions   = ["s3:ListBucket"]
++    resources = ["arn:aws:s3:::h4reet-ai-releases-*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  # Its deployer's alerts (contracts/aws-alerts.md §1): deploy_rolled_back, deploy_rollback_failed, deploy_refused.
++  statement {
++    sid       = "ItsAlerts"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
++  }
++}
++
++resource "aws_iam_role_policy" "tunnel_end" {
++  name   = "tunnel-end"
++  role   = aws_iam_role.tunnel_end.id
++  policy = data.aws_iam_policy_document.tunnel_end.json
++}
++
++# Session Manager, the one way in for the Author (FR-050; make cloud-session HOST=tunnel-end).
++resource "aws_iam_role_policy_attachment" "tunnel_end_ssm" {
++  role       = aws_iam_role.tunnel_end.name
++  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
++}
 --- a/specs/001-cloud-elevation/contracts/aws-alerts.md
 +++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
 @@ -25,6 +25,8 @@

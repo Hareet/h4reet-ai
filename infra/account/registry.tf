@@ -113,7 +113,8 @@ resource "aws_ecr_repository_policy" "lambda" {
 
 # ----------------------------------------------------------------------------------------------------------------------
 # The release bucket: releases/, trees/, and audits/credential/ (data-model.md §1 and §6.6 at 00309c47). Its name is
-# AWS's, from the prefix, so the root needs no new variable; the hosts read it from Parameter Store, from group 7.
+# AWS's, from the prefix, so the root needs no new variable; the hosts read it from Parameter Store, below, from group 5
+# (the tunnel end's write_env.py and deployer).
 
 resource "aws_s3_bucket" "releases" {
   bucket_prefix = "h4reet-ai-releases-"
@@ -189,4 +190,18 @@ resource "aws_s3_bucket_policy" "releases" {
   policy = data.aws_iam_policy_document.releases.json
 
   depends_on = [aws_s3_bucket_public_access_block.releases]
+}
+
+# The release bucket's name, for the cloud hosts' deployers, which read it at boot (deploy/scripts/write_env.py;
+# contracts/releases-deployer.md §3). A String, never a secret (rule T9); prod's roles may read /h4reet/hosts/ alone of
+# this root's parameters, by its name (infra/prod/iam.tf).
+resource "aws_ssm_parameter" "release_bucket" {
+  name        = "/h4reet/hosts/RELEASE_BUCKET"
+  description = "The release bucket's name, which the cloud hosts' deployers read (spec 001 contracts/releases-deployer.md)"
+  type        = "String"
+  value       = aws_s3_bucket.releases.bucket
+
+  tags = {
+    component = "releases"
+  }
 }

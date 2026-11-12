@@ -39,8 +39,9 @@ locals {
   }
 
   # One repository per function, and one per service the cloud hosts run (contracts/env-cloud.md §3): EC2's whole
-  # stack but the model server and the local store, and the tunnel end's collector. Groups 5 and 8 add the relay's,
-  # the tunnel's, and the snapshot's.
+  # stack but the model server and the local store, and the tunnel end's collector. Group 5 adds the three the tunnel
+  # end's deployer pulls before groups 8 to 10 build their images (tasks.md T051; the regrouping review's I4): the
+  # tunnel's, both ends' one image; the relay's; and the snapshot's, the sink's and the publisher's.
   lambda_repositories = ["h4-alert-bridge", "h4-probe", "h4-credential-audit"]
   stack_repositories = [
     "edge",
@@ -56,6 +57,9 @@ locals {
     "clickhouse",
     "valkey",
     "seaweedfs",
+    "tunnel",
+    "relay",
+    "snapshot",
   ]
 }
 
