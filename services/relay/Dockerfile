@@ -12,12 +12,12 @@ ENV NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=fals
 WORKDIR /src
 COPY package.json package-lock.json ./
 COPY services/relay/package.json services/relay/
-RUN npm ci --ignore-scripts --workspace services/relay --include-workspace-root=false
+RUN npm ci --ignore-scripts
 COPY tsconfig.base.json ./
 COPY services/relay/tsconfig.json services/relay/tsconfig.build.json services/relay/
 COPY services/relay/src services/relay/src
 RUN npm run build -w services/relay \
- && npm prune --omit=dev --ignore-scripts --workspace services/relay --include-workspace-root=false \
+ && npm prune --omit=dev --ignore-scripts \
  && mkdir -p /out/services/relay \
  && cp -a node_modules /out/node_modules \
  && cp -a services/relay/package.json services/relay/dist /out/services/relay/ \

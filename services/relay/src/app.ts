@@ -140,10 +140,11 @@ export function buildRelay(deps: RelayDeps): {
   }
 
   /** One request through §3, inside its span. */
-  async function handle(listener: Listener, req: FastifyRequest, res: FastifyReply): Promise<Done> {
+  /** The span is the request's own, passed in: with no telemetry SDK no context manager is registered, so none is
+   *  ever "active" (no-telemetry.test.ts). */
+  async function handle(listener: Listener, req: FastifyRequest, res: FastifyReply, span: Span): Promise<Done> {
     const requestId = randomBytes(16).toString("hex");
     const route = req.routeOptions.url ?? "unknown";
-    const span = trace.getActiveSpan() as Span;
     const probe = header(req, "x-h4-probe") === "1";
     span.setAttribute("h4.probe", probe);
 
@@ -204,7 +205,7 @@ export function buildRelay(deps: RelayDeps): {
 
       // 6. The forward, retried once on the other host only if nothing was sent.
       const carrier: Record<string, string> = {};
-      propagation.inject(context.active(), carrier);
+      propagation.inject(trace.setSpan(context.active(), span), carrier);
       const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       const outgoing: ForwardRequest = {
         path: target.path,
@@ -255,7 +256,7 @@ export function buildRelay(deps: RelayDeps): {
   }
 
   function listenerApp(listener: Listener): FastifyInstance {
-    const app = Fastify({ logger: false, disableRequestLogging: true, return503OnClosing: true });
+    const app = Fastify({ logger: false, return503OnClosing: true });
     // The body goes on unchanged, never parsed: one parser for every content type, as raw bytes.
     app.removeAllContentTypeParsers();
     app.addContentTypeParser("*", { parseAs: "buffer" }, (_req, body, done) => done(null, body));
@@ -269,7 +270,7 @@ export function buildRelay(deps: RelayDeps): {
         parent,
         async (span) => {
           try {
-            const done = await handle(listener, req, res);
+            const done = await handle(listener, req, res, span);
             span.setAttribute("http.response.status_code", done.status);
             span.setAttribute("h4.relay.host", done.host);
             if (done.reason !== undefined) span.setAttribute("h4.relay.reason", done.reason);
@@ -328,7 +329,7 @@ export function buildRelay(deps: RelayDeps): {
     return app;
   }
 
-  const health = Fastify({ logger: false, disableRequestLogging: true });
+  const health = Fastify({ logger: false });
   health.get("/health/live", (_req, res) => res.code(200).send({ status: "live" }));
 
   return { edge: listenerApp("edge"), internal: listenerApp("internal"), health };
