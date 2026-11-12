@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -1750,6 +1751,9 @@ def test_the_relays_two_rows_are_in_the_catalog_in_steps_7_and_9() -> None:
     assert by_id["7h"].step == 7 and by_id["7h"].relay and by_id["7h"].source == "M"
     assert by_id["9f"].step == 9 and by_id["9f"].relay and by_id["9f"].source == "M"
     assert "10 s" in by_id["7h"].text
+    # Group 8's review A, I3: with the store stopped, the relay fails closed at once (FR-030, SC-008).
+    assert by_id["11f"].step == 11 and by_id["11f"].relay and by_id["11f"].source == "M"
+    assert "store_unreachable" in by_id["11f"].text
 
 
 def test_without_the_authors_public_figures_the_relays_rows_are_skipped_and_nothing_starts_it(
@@ -1765,6 +1769,7 @@ def test_without_the_authors_public_figures_the_relays_rows_are_skipped_and_noth
     table = rows(text)
     assert table["7h"][1] == "SKIP" and "public figures" in table["7h"][2]
     assert table["9f"][1] == "SKIP"
+    assert table["11f"][1] == "SKIP"
     assert not [c for c in stack.commands if "dev-relay" in c]
     assert not [op for op in stack.ops_seen if op["op"] == "relay_hello"]
     assert code == 0
@@ -1791,12 +1796,16 @@ def test_with_them_the_relay_starts_before_the_trip_and_goes_after_the_run(
     assert [(op["assert"], op["expect"]) for op in relay_ops] == [
         ("7h", {"status": 503, "cause": "kill_switch_tripped"}),
         ("9f", {"status": 200}),
+        ("11f", {"status": 503, "cause": "store_unreachable"}),
     ]
     # Timed from the gateway's own degraded hello, which sees the trip: within 10 s of it (SC-008).
     assert relay_ops[0]["after"] == "s7.hello" and relay_ops[0]["within_s"] == 10
     assert relay_ops[1]["after"] == "s9.reset" and relay_ops[1]["within_s"] == 10
+    # With the store stopped, from the gateway's own store_unreachable hello (group 8's review A, I3).
+    assert relay_ops[2]["after"] == "s11.hello" and relay_ops[2]["within_s"] == 10
     table = rows(text)
     assert table["7h"][1] == "PASS" and table["9f"][1] == "PASS"
+    assert table["11f"][1] == "PASS"
     assert code == 0
 
 

@@ -205,8 +205,11 @@ describe("§3: the processing order", () => {
       headers: { "x-h4-probe": "1", "cloudfront-viewer-address": VIEWER_HEADER },
     });
     expect(status.statusCode).toBe(200);
-    const span = capture.spans.getFinishedSpans().find((s) => s.attributes["http.route"] === "/api/status");
-    expect(span?.attributes["h4.probe"]).toBe(true);
+    // Spec 004's Amendment A2 (group 8's review A, I2): a status answered below 500, a probe's among them, makes no
+    // span; the probe's 400 above keeps its own, marked.
+    expect(capture.spans.getFinishedSpans().find((s) => s.attributes["http.route"] === "/api/status")).toBeUndefined();
+    const refused = capture.spans.getFinishedSpans().find((s) => s.attributes["http.route"] === "/api/hello");
+    expect(refused?.attributes["h4.probe"]).toBe(true);
     expect(r.laptop.received).toEqual([]);
   });
 
@@ -314,8 +317,10 @@ describe("§3: the processing order", () => {
     expect(got?.headers["x-h4-viewer"]).toBe(VIEWER);
     expect(got?.headers.accept).toBe("application/json");
     expect(got?.headers["content-type"]).toBe("application/json");
-    // The relay's own span is the parent the host sees, in the viewer's trace.
-    expect(got?.headers.traceparent).toMatch(/^00-0af7651916cd43dd8448eb211c80319c-[0-9a-f]{16}-01$/);
+    // The relay's own span is the parent the host sees, in a trace of its own: the visitor's traceparent parents
+    // nothing (group 8's review A, nit 1).
+    expect(got?.headers.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+    expect(got?.headers.traceparent).not.toContain("0af7651916cd43dd8448eb211c80319c");
     for (const name of ["x-forwarded-for", "x-h4-client", "cookie", "user-agent", "cloudfront-viewer-address"]) {
       expect(got?.headers[name], name).toBeUndefined();
     }
@@ -488,29 +493,95 @@ describe("§6: GET /api/status", () => {
       headers: { "cloudfront-viewer-address": VIEWER_HEADER },
     });
     const doc = res.json();
-    expect(Object.keys(doc).sort()).toEqual(["ec2", "hello_would_get", "kill_switch", "serving", "since", "taken_at"]);
+    // Spec 004's Amendment A1 (group 8's review A, I2): local_tier, state, and cause_now, which the room reads.
+    expect(Object.keys(doc).sort()).toEqual([
+      "cause_now",
+      "ec2",
+      "hello_would_get",
+      "kill_switch",
+      "local_tier",
+      "serving",
+      "since",
+      "state",
+      "taken_at",
+    ]);
     expect(doc).toMatchObject({ serving: "laptop", kill_switch: "normal", hello_would_get: "answer" });
+    expect(doc).toMatchObject({ local_tier: "up", state: "normal", cause_now: null });
     expect(doc.since).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
     r.store.row = { state: "degraded", since: null, crossed: ["month"] };
+    r.clock.advance(5_001);
     const tripped = (await r.internal.inject({ method: "GET", url: "/api/status" })).json();
     expect(tripped).toMatchObject({ kill_switch: "degraded", hello_would_get: "kill_switch_tripped" });
+    expect(tripped).toMatchObject({ state: "degraded", cause_now: "kill_switch_tripped", local_tier: "up" });
     expect(JSON.stringify(tripped)).not.toContain(VIEWER);
     expect(r.laptop.received).toEqual([]);
   });
 
-  it("counts no address against the cap for a status request", async () => {
+  // Spec 004's Amendment A1 (group 8's review A, I2): the status bucket, 30 a minute, burst 10, per address, apart
+  // from hello's; over it, 429 relay_cap_exceeded with its own limit name and Retry-After.
+  it("holds the status to its own bucket, 30 a minute, burst 10, apart from hello's", async () => {
     const r = await rig();
     await r.checks(3);
-    for (let i = 0; i < 20; i += 1) {
-      const res = await r.edge.inject({
+    const status = () =>
+      r.edge.inject({
         method: "GET",
         url: "/api/status",
         remoteAddress: EDGE_PEER,
         headers: { "cloudfront-viewer-address": VIEWER_HEADER },
       });
-      expect(res.statusCode).toBe(200);
-    }
+    for (let i = 0; i < 10; i += 1) expect((await status()).statusCode).toBe(200);
+    const refused = await status();
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json()).toMatchObject({ error: "relay_cap_exceeded", limit: "status_per_minute" });
+    expect(Number(refused.headers["retry-after"])).toBeGreaterThan(0);
+    expect(refused.json().retry_after_s).toBe(Number(refused.headers["retry-after"]));
+    // Hello's bucket is untouched by the status's.
     expect((await hello(r)).statusCode).toBe(200);
+    // Two seconds refill one token at 30 a minute.
+    r.clock.advance(2_000);
+    expect((await status()).statusCode).toBe(200);
+  });
+
+  it("reads the store for the status at most once in 5 s", async () => {
+    const r = await rig();
+    await r.checks(3);
+    const before = r.store.reads;
+    for (let i = 0; i < 3; i += 1) await r.internal.inject({ method: "GET", url: "/api/status" });
+    expect(r.store.reads).toBe(before + 1);
+    r.clock.advance(5_001);
+    await r.internal.inject({ method: "GET", url: "/api/status" });
+    expect(r.store.reads).toBe(before + 2);
+    // Hello still reads the store on every request (SC-008).
+    await hello(r);
+    expect(r.store.reads).toBe(before + 3);
+  });
+
+  it.each([
+    [{ serving: "laptop", normal: true }, { local_tier: "up", state: "normal", cause_now: null }],
+    [{ serving: "ec2", normal: true }, { local_tier: "down", state: "normal", cause_now: null }],
+    [{ serving: "none", normal: true }, { local_tier: "down", state: "normal", cause_now: "no_host_serving" }],
+  ])("reads the A1 fields from the serving host and the switch: %j", async (given, want) => {
+    const r = await rig();
+    if (given.serving === "laptop") await r.checks(3);
+    if (given.serving === "ec2") {
+      r.laptop.health = 503;
+      await r.checks(3);
+    }
+    if (given.serving === "none") {
+      r.laptop.health = 503;
+      r.ec2.health = 503;
+      await r.checks(3);
+    }
+    const doc = (await r.internal.inject({ method: "GET", url: "/api/status" })).json();
+    expect(doc).toMatchObject(want);
+  });
+
+  it("reads state unknown, and cause_now store_unreachable, while the store can't be read", async () => {
+    const r = await rig();
+    await r.checks(3);
+    r.store.failing = true;
+    const doc = (await r.internal.inject({ method: "GET", url: "/api/status" })).json();
+    expect(doc).toMatchObject({ state: "unknown", cause_now: "store_unreachable" });
   });
 });
 
@@ -678,5 +749,141 @@ describe("HostChoice alone", () => {
     for (let i = 0; i < 3; i += 1) choice.report("laptop", true);
     expect(choice.serving()).toBe("laptop");
     expect(events.at(-1)).toMatchObject({ from: "ec2", to: "laptop", reason: "laptop_healthy", gapMs: null });
+  });
+});
+
+// Group 8's review A (7c5f1259..8418fd0b), its Important findings and nits, each test-first.
+describe("group 8's review A", () => {
+  // I1: one person holds a /64; rotating the lower 64 bits must not rotate past the cap, here or at the gateway.
+  it("I1. keys an IPv6 viewer by its /64, in the cap and in X-H4-Viewer", async () => {
+    const r = await rig();
+    await r.checks(3);
+    const v6 = (n: number) => ({ "cloudfront-viewer-address": `2001:db8:1:2:abcd::${n.toString(16)}:51234` });
+    const codes = [];
+    for (let i = 1; i <= 4; i += 1) codes.push((await hello(r, v6(i))).statusCode);
+    expect(codes).toEqual([200, 200, 200, 429]);
+    expect(r.laptop.received.map((x) => x.headers["x-h4-viewer"])).toEqual([
+      "2001:db8:1:2::",
+      "2001:db8:1:2::",
+      "2001:db8:1:2::",
+    ]);
+    // Another /64 has a bucket of its own; an IPv4 viewer is keyed as itself.
+    expect((await hello(r, { "cloudfront-viewer-address": "2001:db8:1:3::1:51234" })).statusCode).toBe(200);
+    expect((await hello(r)).statusCode).toBe(200);
+    expect(r.laptop.received.at(-1)?.headers["x-h4-viewer"]).toBe(VIEWER);
+  });
+
+  it("I1. the key: IPv4 as it is, IPv6 as its /64's first address, a mapped IPv4 as IPv4", async () => {
+    const { clientKey } = await import("../src/peer.js");
+    expect(clientKey("203.0.113.7")).toBe("203.0.113.7");
+    expect(clientKey("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(clientKey("2001:DB8:0:0:1::1")).toBe("2001:db8:0:0::");
+    expect(clientKey("2001:db8:1:2:3:4:5:6")).toBe("2001:db8:1:2::");
+    expect(clientKey("2001:db8::")).toBe("2001:db8:0:0::");
+    expect(clientKey("fe80::1%eth0")).toBe("fe80:0:0:0::");
+  });
+
+  // I2 (spec 004's Amendment A2): the route label, the status bucket's limit name, and the class gauge.
+  it("I2. counts status apart from hello by its route label, and its 429s by status_per_minute", async () => {
+    const r = await rig();
+    await r.checks(3);
+    await hello(r);
+    for (let i = 0; i < 11; i += 1)
+      await r.edge.inject({
+        method: "GET",
+        url: "/api/status",
+        remoteAddress: EDGE_PEER,
+        headers: { "cloudfront-viewer-address": VIEWER_HEADER },
+      });
+    const json = await capture.metricsJson();
+    expect(json).toContain('"h4.relay.route":"hello"');
+    expect(json).toContain('"h4.relay.route":"status"');
+    expect(json).toContain('"h4.cap.limit":"status_per_minute"');
+    expect(json).toContain("h4.relay.status.class");
+  });
+
+  it("I2. the class gauge is one-hot, the class the status would reduce to now", async () => {
+    const r = await rig();
+    await r.checks(3);
+    await r.internal.inject({ method: "GET", url: "/api/status" });
+    const metrics = JSON.parse(await capture.metricsJson()) as { name: string; points: [Record<string, string>, number][] }[];
+    const gauge = metrics.find((m) => m.name === "h4.relay.status.class");
+    const points = (gauge?.points ?? []).map(([a, v]) => [a["h4.class"], v]);
+    expect(points.filter(([, v]) => v === 1)).toEqual([["local", 1]]);
+    expect(points.map(([c]) => c).sort()).toEqual(["budget", "cloud", "local", "resting", "unavailable", "unknown"]);
+  });
+
+  it("I2. keeps a status answered below 500 out of traces, and a 5xx in them", async () => {
+    const r = await rig();
+    await r.checks(3);
+    capture.spans.reset();
+    await r.internal.inject({ method: "GET", url: "/api/status" });
+    expect(capture.spans.getFinishedSpans().filter((s) => s.name === "relay.request")).toEqual([]);
+    await hello(r);
+    expect(capture.spans.getFinishedSpans().filter((s) => s.name === "relay.request")).toHaveLength(1);
+  });
+
+  // I3: no grace (the test-only commit before this one rewrote the two that pinned one).
+  it("I3. a store read that fails after a good one answers store_unreachable, never the last verdict", async () => {
+    const clock = new Clock();
+    const store = new StubStore();
+    const ks = new KillSwitch(store, clock.now);
+    await ks.verdict();
+    store.failing = true;
+    clock.advance(1);
+    expect(await ks.verdict()).toMatchObject({ kind: "degraded", cause: "store_unreachable" });
+  });
+
+  // I4: the serving gauges' label isn't the attribute the tunnel end's collector routes on, so each datapoint reaches
+  // both hosts' Prometheus and the timeline stays one-hot.
+  it("I4. labels which host serves, and each host's health, with keys the collector doesn't route on", async () => {
+    const r = await rig();
+    await r.checks(3);
+    const metrics = JSON.parse(await capture.metricsJson()) as { name: string; points: [Record<string, string>, number][] }[];
+    for (const name of ["h4.serving_host", "h4.relay.host_healthy"]) {
+      const m = metrics.find((x) => x.name === name);
+      expect(m?.points.length).toBeGreaterThan(0);
+      for (const [attrs] of m?.points ?? []) expect(Object.keys(attrs)).not.toContain("h4.relay.host");
+    }
+    const serving = metrics.find((x) => x.name === "h4.serving_host");
+    expect((serving?.points ?? []).map(([a, v]) => [a["h4.serving"], v]).sort()).toEqual([
+      ["ec2", 0],
+      ["laptop", 1],
+      ["none", 0],
+    ]);
+  });
+
+  // Nit 1: the visitor's traceparent never parents the relay's span, so a visitor can't turn sampling off or pick
+  // the trace ID; the host still gets the relay's own.
+  it("nit 1. starts its own root span on the edge listener, whatever traceparent a visitor sends", async () => {
+    const r = await rig();
+    await r.checks(3);
+    const visitor = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-00";
+    await hello(r, { traceparent: visitor });
+    const span = capture.spans.getFinishedSpans().find((s) => s.name === "relay.request");
+    expect(span?.spanContext().traceId).not.toBe("0123456789abcdef0123456789abcdef");
+    expect(r.laptop.received[0]?.headers.traceparent).toMatch(/-01$/);
+  });
+
+  // Nit 4: yesterday's addresses go in the 1 s round, with no hello needed to sweep them.
+  it("nit 4. drops a past day's addresses in the round, without a request", async () => {
+    const r = await rig();
+    await r.checks(3);
+    await hello(r);
+    expect(r.running.deps.cap.size).toBe(1);
+    r.clock.advance(24 * 3_600_000);
+    await r.checks(1);
+    expect(r.running.deps.cap.size).toBe(0);
+  });
+
+  // Nit 6: a second host that fails before sending is marked failed too.
+  it("nit 6. marks the second host failed when its forward couldn't connect either", async () => {
+    const r = await rig();
+    await r.checks(3);
+    await r.laptop.close();
+    await r.ec2.close();
+    const res = await hello(r);
+    expect(res.statusCode).toBe(503);
+    expect(r.running.deps.hosts.healthy("ec2")).toBe(false);
   });
 });

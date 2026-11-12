@@ -410,3 +410,31 @@ def test_the_run_says_how_far_it_has_got(capsys) -> None:
     sc.run(gateway, 20, lambda: None, None, 0)
     err = capsys.readouterr().err
     assert "sc017: healthy 10/20" in err and "sc017: failing 20/20" in err
+
+
+# --- group 8's review A, nit 3: the recovery keeps its hold until the real key runs, and a run fits the hold's hour --
+
+
+def test_a_failed_restore_keeps_the_runs_hold_for_the_deployers_recovery(
+    tmp_path: Path,
+) -> None:
+    state, _, _, env_file = ec2_state(tmp_path)
+    answers = iter([0, 1])
+    key = sc.Ec2Key(
+        env_file, state, lambda argv, **k: next(answers), run_dir=tmp_path / "run"
+    )
+    key.refuse()
+    assert key.restore() is False
+    # The stamped hold stays, so the deployer's stale-hold recovery recreates the gateway with the real key; the
+    # refused copy goes whatever happens.
+    assert (state / "hold").read_text(encoding="utf-8").startswith("sc017 ")
+    assert not (tmp_path / "run" / "sc017.env").exists()
+
+
+def test_a_run_whose_two_phases_outlast_the_holds_hour_is_refused(capsys) -> None:
+    longest = int((3600 - 600) / (2 * sc.INTERVAL))
+    assert (
+        sc.main(["--base", "http://127.0.0.1:1", "--turns", str(longest + 1)], env={})
+        == 2
+    )
+    assert "--turns" in capsys.readouterr().err

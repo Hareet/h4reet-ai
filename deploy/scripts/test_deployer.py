@@ -1434,6 +1434,30 @@ def test_a_stale_sc017_hold_is_cleared_and_the_gateway_recreated_with_the_real_k
     )
 
 
+def test_a_stale_sc017_hold_whose_recreate_fails_stays_and_alerts(
+    tmp_path: Path, capsys
+) -> None:
+    # Group 8's review A, nit 3: the hold goes only once the gateway runs the real key; until then it stays, the
+    # refused copy goes, the deployer says it failed (not that it cleared it), and alerts.
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert ec2_run(w, tmp_path, 1_900_000_000.0) == 0
+    (w.state / "hold").write_text("sc017 1900000000\n", encoding="utf-8")
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "sc017.env").write_text(
+        "GATEWAY_ANTHROPIC_API_KEY=x\n", encoding="utf-8"
+    )
+    w.docker.fail_for.add("r1")
+    w.aws.alerts.clear()
+    capsys.readouterr()
+    ec2_run(w, tmp_path, 1_900_000_000.0 + dp.SC017_STALE_S + 1)
+    assert (w.state / "hold").read_text(encoding="utf-8") == "sc017 1900000000\n"
+    assert not (tmp_path / "run" / "sc017.env").exists()
+    err = capsys.readouterr().err
+    assert "cleared" not in err and "couldn't" in err
+    assert any("sc017_recovery_failed" in a for a in w.aws.alerts)
+
+
 def test_a_fresh_sc017_hold_and_the_authors_own_stay(tmp_path: Path) -> None:
     w = Ec2World(tmp_path)
     w.release("r1")

@@ -1208,8 +1208,15 @@ def test_which_host_serves_reads_none_in_red() -> None:
     }
     (override,) = panel["fieldConfig"]["overrides"]
     assert override["matcher"] == {"id": "byName", "options": "none"}
-    colors = [p["value"] for p in override["properties"] if p["id"] == "color"]
-    assert colors == [{"mode": "fixed", "fixedColor": "red"}]
+    # Group 8's review A, I4: a value mapping's colour wins over a field's, so none's own mapping paints its 1 red; a
+    # colour override alone would leave it the default mapping's green.
+    (mapping,) = [p["value"] for p in override["properties"] if p["id"] == "mappings"]
+    ones = [m["options"]["1"] for m in mapping if m["type"] == "value" and "1" in m["options"]]
+    assert [o["color"] for o in ones] == ["red"]
+    # Its series are labelled by h4.serving, which the tunnel end's collector doesn't route on, so the one-hot set
+    # reaches either host's Prometheus whole.
+    assert queries(panel) == ["max by (h4_serving) (h4_serving_host)"]
+    assert panel["targets"][0]["legendFormat"] == "{{h4_serving}}"
 
 
 def test_the_relays_panels_read_no_address() -> None:

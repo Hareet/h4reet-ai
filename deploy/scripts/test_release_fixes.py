@@ -65,7 +65,10 @@ def test_an_export_without_ec2s_route_refuses_a_public_release(tmp_path: Path) -
     assert code == 1
 
 
-@pytest.mark.parametrize("path", ["deploy/scripts/release.py", "Makefile"])
+# Group 8's review A, nit 2: GNU make reads GNUmakefile first, so it is one of main's files too.
+@pytest.mark.parametrize(
+    "path", ["deploy/scripts/release.py", "Makefile", "GNUmakefile"]
+)
 def test_the_release_refuses_unless_it_and_the_makefile_are_mains(
     tmp_path: Path, path: str, capsys
 ) -> None:
