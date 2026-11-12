@@ -1,0 +1,12 @@
+# The tunnel's revocation and restore, one action (spec 001 FR-055; contracts/tunnel.md §5): the Author's tunnel-revoke
+# target changes /h4reet/tunnel-end/AUTHORIZED_KEY, then starts this unit through one Systems Manager command, which
+# writes the key files again and restarts sshd alone. The tunnel's connection, if any, drops with it.
+[Unit]
+Description=h4reet: the tunnel end's sshd, with its keys read again
+After=h4-write-env.service
+
+[Service]
+Type=oneshot
+Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
+ExecStart=/usr/bin/systemctl restart h4-write-env.service
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deployer.py --host tunnel-end --restart tunnel-end

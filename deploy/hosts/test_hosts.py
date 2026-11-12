@@ -275,7 +275,7 @@ def test_the_units_order_the_boot() -> None:
 def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs() -> (
     None
 ):
-    text = (HOST / "cloud-init.yaml").read_text(encoding="utf-8")
+    text = (HOST / "cloud-init.yaml.tftpl").read_text(encoding="utf-8")
     assert re.search(r"^packages:\n  - docker\n  - nftables\n", text, re.MULTILINE)
     run = text[text.index("\nruncmd:\n") :]
     order = [
@@ -289,3 +289,38 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     positions = [run.find(step) for step in order]
     assert -1 not in positions and positions == sorted(positions), positions
     assert not re.search(r"\b(curl|wget)\b", text)
+
+
+HOST_SCRIPTS = ("write_env.py", "egress_proxy.py", "deployer.py")
+
+
+def test_the_host_scripts_run_on_amazon_linux_2023s_python() -> None:
+    # Amazon Linux 2023's python3 is 3.9: each script the tunnel end runs keeps to its syntax.
+    import ast
+
+    for name in HOST_SCRIPTS:
+        text = (REPO / "deploy" / "scripts" / name).read_text(encoding="utf-8")
+        ast.parse(text, filename=name, feature_version=(3, 9))
+        assert text.startswith("#!/usr/bin/env python3\n"), name
+
+
+def test_the_deployers_class_is_preflights() -> None:
+    deployer = _load("deployer_for_hosts", REPO / "deploy" / "scripts" / "deployer.py")
+    assert deployer.HOST_CLASSES == pf.HOST_CLASSES
+
+
+def test_the_user_data_carries_every_host_file_the_units_run() -> None:
+    text = patches.patched_text("infra/prod/tunnel-end.tf")
+    assert text is not None
+    for name in HOST_SCRIPTS:
+        assert f'"/opt/h4reet/deploy/scripts/{name}"' in text, name
+        assert f'source = "deploy/scripts/{name}"' in text, name
+    for unit in sorted(p.name for p in UNITS.iterdir()):
+        assert f'source = "deploy/hosts/tunnel-end/systemd/{unit}"' in text, unit
+    for name in (
+        "nftables.nft",
+        "egress-allowlist.txt",
+        "tunnel-end.env.example",
+        "daemon.json",
+    ):
+        assert f'source = "deploy/hosts/tunnel-end/{name}"' in text, name

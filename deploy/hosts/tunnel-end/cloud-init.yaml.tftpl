@@ -1,0 +1,43 @@
+#cloud-config
+# The tunnel end's first boot (spec 001 FR-051, FR-076; contracts/tunnel.md §1 and §6; research.md R-10): a template,
+# which infra/prod/tunnel-end.tf fills with templatefile() and sends, gzipped, as the instance's user data. `files` is
+# the host's files, by their place on the host, each with its mode and its text from deploy/hosts/tunnel-end/ and
+# deploy/scripts/ at the plan's commit; nothing in it is secret, and the secrets come from Parameter Store at each boot
+# (h4-write-env.service). A later change to these files reaches the tunnel end only through a reviewed replace, since
+# the instance ignores its user data's drift (docs/runbooks/tunnel-end.md).
+#
+# The packages come first, from Amazon Linux's own repository in the Region, before the packet filter is loaded: at
+# the first boot only, the security group's 443 lets dnf reach it directly (disclosure row C17). Then the filter, then
+# the egress proxy, and only then anything that sends.
+
+packages:
+  - docker
+  - nftables
+
+users:
+  - default
+  - name: h4-egress
+    system: true
+    no_create_home: true
+    shell: /sbin/nologin
+    lock_passwd: true
+
+write_files:
+%{ for path, file in files ~}
+  - path: ${path}
+    owner: root:root
+    permissions: "${file.mode}"
+    content: |
+      ${indent(6, file.content)}
+%{ endfor ~}
+
+runcmd:
+  - nft -f /etc/h4reet/nftables.nft
+  - systemctl daemon-reload
+  - systemctl enable h4-nftables.service
+  - systemctl enable --now h4-egress-proxy.service
+  - systemctl restart amazon-ssm-agent.service
+  - systemctl enable --now docker.service
+  - systemctl enable --now h4-write-env.service
+  - systemctl enable --now h4-stack.service
+  - systemctl enable --now h4-deployer.timer

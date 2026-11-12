@@ -1,0 +1,24 @@
+# The tunnel end's one way out (spec 001 FR-051; deploy/scripts/egress_proxy.py): its own unprivileged user, the one
+# nftables lets reach beyond the VPC, on the host's loopback alone.
+[Unit]
+Description=h4reet: the egress proxy
+After=h4-nftables.service network-online.target
+Requires=h4-nftables.service
+Wants=network-online.target
+Before=docker.service h4-write-env.service amazon-ssm-agent.service
+
+[Service]
+User=h4-egress
+Group=h4-egress
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/egress_proxy.py --allowlist /etc/h4reet/egress-allowlist.txt --listen 127.0.0.1:3128
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
