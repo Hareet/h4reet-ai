@@ -10,8 +10,9 @@ Each run, on the host's timer:
   4. on a failed start, return to the previous release, and alert `deploy_rolled_back`, or `deploy_rollback_failed`
      if that fails too; a release it refuses alerts `deploy_refused`, and nothing runs;
   5. record the deployment, one JSON line in the state folder.
-At boot it starts the last release it recorded before it asks the bucket, so a bucket it can't reach leaves the host
-on its last release.
+At boot it starts the last release it recorded before it asks the bucket, from the images it already holds
+(`--pull never`, no registry login), so a bucket or a registry it can't reach leaves the host on its last release; and
+each run brings that release up again when its services aren't running. (group 5's review, I4).
 
 The AWS CLI, Docker, and the clock are stood in for: deployer.run takes them as objects.
 """
@@ -63,6 +64,8 @@ class Aws:
         self.objects: dict[str, bytes] = {}
         self.alerts: list[str] = []
         self.reachable = True
+        self.logins: list[str] = []
+        self.registry_reachable = True
 
     def get(self, bucket: str, key: str) -> bytes | None:
         assert bucket == BUCKET
@@ -73,8 +76,11 @@ class Aws:
     def publish(self, message: str) -> None:
         self.alerts.append(message)
 
+
     def login(self, registry: str) -> None:
-        pass
+        if not self.registry_reachable:
+            raise dp.Unreachable("ecr")
+        self.logins.append(registry)
 
 
 class Docker:
@@ -82,6 +88,8 @@ class Docker:
         self.calls: list[tuple[str, list[str], dict[str, str]]] = []
         self.fail_for: set[str] = set()
         self.owned: list[tuple[str, int]] = []
+        # What runs: the services the last up started, until the test stops them.
+        self.up: set[str] = set()
 
     def own_volume(self, name: str, uid: int) -> bool:
         self.owned.append((name, uid))
@@ -91,12 +99,18 @@ class Docker:
         self.calls.append((str(tree), ["host-step", host], {}))
         return host not in self.fail_for
 
+    def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
+        return set(services) <= self.up
+
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
         env: dict[str, str] = {}
         for path in env_files:
             env.update(dp.read_env(path))
         self.calls.append((str(tree), args, env))
-        return not (args[0] == "up" and env.get("H4_RELEASE") in self.fail_for)
+        ok = not (args[0] == "up" and env.get("H4_RELEASE") in self.fail_for)
+        if args[0] == "up" and ok:
+            self.up = {a for a in args[1:] if not a.startswith("-") and a != "never"}
+        return ok
 
 
 class World:
@@ -403,3 +417,74 @@ def test_the_real_host_step_runs_the_trees_own_script_with_the_hosts_python(
         "--tree",
         str(tmp_path),
     ]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 5's review, I4: the boot starts the cached images, an unreachable registry changes nothing, and each run brings
+# the current release up again when its services aren't running.
+
+
+def test_at_boot_the_cached_images_start_with_no_login_and_no_pull(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.aws.logins.clear()
+    w.docker.up = set()
+    w.aws.reachable = False
+    w.aws.registry_reachable = False
+    assert w.run(boot=True) == 0
+    (up,) = ups(w)
+    assert up[0][:3] == ["up", "-d", "--wait"] and up[0][-2:] == [
+        "tunnel-end",
+        "tunnel-end-collector",
+    ]
+    assert "--pull" in up[0] and up[0][up[0].index("--pull") + 1] == "never"
+    assert up[1]["H4_RELEASE"] == "r1"
+    assert [args for _, args, _ in w.docker.calls if args[0] == "pull"] == []
+    assert w.aws.logins == [] and w.aws.alerts == []
+
+
+def test_a_registry_out_of_reach_on_the_timer_changes_nothing(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.aws.registry_reachable = False
+    assert w.run() == 0
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1"]
+    assert w.aws.alerts == [] and [r["outcome"] for r in w.records()] == ["deployed"]
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
+
+
+@pytest.mark.parametrize("bucket", [True, False], ids=["bucket", "no-bucket"])
+def test_the_timer_brings_the_current_release_up_when_it_isnt_running(
+    tmp_path: Path, bucket: bool
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.up = {"tunnel-end"}  # the collector stopped
+    w.aws.reachable = bucket
+    w.aws.registry_reachable = False
+    assert w.run() == 0
+    up = ups(w)[-1]
+    assert len(ups(w)) == 2 and up[1]["H4_RELEASE"] == "r1"
+    assert up[0][up[0].index("--pull") + 1] == "never"
+    assert w.aws.alerts == [] and len(w.records()) == 1
+
+
+def test_a_rollback_starts_the_previous_release_from_its_cached_images(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    assert w.run() == 1
+    back = ups(w)[-1]
+    assert back[1]["H4_RELEASE"] == "r1"
+    assert back[0][back[0].index("--pull") + 1] == "never"

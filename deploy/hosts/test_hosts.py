@@ -268,6 +268,12 @@ def test_the_units_order_the_boot() -> None:
     write_env = unit("h4-write-env.service")
     assert write_env["Type"] == ["oneshot"]
     assert write_env["After"] == ["h4-egress-proxy.service network-online.target"]
+    # Docker starts after the env file and key files are back on tmpfs, so no container it restarts at boot finds its
+    # key files gone; ordering alone, so restarting the env file's unit never restarts Docker (group 5's review, I4).
+    assert write_env["Before"] == ["docker.service h4-stack.service"]
+    assert "docker.service" not in " ".join(
+        write_env.get("Requires", []) + write_env.get("BindsTo", [])
+    )
     stack = unit("h4-stack.service")
     assert stack["Requires"] == ["docker.service h4-write-env.service"]
     assert any(
@@ -296,8 +302,8 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     order = [
         "nft -f /etc/h4reet/nftables.nft",
         "systemctl enable --now h4-egress-proxy.service",
-        "systemctl enable --now docker.service",
         "systemctl enable --now h4-write-env.service",
+        "systemctl enable --now docker.service",
         "systemctl enable --now h4-stack.service",
         "systemctl enable --now h4-deployer.timer",
     ]
