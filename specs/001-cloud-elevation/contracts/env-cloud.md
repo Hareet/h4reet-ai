@@ -26,6 +26,10 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/env
 | `RELAY_TOKEN_LAPTOP`, `RELAY_TOKEN_EC2` (new) | — | — | both | — | — | the relay |
 | `SNAPSHOT_SINK_TOKEN` (new) | the publisher's | the publisher's | the sink's | — | — | the sink (contracts/public-view.md §1) |
 | `TELEMETRY_BLOCK_TOKEN` (new) | the telemetry block's | — | the collector's | — | — | the laptop's 8086 block (contracts/tunnel.md §4) |
+| `TUNNEL_END_ADDRESS` (new, group 5) | the tunnel end's Elastic IP, from `/h4reet/prod/tunnel-end-address` | — | — | — | — | preflight P22, with the `tunnel` profile |
+| `H4_TUNNEL_DIR` (new, group 5) | `~/.config/h4reet-ai/tunnel/client`: the client's key and the pinned host key | — | — | `deploy/tunnel-none` | `deploy/tunnel-none` | preflight P22; the compose policy's bind (P-G3) |
+| `H4_REGISTRY` (new, group 5) | — | — | the account's ECR registry, from the instance's identity document | — | — | preflight's tunnel-end class (T4) |
+| `RELEASE_BUCKET`, `EC2_COLLECTOR_ENDPOINT` (new, group 5) | — | — | `/h4reet/hosts/RELEASE_BUCKET`; EC2's collector in the VPC | — | — | preflight's tunnel-end class (T4) |
 | `GATEWAY_ANTHROPIC_API_KEY` | as spec 010 | from Parameter Store | — | absent | absent | spec 010's preflight |
 
 The ports keep spec 000's prod values on both serving hosts (18000 to 18005): different machines, the same numbers. On EC2 they bind its loopback, for the operator's session; its relay block binds its private address (contracts/tunnel.md §4). The tunnel end's relay listener binds its private address, and its internal listener `127.0.0.1:18505`.
@@ -40,10 +44,10 @@ The ports keep spec 000's prod values on both serving hosts (18000 to 18005): di
 | `tunnel` | yes (`tunnel`) | no | no | no |
 | `snapshot-publisher` | yes | yes | no | no |
 | `tunnel-end`, `relay`, `snapshot-sink` | no | no | yes | `relay` only, in `dev-relay` |
-| the tunnel end's small `otel-collector` | no | no | yes | no |
+| the tunnel end's small collector, `tunnel-end-collector` (group 5: one compose file can't hold two `otel-collector`s) | no | no | yes | no |
 | `telegram-standin`, `mailpit`, `breach-probe` | no | no | no | as spec 000 |
 
-Preflight's rule "not exactly one of `gpu` and `cpu`" becomes: exactly one, except for the `ec2` and `tunnel-end` classes, which select neither.
+Preflight's rule "not exactly one of `gpu` and `cpu`" becomes: exactly one, except for the `ec2` and `tunnel-end` classes, which select neither. **As built in group 5:** the laptop's prod may add `tunnel` (P22 checks it); the tunnel end's class runs `preflight.py --host-class tunnel-end` (T1 to T4) on its env file, and its deployer starts the class's services by name, since a service with no profile runs in every one (`HOST_CLASSES`, in `deploy/scripts/preflight.py` and `deployer.py`).
 
 ## 4. Routing's schema 2 (`config/routing.yaml`; data-model.md §2.1)
 

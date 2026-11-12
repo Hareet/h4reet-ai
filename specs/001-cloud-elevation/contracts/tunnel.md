@@ -31,12 +31,12 @@ MaxSessions 0
 AllowTcpForwarding yes
 GatewayPorts clientspecified
 PermitListen 0.0.0.0:2201 0.0.0.0:2202 0.0.0.0:2203
-PermitOpen <rds-endpoint>:5432 snapshot-sink:8080
+PermitOpen shared-state:5432 snapshot-sink:8080
 ClientAliveInterval 10
 ClientAliveCountMax 3
 ```
 
-`<rds-endpoint>` is written at boot from a `String` parameter Terraform writes. The keys come from Parameter Store at boot (§6).
+From W1 the store is the tunnel end's own `shared-state` (plan.md §16, "The shared state on the tunnel end"), so no endpoint is written at boot; T162 brings the rest of this contract to it. The keys come from Parameter Store at boot (§5). **As built in group 5:** `deploy/tunnel/sshd_config` holds these lines and closes every other kind of session and forward (`PermitTTY no`, `X11Forwarding no`, `AllowAgentForwarding no`, `AllowStreamLocalForwarding no`, `PermitTunnel no`, `PermitUserRC no`, `UsePAM no`, `PidFile none`); the image is Ubuntu's OpenSSH on the pinned `base:ubuntu` (plan.md §16, group 5's departure 4).
 
 ## 3. `tunnel` (the client, on the laptop)
 
@@ -47,7 +47,7 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 | `-R 0.0.0.0:2201` | the tunnel end | `edge:8085`, the relay block (§4) | visitors' requests from the relay |
 | `-R 0.0.0.0:2202` | the tunnel end | `edge:8086`, the telemetry block | the tunnel end's collector's export (research.md R-25) |
 | `-R 0.0.0.0:2203` | the tunnel end | `edge:8088`, the health block (edge's 8087 is spec 002's site) | Route 53's health checks (research.md R-29) |
-| `-L 0.0.0.0:5432` | the laptop's stack (`tunnel:5432`) | `<rds-endpoint>:5432` | the laptop's gateway to the shared state, inside TLS (contracts/shared-state.md §3) |
+| `-L 0.0.0.0:5432` | the laptop's stack (`tunnel:5432`) | `shared-state:5432` (W1) | the laptop's gateway to the shared state, inside TLS (contracts/shared-state.md §3) |
 | `-L 0.0.0.0:2301` | the laptop's stack (`tunnel:2301`) | `snapshot-sink:8080` | the public view's panels |
 
 - **Reconnecting:** backoff 1, 2, 5, 10, 30 s, with `ServerAliveInterval 10`, `ServerAliveCountMax 3` and `ExitOnForwardFailure yes`.

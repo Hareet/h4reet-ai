@@ -50,7 +50,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - `config/budgets.yaml`, `config/prices.yaml`, and `config/alerts.yaml`;
   - the protected Terraform files: `iam*.tf`, `budgets*.tf`, `alerts*.tf`, `killswitch*.tf`, `handover*.tf`, `failover*.tf`, `ec2-market*.tf`, `edge-limits*.tf`, and `infra/policy/**`.
 
-  An agent task writes such a change as a `.patch` beside the branch's note. The plan's patches keep their names, P-1 to P-6 (plan §14); the protected Terraform arrives as P-I1 to P-I6, one per group that has any. From W1 there are four more: P-I7, group 6's, which had none before (T073); P-G1, the policy's list of taggable types (T158); P-G2, the guards for W1's new Author-only targets (T165); and P-W2, the switch-on (T175). It builds the patch from plain copies (`git show`, `git diff --no-index`), never by `git apply` or a write into any worktree.
+  An agent task writes such a change as a `.patch` beside the branch's note. The plan's patches keep their names, P-1 to P-6 (plan §14); the protected Terraform arrives as P-I1 to P-I6, one per group that has any. From W1 there are five more: P-I7, group 6's, which had none before (T073); P-G1, the policy's list of taggable types (T158); P-G2, the guards for W1's new Author-only targets (T165); P-G3, the compose policy's host classes (group 5, T044 and T049; plan.md §16, group 5's departure 5); and P-W2, the switch-on (T175). It builds the patch from plain copies (`git show`, `git diff --no-index`), never by `git apply` or a write into any worktree.
 
 ## Path conventions
 
@@ -317,29 +317,37 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Gate A's backlog, first
 
-- [ ] T157 [P] Extend `infra/test/test_account.py`'s tag check to `aws_sqs_queue` and `aws_ssoadmin_permission_set`. The policy's `TAGGABLE` lacks both, as it lacked `aws_budgets_budget_action`, which the test's own list, `TAGGABLE_HERE`, already adds (T155). Add the fixtures `queue-untagged` and `set-untagged`, one defect each. The tree's `h4-alert-bridge-failed` and the laptop's set already carry `component`. Check: RED, each fixture passes the check before its type is in the list; GREEN after; the tree passes (FR-002) (feat/001-tunnel-end)
-- [ ] T158 [P] Write P-G1 for the Author's hand, `docs/merge-requests/<date>-feat-001-pg1-taggable.patch`, from plain copies: `tools/gates/infra_policy.py`'s `TAGGABLE` gains `aws_budgets_budget_action`, `aws_sqs_queue`, and `aws_ssoadmin_permission_set`, with a fixture each in `tools/gates/test/test_infra_policy.py`. It's the gate tool's change, so the Author's (plan.md §16, "After the bootstrap's apply"). Once it's applied, T157's own list and `TAGGABLE_HERE` can go. Check: the patch applies to a fresh export; on a patched export the new fixtures fail rule T2 and the tree passes (feat/001-tunnel-end)
-- [ ] T159 [P] Extend `infra/test/test_account.py` with two alarms to `h4-alerts`, only in `alerts.tf`, both with missing data not breaching:
+- [x] T157 [P] Extend `infra/test/test_account.py`'s tag check to `aws_sqs_queue` and `aws_ssoadmin_permission_set`. The policy's `TAGGABLE` lacks both, as it lacked `aws_budgets_budget_action`, which the test's own list, `TAGGABLE_HERE`, already adds (T155). Add the fixtures `queue-untagged` and `set-untagged`, one defect each. The tree's `h4-alert-bridge-failed` and the laptop's set already carry `component`. Check: RED, each fixture passes the check before its type is in the list; GREEN after; the tree passes (FR-002) (feat/001-tunnel-end)
+  - **Done** (ec9c3b12): RED 2 failed with the two fixtures alone; GREEN with both types in `TAGGABLE_HERE`.
+- [x] T158 [P] Write P-G1 for the Author's hand, `docs/merge-requests/<date>-feat-001-pg1-taggable.patch`, from plain copies: `tools/gates/infra_policy.py`'s `TAGGABLE` gains `aws_budgets_budget_action`, `aws_sqs_queue`, and `aws_ssoadmin_permission_set`, with a fixture each in `tools/gates/test/test_infra_policy.py`. It's the gate tool's change, so the Author's (plan.md §16, "After the bootstrap's apply"). Once it's applied, T157's own list and `TAGGABLE_HERE` can go. Check: the patch applies to a fresh export; on a patched export the new fixtures fail rule T2 and the tree passes (feat/001-tunnel-end)
+  - **Done:** `docs/merge-requests/2026-11-13-feat-001-pg1-taggable.patch`. On a patched export the new cases fail T2 untagged and pass tagged; the policy passes the tree.
+- [x] T159 [P] Extend `infra/test/test_account.py` with two alarms to `h4-alerts`, only in `alerts.tf`, both with missing data not breaching:
   - `h4-credential-audit-errors`, on the function's `Errors`, at one or more;
   - `h4-alert-bridge-failed`, on the failure queue's visible messages, at one or more (group 4's Backlog: "the bridge's failure queue without an alarm").
 
   Add their alert kinds to contracts/aws-alerts.md §2, and their runbooks' sections to `docs/runbooks/credential-audit.md` and the alert bridge's page, `docs/runbooks/alert-bridge.md`, new. The two rows reach §2 in P-I3, with the bridge that knows them: the bridge's own test holds every kind there to a notice, and the bridge is protected. Check: RED; `evals/test_runbooks.py` holds each kind to its page (FR-022, FR-056) (feat/001-tunnel-end)
-- [ ] T160 [P] Extend `infra/test/test_bootstrap.py`: `h4-alerts`' policy also lets CloudWatch alarms (`cloudwatch.amazonaws.com`) and EventBridge (`events.amazonaws.com`) publish, each for this account alone (`aws:SourceAccount`), and grants nothing else. Group 4's departure 2 put the CloudWatch publisher in group 8; W1's first alarm (T159) and the tunnel end's warning rule (T046) come earlier. Check: RED (FR-022) (feat/001-tunnel-end)
-- [ ] T161 Write T159's two alarms in `infra/account/alerts.tf` and T160's two statements in `infra/bootstrap/alerts.tf`, into P-I3 with group 5's protected files (T051). Check: on a patched copy, T159 and T160 pass, and `make infra-check` passes on both roots (feat/001-tunnel-end)
+  - **Done:** the checks in `test_account.py`, the runbooks' sections, and the new page; the alarms, the bridge, and §2's rows in P-I3.
+- [x] T160 [P] Extend `infra/test/test_bootstrap.py`: `h4-alerts`' policy also lets CloudWatch alarms (`cloudwatch.amazonaws.com`) and EventBridge (`events.amazonaws.com`) publish, each for this account alone (`aws:SourceAccount`), and grants nothing else. Group 4's departure 2 put the CloudWatch publisher in group 8; W1's first alarm (T159) and the tunnel end's warning rule (T046) come earlier. Check: RED (FR-022) (feat/001-tunnel-end)
+  - **Done:** the check in `test_bootstrap.py`; the statements in P-I3.
+- [x] T161 Write T159's two alarms in `infra/account/alerts.tf` and T160's two statements in `infra/bootstrap/alerts.tf`, into P-I3 with group 5's protected files (T051). Check: on a patched copy, T159 and T160 pass, and `make infra-check` passes on both roots (feat/001-tunnel-end)
+  - **Done:** in P-I3. On a patched export T159 and T160 pass, and the policy and `terraform fmt -check` pass both roots; `terraform validate` can't start its provider in an agent session, so the Author's gate runs it.
 
 ### Tests first
 
-- [ ] T041 [P] [US4] Write `deploy/tunnel/test_tunnel.py`: two containers on the agents' engine. Only 2201, 2202, and 2203 may be listened on, and only the stub store and the sink opened. No shell or command opens. A wrong host key is refused. The forward to the store reaches only the store. Check: RED (FR-052, FR-053, FR-055) (feat/001-tunnel-end)
+- [x] T041 [P] [US4] Write `deploy/tunnel/test_tunnel.py`: two containers on the agents' engine. Only 2201, 2202, and 2203 may be listened on, and only the stub store and the sink opened. No shell or command opens. A wrong host key is refused. The forward to the store reaches only the store. Check: RED (FR-052, FR-053, FR-055) (feat/001-tunnel-end)
   - **From W1:** the store is the tunnel end's own `shared-state:5432` (group 6), not RDS's endpoint, so `PermitOpen` names `shared-state:5432` and `snapshot-sink:8080`; the stub store takes that name (plan.md §16, "The shared state on the tunnel end").
-- [ ] T042 [P] [US4] Write `deploy/edge/test_tunnel_blocks.py` (spec 000's edge tests' style):
+  - **Done:** the files' checks run everywhere; the containers' checks skip on the agents' engine, which can't build the image (plan.md §16, group 5's departure 4), and the Author's engine runs them.
+- [x] T042 [P] [US4] Write `deploy/edge/test_tunnel_blocks.py` (spec 000's edge tests' style):
   - 8085 needs its bearer token, 401 otherwise, logged with no address; it moves `X-H4-Viewer` into the one `X-Forwarded-For` and keeps `traceparent`;
   - 8086 needs its own token;
   - 8087 serves `GET /health` only, with an empty body, 200 or 503 as the gateway's health says, and is rate-limited;
   - every other path gets 404.
 
   Check: RED (FR-053, FR-054) (feat/001-tunnel-end)
-- [ ] T043 [P] [US4] Extend `services/gateway/test/unit/health.test.ts`: the health answer carries the store's readability, and reads unhealthy while the store can't be read. Check: RED (FR-054) (feat/001-tunnel-end)
-- [ ] T044 [P] [US4] Write `deploy/hosts/test_hosts.py` and extend `deploy/scripts/test_preflight.py` and the compose policy's tests:
+  - **Done:** with the health block on edge's 8088 (plan.md §16, group 5's departure 1).
+- [x] T043 [P] [US4] Extend `services/gateway/test/unit/health.test.ts`: the health answer carries the store's readability, and reads unhealthy while the store can't be read. Check: RED (FR-054) (feat/001-tunnel-end)
+  - **Done:** and `GET /health/serving` (group 5's departure 2).
+- [x] T044 [P] [US4] Write `deploy/hosts/test_hosts.py` and extend `deploy/scripts/test_preflight.py` and the compose policy's tests:
   - the tunnel end's nftables and security-group text admits 2222 from anywhere, 8087 from Route 53's ranges, and 8080 only privately;
   - its egress allowlist matches the disclosure, ECR (its deployer's pulls) and SNS (its alerts) among it;
   - the `tunnel-end` class selects `tunnel-end`, `relay`, `snapshot-sink`, and the collector only, with `H4_HOST=tunnel-end`;
@@ -347,26 +355,37 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
   Check: RED (FR-051, FR-052) (feat/001-tunnel-end)
   - **From W1:** group 6 adds `shared-state` to the class, and 5432 on the private interface from EC2's group only, test-first (T163).
-- [ ] T045 [P] [US4] Write `deploy/otel/test_collector_tunnel_end.py`, on the configuration's text: the routing connector sends `laptop` to the tunnel's 2202 forward and `ec2` and `none` to EC2's collector; the file-backed queue; spec 000's redaction applied again, so no payload, address, or client identifier leaves; the queue's and the exporters' counters exported. Check: RED (FR-060; row C15) (feat/001-tunnel-end)
-- [ ] T046 [P] [US4] Write `infra/test/fixtures/prod-tunnel-end/` and `infra/test/test_prod_network.py`. They cover the VPC and its subnets, the tunnel end with two interfaces, its Elastic IP, IMDSv2 with hop limit 1 (T13), spot persistent with `stop` (T11), its role (R-15: ECR pulls, its Parameter Store path, `sns:Publish` on `h4-alerts`, Session Manager), and the `h4-tunnel-end-spot-warning` rule to `h4-alerts`. Check: RED (FR-076) (feat/001-tunnel-end)
+  - **Done:** with `deploy/scripts/test_write_env.py`, `test_egress_proxy.py`, and `test_deployer.py`; the compose policy's own tests are P-G3's.
+- [x] T045 [P] [US4] Write `deploy/otel/test_collector_tunnel_end.py`, on the configuration's text: the routing connector sends `laptop` to the tunnel's 2202 forward and `ec2` and `none` to EC2's collector; the file-backed queue; spec 000's redaction applied again, so no payload, address, or client identifier leaves; the queue's and the exporters' counters exported. Check: RED (FR-060; row C15) (feat/001-tunnel-end)
+  - **Done.**
+- [x] T046 [P] [US4] Write `infra/test/fixtures/prod-tunnel-end/` and `infra/test/test_prod_network.py`. They cover the VPC and its subnets, the tunnel end with two interfaces, its Elastic IP, IMDSv2 with hop limit 1 (T13), spot persistent with `stop` (T11), its role (R-15: ECR pulls, its Parameter Store path, `sns:Publish` on `h4-alerts`, Session Manager), and the `h4-tunnel-end-spot-warning` rule to `h4-alerts`. Check: RED (FR-076) (feat/001-tunnel-end)
   - **From W1** (plan.md §16, "No root holds another root's instance or health-check ID"):
     - the warning rule is prod's, in `infra/prod/handover.tf`, with the instance's ID from the same root, not the account's;
     - `infra/prod/handover.tf` and `infra/account/handover.tf` each hold `local.wired = false`;
     - **both directions:** nothing under `infra/account` names a prod instance or health-check ID, nor reads prod's state; and nothing in `infra/prod` reads, by a data source or a remote state, what the account's W1 apply makes. Prod names the account's repositories only by their name-built ARNs. The account's own rehearsal instance, `h4-rehearsal-instance`, and its references in the account's `killswitch.tf` are the account's, and exempt;
     - **the tunnel end's type** is a named local, `local.tunnel_end_type`, in the unprotected `infra/prod/tunnel-end.tf`, holding the placeholder `"measure-in-T166"`. The instance in the protected `ec2-market.tf` reads it, and no other file sets a type. A `precondition` on that instance refuses the placeholder, so prod's plan (T171) fails until T166 sets the local. The test checks the local's place, the reference, and the precondition. Group 5 asserts no measured type.
+  - **Done:** `infra/test/test_prod_network.py`, 20 fixtures.
 
 ### Implementation
 
-- [ ] T047 [US4] Write `deploy/tunnel/` (Dockerfile, `sshd_config`, `ssh_config`, entrypoint) per contracts/tunnel.md, and `tunnel` and `tunnel-end` in `deploy/compose.yaml`. Check: T041 passes (feat/001-tunnel-end)
-- [ ] T048 [US4] Add the three blocks to `deploy/edge/nginx.conf` and the store field to the gateway's health. Check: T042 and T043 pass (feat/001-tunnel-end)
-- [ ] T049 [US4] Write `deploy/hosts/` for the tunnel end (cloud-init, systemd units, nftables, `daemon.json`), `deploy/scripts/write_env.py`, `egress_proxy.py`, and the deployer's host part. Extend preflight and the compose policy's `tunnel-end` class. Check: T044 passes (feat/001-tunnel-end)
-- [ ] T050 [US4] Write `deploy/otel/collector-tunnel-end.yaml` and the collector's service in the `tunnel-end` profile. Check: T045 passes (FR-060) (feat/001-tunnel-end)
-- [ ] T051 [US4] Write `infra/prod/{main,network,tunnel-end,ssm}.tf`. Write `ec2-market.tf` (the tunnel end's spot options), `iam.tf` (its role), and the warning rule in `infra/account/handover.tf` as P-I3. Check: on a patched copy, T046 passes, and `make infra-check` passes (feat/001-tunnel-end)
+- [x] T047 [US4] Write `deploy/tunnel/` (Dockerfile, `sshd_config`, `ssh_config`, entrypoint) per contracts/tunnel.md, and `tunnel` and `tunnel-end` in `deploy/compose.yaml`. Check: T041 passes (feat/001-tunnel-end)
+  - **Done:** T041's files' checks pass; its containers' checks are the Author's engine's (departure 4).
+- [x] T048 [US4] Add the three blocks to `deploy/edge/nginx.conf` and the store field to the gateway's health. Check: T042 and T043 pass (feat/001-tunnel-end)
+  - **Done.**
+- [x] T049 [US4] Write `deploy/hosts/` for the tunnel end (cloud-init, systemd units, nftables, `daemon.json`), `deploy/scripts/write_env.py`, `egress_proxy.py`, and the deployer's host part. Extend preflight and the compose policy's `tunnel-end` class. Check: T044 passes (feat/001-tunnel-end)
+  - **Done:** P-G3 for the compose policy (departure 5).
+- [x] T050 [US4] Write `deploy/otel/collector-tunnel-end.yaml` and the collector's service in the `tunnel-end` profile. Check: T045 passes (FR-060) (feat/001-tunnel-end)
+  - **Done.**
+- [x] T051 [US4] Write `infra/prod/{main,network,tunnel-end,ssm}.tf`. Write `ec2-market.tf` (the tunnel end's spot options), `iam.tf` (its role), and the warning rule in `infra/account/handover.tf` as P-I3. Check: on a patched copy, T046 passes, and `make infra-check` passes (feat/001-tunnel-end)
   - **From W1:** the warning rule goes in `infra/prod/handover.tf`, with `local.wired = false`. `infra/account/handover.tf` starts with the account's `local.wired = false`. P-I3 also carries T161's two files.
   - **The repositories the tunnel end pulls from** (the review's I4): `infra/account/registry.tf`'s `stack` list gains `tunnel` (both ends' image), `relay` (group 8), and `snapshot` (the sink and the publisher, groups 9 and 10). The deployer's first pull needs them before those groups' images exist. Test-first in `infra/test/test_account.py`: each image a `tunnel-end`-class service runs has its repository, tagged, with the lifecycle policy the others have.
-- [ ] T052 [P] [US4] Write `make tunnel-keys` (the client key, the host key, the relay's host tokens, `SNAPSHOT_SINK_TOKEN`, and `TELEMETRY_BLOCK_TOKEN`), `make tunnel-revoke`, and `make cloud-session HOST=ec2|tunnel-end` (a Systems Manager port-forwarding session; FR-050), all Author-only, and `h4.tunnel.up` and `h4.tunnel.reconnects` from both ends. Check: their unit tests pass; the bash gate refuses them in an agent session (FR-050, FR-055, FR-060) (feat/001-tunnel-end)
-- [ ] T053 [P] [US4] Add the "Hosts" row's first panels to the provisioned dashboard: the tunnel's state and reconnects, and telemetry delayed or lost (the tunnel end's collector's queue and drop counters) (plan §11). Check: the dashboard's provisioning test passes with them (FR-060) (feat/001-tunnel-end)
-- [ ] T054 [P] [US4] Add the disclosure rows S16, S17, and C3, and S1's change, in the same commit as T047; C15 in the same commit as T050; the tunnel end's egress rows and C7's tunnel-end part (its deployer, ECR, the secrets store, Systems Manager, and SNS) in the same commit as T049. Write `docs/runbooks/tunnel-end.md` (a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot interruption; a move to another zone) and the laptop runbook's tunnel part. Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-tunnel-end)
+  - **Done:** P-I3 whole. On a patched copy T046 passes; the policy's one finding is T10, prod's lockfile, the Author's step (departure 13).
+- [x] T052 [P] [US4] Write `make tunnel-keys` (the client key, the host key, the relay's host tokens, `SNAPSHOT_SINK_TOKEN`, and `TELEMETRY_BLOCK_TOKEN`), `make tunnel-revoke`, and `make cloud-session HOST=ec2|tunnel-end` (a Systems Manager port-forwarding session; FR-050), all Author-only, and `h4.tunnel.up` and `h4.tunnel.reconnects` from both ends. Check: their unit tests pass; the bash gate refuses them in an agent session (FR-050, FR-055, FR-060) (feat/001-tunnel-end)
+  - **Done.**
+- [x] T053 [P] [US4] Add the "Hosts" row's first panels to the provisioned dashboard: the tunnel's state and reconnects, and telemetry delayed or lost (the tunnel end's collector's queue and drop counters) (plan §11). Check: the dashboard's provisioning test passes with them (FR-060) (feat/001-tunnel-end)
+  - **Done:** the panels' queries in contracts/tunnel.md §7.
+- [x] T054 [P] [US4] Add the disclosure rows S16, S17, and C3, and S1's change, in the same commit as T047; C15 in the same commit as T050; the tunnel end's egress rows and C7's tunnel-end part (its deployer, ECR, the secrets store, Systems Manager, and SNS) in the same commit as T049. Write `docs/runbooks/tunnel-end.md` (a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot interruption; a move to another zone) and the laptop runbook's tunnel part. Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-tunnel-end)
+  - **Done.**
 
 ### The Author's plan block
 
