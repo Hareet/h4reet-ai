@@ -888,6 +888,26 @@ def test_both_roots_hold_the_switch_off() -> None:
     assert wired(parsed(account_texts())) is False
 
 
+def switched_on(root: dict[str, list]) -> dict[str, list]:
+    """The root as P-W2 leaves it (tasks.md T175): handover.tf's local.wired = true, and nothing else changed."""
+    out = {
+        name: [
+            b
+            for b in body
+            if not (isinstance(b, ip.Block) and block_address(b) == ("locals", "wired"))
+        ]
+        for name, body in root.items()
+    }
+    out.setdefault("handover.tf", []).extend(ip.parse_hcl("locals {\n  wired = true\n}\n"))
+    return out
+
+
+def test_the_checks_pass_with_both_switches_on_as_p_w2_sets_them() -> None:
+    # Group 5's review, I8: T175's P-W2 sets both switches true, and T046's checks must pass on its patched copy.
+    assert problems(switched_on(parsed(root_texts()))) == []
+    assert account_problems(switched_on(parsed(account_texts()))) == []
+
+
 def test_neither_root_reads_the_other() -> None:
     assert check_reads(parsed(root_texts())) == []
     assert account_problems(parsed(account_texts())) == []
