@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 """A cloud host's deployer, the tunnel end's part (spec 001 FR-046 to FR-049; contracts/releases-deployer.md §1, §3,
-§5; research.md R-17; tasks.md T049). Group 7 extends it to EC2 and the laptop (T082, T088). Runs on the host as root,
-at boot (h4-stack.service, --boot) and every minute (h4-deployer.timer), through the host's egress proxy.
+§5; research.md R-17; tasks.md T049; group 7 extends it). Runs as root at boot (h4-stack.service, --boot) and every
+minute (h4-deployer.timer), through the host's egress proxy.
 
     python3 -I -B deployer.py --host tunnel-end [--boot] [--restart SERVICE]
 
-Each run reads the release pointer, releases/latest.json, and the release it names, releases/<id>/release.json, from
-the release bucket the env file names (RELEASE_BUCKET). It verifies the release: its commit; its tree's SHA-256; its
-Compose plugin's; and each service it lists for this host, by its digest, all of them in the host's class
-(HOST_CLASSES, preflight's too). If it isn't the release running, it exports the tree, installs the plugin, writes the
-release's env file (H4_RELEASE, and H4_DIGEST_<REPOSITORY> for each image the release builds), and runs
-`docker compose up -d --wait` on this host's services alone, which pulls each by its digest from the account's
-registry. A failed start returns to the previous release and alerts deploy_rolled_back, or deploy_rollback_failed if
-that fails too; a release it can't verify alerts deploy_refused, and nothing runs. Each deployment is one JSON line in
-the state folder. At boot it starts the release it last recorded, before it asks the bucket, so a bucket it can't
-reach leaves the host as it was. --restart restarts one service of the running release (h4-tunnel-restart.service).
-
-Its alerts go to h4-alerts, in contracts/aws-alerts.md §2's format, and carry no address, account, or secret. The
-standard library alone, and Python 3.9's syntax; the AWS CLI and Docker's do the work.
+Each run verifies the bucket's newest release (RELEASE_BUCKET) for this host's class and starts it, or rolls back, or
+refuses, with an alert in contracts/aws-alerts.md §2's format that carries no address, account, or secret; and first
+keeps the running release up, from the images the host holds. deploy/scripts/test_deployer.py's docstring and
+contracts/releases-deployer.md §3 give each step. --restart restarts one service of the running release. The standard
+library alone, in Python 3.9's syntax: it travels in the tunnel end's user data, whose 16 KB it nearly fills.
 """
 
 from __future__ import annotations
@@ -106,6 +98,8 @@ class Aws(Protocol):
 
 class Docker(Protocol):
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool: ...
+
+    def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool: ...
 
     def own_volume(self, name: str, uid: int) -> bool: ...
 
@@ -264,32 +258,53 @@ class Deployer:
         os.chmod(tmp, 0o755)
         os.replace(tmp, self.plugin)
 
-    def start(self, release: dict) -> bool:
+    def start(self, release: dict, pull: bool = True) -> bool:
+        """The release's services up. With pull, a new release: the registry's login, which raises Unreachable before
+        anything changes, and its images by digest. Without, a release the host ran: its cached images alone."""
         services = verify(self.host, release)
         env_files = [self.env_file, self.release_env(release)]
         tree = self.tree(release)
         registry = self.env.get("H4_REGISTRY", "")
-        if registry:
+        if pull and registry:
             self.aws.login(registry)
         if self.host in HOST_STEPS and not self.docker.host_step(self.host, tree):
             return False
         for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
             if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
                 return False
-        pulled = self.docker.compose(tree, env_files, ["pull", *services])
-        return pulled and self.docker.compose(
-            tree,
-            env_files,
-            ["up", "-d", "--wait", "--no-build", "--remove-orphans", *services],
-        )
+        if pull and not self.docker.compose(tree, env_files, ["pull", *services]):
+            return False
+        up = ["up", "-d", "--wait", "--no-build", "--remove-orphans"]
+        if not pull:
+            up += ["--pull", "never"]
+        return self.docker.compose(tree, env_files, [*up, *services])
+
+    def ensure(self) -> None:
+        """The current release, up again from its cached images if any of its services isn't running."""
+        current = self.recorded("current")
+        if current is None:
+            return
+        try:
+            services = verify(self.host, current)
+        except Refused:
+            return
+        env_files = [self.env_file, self.release_env(current)]
+        if self.docker.running(self.tree(current), env_files, services):
+            return
+        if not self.start(current, pull=False):
+            print(
+                f"{PROG}: release {current['release']} isn't running, and didn't start again",
+                file=sys.stderr,
+            )
 
     def boot(self) -> int:
         current = self.recorded("current")
-        if current is not None and not self.start(current):
+        if current is not None and not self.start(current, pull=False):
             print(f"{PROG}: the last release didn't start at boot", file=sys.stderr)
         return self.check()
 
     def check(self) -> int:
+        self.ensure()
         try:
             pointer = self.aws.get(self.bucket, "releases/latest.json")
             if pointer is None:
@@ -324,14 +339,22 @@ class Deployer:
                 file=sys.stderr,
             )
             return 0
-        if self.start(release):
+        try:
+            started = self.start(release)
+        except Unreachable:
+            print(
+                f"{PROG}: the registry can't be reached; nothing changes",
+                file=sys.stderr,
+            )
+            return 0
+        if started:
             if current is not None:
                 self.keep("previous", current)
             self.keep("current", release)
             self.record(release, "deployed")
             print(f"{PROG}: {self.host} runs release {release['release']}")
             return 0
-        back = current is not None and self.start(current)
+        back = current is not None and self.start(current, pull=False)
         kind, outcome = (
             ("deploy_rolled_back", "rolled_back")
             if back
@@ -474,11 +497,14 @@ class DockerCli:
         os.chown(found.stdout.strip(), uid, uid)
         return True
 
-    def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
+    @staticmethod
+    def _compose(
+        tree: Path, env_files: list[Path], args: list[str], capture: bool = False
+    ) -> subprocess.CompletedProcess:
         command = ["docker", "compose", "-f", str(tree / "deploy" / "compose.yaml")]
         for path in env_files:
             command += ["--env-file", str(path)]
-        done = subprocess.run(
+        return subprocess.run(
             [*command, *args],
             cwd=tree,
             env={
@@ -486,10 +512,24 @@ class DockerCli:
                 "HOME": "/root",
                 "H4_TREE": str(tree),
             },
+            capture_output=capture,
+            text=capture,
             check=False,
             timeout=900,
         )
-        return done.returncode == 0
+
+    def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool:
+        return self._compose(tree, env_files, args).returncode == 0
+
+    def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
+        """Each of the services has a running container in the release's project."""
+        done = self._compose(
+            tree,
+            env_files,
+            ["ps", "--status", "running", "--services", *services],
+            capture=True,
+        )
+        return done.returncode == 0 and set(services) <= set(done.stdout.split())
 
 
 def main(argv: list[str]) -> int:

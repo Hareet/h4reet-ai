@@ -1,10 +1,12 @@
 # The tunnel end's env file and key files, from Parameter Store to tmpfs, at each boot (spec 001 contracts/env-cloud.md
-# §1; deploy/scripts/write_env.py). A missing name stops the boot here, and the stack doesn't start.
+# §1; deploy/scripts/write_env.py). A missing name stops the boot here, and the stack doesn't start. Docker starts after
+# it, so no container Docker restarts at boot finds its key files gone from tmpfs; by ordering alone, so restarting this
+# unit (h4-tunnel-restart.service) never restarts Docker (group 5's review, I4).
 [Unit]
 Description=h4reet: the tunnel end's env file
 After=h4-egress-proxy.service network-online.target
 Requires=h4-egress-proxy.service
-Before=h4-stack.service
+Before=docker.service h4-stack.service
 
 [Service]
 Type=oneshot

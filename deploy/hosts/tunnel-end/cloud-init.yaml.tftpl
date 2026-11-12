@@ -37,7 +37,7 @@ runcmd:
   - systemctl enable h4-nftables.service
   - systemctl enable --now h4-egress-proxy.service
   - systemctl restart amazon-ssm-agent.service
-  - systemctl enable --now docker.service
   - systemctl enable --now h4-write-env.service
+  - systemctl enable --now docker.service
   - systemctl enable --now h4-stack.service
   - systemctl enable --now h4-deployer.timer
