@@ -16,7 +16,7 @@
 
 ## Phase 0: The Author
 
-- [ ] T000 The Author approves `plan.md`, with his answers to the open questions (Q3, Q4, Q6, Q7, Q10, Q13 to Q16). He commits `intent/017-the-night-shift.md` (in his checkout, uncommitted), and makes the night-shift token (`claude setup-token`, into `~/.config/h4reet-ai/night-shift/claude.env`, 0600). He turns extra usage off in his account, runs the container probe at the runbook's SHA, and tells the session the report's path. **If the probe's first line is `BOUNDARY: FAILED`, everything stops (his Q8).** No task below starts before `BOUNDARY: holds` and `PLAN-ONLY: yes`.
+- [x] T000 (done 2026-11-12: the container probe passed; "Approve, all recommended") The Author approves `plan.md`, with his answers to the open questions (Q3, Q4, Q6, Q7, Q10, Q13 to Q16). He commits `intent/017-the-night-shift.md` (in his checkout, uncommitted), and makes the night-shift token (`claude setup-token`, into `~/.config/h4reet-ai/night-shift/claude.env`, 0600). He turns extra usage off in his account, runs the container probe at the runbook's SHA, and tells the session the report's path. **If the probe's first line is `BOUNDARY: FAILED`, everything stops (his Q8).** No task below starts before `BOUNDARY: holds` and `PLAN-ONLY: yes`.
 
 ## Phase 1: Setup
 

@@ -2,7 +2,7 @@
 
 **Branch**: `spec/017-the-night-shift` (this plan), then `feat/017-the-night-shift` (the build) | **Date**: 2026-11-12 | **Spec**: [spec.md](spec.md) | **Research**: [research.md](research.md)
 
-**Status**: re-planned around containers, waiting for the Author's approval. Nothing below is built yet. The container probe (§5) goes with this plan, to run in the same sitting.
+**Status**: approved by the Author on 2026-11-12 ("Approve, all recommended"), after the container probe passed (BOUNDARY holds, PLAN-ONLY yes; research R-18). The build is under way on `feat/017-the-night-shift`.
 
 ## Summary
 
