@@ -66,6 +66,22 @@ def host_step_argv(host: str, tree: Path) -> list[str]:
     ]
 
 
+def preflight_argv(host: str, tree: Path, env_file: Path) -> list[str]:
+    """The release tree's own preflight for the host's class, T1 to T5 (group 5's review, I7)."""
+    return [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        str(tree / "deploy" / "scripts" / "preflight.py"),
+        "--host-class",
+        host,
+        "--env-file",
+        str(env_file),
+        "--root",
+        str(tree),
+    ]
+
+
 # The named volumes a class's service writes as its image's own user, which a new volume's root isn't: the deployer
 # gives each its owner before compose starts the service (the tunnel end's collector's queue, deploy/compose.yaml).
 VOLUME_OWNERS = {
@@ -104,6 +120,8 @@ class Docker(Protocol):
     def own_volume(self, name: str, uid: int) -> bool: ...
 
     def host_step(self, host: str, tree: Path) -> bool: ...
+
+    def preflight(self, host: str, tree: Path, env_file: Path) -> bool: ...
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -259,8 +277,8 @@ class Deployer:
         os.replace(tmp, self.plugin)
 
     def start(self, release: dict, pull: bool = True) -> bool:
-        """The release's services up. With pull, a new release: the registry's login, which raises Unreachable before
-        anything changes, and its images by digest. Without, a release the host ran: its cached images alone."""
+        """Up: a new release with the registry's login (Unreachable before any change) and its pull; else, the
+        cached images alone. Refused("preflight") starts nothing."""
         services = verify(self.host, release)
         env_files = [self.env_file, self.release_env(release)]
         tree = self.tree(release)
@@ -269,6 +287,9 @@ class Deployer:
             self.aws.login(registry)
         if self.host in HOST_STEPS and not self.docker.host_step(self.host, tree):
             return False
+        # After the host step, which writes what T5 reads.
+        if not self.docker.preflight(self.host, tree, self.env_file):
+            raise Refused("preflight")
         for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
             if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
                 return False
@@ -278,6 +299,16 @@ class Deployer:
         if not pull:
             up += ["--pull", "never"]
         return self.docker.compose(tree, env_files, [*up, *services])
+
+    def restart_cached(self, release: dict, why: str) -> bool:
+        """A release the host ran, from its cached images; False, said on stderr, if it doesn't start."""
+        try:
+            if self.start(release, pull=False):
+                return True
+            print(f"{PROG}: {why}", file=sys.stderr)
+        except Refused as refused:
+            print(f"{PROG}: {why}: {refused} refuses it", file=sys.stderr)
+        return False
 
     def ensure(self) -> None:
         """The current release, up again from its cached images if any of its services isn't running."""
@@ -291,16 +322,14 @@ class Deployer:
         env_files = [self.env_file, self.release_env(current)]
         if self.docker.running(self.tree(current), env_files, services):
             return
-        if not self.start(current, pull=False):
-            print(
-                f"{PROG}: release {current['release']} isn't running, and didn't start again",
-                file=sys.stderr,
-            )
+        self.restart_cached(
+            current, f"release {current['release']} isn't running, and didn't start again"
+        )
 
     def boot(self) -> int:
         current = self.recorded("current")
-        if current is not None and not self.start(current, pull=False):
-            print(f"{PROG}: the last release didn't start at boot", file=sys.stderr)
+        if current is not None:
+            self.restart_cached(current, "the last release didn't start at boot")
         return self.check()
 
     def check(self) -> int:
@@ -347,6 +376,9 @@ class Deployer:
                 file=sys.stderr,
             )
             return 0
+        except Refused as refused:
+            self.ensure()
+            return self.refuse(release, str(refused))
         if started:
             if current is not None:
                 self.keep("previous", current)
@@ -354,7 +386,9 @@ class Deployer:
             self.record(release, "deployed")
             print(f"{PROG}: {self.host} runs release {release['release']}")
             return 0
-        back = current is not None and self.start(current, pull=False)
+        back = current is not None and self.restart_cached(
+            current, f"release {current['release']} didn't start again"
+        )
         kind, outcome = (
             ("deploy_rolled_back", "rolled_back")
             if back
@@ -468,6 +502,12 @@ class AwsCli:
 
 
 class DockerCli:
+    def preflight(self, host: str, tree: Path, env_file: Path) -> bool:
+        done = subprocess.run(
+            preflight_argv(host, tree, env_file), check=False, timeout=120
+        )
+        return done.returncode == 0
+
     def host_step(self, host: str, tree: Path) -> bool:
         """The class's host step, the release tree's own script, with the host's python."""
         done = subprocess.run(host_step_argv(host, tree), check=False, timeout=600)
@@ -522,7 +562,6 @@ class DockerCli:
         return self._compose(tree, env_files, args).returncode == 0
 
     def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
-        """Each of the services has a running container in the release's project."""
         done = self._compose(
             tree,
             env_files,
