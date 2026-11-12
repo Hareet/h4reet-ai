@@ -91,6 +91,8 @@ class Docker:
         # What runs: the services the last up started, until the test stops them.
         self.up: set[str] = set()
         self.preflight_fails_for: set[str] = set()
+        # Releases whose T5, the check after the host step, refuses (group 5's fixes' review, 2).
+        self.preflight_after_fails_for: set[str] = set()
 
     def own_volume(self, name: str, uid: int) -> bool:
         self.owned.append((name, uid))
@@ -100,11 +102,15 @@ class Docker:
         self.calls.append((str(tree), ["host-step", host], {}))
         return host not in self.fail_for
 
-    def preflight(self, host: str, tree: Path, env_file: Path) -> bool:
-        self.calls.append((str(tree), ["preflight", host, str(env_file)], {}))
-        return (tree / "deploy/compose.yaml").read_text().split("# ")[
-            -1
-        ].strip() not in (self.preflight_fails_for)
+    def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool:
+        self.calls.append((str(tree), ["preflight", host, str(env_file), phase], {}))
+        rid = (tree / "deploy/compose.yaml").read_text().split("# ")[-1].strip()
+        fails = (
+            self.preflight_fails_for
+            if phase == "before"
+            else self.preflight_after_fails_for
+        )
+        return rid not in fails
 
     def running(self, tree: Path, env_files: list[Path], services: list[str]) -> bool:
         return set(services) <= self.up
@@ -393,7 +399,9 @@ def test_the_host_step_runs_from_the_releases_tree_before_anything_starts(
     w.release("r1")
     assert w.run() == 0
     kinds = [args[0] for _, args, _ in w.docker.calls]
-    assert kinds[:4] == ["host-step", "preflight", "pull", "up"]
+    assert kinds[:5] == ["preflight", "host-step", "preflight", "pull", "up"]
+    phases = [args[3] for _, args, _ in w.docker.calls if args[0] == "preflight"]
+    assert phases == ["before", "after"]
     (step,) = [c for c in w.docker.calls if c[1][0] == "host-step"]
     assert step[1] == ["host-step", "tunnel-end"]
     assert Path(step[0]) == Path(w.docker.calls[1][0])
@@ -546,7 +554,7 @@ def test_the_real_preflight_is_the_trees_own_for_the_hosts_class(
     tmp_path: Path,
 ) -> None:
     env_file = tmp_path / "tunnel-end.env"
-    assert dp.preflight_argv("tunnel-end", tmp_path, env_file) == [
+    assert dp.preflight_argv("tunnel-end", tmp_path, env_file, "before") == [
         "/usr/bin/python3",
         "-I",
         "-B",
@@ -557,4 +565,70 @@ def test_the_real_preflight_is_the_trees_own_for_the_hosts_class(
         str(env_file),
         "--root",
         str(tmp_path),
+        "--phase",
+        "before",
     ]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 5's fixes' review, 2: what needs no host step is checked before it, so a refusal there leaves the host's files
+# as they were; a refusal after it (T5) puts the running release's host files back; a release refused once isn't
+# alerted again.
+
+
+def tree_of(w: World, rid: str) -> str:
+    return str(
+        w.state
+        / "trees"
+        / json.loads(w.aws.objects[f"releases/{rid}/release.json"])["commit"]
+    )
+
+
+def test_a_refusal_before_the_host_step_leaves_the_host_files_as_they_were(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.release("r2")
+    w.docker.preflight_fails_for = {"r2"}
+    assert w.run() == 1
+    assert [c for c in w.docker.calls if c[1][0] == "host-step"] == []
+    assert "- reason: preflight" in w.aws.alerts[0]
+
+
+def test_a_refusal_after_the_host_step_puts_the_running_releases_host_files_back(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.release("r2")
+    w.docker.preflight_after_fails_for = {"r2"}
+    assert w.run() == 1
+    steps = [tree for tree, args, _ in w.docker.calls if args[0] == "host-step"]
+    assert steps == [tree_of(w, "r2"), tree_of(w, "r1")]
+    assert ups(w) == []
+    assert "- reason: preflight" in w.aws.alerts[0]
+    assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
+
+
+def test_a_release_refused_once_isnt_alerted_again(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.preflight_fails_for = {"r2"}
+    assert w.run() == 1
+    assert w.run() == 1
+    assert w.run() == 1
+    assert len(w.aws.alerts) == 1
+    assert [r["outcome"] for r in w.records()] == ["deployed", "refused"]
+    # The memory is the deployer's state, which outlives a run and a reboot.
+    assert (w.state / "refused.json").is_file()
+    # A release refused for another reason is alerted, once.
+    w.release("r3", commit="not-a-commit")
+    assert w.run() == 1 and w.run() == 1
+    assert len(w.aws.alerts) == 2 and "- reason: commit" in w.aws.alerts[1]

@@ -536,3 +536,15 @@ def test_the_rendered_env_file_passes_the_tunnel_end_classs_preflight(
     assert [(r.check, r.status) for r in results] == [
         (f"T{n}", "PASS") for n in range(1, 6)
     ], [r.line() for r in results]
+
+
+def test_preflights_phases_split_the_checks_at_the_host_step(tmp_path: Path) -> None:
+    # Group 5's fixes' review, 2: "before" is T1 to T4, which need no host step; "after" is T5 alone, the shared
+    # state's key and certificate, which the host step writes.
+    env_file = tmp_path / "tunnel-end.env"
+    env_file.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+    env_file.chmod(0o600)
+    before = pf.tunnel_end_checks(REPO, env_file, tmp_path / "none", phase="before")
+    after = pf.tunnel_end_checks(REPO, env_file, tmp_path / "none", phase="after")
+    assert [r.check for r in before] == ["T1", "T2", "T3", "T4"]
+    assert [(r.check, r.status) for r in after] == [("T5", "FAIL")]
