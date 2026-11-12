@@ -356,6 +356,21 @@ def test_spec_001s_deploy_page_covers_its_alerts_and_the_manual_retry() -> None:
     assert "attempts.json" in deploy and "h4-deployer.service" in deploy
 
 
+# Group 7's EC2 page (its tasks.md T092), restored (group 7's review A, I-C). c8571b3e's RED named ec2.md beside deploy.md,
+# a page of group 7, which hadn't been written; b10e8446, a GREEN, then dropped it from the test, where it should have
+# been left failing until group 7 wrote the page. contracts/aws-alerts.md §2 sends no kind to ec2.md, so the kinds it
+# holds are those EC2's boot sends itself (contracts/releases-deployer.md §3): `deploy_refused`, reasons `unreachable`
+# and `bucket`, which deploy.md, holding every reason, names too.
+def test_spec_001s_ec2_page_covers_its_boots_alerts_and_the_index_names_them() -> None:
+    assert "ec2.md" in spec_001_runbooks()
+    ec2 = (RUNBOOKS / "ec2.md").read_text(encoding="utf-8")
+    assert "`deploy_refused`" in ec2 and "`deploy_refused`" in index_line("ec2.md")
+    for reason in ("unreachable", "bucket"):
+        assert f"`{reason}`" in ec2, reason
+    deploy = (RUNBOOKS / "deploy.md").read_text(encoding="utf-8")
+    assert "`unreachable`" in deploy and "E1 to E6" in deploy
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses

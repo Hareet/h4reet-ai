@@ -410,7 +410,9 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # From the release (plan.md §16): with the deployer out of it, 12,208 bytes on 2026-11-13 (the deployer's review,
     # nit 1: the earlier 11,975 wasn't the run's own figure); 13,316 after that review's fixes to the first step (its
     # lock, its timeout, its alerts); 13,696 once the first step names EC2's env file too (group 7). Held under
-    # 14,000, so a new host file shows here before it nears the limit.
+    # 14,000, so a new host file shows here before it nears the limit: 304 bytes to spare at a59d52a9, and EC2's
+    # 16,384 less 768 for Go's encoder, 15,616, still 1,920 away. b10e8446 raised this bound from 12,800, test and code
+    # in one GREEN, when the first step's fixes took it to 13,316 (group 7's review A, I-C); the message prints the run.
     size = len(gzip.compress(text.encode(), 6))
     assert size < 14000, (
         f"the tunnel end's user data is {size} bytes gzipped at level 6"
