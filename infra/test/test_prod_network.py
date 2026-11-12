@@ -14,7 +14,8 @@ What the root must hold:
     parameter in the account);
   - the warning rule, h4-tunnel-end-spot-warning, in prod's own handover.tf, naming the tunnel end from this root, to
     h4-alerts as tunnel_end_interruption;
-  - both roots' handover.tf with local.wired = false (plan.md §16, "Why a switch");
+  - both roots' handover.tf holding local.wired as a boolean literal, so no plan's value decides it; false in W1, a
+    W1-only test T175 flips with P-W2 (plan.md §16, "Why a switch"; group 5's review, I8);
   - neither root reading the other: nothing under infra/account names a prod instance or health check, or reads prod's
     state; nothing under infra/prod reads, by a data source or a remote state, what the account makes;
   - the tunnel end's type as local.tunnel_end_type in the unprotected tunnel-end.tf, holding "measure-in-T166" until
@@ -673,8 +674,9 @@ def wired(root: dict[str, list]) -> object:
 
 
 def check_switch(root: dict[str, list]) -> list[str]:
-    if wired(root) is not False:
-        return ["switch: prod's handover.tf doesn't hold local.wired = false"]
+    # A literal either way: W1 holds it false and W2's P-W2 true (test_w1_holds_both_switches_off, below).
+    if not isinstance(wired(root), bool):
+        return ["switch: prod's handover.tf doesn't hold local.wired as a boolean literal"]
     return []
 
 
@@ -732,9 +734,9 @@ def problems(root: dict[str, list]) -> list[str]:
 # The account's side of "neither reads the other" (plan.md §16).
 def account_problems(root: dict[str, list]) -> list[str]:
     found = []
-    if wired(root) is not False:
+    if not isinstance(wired(root), bool):
         found.append(
-            "switch: the account's handover.tf doesn't hold local.wired = false"
+            "switch: the account's handover.tf doesn't hold local.wired as a boolean literal"
         )
     for d in blocks(root, "data"):
         if d.labels[0] == "terraform_remote_state":
@@ -883,8 +885,15 @@ def test_the_warning_rule_is_prods_naming_its_own_instance_to_h4_alerts() -> Non
     assert check_warning_rule(parsed(root_texts())) == []
 
 
-def test_both_roots_hold_the_switch_off() -> None:
+def test_both_roots_hold_the_switch_as_a_literal() -> None:
     assert check_switch(parsed(root_texts())) == []
+    assert isinstance(wired(parsed(account_texts())), bool)
+
+
+# W1 only (plan.md §16, "Why a switch"; group 5's review, I8): W1's three plan blocks are made before any of its
+# applies, so both switches are off. T175's P-W2 sets both true, and flips this test to `is True` in the same patch.
+def test_w1_holds_both_switches_off() -> None:
+    assert wired(parsed(root_texts())) is False
     assert wired(parsed(account_texts())) is False
 
 

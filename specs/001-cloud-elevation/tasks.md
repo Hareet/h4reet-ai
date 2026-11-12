@@ -941,7 +941,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the digests from T174 in `infra/account/main.tf`'s `local.lambda_images`;
   - `local.ec2_generation = 2` in `infra/prod/ec2.tf` (T097);
   - P-W2 for the Author's hand, built from plain copies: `local.wired = true` in `infra/account/handover.tf` and `infra/prod/handover.tf`;
-  - with P-W2 on a patched copy, T046's, T084's, T104's, T119's, and T159's checks pass with both switches on.
+  - with P-W2 on a patched copy, T046's, T084's, T104's, T119's, and T159's checks pass with both switches on;
+  - **after group 5's review (I8):** T046's checks hold each switch to a boolean literal either way, and "off in W1" is its own W1-only test, `infra/test/test_prod_network.py::test_w1_holds_both_switches_off`, which this branch flips to `is True`, test-first, with P-W2.
 
   Then a review by an agent that wrote none of it, and the note. Check: RED with the switches off for the wired checks, GREEN with them on; `make check`'s and `gitleaks dir`'s whole output in the note (W2's branch)
 - [ ] T176 Author: with EC2 stopped, in a scratch clone of W2's `-p` branch with P-W2 committed, `make plan ROOT=prod`, then `ROOT=account`, after W1's applies. Paste both blocks into the note. Read them:
