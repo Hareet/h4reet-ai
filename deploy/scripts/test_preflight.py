@@ -437,7 +437,7 @@ def test_a_valid_stack_passes(
         k: (r.status, r.reason) for k, r in results.items() if r.status == "FAIL"
     } == {}
     expected = {f"P{i}" for i in range(1, 19)} | (
-        {"P19", "P21"} if any_stack.stack == "prod" else set()
+        {"P19", "P21", "P22"} if any_stack.stack == "prod" else set()
     )
     expected |= {"P21"} if any_stack.stack == "dev" else set()
     expected |= {"P20"} if any_stack.stack == "dev-cpu" else set()
@@ -1436,3 +1436,166 @@ def test_p19_checks_aws_only_for_a_route_that_names_bedrock(prod: Stage) -> None
     prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
     result = prod.results()["P19"]
     assert result.status == "PASS" and "no Bedrock adapter" in result.reason
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Spec 001 group 5 (tasks.md T044): the laptop's prod takes the tunnel profile, and P22 checks what its tunnel needs;
+# the tunnel end's class selects its own services only.
+
+TUNNEL_TOKEN = "t" * 43  # a token's shape, made here
+
+
+def tunnel_dir(stage: Stage) -> Path:
+    """The tunnel's client files as the Author's tunnel-keys target leaves them: the key, 0600, and the pinned host
+    key."""
+    folder = stage.home / ".config/h4reet-ai/tunnel/client"
+    folder.mkdir(parents=True)
+    folder.chmod(0o700)
+    key = folder / "id_ed25519"
+    stage.write(
+        key,
+        "-" * 5 + "BEGIN OPENSSH " + "PRIVATE KEY" + "-" * 5 + "\nstand-in\n",
+    )
+    key.chmod(0o600)
+    stage.write(folder / "known_hosts", "h4-tunnel-end ssh-ed25519 " + "A" * 68 + "\n")
+    (folder / "known_hosts").chmod(0o644)
+    return folder
+
+
+def with_tunnel(stage: Stage) -> Path:
+    folder = tunnel_dir(stage)
+    stage.set(
+        COMPOSE_PROFILES="gpu,tunnel",
+        TUNNEL_END_ADDRESS="198.51.100.7",
+        H4_TUNNEL_DIR=str(folder),
+        RELAY_TOKEN_SELF=TUNNEL_TOKEN,
+        TELEMETRY_BLOCK_TOKEN=TUNNEL_TOKEN[::-1] + "u",
+    )
+    return folder
+
+
+def test_p6_prod_may_add_the_tunnel_profile(prod: Stage) -> None:
+    with_tunnel(prod)
+    assert prod.results()["P6"].status == "PASS", prod.results()["P6"].reason
+
+
+def test_p6_only_prods_laptop_takes_the_tunnel_profile(dev: Stage) -> None:
+    dev.set(COMPOSE_PROFILES="gpu,dev-receivers,tunnel")
+    result = dev.results()["P6"]
+    assert (
+        result.status == "FAIL"
+        and "COMPOSE_PROFILES isn't gpu,dev-receivers" in result.reason
+    )
+
+
+def test_p22_passes_with_no_tunnel_profile(prod: Stage) -> None:
+    result = prod.results()["P22"]
+    assert result.status == "PASS" and "no tunnel profile" in result.reason
+
+
+def test_p22_passes_with_the_tunnels_address_keys_and_tokens(prod: Stage) -> None:
+    with_tunnel(prod)
+    result = prod.results()["P22"]
+    assert result.status == "PASS", result.reason
+    assert TUNNEL_TOKEN not in result.reason
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        ({"TUNNEL_END_ADDRESS": ""}, "TUNNEL_END_ADDRESS"),
+        ({"TUNNEL_END_ADDRESS": "tunnel.example.invalid"}, "TUNNEL_END_ADDRESS"),
+        ({"TUNNEL_END_ADDRESS": "10.42.0.10"}, "TUNNEL_END_ADDRESS"),
+        ({"RELAY_TOKEN_SELF": ""}, "RELAY_TOKEN_SELF"),
+        ({"RELAY_TOKEN_SELF": "short"}, "RELAY_TOKEN_SELF"),
+        ({"TELEMETRY_BLOCK_TOKEN": ""}, "TELEMETRY_BLOCK_TOKEN"),
+        ({"H4_TUNNEL_DIR": "/nonexistent/tunnel"}, "H4_TUNNEL_DIR"),
+    ],
+)
+def test_p22_names_what_the_tunnel_lacks_never_a_value(
+    prod: Stage, change: dict, named: str
+) -> None:
+    with_tunnel(prod)
+    prod.set(**change)
+    result = prod.results()["P22"]
+    assert result.status == "FAIL" and named in result.reason, result.reason
+    assert TUNNEL_TOKEN not in result.reason
+
+
+def test_p22_refuses_a_key_others_can_read_and_a_host_key_unpinned(
+    prod: Stage,
+) -> None:
+    folder = with_tunnel(prod)
+    (folder / "id_ed25519").chmod(0o644)
+    assert "id_ed25519" in prod.results()["P22"].reason
+    (folder / "id_ed25519").chmod(0o600)
+    (folder / "known_hosts").write_text("", encoding="utf-8")
+    result = prod.results()["P22"]
+    assert result.status == "FAIL" and "known_hosts" in result.reason
+
+
+def tunnel_end_env(tmp_path: Path, **changes: str) -> Path:
+    """The tunnel end's env file as write_env.py writes it: its template, with each parameter filled."""
+    template = REPO / "deploy/hosts/tunnel-end/tunnel-end.env.example"
+    lines = []
+    for line in template.read_text(encoding="utf-8").splitlines():
+        key, sep, value = line.partition("=")
+        if sep and not line.startswith("#"):
+            filled = TUNNEL_TOKEN if value.startswith("__PARAMETER") else value
+            line = f"{key}={changes.pop(key, filled)}"
+        lines.append(line)
+    assert not changes, changes
+    path = tmp_path / "tunnel-end.env"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_the_tunnel_end_class_selects_its_services_only() -> None:
+    assert pf.HOST_CLASSES["tunnel-end"] == (
+        "tunnel-end",
+        "relay",
+        "snapshot-sink",
+        "tunnel-end-collector",
+    )
+    in_profile = {
+        name
+        for name, s in RAW["services"].items()
+        if "tunnel-end" in (s.get("profiles") or [])
+    }
+    assert in_profile and in_profile <= set(pf.HOST_CLASSES["tunnel-end"])
+    for name in in_profile:
+        assert RAW["services"][name]["profiles"] == ["tunnel-end"], name
+
+
+def test_the_tunnel_end_class_passes_its_env_file(tmp_path: Path) -> None:
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, tunnel_end_env(tmp_path))}
+    assert {k: r.reason for k, r in results.items() if r.status != "PASS"} == {}
+    assert set(results) == {"T1", "T2", "T3", "T4"}
+
+
+@pytest.mark.parametrize(
+    ("change", "check", "named"),
+    [
+        ({"H4_HOST": "laptop"}, "T3", "H4_HOST"),
+        ({"H4_STACK": "dev"}, "T3", "H4_STACK"),
+        ({"COMPOSE_PROFILES": "tunnel-end,gpu"}, "T3", "COMPOSE_PROFILES"),
+        ({"TELEMETRY_BLOCK_TOKEN": ""}, "T4", "TELEMETRY_BLOCK_TOKEN"),
+    ],
+)
+def test_the_tunnel_end_class_names_what_is_wrong(
+    tmp_path: Path, change: dict, check: str, named: str
+) -> None:
+    results = {
+        r.check: r
+        for r in pf.tunnel_end_checks(REPO, tunnel_end_env(tmp_path, **change))
+    }
+    assert results[check].status == "FAIL" and named in results[check].reason
+    assert TUNNEL_TOKEN not in results[check].reason
+
+
+def test_the_tunnel_end_class_refuses_a_file_others_can_read(tmp_path: Path) -> None:
+    path = tunnel_end_env(tmp_path)
+    path.chmod(0o644)
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, path)}
+    assert results["T1"].status == "FAIL"

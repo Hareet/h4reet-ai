@@ -51,8 +51,10 @@ FILES = (
     "iam.tf",
     "killswitch.tf",
     "alerts.tf",
+    "handover.tf",
 )
-PROTECTED_FILES = ("iam.tf", "killswitch.tf", "alerts.tf")
+# handover.tf arrives in W1, holding the account's switch alone (P-I3; plan.md §16, "Why a switch").
+PROTECTED_FILES = ("iam.tf", "killswitch.tf", "alerts.tf", "handover.tf")
 # The one variable, the Bedrock service names group 3's budgets read too; the guard patch denies the TF_VAR_ names to
 # agent sessions (contracts/env-cloud.md §5), so a new variable needs its deny first (FR-011).
 VARIABLES = {"bedrock_service_names"}
@@ -1252,7 +1254,7 @@ def check_files(root: dict[str, list]) -> list[str]:
                 )
             ):
                 found.append(
-                    f"files: {address(b)} lives outside iam.tf, killswitch.tf, and alerts.tf"
+                    f"files: {address(b)} lives outside iam.tf, killswitch.tf, alerts.tf, and handover.tf"
                 )
     return found
 
@@ -1461,7 +1463,7 @@ FIXTURE_FILES = sorted(FIXTURES.glob("*.tf"))
 # The tests.
 
 
-def test_the_root_holds_its_nine_files_with_the_protected_three_from_p_i2_until_applied() -> (
+def test_the_root_holds_its_ten_files_with_the_protected_ones_from_their_patches_until_applied() -> (
     None
 ):
     texts = root_texts()
@@ -1471,7 +1473,8 @@ def test_the_root_holds_its_nine_files_with_the_protected_three_from_p_i2_until_
             assert (
                 from_patch(PI2.read_text(encoding="utf-8"), f"infra/account/{name}")
                 is not None
-            )
+                or patches.patched_text(f"infra/account/{name}") is not None
+            ), name
 
 
 def test_every_file_reads_as_hcl() -> None:
@@ -1711,3 +1714,39 @@ def test_the_patch_reader_takes_a_new_files_lines_only() -> None:
 
 def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
     assert check_audit_allowlist(parsed(root_texts())) == []
+
+
+# The repositories the tunnel end pulls from (tasks.md T051; the regrouping review's I4): each image a tunnel-end-class
+# service runs, by the repository the release copies it to. The deployer's first pull needs them before groups 8 and 9
+# make the relay's and the snapshot's images.
+TUNNEL_END_IMAGES = {
+    "tunnel-end": "tunnel",
+    "tunnel-end-collector": "otel-collector",
+    "relay": "relay",
+    "snapshot-sink": "snapshot",
+}
+
+
+def test_each_image_the_tunnel_end_runs_has_its_repository() -> None:
+    compose = yaml.safe_load(
+        (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    )
+    in_class = {
+        name
+        for name, service in compose["services"].items()
+        if "tunnel-end" in (service.get("profiles") or [])
+    }
+    assert in_class and in_class <= set(TUNNEL_END_IMAGES), in_class - set(
+        TUNNEL_END_IMAGES
+    )
+    root = parsed(root_texts())
+    stack = ip.literal(locals_of(root)["stack_repositories"])
+    assert set(TUNNEL_END_IMAGES.values()) <= set(stack), set(
+        TUNNEL_END_IMAGES.values()
+    ) - set(stack)
+    # Each by the same for_each, so each is tagged and keeps the lifecycle policy the others have.
+    (repos,) = [
+        r for r in resource(root, "aws_ecr_repository") if r.labels[1] == "stack"
+    ]
+    assert raw(repos, "for_each") == "toset(local.stack_repositories)"
+    assert check_registry(root) == [] and check_tags(root) == []

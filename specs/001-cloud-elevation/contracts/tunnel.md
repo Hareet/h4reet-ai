@@ -85,3 +85,19 @@ On EC2 and on the tunnel end, as September: a host proxy with a hostname allowli
 | The tunnel end | the AWS endpoints for ECR (its deployer's pulls), S3, Systems Manager, STS, Budgets, EC2's describe calls, SNS (its alerts to `h4-alerts`; row C7), Route 53's health-check status, and CloudWatch's metric reads (the dashboard's reads, plan §11) | RDS; EC2's relay block; EC2's collector |
 
 `tools/gates/disclosure_check.py` fails the gate when an allowlist and the disclosure differ.
+
+## 7. The dashboard's Hosts row: the tunnel (group 5)
+
+`deploy/grafana/dashboards/h4-runtime.json`, in its own row, "Hosts", above the dev-time row (plan.md §11). Later groups add their panels to the row, each in the contract of its feature. Group 5's:
+
+| Panel | Type | Query |
+|---|---|---|
+| Tunnel up (FR-060) | stat, and a state timeline | `max by (h4_tunnel_end) (h4_tunnel_up)` |
+| Tunnel reconnects | time series | `sum by (h4_tunnel_end) (increase(h4_tunnel_reconnects_total[1h]))` |
+| Telemetry delayed at the tunnel end (FR-060) | time series | `max by (exporter) (otelcol_exporter_queue_size{service_name="tunnel-end-collector"} / otelcol_exporter_queue_capacity{service_name="tunnel-end-collector"})` |
+| Telemetry lost at the tunnel end (FR-060) | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total{service_name="tunnel-end-collector"}[5m]))`, and the same for metric points and log records |
+
+- **`h4_tunnel_up`** is `h4.tunnel.up`, a gauge each end of the tunnel pushes every 15 seconds, labelled `h4.tunnel.end`: `laptop` from the `tunnel` service, 1 while its connection is up; `tunnel-end` from `tunnel-end`, 1 while its three reverse forwards listen. Up reads "up" in green, down "down" in red.
+- **`h4_tunnel_reconnects_total`** is `h4.tunnel.reconnects`, a counter: each new connection after the first, on the laptop; each accepted login, on the tunnel end.
+- **The tunnel end's collector** pushes its own counters through its own pipeline, as `service.name` `tunnel-end-collector`, so they reach whichever host is up; its two exporters are `otlphttp/laptop` and `otlphttp/ec2`. "Delayed" is its file-backed queue's fill, "lost" what the queue refused when full.
+- `deploy/scripts/test_dashboard.py` reads this section's table.
