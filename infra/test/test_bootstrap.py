@@ -436,6 +436,12 @@ def check_server_budget(root: dict[str, list]) -> list[str]:
         or ip.literal(b.attr("budget_type")) != "COST"
     ):
         found.append("h4-server-month: isn't a MONTHLY COST budget")
+    # hashicorp/aws 6.72.0 refuses filter_expression without metrics ("all of `filter_expression,metrics` must be
+    # specified", the Author's T027 plan, 2026-11-11). Unblended cost: the account has no credits (his answer).
+    if re.sub(r"\s", "", raw(b, "metrics")) != '["UnblendedCost"]':
+        found.append(
+            'h4-server-month: metrics isn\'t ["UnblendedCost"], which filter_expression needs'
+        )
     fe = b.block("filter_expression")
     excluded = fe.block("not") if fe is not None else None
     dims = excluded.block("dimensions") if excluded is not None else None

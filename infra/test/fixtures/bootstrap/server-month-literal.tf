@@ -6,6 +6,7 @@ resource "aws_budgets_budget" "server_month" {
   limit_amount = "30"
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
+  metrics      = ["UnblendedCost"]
 
   filter_expression {
     not {

@@ -6,6 +6,7 @@ resource "aws_budgets_budget" "server_month" {
   limit_amount = tostring(var.server_budget_usd)
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
+  metrics      = ["UnblendedCost"]
 
   notification {
     comparison_operator       = "GREATER_THAN"

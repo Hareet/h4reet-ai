@@ -796,6 +796,11 @@ def check_rehearsal(
         found.append(
             "rehearsal model budget: it counts cost net of credits, unlike h4-model-month (include_credit = false)"
         )
+    # As h4-server-month: hashicorp/aws 6.72.0 refuses filter_expression without metrics (the T027 plan, 2026-11-11).
+    if re.sub(r"\s", "", raw(server, "metrics")) != '["UnblendedCost"]':
+        found.append(
+            'rehearsal server budget: metrics isn\'t ["UnblendedCost"], which filter_expression needs'
+        )
     fe = server.block("filter_expression")
     n = fe.block("not") if fe else None
     dims = n.block("dimensions") if n else None
