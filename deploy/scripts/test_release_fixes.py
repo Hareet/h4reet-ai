@@ -1,0 +1,116 @@
+"""Group 7's fixes, reviewed (the review of a59d52a9..7c5f1259): what the release refuses now.
+
+- I1: a public release needs a passing run of its commit on each host's two route adapters, the laptop's and EC2's,
+  read from the export's config/routing.yaml; a route the export doesn't name refuses it;
+- I2: the release runs only as main's own code: its own bytes and the Makefile's are refs/heads/main's blobs, or it
+  refuses before anything is built; and every git command it runs has replace objects off;
+- nit 1: the gate's line must report a pass: no failing step, no PENDING, no DEGRADED run.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location(
+    "test_release_for_fixes", HERE / "test_release.py"
+)
+assert SPEC and SPEC.loader
+base = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = base
+SPEC.loader.exec_module(base)
+rl = base.rl
+
+
+def test_a_public_release_needs_ec2s_own_runs_not_the_laptops_of_the_same_adapter(
+    tmp_path: Path,
+) -> None:
+    r = base.Runner()
+    laptop_only = base.history(
+        tmp_path, {"laptop/local": 0, "laptop/anthropic": 0, "laptop/bedrock": 0}
+    )
+    assert base.run(tmp_path, r, public=True, folder=laptop_only) == 1
+    assert r.builds() == []
+
+
+def test_an_export_without_ec2s_route_refuses_a_public_release(tmp_path: Path) -> None:
+    path, sha = base.plugin(tmp_path)
+    code = rl.run(
+        rl.Options(
+            registry=base.REGISTRY,
+            bucket=base.BUCKET,
+            compose_plugin=path,
+            compose_sha256=sha,
+            public=True,
+            local=tmp_path / "releases",
+            redteam=base.history(tmp_path, dict.fromkeys(base.FOUR, 0)),
+        ),
+        base.Runner(),
+        root=base.REPO,
+        now=lambda: "20261113T010203Z",
+        exported=base.exported,
+        routing_of=lambda src: {
+            "envs": {
+                "prod": {
+                    "hosts": {"laptop": {"primary": "local", "fallback": "anthropic"}}
+                }
+            }
+        },
+    )
+    assert code == 1
+
+
+@pytest.mark.parametrize("path", ["deploy/scripts/release.py", "Makefile"])
+def test_the_release_refuses_unless_it_and_the_makefile_are_mains(
+    tmp_path: Path, path: str, capsys
+) -> None:
+    r = base.Runner()
+    r.blobs[path] = "0" * 40
+    assert base.run(tmp_path, r) == 1
+    assert r.builds() == [] and r.uploads == []
+    assert "main's checkout" in capsys.readouterr().err
+
+
+def test_every_command_runs_with_replace_objects_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[dict] = []
+
+    def fake(argv, **kwargs):
+        seen.append(kwargs.get("env") or {})
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(rl.subprocess, "run", fake)
+    rl.subprocess_runner(["git", "show", "-s", "HEAD"])
+    rl.subprocess_runner(["docker", "buildx", "ls"], env={"PATH": "/usr/bin"})
+    assert all(e.get("GIT_NO_REPLACE_OBJECTS") == "1" for e in seen) and len(seen) == 2
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "gate: {tip} (feat/x) by tools/gates/gate at {p}: 21 PASS, 4 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 1 FAIL; failing: test FAIL",
+        "gate: {tip} (feat/x) by tools/gates/gate at {p}: 21 PASS, 0 PLANNED, 1 PENDING, 0 FAIL; failing: plan PENDING",
+        "gate: {tip} (feat/x) by tools/gates/gate at {p}: 9 PASS, 0 FAIL; DEGRADED (--host): no container phase",
+    ],
+)
+def test_a_gate_line_that_doesnt_report_a_pass_is_refused(
+    tmp_path: Path, line: str
+) -> None:
+    r = base.Runner()
+    text = line.format(tip=base.TIP, p=base.PARENT[:12])
+    r.merge = f"{base.PARENT} {base.TIP}\nMerge feat/x ({base.TIP[:12]})\n\n{text}\n"
+    assert base.run(tmp_path, r) == 1
+    assert r.builds() == []
+
+
+def test_the_gates_full_passing_line_is_accepted(tmp_path: Path) -> None:
+    r = base.Runner()
+    line = f"gate: {base.TIP} (feat/x) by tools/gates/gate at {base.PARENT[:12]}: 22 PASS, 4 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL"
+    r.merge = f"{base.PARENT} {base.TIP}\nMerge feat/x ({base.TIP[:12]})\n\n{line}\n"
+    assert base.run(tmp_path, r) == 0

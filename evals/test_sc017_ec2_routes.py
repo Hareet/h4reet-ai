@@ -268,7 +268,7 @@ def test_the_failing_phase_refuses_the_key_and_recreates_the_gateway_then_restor
         ran.append((list(argv), dict(kwargs)))
         return 0
 
-    key = sc.Ec2Key(env_file, state, runner)
+    key = sc.Ec2Key(env_file, state, runner, run_dir=tmp_path / "run")
     key.refuse()
     # The deployer holds while the run does, so its minute's check never brings the real key back mid-phase.
     assert (state / "hold").is_file()
@@ -309,7 +309,7 @@ def test_the_failing_phase_refuses_the_key_and_recreates_the_gateway_then_restor
 def test_a_hold_the_author_made_stays_after_the_run(tmp_path: Path) -> None:
     state, _, _, env_file = ec2_state(tmp_path)
     (state / "hold").write_text("the Author\n", encoding="utf-8")
-    key = sc.Ec2Key(env_file, state, lambda argv, **k: 0)
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 0, run_dir=tmp_path / "run")
     key.refuse()
     key.restore()
     assert (state / "hold").read_text() == "the Author\n"
@@ -317,6 +317,96 @@ def test_a_hold_the_author_made_stays_after_the_run(tmp_path: Path) -> None:
 
 def test_a_failed_recreate_stops_the_run(tmp_path: Path) -> None:
     state, _, _, env_file = ec2_state(tmp_path)
-    key = sc.Ec2Key(env_file, state, lambda argv, **k: 1)
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 1, run_dir=tmp_path / "run")
     with pytest.raises(RuntimeError):
         key.refuse()
+
+
+# --- group 7's fixes, reviewed (I3): a harness that dies mid-phase leaves nothing that outlives it -------------------
+
+
+def test_the_refused_copy_lives_on_tmpfs_never_in_the_deployers_state(
+    tmp_path: Path,
+) -> None:
+    state, _, _, env_file = ec2_state(tmp_path)
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 0, run_dir=tmp_path / "run")
+    assert key.refused_env == tmp_path / "run" / "sc017.env"
+    assert sc.RUN_DIR == Path("/run/h4reet")
+    key.refuse()
+    assert key.refused_env.is_file() and not (state / "sc017.env").exists()
+
+
+def test_the_hold_is_stamped_and_written_under_the_state_lock_before_the_release_is_read(
+    tmp_path: Path,
+) -> None:
+    state, tree, _, env_file = ec2_state(tmp_path)
+    seen: list[str] = []
+    key = sc.Ec2Key(
+        env_file,
+        state,
+        lambda argv, **k: 0,
+        run_dir=tmp_path / "run",
+        clock=lambda: 1_900_000_000.0,
+    )
+    key.locked = lambda: seen.append("lock") or sc.contextlib.nullcontext()  # type: ignore[method-assign]
+    key.hold()
+    assert seen == ["lock"]
+    assert (state / "hold").read_text(encoding="utf-8") == "sc017 1900000000\n"
+    assert key.tree == tree
+    key.refuse()
+    key.restore()
+    assert not (state / "hold").exists()
+
+
+def test_the_state_lock_is_the_first_steps(tmp_path: Path) -> None:
+    state, _, _, env_file = ec2_state(tmp_path)
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 0, run_dir=tmp_path / "run")
+    with key.locked():
+        assert (state / ".lock").exists()
+
+
+def test_a_terminating_signal_ends_the_run_through_its_restore(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for signum in (sc.signal.SIGTERM, sc.signal.SIGHUP):
+        with pytest.raises(SystemExit):
+            sc.on_signal(signum, None)
+    restored: list[bool] = []
+
+    class Key:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def hold(self) -> None:
+            pass
+
+        def refuse(self) -> None:
+            pass
+
+        def restore(self) -> bool:
+            restored.append(True)
+            return True
+
+    def dies(*a, **k):
+        sc.on_signal(sc.signal.SIGHUP, None)
+
+    token = tmp_path / "token"
+    token.write_text("t\n", encoding="utf-8")
+    monkeypatch.setattr(sc, "Ec2Key", Key)
+    monkeypatch.setattr(sc, "run", dies)
+    monkeypatch.setattr(sc, "ec2_route", lambda path: {})
+    before = sc.signal.getsignal(sc.signal.SIGTERM)
+    with pytest.raises(SystemExit):
+        sc.main(
+            ["--base", "http://127.0.0.1:18000", "--operator-token-file", str(token)],
+            env={},
+        )
+    assert restored == [True]
+    assert sc.signal.getsignal(sc.signal.SIGTERM) == before
+
+
+def test_the_run_says_how_far_it_has_got(capsys) -> None:
+    gateway, _, _ = world()
+    sc.run(gateway, 20, lambda: None, None, 0)
+    err = capsys.readouterr().err
+    assert "sc017: healthy 10/20" in err and "sc017: failing 20/20" in err

@@ -47,6 +47,27 @@ GATED = (
 )
 
 
+def blob_of(path: Path) -> str:
+    """git's blob ID of a file's bytes, as `git hash-object` gives it."""
+    data = path.read_bytes()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+# FR-039's four, each host's two route adapters (group 7's fixes' review, I1): the laptop's from the export's
+# config/routing.yaml, EC2's from its line there, which the tests' routing gives.
+FOUR = ("laptop/local", "laptop/anthropic", "ec2/anthropic", "ec2/bedrock")
+ROUTING = {
+    "envs": {
+        "prod": {
+            "hosts": {
+                "laptop": {"primary": "local", "fallback": "anthropic"},
+                "ec2": {"first": "anthropic", "second": "bedrock"},
+            }
+        }
+    }
+}
+
+
 class Runner:
     """Each command, and an answer by its first words."""
 
@@ -60,6 +81,8 @@ class Runner:
         self.wrong_copy: str | None = None
         self.merge = GATED
         self.fail_with: BaseException | None = None
+        # main's blob of a path, where a test makes it differ from the tree's (group 7's fixes' review, I2).
+        self.blobs: dict[str, str] = {}
 
     def __call__(self, argv: list[str], data: bytes | None = None) -> tuple[int, str]:
         self.calls.append(list(argv))
@@ -67,6 +90,13 @@ class Runner:
             raise self.fail_with
         if argv[:3] == ["git", "rev-parse", "HEAD"]:
             return 0, "e" * 40 + "\n"  # the checkout, which the release never reads
+        if argv[:2] == ["git", "rev-parse"] and any(
+            a.startswith("refs/heads/main:") for a in argv
+        ):
+            path = next(a for a in argv if a.startswith("refs/heads/main:")).split(
+                ":", 1
+            )[1]
+            return 0, self.blobs.get(path, blob_of(REPO / path)) + "\n"
         if argv[:2] == ["git", "rev-parse"] and "refs/heads/main" in argv:
             return 0, self.main + "\n"
         if argv[:3] == ["git", "status", "--porcelain"]:
@@ -113,11 +143,13 @@ def history(
 ) -> Path:
     folder = tmp_path / "redteam-history"
     folder.mkdir(exist_ok=True)
-    for adapter, failed in adapters.items():
-        (folder / f"20270101T000000Z-{adapter}.json").write_text(
+    for name, failed in adapters.items():
+        host, _, adapter = name.rpartition("/")
+        (folder / f"20270101T000000Z-{name.replace('/', '-')}.json").write_text(
             json.dumps(
                 {
                     "adapter": adapter,
+                    **({"host": host} if host else {}),
                     "cases": 48,
                     "failed": failed,
                     "unjudged": 0,
@@ -166,6 +198,7 @@ def run(
         root=REPO,
         now=lambda: "20261113T010203Z",
         exported=exported,
+        routing_of=lambda src: ROUTING,
     )
 
 
@@ -224,11 +257,11 @@ def test_a_copy_whose_digest_isnt_the_locks_is_refused(tmp_path: Path) -> None:
     assert r.uploads == []
 
 
-@pytest.mark.parametrize("failed_adapter", ["local", "bedrock", "anthropic"])
+@pytest.mark.parametrize("failed_adapter", FOUR)
 def test_a_public_release_needs_the_red_team_on_all_four_adapters(
     tmp_path: Path, failed_adapter: str
 ) -> None:
-    adapters = {a: 0 for a in rl.ADAPTERS}
+    adapters = dict.fromkeys(FOUR, 0)
     adapters[failed_adapter] = 1
     r = Runner()
     assert run(tmp_path, r, public=True, folder=history(tmp_path, adapters)) == 1
@@ -244,7 +277,7 @@ def test_a_public_release_with_every_adapter_passing_since_the_commit(
             tmp_path,
             r,
             public=True,
-            folder=history(tmp_path, dict.fromkeys(rl.ADAPTERS, 0)),
+            folder=history(tmp_path, dict.fromkeys(FOUR, 0)),
         )
         == 0
     )
@@ -258,15 +291,24 @@ def test_a_run_of_another_commit_or_of_none_doesnt_count(
     # Group 7's review A, I-D: a run is matched by its record's commit, not by its time, so a run made after the merge
     # needn't dirty the tree or move HEAD; one with no commit field, from before it, counts for nothing.
     r = Runner()
-    other = history(tmp_path, dict.fromkeys(rl.ADAPTERS, 0), commit=commit)
+    other = history(tmp_path, dict.fromkeys(FOUR, 0), commit=commit)
     assert run(tmp_path, r, public=True, folder=other) == 1
     assert r.builds() == []
 
 
 def test_the_four_adapters_are_those_that_answer_on_either_host() -> None:
-    # FR-039: the laptop's local model and its paid fallback, EC2's Anthropic API and Bedrock: three adapters' names.
-    # "fake" answers nothing live, and redteam-live refuses it, so it could never pass.
-    assert rl.ADAPTERS == ("local", "bedrock", "anthropic")
+    # FR-039: the laptop's local model and its paid fallback, EC2's Anthropic API and Bedrock, each on its own host,
+    # from the export's routing (group 7's fixes' review, I1): a laptop run of Bedrock doesn't stand for EC2's.
+    assert rl.required_runs(ROUTING) == [
+        ("laptop", "local"),
+        ("laptop", "anthropic"),
+        ("ec2", "anthropic"),
+        ("ec2", "bedrock"),
+    ]
+    # A record without a host is the laptop's, as every run before group 7's fixes was.
+    assert rl.required_runs(
+        {"envs": {"prod": {"hosts": {"laptop": {"primary": "local"}}}}}
+    ) == [("laptop", "local")]
 
 
 def test_a_site_build_with_drafts_is_refused_before_anything_is_pushed(

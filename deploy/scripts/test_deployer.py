@@ -1388,3 +1388,98 @@ def test_the_deployments_counter_is_cumulative_from_one_start_across_runs(
         {"deployed": "1", "refused": "0", "rolled_back": "1", "rollback_failed": "0"},
         {"deployed": "1", "refused": "0", "rolled_back": "1", "rollback_failed": "0"},
     ]
+
+
+# --- group 7's fixes, reviewed (I3): SC-017's hold, left by a harness that died ----------------------------------------
+
+
+def ec2_run(w: Ec2World, tmp_path: Path, now: float) -> int:
+    return dp.run(
+        "ec2",
+        env_file=w.env_file,
+        state=w.state,
+        aws=w.aws,
+        docker=w.docker,
+        plugin=w.plugin,
+        now=lambda: "2026-11-13T01:02:03Z",
+        clock=lambda: now,
+        run_dir=tmp_path / "run",
+    )
+
+
+def test_a_stale_sc017_hold_is_cleared_and_the_gateway_recreated_with_the_real_key(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert ec2_run(w, tmp_path, 1_900_000_000.0) == 0
+    (w.state / "hold").write_text("sc017 1900000000\n", encoding="utf-8")
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "sc017.env").write_text(
+        "GATEWAY_ANTHROPIC_API_KEY=x\n", encoding="utf-8"
+    )
+    w.docker.calls.clear()
+    assert ec2_run(w, tmp_path, 1_900_000_000.0 + dp.SC017_STALE_S + 1) == 0
+    assert (
+        not (w.state / "hold").exists()
+        and not (tmp_path / "run" / "sc017.env").exists()
+    )
+    recreated = [
+        (args, env) for _, args, env in w.docker.calls if "--force-recreate" in args
+    ]
+    assert recreated and recreated[0][0][-1] == "gateway"
+    assert (
+        "GATEWAY_ANTHROPIC_API_KEY" not in recreated[0][1]
+        or recreated[0][1]["GATEWAY_ANTHROPIC_API_KEY"] != "x"
+    )
+
+
+def test_a_fresh_sc017_hold_and_the_authors_own_stay(tmp_path: Path) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert ec2_run(w, tmp_path, 1_900_000_000.0) == 0
+    for text, now in (
+        ("sc017 1900000000\n", 1_900_000_000.0 + 60),
+        ("the Author\n", 2_000_000_000.0),
+    ):
+        (w.state / "hold").write_text(text, encoding="utf-8")
+        w.docker.calls.clear()
+        assert ec2_run(w, tmp_path, now) == 0
+        assert (w.state / "hold").read_text(encoding="utf-8") == text
+        assert w.docker.calls == []
+
+
+# --- group 7's fixes, reviewed (nit 5): the deployments counter's own file -----------------------------------------------
+
+
+def test_a_damaged_count_in_events_json_is_read_as_none_and_the_record_still_written(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    events = w.state / "events.json"
+    data = json.loads(events.read_text())
+    data["counts"] = {k: "many" for k in data.get("counts", {"deployed": 1})}
+    events.write_text(json.dumps(data), encoding="utf-8")
+    w.release("r2")
+    before = len(w.records())
+    assert w.run() == 0
+    assert len(w.records()) == before + 1
+
+
+def test_an_unwritable_events_json_is_said_not_swallowed(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    real = dp.Path.write_text
+
+    def refuse(self, *a, **k):
+        if self.name == "events.json" or self.name.startswith(".events"):
+            raise PermissionError("read-only")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(dp.Path, "write_text", refuse)
+    assert w.run() == 0
+    assert "events.json" in capsys.readouterr().err
