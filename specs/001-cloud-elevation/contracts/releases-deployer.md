@@ -58,7 +58,7 @@ It runs under an exclusive lock on `<state>/.lock`, so the boot's run and the ti
 | Exit | Run | Means |
 |---|---|---|
 | 0 | the boot's or the timer's | the deployer ran: it deployed, kept what runs, or refused or rolled back and alerted (its own 75); or there's no release yet, or the bucket is out of the network's reach |
-| 1 | the boot's or the timer's | nothing ran that should have: no env file; the bucket refuses (`deploy_refused`, reason `bucket`, once per boot); a tree that isn't the release's (reason `tree`); or the release's deployer, and the previous release's, didn't run (reason `deployer`) |
+| 1 | the boot's or the timer's | nothing ran that should have: no env file; before any release has started here, the bucket refuses (`deploy_refused`, reason `bucket`, once per boot; once one has, the running release's deployer alerts it and exits 75, so 0 here, group 7's review A, nit 5); a tree that isn't the release's (reason `tree`); or the release's deployer, and the previous release's, didn't run (reason `deployer`) |
 | the deployer's own | a restart | passed through as it is, with no fallback: a failed restart fails its unit and the Systems Manager command that started it |
 
 **The deployer's exits:** 0 for a run that changed nothing or deployed; 75 for a check or a boot that refused or rolled back and alerted; 1 for a restart that failed; anything else is a deployer that didn't run.
