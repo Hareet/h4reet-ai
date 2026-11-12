@@ -4,7 +4,8 @@
 # the egress proxy start, and cloud-init at the first boot. The security groups are the first filter
 # (infra/prod/tunnel-end.tf): 8087's sources are Route 53's checkers there.
 #   in:  new connections on the public interface (ens5) to 2222 and 8087 alone, before Docker's DNAT; on the private
-#        interface (ens6), to the relay's 8080 alone;
+#        interface (ens6), to the relay's 8080 and, from group 6, the shared state's 5432, which the security group
+#        holds to EC2's group;
 #   out: only the egress proxy's user, h4-egress, beyond the VPC, on 443; root alone to the instance metadata; time,
 #        the VPC's resolver, the VPC, and Docker's own bridges;
 #   forward: no container reaches beyond the VPC: each goes out through nothing.
@@ -17,7 +18,7 @@ table inet h4reet {
     type filter hook prerouting priority mangle; policy accept;
     iifname "ens5" ct state new tcp dport { 2222, 8087 } accept
     iifname "ens5" ct state new drop
-    iifname "ens6" ct state new tcp dport 8080 accept
+    iifname "ens6" ct state new tcp dport { 5432, 8080 } accept
     iifname "ens6" ct state new drop
   }
 

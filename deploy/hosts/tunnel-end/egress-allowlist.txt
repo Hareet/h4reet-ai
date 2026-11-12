@@ -2,7 +2,7 @@
 # proxy, deploy/scripts/egress_proxy.py, may CONNECT to, on 443 alone. Each is named, in backticks, by a row of
 # docs/data-flow-disclosure.md (C7 and C17), which tools/gates/disclosure_check.py holds it to. A `*` stands for one
 # label or the rest of one: the account's registry's name holds the account's ID, and the release bucket's name AWS's
-# suffix. Groups 6 to 9 add the names their reads need, each with its row.
+# suffix. Groups 6 to 9 add the names their reads need, each with its row: group 6's, the backups' bucket.
 
 # The deployer's pulls from the account's registry (ECR): its API, the registry, and the layers' store.
 api.ecr.us-east-1.amazonaws.com
@@ -17,5 +17,9 @@ ssm.us-east-1.amazonaws.com
 ssmmessages.us-east-1.amazonaws.com
 ec2messages.us-east-1.amazonaws.com
 
-# The deployer's alerts to h4-alerts (contracts/aws-alerts.md §1).
+# The deployer's alerts, and the backup's, to h4-alerts (contracts/aws-alerts.md §1).
 sns.us-east-1.amazonaws.com
+
+# Group 6's backups (disclosure row C16): the shared state's hourly dump to its own bucket, whose name holds the
+# account's ID; and a restore's presigned GET of one dump (contracts/shared-state.md §8).
+h4reet-ai-shared-state-*.s3.us-east-1.amazonaws.com

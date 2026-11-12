@@ -337,12 +337,13 @@ def test_prepare_refuses_a_store_without_its_key_or_certificate(
 
 def test_the_backup_dumps_over_the_socket_and_puts_under_its_prefix(world) -> None:
     host, paths = world
-    host.answer("docker exec h4reet-prod-shared-state-1 pg_dump", out=DUMP)
+    host.answer("docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", out=DUMP)
     assert ss.backup(host, paths, now=1_763_000_000) == 0
     commands = ran(host)
     dump = next(c for c in commands if " pg_dump " in c)
     assert dump == (
-        "docker exec h4reet-prod-shared-state-1 pg_dump --username=postgres --dbname=h4reet --format=custom"
+        # As the container's postgres user, whom the socket's peer line alone admits.
+        "docker exec -u postgres h4reet-prod-shared-state-1 pg_dump --username=postgres --dbname=h4reet --format=custom"
     )
     assert "--host" not in dump  # the local socket
     put = next(c for c in commands if c.startswith("aws s3 cp"))
@@ -361,10 +362,12 @@ def test_a_failed_backup_alerts_once_and_keeps_the_last_good_dump(
     world, step: str
 ) -> None:
     host, paths = world
-    host.answer("docker exec h4reet-prod-shared-state-1 pg_dump", out=DUMP)
+    host.answer("docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", out=DUMP)
     assert ss.backup(host, paths, now=1_763_000_000) == 0
     if step == "dump":
-        host.answer("docker exec h4reet-prod-shared-state-1 pg_dump", 1, b"")
+        host.answer(
+            "docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", 1, b""
+        )
     else:
         host.answer("aws s3 cp", 1, b"")
     assert ss.backup(host, paths, now=1_763_003_600) == 1
@@ -378,9 +381,9 @@ def test_a_failed_backup_alerts_once_and_keeps_the_last_good_dump(
     assert (paths.state / "last-good.dump").read_bytes() == DUMP
     assert [ss.backup_age(m) for m in host.metrics] == [0, 3600, 7200]
     # A good dump ends the streak: the next failure alerts again.
-    host.answers.pop("docker exec h4reet-prod-shared-state-1 pg_dump", None)
+    host.answers.pop("docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", None)
     host.answers.pop("aws s3 cp", None)
-    host.answer("docker exec h4reet-prod-shared-state-1 pg_dump", out=DUMP)
+    host.answer("docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", out=DUMP)
     assert ss.backup(host, paths, now=1_763_010_800) == 0
     host.answer("aws s3 cp", 1, b"")
     assert ss.backup(host, paths, now=1_763_014_400) == 1
@@ -389,7 +392,7 @@ def test_a_failed_backup_alerts_once_and_keeps_the_last_good_dump(
 
 def test_the_backup_age_is_an_otlp_gauge_named_for_the_dashboard(world) -> None:
     host, paths = world
-    host.answer("docker exec h4reet-prod-shared-state-1 pg_dump", out=DUMP)
+    host.answer("docker exec -u postgres h4reet-prod-shared-state-1 pg_dump", out=DUMP)
     ss.backup(host, paths, now=1_763_000_000)
     (payload,) = host.metrics
     (metric,) = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
@@ -430,7 +433,14 @@ def test_roles_set_each_password_as_a_verifier_over_the_socket(world) -> None:
     )
     assert ss.roles(host, paths) == 0
     (psql, sql) = next((args, data) for args, data in host.calls if "psql" in args)
-    assert psql[:4] == ["docker", "exec", "-i", "h4reet-prod-shared-state-1"]
+    assert psql[:6] == [
+        "docker",
+        "exec",
+        "-i",
+        "-u",
+        "postgres",
+        "h4reet-prod-shared-state-1",
+    ]
     assert "--username=postgres" in psql and "--host" not in " ".join(psql)
     text = (sql or b"").decode()
     for role, password in passwords.items():
@@ -479,7 +489,9 @@ def test_restore_fetches_the_dump_from_the_url_on_stdin_empties_the_store_and_lo
     assert fetched == [url]
     commands = ran(host)
     drop = next(
-        i for i, c in enumerate(commands) if "DROP DATABASE h4reet WITH (FORCE)" in c
+        i
+        for i, c in enumerate(commands)
+        if "DROP DATABASE IF EXISTS h4reet WITH (FORCE)" in c
     )
     create = next(i for i, c in enumerate(commands) if "CREATE DATABASE h4reet" in c)
     load = next(i for i, c in enumerate(commands) if " pg_restore " in c)

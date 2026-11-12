@@ -45,8 +45,35 @@ PLUGIN = Path("/usr/local/lib/docker/cli-plugins/docker-compose")
 # The services each cloud host's class runs (spec 001 contracts/env-cloud.md §3); preflight.py's HOST_CLASSES, which
 # deploy/scripts/test_deployer.py holds this to.
 HOST_CLASSES = {
-    "tunnel-end": ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector"),
+    "tunnel-end": (
+        "tunnel-end",
+        "relay",
+        "snapshot-sink",
+        "tunnel-end-collector",
+        "shared-state",
+    ),
 }
+# Each class's host step, from the release's tree, before compose pulls or starts anything (spec 001 tasks.md T164):
+# the tunnel end's shared state, its data volume's mount, its key and certificate on tmpfs, and its backup's units and
+# timer. A failed step is a failed start. So the host's later parts come with each release, never the user data.
+HOST_STEPS = {
+    "tunnel-end": ("deploy/hosts/tunnel-end/shared_state.py", "prepare"),
+}
+
+
+def host_step_argv(host: str, tree: Path) -> list[str]:
+    script, action = HOST_STEPS[host]
+    return [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        str(tree / script),
+        action,
+        "--tree",
+        str(tree),
+    ]
+
+
 # The named volumes a class's service writes as its image's own user, which a new volume's root isn't: the deployer
 # gives each its owner before compose starts the service (the tunnel end's collector's queue, deploy/compose.yaml).
 VOLUME_OWNERS = {
@@ -81,6 +108,8 @@ class Docker(Protocol):
     def compose(self, tree: Path, env_files: list[Path], args: list[str]) -> bool: ...
 
     def own_volume(self, name: str, uid: int) -> bool: ...
+
+    def host_step(self, host: str, tree: Path) -> bool: ...
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -242,6 +271,8 @@ class Deployer:
         registry = self.env.get("H4_REGISTRY", "")
         if registry:
             self.aws.login(registry)
+        if self.host in HOST_STEPS and not self.docker.host_step(self.host, tree):
+            return False
         for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
             if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
                 return False
@@ -414,6 +445,11 @@ class AwsCli:
 
 
 class DockerCli:
+    def host_step(self, host: str, tree: Path) -> bool:
+        """The class's host step, the release tree's own script, with the host's python."""
+        done = subprocess.run(host_step_argv(host, tree), check=False, timeout=600)
+        return done.returncode == 0
+
     def own_volume(self, name: str, uid: int) -> bool:
         """The named volume, made if it isn't, with its root owned by uid, which the service's image runs as."""
         made = subprocess.run(

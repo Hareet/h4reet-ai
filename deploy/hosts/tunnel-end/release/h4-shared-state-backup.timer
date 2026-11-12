@@ -1,0 +1,11 @@
+# Every hour, and once at boot for a run the stop missed (spec 001 contracts/shared-state.md §1).
+[Unit]
+Description=h4reet: the shared state's hourly backup
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

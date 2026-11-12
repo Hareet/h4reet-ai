@@ -1,0 +1,210 @@
+P-G4, spec 001 group 6 (W1; tasks.md T163, T164): the compose policy's shared state, for the Author's hand.
+
+tools/gates/compose_policy.py is the gate's own tool, so its change is the Author's (tasks.md Format, "Patches"). It
+applies after P-G3, whose host classes it extends: each hunk is against the text P-G3 leaves. Group 6 adds the tunnel
+end's `shared-state` service to the one compose file, which P-G3's rules refuse as written. This patch admits it, by
+name and exactly, and nothing else:
+  - it joins edge, an ordinary bridge, to publish exactly 10.42.1.10:5432->5432, the private interface's fixed
+    address, a literal no other host has, which the security group holds to EC2's group;
+  - it binds /run/h4reet/shared-state (its key and certificate on tmpfs) read-only, and /srv/h4reet/shared-state (the
+    data volume's mount) writable, its one writable bind outside the gateway's state;
+  - it runs gateway-state's Postgres, the lock's tag and digest, copied to the account's registry as
+    h4reet/shared-state (COPY_REPOSITORIES).
+SERVICE_BINDS becomes a map of each service's binds to whether each may write. tools/gates/test/test_compose_policy.py
+gets a case for each. On an export with P-G3 and P-G4: 182 passed; the patched policy PASS with 4 env files.
+
+Built from plain copies (the text P-G3 leaves, into $TMPDIR), edited, then diff -u with a/ and b/ labels; never git
+apply. Apply it on W1's -p branch after P-G3, with `patch -p1 < <this file>` at the repository's root. Until it is
+applied, the branch's policy step refuses shared-state (3 refusals: its port, its network, its binds).
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -16,7 +16,8 @@
+     profile;
+   - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
+     writable outside ${H4_STATE_DIR}/gateway, but for the one read-only bind each of spec 001's tunnel's ends takes
+-    (SERVICE_BINDS); a volume that isn't a declared, local named volume;
++    (SERVICE_BINDS), and the shared state's data, writable, from group 6; a volume that isn't a declared, local named
++    volume;
+   - ports on any service but edge, or on anything but the literal 127.0.0.1, but for the tunnel end's two, exactly,
+     on its public interface's fixed address (CLOUD_PORTS);
+   - the egress network on any service but gateway, spec 001's laptop tunnel, and the tunnel end's collector; the edge
+@@ -101,7 +102,9 @@
+ # nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
+ # internal alone.
+ EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
+-EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end"})
++# From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
++# state.md §1).
++EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end", "shared-state"})
+ # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
+ CLOUD_PROFILES = frozenset({"tunnel-end"})
+ # What a cloud class's service publishes, exactly (host address, published port, container port): the tunnel end's
+@@ -110,13 +113,18 @@
+     "tunnel-end": frozenset(
+         {("10.42.0.10", "2222", 2222), ("10.42.0.10", "8087", 2203)}
+     ),
++    # The shared state's 5432, on the private interface's fixed address alone, which the security group holds to EC2.
++    "shared-state": frozenset({("10.42.1.10", "5432", 5432)}),
+ }
+-# The one bind each of the tunnel's ends takes, read-only: the laptop's client key and pinned host key, which the
+-# Author's tunnel-keys target leaves under ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR), and the tunnel end's host
+-# key and authorized key, which write_env.py writes to tmpfs at boot.
+-SERVICE_BINDS = {
+-    "tunnel": "${H4_TUNNEL_DIR}",
+-    "tunnel-end": "/run/h4reet/tunnel-end/keys",
++# The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
++# laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
++# ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR); the tunnel end's host key and authorized key, which write_env.py
++# writes to tmpfs at boot; and, from group 6, the shared state's key and certificate on tmpfs, read-only, and its data,
++# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py).
++SERVICE_BINDS: dict[str, dict[str, bool]] = {
++    "tunnel": {"${H4_TUNNEL_DIR}": False},
++    "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
++    "shared-state": {"/run/h4reet/shared-state": False, "/srv/h4reet/shared-state": True},
+ }
+ # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
+ # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
+@@ -124,7 +132,13 @@
+ # line of the service it copies, by the repository's name.
+ REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
+ RELEASE_IMAGES = {"tunnel-end": "tunnel"}
+-UPSTREAM_COPIES = {"tunnel-end-collector": "otel-collector"}
++UPSTREAM_COPIES = {
++    "tunnel-end-collector": "otel-collector",
++    # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
++    "shared-state": "gateway-state",
++}
++# A copy whose repository isn't its lock line's name.
++COPY_REPOSITORIES = {"shared-state": "shared-state"}
+ # Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
+ ANTHROPIC_KEY = "GATEWAY_ANTHROPIC_API_KEY"
+ ANTHROPIC_KEY_FORM = "${GATEWAY_ANTHROPIC_API_KEY:-}"
+@@ -573,8 +587,9 @@
+             if ".." in plain.split("/"):
+                 refuse("binds", f"{source} -> {target}: '..' in a bind source")
+                 continue
+-            if SERVICE_BINDS.get(name) == plain:
+-                if not volume.get("read_only"):
++            own = SERVICE_BINDS.get(name, {})
++            if plain in own:
++                if not own[plain] and not volume.get("read_only"):
+                     refuse(
+                         "binds", f"{source} -> {target}: {name}'s keys bind read-only"
+                     )
+@@ -850,10 +865,11 @@
+         repository = RELEASE_IMAGES[name]
+         return f"{REGISTRY}{repository}@${{H4_DIGEST_{repository.upper().replace('-', '_')}:-}}"
+     upstream = UPSTREAM_COPIES[name]
++    repository = COPY_REPOSITORIES.get(name, upstream)
+     entry = lock.get(upstream)
+     if entry is None:
+-        return f"{REGISTRY}{upstream}:<{LOCK_FILE} has no line for {upstream}>"
+-    return f"{REGISTRY}{upstream}:{entry.tag}@{entry.digest}"
++        return f"{REGISTRY}{repository}:<{LOCK_FILE} has no line for {upstream}>"
++    return f"{REGISTRY}{repository}:{entry.tag}@{entry.digest}"
+ 
+ 
+ def check_model(
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1519,3 +1519,100 @@
+ 
+ def test_the_tunnel_ends_env_file_is_rendered_too() -> None:
+     assert ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example") in cp.ENV_FILES
++
++
++# Group 6 (spec 001 tasks.md T163; contracts/shared-state.md §1): the tunnel end's shared state, gateway-state's Postgres
++# copied to its own repository, publishing exactly 5432 on the private interface's fixed address, binding its key and
++# certificate read-only and its data writable, and nothing else.
++GATEWAY_STATE = cp.LockEntry(
++    "gateway-state",
++    "public.ecr.aws/docker/library/postgres",
++    "17.11-alpine3.24",
++    "sha256:" + "e" * 64,
++    "public.ecr.aws",
++    "2026-11-13",
++)
++SHARED_LOCK = {**CLOUD_LOCK, "gateway-state": GATEWAY_STATE}
++SHARED_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@sha256:" + "e" * 64
++
++
++def shared_model() -> dict:
++    model = tunnel_model()
++    model["services"]["shared-state"] = service(
++        profiles=["tunnel-end"],
++        image=SHARED_IMAGE,
++        networks={"internal": None, "edge": None},
++        ports=[
++            {
++                "host_ip": "10.42.1.10",
++                "mode": "ingress",
++                "protocol": "tcp",
++                "published": "5432",
++                "target": 5432,
++            }
++        ],
++        volumes=[
++            {
++                "type": "bind",
++                "source": "/run/h4reet/shared-state",
++                "target": "/run/shared-state",
++                "read_only": True,
++            },
++            {
++                "type": "bind",
++                "source": "/srv/h4reet/shared-state",
++                "target": "/var/lib/postgresql/data",
++            },
++        ],
++    )
++    return model
++
++
++def shared_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
++    found = cp.check_model(model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"})
++    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
++
++
++def test_the_shared_state_passes(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    assert shared_rules(shared_model(), tmp_path) == set()
++
++
++def test_the_shared_state_publishes_5432_on_the_private_address_alone(tmp_path: Path) -> None:
++    for ports in (
++        ["0.0.0.0:5432:5432"],
++        ["10.42.0.10:5432:5432"],
++        ["10.42.1.10:5432:5432", "10.42.1.10:5433:5433"],
++    ):
++        model = shared_model()
++        model["services"]["shared-state"]["ports"] = ports
++        assert ("shared-state", "ports") in shared_rules(model, tmp_path), ports
++
++
++def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(tmp_path: Path) -> None:
++    model = shared_model()
++    model["services"]["shared-state"]["volumes"][0]["read_only"] = False
++    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
++    model = shared_model()
++    model["services"]["shared-state"]["volumes"][1]["source"] = "/srv/h4reet/other"
++    assert ("shared-state", "binds") in shared_rules(model, tmp_path)
++    model = shared_model()
++    model["services"]["tunnel-end"]["volumes"].append(
++        {"type": "bind", "source": "/srv/h4reet/shared-state", "target": "/x"}
++    )
++    assert ("tunnel-end", "binds") in shared_rules(model, tmp_path)
++
++
++def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(tmp_path: Path) -> None:
++    model = shared_model()
++    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("e" * 64, "f" * 64)
++    assert ("shared-state", "image") in shared_rules(model, tmp_path)
++    model = shared_model()
++    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("/shared-state:", "/gateway-state:")
++    assert ("shared-state", "image") in shared_rules(model, tmp_path)
++
++
++def test_the_shared_state_never_joins_egress(tmp_path: Path) -> None:
++    model = shared_model()
++    model["services"]["shared-state"]["networks"] = {"internal": None, "egress": None}
++    assert ("shared-state", "networks") in shared_rules(model, tmp_path)

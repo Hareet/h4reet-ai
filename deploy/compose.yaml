@@ -822,6 +822,53 @@ services:
           cpus: "0.25"
           memory: 96M
 
+  # The shared state (spec 001 contracts/shared-state.md §1; the Author's answer of 2026-11-11, "Postgres in a container
+  # on the tunnel end"): prod's one meter and kill switch, in the tunnel end's class. Spec 000's pinned Postgres 17,
+  # gateway-state's image, copied to the account's registry by the lock's own tag and digest. Its data is the data
+  # volume's mount, /srv/h4reet/shared-state; its key and certificate the host script's tmpfs files, with the
+  # superuser's password nobody keeps (deploy/hosts/tunnel-end/shared_state.py prepare); its configuration the
+  # deployed tree's, read-only. It publishes 5432 on the private interface's fixed address alone, which the security
+  # group holds to EC2's group; the relay reaches it on internal, the laptop through the tunnel's -L 5432. It joins
+  # edge, an ordinary bridge, since a port can't be published from internal alone; the tunnel end's nftables keep every
+  # container inside the VPC.
+  shared-state:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+    # The entrypoint takes ownership of the data directory, then drops to the postgres user, as gateway-state's does.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    command: ["postgres", "-c", "config_file=/etc/h4reet/shared-state/postgresql.conf"]
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:5432:5432"
+    environment:
+      POSTGRES_DB: h4reet
+      POSTGRES_PASSWORD_FILE: /run/shared-state/superuser.password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/shared-state"
+        target: /etc/h4reet/shared-state
+        read_only: true
+      - type: bind
+        source: /run/h4reet/shared-state
+        target: /run/shared-state
+        read_only: true
+      - type: bind
+        source: /srv/h4reet/shared-state
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "--host=/var/run/postgresql", "--username=postgres", "--dbname=h4reet"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
   # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
   # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the
   # real channels (contracts/env-files.md §7.2). Only the dev-receivers profile names them, which COMPOSE_PROFILES

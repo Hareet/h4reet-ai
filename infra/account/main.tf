@@ -60,6 +60,8 @@ locals {
     "tunnel",
     "relay",
     "snapshot",
+    # Group 6's shared state (tasks.md T164): spec 000's pinned Postgres, gateway-state's, copied by its index digest.
+    "shared-state",
   ]
 }
 

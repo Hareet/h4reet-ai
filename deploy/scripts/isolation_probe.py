@@ -64,6 +64,8 @@ PORTS = {
     "tunnel": (5432, 2301),
     "tunnel-end": (2222, 2201, 2202, 2203),
     "tunnel-end-collector": (4318, 13133),
+    # Spec 001 group 6: the shared state, on the tunnel end alone (its contracts/shared-state.md §1).
+    "shared-state": (5432,),
 }
 
 Resolve = Callable[[str], list[str]]

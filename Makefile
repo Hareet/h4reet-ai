@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -811,10 +811,26 @@ cloud-session: ## (the Author) A Systems Manager port-forwarding session to a cl
 	$(call NEEDS,HOST,ec2|tunnel-end)
 	@$(PY_HOST) scripts/infra/cloud_session.py --host "$$HOST"$(WITH_PROFILE)
 
+# Spec 001's shared state on the tunnel end (contracts/shared-state.md §2, §3, §8; tasks.md T164), the Author's, in his
+# terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1 for the roles target, P-G2 for the other two).
+shared-state-tls: ## (the Author) The shared state's CA, kept here, and its server key and certificate for Parameter Store (contracts/shared-state.md §3) [ROTATE=1] [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes the shared state's TLS key to Parameter Store with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py tls$(if $(call from_cli,ROTATE), --rotate)$(WITH_PROFILE)
+
+shared-state-roles: ## (the Author) The shared state's four role passwords, set on the tunnel end from Parameter Store (contracts/shared-state.md §2) [PROFILE=…]
+	$(call AUTHOR_ONLY,it runs a Systems Manager command on the tunnel end with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py roles$(WITH_PROFILE)
+
+shared-state-restore: ## (the Author) The last backup, or DUMP=dumps/<UTC>.dump, loaded into an emptied shared state (contracts/shared-state.md §8) [PROFILE=…]
+	$(call AUTHOR_ONLY,it presigns a backup's GET and runs a Systems Manager command with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py restore$(if $(call from_cli,DUMP), --dump "$$DUMP")$(WITH_PROFILE)
+
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
-	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session
+	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
+	shared-state-tls shared-state-roles shared-state-restore
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
