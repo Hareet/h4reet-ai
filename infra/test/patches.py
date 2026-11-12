@@ -24,7 +24,9 @@ MERGE_REQUESTS = REPO / "docs" / "merge-requests"
 PI3 = MERGE_REQUESTS / "2026-11-13-feat-001-pi3-tunnel-end.patch"
 # Group 6's, on top of P-I3's iam.tf, bridge, and contract rows (tasks.md T073).
 PI7 = MERGE_REQUESTS / "2026-11-13-feat-001-pi7-shared-state.patch"
-W1_PATCHES = (PI3, PI7)
+# Group 7's, on top of both: EC2's spot instance, its two roles, its ID's parameter, and the two budget actions (T089).
+PI4 = MERGE_REQUESTS / "2026-11-13-feat-001-pi4-ec2.patch"
+W1_PATCHES = (PI3, PI7, PI4)
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

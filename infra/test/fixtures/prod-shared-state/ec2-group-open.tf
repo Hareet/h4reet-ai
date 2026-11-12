@@ -1,4 +1,4 @@
-# EC2's group admitting 5432 from anywhere before group 7 says what it admits.
+# EC2's group admitting 5432 from the VPC, beyond the tunnel end's 8085 and 4318 that group 7 gives it.
 # expect: groups: EC2's group admits something
 resource "aws_security_group" "ec2" {
   name        = "h4-ec2"

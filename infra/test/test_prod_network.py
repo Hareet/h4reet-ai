@@ -58,11 +58,15 @@ FILES = (
     "ssm.tf",
     # Group 6's shared state (tasks.md T073), its data volume and its backups' bucket.
     "shared-state.tf",
+    # Group 7's EC2 (tasks.md T084, T089; test_prod_ec2.py): its data volume, generation, and W1's stop; and the
+    # protected killswitch.tf, its two budget actions (P-I4).
+    "ec2.tf",
     "ec2-market.tf",
     "iam.tf",
     "handover.tf",
+    "killswitch.tf",
 )
-PROTECTED_FILES = ("ec2-market.tf", "iam.tf", "handover.tf")
+PROTECTED_FILES = ("ec2-market.tf", "iam.tf", "handover.tf", "killswitch.tf")
 PLACEHOLDER = "measure-in-T166"
 PUBLIC_ADDRESS = "10.42.0.10"
 PRIVATE_ADDRESS = "10.42.1.10"
@@ -394,7 +398,8 @@ def check_type(root: dict[str, list]) -> list[str]:
     i = instance(root)
     if i is None or raw(i, "instance_type") != "local.tunnel_end_type":
         found.append("type: the tunnel end doesn't read local.tunnel_end_type")
-    if [address(b) for b in typed if b is not i]:
+    # EC2's is ec2.tf's local.ec2_type (test_prod_ec2.py); nothing else sets one.
+    if [address(b) for b in typed if b is not i and address(b) != "aws_instance.ec2"]:
         found.append("type: another resource sets an instance type")
     conditions = (
         [
@@ -690,9 +695,13 @@ def check_role(root: dict[str, list]) -> list[str]:
     )
     if wide:
         found.append(f"role: {', '.join(wide)} on every resource")
+    # The budget actions' execution roles are killswitch.tf's, beside their actions (tasks.md T180).
     for b in blocks(root, "resource"):
-        if b.labels[0].startswith("aws_iam_") and where(root, b) != "iam.tf":
-            found.append(f"role: {address(b)} lives outside iam.tf")
+        if b.labels[0].startswith("aws_iam_") and where(root, b) not in (
+            "iam.tf",
+            "killswitch.tf",
+        ):
+            found.append(f"role: {address(b)} lives outside iam.tf and killswitch.tf")
     return found
 
 

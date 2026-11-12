@@ -97,7 +97,14 @@ def check_volume(r: dict[str, list]) -> list[str]:
     tags = lit(v, "tags")
     if not (isinstance(tags, dict) and tags.get("component") == "shared-state"):
         found.append("volume: it isn't tagged component = shared-state")
-    attachments = resource(r, "aws_volume_attachment")
+    # The shared state's volume's attachments, and anything attached to the tunnel end: EC2's data volume is its own
+    # (group 7, test_prod_ec2.py).
+    attachments = [
+        a
+        for a in resource(r, "aws_volume_attachment")
+        if "shared_state" in raw(a, "volume_id")
+        or raw(a, "instance_id") == "aws_instance.tunnel_end.id"
+    ]
     if [
         (lit(a, "device_name"), raw(a, "instance_id"), raw(a, "volume_id"))
         for a in attachments
@@ -252,8 +259,12 @@ def check_ec2_group(r: dict[str, list]) -> list[str]:
     g = one(r, "aws_security_group", "ec2")
     if g is None or lit(g, "name") != "h4-ec2" or raw(g, "vpc_id") != "aws_vpc.prod.id":
         return ["groups: EC2's security group, h4-ec2, isn't in prod's VPC"]
-    if g.blocks("ingress"):
-        return ["groups: EC2's group admits something before group 7 says what"]
+    # Group 7 gives it its rules (test_prod_ec2.py): the tunnel end's 8085 and 4318 alone, never 5432 or anything else.
+    tunnel_end = 'cidr_blocks=["10.42.0.10/32", "10.42.1.10/32"]'
+    if set(net.group_rules(r, "ec2")) - {(8085, tunnel_end), (4318, tunnel_end)}:
+        return [
+            "groups: EC2's group admits something beyond the tunnel end's 8085 and 4318"
+        ]
     return []
 
 
