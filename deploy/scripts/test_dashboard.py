@@ -1157,6 +1157,11 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
     for title, (kind, queries_) in expected.items():
         assert title in found, title
         assert queries(found[title]) == queries_, title
+    # Group 7's review A, nit 6: the release table shows what each host's deployer said in its last few runs, so the old
+    # release's row goes within minutes, not an hour.
+    assert expected["The release on each host"][1] == [
+        "max by (h4_host, h4_release, h4_commit, h4_started_by) (last_over_time(h4_release_info[5m]))"
+    ]
     assert expected["Telemetry lost at the tunnel end"][1] == [
         'sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total{service_name="tunnel-end-collector"}[5m]))',
         'sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points_total{service_name="tunnel-end-collector"}[5m]))',

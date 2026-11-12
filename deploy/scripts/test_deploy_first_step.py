@@ -441,3 +441,24 @@ def test_the_tree_key_is_pinned_to_the_commits(tmp_path: Path) -> None:
     assert w.run() == 1
     assert w.runner.ran == []
     assert "- reason: tree" in w.aws.alerts[0]
+
+
+def test_a_restart_runs_while_a_deploy_holds_the_lock(tmp_path: Path) -> None:
+    # Group 7's review A, I-A: the key's revocation (FR-055) waited behind a running deploy, up to DEPLOYER_TIMEOUT, so
+    # the revoked tunnel stayed up. A restart touches no tree's partial folder, so it takes no lock.
+    import fcntl
+    import threading
+
+    w = World(tmp_path)
+    tree = w.started(w.release("r1"))
+    done: list[int] = []
+    with open(w.state / ".lock", "a+") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        thread = threading.Thread(
+            target=lambda: done.append(w.run("--restart", "tunnel-end")), daemon=True
+        )
+        thread.start()
+        thread.join(5)
+        assert not thread.is_alive(), "the restart waited for the lock"
+    assert done == [0]
+    assert w.runner.ran == [deployer_argv(tree, w, "--restart", "tunnel-end")]

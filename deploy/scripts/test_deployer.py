@@ -1228,7 +1228,9 @@ def test_each_run_tells_the_collector_its_deployments_and_its_release(
     assert w.run() == 0
     assert w.run() == 0
     events = metric(w.docker.metrics, "h4.deploy.events")
-    assert events == [{"h4.host": "ec2", "outcome": "deployed"}]
+    # Group 7's review A, I-F: every outcome's count on every run, cumulative, so Prometheus has its series.
+    outcomes = [{"h4.host": "ec2", "outcome": o} for o in dp.OUTCOMES]
+    assert events == outcomes + outcomes
     info = metric(w.docker.metrics, "h4.release.info")
     assert info[-1] == {
         "h4.host": "ec2",
@@ -1280,3 +1282,109 @@ def test_a_volume_under_ec2s_data_root_is_owned_too(
     assert owned == [("/srv/h4reet/data/docker/volumes/h4reet-prod_q/_data", 10001)]
     answers = iter([Done(0), Done(0, "/home/someone/elsewhere\n")])
     assert dp.DockerCli().own_volume("h4reet-prod_q", 10001) is False
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 7's review A: I-B (a hold's pending alert), I-F (the counter Prometheus can read), nits 1 and 2.
+
+
+def counts(payload: dict) -> dict[str, str]:
+    (m,) = [
+        m
+        for m in payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        if m["name"] == "h4.deploy.events"
+    ]
+    return {
+        {a["key"]: a["value"]["stringValue"] for a in p["attributes"]}["outcome"]: p[
+            "asInt"
+        ]
+        for p in m["sum"]["dataPoints"]
+    }
+
+
+def test_a_hold_still_sends_what_sns_refused_before(tmp_path: Path) -> None:
+    # I-B: flush() ran only from check(), which a hold never reaches, so a pending alert stuck until the hold went.
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    (w.state / "hold").write_text("the Author\n", encoding="utf-8")
+    w.aws.publish_ok = False
+    assert w.run() == 0
+    assert w.aws.alerts == [] and len(w.aws.refused_publishes) == 1
+    w.aws.publish_ok = True
+    assert w.run() == 0
+    (sent,) = w.aws.alerts
+    assert "- reason: held" in sent
+    assert w.run() == 0 and len(w.aws.alerts) == 1
+
+
+def test_a_crashed_release_restarts_before_any_pending_alert_is_sent(
+    tmp_path: Path,
+) -> None:
+    # Nit 1: each pending publish can take the CLI's 120 s; the restart of what runs comes first.
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    (w.state / "pending.json").write_text(json.dumps({"k": "an old alert"}))
+    order: list[str] = []
+    publish, compose = w.aws.publish, w.docker.compose
+
+    def publishing(message: str) -> bool:
+        order.append("publish")
+        return publish(message)
+
+    def composing(tree: Path, env_files: list[Path], args: list[str]) -> bool:
+        order.append(args[0])
+        return compose(tree, env_files, args)
+
+    w.aws.publish = publishing  # type: ignore[method-assign]
+    w.docker.compose = composing  # type: ignore[method-assign]
+    w.docker.up = set()
+    assert w.run() == 0
+    assert "up" in order and order.index("up") < order.index("publish")
+
+
+def test_with_nothing_running_an_identical_repeat_isnt_recorded_again(
+    tmp_path: Path,
+) -> None:
+    # Nit 2: with nothing running every run tries, and each identical failure was a full line and an event, 60 an hour.
+    w, clock = World(tmp_path), Clock()
+    w.release("r1")
+    w.docker.preflight_fails_for = {"r1"}
+    for _ in range(3):
+        assert timed_run(w, clock) == 1
+        clock.t += 60
+    preflights = [c for c in w.docker.calls if c[1][0] == "preflight"]
+    assert len(preflights) == 3  # it still tries each run
+    assert [r["outcome"] for r in w.records()] == ["refused"]
+    attempts = json.loads((w.state / "attempts.json").read_text())
+    assert attempts["r1"]["count"] == 3
+
+
+def test_the_deployments_counter_is_cumulative_from_one_start_across_runs(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    assert w.run() == 1
+    (w.state / "hold").write_text("the Author\n", encoding="utf-8")
+    assert w.run() == 0  # a held run still says what runs and what was counted
+    sums = [
+        m["sum"]
+        for payload in w.docker.metrics
+        for m in payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        if m["name"] == "h4.deploy.events"
+    ]
+    assert len(sums) == 3
+    assert {s["aggregationTemporality"] for s in sums} == {2}
+    assert all(s["isMonotonic"] for s in sums)
+    starts = {p["startTimeUnixNano"] for s in sums for p in s["dataPoints"]}
+    assert len(starts) == 1
+    assert [counts(p) for p in w.docker.metrics] == [
+        {"deployed": "1", "refused": "0", "rolled_back": "0", "rollback_failed": "0"},
+        {"deployed": "1", "refused": "0", "rolled_back": "1", "rollback_failed": "0"},
+        {"deployed": "1", "refused": "0", "rolled_back": "1", "rollback_failed": "0"},
+    ]

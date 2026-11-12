@@ -789,3 +789,79 @@ def test_clickhouses_three_settings_files() -> None:
     # The scrape job and the endpoint agree.
     jobs = {job["job_name"]: job for job in PROMETHEUS["scrape_configs"]}
     assert jobs["clickhouse"]["static_configs"] == [{"targets": ["clickhouse:9363"]}]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001 group 7's review A, I-F: the deployer's two metrics reach Prometheus as the Hosts row's panels read them. The
+# deployer sent its counter as a delta, which the collector's otlp pipeline passes on unconverted and Prometheus drops,
+# so the Deployments panel was always empty. It sends each outcome's running count, cumulative from one start it keeps,
+# on every run; the collector's metrics pipeline takes it as the gateway's own, and Prometheus names it by its rule.
+
+
+def _deployer():
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "deployer_for_observability", REPO / "deploy" / "scripts" / "deployer.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def prometheus_name(metric: dict) -> str:
+    """Prometheus's UnderscoreEscapingWithSuffixes for a metric without a unit: dots to underscores, and a monotonic
+    cumulative sum's _total."""
+    name = metric["name"].replace(".", "_")
+    data = metric.get("sum")
+    if data and data["isMonotonic"] and data["aggregationTemporality"] == 2:
+        name += "_total"
+    return name
+
+
+def test_the_deployers_metrics_reach_prometheus_as_the_panels_read_them() -> None:
+    dp = _deployer()
+    current = {"release": "r1", "commit": "a" * 40}
+    payload = dp.metrics_payload(
+        "ec2", {"deployed": 2}, current, 1_800_000_000.0, 1_800_000_600.0
+    )
+    metrics = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+    by_name = {m["name"]: m for m in metrics}
+    events = by_name["h4.deploy.events"]
+    # Cumulative (2), never a delta (1), which no processor on this pipeline converts.
+    assert events["sum"]["aggregationTemporality"] == 2
+    assert prometheus_name(events) == "h4_deploy_events_total"
+    assert prometheus_name(by_name["h4.release.info"]) == "h4_release_info"
+    assert (
+        PROMETHEUS["otlp"]["translation_strategy"] == "UnderscoreEscapingWithSuffixes"
+    )
+    pipeline = COLLECTOR["service"]["pipelines"]["metrics"]
+    assert "otlp" in pipeline["receivers"]
+    assert "otlphttp/prometheus" in pipeline["exporters"]
+    assert not [p for p in pipeline["processors"] if p.startswith("filter")]
+    # The tunnel end's collector routes a host's metrics on to that host's collector as they came.
+    tunnel = yaml.safe_load(
+        (REPO / "deploy/otel/collector-tunnel-end.yaml").read_text(encoding="utf-8")
+    )
+    assert not [
+        p
+        for name, pipe in tunnel["service"]["pipelines"].items()
+        if name.startswith("metrics")
+        for p in pipe.get("processors", [])
+        if p.startswith(("filter", "deltatocumulative", "cumulativetodelta"))
+    ]
+    # Each datapoint's attributes are the panel's labels.
+    panels = json.loads(
+        (REPO / "deploy/grafana/dashboards/h4-runtime.json").read_text(encoding="utf-8")
+    )
+    text = json.dumps(panels)
+    assert "increase(h4_deploy_events_total[1h])" in text
+    labels = {
+        a["key"].replace(".", "_")
+        for p in events["sum"]["dataPoints"]
+        for a in p["attributes"]
+    }
+    assert labels == {"h4_host", "outcome"}
