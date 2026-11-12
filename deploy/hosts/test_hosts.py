@@ -276,14 +276,14 @@ def test_the_units_order_the_boot() -> None:
     stack = unit("h4-stack.service")
     assert stack["Requires"] == ["docker.service h4-write-env.service"]
     assert any(
-        "deploy/scripts/deployer.py --host tunnel-end --boot" in v
+        "deploy/scripts/deploy_first_step.py --host tunnel-end --boot" in v
         for v in stack["ExecStart"]
     )
     timer = unit("h4-deployer.timer")
     assert timer["OnUnitActiveSec"] == ["60"]
     deployer = unit("h4-deployer.service")
     assert any(
-        "deploy/scripts/deployer.py --host tunnel-end" in v
+        "deploy/scripts/deploy_first_step.py --host tunnel-end" in v
         for v in deployer["ExecStart"]
     )
     for name in ("h4-write-env.service", "h4-stack.service", "h4-deployer.service"):
@@ -314,7 +314,9 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     assert "systemctl disable --now sshd.service" in run
 
 
-HOST_SCRIPTS = ("write_env.py", "egress_proxy.py", "deployer.py")
+# The scripts the user data carries. The deployer isn't one: the first step runs the release's own (plan.md §16, "From
+# the release"; the Author's answer of 2026-11-13, "From the release (Recommended)").
+HOST_SCRIPTS = ("write_env.py", "egress_proxy.py", "deploy_first_step.py")
 
 
 def test_the_host_scripts_run_on_amazon_linux_2023s_python() -> None:
@@ -322,7 +324,7 @@ def test_the_host_scripts_run_on_amazon_linux_2023s_python() -> None:
     import ast
 
     # preflight.py, too: the deployer runs the release tree's with the host's python (group 5's fixes' review).
-    for name in (*HOST_SCRIPTS, "preflight.py"):
+    for name in (*HOST_SCRIPTS, "preflight.py", "deployer.py"):
         text = (REPO / "deploy" / "scripts" / name).read_text(encoding="utf-8")
         ast.parse(text, filename=name, feature_version=(3, 9))
         assert text.startswith("#!/usr/bin/env python3\n"), name
@@ -548,3 +550,17 @@ def test_preflights_phases_split_the_checks_at_the_host_step(tmp_path: Path) -> 
     after = pf.tunnel_end_checks(REPO, env_file, tmp_path / "none", phase="after")
     assert [r.check for r in before] == ["T1", "T2", "T3", "T4"]
     assert [(r.check, r.status) for r in after] == [("T5", "FAIL")]
+
+
+def test_the_user_data_carries_the_first_step_and_not_the_deployer() -> None:
+    text = patches.patched_text("infra/prod/tunnel-end.tf") or ""
+    assert 'source = "deploy/scripts/deploy_first_step.py"' in text
+    assert 'source = "deploy/scripts/deployer.py"' not in text
+    for name in (
+        "h4-stack.service",
+        "h4-deployer.service",
+        "h4-tunnel-restart.service",
+    ):
+        assert "deploy/scripts/deployer.py" not in (UNITS / name).read_text(
+            encoding="utf-8"
+        ), name

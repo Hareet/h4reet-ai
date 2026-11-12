@@ -657,3 +657,14 @@ def test_a_hold_keeps_the_deployer_from_starting_or_deploying_anything(
     (w.state / "hold").unlink()
     assert w.run() == 0
     assert [env["H4_RELEASE"] for _, env in ups(w)][-1] == "r2"
+
+
+def test_main_exits_75_for_a_run_that_refused_or_rolled_back_and_alerted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The first step tells a deployer that ran and alerted (75) from one that didn't run at all (any other non-zero
+    # exit: a traceback is 1, a usage error 2), and alerts the latter itself (deploy/scripts/deploy_first_step.py).
+    monkeypatch.setattr(dp, "run", lambda *a, **k: 1)
+    assert dp.main(["--host", "tunnel-end"]) == dp.EXIT_ALERTED == 75
+    monkeypatch.setattr(dp, "run", lambda *a, **k: 0)
+    assert dp.main(["--host", "tunnel-end"]) == 0
