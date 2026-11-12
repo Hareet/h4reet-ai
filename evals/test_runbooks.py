@@ -558,3 +558,33 @@ def test_the_tunnel_ends_page_covers_each_case_t054_names() -> None:
     assert "### The tunnel" in laptop
     for name in ("make tunnel-keys", "COMPOSE_PROFILES=gpu,tunnel", "P22"):
         assert name in laptop, name
+
+
+# Spec 001's group 6 (its tasks.md T076; contracts/shared-state.md §8): the shared state's page, its alert, the cases T076
+# names, the restore in its five steps, and the laptop's sentence that prod needs the network.
+def test_the_shared_states_page_covers_its_alert_and_each_case_t076_names() -> None:
+    assert "shared-state.md" in spec_001_runbooks()
+    text = (RUNBOOKS / "shared-state.md").read_text(encoding="utf-8")
+    assert "`shared_state_backup_failed`" in text
+    assert "`shared_state_backup_failed`" in index_line("shared-state.md")
+    for case in (
+        "### The store unreachable",
+        "### The backup failed",
+        "### A restore from the last backup",
+        "### A move to another zone",
+    ):
+        assert case in text, case
+    restore = text[
+        text.index("### A restore from the last backup") : text.index(
+            "### A move to another zone"
+        )
+    ]
+    assert [n for n in range(1, 6) if f"\n{n}. **" not in restore] == []
+    for name in (
+        "shared-state-restore",
+        "operator-restore ENV=shared",
+        "operator-init ENV=shared",
+    ):
+        assert f"make {name}" in restore, name
+    laptop = (RUNBOOKS / "laptop.md").read_text(encoding="utf-8")
+    assert "### The shared state" in laptop and "make up ENV=dev" in laptop

@@ -33,7 +33,7 @@ Terraform defines the data volume, its attachment, the backups' bucket, and 5432
 | `relay_ro` | migration 0007 | `SELECT` on `gateway.v_state`; read-only; `statement_timeout = 250ms` | Parameter Store `/h4reet/tunnel-end/DB_RELAY_RO_PASSWORD` |
 | `relay_rw` | migration 0007 | `INSERT` on `gateway.handover_events` and its sequence | Parameter Store `/h4reet/tunnel-end/DB_RELAY_RW_PASSWORD` |
 
-There is no `h4admin` and no Secrets Manager secret. Migration 0007 creates the two relay roles without passwords. `make shared-state-roles` reads the four passwords from Parameter Store on the tunnel end, with the tunnel end's role, and sets each as a SCRAM-SHA-256 verifier computed on the host, over the socket, on standard input. So no password is in a migration, a log, a command line, a Systems Manager command, or the repository. A role a migration hasn't made yet is skipped and named, and a second run after the gateway's first start sets it.
+There is no `h4admin` and no Secrets Manager secret. Migration 0007 creates the two relay roles without passwords. `make shared-state-roles` reads the four passwords from Parameter Store on the tunnel end, with the tunnel end's role, and sets each as a SCRAM-SHA-256 verifier computed on the host, over the socket, on standard input. So no password is in a migration, a log, a command line, a Systems Manager command, or the repository. **As built in group 6:** a role no migration has made yet, on a new store, the target makes as migrations 0002 and 0007 would, whose `IF NOT EXISTS` then keep it; and it gives `gateway` the admin option on the other three, without membership, so the gateway's migrations and its start can alter them (`deploy/hosts/tunnel-end/shared_state.py`).
 
 ## 3. Connections
 

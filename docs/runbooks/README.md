@@ -71,3 +71,4 @@ Spec 001's pages, each with the group that needs it. Its AWS-side alerts reach T
 | [alert-bridge.md](alert-bridge.md) | `alert_bridge_failed`: a notice the alert bridge couldn't send to Telegram waits in `h4-alert-bridge-failed`; replaying it |
 | [laptop.md](laptop.md) | the laptop's prod in the cloud's design: its Bedrock profile chained to `h4-laptop-bedrock`, and preflight P19's refusals of it; its tunnel, the keys, the profile, and preflight P22's refusals |
 | [tunnel-end.md](tunnel-end.md) | `tunnel_end_interruption`, `tunnel_end_back`, and `ec2_start_refused` (`tunnel_end_down`): the tunnel end's spot interruption and return; its restart, crash, failed deploy, revoked key, loss, and move to another zone |
+| [shared-state.md](shared-state.md) | `shared_state_backup_failed`: the shared state's hourly backup failed; the store unreachable; a restore from the last backup; the tunnel end's move to another zone |

@@ -58,6 +58,16 @@ The laptop's end of the tunnel, the `tunnel` service in prod's `tunnel` profile,
 
 To take the laptop off the tunnel, set `COMPOSE_PROFILES=gpu` again and `make up ENV=prod`; to close the tunnel from the cloud's side, `make tunnel-revoke PROFILE=h4reet-admin` (the runbook `tunnel-end.md`).
 
+### The shared state (group 6)
+
+From the move (spec 001 tasks.md T080), the laptop's prod keeps no meter of its own: its gateway uses the shared state on the tunnel end, `tunnel:5432` through the tunnel, with TLS verified by the shared state's own CA ([shared-state.md](shared-state.md)). So:
+
+1. **The new keys in your env file.** `make init-env ENV=prod SYNC=1` adds `H4_HOST=laptop`, and `GATEWAY_DB_URL`, `GATEWAY_DB_TLS_SERVERNAME`, and `GATEWAY_DB_TLS_CA`, empty; `make init-env ENV=dev SYNC=1` adds dev's `H4_HOST`. While `GATEWAY_DB_URL` is empty, prod keeps its own `gateway-state`, and preflight's P23 warns of it.
+2. **The CA certificate and the name:** `make shared-state-tls PROFILE=h4reet-admin` fills `GATEWAY_DB_TLS_CA` and `GATEWAY_DB_TLS_SERVERNAME`.
+3. **The cutover, the move's last step:** set `GATEWAY_DB_URL=postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full` and `GATEWAY_DB_PASSWORD` to the shared state's `gateway` password, keep the `tunnel` profile, and `make up ENV=prod`. P23 then checks the URL, its TLS, and the profile, naming what's missing and never a value.
+
+**Prod needs the network from then on.** A laptop that can't reach the tunnel end can't read the shared state, so prod answers degraded, local answers included: unknown is degraded (FR-019). An offline demo runs `make up ENV=dev`, whose meter is its own (plan Q4).
+
 ## Verify
 
 - `make up ENV=prod` passes preflight, and `make operator-status ENV=prod` shows Bedrock's adapter healthy, with the session's end.
