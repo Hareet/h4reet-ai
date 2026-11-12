@@ -269,5 +269,8 @@ def test_the_targets_are_the_authors_and_run_their_scripts(
     assert "## (the Author)" in recipe.splitlines()[0]
     assert "$(call AUTHOR_ONLY," in recipe
     assert line in recipe
-    phony = MAKEFILE.split("\n.PHONY:", 1)[1].split("\n\n", 1)[0]
-    assert f" {target}" in phony.replace("\\\n", " ")
+    phony = " ".join(
+        block.split("\n\n", 1)[0].replace("\\\n", " ")
+        for block in MAKEFILE.split("\n.PHONY:")[1:]
+    )
+    assert f" {target} " in f" {phony} ", target

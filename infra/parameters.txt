@@ -12,3 +12,16 @@
 # with the Author's other work"; ADR 0047; infra/account/lambdas.tf). The same lines as his terminal's
 # ~/.config/h4reet-ai/infra/iam-allow.txt.
 /h4reet/audit/IAM_ALLOW SecureString
+
+# Group 5: the tunnel end's, which write_env.py reads at boot, and EC2's copies, which group 7's reads. The Author's
+# tunnel-keys target writes each (contracts/tunnel.md §5); RELEASE_BUCKET is the account's Terraform's, a String.
+/h4reet/tunnel-end/HOST_KEY SecureString
+/h4reet/tunnel-end/AUTHORIZED_KEY String
+/h4reet/tunnel-end/RELAY_TOKEN_LAPTOP SecureString
+/h4reet/tunnel-end/RELAY_TOKEN_EC2 SecureString
+/h4reet/tunnel-end/SNAPSHOT_SINK_TOKEN SecureString
+/h4reet/tunnel-end/TELEMETRY_BLOCK_TOKEN SecureString
+/h4reet/ec2/RELAY_TOKEN_SELF SecureString
+/h4reet/ec2/SNAPSHOT_SINK_TOKEN SecureString
+/h4reet/hosts/RELEASE_BUCKET String
+/h4reet/prod/tunnel-end-address String

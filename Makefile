@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -779,10 +779,26 @@ secrets-check: ## (the Author) Which Parameter Store names infra/parameters.txt 
 	$(call AUTHOR_ONLY,it lists his account's parameters with his SSO session)
 	@$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
 
+# Spec 001's tunnel (contracts/tunnel.md §5; contracts/handover.md §7; research.md R-32; tasks.md T052), the Author's,
+# in his terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1).
+tunnel-keys: ## (the Author) The tunnel's keys and tokens: Parameter Store, and the laptop's prod env file (contracts/tunnel.md §5) [ROTATE=1] [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes his tunnel's keys to Parameter Store with his SSO session)
+	@$(PY_HOST) scripts/infra/tunnel_keys.py keys$(if $(call from_cli,ROTATE), --rotate)$(WITH_PROFILE)
+
+tunnel-revoke: ## (the Author) The laptop's tunnel key revoked in one action, or put back with RESTORE=1 (FR-055) [PROFILE=…]
+	$(call AUTHOR_ONLY,it changes the tunnel end's authorized key with his SSO session)
+	@$(PY_HOST) scripts/infra/tunnel_keys.py revoke$(if $(call from_cli,RESTORE), --restore)$(WITH_PROFILE)
+
+cloud-session: ## (the Author) A Systems Manager port-forwarding session to a cloud host's listener (FR-050): HOST=ec2|tunnel-end [PROFILE=…]
+	$(call AUTHOR_ONLY,it opens a session to a cloud host with his SSO session)
+	$(call NEEDS,HOST,ec2|tunnel-end)
+	@$(PY_HOST) scripts/infra/cloud_session.py --host "$$HOST"$(WITH_PROFILE)
+
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
-	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check
+	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
