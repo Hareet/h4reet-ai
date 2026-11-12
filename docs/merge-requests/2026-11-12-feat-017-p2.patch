@@ -1,0 +1,51 @@
+P-2 (spec 017, the night shift; plan.md §10; research.md R-13; tasks.md T065): CLAUDE.md's Infra and Verifying lines
+name the night shift's plan and gate routes.
+
+What it changes: two lines and nothing else.
+  - "Infra:": a real plan is a runner plan request, run in the plan container as the plan-only role (h4-agent-plan,
+    P-6); no make apply; apply stays yours, in your terminal, until publication, then protected CI.
+  - "Verifying your work": tools/gates/gate <branch> runs in your checkout of main, by you or by a runner gate request;
+    never make check.
+The words saved to fit the cap come from the same two lines: "There is no ... on purpose — apply is a human action",
+"(until they can run, ...)" became "(or make check)", "reporting any task complete, and" became "calling a task done;",
+and "the protected CI environment" became "protected CI". Read them as yours to reword.
+
+Spec IDs: decision 1 ("Yes, let agents run terraform plan"), decision 2 ("Let agents run tools/gates/gate"), his Q1
+answer ("It can use my checkout of main"), FR-015 (plan and gate stay off until CLAUDE.md's and .claude/**'s patches
+merge), and the Assumptions' deviation reversing "Before merging, the Author runs tools/gates/gate".
+
+Needed for: plan and gate on (the second install), with P-3 and P-6. Not for the merge itself.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p2.patch
+  git show "refs/heads/$B:$F" > /tmp/p2.patch
+  sha256sum /tmp/p2.patch
+  patch -p1 --dry-run < /tmp/p2.patch
+  patch -p1 < /tmp/p2.patch
+The patch touches CLAUDE.md, so the gate's agent-config-evals step waits for make evals-agent-config.
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; main's own
+evals/agent-config/static.py on that export: "PASS CLAUDE.md is 58 lines and 6136 bytes (at most 60 and 6 KB)",
+"agent-config static: 0 failed, 0 planned". Main's file is 6,143 bytes; this leaves 8 bytes spare.
+
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -14,7 +14,7 @@
+ - Test: `make check` runs every local gate (FR-041); `make test`, `make test-fast`, `make evals`, and `make redteam` run parts of it
+ - Lint/format: `make lint` (zero warnings), `make fmt`
+ - Local production stack: `make up ENV=…` / `make down ENV=…` (whole topology, local models): `ENV` is `prod` (the default), `dev`, or `dev-cpu`, and agent sessions run `dev-cpu` only, on their engine
+-- Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action: the Author's, in his terminal, until publication (`make infra-verify`, `make infra-record`); then the protected CI environment.
++- Infra: `make plan` only; real plans are runner plan requests (plan container, plan-only role). No `make apply`: apply is the Author's, in his terminal, until publication (`make infra-verify`, `make infra-record`); then protected CI.
+ - Kill-switch rehearsal: `make breach-test ENV=dev-cpu` (dev or dev-cpu, never prod; dev is the Author's)
+ - Containers run on the agents' engine through `deploy/agents-engine/docker-relay` (make targets relay themselves); the GPU, Bedrock, and the host's stacks stay with the Author. Ask the Author for those, batched into one script that returns everything a diagnosis needs and nothing secret (`.claude/agents/ops.md` shows how).
+ 
+@@ -40,7 +40,7 @@
+ The agent that implements never reviews. Agent teams are experimental here; use only for independent workstreams.
+ 
+ ## Verifying your work
+-Run `make lint`, `make test`, and `make evals` (until they can run, `make check`) before reporting any task complete, and paste the output. Before merging, the Author runs `tools/gates/gate <branch>` from main's checkout, never `make check` in their own terminal.
++Run `make lint`, `make test`, and `make evals` (or `make check`) before calling a task done; paste the output. Before merging, `tools/gates/gate <branch>` runs in the Author's main checkout, by him or a runner gate request; not `make check`.
+ If a test fails, fix the code, not the test. Do not edit test files during a fix task (a hook blocks it).
+ 
+ ## Things Claude gets wrong

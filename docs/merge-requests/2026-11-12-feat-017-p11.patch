@@ -1,0 +1,163 @@
+P-11 (spec 017, the night shift; FR-029; G3's review, Important 1): the arrival check refuses, by name, a record step
+naming Qwen-Image or FLUX [dev], so the gate itself refuses those outputs, not only line.py.
+
+What it changes:
+  - tools/gates/arrival_check.py: rule R8, in Record.step(). Any string of a step (its name, a model's name or
+    repository, a tool's or a service's name) that names Qwen-Image, in any version ("qwen", anything but a letter,
+    "image": Qwen-Image-2.1, Qwen2-Image, qwen_image), or FLUX with a "dev" no letter follows (FLUX.1 [dev],
+    black-forest-labs/FLUX.1-dev), is a finding, "R8 <dir>/records.json: entries[i].steps[j] names Qwen-Image or FLUX
+    [dev], whose outputs never ship, whatever the policy says (spec 017 FR-029)". It names the step, never the string.
+    FLUX.2 [klein], FLUX.1 [schnell], Qwen3's text encoder, and Qwen2.5-VL aren't refused: the policy decides them.
+    The docstring names the rule. Qwen-Image's pattern is broader than line.py's, which misses Qwen2-Image (G3's
+    backlog); the gate is the stricter of the two.
+  - tools/gates/test/test_arrival_check.py: seven refused spellings and four left to the policy.
+
+Spec IDs: FR-029 ("SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output"), decision 5.
+
+Needed for: the studio line's first intake.
+
+How to apply, on your own branch, from the repository's root (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p11.patch
+  git show "refs/heads/$B:$F" > /tmp/p11.patch
+  sha256sum /tmp/p11.patch
+  patch -p1 --dry-run < /tmp/p11.patch
+  patch -p1 < /tmp/p11.patch
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; `pytest
+tools/gates/test/test_arrival_check.py`: 287 passed (the new R8 tests against main's unpatched check: 7 failed,
+4 passed, as they should). Every records.json on main read with R8: no step refused; `git log refs/heads/main -G`
+for either name in any records.json: no commit. Other branches weren't searched: make publish-check reads every ref,
+so an evaluation branch whose records name Qwen-Image-2.1 would now be refused there.
+
+--- a/tools/gates/arrival_check.py
++++ b/tools/gates/arrival_check.py
+@@ -32,6 +32,8 @@
+   N, L, P, F, H, C), against the directory's records.json and LICENSE.md, and the policy and the caps read from the
+   main branch as the gate reads it: `GIT_NO_REPLACE_OBJECTS=1 git cat-file blob refs/heads/main:assets/policy/<file>`,
+   never `main:` (a tag named main would answer first), never a branch, never a checked-out copy (research R-05).
++- Spec 017's rule R8 (its FR-029): a record step naming Qwen-Image, in any version, or FLUX [dev], in any of its
++  strings, is refused by name, whatever the licence allowlist says; the finding names the step, never the string.
+ 
+ Spec 004's amendments (its contracts/intake-amendments.md §7; AMENDMENTS below names them):
+ - C1, on M5: the mark follows the record. Its term is trainedAlgorithmicMedia when every step of the file's record is
+@@ -2075,7 +2077,7 @@
+ 
+ 
+ # --------------------------------------------------------------------------------------------------
+-# The record (R1 to R7; contracts/asset-record.md)
++# The record (R1 to R7; contracts/asset-record.md), and spec 017's R8
+ # --------------------------------------------------------------------------------------------------
+ TOP_KEYS = ("schema", "directory", "license", "entries")
+ ENTRY_KEYS = (
+@@ -2110,6 +2112,23 @@
+     "models_checked",
+     "workflow_sha256",
+ )
++# Spec 017 FR-029 (rule R8; its G3 review, Important 1): Qwen-Image's outputs, in any version, and FLUX [dev]'s never
++# ship, whatever the licence allowlist says, so a record step naming either, in any of its strings, is refused by name.
++# Qwen-Image is "qwen", then anything but a letter, then "image" (Qwen-Image-2.1, Qwen2-Image, qwen_image); FLUX [dev] is
++# "flux" and a "dev" no letter follows, in one string (FLUX.1 [dev], black-forest-labs/FLUX.1-dev). FLUX.2 [klein] and
++# Qwen3's text encoder aren't either.
++REFUSED_QWEN = re.compile(r"qwen[^a-z]*image")
++REFUSED_DEV = re.compile(r"dev(?![a-z])")
++REFUSED_MODELS = "Qwen-Image or FLUX [dev], whose outputs never ship, whatever the policy says (spec 017 FR-029)"
++
++
++def refused_by_name(text: str) -> bool:
++    low = text.lower()
++    return bool(REFUSED_QWEN.search(low)) or (
++        "flux" in low and bool(REFUSED_DEV.search(low))
++    )
++
++
+ MODEL_KEYS = (
+     "name",
+     "repository",
+@@ -2342,6 +2361,9 @@
+             return
+         self.keys(step, STEP_KEYS, ("name", "by"), where)
+         self.text(step.get("name"), f"{where}.name")
++        # R8 names the step, never the string: what the studio wrote isn't echoed.
++        if any(refused_by_name(s) for s in strings(step)):
++            self.problems.append(("R8", f"{where} names {REFUSED_MODELS}"))
+         by = step.get("by")
+         if by not in ("model", "hand"):
+             self.problems.append(("R1", f"{where}.by isn't model or hand"))
+--- a/tools/gates/test/test_arrival_check.py
++++ b/tools/gates/test/test_arrival_check.py
+@@ -696,6 +696,74 @@
+     return check(repo, *paths(repo, f"{DOG}/still.png"))
+ 
+ 
++# Spec 017 FR-029 (rule R8): Qwen-Image's outputs, in any version, and FLUX [dev]'s never ship, so a record step naming
++# either is refused by name, in any of the step's strings, whatever the licence allowlist says.
++@pytest.mark.parametrize(
++    "change",
++    [
++        lambda s: s["models"][0].update(
++            name="Qwen-Image-2.1", repository="Qwen/Qwen-Image-2.1"
++        ),
++        lambda s: s["models"][0].update(name="qwen_image"),
++        lambda s: s["models"][0].update(repository="Qwen/Qwen2-Image"),
++        lambda s: s["models"][0].update(name="FLUX.1 [dev]"),
++        lambda s: s["models"][0].update(repository="black-forest-labs/FLUX.1-dev"),
++        lambda s: s.update(name="inpaint with Qwen Image Edit"),
++        lambda s: s.update(
++            tools=[
++                {
++                    "name": "Flux Dev",
++                    "version": "1",
++                    "license": "apache-2.0",
++                    "license_version": "2.0",
++                }
++            ]
++        ),
++    ],
++    ids=[
++        "qwen-image-2.1",
++        "qwen-underscore",
++        "qwen2-image-repository",
++        "flux-1-dev",
++        "flux-dev-repository",
++        "the-step-name",
++        "a-tool",
++    ],
++)
++def test_r8_a_step_naming_qwen_image_or_flux_dev_is_refused_by_name(
++    repo: fx.Repo, change
++) -> None:
++    data = fx.png()
++    step = fx.model_step()
++    change(step)
++    run = in_dog(repo, "still.png", data, [fx.entry("still.png", data, steps=[step])])
++    assert run.code == 1 and run.has("R8", f"{DOG}/records.json"), run.out
++    (line,) = [ln for ln in run.out.splitlines() if ln.startswith("R8 ")]
++    assert "steps[0]" in line and "FLUX [dev]" in line
++    # The finding names the step, never the record's string.
++    for text in ("Qwen-Image-2.1", "qwen_image", "Qwen2-Image", "FLUX.1", "Flux Dev"):
++        assert text not in line
++
++
++@pytest.mark.parametrize(
++    "name, repository",
++    [
++        ("FLUX.2 [klein] 4B base", "Comfy-Org/Flux-2-Klein-4B"),
++        ("FLUX.1 [schnell]", "black-forest-labs/FLUX.1-schnell"),
++        ("Qwen3-4B, its text encoder", "Comfy-Org/Flux-2-Klein-4B"),
++        ("Qwen2.5-VL", "Qwen/Qwen2.5-VL-7B-Instruct"),
++    ],
++)
++def test_r8_leaves_other_flux_and_qwen_models_to_the_policy(
++    repo: fx.Repo, name: str, repository: str
++) -> None:
++    data = fx.png()
++    step = fx.model_step(name=name, repository=repository)
++    run = in_dog(repo, "still.png", data, [fx.entry("still.png", data, steps=[step])])
++    assert not run.has("R8", f"{DOG}/records.json"), run.out
++    assert run.code == 0, run.out
++
++
+ @pytest.mark.parametrize(
+     "license_id, version, rule",
+     [

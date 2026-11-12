@@ -1,0 +1,106 @@
+P-7 (spec 017, the night shift; plan.md §7 and §10; tasks.md T069): assets/policy/studio-tools.json, the studio
+line's weights and nodes list, which scripts/studio/line.py reads from refs/heads/main only.
+
+READ EVERY ENTRY BEFORE YOU COMMIT IT. The session saw your ComfyUI install only through the probe: the four custom
+nodes' folder names and the model folders' names (checkpoints, diffusion_models, unet, loras, vae, clip,
+text_encoders, controlnet, upscale_models, background_removal, pulid, photomaker, insightface, facexlib, and others).
+It never saw a weight file's name or any licence, so:
+  - blender-5.2.3 (gpl-3.0-or-later) and comfyui-core (gpl-3.0) carry licence IDs from main's licenses.json and
+    outputs_ship true: the tools' licences don't reach their outputs, and every weight a ComfyUI step uses still has
+    to be on the list itself. comfyui-core's version is UNREVIEWED: write your install's.
+  - the four custom nodes, comfyui-manager, comfyui-flowty-triposr, comfyui-pulid-flux-ll (ComfyUI_PuLID_Flux_ll, as
+    line.py normalizes names), and comfyui-gguf, are "license": "UNREVIEWED", "version": "UNREVIEWED",
+    "outputs_ship": false. Read each one's licence and set its ID (one from licenses.json, or add the licence there
+    first) and outputs_ship yourself.
+  - qwen-image-2.1 and flux-dev (FLUX.1 [dev]) are the two refused weights: outputs_ship false, licence UNREVIEWED.
+    line.py and the arrival check (P-11's R8) refuse both by name whatever this file says.
+  - no weight you use is listed yet: add each, by the name a record step gives it, with its licence, before a studio
+    task names it. line.py matches a step's model and tool names to these IDs, lower case, other characters as
+    hyphens, so "Blender 5.2.3" is blender-5.2.3 and "ComfyUI core" is comfyui-core.
+The shape is line.py's, exactly: {"schema": 1, "tools": [{"id", "kind", "version", "license", "outputs_ship"}]} and no
+other key. The kinds used: application, custom-node, weights.
+
+Spec IDs: decision 5 (new weights and new custom nodes stay yours), FR-029, plan.md §7 step 3.
+
+Needed for: the studio line. Until it's on main, every line.py command that needs the policy exits 2, naming P-7.
+
+How to apply. Commit it on main itself, as your other policy commits are: the arrival check's rule A9 refuses any
+branch that changes assets/policy/, and lets your commit on main through. From your checkout, on main (one line each):
+  B=feat/017-g5-patches
+  F=docs/merge-requests/2026-11-12-feat-017-p7.patch
+  git show "refs/heads/$B:$F" > /tmp/p7.patch
+  sha256sum /tmp/p7.patch
+  patch -p1 --dry-run < /tmp/p7.patch
+  patch -p1 < /tmp/p7.patch
+Then edit the entries, and commit.
+
+Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; `jq` parses it;
+the branch's scripts/studio/line.py load_tools() reads it without error. Its tool_problem(): "Blender 5.2.3" and
+"ComfyUI core" pass; "ComfyUI-GGUF" and "ComfyUI_PuLID_Flux_ll" are "outputs_ship false on the tools list";
+"Qwen-Image-2.1", "FLUX.1 [dev]", and "flux-dev" are "refused by name". Prettier wasn't available to the session;
+the file is written in the form it keeps.
+
+--- /dev/null
++++ b/assets/policy/studio-tools.json
+@@ -0,0 +1,61 @@
++{
++  "schema": 1,
++  "tools": [
++    {
++      "id": "blender-5.2.3",
++      "kind": "application",
++      "version": "5.2.3",
++      "license": "gpl-3.0-or-later",
++      "outputs_ship": true
++    },
++    {
++      "id": "comfyui-core",
++      "kind": "application",
++      "version": "UNREVIEWED",
++      "license": "gpl-3.0",
++      "outputs_ship": true
++    },
++    {
++      "id": "comfyui-manager",
++      "kind": "custom-node",
++      "version": "UNREVIEWED",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    },
++    {
++      "id": "comfyui-flowty-triposr",
++      "kind": "custom-node",
++      "version": "UNREVIEWED",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    },
++    {
++      "id": "comfyui-pulid-flux-ll",
++      "kind": "custom-node",
++      "version": "UNREVIEWED",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    },
++    {
++      "id": "comfyui-gguf",
++      "kind": "custom-node",
++      "version": "UNREVIEWED",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    },
++    {
++      "id": "qwen-image-2.1",
++      "kind": "weights",
++      "version": "2.1",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    },
++    {
++      "id": "flux-dev",
++      "kind": "weights",
++      "version": "FLUX.1 [dev]",
++      "license": "UNREVIEWED",
++      "outputs_ship": false
++    }
++  ]
++}
