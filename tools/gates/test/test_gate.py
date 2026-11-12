@@ -228,6 +228,11 @@ SETTINGS_PASS = (
     "tools and in the sandbox, and give it no route to a loopback listener"
 )
 
+# Spec 001's disclosure check's verdict line on a pass (tools/gates/disclosure_check.py).
+DISCLOSURE_PASS = (
+    "disclosure-check: PASS, every outward thing the tree holds has its row"
+)
+
 # What the branch commits in place of the Author's code: anything that runs it leaves a marker.
 HOSTILE = """#!/usr/bin/env python3
 from pathlib import Path
@@ -458,6 +463,20 @@ def fx(tmp_path: Path) -> Fixture:
         main / "tools/gates/studio_settings_check.py",
         STUB_SCRIPT.format(depth=3, name="studio_settings_check", ok=SETTINGS_PASS),
     )
+    # Spec 001's host steps (P-1): the main tree's plan-note check, infrastructure policy, and disclosure check,
+    # stand-ins that log how they ran.
+    for name, ok in (
+        ("infra_plan_note", "SKIP: no infra change"),
+        (
+            "infra_policy",
+            "SKIP: no infra/ yet (spec 001's group 3 writes the first file)",
+        ),
+        ("disclosure_check", DISCLOSURE_PASS),
+    ):
+        write(
+            main / f"tools/gates/{name}.py",
+            STUB_SCRIPT.format(depth=3, name=name, ok=ok),
+        )
     git(main, "add", "-A")
     git(main, "commit", "-qm", "init")
     # Not committed: the Author's denylist, an untracked file, and an ignored .venv, none of which an export holds.
@@ -3448,3 +3467,107 @@ def test_the_engine_isnt_asked_where_the_step_wouldnt_build(
     done = gate(fx, "feature")
     assert status_of(done, "image") == "FAIL"
     assert on_engine(fx.docker()) == []
+
+
+# --------------------------------------------------------------------------------------------------
+# Spec 001's host steps, P-1 (its contracts/infra-records.md §2 and §3; plan §8.3): the main tree's plan-note check
+# over the commits, and its infrastructure policy and disclosure check over the export, after studio-settings
+# --------------------------------------------------------------------------------------------------
+def test_spec_001s_steps_run_mains_checkers_on_the_range_and_the_export(
+    fx: Fixture,
+) -> None:
+    sha = fx.branch(CHANGE)
+    done = gate(fx, "feature")
+    assert done.returncode == 0, done.stdout + done.stderr
+    (note,) = fx.logged("infra_plan_note")
+    base = git(fx.main, "merge-base", "refs/heads/main", sha)
+    assert note["argv"] == ["--repo", str(fx.main), "--base", base, "--head", sha]
+    (policy,) = fx.logged("infra_policy")
+    (disc,) = fx.logged("disclosure_check")
+    assert policy["argv"][0] == "--root" and disc["argv"][0] == "--root"
+    assert (
+        policy["argv"][1] == disc["argv"][1] != str(fx.main)
+    )  # the export, never the checkout
+    for run in (note, policy, disc):
+        assert (run["isolated"], run["no_bytecode"], run["pycache_prefix"]) == (
+            1,
+            1,
+            "/dev/null",
+        )
+    assert status_of(done, "infra-plan-note") == "SKIP"
+    assert status_of(done, "infra-check") == "SKIP"
+    assert status_of(done, "disclosure") == "PASS"
+    order = table_order(done)
+    assert order.index("studio-settings") + 1 == order.index("infra-plan-note")
+    assert order.index("infra-plan-note") + 1 == order.index("infra-check")
+    assert order.index("infra-check") + 1 == order.index("disclosure")
+    assert order.index("disclosure") < order.index("image")
+
+
+@pytest.mark.parametrize(
+    ("name", "step"),
+    [
+        ("infra_plan_note", "infra-plan-note"),
+        ("infra_policy", "infra-check"),
+        ("disclosure_check", "disclosure"),
+    ],
+)
+def test_a_finding_fails_its_step_and_the_gate(
+    fx: Fixture, name: str, step: str
+) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / f"{name}.control").write_text(
+        "1\nFAIL: a finding the step names\n", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert done.returncode == 1
+    assert status_of(done, step) == "FAIL"
+    assert "FAIL: a finding the step names" in done.stdout
+    assert not any(line.startswith("merge: ") for line in done.stdout.splitlines())
+
+
+@pytest.mark.parametrize(
+    ("name", "step"),
+    [
+        ("infra_plan_note", "infra-plan-note"),
+        ("infra_policy", "infra-check"),
+        ("disclosure_check", "disclosure"),
+    ],
+)
+def test_a_checker_that_couldnt_run_fails_its_step(
+    fx: Fixture, name: str, step: str
+) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / f"{name}.control").write_text("2\ncan't run\n", encoding="utf-8")
+    done = gate(fx, "feature")
+    assert status_of(done, step) == "FAIL"
+    assert "couldn't check" in row(done, step)
+
+
+@pytest.mark.parametrize(
+    ("name", "step"),
+    [
+        ("infra_plan_note", "infra-plan-note"),
+        ("infra_policy", "infra-check"),
+        ("disclosure_check", "disclosure"),
+    ],
+)
+def test_without_mains_checker_the_step_fails(
+    fx: Fixture, name: str, step: str
+) -> None:
+    fx.branch(CHANGE)
+    git(fx.main, "rm", "-q", f"tools/gates/{name}.py")
+    git(fx.main, "commit", "-qm", "main without the checker")
+    done = gate(fx, "feature")
+    assert status_of(done, step) == "FAIL"
+    assert f"{name}.py is missing" in row(done, step)
+
+
+def test_a_planned_policy_reads_planned(fx: Fixture) -> None:
+    fx.branch(CHANGE)
+    (fx.logs / "infra_policy.control").write_text(
+        "0\nPLANNED (T011): the provider mirror is the Author's\n", encoding="utf-8"
+    )
+    done = gate(fx, "feature")
+    assert status_of(done, "infra-check") == "PLANNED"
+    assert done.returncode == 0

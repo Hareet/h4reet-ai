@@ -82,3 +82,117 @@ def test_other_failures_name_no_refusal(out: str) -> None:
 def test_a_run_that_succeeded_is_no_refusal() -> None:
     out = f"error while creating mount source path '{LINK}': mkdir {LINK}: file exists"
     assert link_refusal(0, out) == ""
+
+
+# E7 and the bare file-name patterns (spec 001's P-1: *.tfstate*, *.tfplan, *.tfvars*), which no mask can hold:
+# the host side takes them from the settings, as engine.sh's check_tree_masks does, and walks the container's view
+# of the tree for a file one matches, and plants one for engine.sh up to refuse.
+
+
+def bash_function(name: str, *args: str) -> str:
+    done = subprocess.run(
+        ["bash", "-c", function(name) + f'{name} "$@"\n', "bash", *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return done.stdout.strip()
+
+
+@pytest.mark.parametrize(
+    ("layer", "entry", "glob"),
+    [
+        ("rule", "*.tfstate*", "*.tfstate*"),
+        ("rule", "*.tfplan", "*.tfplan"),
+        ("rule", "*.tfvars*", "*.tfvars*"),
+        ("fs", "*.pem", "*.pem"),
+        # The env globs are the env probe's, as engine.sh's step 3 holds them apart.
+        ("rule", ".env*", ""),
+        ("rule", "*.env", ""),
+        ("fs", ".env.*", ""),
+        # A / makes it a path, which a mask must hold; no glob makes it a name the masks hold.
+        ("rule", "./config/*.key", ""),
+        ("rule", "infra/*.tfstate", ""),
+        ("rule", "~/.aws/**", ""),
+        ("fs", "secrets", ""),
+        # The whole tree is no name.
+        ("rule", "*", ""),
+        ("rule", "**", ""),
+    ],
+)
+def test_deny_name_glob_takes_bare_name_patterns_alone(
+    layer: str, entry: str, glob: str
+) -> None:
+    assert bash_function("deny_name_glob", layer, entry) == glob
+
+
+@pytest.mark.parametrize(
+    ("glob", "sample"),
+    [
+        ("*.tfstate*", "__h4-prove-e7.tfstate"),
+        ("*.tfplan", "__h4-prove-e7.tfplan"),
+        ("*.tfvars*", "__h4-prove-e7.tfvars"),
+        (
+            "key-?.pem*",
+            "",
+        ),  # no leading star: no sample, so no plausible name is planted
+        ("*.[pk]em", ""),  # a bracket: no sample
+    ],
+)
+def test_glob_sample_is_a_planted_name_the_pattern_matches(
+    glob: str, sample: str
+) -> None:
+    got = bash_function("glob_sample", glob)
+    assert got == sample
+    if got:
+        matched = subprocess.run(
+            ["bash", "-c", "[[ $1 == $2 ]]", "bash", got, glob], check=False
+        )
+        assert matched.returncode == 0
+
+
+def walk(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """E7's in-container walk, run against a tree at root instead of the container's /tree."""
+    body = function("e7_hidden_paths")
+    match = re.search(r"local script='(.*?)'\n", body, re.DOTALL)
+    assert match
+    script = match.group(1)
+    assert script.count('tree = "/tree"') == 1
+    script = script.replace('tree = "/tree"', f"tree = {str(root)!r}")
+    return subprocess.run(
+        ["python3", "-I", "-c", script, *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def tree_with(tmp_path: Path, *files: str) -> Path:
+    root = tmp_path / "tree"
+    for rel in ("deploy/agents-engine/tree-masks.txt", *files):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("x\n", encoding="utf-8")
+    return root
+
+
+def test_the_walk_finds_a_file_a_bare_pattern_matches(tmp_path: Path) -> None:
+    root = tree_with(tmp_path, "infra/bootstrap/terraform.tfstate", "infra/main.tf")
+    done = walk(root, "--", "*.tfstate*", "*.tfplan")
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert (
+        "files the sandbox denies by name visible: infra/bootstrap/terraform.tfstate"
+        in done.stdout
+    )
+
+
+def test_the_walk_passes_with_no_such_file(tmp_path: Path) -> None:
+    root = tree_with(tmp_path, "infra/main.tf", "x.env.example")
+    done = walk(root, "--", "*.tfstate*", "*.tfplan", "*.tfvars*")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert done.stdout.startswith("0 masks, 3 files walked")
+
+
+def test_the_walk_still_finds_env_files_without_patterns(tmp_path: Path) -> None:
+    done = walk(tree_with(tmp_path, "deploy/x.env"))
+    assert done.returncode == 3
+    assert "env files visible: deploy/x.env" in done.stdout

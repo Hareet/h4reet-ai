@@ -221,9 +221,10 @@ fi
 if has "$evals_run" && has "$anthropic_word"; then
   block "the Anthropic evals" "evals/run.py --adapter anthropic: $author_route"
 fi
-aws_login="${nb}$(spelled aws-login.sh)${ne}"
+# Spec 001's P-1 adds aws-sso-profile.sh, make aws-login PROFILE=…'s script, the Author's own SSO session.
+aws_login="${nb}($(spelled aws-login.sh)|$(spelled aws-sso-profile.sh))${ne}"
 shell_start="(^|[[:space:];&|(\`{]|\\\$\()(bash|sh|zsh|dash|ksh|source|eval|\.)([[:space:]]|\$)"
-if has "${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?$(spelled aws-login.sh)${ne}" \
+if has "${engine_start}(${engine_skip})*[[:space:]]*[\"']?([^[:space:];&|]*/)?($(spelled aws-login.sh)|$(spelled aws-sso-profile.sh))${ne}" \
   || { has "$aws_login" && has "$shell_start"; }; then
   block "aws-login.sh" "$author_route"
 fi
@@ -337,6 +338,63 @@ tf_sub="($(spelled apply)|$(spelled destroy)|$(spelled import)|$(spelled state)[
 # A global option, or a word a variable fills ($FLAGS, ${F}, $(…)), may sit between terraform and its subcommand.
 if has "${nb}$(spelled terraform)([[:space:]]+[\"']*[-\$][^[:space:]]*)*[[:space:]]+[\"']*${tf_sub}${ne}"; then
   block "terraform mutation" "commit the change on your feature branch; apply runs in the protected environment after the Author approves"
+fi
+# Spec 001's guard patch, P-1 (its plan §2; research.md R-16, R-32; FR-006, FR-011, FR-012). Terraform's state-changing
+# commands in every spelling R-16 names: terraform, and tofu and terragrunt as drop-ins, by name or by a path to the
+# binary, wherever they sit (a wrapper such as command, exec, env, nice, timeout, or xargs; bash -c or sh -c; a
+# subshell), with any words between the name and the subcommand inside one simple command (-chdir=…, a quoted value, a
+# variable), so a subcommand counts after a space or a quote, never after = or a path's / (plan -out=apply.tfplan, fmt
+# infra/test). Quotes, backslashes, and $ inside a name don't hide it. The subcommands: apply and destroy (and
+# terragrunt's apply-all and destroy-all), import, refresh, taint, untaint, force-unlock, test (it creates real
+# infrastructure), state rm, mv, push, or replace-provider, workspace new or delete, and init with -migrate-state,
+# -force-copy, or -reconfigure. fmt, validate, init -backend=false, and plan stay allowed: the offline checks.
+# TF_CLI_ARGS and TF_CLI_ARGS_<command> add flags or a plan file to any command, so the name is refused wherever it
+# appears, and any terraform-family command is refused while one is set in the session's own environment. A name held
+# in a variable, a shell function or alias, or a copy of the binary under another name gets through (the matrix's gap
+# rows); agent sessions hold no AWS credential and the sandbox reaches no AWS endpoint, so those still change nothing.
+# The name ends at a character no name holds, but never a separator, so the match stays inside one simple command.
+tf_bin="${nb}($(spelled terraform)|$(spelled tofu)|$(spelled terragrunt))([^[:alnum:]_.;&|-]|\$)"
+tf_mut="(($(spelled apply)|$(spelled destroy))(${eq}-${eq}$(spelled all))?|$(spelled import)|$(spelled refresh)|$(spelled taint)|$(spelled untaint)|$(spelled force-unlock)|$(spelled test)|$(spelled state)[\"']*[[:space:]]+[\"']*([^[:space:]]*\\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])?($(spelled rm)|$(spelled mv)|$(spelled push)|$(spelled replace-provider))|$(spelled workspace)[\"']*[[:space:]]+[\"']*([^[:space:]]*\\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?])?($(spelled new)|$(spelled delete)))"
+tf_route="agent sessions run terraform fmt, validate, and init -backend=false only (make infra-check); the Author plans and applies in his terminal (spec 001 FR-006; research.md R-16)"
+# Before the subcommand, a space, a quote, the } that ends an expansion (${IFS}apply), or a parameter's default's
+# opening (${v:-apply}), the form nb and tb already take for names and make targets (the review's B6).
+tf_pre="([^;&|]*([[:space:]\"'}]|\{[A-Za-z_][A-Za-z0-9_]*:?[-=+?]))?"
+if has "${tf_bin}${tf_pre}${tf_mut}([\"'}]|${ne})"; then
+  block "a Terraform state-changing command" "$tf_route"
+fi
+if has "${tf_bin}${tf_pre}$(spelled init)([\"'}]|${ne})[^;&|]*-${eq}-?${eq}($(spelled migrate-state)|$(spelled force-copy)|$(spelled reconfigure))"; then
+  block "terraform init that moves or rewrites state" "$tf_route"
+fi
+if has "$(spelled TF_CLI_ARGS)"; then
+  block "TF_CLI_ARGS" "it adds flags or a plan file to every terraform command; $tf_route"
+fi
+for tf_var in "${!TF_CLI_ARGS@}"; do
+  if has "$tf_bin"; then block "a terraform command while $tf_var is set" "unset it in the shell that starts Claude Code; $tf_route"; fi
+done
+# The Author-only targets (research.md R-16, R-32; contracts/infra-records.md §1): make plan with a ROOT (the real plan,
+# with his SSO session; make plan alone is the offline checks), infra-verify, infra-record, infra-mirror, infra-audit,
+# secrets-check, release, rollback, the ec2-* commands, cloud-session, shared-state-roles, server-budget-restore,
+# tunnel-keys, and tunnel-revoke, by make's two matches above. make aws-login, already refused, takes a named profile
+# now; operator-* with ENV=shared is refused by the dev-cpu rule below. Their API equivalents too: the AWS CLI writing or
+# deleting a /h4reet/ parameter (the secrets and the autostart switch, R-26; FR-012) or invoking h4-ec2-start or
+# h4-ec2-guard (make ec2-start's function).
+p1_route="the Author runs it in his terminal (spec 001 research.md R-32); ask the Author"
+p1_targets="$(spelled infra-verify)|$(spelled infra-record)|$(spelled infra-mirror)|$(spelled infra-audit)|$(spelled secrets-check)|$(spelled release)|$(spelled rollback)|$(spelled ec2-)[[:alnum:]_\"'\\\$-]*|$(spelled cloud-session)|$(spelled shared-state-roles)|$(spelled server-budget-restore)|$(spelled tunnel-keys)|$(spelled tunnel-revoke)"
+if has "$make_word" && has "${tb}(${p1_targets})${te}"; then
+  block "an Author-only make target (spec 001)" "$p1_route"
+fi
+if has "$make_word" && has "${tb}$(spelled plan)${te}" && # Quotes in or around the name count as part of it (make plan "ROOT"=prod), as only_dev_cpu reads ENV.
+has "(^|[^[:alnum:]_.-])${eq}$(spelled ROOT)${eq}[[:space:]]*[:+?!]*${eq}="; then
+  block "make plan with a ROOT, the real plan" "make plan alone runs the offline checks; $p1_route"
+fi
+if has "${nb}$(spelled aws)${ne}" && { { has "${nb}($(spelled put-parameter)|$(spelled delete-parameter)|$(spelled delete-parameters))${ne}" \
+  && has "$(spelled /h4reet/)"; } || { has "${nb}$(spelled invoke)" && has "$(spelled h4-ec2-)"; }; }; then
+  block "the AWS CLI on a /h4reet/ parameter or the handover's functions" "$p1_route"
+fi
+# EC2's start, stop, and terminate through the AWS CLI, and SSM's AWS-StopEC2Instance and AWS-StartEC2Instance: the API
+# equivalents of make ec2-start and make ec2-stop (the review's nit 5).
+if has "${nb}$(spelled aws)${ne}" && has "${nb}($(spelled start-instances)|$(spelled stop-instances)|$(spelled reboot-instances)|$(spelled terminate-instances)|$(spelled AWS-StopEC2Instance)|$(spelled AWS-StartEC2Instance))${ne}"; then
+  block "the AWS CLI starting, stopping, or terminating an instance" "$p1_route"
 fi
 # The read-only roles (plan §13's role table): the reviewer's git diff and git log, and the red-teamer's make redteam
 # and make evals, may not write a file, run another makefile, or call a live adapter. Their grants are prefixes, so the

@@ -29,6 +29,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_VARS = REPO / ".devcontainer" / "toolchain.vars"
 DEFAULT_LINT_NODE = Path.home() / ".local" / "share" / "h4reet" / "lint-node"
+# Spec 001's provider mirror (its research.md R-14; make infra-mirror, the Author's), beside the lint toolchain.
+DEFAULT_MIRROR = Path.home() / ".local" / "share" / "h4reet" / "terraform-providers"
+AWS_PROVIDER_DIR = Path("registry.terraform.io") / "hashicorp" / "aws"
 VERSION_RE = re.compile(r"(\d+(?:\.\d+)+)")
 # Pins that are floors (ADR 0023): a newer release is WARN, not DRIFT.
 FLOORS = frozenset({"CLAUDE_CODE_VERSION"})
@@ -76,7 +79,9 @@ def first_version(text: str) -> str | None:
     return found.group(1) if found else None
 
 
-def run_version(argv: list[str]) -> tuple[str | None, str]:
+def run_version(
+    argv: list[str], extra_env: dict[str, str] | None = None
+) -> tuple[str | None, str]:
     """Run a version command found on PATH. Returns (version, where)."""
     exe = shutil.which(argv[0])
     if exe is None:
@@ -89,6 +94,7 @@ def run_version(argv: list[str]) -> tuple[str | None, str]:
             timeout=20,
             check=False,
             stdin=subprocess.DEVNULL,
+            env={**os.environ, **extra_env} if extra_env else None,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, f"{exe}: {exc.__class__.__name__}"
@@ -133,7 +139,25 @@ def package_version(root: Path, package: str) -> tuple[str | None, str]:
     return (version if isinstance(version, str) else None), str(manifest.parent)
 
 
-def check(pins: dict[str, str], lint_node: Path, in_devcontainer: bool) -> list[Row]:
+def mirrored_provider(mirror: Path, pinned: str) -> tuple[str | None, str]:
+    """The hashicorp/aws release the Author's provider mirror holds: the pin when it holds that one, else its newest,
+    from the <version>.json files `terraform providers mirror` writes. None when the mirror holds no hashicorp/aws."""
+    folder = mirror / AWS_PROVIDER_DIR
+    versions = sorted(
+        (p.stem for p in folder.glob("*.json") if p.stem != "index"),
+        key=lambda v: tuple(int(x) if x.isdigit() else 0 for x in v.split(".")),
+    )
+    if not versions:
+        return None, f"{folder} holds no release (make infra-mirror, the Author's)"
+    return (pinned if pinned in versions else versions[-1]), str(folder)
+
+
+def check(
+    pins: dict[str, str],
+    lint_node: Path,
+    in_devcontainer: bool,
+    mirror: Path | None = None,
+) -> list[Row]:
     rows: list[Row] = []
 
     def add(
@@ -186,6 +210,29 @@ def check(pins: dict[str, str], lint_node: Path, in_devcontainer: bool) -> list[
     else:
         add("claude code", "CLAUDE_CODE_VERSION", found, where)
 
+    # Spec 001's pins (its research.md R-02; tasks.md T008), each a row only once toolchain.vars names it. Terraform and
+    # the AWS CLI run in the Author's terminal, so each is SKIP where it isn't installed, and DRIFT where another release
+    # is; terraform runs without its update check (CHECKPOINT_DISABLE). The provider's row reads the Author's mirror.
+    if "TERRAFORM_VERSION" in pins:
+        found, where = run_version(
+            ["terraform", "version"], {"CHECKPOINT_DISABLE": "1"}
+        )
+        add("terraform", "TERRAFORM_VERSION", found, where, required=False)
+    if "AWS_CLI_VERSION" in pins:
+        found, where = run_version(["aws", "--version"])
+        add("aws cli", "AWS_CLI_VERSION", found, where, required=False)
+    if "TERRAFORM_AWS_PROVIDER_VERSION" in pins:
+        found, where = mirrored_provider(
+            mirror or DEFAULT_MIRROR, pins["TERRAFORM_AWS_PROVIDER_VERSION"]
+        )
+        add(
+            "terraform provider: hashicorp/aws",
+            "TERRAFORM_AWS_PROVIDER_VERSION",
+            found,
+            where,
+            required=False,
+        )
+
     for tool, key, package in (
         ("lint: eslint", "ESLINT_VERSION", "eslint"),
         ("lint: typescript-eslint", "TYPESCRIPT_ESLINT_VERSION", "typescript-eslint"),
@@ -232,7 +279,8 @@ def main(argv: list[str]) -> int:
         return 1
     lint_node = Path(os.environ.get("H4_LINT_NODE") or DEFAULT_LINT_NODE)
     in_devcontainer = os.environ.get("H4_DEVCONTAINER") == "1"
-    rows = check(pins, lint_node, in_devcontainer)
+    mirror = Path(os.environ.get("H4_TERRAFORM_MIRROR") or DEFAULT_MIRROR)
+    rows = check(pins, lint_node, in_devcontainer, mirror)
     print(render(rows))
     above = [r for r in rows if r.status == "WARN"]
     for r in above:

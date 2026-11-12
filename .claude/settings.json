@@ -78,7 +78,14 @@
       "Edit(//srv/studio/workflows/**)",
       "Read(//srv/studio/key/**)",
       "Edit(//srv/studio/key/**)",
-      "Edit(/assets/policy/**)"
+      "Edit(/assets/policy/**)",
+      "Read(*.tfstate*)",
+      "Edit(*.tfstate*)",
+      "Read(*.tfplan)",
+      "Edit(*.tfplan)",
+      "Read(*.tfvars*)",
+      "Edit(*.tfvars*)",
+      "Edit(/infra/policy/**)"
     ],
     "allow": [
       "Bash(git status*)",
@@ -323,6 +330,134 @@
         },
         {
           "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "GATEWAY_DB_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "GATEWAY_DB_TLS_SERVERNAME",
+          "mode": "deny"
+        },
+        {
+          "name": "RELAY_TOKEN_SELF",
+          "mode": "deny"
+        },
+        {
+          "name": "RELAY_TOKEN_LAPTOP",
+          "mode": "deny"
+        },
+        {
+          "name": "RELAY_TOKEN_EC2",
+          "mode": "deny"
+        },
+        {
+          "name": "SNAPSHOT_SINK_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "TELEMETRY_BLOCK_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "DB_GATEWAY_PASSWORD",
+          "mode": "deny"
+        },
+        {
+          "name": "DB_GRAFANA_RO_PASSWORD",
+          "mode": "deny"
+        },
+        {
+          "name": "DB_RELAY_RO_PASSWORD",
+          "mode": "deny"
+        },
+        {
+          "name": "DB_RELAY_RW_PASSWORD",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_VAR_alert_email",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_VAR_state_bucket_suffix",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_VAR_server_budget_usd",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_VAR_bedrock_service_names",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_init",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_plan",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_apply",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_destroy",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_import",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_refresh",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_state",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_taint",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_test",
+          "mode": "deny"
+        },
+        {
+          "name": "TF_CLI_ARGS_workspace",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SECURITY_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_DEFAULT_PROFILE",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_ROLE_SESSION_NAME",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_BEARER_TOKEN_BEDROCK",
           "mode": "deny"
         }
       ]

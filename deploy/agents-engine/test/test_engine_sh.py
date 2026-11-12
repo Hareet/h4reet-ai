@@ -707,6 +707,74 @@ def test_env_templates_and_masked_env_files_pass(tmp_path: Path) -> None:
     assert "MASKS-OK" in done.stdout, done.stderr
 
 
+# A bare file-name pattern, a deny with no / (spec 001's P-1 adds *.tfstate*, *.tfplan, and *.tfvars*), can match in
+# any folder, so no mask can hold it. check_tree_masks takes the list from the settings, lets each through step 1,
+# and refuses while a file one matches sits outside a mask, as it does for the env files; so a new pattern there
+# needs no change here.
+NAME_GLOBS = ["*.tfstate*", "*.tfplan", "*.tfvars*"]
+
+
+def test_bare_name_patterns_pass_while_no_file_they_match_is_outside_a_mask(
+    tmp_path: Path,
+) -> None:
+    files = ["infra/bootstrap/main.tf", "infra/bootstrap/.terraform.lock.hcl"]
+    done = _check_masks(tmp_path, MASKS, read_rules=NAME_GLOBS, files=files)
+    assert "MASKS-OK" in done.stdout, done.stderr
+
+
+@pytest.mark.parametrize(
+    ("pattern", "name"),
+    [
+        ("*.tfstate*", "infra/bootstrap/terraform.tfstate"),
+        ("*.tfstate*", "terraform.tfstate.backup"),
+        ("*.tfplan", "infra/account/x.tfplan"),
+        ("*.tfvars*", "prod.tfvars.json"),
+    ],
+)
+def test_a_file_a_bare_pattern_matches_outside_a_mask_is_refused(
+    tmp_path: Path, pattern: str, name: str
+) -> None:
+    done = _check_masks(tmp_path, MASKS, read_rules=NAME_GLOBS, files=[name])
+    assert done.returncode != 0
+    assert "MASKS-OK" not in done.stdout
+    assert (
+        f"a file the sandbox read-denies by name ('{pattern}') sits outside a masked path: {name}"
+        in done.stderr
+    )
+
+
+def test_a_file_a_bare_pattern_matches_under_a_mask_passes(tmp_path: Path) -> None:
+    files = ["secrets/x.tfstate", "deploy/env/prod.tfvars"]
+    done = _check_masks(tmp_path, MASKS, read_rules=NAME_GLOBS, files=files)
+    assert "MASKS-OK" in done.stdout, done.stderr
+
+
+def test_a_bare_pattern_is_read_from_either_layer_of_the_settings(
+    tmp_path: Path,
+) -> None:
+    # A future *.pem, here as a sandbox.filesystem.denyRead entry, needs no change to the engine.
+    passed = _check_masks(tmp_path / "a", MASKS, deny_read=["*.pem"])
+    assert "MASKS-OK" in passed.stdout, passed.stderr
+    refused = _check_masks(
+        tmp_path / "b", MASKS, deny_read=["*.pem"], files=["keys/a.pem"]
+    )
+    assert refused.returncode != 0
+    assert (
+        "read-denies by name ('*.pem') sits outside a masked path: keys/a.pem"
+        in refused.stderr
+    )
+
+
+def test_a_pattern_with_a_slash_still_needs_its_folder_masked(tmp_path: Path) -> None:
+    # Only a bare name is exempt: infra/*.tfstate names a folder, which a mask must hold.
+    done = _check_masks(tmp_path, MASKS, read_rules=["infra/*.tfstate"])
+    assert done.returncode != 0
+    assert (
+        "the sandbox read-denies the pattern 'infra/*.tfstate' inside the tree"
+        in done.stderr
+    )
+
+
 # --------------------------------------------------------------------------------------------------
 # seed: the host's image store, then the disk, before any pull (§6.1, §6.2, tasks.md T130)
 # --------------------------------------------------------------------------------------------------

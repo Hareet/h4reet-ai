@@ -144,6 +144,16 @@ env_file_glob() {
 	return 1
 }
 
+# Is a deny, as the settings write it, a bare file-name pattern: no /, and a glob character (spec 001's *.tfstate*,
+# *.tfplan, *.tfvars*)? It can match in any folder, so no mask can hold it: check_tree_masks takes these from the
+# settings, lets them through step 1, and holds them in step 4 as step 3 holds the env files, so a new one there
+# needs no change here.
+bare_name_glob() {
+	case "$1" in */*) return 1 ;; esac
+	case "$1" in *[*?[]*) return 0 ;; esac
+	return 1
+}
+
 # The leading part of a pattern that holds no glob character. Every path the pattern matches is under it.
 glob_base() {
 	local -a parts=()
@@ -183,6 +193,7 @@ check_tree_masks() {
 	#    unchecked one.
 	command -v jq >/dev/null 2>&1 || die "jq is missing, so the sandbox's read denies can't be checked (fail closed)"
 	local denies kind deny rel base
+	local -a names=()
 	denies="$(jq -r '
 		((.sandbox.filesystem.denyRead // [])[] | select(type == "string") | "sandbox\t" + .),
 		((.permissions.deny // [])[] | select(type == "string" and startswith("Read(") and endswith(")"))
@@ -194,8 +205,13 @@ check_tree_masks() {
 		[ -n "$rel" ] || continue # outside the tree
 		case "$rel" in
 		*[*?[]*)
-			# A pattern. The env-file globs are step 3's; any other must lie wholly under a mask.
+			# A pattern. The env-file globs are step 3's, and the other bare file-name patterns step 4's; any other
+			# must lie wholly under a mask.
 			env_file_glob "$rel" && continue
+			if bare_name_glob "$deny"; then
+				names+=("$rel")
+				continue
+			fi
 			base="$(glob_base "$rel")"
 			if [ -n "$base" ] && mask_holds "$base" "${masks[@]}"; then
 				continue
@@ -225,6 +241,27 @@ check_tree_masks() {
 		if ! mask_holds "$rel" "${masks[@]}"; then
 			die "an env file sits outside a masked path: $rel (move it to ~/.config/h4reet-ai/env/)"
 		fi
+	done <<<"$found"
+
+	# 4. The same for each bare file-name pattern step 1 let through, as the settings list them: refuse while a file
+	#    one matches sits outside a mask, naming the pattern and the file. One walk of the tree for all of them.
+	[ "${#names[@]}" -gt 0 ] || return 0
+	local -a expr=()
+	local name
+	for name in "${names[@]}"; do
+		[ "${#expr[@]}" -eq 0 ] || expr+=(-o)
+		expr+=(-name "$name")
+	done
+	found="$(find "$repo" \( "${expr[@]}" \) -type f 2>/dev/null || true)"
+	while IFS= read -r path; do
+		[ -n "$path" ] || continue
+		rel="${path#"$repo"/}"
+		mask_holds "$rel" "${masks[@]}" && continue
+		for name in "${names[@]}"; do
+			# shellcheck disable=SC2053 # the deny's pattern, matched as a glob, as find matched it
+			[[ ${path##*/} == $name ]] && break
+		done
+		die "a file the sandbox read-denies by name ('$name') sits outside a masked path: $rel"
 	done <<<"$found"
 }
 

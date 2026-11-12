@@ -260,3 +260,71 @@ def test_make_tools_pulls_the_same_gitleaks_image_as_the_dockerfile() -> None:
         r"ghcr\.io/gitleaks/gitleaks:v\$\{gitleaks_v\}@(sha256:[0-9a-f]{64})", script
     )
     assert len(pinned) == 1 and copied == pinned
+
+
+# Spec 001's pins (its research.md R-02; tasks.md T008): rows only once toolchain.vars names them, SKIP where a tool
+# isn't installed, and the provider's row read from the Author's mirror.
+SPEC_001 = {
+    "TERRAFORM_VERSION": "1.17.1",
+    "TERRAFORM_AWS_PROVIDER_VERSION": "6.72.0",
+    "AWS_CLI_VERSION": "2.29.1",
+}
+SPEC_001_TOOLS = ("terraform", "aws cli", "terraform provider: hashicorp/aws")
+
+
+def mirror_of(tmp_path: Path, *versions: str) -> Path:
+    mirror = tmp_path / "mirror"
+    folder = mirror / "registry.terraform.io" / "hashicorp" / "aws"
+    folder.mkdir(parents=True)
+    (folder / "index.json").write_text("{}", encoding="utf-8")
+    for v in versions:
+        (folder / f"{v}.json").write_text("{}", encoding="utf-8")
+    return mirror
+
+
+def test_spec_001s_rows_only_when_pinned(host: tuple[Path, Path]) -> None:
+    _, lint = host
+    rows = tc.check(PINS, lint, in_devcontainer=False)
+    assert not set(SPEC_001_TOOLS) & {r.tool for r in rows}
+
+
+def test_spec_001s_tools_skip_where_not_installed(
+    host: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, lint = host
+    rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=tmp_path / "none")
+    assert [status(rows, t) for t in SPEC_001_TOOLS] == ["SKIP", "SKIP", "SKIP"]
+    assert [r.tool for r in rows if r.status not in ("OK", "SKIP")] == []
+
+
+def test_spec_001s_tools_at_their_pins(host: tuple[Path, Path], tmp_path: Path) -> None:
+    bin_dir, lint = host
+    make_tool(bin_dir, "terraform", "Terraform v1.17.1\non linux_amd64")
+    make_tool(bin_dir, "aws", "aws-cli/2.29.1 Python/3.13.7 Linux/6.18 exe/x86_64")
+    mirror = mirror_of(tmp_path, "6.71.0", "6.72.0")
+    rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=mirror)
+    assert [status(rows, t) for t in SPEC_001_TOOLS] == ["OK", "OK", "OK"]
+
+
+def test_spec_001s_tools_drift(host: tuple[Path, Path], tmp_path: Path) -> None:
+    bin_dir, lint = host
+    make_tool(bin_dir, "terraform", "Terraform v1.16.2\non linux_amd64")
+    make_tool(bin_dir, "aws", "aws-cli/2.28.0 Python/3.13.7 Linux/6.18 exe/x86_64")
+    mirror = mirror_of(tmp_path, "6.71.0")
+    rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=mirror)
+    assert [status(rows, t) for t in SPEC_001_TOOLS] == ["DRIFT", "DRIFT", "DRIFT"]
+
+
+def test_terraform_runs_without_its_update_check(
+    host: tuple[Path, Path], tmp_path: Path
+) -> None:
+    bin_dir, lint = host
+    fake = bin_dir / "terraform"
+    fake.write_text(
+        '#!/bin/sh\nif [ "$CHECKPOINT_DISABLE" = 1 ]; then echo "Terraform v1.17.1"; '
+        'else echo "Terraform v0.0.1"; fi\n',
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    rows = tc.check({**PINS, **SPEC_001}, lint, False, mirror=tmp_path / "none")
+    assert status(rows, "terraform") == "OK"
