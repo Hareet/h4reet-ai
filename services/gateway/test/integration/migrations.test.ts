@@ -20,6 +20,7 @@ import {
   type Database,
   type Migration,
 } from "../../src/meter/store.js";
+import { LAPTOP } from "../../src/config/hosts.js";
 import { testDatabase, type TestDatabase } from "../helpers/pglite.js";
 
 const sha256 = (s: string): string => createHash("sha256").update(s, "utf8").digest("hex");
@@ -1152,17 +1153,17 @@ describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
       (r) => r.host,
     );
 
-  it("gives ledger and audit_log a host, laptop or ec2, from the session's h4.host, and null without one", async () => {
+  it(`gives ledger and audit_log a host, ${LAPTOP} or ec2, from the session's h4.host, and null without one`, async () => {
     await ledgerRow();
     await auditRow();
     await db.pg.exec("SET h4.host = 'ec2'");
     await ledgerRow();
     await auditRow();
-    await db.pg.exec("SET h4.host = 'laptop'");
+    await db.pg.exec(`SET h4.host = '${LAPTOP}'`);
     await ledgerRow();
     await auditRow();
-    expect(await hosts("ledger")).toEqual([null, "ec2", "laptop"]);
-    expect(await hosts("audit_log")).toEqual([null, "ec2", "laptop"]);
+    expect(await hosts("ledger")).toEqual([null, "ec2", LAPTOP]);
+    expect(await hosts("audit_log")).toEqual([null, "ec2", LAPTOP]);
     await expect(ledgerRow("tunnel-end")).rejects.toThrow(/ledger_host_check|check constraint/);
     await db.pg.exec("SET h4.host = 'tunnel-end'");
     await expect(auditRow()).rejects.toThrow(/check constraint/);
@@ -1209,20 +1210,20 @@ describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
     );
 
   it("records handover events with their hosts, their reason, and a gap only on a move out of none", async () => {
-    await handover("laptop", "none", "laptop_unhealthy");
+    await handover(LAPTOP, "none", `${LAPTOP}_unhealthy`);
     await handover("none", "ec2", "ec2_healthy", 41_000);
-    await handover("ec2", "laptop", "laptop_healthy");
+    await handover("ec2", LAPTOP, `${LAPTOP}_healthy`);
     const { rows } = await db.pg.query<Record<string, unknown>>(
       "SELECT from_host, to_host, reason, gap_ms FROM gateway.handover_events ORDER BY id",
     );
     expect(rows).toEqual([
-      { from_host: "laptop", to_host: "none", reason: "laptop_unhealthy", gap_ms: null },
+      { from_host: LAPTOP, to_host: "none", reason: `${LAPTOP}_unhealthy`, gap_ms: null },
       { from_host: "none", to_host: "ec2", reason: "ec2_healthy", gap_ms: 41_000 },
-      { from_host: "ec2", to_host: "laptop", reason: "laptop_healthy", gap_ms: null },
+      { from_host: "ec2", to_host: LAPTOP, reason: `${LAPTOP}_healthy`, gap_ms: null },
     ]);
     await expect(handover("tunnel-end", "ec2", "ec2_healthy")).rejects.toThrow();
-    await expect(handover("laptop", "ec2", "moved")).rejects.toThrow();
-    await expect(handover("laptop", "ec2", "ec2_healthy", 5)).rejects.toThrow(/handover_events_gap/);
+    await expect(handover(LAPTOP, "ec2", "moved")).rejects.toThrow();
+    await expect(handover(LAPTOP, "ec2", "ec2_healthy", 5)).rejects.toThrow(/handover_events_gap/);
     await expect(handover("none", "ec2", "ec2_healthy", -1)).rejects.toThrow();
   });
 
@@ -1268,7 +1269,7 @@ describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
     }
     await db.pg.exec("SET ROLE relay_rw");
     try {
-      await expect(handover("laptop", "none", "laptop_unhealthy")).resolves.toBeDefined();
+      await expect(handover(LAPTOP, "none", `${LAPTOP}_unhealthy`)).resolves.toBeDefined();
       for (const t of ["v_state", "stack_state", "handover_events", "ledger"]) {
         await expect(db.pg.query(`SELECT 1 FROM gateway.${t} LIMIT 1`), t).rejects.toThrow(/permission denied/);
       }
@@ -1282,9 +1283,9 @@ describe("0007_hosts (spec 001, data-model.md §1.2)", () => {
   it("gives grafana_ro the last 30 days of handovers through v_handovers, and still not the table", async () => {
     await db.pg.query(
       `INSERT INTO gateway.handover_events (at, from_host, to_host, reason)
-       VALUES (now() - interval '31 days', 'ec2', 'laptop', 'laptop_healthy')`,
+       VALUES (now() - interval '31 days', 'ec2', '${LAPTOP}', '${LAPTOP}_healthy')`,
     );
-    await handover("laptop", "ec2", "ec2_healthy");
+    await handover(LAPTOP, "ec2", "ec2_healthy");
     await db.pg.exec("SET ROLE grafana_ro");
     try {
       const { rows } = await db.pg.query<{ to_host: string }>("SELECT to_host FROM gateway.v_handovers");

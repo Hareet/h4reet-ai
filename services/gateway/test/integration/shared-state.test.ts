@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
+import { LAPTOP } from "../../src/config/hosts.js";
 import { testDatabase, type TestDatabase } from "../helpers/pglite.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
 import { testStack, type TestStack } from "../helpers/stack.js";
@@ -90,7 +91,7 @@ describe("two gateways on one shared state (FR-017)", () => {
     expect(Number(reserved.rows[0]?.n)).toBe(0);
     // Each row names the host whose gateway wrote it (0007, from H4_HOST: dev's is the laptop).
     const hosts = await db.pg.query<Rec>("SELECT DISTINCT host FROM gateway.ledger");
-    expect(hosts.rows).toEqual([{ host: "laptop" }]);
+    expect(hosts.rows).toEqual([{ host: LAPTOP }]);
   });
 
   it("is tripped for both by the commit of either, and alerts the crossing once", async () => {

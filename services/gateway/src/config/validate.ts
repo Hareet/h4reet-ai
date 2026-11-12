@@ -12,6 +12,7 @@ import {
   type AdapterTypeSpec,
   type Env,
 } from "../adapters/_settings.js";
+import { EC2, HOST_NAMES, LAPTOP, type HostName } from "./hosts.js";
 import type { AdapterKind } from "../core/types.js";
 import {
   formatIssue,
@@ -210,8 +211,8 @@ export interface Route {
 }
 
 /** Spec 001's hosts: the laptop's route, and EC2's if the file names one (rules H1, H2). */
-export type HostName = "laptop" | "ec2";
-export const HOST_NAMES: readonly HostName[] = ["laptop", "ec2"];
+export type { HostName };
+export { HOST_NAMES };
 
 export interface RoutingConfig {
   readonly deadlineMs: number;
@@ -219,7 +220,7 @@ export interface RoutingConfig {
   /** The route of each env class; with schema 2, envs.prod is the laptop's (H2). */
   readonly envs: Readonly<Record<EnvClass, Route>>;
   /** Schema 2's envs.prod.hosts (spec 001); absent with schema 1. */
-  readonly hosts?: { readonly laptop: Route; readonly ec2?: Route };
+  readonly hosts?: Readonly<Partial<Record<HostName, Route>>>;
   /** SHA-256 of the file's bytes: h4.routing.sha on every span and ledger row. */
   readonly sha256: string;
 }
@@ -313,7 +314,7 @@ export function validateRouting(
 
   // Routes. Schema 2 (spec 001, data-model.md §2.1) holds envs.prod as a route per host; envs.dev stays a route.
   const routes: Partial<Record<EnvClass, Route>> = {};
-  let hosts: { laptop?: Route; ec2?: Route } | undefined;
+  let hosts: Partial<Record<HostName, Route>> | undefined;
   /** One route's roles, checked against the adapters and R1 to R3; true when it holds. */
   const checkRoles = (env: EnvClass, base: string, roles: [string, string | undefined][], paid: boolean): boolean => {
     let ok = true;
@@ -396,12 +397,12 @@ export function validateRouting(
         out.error("envs.prod", "H1", "with schema 2, envs.prod holds hosts, and nothing else", "FR-067");
       } else {
         const names = Object.keys(prod.hosts);
-        if (!names.includes("laptop") || names.some((n) => !HOST_NAMES.includes(n as HostName))) {
-          out.error("envs.prod.hosts", "H1", "holds laptop, may hold ec2, and holds no other host", "FR-067");
+        if (!names.includes(LAPTOP) || names.some((n) => !HOST_NAMES.includes(n))) {
+          out.error("envs.prod.hosts", "H1", `holds ${LAPTOP}, may hold ${EC2}, and holds no other host`, "FR-067");
         } else {
           hosts = {};
-          const laptop = plainRoute("prod", prod.hosts.laptop, ["envs", "prod", "hosts", "laptop"]);
-          if (laptop !== undefined) hosts.laptop = laptop;
+          const laptop = plainRoute("prod", prod.hosts[LAPTOP], ["envs", "prod", "hosts", LAPTOP]);
+          if (laptop !== undefined) hosts[LAPTOP] = laptop;
           if ("ec2" in prod.hosts) {
             const raw = prod.hosts.ec2;
             if (isMapping(raw) && ("primary" in raw || "fallback" in raw)) {
@@ -485,7 +486,7 @@ export function validateRouting(
       envs: { prod: routes.prod, dev: routes.dev },
       ...(hosts === undefined
         ? {}
-        : { hosts: hosts.ec2 === undefined ? { laptop: routes.prod } : { laptop: routes.prod, ec2: hosts.ec2 } }),
+        : { hosts: hosts.ec2 === undefined ? { [LAPTOP]: routes.prod } : { [LAPTOP]: routes.prod, [EC2]: hosts.ec2 } }),
       sha256: parsed.sha256,
     },
     issues: out.issues,
@@ -1241,7 +1242,7 @@ export class RouteMissingError extends Error {
  * route. The laptop's is envs.prod already; EC2's is envs.prod.hosts.ec2, and without it EC2 refuses to start.
  */
 export function routingForHost(routing: RoutingConfig, host: HostName): RoutingConfig {
-  if (host === "laptop") return routing;
+  if (host === LAPTOP) return routing;
   const ec2 = routing.hosts?.ec2;
   if (ec2 === undefined) {
     throw new RouteMissingError(

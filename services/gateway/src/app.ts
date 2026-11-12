@@ -16,6 +16,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { buildRoute, loadFactories, RegistryError, switchedOff, type AdapterFactory } from "./adapters/registry.js";
 import { channelsFrom, Dispatcher, type Channels } from "./alerts/dispatcher.js";
+import { HOSTS_TEXT, LAPTOP, hostOf } from "./config/hosts.js";
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
@@ -227,9 +228,9 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
   }
   // Spec 001's host (research.md R-28): its route is envs.prod.hosts.<H4_HOST> on prod (rule H2), and a host the
   // gateway doesn't run on, or EC2 with no route of its own, refuses with exit 78.
-  const h4Host = env.H4_HOST === undefined || env.H4_HOST === "" ? "laptop" : env.H4_HOST;
-  if (!HOST_NAMES.includes(h4Host as HostName)) {
-    throw new RegistryError(78, "invalid_host", "H4_HOST must be laptop or ec2: no other host runs a gateway");
+  const h4Host = hostOf(env.H4_HOST);
+  if (!HOST_NAMES.includes(h4Host)) {
+    throw new RegistryError(78, "invalid_host", `H4_HOST must be ${HOSTS_TEXT}: no other host runs a gateway`);
   }
   let routing: RoutingConfig;
   try {
@@ -540,7 +541,7 @@ export async function startGateway(opts: StartOptions): Promise<RunningGateway |
       if (settings.tls !== undefined) {
         database = instrumentDatabase(database, {
           meter: otelMetrics.getMeter("h4-gateway"),
-          host: settings.h4Host ?? "laptop",
+          host: settings.h4Host ?? LAPTOP,
         });
       }
     } catch (err) {

@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse as parseYamlText, parseDocument, stringify } from "yaml";
 
+import { LAPTOP } from "../../src/config/hosts.js";
 import { ADAPTER_TYPE_SPECS, type Env } from "../../src/adapters/_settings.js";
 import {
   PLANNED_CONFIG_FILES,
@@ -1244,7 +1245,7 @@ describe("the config directory", () => {
   // Spec 001's schema 2: prod's route on the laptop is envs.prod.hosts.laptop.
   const envRoute = (routing: Doc, env: Env): Record<string, string> => {
     const route = (routing.envs?.[env.H4_ENV ?? ""] ?? {}) as Doc;
-    return ((route.hosts as Doc | undefined)?.laptop ?? route) as Record<string, string>;
+    return ((route.hosts as Doc | undefined)?.[LAPTOP] ?? route) as Record<string, string>;
   };
   const routedKeyEnvs = (routing: Doc, env: Env): string[] =>
     Object.values(envRoute(routing, env))
@@ -1284,7 +1285,7 @@ describe("the config directory", () => {
       const dir = await dirWith(["alerts.yaml"]);
       for (const n of COMMITTED) await writeFile(join(dir, n), readFileSync(join(REPO, "config", n), "utf8"));
       const routing = parseDocument(readFileSync(join(REPO, "config", "routing.yaml"), "utf8"));
-      routing.setIn(["envs", "prod", "hosts", "laptop", "fallback"], fallback);
+      routing.setIn(["envs", "prod", "hosts", LAPTOP, "fallback"], fallback);
       await writeFile(join(dir, "routing.yaml"), routing.toString());
       const set = await loadConfig(dir, { allowPlanned: false });
       expect(errorLines(set.issues), fallback).toEqual([]);

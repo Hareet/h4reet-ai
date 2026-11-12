@@ -83,9 +83,14 @@ export function hintFigures(tree: Pick<Tree, "read">): Partial<Record<FigureSlot
   put("budget.monthly_usd", at(budgets, "envs", "prod", "monthly_usd"));
   put("budget.fallback_daily_usd", at(budgets, "envs", "prod", "fallback_daily_usd"));
   const routing = yamlAt(tree, ROUTING_FILE);
-  // Spec 001's schema 2: prod's route on the laptop, the site's own host, is envs.prod.hosts.laptop.
-  const fallback =
-    at(routing, "envs", "prod", "hosts", "laptop", "fallback") ?? at(routing, "envs", "prod", "fallback");
+  // Spec 001's schema 2: prod's route per host, of which the local-first one, with a primary and a fallback, is the
+  // one this figure prices; schema 1's envs.prod is that route itself.
+  const hosts = at(routing, "envs", "prod", "hosts");
+  const localFirst =
+    hosts !== null && typeof hosts === "object"
+      ? Object.values(hosts as Record<string, unknown>).find((r) => at(r, "primary") !== undefined)
+      : at(routing, "envs", "prod");
+  const fallback = at(localFirst, "fallback");
   const model = typeof fallback === "string" ? at(routing, "adapters", fallback, "model") : undefined;
   const versions = at(yamlAt(tree, PRICES_FILE), "versions");
   const last = Array.isArray(versions) ? (versions.at(-1) as unknown) : undefined;

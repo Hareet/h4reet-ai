@@ -10,6 +10,7 @@ import { connect, TLSSocket } from "node:tls";
 import { metrics as sdkMetrics } from "@opentelemetry/sdk-node";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LAPTOP } from "../../src/config/hosts.js";
 import { instrumentDatabase, SHARED_STATE_METRICS } from "../../src/meter/store-telemetry.js";
 import { buildPoolConfig, pgSettingsFromEnv, StoreSettingsError, type Database } from "../../src/meter/store.js";
 import { testAuthority } from "../helpers/test-certs.js";
@@ -22,7 +23,7 @@ const URL_TUNNEL = "postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full";
 const URL_EC2 = "postgres://gateway@10.42.1.10:5432/h4reet?sslmode=verify-full";
 
 const sharedEnv = (more: Record<string, string | undefined> = {}) => ({
-  H4_HOST: "laptop",
+  H4_HOST: LAPTOP,
   GATEWAY_DB_URL: URL_TUNNEL,
   GATEWAY_DB_TLS_SERVERNAME: "shared-state",
   GATEWAY_DB_TLS_CA: caB64,
@@ -32,17 +33,17 @@ const sharedEnv = (more: Record<string, string | undefined> = {}) => ({
 
 describe("the settings, from the environment", () => {
   it("keeps spec 000's local store, with no TLS, when GATEWAY_DB_URL is unset, and names the host on the session", () => {
-    const s = pgSettingsFromEnv({ H4_HOST: "laptop", GATEWAY_DB_PASSWORD: "x" });
+    const s = pgSettingsFromEnv({ H4_HOST: LAPTOP, GATEWAY_DB_PASSWORD: "x" });
     expect(s).toMatchObject({
       host: "gateway-state",
       port: 5432,
       database: "gateway",
       user: "gateway",
-      h4Host: "laptop",
+      h4Host: LAPTOP,
     });
     const config = buildPoolConfig(s);
     expect(config.ssl).toBeUndefined();
-    expect(config.options).toBe("-c h4.host=laptop");
+    expect(config.options).toBe(`-c h4.host=${LAPTOP}`);
   });
 
   it("reads the shared state's host, port, database, and user from GATEWAY_DB_URL, and the password apart", () => {
@@ -166,10 +167,10 @@ describe("h4.shared_state.latency and h4.shared_state.errors (FR-060)", () => {
 
   it("records each query's latency and each failure, by h4.host and the error's class, and nothing request-specific", async () => {
     const { meter, reader } = harness();
-    const ok = instrumentDatabase(failing(false), { meter, host: "laptop" });
+    const ok = instrumentDatabase(failing(false), { meter, host: LAPTOP });
     await ok.query("SELECT 1");
     await ok.withSession(async () => undefined);
-    const bad = instrumentDatabase(failing(true), { meter, host: "laptop" });
+    const bad = instrumentDatabase(failing(true), { meter, host: LAPTOP });
     await expect(bad.query("SELECT 1")).rejects.toThrow();
     const { resourceMetrics } = await reader.collect();
     const found = resourceMetrics.scopeMetrics.flatMap((s) => s.metrics);
@@ -178,11 +179,11 @@ describe("h4.shared_state.latency and h4.shared_state.errors (FR-060)", () => {
     const latency = byName.get("h4.shared_state.latency");
     expect(latency?.descriptor.unit).toBe("s");
     const points = latency?.dataPoints ?? [];
-    expect(points.map((p) => p.attributes)).toEqual([{ "h4.host": "laptop" }]);
+    expect(points.map((p) => p.attributes)).toEqual([{ "h4.host": LAPTOP }]);
     expect((points[0]?.value as { count: number }).count).toBe(3);
     const errors = byName.get("h4.shared_state.errors")?.dataPoints ?? [];
     expect(errors.map((p) => [p.attributes, p.value])).toEqual([
-      [{ "h4.host": "laptop", "error.type": "ECONNREFUSED" }, 1],
+      [{ "h4.host": LAPTOP, "error.type": "ECONNREFUSED" }, 1],
     ]);
   });
 });

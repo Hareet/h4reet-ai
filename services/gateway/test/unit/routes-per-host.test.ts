@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { LAPTOP } from "../../src/config/hosts.js";
 import { parseYaml } from "../../src/config/load.js";
 import {
   checkStartup,
@@ -83,7 +84,7 @@ ${hosts}
   dev: ${dev}
 `;
 }
-const LAPTOP = "      laptop: { primary: local, fallback: anthropic }";
+const LAPTOP_LINE = `      ${LAPTOP}: { primary: local, fallback: anthropic }`;
 const EC2 = "      ec2: { first: anthropic, second: bedrock }";
 
 const routing = (text: string) => validateRouting(parseYaml("config/routing.yaml", text));
@@ -93,14 +94,14 @@ const rules = (text: string): string[] =>
     .map((i) => `${i.rule} ${i.path}`);
 
 describe("schema 2: the route per host (data-model.md §2.1)", () => {
-  it("takes the laptop's line alone, as the committed file has it, and the laptop's and EC2's together", () => {
-    const one = routing(schema2(LAPTOP));
+  it("takes the first host's line alone, as the committed file has it, and both hosts' together", () => {
+    const one = routing(schema2(LAPTOP_LINE));
     expect(one.issues.filter((i) => i.severity === "error")).toEqual([]);
-    expect(one.value?.hosts?.laptop).toEqual({ primary: "local", fallback: "anthropic" });
+    expect(one.value?.hosts?.[LAPTOP]).toEqual({ primary: "local", fallback: "anthropic" });
     expect(one.value?.hosts?.ec2).toBeUndefined();
     // Every reader of envs.prod still finds the laptop's route there (H2).
     expect(one.value?.envs.prod).toEqual({ primary: "local", fallback: "anthropic" });
-    const two = routing(schema2(`${LAPTOP}\n${EC2}`));
+    const two = routing(schema2(`${LAPTOP_LINE}\n${EC2}`));
     expect(two.issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(two.value?.hosts?.ec2).toEqual({ primary: "anthropic", fallback: "bedrock", paid: true });
   });
@@ -117,22 +118,22 @@ ${ADAPTERS}envs:
   });
 
   it("R1, amended: every primary is local; a first route names paid adapters only, and only as envs.prod.hosts.ec2", () => {
-    expect(rules(schema2(`${LAPTOP}\n      ec2: { primary: local }`))).toContain("R1 envs.prod.hosts.ec2");
-    expect(rules(schema2("      laptop: { first: anthropic }"))).toContain("R1 envs.prod.hosts.laptop");
-    expect(rules(schema2(`${LAPTOP}\n      ec2: { first: local }`))).toContain("R1 envs.prod.hosts.ec2.first");
-    expect(rules(schema2(`${LAPTOP}\n      ec2: { first: anthropic, second: local }`))).toContain(
+    expect(rules(schema2(`${LAPTOP_LINE}\n      ec2: { primary: local }`))).toContain("R1 envs.prod.hosts.ec2");
+    expect(rules(schema2(`      ${LAPTOP}: { first: anthropic }`))).toContain(`R1 envs.prod.hosts.${LAPTOP}`);
+    expect(rules(schema2(`${LAPTOP_LINE}\n      ec2: { first: local }`))).toContain("R1 envs.prod.hosts.ec2.first");
+    expect(rules(schema2(`${LAPTOP_LINE}\n      ec2: { first: anthropic, second: local }`))).toContain(
       "R1 envs.prod.hosts.ec2.second",
     );
-    expect(rules(schema2(`${LAPTOP}\n      ec2: { first: synthetic }`))).toContain("R1 envs.prod.hosts.ec2.first");
-    expect(rules(schema2(`${LAPTOP}\n      ec2: { first: anthropic, fallback: bedrock }`))).toContain(
+    expect(rules(schema2(`${LAPTOP_LINE}\n      ec2: { first: synthetic }`))).toContain("R1 envs.prod.hosts.ec2.first");
+    expect(rules(schema2(`${LAPTOP_LINE}\n      ec2: { first: anthropic, fallback: bedrock }`))).toContain(
       "R1 envs.prod.hosts.ec2",
     );
-    expect(rules(schema2(LAPTOP, "{ first: anthropic }"))).toContain("R1 envs.dev");
+    expect(rules(schema2(LAPTOP_LINE, "{ first: anthropic }"))).toContain("R1 envs.dev");
   });
 
-  it("H1: hosts holds the laptop, may hold EC2, and holds no other host", () => {
+  it(`H1: hosts holds ${LAPTOP}, may hold EC2, and holds no other host`, () => {
     expect(rules(schema2(EC2))).toContain("H1 envs.prod.hosts");
-    expect(rules(schema2(`${LAPTOP}\n      tunnel-end: { primary: local }`))).toContain("H1 envs.prod.hosts");
+    expect(rules(schema2(`${LAPTOP_LINE}\n      tunnel-end: { primary: local }`))).toContain("H1 envs.prod.hosts");
     expect(
       rules(`schema: 2
 deadline_ms: 20000
@@ -147,7 +148,7 @@ deadline_ms: 20000
 ${ADAPTERS}envs:
   prod:
     hosts:
-${LAPTOP}
+${LAPTOP_LINE}
   dev: { primary: local }
 `),
     ).toContainEqual(expect.stringMatching(/^R11 envs\.prod/));
@@ -162,15 +163,15 @@ describe("H2: the host's route, by H4_HOST", () => {
   };
 
   it("selects envs.prod.hosts.<H4_HOST> on prod, and envs.<H4_ENV> where there are no hosts", () => {
-    const both = valid(schema2(`${LAPTOP}\n${EC2}`));
-    expect(routingForHost(both, "laptop").envs.prod).toEqual({ primary: "local", fallback: "anthropic" });
+    const both = valid(schema2(`${LAPTOP_LINE}\n${EC2}`));
+    expect(routingForHost(both, LAPTOP).envs.prod).toEqual({ primary: "local", fallback: "anthropic" });
     expect(routingForHost(both, "ec2").envs.prod).toEqual({ primary: "anthropic", fallback: "bedrock", paid: true });
     expect(routingForHost(both, "ec2").envs.dev).toEqual(both.envs.dev);
   });
 
   it("refuses EC2 with exit 78, route_missing, while envs.prod.hosts.ec2 is missing, in schema 1 or 2", () => {
     for (const text of [
-      schema2(LAPTOP),
+      schema2(LAPTOP_LINE),
       `schema: 1
 deadline_ms: 20000
 ${ADAPTERS}envs:
@@ -196,7 +197,7 @@ describe("spec 010's refusals on the ec2 route (a fixture: the file's ec2 line i
     "",
   );
   const startup = (prices: string, budgets: string, env: Record<string, string | undefined>) => {
-    const r = routingForHost(routing(schema2(`${LAPTOP}\n${EC2}`)).value as RoutingConfig, "ec2");
+    const r = routingForHost(routing(schema2(`${LAPTOP_LINE}\n${EC2}`)).value as RoutingConfig, "ec2");
     const p = validatePrices(parseYaml("config/prices.yaml", prices)).value;
     const b = validateBudgets(parseYaml("config/budgets.yaml", budgets)).value;
     if (p === undefined || b === undefined) throw new Error("fixture invalid");
@@ -245,11 +246,11 @@ describe("A1: the attribution of each host's paid calls", () => {
     for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
   });
 
-  async function host(h4Host: "laptop" | "ec2"): Promise<TestStack> {
+  async function host(h4Host: string): Promise<TestStack> {
     const dir = await mkdtemp(join(tmpdir(), "h4-config-hosts-"));
     dirs.push(dir);
     await copyFile(join(FIXTURES, "alerts.yaml"), join(dir, "alerts.yaml"));
-    await writeFile(join(dir, "routing.yaml"), schema2(`${LAPTOP}\n      ec2: { first: anthropic }`));
+    await writeFile(join(dir, "routing.yaml"), schema2(`${LAPTOP_LINE}\n      ec2: { first: anthropic }`));
     await writeFile(join(dir, "prices.yaml"), ANTHROPIC_PRICES);
     await writeFile(join(dir, "budgets.yaml"), anthropicBudgets());
     const { factories } = await anthropicFactories(anthropic.origin);
@@ -306,17 +307,17 @@ describe("A1: the attribution of each host's paid calls", () => {
     expect(await fallbackDay(s)).toBe(before);
   });
 
-  it("the laptop's fallback stays fallback, counted against fallback_day", async () => {
-    const s = await host("laptop");
+  it("the first host's fallback stays fallback, counted against fallback_day", async () => {
+    const s = await host(LAPTOP);
     const res = await hello(s);
     expect(res.statusCode, res.body).toBe(200);
     expect(await rows(s)).toEqual([
-      { route_decision: "fallback", attribution: "fallback", adapter_id: "anthropic", host: "laptop" },
+      { route_decision: "fallback", attribution: "fallback", adapter_id: "anthropic", host: LAPTOP },
     ]);
     expect(BigInt((await fallbackDay(s)) ?? "0")).toBeGreaterThan(0n);
   });
 
-  it("a gateway's H4_HOST is laptop or ec2, and exits 78 otherwise", async () => {
-    await expect(host("tunnel-end" as "ec2")).rejects.toThrow(/invalid_host|H4_HOST/);
+  it(`a gateway's H4_HOST is ${LAPTOP} or ec2, and exits 78 otherwise`, async () => {
+    await expect(host("tunnel-end")).rejects.toThrow(/invalid_host|H4_HOST/);
   });
 });

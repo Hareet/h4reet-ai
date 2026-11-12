@@ -21,6 +21,7 @@ import { checkServerIdentity, type ConnectionOptions } from "node:tls";
 
 import type pg from "pg";
 
+import { HOST_NAMES, HOSTS_TEXT, LAPTOP, hostOf, type HostName } from "../config/hosts.js";
 import { aresSocket } from "../core/resolve.js";
 
 export const STORE_RETRY_MS = 5_000;
@@ -53,8 +54,8 @@ export interface Database extends Queryable {
   close(): Promise<void>;
 }
 
-export type H4Host = "laptop" | "ec2";
-export const H4_HOSTS: readonly H4Host[] = ["laptop", "ec2"];
+export type H4Host = HostName;
+export const H4_HOSTS: readonly H4Host[] = HOST_NAMES;
 
 /** TLS to spec 001's shared state: its own CA's certificate, and the one name its certificate holds. */
 export interface StoreTls {
@@ -100,9 +101,9 @@ const LOCAL_STORE = "gateway-state";
  * gateway refuses to start without the URL.
  */
 export function pgSettingsFromEnv(env: Readonly<Record<string, string | undefined>>): PgSettings {
-  const host = env.H4_HOST === undefined || env.H4_HOST === "" ? "laptop" : env.H4_HOST;
-  if (!H4_HOSTS.includes(host as H4Host)) {
-    throw new StoreSettingsError("invalid_host", "H4_HOST must be laptop or ec2: no other host runs a gateway");
+  const host = hostOf(env.H4_HOST);
+  if (!H4_HOSTS.includes(host)) {
+    throw new StoreSettingsError("invalid_host", `H4_HOST must be ${HOSTS_TEXT}: no other host runs a gateway`);
   }
   const h4Host = host as H4Host;
   const password = env.GATEWAY_DB_PASSWORD ?? "";
@@ -202,7 +203,7 @@ export function buildPoolConfig(s: PgSettings): pg.PoolConfig {
     connectionTimeoutMillis: 500,
     stream: aresSocket,
     // Every session names its host, which 0007's rows take as their default (spec 001 data-model.md §1.2).
-    options: `-c h4.host=${s.h4Host ?? "laptop"}`,
+    options: `-c h4.host=${s.h4Host ?? LAPTOP}`,
     ...(s.tls === undefined ? {} : { ssl: tlsOptions(s.tls) }),
   };
 }

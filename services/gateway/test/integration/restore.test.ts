@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dayKey, monthKey } from "../../src/core/clock.js";
+import { LAPTOP } from "../../src/config/hosts.js";
 import { testStack, type TestStack } from "../helpers/stack.js";
 
 type Rec = Record<string, unknown>;
@@ -23,7 +24,7 @@ const post = (s: TestStack, url: string, body: Rec) =>
 
 /** A prod stack whose store holds what a restored dump holds: an initialized state row and the day's spend. */
 async function restored(): Promise<TestStack> {
-  const s = await testStack({ stack: "prod", env: { H4_HOST: "laptop" } });
+  const s = await testStack({ stack: "prod", env: { H4_HOST: LAPTOP } });
   stacks.push(s);
   const init = await post(s, "/admin/init", { reason: "The store before its loss.", confirm_zero: true });
   expect(init.statusCode, init.body).toBe(200);
@@ -55,7 +56,7 @@ describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
       "SELECT action, host, reason FROM gateway.audit_log ORDER BY id DESC LIMIT 1",
     );
     expect(audit.rows).toEqual([
-      { action: "restore", host: "laptop", reason: "Restored from the 06:00 dump after the loss." },
+      { action: "restore", host: LAPTOP, reason: "Restored from the 06:00 dump after the loss." },
     ]);
     const auditAfter = (await s.db.pg.query<{ n: string }>("SELECT count(*) AS n FROM gateway.audit_log")).rows[0]?.n;
     expect(Number(auditAfter)).toBe(Number(auditBefore) + 1);
@@ -84,6 +85,6 @@ describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
     const init = await s.db.pg.query<Rec>(
       "SELECT action, host FROM gateway.audit_log WHERE action = 'init' ORDER BY id DESC LIMIT 1",
     );
-    expect(init.rows).toEqual([{ action: "init", host: "laptop" }]);
+    expect(init.rows).toEqual([{ action: "init", host: LAPTOP }]);
   });
 });
