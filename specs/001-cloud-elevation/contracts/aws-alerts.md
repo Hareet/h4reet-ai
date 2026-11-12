@@ -58,7 +58,7 @@ The Anthropic API's spend isn't on AWS's bill. The meter and spec 010's cap boun
 | The model action on EC2 (W1) | `infra/prod/killswitch.tf` | `h4-model-month`, by its name, 100% of actual | attaches `h4-deny-paid-models` to `h4-prod-gateway` | its own; may attach and detach that one policy on that one role |
 | The server action (W1) | `infra/prod/killswitch.tf` | `h4-server-month`, 100% of actual | `AWS-StopEC2Instance` on EC2's ID, from the same root | its own; that document on that instance alone |
 
-Each is automatic, and each is reversed as the table below says. Both model actions publish `model_action_executed`. The table below stands for each column's settings; where it names "both hosts' Bedrock identities" in one action, read the two model actions above. Whether one budget may hold two actions of the same type is to confirm in W1's plan (research.md R-22's amendment).
+Each is automatic, and each is reversed as the table below says. Both model actions publish `model_action_executed`. The table below stands for each column's settings; where it names "both hosts' Bedrock identities" in one action, read the two model actions above. Whether one budget may hold two actions of the same type is to confirm in W1's prod apply, since a plan never calls Budgets (research.md R-22's amendment; `docs/runbooks/aws-budget-action.md`, "A partly failed apply").
 
 | Setting | The model action | The server action |
 |---|---|---|

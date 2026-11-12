@@ -634,7 +634,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - both in `infra/prod/killswitch.tf`, made in the same plan as `h4-prod-gateway`;
   - no target added to the account's model action.
 
-  Then write it into P-I4, and a runbook line in `docs/runbooks/aws-budget-action.md`: the reverse of each of the two model actions. Check: RED, then GREEN on a patched copy; `make infra-check` passes. In W1's plan, confirm that one budget may hold two actions of the same type; if it may not, the fallback is the account's second target behind the switch, with EC2 stopped meanwhile (feat/001-us6-ec2)
+  Then write it into P-I4, and a runbook line in `docs/runbooks/aws-budget-action.md`: the reverse of each of the two model actions. Check: RED, then GREEN on a patched copy; `make infra-check` passes. In W1's prod apply, confirm that one budget may hold two actions of the same type (a plan never calls Budgets, group 7's review B, nit 2); if it may not, the apply fails at that action alone, EC2 is checked stopped, and the fallback is the account's second target behind the switch (`docs/runbooks/aws-budget-action.md`, "A partly failed apply") (feat/001-us6-ec2)
 - [x] T090 [P] [US3] Write the SC-017 harness, `evals/sc017_ec2_routes.py`, reading a routing fixture with EC2's route until the Author's line is in. Check: T085 passes against stand-ins (feat/001-us6-ec2)
 - [x] T091 [P] [US6] Add the release panel to the "Hosts" row: the release on each host, and who started a hand-started stack (plan §11; FR-049). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us6-ec2)
 - [x] T092 [P] [US5] Make the disclosure's EC2 changes in the same commit as T087:

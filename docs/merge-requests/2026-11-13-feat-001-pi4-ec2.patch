@@ -23,9 +23,15 @@ What it holds (tasks.md T084, T089, T180; plan.md §16, "Group 7, as built"):
 
 Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, and this patch, in that order:
 infra/test/test_prod_ec2.py and the other infra suites pass; the infra policy's one finding stays T10 on infra/prod,
-prod's lockfile, the Author's step from his mirror. Two things to confirm in W1's prod plan: that one budget takes two
-actions of one type (research.md R-22; else the fallback is the account's second target behind the switch), and that
-aws_ec2_instance_state takes an instance a persistent spot request launched.
+prod's lockfile, the Author's step from his mirror. To confirm in W1's prod plan: that aws_ec2_instance_state takes an
+instance a persistent spot request launched. To confirm in W1's prod apply, since a plan never calls Budgets: that one
+budget takes two actions of one type (research.md R-22). If it doesn't, the apply fails at
+aws_budgets_budget_action.model alone: stop EC2 if it runs, keep the apply record, and ask for the fallback, the
+account's second target behind the switch (docs/runbooks/aws-budget-action.md, "A partly failed apply").
+
+Rebuilt after group 7's review B, from the same plain copies: iam.tf's comment names deploy/hosts/ec2/ec2_host.py, the
+credential timer's script (nit 3); the Budgets check moves from the plan to the apply, with the step for a partly
+failed apply (nit 2).
 --- a/infra/prod/ec2-market.tf
 +++ b/infra/prod/ec2-market.tf
 @@ -1,7 +1,8 @@
@@ -330,7 +336,7 @@ aws_ec2_instance_state takes an instance a persistent spot request launched.
 +    resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
 +  }
 +
-+  # The credential timer's assume (deploy/hosts/ec2/gateway_credentials.py): h4-prod-gateway's short-lived credentials,
++  # The credential timer's assume (deploy/hosts/ec2/ec2_host.py credentials): h4-prod-gateway's short-lived credentials,
 +  # written to tmpfs for EC2's gateway alone.
 +  statement {
 +    sid       = "AssumeTheGatewaysRole"
@@ -403,7 +409,7 @@ aws_ec2_instance_state takes an instance a persistent spot request launched.
 +}
 --- /dev/null
 +++ b/infra/prod/killswitch.tf
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,184 @@
 +# Prod's budget actions (spec 001 FR-021, FR-023; research.md R-22, amended; contracts/aws-alerts.md §4; plan.md §16,
 +# "No root holds another root's instance or health-check ID", W1's departure 10; ADR 0049, proposed): the server action,
 +# which stops EC2, and EC2's model action, which revokes Bedrock from h4-prod-gateway. Each names what it acts on from
@@ -521,9 +527,10 @@ aws_ec2_instance_state takes an instance a persistent spot request launched.
 +# ----------------------------------------------------------------------------------------------------------------------
 +# EC2's model action (FR-023; tasks.md T180): a second action on h4-model-month, by its name, at 100% of actual,
 +# automatically, attaching the account's h4-deny-paid-models to h4-prod-gateway alone. The account's model action
-+# reaches h4-laptop-bedrock and gains no target. Whether one budget may hold two actions of one type is to confirm in
-+# W1's plan; if it may not, the fallback is the account's second target behind the switch, with EC2 stopped meanwhile
-+# (research.md R-22). The Author reverses it after the incident note (docs/runbooks/aws-budget-action.md).
++# reaches h4-laptop-bedrock and gains no target. Whether one budget may hold two actions of one type shows in W1's prod
++# apply, not its plan, which never calls Budgets; if it may not, that apply fails at this resource alone, EC2 must be
++# stopped before anything else, and the fallback is the account's second target behind the switch (research.md R-22).
++# Both steps, and the reverse after the incident note, are docs/runbooks/aws-budget-action.md's.
 +
 +resource "aws_iam_role" "model_action" {
 +  name               = "h4-budget-action-model-ec2"

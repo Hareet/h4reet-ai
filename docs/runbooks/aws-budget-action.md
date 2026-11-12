@@ -74,6 +74,21 @@ aws "${e[@]}" "${a[@]}" --account-id "$id" \
 
 For the rehearsal's, the budget is `h4-rehearsal-model`, and the role `h4-rehearsal-target`. Never detach the policy by hand in the console: the action would read as executed while the policy is gone.
 
+**A partly failed apply** (W1's prod apply; P-I4's `infra/prod/killswitch.tf`). Whether one budget takes two actions of one type, `APPLY_IAM_POLICY` here, shows only in the apply: a plan never calls Budgets (group 7's review B, nit 2). If AWS refuses the second action, the apply fails at `aws_budgets_budget_action.model`, and Terraform may still have made what doesn't depend on it, EC2 among them. Then, before anything else:
+
+1. Check EC2 is stopped, with `pf` and `a` as in Act, step 2:
+
+   ```bash
+   t="Name=tag:Name,Values=h4-prod-ec2"
+   q='Reservations[].Instances[].State.Name'
+   aws ec2 describe-instances "${a[@]}" \
+     --filters "$t" --query "$q"
+   ```
+
+   Anything but `stopped` (or no instance): stop it from the EC2 console. Don't start it until step 3 is done, since FR-023's revoke wouldn't reach `h4-prod-gateway`.
+2. Keep the apply record whole, the error among it (`make infra-record`), and tell the main session.
+3. The fallback (research.md R-22): the account's model action takes `h4-prod-gateway` as its second target behind W2's switch, and prod's `aws_budgets_budget_action.model` goes, both in a patch for your hand; then prod's plan and apply again.
+
 ## Record
 
 In the incident note and the next merge-request note: the action's history (its times), when each channel got the alert, what spent, and when you reversed it. For the rehearsal, the record tasks.md T040 asks (contracts/aws-alerts.md §4). Never the account's ID or a key.

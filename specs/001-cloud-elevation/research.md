@@ -481,7 +481,7 @@ In `infra/account/killswitch.tf` (protected):
 - **The model action on EC2:** a second action on the same budget, by its name, in `infra/prod/killswitch.tf`, with its own execution role, which may attach and detach that one policy on `h4-prod-gateway` alone. It is W1's, made in the same apply as the role. So from the role's first minute FR-023's revocation reaches it, and no W2 switch is needed for it. The account's model action doesn't gain a second target.
 - **The server action:** in `infra/prod/killswitch.tf`, with its execution role, on EC2's ID from the same root, so a replace of EC2 updates it in the same plan.
 
-Whether a budget may hold two actions of the same type is to confirm in W1's plan. If it may not, the fallback is the account's second target behind the W2 switch, which leaves FR-023 short on EC2's role until W2. Since W1 makes EC2 stopped, EC2's gateway calls nothing in that window but by the Author's hand (spec.md Assumptions, "From W1 to W2").
+Whether a budget may hold two actions of the same type is to confirm in W1's prod apply, since a plan never calls Budgets (amended after group 7's review B, nit 2; the step for an apply that fails there is `docs/runbooks/aws-budget-action.md`'s). If it may not, the fallback is the account's second target behind the W2 switch, which leaves FR-023 short on EC2's role until W2. Since W1 makes EC2 stopped, EC2's gateway calls nothing in that window but by the Author's hand (spec.md Assumptions, "From W1 to W2").
 
 ### R-23: AWS-side alerts through a bridge (carried)
 

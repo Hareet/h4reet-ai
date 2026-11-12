@@ -40,7 +40,7 @@ W1's review also found a gap in FR-023: from W1's prod apply until W2, `h4-prod-
 
 - **Keep the IDs in the account, behind W2's switch:** it makes W1's plans possible, but leaves the replace impossible. Not chosen.
 - **Rules that match every instance, filtered in a function:** no ID at all, but the spot warnings, which go straight to `h4-alerts`, would alert on the Author's other work's instances in this shared account (ADR 0047). Not chosen.
-- **The account's model action gains `h4-prod-gateway` behind the switch, in W2:** fewer actions, but FR-023 doesn't reach EC2's role from W1's apply until W2's. Not chosen; it is the fallback if one budget may not hold two actions of a type (to confirm in W1's plan).
+- **The account's model action gains `h4-prod-gateway` behind the switch, in W2:** fewer actions, but FR-023 doesn't reach EC2's role from W1's apply until W2's. Not chosen; it is the fallback if one budget may not hold two actions of a type (to confirm in W1's prod apply: a plan never calls Budgets).
 
 ## Consequences
 
@@ -49,7 +49,7 @@ W1's review also found a gap in FR-023: from W1's prod apply until W2, `h4-prod-
 - **Three budget actions,** on the same two action-enabled budgets, so AWS Budgets' free actions are unchanged (research.md R-05, to confirm).
 - **Each function's role reads by name:** the alarm's name-built ARN, the parameter's path, and the budget's name. Route 53's health checks can't be scoped by tag, so neither function reads one (research.md R-15, amended).
 - **To confirm:**
-  - in W1's plan, that a budget may hold two `APPLY_IAM_POLICY` actions;
+  - in W1's prod apply, not its plan, which never calls Budgets, that a budget may hold two `APPLY_IAM_POLICY` actions, with the step for an apply that fails there in `docs/runbooks/aws-budget-action.md`, "A partly failed apply";
   - in W2's apply, that EventBridge takes a target whose function the account's apply makes after it (plan.md §16, W2's order).
 
 ## Links
