@@ -276,7 +276,7 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 contracts/studio-line.md, unchanged in substance:
 1. Briefs go to `/srv/studio/briefs/<asset>/<round>.json`, written by implementers.
 2. The studio agent drives ComfyUI (which it starts through the runner, FR-040) and Blender (in its own container, `--gpus all`). It writes `/srv/studio/handoff/<asset>/<round>/` and works in `/srv/studio/outputs`.
-3. The repo agent runs `line.py candidate`, which ends by running main's `arrival_check.py` on a scratch copy. There are three rounds at most; `--record` writes each round's result beside its brief, which `line.py round` and the next brief read (data-model.md's Round result; the implementation's addition, 2026-11-12).
+3. The repo agent runs `line.py candidate`, which ends by running main's `arrival_check.py` on a scratch copy. There are three rounds at most; `--record` writes each round's result beside its brief, which the next brief reads (data-model.md's Round result; the implementation's addition, 2026-11-12). `line.py round` counts the rounds used from the studio's handoff folders as well as the results, and re-checks a recorded pass, so deleting or forging a result resets nothing. `line.py` reads `caps.json` and `studio-tools.json` from `refs/heads/main` only (G3's review, 2026-11-12).
 4. The intake, with the Author's look approval last.
 
 ComfyUI's container mounts his install, custom nodes, models, and `~/flux-env` read-only, and sits on the studio's internal network. ComfyUI-Manager can't install anything, and no node can download.

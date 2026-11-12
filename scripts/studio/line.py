@@ -1,38 +1,49 @@
 #!/usr/bin/env python3
 """The studio line's checks (spec 017 User Story 4, FR-026 to FR-029; contracts/studio-line.md; research R-11).
 
-    python3 -I -B scripts/studio/line.py brief FILE --caps <main's caps.json> --tools <main's studio-tools.json>
-    python3 -I -B scripts/studio/line.py candidate DIR --brief FILE --tools <main's studio-tools.json> [--repo DIR] [--record]
-    python3 -I -B scripts/studio/line.py round ASSET [--briefs DIR]
+    python3 -I -B scripts/studio/line.py brief FILE [--repo DIR] [--handoff DIR]
+    python3 -I -B scripts/studio/line.py candidate DIR --brief FILE [--repo DIR] [--handoff DIR] [--record]
+    python3 -I -B scripts/studio/line.py round ASSET [--briefs DIR] [--handoff DIR] [--repo DIR]
 
 Standard library only. A repo agent writes a brief, the studio agent answers with a candidate in the handoff folder,
 and these checks judge both; three rounds at most.
 
+The policy is main's only: caps.json and studio-tools.json (the Author's P-7) are read from refs/heads/main's commit
+in --repo (the working directory's repository by default), with replace objects off, never from a path the caller
+names, a tag named main, or a working tree. While main lacks either, line.py can't run. The arrival check doesn't
+read the tools list, so this is FR-029's one machine check of the list (review G3, blocker 1).
+
 - brief: data-model.md's shape, every field present and no other; the round 1 to 3; each limit at or under main's
   caps.json for the kind; every tool on the list with `outputs_ship: true`, and none named Qwen-Image or FLUX [dev],
-  whatever the list says. The file sits at <briefs>/<asset>/<round>.json, its round the folder's highest plus one;
-  round 1 holds no findings, and a later round holds the round before's recorded findings, verbatim, after its
-  recorded failure.
-- candidate: candidate.json's shape, for the brief's asset and round; its files in the folder (regular files, never
-  links); its tools in the brief's and on the list, at the list's version; the record's directory under assets/ (but
-  assets/policy/); every model and tool a record step names in the brief's tools and on the list, and any step naming
-  Qwen-Image or FLUX [dev] refused by name. Each GLB's JSON chunk gives its triangles (an indexed primitive's index
-  count, else its positions, over 3; strips and fans count less 2), its skins' joints' node names (a required bone
-  matches a name or a `<prefix>:<name>`, as Mixamo's `mixamorig:` does), its animations' names, and each embedded
-  image's pixel size from its PNG or JPEG header; the texture bytes are the arrival check's own measure, width times
-  height times 4, times 4/3 for mipmaps. Every file's bytes count against `bytes`. `skeleton` is checked for shape
-  only: a GLB doesn't say which rig it follows.
-  Then main's tools/gates/arrival_check.py, read from refs/heads/main (never `main:`, which a tag named main would
-  answer) with replace objects off, runs from a temporary file as `python3 -I -B` on a scratch repository: its own
-  refs/heads/main holds main's assets/policy/ and docs/data-flow-disclosure.md, made with plumbing only so no hook
-  runs, and its work tree holds the candidate under the record's directory. A finding from either fails the round.
-  With --record, the round's result goes beside the brief, <briefs>/<asset>/<round>.result.json, once.
-- round: what the asset's next step is: `1` (no brief yet), `open N` (round N's brief, no result yet), `N+1` (round
-  N failed), `passed N`, or `decide` (round 3 failed: no brief is written, and the asset goes on the decision page).
+  whatever the list says. The file sits at <briefs>/<asset>/<round>.json, its round the folder's highest brief plus
+  one, with no later brief, handoff, or result, and no handoff or result yet for its own round. Round 1 holds no
+  findings; a later round follows round n-1's handoff and recorded failure, and holds its findings verbatim.
+- candidate: the brief, re-checked in full; candidate.json's shape, for the brief's asset and round; its files in the
+  folder (regular files, never links); its tools in the brief's and on the list, at the list's version; the record's
+  directory under assets/ (but assets/policy/); every model and tool a record step names in the brief's tools and on
+  the list, and any step naming Qwen-Image or FLUX [dev] refused by name. Each GLB's JSON chunk gives its triangles
+  (an indexed primitive's index count, else its positions, over 3; strips and fans count less 2; an accessor or mode
+  that doesn't count is a finding, never 0), its skins' joints' node names (a required bone matches a name or a
+  `<prefix>:<name>`, as Mixamo's `mixamorig:` does), its animations' names, and each embedded image's pixel size from
+  its PNG, JPEG, or WebP header; the texture bytes are the arrival check's own measure, width times height times 4,
+  times 4/3 for mipmaps. Every file's bytes count against `bytes`. `skeleton` is checked for shape only.
+  Then main's tools/gates/arrival_check.py, from the same commit, runs from a temporary file as `python3 -I -B` on a
+  scratch repository: its own refs/heads/main holds that commit's assets/policy/ and docs/data-flow-disclosure.md,
+  made with plumbing only and no system or global git config, so no hook runs; its work tree holds the candidate
+  under the record's directory. A finding from either fails the round; the check's exit 2, or exit 1 with no finding
+  line, is can't run. With --record, the folder must be <handoff>/<asset>/<round>/, and the round's result goes
+  beside the brief, <briefs>/<asset>/<round>.result.json, once: never for a round with a result, or one a later
+  handoff or result follows.
+- round: the asset's next step. Rounds are counted from the handoff folders, <handoff>/<asset>/<n>/, which only the
+  studio writes, and the results, whichever is higher, so deleting a result or a brief resets nothing (review G3,
+  blocker 2). A recorded pass counts only once its round's handoff is there and the candidate re-checks clean.
+  Prints `1` (nothing yet), `open N` (round N's brief or handoff, waiting for the studio or for judging), `N+1`
+  (round N failed), `passed N`, or `decide` (three rounds used without a pass: no brief is written, and the asset
+  goes on the decision page).
 
 Output: one line per finding, `<check>: <value> (limit: <limit>)`, then a summary. Exit 0: pass. 1: findings. 2:
-can't run (a policy file or the brief unreadable or invalid, the candidate folder missing, git failing, the main
-branch without the arrival check, or the arrival check unable to check).
+can't run (main without its policy or the arrival check, a policy or the brief invalid, the candidate folder missing,
+git failing, or the arrival check unable to check).
 """
 
 from __future__ import annotations
@@ -50,8 +61,11 @@ from pathlib import Path
 
 MAIN = "refs/heads/main"
 ARRIVAL = "tools/gates/arrival_check.py"
+CAPS = "assets/policy/caps.json"
+TOOLS = "assets/policy/studio-tools.json"
 MAIN_COPIES = ("assets/policy", "docs/data-flow-disclosure.md")
 BRIEFS = "/srv/studio/briefs"
+HANDOFF = "/srv/studio/handoff"
 ROUNDS = 3
 RECORDS = "records.json"
 NOTICE = "LICENSE.md"
@@ -82,6 +96,8 @@ TOOL_ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,79}")
 FILE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 DIR_RE = re.compile(r"assets(/[a-z0-9][a-z0-9_-]*)+")
 ROUND_FILE = re.compile(r"(\d{1,3})\.json")
+RESULT_FILE = re.compile(r"(\d{1,3})\.result\.json")
+ROUND_DIR = re.compile(r"\d{1,3}")
 ARRIVAL_FINDING = re.compile(r"[A-Z]\d+ \S")
 QWEN = re.compile(r"qwen[^a-z0-9]*image")
 DEV = re.compile(r"dev(?![a-z])")
@@ -124,44 +140,176 @@ def is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def parse_json(data: bytes, what: str) -> object:
+    try:
+        return json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise CantRun(f"{what} doesn't read as JSON") from None
+
+
 def read_json(path: Path, what: str) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = path.read_bytes()
     except FileNotFoundError:
         raise CantRun(f"{what} ({clean(str(path))}) doesn't exist") from None
-    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
-        raise CantRun(f"{what} ({clean(str(path))}) doesn't read as JSON") from None
+    except OSError:
+        raise CantRun(f"{what} ({clean(str(path))}) can't be read") from None
+    return parse_json(data, f"{what} ({clean(str(path))})")
+
+
+# --------------------------------------------------------------------------------------------------
+# Main: one commit of refs/heads/main, read with replace objects off
+# --------------------------------------------------------------------------------------------------
+def source_env() -> dict[str, str]:
+    """The caller's environment without any GIT_* variable (review G3, nit 2), so none redirects the repository."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update({"GIT_NO_REPLACE_OBJECTS": "1", "LC_ALL": "C"})
+    return env
+
+
+def scratch_env() -> dict[str, str]:
+    """No system or global git config in the scratch repository, so nothing configured elsewhere runs there."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "LC_ALL": "C",
+            "GIT_AUTHOR_NAME": "line.py",
+            "GIT_AUTHOR_EMAIL": "line@localhost",
+            "GIT_COMMITTER_NAME": "line.py",
+            "GIT_COMMITTER_EMAIL": "line@localhost",
+            "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+            "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z",
+        }
+    )
+    return env
+
+
+def git(
+    repo: Path,
+    args: list[str],
+    env: dict[str, str],
+    what: str,
+    data: bytes | None = None,
+) -> bytes:
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            input=data,
+            env=env,
+            capture_output=True,
+            check=False,
+            timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CantRun(f"git couldn't run ({exc.__class__.__name__}) {what}") from None
+    if done.returncode:
+        raise CantRun(f"git {args[0]} failed (exit {done.returncode}) {what}")
+    return done.stdout
+
+
+class Main:
+    """refs/heads/main's commit in one repository, resolved once, so every file read comes from the same commit."""
+
+    def __init__(self, repo: Path) -> None:
+        self.repo, self.env = repo, source_env()
+        self.sha = (
+            git(
+                repo,
+                ["rev-parse", "--verify", "--quiet", f"{MAIN}^{{commit}}"],
+                self.env,
+                f"reading {MAIN}",
+            )
+            .decode()
+            .strip()
+        )
+        self._caps: dict[str, dict] | None = None
+        self._tools: dict[str, dict] | None = None
+
+    def blob(self, rel: str) -> bytes | None:
+        try:
+            return git(
+                self.repo, ["cat-file", "blob", f"{self.sha}:{rel}"], self.env, ""
+            )
+        except CantRun:
+            return None
+
+    def copies(self) -> dict[str, bytes]:
+        listing = git(
+            self.repo,
+            ["ls-tree", "-r", "-z", "--full-tree", self.sha, "--", *MAIN_COPIES],
+            self.env,
+            "listing main's policy",
+        )
+        found = {}
+        for item in listing.split(b"\0"):
+            if not item:
+                continue
+            meta, _, rel = item.partition(b"\t")
+            mode, kind, oid = meta.split()
+            if kind == b"blob" and mode in (b"100644", b"100755"):
+                found[rel.decode()] = git(
+                    self.repo,
+                    ["cat-file", "blob", oid.decode()],
+                    self.env,
+                    "reading main's policy",
+                )
+        return found
+
+    def arrival(self) -> bytes:
+        data = self.blob(ARRIVAL)
+        if data is None:
+            raise CantRun(f"the main branch ({MAIN}) has no {ARRIVAL}")
+        return data
+
+    def caps(self) -> dict[str, dict]:
+        if self._caps is None:
+            self._caps = load_caps(self.blob(CAPS))
+        return self._caps
+
+    def tools(self) -> dict[str, dict]:
+        if self._tools is None:
+            self._tools = load_tools(self.blob(TOOLS))
+        return self._tools
 
 
 # --------------------------------------------------------------------------------------------------
 # Policy: main's caps.json and the tools list (assets/policy/studio-tools.json, the Author's P-7)
 # --------------------------------------------------------------------------------------------------
-def load_caps(path: Path) -> dict[str, dict]:
-    doc = read_json(path, "caps.json")
+def load_caps(data: bytes | None) -> dict[str, dict]:
+    if data is None:
+        raise CantRun(f"the main branch ({MAIN}) has no {CAPS}")
+    doc = parse_json(data, f"main's {CAPS}")
     if not isinstance(doc, dict) or not isinstance(doc.get("per_asset"), dict):
-        raise CantRun("caps.json has no per_asset object")
+        raise CantRun(f"main's {CAPS} has no per_asset object")
     per = doc["per_asset"]
     if not all(isinstance(v, dict) for v in per.values()):
-        raise CantRun("caps.json's per_asset holds a kind that isn't an object")
+        raise CantRun(f"main's {CAPS} per_asset holds a kind that isn't an object")
     return per
 
 
-def load_tools(path: Path) -> dict[str, dict]:
-    doc = read_json(path, "the tools list")
+def load_tools(data: bytes | None) -> dict[str, dict]:
+    if data is None:
+        raise CantRun(
+            f"the main branch ({MAIN}) has no {TOOLS}; it arrives as the Author's patch P-7"
+        )
+    doc = parse_json(data, f"main's {TOOLS}")
     if (
         not isinstance(doc, dict)
         or set(doc) != {"schema", "tools"}
         or doc["schema"] != 1
     ):
         raise CantRun(
-            "the tools list isn't schema 1 with a tools list and nothing else"
+            f"main's {TOOLS} isn't schema 1 with a tools list and nothing else"
         )
     tools = doc["tools"]
     if not isinstance(tools, list):
-        raise CantRun("the tools list's tools isn't a list")
+        raise CantRun(f"main's {TOOLS} tools isn't a list")
     found: dict[str, dict] = {}
     for i, entry in enumerate(tools):
-        where = f"the tools list's tools[{i}]"
+        where = f"main's {TOOLS} tools[{i}]"
         if not isinstance(entry, dict) or set(entry) != set(TOOL_KEYS):
             raise CantRun(f"{where} isn't an object of {', '.join(TOOL_KEYS)}")
         if not isinstance(entry["id"], str) or not TOOL_ID_RE.fullmatch(entry["id"]):
@@ -194,6 +342,55 @@ def tool_line(check: str, name: str, problem: str) -> str:
         return f"{check}: {clean(name)} refused by name (limit: {REFUSED})"
     reason, _, limit = problem.partition(" (limit: ")
     return f"{check}: {clean(name)} {reason} (limit: {limit}"
+
+
+# --------------------------------------------------------------------------------------------------
+# Rounds: briefs and results in the briefs folder, the studio's handoff folders
+# --------------------------------------------------------------------------------------------------
+def brief_rounds(folder: Path, but: str | None = None) -> set[int]:
+    if not folder.is_dir():
+        return set()
+    return {
+        int(m[1])
+        for p in folder.iterdir()
+        if (m := ROUND_FILE.fullmatch(p.name)) and p.name != but
+    }
+
+
+def result_rounds(folder: Path) -> set[int]:
+    if not folder.is_dir():
+        return set()
+    return {int(m[1]) for p in folder.iterdir() if (m := RESULT_FILE.fullmatch(p.name))}
+
+
+def handoff_rounds(handoff: Path, asset: str) -> set[int]:
+    """The rounds the studio has answered: <handoff>/<asset>/<n>/ folders, which repo agents only read."""
+    folder = handoff / asset
+    if not folder.is_dir():
+        return set()
+    return {
+        int(p.name)
+        for p in folder.iterdir()
+        if ROUND_DIR.fullmatch(p.name) and p.is_dir()
+    }
+
+
+def read_result(folder: Path, n: int) -> dict | None:
+    path = folder / f"{n}.result.json"
+    if not path.exists():
+        return None
+    doc = read_json(path, f"round {n}'s result")
+    if (
+        not isinstance(doc, dict)
+        or set(doc) != set(RESULT_KEYS)
+        or doc["schema"] != 1
+        or doc["round"] != n
+        or doc["result"] not in ("pass", "fail")
+        or not isinstance(doc["findings"], list)
+        or not all(isinstance(f, str) for f in doc["findings"])
+    ):
+        raise CantRun(f"round {n}'s result ({clean(str(path))}) isn't a result")
+    return doc
 
 
 # --------------------------------------------------------------------------------------------------
@@ -278,36 +475,9 @@ def brief_shape(doc: object) -> list[str]:
     return out
 
 
-def read_result(folder: Path, n: int) -> dict | None:
-    path = folder / f"{n}.result.json"
-    if not path.exists():
-        return None
-    doc = read_json(path, f"round {n}'s result")
-    if (
-        not isinstance(doc, dict)
-        or set(doc) != set(RESULT_KEYS)
-        or doc["schema"] != 1
-        or doc["round"] != n
-        or doc["result"] not in ("pass", "fail")
-        or not isinstance(doc["findings"], list)
-        or not all(isinstance(f, str) for f in doc["findings"])
-    ):
-        raise CantRun(f"round {n}'s result ({clean(str(path))}) isn't a result")
-    return doc
-
-
-def round_numbers(folder: Path, but: str | None = None) -> list[int]:
-    if not folder.is_dir():
-        return []
-    return sorted(
-        int(m[1])
-        for p in folder.iterdir()
-        if (m := ROUND_FILE.fullmatch(p.name)) and p.name != but
-    )
-
-
-def folder_findings(path: Path, doc: dict) -> list[str]:
-    """The brief's place: <briefs>/<asset>/<round>.json, the folder's highest round plus one, after its failure."""
+def order_findings(path: Path, doc: dict, handoff: Path, *, judging: bool) -> list[str]:
+    """The brief's place in its asset's rounds. Judging (candidate, round), its own round's handoff and result may
+    exist; writing (brief), they may not. Either way no later brief, handoff, or result may."""
     m = ROUND_FILE.fullmatch(path.name)
     if not m:
         return [finding("brief path", path.name, "<briefs>/<asset>/<round>.json")]
@@ -317,92 +487,142 @@ def folder_findings(path: Path, doc: dict) -> list[str]:
         out.append(finding("round", n, f"the file's name, {int(m[1])}"))
     if path.parent.name != asset:
         out.append(finding("asset", asset, f"the folder's name, {path.parent.name}"))
-    highest = max(round_numbers(path.parent, but=path.name), default=0)
-    if n != highest + 1:
+    briefs = brief_rounds(path.parent, but=path.name)
+    answered = handoff_rounds(handoff, asset)
+    judged = result_rounds(path.parent)
+    later = sorted(x for x in briefs | answered | judged if x > n)
+    if later:
         out.append(
-            finding("round", n, f"the folder's highest round plus one, {highest + 1}")
+            finding(
+                "round",
+                n,
+                f"the asset's latest round; round {later[-1]} already exists",
+            )
         )
-    elif n == 1 and findings:
-        out.append(finding("findings", f"{len(findings)} lines", "none in round 1"))
-    elif n > 1:
-        before = read_result(path.parent, n - 1)
-        if before is None:
-            out.append(
-                finding(
-                    "round",
-                    n,
-                    f"after round {n - 1}'s recorded failure; it has no result",
-                )
+    if not judging and (n in answered or n in judged):
+        out.append(
+            finding(
+                "round",
+                n,
+                "a round the studio hasn't answered yet: its handoff or result exists",
             )
-        elif before["result"] != "fail":
-            out.append(finding("round", n, f"after round {n - 1}'s failure; it passed"))
-        elif findings != before["findings"]:
-            out.append(
-                finding(
-                    "findings",
-                    f"not round {n - 1}'s",
-                    f"round {n - 1}'s findings, verbatim",
-                )
+        )
+    highest = max(briefs, default=0)
+    if not later and highest != n - 1:
+        out.append(
+            finding("round", n, f"the folder's highest brief plus one, {highest + 1}")
+        )
+    if n == 1:
+        if findings:
+            out.append(finding("findings", f"{len(findings)} lines", "none in round 1"))
+        return out
+    if n - 1 not in answered:
+        out.append(finding("round", n, f"after round {n - 1}'s handoff; it has none"))
+    before = read_result(path.parent, n - 1)
+    if before is None:
+        out.append(
+            finding(
+                "round", n, f"after round {n - 1}'s recorded failure; it has no result"
             )
+        )
+    elif before["result"] != "fail":
+        out.append(finding("round", n, f"after round {n - 1}'s failure; it passed"))
+    elif findings != before["findings"]:
+        out.append(
+            finding(
+                "findings",
+                f"not round {n - 1}'s",
+                f"round {n - 1}'s findings, verbatim",
+            )
+        )
     return out
 
 
-def cmd_brief(args: argparse.Namespace) -> int:
-    caps = load_caps(Path(args.caps))
-    tools = load_tools(Path(args.tools))
-    path = Path(args.file)
+def brief_findings(
+    path: Path, main: Main, handoff: Path, *, judging: bool
+) -> tuple[list[str], object]:
+    """Every check on a brief: its shape, main's caps and tools, and its place in the rounds."""
     if not path.is_file():
         raise CantRun(f"the brief ({clean(str(path))}) isn't a file")
+    caps, tools = main.caps(), main.tools()
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, ValueError, RecursionError):
-        return report(
-            [finding("brief", "doesn't parse as JSON", "data-model.md's Brief")]
-        )
+        return [
+            finding("brief", "doesn't parse as JSON", "data-model.md's Brief")
+        ], None
     out = brief_shape(doc)
-    if isinstance(doc, dict):
-        kind = doc.get("kind")
-        cap = caps.get(kind) if isinstance(kind, str) else None
-        if isinstance(kind, str) and kind and cap is None:
-            out.append(
-                finding(
-                    "kind",
-                    kind,
-                    f"a kind in caps.json's per_asset: {', '.join(sorted(caps))}",
-                )
+    if not isinstance(doc, dict):
+        return out, doc
+    kind = doc.get("kind")
+    cap = caps.get(kind) if isinstance(kind, str) else None
+    if isinstance(kind, str) and kind and cap is None:
+        out.append(
+            finding(
+                "kind",
+                kind,
+                f"a kind in main's caps.json per_asset: {', '.join(sorted(caps))}",
             )
-        limits = doc.get("limits")
-        if isinstance(cap, dict) and isinstance(limits, dict):
-            for key in NUMERIC_LIMITS:
-                value, ceiling = limits.get(key), cap.get(key)
-                if is_int(value) and is_int(ceiling) and value > ceiling:
-                    out.append(
-                        finding(
-                            f"limits.{key}",
-                            value,
-                            f"caps.json per_asset.{kind}.{key}, {ceiling}",
-                        )
+        )
+    limits = doc.get("limits")
+    if isinstance(cap, dict) and isinstance(limits, dict):
+        for key in NUMERIC_LIMITS:
+            value, ceiling = limits.get(key), cap.get(key)
+            if is_int(value) and is_int(ceiling) and value > ceiling:
+                out.append(
+                    finding(
+                        f"limits.{key}",
+                        value,
+                        f"main's caps.json per_asset.{kind}.{key}, {ceiling}",
                     )
-        listed = doc.get("tools")
-        if isinstance(listed, list):
-            for name in listed:
-                if isinstance(name, str) and (problem := tool_problem(name, tools)):
-                    out.append(tool_line("tools", name, problem))
-        if not any(
-            line.startswith(("round:", "asset:", "findings:", "brief:")) for line in out
-        ) and not any(k not in doc for k in ("asset", "round", "findings")):
-            out += folder_findings(path, doc)
+                )
+    listed = doc.get("tools")
+    if isinstance(listed, list):
+        for name in listed:
+            if isinstance(name, str) and (problem := tool_problem(name, tools)):
+                out.append(tool_line("tools", name, problem))
+    if not any(
+        line.startswith(("round:", "asset:", "findings:", "brief:")) for line in out
+    ) and all(k in doc for k in ("asset", "round", "findings")):
+        out += order_findings(path, doc, handoff, judging=judging)
+    return out, doc
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    out, _ = brief_findings(
+        Path(args.file), Main(Path(args.repo)), Path(args.handoff), judging=False
+    )
     return report(out)
 
 
 # --------------------------------------------------------------------------------------------------
 # GLBs and images
 # --------------------------------------------------------------------------------------------------
+def webp_size(data: bytes) -> tuple[int, int] | None:
+    """(width, height) from a WebP's first chunk: VP8X's canvas, VP8L's header, or VP8's key frame."""
+    if len(data) < 30 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return None
+    fourcc, body = data[12:16], data[20:]
+    if fourcc == b"VP8X" and len(body) >= 10:
+        return 1 + int.from_bytes(body[4:7], "little"), 1 + int.from_bytes(
+            body[7:10], "little"
+        )
+    if fourcc == b"VP8L" and len(body) >= 5 and body[0] == 0x2F:
+        bits = int.from_bytes(body[1:5], "little")
+        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    if fourcc == b"VP8 " and len(body) >= 10 and body[3:6] == b"\x9d\x01\x2a":
+        width, height = struct.unpack("<HH", body[6:10])
+        return width & 0x3FFF, height & 0x3FFF
+    return None
+
+
 def image_size(data: bytes) -> tuple[int, int] | None:
-    """(width, height) from a PNG's IHDR or a JPEG's SOF segment, or None."""
+    """(width, height) from a PNG's IHDR, a JPEG's SOF segment, or a WebP's header, or None."""
     if data[:8] == PNG_SIG and len(data) >= 24 and data[12:16] == b"IHDR":
         width, height = struct.unpack(">II", data[16:24])
         return width, height
+    if data[:4] == b"RIFF":
+        return webp_size(data)
     if data[:2] != b"\xff\xd8":
         return None
     i = 2
@@ -462,32 +682,59 @@ def listed(gltf: dict, key: str) -> list:
 
 
 def measure(gltf: dict, binary: bytes) -> dict:
-    accessors = gltf.get("accessors") if isinstance(gltf.get("accessors"), list) else []
+    """Triangles, bones, clips, and images' sizes. `problems` names every accessor or mode that doesn't count, so a
+    malformed primitive is a finding, never 0 triangles (review G3, important 3)."""
+    problems: list[str] = []
+    accessors = gltf.get("accessors", [])
+    if not isinstance(accessors, list):
+        problems.append("accessors isn't a list")
+        accessors = []
 
-    def count(index: object) -> int:
-        if (
+    def count(index: object, where: str) -> int | None:
+        if not (
             is_int(index)
             and 0 <= index < len(accessors)
             and isinstance(accessors[index], dict)
         ):
-            value = accessors[index].get("count", 0)
-            return value if is_int(value) and value > 0 else 0
-        return 0
+            problems.append(f"{where} names no accessor")
+            return None
+        value = accessors[index].get("count")
+        if not (is_int(value) and value >= 1):
+            problems.append(
+                f"{where}: accessors[{index}].count isn't a whole number of at least 1"
+            )
+            return None
+        return value
 
     triangles = 0
-    for mesh in listed(gltf, "meshes"):
-        prims = mesh.get("primitives")
-        for prim in prims if isinstance(prims, list) else []:
+    meshes = gltf.get("meshes", [])
+    if not isinstance(meshes, list):
+        problems.append("meshes isn't a list")
+        meshes = []
+    for i, mesh in enumerate(meshes):
+        prims = mesh.get("primitives") if isinstance(mesh, dict) else None
+        if not isinstance(prims, list):
+            problems.append(f"meshes[{i}].primitives isn't a list")
+            continue
+        for j, prim in enumerate(prims):
+            where = f"meshes[{i}].primitives[{j}]"
             if not isinstance(prim, dict) or not isinstance(
                 prim.get("attributes"), dict
             ):
+                problems.append(f"{where} has no attributes object")
                 continue
-            k = (
-                count(prim["indices"])
-                if "indices" in prim
-                else count(prim["attributes"].get("POSITION"))
-            )
             mode = prim.get("mode", 4)
+            if not (is_int(mode) and 0 <= mode <= 6):
+                problems.append(f"{where}.mode isn't a whole number from 0 to 6")
+                continue
+            if "indices" in prim:
+                k = count(prim["indices"], f"{where}.indices")
+            else:
+                k = count(
+                    prim["attributes"].get("POSITION"), f"{where}.attributes.POSITION"
+                )
+            if k is None:
+                continue
             triangles += k // 3 if mode == 4 else max(k - 2, 0) if mode in (5, 6) else 0
     nodes = gltf.get("nodes") if isinstance(gltf.get("nodes"), list) else []
     bones = set()
@@ -518,7 +765,13 @@ def measure(gltf: dict, binary: bytes) -> dict:
             ):
                 size = image_size(binary[start : start + length])
         images.append((i, size))
-    return {"triangles": triangles, "bones": bones, "clips": clips, "images": images}
+    return {
+        "triangles": triangles,
+        "problems": problems,
+        "bones": bones,
+        "clips": clips,
+        "images": images,
+    }
 
 
 def has_bone(required: str, bones: set[str]) -> bool:
@@ -568,11 +821,9 @@ def record_findings(
         steps = entry.get("steps") if isinstance(entry, dict) else None
         for j, step in enumerate(steps if isinstance(steps, list) else []):
             where = f"record entries[{i}].steps[{j}]"
-            refused = [
-                (w, s) for w, s in step_strings(step, where) if refused_by_name(s)
-            ]
-            for w, s in refused:
-                out.append(f"{w}: {clean(s)} refused by name (limit: {REFUSED})")
+            for w, s in step_strings(step, where):
+                if refused_by_name(s):
+                    out.append(f"{w}: {clean(s)} refused by name (limit: {REFUSED})")
             if not isinstance(step, dict):
                 continue
             for key in ("models", "tools"):
@@ -580,9 +831,10 @@ def record_findings(
                 for k, item in enumerate(items if isinstance(items, list) else []):
                     name = item.get("name") if isinstance(item, dict) else None
                     here = f"{where}.{key}[{k}].name"
-                    if not isinstance(name, str) or refused_by_name(name):
-                        if not isinstance(name, str):
-                            out.append(finding(here, name, "a name on the tools list"))
+                    if not isinstance(name, str):
+                        out.append(finding(here, name, "a name on the tools list"))
+                        continue
+                    if refused_by_name(name):
                         continue
                     problem = tool_problem(name, tools)
                     if problem:
@@ -753,6 +1005,14 @@ def candidate_findings(
         facts = measure(gltf, binary)
         bones |= facts["bones"]
         clips |= facts["clips"]
+        for problem in facts["problems"]:
+            out.append(
+                finding(
+                    f"triangles {name}",
+                    problem,
+                    "accessors and modes whose triangles can be counted",
+                )
+            )
         if is_int(limits.get("triangles")) and facts["triangles"] > limits["triangles"]:
             out.append(
                 finding(
@@ -769,7 +1029,7 @@ def candidate_findings(
                     finding(
                         f"texture_px {name} images[{i}]",
                         "unreadable",
-                        "an embedded PNG or JPEG",
+                        "an embedded PNG, JPEG, or WebP",
                     )
                 )
                 continue
@@ -809,117 +1069,14 @@ def candidate_findings(
                     "every clip the brief requires, as an animation's name",
                 )
             )
-    copy = (
-        files
-        + [RECORDS]
-        + (
-            [NOTICE]
-            if (folder / NOTICE).is_file() and not (folder / NOTICE).is_symlink()
-            else []
-        )
-    )
+    notice = (folder / NOTICE).is_file() and not (folder / NOTICE).is_symlink()
+    copy = files + [RECORDS] + ([NOTICE] if notice else [])
     return out, copy, directory if present else None
 
 
 # --------------------------------------------------------------------------------------------------
 # Main's arrival check, on a scratch repository
 # --------------------------------------------------------------------------------------------------
-def source_env() -> dict[str, str]:
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k
-        not in (
-            "GIT_DIR",
-            "GIT_WORK_TREE",
-            "GIT_INDEX_FILE",
-            "GIT_OBJECT_DIRECTORY",
-            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        )
-    }
-    env.update({"GIT_NO_REPLACE_OBJECTS": "1", "LC_ALL": "C"})
-    return env
-
-
-def scratch_env() -> dict[str, str]:
-    """No system or global git config in the scratch repository, so nothing configured elsewhere runs there."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update(
-        {
-            "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": os.devnull,
-            "GIT_NO_REPLACE_OBJECTS": "1",
-            "LC_ALL": "C",
-            "GIT_AUTHOR_NAME": "line.py",
-            "GIT_AUTHOR_EMAIL": "line@localhost",
-            "GIT_COMMITTER_NAME": "line.py",
-            "GIT_COMMITTER_EMAIL": "line@localhost",
-            "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
-            "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z",
-        }
-    )
-    return env
-
-
-def git(
-    repo: Path,
-    args: list[str],
-    env: dict[str, str],
-    what: str,
-    data: bytes | None = None,
-) -> bytes:
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(repo), *args],
-            input=data,
-            env=env,
-            capture_output=True,
-            check=False,
-            timeout=300,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise CantRun(f"git couldn't run ({exc.__class__.__name__}) {what}") from None
-    if done.returncode:
-        raise CantRun(f"git {args[0]} failed (exit {done.returncode}) {what}")
-    return done.stdout
-
-
-def main_snapshot(repo: Path) -> tuple[str, bytes, dict[str, bytes]]:
-    """refs/heads/main's commit, its arrival check, and its policy and disclosure files, all from that one commit."""
-    env = source_env()
-    sha = (
-        git(
-            repo,
-            ["rev-parse", "--verify", "--quiet", f"{MAIN}^{{commit}}"],
-            env,
-            f"reading {MAIN}",
-        )
-        .decode()
-        .strip()
-    )
-    try:
-        arrival = git(repo, ["cat-file", "blob", f"{sha}:{ARRIVAL}"], env, "")
-    except CantRun:
-        raise CantRun(f"the main branch ({MAIN}) has no {ARRIVAL}") from None
-    listing = git(
-        repo,
-        ["ls-tree", "-r", "-z", "--full-tree", sha, "--", *MAIN_COPIES],
-        env,
-        "listing main's policy",
-    )
-    copies = {}
-    for item in listing.split(b"\0"):
-        if not item:
-            continue
-        meta, _, rel = item.partition(b"\t")
-        mode, kind, oid = meta.split()
-        if kind == b"blob" and mode in (b"100644", b"100755"):
-            copies[rel.decode()] = git(
-                repo, ["cat-file", "blob", oid.decode()], env, "reading main's policy"
-            )
-    return sha, arrival, copies
-
-
 def build_scratch(
     top: Path, copies: dict[str, bytes], folder: Path, names: list[str], directory: str
 ) -> list[Path]:
@@ -936,17 +1093,18 @@ def build_scratch(
         tree = (
             git(top, ["write-tree"], env, "in the scratch repository").decode().strip()
         )
-        commit = (
-            git(
-                top,
-                ["commit-tree", "-m", "main's policy", tree],
-                env,
-                "in the scratch repository",
-            )
-            .decode()
-            .strip()
+        commit = git(
+            top,
+            ["commit-tree", "-m", "main's policy", tree],
+            env,
+            "in the scratch repository",
         )
-        git(top, ["update-ref", MAIN, commit], env, "in the scratch repository")
+        git(
+            top,
+            ["update-ref", MAIN, commit.decode().strip()],
+            env,
+            "in the scratch repository",
+        )
     git(top, ["symbolic-ref", "HEAD", MAIN], env, "in the scratch repository")
     dest = top / directory
     dest.mkdir(parents=True, exist_ok=True)
@@ -958,10 +1116,10 @@ def build_scratch(
 
 
 def run_arrival(
-    repo: Path, folder: Path, names: list[str], directory: str
-) -> tuple[int, list[str], str]:
-    """Main's arrival check on a scratch copy: its exit code, its output lines, and main's commit."""
-    sha, arrival, copies = main_snapshot(repo)
+    main: Main, folder: Path, names: list[str], directory: str
+) -> tuple[int, list[str]]:
+    """Main's arrival check on a scratch copy: its exit code and its output lines."""
+    arrival, copies = main.arrival(), main.copies()
     work = Path(tempfile.mkdtemp(prefix="line-")).resolve()
     try:
         script = work / "arrival_check.py"
@@ -995,67 +1153,96 @@ def run_arrival(
                 f"main's arrival check couldn't run ({exc.__class__.__name__})"
             ) from None
         code = done.returncode if done.returncode in (0, 1, 2) else 2
-        return code, done.stdout.splitlines(), sha
+        return code, done.stdout.splitlines()
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def cmd_candidate(args: argparse.Namespace) -> int:
-    folder = Path(args.dir)
+def judge(
+    folder: Path, brief_path: Path, main: Main, handoff: Path
+) -> tuple[int, list[str], list[str], dict]:
+    """One round's verdict: (0 pass or 1 fail, the lines to print, the findings to record, the brief). The brief is
+    re-checked in full first (review G3, important 2); anything that can't be judged raises CantRun."""
     if not folder.is_dir():
         raise CantRun(f"the candidate folder ({clean(str(folder))}) isn't a folder")
-    tools = load_tools(Path(args.tools))
-    brief_path = Path(args.brief)
-    if not brief_path.is_file():
-        raise CantRun(f"the brief ({clean(str(brief_path))}) isn't a file")
-    brief = read_json(brief_path, "the brief")
-    if brief_shape(brief):
-        raise CantRun("the brief isn't valid: line.py brief names why")
+    problems, brief = brief_findings(brief_path, main, handoff, judging=True)
+    if problems:
+        raise CantRun(f"the brief doesn't pass line.py brief: {problems[0]}")
     assert isinstance(brief, dict)
-    result_path = brief_path.parent / f"{brief['round']}.result.json"
-    if args.record:
-        if (
-            brief_path.name != f"{brief['round']}.json"
-            or brief_path.parent.name != brief["asset"]
-        ):
-            raise CantRun("--record needs the brief at <briefs>/<asset>/<round>.json")
-        if result_path.exists():
-            raise CantRun(
-                f"round {brief['round']} already has a result: a round is judged once"
-            )
-    out, names, directory = candidate_findings(folder, brief, tools)
-    for line in out:
-        print(line)
-    code, arrival = (1 if out else 0), []
+    out, names, directory = candidate_findings(folder, brief, main.tools())
+    printed = list(out)
+    arrival: list[str] = []
+    code = 1 if out else 0
     if directory is None:
-        print(
+        printed.append(
             "arrival-check: not run, since the candidate's files or its record's directory are missing"
         )
     else:
-        status, output, sha = run_arrival(Path(args.repo), folder, names, directory)
-        print(
-            f"arrival-check: main's copy, at {sha[:12]}, on a scratch copy under {directory}/"
+        status, output = run_arrival(main, folder, names, directory)
+        printed.append(
+            f"arrival-check: main's copy, at {main.sha[:12]}, on a scratch copy under {directory}/"
         )
-        for line in output:
-            print(line)
+        printed += output
         arrival = [line for line in output if ARRIVAL_FINDING.match(line)]
         if status == 2:
+            for line in printed:
+                print(line)
             raise CantRun("main's arrival check couldn't check (its reason is above)")
+        if status == 1 and not arrival:
+            for line in printed:
+                print(line)
+            raise CantRun("main's arrival check exited 1 with no finding line")
         if status == 1:
             code = 1
-    total = len(out) + len(arrival)
+    return code, printed, out + arrival, brief
+
+
+def cmd_candidate(args: argparse.Namespace) -> int:
+    folder, brief_path, handoff = Path(args.dir), Path(args.brief), Path(args.handoff)
+    main = Main(Path(args.repo))
+    if args.record:
+        doc = read_json(brief_path, "the brief")
+        if brief_shape(doc):
+            raise CantRun("the brief isn't valid: line.py brief names why")
+        assert isinstance(doc, dict)
+        n, asset = doc["round"], doc["asset"]
+        if brief_path.name != f"{n}.json" or brief_path.parent.name != asset:
+            raise CantRun("--record needs the brief at <briefs>/<asset>/<round>.json")
+        if (
+            not folder.is_dir()
+            or folder.resolve() != (handoff / asset / str(n)).resolve()
+        ):
+            raise CantRun(
+                "--record judges only the round's own handoff folder, <handoff>/<asset>/<round>/"
+            )
+        if (brief_path.parent / f"{n}.result.json").exists():
+            raise CantRun(f"round {n} already has a result: a round is judged once")
+        later = sorted(
+            x
+            for x in handoff_rounds(handoff, asset) | result_rounds(brief_path.parent)
+            if x > n
+        )
+        if later:
+            raise CantRun(
+                f"round {later[-1]} follows round {n}: round {n} can't be judged again"
+            )
+    code, printed, findings, brief = judge(folder, brief_path, main, handoff)
+    for line in printed:
+        print(line)
     if args.record:
         result = {
             "schema": 1,
             "asset": brief["asset"],
             "round": brief["round"],
             "result": "fail" if code else "pass",
-            "findings": out + arrival,
+            "findings": findings,
         }
-        temp = result_path.with_name(result_path.name + ".tmp")
+        path = brief_path.parent / f"{brief['round']}.result.json"
+        temp = path.with_name(path.name + ".tmp")
         temp.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-        os.replace(temp, result_path)
+        os.replace(temp, path)
     if code:
+        total = len(findings)
         print(
             f"line: {total} finding{'s' if total != 1 else ''}; round {brief['round']} fails"
         )
@@ -1071,27 +1258,32 @@ def cmd_round(args: argparse.Namespace) -> int:
     asset = args.asset
     if not ASSET_RE.fullmatch(asset):
         raise CantRun("the asset isn't an ID: a-z, 0-9, and hyphens, up to 40")
-    folder = Path(args.briefs) / asset
-    numbers = round_numbers(folder)
-    if not numbers:
-        print("1")
-        return 0
-    if numbers != list(range(1, len(numbers) + 1)) or len(numbers) > ROUNDS:
-        raise CantRun(f"the asset's briefs aren't rounds 1 to {ROUNDS} in order")
-    last = numbers[-1]
-    for n in numbers[:-1]:
-        before = read_result(folder, n)
-        if before is None or before["result"] != "fail":
-            raise CantRun(
-                f"round {n + 1} has a brief, but round {n} has no recorded failure"
+    folder, handoff = Path(args.briefs) / asset, Path(args.handoff)
+    answered = handoff_rounds(handoff, asset)
+    judged = {n: read_result(folder, n) for n in sorted(result_rounds(folder))}
+    # A recorded pass counts once its handoff is there and the candidate re-checks clean: the file alone is no pass.
+    main = None
+    for n, result in judged.items():
+        if result and result["result"] == "pass" and n in answered:
+            main = main or Main(Path(args.repo))
+            code, _, _, _ = judge(
+                handoff / asset / str(n), folder / f"{n}.json", main, handoff
             )
-    result = read_result(folder, last)
-    if result is None:
-        print(f"open {last}")
-    elif result["result"] == "pass":
-        print(f"passed {last}")
+            if code == 0:
+                print(f"passed {n}")
+                return 0
+    used = max(answered | set(judged), default=0)
+    latest = max(brief_rounds(folder), default=0)
+    if used >= ROUNDS:
+        print("decide")
+    elif used == 0:
+        print(f"open {latest}" if latest else "1")
+    elif used in answered and used not in judged:
+        print(f"open {used}")
+    elif latest > used:
+        print(f"open {latest}")
     else:
-        print("decide" if last >= ROUNDS else str(last + 1))
+        print(str(used + 1))
     return 0
 
 
@@ -1112,34 +1304,31 @@ def parse(argv: list[str]) -> argparse.Namespace:
         description="The studio line's checks (spec 017, contracts/studio-line.md)."
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    repo_help = (
+        "the repository whose refs/heads/main gives the policy and the arrival check"
+    )
     b = sub.add_parser("brief", help="check a brief")
     b.add_argument("file")
-    b.add_argument("--caps", required=True, help="main's assets/policy/caps.json")
-    b.add_argument(
-        "--tools", required=True, help="main's assets/policy/studio-tools.json"
-    )
+    b.add_argument("--repo", default=".", help=repo_help)
+    b.add_argument("--handoff", default=HANDOFF)
     c = sub.add_parser(
         "candidate",
         help="check a candidate, then run main's arrival check on a scratch copy",
     )
     c.add_argument("dir")
     c.add_argument("--brief", required=True)
-    c.add_argument(
-        "--tools", required=True, help="main's assets/policy/studio-tools.json"
-    )
-    c.add_argument(
-        "--repo",
-        default=".",
-        help="the repository whose refs/heads/main gives the arrival check",
-    )
+    c.add_argument("--repo", default=".", help=repo_help)
+    c.add_argument("--handoff", default=HANDOFF)
     c.add_argument(
         "--record",
         action="store_true",
-        help="write the round's result beside the brief",
+        help="write the round's result beside the brief, once",
     )
     r = sub.add_parser("round", help="the asset's next step")
     r.add_argument("asset")
     r.add_argument("--briefs", default=BRIEFS)
+    r.add_argument("--handoff", default=HANDOFF)
+    r.add_argument("--repo", default=".", help=repo_help)
     return parser.parse_args(argv)
 
 
