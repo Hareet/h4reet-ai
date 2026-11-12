@@ -454,6 +454,37 @@ def judge_check(text: str, rc: int = 0) -> tuple[bool, str]:
     )
 
 
+ABSENT = "No such file or directory"
+ABSENT_TEXT = "mount (absent on the host and in the container)"
+
+
+def expects_absence(row: dict) -> bool:
+    """A row whose refusal is the path's absence: when the host lacks its path, it still runs, and proves the
+    container lacks it too."""
+    return row.get("layer") == "mount" and bool(
+        re.search(row.get("expect", "$^"), ABSENT)
+    )
+
+
+def judge_absent(row: dict, rc: int, out: str, err: str) -> tuple[str, str]:
+    """A target absent on the host, checked in the container: ok only when it's absent there too."""
+    verdict, text = judge_row(row, rc, out, err)
+    if verdict == "refused" and ABSENT in (err or ""):
+        return "absent", ABSENT_TEXT
+    if verdict == "refused":
+        return (
+            "FAILED",
+            f"absent on the host, but the container refused another way: {last_line(err)}",
+        )
+    return verdict, text
+
+
+def tally(verdicts: list[str]) -> tuple[int, int]:
+    """(rows that ran, rows skipped): a row checked absent on the host and in the container ran."""
+    ran = sum(1 for v in verdicts if v in ("refused", "absent", "gap"))
+    return ran, sum(1 for v in verdicts if v == "skipped")
+
+
 def enough_ran(ran: int, chosen: int) -> bool:
     """R4 proves nothing if most of its rows were skipped (a wrong home, a missing path)."""
     return chosen > 0 and ran >= MIN_RAN * chosen
@@ -928,11 +959,18 @@ class Rehearsal:
             creates = substitute(row.get("creates", ""), values)
         except Stop as e:
             return "skipped", str(e)
-        if host and not os.path.lexists(host):
-            return "skipped", "absent on the host, so the row would prove nothing"
+        absent_here = bool(host) and not os.path.lexists(host)
+        if absent_here and not expects_absence(row):
+            return (
+                "skipped",
+                "its path is absent on the host, so a write there would prove nothing",
+            )
         made_before = bool(creates) and os.path.lexists(creates)
         rc, out, err = self.container(s, ["bash", "-c", command], ROW_TIMEOUT)
-        verdict, text = judge_row(row, rc, out, err)
+        if absent_here:
+            verdict, text = judge_absent(row, rc, out, err)
+        else:
+            verdict, text = judge_row(row, rc, out, err)
         if (
             creates
             and not made_before
@@ -989,7 +1027,8 @@ class Rehearsal:
         rows = load_rows(f"{self.share}/rows.json")
         chosen = [r for r in rows if all_rows or r["rehearsal"]]
         self.start_helpers()
-        failed, refused, gaps, skipped = [], 0, 0, 0
+        failed, refused, gaps, skipped, absent = [], 0, 0, 0, 0
+        verdicts: list[str] = []
         masks = self.mask_rows()
         for row in chosen + masks:
             try:
@@ -999,8 +1038,12 @@ class Rehearsal:
                     verdict, text = self.container_row(row)
             except (Stop, self.N.Refused) as e:
                 verdict, text = "FAILED", redact(str(e))
+            verdicts.append(verdict)
             if verdict == "refused":
                 refused += 1
+                say(f"row {row['id']} refused-by={text}")
+            elif verdict == "absent":
+                absent += 1
                 say(f"row {row['id']} refused-by={text}")
             elif verdict == "gap":
                 gaps += 1
@@ -1014,12 +1057,16 @@ class Rehearsal:
         if failed:
             raise Stop(f"{len(failed)} rows weren't refused: {', '.join(failed[:12])}")
         total = len(chosen) + len(masks)
-        if not enough_ran(refused + gaps, total):
+        ran, skipped = tally(verdicts)
+        if not enough_ran(ran, total):
             raise Stop(
-                f"only {refused + gaps} of {total} rows ran ({skipped} skipped); R4 needs {MIN_RAN:.0%}: "
+                f"only {ran} of {total} rows ran ({skipped} skipped); R4 needs {MIN_RAN:.0%}: "
                 "see the skipped rows above"
             )
-        return f"{refused} rows refused, {gaps} gap row recorded, {skipped} of {total} skipped"
+        return (
+            f"{refused} rows refused, {absent} absent on the host and in the container, "
+            f"{gaps} gap row recorded, {skipped} of {total} skipped"
+        )
 
 
 def _rmdir_empty(path: str) -> None:
