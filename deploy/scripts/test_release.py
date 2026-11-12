@@ -178,9 +178,11 @@ def written(tmp_path: Path) -> dict:
 def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> None:
     r = Runner()
     assert run(tmp_path, r) == 0
+    # The pushed builds: the site's check builds its own image too, loaded and never pushed (group 7's review A, I-E).
+    pushed = [c for c in r.builds() if "--load" not in c]
     built = {
         c[c.index("--tag") + 1].rsplit(":", 1)[0]: c[c.index("--platform") + 1]
-        for c in r.builds()
+        for c in pushed
     }
     # The gateway and the room's site run on the laptop and EC2; the tunnel's image on the tunnel end: each on Graviton.
     assert built == {
@@ -188,7 +190,7 @@ def test_a_release_builds_once_each_for_its_hosts_platforms(tmp_path: Path) -> N
         f"{REGISTRY}/h4reet/web": "linux/amd64,linux/arm64",
         f"{REGISTRY}/h4reet/tunnel": "linux/amd64,linux/arm64",
     }
-    for c in r.builds():
+    for c in pushed:
         assert "--push" in c and c[c.index("--tag") + 1].endswith(f":{COMMIT}")
     assert rl.platforms(["laptop"]) == ["linux/amd64"]
     assert rl.platforms(["laptop", "ec2"]) == ["linux/amd64", "linux/arm64"]
