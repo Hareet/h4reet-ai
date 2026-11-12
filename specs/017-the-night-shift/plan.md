@@ -108,6 +108,7 @@ deploy/night-shift/                  # human-only once P-1 merges (the example c
 │   ├── fragments.json               # shared pieces, with {{PLACEHOLDERS}}
 │   └── <role>.json                  # eight session specs, plus plan.json and comfyui.json
 ├── allowlist.json                   # the night's egress hosts, in settings shape
+├── comfyui-params.json              # ComfyUI's launch allowlist, --birefnet (FR-040, Q15; T045)
 ├── runner/
 │   ├── night.py                     # §4
 │   └── prompts/<role>.md            # each worker's opening prompt
@@ -275,7 +276,7 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 contracts/studio-line.md, unchanged in substance:
 1. Briefs go to `/srv/studio/briefs/<asset>/<round>.json`, written by implementers.
 2. The studio agent drives ComfyUI (which it starts through the runner, FR-040) and Blender (in its own container, `--gpus all`). It writes `/srv/studio/handoff/<asset>/<round>/` and works in `/srv/studio/outputs`.
-3. The repo agent runs `line.py candidate` and then main's `arrival_check.py` on a scratch copy. There are three rounds at most.
+3. The repo agent runs `line.py candidate`, which ends by running main's `arrival_check.py` on a scratch copy. There are three rounds at most; `--record` writes each round's result beside its brief, which `line.py round` and the next brief read (data-model.md's Round result; the implementation's addition, 2026-11-12).
 4. The intake, with the Author's look approval last.
 
 ComfyUI's container mounts his install, custom nodes, models, and `~/flux-env` read-only, and sits on the studio's internal network. ComfyUI-Manager can't install anything, and no node can download.

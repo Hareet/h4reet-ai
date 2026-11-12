@@ -78,6 +78,14 @@ A file `~/.local/state/h4reet-ai/night-shift/locks/<name>` (0444) held by `flock
 
 `files` exist in the folder, and `tools` ⊆ the brief's `tools`. `records.json` follows the arrival check's format.
 
+## Round result (`/srv/studio/briefs/<asset>/<round>.result.json`)
+
+```json
+{"schema": 1, "asset": "dog", "round": 1, "result": "fail", "findings": ["triangles dog.glb: 200000 (limit: the brief's, 180000)"]}
+```
+
+Written once, by `line.py candidate --record`. Round *n*+1's brief copies a failed round's `findings` verbatim; `line.py round` reads the results.
+
 ## Tools list (`assets/policy/studio-tools.json`, human-only, P-7)
 
 ```json

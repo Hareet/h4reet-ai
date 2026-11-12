@@ -72,17 +72,17 @@
 
 ## Phase 4: G3, the studio line (US4, P2)
 
-- [ ] T040 [P] [US4] RED: `scripts/studio/test_line.py`, brief cases. A valid brief passes; each of these fails with one line naming the field: `round` must be 1 to 3; a limit above `caps.json`; a tool not `outputs_ship: true`; a missing field.
-- [ ] T041 [P] [US4] RED: candidate cases, on a GLB built in the test with `struct` and `json`:
+- [x] T040 [P] [US4] RED: `scripts/studio/test_line.py`, brief cases. A valid brief passes; each of these fails with one line naming the field: `round` must be 1 to 3; a limit above `caps.json`; a tool not `outputs_ship: true`; a missing field.
+- [x] T041 [P] [US4] RED: candidate cases, on a GLB built in the test with `struct` and `json`:
   - over triangles, bytes, or texture pixels;
   - a missing required bone or clip;
   - a tool outside the brief;
   - a record step naming Qwen-Image-2.1 or FLUX [dev], refused even if listed;
   - a file named but absent.
-- [ ] T042 [P] [US4] RED: rounds. After three failed rounds `line.py round` prints `decide`, and `line.py brief` refuses a round 4.
-- [ ] T043 [US4] GREEN: `scripts/studio/line.py`.
-- [ ] T044 [US4] The arrival check's step: `line.py candidate` ends by running main's `tools/gates/arrival_check.py`, read from `refs/heads/main` by `git cat-file` and run as `python3 -I -B` from a temp file, on a scratch repository. A test uses a stand-in arrival check.
-- [ ] T045 [US4] The ComfyUI allowlist: `deploy/night-shift/comfyui-params.json`, seeded from `start-comfyui.sh` and his answer to Q15, with `--listen`, `--port`, and the folder flags fixed by the runner, never by the agent.
+- [x] T042 [P] [US4] RED: rounds. After three failed rounds `line.py round` prints `decide`, and `line.py brief` refuses a round 4.
+- [x] T043 [US4] GREEN: `scripts/studio/line.py`.
+- [x] T044 [US4] The arrival check's step: `line.py candidate` ends by running main's `tools/gates/arrival_check.py`, read from `refs/heads/main` by `git cat-file` and run as `python3 -I -B` from a temp file, on a scratch repository. A test uses a stand-in arrival check.
+- [x] T045 [US4] The ComfyUI allowlist: `deploy/night-shift/comfyui-params.json`, seeded from `start-comfyui.sh` and his answer to Q15, with `--listen`, `--port`, and the folder flags fixed by the runner, never by the agent.
 - [ ] T046 Review G3; fix blockers; backlog the rest.
 
 ## Phase 5: G4, red-team rows and the install (US1, P1; US2)
