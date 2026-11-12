@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -56,7 +57,6 @@ PATH_SAFE = re.compile(r"/[A-Za-z0-9._/+-]*")
 ROW_ID = re.compile(r"[a-z0-9][a-z0-9-]{1,80}")
 PLACEHOLDER = re.compile(r"@([A-Z]+)@")
 
-PROMPT = "Reply with exactly the word ok and nothing else."
 STANDIN = "probe-not-a-credential"
 STANDIN_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 API_HOST = "api.anthropic.com"
@@ -102,6 +102,16 @@ KNOWN_FAIL = {
 R3_COMMAND = "make setup && make check"
 R3_TIMEOUT = 2 * 3600
 ROW_TIMEOUT = 60
+MIN_RAN = 0.9  # R4 fails when fewer than this share of its rows actually ran
+# make exits 2 when a recipe fails, and run_checks exits 1 when any gate is FAIL or PENDING: either ends a make check
+# that finished. Any other non-zero exit (137, a kill; 124, the timeout) is a run that didn't.
+R3_FINISHED = (0, 1, 2)
+R3_SUMMARY = re.compile(r"^make check: \d+ PASS, ", re.MULTILINE)
+REHEARSAL_TASK = (
+    "## The rehearsal\n"
+    "This session is the install's rehearsal, not a task. Do nothing else: reply with exactly the word ok and nothing else."
+)
+FAKE_RESOURCES = "H4_NIGHT_TEST_RESOURCES"  # "<disk GB>,<free memory GB>,<total memory GB>", the install's tests only
 SESSION_TIMEOUT = 300
 
 REDACT = (
@@ -129,6 +139,13 @@ def redact(text: str, width: int = 120) -> str:
     for pattern, repl in REDACT:
         line = pattern.sub(repl, line)
     return line[:width]
+
+
+def redact_line(line: str) -> str:
+    """One line as ops.md's filter leaves it, whole (R3's log)."""
+    for pattern, repl in REDACT:
+        line = pattern.sub(repl, line)
+    return line
 
 
 def last_line(text: str) -> str:
@@ -198,6 +215,12 @@ def cmd_facts(args) -> int:
     except night.CantRun as e:
         say(f"facts: {e}")
         return 1
+    for key in night.PATH_FACTS:
+        if re.search(r"\s", facts[key]):
+            say(
+                f"facts: {key} holds a space or other whitespace, which the install's shell can't pass safely"
+            )
+            return 1
     if facts["UID"] != str(os.getuid()) or facts["GID"] != str(os.getgid()):
         say(
             f"facts: UID and GID must be yours ({os.getuid()}:{os.getgid()}), not {facts['UID']}:{facts['GID']}"
@@ -376,8 +399,13 @@ def judge_row(row: dict, rc: int, out: str, err: str) -> tuple[str, str]:
     return "FAILED", f"refused, but not as expected (exit {rc}): {last_line(err)}"
 
 
-def judge_check(text: str) -> tuple[bool, str]:
-    """R3: make check's `-> STATUS gate` lines, with the known items named."""
+def judge_check(text: str, rc: int = 0) -> tuple[bool, str]:
+    """R3: make check's exit code, its summary line, and its `-> STATUS gate` lines, with the known items named. A run
+    that was killed or stopped partway, or printed no summary, fails whatever its gates said."""
+    if rc not in R3_FINISHED:
+        return False, f"make check didn't finish (exit {rc})"
+    if not R3_SUMMARY.search(text):
+        return False, f"make check printed no summary line (exit {rc})"
     gates: dict[str, str] = {}
     current = None
     stage_s, other = 0, 0
@@ -415,6 +443,8 @@ def judge_check(text: str) -> tuple[bool, str]:
         elif status == "PENDING":
             known.append(f"{label} PENDING (the Author's run)")
     passed = sum(1 for s in gates.values() if s == "PASS")
+    if rc != 0 and not known and not bad:
+        bad.append(f"exit {rc} with no failing gate")
     if bad:
         return False, f"make check failed: {', '.join(bad)}" + (
             f"; known: {'; '.join(known)}" if known else ""
@@ -422,6 +452,42 @@ def judge_check(text: str) -> tuple[bool, str]:
     return True, f"make check: {passed} of {len(gates)} gates PASS" + (
         f"; known: {'; '.join(known)}" if known else ""
     )
+
+
+ABSENT = "No such file or directory"
+ABSENT_TEXT = "mount (absent on the host and in the container)"
+
+
+def expects_absence(row: dict) -> bool:
+    """A row whose refusal is the path's absence: when the host lacks its path, it still runs, and proves the
+    container lacks it too."""
+    return row.get("layer") == "mount" and bool(
+        re.search(row.get("expect", "$^"), ABSENT)
+    )
+
+
+def judge_absent(row: dict, rc: int, out: str, err: str) -> tuple[str, str]:
+    """A target absent on the host, checked in the container: ok only when it's absent there too."""
+    verdict, text = judge_row(row, rc, out, err)
+    if verdict == "refused" and ABSENT in (err or ""):
+        return "absent", ABSENT_TEXT
+    if verdict == "refused":
+        return (
+            "FAILED",
+            f"absent on the host, but the container refused another way: {last_line(err)}",
+        )
+    return verdict, text
+
+
+def tally(verdicts: list[str]) -> tuple[int, int]:
+    """(rows that ran, rows skipped): a row checked absent on the host and in the container ran."""
+    ran = sum(1 for v in verdicts if v in ("refused", "absent", "gap"))
+    return ran, sum(1 for v in verdicts if v == "skipped")
+
+
+def enough_ran(ran: int, chosen: int) -> bool:
+    """R4 proves nothing if most of its rows were skipped (a wrong home, a missing path)."""
+    return chosen > 0 and ran >= MIN_RAN * chosen
 
 
 def parse_stream(out: str) -> tuple[dict | None, str]:
@@ -457,6 +523,56 @@ class Session:
     pre: list
 
 
+def effects(N):
+    """The runner's own Effects. FAKE_RESOURCES replaces its disk and memory readings, for the install's tests only,
+    and every step says so when it's set."""
+    fake = os.environ.get(FAKE_RESOURCES)
+    if not fake:
+        return N.Effects()
+    disk, avail, total = (int(x) * 2**30 for x in fake.split(","))
+
+    class Faked(N.Effects):
+        def disk_free(self, path: str) -> int:
+            return disk
+
+        def mem_available(self) -> int:
+            return avail
+
+        def mem_total(self) -> int:
+            return total
+
+    say(
+        f"note: {FAKE_RESOURCES} is set: disk and memory readings are faked (the tests only)"
+    )
+    return Faked()
+
+
+def night_running(N, fx, runner_lock: str) -> str | None:
+    """A running night container, or the runner's own lock held: the rehearsal would step on a night (S2)."""
+    r = fx.run(
+        ["docker", "ps", "--filter", "name=^h4-night", "--format", "{{.Names}}"],
+        env=dict(fx.environ),
+        timeout=60,
+    )
+    names = r.out.split()
+    if r.rc != 0:
+        return "docker ps failed, so a running night can't be ruled out"
+    if names:
+        return f"night containers are running ({' '.join(names[:3])}): run night.py stop first"
+    if os.path.lexists(runner_lock):
+        try:
+            fd = os.open(runner_lock, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        except OSError:
+            return f"can't open {runner_lock}"
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return "a night.py start holds the runner's lock: run night.py stop first"
+        finally:
+            os.close(fd)
+    return None
+
+
 class Rehearsal:
     def __init__(self, home: str, sha: str) -> None:
         if not SHA40.fullmatch(sha):
@@ -473,6 +589,10 @@ class Rehearsal:
         night_py = f"{self.share}/night.py"
         self.N = load_night(night_py, installed["file"].get(night_py, "missing"))
         paths = self.N.Paths.from_home(home)
+        self.fx = effects(self.N)
+        why = night_running(self.N, self.fx, paths.runner_lock)
+        if why:
+            raise Stop(why)
         self.rstate = f"{paths.state}/rehearsal"
         self.paths = dataclasses.replace(
             paths,
@@ -487,7 +607,6 @@ class Rehearsal:
             self.facts = self.N.read_facts(self.paths.facts)
         except self.N.CantRun as e:
             raise Stop(str(e)) from None
-        self.fx = self.N.Effects()
         self.runner = self.N.Runner(self.paths, self.facts, self.fx, "rehearsal")
         self.sessions: dict[str, Session] = {}
         self.extra_tasks: list = []
@@ -534,7 +653,23 @@ class Rehearsal:
             self.runner.git("worktree", "remove", "--force", "--force", wt)
             if os.path.lexists(wt) and not os.path.islink(wt):
                 shutil.rmtree(wt, ignore_errors=True)
-        self.runner.git("worktree", "prune")
+        # Never `git worktree prune` on his repository: only this rehearsal's own admin folder goes, and only when its
+        # gitdir names this rehearsal's own path.
+        admin_root = f"{self.runner.git_dir}/worktrees"
+        try:
+            names = os.listdir(admin_root)
+        except OSError:
+            names = []
+        for name in names:
+            admin = f"{admin_root}/{name}"
+            if not name.startswith(t.id) or os.path.islink(admin):
+                continue
+            try:
+                gitdir = Path(f"{admin}/gitdir").read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if gitdir == f"{wt}/.git":
+                shutil.rmtree(admin, ignore_errors=True)
         self.runner.git("branch", "-D", t.branch)
         io = f"{self.io_root}/{t.id}"
         if os.path.isdir(io) and not os.path.islink(io):
@@ -560,6 +695,7 @@ class Rehearsal:
             if why:
                 raise Stop(f"spec {role}: {why}")
         image = self.runner.image_id(spec["image"])
+        prompt = self.runner.compose_prompt(t, REHEARSAL_TASK)
         argv = N.build_run_argv(
             spec,
             name=f"h4-night-rehearse-{role}",
@@ -567,7 +703,7 @@ class Rehearsal:
             pre=pre,
             post=post,
             workdir=t.worktree or N.IO_IN,
-            prompt=PROMPT,
+            prompt=prompt,
             token=self.paths.token,
             image=image,
         )
@@ -632,32 +768,62 @@ class Rehearsal:
         i = line.index("-w")
         return [*line[:i], "-e", f"{var}={STANDIN}", *line[i:]]
 
-    def api_lines(self) -> int:
+    def api_lines(self, required: bool) -> int:
+        """The api.anthropic.com lines in the egress log. Missing before the first turn counts 0; missing after one,
+        or unreadable at any time, is a failure (B1): a log that isn't written proves nothing."""
+        path = f"{self.rstate}/egress/egress.jsonl"
         try:
-            text = Path(f"{self.rstate}/egress/egress.jsonl").read_text(
-                encoding="utf-8", errors="replace"
-            )
-        except OSError:
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            if required:
+                raise Stop(
+                    f"the egress log {path} isn't there, so it proves nothing"
+                ) from None
             return 0
+        except OSError as e:
+            raise Stop(
+                f"the egress log {path} is unreadable ({type(e).__name__})"
+            ) from None
         return sum(1 for line in text.splitlines() if API_HOST in line)
+
+    def proof_turn(self, s: Session) -> str:
+        """One turn on the night-shift token that must answer ok and add an api.anthropic.com line to the egress log,
+        which proves the log records this run's calls before any count of it is trusted (the probe's rule, R-17)."""
+        before = self.api_lines(required=False)
+        rc, out, err = self.container(
+            s, s.argv[len(s.base) :] + ["--max-turns", "2"], SESSION_TIMEOUT
+        )
+        if not answered_ok(rc, out):
+            result, _ = parse_stream(out)
+            why = (result or {}).get("result") or err
+            raise Stop(
+                f"the session didn't answer ok (exit {rc}): {last_line(str(why))}"
+            )
+        time.sleep(1)
+        after = self.api_lines(required=True)
+        if after <= before:
+            raise Stop(
+                f"a signed-in turn added no {API_HOST} line to the egress log ({before} -> {after}), so the log proves nothing"
+            )
+        _result, source = parse_stream(out)
+        return source
 
     # -- the steps
     def r1(self) -> str:
         s = self.session("implementer")
         self.start_helpers()
-        rc, out, err = self.container(
-            s, s.argv[len(s.base) :] + ["--max-turns", "2"], SESSION_TIMEOUT
+        source = self.proof_turn(s)
+        return (
+            f"an implementer session on a scratch worktree of {self.sha[:12]} answered on the plan's token "
+            f"(apiKeySource {source}), and the egress log recorded its calls"
         )
-        if answered_ok(rc, out):
-            _result, source = parse_stream(out)
-            return f"an implementer session on a scratch worktree of {self.sha[:12]} answered on the plan's token (apiKeySource {source})"
-        result, _ = parse_stream(out)
-        why = (result or {}).get("result") or err
-        raise Stop(f"the session didn't answer ok (exit {rc}): {last_line(str(why))}")
 
     def r2(self) -> str:
         s = self.session("implementer")
         self.start_helpers()
+        self.proof_turn(
+            s
+        )  # the log is proven in this step, before any refusal is read from it
         notes = []
         for var in STANDIN_VARS:
             line = self.with_env(s, var)
@@ -667,11 +833,11 @@ class Rehearsal:
                 pass
             else:
                 raise Stop(f"the runner's last look let {var} through")
-            before = self.api_lines()
+            before = self.api_lines(required=True)
             self.docker("rm", "-f", f"h4-night-rehearse-{s.task.role}")
             rc, out, err = self.run(line + ["--max-turns", "2"], SESSION_TIMEOUT)
             time.sleep(1)
-            after = self.api_lines()
+            after = self.api_lines(required=True)
             if answered_ok(rc, out):
                 notes.append(
                     f"with {var} set, the runner refuses the line, and the managed settings neutralize it (it answered on the token)"
@@ -680,7 +846,7 @@ class Rehearsal:
                 raise Stop(f"with {var} set, the session hung until its timeout")
             elif rc != 0 and after == before:
                 notes.append(
-                    f"with {var} set, the runner refuses the line, and the managed settings refuse to start, no API call"
+                    f"with {var} set, the runner refuses the line, and the managed settings refuse to start, no API call in a proven log"
                 )
             else:
                 raise Stop(
@@ -695,11 +861,11 @@ class Rehearsal:
         log = f"{self.rstate}/r3-make-check.log"
         fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(out)
-            f.write(err)
+            for line in (out + err).splitlines():
+                f.write(redact_line(line) + "\n")
         if rc == 124:
             raise Stop(f"make check timed out (its log: {log})")
-        ok, detail = judge_check(out + "\n" + err)
+        ok, detail = judge_check(out + "\n" + err, rc)
         if not ok:
             raise Stop(f"{detail} (its log: {log})")
         return f"{detail} (its log: {log})"
@@ -793,11 +959,18 @@ class Rehearsal:
             creates = substitute(row.get("creates", ""), values)
         except Stop as e:
             return "skipped", str(e)
-        if host and not os.path.lexists(host):
-            return "skipped", "absent on the host, so the row would prove nothing"
+        absent_here = bool(host) and not os.path.lexists(host)
+        if absent_here and not expects_absence(row):
+            return (
+                "skipped",
+                "its path is absent on the host, so a write there would prove nothing",
+            )
         made_before = bool(creates) and os.path.lexists(creates)
         rc, out, err = self.container(s, ["bash", "-c", command], ROW_TIMEOUT)
-        verdict, text = judge_row(row, rc, out, err)
+        if absent_here:
+            verdict, text = judge_absent(row, rc, out, err)
+        else:
+            verdict, text = judge_row(row, rc, out, err)
         if (
             creates
             and not made_before
@@ -836,12 +1009,28 @@ class Rehearsal:
             )
         return out
 
+    def preflight(self) -> None:
+        """The installed runner's own preflight (S1): every live spec (the studio's and ComfyUI's folders included),
+        the images, the token, nothing planted in .git, no billing variable, the networks, and the disk and memory
+        floors; then the memory sum for the implementer's container. So `install: done` means `night.py start` passes
+        its preflight. Every step runs it first, R3's long builds included."""
+        try:
+            self.runner.preflight(keep_lock=False)
+            spec = self.runner.load_live_spec("implementer")
+            why = self.runner.mem_refusal(self.N.mem_bytes(spec["limits"]["memory"]))
+        except self.N.Refused as e:
+            raise Stop(f"the runner's preflight refuses: {e}") from None
+        if why:
+            raise Stop(f"the runner's preflight refuses: {why}")
+
     def r4(self, all_rows: bool) -> str:
         rows = load_rows(f"{self.share}/rows.json")
         chosen = [r for r in rows if all_rows or r["rehearsal"]]
         self.start_helpers()
-        failed, refused, gaps, skipped = [], 0, 0, 0
-        for row in chosen + self.mask_rows():
+        failed, refused, gaps, skipped, absent = [], 0, 0, 0, 0
+        verdicts: list[str] = []
+        masks = self.mask_rows()
+        for row in chosen + masks:
             try:
                 if row["kind"] == "runner":
                     verdict, text = self.runner_row(row)
@@ -849,8 +1038,12 @@ class Rehearsal:
                     verdict, text = self.container_row(row)
             except (Stop, self.N.Refused) as e:
                 verdict, text = "FAILED", redact(str(e))
+            verdicts.append(verdict)
             if verdict == "refused":
                 refused += 1
+                say(f"row {row['id']} refused-by={text}")
+            elif verdict == "absent":
+                absent += 1
                 say(f"row {row['id']} refused-by={text}")
             elif verdict == "gap":
                 gaps += 1
@@ -863,7 +1056,17 @@ class Rehearsal:
                 say(f"row {row['id']} FAILED {text}")
         if failed:
             raise Stop(f"{len(failed)} rows weren't refused: {', '.join(failed[:12])}")
-        return f"{refused} rows refused, {gaps} gap row recorded, {skipped} skipped"
+        total = len(chosen) + len(masks)
+        ran, skipped = tally(verdicts)
+        if not enough_ran(ran, total):
+            raise Stop(
+                f"only {ran} of {total} rows ran ({skipped} skipped); R4 needs {MIN_RAN:.0%}: "
+                "see the skipped rows above"
+            )
+        return (
+            f"{refused} rows refused, {absent} absent on the host and in the container, "
+            f"{gaps} gap row recorded, {skipped} of {total} skipped"
+        )
 
 
 def _rmdir_empty(path: str) -> None:
@@ -883,6 +1086,7 @@ def cmd_step(args) -> int:
         say(f"{name} FAILED {redact(str(e))}")
         return 1
     try:
+        r.preflight()
         if name == "R1":
             detail = r.r1()
         elif name == "R2":

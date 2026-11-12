@@ -131,7 +131,21 @@ def template(tmp_path_factory) -> dict:
     (repo / "deploy" / "agents-engine" / "egress-proxy.py").write_text(
         "# the branch's egress proxy\n"
     )
+    # The branch's own .claude/settings.json differs from main's: the install must build from main's (S7).
+    settings = json.loads((repo / ".claude/settings.json").read_text())
+    settings["sandbox"]["network"]["allowedDomains"].append(
+        "branch-only.example.invalid"
+    )
+    (repo / ".claude/settings.json").write_text(json.dumps(settings, indent=2) + "\n")
     git(repo, "commit", "-q", "-am", "the reviewed commit")
+    (base / "main-settings.json").write_text(
+        git(repo, "show", "refs/heads/main:.claude/settings.json") + "\n"
+    )
+    for rel in (".specify/memory/constitution.md", ".github/workflows/ci.yml"):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(f"stand-in {rel}\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "more masked paths")
     return {"base": base}
 
 
@@ -141,6 +155,7 @@ class Case:
         self.repo = self.tmp / "repo"
         shutil.copytree(template["base"] / "repo", self.repo, symlinks=True)
         self.studio = self.tmp / "studio"
+        self.main_settings = template["base"] / "main-settings.json"
         self.sha = self.commit_here()
         self.home = self.tmp / "home"
         self.bin = self.tmp / "bin"
@@ -153,6 +168,8 @@ class Case:
         for d in (
             self.studio / "workflows",
             self.studio / "outputs",
+            self.studio / "photos",
+            self.studio / "key",
             self.bin,
             self.tmp / "t",
         ):
@@ -169,8 +186,16 @@ class Case:
             "flux-env",
             ".config/h4reet/agents-engine/docker",
             ".aws",
+            ".ssh",
+            ".config/gh",
+            ".docker",
+            ".claude",
+            ".local/state/h4reet",
+            ".local/share/h4reet/terraform-providers",
         ):
             (self.home / d).mkdir(parents=True, exist_ok=True)
+        for f in (".git-credentials", ".claude.json"):
+            (self.home / f).write_text("stand-in\n")
         (self.home / ".aws" / "credentials").write_text(
             f"[default]\naws_secret_access_key = {self.aws_secret}\n"
         )
@@ -193,7 +218,7 @@ class Case:
                 "-B",
                 str(ns / "containers" / "build.py"),
                 "--settings",
-                str(self.repo / ".claude/settings.json"),
+                str(self.main_settings),
             ],
             check=True,
             capture_output=True,
@@ -254,6 +279,7 @@ class Case:
             "STUB_LOG": str(self.log),
             "STUB_SCENARIO": json.dumps(self.scenario),
             "STUB_SECRET": self.secret_out,
+            "H4_NIGHT_TEST_RESOURCES": "100,32,62",
             **(extra or {}),
         }
         sha = args[0] if args and not args[0].startswith("--") else self.sha
@@ -354,6 +380,9 @@ def full(tmp_path_factory, template):
     calls_first = len(c.docker_calls())
     first_tree = snapshot(c.home)
     runner_view = read_as_the_runner(c)
+    r3_log = (
+        c.home / ".local/state/h4reet-ai/night-shift/rehearsal/r3-make-check.log"
+    ).read_text()
     second = c.run()
     second_calls = c.docker_calls()[calls_first:]
     undo = c.run("--undo")
@@ -372,6 +401,7 @@ def full(tmp_path_factory, template):
         "after": after,
         "calls": c.docker_calls(),
         "runner_view": runner_view,
+        "r3_log": r3_log,
     }
     c.cleanup()
 
@@ -520,7 +550,7 @@ def test_the_specs_are_filled_and_lose_the_example_marker(full, template) -> Non
             "-B",
             str(c.repo / "deploy/night-shift/containers/build.py"),
             "--settings",
-            str(c.repo / ".claude/settings.json"),
+            str(c.main_settings),
             "--fill",
             str(fill),
             "--facts",
@@ -939,7 +969,7 @@ def test_a_leftover_placeholder_is_refused(make_case) -> None:
             "-B",
             str(ns / "containers" / "build.py"),
             "--settings",
-            str(c.repo / ".claude/settings.json"),
+            str(c.main_settings),
         ],
         check=True,
         capture_output=True,
@@ -1061,3 +1091,219 @@ def test_the_script_is_shellcheck_clean() -> None:
             ["shellcheck", str(script)], capture_output=True, text=True, check=False
         )
         assert r.returncode == 0, r.stdout
+
+
+# ---- G4's review ------------------------------------------------------------------------------------------------------
+def test_b1_r1_fails_when_the_egress_log_records_nothing(make_case) -> None:
+    c = make_case({"egress_silent": True})
+    r = c.run()
+    assert_refused(
+        c, r, "4 R1", "egress log .*(isn.t there|added no api.anthropic.com line)"
+    )
+    assert "R2" not in rehearsal_kinds(c)
+
+
+def test_b1_r2_proves_the_log_itself_before_reading_a_refusal_from_it(full) -> None:
+    runs = [
+        x["argv"]
+        for x in full["calls"]
+        if x["argv"][1:2] == ["run"] and "-d" not in x["argv"]
+    ]
+    kinds = []
+    for argv in runs:
+        text = " ".join(argv)
+        if "make setup && make check" in argv:
+            break
+        kinds.append(
+            "standin"
+            if "=probe-not-a-credential" in text
+            else "token"
+            if "claude -p" in text
+            else "?"
+        )
+    # R1's turn, then R2's own proof turn, then the two stand-ins
+    assert kinds == ["token", "token", "standin", "standin"], kinds
+    line = next(x for x in summary(full["first_out"]) if x.startswith("R2 ok"))
+    assert "no API call in a proven log" in line
+
+
+def test_s1_the_runners_preflight_runs_first_and_refuses_low_disk(make_case) -> None:
+    c = make_case()
+    r = c.run(extra={"H4_NIGHT_TEST_RESOURCES": "10,32,62"})
+    assert_refused(
+        c, r, "4 R1", "the runner's preflight refuses: / has 10 GB free, under 30 GB"
+    )
+    assert rehearsal_kinds(c) == []
+
+
+def test_s1_the_studio_and_comfyui_specs_are_checked_before_r1(make_case) -> None:
+    c = make_case()
+    (c.studio / "workflows").rmdir()
+    r = c.run()
+    assert_refused(c, r, "4 R1", "spec studio: .*workflows doesn't exist")
+    assert rehearsal_kinds(c) == []
+
+
+def test_s1_r1_uses_the_installed_implementer_prompt(full) -> None:
+    first = next(
+        x["argv"]
+        for x in full["calls"]
+        if x["argv"][1:2] == ["run"] and "claude" in x["argv"] and "-d" not in x["argv"]
+    )
+    prompt = first[first.index("-p") + 1]
+    assert (
+        "## This task" in prompt
+        and "## The rehearsal" in prompt
+        and "reply with exactly the word ok" in prompt
+    )
+
+
+def test_s2_a_held_runner_lock_refuses(make_case) -> None:
+    import fcntl
+
+    c = make_case()
+    state = c.home / ".local/state/h4reet-ai/night-shift"
+    state.mkdir(parents=True)
+    lock = state / "runner.lock"
+    lock.write_text("")
+    lock.chmod(0o444)
+    fd = os.open(lock, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        assert_refused(c, c.run(), "0 preflight", "holds the runner's lock")
+    finally:
+        os.close(fd)
+
+
+def test_s4_the_rehearsal_never_prunes_his_worktrees(full) -> None:
+    for call in full["case"].git_calls():
+        assert "prune" not in call["argv"], call["argv"]
+
+
+def test_s5_s6_a_new_sha_diffs_what_it_replaces_and_undo_removes_both_shas_images(
+    make_case,
+) -> None:
+    c = make_case()
+    # a network of that name the install didn't make
+    st = {"images": {}, "pulled": {}, "containers": {}, "seq": 0, "rows": 0}
+    st["networks"] = {
+        "h4-night-plan": {"internal": True, "id": "fffffff00000", "labels": []}
+    }
+    c.state.write_text(json.dumps(st))
+    assert c.run().returncode == 0, c.output[-3000:]
+    old = c.sha
+    params = c.repo / "deploy/night-shift/comfyui-params.json"
+    git(
+        c.repo,
+        "checkout",
+        "-q",
+        "--",
+        "deploy/night-shift/runner/prompts/implementer.md",
+    )
+    data = json.loads(params.read_text())
+    data["x-review"] = "a changed line"
+    params.write_text(json.dumps(data, indent=2) + "\n")
+    git(c.repo, "commit", "-q", "-am", "a changed ComfyUI allowlist")
+    new = git(c.repo, "rev-parse", "HEAD")
+    r = c.run(new)
+    assert r.returncode == 0, c.output[-3000:]
+    assert f"replacing {c.config}/comfyui-params.json (FR-005):" in c.output
+    assert '+  "x-review": "a changed line"' in c.output
+    lines = summary(c.output)
+    for n in ("allowlist", "allowlist-studio", "allowlist-plan"):
+        assert any(re.fullmatch(rf"allowlist {n} [0-9a-f]{{64}}", x) for x in lines), n
+    images = c.stub_state()["images"]
+    assert (
+        f"h4-night-worker:{old[:12]}" in images
+        and f"h4-night-worker:{new[:12]}" in images
+    )
+    r = c.run(new, "--undo")
+    assert r.returncode == 0, c.output[-3000:]
+    images = c.stub_state()["images"]
+    assert not [k for k in images if k.startswith("h4-night-")], images
+    assert "h4-night-plan" in c.stub_state()["networks"]
+    assert "undo: left network h4-night-plan (the install didn't make it)" in c.output
+    assert not [n for n in c.stub_state()["networks"] if n != "h4-night-plan"]
+
+
+def test_s7_the_specs_follow_mains_settings_not_the_commits(full) -> None:
+    c = full["case"]
+    assert full["first"].returncode == 0
+    reads = [x["argv"] for x in c.git_calls() if "cat-file" in x["argv"]]
+    assert any(
+        a[-1] == "refs/heads/main:.claude/settings.json" and "blob" in a for a in reads
+    ), reads
+    allow = json.loads(
+        git(c.repo, "show", f"{c.sha}:deploy/night-shift/allowlist.json")
+    )
+    assert (
+        "branch-only.example.invalid"
+        not in allow["sandbox"]["network"]["allowedDomains"]
+    )
+    branch = git(c.repo, "show", f"{c.sha}:.claude/settings.json")
+    assert "branch-only.example.invalid" in branch
+
+
+def test_s8_a_make_check_killed_partway_fails_r3(make_case) -> None:
+    c = make_case({"r3_killed": True})
+    r = c.run()
+    assert_refused(c, r, "6 R3", "make check didn't finish \\(exit 137\\)")
+    assert "R4" not in rehearsal_kinds(c)
+
+
+def test_r3s_kept_log_is_redacted(full) -> None:
+    log = full["r3_log"]
+    assert "-> FAIL toolchain-check" in log
+    assert full["case"].secret_out not in log and "token=<redacted>" in log
+
+
+def test_s9_a_moved_branch_tip_refuses_naming_both_shas(make_case) -> None:
+    c = make_case()
+    older = git(c.repo, "rev-parse", "HEAD~1")
+    before = snapshot(c.home)
+    r = c.run(older, "--branch", "feat/night")
+    assert_refused(
+        c,
+        r,
+        "0 preflight",
+        f"the branch feat/night's tip has moved: it is {c.sha}, not the reviewed {older}",
+    )
+    assert_nothing_installed(c, before)
+
+
+def test_s9_the_branch_at_the_sha_passes_its_check(make_case) -> None:
+    c = make_case({"fail": "R1"})
+    c.run(c.sha, "--branch", "feat/night")
+    assert "step 0 preflight: ok" in c.output
+
+
+def test_a_fact_path_with_a_space_is_refused(make_case) -> None:
+    c = make_case()
+    (c.home / "my blender").mkdir()
+    c.write_facts(BLENDER_DIR=str(c.home / "my blender"))
+    assert_refused(c, c.run(), "0 preflight", "BLENDER_DIR holds a space")
+
+
+def test_never_mounted_targets_absent_on_the_host_still_run_and_count(
+    make_case,
+) -> None:
+    c = make_case()
+    (c.home / ".git-credentials").unlink()
+    (c.home / ".config/gh").rmdir()
+    shutil.rmtree(c.home / ".local/share/h4reet")
+    r = c.run()
+    assert r.returncode == 0, c.output[-3000:]
+    lines = summary(c.output)
+    for rid in (
+        "read-git-credentials-plain",
+        "read-gh-plain-studio",
+        "read-provider-mirror-symlink",
+    ):
+        assert (
+            f"row {rid} refused-by=mount (absent on the host and in the container)"
+            in lines
+        ), rid
+    r4 = next(x for x in lines if x.startswith("R4 ok"))
+    assert re.search(r"\b0 of \d+ skipped", r4), r4
+    assert re.search(r"[1-9]\d* absent on the host", r4), r4
+    assert not [x for x in lines if x.startswith("row ") and " skipped" in x]

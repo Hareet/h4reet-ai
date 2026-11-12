@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "x-h4": {
-    "note": "spec 017 plan §9: the night shift's red-team rows. Each is run in its role's container, made by the installed runner's own code (rehearse.py), or, for kind runner, checked against the runner itself. Placeholders: @HOME@ (the Author's home on the host), @REPO@ (the main checkout), @GIT@ (its .git), @WT@ (the role's scratch worktree; /night/io for the studio), @ADMIN@ (its .git/worktrees folder), @OTHER@ (another task's worktree), @ID@ (the row's id). A row runs only where its host path exists on the host, since an absent path proves nothing. Read rows run every spelling in ops, the widest role under the ceiling, and the plain spelling in the lattice's other tops (supervisor, gate-runner, studio): every other role's mounts are within its parent's (test_containers.py's lattice test). rehearsal: true marks the rows the install's R4 runs: inside a mount namespace, bash -c, a subshell, quoting, and python reach the same kernel check as the plain spelling, so R4 runs the spellings that reach another path or program (plain, git, a symlink, a hard link); redteam/night-shift/run.sh --all runs every row. Write payloads write nothing (: >>) or a benign config line, so one that got through would do as little as it can, and the rehearsal removes any file a row created."
+    "note": "spec 017 plan §9: the night shift's red-team rows. Each is run in its role's container, made by the installed runner's own code (rehearse.py), or, for kind runner, checked against the runner itself. Placeholders: @HOME@ (the Author's home on the host), @REPO@ (the main checkout), @GIT@ (its .git), @WT@ (the role's scratch worktree; /night/io for the studio), @ADMIN@ (its .git/worktrees folder), @OTHER@ (another task's worktree), @ID@ (the row's id). A row whose host path is absent still runs when it expects absence (a read): the path can't be in the container either, and the row proves it, counting as run; a write row whose path is absent is skipped. Read rows run every spelling in ops, the widest role under the ceiling, and the plain spelling in the lattice's other tops (supervisor, gate-runner, studio): every other role's mounts are within its parent's (test_containers.py's lattice test). rehearsal: true marks the rows the install's R4 runs: inside a mount namespace, bash -c, a subshell, quoting, and python reach the same kernel check as the plain spelling, so R4 runs the spellings that reach another path or program (plain, git, a symlink, a hard link); redteam/night-shift/run.sh --all runs every row. Write payloads write nothing (: >>) or a benign config line, so one that got through would do as little as it can, and the rehearsal removes any file a row created."
   },
   "rows": [
     {
@@ -2579,19 +2579,6 @@
       "rehearsal": false
     },
     {
-      "id": "write-git-config-git",
-      "role": "ops",
-      "kind": "container",
-      "category": "write",
-      "target": "@GIT@/config",
-      "spelling": "git",
-      "host": "@GIT@/config",
-      "command": "git -C @WT@ config rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
-      "layer": "ro-mount",
-      "rehearsal": true
-    },
-    {
       "id": "write-git-config-bash-c",
       "role": "ops",
       "kind": "container",
@@ -2657,19 +2644,6 @@
       "rehearsal": true
     },
     {
-      "id": "write-git-config-git-c",
-      "role": "ops",
-      "kind": "container",
-      "category": "write",
-      "target": "@GIT@/config",
-      "spelling": "git-c",
-      "host": "@GIT@/config",
-      "command": "git -C @WT@ -c core.hooksPath=/tmp config core.hooksPath /tmp",
-      "expect": "Read-only file system|Device or resource busy",
-      "layer": "ro-mount",
-      "rehearsal": true
-    },
-    {
       "id": "write-git-hooks-plain",
       "role": "ops",
       "kind": "container",
@@ -2677,8 +2651,8 @@
       "target": "@GIT@/hooks",
       "spelling": "plain",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": >> @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": >> @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2691,8 +2665,8 @@
       "target": "@GIT@/hooks",
       "spelling": "python",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "python3 -c 'import sys; open(sys.argv[1], \"a\").close()' @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "python3 -c 'import sys; open(sys.argv[1], \"a\").close()' @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2705,8 +2679,8 @@
       "target": "@GIT@/hooks",
       "spelling": "git",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "git -C @WT@ config --file @GIT@/hooks/pre-commit rt.probe x",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "git -C @WT@ config --file @GIT@/hooks/rt-@ID@ rt.probe x",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2719,8 +2693,8 @@
       "target": "@GIT@/hooks",
       "spelling": "bash-c",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "bash -c ': >> \"$1\"' _ @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "bash -c ': >> \"$1\"' _ @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2733,8 +2707,8 @@
       "target": "@GIT@/hooks",
       "spelling": "subshell",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "( : >> @GIT@/hooks/pre-commit )",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "( : >> @GIT@/hooks/rt-@ID@ )",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2747,8 +2721,8 @@
       "target": "@GIT@/hooks",
       "spelling": "quoted",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": >> \"@GIT@/hooks\"'/pre-commit'",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": >> \"@GIT@/hooks\"'/rt-@ID@'",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2761,8 +2735,8 @@
       "target": "@GIT@/hooks",
       "spelling": "symlink",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "ln -s -- @GIT@/hooks/pre-commit @WT@/.rt-@ID@ && : >> @WT@/.rt-@ID@",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "ln -s -- @GIT@/hooks/rt-@ID@ @WT@/.rt-@ID@ && : >> @WT@/.rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2775,8 +2749,8 @@
       "target": "@GIT@/hooks",
       "spelling": "hardlink",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/hooks/rt-@ID@",
       "expect": "Invalid cross-device link|Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true

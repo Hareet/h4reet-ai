@@ -3,6 +3,8 @@
 # contracts/install.md). The Author's one command, after the runbook's guard on the reviewed SHA:
 #
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"          # install, then rehearse
+#   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --branch feat/017-the-night-shift
+#                                       # the same, refusing first, naming both SHAs, if that branch's tip isn't $sha
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --undo   # remove what installed.txt lists
 #
 # Steps, stopping at the first failure with `install: FAILED at <step>: <reason>`, then the summary so far:
@@ -32,6 +34,14 @@ export LC_ALL=C
 
 SHA="${1:-}"
 MODE="${2:-install}"
+BRANCH=""
+BRANCH_GIVEN=""
+if [ "$MODE" = --branch ]; then
+	BRANCH="${3:-}"
+	BRANCH_GIVEN=1
+	MODE=install
+fi
+LABEL="h4-night=install"
 PY=/usr/bin/python3
 CONFIG="$HOME/.config/h4reet-ai/night-shift"
 SHARE="$HOME/.local/share/h4reet-ai/night-shift"
@@ -60,7 +70,7 @@ CHANGED=0
 STEP_CHANGED=0
 t=""
 REPO=""
-declare -A OLD_FILES=() OLD_IMAGES=() OLD_NETS=() NEW_FILES=() IMG_ID=() NET_ID=() OURS=()
+declare -A OLD_FILES=() OLD_IMAGES=() OLD_NETS=() OLD_MADE_NETS=() HISTORY=() NEW_FILES=() IMG_ID=() NET_ID=() MADE_NETS=() OURS=()
 OLD_SHA=""
 SCRATCH=("$STATE/rehearsal" "$LOGS" "$REHEARSED")
 
@@ -115,22 +125,27 @@ read_installed() {
 		file) OLD_FILES["$name"]="$value" ;;
 		image) OLD_IMAGES["$name"]="$value" ;;
 		network) OLD_NETS["$name"]="$value" ;;
+		made-network) OLD_MADE_NETS["$name"]="$value" ;;
+		image-history) HISTORY["$name"]="$value" ;;
 		dir) OURS["$name"]=1 ;;
 		esac
 	done <"$INSTALLED"
 }
 
 night_running() {
-	local running
-	running="$(docker ps --filter 'name=^h4-night-' --format '{{.Names}}' 2>/dev/null | head -n 3 | tr '\n' ' ')"
+	local running lock="$STATE/runner.lock"
+	running="$(docker ps --filter 'name=^h4-night' --format '{{.Names}}' 2>/dev/null | head -n 3 | tr '\n' ' ')"
 	[ -z "$running" ] || fail "night containers are running ($running): run night.py stop first"
+	if [ -e "$lock" ] && ! flock -n -E 75 "$lock" true 2>/dev/null; then
+		fail "a night.py start holds the runner's lock: run night.py stop first"
+	fi
 }
 
 # ---------------------------------------------------------------------------------------------------------------
 preflight() {
 	STEP="0 preflight"
 	[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || fail "give the reviewed commit as its full 40-hex SHA (usage: install.sh <sha> [--undo])"
-	case "$MODE" in install | --undo) ;; *) fail "usage: install.sh <sha> [--undo]" ;; esac
+	case "$MODE" in install | --undo) ;; *) fail "usage: install.sh <sha> [--undo | --branch <name>]" ;; esac
 	local v
 	for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY; do
 		[ -z "${!v+x}" ] || fail "$v is set in this shell; unset it (the night shift never bills API credits, FR-041)"
@@ -151,6 +166,13 @@ preflight() {
 	local resolved
 	resolved="$(GIT_COMMON_DIR="$REPO/.git" g rev-parse --verify --quiet "$SHA^{commit}" 2>/dev/null)"
 	[ "$resolved" = "$SHA" ] || fail "$SHA doesn't resolve to a commit in $REPO"
+	if [ -n "$BRANCH_GIVEN" ]; then
+		[[ "$BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || fail "--branch needs a branch name"
+		local tip
+		tip="$(GIT_COMMON_DIR="$REPO/.git" g rev-parse --verify --quiet "refs/heads/$BRANCH^{commit}" 2>/dev/null)"
+		[ -n "$tip" ] || fail "the branch $BRANCH doesn't exist in $REPO"
+		[ "$tip" = "$SHA" ] || fail "the branch $BRANCH's tip has moved: it is $tip, not the reviewed $SHA; get the new tip reviewed first"
+	fi
 	TAG="${SHA:0:12}"
 	t="$(mktemp -d "${TMPDIR:-/tmp}/h4-night-install.XXXXXX")" || fail "can't make a temp folder"
 	chmod 700 -- "$t"
@@ -243,7 +265,7 @@ images() {
 		bargs=()
 		for arg in ${ARGS[$name]:-}; do bargs+=(--build-arg "$arg"); done
 		echo "building $ref (its log: $LOGS/build-$name.log)"
-		if ! docker build --pull=false -q -f "$ctx/${DF[$name]}" -t "$ref" "${bargs[@]}" "$ctx" >"$LOGS/build-$name.log" 2>&1; then
+		if ! docker build --pull=false -q --label "$LABEL" -f "$ctx/${DF[$name]}" -t "$ref" "${bargs[@]}" "$ctx" >"$LOGS/build-$name.log" 2>&1; then
 			tail -n 8 "$LOGS/build-$name.log" | redact
 			fail "the $name image didn't build (its log: $LOGS/build-$name.log)"
 		fi
@@ -268,6 +290,10 @@ install_file() { # install_file <source> <destination>
 	if [ -e "$dest" ] || [ -L "$dest" ]; then
 		[ -n "${OLD_FILES[$dest]:-}" ] || fail "$dest exists, and the install didn't make it: move it away first"
 	fi
+	if [ -f "$dest" ] && [ ! -L "$dest" ] && [[ "$dest" == "$CONFIG"/* ]]; then
+		echo "replacing $dest (FR-005):"
+		diff -u --label "$dest (installed)" --label "$dest ($TAG)" -- "$dest" "$src"
+	fi
 	writable "$d"
 	if ! { rm -f -- "$dest" && cp -- "$src" "$dest" && chmod 0444 -- "$dest"; }; then fail "can't write $dest"; fi
 	FILES_WRITTEN=$((FILES_WRITTEN + 1))
@@ -278,7 +304,10 @@ files() {
 	STEP="2 files"
 	FILES_WRITTEN=0
 	local fill="$t/fill" n p role out
-	put .claude/settings.json "$t/settings.json"
+	# The night allowlist follows main's settings, never the commit's copy (S7; build.py's own default).
+	if ! GIT_COMMON_DIR="$REPO/.git" g cat-file blob refs/heads/main:.claude/settings.json >"$t/settings.json"; then
+		fail "can't read refs/heads/main:.claude/settings.json in $REPO"
+	fi
 	while IFS= read -r p; do put "$p" "$fill/$p"; done < <(GIT_COMMON_DIR="$REPO/.git" g ls-tree --name-only "$SHA" deploy/night-shift/containers/)
 	for n in allowlist allowlist-studio allowlist-plan; do put "deploy/night-shift/$n.json" "$fill/deploy/night-shift/$n.json"; done
 	out="$("$PY" -I -B "$fill/deploy/night-shift/containers/build.py" --check --settings "$t/settings.json" 2>&1)" ||
@@ -327,6 +356,7 @@ files() {
 		[ -n "${OURS[$p]:-}" ] && chmod 0555 -- "$p"
 	done
 	for p in "$CONFIG"/containers/*.json; do SUMMARY+=("spec $(basename -- "$p" .json) $(sha_of "$p")"); done
+	for n in allowlist allowlist-studio allowlist-plan; do SUMMARY+=("allowlist $n $(sha_of "$CONFIG/$n.json")"); done
 	if [ "$FILES_WRITTEN" -eq 0 ]; then step_done unchanged; else step_done "$FILES_WRITTEN files written"; fi
 }
 
@@ -334,11 +364,13 @@ files() {
 ensure_net() { # ensure_net <name> internal|normal
 	local n="$1" want="$2" got id
 	got="$(docker network inspect --format '{{.Internal}} {{.Id}}' "$n" 2>/dev/null)"
+	local made=""
 	if [ -z "$got" ]; then
+		made=1
 		if [ "$want" = internal ]; then
-			docker network create --internal --label h4-night=install "$n" >/dev/null 2>&1 || fail "can't make the network $n"
+			docker network create --internal --label "$LABEL" "$n" >/dev/null 2>&1 || fail "can't make the network $n"
 		else
-			docker network create --label h4-night=install "$n" >/dev/null 2>&1 || fail "can't make the network $n"
+			docker network create --label "$LABEL" "$n" >/dev/null 2>&1 || fail "can't make the network $n"
 		fi
 		got="$(docker network inspect --format '{{.Internal}} {{.Id}}' "$n" 2>/dev/null)"
 		changed
@@ -348,6 +380,8 @@ ensure_net() { # ensure_net <name> internal|normal
 	if [ "$want" = internal ] && [ "$got" != true ]; then fail "the network $n exists and isn't internal: remove it (docker network rm $n)"; fi
 	if [ "$want" = normal ] && [ "$got" = true ]; then fail "the network $n exists and is internal: remove it (docker network rm $n)"; fi
 	NET_ID["$n"]="$id"
+	# Only a network this install (or an earlier one, with this ID) made is ever removed by --undo.
+	if [ -n "$made" ] || [ "${OLD_MADE_NETS[$n]:-}" = "$id" ]; then MADE_NETS["$n"]="$id"; fi
 }
 
 networks() {
@@ -372,6 +406,14 @@ networks() {
 		for p in "${!NEW_FILES[@]}"; do echo "file $p ${NEW_FILES[$p]}"; done | sort
 		for n in "${!IMG_ID[@]}"; do echo "image h4-night-$n:$TAG ${IMG_ID[$n]}"; done | sort
 		for n in "${!NET_ID[@]}"; do echo "network $n ${NET_ID[$n]}"; done | sort
+		for n in "${!MADE_NETS[@]}"; do echo "made-network $n ${MADE_NETS[$n]}"; done | sort
+		# Every image an install here ever tagged, so --undo removes the earlier SHAs' too.
+		{
+			for ref in "${!HISTORY[@]}"; do echo "image-history $ref ${HISTORY[$ref]}"; done
+			for ref in "${!OLD_IMAGES[@]}"; do
+				[[ "$ref" == *":$TAG" ]] || echo "image-history $ref ${OLD_IMAGES[$ref]}"
+			done
+		} | sort -u
 		for p in "${!OURS[@]}"; do echo "dir $p"; done | sort
 		for p in "${SCRATCH[@]}"; do echo "scratch $p"; done
 	} >"$tmp"
@@ -446,17 +488,24 @@ undo() {
 			left+=("$p (changed since the install)")
 		fi
 	done
-	for ref in "${!OLD_IMAGES[@]}"; do
-		got="$(docker image inspect --format '{{.Id}}' "$ref" 2>/dev/null || true)"
-		if [ "$got" = "${OLD_IMAGES[$ref]}" ]; then
+	declare -A ALL_IMAGES=()
+	for ref in "${!HISTORY[@]}"; do ALL_IMAGES["$ref"]="${HISTORY[$ref]}"; done
+	for ref in "${!OLD_IMAGES[@]}"; do ALL_IMAGES["$ref"]="${OLD_IMAGES[$ref]}"; done
+	for ref in "${!ALL_IMAGES[@]}"; do
+		got="$(docker image inspect --format '{{.Id}} {{index .Config.Labels "h4-night"}}' "$ref" 2>/dev/null || true)"
+		if [ "$got" = "${ALL_IMAGES[$ref]} install" ]; then
 			docker image rm "$ref" >/dev/null 2>&1 || left+=("image $ref (in use)")
 		elif [ -n "$got" ]; then
-			left+=("image $ref (retagged since the install)")
+			left+=("image $ref (retagged or not the install's since)")
 		fi
 	done
 	for n in "${!OLD_NETS[@]}"; do
-		if docker network inspect "$n" >/dev/null 2>&1; then
+		got="$(docker network inspect --format '{{.Id}} {{index .Labels "h4-night"}}' "$n" 2>/dev/null || true)"
+		[ -n "$got" ] || continue
+		if [ -n "${OLD_MADE_NETS[$n]:-}" ] && [ "$got" = "${OLD_MADE_NETS[$n]} install" ]; then
 			docker network rm "$n" >/dev/null 2>&1 || left+=("network $n (in use)")
+		else
+			left+=("network $n (the install didn't make it)")
 		fi
 	done
 	while IFS=' ' read -r n p; do

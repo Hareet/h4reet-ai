@@ -11,6 +11,11 @@ $STUB_SCENARIO (JSON) says:
   build_fail: <name>      that image's build fails
   fwd_fail: true          (the probe) the engine forwarder's `run -d` fails
   running: <name>         `docker ps` names a running night container
+  egress_silent: true     the egress log records nothing (a proxy whose log can't be written)
+  r3_killed: true         make check is killed partway (exit 137, no summary line)
+
+A signed-in `claude -p` turn adds an api.anthropic.com line to the h4-night-egress helper's log, as the real proxy
+does. Builds and networks keep their --label values, and `inspect` renders the `index .Labels` formats.
 """
 
 from __future__ import annotations
@@ -163,19 +168,34 @@ def run(st: dict, argv: list[str]) -> int:
         if SCENARIO.get("fail") == "R1":
             print("Not logged in", file=sys.stderr)
             return 1
+        if st.get("egress_log") and not SCENARIO.get("egress_silent"):
+            with open(os.path.join(st["egress_log"], "egress.jsonl"), "a") as f:
+                f.write(
+                    json.dumps({"host": "api.anthropic.com", "decision": "allow"})
+                    + "\n"
+                )
         print(json.dumps({"type": "system", "subtype": "init", "apiKeySource": "none"}))
         print(json.dumps({"type": "result", "is_error": False, "result": "ok"}))
         return 0
     if cmd[:2] == ["bash", "-c"]:
         script = cmd[2] if len(cmd) > 2 else ""
         if "make check" in script:
+            print("npm config: token=" + os.environ.get("STUB_SECRET", "stub-secret"))
             print("== lint\n-> PASS lint\n== toolchain-check\n-> FAIL toolchain-check")
+            if SCENARIO.get("r3_killed"):
+                return 137
             print(
                 "== matrix\n--- stage S: the sandbox ---\nFAIL        stage-S-unwritable    x: no mask\n-> FAIL matrix"
             )
+            failing = "toolchain-check FAIL, matrix FAIL"
             if SCENARIO.get("fail") == "R3":
                 print("== test\n-> FAIL test")
-            return 1
+                failing += ", test FAIL"
+            n = failing.count("FAIL")
+            print(
+                f"make check: 1 PASS, 0 SKIP, 0 WARN, 0 PLANNED, 0 PENDING, {n} FAIL; failing: {failing}"
+            )
+            return 2
         if "printenv CLAUDE_CODE_OAUTH_TOKEN" in script:
             return 0
         st["rows"] += 1
@@ -217,7 +237,18 @@ def main() -> int:
         ref = args[-1]
         f = opt(args, "--format") or opt(args, "-f") or "{{.Id}}"
         if ref in st["images"]:
-            print(fmt(f, {".Id": st["images"][ref]}))
+            label = (
+                st.get("image_labels", {}).get(ref, {}).get("h4-night", "<no value>")
+            )
+            print(
+                fmt(
+                    f,
+                    {
+                        ".Id": st["images"][ref],
+                        'index .Config.Labels "h4-night"': label,
+                    },
+                )
+            )
         elif ref in st["pulled"]:
             print(
                 fmt(
@@ -246,6 +277,14 @@ def main() -> int:
             rc = 1
         else:
             st["images"][tag] = fake_id(tag + json.dumps(files, sort_keys=True))
+            labels = [
+                args[i + 1]
+                for i, a in enumerate(args)
+                if a == "--label" and i + 1 < len(args)
+            ]
+            st.setdefault("image_labels", {})[tag] = dict(
+                x.split("=", 1) for x in labels
+            )
             print(st["images"][tag])
     elif args[:2] == ["network", "inspect"]:
         n = args[-1]
@@ -258,6 +297,9 @@ def main() -> int:
                     {
                         ".Internal": "true" if net["internal"] else "false",
                         ".Id": net["id"],
+                        'index .Labels "h4-night"': dict(
+                            x.split("=", 1) for x in net.get("labels", [])
+                        ).get("h4-night", "<no value>"),
                     },
                 )
             )
