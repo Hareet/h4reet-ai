@@ -45,7 +45,7 @@ Each run, as September §3:
 python3 -I -B deploy_first_step.py --host tunnel-end|ec2 [--state DIR] [--boot | --restart SERVICE]
 ```
 
-It runs under an exclusive lock on `<state>/.lock`, so the boot's run, the timer's, and a restart never overlap. It passes `--boot` or `--restart` on to the deployer, with `--env-file` (the host's, `/run/h4reet/<host>.env`) and `--state`.
+It runs under an exclusive lock on `<state>/.lock`, so the boot's run and the timer's never overlap; a restart takes no lock, since it touches no tree's folder, so the key's revocation never waits for a deploy (group 7's review A, I-A). It passes `--boot` or `--restart` on to the deployer, with `--env-file` (the host's, `/run/h4reet/<host>.env`) and `--state`.
 
 | Exit | Run | Means |
 |---|---|---|
@@ -55,7 +55,7 @@ It runs under an exclusive lock on `<state>/.lock`, so the boot's run, the timer
 
 **The deployer's exits:** 0 for a run that changed nothing or deployed; 75 for a check or a boot that refused or rolled back and alerted; 1 for a restart that failed; anything else is a deployer that didn't run.
 
-**The retry rule** (the deployer's review, 1 and 2). Each attempt is recorded in `deployments.jsonl` and marked in `attempts.json`, whether or not SNS takes its alert; the alert memory, `refused.json`, only deduplicates, and an alert SNS refused waits in `pending.json` for a later run. A refusal is tried again once a newer release comes; a failed start (`rolled_back`, `rollback_failed`) after a backoff that doubles from two minutes to an hour. At boot every attempt is tried again, and a host running nothing tries each run. The manual retry is `docs/runbooks/deploy.md`'s.
+**The retry rule** (the deployer's review, 1 and 2). Each attempt is recorded in `deployments.jsonl` and marked in `attempts.json`, whether or not SNS takes its alert; the alert memory, `refused.json`, only deduplicates, and an alert SNS refused waits in `pending.json` for a later run. A refusal is tried again once a newer release comes; a failed start (`rolled_back`, `rollback_failed`) after a backoff that doubles from two minutes to an hour. At boot every attempt is tried again, and a host running nothing tries each run, recording an identical repeat once (group 7's review A, nit 2). A run restarts what runs before it sends any alert SNS refused earlier; a held run sends those too. The manual retry is `docs/runbooks/deploy.md`'s.
 
 **EC2's boot run:** EC2's stack doesn't start until its deployer has checked the bucket. If the bucket can't be reached, it starts its last release and alerts (FR-046). **As built in group 7:** at boot the deployer asks the bucket before anything starts; a new release starts as any new release does; the running one starts from its cached images; and with the bucket out of reach, or refusing, the last release starts from its cached images and `deploy_refused` is alerted once per boot, reason `unreachable` or `bucket`. EC2's images: each copy by `H4_IMAGE_<SERVICE>` in the release's env file, and the gateway's and the room's pulled by the release's digest and tagged `h4reet-gateway:<commit>` and `h4reet-web:<commit>` for its `H4_REF`. Its host step, `deploy/hosts/ec2/ec2_host.py prepare`, installs the gateway's proxy and the gateway's Bedrock credential timer from the release's tree before compose pulls anything.
 
@@ -76,9 +76,9 @@ As September §5, with `host` added. It goes to a JSON line in each host's state
 
 | Panel | Type | Query |
 |---|---|---|
-| The release on each host (FR-049) | table | `max by (h4_host, h4_release, h4_commit, h4_started_by) (max_over_time(h4_release_info[1h]))` |
+| The release on each host (FR-049) | table | `max by (h4_host, h4_release, h4_commit, h4_started_by) (last_over_time(h4_release_info[5m]))` |
 | Deployments (FR-046) | time series | `sum by (h4_host, outcome) (increase(h4_deploy_events_total[1h]))` |
 
-- **`h4_release_info`** is `h4.release.info`, a gauge of 1 each cloud host's deployer pushes on each run, labelled `h4.host`, `h4.release`, `h4.commit` (its first 12 hex), and `h4.started_by` (`deployer`), never an address, an account, or a digest.
-- **`h4_deploy_events_total`** is `h4.deploy.events`, a counter the deployer adds 1 to for each attempt it records, labelled `h4.host` and `outcome` (`deployed`, `refused`, `rolled_back`, `rollback_failed`).
+- **`h4_release_info`** is `h4.release.info`, a gauge of 1 each cloud host's deployer pushes on each run, labelled `h4.host`, `h4.release`, `h4.commit` (its first 12 hex), and `h4.started_by` (`deployer`), never an address, an account, or a digest. The table reads the last five minutes alone, so a release the host no longer runs leaves it within minutes (group 7's review A, nit 6).
+- **`h4_deploy_events_total`** is `h4.deploy.events`, a counter the deployer adds 1 to for each attempt it records, labelled `h4.host` and `outcome` (`deployed`, `refused`, `rolled_back`, `rollback_failed`). **After group 7's review A (I-F):** it is cumulative, not a delta, which the collector's metrics pipeline passes on unconverted and Prometheus drops: the deployer keeps each outcome's count and its start in its state folder (`events.json`), and sends all four counts on every run, a held one included, so each series has a sample a minute; with nothing running, an identical repeat is tried each run but counted, and recorded, once (nit 2). Prometheus's `created-timestamp-zero-ingestion` takes the start as the series' zero, to confirm on EC2's first run.
 - Both reach the host's collector as OTLP/HTTP's JSON from the host itself: EC2's through `ec2-relay-block`'s 4318, the tunnel end's at its collector's address on the stack's egress bridge. The laptop's line waits for its deployer (plan.md §16, "Group 7, as built", 11): meanwhile a hand-started stack's commit and who started it are its run file's, which the laptop's status shows.

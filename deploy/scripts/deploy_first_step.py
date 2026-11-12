@@ -234,8 +234,10 @@ def run(
     runner: Callable[[list[str]], int],
     args: list[str],
 ) -> int:
-    """One run, under the state folder's lock, so --boot, the timer, and a restart never share a tree's partial folder
-    (the deployer's review, nit 4)."""
+    """One run, under the state folder's lock, so --boot and the timer never share a tree's partial folder (the
+    deployer's review, nit 4). A restart touches no tree, so it never waits for a deploy (group 7's review A, I-A)."""
+    if "--restart" in args:
+        return locked_run(host, env_file, state, aws, runner, args)
     state.mkdir(parents=True, exist_ok=True)
     with open(str(state / ".lock"), "a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

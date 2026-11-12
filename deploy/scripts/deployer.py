@@ -294,34 +294,39 @@ def image_variable(name: str) -> str:
     return "H4_IMAGE_" + name.upper().replace("-", "_")
 
 
+# Each attempt's outcome, as h4.deploy.events counts it.
+OUTCOMES = ("deployed", "refused", "rolled_back", "rollback_failed")
+
+
 def metrics_payload(
-    host: str, outcome: str | None, current: dict | None, at: float
+    host: str, counts: dict[str, int], current: dict | None, start: float, at: float
 ) -> dict:
     """h4.deploy.events and h4.release.info, as OTLP/HTTP's JSON, every label a datapoint's (contracts/releases-
-    deployer.md §6). Never an address, an account, or a digest."""
+    deployer.md §6). The counter is cumulative, every outcome's count since start, sent on every run, so Prometheus,
+    which takes no delta, has each series (group 7's review A, I-F). Never an address, an account, or a digest."""
 
     def attrs(pairs: dict[str, str]) -> list[dict]:
         return [{"key": k, "value": {"stringValue": v}} for k, v in pairs.items()]
 
     stamp = str(int(at * 1_000_000_000))
-    metrics = []
-    if outcome is not None:
-        metrics.append(
-            {
-                "name": "h4.deploy.events",
-                "sum": {
-                    "aggregationTemporality": 1,
-                    "isMonotonic": True,
-                    "dataPoints": [
-                        {
-                            "asInt": "1",
-                            "timeUnixNano": stamp,
-                            "attributes": attrs({"h4.host": host, "outcome": outcome}),
-                        }
-                    ],
-                },
-            }
-        )
+    metrics = [
+        {
+            "name": "h4.deploy.events",
+            "sum": {
+                "aggregationTemporality": 2,
+                "isMonotonic": True,
+                "dataPoints": [
+                    {
+                        "asInt": str(int(counts.get(outcome, 0))),
+                        "startTimeUnixNano": str(int(start * 1_000_000_000)),
+                        "timeUnixNano": stamp,
+                        "attributes": attrs({"h4.host": host, "outcome": outcome}),
+                    }
+                    for outcome in OUTCOMES
+                ],
+            },
+        }
+    ]
     if current is not None:
         labels = {
             "h4.host": host,
@@ -502,8 +507,27 @@ class Deployer:
         tmp.write_text(json.dumps(release, sort_keys=True), encoding="utf-8")
         os.replace(tmp, self.state / f"{name}.json")
 
+    def repeat(self, key: str, outcome: str) -> bool:
+        """With nothing running, an attempt whose last mark had the same outcome: tried, but not recorded again, so a
+        host stuck on one failure writes one line and one event, not 60 an hour (group 7's review A, nit 2)."""
+        before = self.memory("attempts").get(key)
+        return (
+            self.recorded("current") is None
+            and isinstance(before, dict)
+            and before.get("outcome") == outcome
+        )
+
     def record(self, release: dict, outcome: str) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
+        events = self.memory("events")
+        tally = events.get("counts") if isinstance(events.get("counts"), dict) else {}
+        tally[outcome] = int(tally.get(outcome, 0) or 0) + 1
+        try:
+            self.keep(
+                "events", {"start": events.get("start", self.clock()), "counts": tally}
+            )
+        except OSError:
+            pass
         line = {
             "host": self.host,
             "release": release.get("release"),
@@ -514,18 +538,23 @@ class Deployer:
         }
         with (self.state / "deployments.jsonl").open("a", encoding="utf-8") as out:
             out.write(json.dumps(line, sort_keys=True) + "\n")
-        current = release if outcome == "deployed" else self.recorded("current")
-        self.emit(outcome, current)
 
-    def emit(self, outcome: str | None, current: dict | None) -> None:
-        """The deployment's event and the running release, to the host's collector; a collector that isn't there
-        loses them, and changes nothing else (FR-060)."""
+    def emit(self) -> None:
+        """Each outcome's count and the running release, to the host's collector, once a run; a collector that isn't
+        there loses them, and changes nothing else (FR-060)."""
         post = getattr(self.docker, "post_metrics", None)
         if post is None:
             return
+        events = self.memory("events")
+        tally = events.get("counts") if isinstance(events.get("counts"), dict) else {}
         try:
-            post(self.host, metrics_payload(self.host, outcome, current, self.clock()))
-        except OSError:
+            start = float(events.get("start", self.clock()))
+            current = self.recorded("current")
+            post(
+                self.host,
+                metrics_payload(self.host, tally, current, start, self.clock()),
+            )
+        except (OSError, ValueError, TypeError):
             pass
 
     def tree(self, release: dict) -> Path:
@@ -712,9 +741,11 @@ class Deployer:
         return 1
 
     def check(self) -> int:
-        self.flush()
+        # What runs first, then what SNS refused earlier, whose publishes can take the CLI's 120 s each (group 7's
+        # review A, nit 1).
         if not self.bucket_first():
             self.ensure()
+        self.flush()
         try:
             if not self.bucket:
                 raise Misconfigured("RELEASE_BUCKET")
@@ -751,7 +782,6 @@ class Deployer:
         if current is not None and current.get("release") == release.get("release"):
             if self.bucket_first():
                 self.ensure()
-            self.emit(None, current)
             return 0
         if self.bucket_first() and self.tried(str(release.get("release"))):
             self.ensure()
@@ -826,7 +856,8 @@ class Deployer:
             [("release", str(release["release"])), ("previous", str(old))],
         )
         # Recorded and marked whatever SNS does; the alert once per incident (the deployer's review, 1 and 2).
-        self.record(release, outcome)
+        if not self.repeat(str(release["release"]), outcome):
+            self.record(release, outcome)
         self.mark(str(release["release"]), outcome)
         self.alert_once(f"{release['release']}:{outcome}", message)
         return 1
@@ -843,7 +874,8 @@ class Deployer:
             f"{self.host} refused release {rid}",
             [("reason", reason), ("release", rid)],
         )
-        self.record(release, "refused")
+        if not self.repeat(attempt, "refused"):
+            self.record(release, "refused")
         self.mark(attempt, "refused")
         self.alert_once(key or f"{rid}:{reason}", message)
         return 1
@@ -878,6 +910,8 @@ def run(
     hold = state / "hold"
     if hold.exists():
         print(f"{PROG}: held ({hold}): nothing changes", file=sys.stderr)
+        # What SNS refused earlier goes now, a hold's own alert among them (group 7's review A, I-B).
+        deployer.flush()
         deployer.alert_once(
             f"hold@{hold.stat().st_mtime_ns}",
             alert(
@@ -886,8 +920,11 @@ def run(
                 [("reason", "held")],
             ),
         )
+        deployer.emit()
         return 0
-    return deployer.boot() if boot else deployer.check()
+    code = deployer.boot() if boot else deployer.check()
+    deployer.emit()
+    return code
 
 
 # ----------------------------------------------------------------------------------------------------------------------
