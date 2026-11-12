@@ -122,7 +122,7 @@ describe("/_degraded/api.json, the edge's own degraded answer (FR-034, FR-066; c
   });
 
   it("has exactly spec 000's fields, cause no_host_serving, stack, since, ceilings, and trace null", () => {
-    const body = degradedBody() as Record<string, unknown>;
+    const body: Record<string, unknown> = { ...degradedBody() };
     const fields = degradedFields();
     expect(fields).toContain("request_id");
     expect(Object.keys(body).sort()).toEqual([...new Set(fields)].sort());
