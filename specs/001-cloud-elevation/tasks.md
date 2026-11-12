@@ -684,6 +684,11 @@ The Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it t
   Once the project tag is active, Cost Explorer filtered on it shows the project's costs, and `h4-server-month`'s actual matches. At T040, his SecureString `/h4reet/audit/IAM_ALLOW` holds the same lines, before the function's first run.
 - [ ] T154 Group 7: EC2's volumes and its public address carry the `project` tag, and the server budget counts them. FR-021 says "EC2's while stopped included", which a tag-scoped budget sees only if the volumes are tagged. Check it in Cost Explorer after group 7's first apply.
 
+- [x] T155 The budget actions tagged: the Author's T037 plan (2026-11-12) found `aws_budgets_budget_action.model`'s `tags_all` without `component` (rule T2 on the saved plan).
+  - **RED:** `infra/test/test_account.py`'s tag check now covers `aws_budgets_budget_action`, which the policy's source list lacks, with the fixture `action-untagged`.
+  - **GREEN:** P-A1 tags the three actions.
+  - **Then the Author:** P-A1 on `fix/001-action-tags-p`, T037's account block in this branch's note, one gate for that and the bootstrap's apply record, and the merge.
+
 ## Dependencies and execution order
 
 - **T000** first, then **T001**, the constitution, as the default order he confirms at T000. Then the groups in order: each branch is cut from `refs/heads/main` after the one before it merges.
