@@ -6,7 +6,7 @@ What the root must hold:
   - the state bucket: versioned, encrypted, public access blocked, TLS-only for every principal, kept from destroy;
   - h4-model-month at $20 and h4-model-day at $5, on Bedrock's cost, with notifications at 70% and 100% of actual,
     on usage, not net of credits;
-  - h4-server-month at var.server_budget_usd, on every cost but Bedrock's, at 70% and 100%;
+  - h4-server-month at var.server_budget_usd, on every cost tagged project = h4reet-ai but Bedrock's (ADR 0047), at 70% and 100%;
   - Bedrock's cost as the service names the Author reads in his Cost Explorer, var.bedrock_service_names, a list
     with no default (T028's review, B3: Claude on Bedrock may show under its own Marketplace name);
   - the anomaly monitor, with its immediate $1 subscription;

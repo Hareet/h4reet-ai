@@ -1234,21 +1234,32 @@ def check_files(root: dict[str, list]) -> list[str]:
 # work"; ADR 0047): h4-credential-audit reads it from his SecureString, which its environment names, and its role may
 # read that one parameter and no other.
 ALLOW_PARAMETER = "/h4reet/audit/IAM_ALLOW"
+ALLOW_ARN = (
+    "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter"
+    + ALLOW_PARAMETER
+)
 
 
 def check_audit_allowlist(root: dict[str, list]) -> list[str]:
     found = []
     roles = named(root, "aws_iam_role", "h4-credential-audit-fn")
+    # Every statement whose actions could read a parameter: ssm:Get…, ssm:*, or *.
     reads = (
-        [s for s in allowed(root, roles[0]) if "ssm:GetParameter" in s["actions"]]
+        [
+            s
+            for s in allowed(root, roles[0])
+            if any(
+                a.lower().startswith("ssm:get") or a.lower() in ("ssm:*", "*")
+                for a in s["actions"]
+            )
+        ]
         if len(roles) == 1
         else []
     )
     if not (
         len(reads) == 1
         and reads[0]["actions"] == {"ssm:GetParameter"}
-        and [r.rsplit(":parameter", 1)[-1] for r in quoted(reads[0]["resources"])]
-        == [ALLOW_PARAMETER]
+        and quoted(reads[0]["resources"]) == [ALLOW_ARN]
     ):
         found.append(
             "credential audit: its role doesn't read exactly the Author's allowlist parameter"

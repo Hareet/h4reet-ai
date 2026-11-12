@@ -909,3 +909,9 @@ def test_the_lambda_without_its_list_lets_every_finding_stand(
     result = audit.handler({}, None, aws=aws)
     assert pairs(result["findings"]) == [("iam_user_present", "other-user")]
     assert result["clean"] is False
+
+
+def test_ssms_own_code_for_a_missing_parameter_is_not_found() -> None:
+    # The SDK names a missing parameter ParameterNotFound; were it not in NOT_FOUND, BotoAws would raise AwsError and
+    # the weekly run would die before the audit, storing nothing and alerting no one (the second review, I-1).
+    assert "ParameterNotFound" in audit.NOT_FOUND
