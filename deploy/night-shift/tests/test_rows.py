@@ -579,3 +579,46 @@ def test_run_sh_refuses_an_installed_file_that_changed(tmp_path: Path) -> None:
 
 def test_run_sh_takes_only_all(tmp_path: Path) -> None:
     assert run_sh(tmp_path, "--everything").returncode == 2
+
+
+# ---- R4's floor: a target absent on the host is checked in the container, and counts ----------------------------------
+ABSENT_ROW = {
+    "id": "read-gh-plain",
+    "expect": "No such file or directory",
+    "layer": "mount",
+}
+
+
+def test_a_host_absent_target_is_checked_absent_in_the_container() -> None:
+    verdict, text = rehearse.judge_absent(
+        ABSENT_ROW, 2, "", "ls: cannot access 'x': No such file or directory"
+    )
+    assert (
+        verdict == "absent"
+        and text == "mount (absent on the host and in the container)"
+    )
+
+
+def test_a_host_absent_target_found_in_the_container_fails() -> None:
+    verdict, text = rehearse.judge_absent(ABSENT_ROW, 0, "secret", "")
+    assert verdict == "FAILED" and "secret" not in text
+
+
+def test_absent_rows_count_as_ran_and_skipped_rows_dont() -> None:
+    assert rehearse.tally(["refused"] * 8 + ["absent"] * 2) == (10, 0)
+    ran, skipped = rehearse.tally(["refused"] * 8 + ["absent"] * 1 + ["skipped"])
+    assert (ran, skipped) == (9, 1)
+    assert rehearse.enough_ran(
+        *rehearse.tally(["refused"] * 5 + ["absent"] * 5)[:1], 10
+    )
+    assert not rehearse.enough_ran(
+        rehearse.tally(["refused"] * 8 + ["skipped"] * 2)[0], 10
+    )
+
+
+def test_only_rows_that_expect_absence_run_when_the_host_lacks_their_path(rows) -> None:
+    for r in rows:
+        if r.get("host") and r["category"] == "read":
+            assert rehearse.expects_absence(r), r["id"]
+        if r["category"] == "write" and "Read-only" in r["expect"]:
+            assert not rehearse.expects_absence(r), r["id"]

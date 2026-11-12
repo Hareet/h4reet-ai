@@ -1282,3 +1282,28 @@ def test_a_fact_path_with_a_space_is_refused(make_case) -> None:
     (c.home / "my blender").mkdir()
     c.write_facts(BLENDER_DIR=str(c.home / "my blender"))
     assert_refused(c, c.run(), "0 preflight", "BLENDER_DIR holds a space")
+
+
+def test_never_mounted_targets_absent_on_the_host_still_run_and_count(
+    make_case,
+) -> None:
+    c = make_case()
+    (c.home / ".git-credentials").unlink()
+    (c.home / ".config/gh").rmdir()
+    shutil.rmtree(c.home / ".local/share/h4reet")
+    r = c.run()
+    assert r.returncode == 0, c.output[-3000:]
+    lines = summary(c.output)
+    for rid in (
+        "read-git-credentials-plain",
+        "read-gh-plain-studio",
+        "read-provider-mirror-symlink",
+    ):
+        assert (
+            f"row {rid} refused-by=mount (absent on the host and in the container)"
+            in lines
+        ), rid
+    r4 = next(x for x in lines if x.startswith("R4 ok"))
+    assert re.search(r"\b0 of \d+ skipped", r4), r4
+    assert re.search(r"[1-9]\d* absent on the host", r4), r4
+    assert not [x for x in lines if x.startswith("row ") and " skipped" in x]
