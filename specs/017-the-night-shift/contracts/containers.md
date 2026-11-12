@@ -24,7 +24,10 @@ Plan §1 and §2 hold the design; this file is what the tests check.
 5. **Environment**:
    - no session spec names `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`, or any `AWS_` variable;
    - every session spec sets `HTTPS_PROXY=http://egress:3128` (the studio's: `egress-studio`), `SANDBOX_RUNTIME=1`, `DISABLE_AUTOUPDATER=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`.
-6. **Settings layers** (`deploy/night-shift/claude/<role>.settings.json`) all set `"forceLoginMethod": "claudeai"`, and none sets `apiKeyHelper`.
+6. **Managed settings and settings layers**:
+   - every image carries `/etc/claude-code/managed-settings.json` with exactly `{"forceLoginMethod": "claudeai", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": ""}}`, which the container probe's third run proved (research R-18);
+   - the role layers (`deploy/night-shift/claude/<role>.settings.json`) set the role's permissions, and none sets `apiKeyHelper` or an `env` key for a credential.
+7. **GPU containers** (studio, comfyui): `--read-only` off, because the NVIDIA runtime's hook writes into the container at start (the probe's third run). Every other lock (user, `cap_drop`, `no-new-privileges`, internal network, limits) stays.
 7. **Networks**: every session spec's networks are internal. The `egress*` and `engine-fwd` containers are the only ones also on a normal network.
 8. **Lattice** (plan §2): for each edge, the child's mounts (by host path and mode, `rw` covering `ro`), networks, devices, and capabilities are within the parent's. The runner's task mounts count as the role's. The ceiling is computed as the union, not a file.
 9. **Placeholders**: `{{UID}}`, `{{GID}}`, `{{HOME}}`, `{{REPO}}`, `{{NIGHT_ROOT}}`, `{{COMFYUI_DIR}}`, `{{COMFYUI_VENV}}`, `{{COMFYUI_PORT}}`, `{{BLENDER_DIR}}`, `{{ENGINE_CERTS}}`. Any other `{{…}}` fails the build.

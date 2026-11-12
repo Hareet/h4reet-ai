@@ -377,7 +377,7 @@ As the spec's. Plus: if an image's digest or a spec's SHA-256 no longer matches,
 | Q10 | The constitution's roles list: amend or deviate? | Recommended: amend, P-9 |
 | Q13 | Prompts and settings layers outside `.claude/`? | Recommended: yes, with P-10 |
 | **Q14** | Ten unattended sessions on one subscription: the docs say OAuth is "intended for ordinary Claude Code use" and point products to API keys, and the session couldn't find what the consumer terms say about unattended, concurrent use. Proceed? | Recommended: **yes, for your own development of your own project, which is ordinary Claude Code use**. Start the pilot at two to three workers; you confirm the terms yourself, or ask Anthropic |
-| **Q15** | ComfyUI's launch parameters: your `start-comfyui.sh` runs `python3 main.py --listen 0.0.0.0 --port 8188` from `~/flux-env`. Which others do you use, sometimes? | Your list seeds the allowlist; the agent can't use a parameter outside it |
+| Q15 | ComfyUI's launch parameters? | **His**: "--birefnet" and sometimes it was run with that parameter off, depending on the asset output that was needed. The allowlist is `--birefnet`, on or off per task; the runner fixes `--listen`, `--port`, and the folders. It isn't one of ComfyUI's core flags, as far as the session knows, so the first studio task checks that ComfyUI accepts it at launch |
 | **Q16** | Per-worker limits: 2 CPUs and 4 GB each (ten use 20 of your 24 cores, 40 of your 62 GB)? | Recommended: yes |
 
 Q9, Q11, and Q12 were nono's, and closed with it.

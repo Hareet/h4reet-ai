@@ -55,7 +55,7 @@
 - [ ] T017 [P] [US3] RED: the decision page (contracts/decision-page.md). Its sections come in order; each question appears once, with a recommended answer and the task it blocks; the runner appends only under `## The runner`.
 - [ ] T018 [US3] GREEN: `deploy/night-shift/runner/night.py` (standard library, `python3 -I -B`), with `start`, `stop`, `status`, and `check`.
 - [ ] T019 [P] [US3] `deploy/night-shift/runner/prompts/{supervisor,spec-writer,implementer,reviewer,red-teamer,ops,gate-runner,studio}.md`. Each states its role's limits, the save point before each step, how to ask for a plan, a gate, or ComfyUI, and that questions go to the decision page with a recommended answer.
-- [ ] T020 [P] [US3] `deploy/night-shift/claude/<role>.settings.json`: `forceLoginMethod: "claudeai"`, no `apiKeyHelper`, each role's permission mode, and Claude Code's sandbox on or off per the probe's `claude-sandbox-in-container` row. A test checks `forceLoginMethod` in every layer.
+- [ ] T020 [P] [US3] `deploy/night-shift/claude/managed-settings.json` (the proven `forceLoginMethod` with the two variables blanked, baked into every image) and `deploy/night-shift/claude/<role>.settings.json`: each role's permission mode, no `apiKeyHelper`, no credential in `env`, and Claude Code's sandbox off (the probe: it can't start in a container). A test checks both.
 - [ ] T021 [US3] Review G1; fix blockers; backlog the rest.
 
 ## Phase 3: G2, images and container specs (US2, P1)
