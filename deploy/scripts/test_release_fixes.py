@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -77,6 +78,72 @@ def test_the_release_refuses_unless_it_and_the_makefile_are_mains(
     assert base.run(tmp_path, r) == 1
     assert r.builds() == [] and r.uploads == []
     assert "main's checkout" in capsys.readouterr().err
+
+
+# Group 8's review B, I3: EC2's run is keyed by what its cases exercise, so a release whose export holds the same
+# bytes counts an earlier release's run, and one that changes them needs its own.
+ROUTING = {
+    "envs": {
+        "prod": {
+            "hosts": {
+                "laptop": {"primary": "local", "fallback": "anthropic"},
+                "ec2": {"first": "anthropic", "second": "bedrock"},
+            }
+        }
+    }
+}
+
+
+def records(tmp_path: Path, ec2_commit: str, exercised: str) -> Path:
+    folder = tmp_path / "history"
+    folder.mkdir()
+    for name in base.FOUR:
+        host, _, adapter = name.rpartition("/")
+        record = {
+            "adapter": adapter,
+            "host": host,
+            "cases": 48,
+            "failed": 0,
+            "unjudged": 0,
+            "finished": "2027-01-01T00:00:00+00:00",
+            "suite": "redteam",
+            "commit": base.COMMIT if host == "laptop" else ec2_commit,
+            "exercised": exercised,
+        }
+        (folder / f"{name.replace('/', '-')}.json").write_text(
+            json.dumps(record), encoding="utf-8"
+        )
+    return folder
+
+
+def test_an_ec2_run_of_an_earlier_release_counts_while_what_it_exercised_is_the_same(
+    tmp_path: Path,
+) -> None:
+    folder = records(tmp_path, "e" * 40, "f" * 64)
+    rl.check_redteam(folder, base.COMMIT, ROUTING, exercised="f" * 64)
+
+
+def test_an_ec2_run_whose_exercised_files_changed_doesnt(tmp_path: Path) -> None:
+    folder = records(tmp_path, "e" * 40, "f" * 64)
+    with pytest.raises(rl.Refused, match="ec2/anthropic"):
+        rl.check_redteam(folder, base.COMMIT, ROUTING, exercised="0" * 64)
+
+
+def test_the_release_and_the_runner_hash_the_same_files_alike() -> None:
+    rt = _load_runner()
+    assert rl.exercised(base.REPO) == rt.exercised(base.REPO)
+    assert rl.EXERCISED == rt.EXERCISED
+
+
+def _load_runner():
+    spec = importlib.util.spec_from_file_location(
+        "redteam_run_for_release", base.REPO / "redteam" / "run.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_every_command_runs_with_replace_objects_off(

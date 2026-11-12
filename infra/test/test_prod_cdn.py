@@ -71,13 +71,21 @@ lit, raw, one, resource, blocks, address, where = (
 )
 
 WIRED = "local.wired ? 1 : 0"
+PROBE_ALARM_COUNT = "local.wired && length(aws_lambda_function.probe) > 0 ? 1 : 0"
 ALIASES = ["hareet.ai", "www.hareet.ai"]
 CSP = (
     "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; "
     "font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 )
 PERMISSIONS = "microphone=(), camera=(), geolocation=()"
-RELAY_HEADERS = {"CloudFront-Viewer-Address", "Content-Type", "Accept", "traceparent"}
+# Group 8's review B, I1: and the probe's mark, so the relay knows a probe (contracts/relay-http.md §3, step 1).
+RELAY_HEADERS = {
+    "CloudFront-Viewer-Address",
+    "Content-Type",
+    "Accept",
+    "traceparent",
+    "X-H4-Probe",
+}
 # The account names h4-alerts through its data source, as its other alarms do (infra/account/alerts.tf).
 TOPIC = "[data.aws_sns_topic.alerts.arn]"
 DEGRADED = "/_degraded/api.json"
@@ -357,7 +365,7 @@ def check_policies(r: dict[str, list]) -> list[str]:
         ):
             found.append(
                 "policies: the relay's origin requests don't carry exactly CloudFront-Viewer-Address, Content-Type, "
-                "Accept, and traceparent, with no cookie and no query string"
+                "Accept, traceparent, and X-H4-Probe, with no cookie and no query string"
             )
     site = one(r, "aws_cloudfront_cache_policy", "site")
     if site is None:
@@ -570,7 +578,8 @@ def check_probe(a: dict[str, list]) -> list[str]:
     )
     if alarm is None:
         return [*found, "probe: its alarm, h4-probe-failing, is missing"]
-    if where(a, alarm) != "alerts.tf" or raw(alarm, "count") != WIRED:
+    # Group 8's review B, nit 5: and behind the probe's function, which exists once its digest is set.
+    if where(a, alarm) != "alerts.tf" or raw(alarm, "count") != PROBE_ALARM_COUNT:
         found.append("probe: its alarm isn't in alerts.tf behind the switch")
     if (
         lit(alarm, "namespace") != "AWS/Lambda"
@@ -613,6 +622,37 @@ def test_the_zone_and_its_name_servers_without_the_switch() -> None:
 
 def test_the_certificate_validated_by_dns_behind_the_switch() -> None:
     assert check_certificate(prod()) == []
+
+
+# Group 8's review B, I6: a VPC origin to an instance reaches its primary interface's private address, and the relay
+# publishes 8080 on the tunnel end's second, 10.42.1.10. As built they differ, so W2 can't serve /api/* until the
+# Author answers the note's question (a private-subnet interface or instance, or a Network Load Balancer, each with its
+# cost line); tasks.md T176 holds it as W2's precondition. Strict: once they agree, this test's marker must go.
+@pytest.mark.xfail(
+    strict=True,
+    reason="W2's precondition: the Author's answer to the VPC origin's interface (the note, group 8's review B, I6)",
+)
+def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
+    r = prod()
+    origin = one(r, "aws_cloudfront_vpc_origin", "relay")
+    config = origin.block("vpc_origin_endpoint_config") if origin else None
+    assert config is not None and raw(config, "arn") == "aws_instance.tunnel_end.arn"
+    instance = one(r, "aws_instance", "tunnel_end")
+    primary = [
+        b
+        for b in instance.blocks("network_interface")
+        if lit(b, "device_index") in (0, None)
+    ]
+    assert len(primary) == 1
+    m = re.fullmatch(
+        r"aws_network_interface\.(\w+)\.id", raw(primary[0], "network_interface_id")
+    )
+    assert m
+    eni = one(r, "aws_network_interface", m.group(1))
+    reached = lit(eni, "private_ips") or [lit(eni, "private_ip")]
+    compose = (net.REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    published = re.findall(r'"(10\.42\.[01]\.10):8080:8080"', compose)
+    assert published and set(published) <= set(reached), (reached, published)
 
 
 def test_the_vpc_origin_to_the_tunnel_ends_relay() -> None:

@@ -887,3 +887,15 @@ describe("group 8's review A", () => {
     expect(r.running.deps.hosts.healthy("ec2")).toBe(false);
   });
 });
+
+// Group 8's review B, nit 3: the edge's and the relay's no_host_serving text names no cause it can't know, since the
+// edge answers it when the tunnel end is down, whatever the hosts are doing.
+describe("group 8's review B", () => {
+  it("nit 3. the no-host text is cause-neutral, and the edge's is the relay's", async () => {
+    const { DETAIL } = await import("../src/bodies.js");
+    const { readFileSync } = await import("node:fs");
+    const web = readFileSync(new URL("../../../apps/web/build/degraded.ts", import.meta.url), "utf8");
+    expect(DETAIL.no_host_serving).not.toMatch(/resting|isn't up|cloud host/);
+    expect(web).toContain(JSON.stringify(DETAIL.no_host_serving));
+  });
+});

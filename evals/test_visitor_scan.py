@@ -173,6 +173,28 @@ def test_the_plan_holds_the_shared_state_the_relay_and_the_tunnel_ends_logs() ->
         assert name in laptop, name
 
 
+def test_each_postgres_dump_runs_as_the_postgres_user() -> None:
+    # Group 8's review B, I4: `docker exec` runs as root, and the shared state's only local rule is `local all
+    # postgres peer`, so a dump as root is refused; each runs as the image's postgres user.
+    for host in ("laptop", "ec2", "tunnel-end"):
+        for s in vs.plan(host):
+            if s.kind == "postgres":
+                assert s.argv[:4] == ("docker", "exec", "-u", "postgres"), s
+
+
+def test_the_plan_reads_loki_and_prometheus_live_where_they_run() -> None:
+    # Group 8's review B, I5: the gateway's and the relay's OTLP logs and metrics reach Loki and Prometheus, whose
+    # files are compressed: the plan asks each store for the visit's window through its own API, from inside its stack.
+    for host in ("laptop", "ec2"):
+        kinds = {s.kind: s for s in vs.plan(host)}
+        assert "loki" in kinds and "prometheus" in kinds, host
+        loki = " ".join(kinds["loki"].argv)
+        assert "query_range" in loki and "loki:3100" in loki
+        prom = " ".join(kinds["prometheus"].argv)
+        assert "/api/v1/labels" in prom and "prometheus:9090" in prom
+    assert {s.kind for s in vs.plan("tunnel-end")} & {"loki", "prometheus"} == set()
+
+
 def test_each_postgres_dump_names_its_database_and_user_never_a_password() -> None:
     dumps = [
         s

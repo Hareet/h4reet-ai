@@ -141,3 +141,46 @@ def test_ec2s_entry_needs_the_operators_token_file(
     assert code == 0
     assert calls[0]["commit"] == "b" * 40
     assert made[0]["stack"] == "prod" and made[0]["token_stdin"] is True
+
+
+# Group 8's review B, I3: EC2's record carries what its cases exercised, which the release's gate matches.
+def test_the_record_says_what_its_cases_exercised(tmp_path: Path) -> None:
+    cases = [c for c in rt.load_cases(rt.CASES) if c["id"] == "hello-disparage"]
+    rt.live_run(cases, Stub(), "prod", "bedrock", tmp_path, "c" * 40, host="ec2")
+    (path,) = tmp_path.glob("*.json")
+    record = json.loads(path.read_text())
+    assert record["exercised"] == rt.exercised(rt.REPO)
+    assert len(record["exercised"]) == 64
+
+
+# Group 8's review B, nit 2: the token file under the CLI's rules: a regular file, not a link, the caller's, 0600 or
+# 0400; anything else refuses before a client is made.
+@pytest.mark.parametrize("problem", ["mode", "link"])
+def test_ec2s_token_file_is_held_to_the_clis_rules(
+    tmp_path: Path, problem: str
+) -> None:
+    real = tmp_path / "token"
+    real.write_text("t" * 40, encoding="utf-8")
+    real.chmod(0o644 if problem == "mode" else 0o600)
+    path = real
+    if problem == "link":
+        path = tmp_path / "link"
+        path.symlink_to(real)
+    made: list[object] = []
+    code = live.main(
+        [
+            "--live",
+            "--stack",
+            "prod",
+            "--adapter",
+            "bedrock",
+            "--host",
+            "ec2",
+            "--operator-token-file",
+            str(path),
+        ],
+        state=tmp_path,
+        client_class=lambda **kw: made.append(kw),
+        run_main=lambda argv, client_factory, commit_of: client_factory("prod") and 0,
+    )
+    assert code == 2 and made == []

@@ -2,7 +2,7 @@
 # root: account
 # expect: probe: its alarm and its recovery don't go to h4-alerts
 resource "aws_cloudwatch_metric_alarm" "probe_failing" {
-  count               = local.wired ? 1 : 0
+  count               = local.wired && length(aws_lambda_function.probe) > 0 ? 1 : 0
   alarm_name          = "h4-probe-failing"
   alarm_description   = "h4-probe failed for 5 minutes: hareet.ai or its status request isn't answering (spec 001 FR-061)"
   namespace           = "AWS/Lambda"
