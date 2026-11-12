@@ -359,6 +359,11 @@ def scram_verifier(password: str) -> str:
     return f"SCRAM-SHA-256$4096:{b64(salt)}${b64(stored)}:{b64(server)}"
 
 
+# The gateway's right to its database, which the roles target sets and the restore sets again after its CREATE DATABASE:
+# a pg_dump without --create carries no database ACLs (group 6's review, I-2).
+DATABASE_GRANT = f"GRANT CREATE, CONNECT ON DATABASE {DATABASE} TO gateway"
+
+
 def roles_sql(passwords: dict[str, str]) -> str:
     lines = ["BEGIN;"]
     for role, attributes in ROLE_ATTRIBUTES.items():
@@ -369,7 +374,7 @@ def roles_sql(passwords: dict[str, str]) -> str:
         lines.append(
             f"ALTER ROLE {role} WITH {attributes} PASSWORD '{scram_verifier(passwords[role])}';"
         )
-    lines.append(f"GRANT CREATE, CONNECT ON DATABASE {DATABASE} TO gateway;")
+    lines.append(f"{DATABASE_GRANT};")
     for role in ("grafana_ro", "relay_ro", "relay_rw"):
         # The gateway's migrations alter these roles (0002's settings, its grafana_ro password at each start): it
         # needs their admin option, and no membership.
@@ -438,6 +443,7 @@ def restore(
     for statement in (
         f"DROP DATABASE IF EXISTS {DATABASE} WITH (FORCE)",
         f"CREATE DATABASE {DATABASE}",
+        DATABASE_GRANT,
     ):
         if host.run(psql("--dbname=postgres", f"--command={statement}"))[0] != 0:
             print(
@@ -450,11 +456,14 @@ def restore(
         "--username=postgres",
         f"--dbname={DATABASE}",
         "--exit-on-error",
+        "--single-transaction",
         stdin=True,
     )
     if host.run(load, data=dump)[0] != 0:
+        # One transaction: a load that fails part way rolls back whole.
         print(
-            "shared_state: the dump didn't load: the store is empty, and degraded everywhere",
+            "shared_state: the dump didn't load, and nothing of it was kept: the store is empty, and degraded "
+            "everywhere",
             file=sys.stderr,
         )
         return 1
