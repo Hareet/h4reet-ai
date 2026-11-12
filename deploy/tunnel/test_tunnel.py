@@ -10,9 +10,11 @@ Two kinds of check:
     and the forward to the store reaches only the store.
 
 The second kind needs the image, which builds from Ubuntu's archive (deploy/tunnel/Dockerfile). The agents' engine
-reaches only the hosts its egress proxy allows, which don't include the archive, so on the engine these checks skip
-with the build's own last line as the reason; the Author's engine builds the image and runs them. Keys are made at
-run time, never written as literals.
+reaches only the hosts its egress proxy allows, which don't include the archive. So these checks take the image the
+Author built on his engine and moved to the agents' engine as `h4reet-tunnel-seed:local` (W1's note, "For the Author",
+group 5), when its files are the tree's; otherwise they build it, and skip only when the build fails exactly as the
+archive out of reach makes it fail (archive_unreachable). Any other failure fails them (group 5's review, I2). Keys are
+made at run time, never written as literals.
 """
 
 from __future__ import annotations
@@ -217,6 +219,25 @@ ERROR: failed to build: failed to solve: process "/bin/sh -c apt-get update" did
 """
 
 
+def archive_unreachable(text: str) -> bool:
+    """The build failed because apt couldn't resolve Ubuntu's archive, and for nothing else: every fetch it reports
+    failed to resolve the archive, so neither package was found, and the RUN that installs them exited 100."""
+    fetches = [line for line in text.splitlines() if "Failed to fetch" in line]
+    return (
+        bool(fetches)
+        and all(
+            re.search(
+                r"Temporary failure resolving '(archive|security)\.ubuntu\.com'", f
+            )
+            for f in fetches
+        )
+        and "E: Unable to locate package openssh-server" in text
+        and "E: Unable to locate package openssh-client" in text
+        and "apt-get install" in text
+        and "did not complete successfully: exit code: 100" in text
+    )
+
+
 def test_only_the_archive_out_of_reach_reads_as_the_engines_own_failure() -> None:
     assert archive_unreachable(ARCHIVE_UNREACHABLE)
     for other in (
@@ -229,7 +250,7 @@ def test_only_the_archive_out_of_reach_reads_as_the_engines_own_failure() -> Non
             "Temporary failure resolving 'archive.ubuntu.com'", ""
         ).replace("Temporary failure resolving 'security.ubuntu.com'", ""),
         # another step failing
-        "ERROR: failed to build: failed to solve: failed to compute cache key: \"/sshd_config\": not found\n",
+        'ERROR: failed to build: failed to solve: failed to compute cache key: "/sshd_config": not found\n',
         ARCHIVE_UNREACHABLE.replace("exit code: 100", "exit code: 1"),
         ARCHIVE_UNREACHABLE.replace("openssh-server", "openssh-sftp-server"),
         "",
@@ -266,23 +287,55 @@ def engine() -> None:
         )
 
 
+# The image the Author builds on his engine and moves to the agents' engine (W1's note, "For the Author", group 5).
+SEED = "h4reet-tunnel-seed:local"
+# Each file the Dockerfile copies in, by its place in the image.
+BAKED = {
+    "/etc/ssh/h4/sshd_config": SSHD,
+    "/etc/ssh/h4/ssh_config": CLIENT,
+    "/etc/ssh/h4/ssh_config_admin": HERE / "ssh_config_admin",
+    "/usr/local/bin/h4-tunnel": ENTRYPOINT,
+}
+
+
+def said(done: subprocess.CompletedProcess) -> str:
+    """What a command said, without the relay's own socat lines."""
+    text = (done.stdout or b"").decode(errors="replace") + (done.stderr or b"").decode(
+        errors="replace"
+    )
+    return "\n".join(line for line in text.splitlines() if "socat[" not in line)
+
+
+def seeded() -> bool:
+    """The seed is on the engine and holds the tree's files, so it was built from this tree's folder."""
+    if docker("image", "inspect", "--format", "{{.Id}}", SEED).returncode != 0:
+        return False
+    for place, path in BAKED.items():
+        done = docker(
+            "run", "--rm", "--network", "none", "--entrypoint", "/bin/cat", SEED, place
+        )
+        if done.returncode != 0 or done.stdout != path.read_bytes():
+            return False
+    return True
+
+
 @pytest.fixture(scope="module")
 def image(engine: None) -> str:
+    if seeded():
+        yield SEED
+        return
     tag = f"h4reet-tunnel-test:{secrets.token_hex(4)}"
-    done = docker("build", "--quiet", "-t", tag, str(HERE), timeout=600)
+    done = docker("build", "--progress=plain", "-t", tag, str(HERE), timeout=600)
     if done.returncode != 0:
-        # The relay's own socat lines aren't the build's.
-        last = [
-            line
-            for line in (done.stderr or done.stdout)
-            .decode(errors="replace")
-            .strip()
-            .splitlines()
-            if "socat[" not in line
-        ]
-        pytest.skip(
-            "the tunnel's image doesn't build on the agents' engine, whose egress proxy doesn't reach Ubuntu's "
-            f"archive; the Author's engine runs these: {last[-1] if last else done.returncode}"
+        text = said(done)
+        if archive_unreachable(text):
+            pytest.skip(
+                "the tunnel's image doesn't build on the agents' engine, whose egress proxy doesn't reach Ubuntu's "
+                f"archive (apt: Temporary failure resolving 'archive.ubuntu.com'), and {SEED} isn't there with the "
+                "tree's files: W1's note, For the Author, group 5, seeds it"
+            )
+        pytest.fail(
+            "the tunnel's image doesn't build: " + " | ".join(text.splitlines()[-6:])
         )
     yield tag
     docker("image", "rm", "-f", tag)
