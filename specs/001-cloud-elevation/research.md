@@ -439,7 +439,7 @@ The Author, 2026-11-11: "prices for the bedrock calls was $0.99". The session re
 | The Route 53 zone and its queries | about $0.51 a month (September R-05) | to confirm |
 | The Route 53 health check | about $0.50 a month for an AWS endpoint, $0.75 for another, before optional features (the session's reading, not from a page, 2026-11-11) | to price on AWS's page |
 | The failover's CloudWatch alarm | $0.10 an alarm a month (September R-05) | to confirm |
-| CloudFront, and its VPC origin | inside the always-free tier for a portfolio's traffic (September R-05) | to confirm, and whether a VPC origin adds a charge |
+| CloudFront, and its VPC origin | inside the always-free tier for a portfolio's traffic (September R-05) | to confirm, and whether a VPC origin adds a charge; and, from group 8, the CloudFront Function `h4-site-index`, one invocation per site request |
 | S3: state, site, public view, release records | about $0.15 a month (September R-05) | to confirm |
 | ECR: the stack's images for the last three releases, two platforms | $0.10 per GB a month (September R-05) | to price the size: EC2 now runs the whole stack's images |
 | Lambda, EventBridge, SNS, Session Manager, Parameter Store standard tier | inside the always-free tier, or free (September R-05) | to confirm, with EventBridge's rules on AWS service events |

@@ -817,7 +817,7 @@ What changes is how often a turn is paid:
 | The shared state's store | storage, and its backups | Postgres in a container on the tunnel end, the Author's answer of 2026-11-11 (research.md R-20), replacing RDS at about $14 a month. Its cost is the tunnel end's larger type (the row above) and the backups' storage, to price in T167: an hourly `pg_dump` to a bucket of its own, kept 7 days, the regrouping note's question 4, option A (plan.md §16, group 6's departure 1). |
 | The hareet.ai zone, its queries, the health check | fixed, small | The zone's figure is research.md R-05's, to confirm; the health check is to price (tasks.md T017). |
 | The start function | per invocation | A few starts a month. |
-| The edge, the static site's storage, and the public view's storage | per request and per byte | Small at a portfolio's traffic. The caps bound a flood (FR-033), and the server budget catches it, late (FR-022, FR-023). |
+| The edge, the static site's storage, and the public view's storage | per request and per byte; from group 8, a viewer-request CloudFront Function that serves a folder's `index.html`, per site request | Small at a portfolio's traffic. The caps bound a flood (FR-033), and the server budget catches it, late (FR-022, FR-023). The function's price is T167's to confirm, beside the VPC origin's. |
 | Terraform state, the secrets store, the release registry | storage, small | — |
 | AWS budgets, the anomaly monitor, the budget actions, and the bridge that carries AWS-side alerts to Telegram | small or none | — |
 | The uptime probe | per check | Never a metered call (FR-061). |
