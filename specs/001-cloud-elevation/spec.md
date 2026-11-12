@@ -52,7 +52,7 @@ The Author's decisions and answers, verbatim, as ADR 0044 records them. Multiple
 
   > "The server size and budget is outside the $20 model spend cost. Yes, bedrock stays as the ec2 second paid route."
 
-  Reading: the server's cost is outside the model ceilings and has a budget of its own (FR-020 to FR-022). "The server" is read as every cost of the account that isn't a model call: EC2, running or stopped, and the edge, DNS, the shared state, the health check, the start function, and the rest. Bedrock is EC2's second paid route, after the Anthropic API (FR-067).
+  Reading: the server's cost is outside the model ceilings and has a budget of its own (FR-020 to FR-022). "The server" is read as every cost of the account that isn't a model call (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"): EC2, running or stopped, and the edge, DNS, the shared state, the health check, the start function, and the rest. Bedrock is EC2's second paid route, after the Anthropic API (FR-067).
 
 - **The five points, and his approval.** The session put five points to him, as ADR 0044 records them (decisions 5 to 9). Their words are the session's, not his:
   1. "Route 53 can switch DNS by itself." "Failover" records plus a health check on the laptop move DNS in both directions automatically, with no Lambda for DNS. You'd still want a Lambda, fired when that health check fails, to start EC2. Your local startup script would stop EC2 when the laptop takes over.
@@ -257,7 +257,7 @@ As the Author, I want all cloud infrastructure in Terraform in one AWS account. 
 2. **Given** an agent session, **When** it tries `terraform apply`, `destroy`, `import`, a state write, or `force-unlock`, in any spelling, **Then** the attempt is refused with a reason and an audit record (FR-006).
 3. **Given** a merged infrastructure change before publication, **When** the Author applies it from their own terminal, **Then** the apply uses the Author's short-lived SSO session and runs only a saved plan that matches the reviewed one. It leaves an apply record with no secrets or account IDs (FR-007).
 4. **Given** resources exist, **When** costs are reported, **Then** every resource carries project, environment, and component tags under the correct environment budget (FR-002).
-5. **Given** any identity in the account, **When** the credential audit runs, **Then** it finds no IAM user access key and no other long-lived credential (FR-008).
+5. **Given** any identity in the account, **When** the credential audit runs, **Then** it finds no IAM user access key and no other long-lived credential (FR-008), but for the identities the Author's allowlist names, which it shows as allowed (amended 2026-11-11; Assumptions, "One account, shared with the Author's other work").
 6. **Given** the Terraform that defines IAM, budgets, alert routing, edge rate limits, the kill switch, the failover, the start function, its autostart switch, or EC2's running pattern, **When** an agent session tries to change it, **Then** the write is refused. A change can arrive only as a patch the Author applies, with an ADR (FR-012).
 10. **Given** a handover has happened (the relay sent visitors to another host, the start function started EC2, or the laptop stopped it), **When** the Author plans from the same commit, **Then** the plan shows no change (FR-072).
 
@@ -474,14 +474,14 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
 - **FR-018**: IF a production-class stack with a paid route would spend outside the shared meter, THEN THE SYSTEM SHALL refuse to start it.
 - **FR-019**: THE SYSTEM SHALL keep the shared state in a store in the account that runs whether or not either host does, and that outlives both: stopping, losing, or replacing either host SHALL lose none of it. It SHALL hold the call records that initialization rebuilds from. WHEN prod's meter first moves into it, the store is found empty, or it is restored from a backup, THE SYSTEM SHALL keep prod degraded on both hosts until the operator initializes it under spec 000's FR-031 and FR-034. A restored store SHALL be marked uninitialized by the operator's restore action before any gateway uses it, so that initialization can confirm its values (contracts/shared-state.md §8). The initialization SHALL carry over the month's spend, the day's spend, today's fallback spend, the crossed ceilings, the renewal flag, and the adapter caps' months, and nothing SHALL start at zero silently. IF a host can't read the shared state, or can't confirm it within 10 seconds, THEN that host SHALL count it as unknown and answer degraded (spec 000 FR-031; CLAUDE.md: "unknown state = degraded").
 - **FR-020**: THE model ceilings SHALL count model calls only: every metered call from either host, at its estimated cost, against $5 a day and $20 a month (spec 000 FR-030, FR-031; spec 010 FR-020). THE meter SHALL book no infrastructure cost. The server's cost SHALL sit outside the ceilings, under the server budget (FR-021, FR-022), in the Author's words: "The server size and budget is outside the $20 model spend cost." This replaces the October FR-020, which booked infrastructure on the meter inside the same ceiling.
-- **FR-021**: THE SYSTEM SHALL keep the server's monthly cost, meaning every cost of the account that isn't a model call, EC2's while stopped included, at or under the server budget. The figure SHALL be the Author's, set before the first apply that creates EC2, from the plan's measurement and prices (question 14: "Measure, then you set it"):
+- **FR-021**: THE SYSTEM SHALL keep the server's monthly cost, meaning every cost of the account that isn't a model call (amended 2026-11-11: every cost tagged `project = h4reet-ai` that isn't a model call; Assumptions, "One account, shared with the Author's other work"), EC2's while stopped included, at or under the server budget. The figure SHALL be the Author's, set before the first apply that creates EC2, from the plan's measurement and prices (question 14: "Measure, then you set it"):
   - the plan SHALL measure the stack's memory without the model server, rather than rely on the session's estimate;
   - it SHALL price the smallest instance types that fit, from AWS's published pages, on spot (FR-069) and for 8 to 12 hours a day, the schedule kept in reserve;
   - it SHALL price each other line, the tunnel end included (FR-052), and what a stopped EC2 still costs.
   EC2 SHALL run on the smallest measured type that fits. THE SYSTEM SHALL create no resource that the server budget covers before the Author has set the figure (FR-022).
 - **FR-022**: THE SYSTEM SHALL create these in this spec's first apply, no later than any other resource that costs money:
   - the model-spend budgets on Bedrock's cost, at the ceilings, with warnings at 70% ($3.50 a day, $14 a month);
-  - the server budget, on every other cost of the account, at the figure of FR-021, with a warning at 70%;
+  - the server budget, on every other cost of the account (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"), at the figure of FR-021, with a warning at 70%;
   - a cost-anomaly monitor on the account;
   - a budget for any other environment's tag, at the amount the Author sets before that environment exists.
   Each budget and the monitor SHALL alert through Telegram (primary) and email (secondary), never by SMS (ADR 0005).
@@ -617,7 +617,7 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
 - **Plan record**: a redacted Terraform plan for one environment at one commit. It is carried in the merge-request note. (Posting it on the pull request moved to the publication spec.)
 - **Apply record**: who applied which plan (by its hash), at which commit, when, which resources changed, and the outcome.
 - **Model-spend budget**: an AWS-side budget on Bedrock's cost at the ceilings, with FR-023's automated action. The Anthropic API's spend is outside AWS and bounded by the meter (FR-073).
-- **Server budget**: an AWS-side budget on every other cost of the account, with FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
+- **Server budget**: an AWS-side budget on every other cost of the account (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"), with FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
 - **Tunnel**: the laptop's outbound connection to the tunnel end, its credential, and the local services it reaches.
 - **Public view**: the read-only dashboard visitors see, its values, the time those values were taken, and which host serves.
 - **Data-flow disclosure entry**: a row in spec 000's format, published on the site.
@@ -627,9 +627,9 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
 ### Measurable Outcomes
 
 - **SC-001**: With the laptop off and EC2 serving, hareet.ai loads and hello answers (from any route, or degraded) within 5 seconds in 100% of probes over a day. The exception is a window in which no host serves (a start-up gap, a spot interruption, or EC2 stopped on purpose). In such a window the site loads, and every dynamic request gets the degraded body with `no_host_serving`, both within 5 seconds.
-- **SC-002**: Over the first full month after EC2's first apply, the account's cost other than model calls, the tunnel end included, is at or under the server budget's figure the Author set (FR-021), measured from AWS's cost data and shown on the dashboard.
+- **SC-002**: Over the first full month after EC2's first apply, the account's cost other than model calls (amended 2026-11-11: this project's tagged cost; Assumptions, "One account, shared with the Author's other work"), the tunnel end included, is at or under the server budget's figure the Author set (FR-021), measured from AWS's cost data and shown on the dashboard.
 - **SC-003**: Each month's model spend across both hosts is at or under $20 on the shared meter, and no UTC day's is over $5. AWS's cost data for Bedrock, and the Anthropic account's usage for the month, are each at or under what the meter counted for that provider.
-- **SC-004**: Zero long-lived credentials for any identity, verified weekly by a committed audit script.
+- **SC-004**: Zero long-lived credentials for any identity, verified weekly by a committed audit script. (Amended 2026-11-11: but for the identities the Author's allowlist names, which the audit shows as allowed; Assumptions, "One account, shared with the Author's other work".)
 - **SC-005**: Destroy-and-recreate of EC2 yields an identical stack, verified by image digests, and the shared state's values are unchanged.
 - **SC-006**: An external scan of the laptop's public address finds zero open inbound ports, both with the tunnel up and with it down. A scan of the tunnel end finds only its tunnel port and the forwarded ports the disclosure lists.
 - **SC-007**: In 10 rehearsed handovers each way:
@@ -668,11 +668,29 @@ SC-015 moved to the publication spec (`publication-carryover.md`); its number is
   - the Degraded Modes row on the shared state;
   - the data-flow row C2;
   - tasks T068, T073 and T080.
+- **One account, shared with the Author's other work (deviation, named, 2026-11-11).** At T030, the bootstrap's verify refused: the credential audit found the Author's other work in the account. It found six IAM users holding access keys, one of them spec 000's `h4reet-runtime`; a GitHub Actions OIDC provider; and a deploy role trusting a principal outside the account. The server budget would also have counted that work's costs, and its action stops EC2.
+
+  The Author's answers:
+  - asked how to go, with a new account for this project as the recommendation: "Share it, scope the checks";
+  - asked whether `h4reet-runtime` goes on the list or is deleted: "Allow it too";
+  - asked whether the identities' names may stand in the repository: "Keep them out of the repo".
+
+  So (ADR 0047):
+  - **The credential audit reads his allowlist.** It holds those eight identities, by finding kind and name, and is kept out of the repository: in his terminal, `~/.config/h4reet-ai/infra/iam-allow.txt`; in the weekly function, his SecureString `/h4reet/audit/IAM_ALLOW`. They're shown as allowed on every run. Only four kinds can be allowed, never for this project's own names, and the root's keys, the laptop's identity, and the handover's policies stay strict.
+  - **`h4-server-month` and its rehearsal, `h4-rehearsal-server`,** count every cost tagged `project = h4reet-ai` but Bedrock's, so the other work never trips the server action, and the rehearsal proves the real filter.
+
+  This departs from:
+  - the constitution's Principle IV, "Cloud access is short-lived and identity-based": the listed users, `h4reet-runtime` among them, keep long-lived keys;
+  - FR-008, SC-004, and User Story 1's scenario 5: the audit finds those keys and a CI identity before publication, and allows them;
+  - FR-021, FR-022, and SC-002: the project's tagged costs, not the account's;
+  - spec 000's FR-013: `h4reet-runtime` keeps its keys.
+
+  Least privilege between this project and the other work rests on IAM, which the Author keeps narrow by hand. The audit allows a key by name whether it is active or not. Costs the tag doesn't carry aren't counted, so EC2's volumes and address must carry it (T154). Tasks T150 to T154.
 - **Spec 000 first.** Spec 000 is implemented, and its stack passes its success criteria, before this spec is planned (START-HERE §3: "Spec 001 is specified in full only after spec 000's success criteria pass on your machine"). Spec 000's T105 has landed, and prod's route names Bedrock as its fallback. Spec 010 is on `main`: `config/routing.yaml` defines the `anthropic` adapter, and `config/budgets.yaml` caps it at $20 a month. `feat/010-anthropic-switch` makes the Anthropic API prod's fallback and carries the Author's words in row F3, adopted on 2026-11-09; it reaches `main` before this spec's group 6.
 - **ADR 0044's numbering.** ADR 0044 cites spec 001 by the 2026-09-07 outline's numbers (its "FR-005 to FR-008", "FR-007", "FR-009", "SC-002, SC-003", "US2 AS2" to "US5 AS2"), which this spec's traceability table maps. Where this spec cites ADR 0044, it cites the ADR's own decision and open-item numbers. The table under Clarifications maps each conflict the ADR names to this spec.
 - **The domain is hareet.ai.** The merge-request note of 2026-10-30 records it: "The domain: hareet.ai stays. Spec 001's FR-004 and the constitution still name h4reet.ai: spec 001 changes through its lifecycle, the constitution by your hand." This rework makes the change in spec 001; quotes keep their own spelling. The zone moves to Route 53, which the health check sits beside and which the Author's words name ("configure route53"). The change of the registration's name servers is a human action outside Terraform, recorded like an apply. That settles the October assumption about keeping another DNS provider.
 - **The memory estimate.** "About 8 GB" is the session's estimate, not a measured figure. The plan measures the stack's memory without the model server before it picks an instance type, and the Author sets the server budget's figure from the plan's prices (question 14; FR-021). Point 5's "$50 a month" is the session's unmeasured estimate too, and this spec uses it nowhere.
-- **The server budget's scope.** This is a reading of "The server size and budget is outside the $20 model spend cost". The server budget covers every cost of the account that isn't a model call: EC2 running, EC2 stopped (its volumes and any public address), the tunnel end and its address, the edge, DNS and the health check, the shared state, the start function, storage, and the registry (ADR 0044, open item 10).
+- **The server budget's scope.** This is a reading of "The server size and budget is outside the $20 model spend cost". The server budget covers every cost of the account that isn't a model call (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"): EC2 running, EC2 stopped (its volumes and any public address), the tunnel end and its address, the edge, DNS and the health check, the shared state, the start function, storage, and the registry (ADR 0044, open item 10).
 - **The tunnel end and the relay.** Decided by the Author's answers to questions 13 and to the plan's questions 1 and 2.
   - **What the health check probes.** The laptop's health path at the tunnel end's public address, through the tunnel, so "the health check sees the whole path": the tunnel end, the tunnel, and the laptop's stack (FR-054). It only wakes EC2. If Route 53's checkers can't carry a credential, the health path is the one unauthenticated route through the tunnel, and it returns only health (FR-053).
   - **What serves the resting reply.** The relay, while no host serves; the edge, while the relay can't be reached (FR-066).

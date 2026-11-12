@@ -129,7 +129,7 @@ With both hosts off for an hour, `/status/` answers 100% of the time with last-k
 ## 11. Group 11: the close (SC-002, SC-003, SC-004, SC-012, SC-014, SC-016)
 
 After the first full month:
-- **SC-002:** AWS's cost data, all but Bedrock, at or under your figure;
+- **SC-002:** AWS's cost data for the `project` tag, all but Bedrock, at or under your figure (ADR 0047);
 - **SC-003:** model spend on the shared meter at or under $20 for the month and $5 for each day, with AWS's Bedrock cost and the Anthropic account's usage each at or under what the meter counted;
 - **SC-016:** from `handover_events` and EC2's state history, EC2's running time while the laptop served is at most 5 minutes per handover and per AWS restart;
 - **SC-004:** the credential audit's weekly results;

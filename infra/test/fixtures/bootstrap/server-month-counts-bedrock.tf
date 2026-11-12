@@ -1,5 +1,5 @@
 # h4-server-month on every cost, Bedrock's included, so model spend could stop EC2 (FR-021, FR-023).
-# expect: h4-server-month: doesn't count every cost but Bedrock's
+# expect: h4-server-month: doesn't count every cost of this project but Bedrock's
 resource "aws_budgets_budget" "server_month" {
   name         = "h4-server-month"
   budget_type  = "COST"

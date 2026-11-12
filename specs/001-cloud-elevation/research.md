@@ -446,7 +446,7 @@ Asked for a $10 budget ("we are good with $10 a month budget for the ec2"), the 
 
 **Decision.** In `infra/bootstrap/budgets.tf` (protected), applied first:
 - **`h4-model-month` and `h4-model-day`:** $20 and $5 on Bedrock's cost (a service filter), with warnings at 70% ($14, $3.50) and alerts at 100%. The Anthropic API's spend isn't on AWS's bill (spec FR-073).
-- **`h4-server-month`:** the Author's figure, on every cost but Bedrock's, with a warning at 70% and an alert at 100%.
+- **`h4-server-month`:** the Author's figure, on every cost but Bedrock's, with a warning at 70% and an alert at 100%. Amended 2026-11-11: on every cost tagged `project = h4reet-ai` but Bedrock's, since the account is shared with the Author's other work (ADR 0047).
 - **The anomaly monitor,** with an immediate subscription to `h4-alerts`, as September R-22 had it.
 
 In `infra/account/killswitch.tf` (protected):

@@ -31,6 +31,18 @@ The findings, each naming a user, role, permission set, or provider by name, nev
   laptop_permission_set_too_broad  that set holds anything but sts:AssumeRole on h4-laptop-bedrock
   handover_policy_too_broad        h4-ec2-start-fn's, h4-ec2-guard-fn's, or the h4-ec2-stop permission set's policies
                                    let an EC2 action reach anything but the instance tagged h4-prod-ec2 (group 9)
+  allowlist_entry_refused          a line of the allowlist names a kind outside the four below, or isn't "<kind>
+                                   <name>"; named by its line number, never its text
+
+The account is shared with the Author's other work (spec 001 Assumptions, "One account, shared with the Author's other
+work"; ADR 0047; his answers of 2026-11-11, "Share it, scope the checks" and "Allow it too"). His allowlist names
+identities by finding kind and name, one "<kind> <name>" a line, # for comments, and stays out of the repository (his
+answer of 2026-11-12, "Keep them out of the repo"): in his terminal, ~/.config/h4reet-ai/infra/iam-allow.txt, which
+agent sessions can't read; in the function, the Parameter Store SecureString its environment's
+H4_AUDIT_ALLOW_PARAMETER names. A finding it names moves to the result's "allowed" list, shown but not failing. Only
+iam_user_present, iam_user_access_key, oidc_provider_present, and role_foreign_trust can be allowed, and never for this
+project's own names (h4-…, or an Identity Center role, AWSReservedSSO_…): the root's keys, the laptop's identity, and
+the handover's policies stay strict. No list, or no parameter, means no allowlist.
 """
 
 from __future__ import annotations
@@ -41,7 +53,9 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import unquote
 
 REGION = "us-east-1"
@@ -58,11 +72,73 @@ HANDOVER_ROLES = {
 HANDOVER_SETS = {"h4-ec2-stop": {"ec2:stopinstances"}}
 DESCRIBE = {"ec2:describeinstances", "ec2:describeinstancestatus"}
 RUNBOOK = "docs/runbooks/credential-audit.md"
+# The Author's allowlist (ADR 0047), out of the repository: his file in the terminal, a parameter in the function.
+ALLOW_PARAMETER_ENV = "H4_AUDIT_ALLOW_PARAMETER"
+# This project's own names, which no line may allow: Terraform's h4-… identities and Identity Center's roles.
+OWN_PREFIXES = ("h4-", "AWSReservedSSO_")
+ALLOWABLE = frozenset(
+    {
+        "iam_user_present",
+        "iam_user_access_key",
+        "oidc_provider_present",
+        "role_foreign_trust",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Allowlist:
+    pairs: frozenset[tuple[str, str]]
+    refused: tuple[int, ...]
+
+
+def parse_allow(text: str) -> Allowlist:
+    """Each "<kind> <name>" line of an allowable kind; any other line that isn't blank or a comment is refused."""
+    pairs: set[tuple[str, str]] = set()
+    refused: list[int] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        words = line.split("#", 1)[0].split()
+        if not words:
+            continue
+        if (
+            len(words) == 2
+            and words[0] in ALLOWABLE
+            and not words[1].startswith(OWN_PREFIXES)
+        ):
+            pairs.add((words[0], words[1]))
+        else:
+            refused.append(number)
+    return Allowlist(frozenset(pairs), tuple(refused))
+
+
+def terminal_allow() -> Path:
+    """The Author's file, under the home the audit runs with (infra-verify passes his)."""
+    return Path.home() / ".config" / "h4reet-ai" / "infra" / "iam-allow.txt"
+
+
+def lambda_allow(aws) -> Allowlist:
+    """The function's: the SecureString its environment names; none named, or none there, is no allowlist."""
+    name = os.environ.get(ALLOW_PARAMETER_ENV, "")
+    if not name:
+        return parse_allow("")
+    try:
+        value = aws.call("ssm", "GetParameter", Name=name, WithDecryption=True)
+    except NotFound:
+        return parse_allow("")
+    return parse_allow(str((value.get("Parameter") or {}).get("Value") or ""))
+
+
+def load_allow(path: Path) -> Allowlist:
+    return parse_allow(path.read_text(encoding="utf-8") if path.is_file() else "")
+
+
 NOT_FOUND = {
     "NoSuchEntity",
     "ResourceNotFoundException",
     "NotFound",
     "NoSuchEntityException",
+    # Parameter Store's, for the function's allowlist (ADR 0047): a missing one is no allowlist, not a failed run.
+    "ParameterNotFound",
 }
 
 
@@ -332,7 +408,10 @@ def laptop_findings(
 
 
 def run_audit(
-    aws, source: str, laptop_permission_set: str | None = LAPTOP_PERMISSION_SET
+    aws,
+    source: str,
+    laptop_permission_set: str | None = LAPTOP_PERMISSION_SET,
+    allow: Allowlist | None = None,
 ) -> dict:
     account = str(aws.call("sts", "GetCallerIdentity")["Account"])
     found: list[dict] = []
@@ -387,14 +466,29 @@ def run_audit(
             docs = None if doc is None or docs is None else [*docs, doc]
         if handover_too_broad(docs, allowed):
             found.append({"check": "handover_policy_too_broad", "resource": name})
+    allow = allow or parse_allow("")
+    found += [
+        {"check": "allowlist_entry_refused", "resource": f"line {n}"}
+        for n in allow.refused
+    ]
     unique = sorted({(f["check"], f["resource"]) for f in found})
-    findings = [{"check": check, "resource": resource} for check, resource in unique]
+    findings = [
+        {"check": check, "resource": resource}
+        for check, resource in unique
+        if (check, resource) not in allow.pairs
+    ]
+    allowed = [
+        {"check": check, "resource": resource}
+        for check, resource in unique
+        if (check, resource) in allow.pairs
+    ]
     return {
         "schema": 1,
         "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": source,
         "clean": not findings,
         "findings": findings,
+        "allowed": allowed,
     }
 
 
@@ -493,7 +587,7 @@ class BotoAws:
 def handler(event: object, context: object, aws=None) -> dict:
     """h4-credential-audit's entry (group 4 deploys it, tasks.md T034)."""
     aws = aws or BotoAws()
-    result = run_audit(aws, source="lambda")
+    result = run_audit(aws, source="lambda", allow=lambda_allow(aws))
     print(json.dumps(result, sort_keys=True))
     bucket = os.environ.get("H4_AUDIT_BUCKET")
     if bucket:
@@ -542,7 +636,9 @@ def main(argv: list[str]) -> int:
         )
         return 2
     try:
-        result = run_audit(CliAws(profile), source="terminal")
+        result = run_audit(
+            CliAws(profile), source="terminal", allow=load_allow(terminal_allow())
+        )
     except (
         NotFound,
         AwsError,

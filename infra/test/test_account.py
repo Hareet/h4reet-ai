@@ -801,16 +801,31 @@ def check_rehearsal(
         found.append(
             'rehearsal server budget: metrics isn\'t ["UnblendedCost"], which filter_expression needs'
         )
+    # h4-server-month's filter (spec.md Assumptions, "One account, shared with the Author's other work"; ADR 0047), so
+    # tripping the rehearsal proves the real budget's filter reads this project's spend.
     fe = server.block("filter_expression")
-    n = fe.block("not") if fe else None
-    dims = n.block("dimensions") if n else None
+    terms = fe.blocks("and") if fe is not None else []
+    excluded = [t.block("not") for t in terms if t.block("not") is not None]
+    dims = excluded[0].block("dimensions") if len(excluded) == 1 else None
+    tags = [t.block("tags") for t in terms if t.block("tags") is not None]
+    tag = tags[0] if len(tags) == 1 else None
     if (
-        dims is None
+        fe is None
+        or len(fe.body) != 2
+        or len(terms) != 2
+        or any(len(t.body) != 1 for t in terms)
+        or dims is None
+        or len(excluded[0].body) != 1
+        or len(dims.body) != 2
         or ip.literal(dims.attr("key")) != "SERVICE"
         or raw(dims, "values") != "var.bedrock_service_names"
+        or tag is None
+        or len(tag.body) != 2
+        or ip.literal(tag.attr("key")) != "project"
+        or re.sub(r"\s", "", raw(tag, "values")) != '["h4reet-ai"]'
     ):
         found.append(
-            "rehearsal server budget: it doesn't read every cost but var.bedrock_service_names'"
+            "rehearsal server budget: it doesn't read every cost of this project but var.bedrock_service_names'"
         )
     actions = resource(root, "aws_budgets_budget_action")
     model_action = [
@@ -1215,6 +1230,52 @@ def check_files(root: dict[str, list]) -> list[str]:
     return found
 
 
+# The Author's allowlist, out of the repository (spec 001 Assumptions, "One account, shared with the Author's other
+# work"; ADR 0047): h4-credential-audit reads it from his SecureString, which its environment names, and its role may
+# read that one parameter and no other.
+ALLOW_PARAMETER = "/h4reet/audit/IAM_ALLOW"
+ALLOW_ARN = (
+    "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter"
+    + ALLOW_PARAMETER
+)
+
+
+def check_audit_allowlist(root: dict[str, list]) -> list[str]:
+    found = []
+    roles = named(root, "aws_iam_role", "h4-credential-audit-fn")
+    # Every statement whose actions could read a parameter: ssm:Get…, ssm:*, or *.
+    reads = (
+        [
+            s
+            for s in allowed(root, roles[0])
+            if any(
+                a.lower().startswith("ssm:get") or a.lower() in ("ssm:*", "*")
+                for a in s["actions"]
+            )
+        ]
+        if len(roles) == 1
+        else []
+    )
+    if not (
+        len(reads) == 1
+        and reads[0]["actions"] == {"ssm:GetParameter"}
+        and quoted(reads[0]["resources"]) == [ALLOW_ARN]
+    ):
+        found.append(
+            "credential audit: its role doesn't read exactly the Author's allowlist parameter"
+        )
+    fns = named(root, "aws_lambda_function", "h4-credential-audit", "function_name")
+    env = fns[0].block("environment") if len(fns) == 1 else None
+    if env is None or not re.search(
+        rf'H4_AUDIT_ALLOW_PARAMETER\s*=\s*"{re.escape(ALLOW_PARAMETER)}"',
+        raw(env, "variables"),
+    ):
+        found.append(
+            "credential audit: its environment doesn't name the Author's allowlist parameter"
+        )
+    return found
+
+
 CHECKS = (
     check_versions,
     check_provider,
@@ -1226,6 +1287,7 @@ CHECKS = (
     check_rehearsal,
     check_schedules,
     check_functions,
+    check_audit_allowlist,
     check_bridge_subscription,
     check_registry,
     check_tags,
@@ -1534,3 +1596,7 @@ def test_the_patch_reader_takes_a_new_files_lines_only() -> None:
     assert from_patch(patch, "infra/account/x.tf") == "one\ntwo\n"
     assert from_patch(patch, "y") is None
     assert from_patch(patch, "infra/account/z.tf") is None
+
+
+def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
+    assert check_audit_allowlist(parsed(root_texts())) == []

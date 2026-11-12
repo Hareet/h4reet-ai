@@ -1,0 +1,125 @@
+P-S1, spec 001's shared account (spec.md Assumptions, "One account, shared with the Author's other work"; ADR 0047;
+tasks.md T150 to T154). For the Author's hand only: all three files are protected (FR-012;
+.claude/hooks/protected-paths.sh, infra/*budget*, infra/*iam*, and killswitch*.tf).
+
+Built on 2026-11-12 from plain copies, never `git apply` or a write into a worktree: each of main's files by
+`git show refs/heads/main:…`, edited, then `diff -u` with a/ and b/ labels. Apply it from the repository's top with
+`patch -p1`, which skips this preamble.
+
+  - infra/bootstrap/budgets.tf: h4-server-month counts every cost tagged project = h4reet-ai but Bedrock's
+    services, as two `and` terms of its filter_expression (a `not` of the services, and the tag), so the Author's
+    other work in the shared account never trips the server action.
+  - infra/account/killswitch.tf: h4-rehearsal-server on the same filter, so tripping the rehearsal proves the real
+    budget's filter reads this project's spend.
+  - infra/account/iam.tf: h4-credential-audit-fn may read one parameter more, /h4reet/audit/IAM_ALLOW, the Author's
+    allowlist, which stays out of the repository.
+
+To confirm at the plan: that hashicorp/aws 6.72.0 takes `and` holding a nested `not`, and `and` holding `tags`.
+After the apply, once the project tag is active: that Cost Explorer filtered on it shows the project's costs, and
+that h4-server-month's actual matches; if the budget reads $0 while Cost Explorer doesn't, the key may want
+`user:project`.
+
+--- a/infra/bootstrap/budgets.tf
++++ b/infra/bootstrap/budgets.tf
+@@ -86,8 +86,11 @@
+   depends_on = [aws_sns_topic_policy.alerts]
+ }
+ 
+-# Every cost of the account but Bedrock's (FR-021): model spend has the two budgets above, and the meter. Its figure is
+-# the Author's, which nothing here sets.
++# Every cost of this project but Bedrock's (FR-021): model spend has the two budgets above, and the meter. Its
++# figure is the Author's, which nothing here sets. The account is shared with the Author's other work (spec 001
++# Assumptions, "One account, shared with the Author's other work"; ADR 0047), so the budget counts only costs
++# tagged project = h4reet-ai, as every provider's default_tags writes it: the other work's spend never trips the
++# server action. The project tag must be an active cost-allocation tag (T030), or this budget sees nothing.
+ resource "aws_budgets_budget" "server_month" {
+   name         = "h4-server-month"
+   budget_type  = "COST"
+@@ -99,10 +102,18 @@
+   metrics = ["UnblendedCost"]
+ 
+   filter_expression {
+-    not {
+-      dimensions {
+-        key    = "SERVICE"
+-        values = var.bedrock_service_names
++    and {
++      not {
++        dimensions {
++          key    = "SERVICE"
++          values = var.bedrock_service_names
++        }
++      }
++    }
++    and {
++      tags {
++        key    = "project"
++        values = ["h4reet-ai"]
+       }
+     }
+   }
+--- a/infra/account/killswitch.tf
++++ b/infra/account/killswitch.tf
+@@ -109,7 +109,7 @@
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
+ # The rehearsals (FR-026; SC-009), while local.rehearsal is true: two $0.01 budgets of the real ones' shape, the model
+-# rehearsal's on Bedrock's spend (var.bedrock_service_names) and the server rehearsal's on every cost but Bedrock's, so
++# rehearsal's on Bedrock's spend (var.bedrock_service_names) and the server rehearsal's on h4-server-month's filter, so
+ # each fires on spend the month already holds, and proves its filter too. Each acts, automatically, at 100%, as the
+ # real ones do: the model rehearsal attaches the deny to h4-rehearsal-target, and the server rehearsal stops
+ # h4-rehearsal-instance through Systems Manager (main.tf). The model rehearsal fires only once the month holds a cent of
+@@ -224,11 +224,20 @@
+   # the account has no credits (the Author's answer, 2026-11-11).
+   metrics = ["UnblendedCost"]
+ 
++  # h4-server-month's filter (ADR 0047), so tripping the rehearsal proves the real budget reads this project's spend.
+   filter_expression {
+-    not {
+-      dimensions {
+-        key    = "SERVICE"
+-        values = var.bedrock_service_names
++    and {
++      not {
++        dimensions {
++          key    = "SERVICE"
++          values = var.bedrock_service_names
++        }
++      }
++    }
++    and {
++      tags {
++        key    = "project"
++        values = ["h4reet-ai"]
+       }
+     }
+   }
+--- a/infra/account/iam.tf
++++ b/infra/account/iam.tf
+@@ -288,7 +288,9 @@
+ 
+ # The reads audit.py makes (contracts/infra-records.md §4): IAM's list and get calls, which take no narrower resource
+ # for the account-wide listing, and Identity Center's permission sets; then its result into the release bucket's
+-# audits/credential/, and any finding to h4-alerts.
++# audits/credential/, and any finding to h4-alerts. And the Author's allowlist, his SecureString under the AWS-managed
++# aws/ssm key, kept out of the repository (spec 001 Assumptions, "One account, shared with the Author's other work";
++# ADR 0047).
+ data "aws_iam_policy_document" "credential_audit" {
+   statement {
+     sid       = "ItsLog"
+@@ -344,6 +346,15 @@
+     actions   = ["sns:Publish"]
+     resources = [data.aws_sns_topic.alerts.arn]
+   }
++
++  statement {
++    sid     = "TheAuthorsAllowlist"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/audit/IAM_ALLOW",
++    ]
++  }
+ }
+ 
+ resource "aws_iam_role_policy" "credential_audit" {

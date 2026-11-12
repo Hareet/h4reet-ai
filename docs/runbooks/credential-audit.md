@@ -5,13 +5,16 @@ The credential audit found an identity that holds a long-lived credential, or on
 ## Symptoms
 
 - **A Telegram message** from the alert bridge, and SNS's email: `[hareet.ai aws] credential_finding: <n> findings`, one line a finding, `- <check>: <name>`, where the check is one of:
+  - `iam_user_present`: an IAM user exists at all;
   - `iam_user_access_key`: an IAM user holds an access key, active or not;
   - `root_access_key`: the root user holds one;
   - `role_foreign_trust`: a role trusts a principal outside the account, its services, and its Identity Center;
   - `oidc_provider_present`: an OIDC provider exists, before publication;
   - `laptop_identity_not_terraform`: `h4-laptop-bedrock`, or the laptop's Bedrock permission set, isn't Terraform's;
   - `laptop_permission_set_too_broad`: that set holds anything but `sts:AssumeRole` on `h4-laptop-bedrock`;
-  - `handover_policy_too_broad`: a start, guard, or stop policy reaches more than the tagged instance (from group 9).
+  - `handover_policy_too_broad`: a start, guard, or stop policy reaches more than the tagged instance (from group 9);
+  - `allowlist_entry_refused`: a line of your allowlist that the audit won't take, named by its line number: a kind other than the four below, this project's own name, or not `<kind> <name>`.
+- **The allowlist** (ADR 0047): your other work in the shared account, kept out of the repository, in `~/.config/h4reet-ai/infra/iam-allow.txt` for your terminal, and the SecureString `/h4reet/audit/IAM_ALLOW` for the weekly function, the same lines in each. A finding it names shows under `allowed`, not failing. Only `iam_user_present`, `iam_user_access_key`, `oidc_provider_present`, and `role_foreign_trust` can be allowed. It allows a key by name, active or not: reactivating one changes nothing the audit says.
 - **`make infra-verify` refuses** with `credential_finding`, and so no apply can start.
 - The weekly result is in the release bucket, under `audits/credential/<date>.json`.
 

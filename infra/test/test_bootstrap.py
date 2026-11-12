@@ -6,7 +6,7 @@ What the root must hold:
   - the state bucket: versioned, encrypted, public access blocked, TLS-only for every principal, kept from destroy;
   - h4-model-month at $20 and h4-model-day at $5, on Bedrock's cost, with notifications at 70% and 100% of actual,
     on usage, not net of credits;
-  - h4-server-month at var.server_budget_usd, on every cost but Bedrock's, at 70% and 100%;
+  - h4-server-month at var.server_budget_usd, on every cost tagged project = h4reet-ai but Bedrock's (ADR 0047), at 70% and 100%;
   - Bedrock's cost as the service names the Author reads in his Cost Explorer, var.bedrock_service_names, a list
     with no default (T028's review, B3: Claude on Bedrock may show under its own Marketplace name);
   - the anomaly monitor, with its immediate $1 subscription;
@@ -442,18 +442,34 @@ def check_server_budget(root: dict[str, list]) -> list[str]:
         found.append(
             'h4-server-month: metrics isn\'t ["UnblendedCost"], which filter_expression needs'
         )
+    # The shared account (spec.md Assumptions, "One account, shared with the Author's other work"; ADR 0047): every
+    # cost tagged project = h4reet-ai but Bedrock's, so the Author's other work never trips the server action. Two
+    # `and` terms: not Bedrock's services, and the project's tag, as default_tags writes it.
     fe = b.block("filter_expression")
-    excluded = fe.block("not") if fe is not None else None
-    dims = excluded.block("dimensions") if excluded is not None else None
+    terms = fe.blocks("and") if fe is not None else []
+    excluded = [t.block("not") for t in terms if t.block("not") is not None]
+    dims = excluded[0].block("dimensions") if len(excluded) == 1 else None
+    tags = [t.block("tags") for t in terms if t.block("tags") is not None]
+    tag = tags[0] if len(tags) == 1 else None
     if (
         b.blocks("cost_filter")
+        or fe is None
+        or len(fe.body) != 2
+        or len(terms) != 2
+        or any(len(t.body) != 1 for t in terms)
         or dims is None
+        or len(excluded[0].body) != 1
+        or len(dims.body) != 2
         or ip.literal(dims.attr("key")) != "SERVICE"
         or raw(dims, "values") != BEDROCK
-        or len(fe.body) != 1  # type: ignore[union-attr]
-        or len(excluded.body) != 1  # type: ignore[union-attr]
+        or tag is None
+        or len(tag.body) != 2
+        or ip.literal(tag.attr("key")) != "project"
+        or re.sub(r"\s", "", raw(tag, "values")) != '["h4reet-ai"]'
     ):
-        found.append("h4-server-month: doesn't count every cost but Bedrock's")
+        found.append(
+            "h4-server-month: doesn't count every cost of this project but Bedrock's"
+        )
     found += _notifications(b)
     return found
 

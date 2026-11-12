@@ -288,7 +288,9 @@ resource "aws_iam_role" "credential_audit" {
 
 # The reads audit.py makes (contracts/infra-records.md §4): IAM's list and get calls, which take no narrower resource
 # for the account-wide listing, and Identity Center's permission sets; then its result into the release bucket's
-# audits/credential/, and any finding to h4-alerts.
+# audits/credential/, and any finding to h4-alerts. And the Author's allowlist, his SecureString under the AWS-managed
+# aws/ssm key, kept out of the repository (spec 001 Assumptions, "One account, shared with the Author's other work";
+# ADR 0047).
 data "aws_iam_policy_document" "credential_audit" {
   statement {
     sid       = "ItsLog"
@@ -343,6 +345,15 @@ data "aws_iam_policy_document" "credential_audit" {
     effect    = "Allow"
     actions   = ["sns:Publish"]
     resources = [data.aws_sns_topic.alerts.arn]
+  }
+
+  statement {
+    sid     = "TheAuthorsAllowlist"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/audit/IAM_ALLOW",
+    ]
   }
 }
 
