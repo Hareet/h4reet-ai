@@ -2,36 +2,35 @@
 
 All entities are files. Paths in `{{…}}` are placeholders the install fills from the machine facts.
 
-## Machine facts (`~/.config/h4reet-ai/night-shift.env`, the Author's, never committed)
+## Machine facts (`~/.config/h4reet-ai/night-shift/facts.env`, the Author's, never committed)
 
-`KEY=value` lines, read as data (never sourced). Required keys:
+`KEY=value` lines, read as data (never sourced). Required keys, with the values the probes found:
 
-| Key | Example | From |
+| Key | Value found | From |
 |---|---|---|
-| `REPO` | `/home/<user>/h4reet-ai/h4reet-ai` | the probe's §9 |
+| `REPO` | `/home/<user>/h4reet-ai/h4reet-ai` | the nono probe |
 | `NIGHT_ROOT` | `/home/<user>/h4reet-ai/night` | fixed |
-| `CLAUDE_BIN` | the resolved path of `claude` | the probe's §7 |
-| `BLENDER_BIN`, `BLENDER_DIR` | the resolved paths | the probe's §5 |
-| `COMFYUI_PORT` | `8188` | the probe's §6 |
-| `ENGINE_PORT` | `2376` | the probe's §8 |
-| `LAYERING` | `nested` | written by the install's R2; the install stops when R2 fails (his Q8) |
+| `UID`, `GID` | his | the install, from `id` |
+| `CLAUDE_VERSION` | `2.1.322` | the nono probe; the images install this version |
+| `BLENDER_DIR` | `/home/<user>/blender-5.2.3-linux-x64` (5.2.3 LTS) | the nono probe |
+| `COMFYUI_DIR`, `COMFYUI_VENV` | `/home/<user>/ComfyUI`, `/home/<user>/flux-env` | the third run and `start-comfyui.sh` |
+| `COMFYUI_PORT` | `8188` | `start-comfyui.sh` |
+| `ENGINE_CERTS` | `/home/<user>/.config/h4reet/agents-engine/docker` | the relay's client folder |
 | `NIGHT_PLAN`, `NIGHT_GATE` | `off` | `on` only from the second install (plan §8) |
-| `PLAN_AWS_PROFILE` | the plan role's profile name | the second install |
-| `TOKEN_SOURCE` | `file:///…` or a nono keystore name | the Author, after `claude setup-token` |
+| `PLAN_AWS_PROFILE` | the plan role's AWS profile name | the second install |
 
-Validation: every key present, each path absolute, `LAYERING`, `NIGHT_PLAN`, and `NIGHT_GATE` from their sets, no `{{`. The gate runs from `REPO` (his Q1 answer).
+Validation: every key present, each path absolute, `NIGHT_PLAN` and `NIGHT_GATE` from their sets, no `{{`. The gate runs from `REPO` (his Q1 answer).
 
-## Profile template (`deploy/night-shift/profiles/<role>.json`)
+## The token file (`~/.config/h4reet-ai/night-shift/claude.env`, the Author's)
 
-A nono profile (schema: the pinned version's `nono profile schema`) plus one top-level key nono ignores or the build strips, `"x-h4"`:
+One line, `CLAUDE_CODE_OAUTH_TOKEN=<the setup-token value>`, mode 0600, made by the Author with `read -s` so the value never enters his shell's history. The runner checks its mode and shape, never prints it, and passes it only as a container's `--env-file` (FR-036).
 
-- `role`: one of `supervisor`, `spec-writer`, `implementer`, `reviewer`, `red-teamer`, `ops`, `gate-runner`, `studio`;
-- `parent`: the lattice parent (plan §2), or `ceiling`;
-- `example`: `true`, so the runner refuses this file if pointed at it.
+## Container spec (`deploy/night-shift/containers/<role>.json`)
 
-The install's fill step drops `x-h4` and records the live file's SHA-256. Invariants (tested):
-- every grant is in the parent's;
-- every never-readable path is in `deny`, and no grant is its ancestor or descendant;
+The shape, invariants, and placeholders are in contracts/containers.md. `x-h4` holds `role`, `parent` (the lattice parent, plan §2, or `ceiling`), and `example: true` in the repository. The install's fill step drops `x-h4` and records the live file's SHA-256. Invariants (tested):
+- every mount, network, device, and capability is the parent's;
+- no never-mounted path, or an ancestor of one, is mounted;
+- the masks over main's settings' denyWrite paths are present in every writing spec;
 - no `{{` survives the fill.
 
 ## Queue (`queue.json`, in the supervisor's worktree)

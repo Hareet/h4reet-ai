@@ -1,23 +1,31 @@
 # Contract: the install-and-rehearse script
 
-`deploy/night-shift/install.sh <sha> [--undo]`, plan §6 (steps 0 to 11).
+`deploy/night-shift/install.sh <sha> [--undo]`, plan §6 (steps 0 to 8).
 
-- **Reads**: only `git show <sha>:<path>` for every file it installs; `~/.config/h4reet-ai/night-shift.env` as data.
-- **Runs**: `git` with `GIT_NO_REPLACE_OBJECTS=1 GIT_CONFIG_NOSYSTEM=1 -c core.hooksPath=/dev/null`; `/usr/bin/python3 -I -B` for the fill step; the installed `nono` and `claude`; nothing from a working tree.
+- **Reads**: only `git show <sha>:<path>` for every file it installs or builds from; `~/.config/h4reet-ai/night-shift/facts.env` as data (never sourced); the token file only to check its mode and shape, never its value.
+- **Runs**:
+  - `git` with `GIT_NO_REPLACE_OBJECTS=1 GIT_CONFIG_NOSYSTEM=1 -c core.hooksPath=/dev/null`;
+  - `/usr/bin/python3 -I -B` for the fill step;
+  - `docker` to pull bases by digest, build, and make networks;
+  - the built images, only in containers.
+
+  Nothing runs from a working tree.
 - **Writes**:
-  - `~/.local/bin/nono`;
-  - `~/.config/h4reet-ai/nono/*.json`;
-  - `~/.local/share/h4reet-ai/night-shift/**`;
-  - `~/.local/state/h4reet-ai/night-shift/{locks,log}`;
-  - `/srv/studio/{briefs,handoff}` and `~/h4reet-ai/night/`; it refuses on the first install while `/srv/studio/outputs` holds a file (his Q5), printing the count, never a name;
-  - `installed.txt` (each path and its SHA-256), and `LAYERING` into the facts file.
+  - the images `h4-night-{worker,studio,comfyui,egress}:<sha12>`;
+  - the networks `h4-night`, `h4-night-studio`, `h4-night-plan` (internal) and `h4-night-out`;
+  - `~/.config/h4reet-ai/night-shift/{containers,claude}/` and `allowlist.json` (files 0444, folders 0555);
+  - `~/.local/share/h4reet-ai/night-shift/**` and `~/.local/state/h4reet-ai/night-shift/{locks,log}`;
+  - `/srv/studio/{briefs,handoff}` and `~/h4reet-ai/night/`;
+  - `installed.txt` (each path, image, and network, with its SHA-256 or ID).
+
+  It refuses on the first install while `/srv/studio/outputs` holds a file (his Q5), printing the count, never a name.
 - **Stops**: on the first failure, printing `install: FAILED at <step>: <reason>`, then the summary so far.
 - **The summary** (between `== night-shift summary ==` and `== end ==`):
-  - `sha`, `nono`, `claude`, `kernel`, `landlock`, `layering`;
-  - each `profile <role> <sha256>`;
-  - each `R1` to `R6` with `ok` or `FAILED <reason>`;
+  - `sha`, `claude`, `docker`;
+  - each `image <name> <id>` and each `spec <role> <sha256>`;
+  - each of R1 to R4 with `ok` or `FAILED <reason>`;
   - each R4 row's `id refused-by=<layer>`.
 
   Nothing secret.
-- **`--undo`**: removes each path in `installed.txt` whose SHA-256 still matches, then the empty folders it made, then `~/.local/bin/nono` if it is the pin's. It prints what it left: nono's state under `~/.local/state/nono`, and any file it didn't make.
+- **`--undo`**: removes each path in `installed.txt` whose SHA-256 still matches, the networks, and the images it tagged, then the empty folders it made. It prints what it left: the token file and the facts file (his), and any file it didn't make.
 - **Idempotent**: a second run at the same SHA prints `unchanged` for each step and the same summary.

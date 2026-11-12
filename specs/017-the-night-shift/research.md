@@ -156,4 +156,41 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
 
     The last two weigh against plan §1's candidate A.
   - the third version fixes all three: its folder sits under `$HOME`, it never pulls a pack (it inlines the pack's own profile), it passes `--allow-cwd` and gives nono no keyboard input, it reads UNTESTED when nono didn't start Claude Code, it fingerprints `~/.claude/plugins`, and it refuses to start while the plugin's files remain. It also looks for ComfyUI on disk.
+- **The third run** (the Author, 2026-11-12, at 3a7d05db): the nesting fails, and work stops (his Q8).
+  - **The plugin is gone, and nothing outside the folder changed.** `settings.json` and both plugin index files hashed the same before and after, and `nolabs-ai` is gone from the plugin folders. `~/.claude.json` changed, as Claude Code's own runs change it.
+  - **The nono control runs.**
+  - **bubblewrap inside nono fails**: "bwrap: setting up uid map: Permission denied", while the same command starts outside nono. The grant here covered `/proc` for reading only, so a write to `/proc/self/uid_map` would be refused. Past that, the kernel's Landlock code refuses `mount(2)` to any process with filesystem rules (the session's reading of `security/landlock/fs.c`), and bubblewrap mounts. So Claude Code's sandbox can't start inside nono's on any kernel, not only on WSL2.
+  - **Claude Code inside nono never reached its sandbox**: "Error processing settings: EACCES … nest-settings.json". The probe passed a settings file outside the granted folder. The verdict line read FAILED because the probe didn't recognize that refusal (a probe bug), but the bubblewrap row above answers the question anyway.
+  - **Inside nono, with only explicit read grants, `~/.aws/config` was READABLE and the host's Docker socket CONNECTED.** nono's base added "+ 55 system/group paths". The socket is unmediated on WSL2 (R-08). So nono's built-in base isn't a safe starting point here. A profile would have to drop the default groups and list every path itself.
+  - Also found:
+    - ComfyUI is at `~/ComfyUI`, with `start-comfyui.sh` beside it, custom nodes `ComfyUI-Manager`, `ComfyUI-Flowty-TripoSR`, `ComfyUI_PuLID_Flux_ll`, `ComfyUI-GGUF`, and its output in `~/ComfyUI/output`;
+    - C: has 51 GB free (95% used);
+    - Claude Code's sign-in ends between 2026-11-14 and 2026-11-17, and it suggests `claude setup-token` for unattended jobs.
 - **The review** (a reviewer agent, read-only, on 57988e67) found two blockers in the first draft, both fixed: section 15 ran under the Claude Code pack, which could write `~/.claude`; and the nesting test had no control and lacked `--unshare-pid`, so a refusal would have been misread as Landlock's.
+
+## R-15: containers around every session (the Author's answer, 2026-11-12)
+
+- **Decision**: one container per session on the Author's host engine, started only by the runner (plan §1, §2). Each runs as his user, with every capability dropped, `no-new-privileges`, a read-only root, and limits. Each mounts only its role's paths, with read-only binds over `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, `refs/heads/main`, and every path main's settings deny writing. Its network is internal, and its only way out is the egress proxy.
+- **Why it holds where nono didn't** (R-14):
+  - what isn't mounted doesn't exist in the container's mount namespace, so `~/.aws`, the socket, and the photos are absent, not just denied;
+  - an internal Docker network has no route out, so hosts are filtered by the proxy, not by a port rule;
+  - no Unix socket crosses unless it's mounted.
+- **What's already in the repository**:
+  - the devcontainer (`.devcontainer/Dockerfile`, `ARG WITH_CLAUDE=0`, which installs `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}` when set; the pin is 2.1.296, the host runs 2.1.322, and the images pin one version, P-8);
+  - the agents' engine's `egress-proxy.py`. It is standard library, reads a settings-shaped allowlist from `H4_EGRESS_SETTINGS`, listens on `H4_EGRESS_HOST:H4_EGRESS_PORT`, allows `CONNECT` to 443 and absolute-form `GET` on 80 for listed hosts only, refuses IP literals and non-global addresses, and fails closed on a missing list;
+  - the Author's `~/oc-studio-agent.sh`, which runs a studio agent with headless Blender (5.2.3, checksum-pinned) on an `--internal` network, with only the studio's folders mounted.
+- **The agents' engine** (`specs/000-local-foundations/contracts/agents-engine.md`) is rootless Docker as `h4agents`. That user can't write the Author's worktrees and has no GPU, so it keeps its role: the containers `make check` and `make up ENV=dev-cpu` run. Sessions reach it through `engine-fwd`, a forwarder to `198.18.0.1:2376` alone, because the egress proxy refuses that address by design.
+- **Claude Code's own sandbox inside a container**: Docker's default seccomp profile refuses new user namespaces without `CAP_SYS_ADMIN` (the session's understanding), so bubblewrap likely can't start. The container probe tests it. The container is the boundary either way; the hooks and the bash gate stay.
+- **Alternatives**: Anthropic's reference devcontainer firewall (an iptables allowlist inside the session's own container, which needs `NET_ADMIN` and `NET_RAW` there); the agents' engine for sessions (it can't write the worktrees and has no GPU); nono (R-14).
+
+## R-16: signing in on the plan, never on API credits
+
+From Anthropic's documentation, through a docs-research agent's search extracts (code.claude.com/docs/en/authentication, /env-vars, /headless, /settings-reference, /legal-and-compliance, /devcontainer; support.claude.com articles 11145838 and 17728952). Wording may be paraphrased, and the container probe checks the behaviour:
+
+- **`claude setup-token`** makes a long-lived OAuth token, about a year, for scripts and CI. It prints it once and doesn't store it. It's used as `CLAUDE_CODE_OAUTH_TOKEN`. Usage under it draws on the plan's limits, not API billing; `claude -p` "draws from plan limits when signed in with plan credentials". The Author's own Claude Code suggested it: "use claude setup-token for unattended jobs" (the probes' control runs).
+- **Ultra** is a current plan, the renamed Max 20x, with a weekly limit and no five-hour limit for verified accounts. It's eligible for `setup-token` (support article 17728952). Its included API credits don't cover Claude Code.
+- **What would bill API credits instead**, highest first: cloud-provider variables (`CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY`), `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` (always used in `-p` mode when present), `apiKeyHelper`, then `CLAUDE_CODE_OAUTH_TOKEN`. `--bare` ignores the OAuth token. So the runner passes the token alone, refuses those variables, and never uses `--bare` (FR-041).
+- **Failing closed**: `forceLoginMethod: "claudeai"` makes `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `apiKeyHelper` block startup. Since v2.1.212 it applies to `setup-token` logins too; the host runs 2.1.322. Whether it also blocks the cloud-provider variables is unconfirmed, so the runner refuses those itself.
+- **Extra usage**: past the plan's limits, extra usage bills at API rates. The Author turns it off in his account; the runner waits for resets.
+- **Terms**: OAuth is "intended for ordinary Claude Code use"; developers building products should use API keys; no reselling and no passing subscription credentials to end users. The consumer terms on unattended, concurrent use couldn't be confirmed (Q14).
+- **In containers**: pass the token at run time as a secret, never baked into an image, and don't mount host SSH or cloud credentials (code.claude.com/docs/en/devcontainer). `CLAUDE_CONFIG_DIR` keeps each role's Claude folder.
