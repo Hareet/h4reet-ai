@@ -33,6 +33,7 @@ write_files:
 
 runcmd:
   - nft -f /etc/h4reet/nftables.nft
+  - systemctl disable --now sshd.service
   - systemctl daemon-reload
   - systemctl enable h4-nftables.service
   - systemctl enable --now h4-egress-proxy.service

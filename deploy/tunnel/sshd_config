@@ -20,6 +20,8 @@ StrictModes yes
 MaxAuthTries 2
 LoginGraceTime 10
 MaxStartups 4:50:10
+# From one address fewer still: 2222 is open to the world, and one client connects (group 5's review).
+PerSourceMaxStartups 2
 
 # No shell, no command, no terminal, and no other kind of forward.
 MaxSessions 0

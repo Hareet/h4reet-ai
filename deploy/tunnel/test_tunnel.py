@@ -93,8 +93,8 @@ SSHD_CLOSED = {
 # 2222 is open to the world, and one client connects: a short grace, few unauthenticated connections, from one address
 # fewer still, and two tries (group 5's review, nits).
 SSHD_LIMITS = {
-    "LoginGraceTime": ["20"],
-    "MaxStartups": ["4:50:16"],
+    "LoginGraceTime": ["10"],
+    "MaxStartups": ["4:50:10"],
     "PerSourceMaxStartups": ["2"],
     "MaxAuthTries": ["2"],
 }

@@ -214,7 +214,6 @@ exporters:
       num_consumers: 2
   otlphttp/ec2:
     endpoint: ${env:EC2_COLLECTOR_ENDPOINT}
-    headers: *id001
     compression: gzip
     timeout: 10s
     retry_on_failure: *id002
