@@ -462,3 +462,14 @@ def test_a_restart_runs_while_a_deploy_holds_the_lock(tmp_path: Path) -> None:
         assert not thread.is_alive(), "the restart waited for the lock"
     assert done == [0]
     assert w.runner.ran == [deployer_argv(tree, w, "--restart", "tunnel-end")]
+
+
+def test_an_extraction_that_cant_be_renamed_into_place_fails_cleanly(
+    tmp_path: Path,
+) -> None:
+    # Group 7's review A, nit 6: extract()'s os.replace was outside its try, so a failed rename raised out of the run.
+    into = tmp_path / "trees" / "c"
+    into.parent.mkdir(parents=True)
+    into.write_text("in the way\n", encoding="utf-8")
+    assert fs.extract(tree_tar({"deploy/scripts/deployer.py": "# r\n"}), into) is False
+    assert not (tmp_path / "trees" / ".c").exists()

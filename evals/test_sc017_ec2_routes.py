@@ -58,6 +58,8 @@ class Gateway:
         self.order = [route["first"], route["second"]]
         self.adapters = adapters
         self.fallback_day = 300_000
+        self.day = 0
+        self.day_ceiling = 1_000_000
         self.ledger: list[dict] = []
         self.spans: list[dict] = []
 
@@ -73,12 +75,27 @@ class Gateway:
                     "request_id": f"r{i}",
                 }
                 self.ledger.append(row)
+                self.day += got["cost_micro_usd"]
                 self.spans.append({"gen_ai.provider.name": got["provider"], **row})
                 return {"status": 200, **row}
         return {"status": 503, "error": "degraded", "cause": "fallback_unavailable"}
 
     def status(self) -> dict:
-        return {"fallback_day": {"spent_micro_usd": self.fallback_day}}
+        # GET /admin/status's own shape (services/gateway/src/routes/admin.ts, meterReport): the meters under `meters`.
+        # The stand-in had `fallback_day` at the top, where the gateway puts nothing (group 7's review A, I-G).
+        return {
+            "meters": {
+                "day": {
+                    "spent_micro_usd": self.day,
+                    "ceiling_micro_usd": self.day_ceiling,
+                },
+                "month": {
+                    "spent_micro_usd": self.day,
+                    "ceiling_micro_usd": 20_000_000,
+                },
+                "fallback_day": {"spent_micro_usd": self.fallback_day},
+            }
+        }
 
 
 def world(route_file: Path = FIXTURE) -> tuple[Gateway, StandIn, StandIn]:
@@ -159,3 +176,147 @@ def test_the_score_refuses_a_run_that_misses(defect: str) -> None:
 def test_the_live_run_is_the_authors() -> None:
     # Its paid calls are his, from his terminal (tasks.md T097; quickstart §7, step 4).
     assert sc.main(["--base", "http://127.0.0.1:1"], env={"SANDBOX_RUNTIME": "1"}) == 2
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 7's review A, I-G: the score counts every admitted turn, a throttled one against the run; the ceilings from the
+# status; and a failing phase that works on EC2, whose gateway reads the env file only when it is created.
+
+
+def test_a_throttled_turn_leaves_the_run_short_and_fails_it() -> None:
+    gateway, anthropic, _ = world()
+    hello = gateway.hello
+
+    def throttled(i: int) -> dict:
+        return {"status": 429, "error": "client_cap_exceeded"} if i % 100 else hello(i)
+
+    gateway.hello = throttled  # type: ignore[method-assign]
+    report = sc.run(
+        gateway, turns=100, fail_first=lambda: setattr(anthropic, "failing", True)
+    )
+    assert report["healthy"]["admitted"] == 1
+    assert [f for f in sc.score(report) if "throttled" in f]
+
+
+def test_an_admitted_turn_that_isnt_answered_fails_the_run() -> None:
+    gateway, anthropic, _ = world()
+    hello = gateway.hello
+
+    def once_degraded(i: int) -> dict:
+        if i == 150:
+            return {"status": 503, "error": "degraded", "cause": "fallback_unavailable"}
+        return hello(i)
+
+    gateway.hello = once_degraded  # type: ignore[method-assign]
+    report = sc.run(
+        gateway, turns=100, fail_first=lambda: setattr(anthropic, "failing", True)
+    )
+    assert report["failing"]["admitted"] == 100 and report["failing"]["answered"] == 99
+    assert [f for f in sc.score(report) if "failing" in f]
+
+
+def test_a_crossed_ceiling_fails_the_run() -> None:
+    gateway, anthropic, _ = world()
+    gateway.day_ceiling = 1_000
+    report = sc.run(
+        gateway, turns=100, fail_first=lambda: setattr(anthropic, "failing", True)
+    )
+    assert [f for f in sc.score(report) if "ceiling" in f]
+
+
+def test_the_turns_are_paced_under_the_per_client_cap() -> None:
+    # config/budgets.yaml's per_client: 20 a minute, a burst of 5; 200 turns at once would be throttled.
+    gateway, anthropic, _ = world()
+    slept: list[float] = []
+    sc.run(
+        gateway,
+        turns=10,
+        fail_first=lambda: setattr(anthropic, "failing", True),
+        sleep=slept.append,
+    )
+    assert len(slept) == 20 and all(s >= 60 / 20 for s in slept)
+
+
+def ec2_state(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+    state = tmp_path / "deploy"
+    commit = "c" * 40
+    tree = state / "trees" / commit
+    (tree / "deploy").mkdir(parents=True)
+    (tree / "deploy" / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    release_env = state / "releases" / "r1.env"
+    release_env.parent.mkdir(parents=True)
+    release_env.write_text("H4_RELEASE=r1\n", encoding="utf-8")
+    (state / "current.json").write_text(
+        f'{{"release": "r1", "commit": "{commit}"}}', encoding="utf-8"
+    )
+    env_file = tmp_path / "ec2.env"
+    env_file.write_text(
+        "H4_HOST=ec2\nGATEWAY_ANTHROPIC_API_KEY=the-real-one\nSMTP_PORT=465\n",
+        encoding="utf-8",
+    )
+    env_file.chmod(0o600)
+    return state, tree, release_env, env_file
+
+
+def test_the_failing_phase_refuses_the_key_and_recreates_the_gateway_then_restores(
+    tmp_path: Path,
+) -> None:
+    state, tree, release_env, env_file = ec2_state(tmp_path)
+    ran: list[tuple[list[str], dict]] = []
+
+    def runner(argv: list[str], **kwargs: object) -> int:
+        ran.append((list(argv), dict(kwargs)))
+        return 0
+
+    key = sc.Ec2Key(env_file, state, runner)
+    key.refuse()
+    # The deployer holds while the run does, so its minute's check never brings the real key back mid-phase.
+    assert (state / "hold").is_file()
+    copy = key.refused_env
+    assert copy.stat().st_mode & 0o777 == 0o600
+    lines = copy.read_text(encoding="utf-8").splitlines()
+    assert "GATEWAY_ANTHROPIC_API_KEY=the-real-one" not in lines
+    assert [ln for ln in lines if ln.startswith("GATEWAY_ANTHROPIC_API_KEY=")] == [
+        f"GATEWAY_ANTHROPIC_API_KEY={sc.REFUSED_KEY}"
+    ]
+    assert "H4_HOST=ec2" in lines and "SMTP_PORT=465" in lines
+    assert "the-real-one" in env_file.read_text(encoding="utf-8")
+    up = [
+        "docker",
+        "compose",
+        "-f",
+        str(tree / "deploy" / "compose.yaml"),
+        "--env-file",
+        str(copy),
+        "--env-file",
+        str(release_env),
+        "up",
+        "-d",
+        "--no-deps",
+        "--force-recreate",
+        "--wait",
+        "gateway",
+    ]
+    assert ran[0][0] == up
+    assert ran[0][1]["env"]["H4_TREE"] == str(tree)
+    key.restore()
+    back = list(up)
+    back[back.index(str(copy))] = str(env_file)
+    assert ran[1][0] == back
+    assert not copy.exists() and not (state / "hold").exists()
+
+
+def test_a_hold_the_author_made_stays_after_the_run(tmp_path: Path) -> None:
+    state, _, _, env_file = ec2_state(tmp_path)
+    (state / "hold").write_text("the Author\n", encoding="utf-8")
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 0)
+    key.refuse()
+    key.restore()
+    assert (state / "hold").read_text() == "the Author\n"
+
+
+def test_a_failed_recreate_stops_the_run(tmp_path: Path) -> None:
+    state, _, _, env_file = ec2_state(tmp_path)
+    key = sc.Ec2Key(env_file, state, lambda argv, **k: 1)
+    with pytest.raises(RuntimeError):
+        key.refuse()
