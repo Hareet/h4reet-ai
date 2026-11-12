@@ -56,7 +56,12 @@ Pending: yours, on your branch.
 
 ## Checks
 
-Pending.
+- **RED, at 176a6a4d:** `infra/lambdas/credential_audit` fails exactly the two new tests: the set named as iam.tf's, and the name read at each run.
+- **GREEN, with the rehearsal on (this branch's tip):**
+  - `infra/test`, `infra/lambdas`, and `evals/test_disclosure.py`: 313 passed;
+  - `scripts/infra`, `tools/gates/test/test_disclosure_check.py`, and `tools/gates/test/test_infra_policy.py`: 212 passed, plus one failure caused by the sandbox (`test_infra_check_runs_the_policy_then_waits_for_terraform` can't `mktemp` in its read-only `/tmp`).
+- **With the rehearsal off,** on a copy with `rehearsal = false` and no marker, as the branch that ends it will have: `infra/test` gives 125 passed. The three rehearsal tests now follow the tree's state, so both pass.
+- **The tools:** `tools/gates/disclosure_check.py` passes ("every outward thing the tree holds has its row"); `tools/gates/infra_policy.py --root .` passes, 15 files; `terraform fmt -check` passes on `main.tf`; ruff passes.
 
 ## Cost and data-flow impact
 
