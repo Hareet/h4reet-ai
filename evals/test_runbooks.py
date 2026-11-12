@@ -319,9 +319,9 @@ def test_spec_001s_group_4_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
-# Spec 001's group 5 (its tasks.md T159; T054 adds the tunnel end's page): the alert bridge's, whose failure queue's
+# Spec 001's group 5 (its tasks.md T054, T159): the tunnel end's page, and the alert bridge's, whose failure queue's
 # alarm W1 adds. The credential audit's page is group 4's, and the test above holds it to its new kind.
-SPEC_001_GROUP_5 = ("alert-bridge.md",)
+SPEC_001_GROUP_5 = ("tunnel-end.md", "alert-bridge.md")
 
 
 def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -> None:
@@ -539,3 +539,22 @@ def test_the_gates_page_says_prove_resets_the_engine() -> None:
         start = text.index(f"\n{heading}\n")
         part = text[start : text.index("\n## ", start + 1)]
         assert "`tools/gates/gate --prove`" in part, heading
+
+
+def test_the_tunnel_ends_page_covers_each_case_t054_names() -> None:
+    # Spec 001 tasks.md T054: a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot
+    # interruption; a move to another zone. And the laptop's page has its tunnel part.
+    text = (RUNBOOKS / "tunnel-end.md").read_text(encoding="utf-8")
+    for case in (
+        "### A restart",
+        "### A crash, a failed deploy, or a revoked key",
+        "### Revoking the laptop's key",
+        "### The tunnel end lost",
+        "### A spot interruption",
+        "### A move to another zone",
+    ):
+        assert case in text, case
+    laptop = (RUNBOOKS / "laptop.md").read_text(encoding="utf-8")
+    assert "### The tunnel" in laptop
+    for name in ("make tunnel-keys", "COMPOSE_PROFILES=gpu,tunnel", "P22"):
+        assert name in laptop, name
