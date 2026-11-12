@@ -792,6 +792,30 @@ describe("group 8's review A", () => {
     expect(clientKey("fe80::1%eth0")).toBe("fe80:0:0:0::");
   });
 
+  // Group 8's fixes' review, nit 3: an IPv4-mapped address in its hex form is the IPv4 address, as the dotted form is,
+  // never one shared /64 bucket for every mapped client.
+  it("keys an IPv4-mapped address in any form as its IPv4 address", async () => {
+    const { clientKey } = await import("../src/peer.js");
+    expect(clientKey("::ffff:c000:201")).toBe("192.0.2.1");
+    expect(clientKey("::FFFF:C000:0201")).toBe("192.0.2.1");
+    expect(clientKey("0:0:0:0:0:ffff:cb00:7107")).toBe("203.0.113.7");
+    expect(clientKey("::ffff:c000:202")).not.toBe(clientKey("::ffff:c000:201"));
+  });
+
+  // Group 8's fixes' review, nit 4: the class gauge follows the store in the 1 s round, so with no status poll it
+  // never holds a class older than the status's own 5 s read.
+  it("keeps the class gauge fresh from the 1 s round, with no status request", async () => {
+    const r = await rig();
+    await r.checks(3);
+    const metrics = JSON.parse(await capture.metricsJson()) as {
+      name: string;
+      points: [Record<string, string>, number][];
+    }[];
+    const gauge = metrics.find((m) => m.name === "h4.relay.status.class");
+    const points = (gauge?.points ?? []).map(([a, v]) => [a["h4.class"], v]);
+    expect(points.filter(([, v]) => v === 1)).toEqual([["local", 1]]);
+  });
+
   // I2 (spec 004's Amendment A2): the route label, the status bucket's limit name, and the class gauge.
   it("I2. counts status apart from hello by its route label, and its 429s by status_per_minute", async () => {
     const r = await rig();

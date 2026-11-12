@@ -18,6 +18,8 @@ import importlib.util
 import io
 import json
 import secrets
+import shutil
+import subprocess
 import sys
 import tarfile
 from pathlib import Path
@@ -209,3 +211,91 @@ def test_each_postgres_dump_names_its_database_and_user_never_a_password() -> No
     }
     for s in dumps:
         assert "pg_dump" in s.argv and "--data-only" in s.argv
+# Group 8's fixes' review, I2: each live source exits 2 unless every answer is ok and says success, and Loki's
+# answer at its limit is a truncated window, never a clean one. Run with node, its fetch a stub.
+NODE = shutil.which("node")
+
+
+def run_live(
+    name: str, answers: dict[str, tuple[int, str]]
+) -> subprocess.CompletedProcess:
+    stub = (
+        "globalThis.fetch=async(u)=>{const a="
+        + json.dumps(answers)
+        + ";const k=Object.keys(a).find(p=>String(u).includes(p));"
+        "if(!k)throw new Error('unexpected');const [s,b]=a[k];"
+        "return {ok:s>=200&&s<300,status:s,text:async()=>b,json:async()=>JSON.parse(b)}};"
+    )
+    # On standard input: a window at Loki's limit is longer than one argument may be.
+    return subprocess.run(
+        [NODE or "node", "-"],
+        input=stub + vs.LIVE_STORES[name],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def loki(lines: int, status: str = "success") -> str:
+    return json.dumps(
+        {
+            "status": status,
+            "data": {
+                "resultType": "streams",
+                "result": [
+                    {
+                        "stream": {"service_name": "gateway"},
+                        "values": [
+                            [str(1800000000000000000 + i), "a line"]
+                            for i in range(lines)
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+
+
+@pytest.mark.skipif(NODE is None, reason="node isn't on this machine")
+@pytest.mark.parametrize(
+    ("answer", "code"),
+    [
+        ((200, loki(3)), 0),
+        ((503, "Ingester not ready: waiting for 15s after being ready"), 2),
+        ((400, json.dumps({"status": "error", "error": "parse error"})), 2),
+        ((200, loki(3, status="error")), 2),
+        ((200, loki(5000)), 2),
+    ],
+)
+def test_lokis_source_fails_on_an_error_answer_or_a_window_at_its_limit(
+    answer: tuple[int, str], code: int
+) -> None:
+    done = run_live("loki", {"query_range": answer})
+    assert done.returncode == code, done.stderr
+    if code == 0:
+        assert "a line" in done.stdout
+
+
+PROM_OK = json.dumps({"status": "success", "data": ["__name__", "job"]})
+VALUES_OK = json.dumps({"status": "success", "data": ["h4_gateway_requests_total"]})
+
+
+@pytest.mark.skipif(NODE is None, reason="node isn't on this machine")
+@pytest.mark.parametrize(
+    ("labels", "values", "code"),
+    [
+        ((200, PROM_OK), (200, VALUES_OK), 0),
+        ((500, json.dumps({"status": "error", "error": "x"})), (200, VALUES_OK), 2),
+        ((200, json.dumps({"status": "error", "error": "x"})), (200, VALUES_OK), 2),
+        ((200, PROM_OK), (503, "unavailable"), 2),
+        ((200, PROM_OK), (200, json.dumps({"status": "error"})), 2),
+    ],
+)
+def test_prometheus_source_fails_on_any_error_answer(
+    labels: tuple[int, str], values: tuple[int, str], code: int
+) -> None:
+    done = run_live("prometheus", {"/labels": labels, "/values": values})
+    assert done.returncode == code, done.stderr
+    if code == 0:
+        assert "h4_gateway_requests_total" in done.stdout

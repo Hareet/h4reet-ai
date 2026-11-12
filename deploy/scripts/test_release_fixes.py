@@ -184,3 +184,28 @@ def test_the_gates_full_passing_line_is_accepted(tmp_path: Path) -> None:
     line = f"gate: {base.TIP} (feat/x) by tools/gates/gate at {base.PARENT[:12]}: 22 PASS, 4 SKIP, 1 WARN, 0 PLANNED, 0 PENDING, 0 FAIL"
     r.merge = f"{base.PARENT} {base.TIP}\nMerge feat/x ({base.TIP[:12]})\n\n{line}\n"
     assert base.run(tmp_path, r) == 0
+
+
+def test_the_exercised_files_are_the_whole_gateway_but_its_tests(tmp_path: Path) -> None:
+    # Group 8's fixes' review, nit 1: the gateway's Dockerfile, its migrations, and its build settings change what EC2
+    # runs as surely as its source; its tests don't. So the key hashes services/gateway whole, less test/.
+    gw = tmp_path / "services" / "gateway"
+    for rel, text in {
+        "src/a.ts": "a",
+        "test/a.test.ts": "t",
+        "Dockerfile": "FROM x",
+        "migrations/0001.sql": "create",
+        "tsconfig.build.json": "{}",
+        "package.json": "{}",
+    }.items():
+        (gw / rel).parent.mkdir(parents=True, exist_ok=True)
+        (gw / rel).write_text(text, encoding="utf-8")
+    first = rl.exercised(tmp_path)
+    (gw / "test" / "a.test.ts").write_text("t2", encoding="utf-8")
+    assert rl.exercised(tmp_path) == first
+    for rel in ("Dockerfile", "migrations/0001.sql", "tsconfig.build.json"):
+        before = rl.exercised(tmp_path)
+        (gw / rel).write_text("changed " + rel, encoding="utf-8")
+        assert rl.exercised(tmp_path) != before, rel
+    rt = _load_runner()
+    assert rt.exercised(tmp_path) == rl.exercised(tmp_path)
