@@ -112,10 +112,12 @@ describe("the repository's hints (T019)", () => {
   it("fill every figure from the configuration that enforces it (D5)", () => {
     const built = roomIndex().hints;
     const budgets = yamlOf<{ envs: { prod: Record<string, number> } }>("config/budgets.yaml").envs.prod;
-    const routing = yamlOf<{ adapters: Record<string, { model?: string }>; envs: { prod: { fallback: string } } }>(
-      "config/routing.yaml",
-    );
-    const model = routing.adapters[routing.envs.prod.fallback]?.model;
+    // Spec 001's schema 2: prod's route on the laptop is envs.prod.hosts.laptop.
+    const routing = yamlOf<{
+      adapters: Record<string, { model?: string }>;
+      envs: { prod: { fallback?: string; hosts?: { laptop: { fallback: string } } } };
+    }>("config/routing.yaml");
+    const model = routing.adapters[routing.envs.prod.hosts?.laptop.fallback ?? routing.envs.prod.fallback ?? ""]?.model;
     const prices = yamlOf<{ versions: { entries: { model: string; input: number; output: number }[] }[] }>(
       "config/prices.yaml",
     );

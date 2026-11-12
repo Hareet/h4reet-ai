@@ -2,7 +2,7 @@
 // slots filled at build, never typed. A figure slot from the configuration that enforces it, read through the
 // compositor's tree as build/room/readiness.ts reads config/budgets.yaml: prod's ceilings and its fallback sub-budget
 // from config/budgets.yaml, and the paid fallback's prices from config/prices.yaml's last version, its entry for the
-// model of the adapter config/routing.yaml's prod fallback names. A `{ui:<key>}` slot from the room's UI words, for a
+// model of the adapter config/routing.yaml's prod fallback names (the laptop's, with spec 001's schema 2). A `{ui:<key>}` slot from the room's UI words, for a
 // key on the closed list whose word holds no slot. Amounts in US dollars: whole where the cents are 0, else at least two
 // decimals, zeros past them trimmed. A slot that can't be filled leaves its hint unfilled, which RT17 reports and the
 // index leaves out. The three paths are constants, which fix/007-image-readiness's list of the files the room's build
@@ -83,7 +83,9 @@ export function hintFigures(tree: Pick<Tree, "read">): Partial<Record<FigureSlot
   put("budget.monthly_usd", at(budgets, "envs", "prod", "monthly_usd"));
   put("budget.fallback_daily_usd", at(budgets, "envs", "prod", "fallback_daily_usd"));
   const routing = yamlAt(tree, ROUTING_FILE);
-  const fallback = at(routing, "envs", "prod", "fallback");
+  // Spec 001's schema 2: prod's route on the laptop, the site's own host, is envs.prod.hosts.laptop.
+  const fallback =
+    at(routing, "envs", "prod", "hosts", "laptop", "fallback") ?? at(routing, "envs", "prod", "fallback");
   const model = typeof fallback === "string" ? at(routing, "adapters", fallback, "model") : undefined;
   const versions = at(yamlAt(tree, PRICES_FILE), "versions");
   const last = Array.isArray(versions) ? (versions.at(-1) as unknown) : undefined;
