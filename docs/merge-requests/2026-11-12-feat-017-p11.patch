@@ -26,9 +26,9 @@ How to apply, on your own branch, from the repository's root (one line each):
 
 Verified on a fresh `git archive refs/heads/main` export (main d4870ec8): dry run and apply clean; `pytest
 tools/gates/test/test_arrival_check.py`: 287 passed (the new R8 tests against main's unpatched check: 7 failed,
-4 passed, as they should). Every records.json on main read with R8: no step refused; `git log refs/heads/main -G`
-for either name in any records.json: no commit. Other branches weren't searched: make publish-check reads every ref,
-so an evaluation branch whose records name Qwen-Image-2.1 would now be refused there.
+4 passed, as they should). make publish-check reads every ref, so every ref was searched with R8's matcher: 253
+refs, 751 records.json paths at their tips, and every records.json version reachable from them (9 distinct blobs):
+no step refused. R8 refuses nothing already in history.
 
 --- a/tools/gates/arrival_check.py
 +++ b/tools/gates/arrival_check.py

@@ -28,7 +28,10 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -1624,8 +1627,10 @@ def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Spec 017's plan-only role, h4-agent-plan (its FR-032; research.md R-06; tasks.md T062). It arrives with the Author's
-# patch P-6 (docs/merge-requests/2026-11-12-feat-017-p6.patch), so these tests are RED until he applies it: the root
-# then holds the role, and each fixture in fixtures/account-plan/ is one defect, as fixtures/account/'s are.
+# patch P-6 (docs/merge-requests/2026-11-12-feat-017-p6.patch). As P-I2's files are read from their patch until he
+# applies it, these tests read iam.tf from the tree once it holds the role, and until then from P-6 applied with
+# `patch -p1` to a temporary copy of infra/account/, never to the tree. Each fixture in fixtures/account-plan/ is one
+# defect, as fixtures/account/'s are.
 #   - its trust: only the Author's administrator permission set's role, by the pattern h4-laptop-bedrock's trust uses,
 #     with the set's name a local of iam.tf alone and a precondition that refuses it unfilled; at most an hour a session;
 #   - its permissions: AWS's ReadOnlyAccess, attached alone; a deny of every parameter and secret value read; and
@@ -1633,6 +1638,62 @@ def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
 #   - its tags: component agent-plan, beside the provider's project and environment (check_provider).
 
 PLAN_ROLE = "h4-agent-plan"
+P6 = REPO / "docs" / "merge-requests" / "2026-11-12-feat-017-p6.patch"
+
+
+def holds_plan_role(iam: str) -> bool:
+    return (
+        re.search(rf'^\s*name\s*=\s*"{PLAN_ROLE}"\s*$', iam, re.MULTILINE) is not None
+    )
+
+
+def iam_from_p6(tree_iam: str) -> str | None:
+    """The tree's iam.tf with P-6 applied, by patch -p1 in a temporary copy of infra/account/; None without the
+    patch file. The tree is never written."""
+    if not P6.is_file():
+        return None
+    patch = shutil.which("patch")
+    assert patch, "patch(1) is needed to read iam.tf from P-6 until it's applied"
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / "infra" / "account" / "iam.tf"
+        copy.parent.mkdir(parents=True)
+        copy.write_text(tree_iam, encoding="utf-8")
+        with P6.open("rb") as diff:
+            done = subprocess.run(
+                [patch, "-p1", "--batch", "--forward", "--silent", "-d", tmp],
+                stdin=diff,
+                capture_output=True,
+                check=False,
+            )
+        assert done.returncode == 0, (
+            f"P-6 doesn't apply to the tree's iam.tf: {done.stdout!r} {done.stderr!r}"
+        )
+        return copy.read_text(encoding="utf-8")
+
+
+def plan_root_texts() -> dict[str, str]:
+    """The root as root_texts() reads it, with iam.tf from the tree once it holds h4-agent-plan, else from P-6."""
+    texts = root_texts()
+    iam = texts.get("iam.tf", "")
+    if not holds_plan_role(iam):
+        patched = iam_from_p6(iam)
+        if patched is not None:
+            texts["iam.tf"] = patched
+    return texts
+
+
+def test_the_plan_role_is_read_from_the_tree_once_p6_is_applied_and_from_p6_until_then() -> (
+    None
+):
+    tree = root_texts()["iam.tf"]
+    read = plan_root_texts()["iam.tf"]
+    assert holds_plan_role(read)
+    if holds_plan_role(tree):
+        assert read == tree
+    else:
+        assert P6.is_file() and read != tree
+
+
 PLAN_FIXTURES = sorted((FIXTURES.parent / "account-plan").glob("*.tf"))
 _PLAN_ROLE_NAME = (
     "AWSReservedSSO_${local.plan_permission_set}_" + "?" * ROLE_SUFFIX_LENGTH
@@ -1741,7 +1802,7 @@ def check_plan_role(root: dict[str, list]) -> list[str]:
 def test_h4_agent_plan_reads_only_and_locks_the_state_trusting_the_administrator_set_alone() -> (
     None
 ):
-    root = parsed(root_texts())
+    root = parsed(plan_root_texts())
     assert check_plan_role(root) == []
     assert (
         problems(root) == []
@@ -1754,7 +1815,7 @@ def test_the_plan_role_has_its_fixtures() -> None:
 
 @pytest.mark.parametrize("path", PLAN_FIXTURES, ids=[p.stem for p in PLAN_FIXTURES])
 def test_each_plan_role_fixture_is_found_as_its_defect(path: Path) -> None:
-    root = parsed(root_texts())
+    root = parsed(plan_root_texts())
     changed, expect = mutated(root, path)
     assert expect, f"{path.name} names no problem it expects"
     found = check_plan_role(changed)
