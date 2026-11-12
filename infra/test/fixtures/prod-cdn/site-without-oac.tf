@@ -12,9 +12,9 @@ resource "aws_cloudfront_distribution" "site" {
 
   # The room's built site, synced to site/ by each release (contracts/edge.md §5).
   origin {
-    origin_id                = "site"
-    domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
-    origin_path              = "/site"
+    origin_id   = "site"
+    domain_name = aws_s3_bucket.site.bucket_regional_domain_name
+    origin_path = "/site"
   }
 
   # The relay on the tunnel end, which picks the serving host (contracts/relay-http.md). Read for 30 s, the relay's
