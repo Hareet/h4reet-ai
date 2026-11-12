@@ -782,6 +782,62 @@ def _attributes(block) -> list:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+# What a rule's h4-alerts target delivers (group 5's review, I6): EventBridge fills a string input_template's
+# placeholders and publishes the template's JSON text, its quotes and its \n escapes and all, as the SNS message. The
+# bridge, as P-I3 leaves it, must read that as the notice it encodes.
+
+
+def delivered(target, values: dict[str, str]) -> str:
+    """The SNS message EventBridge publishes for target's input transformer, with values for its input paths."""
+    transformer = target.block("input_transformer")
+    template = lit(transformer, "input_template")
+    assert isinstance(template, str), "the template isn't a string literal"
+    for name, value in values.items():
+        template = template.replace(f"<{name}>", value)
+    return template
+
+
+def bridge():
+    text = patches.patched_text("infra/lambdas/alert_bridge/bridge.py")
+    assert text is not None
+    path = HERE / ".bridge_as_patched.py"
+    module = type(sys)("alert_bridge_as_patched")
+    module.__file__ = str(path)
+    sys.modules[module.__name__] = module
+    exec(compile(text, str(path), "exec"), module.__dict__)
+    return module
+
+
+def rule_target(root: dict[str, list], name: str):
+    rules = [
+        r
+        for r in resource(root, "aws_cloudwatch_event_rule")
+        if lit(r, "name") == name
+    ]
+    assert len(rules) == 1, name
+    (target,) = [
+        t
+        for t in resource(root, "aws_cloudwatch_event_target")
+        if raw(t, "rule") == f"aws_cloudwatch_event_rule.{rules[0].labels[1]}.name"
+    ]
+    return target
+
+
+def test_the_warnings_message_reaches_the_bridge_as_tunnel_end_interruption() -> None:
+    message = delivered(
+        rule_target(parsed(root_texts()), "h4-tunnel-end-spot-warning"),
+        {"action": "stop", "at": "2026-11-13T05:00:00Z"},
+    )
+    # EventBridge's own shape: a JSON string, quoted, its line breaks escaped.
+    assert message.startswith('"[hareet.ai aws] tunnel_end_interruption: ') and "\\n- action: stop" in message
+    alert = bridge().classify(message)
+    assert (alert.kind, alert.facts) == (
+        "tunnel_end_interruption",
+        [("action", "stop"), ("at", "2026-11-13T05:00:00Z")],
+    ), alert
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 # The fixtures: one defect each.
 
 

@@ -242,7 +242,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
      "credential_finding": ours(
          "credential_finding",
          "2 findings",
-@@ -415,6 +418,35 @@
+@@ -415,6 +418,63 @@
      assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
  
  
@@ -273,6 +273,34 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), name
 +    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-something-else"))
 +    assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
++
++
++# EventBridge's input transformer, given a string template, publishes that string's JSON text: its quotes, and each
++# line break as the two characters \n (infra/prod/handover.tf's rules; group 5's review, I6).
++EVENTBRIDGE_STRING = (
++    '"[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes'
++    '\\n- action: stop\\n- at: 2026-11-13T05:00:00Z"'
++)
++
++
++def test_an_eventbridge_string_template_is_read_as_the_notice_it_encodes() -> None:
++    assert json.loads(EVENTBRIDGE_STRING).count("\n") == 2
++    _, telegram, _ = deliver(EVENTBRIDGE_STRING)
++    (text,) = telegram.texts
++    assert text.splitlines() == [
++        "[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes",
++        "- action: stop",
++        "- at: 2026-11-13T05:00:00Z",
++        "Runbook: docs/runbooks/tunnel-end.md",
++    ]
++    # A JSON string is read once, as text: one of no known shape, or a string inside a string, is unrecognized.
++    for message in (
++        json.dumps("not a notice of ours"),
++        json.dumps(EVENTBRIDGE_STRING),
++        json.dumps("[hareet.ai aws] no_such_kind: x"),
++    ):
++        _, telegram, _ = deliver(message)
++        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), message
 +
 +
  def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:
