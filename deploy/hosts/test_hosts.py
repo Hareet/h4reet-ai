@@ -324,3 +324,51 @@ def test_the_user_data_carries_every_host_file_the_units_run() -> None:
         "daemon.json",
     ):
         assert f'source = "deploy/hosts/tunnel-end/{name}"' in text, name
+
+
+def rendered_user_data() -> str:
+    """cloud-init's user data as prod's templatefile() renders it: each host file, by its place, as a block scalar."""
+    text = patches.patched_text("infra/prod/tunnel-end.tf")
+    assert text is not None
+    files = {
+        m.group(1): (m.group(2), m.group(3))
+        for m in re.finditer(
+            r'"([^"]+)"\s*=\s*\{ source = "([^"]+)", mode = "([0-9]+)" \}', text
+        )
+    }
+    template = (HOST / "cloud-init.yaml.tftpl").read_text(encoding="utf-8")
+    loop = re.search(
+        r"%\{ for path, file in files ~\}\n(.*?)%\{ endfor ~\}\n", template, re.DOTALL
+    )
+    assert loop and files
+    entries = []
+    for path, (source, mode) in sorted(files.items()):
+        lines = (REPO / source).read_text(encoding="utf-8").split("\n")
+        indented = "\n".join(
+            [lines[0], *((" " * 6 + ln) if ln else ln for ln in lines[1:])]
+        )
+        entries.append(
+            loop.group(1)
+            .replace("${path}", path)
+            .replace("${file.mode}", mode)
+            .replace("${indent(6, file.content)}", indented)
+        )
+    return template[: loop.start()] + "".join(entries) + template[loop.end() :]
+
+
+def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> None:
+    import gzip
+
+    text = rendered_user_data()
+    document = yaml.safe_load(text)
+    for item in document["write_files"]:
+        assert item["owner"] == "root:root", item["path"]
+    tf = patches.patched_text("infra/prod/tunnel-end.tf") or ""
+    sources = dict(re.findall(r'"([^"]+)"\s*=\s*\{ source = "([^"]+)"', tf))
+    for item in document["write_files"]:
+        assert item["content"] == (REPO / sources[item["path"]]).read_text(
+            encoding="utf-8"
+        )
+    # EC2 takes 16 KB of user data before its base64; ec2-market.tf sends it gzipped. Later groups' host files would
+    # pass it: they come from the release's tree instead (the note's backlog).
+    assert len(gzip.compress(text.encode())) < 15 * 1024
