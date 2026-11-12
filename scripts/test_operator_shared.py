@@ -209,7 +209,8 @@ def test_restore_prints_the_restored_meters_through_the_admin_only_stack(
     # init, and the renewal flag, which init sets as RENEW=1 says.
     assert "restored crossed ceilings: day:2026-11-13" in out
     assert (
-        "restored renewal: the fallback was renewed: init with RENEW=1 keeps it" in out
+        "restored renewal: the fallback was renewed: init with RENEW=1 renews it again, a new grant on today's fallback spend"
+        in out
     )
     assert "make operator-init ENV=shared" in out
 

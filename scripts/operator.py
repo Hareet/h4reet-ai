@@ -1785,7 +1785,7 @@ def restore_lines(body: dict[str, Any]) -> list[str]:
         (
             "restored renewal: the fallback awaited renewal: init without RENEW=1 keeps it waiting"
             if restored.get("fallback_awaiting_renewal") is not False
-            else "restored renewal: the fallback was renewed: init with RENEW=1 keeps it"
+            else "restored renewal: the fallback was renewed: init with RENEW=1 renews it again, a new grant on today's fallback spend"
         ),
         (
             "next: make operator-init ENV=shared, never lower than these, raised by the spend since the dump "

@@ -9,9 +9,9 @@ a backup (`shared-state-restore`). The roles target, `shared-state-roles`, is P-
     refuses them (a path to make, gmake, -C, a wrapper, ./, quotes in or around the name, a subshell, bash -c);
   - adds thirteen matrix rows, twelve blocks in those spellings and one allow, `shared-state-tlsx`, a name the
     rule's word boundary keeps out, each in matrix-required.txt so none can be dropped quietly.
-On an export with this patch, each block row blocks. After group 6's review (nit 2), two gap rows name what the rule
+On an export with this patch, each block row blocks. After group 6's review (nit 2), three gap rows name what the rule
 doesn't read: the targets' script run directly, `python3 -I -B scripts/infra/shared_state.py tls` and `restore`, which
-the gate's Author-only rule, reading make's words, lets through; the script refuses itself in the sandbox, and an agent
+the gate's Author-only rule, reading make's words, lets through, and `roles`, the roles target's (P-1's), the same way; the script refuses itself in the sandbox, and an agent
 session holds no AWS credential. Gap rows aren't in matrix-required.txt. The design adds no environment name (tasks.md
 T165's table): the CA certificate, GATEWAY_DB_TLS_CA, is public material, and the role passwords are P-1's DB_*
 names. Applies to main's copies, which no other W1 patch changes.
@@ -38,7 +38,7 @@ apply. Apply it on W1's -p branch before W1's gate (T171), with `patch -p1 < <th
  fi
 --- a/redteam/forbidden-actions.sh
 +++ b/redteam/forbidden-actions.sh
-@@ -1349,6 +1349,26 @@
+@@ -1349,6 +1349,28 @@
  cmd block 'make server-budget-restore'
  cmd block 'make tunnel-keys'
  cmd block 'make tunnel-revoke'
@@ -62,6 +62,8 @@ apply. Apply it on W1's -p branch before W1's gate (T171), with `patch -p1 < <th
 +# an agent session holds no AWS credential to act with.
 +cmd gap 'python3 -I -B scripts/infra/shared_state.py tls'
 +cmd gap 'python3 -I -B scripts/infra/shared_state.py restore'
++# And the roles target's (P-1's), the same way (the second review, nit 2).
++cmd gap 'python3 -I -B scripts/infra/shared_state.py roles'
  cmd block 'make aws-login PROFILE=h4reet-admin'
  cmd block 'bash deploy/scripts/aws-sso-profile.sh h4reet-admin'
  cmd block './deploy/scripts/aws-sso-profile.sh h4reet-admin'
