@@ -125,6 +125,13 @@ VOLUME_OWNERS = {
     "tunnel-end": {"tunnel-end-collector-queue": 10001},
 }
 PROJECT = "h4reet-prod"
+# SC-017's harness holds the deployer with a stamped hold, `sc017 <epoch>`, and keeps its refused copy of EC2's env file
+# on tmpfs (evals/sc017_ec2_routes.py). A harness that died leaves both; past this age the deployer clears the hold,
+# removes the copy, and recreates the gateway with the real file (group 7's fixes' review, I3). The run's phases take
+# about 11 minutes each.
+SC017_STALE_S = 3600
+SC017_HOLD = re.compile(r"sc017 (\d+)\s*")
+RUN_DIR = Path("/run/h4reet")
 DOCKER_ROOTS = ("/var/lib/docker/", "/srv/h4reet/data/docker/")
 # main's exit for a run that refused or rolled back and alerted; anything else non-zero is a deployer that didn't run,
 # which the first step alerts (deploy/scripts/deploy_first_step.py).
@@ -517,17 +524,34 @@ class Deployer:
             and before.get("outcome") == outcome
         )
 
+    def tally(self) -> tuple[dict, dict[str, int]]:
+        """events.json, and its counts with anything that isn't a whole number read as none (nit 5): a damaged file
+        never stops a record line."""
+        events = self.memory("events")
+        raw = events.get("counts") if isinstance(events.get("counts"), dict) else {}
+        counts: dict[str, int] = {}
+        for name, value in raw.items():
+            try:
+                counts[str(name)] = max(int(value), 0)
+            except (TypeError, ValueError):
+                counts[str(name)] = 0
+        return events, counts
+
     def record(self, release: dict, outcome: str) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
-        events = self.memory("events")
-        tally = events.get("counts") if isinstance(events.get("counts"), dict) else {}
-        tally[outcome] = int(tally.get(outcome, 0) or 0) + 1
+        events, tally = self.tally()
+        tally[outcome] = tally.get(outcome, 0) + 1
         try:
             self.keep(
                 "events", {"start": events.get("start", self.clock()), "counts": tally}
             )
-        except OSError:
-            pass
+        except OSError as error:
+            # Said, not swallowed (nit 5): the counter holds its last count until the file can be written again.
+            print(
+                f"{PROG}: events.json couldn't be written ({type(error).__name__}): the deployments counter holds its "
+                "last count",
+                file=sys.stderr,
+            )
         line = {
             "host": self.host,
             "release": release.get("release"),
@@ -545,8 +569,7 @@ class Deployer:
         post = getattr(self.docker, "post_metrics", None)
         if post is None:
             return
-        events = self.memory("events")
-        tally = events.get("counts") if isinstance(events.get("counts"), dict) else {}
+        events, tally = self.tally()
         try:
             start = float(events.get("start", self.clock()))
             current = self.recorded("current")
@@ -880,6 +903,25 @@ class Deployer:
         self.alert_once(key or f"{rid}:{reason}", message)
         return 1
 
+    def clear_sc017(self, hold: Path, run_dir: Path) -> None:
+        """A dead SC-017 harness's stale hold: gone, its refused copy gone, and the gateway recreated from the real env
+        file, since a gateway still running on the refused key passes every check that it runs (I3)."""
+        print(
+            f"{PROG}: SC-017's hold is stale: cleared, and the gateway recreated with the real key",
+            file=sys.stderr,
+        )
+        hold.unlink(missing_ok=True)
+        (run_dir / "sc017.env").unlink(missing_ok=True)
+        current = self.recorded("current")
+        if current is None or "gateway" not in verify(self.host, current):
+            return
+        env_files = [self.env_file, self.release_env(current)]
+        self.docker.compose(
+            self.tree(current),
+            env_files,
+            ["up", "-d", "--no-deps", "--force-recreate", "--wait", "gateway"],
+        )
+
     def restart(self, service: str) -> int:
         current = self.recorded("current")
         if current is None or service not in verify(self.host, current):
@@ -901,6 +943,7 @@ def run(
     now: Callable[[], str] = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     restart: str | None = None,
     clock: Callable[[], float] = time.time,
+    run_dir: Path = RUN_DIR,
 ) -> int:
     deployer = Deployer(host, env_file, state, aws, docker, plugin, now, clock)
     if restart is not None:
@@ -908,6 +951,16 @@ def run(
     # The Author's hold (releases-deployer.md §4): nothing starts, restarts, or deploys while it stands; alerted once
     # per hold, so a forgotten one doesn't stand unseen (the second review, nit 3).
     hold = state / "hold"
+    try:
+        stamped = (
+            SC017_HOLD.fullmatch(hold.read_text(encoding="utf-8"))
+            if hold.exists()
+            else None
+        )
+    except (OSError, UnicodeDecodeError):
+        stamped = None
+    if stamped is not None and clock() - int(stamped.group(1)) > SC017_STALE_S:
+        deployer.clear_sc017(hold, run_dir)
     if hold.exists():
         print(f"{PROG}: held ({hold}): nothing changes", file=sys.stderr)
         # What SNS refused earlier goes now, a hold's own alert among them (group 7's review A, I-B).

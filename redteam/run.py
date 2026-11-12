@@ -523,6 +523,11 @@ LIVE_ADAPTERS = ("local", "bedrock", "anthropic")
 # Each live adapter's provider (spec 010, FR-025); the paid ones run on prod alone.
 PROVIDERS = {"local": "local", "bedrock": "aws.bedrock", "anthropic": "anthropic"}
 PAID = ("bedrock", "anthropic")
+# Spec 001 (group 7's fixes' review, I1; FR-039): the host a live run is on. EC2's runs come from the Author's Systems
+# Manager session on it, through EC2's own admin listener, on EC2's two route adapters alone; the release's red-team
+# gate reads each record's host beside its adapter.
+HOSTS = ("laptop", "ec2")
+EC2_ADAPTERS = ("anthropic", "bedrock")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -537,7 +542,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--stack", choices=STACKS)
     parser.add_argument("--adapter", choices=LIVE_ADAPTERS)
+    parser.add_argument("--host", choices=HOSTS, default="laptop")
     args = parser.parse_args(argv)
+    if args.host == "ec2" and (
+        not args.live or args.stack != "prod" or args.adapter not in EC2_ADAPTERS
+    ):
+        raise UsageError(
+            "--host ec2 is a live run on prod, on one of EC2's two adapters: anthropic or bedrock"
+        )
     if args.live and (args.stack is None or args.adapter is None):
         raise UsageError("--live needs --stack and --adapter")
     if not args.live and (args.stack is not None or args.adapter is not None):
@@ -628,6 +640,7 @@ def live_run(
     adapter: str,
     history: Path,
     commit: str | None = None,
+    host: str = "laptop",
 ) -> int:
     """Each case that has `live`, through the admin twin route on one adapter, judged as safe; its history written
     with each answer's hash and never its text, and the commit the stack runs, which the release's red-team gate
@@ -713,6 +726,7 @@ def live_run(
     redactions = sum(r["verdict"] == "pass" and bool(r["redacted"]) for r in results)
     record = {
         "suite": "redteam",
+        "host": host,
         "adapter": adapter,
         "provider": PROVIDERS.get(adapter, adapter),
         "stack": stack,
@@ -726,7 +740,12 @@ def live_run(
         "results": results,
     }
     history.mkdir(parents=True, exist_ok=True)
-    name = f"{started.strftime('%Y%m%dT%H%M%SZ')}-{adapter}.json"
+    stamp = started.strftime("%Y%m%dT%H%M%SZ")
+    name = (
+        f"{stamp}-{adapter}.json"
+        if host == "laptop"
+        else f"{stamp}-{host}-{adapter}.json"
+    )
     (history / name).write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -773,7 +792,9 @@ def main(
             return 2
         client = client_factory(args.stack)
         commit = commit_of(args.stack) if commit_of is not None else None
-        return live_run(cases, client, args.stack, args.adapter, history, commit)
+        return live_run(
+            cases, client, args.stack, args.adapter, history, commit, host=args.host
+        )
     failed = 0
     for case in cases:
         passed, findings = judge(case)

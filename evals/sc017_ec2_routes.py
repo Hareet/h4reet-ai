@@ -27,8 +27,11 @@ Author's alone. Exit 0 the run meets SC-017, 1 it doesn't, 2 it couldn't run.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -51,6 +54,11 @@ REFUSED_KEY = "sc017-refused-key"
 KEY = "GATEWAY_ANTHROPIC_API_KEY"
 ENV_FILE = Path("/run/h4reet/ec2.env")
 STATE = Path("/var/lib/h4reet/deploy")
+# Group 7's fixes, reviewed (I3): the refused copy lives on tmpfs, so a run that dies leaves no secret on disk; the
+# hold is stamped, so the deployer clears one a dead run left (deploy/scripts/deployer.py, SC017_STALE_S).
+RUN_DIR = Path("/run/h4reet")
+LOCK_WAIT_S = 120
+PROGRESS_EVERY = 10
 
 
 def routing_file(repo: Path = REPO) -> Path:
@@ -86,16 +94,24 @@ def attributes_missing(turn: dict) -> list[str]:
     return missing
 
 
+def say(text: str) -> None:
+    """Progress on the Author's session, so an eleven-minute run is never silent (I3)."""
+    print(text, file=sys.stderr, flush=True)
+
+
 def phase(
     gateway,
     turns: int,
     start: int,
     sleep: Callable[[float], None] | None,
     interval: float,
+    name: str = "phase",
 ) -> tuple[dict, list[dict]]:
     sent = []
     for i in range(turns):
         sent.append(gateway.hello(start + i))
+        if (i + 1) % PROGRESS_EVERY == 0 or i + 1 == turns:
+            say(f"sc017: {name} {i + 1}/{turns}")
         if sleep is not None:
             sleep(interval)
     admitted = [t for t in sent if t.get("status") != 429]
@@ -132,10 +148,10 @@ def run(
 ) -> dict:
     """Both phases: healthy, then with the first paid adapter failing, and the meters around them."""
     seen = [meters(gateway.status())]
-    healthy, first = phase(gateway, turns, 0, sleep, interval)
+    healthy, first = phase(gateway, turns, 0, sleep, interval, "healthy")
     seen.append(meters(gateway.status()))
     fail_first()
-    failing, second = phase(gateway, turns, turns, sleep, interval)
+    failing, second = phase(gateway, turns, turns, sleep, interval, "failing")
     seen.append(meters(gateway.status()))
     return {
         "healthy": healthy,
@@ -195,16 +211,65 @@ class Ec2Key:
     """The failing phase on EC2: the gateway recreated from the running release's tree, with a copy of the env file
     whose Anthropic key is refused, under the deployer's hold; then the real file again."""
 
-    def __init__(self, env_file: Path, state: Path, runner=compose_runner) -> None:
-        self.env_file, self.state, self.runner = env_file, state, runner
-        current = json.loads((state / "current.json").read_text(encoding="utf-8"))
-        self.tree = state / "trees" / str(current["commit"])
-        self.release_env = state / "releases" / f"{current['release']}.env"
-        self.refused_env = state / "sc017.env"
-        self.hold = state / "hold"
-        self.made_hold = self.refused = False
+    def __init__(
+        self,
+        env_file: Path,
+        state: Path,
+        runner=compose_runner,
+        run_dir: Path = RUN_DIR,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.env_file, self.state, self.runner, self.clock = (
+            env_file,
+            state,
+            runner,
+            clock,
+        )
+        self.refused_env = run_dir / "sc017.env"
+        self.hold_file = state / "hold"
+        self.tree: Path | None = None
+        self.release_env: Path | None = None
+        self.made_hold = self.refused = self.held = False
+
+    @contextlib.contextmanager
+    def locked(self):
+        """The deployer's state lock, the first step's (deploy/scripts/deploy_first_step.py), so no deploy starts
+        between the hold and the release it reads; waited for, at most LOCK_WAIT_S."""
+        with open(str(self.state / ".lock"), "a+") as lock:
+            deadline = time.monotonic() + LOCK_WAIT_S
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() > deadline:
+                        raise RuntimeError(
+                            "the deployer is running: try again in a minute"
+                        ) from None
+                    time.sleep(1)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+    def hold(self) -> None:
+        """Before the first phase: the deployer held, its hold stamped `sc017 <epoch>` unless the Author's stands,
+        and the running release read, all under the state lock, so the release can't change under the run."""
+        with self.locked():
+            if not self.hold_file.exists():
+                self.hold_file.write_text(
+                    f"sc017 {int(self.clock())}\n", encoding="utf-8"
+                )
+                self.made_hold = True
+            current = json.loads(
+                (self.state / "current.json").read_text(encoding="utf-8")
+            )
+            self.tree = self.state / "trees" / str(current["commit"])
+            self.release_env = self.state / "releases" / f"{current['release']}.env"
+        self.held = True
 
     def recreate(self, env_file: Path) -> bool:
+        assert self.tree is not None and self.release_env is not None
         argv = [
             "docker",
             "compose",
@@ -229,10 +294,10 @@ class Ec2Key:
         return self.runner(argv, env=env, cwd=str(self.tree)) == 0
 
     def refuse(self) -> None:
+        if not self.held:
+            self.hold()
         self.refused = True
-        if not self.hold.exists():
-            self.hold.write_text("sc017\n", encoding="utf-8")
-            self.made_hold = True
+        self.refused_env.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         lines = self.env_file.read_text(encoding="utf-8").splitlines()
         if not [ln for ln in lines if ln.startswith(f"{KEY}=")]:
             raise RuntimeError(f"the env file names no {KEY}")
@@ -253,18 +318,23 @@ class Ec2Key:
         """The gateway with the real file; the copy and the run's own hold go whatever happens, so the deployer's
         next run brings the real gateway back if this didn't. Nothing to do if the key was never refused."""
         if not self.refused:
+            self.release_hold()
             return True
         ok = self.recreate(self.env_file)
         try:
             self.refused_env.unlink()
         except OSError:
             pass
+        self.release_hold()
+        return ok
+
+    def release_hold(self) -> None:
         if self.made_hold:
             try:
-                self.hold.unlink()
+                self.hold_file.unlink()
             except OSError:
                 pass
-        return ok
+            self.made_hold = False
 
 
 class HttpGateway:
@@ -299,6 +369,11 @@ class HttpGateway:
             return json.loads(response.read())
 
 
+def on_signal(signum: int, frame: object) -> None:
+    """SIGTERM and SIGHUP, as a dropped Systems Manager session sends, end the run through its restore (I3)."""
+    raise SystemExit(128 + signum)
+
+
 def main(argv: list[str], env: dict[str, str] | None = None) -> int:
     env = dict(os.environ) if env is None else env
     parser = argparse.ArgumentParser(
@@ -326,17 +401,23 @@ def main(argv: list[str], env: dict[str, str] | None = None) -> int:
         print(f"sc017: can't run: {error}", file=sys.stderr)
         return 2
     gateway = HttpGateway(args.base, args.admin or args.base, token)
+    previous = {s: signal.signal(s, on_signal) for s in (signal.SIGTERM, signal.SIGHUP)}
     try:
+        key.hold()
         report = run(gateway, args.turns, key.refuse, time.sleep, args.interval)
     except (OSError, RuntimeError) as error:
         print(f"sc017: can't run: {error}", file=sys.stderr)
         return 2
     finally:
-        if not key.restore():
-            print(
-                "sc017: the gateway didn't start again with the real key: the deployer's next run restarts it",
-                file=sys.stderr,
-            )
+        try:
+            if not key.restore():
+                print(
+                    "sc017: the gateway didn't start again with the real key: the deployer's next run restarts it",
+                    file=sys.stderr,
+                )
+        finally:
+            for s, handler in previous.items():
+                signal.signal(s, handler)
     found = score(report)
     print(json.dumps({k: v for k, v in report.items() if k != "turns"}, indent=2))
     for line in found:

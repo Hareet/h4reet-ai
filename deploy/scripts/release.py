@@ -66,10 +66,15 @@ COPY_REPOSITORIES = {
     "ec2-relay-block": "edge",
 }
 GRAVITON = frozenset({"ec2", "tunnel-end"})
-# FR-039's adapters, those that answer on either host: the laptop's local model and its paid fallback, EC2's two paid
-# APIs. Three names: "fake" answers nothing live, and redteam-live refuses it (group 7's review A, I-D).
-ADAPTERS = ("local", "bedrock", "anthropic")
 CLOUD_CLASSES = ("ec2", "tunnel-end")
+# Each host's route keys, in order, in config/routing.yaml's schema 2 (spec 001 data-model.md §2.1): the laptop's
+# primary and fallback, EC2's first and second. FR-039's four adapters are these, each on its own host (group 7's
+# fixes' review, I1): a laptop run of Bedrock doesn't stand for EC2's, whose prompt route and model may differ.
+ROUTE_KEYS = {"laptop": ("primary", "fallback"), "ec2": ("first", "second")}
+# The release runs only as main's own code (group 7's fixes' review, I2): these two, the Makefile that calls it and
+# itself, must be refs/heads/main's blobs, so a checkout parked on an agent's branch can't run its own with the
+# Author's administrator session.
+SELF_FILES = ("deploy/scripts/release.py", "Makefile")
 DIGEST_LINE = re.compile(r"^Digest:\s+(sha256:[0-9a-f]{64})\s*$", re.MULTILINE)
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # The site in the web image, where its Dockerfile's runtime stage copies dist/.
@@ -155,10 +160,50 @@ def digest_of(runner: Runner, ref: str) -> str:
     return m.group(1)
 
 
-def check_redteam(folder: Path, commit: str) -> None:
-    """A passing run of this very commit on each adapter, matched by each record's own commit field (redteam/run.py's
-    live record), never by its time: a run made after the merge needn't touch the checkout."""
-    newest: dict[str, dict] = {}
+def required_runs(routing: dict) -> list[tuple[str, str]]:
+    """(host, adapter) for each adapter each host's route names, the laptop's first (FR-039)."""
+    hosts = (((routing or {}).get("envs") or {}).get("prod") or {}).get("hosts") or {}
+    out = []
+    for host, keys in ROUTE_KEYS.items():
+        route = hosts.get(host) or {}
+        for key in keys:
+            adapter = route.get(key) if isinstance(route, dict) else None
+            if isinstance(adapter, str) and adapter:
+                out.append((host, adapter))
+    return out
+
+
+def blob_of(path: Path) -> str:
+    """git's blob ID of a file's bytes, as `git hash-object` gives it, computed here so no git config runs."""
+    data = path.read_bytes()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def check_self(runner: Runner, root: Path) -> None:
+    """The release and its Makefile are main's (I2): their bytes here are refs/heads/main's blobs."""
+    for rel in SELF_FILES:
+        code, out = runner(["git", "rev-parse", "--verify", f"refs/heads/main:{rel}"])
+        try:
+            own = blob_of(root / rel)
+        except OSError:
+            own = ""
+        if code != 0 or out.strip() != own:
+            raise Refused(
+                f"{rel} isn't refs/heads/main's: run the release from main's checkout, on main (group 7's fixes' review, I2)"
+            )
+
+
+def check_redteam(folder: Path, commit: str, routing: dict | None = None) -> None:
+    """A passing run of this very commit on each host's route adapters, matched by each record's own commit field
+    (redteam/run.py's live record), never by its time: a run made after the merge needn't touch the checkout. A record
+    without a host is the laptop's, as every run was before EC2's had its own (I1)."""
+    required = required_runs(routing or {})
+    if not any(host == "ec2" for host, _ in required):
+        raise Refused(
+            "the red-team gate: the export's config/routing.yaml names no route for ec2, so EC2's adapters can't be "
+            "checked (FR-039)"
+        )
+    newest: dict[tuple[str, str], dict] = {}
     for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
         try:
             run = json.loads(path.read_text(encoding="utf-8"))
@@ -167,16 +212,16 @@ def check_redteam(folder: Path, commit: str) -> None:
             continue
         if run.get("commit") != commit:
             continue
-        adapter = str(run.get("adapter"))
-        if adapter not in newest or finished >= newest[adapter]["_at"]:
-            newest[adapter] = {**run, "_at": finished}
+        pair = (str(run.get("host") or "laptop"), str(run.get("adapter")))
+        if pair not in newest or finished >= newest[pair]["_at"]:
+            newest[pair] = {**run, "_at": finished}
     failing = [
-        a
-        for a in ADAPTERS
-        if a not in newest
-        or newest[a].get("failed") != 0
-        or newest[a].get("unjudged") != 0
-        or not newest[a].get("cases")
+        f"{host}/{adapter}"
+        for host, adapter in required
+        if (host, adapter) not in newest
+        or newest[(host, adapter)].get("failed") != 0
+        or newest[(host, adapter)].get("unjudged") != 0
+        or not newest[(host, adapter)].get("cases")
     ]
     if failing:
         raise Refused(
@@ -194,9 +239,22 @@ def check_gate(runner: Runner, commit: str) -> None:
         raise Refused(
             f"{commit[:12]} isn't a merge: a release is of a gated merge into main (contract §2.1)"
         )
-    if not re.search(rf"^gate: {tips[1]} \(", body, re.MULTILINE):
+    line = re.search(rf"^gate: {tips[1]} \(.*$", body, re.MULTILINE)
+    if not line:
         raise Refused(
             f"{commit[:12]}'s message has no `gate: {tips[1][:12]}…` line: its branch didn't pass the gate"
+        )
+    # The line must report a pass, in the gate's own words (tools/gates/gate, summary_line): no failing step, none
+    # PENDING, and a full run, not --host's degraded one (group 7's fixes' review, nit 1).
+    said = line.group(0)
+    if (
+        "; failing:" in said
+        or "DEGRADED" in said
+        or not re.search(r"\b0 FAIL\b", said)
+        or ("PENDING" in said and not re.search(r"\b0 PENDING\b", said))
+    ):
+        raise Refused(
+            f"{commit[:12]}'s gate line doesn't report a pass: a merge by hand past a failing gate isn't releasable"
         )
 
 
@@ -329,12 +387,22 @@ def run(
     now: Callable[[], str] = lambda: time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
     contexts: Callable[[str, Path], list[str]] | None = None,
     exported: Callable[[str, Path], Path] | None = None,
+    routing_of: Callable[[Path], dict] | None = None,
 ) -> int:
     contexts = contexts or (lambda name, src: [])
     exported = exported or (lambda commit, work: export_tree(runner, commit, work))
+    # The export's own routes, which the red-team gate reads each host's adapters from (I1).
+    routing_of = routing_of or (
+        lambda src: (
+            yaml.safe_load(
+                (src / "config" / "routing.yaml").read_text(encoding="utf-8")
+            )
+            or {}
+        )
+    )
     work = Path(tempfile.mkdtemp(prefix="h4-release-"))
     try:
-        return released(opts, runner, root, now, contexts, exported, work)
+        return released(opts, runner, root, now, contexts, exported, work, routing_of)
     except Refused as refused:
         print(
             f"{PROG}: refused, nothing pushed past the step that refused: {refused}",
@@ -349,9 +417,17 @@ def run(
 
 
 def released(
-    opts: Options, runner: Runner, root: Path, now, contexts, exported, work: Path
+    opts: Options,
+    runner: Runner,
+    root: Path,
+    now,
+    contexts,
+    exported,
+    work: Path,
+    routing_of,
 ) -> int:
     # 1. The gates, before anything is built or pushed: refs/heads/main's commit, never the checkout's HEAD.
+    check_self(runner, root)
     head = runner(["git", "rev-parse", "--verify", "refs/heads/main"])[1].strip()
     if not COMMIT_RE.fullmatch(head):
         raise Refused("refs/heads/main doesn't name a commit (FR-046)")
@@ -359,9 +435,9 @@ def released(
     plugin = opts.compose_plugin.read_bytes()
     if hashlib.sha256(plugin).hexdigest() != opts.compose_sha256:
         raise Refused("the Compose plugin isn't the file its SHA-256 names")
-    if opts.public:
-        check_redteam(opts.redteam, head)
     src = exported(head, work)
+    if opts.public:
+        check_redteam(opts.redteam, head, routing_of(src))
     check_site(runner, src, root, head, contexts, work)
 
     # 2. The images, from the export.
@@ -490,6 +566,8 @@ def released(
 
 
 def subprocess_runner(argv: list[str], env: dict | None = None) -> tuple[int, str]:
+    # Replace objects off for every git command it runs, the gate's check and the export among them (nit 1).
+    env = {**(os.environ if env is None else env), "GIT_NO_REPLACE_OBJECTS": "1"}
     done = subprocess.run(
         argv,
         capture_output=True,
