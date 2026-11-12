@@ -442,18 +442,34 @@ def check_server_budget(root: dict[str, list]) -> list[str]:
         found.append(
             'h4-server-month: metrics isn\'t ["UnblendedCost"], which filter_expression needs'
         )
+    # The shared account (spec.md Assumptions, "One account, shared with the Author's other work"; ADR 0047): every
+    # cost tagged project = h4reet-ai but Bedrock's, so the Author's other work never trips the server action. Two
+    # `and` terms: not Bedrock's services, and the project's tag, as default_tags writes it.
     fe = b.block("filter_expression")
-    excluded = fe.block("not") if fe is not None else None
-    dims = excluded.block("dimensions") if excluded is not None else None
+    terms = fe.blocks("and") if fe is not None else []
+    excluded = [t.block("not") for t in terms if t.block("not") is not None]
+    dims = excluded[0].block("dimensions") if len(excluded) == 1 else None
+    tags = [t.block("tags") for t in terms if t.block("tags") is not None]
+    tag = tags[0] if len(tags) == 1 else None
     if (
         b.blocks("cost_filter")
+        or fe is None
+        or len(fe.body) != 2
+        or len(terms) != 2
+        or any(len(t.body) != 1 for t in terms)
         or dims is None
+        or len(excluded[0].body) != 1
+        or len(dims.body) != 2
         or ip.literal(dims.attr("key")) != "SERVICE"
         or raw(dims, "values") != BEDROCK
-        or len(fe.body) != 1  # type: ignore[union-attr]
-        or len(excluded.body) != 1  # type: ignore[union-attr]
+        or tag is None
+        or len(tag.body) != 2
+        or ip.literal(tag.attr("key")) != "project"
+        or re.sub(r"\s", "", raw(tag, "values")) != '["h4reet-ai"]'
     ):
-        found.append("h4-server-month: doesn't count every cost but Bedrock's")
+        found.append(
+            "h4-server-month: doesn't count every cost of this project but Bedrock's"
+        )
     found += _notifications(b)
     return found
 

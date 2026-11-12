@@ -9,10 +9,18 @@ resource "aws_budgets_budget" "server_month" {
   metrics      = ["UnblendedCost"]
 
   filter_expression {
-    not {
-      dimensions {
-        key    = "SERVICE"
-        values = var.bedrock_service_names
+    and {
+      not {
+        dimensions {
+          key    = "SERVICE"
+          values = var.bedrock_service_names
+        }
+      }
+    }
+    and {
+      tags {
+        key    = "project"
+        values = ["h4reet-ai"]
       }
     }
   }

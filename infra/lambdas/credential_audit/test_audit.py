@@ -68,6 +68,7 @@ class StubAws:
         self.calls: list[tuple[str, str, dict]] = []
         self.users: dict[str, list[str]] = {}
         self.root_keys = 0
+        self.parameters: dict[str, str] = {}
         self.roles: dict[str, dict] = {
             "AWSServiceRoleForSupport": {
                 "trust": trust(allow({"Service": "support.amazonaws.com"})),
@@ -246,6 +247,11 @@ class StubAws:
         if key == "s3.PutObject":
             self.stored.append(params)
             return {}
+        if key == "ssm.GetParameter":
+            if params.get("Name") not in self.parameters:
+                raise audit.NotFound(key)
+            assert params.get("WithDecryption") is True
+            return {"Parameter": {"Value": self.parameters[str(params["Name"])]}}
         raise AssertionError(f"the stub doesn't know {key}")
 
 
@@ -762,3 +768,144 @@ def test_the_terminal_run_cant_run(tmp_path: Path, case: str) -> None:
     env = {"SANDBOX_RUNTIME": "1"} if case == "sandbox" else {}
     done = terminal(tmp_path, answers, *extra, **env)
     assert done.returncode == 2 and done.stdout == ""
+
+
+# The shared account (spec 001 Assumptions, "One account, shared with the Author's other work"; ADR 0047): the
+# Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it too", and of 2026-11-12, "Keep them out
+# of the repo". His allowlist names identities by finding kind and name; those findings move to "allowed", listed but
+# not failing. Four kinds only, never this project's own names; any other line is itself a finding. The names below
+# are made up: his list isn't in the repository.
+
+PARAMETER = "/h4reet/audit/IAM_ALLOW"
+
+
+def pairs(rows: list[dict]) -> list[tuple[str, str]]:
+    return [(r["check"], r["resource"]) for r in rows]
+
+
+def test_an_allowed_identity_is_listed_apart_and_doesnt_fail(aws: StubAws) -> None:
+    aws.users = {"other-user": [KEY_ID]}
+    aws.oidc = ["token.actions.example.com"]
+    aws.role("other-deploy", trust(allow({"AWS": f"arn:aws:iam::{OTHER}:root"})))
+    allowed = audit.parse_allow(
+        "# the Author's other work\n"
+        "\n"
+        "iam_user_present other-user\n"
+        "iam_user_access_key other-user   # its backup key\n"
+        "oidc_provider_present token.actions.example.com\n"
+        "role_foreign_trust other-deploy\n"
+        "iam_user_present gone-already\n"
+    )
+    result = audit.run_audit(aws, source="terminal", allow=allowed)
+    assert result["clean"] is True and result["findings"] == []
+    # Only what the audit found is listed; an entry naming nothing present lists nothing.
+    assert pairs(result["allowed"]) == [
+        ("iam_user_access_key", "other-user"),
+        ("iam_user_present", "other-user"),
+        ("oidc_provider_present", "token.actions.example.com"),
+        ("role_foreign_trust", "other-deploy"),
+    ]
+
+
+def test_each_kind_is_allowed_apart(aws: StubAws) -> None:
+    aws.users = {"other-user": [KEY_ID], "someone-new": []}
+    result = audit.run_audit(
+        aws,
+        source="terminal",
+        allow=audit.parse_allow("iam_user_present other-user\n"),
+    )
+    assert pairs(result["findings"]) == [
+        ("iam_user_access_key", "other-user"),
+        ("iam_user_present", "someone-new"),
+    ]
+    assert pairs(result["allowed"]) == [("iam_user_present", "other-user")]
+    assert result["clean"] is False
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "root_access_key root",
+        "laptop_identity_not_terraform h4-laptop-bedrock",
+        "laptop_permission_set_too_broad some-set",
+        "handover_policy_too_broad h4-ec2-stop",
+        "allowlist_entry_refused line",
+        "made_up_kind other-user",
+        "iam_user_present",
+        "iam_user_present other-user extra",
+        "role_foreign_trust h4-laptop-bedrock",
+        "iam_user_access_key h4-anything",
+        "role_foreign_trust AWSReservedSSO_SomeSet_0123456789abcdef",
+    ],
+)
+def test_a_line_outside_the_four_kinds_or_on_this_projects_names_is_a_finding(
+    aws: StubAws, line: str
+) -> None:
+    aws.users = {"other-user": []}
+    result = audit.run_audit(
+        aws,
+        source="terminal",
+        allow=audit.parse_allow("# first\niam_user_present other-user\n" + line + "\n"),
+    )
+    # Named by its line, never by its text: a mistyped line could carry anything.
+    assert pairs(result["findings"]) == [("allowlist_entry_refused", "line 3")]
+    assert pairs(result["allowed"]) == [("iam_user_present", "other-user")]
+    assert result["clean"] is False
+
+
+def test_a_strict_finding_stays_a_finding_beside_an_allowed_one(aws: StubAws) -> None:
+    aws.users = {"other-user": [KEY_ID]}
+    aws.root_keys = 1
+    allowed = audit.parse_allow(
+        "iam_user_present other-user\niam_user_access_key other-user\n"
+    )
+    result = audit.run_audit(aws, source="terminal", allow=allowed)
+    assert pairs(result["findings"]) == [("root_access_key", "root")]
+
+
+def test_with_no_allowlist_every_finding_stands(aws: StubAws) -> None:
+    aws.users = {"other-user": []}
+    result = audit.run_audit(aws, source="terminal")
+    assert pairs(result["findings"]) == [("iam_user_present", "other-user")]
+    assert result["allowed"] == []
+
+
+def test_the_terminals_list_is_the_authors_file_under_his_home(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = audit.terminal_allow()
+    assert path == tmp_path / ".config" / "h4reet-ai" / "infra" / "iam-allow.txt"
+    assert audit.load_allow(path) == audit.parse_allow("")
+    path.parent.mkdir(parents=True)
+    path.write_text("iam_user_present other-user\n", encoding="utf-8")
+    assert audit.load_allow(path) == audit.parse_allow("iam_user_present other-user\n")
+
+
+def test_the_lambda_reads_its_list_from_the_parameter_its_environment_names(
+    aws: StubAws, monkeypatch
+) -> None:
+    aws.users = {"other-user": []}
+    monkeypatch.delenv("H4_AUDIT_BUCKET", raising=False)
+    monkeypatch.delenv("H4_ALERTS_TOPIC_ARN", raising=False)
+    monkeypatch.setenv("H4_AUDIT_ALLOW_PARAMETER", PARAMETER)
+    aws.parameters[PARAMETER] = "iam_user_present other-user\n"
+    result = audit.handler({}, None, aws=aws)
+    assert result["clean"] is True
+    assert pairs(result["allowed"]) == [("iam_user_present", "other-user")]
+
+
+@pytest.mark.parametrize("case", ["no parameter named", "the parameter missing"])
+def test_the_lambda_without_its_list_lets_every_finding_stand(
+    aws: StubAws, monkeypatch, case: str
+) -> None:
+    aws.users = {"other-user": []}
+    monkeypatch.delenv("H4_AUDIT_BUCKET", raising=False)
+    monkeypatch.delenv("H4_ALERTS_TOPIC_ARN", raising=False)
+    if case == "no parameter named":
+        monkeypatch.delenv("H4_AUDIT_ALLOW_PARAMETER", raising=False)
+    else:
+        monkeypatch.setenv("H4_AUDIT_ALLOW_PARAMETER", PARAMETER)
+    result = audit.handler({}, None, aws=aws)
+    assert pairs(result["findings"]) == [("iam_user_present", "other-user")]
+    assert result["clean"] is False
