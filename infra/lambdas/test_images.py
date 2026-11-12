@@ -30,6 +30,9 @@ FUNCTIONS = {
     "alert_bridge": "bridge",
     "probe": "probe",
     "credential_audit": "audit",
+    # Group 9's two (tasks.md T122): the start function and the guard, each on the same base.
+    "ec2_start": "start",
+    "ec2_guard": "guard",
 }
 # The folders P-I2 creates, whose Dockerfiles it carries.
 PROTECTED = {"alert_bridge"}
