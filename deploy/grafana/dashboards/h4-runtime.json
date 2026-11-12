@@ -4566,13 +4566,122 @@
       }
     },
     {
+      "type": "table",
+      "id": 94,
+      "title": "The release on each host",
+      "description": "The release each cloud host's deployer runs, its commit, and who started it: deployer, or the Author by hand (spec 001 FR-049; contracts/releases-deployer.md §6). Never an address, an account, or a digest.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 174,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_host, h4_release, h4_commit, h4_started_by) (max_over_time(h4_release_info[1h]))",
+          "range": false,
+          "instant": true,
+          "format": "table",
+          "legendFormat": "{{h4_host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no release yet"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "renameByName": {
+              "h4_host": "host",
+              "h4_release": "release",
+              "h4_commit": "commit",
+              "h4_started_by": "started by"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 95,
+      "title": "Deployments",
+      "description": "Each deployer's attempts by host and outcome: deployed, refused, rolled back, or a rollback that failed (spec 001 FR-046, FR-047; contracts/releases-deployer.md §6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 174,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_host, outcome) (increase(h4_deploy_events_total[1h]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_host}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "type": "row",
       "id": 49,
       "title": "Studio GPU windows",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 175,
+        "y": 183,
         "w": 24,
         "h": 1
       },
@@ -4589,7 +4698,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 176,
+        "y": 184,
         "w": 24,
         "h": 6
       },
@@ -4678,7 +4787,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 183,
+        "y": 191,
         "w": 24,
         "h": 1
       },
@@ -4695,7 +4804,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 184,
+        "y": 192,
         "w": 10,
         "h": 7
       },
@@ -4754,7 +4863,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 184,
+        "y": 192,
         "w": 4,
         "h": 7
       },
@@ -4808,7 +4917,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 184,
+        "y": 192,
         "w": 10,
         "h": 7
       },
@@ -4874,7 +4983,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 191,
+        "y": 199,
         "w": 4,
         "h": 7
       },
@@ -4928,7 +5037,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 191,
+        "y": 199,
         "w": 8,
         "h": 7
       },
@@ -4994,7 +5103,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 191,
+        "y": 199,
         "w": 12,
         "h": 7
       },

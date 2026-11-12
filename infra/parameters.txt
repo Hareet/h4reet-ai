@@ -25,3 +25,30 @@
 /h4reet/ec2/SNAPSHOT_SINK_TOKEN SecureString
 /h4reet/hosts/RELEASE_BUCKET String
 /h4reet/prod/tunnel-end-address String
+
+# Group 7: EC2's, which write_env.py reads at boot (deploy/hosts/ec2/ec2.env.example): its gateway's secrets and
+# the stores' it runs, each the Author's SecureString; the shared state's CA certificate is the hosts' String.
+/h4reet/ec2/ALERT_EMAIL_FROM SecureString
+/h4reet/ec2/ALERT_EMAIL_TO SecureString
+/h4reet/ec2/CLICKHOUSE_PASSWORD SecureString
+/h4reet/ec2/DB_GATEWAY_PASSWORD SecureString
+/h4reet/ec2/DB_GRAFANA_RO_PASSWORD SecureString
+/h4reet/ec2/GATEWAY_ANTHROPIC_API_KEY SecureString
+/h4reet/ec2/GF_SECURITY_ADMIN_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_DB_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_ENCRYPTION_KEY SecureString
+/h4reet/ec2/LANGFUSE_INIT_USER_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_NEXTAUTH_SECRET SecureString
+/h4reet/ec2/LANGFUSE_PUBLIC_KEY SecureString
+/h4reet/ec2/LANGFUSE_SALT SecureString
+/h4reet/ec2/LANGFUSE_SECRET_KEY SecureString
+/h4reet/ec2/OPERATOR_TOKEN_SHA256 SecureString
+/h4reet/ec2/SEAWEEDFS_S3_ACCESS_KEY SecureString
+/h4reet/ec2/SEAWEEDFS_S3_SECRET_KEY SecureString
+/h4reet/ec2/SMTP_HOST SecureString
+/h4reet/ec2/SMTP_PASSWORD SecureString
+/h4reet/ec2/SMTP_USER SecureString
+/h4reet/ec2/TELEGRAM_BOT_TOKEN SecureString
+/h4reet/ec2/TELEGRAM_CHAT_ID SecureString
+/h4reet/ec2/VALKEY_PASSWORD SecureString
+/h4reet/hosts/SHARED_STATE_TLS_CA String

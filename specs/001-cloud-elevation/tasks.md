@@ -573,28 +573,29 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T081 [P] [US6] Extend `deploy/scripts/test_preflight.py`, `test_write_env.py`, and the compose policy's tests for the `ec2` class:
+- [x] T081 [P] [US6] Extend `deploy/scripts/test_preflight.py`, `test_write_env.py`, and the compose policy's tests for the `ec2` class:
   - no model-server profile and no local `gateway-state`;
   - the IMDSv2 tag check, against a stub;
   - `write_env.py` refuses on a missing name, naming it, never a value;
   - the relay block bound only to EC2's private address, a literal.
 
   Check: RED (FR-043, FR-044, FR-050) (feat/001-us6-ec2)
-- [ ] T082 [P] [US6] Extend `deploy/scripts/test_deployer.py` for three hosts:
+- [x] T082 [P] [US6] Extend `deploy/scripts/test_deployer.py` for three hosts:
   - EC2's boot run before the stack starts, and on a bucket it can't reach, its last release plus an alert;
   - digests per host's services;
   - the hold, rollback, and the record's `host`;
   - `h4.deploy.events` and `h4.release.info`, with who started a stack (FR-049).
 
   Check: RED (FR-046 to FR-049) (feat/001-us6-ec2)
-- [ ] T083 [P] [US6] Write `deploy/scripts/test_release.py`:
+  - **As built:** EC2's part and the tunnel end's. The laptop's deployer waits: the laptop's stack is started by hand meanwhile, which is FR-049's case (plan.md §16, "Group 7, as built", 11).
+- [x] T083 [P] [US6] Write `deploy/scripts/test_release.py`:
   - one build for `linux/amd64`, and for `linux/arm64` where the `hosts` field names a Graviton host;
   - upstream copies by index digest;
   - the red-team gate on all four adapters when a release makes hello or turns public;
   - a site build with drafts refused.
 
   Check: RED (FR-039, FR-048) (feat/001-us6-ec2)
-- [ ] T084 [P] [US6] Write `infra/test/fixtures/prod-ec2/` and `infra/test/test_prod_ec2.py`:
+- [x] T084 [P] [US6] Write `infra/test/fixtures/prod-ec2/` and `infra/test/test_prod_ec2.py`:
   - EC2's launch template, spot persistent with `stop` (T11), and standard credits if burstable;
   - IMDSv2 (T13);
   - its single interface, and the security group admitting only the tunnel end;
@@ -610,32 +611,33 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - `terraform_data.ec2_generation`, from `local.ec2_generation = 1`, is in EC2's `replace_triggered_by` (T097);
     - the data volume is a resource of its own, kept across a replace;
     - EC2's root and data volumes carry `project` and `component` (T154).
-- [ ] T085 [P] [US3] Write `evals/sc017_ec2_routes.py`'s test, with stand-ins for both paid APIs:
+- [x] T085 [P] [US3] Write `evals/sc017_ec2_routes.py`'s test, with stand-ins for both paid APIs:
   - 100 turns with both healthy, answered by the Anthropic adapter;
   - with it failing, every admitted turn answered by Bedrock;
   - `fallback_day` unchanged;
   - provider, model, tokens, and cost on each span and ledger row.
 
   Check: RED (SC-017) (feat/001-us6-ec2)
-- [ ] T086 [P] [US6] Extend the egress proxy's allowlist test for EC2's hosts: `api.anthropic.com`, Bedrock's endpoint, Telegram, the SMTP host, and the AWS endpoints (ECR, S3, Systems Manager, STS, Budgets, and SNS for its alerts), generated from the disclosure. Check: RED (FR-051) (feat/001-us6-ec2)
+- [x] T086 [P] [US6] Extend the egress proxy's allowlist test for EC2's hosts: `api.anthropic.com`, Bedrock's endpoint, Telegram, the SMTP host, and the AWS endpoints (ECR, S3, Systems Manager, STS, Budgets, and SNS for its alerts), generated from the disclosure. Check: RED (FR-051) (feat/001-us6-ec2)
 
 ### Implementation
 
-- [ ] T087 [US6] Write `deploy/hosts/` for EC2: cloud-init, systemd units (the deployer at boot, the egress proxy, the credential timer for `h4-prod-gateway`), nftables, and `daemon.json`. Add the `ec2` class to compose and preflight, and extend `write_env.py`. Check: T081 and T086 pass (feat/001-us6-ec2)
-- [ ] T088 [US6] Extend `deploy/scripts/deployer.py` and `release.py`. Check: T082 and T083 pass (feat/001-us6-ec2)
-- [ ] T089 [US6] Write `infra/prod/ec2.tf`. Write `ec2-market.tf` (EC2's spot), `iam.tf` (EC2's roles), and `killswitch.tf` (the model action's second target, the server action) as P-I4. Check: on a patched copy, T084 passes, and `make infra-check` passes (feat/001-us6-ec2)
+- [x] T087 [US6] Write `deploy/hosts/` for EC2: cloud-init, systemd units (the deployer at boot, the egress proxy, the credential timer for `h4-prod-gateway`), nftables, and `daemon.json`. Add the `ec2` class to compose and preflight, and extend `write_env.py`. Check: T081 and T086 pass (feat/001-us6-ec2)
+- [x] T088 [US6] Extend `deploy/scripts/deployer.py` and `release.py`. Check: T082 and T083 pass (feat/001-us6-ec2)
+- [x] T089 [US6] Write `infra/prod/ec2.tf`. Write `ec2-market.tf` (EC2's spot), `iam.tf` (EC2's roles), and `killswitch.tf` (the model action's second target, the server action) as P-I4. Check: on a patched copy, T084 passes, and `make infra-check` passes (feat/001-us6-ec2)
   - **From W1:** P-I4 holds `infra/prod/killswitch.tf`, with the server action, EC2's model action, and their two execution roles (T180), and `infra/prod/handover.tf`'s parameter. `ec2.tf` holds the generation's `terraform_data`, `aws_ec2_instance_state.ec2_w1`, and the volumes' tags. The account's `killswitch.tf` doesn't change.
+  - **As built:** P-I4 (`docs/merge-requests/2026-11-13-feat-001-pi4-ec2.patch`) after P-I3 and P-I7, and P-G5, the compose policy's `ec2` class, after P-G4 (plan.md §16, "Group 7, as built", 2).
   - **Every image a host runs has its repository** (the review's I4): a test in `infra/test/test_account.py` reads each host class's services from `deploy/compose.yaml`, EC2's among them, and checks each image in `registry.tf`'s lists. T051 and T164 add the tunnel end's, and T122 the functions'.
-- [ ] T180 [US2] EC2's model action, in prod (FR-023; plan.md §16, W1's departure 10; ADR 0049, proposed). Tests first, in `infra/test/test_prod_ec2.py`, with fixtures:
+- [x] T180 [US2] EC2's model action, in prod (FR-023; plan.md §16, W1's departure 10; ADR 0049, proposed). Tests first, in `infra/test/test_prod_ec2.py`, with fixtures:
   - an `aws_budgets_budget_action` on `h4-model-month` by its name, at 100% of actual, automatic, `APPLY_IAM_POLICY`, attaching `h4-deny-paid-models` to `h4-prod-gateway` alone, tagged;
   - its own execution role, which may attach and detach that one policy on that one role, and trusts `budgets.amazonaws.com` for this account alone;
   - both in `infra/prod/killswitch.tf`, made in the same plan as `h4-prod-gateway`;
   - no target added to the account's model action.
 
   Then write it into P-I4, and a runbook line in `docs/runbooks/aws-budget-action.md`: the reverse of each of the two model actions. Check: RED, then GREEN on a patched copy; `make infra-check` passes. In W1's plan, confirm that one budget may hold two actions of the same type; if it may not, the fallback is the account's second target behind the switch, with EC2 stopped meanwhile (feat/001-us6-ec2)
-- [ ] T090 [P] [US3] Write the SC-017 harness, `evals/sc017_ec2_routes.py`, reading a routing fixture with EC2's route until the Author's line is in. Check: T085 passes against stand-ins (feat/001-us6-ec2)
-- [ ] T091 [P] [US6] Add the release panel to the "Hosts" row: the release on each host, and who started a hand-started stack (plan §11; FR-049). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us6-ec2)
-- [ ] T092 [P] [US5] Make the disclosure's EC2 changes in the same commit as T087:
+- [x] T090 [P] [US3] Write the SC-017 harness, `evals/sc017_ec2_routes.py`, reading a routing fixture with EC2's route until the Author's line is in. Check: T085 passes against stand-ins (feat/001-us6-ec2)
+- [x] T091 [P] [US6] Add the release panel to the "Hosts" row: the release on each host, and who started a hand-started stack (plan §11; FR-049). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us6-ec2)
+- [x] T092 [P] [US5] Make the disclosure's EC2 changes in the same commit as T087:
   - S2's EC2 part (EC2's allowlist, C2), F1 (EC2's second route), and F3's EC2 part (its trigger, default, and switch-off), beside his adopted words, which stay verbatim;
   - A1 and A2 from EC2, and D1's sentence;
   - V2's Why, Default, and switch-off;

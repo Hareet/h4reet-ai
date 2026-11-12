@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -826,11 +826,18 @@ shared-state-restore: ## (the Author) The last backup, or DUMP=dumps/<UTC>.dump,
 	$(call AUTHOR_ONLY,it presigns a backup's GET and runs a Systems Manager command with his SSO session)
 	@$(PY_HOST) scripts/infra/shared_state.py restore$(if $(call from_cli,DUMP), --dump "$$DUMP")$(WITH_PROFILE)
 
+# The Author's release (spec 001 contracts/releases-deployer.md §2; deploy/scripts/release.py): from a clean main,
+# the project's images for each host's platform, the upstream copies by their lock's index digests, the tree, and
+# release.json, the pointer last. PUBLIC=1 when it makes hello or the twin's turns public: the red-team gate then.
+release: ## (the Author) A release from a clean main (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1]
+	$(call AUTHOR_ONLY,it pushes to the account's registry and its release bucket with his SSO session)
+	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)
+
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
 	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
-	shared-state-tls shared-state-roles shared-state-restore
+	shared-state-tls shared-state-roles shared-state-restore release
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan
