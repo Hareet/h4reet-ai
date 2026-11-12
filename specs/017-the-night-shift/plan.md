@@ -21,7 +21,7 @@ Four research findings change the brief's design, all named in the spec's Assump
 | Profiles "each narrower than its parent" | Each profile is written out whole, and a test proves the subsets | nono's `extends` only appends (R-03) |
 | `terraform plan` signed by `aws_auth` through the proxy | The plan runs in its own sandbox with the plan-only role's short-lived credentials; the IAM role is the boundary | No per-command `aws_auth`, the proxy is off on WSL2, and `endpoint_policy` can't match AWS actions (R-05, R-06) |
 | Network limited to named hosts | The kernel limits TCP ports, not hosts | Landlock matches ports; the domain proxy is off on WSL2 (R-07) |
-| Claude Code's sandbox nested inside nono's | Expected to fail. The probe tests it, and a fallback is planned | Landlock refuses `mount(2)` (R-08) |
+| Claude Code's sandbox nested inside nono's | May fail. The probe tests it before anything is built; if it fails, the work stops for the Author's choice (his Q8) | Landlock refuses `mount(2)` (R-08) |
 
 ## Technical Context
 
@@ -35,7 +35,6 @@ Four research findings change the brief's design, all named in the spec's Assump
     - `~/.local/share/h4reet-ai/night-shift/`: the runner, prompts, and each role's Claude folder;
     - `~/.local/state/h4reet-ai/night-shift/`: locks and the runner's log;
     - `~/h4reet-ai/night/`: the workers' worktrees;
-    - `~/h4reet-ai/gate`: the gate checkout;
     - `/srv/studio/briefs`, `/srv/studio/handoff`.
 - **Testing**: pytest under `deploy/night-shift/tests/` and `scripts/studio/`. `PYTEST_DIRS` already lists `deploy/` subfolders, so the Makefile line gains `deploy/night-shift`. The bash scripts get `shellcheck`, and a pytest that runs them against a fake `$HOME`, with stub `nono`, `claude`, `git`, and `aws` binaries on `PATH`, to check their order, refusals, and `--undo`. The Author's rehearsal is the integration test.
 - **Target Platform**: the Author's WSL2 host, kernel 6.18, the RTX 5090.
@@ -59,14 +58,14 @@ Four research findings change the brief's design, all named in the spec's Assump
 | IV. Each role scoped; the implementer never reviews | Pass | One profile per role; reviewers are other agents. |
 | IV. Policy in enforcement points | Pass | Kernel profiles beneath the hooks and the sandbox, with red-team rows. |
 | IV. "Cloud access is short-lived and identity-based (OIDC for CI, SSO for humans)" | **Deviation, named** | Decision 1: an agent's plan uses a role assumed from his SSO session for one hour. ADR 0051. |
-| IV. "No secrets … in agent context" | Pass, with a named limit | AWS credentials exist only in the plan's own process. The Claude token is in the worker's environment: hidden from its commands when nested, readable by them under the fallback, bounded by the allowlist (§13, R-05). |
+| IV. "No secrets … in agent context" | Pass, with a named limit | AWS credentials exist only in the plan's own process. The Claude token is in the worker's environment, hidden from its commands by Claude Code's sandbox (§13, R-05). |
 | Governance: the roles listed in the constitution | **Deviation until P-9** | The supervisor, studio, and gate-runner roles aren't in its list. P-9 proposes 1.2.0 (MINOR), his to apply. |
 | Development standard: "run under the project's committed … sandbox settings" | **Deviation, named** | Decision 4: the live profiles stay outside; the committed example is what they're made from. ADR 0050. |
 | CLAUDE.md: the Author plans and runs the gate | **Reversed by decisions 1 and 2** | Off until his patches merge (FR-015). |
 | V. Cost | Pass | No paid route; the dev-time allowance is the Claude plan's weekly limit. |
 | II. Done is a checklist | Pass | Tests, the rehearsal, a how-we-build page, a runbook, and three ADRs. |
 
-Re-checked after design: no new violation. The fallback layering (§1) adds named gaps, not violations: kernel ports without hosts, and Claude Code's per-command sandbox off.
+Re-checked after design: no new violation. With Claude Code's sandbox nested inside nono's, every control in force today stays in force. If the nesting fails, nothing is built until the Author chooses another approach (§1).
 
 ## Project Structure
 
@@ -122,25 +121,20 @@ redteam/night-shift/                 # §9, rows the rehearsal runs; matrix rows
 ```text
 the Author's terminal
 └─ night.py (the runner, outside every sandbox; installed from a reviewed commit)
-   ├─ the allowlisting proxy (a thread of night.py, on a Unix socket it owns)
-   ├─ [fallback only] unshare --user --map-current-user --mount --net
-   │     bind /dev/null over /var/run/docker.sock; tmpfs over each never-readable folder;
-   │     loopback up; socat 127.0.0.1:3128 → the proxy's socket; HTTPS_PROXY=http://127.0.0.1:3128
    └─ nono run --profile ~/.config/h4reet-ai/nono/<role>.json [task grants] -- claude -p …
-        └─ Claude Code: its hooks, its permissions, and, if nesting works, its own sandbox
+        └─ Claude Code: its hooks, its permissions, and its own sandbox, nested inside nono's
              └─ Bash commands (bash gate) and command policies (terraform, docker, make check, blender)
 ```
 
-The rehearsal decides between the two layerings (FR-037, Q8):
+**The nesting comes first** (the Author's Q8: "Let's test that out first before iterating on the whole workflow"). The probe tests it before anything is built (§5, sections 15 and 16). Section 15 runs bubblewrap inside nono against a control outside. Section 16 runs a real Claude Code session, whose sandboxed Bash command runs inside nono, against the same session outside.
 
-| | **Nested** (if Claude Code's sandbox starts inside nono) | **Fallback** (if it can't, the expected case) |
-|---|---|---|
-| Claude Code's sandbox | on, as today | off, in each role's settings layer |
-| The never-readable paths | nono's grants (never granted) + Claude's masks | nono's grants + the outer namespace's empty mounts |
-| The Docker socket | Claude's seccomp filter | the outer namespace's `/dev/null` bind |
-| Allowlisted hosts | Claude's proxy, per command, as today | the session's own network namespace has only loopback; its one way out is the runner's proxy, which allows `CONNECT` only to the allowlist (`api.anthropic.com`, the toolchain's mirrors, `198.18.0.1:2376`) and plain HTTP only to ComfyUI on `127.0.0.1` for the studio. This keeps the constitution's egress prohibition kernel-enforced (analysis D1) |
-| Hooks and the bash gate | on | on |
-| make check's stage S | as today | the outer namespace applies the settings' deny lists as mounts, so the masks stage S inspects exist. If a row still fails, that row is a named gap under the fallback |
+- **If it works**, the layers are as drawn. Each holds what it holds today, plus nono's kernel profile around the whole session:
+  - Claude Code's sandbox keeps the per-command host allowlist, the Docker socket's seccomp block, and the read masks;
+  - nono adds rollback, audit, the command policies, and a boundary around Claude Code itself, its hooks, and its file tools.
+- **If it fails** (likely, since Landlock refuses `mount(2)` and bubblewrap mounts): **stop** ("If nesting fails, let's stop quickly and let me know as we need another approach"). The session tells him with the probe's evidence and these candidates, and builds none until he chooses:
+  - **A. bubblewrap outside nono.** The runner starts each session in its own user, mount, and network namespace. It masks the Docker socket and the never-readable folders, and gives the namespace one way out, an allowlisting proxy the runner runs. Then nono runs inside, with Claude Code's sandbox off and the hooks on. Strong, but more code the Author runs, and the token becomes readable by commands.
+  - **B. nono outside, Claude Code's sandbox only inside.** nono wraps only processes that need no sandbox of their own: the command policies, the runner's plan and gate requests, the studio's Blender. Sessions keep today's Claude Code sandbox, without nono around them. Simpler, but it misses "nono around every agent session".
+  - **C. Claude Code's sandbox only**, as today, with the runner, queue, and locks. No nono.
 
 ## §2 The profiles
 
@@ -167,13 +161,13 @@ ceiling (never run: the union)
 | red-teamer | its worktree | nothing in the repository | 443, 2376 | `make check` (for `make redteam`), `docker` |
 | ops | as implementer | as implementer, its plan outbox | 443, 2376 | as implementer; **plan request: off** |
 | gate-runner | its worktree | its gate outbox | 443 | **gate request: off** |
-| studio | `/srv/studio/briefs`, `/srv/studio/workflows` | `/srv/studio/handoff`, `/srv/studio/work` | 443, ComfyUI's port | `blender` |
+| studio | `/srv/studio/briefs`, `/srv/studio/workflows`, `/srv/studio/outputs` | `/srv/studio/handoff`, `/srv/studio/outputs` (his Q5) | 443, ComfyUI's port | `blender` |
 
 **In every profile's denies** (none of their parents is ever granted, so nono accepts them, and refuses to start if a later allow covers one):
 - `~/.aws` and `~/.ssh`;
 - `~/.config/h4reet-ai` (which holds `nono/`, `env/`, `infra/`, and the engine certificate);
 - `~/.config/gh`, `~/.git-credentials`, `~/.docker/config.json`;
-- `/srv/studio/photos`, `/srv/studio/key`, `/srv/studio/outputs`;
+- `/srv/studio/photos` and `/srv/studio/key`; `/srv/studio/outputs` in every profile but the studio's;
 - the Author's `~/.claude` and `~/.claude.json`;
 - nono's own state, which nono already refuses.
 
@@ -194,9 +188,9 @@ Workers commit on `night/<task>/…` branches, so a worker can move only its own
 | `terraform` (`validate`, `fmt`, `init -backend=false`) | reads the worktree's `infra/` and the provider mirror `~/.local/share/h4reet/terraform-providers`; writes `$TMPDIR`; no TCP port | no credential; the bash gate still refuses its state-changing commands |
 | `docker` | TCP 2376; reads `~/.config/h4reet/agents-engine/docker` (the relay's client folder, not `h4reet-ai`) | the relay's socat tunnel; the host's socket is masked (§1) |
 | `make` with `check` | its own `$TMPDIR/make-check`; TCP 443 (npm, PyPI) and 2376 | takes the matrix lock through the runner (§4) |
-| `blender` | reads Blender's folder, `/usr/lib/wsl/lib`; reads and writes `/dev/dxg`; writes `/srv/studio/work` and `/srv/studio/handoff`; no TCP port | `executable` pinned to the probe's path |
+| `blender` | reads Blender's folder, `/usr/lib/wsl/lib`; reads and writes `/dev/dxg`; writes `/srv/studio/outputs` and `/srv/studio/handoff`; no TCP port | `executable` pinned to the probe's path |
 | plan request (off) | the runner runs it (R-06): a detached worktree, the `plan` sandbox reading the root's values file and the provider mirror, writing `~/.config/h4reet-ai/infra/{data,plans}`, TCP 443, the role's credentials via `env://` | turned on by the second install after P-2, P-3, P-6 merge |
-| gate request (off) | the runner runs `tools/gates/gate <sha>` from `~/h4reet-ai/gate` in the `gate` sandbox: the host's Docker socket, the engine certificate (read), gitleaks, the gate checkout (read), its `$TMPDIR` | turned on likewise; no `--prove` (Q7) |
+| gate request (off) | the runner runs `tools/gates/gate <sha>` from the Author's checkout, only while its HEAD is `refs/heads/main` and it is clean (his Q1: "It can use my checkout of main"), in the `gate` sandbox: the host's Docker socket, the engine certificate (read), gitleaks, his checkout (read), its `$TMPDIR` | turned on likewise; no `--prove` (Q7) |
 
 ## §4 The runner, the queue, the locks
 
@@ -246,13 +240,14 @@ Its sections:
 6. ComfyUI: its port, `system_stats`' versions, its node modules, its model folders' file names, and its processes' IDs and names;
 7. Claude Code: version, paths' existence, the flags the runner uses;
 8. the agents' engine: the relay's endpoint, whether it answers, the socket's mode, the Author's groups, and the socket connected outside nono (the control);
-9. git and the repository: main's SHA, any tag named main, whether `~/h4reet-ai/gate` exists;
+9. git and the repository: main's SHA, any tag named main, where the checkout is;
 10. the AWS CLI's version and profile names;
 11. the toolchain (Terraform with its update check off);
 12. nono's release: the assets with GitHub's digests, the exact tarball, our SHA-256, any checksum file;
 13. nono's commands: `--version`, `--help`, `setup --check-only`, and the `--help` of `run`, `profile`, `audit`, `rollback`, and `why`, which the install relies on;
 14. the Claude Code pack: `pull`, `profile show --json`, `profile init --full --output`, `profile validate`, `profile schema`, and `profile guide`, all into the temp folder;
-15. **inside nono** (skippable with `H4_PROBE_NEST=0`, never by editing the file): a `/bin/true` control; bubblewrap; the Docker socket; the outer namespace's mask, then the socket; `~/.aws/config` by exit code only. It runs with explicit read-only grants, never the pack, so nothing can be written to `~/.claude`.
+15. **inside nono** (skippable with `H4_PROBE_NEST=0`, never by editing the file): a `/bin/true` control; bubblewrap; the Docker socket; `~/.aws/config` by exit code only. It runs with explicit read-only grants, never the pack, so nothing can be written to `~/.claude`;
+16. **Claude Code nested inside nono** (the same switch): one `claude -p` turn, asked to run `printenv SANDBOX_RUNTIME` under its sandbox with `failIfUnavailable`, outside nono first (the control), then inside nono under the Claude Code pack. These are his own login's two turns, and Claude Code writes its usual session files in `~/.claude`, which the fingerprint shows. The summary's first line is the verdict, and **a failed nesting says to stop**.
 
 ## §6 The install-and-rehearse script
 
@@ -268,9 +263,9 @@ bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"
 | 1 | nono: download the pinned tarball to a temp folder, SHA-256 equal to `NONO_SHA256` from `git show $sha:.devcontainer/toolchain.vars`, copy the binary to `~/.local/bin/nono` (mode 0555) | the checksum differs |
 | 2 | profiles: `git show` each template, fill placeholders from the facts file, refuse any left, `nono profile validate`, diff against the installed copy, write to `~/.config/h4reet-ai/nono/` (files 0444, folder 0555), print each SHA-256 | validation fails |
 | 3 | runner, prompts, settings layers: `git show` into `~/.local/share/h4reet-ai/night-shift/`, read-only; record every installed file's SHA-256 in `installed.txt` | — |
-| 4 | folders: `/srv/studio/briefs`, `/srv/studio/handoff`, `/srv/studio/work` (his, 0755), `~/h4reet-ai/night/`, the gate checkout `~/h4reet-ai/gate` (a worktree of the branch `main`, if absent; refused while `refs/tags/main` or any other ref a bare `main` names exists) | `sudo` would be needed and he declines; a ref named main beside the branch |
+| 4 | folders: `/srv/studio/briefs` and `/srv/studio/handoff` (his, 0755), `~/h4reet-ai/night/`; `/srv/studio/outputs` must be empty on the first install (his Q5) | `sudo` would be needed and he declines; `/srv/studio/outputs` holds a file (the count is printed, never the names) |
 | 5 | **R1** wrap one test session: `nono run --rollback --profile implementer.json -- claude -p "say ok"` in a scratch worktree | it doesn't answer |
-| 6 | **R2** the nesting: the same session runs one Bash command under Claude Code's sandbox; if refused, R2 records "fallback" and runs every later step under the outer namespace (Q8) | both layerings fail |
+| 6 | **R2** the nesting, again under the real profile: the same session runs one Bash command under Claude Code's sandbox (`SANDBOX_RUNTIME=1` in its output) | it doesn't: stop (his Q8) |
 | 7 | **R3** `make check` and the red-team suite inside a wrapped session, in a scratch worktree of the reviewed SHA | either fails |
 | 8 | **R4** each forbidden read and write (§9's rehearsal rows), expecting a refusal; each refusal named by `nono why` | any succeeds |
 | 9 | **R5** `nono audit verify` on each rehearsal session | it fails |
@@ -278,7 +273,7 @@ bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"
 | 11 | the summary: one block, the step outcomes, the layering, nono's and Claude Code's versions, every profile's SHA-256, the reviewed SHA; nothing from `~/.aws`, no token, no env | — |
 
 - **Idempotent**: each step compares before writing; a second run at the same SHA changes nothing and says so.
-- **`--undo`**: removes `installed.txt`'s files, the profiles, `~/.local/bin/nono` (if its SHA-256 is the pin's), and the empty folders it made. It leaves the gate checkout (`git worktree remove` is his, printed) and nono's own audit and rollback state (printed).
+- **`--undo`**: removes `installed.txt`'s files, the profiles, `~/.local/bin/nono` (if its SHA-256 is the pin's), and the empty folders it made. It leaves nono's own audit and rollback state (printed).
 - **Delivered**: on the runbook artifact, his lines at 45 characters or fewer, with the SHA guard on its own line.
 
 ## §7 The studio line
@@ -304,7 +299,7 @@ The studio's settings layer refuses ComfyUI-Manager's install routes, and any `P
 - each never-readable path, read by `cat`, `python3 open()`, `git -C … show`, `bash -c`, a subshell, a quoted path, a symlink planted in the worktree, and `ln` of a hard link (reads), per profile;
 - each forbidden write, by the same spellings, plus `git -c core.hooksPath=…`, `git config`, a write to `.git/hooks`, `.git/config`, `refs/heads/main`, another task's worktree, and `~/.config/h4reet-ai/nono/`;
 - the Docker socket, connected by `python3`, `socat`, and `docker -H unix://…`;
-- the network: a port not granted, refused by the kernel; a host not on the allowlist, refused by the layer the rehearsal proved (Claude Code's proxy, or the runner's under the fallback); a direct connection bypassing the proxy under the fallback, refused (no route out of the namespace);
+- the network: a port not granted, refused by the kernel; a host not on the allowlist, refused by Claude Code's sandbox, nested;
 - the plan and gate requests while off, refused;
 - the example profile pointed at by the runner, refused; a profile with a placeholder left, refused;
 - each lattice edge (a test, not a row).
@@ -333,8 +328,8 @@ Each built from plain copies (`git show refs/heads/main:<path>`, edit, `diff -u`
 Drafted with the build, Status: proposed, accepted when he merges:
 
 - **ADR 0050, nono as the build-time sandbox around every agent session.** Context: text rules and walls. Decision: nono profiles per role, live outside, example inside, the runner, the layering chosen by the rehearsal. Alternatives: Claude Code's sandbox alone; containers per agent; a separate Unix user per agent. Consequences: named gaps (ports not hosts, unmediated sockets closed by the outer namespace).
-- **ADR 0051, agents plan through a plan-only role and run the gate.** Decisions 1 and 2, verbatim. The role, the plan request, the gate checkout, the gate request, off until P-2, P-3, P-6. Alternatives: the brief's `aws_auth` proxy (not available on WSL2 at v0.81.0); the Author planning, as today. Reverses CLAUDE.md's lines and amends ADR 0017's "the Author runs the gate".
-- **ADR 0052, the studio line.** Decision 5 and his studio words, verbatim. Two folders, no network path, three rounds, the tools list, his look approval last, the photos and outputs closed. Alternatives: a network API between the studio and the repo; the Author carrying files, as today.
+- **ADR 0051, agents plan through a plan-only role and run the gate.** Decisions 1 and 2, verbatim. The role, the plan request, the gate request from his checkout of main, off until P-2, P-3, P-6. Alternatives: the brief's `aws_auth` proxy (not available on WSL2 at v0.81.0); the Author planning, as today. Reverses CLAUDE.md's lines and amends ADR 0017's "the Author runs the gate".
+- **ADR 0052, the studio line.** Decision 5 and his studio words, verbatim. Two folders, no network path, three rounds, the tools list, his look approval last, the photos and key closed, the outputs folder the studio's alone once he has emptied it. Alternatives: a network API between the studio and the repo; the Author carrying files, as today.
 
 (ADR 0048 and 0049 are W1's, on `feat/001-w1`. If W1 claims more numbers before this merges, these renumber.)
 
@@ -342,8 +337,8 @@ Drafted with the build, Status: proposed, accepted when he merges:
 
 Each group ends in commits; each is reviewed by a reviewer agent that didn't write it; test first, RED then GREEN.
 
-1. **Probe** (this branch, with this plan).
-2. **After his approval and the probe's report**, on `feat/017-the-night-shift`:
+1. **Probe** (this branch, with this plan). Its sections 15 and 16 are the nesting test (his Q8). **If the nesting fails, everything stops here**, and the session brings him the evidence and §1's candidates.
+2. **After his approval and a probe that shows the nesting works**, on `feat/017-the-night-shift`:
    1. G1, profiles: fragments, `build.py`, the eight profiles, the lattice and deny tests.
    2. G2, runner: queue validation, locks, worker start, limit and resume, idle stop, the decision page; tests with stubs.
    3. G3, studio line: schemas, `line.py`, the round rule, tests with fixture GLBs.
@@ -355,11 +350,11 @@ Each group ends in commits; each is reviewed by a reviewer agent that didn't wri
 
 ## §13 Risks
 
-- **The nesting fails, and the fallback's stage S rows too** (likely). Mitigation: the outer namespace mirrors the settings' masks; rows that still fail become named gaps under the fallback; the decision is his (Q8).
+- **The nesting fails** (likely). The probe finds out before anything is built, and the work stops for his choice (§1's candidates A to C).
 - **Command policies on shebang scripts** (#1724, #2164): `tools/gates/gate` is a Python script with a shebang. The gate request runs it as `python3 -I … tools/gates/gate`, which its shebang already uses.
 - **nono's schema differs from the extracts** (R-03's unconfirmed keys). `build.py` is written after the probe's `profile schema`, and the install's `profile validate` refuses a wrong key.
 - **The 76-second policy setup** (#1317): ten workers start at once; the runner staggers starts by 10 s.
-- **The token** is in each worker's environment. Nested, Claude Code's sandbox hides it from commands (P-1), and a red-team row checks that `printenv` in a command doesn't show it. **Under the fallback, Claude Code's sandbox is off, so a command can read it (gap, named; the review's finding 10).** Its bounds: the token is the night shift's own and revocable on its own; it carries no AWS or repository power; the namespace's only way out is the allowlist, so it can reach only Anthropic's API, where it already works. A red-team row records the gap with those bounds.
+- **The token** is in each worker's environment. Claude Code's sandbox, nested, hides it from commands (P-1), and a red-team row checks that `printenv` in a command doesn't show it. The token is the night shift's own, revocable on its own, with no AWS or repository power.
 - **A worker writes `.git/objects` junk**: harmless to refs; `git fsck` in the morning page's checks.
 
 ## §14 Proof
@@ -382,14 +377,14 @@ Each with a recommended answer. The spec and this plan take each recommendation 
 
 | # | Question | Recommended | Other |
 |---|---|---|---|
-| Q1 | Where should the gate run from, since it needs a checkout on `refs/heads/main` and agents can't commit while yours is on main? | **A gate checkout at `~/h4reet-ai/gate`**, a worktree of main the install makes; you merge there | Your checkout on main during nights (agents can't commit then) |
+| Q1 | Where should the gate run from? | **Answered**: "It can use my checkout of main". Workers commit in their own worktrees, so your checkout on main doesn't stop them | — |
 | Q2 | How do workers sign in to Claude? | **A night-shift token from `claude setup-token`**, passed by nono, hidden from commands | Your own login shared read-only (they'd need to write `~/.claude`) |
 | Q3 | Where does the example copy live? | **`deploy/night-shift/profiles/` on the branch, made human-only by P-1**, so the install reads it before you merge | An existing human-only path, arriving only as your patch, so you apply it before the first install |
 | Q4 | Does an agent's plan take the state's lock? | **Yes**, the role may write and delete only `*.tflock` | `-lock=false` (a plan could race your apply) |
-| Q5 | May the studio agent read `/srv/studio/outputs`? | **No**: it holds the twin; references come in the brief | Yes, read-only |
+| Q5 | May the studio agent read `/srv/studio/outputs`? | **Answered**: "i will remove all current files in outputs elsewhere, so the studio agent can read inside the directory and iterate on the creation of the remaining assets". The studio reads and writes it; the first install refuses while it holds a file | — |
 | Q6 | Where does the decision page live? | **`docs/night-shift/<date>.md` on the supervisor's night branch**, which a morning session turns into a runbook page for you | An artifact published by the supervisor itself (needs claude.ai's sign-in in the night's sessions) |
 | Q7 | May the gate runner pass `--prove`? | **No**: stage E stays PENDING for you | Yes, under the gate lock |
-| Q8 | If Claude Code's sandbox won't start inside nono's, should the rehearsal continue with the fallback layering and report it, or stop? | **Continue with the fallback** and report which layering passed; one run settles it | Stop at the first failure, as the brief says, and a second script follows |
+| Q8 | If Claude Code's sandbox won't start inside nono's, continue or stop? | **Answered**: "If nesting fails, let's stop quickly and let me know as we need another approach … Let's test that out first before iterating on the whole workflow." The probe tests it first; a failure stops everything | — |
 | Q9 | Which nono? | **v0.81.0** (2026-10-29), for its three advisory fixes; 14 days old on 2026-11-12 | v0.80.0 (2026-10-13) |
 | Q10 | The constitution lists six roles; the night shift adds three. Amend it, or name a deviation? | **Amend: P-9, 1.2.0 (MINOR)**, your patch | A named deviation in this spec, no amendment |
 | Q11 | The studio's ComfyUI rule (no installs, no POST but `/prompt` and `/interrupt`) is a hook in the studio's own Claude folder, outside the repository's `.claude/`. Is that acceptable? | **Yes**: it ships in `deploy/night-shift/claude/` (human-only by P-1) and installs to the studio's folder | Put it under `.claude/hooks/` by patch, for every session |
@@ -405,6 +400,4 @@ Also for the Author:
 | Departure | Why needed | Simpler alternative rejected because |
 |---|---|---|
 | A runner outside the sandboxes | Each worker needs its own top-level nono, narrower than any other | Workers as the supervisor's subagents would share its sandbox |
-| The outer namespace (fallback) | The host's Docker socket is unmediated under nono on WSL2, and the hosts must stay enforced without Claude Code's sandbox | A separate Unix user per agent needs `sudo` and splits the repository's ownership; a named egress gap would breach a constitution prohibition |
-| The runner's allowlisting proxy | The fallback's one way out | nono's own proxy is off on WSL2 without its insecure opt-in |
 | Plan requests run by the runner | No per-command `aws_auth`; no proxy on WSL2 | The insecure proxy opt-in weakens every session that has it |

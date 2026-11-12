@@ -13,7 +13,7 @@
 
 ## Phase 0: The Author
 
-- [ ] T000 The Author approves `plan.md`, with his answers to the Questions for the Author (Q1 to Q12). He commits `intent/017-the-night-shift.md` (in his checkout, uncommitted), runs the probe at the runbook's SHA, and tells the session the report's path. **No task below starts before this.**
+- [ ] T000 The Author approves `plan.md`, with his answers to the Questions for the Author (Q1, Q5, and Q8 answered 2026-11-12). He commits `intent/017-the-night-shift.md` (in his checkout, uncommitted), runs the probe at the runbook's SHA, and tells the session the report's path. **If the probe's verdict is that the nesting fails, everything stops: the session brings him the evidence and plan §1's candidates (his Q8 answer).** No task below starts before a probe that shows the nesting works.
 
 ## Phase 1: Setup
 
@@ -49,9 +49,8 @@
 - [ ] T022 [P] [US3] RED: a stub stream's usage-limit event with a reset time stops all workers. The runner sleeps once until the reset plus 300 s (fake clock, one sleep call, no other timer) and requeues. A limit with no time stops the night and writes the page line.
 - [ ] T023 [P] [US3] RED: the idle stop. Silent for 15 minutes, a clean worktree, and no child process mean stopped and recorded. A dirty worktree is not stopped. A worker that ends dirty is recorded and not committed for.
 - [ ] T024 [P] [US3] RED: the preflight of contracts/runner.md §2. It refuses a profile with the example marker, a profile outside `~/.config/h4reet-ai/nono/`, a SHA-256 mismatch, low disk or memory, and a second runner.
-- [ ] T025 [P] [US3] RED: the session command line of contracts/runner.md §3. It holds exactly the listed environment, and nothing from a planted `ANTHROPIC_API_KEY` or `AWS_*` in the runner's own environment. Under `LAYERING=fallback` it starts with the `unshare` wrapper and the mask list.
-- [ ] T026 [P] [US3] RED: requests (contracts/runner.md §5). A plan or gate request while off is refused with "off: waiting for P-2, P-3, P-6". An unknown kind is refused. When on (a stub), the gate runs from `GATE_CHECKOUT` without `--prove`, under the gate lock.
-- [ ] T026a [P] [US3] RED: the allowlisting proxy (contracts/runner.md §3). `CONNECT` to an allowlisted host:port is passed; any other host or port is refused with a page line; absolute-form HTTP is refused except to `127.0.0.1:<COMFYUI_PORT>` for the studio role. The mask-and-bridge script's command line under `LAYERING=fallback` is exactly the contract's.
+- [ ] T025 [P] [US3] RED: the session command line of contracts/runner.md §3. It holds exactly the listed environment, and nothing from a planted `ANTHROPIC_API_KEY` or `AWS_*` in the runner's own environment. The runner refuses to start any session unless `LAYERING=nested`.
+- [ ] T026 [P] [US3] RED: requests (contracts/runner.md §5). A plan or gate request while off is refused with "off: waiting for P-2, P-3, P-6". An unknown kind is refused. When on (a stub), the gate runs from `REPO` without `--prove`, under the gate lock, and only while `REPO`'s HEAD is `refs/heads/main` and its tree is clean; otherwise the answer names the reason.
 - [ ] T026b [P] [US3] RED: the decision page (contracts/decision-page.md). Its sections come in order; each question appears once, with a recommended answer and the task it blocks; the runner appends only under `## The runner`.
 - [ ] T027 [US3] GREEN: `deploy/night-shift/runner/night.py` (standard library, `python3 -I -B`), with `start`, `stop`, `status`, and `check`.
 - [ ] T028 [P] [US3] `deploy/night-shift/runner/prompts/{supervisor,spec-writer,implementer,reviewer,red-teamer,ops,gate-runner,studio}.md`: each says its role's limits, that it commits a save point before each step, how it asks for a plan or a gate, and that questions go to the decision page with a recommended answer (contracts/decision-page.md).
@@ -88,7 +87,8 @@
   - the R-steps run in order, and a failure stops with `install: FAILED at <step>`;
   - the summary holds no planted secret (a fake `~/.aws/credentials` and a token variable);
   - a second run prints `unchanged`;
-  - `--undo` leaves the fake home as it was, but nono's state and the gate checkout, which it names.
+  - the first install refuses while `/srv/studio/outputs` holds a file, printing only the count;
+  - `--undo` leaves the fake home as it was, but nono's state, which it names.
 - [ ] T053 [P] [US1] RED: `deploy/night-shift/tests/test_probe.py`, the probe with stubs. It writes nothing outside its temp folder (a fake `$HOME` compared before and after), prints no planted secret, and ends with every summary key of contracts/probe.md.
 - [ ] T054 [US1] GREEN: `deploy/night-shift/install.sh` per plan §6 and contracts/install.md, with R2's layering choice per Q8's answer.
 - [ ] T055 [US1] GREEN: any probe fixes T053 finds, in `deploy/night-shift/probe.sh`.
@@ -150,7 +150,7 @@ The MVP is US1 with US2: profiles plus the install-and-rehearse script, which pr
 
 | ID | Severity | Finding | Fixed in |
 |---|---|---|---|
-| D1 | CRITICAL (constitution) | The fallback layering left agent egress to non-allowlisted hosts unenforced, against "Prohibited without a human: … network egress to non-allowlisted domains from an agent session" | FR-013, FR-037; plan §1; research R-07, R-08; contracts/runner.md §3; T026a: the fallback's own network namespace, whose one way out is the runner's allowlisting proxy |
+| D1 | CRITICAL (constitution) | The fallback layering left agent egress to non-allowlisted hosts unenforced, against "Prohibited without a human: … network egress to non-allowlisted domains from an agent session" | FR-013 (no layering may leave it unenforced); then the Author's Q8 answer removed the fallback: if the nesting fails, the work stops for his choice, and plan §1's candidate A carries the allowlisting proxy |
 | D2 | HIGH (constitution) | Prompts, settings layers, and the studio hook outside `.claude/`, which the constitution names for role definitions and hooks | spec Assumptions (deviation, named); P-10 (T070a); Q13 |
 | I1 | HIGH | FR-011 "every profile" contradicted the plan and gate requests' own needs | FR-011 (session profiles), FR-039; contracts/profiles.md §11 |
 | I2 | HIGH | US2 #5 and US4 #5 promised refusals by host, which Landlock can't give | both scenarios reworded |

@@ -10,17 +10,16 @@ All entities are files. Paths in `{{…}}` are placeholders the install fills fr
 |---|---|---|
 | `REPO` | `/home/<user>/h4reet-ai/h4reet-ai` | the probe's §9 |
 | `NIGHT_ROOT` | `/home/<user>/h4reet-ai/night` | fixed |
-| `GATE_CHECKOUT` | `/home/<user>/h4reet-ai/gate` | fixed |
 | `CLAUDE_BIN` | the resolved path of `claude` | the probe's §7 |
 | `BLENDER_BIN`, `BLENDER_DIR` | the resolved paths | the probe's §5 |
 | `COMFYUI_PORT` | `8188` | the probe's §6 |
 | `ENGINE_PORT` | `2376` | the probe's §8 |
-| `LAYERING` | `nested` or `fallback` | written by the install's R2 |
+| `LAYERING` | `nested` | written by the install's R2; the install stops when R2 fails (his Q8) |
 | `NIGHT_PLAN`, `NIGHT_GATE` | `off` | `on` only from the second install (plan §8) |
 | `PLAN_AWS_PROFILE` | the plan role's profile name | the second install |
 | `TOKEN_SOURCE` | `file:///…` or a nono keystore name | the Author, after `claude setup-token` |
 
-Validation: every key present, each path absolute, `LAYERING`, `NIGHT_PLAN`, and `NIGHT_GATE` from their sets, no `{{`.
+Validation: every key present, each path absolute, `LAYERING`, `NIGHT_PLAN`, and `NIGHT_GATE` from their sets, no `{{`. The gate runs from `REPO` (his Q1 answer).
 
 ## Profile template (`deploy/night-shift/profiles/<role>.json`)
 

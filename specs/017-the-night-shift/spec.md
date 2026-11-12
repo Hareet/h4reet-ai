@@ -30,11 +30,12 @@ The design page dates decisions 1 to 5 2026-11-13; this session's clock reads 20
 
 Questions this spec raised beyond his answers are on one page with a recommended answer each (plan.md §"Questions for the Author"). Under the brief ("batch any other question onto one page with a recommended answer"), the spec and plan take each recommended answer provisionally. **None of the answers below is his.** Each is the session's recommendation, which he confirms or overturns when he approves `plan.md`.
 
-- Q: Where does the gate run from, since it refuses unless its checkout's HEAD is `refs/heads/main`, and agents can't commit while the Author's checkout sits on main? → A (provisional, recommended): **a dedicated gate checkout**, a linked worktree of main at `~/h4reet-ai/gate`, which his install script creates and no profile may write. His own checkout stays parked off main, and he merges from the gate checkout (FR-033).
+- Q: Where does the gate run from, since it refuses unless its checkout's HEAD is `refs/heads/main`? → A, **the Author's** (plan Q1, 2026-11-12): "It can use my checkout of main". Reading: the gate runs from his own checkout (`~/h4reet-ai/h4reet-ai`) while it is on main. No profile may write it. No separate gate checkout is made. Workers commit in their own worktrees, whose HEAD isn't main, so the bash gate's "HEAD is main" rule, which keys on the session's own project folder, doesn't stop them (FR-033).
 - Q: How do workers sign in to Claude without holding the Author's own login? → A (provisional, recommended): **a token of their own**, made once by the Author with `claude setup-token`, kept by nono outside the repository, and passed to each worker as nono's environment credential. nono's proxy can't inject it on WSL2 without its `insecure_proxy` opt-in (research.md R-05). The settings patch hides the token's variable from every command the session runs. Each role gets its own Claude configuration folder, so no worker writes the Author's `~/.claude` (FR-036).
 - Q: Where does the example copy live, and must the Author apply a patch before the first install? → A (provisional, recommended): **on the branch, at `deploy/night-shift/profiles/`**, a path that his protection patch makes human-only when it merges. The install reads it by `git show` at the reviewed SHA, so it doesn't wait for the merge. The alternative was an existing human-only path, arriving only as his patch, with the install run from his patched branch (FR-016).
 - Q: Does an agent's plan take the state's lock? → A (provisional, recommended): **yes**: the plan-only role may write and delete only the state's `.tflock` objects, so an agent's plan never races his apply (FR-032).
-- Q: May the studio agent read `/srv/studio/outputs`? → A (provisional, recommended): **no**. It holds the twin, a likeness. References reach the studio agent through the brief, copied from the repository's public `assets/` (FR-027).
+- Q: May the studio agent read `/srv/studio/outputs`? → A, **the Author's** (plan Q5, 2026-11-12): "i will remove all current files in outputs elsewhere, so the studio agent can read inside the directory and iterate on the creation of the remaining assets". Reading: once he has moved the current files out, the studio agent reads and writes `/srv/studio/outputs` as its working folder for the remaining assets. The first install refuses while the folder holds anything. Repo agents still can't read it (FR-027).
+- Q: If Claude Code's sandbox won't start nested inside nono's, should the rehearsal continue with a fallback or stop? → A, **the Author's** (plan Q8, 2026-11-12): "If nesting fails, let's stop quickly and let me know as we need another approach, i believe this is referring to nono and claude sandbox nested inside that, Let's test that out first before iterating on the whole workflow." Reading: the nesting is tested first, by the probe, before anything else is built. If it fails, everything stops and the session tells him; no fallback layering is built unless he chooses one then (FR-037).
 
 ## Terms
 
@@ -101,7 +102,7 @@ The supervisor, each repo role, and the studio agent run under their own nono pr
 2. **Given** the reviewer or red-teamer profile, **When** it writes anywhere in the repository, **Then** the kernel refuses.
 3. **Given** a worker profile, **When** it writes outside its own worktree, its temp folder, and its branch's refs, **Then** the kernel refuses, `.git/hooks`, `.git/config`, and `refs/heads/main` included.
 4. **Given** a child profile, **When** it is compared with its parent, **Then** every grant it holds is held by the parent.
-5. **Given** the `docker` command policy, **When** it opens any TCP port but the agents' engine's, **Then** the kernel refuses; **and When** a session under the fallback layering reaches any host not on the allowlist, **Then** the runner's proxy refuses.
+5. **Given** the `docker` command policy, **When** it opens any TCP port but the agents' engine's, **Then** the kernel refuses; **and When** a session's command reaches any host not on the allowlist, **Then** Claude Code's sandbox, nested inside nono's, refuses.
 
 ---
 
@@ -137,7 +138,7 @@ A repo agent writes a brief. The studio agent drives headless Blender and ComfyU
 2. **Given** a candidate whose record names Qwen-Image-2.1 or FLUX [dev], or any weight or node not on the list with a licence, **When** the intake checks it, **Then** it is refused, naming it.
 3. **Given** a candidate over any limit in its brief, **When** the intake checks it, **Then** it is refused with each exceeded limit and its value.
 4. **Given** a third failed round, **When** the repo agent would write a fourth brief, **Then** it writes no brief, and the asset goes on the decision page.
-5. **Given** the studio profile, **When** the studio agent reads the repository, `/srv/studio/photos`, `/srv/studio/key`, or `/srv/studio/outputs`, or opens any TCP port but 443 and ComfyUI's, **Then** the kernel refuses; **and When** it reaches any host but Anthropic's API and ComfyUI on localhost, **Then** the layer FR-037 proves refuses.
+5. **Given** the studio profile, **When** the studio agent reads the repository, `/srv/studio/photos`, or `/srv/studio/key`, or opens any TCP port but 443 and ComfyUI's, **Then** the kernel refuses; **and When** it reaches any host but Anthropic's API and ComfyUI on localhost, **Then** the layer FR-037 proves refuses.
 
 ---
 
@@ -163,12 +164,12 @@ Under decision 2, a gate-runner worker runs `tools/gates/gate <branch>` from a c
 
 **Why this priority**: it turns a failed gate on a known flake into a rerun instead of a new script for the Author, but merging still needs him.
 
-**Independent Test**: while off, the gate command is refused; turned on, the gate runs on a test branch from the gate checkout and prints its merge line, and nothing merges.
+**Independent Test**: while off, the gate command is refused; turned on, the gate runs on a test branch from the Author's checkout of main and prints its merge line, and nothing merges.
 
 **Acceptance Scenarios**:
 
 1. **Given** the gate policy is off, **When** an agent asks for a gate, **Then** it is refused.
-2. **Given** the gate policy is on, **When** the gate runner runs the gate, **Then** it runs main's gate from the gate checkout, under the gate lock, and the log and its merge line reach the decision page.
+2. **Given** the gate policy is on, **When** the gate runner runs the gate, **Then** it runs main's gate from the Author's checkout while it is on main, under the gate lock, and the log and its merge line reach the decision page.
 3. **Given** a gate run, **When** it ends, **Then** main has not moved.
 
 ---
@@ -218,7 +219,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **FR-010**: THE configuration SHALL define one profile each for the supervisor, the spec-writer, the implementer, the reviewer, the red-teamer, ops, the gate runner, and the studio agent. Each SHALL be written out whole from what nono's Claude Code base needs (the probe's `profile init`), not by `extends` from its parent, since nono's inheritance only appends (research.md R-03). A test SHALL prove each profile's every grant is held by its parent.
 - **FR-011**: EVERY session profile (FR-010's eight) SHALL refuse reads of `~/.aws`, `~/.ssh`, env files, Terraform state and plan files, `/srv/studio/photos`, `/srv/studio/key`, and `~/.config/h4reet-ai/nono/`.
 - **FR-012**: THE reviewer and red-teamer profiles SHALL write nothing in the repository; every worker profile SHALL write only its worktree, its temp folder, and its own branch's refs and objects, and never `.git/hooks`, `.git/config`, `.git/info`, or `refs/heads/main`.
-- **FR-013**: EVERY profile's network SHALL be limited in the kernel to the TCP ports its role needs: 443 for every session, plus the agents' engine's 2376 for the roles that run containers, and, for the studio, ComfyUI's port. Landlock matches ports, not hosts, so the hosts (Anthropic's API, the toolchain's mirrors, `198.18.0.1:2376`, ComfyUI on localhost) SHALL be held by the layer FR-037 proves: Claude Code's own sandbox when nested, or else the outer namespace's own network namespace, whose only way out is the runner's allowlisting proxy. No layering SHALL leave an agent session's egress to non-allowlisted hosts unenforced (the constitution's "Prohibited without a human: … network egress to non-allowlisted domains from an agent session").
+- **FR-013**: EVERY profile's network SHALL be limited in the kernel to the TCP ports its role needs: 443 for every session, plus the agents' engine's 2376 for the roles that run containers, and, for the studio, ComfyUI's port. Landlock matches ports, not hosts, so the hosts (Anthropic's API, the toolchain's mirrors, `198.18.0.1:2376`, ComfyUI on localhost) SHALL be held by Claude Code's own sandbox, nested inside nono's (FR-037). No layering SHALL leave an agent session's egress to non-allowlisted hosts unenforced (the constitution's "Prohibited without a human: … network egress to non-allowlisted domains from an agent session").
 - **FR-039**: THE plan and gate requests SHALL each run in a request profile of their own (`plan.json`, `gate.json`), used only by the runner and never by a session. FR-011's denies don't bind them where their job needs a path (the saved plan and the root's values file; the engine certificate and the host's Docker socket), and nothing they read reaches a session but the redacted block or the gate's log.
 - **FR-014**: THE configuration SHALL declare these command policies: `terraform validate` with its plugins and no credential; `docker` reaching only the agents' engine's port; `make check` with its own temp folder; `blender` with the GPU's paths and no network; and ComfyUI's port only. `terraform plan` SHALL run outside the session: the worker asks, and the runner runs it in a fresh export of the asked commit, under the plan profile, with the plan-only role's short-lived credentials as nono's environment credential, never a key in the session (research.md R-06). Where nono supports an endpoint policy on that route, it SHALL allow S3's reads and the `.tflock` writes only; the IAM role is the enforcement point.
 - **FR-015**: THE `terraform plan` and gate command policies SHALL ship off, and SHALL turn on only in a later install from a commit on which the Author's CLAUDE.md and `.claude/**` patches have merged.
@@ -239,7 +240,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 **The studio line (User Story 4)**
 
 - **FR-026**: THE repository SHALL hold a brief schema and a candidate schema, with the intake's checks as tests.
-- **FR-027**: Repo agents SHALL write briefs only to `/srv/studio/briefs/`, and read candidates only from `/srv/studio/handoff/<asset>/<round>/`; THE studio agent SHALL read only the briefs and `/srv/studio/workflows`, and write only the handoff folder and its working folder; it SHALL NOT read `/srv/studio/outputs`, which holds the twin, so references reach it through the brief, copied from the repository's public `assets/`.
+- **FR-027**: Repo agents SHALL write briefs only to `/srv/studio/briefs/`, and read candidates only from `/srv/studio/handoff/<asset>/<round>/`; THE studio agent SHALL read only the briefs, `/srv/studio/workflows`, and `/srv/studio/outputs`, and write only the handoff folder and `/srv/studio/outputs`, its working folder; repo agents SHALL NOT read `/srv/studio/outputs`. THE first install SHALL refuse while `/srv/studio/outputs` holds any file, since the Author moves its current files out first.
 - **FR-028**: WHEN a candidate fails its checks for the third round, THE line SHALL write no further brief and SHALL put the asset on the decision page.
 - **FR-029**: THE intake SHALL refuse any candidate whose record names a weight or custom node missing from the weights and nodes list, or one whose licence the list doesn't mark as shippable, and SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output.
 - **FR-030**: THE studio agent SHALL install no custom node and download no weight; a request for one SHALL go on the decision page.
@@ -248,7 +249,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 **Plan and gate (User Stories 5 and 6)**
 
 - **FR-032**: `infra/` SHALL define a plan-only IAM role, assumable only from the Author's SSO identity, allowed read actions, and writes and deletes of the state's `.tflock` objects only, so an agent's plan never races his apply; its apply is the Author's.
-- **FR-033**: THE gate runner SHALL run main's gate from the gate checkout, a linked worktree of main at `~/h4reet-ai/gate` that no profile may write, under the gate lock, and SHALL never merge. THE install SHALL create the gate checkout; the Author merges from it.
+- **FR-033**: THE gate runner SHALL run main's gate from the Author's own checkout while its HEAD is `refs/heads/main` ("It can use my checkout of main"), under the gate lock, and SHALL never merge; no profile may write that checkout. WHEN his checkout isn't on main or isn't clean, THE gate request SHALL be answered with that reason and go on the decision page.
 
 **Signing in**
 
@@ -256,8 +257,8 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 
 **The layers (research.md R-07, R-08)**
 
-- **FR-037**: THE rehearsal SHALL first try Claude Code's own sandbox nested inside nono's. IF it starts, THEN that is the layering. IF it can't (Landlock refuses the mounts its sandbox makes), THEN the runner SHALL start each session inside an outer user, mount, and network namespace that masks the host's Docker socket and every never-readable path, and whose only network is a loopback bridge to the runner's allowlisting proxy, before nono starts; and run Claude Code with its own sandbox off, the hooks on. The rehearsal SHALL report which layering it proved, and prove the masks and the refusals under it.
-- **FR-038**: Under either layering, THE host's Docker socket SHALL be unreachable from every session and command policy but the gate runner's gate command (red-team row), since nono can't mediate Unix sockets on WSL2.
+- **FR-037**: THE probe SHALL test, before anything else is built, whether Claude Code's own sandbox starts nested inside nono's: bubblewrap inside nono against a control outside, and a real Claude Code session whose sandboxed Bash command runs inside nono, against the same session outside. The layering is Claude Code's sandbox nested inside nono's. IF the probe shows it fails, THEN the work SHALL stop, and the session SHALL tell the Author, with the probe's evidence and the candidate approaches; nothing further is built until he chooses one (his Q8 answer). The install's rehearsal SHALL prove the nesting again, and stop at its failure.
+- **FR-038**: THE host's Docker socket SHALL be unreachable from every session and command policy but the gate request's (red-team row), since nono can't mediate Unix sockets on WSL2 and Claude Code's sandbox holds it for every command.
 
 **Red-team and review**
 
@@ -305,7 +306,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
   - The brief asked for "`terraform plan`: `aws_auth` on a plan-only profile, and an `endpoint_policy` with read actions only". nono has no per-command `aws_auth` yet (its issue #1987). Its `endpoint_policy` matches methods and paths, not AWS actions (#2274). And on WSL2, its credential proxy is off unless a profile opts into `insecure_proxy`. So the plan runs as FR-014 says, signed by the plan-only role's short-lived credentials, and the IAM role is the boundary.
   - The brief's "`docker`: the relay socket only": the relay is a TCP tunnel to the agents' engine at `198.18.0.1:2376` over mutual TLS (`deploy/agents-engine/docker-relay`), not a socket. Landlock grants port 2376 on every host.
   - The brief's "each narrower than its parent": proven by a test, not by `extends` (FR-010).
-  - The nesting the brief calls "untested so far" is likely to fail: Landlock refuses `mount(2)` to a sandboxed process, and Claude Code's sandbox mounts. FR-037 gives the fallback, which the rehearsal proves.
+  - The nesting the brief calls "untested so far" may fail: Landlock refuses `mount(2)` to a sandboxed process, and Claude Code's sandbox mounts. The probe tests it first (FR-037). If it fails, the work stops for the Author's choice of another approach (his Q8 answer).
 - **Agent configuration outside `.claude/` (deviation, named).** The constitution: "Role definitions, hooks, skills, and `CLAUDE.md` are versioned in `.claude/` and count as production code: changes to them run the agent-configuration evals before merge". The workers' prompts, their Claude Code settings layers, and the studio's ComfyUI hook live in `deploy/night-shift/`, so the first install doesn't wait for a patch. What holds: P-1 makes the folder human-only, and P-10 adds it to the gate's agent-configuration trigger, so a change there runs the same evals. The role definitions themselves go in `.claude/agents/` (P-3). Question Q13.
 - **Plan and gate off until his patches merge.** The brief: "the supervisor's workers get plan and gate powers only once his CLAUDE.md and `.claude/**` patches merge. Until then the profiles ship with those two command policies off, and you live by today's rules: no `make plan ROOT=`, no gate runs, no apply."
 - **The hourly check-in is off.** Decision 3: "turn off the hourly rate limit check, we only have weekly rate limts now and not hourly ones". The runner waits once for a stated reset.

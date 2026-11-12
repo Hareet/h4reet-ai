@@ -27,10 +27,7 @@ Exit codes: 0 on success, 1 when a check refuses, 2 when it can't run.
 
 Before any task with the `gpu` lock starts, the disk and memory checks of §2 run again; a failure leaves the task queued and writes the reason on the page (FR-031).
 
-Under `LAYERING=fallback` the runner first starts its allowlisting proxy, a thread listening on `~/.local/state/h4reet-ai/night-shift/proxy.sock`. It allows `CONNECT` only to the allowlist in the installed `allowlist.txt` (`api.anthropic.com:443`, the toolchain's mirrors, `198.18.0.1:2376`), and absolute-form HTTP only to `127.0.0.1:<COMFYUI_PORT>` for the studio role. Each refusal is a page line.
-
 ```text
-[unshare --user --map-current-user --mount --net -- <mask and bridge script>]   # LAYERING=fallback only
 nono run --rollback --profile ~/.config/h4reet-ai/nono/<role>.json \
   --allow <worktree> --allow <repo>/.git/worktrees/<task> \
   --allow <repo>/.git/refs/heads/night/<task> --allow <repo>/.git/logs/refs/heads/night/<task> \
@@ -54,7 +51,7 @@ Each worker gets its worktree on `night/<task>/<slug>`, made with `git worktree 
 A worker writes `<NIGHT_ROOT>/.io/<task>/out/<n>.json`; the runner answers in `<NIGHT_ROOT>/.io/<task>/in/<n>.json`. The folder sits outside the worktree, so nothing touches the repository's human-only `.git/info/exclude`; the task's grants add `--allow` on its own `.io/<task>` (contracts/profiles.md §6 counts it).
 
 - **`{"kind":"plan","root":"bootstrap|account|prod","sha":"<40 hex>"}`**: refused while `NIGHT_PLAN=off`. When on: a detached worktree at the SHA, then `aws configure export-credentials --profile $PLAN_AWS_PROFILE --format env-no-export` into the runner's memory, then `nono run --profile plan.json --env-credential …` running the SHA's `scripts/infra/infra_plan.py --root <root>`. The answer is the block or the refusal line.
-- **`{"kind":"gate","sha":"<40 hex>"}`**: refused while `NIGHT_GATE=off`. When on: under the `gate` lock, `nono run --profile gate.json -- /usr/bin/python3 -I -B tools/gates/gate <sha>` from `GATE_CHECKOUT`. The answer is the log's path and its `gate:` and `merge:` lines. Never `--prove`.
+- **`{"kind":"gate","sha":"<40 hex>"}`**: refused while `NIGHT_GATE=off`. When on: only while `REPO`'s HEAD is `refs/heads/main` and its tree is clean (else answered with that reason), under the `gate` lock, `nono run --profile gate.json -- /usr/bin/python3 -I -B tools/gates/gate <sha>` from `REPO`, the Author's checkout ("It can use my checkout of main"). The answer is the log's path and its `gate:` and `merge:` lines. Never `--prove`.
 - **Anything else**: refused.
 
 ## 6. Naming a finished stack

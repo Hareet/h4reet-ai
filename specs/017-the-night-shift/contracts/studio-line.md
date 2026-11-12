@@ -6,9 +6,9 @@
 |---|---|---|---|
 | `/srv/studio/briefs/<asset>/<round>.json` | implementer, ops | studio, supervisor | the install |
 | `/srv/studio/handoff/<asset>/<round>/` | studio | implementer, ops, supervisor | the install (top), the studio (below) |
-| `/srv/studio/work/` | studio | studio | the install |
+| `/srv/studio/outputs/` | studio (its working folder, once the Author has emptied it) | studio | exists |
 | `/srv/studio/workflows/` | the Author | studio | exists |
-| `/srv/studio/photos`, `/key`, `/outputs` | the Author | no agent | exist |
+| `/srv/studio/photos`, `/key` | the Author | no agent | exist |
 
 ## `line.py`
 

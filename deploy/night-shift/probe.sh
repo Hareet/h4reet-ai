@@ -10,9 +10,11 @@
 #
 # Run it from your terminal, after the runbook's guard on the commit:
 #   bash <(git show "$sha:deploy/night-shift/probe.sh")
-# To skip section 15, the part that runs the downloaded nono, set H4_PROBE_NEST=0 on that line instead of editing
-# this file, so what runs is still the reviewed text:
-#   H4_PROBE_NEST=0 bash <(git show "$sha:deploy/night-shift/probe.sh")
+# Sections 15 and 16 are the nesting test the Author asked for first (plan Q8): does Claude Code's own sandbox start
+# inside nono's? Section 16 runs three one-turn `claude -p` sessions on your own login (outside nono, then inside it
+# twice), each asking for one sandboxed command, `printenv SANDBOX_RUNTIME`; Claude Code writes its usual session
+# files in ~/.claude for them, which the fingerprint shows. The summary's first line is the verdict. To skip both
+# sections, export H4_PROBE_NEST=0 first instead of editing this file, so what runs is still the reviewed text.
 #
 # It follows .claude/agents/ops.md's pattern: set -u (one failure doesn't hide the rest), a header per section, stderr
 # to stdout, each exit code, and ops.md's redaction filter over all of it. It never prints the environment, a token,
@@ -52,6 +54,8 @@ run() {
 	printf 'exit: %s\n' "$?"
 }
 there() { if [ -e "$1" ] || [ -L "$1" ]; then echo "$1: exists"; else echo "$1: absent"; fi; }
+# The last non-empty line of a reply, without spaces: "1" when the sandboxed command ran.
+last_word() { printf '%s\n' "$1" | sed '/^[[:space:]]*$/d' | tail -n 1 | tr -d '[:space:]'; }
 fetch() { curl -fsSL --proto '=https' --max-time "$1" -o "$2" "$3"; }
 # A fingerprint of the places nono or the Claude Code pack might write by default, outside the temp folder.
 fingerprint() {
@@ -78,6 +82,7 @@ main() {
 	local s_claude=absent s_claude_v=absent s_engine=no s_sock=absent s_sock_out=untested s_bwrap_out=untested s_netns=untested
 	local s_nono_sha=none s_nono_digest=none s_nono_match=no s_nono_v=none s_nono_ctl=untested s_nest=untested
 	local s_sock_in=untested s_mask=untested s_aws=untested n=""
+	local s_cc_out=untested s_cc_in=untested s_cc_in2=untested s_verdict="UNTESTED: section 16 didn't run"
 
 	h "probe"
 	echo "probe: spec 017, nono v$NONO_VERSION, temp folder $t, nesting section: $([ "$NEST" = 0 ] && echo skipped || echo on)"
@@ -362,13 +367,44 @@ PY
 				s_aws=absent
 				echo "\$HOME/.aws/config: absent, nothing to test"
 			fi
+
+			if [ "$s_claude" != absent ]; then
+				h "16. Claude Code nested inside nono (your login's turns; Claude Code writes its usual session files in ~/.claude)"
+				local cs="$t/nest-settings.json" q out
+				printf '%s\n' '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false}}' >"$cs"
+				printf '%s\n' '{"extends":"nolabs-ai/claude","meta":{"name":"h4-nest-probe"},"network":{"network_profile":null}}' >"$t/nest-profile.json"
+				q='Run this exact Bash command, then reply with only its output and nothing else: printenv SANDBOX_RUNTIME'
+				local ca=(-p "$q" --settings "$cs" --allowedTools "Bash(printenv SANDBOX_RUNTIME)" --output-format text --max-turns 4)
+				echo "-- a) outside nono (the control; its sandboxed command prints 1):"
+				out="$(timeout 180 "$s_claude" "${ca[@]}" 2>&1 | tail -n 6)"
+				echo "$out"
+				s_cc_out="$(last_word "$out")"
+				echo "-- b) inside nono, under the Claude Code pack:"
+				out="$(timeout 180 "$n" run --profile nolabs-ai/claude --no-rollback -- "$s_claude" "${ca[@]}" 2>&1 | tail -n 8)"
+				echo "$out"
+				s_cc_in="$(last_word "$out")"
+				echo "-- c) inside nono, the pack without its network profile (WSL2 refuses nono's proxy mode by default):"
+				out="$(timeout 180 "$n" run --profile "$t/nest-profile.json" --no-rollback -- "$s_claude" "${ca[@]}" 2>&1 | tail -n 8)"
+				echo "$out"
+				s_cc_in2="$(last_word "$out")"
+			fi
 		fi
+	fi
+
+	# The verdict the Author asked for first (plan Q8): stop if the nesting fails.
+	if [ "$s_cc_out" != 1 ]; then
+		s_verdict="UNCLEAR: Claude Code's sandboxed command didn't run even outside nono; tell the session"
+	elif [ "$s_cc_in" = 1 ] || [ "$s_cc_in2" = 1 ]; then
+		s_verdict="works: Claude Code's sandbox starts nested inside nono's"
+	else
+		s_verdict="FAILED: Claude Code's sandbox doesn't start inside nono's. Stop here and tell the session; the build waits for another approach"
 	fi
 
 	h "fingerprint after"
 	fingerprint
 
 	h "summary"
+	echo "NESTING: $s_verdict"
 	echo "kernel: $(uname -r)"
 	echo "landlock_abi: $s_landlock"
 	echo "dxg: $([ -e /dev/dxg ] && echo yes || echo no)"
@@ -395,6 +431,9 @@ PY
 	echo "socket_inside_nono: $s_sock_in"
 	echo "socket_with_outer_mask: $s_mask"
 	echo "aws_inside_nono: $s_aws"
+	echo "claude_sandbox_outside_nono: $s_cc_out"
+	echo "claude_sandbox_inside_nono_pack: $s_cc_in"
+	echo "claude_sandbox_inside_nono_no_proxy: $s_cc_in2"
 	echo "probe: done, report at $report"
 }
 

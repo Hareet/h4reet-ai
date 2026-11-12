@@ -9,7 +9,7 @@
   - `~/.config/h4reet-ai/nono/*.json`;
   - `~/.local/share/h4reet-ai/night-shift/**`;
   - `~/.local/state/h4reet-ai/night-shift/{locks,log}`;
-  - `/srv/studio/{briefs,handoff,work}`, `~/h4reet-ai/night/`, and `~/h4reet-ai/gate`;
+  - `/srv/studio/{briefs,handoff}` and `~/h4reet-ai/night/`; it refuses on the first install while `/srv/studio/outputs` holds a file (his Q5), printing the count, never a name;
   - `installed.txt` (each path and its SHA-256), and `LAYERING` into the facts file.
 - **Stops**: on the first failure, printing `install: FAILED at <step>: <reason>`, then the summary so far.
 - **The summary** (between `== night-shift summary ==` and `== end ==`):
@@ -19,5 +19,5 @@
   - each R4 row's `id refused-by=<layer>`.
 
   Nothing secret.
-- **`--undo`**: removes each path in `installed.txt` whose SHA-256 still matches, then the empty folders it made, then `~/.local/bin/nono` if it is the pin's. It prints what it left: the gate checkout (with the `git worktree remove` line), nono's state under `~/.local/state/nono`, and any file it didn't make.
+- **`--undo`**: removes each path in `installed.txt` whose SHA-256 still matches, then the empty folders it made, then `~/.local/bin/nono` if it is the pin's. It prints what it left: nono's state under `~/.local/state/nono`, and any file it didn't make.
 - **Idempotent**: a second run at the same SHA prints `unchanged` for each step and the same summary.
