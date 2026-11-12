@@ -87,6 +87,12 @@ MAX_WORKERS = 10  # FR-018
 STAGGER_S = 10  # contracts/runner.md §3
 IDLE_S = 15 * 60  # FR-022: IDLE_MINUTES
 LIMIT_MARGIN_S = 300  # the reset plus five minutes (plan §4)
+LIMIT_MAX_WAIT_S = (
+    8 * 86400
+)  # a reset further ahead than a week and a day isn't believed: the night stops
+LIMIT_AGAIN_S = (
+    600  # a second limit this soon after resuming stops the night instead of looping
+)
 STOP_GRACE_S = 60  # docker stop: SIGTERM, then SIGKILL after 60 s
 MIN_DISK = 30 * 2**30  # the 2026-10-08 rule: / and /mnt/c
 MIN_MEM = 8 * 2**30
@@ -111,6 +117,12 @@ OUT_NETWORK = (
     "h4-night-out"  # the egress helpers' ordinary network; no session joins it
 )
 SESSION_NETS = {"h4-night", "h4-night-engine"}
+ENGINE_NET = "h4-night-engine"
+ENGINE_ROLES = {
+    "implementer",
+    "red-teamer",
+    "ops",
+}  # the roles whose containers reach the agents' engine
 STUDIO_NETS = {"h4-night-studio"}
 PLAN_NETS = {"h4-night-plan"}
 ENGINE = (
@@ -160,21 +172,17 @@ GIT_ENV = {
 }
 MAIN = "refs/heads/main"
 
-# The masks every writing session gets over `.git` (contracts/containers.md §4), in this order, then the task's own
-# commondir, then the `.git` paths main's settings deny, then the worktree paths main's settings deny.
-# HEAD and index are the main checkout's own; no worktree uses them, and without the masks a session could move the
-# Author's HEAD or rewrite his staging area (a departure from containers.md §4's list, named in runner.md §3).
-GIT_MASKS = (
-    "hooks",
-    "config",
-    "info",
-    "packed-refs",
-    "refs/heads/main",
-    "refs/tags",
-    "objects/info",
-    "HEAD",
-    "index",
-)
+# FR-012's narrow mount (G1's review, B1): a writing session gets `.git` read-only, and read-write only where a commit
+# on its own branch writes: `objects`, its own `worktrees/<admin>`, `refs/heads/night/<task>`, and
+# `logs/refs/heads/night/<task>`. Masks are needed only where a read-write mount would cover a path: `objects/info`
+# (the alternates) and the task's own `commondir`, plus any `.git` path main's settings deny under a read-write mount.
+# Everything else (hooks, config, info, packed-refs, refs/heads/main, refs/tags, HEAD, index) is under the read-only
+# `.git` already.
+GIT_RW_MASKS = ("objects/info",)
+
+# Paths in the repository's .git that the preflight refuses while they exist (G1's review, B1).
+PLANTED_GIT = ("commondir", "main", "refs/main", "refs/remotes/main", "refs/tags/main")
+PLANTED_REFS = ("refs/main", "refs/remotes/main", "refs/tags/main")
 
 OFF_ANSWER = "off: waiting for P-2, P-3, P-6"  # plan §8
 PLAN_ROOTS = ("bootstrap", "account", "prod")
@@ -268,6 +276,7 @@ class Effects:
     def __init__(self) -> None:
         self.environ: dict[str, str] = dict(os.environ)
         self._events: queue.Queue = queue.Queue()
+        self._procs: dict[str, subprocess.Popen] = {}
 
     # the clock
     def now(self) -> float:
@@ -379,6 +388,51 @@ class Effects:
             self._events.put(("job", key, result))
 
         threading.Thread(target=go, daemon=True).start()
+
+    def run_proc(self, key: str, argv, *, env=None, cwd=None, timeout=None) -> Result:
+        """A job's long process (the gate), in its own process group, so terminate(key) can end all of it."""
+        try:
+            p = subprocess.Popen(
+                list(argv),
+                env=self.environ if env is None else env,
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+        except OSError as e:
+            return Result(127, "", f"{argv[0]}: {type(e).__name__}")
+        self._procs[key] = p
+        try:
+            out, err = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self._signal_group(p, signal.SIGKILL)
+            out, err = p.communicate()
+            return Result(124, out, err)
+        finally:
+            self._procs.pop(key, None)
+        return Result(p.returncode, out, err)
+
+    def terminate(self, key: str, grace: float = 10.0) -> None:
+        """SIGTERM to the job's process group, then SIGKILL after `grace` seconds."""
+        p = self._procs.get(key)
+        if p is None or p.poll() is not None:
+            return
+        self._signal_group(p, signal.SIGTERM)
+        try:
+            p.wait(grace)
+        except subprocess.TimeoutExpired:
+            self._signal_group(p, signal.SIGKILL)
+            p.wait(5)
+
+    @staticmethod
+    def _signal_group(p, signum) -> None:
+        try:
+            os.killpg(p.pid, signum)
+        except ProcessLookupError:
+            pass
 
     def wait(self, timeout):
         try:
@@ -845,6 +899,9 @@ def validate_spec(
         or not all(isinstance(n, str) and n in allowed for n in nets)
     ):
         return f"networks must be from {sorted(allowed)}"
+    engine = ENGINE_NET in nets
+    if engine and role not in ENGINE_ROLES:
+        return f"only {', '.join(sorted(ENGINE_ROLES))} may join {ENGINE_NET}"
     try:
         env = env_items(spec["env"])
     except Refused as e:
@@ -862,6 +919,9 @@ def validate_spec(
         )
         if names.get("HTTPS_PROXY") != proxy:
             return f"HTTPS_PROXY must be {proxy}"
+        no_proxy = [x.strip() for x in names.get("NO_PROXY", "").split(",")]
+        if engine and "engine-fwd" not in no_proxy:
+            return "NO_PROXY must name engine-fwd on a spec that joins h4-night-engine"
         for k, v in SESSION_ENV_REQUIRED.items():
             if names.get(k) != v:
                 return f"env {k} must be {v}"
@@ -931,9 +991,19 @@ def vol(host: str, container: str, mode: str) -> list[str]:
 
 
 def build_run_argv(
-    spec, *, name: str, role: str, pre, post, workdir: str, prompt: str, token: str
+    spec,
+    *,
+    name: str,
+    role: str,
+    pre,
+    post,
+    workdir: str,
+    prompt: str,
+    token: str,
+    image: str,
 ) -> list[str]:
-    """contracts/runner.md §3's line for one session. `pre` and `post` are the runner's own task mounts."""
+    """contracts/runner.md §3's line for one session. `pre` and `post` are the runner's own task mounts; `image` is
+    the ID the install recorded for the spec's tag, so a tag moved after the preflight changes nothing."""
     argv = [
         "docker",
         "run",
@@ -960,7 +1030,7 @@ def build_run_argv(
     argv += [
         "-w",
         workdir,
-        spec["image"],
+        image,
         "claude",
         "-p",
         prompt,
@@ -1187,6 +1257,7 @@ class Runner:
         self.comfy_owner: str | None = None
         self.runner_lock = None
         self.saved: dict[str, tuple[str, bool]] = {}
+        self.resumed_at: float | None = None
         self._load_state()
 
     # ---- small helpers -------------------------------------------------------------------------------------------
@@ -1207,9 +1278,14 @@ class Runner:
             os.close(fd)
 
     def git_env(self, extra: dict | None = None) -> dict[str, str]:
+        """The runner's git environment. GIT_COMMON_DIR is always the repository's own .git, so no commondir file
+        (a session-planted `.git/commondir` included) ever steers which config or refs the runner reads (B1)."""
         env = {k: v for k, v in self.fx.environ.items() if not k.startswith("GIT_")}
         env.update(GIT_ENV)
+        env["GIT_DIR"] = self.git_dir
+        env["GIT_COMMON_DIR"] = self.git_dir
         env.update(extra or {})
+        env["GIT_COMMON_DIR"] = self.git_dir
         return env
 
     def git(
@@ -1408,6 +1484,28 @@ class Runner:
                 "the token file must hold exactly one CLAUDE_CODE_OAUTH_TOKEN=<token> line"
             )
 
+    def check_planted_git(self) -> None:
+        """A top-level commondir steers any git run without GIT_COMMON_DIR (the Author's, the gate's); a ref named
+        main anywhere but refs/heads/main shadows the branch for anything that says `main`."""
+        g = self.git_dir
+        for rel in PLANTED_GIT:
+            if os.path.lexists(f"{g}/{rel}"):
+                raise Refused(
+                    f".git/{rel} exists: remove it before the night (nothing should make it)"
+                )
+        try:
+            packed = Path(f"{g}/packed-refs").read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except FileNotFoundError:
+            packed = ""
+        for line in packed.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1] in PLANTED_REFS:
+                raise Refused(
+                    f"packed-refs holds {parts[1]}: remove it before the night"
+                )
+
     def check_resources(self) -> str | None:
         for where in DISKS:
             try:
@@ -1449,6 +1547,8 @@ class Runner:
                 raise Refused(f"image {ref}'s ID isn't the one the install recorded")
         # 3. the token file
         self.check_token()
+        # 3b. nothing planted in the repository's .git that could steer git outside a container (G1's review, B1)
+        self.check_planted_git()
         # 4. the runner's own environment (FR-041)
         for name in BILLING_VARS:
             if name in self.fx.environ:
@@ -1492,6 +1592,13 @@ class Runner:
             raise Refused(f"spec {role} has the example marker (x-h4)")
         if installed["file"].get(path) != hashlib.sha256(data).hexdigest():
             raise Refused(f"spec {role}'s SHA-256 isn't the one installed.txt records")
+
+    def image_id(self, ref: str) -> str:
+        """The image ID installed.txt records for `ref` (nit 3: start by ID, never by a tag)."""
+        want = self.installed()["image"].get(ref, "")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", want):
+            raise Refused(f"image {ref} has no recorded ID in installed.txt")
+        return want
 
     def egress_image(self, installed=None) -> str:
         installed = installed or self.installed()
@@ -1625,10 +1732,12 @@ class Runner:
                 )
             except FileNotFoundError:
                 return None
-            except OSError:
-                return self._queue_refused(
-                    "queue.json", "queue.json isn't a regular file"
-                )
+            except OSError as e:
+                # A link or an unreadable file: refused once, not at every tick (the review's nit 1).
+                sig = ("unopenable", e.errno)
+                if sig == self.queue_sig:
+                    return None
+                return self._queue_refused(sig, "queue.json isn't a regular file")
             try:
                 st = os.fstat(fd)
                 sig = (st.st_ino, st.st_size, st.st_mtime_ns)
@@ -1853,40 +1962,54 @@ class Runner:
             raise Refused("main's .claude/settings.json isn't an object")
         return data
 
-    def ensure_git_mask(self, rel: str, p: str) -> bool:
-        """Whether to mount the mask at `p`; makes a missing one when that's safe, so a session can't create it."""
-        if os.path.lexists(p):
+    def task_git_rw(self, t: Task) -> list[str]:
+        """The only `.git` paths a writing session may write (FR-012): its commit's objects, its own worktree
+        folder, and its own branch's ref and log folders."""
+        g = self.git_dir
+        assert t.admin
+        return [
+            f"{g}/objects",
+            t.admin,
+            f"{g}/refs/heads/night/{t.id}",
+            f"{g}/logs/refs/heads/night/{t.id}",
+        ]
+
+    def ensure_git_rw(self, t: Task) -> list[str]:
+        """Make the read-write folders outside, before the run, so docker never makes them as root."""
+        rw = self.task_git_rw(t)
+        for p in rw:
+            if os.path.islink(p):
+                raise Refused(f"{p} is a link")
+            os.makedirs(p, mode=0o755, exist_ok=True)
+            if self.fx.realpath(p) != p:
+                raise Refused(f"{p} holds a link")
+        return rw
+
+    def git_masks(self, rw: list[str], git_rel: list[str]) -> list[str]:
+        """The `.git` masks a read-write mount would otherwise cover: objects/info, then main's denied `.git`
+        paths that fall under one. A denied path over a read-write mount can't be honoured: the start refuses."""
+        g = self.git_dir
+        out: list[str] = []
+        for rel in (*GIT_RW_MASKS, *git_rel):
+            p = f"{g}/{rel}"
+            over = [m for m in rw if m == p or is_under(m, p)]
+            if over:
+                raise Refused(
+                    f"main's settings deny writing .git/{rel}, which holds the session's read-write {over[0]}"
+                )
+            if not any(is_under(p, m) for m in rw) or p in out:
+                continue  # under the read-only .git already
+            if not os.path.lexists(p):
+                if rel in GIT_RW_MASKS:
+                    os.makedirs(p, mode=0o755, exist_ok=True)
+                    self.log(f".git/{rel} was absent: made, so it can be masked")
+                else:
+                    self.log(f"mask skipped: .git/{rel} is absent")
+                    continue
             if os.path.islink(p) or self.fx.realpath(p) != p:
                 raise Refused(f".git/{rel} is a link")
-            return True
-        if rel == "refs/heads/main":
-            r = self.git("rev-parse", "--verify", "--quiet", f"{MAIN}^{{commit}}")
-            sha = r.out.strip()
-            if r.rc != 0 or not SHA40.fullmatch(sha):
-                raise Refused("refs/heads/main doesn't resolve")
-            self._create(p, (sha + "\n").encode())
-        elif rel == "packed-refs":
-            self._create(p, b"")
-        elif rel in ("config", "HEAD"):
-            raise Refused(f".git/{rel} is missing")
-        elif rel == "index":
-            self.log(".git/index is absent: not masked")
-            return False
-        else:
-            os.makedirs(p, mode=0o755, exist_ok=True)
-        self.log(f".git/{rel} was absent: made, so it can be masked")
-        return True
-
-    def _create(self, p: str, data: bytes) -> None:
-        fd = os.open(
-            p,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-            0o644,
-        )
-        try:
-            os.write(fd, data)
-        finally:
-            os.close(fd)
+            out.append(p)
+        return out
 
     def task_mounts(self, t: Task, io: str):
         g = self.git_dir
@@ -1894,19 +2017,17 @@ class Runner:
         if t.role in WRITING_WT:
             assert t.worktree and t.admin
             git_rel, wt_rel = mask_lists(self.main_settings())
-            pre += [(t.worktree, t.worktree, "rw"), (g, g, "rw")]
-            for rel in GIT_MASKS:
-                p = f"{g}/{rel}"
-                if self.ensure_git_mask(rel, p):
-                    pre.append((p, p, "ro"))
+            rw = self.ensure_git_rw(t)
+            masks = self.git_masks(rw, git_rel)
             cd = f"{t.admin}/commondir"
-            pre.append((cd, cd, "ro"))
-            for rel in git_rel:
-                if rel in GIT_MASKS:
-                    continue
-                p = f"{g}/{rel}"
-                if self.ensure_git_mask(rel, p):
-                    pre.append((p, p, "ro"))
+            pre += [(t.worktree, t.worktree, "rw"), (g, g, "ro")]
+            for m in rw:
+                pre.append((m, m, "rw"))
+                for x in masks:
+                    if is_under(x, m) and (x, x, "ro") not in pre:
+                        pre.append((x, x, "ro"))
+                if m == t.admin:
+                    pre.append((cd, cd, "ro"))
             for rel in wt_rel:
                 p = f"{t.worktree}/{rel}"
                 if not os.path.lexists(p):
@@ -1995,6 +2116,7 @@ class Runner:
             workdir=t.worktree or IO_IN,
             prompt=prompt,
             token=self.p.token,
+            image=self.image_id(spec["image"]),
         )
         self.docker("rm", "-f", self.container(t))
         t.gen += 1
@@ -2026,7 +2148,7 @@ class Runner:
             "-e", "H4_EGRESS_PORT=3128",
             *vol(allowlist, "/etc/h4-egress/settings.json", "ro"),
             *vol(logdir, "/log", "rw"),
-            self.egress_image(),
+            self.image_id(self.egress_image()),
         ]  # fmt: skip
 
     def start_helper(
@@ -2057,7 +2179,7 @@ class Runner:
         ):
             os.makedirs(logdir, mode=0o700, exist_ok=True)
             self.start_helper(name, self.egress_argv(name, allow, logdir), net, alias)
-        worker = self.load_live_spec("implementer")["image"]
+        worker = self.image_id(self.load_live_spec("implementer")["image"])
         fwd = [*self.helper_flags("h4-night-engine-fwd", "128m"), worker]
         fwd += ["socat", "TCP-LISTEN:2376,fork,reuseaddr", ENGINE]
         self.start_helper("h4-night-engine-fwd", fwd, "h4-night-engine", "engine-fwd")
@@ -2070,6 +2192,7 @@ class Runner:
             "h4-night-egress",
             "h4-night-egress-studio",
             "h4-night-engine-fwd",
+            "h4-night-egress-plan",
         )
 
     # ---- events ----------------------------------------------------------------------------------------------------
@@ -2178,6 +2301,8 @@ class Runner:
         for t in self.running():
             if now - t.last_event < IDLE_S:
                 continue
+            if any(k.startswith(f"job:{t.id}:") for k in self.pending):
+                continue  # waiting on its request, not idle
             if t.worktree and t.role in WRITING_WT and self.dirty(t):
                 continue
             r = self.docker("top", self.container(t), "-eo", "comm")
@@ -2220,9 +2345,23 @@ class Runner:
         """FR-021: stop every container, wait once until the reset plus 300 s, requeue. No other timer."""
         now = self.now()
         self.stop_all("stopped-limit")
-        if reset is None:
+        if self.resumed_at is not None and now - self.resumed_at < LIMIT_AGAIN_S:
             self.page(
-                f"usage limit reported by {t.id} with no reset time: the night stops"
+                f"a second usage limit, from {t.id}, within 10 minutes of resuming: the night stops"
+            )
+            self.ended = True
+            self.save_state()
+            return
+        why = None
+        if reset is None:
+            why = "no reset time in its message"
+        elif reset <= now:
+            why = f"its reset, {iso(reset)}, is already past"
+        elif reset > now + LIMIT_MAX_WAIT_S:
+            why = f"its reset, {iso(reset)}, is more than 8 days ahead"
+        if why:
+            self.page(
+                f"usage limit reported by {t.id} with no usable reset time ({why}): the night stops"
             )
             self.ended = True
             self.save_state()
@@ -2235,6 +2374,7 @@ class Runner:
         self.save_state()
         self.fx.sleep(max(0.0, until - now))
         self.waiting_until = None
+        self.resumed_at = self.now()
         for s in self.sessions():
             if s.state == "stopped-limit":
                 s.state = "queued"
@@ -2408,7 +2548,9 @@ class Runner:
         ]  # never --prove (plan Q7)
 
         def job() -> dict:
-            r = self.fx.run(argv, cwd=self.repo, env=self.host_env(), timeout=6 * 3600)
+            r = self.fx.run_proc(
+                key, argv, cwd=self.repo, env=self.host_env(), timeout=6 * 3600
+            )
             text = r.out + r.err
             Path(log).write_text(text, encoding="utf-8")
             return {"rc": r.rc, "text": text}
@@ -2501,7 +2643,7 @@ class Runner:
                     argv += ["-e", f"{k}={v}"]
                 for m in spec["mounts"]:
                     argv += vol(m["host"], m["container"], m["mode"])
-                argv += [*vol(wt, wt, "ro"), "-w", wt, spec["image"]]
+                argv += [*vol(wt, wt, "ro"), "-w", wt, self.image_id(spec["image"])]
                 argv += [
                     "/usr/bin/python3",
                     "-I",
@@ -2617,6 +2759,9 @@ class Runner:
             return self.refuse("comfyui", "refused: a parameter repeats")
         if self.comfy_owner:
             return self.refuse("comfyui", "refused: ComfyUI is already running")
+        why = self.check_resources()  # FR-031, before any GPU start
+        if why:
+            return self.refuse("comfyui", f"refused: {why}")
         try:
             spec = self.load_live_spec("comfyui")
         except Refused as e:
@@ -2636,7 +2781,13 @@ class Runner:
         for m in spec["mounts"]:
             argv += vol(m["host"], m["container"], m["mode"])
         python = f"{f['COMFYUI_VENV']}/bin/python"
-        argv += ["-w", f["COMFYUI_DIR"], spec["image"], python, "main.py"]
+        argv += [
+            "-w",
+            f["COMFYUI_DIR"],
+            self.image_id(spec["image"]),
+            python,
+            "main.py",
+        ]
         argv += [
             "--listen",
             "0.0.0.0",
@@ -2778,11 +2929,7 @@ class Runner:
                 if ev is not None:
                     self.dispatch(ev)
         except (StopNight, KeyboardInterrupt):
-            self.stopping = True
-            self.stop_all("queued")
-            self.page(
-                "night.py stop: every session stopped; unfinished tasks stay queued"
-            )
+            self.abort_night()
         except Refused as e:
             print(f"start: refused: {e}")
             self.page(f"the night can't go on: {e}")
@@ -2796,6 +2943,39 @@ class Runner:
         done = sum(1 for t in self.tasks.values() if t.state == "done")
         self.page(f"the night ends: {done} of {len(self.tasks)} tasks done")
         return 0
+
+    def abort_night(self) -> None:
+        """`night.py stop` or Ctrl-C: a second signal is ignored, not an abort of this cleanup. Running jobs end
+        first (the gate's process group, the plan's containers) while their locks are still held, then every
+        session stops, and the plan's credentials are swept."""
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            self.fx.signal(signum, signal.SIG_IGN)
+        self.stopping = True
+        self.abort_jobs()
+        self.stop_all("queued")
+        self.sweep_plan_credentials()
+        self.page("night.py stop: every session stopped; unfinished tasks stay queued")
+        self.save_state()
+
+    def abort_jobs(self) -> None:
+        for key, (kind, t, n, handle, _sha) in list(self.pending.items()):
+            if kind == "gate":
+                self.fx.terminate(key)
+                if handle is not None:
+                    self.fx.unlock(handle)
+                    self.lock_holders.pop("gate", None)
+            elif kind == "plan":
+                self.docker(
+                    "stop",
+                    "-t",
+                    "10",
+                    f"h4-night-plan-{t.id}-{n}",
+                    "h4-night-egress-plan",
+                )
+            elif kind == "comfyui":
+                self.stop_comfyui()
+            self.log(f"{kind} request {n} for {t.id}: ended by the stop")
+        self.pending.clear()
 
     def sweep_plan_credentials(self) -> None:
         base = f"{self.p.state}/plan"
