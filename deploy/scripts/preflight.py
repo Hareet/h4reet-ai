@@ -15,8 +15,8 @@ any check failed; make up stops there, before anything starts.
 - --disk-only runs P13 and P14 for N bytes written under DIR (deploy/scripts/pull-models.sh, before each
   download).
 - --host-class tunnel-end --env-file PATH runs the tunnel end's class checks, T1 to T4, on the env file write_env.py
-  wrote, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3). The laptop's prod adds P22, its tunnel,
-  and may add the tunnel profile.
+  wrote, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3); --host-class ec2, EC2's, E1 to E6. The
+  laptop's prod adds P22, its tunnel, and may add the tunnel profile.
 - On a host stack make runs the copy of this script in the export of the commit being started, so the templates,
   locks, and compose file it checks are that commit's; --repo names the working tree, for P9, P20, and P21.
 
@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import base64
 import configparser
+import datetime
 import hashlib
 import ipaddress
 import json
@@ -41,7 +42,9 @@ import socket
 import stat
 import subprocess
 import sys
+import time
 import urllib.parse
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -140,7 +143,39 @@ HOST_CLASSES = {
         # Group 6's shared state (spec 001 contracts/shared-state.md §1).
         "shared-state",
     ),
+    # Group 7's EC2 (spec 001 contracts/env-cloud.md §3; plan.md §5.1): the whole topology but the model server and the
+    # local store, and its two doors from the tunnel end, ec2-relay-block.
+    "ec2": (
+        "edge",
+        "web",
+        "gateway",
+        "otel-collector",
+        "prometheus",
+        "loki",
+        "grafana",
+        "langfuse-web",
+        "langfuse-worker",
+        "langfuse-db",
+        "clickhouse",
+        "valkey",
+        "seaweedfs",
+        "ec2-relay-block",
+    ),
 }
+# A shared service's image on EC2: the account's registry's copy, which the deployer's release env file names as
+# H4_IMAGE_<SERVICE>; on every other host, the pinned reference after ":-" (deploy/compose.yaml). No host's own env file
+# names one (P17, E4).
+MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
+
+
+def as_pinned(name: str, image: str) -> str:
+    """The image compose runs on every host but EC2: the reference after ":-", when the variable is the service's."""
+    m = MIRRORED_RE.fullmatch(image)
+    if m and m.group(1) == "H4_IMAGE_" + name.upper().replace("-", "_"):
+        return m.group(2)
+    return image
+
+
 CLOUD_PROFILES = frozenset(HOST_CLASSES)
 # The laptop's prod may add spec 001's tunnel profile, once the Author's tunnel-keys target has made its keys; P22 then
 # checks what it needs (contracts/env-cloud.md §2; contracts/tunnel.md §3 and §5).
@@ -164,6 +199,9 @@ NOT_PUBLIC = tuple(
     )
 )
 TUNNEL_END_TEMPLATE = Path("deploy") / "hosts" / "tunnel-end" / "tunnel-end.env.example"
+EC2_TEMPLATE = Path("deploy") / "hosts" / "ec2" / "ec2.env.example"
+EC2_DB_URL = "postgres://gateway@10.42.1.10:5432/h4reet?sslmode=verify-full"
+EC2_AWS_DIR = Path("/run/h4reet/ec2/aws")
 REGISTRY_RE = re.compile(r"[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com")
 RELEASE_BUCKET_RE = re.compile(r"h4reet-ai-releases-[a-z0-9]{1,40}")
 VPC_ENDPOINT_RE = re.compile(r"http://10\.42\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{2,5}")
@@ -1189,7 +1227,7 @@ def images_missing(ctx: Context) -> list[str]:
         if shared_build(name, service):
             continue  # built by make up after preflight; its cached layers fit the margin
         if service.get("image") and (ctx.mode == "pull" or active(service, profiles)):
-            refs.append(str(service["image"]))
+            refs.append(as_pinned(name, str(service["image"])))
     for base in ("base:node", "base:python"):
         if base in lock and lock[base][2].startswith("sha256:"):
             repository, tag, digest = lock[base]
@@ -1365,8 +1403,16 @@ def p17(ctx: Context) -> Result:
         return fail("P17", "docker compose config didn't render the compose file (P10)")
     lock = read_lock(ctx.root / "deploy/images.lock")
     problems = []
+    # Only a cloud host's deployer names an image, in its release's env file (spec 001 group 7).
+    named = sorted(k for k in ctx.values if k.startswith("H4_IMAGE_"))
+    if named:
+        problems.append(
+            f"{', '.join(named)}: only EC2's deployer names an image, never an env file"
+        )
     for name, service in sorted((model.get("services") or {}).items()):
         image = service.get("image")
+        if image:
+            image = as_pinned(name, str(image))
         if (
             service.get("build") is not None
             or not image
@@ -1768,6 +1814,155 @@ def t5_tls(tls_dir: Path) -> Result:
     )
 
 
+def ec2_checks(
+    root: Path,
+    env_file: Path,
+    aws_dir: Path = EC2_AWS_DIR,
+    phase: str = "all",
+    name_tag: Callable[[], str] | None = None,
+    now: Callable[[], float] | None = None,
+) -> list[Result]:
+    """EC2's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3; research.md R-28): its env file
+    is 0600 and in the grammar (E1), with its template's keys (E2), names EC2 on prod with its class's profile alone, so
+    no model server and no local store (E3), holds values of their shapes, the shared state's TLS, SMTP's implicit TLS,
+    and no image (E4); the instance is h4-prod-ec2 by its metadata's Name tag (E5); and the gateway's Bedrock profile is
+    in place and fresh (E6). Names keys, never a value. The deployer runs "before" (E1 to E5) before the host step and
+    "after" (E6) after it."""
+    if phase == "after":
+        return [e6_credentials(aws_dir, now or time.time)]
+    try:
+        mode = env_file.stat().st_mode
+        values, errors = parse_env(env_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        return [fail("E1", f"{env_file} unreadable: {type(error).__name__}")]
+    out: list[Result] = []
+    problems = list(errors)
+    if mode & 0o077:
+        problems.append(f"{env_file} is readable by others: it must be 0600")
+    out.append(summarize("E1", problems, f"{env_file} is 0600 and in the grammar"))
+    template, _ = parse_env((root / EC2_TEMPLATE).read_text(encoding="utf-8"))
+    missing, extra = (
+        sorted(set(template) - set(values)),
+        sorted(set(values) - set(template)),
+    )
+    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems += [f"not in the template: {', '.join(extra)}"] if extra else []
+    out.append(summarize("E2", problems, "the keys are the template's"))
+    want = {
+        "H4_HOST": "ec2",
+        "H4_STACK": "prod",
+        "H4_ENV": "prod",
+        "COMPOSE_PROJECT_NAME": "h4reet-prod",
+        "COMPOSE_PROFILES": "ec2",
+    }
+    problems = [f"{k} isn't {w}" for k, w in want.items() if values.get(k) != w]
+    out.append(
+        summarize(
+            "E3",
+            problems,
+            "the file names EC2 on prod, its class alone: no model server, no local store",
+        )
+    )
+    problems = [
+        f"{k} isn't of its shape"
+        for k, shape in (
+            ("H4_REGISTRY", REGISTRY_RE),
+            ("RELEASE_BUCKET", RELEASE_BUCKET_RE),
+            ("RELAY_TOKEN_SELF", TOKEN_RE),
+        )
+        if not shape.fullmatch(values.get(k, ""))
+    ]
+    fixed = {
+        "GATEWAY_DB_URL": EC2_DB_URL,
+        "GATEWAY_DB_TLS_SERVERNAME": "shared-state",
+        "SMTP_PORT": "465",
+        "SMTP_TLS": "implicit",
+        "ALERT_DELIVERY": "real",
+        "GATEWAY_AWS_PROFILE": "h4reet-bedrock",
+    }
+    problems += [f"{k} isn't {w}" for k, w in fixed.items() if values.get(k) != w]
+    try:
+        ca = base64.b64decode(
+            values.get("GATEWAY_DB_TLS_CA", ""), validate=True
+        ).decode()
+    except (ValueError, UnicodeDecodeError):
+        ca = ""
+    if not PEM_CERTIFICATE_RE.fullmatch(ca):
+        problems.append("GATEWAY_DB_TLS_CA isn't base64 of one PEM certificate")
+    if not values.get("GATEWAY_ANTHROPIC_API_KEY"):
+        problems.append(
+            "GATEWAY_ANTHROPIC_API_KEY is empty: EC2's first route needs its key (FR-068)"
+        )
+    named = sorted(k for k in values if k.startswith("H4_IMAGE_"))
+    if named:
+        problems.append(
+            f"{', '.join(named)}: only the deployer's release env file names an image"
+        )
+    out.append(summarize("E4", problems, "each value has its shape"))
+    tag = (name_tag or _imds_name_tag)()
+    out.append(
+        summarize(
+            "E5",
+            []
+            if tag == "h4-prod-ec2"
+            else ["this instance's Name tag isn't h4-prod-ec2"],
+            "the instance is h4-prod-ec2, by its metadata",
+        )
+    )
+    if phase == "before":
+        return out
+    return [*out, e6_credentials(aws_dir, now or time.time)]
+
+
+def e6_credentials(aws_dir: Path, now: Callable[[], float]) -> Result:
+    """E6: the gateway's Bedrock profile, which EC2's host step writes (deploy/hosts/ec2/ec2_host.py), in place and not
+    expired, and the gateway's user's alone to read."""
+    problems = []
+    try:
+        config = (aws_dir / "config").read_text(encoding="utf-8")
+        document = json.loads(
+            (aws_dir / "credentials.json").read_text(encoding="utf-8")
+        )
+        mode = (aws_dir / "credentials.json").stat().st_mode & 0o777
+        expires = datetime.datetime.fromisoformat(
+            str(document["Expiration"]).replace("Z", "+00:00")
+        ).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        return fail("E6", f"the gateway's Bedrock profile isn't in place in {aws_dir}")
+    if "[profile h4reet-bedrock]" not in config or "credential_process" not in config:
+        problems.append(
+            "its config isn't the h4reet-bedrock profile's credential_process"
+        )
+    if mode & 0o377:
+        problems.append("credentials.json is open beyond 0400")
+    if expires <= now():
+        problems.append("its credentials have expired")
+    return summarize(
+        "E6", problems, "the gateway's Bedrock profile is in place and fresh"
+    )
+
+
+def _imds_name_tag() -> str:
+    """The instance's Name tag, through IMDSv2 from the host, never a proxy (write_env.py's imds)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        token_request = urllib.request.Request(
+            "http://169.254.169.254/latest/api/token",
+            method="PUT",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "60"},
+        )
+        with opener.open(token_request, timeout=5) as response:
+            token = response.read().decode()
+        request = urllib.request.Request(
+            "http://169.254.169.254/latest/meta-data/tags/instance/Name",
+            headers={"X-aws-ec2-metadata-token": token},
+        )
+        with opener.open(request, timeout=5) as response:
+            return response.read().decode().strip()
+    except OSError:
+        return ""
+
+
 UP = (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18)
 PULL = (p1, p2, p3, p4, p5, p6, p7, p10, p13, p14)
 
@@ -1840,8 +2035,12 @@ def main(argv: list[str], host: Host | None = None) -> int:
     if args.host_class:
         if not args.env_file:
             parser.error("--host-class needs --env-file")
-        results = tunnel_end_checks(
-            args.root.resolve(), args.env_file, args.shared_state_dir, args.phase
+        results = (
+            ec2_checks(args.root.resolve(), args.env_file, phase=args.phase)
+            if args.host_class == "ec2"
+            else tunnel_end_checks(
+                args.root.resolve(), args.env_file, args.shared_state_dir, args.phase
+            )
         )
     elif args.disk_only:
         if args.bytes is None or not args.path:

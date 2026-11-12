@@ -1,0 +1,28 @@
+# EC2's gateway's one way out, installed from the release's tree by the deployer's host step (ec2_host.py) (spec 001 FR-051; deploy/scripts/sni_proxy.py): nftables sends each container's 443 to
+# 3129 and 465 to 3130 on EC2's private address, and this proxy, as h4-egress, connects to the name the TLS hello asks
+# for, if gateway-allowlist.txt holds it or, on 465, the env file's SMTP_HOST, which a root step copies, alone, into the
+# proxy's own runtime folder before it starts: the proxy never reads the env file, whose other values are secrets.
+[Unit]
+Description=h4reet: the gateway's proxy
+After=h4-nftables.service h4-write-env.service network-online.target
+Requires=h4-nftables.service
+Wants=network-online.target h4-write-env.service
+Before=docker.service
+
+[Service]
+User=h4-egress
+Group=h4-egress
+RuntimeDirectory=h4-sni-proxy
+ExecStartPre=+/bin/sh -c 'sed -n "s/^SMTP_HOST=//p" /run/h4reet/ec2.env > /run/h4-sni-proxy/smtp-host'
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/release/sni_proxy.py --allowlist /opt/h4reet/release/gateway-allowlist.txt --listen 10.42.0.20:3129=443 --listen 10.42.0.20:3130=465 --smtp-host-file /run/h4-sni-proxy/smtp-host
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

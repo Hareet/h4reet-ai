@@ -1,0 +1,24 @@
+# EC2's host egress allowlist (spec 001 FR-051; contracts/tunnel.md §6; research.md R-10): every name the host's egress
+# proxy, deploy/scripts/egress_proxy.py, may CONNECT to, on 443 alone, for the host's own services: the deployer, Docker's
+# pulls, write_env.py, the gateway's credential timer, and the Systems Manager agent. Each is named, in backticks, by a
+# row of docs/data-flow-disclosure.md (C18), which tools/gates/disclosure_check.py holds it to. A `*` stands for one
+# label or the rest of one. The gateway's own destinations are release/gateway-allowlist.txt's, through sni_proxy.py.
+
+# The deployer's pulls from the account's registry (ECR): its API, the registry, and the layers' store.
+api.ecr.us-east-1.amazonaws.com
+*.dkr.ecr.us-east-1.amazonaws.com
+prod-us-east-1-starport-layer-bucket.s3.us-east-1.amazonaws.com
+
+# The deployer's reads of the release bucket: the pointer, the release, its tree, and its Compose plugin.
+h4reet-ai-releases-*.s3.us-east-1.amazonaws.com
+
+# The host's secrets and String parameters, at boot (write_env.py), and Session Manager, the one way in (FR-050).
+ssm.us-east-1.amazonaws.com
+ssmmessages.us-east-1.amazonaws.com
+ec2messages.us-east-1.amazonaws.com
+
+# The credential timer's assume of h4-prod-gateway (deploy/hosts/ec2/ec2_host.py).
+sts.us-east-1.amazonaws.com
+
+# The deployer's alerts to h4-alerts (contracts/aws-alerts.md §1).
+sns.us-east-1.amazonaws.com

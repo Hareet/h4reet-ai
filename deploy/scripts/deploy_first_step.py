@@ -34,8 +34,11 @@ from pathlib import Path
 PROG = "deploy-first-step"
 PREFIX = "[hareet.ai aws]"
 STATE = Path("/var/lib/h4reet/deploy")
-# Each host's env file, which its write_env.py writes at boot; group 7 adds EC2's.
-ENV_FILES = {"tunnel-end": Path("/run/h4reet/tunnel-end.env")}
+# Each host's env file, which its write_env.py writes at boot: the tunnel end's, and EC2's (group 7).
+ENV_FILES = {
+    "tunnel-end": Path("/run/h4reet/tunnel-end.env"),
+    "ec2": Path("/run/h4reet/ec2.env"),
+}
 PYTHON = "/usr/bin/python3"
 # The deployer's exit for a run that refused or rolled back and alerted (deploy/scripts/deployer.py's EXIT_ALERTED).
 DEPLOYER_ALERTED = 75

@@ -7,7 +7,7 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/rel
 As September §1: the commit, each service's image index digest, the platforms, the time, and who built it. One new field:
 - `hosts`, the classes each service runs on: `laptop`, `ec2`, `tunnel-end` (contracts/env-cloud.md §3).
 
-The deployer of each host checks only its own services' digests.
+The deployer of each host checks only its own services' digests. **Group 7:** an upstream image's copy also carries its `tag`, and EC2's deployer refuses a copy whose tag and digest aren't its lock line's in the release's tree (`deploy_refused`, reason `pin`), so both hosts run one digest (FR-048).
 
 **The tree's key** (the deployer's review, nit 2): `tree.key` is `trees/<commit>.tar.gz`, the release's own commit, and nothing else; the first step and the deployer each refuse any other (`deploy_refused`, reason `tree`). `tree.sha256` is the SHA-256 of that object.
 
@@ -57,7 +57,7 @@ It runs under an exclusive lock on `<state>/.lock`, so the boot's run, the timer
 
 **The retry rule** (the deployer's review, 1 and 2). Each attempt is recorded in `deployments.jsonl` and marked in `attempts.json`, whether or not SNS takes its alert; the alert memory, `refused.json`, only deduplicates, and an alert SNS refused waits in `pending.json` for a later run. A refusal is tried again once a newer release comes; a failed start (`rolled_back`, `rollback_failed`) after a backoff that doubles from two minutes to an hour. At boot every attempt is tried again, and a host running nothing tries each run. The manual retry is `docs/runbooks/deploy.md`'s.
 
-**EC2's boot run:** EC2's stack doesn't start until its deployer has checked the bucket. If the bucket can't be reached, it starts its last release and alerts (FR-046).
+**EC2's boot run:** EC2's stack doesn't start until its deployer has checked the bucket. If the bucket can't be reached, it starts its last release and alerts (FR-046). **As built in group 7:** at boot the deployer asks the bucket before anything starts; a new release starts as any new release does; the running one starts from its cached images; and with the bucket out of reach, or refusing, the last release starts from its cached images and `deploy_refused` is alerted once per boot, reason `unreachable` or `bucket`. EC2's images: each copy by `H4_IMAGE_<SERVICE>` in the release's env file, and the gateway's and the room's pulled by the release's digest and tagged `h4reet-gateway:<commit>` and `h4reet-web:<commit>` for its `H4_REF`. Its host step, `deploy/hosts/ec2/ec2_host.py prepare`, installs the gateway's proxy and the gateway's Bedrock credential timer from the release's tree before compose pulls anything.
 
 ## 4. Rollback and holds (FR-047, FR-049)
 

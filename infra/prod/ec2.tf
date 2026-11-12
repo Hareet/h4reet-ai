@@ -18,16 +18,15 @@ locals {
   # The host's files, from deploy/hosts/ec2/ and deploy/scripts/, into cloud-init's user data at the first boot, as the
   # tunnel end's: a change to them reaches a running EC2 only through a replace, which terraform_data.ec2_generation
   # shows in the plan. The deployer itself comes from the release's tree (deploy_first_step.py; plan.md §16, "From the
-  # release"), and so do the host's later parts: the gateway's credential timer (deploy/hosts/ec2/ec2_host.py).
+  # release"), and so do the host's later parts: the gateway's proxy and its allowlist, and the gateway's credential
+  # timer (deploy/hosts/ec2/ec2_host.py, from deploy/hosts/ec2/release/).
   ec2_host_files = {
     "/etc/h4reet/nftables.nft"                                     = { source = "deploy/hosts/ec2/nftables.nft", mode = "0600" }
     "/etc/h4reet/egress-allowlist.txt"                             = { source = "deploy/hosts/ec2/egress-allowlist.txt", mode = "0644" }
-    "/etc/h4reet/gateway-allowlist.txt"                            = { source = "deploy/hosts/ec2/gateway-allowlist.txt", mode = "0644" }
     "/etc/h4reet/ec2.env.example"                                  = { source = "deploy/hosts/ec2/ec2.env.example", mode = "0644" }
     "/etc/docker/daemon.json"                                      = { source = "deploy/hosts/ec2/daemon.json", mode = "0644" }
     "/etc/systemd/system/h4-nftables.service"                      = { source = "deploy/hosts/ec2/systemd/h4-nftables.service", mode = "0644" }
     "/etc/systemd/system/h4-egress-proxy.service"                  = { source = "deploy/hosts/ec2/systemd/h4-egress-proxy.service", mode = "0644" }
-    "/etc/systemd/system/h4-sni-proxy.service"                     = { source = "deploy/hosts/ec2/systemd/h4-sni-proxy.service", mode = "0644" }
     "/etc/systemd/system/h4-write-env.service"                     = { source = "deploy/hosts/ec2/systemd/h4-write-env.service", mode = "0644" }
     "/etc/systemd/system/h4-stack.service"                         = { source = "deploy/hosts/ec2/systemd/h4-stack.service", mode = "0644" }
     "/etc/systemd/system/h4-deployer.service"                      = { source = "deploy/hosts/ec2/systemd/h4-deployer.service", mode = "0644" }
@@ -36,7 +35,6 @@ locals {
     "/etc/systemd/system/amazon-ssm-agent.service.d/h4-proxy.conf" = { source = "deploy/hosts/ec2/systemd/amazon-ssm-agent-proxy.conf", mode = "0644" }
     "/opt/h4reet/deploy/scripts/write_env.py"                      = { source = "deploy/scripts/write_env.py", mode = "0755" }
     "/opt/h4reet/deploy/scripts/egress_proxy.py"                   = { source = "deploy/scripts/egress_proxy.py", mode = "0755" }
-    "/opt/h4reet/deploy/scripts/sni_proxy.py"                      = { source = "deploy/scripts/sni_proxy.py", mode = "0755" }
     "/opt/h4reet/deploy/scripts/deploy_first_step.py"              = { source = "deploy/scripts/deploy_first_step.py", mode = "0755" }
   }
   ec2_user_data = templatefile("${path.module}/../../deploy/hosts/ec2/cloud-init.yaml.tftpl", {

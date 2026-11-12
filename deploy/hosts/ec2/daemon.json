@@ -1,0 +1,13 @@
+{
+  "data-root": "/srv/h4reet/data/docker",
+  "userland-proxy": false,
+  "default-address-pools": [{ "base": "172.30.0.0/16", "size": 24 }],
+  "proxies": {
+    "http-proxy": "http://127.0.0.1:3128",
+    "https-proxy": "http://127.0.0.1:3128",
+    "no-proxy": "169.254.169.254,10.42.0.0/16"
+  },
+  "log-driver": "local",
+  "live-restore": true,
+  "no-new-privileges": true
+}

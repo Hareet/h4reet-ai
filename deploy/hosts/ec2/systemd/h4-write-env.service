@@ -1,0 +1,18 @@
+# EC2's env file, from Parameter Store to tmpfs, at each boot (spec 001 contracts/env-cloud.md §1;
+# deploy/scripts/write_env.py), once the instance's metadata confirms it is h4-prod-ec2 (research.md R-28). A missing
+# name stops the boot here, and with no env file the first step starts nothing. Docker starts after it, by ordering
+# alone.
+[Unit]
+Description=h4reet: EC2's env file
+After=h4-egress-proxy.service network-online.target
+Requires=h4-egress-proxy.service
+Before=docker.service h4-stack.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/write_env.py --host ec2 --template /etc/h4reet/ec2.env.example --out /run/h4reet/ec2.env --keys-dir /run/h4reet/ec2
+
+[Install]
+WantedBy=multi-user.target

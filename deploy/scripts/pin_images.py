@@ -210,6 +210,16 @@ SERVICE_RE = re.compile(r"^  ([a-z0-9][a-z0-9-]*):\s*(#.*)?$")
 IMAGE_RE = re.compile(r"^(    image:\s*)(\S+)(\s*(#.*)?)$")
 
 
+MIRRORED_RE = re.compile(r'^("\$\{H4_IMAGE_[A-Z0-9_]+:-)([^}]+)(\}")$')
+
+
+def unwrap(image: str) -> tuple[str, str, str]:
+    """An image: value as (what's before the pin, the pin, what's after it): EC2's override wraps the pin as
+    "${H4_IMAGE_<SERVICE>:-<pin>}", which EC2's deployer names alone; every other value is the pin itself."""
+    m = MIRRORED_RE.fullmatch(image)
+    return (m[1], m[2], m[3]) if m else ("", image, "")
+
+
 def rewrite_compose(
     text: str, pins: dict[str, str]
 ) -> tuple[str, dict[str, tuple[str, str]]]:
@@ -226,10 +236,12 @@ def rewrite_compose(
             section == "services"
             and service in pins
             and (image := IMAGE_RE.match(bare))
-            and image[2] != pins[service]
+            and unwrap(image[2])[1] != pins[service]
         ):
-            changes[service] = (image[2], pins[service])
-            line = f"{image[1]}{pins[service]}{image[3]}\n"
+            # A shared service's EC2 override keeps its wrapper, its pin inside it (spec 001 group 7).
+            before, was, after = unwrap(image[2])
+            changes[service] = (was, pins[service])
+            line = f"{image[1]}{before}{pins[service]}{after}{image[3]}\n"
         out.append(line)
     return "".join(out), changes
 

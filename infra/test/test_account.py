@@ -1764,7 +1764,9 @@ def test_each_image_ec2_runs_has_its_repository() -> None:
     compose = yaml.safe_load(
         (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
     )
-    preflight = _load("preflight_for_account", REPO / "deploy" / "scripts" / "preflight.py")
+    preflight = _load(
+        "preflight_for_account", REPO / "deploy" / "scripts" / "preflight.py"
+    )
     in_class = preflight.HOST_CLASSES["ec2"]
     assert set(in_class) <= set(compose["services"]), set(in_class) - set(
         compose["services"]

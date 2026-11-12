@@ -1,0 +1,12 @@
+# EC2's deployer, one run (spec 001 contracts/releases-deployer.md §3; the release's deployer, by deploy_first_step.py):
+# h4-deployer.timer starts it every minute.
+[Unit]
+Description=h4reet: EC2's deployer
+After=h4-stack.service
+Requires=docker.service
+Wants=h4-write-env.service
+
+[Service]
+Type=oneshot
+Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deploy_first_step.py --host ec2

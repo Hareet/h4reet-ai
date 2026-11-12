@@ -73,12 +73,15 @@ x-langfuse-env: &langfuse-env
   HOSTNAME: 0.0.0.0
 
 services:
+  # (Spec 001 group 7: on EC2, each upstream image runs as the account's registry's copy, by the same digest and tag,
+  # which the deployer names in H4_IMAGE_<SERVICE> in the release's env file; no other env file names one, so every
+  # other host runs the reference after `:-` as written, which the lock pins. deploy/scripts/deployer.py.)
   # The only publisher: nginx, unprivileged, on the stack's six 127.0.0.1 ports (deploy/edge/nginx.conf). The sixth,
   # x005, is the room's site (spec 002, contracts/web-serving.md §2). It resolves each upstream per request, so it
   # starts with no dependencies.
   edge:
     <<: *service
-    image: ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+    image: "${H4_IMAGE_EDGE:-ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3}"
     # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root. Ours, a
     # few lines of sh, first writes spec 001's hosts' blocks' token maps to tmpfs from the two tokens, then runs nginx
     # without them in its environment (deploy/edge/entrypoint.sh; its contracts/tunnel.md §4). Unset, as on dev and
@@ -383,7 +386,7 @@ services:
   # answers on 13133. Nothing waits on it, so a failed telemetry pipeline never blocks hello.
   otel-collector:
     <<: *service
-    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6
+    image: "${H4_IMAGE_OTEL_COLLECTOR:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6}"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     networks: [internal]
     environment:
@@ -408,7 +411,7 @@ services:
   # 30 days or 2 GB of data, whichever comes first; no admin or lifecycle API.
   prometheus:
     <<: *service
-    image: quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    image: "${H4_IMAGE_PROMETHEUS:-quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e}"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -443,7 +446,7 @@ services:
   # Loki 3, single binary on its own volume: the gateway's logs over OTLP (deploy/loki/loki.yaml).
   loki:
     <<: *service
-    image: docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    image: "${H4_IMAGE_LOKI:-docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193}"
     command: ["-config.file=/etc/loki/loki.yaml"]
     networks: [internal]
     volumes:
@@ -468,7 +471,7 @@ services:
   # phone-home has its switch off (FR-040), and the internal network would block it anyway.
   grafana:
     <<: *service
-    image: docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    image: "${H4_IMAGE_GRAFANA:-docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572}"
     networks: [internal]
     environment:
       # What the provisioning files expand (contracts/telemetry.md §6.6).
@@ -523,7 +526,7 @@ services:
   # for its four stores to be healthy; nothing in hello's path waits on it.
   langfuse-web:
     <<: *service
-    image: ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c
+    image: "${H4_IMAGE_LANGFUSE_WEB:-ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c}"
     networks: [internal]
     depends_on: &langfuse-stores
       langfuse-db:
@@ -567,7 +570,7 @@ services:
   # worker makes traces late, never lost.
   langfuse-worker:
     <<: *service
-    image: ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2
+    image: "${H4_IMAGE_LANGFUSE_WORKER:-ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2}"
     networks: [internal]
     depends_on: *langfuse-stores
     environment:
@@ -588,7 +591,7 @@ services:
   # Langfuse's own Postgres, the same image as gateway-state's, with its own volume.
   langfuse-db:
     <<: *service
-    image: public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: "${H4_IMAGE_LANGFUSE_DB:-public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24}"
     # The entrypoint takes ownership of the data directory, then drops to the postgres user.
     cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
     networks: [internal]
@@ -616,7 +619,7 @@ services:
   # config.d: a low-memory profile for its 4 GiB, crash reports to its vendor off, and its Prometheus endpoint on 9363.
   clickhouse:
     <<: *service
-    image: docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364
+    image: "${H4_IMAGE_CLICKHOUSE:-docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364}"
     # The image's own clickhouse user, as Langfuse's compose runs it: the entrypoint then changes no ownership, so
     # the container gets no capability back.
     user: "101:101"
@@ -657,7 +660,7 @@ services:
   # full queue refuses rather than drops, and an append-only file on its volume.
   valkey:
     <<: *service
-    image: docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    image: "${H4_IMAGE_VALKEY:-docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507}"
     # The entrypoint takes ownership of /data, then drops to the valkey user.
     cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
     command:
@@ -696,7 +699,7 @@ services:
   # found, in T063.
   seaweedfs:
     <<: *service
-    image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: "${H4_IMAGE_SEAWEEDFS:-docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d}"
     # The image's own user, seaweed, uid 1000, which owns /data. The image's entrypoint chowns /data and drops to that
     # user; ours replaces it, and root with no capabilities can't write a directory it doesn't own. T065's second prod
     # start, 2026-10-09: the master died at "mkdir /data/m9333: permission denied", and Langfuse never started.
@@ -868,6 +871,35 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
+
+  # EC2's two doors from the tunnel end (spec 001 contracts/tunnel.md §4; contracts/env-cloud.md §3), in EC2's `ec2`
+  # class: the relay block, edge's 8085, for the tunnel end's relay, and EC2's collector's OTLP/HTTP, 4318, for the
+  # tunnel end's collector and the host's own deployer, forwarded byte for byte by nginx's stream module, with edge's
+  # image, copied to the account's registry by its own digest. It publishes on EC2's private address alone, a literal,
+  # so no env file can move it and on any other host Docker refuses to start it; EC2's security group admits only the
+  # tunnel end's two addresses there. edge stays on 127.0.0.1 on every host. It joins edge, an ordinary bridge, since a
+  # port can't be published from internal alone.
+  ec2-relay-block:
+    <<: *service
+    profiles: [ec2]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/edge:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3"
+    command: ["nginx", "-c", "/etc/nginx/ec2-relay-block.conf", "-g", "daemon off;"]
+    networks: [internal, edge]
+    ports:
+      - "10.42.0.20:8085:8085"
+      - "10.42.0.20:4318:4318"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/edge/ec2-relay-block.conf"
+        target: /etc/nginx/ec2-relay-block.conf
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
 
   # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
   # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the

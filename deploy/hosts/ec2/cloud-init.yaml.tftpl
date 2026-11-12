@@ -1,0 +1,47 @@
+#cloud-config
+# EC2's first boot (spec 001 FR-043, FR-050, FR-051; plan.md §5.1; research.md R-10): a template, which infra/prod/ec2.tf
+# fills with templatefile() and sends, gzipped, as the instance's user data. `files` is the host's files, by their
+# place on the host, each with its mode and its text from deploy/hosts/ec2/ and deploy/scripts/ at the plan's commit;
+# nothing in it is secret, and the secrets come from Parameter Store at each boot (h4-write-env.service). A later change
+# to these files reaches EC2 only through a reviewed replace (terraform_data.ec2_generation; docs/runbooks/ec2.md).
+#
+# The packages come first, from Amazon Linux's own repository in the Region, before the packet filter is loaded: at
+# the first boot only, the security group's 443 lets dnf reach it directly (disclosure row C18). Each boot, before
+# Docker, the data volume: formatted once, when blkid finds no filesystem on it (exit 2), and mounted at
+# /srv/h4reet/data, Docker's data root, which docker-data.conf requires, so Docker never writes to the root volume.
+
+bootcmd:
+  - [sh, -c, 'for i in $(seq 120); do [ -b /dev/sdf ] && break; sleep 1; done; findmnt /srv/h4reet/data >/dev/null && exit 0; blkid /dev/sdf >/dev/null; s=$?; if [ "$s" = 2 ]; then mkfs.xfs -q -L h4-ec2-data /dev/sdf || exit 1; elif [ "$s" != 0 ]; then exit 1; fi; mkdir -p /srv/h4reet/data && mount -o nodev,nosuid /dev/sdf /srv/h4reet/data']
+
+packages:
+  - docker
+  - nftables
+
+users:
+  - default
+  - name: h4-egress
+    system: true
+    no_create_home: true
+    shell: /sbin/nologin
+    lock_passwd: true
+
+write_files:
+%{ for path, file in files ~}
+  - path: ${path}
+    owner: root:root
+    permissions: "${file.mode}"
+    content: |
+      ${indent(6, file.content)}
+%{ endfor ~}
+
+runcmd:
+  - nft -f /etc/h4reet/nftables.nft
+  - systemctl disable --now sshd.service
+  - systemctl daemon-reload
+  - systemctl enable h4-nftables.service
+  - systemctl enable --now h4-egress-proxy.service
+  - systemctl restart amazon-ssm-agent.service
+  - systemctl enable --now h4-write-env.service
+  - systemctl enable --now docker.service
+  - systemctl enable --now h4-stack.service
+  - systemctl enable --now h4-deployer.timer

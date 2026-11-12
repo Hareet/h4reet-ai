@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""A cloud host's deployer, the tunnel end's part (spec 001 FR-046 to FR-049; contracts/releases-deployer.md §1, §3,
-§5; research.md R-17; tasks.md T049; group 7 extends it). Runs as root at boot (h4-stack.service, --boot) and every
-minute (h4-deployer.timer), through the host's egress proxy.
+"""A cloud host's deployer, the tunnel end's and EC2's (spec 001 FR-046 to FR-049; contracts/releases-deployer.md §1,
+§3, §5, §6; research.md R-17; tasks.md T049, T088). Runs as root at boot (h4-stack.service, --boot) and every minute
+(h4-deployer.timer), through the host's egress proxy.
 
-    python3 -I -B deployer.py --host tunnel-end [--boot] [--restart SERVICE]
+    python3 -I -B deployer.py --host tunnel-end|ec2 [--boot] [--restart SERVICE]
 
 Each run verifies the bucket's newest release (RELEASE_BUCKET) for this host's class and starts it, or rolls back, or
 refuses, with an alert in contracts/aws-alerts.md §2's format that carries no address, account, or secret; and first
@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -45,13 +46,46 @@ HOST_CLASSES = {
         "tunnel-end-collector",
         "shared-state",
     ),
+    # EC2's (group 7; contracts/env-cloud.md §3): the whole topology but the model server and the local store.
+    "ec2": (
+        "edge",
+        "web",
+        "gateway",
+        "otel-collector",
+        "prometheus",
+        "loki",
+        "grafana",
+        "langfuse-web",
+        "langfuse-worker",
+        "langfuse-db",
+        "clickhouse",
+        "valkey",
+        "seaweedfs",
+        "ec2-relay-block",
+    ),
 }
+# EC2's images (group 7; plan.md §16, "Group 7, as built"). The two the release builds run under the laptop's own build
+# names, which compose never pulls: the deployer pulls each by the release's digest and tags it for the release's commit
+# (H4_REF). Every other shared service runs the account's registry's copy, by the lock's own tag and digest, which the
+# deployer names in H4_IMAGE_<SERVICE>; compose's `:-` default, the pin itself, runs on every other host.
+RELEASE_TAGS = {"gateway": "h4reet-gateway", "web": "h4reet-web"}
+# The lock line each copy must match: its own, but the relay block's, which is edge's image.
+COPIES = {"ec2-relay-block": "edge"}
+# The hosts whose boot asks the bucket before anything starts, and start their last release only when it can't be read
+# (FR-046, "before its stack takes visitors").
+BUCKET_FIRST = ("ec2",)
 # Each class's host step, from the release's tree, before compose pulls or starts anything (spec 001 tasks.md T164):
 # the tunnel end's shared state, its data volume's mount, its key and certificate on tmpfs, and its backup's units and
 # timer. A failed step is a failed start. So the host's later parts come with each release, never the user data.
 HOST_STEPS = {
     "tunnel-end": ("deploy/hosts/tunnel-end/shared_state.py", "prepare"),
+    # EC2's: the gateway's Bedrock credentials and their timer (group 7).
+    "ec2": ("deploy/hosts/ec2/ec2_host.py", "prepare"),
 }
+# Where each host's deployer sends its own metrics (h4.deploy.events, h4.release.info; contracts/releases-deployer.md
+# §6): EC2's collector through its relay block's forwarder; the tunnel end's collector at its address on the stack's
+# egress bridge, as the backup timer finds it.
+METRICS_AT = {"ec2": "http://10.42.0.20:4318/v1/metrics"}
 
 
 def host_step_argv(host: str, tree: Path) -> list[str]:
@@ -99,6 +133,7 @@ DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX_RE = re.compile(r"[0-9a-f]{64}")
 RELEASE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 REPOSITORY_RE = re.compile(r"h4reet/[a-z0-9-]{1,40}")
+TAG_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 KEY_RE = re.compile(r"(releases|trees|tools)/[A-Za-z0-9._/-]{1,200}")
 
 
@@ -170,6 +205,8 @@ class Docker(Protocol):
 
     def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool: ...
 
+    def retag(self, source: str, target: str) -> bool: ...
+
 
 def read_env(path: Path) -> dict[str, str]:
     values = {}
@@ -213,10 +250,109 @@ def verify(host: str, release: dict) -> list[str]:
             str(service.get("digest", ""))
         ) or not REPOSITORY_RE.fullmatch(str(service.get("repository", ""))):
             raise Refused("digest")
+        if (
+            host in BUCKET_FIRST
+            and name not in RELEASE_TAGS
+            and not TAG_RE.fullmatch(str(service.get("tag", "")))
+        ):
+            raise Refused("digest")
         mine.append(name)
     if not mine:
         raise Refused("services")
     return [n for n in HOST_CLASSES[host] if n in mine]
+
+
+def read_lock(tree: Path) -> dict[str, tuple[str, str]]:
+    """deploy/images.lock's (tag, digest) by service, from the release's own tree."""
+    out = {}
+    path = tree / "deploy" / "images.lock"
+    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else []:
+        fields = line.split()
+        if len(fields) >= 4 and not line.startswith("#"):
+            out[fields[0]] = (fields[2], fields[3])
+    return out
+
+
+def check_pins(host: str, release: dict, tree: Path) -> None:
+    """Each copy EC2 runs is its lock line's image, by tag and digest, so both hosts run one digest (FR-048)."""
+    if host not in BUCKET_FIRST:
+        return
+    lock = read_lock(tree)
+    for name in verify(host, release):
+        if name in RELEASE_TAGS:
+            continue
+        service = release["services"][name]
+        if lock.get(COPIES.get(name, name)) != (
+            str(service.get("tag")),
+            str(service.get("digest")),
+        ):
+            raise Refused("pin")
+
+
+def image_variable(name: str) -> str:
+    return "H4_IMAGE_" + name.upper().replace("-", "_")
+
+
+def metrics_payload(
+    host: str, outcome: str | None, current: dict | None, at: float
+) -> dict:
+    """h4.deploy.events and h4.release.info, as OTLP/HTTP's JSON, every label a datapoint's (contracts/releases-
+    deployer.md §6). Never an address, an account, or a digest."""
+
+    def attrs(pairs: dict[str, str]) -> list[dict]:
+        return [{"key": k, "value": {"stringValue": v}} for k, v in pairs.items()]
+
+    stamp = str(int(at * 1_000_000_000))
+    metrics = []
+    if outcome is not None:
+        metrics.append(
+            {
+                "name": "h4.deploy.events",
+                "sum": {
+                    "aggregationTemporality": 1,
+                    "isMonotonic": True,
+                    "dataPoints": [
+                        {
+                            "asInt": "1",
+                            "timeUnixNano": stamp,
+                            "attributes": attrs({"h4.host": host, "outcome": outcome}),
+                        }
+                    ],
+                },
+            }
+        )
+    if current is not None:
+        labels = {
+            "h4.host": host,
+            "h4.release": str(current.get("release")),
+            "h4.commit": str(current.get("commit"))[:12],
+            "h4.started_by": "deployer",
+        }
+        metrics.append(
+            {
+                "name": "h4.release.info",
+                "gauge": {
+                    "dataPoints": [
+                        {
+                            "asInt": "1",
+                            "timeUnixNano": stamp,
+                            "attributes": attrs(labels),
+                        }
+                    ]
+                },
+            }
+        )
+    resource = {"service.name": "deployer", "service.namespace": "h4reet"}
+    return {
+        "resourceMetrics": [
+            {
+                "resource": {"attributes": attrs(resource)},
+                "scopeMetrics": [
+                    {"scope": {"name": "h4-deployer"}, "metrics": metrics}
+                ],
+            }
+        ]
+    }
 
 
 def safe_extract(data: bytes, into: Path) -> None:
@@ -377,14 +513,38 @@ class Deployer:
         }
         with (self.state / "deployments.jsonl").open("a", encoding="utf-8") as out:
             out.write(json.dumps(line, sort_keys=True) + "\n")
+        current = release if outcome == "deployed" else self.recorded("current")
+        self.emit(outcome, current)
+
+    def emit(self, outcome: str | None, current: dict | None) -> None:
+        """The deployment's event and the running release, to the host's collector; a collector that isn't there
+        loses them, and changes nothing else (FR-060)."""
+        post = getattr(self.docker, "post_metrics", None)
+        if post is None:
+            return
+        try:
+            post(self.host, metrics_payload(self.host, outcome, current, self.clock()))
+        except OSError:
+            pass
 
     def tree(self, release: dict) -> Path:
         return self.state / "trees" / str(release["commit"])
 
     def release_env(self, release: dict) -> Path:
         lines = [f"H4_RELEASE={release['release']}"]
+        registry = self.env.get("H4_REGISTRY", "")
+        if self.host in BUCKET_FIRST:
+            # EC2's: the release-built images under the laptop's build names, and the copies by H4_IMAGE_<SERVICE>.
+            lines += [f"H4_REF={release['commit']}", "H4_WEB_SUFFIX="]
         for name in verify(self.host, release):
-            repository = str(release["services"][name]["repository"]).split("/", 1)[1]
+            service = release["services"][name]
+            repository = str(service["repository"]).split("/", 1)[1]
+            if self.host in BUCKET_FIRST:
+                if name not in RELEASE_TAGS and name not in COPIES:
+                    lines.append(
+                        f"{image_variable(name)}={registry}/{service['repository']}:{service['tag']}@{service['digest']}"
+                    )
+                continue
             lines.append(
                 f"H4_DIGEST_{repository.upper().replace('-', '_')}={release['services'][name]['digest']}"
             )
@@ -439,7 +599,17 @@ class Deployer:
         for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
             if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
                 return False
-        if pull and not self.docker.compose(tree, env_files, ["pull", *services]):
+        if pull and self.host in BUCKET_FIRST:
+            # The laptop's two build names, by the release's digest and tagged for its commit; compose never pulls them.
+            for name in [s for s in services if s in RELEASE_TAGS]:
+                service = release["services"][name]
+                source = f"{registry}/{service['repository']}@{service['digest']}"
+                if not self.docker.retag(
+                    source, f"{RELEASE_TAGS[name]}:{release['commit']}"
+                ):
+                    return False
+        pulled = [s for s in services if s not in RELEASE_TAGS]
+        if pull and not self.docker.compose(tree, env_files, ["pull", *pulled]):
             return False
         up = ["up", "-d", "--wait", "--no-build", "--remove-orphans"]
         if not pull:
@@ -477,9 +647,28 @@ class Deployer:
         self.booting = True
         self.count_boot()
         current = self.recorded("current")
-        if current is not None:
+        if current is not None and self.host not in BUCKET_FIRST:
             self.restart_cached(current, "the last release didn't start at boot")
         return self.check()
+
+    def bucket_first(self) -> bool:
+        """EC2's boot: the bucket is asked before anything starts (FR-046)."""
+        return self.booting and self.host in BUCKET_FIRST
+
+    def unread_at_boot(self, reason: str) -> None:
+        """EC2's boot couldn't read the bucket: its last release starts, from its cached images, and is alerted."""
+        current = self.recorded("current")
+        if current is None:
+            return
+        self.restart_cached(current, "the last release didn't start at boot")
+        self.alert_once(
+            f"boot-{reason}@boot{self.boot_mark()}",
+            alert(
+                "deploy_refused",
+                f"{self.host} started its last release, {current['release']}, without the release bucket",
+                [("reason", reason), ("release", str(current["release"]))],
+            ),
+        )
 
     def count_boot(self) -> None:
         try:
@@ -514,7 +703,8 @@ class Deployer:
 
     def check(self) -> int:
         self.flush()
-        self.ensure()
+        if not self.bucket_first():
+            self.ensure()
         try:
             if not self.bucket:
                 raise Misconfigured("RELEASE_BUCKET")
@@ -534,8 +724,12 @@ class Deployer:
                 f"{PROG}: the release bucket can't be reached; nothing changes",
                 file=sys.stderr,
             )
+            if self.bucket_first():
+                self.unread_at_boot("unreachable")
             return 0
         except Misconfigured:
+            if self.bucket_first():
+                self.unread_at_boot("bucket")
             return self.misconfigured()
         except (Refused, ValueError) as error:
             # Keyed on the pointer itself, so each new pointer's incident alerts (the second review, I-B).
@@ -545,7 +739,12 @@ class Deployer:
             )
         current = self.recorded("current")
         if current is not None and current.get("release") == release.get("release"):
+            if self.bucket_first():
+                self.ensure()
+            self.emit(None, current)
             return 0
+        if self.bucket_first() and self.tried(str(release.get("release"))):
+            self.ensure()
         if self.tried(str(release.get("release"))):
             print(
                 f"{PROG}: release {release.get('release')} stays refused or rolled back; nothing changes"
@@ -554,6 +753,7 @@ class Deployer:
         try:
             verify(self.host, release)
             self.prepare(release)
+            check_pins(self.host, release, self.tree(release))
         except Refused as refused:
             return self.refuse(release, str(refused))
         except Misconfigured:
@@ -740,6 +940,42 @@ class AwsCli:
 
 
 class DockerCli:
+    def retag(self, source: str, target: str) -> bool:
+        """An image by its digest, pulled, then tagged with the laptop's own build name for it."""
+        for argv in (["docker", "pull", source], ["docker", "tag", source, target]):
+            done = subprocess.run(argv, capture_output=True, check=False, timeout=900)
+            if done.returncode:
+                return False
+        return True
+
+    def post_metrics(self, host: str, payload: dict) -> None:
+        url = METRICS_AT.get(host)
+        if url is None:
+            found = subprocess.run(
+                [
+                    "docker",
+                    "inspect",
+                    "--format",
+                    '{{(index .NetworkSettings.Networks "h4reet-prod_egress").IPAddress}}',
+                    "h4reet-prod-tunnel-end-collector-1",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            if found.returncode or not found.stdout.strip():
+                return
+            url = f"http://{found.stdout.strip()}:4318/v1/metrics"
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        opener.open(request, timeout=10).close()
+
     def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool:
         done = subprocess.run(
             preflight_argv(host, tree, env_file, phase), check=False, timeout=120

@@ -2,13 +2,13 @@
 """A cloud host's env file and key files, at boot, from Parameter Store to tmpfs (spec 001 contracts/env-cloud.md §1;
 contracts/tunnel.md §5; research.md R-26, R-28; tasks.md T049), as root, through the host's egress proxy.
 
-    python3 -I -B write_env.py --host tunnel-end --template FILE --out /run/h4reet/tunnel-end.env
-        --keys-dir /run/h4reet/tunnel-end/keys
+    python3 -I -B write_env.py --host tunnel-end|ec2 --template FILE --out /run/h4reet/<host>.env --keys-dir DIR
 
 The template's placeholders are its own header's (deploy/hosts/<host>/<host>.env.example). Every file is 0600 in a
 0700 folder, replaced whole; a missing parameter or a value outside the grammar refuses the whole write, naming the
-parameter or the key, never a value (deploy/scripts/test_write_env.py's docstring). Exit 0 written, 1 refused, 2
-couldn't run. The standard library alone, in Python 3.9's syntax: it travels in the tunnel end's user data.
+parameter or the key, never a value (deploy/scripts/test_write_env.py's docstring). On EC2 it first confirms, through
+IMDSv2, that the instance's Name tag is h4-prod-ec2, and refuses otherwise (research.md R-28). Exit 0 written, 1
+refused, 2 couldn't run. The standard library alone, in Python 3.9's syntax: it travels in the hosts' user data.
 """
 
 from __future__ import annotations
@@ -30,7 +30,11 @@ KEY_FILES = {
         "ssh_host_ed25519_key": "/h4reet/tunnel-end/HOST_KEY",
         "authorized_keys": "/h4reet/tunnel-end/AUTHORIZED_KEY",
     },
+    # EC2 has no key files: its gateway's AWS profile is the release's host step's (deploy/hosts/ec2/ec2_host.py).
+    "ec2": {},
 }
+# The Name tag each host must carry in its instance metadata before its env file is written (research.md R-28).
+NAME_TAGS = {"ec2": "h4-prod-ec2"}
 PARAMETER = "__PARAMETER__"
 PARAMETER_AT = re.compile(r"__PARAMETER:(/h4reet/[A-Za-z0-9_./-]+)__")
 REGISTRY = "__ACCOUNT_REGISTRY__"
@@ -168,8 +172,8 @@ def aws_fetch(names: list[str]) -> dict[str, str]:
     return out
 
 
-def imds_account() -> str:
-    """The account from the instance's identity document, with an IMDSv2 token."""
+def imds(path: str) -> str:
+    """One of the instance's metadata, with an IMDSv2 token, never through a proxy."""
     token_request = urllib.request.Request(
         f"{IMDS}/latest/api/token",
         method="PUT",
@@ -178,12 +182,25 @@ def imds_account() -> str:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(token_request, timeout=5) as response:
         token = response.read().decode()
-    document = urllib.request.Request(
-        f"{IMDS}/latest/dynamic/instance-identity/document",
-        headers={"X-aws-ec2-metadata-token": token},
+    request = urllib.request.Request(
+        f"{IMDS}/latest/{path}", headers={"X-aws-ec2-metadata-token": token}
     )
-    with opener.open(document, timeout=5) as response:
-        return str(json.loads(response.read().decode()).get("accountId", ""))
+    with opener.open(request, timeout=5) as response:
+        return response.read().decode()
+
+
+def imds_account() -> str:
+    """The account from the instance's identity document."""
+    document = imds("dynamic/instance-identity/document")
+    return str(json.loads(document).get("accountId", ""))
+
+
+def imds_name_tag() -> str:
+    """The instance's Name tag, which its metadata carries (infra/prod/ec2-market.tf's instance_metadata_tags)."""
+    try:
+        return imds("meta-data/tags/instance/Name").strip()
+    except OSError:
+        return ""
 
 
 def os_chown(path: Path, uid: int) -> None:
@@ -195,6 +212,7 @@ def main(
     fetch: Fetch | None = None,
     account: Callable[[], str] | None = None,
     chown: Callable[[Path, int], None] | None = None,
+    name_tag: Callable[[], str] | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(
         prog="write_env.py", description=__doc__.split("\n\n", 1)[0]
@@ -207,6 +225,13 @@ def main(
     fetch = fetch or aws_fetch
     account = account or imds_account
     chown = chown or os_chown
+    want = NAME_TAGS.get(args.host)
+    if want is not None and (name_tag or imds_name_tag)() != want:
+        print(
+            f"{PROG}: refused, nothing written: this instance's Name tag isn't {want}",
+            file=sys.stderr,
+        )
+        return 1
     try:
         env_text, key_files = render(
             args.host, args.template.read_text(encoding="utf-8"), fetch, account

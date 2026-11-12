@@ -1,0 +1,258 @@
+P-G5, spec 001 group 7 (W1): the compose policy's ec2 class, for the Author's hand.
+
+Built from plain copies: tools/gates/compose_policy.py and tools/gates/test/test_compose_policy.py as P-G3 and P-G4
+leave them (a git archive export of 23622319 with both applied, in order); edited, then diff -u with a/ and b/ labels;
+never git apply. Apply it on W1's -p branch after P-G3 and P-G4, with `patch -p1 < <this file>` at the repository's
+root, and commit the result byte for byte (tasks.md T171, T172).
+
+What it holds (tasks.md T081, T087; plan.md §16, "Group 7, as built"):
+  - the ec2 class among the cloud hosts' classes, and EC2's env file's template among the files the policy reads;
+  - ec2-relay-block, EC2's two doors from the tunnel end: on the edge network, publishing exactly 10.42.0.20:8085 and
+    10.42.0.20:4318, in EC2's profile alone, with edge's image copied to the account's registry by the lock's pin;
+  - a shared service's EC2 override, "${H4_IMAGE_<SERVICE>:-<the lock's pin>}": its own service's variable alone, the
+    pin inside it held to the lock as any image is; and no env file the policy reads may name an H4_IMAGE_ key, which
+    only EC2's deployer writes, in its release's env file.
+
+Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, and this patch, in that order: the
+policy's own tests pass, and `compose policy: PASS` on the real tree with its five env files.
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -82,6 +82,8 @@
+     ("dev-cpu", "deploy/env.agents/dev-cpu.vars"),
+     # Spec 001's tunnel end, prod on another host: write_env.py fills its template at boot (contracts/env-cloud.md §1).
+     ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example"),
++    # Spec 001 group 7's EC2, prod on another host, the same way.
++    ("prod", "deploy/hosts/ec2/ec2.env.example"),
+ )
+ 
+ BIND_ROOTS = (
+@@ -104,9 +106,12 @@
+ EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
+ # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
+ # state.md §1).
+-EDGE_NETWORK_SERVICES = frozenset({PUBLISHER, "tunnel-end", "shared-state"})
++# From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
++EDGE_NETWORK_SERVICES = frozenset(
++    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block"}
++)
+ # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
+-CLOUD_PROFILES = frozenset({"tunnel-end"})
++CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
+ # What a cloud class's service publishes, exactly (host address, published port, container port): the tunnel end's
+ # public interface's fixed address, a literal no other host has, so the service fails closed anywhere else.
+ CLOUD_PORTS = {
+@@ -115,6 +120,11 @@
+     ),
+     # The shared state's 5432, on the private interface's fixed address alone, which the security group holds to EC2.
+     "shared-state": frozenset({("10.42.1.10", "5432", 5432)}),
++    # Group 7: EC2's relay block and its collector, on EC2's one private address, which its group opens to the tunnel
++    # end's two addresses alone.
++    "ec2-relay-block": frozenset(
++        {("10.42.0.20", "8085", 8085), ("10.42.0.20", "4318", 4318)}
++    ),
+ }
+ # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
+ # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+@@ -124,7 +134,10 @@
+ SERVICE_BINDS: dict[str, dict[str, bool]] = {
+     "tunnel": {"${H4_TUNNEL_DIR}": False},
+     "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
+-    "shared-state": {"/run/h4reet/shared-state": False, "/srv/h4reet/shared-state": True},
++    "shared-state": {
++        "/run/h4reet/shared-state": False,
++        "/srv/h4reet/shared-state": True,
++    },
+ }
+ # A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
+ # deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
+@@ -136,7 +149,23 @@
+     "tunnel-end-collector": "otel-collector",
+     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
+     "shared-state": "gateway-state",
++    # Group 7: EC2's doors run edge's nginx, copied by its index digest.
++    "ec2-relay-block": "edge",
+ }
++# Group 7: on EC2, a shared service's upstream image runs as the account's registry's copy, which EC2's deployer names
++# in its release's env file as H4_IMAGE_<SERVICE>; the reference after ":-" is the lock's, and runs on every other
++# host. No env file this policy reads may name one (check_env_values).
++MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
++
++
++def mirrored_pin(name: str, image: str) -> str | None:
++    """The pin inside a shared service's EC2 override; None if image isn't one, or names another service's variable."""
++    m = MIRRORED_RE.fullmatch(image)
++    if m is None or m.group(1) != "H4_IMAGE_" + name.upper().replace("-", "_"):
++        return None
++    return m.group(2)
++
++
+ # A copy whose repository isn't its lock line's name.
+ COPY_REPOSITORIES = {"shared-state": "shared-state"}
+ # Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
+@@ -645,6 +674,16 @@
+                 f"{image} is make up's own build, which no registry has: pull_policy: never, so compose never "
+                 "pulls an image by that name",
+             )
++    elif str(image).startswith("${H4_IMAGE_"):
++        pin = mirrored_pin(name, str(image))
++        if pin is None:
++            refuse(
++                "image",
++                f"{image}: an override names its own service's variable, as "
++                f"${{H4_IMAGE_{name.upper().replace('-', '_')}:-<the lock's pin>}}",
++            )
++        else:
++            found.extend(check_image(where, name, pin, lock, tree))
+     else:
+         found.extend(check_image(where, name, str(image), lock, tree))
+ 
+@@ -1017,6 +1056,14 @@
+                     where, "docker key", f"{key} would point compose at another engine"
+                 )
+             )
++        if key.startswith("H4_IMAGE_"):
++            found.append(
++                Finding(
++                    where,
++                    "image key",
++                    f"{key} would replace a pinned image: only EC2's deployer names one, in its release's env file",
++                )
++            )
+     return found
+ 
+ 
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1430,6 +1430,77 @@
+     return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+ 
+ 
++def ec2_model() -> dict:
++    """Group 7's EC2 class on top of the tunnel's: edge's image as EC2's override, and its two doors."""
++    model = tunnel_model()
++    model["services"]["edge"]["image"] = "${H4_IMAGE_EDGE:-" + EDGE_IMAGE + "}"
++    model["services"]["ec2-relay-block"] = service(
++        profiles=["ec2"],
++        image="${H4_REGISTRY:-registry.invalid}/h4reet/edge:"
++        + EDGE_IMAGE.split(":", 1)[1],
++        networks={"internal": None, "edge": None},
++        ports=["10.42.0.20:8085:8085", "10.42.0.20:4318:4318"],
++    )
++    return model
++
++
++EC2_DISCLOSED = TUNNEL_DISCLOSED | {"ec2-relay-block"}
++
++
++def ec2_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
++    found = cp.check_model(model, CLOUD_LOCK, tree, EC2_DISCLOSED)
++    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
++
++
++def test_ec2s_class_passes(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    assert ec2_rules(ec2_model(), tmp_path) == set()
++
++
++def test_ec2s_doors_publish_exactly_their_two_ports_in_ec2s_class_alone(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    for ports in (
++        ["10.42.0.20:8085:8085"],
++        ["0.0.0.0:8085:8085", "0.0.0.0:4318:4318"],
++        ["10.42.0.20:8085:8085", "10.42.0.20:4318:4318", "10.42.0.20:8083:8083"],
++    ):
++        model = ec2_model()
++        model["services"]["ec2-relay-block"]["ports"] = ports
++        assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path), ports
++    model = ec2_model()
++    model["services"]["ec2-relay-block"]["profiles"] = ["ec2", "gpu"]
++    assert ("ec2-relay-block", "ports") in ec2_rules(model, tmp_path)
++    model = ec2_model()
++    model["services"]["ec2-relay-block"]["image"] = EDGE_IMAGE
++    assert ("ec2-relay-block", "image") in ec2_rules(model, tmp_path)
++
++
++@pytest.mark.parametrize(
++    "image",
++    [
++        "${H4_IMAGE_EDGE:-ghcr.io/nginx/nginx-unprivileged:9.9@sha256:"
++        + "0" * 64
++        + "}",
++        "${H4_IMAGE_LOKI:-" + EDGE_IMAGE + "}",
++        "${H4_IMAGE_EDGE}",
++    ],
++)
++def test_an_override_holds_its_own_services_lock_pin_alone(
++    tmp_path: Path, image: str
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    model = ec2_model()
++    model["services"]["edge"]["image"] = image
++    assert ("edge", "image") in ec2_rules(model, tmp_path)
++
++
++def test_no_env_file_names_an_image() -> None:
++    found = cp.check_env_values("x.env", {"H4_IMAGE_EDGE": "elsewhere/edge"})
++    assert [f.rule for f in found] == ["image key"]
++
++
+ def test_the_tunnels_ends_pass(tmp_path: Path) -> None:
+     (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+     assert tunnel_rules(tunnel_model(), tmp_path) == set()
+@@ -1566,7 +1637,9 @@
+ 
+ 
+ def shared_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+-    found = cp.check_model(model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"})
++    found = cp.check_model(
++        model, SHARED_LOCK, tree, TUNNEL_DISCLOSED | {"shared-state"}
++    )
+     return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+ 
+ 
+@@ -1575,7 +1648,9 @@
+     assert shared_rules(shared_model(), tmp_path) == set()
+ 
+ 
+-def test_the_shared_state_publishes_5432_on_the_private_address_alone(tmp_path: Path) -> None:
++def test_the_shared_state_publishes_5432_on_the_private_address_alone(
++    tmp_path: Path,
++) -> None:
+     for ports in (
+         ["0.0.0.0:5432:5432"],
+         ["10.42.0.10:5432:5432"],
+@@ -1586,7 +1661,9 @@
+         assert ("shared-state", "ports") in shared_rules(model, tmp_path), ports
+ 
+ 
+-def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(tmp_path: Path) -> None:
++def test_the_shared_states_key_binds_read_only_and_its_data_alone_writable(
++    tmp_path: Path,
++) -> None:
+     model = shared_model()
+     model["services"]["shared-state"]["volumes"][0]["read_only"] = False
+     assert ("shared-state", "binds") in shared_rules(model, tmp_path)
+@@ -1600,12 +1677,18 @@
+     assert ("tunnel-end", "binds") in shared_rules(model, tmp_path)
+ 
+ 
+-def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(tmp_path: Path) -> None:
++def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(
++    tmp_path: Path,
++) -> None:
+     model = shared_model()
+-    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(GATEWAY_STATE.digest, "sha256:" + "f" * 64)
++    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
++        GATEWAY_STATE.digest, "sha256:" + "f" * 64
++    )
+     assert ("shared-state", "image") in shared_rules(model, tmp_path)
+     model = shared_model()
+-    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("/shared-state:", "/gateway-state:")
++    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(
++        "/shared-state:", "/gateway-state:"
++    )
+     assert ("shared-state", "image") in shared_rules(model, tmp_path)
+ 
+ 
