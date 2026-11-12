@@ -1239,3 +1239,44 @@ def test_each_run_tells_the_collector_its_deployments_and_its_release(
     assert len(info) == 2  # each run says what runs
     text = json.dumps(w.docker.metrics)
     assert REGISTRY not in text and "sha256:" not in text
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 7's review B: I4 (the boot's fallback alerts what happened) and nit 6 (EC2's volumes under its data root).
+
+
+def test_ec2s_boot_fallback_alerts_a_start_that_failed_as_failed(
+    tmp_path: Path,
+) -> None:
+    w = Ec2World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.docker.calls.clear()
+    w.docker.up = set()
+    w.docker.fail_for.add("r1")
+    w.aws.reachable = False
+    assert w.run(boot=True) == 1
+    (alert,) = w.aws.alerts
+    assert alert.startswith(
+        "[hareet.ai aws] deploy_refused: ec2 couldn't start its last release, r1, without the release bucket"
+    )
+    assert "- reason: unreachable" in alert and "- started: no" in alert
+
+
+def test_a_volume_under_ec2s_data_root_is_owned_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Done:
+        def __init__(self, code: int, out: str = "") -> None:
+            self.returncode, self.stdout = code, out
+
+    answers = iter(
+        [Done(0), Done(0, "/srv/h4reet/data/docker/volumes/h4reet-prod_q/_data\n")]
+    )
+    monkeypatch.setattr(dp.subprocess, "run", lambda *a, **k: next(answers))
+    owned = []
+    monkeypatch.setattr(dp.os, "chown", lambda p, u, g: owned.append((p, u)))
+    assert dp.DockerCli().own_volume("h4reet-prod_q", 10001) is True
+    assert owned == [("/srv/h4reet/data/docker/volumes/h4reet-prod_q/_data", 10001)]
+    answers = iter([Done(0), Done(0, "/home/someone/elsewhere\n")])
+    assert dp.DockerCli().own_volume("h4reet-prod_q", 10001) is False

@@ -156,3 +156,84 @@ def test_it_starts_only_with_upstream_ports_443_and_465(tmp_path: Path) -> None:
     allow = tmp_path / "allow.txt"
     allow.write_text("api.anthropic.com\n", encoding="utf-8")
     assert sp.main(["--allowlist", str(allow), "--listen", "127.0.0.1:0=80"]) == 2
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 7's review B: I3 (each public address in turn) and nit 4 (a connection cap, and an idle timeout).
+
+
+def test_an_address_that_refuses_is_passed_over_for_the_next() -> None:
+    # I3: the proxy connected to addresses[0] alone, so a name whose first address didn't answer failed every time.
+    async def go() -> tuple[bytes, list[bytes]]:
+        server, up_port, seen = await upstream()
+        proxy = sp.Proxy(
+            PATTERNS,
+            resolve=lambda host: ["127.0.0.3", "127.0.0.1"],
+            public=lambda address: True,
+            upstream_port=lambda p: up_port,
+        )
+        got = await through(proxy, hello("api.anthropic.com"), 443)
+        server.close()
+        await server.wait_closed()
+        return got, seen
+
+    got, seen = asyncio.run(go())
+    assert got.startswith(b"echo:") and len(seen) == 1
+
+
+def test_a_full_proxy_refuses_a_new_connection_as_busy(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def go() -> bytes:
+        server, up_port, _ = await upstream()
+        proxy = sp.Proxy(
+            PATTERNS,
+            resolve=lambda host: ["127.0.0.1"],
+            public=lambda address: True,
+            upstream_port=lambda p: up_port,
+            max_connections=1,
+        )
+        proxy.active = 1
+        got = await through(proxy, hello("api.anthropic.com"), 443)
+        server.close()
+        await server.wait_closed()
+        return got
+
+    assert asyncio.run(go()) == b""
+    assert "refused api.anthropic.com:443 (busy)" in capsys.readouterr().err
+
+
+def test_an_idle_splice_is_closed_and_its_slot_given_back() -> None:
+    async def go() -> tuple[bytes, int]:
+        async def silent(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            await reader.read(65536)
+            await asyncio.sleep(5)
+            writer.close()
+
+        server = await asyncio.start_server(silent, "127.0.0.1", 0)
+        up_port = server.sockets[0].getsockname()[1]
+        proxy = sp.Proxy(
+            PATTERNS,
+            resolve=lambda host: ["127.0.0.1"],
+            public=lambda address: True,
+            upstream_port=lambda p: up_port,
+            idle_seconds=0.2,
+        )
+        front = await asyncio.start_server(
+            lambda r, w: proxy.handle(r, w, 443), "127.0.0.1", 0
+        )
+        listen = front.sockets[0].getsockname()[1]
+        reader, writer = await asyncio.open_connection("127.0.0.1", listen)
+        writer.write(hello("api.anthropic.com"))
+        await writer.drain()
+        got = await asyncio.wait_for(reader.read(64), 3)
+        writer.close()
+        await asyncio.sleep(0.1)
+        front.close()
+        server.close()
+        return got, proxy.active
+
+    got, active = asyncio.run(go())
+    assert got == b"" and active == 0

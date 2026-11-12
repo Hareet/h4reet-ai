@@ -633,3 +633,139 @@ def test_every_parameter_ec2s_template_reads_is_one_the_secrets_check_lists() ->
     }
     wanted = set(we.wanted("ec2", template()).values())
     assert wanted <= listed, sorted(wanted - listed)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Group 7's review B (the note's "Group 7's review B, and what was done"): B1, I1, I2, I4.
+
+
+def assume_answer() -> dict:
+    key = secrets.token_hex(10)
+    return {
+        "Credentials": {
+            "AccessKeyId": "A" + key,
+            "SecretAccessKey": key,
+            "SessionToken": key,
+            "Expiration": "2026-11-13T02:00:00Z",
+        }
+    }
+
+
+def prepared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, assume: int = 0
+) -> tuple[int, Path, list[tuple[str, int, int]], list[list[str]]]:
+    """The host step's prepare, from the repository's own tree, with the host's paths under tmp_path."""
+    state = tmp_path / "srv" / "h4reet" / "data" / "state"
+    env_file = tmp_path / "ec2.env"
+    env_file.write_text(
+        "H4_REGISTRY="
+        + "2" * 12
+        + ".dkr.ecr.us-east-1.amazonaws.com\n"
+        + f"H4_STATE_DIR={state}\n",
+        encoding="utf-8",
+    )
+    owned: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(
+        eh.os, "chown", lambda path, uid, gid: owned.append((str(path), uid, gid))
+    )
+    monkeypatch.setattr(eh, "INSTALLED", tmp_path / "opt" / "release" / "ec2_host.py")
+    units = tmp_path / "units"
+    units.mkdir()
+    asked: list[list[str]] = []
+
+    def run(argv, **kwargs):
+        asked.append(list(argv))
+        if argv[:2] == ["aws", "sts"]:
+            return Done(assume, json.dumps(assume_answer()) if assume == 0 else "")
+        return Done(0)
+
+    code = eh.prepare(REPO, env_file, tmp_path / "aws", units, run)
+    return code, state, owned, asked
+
+
+def test_the_host_step_makes_the_gateways_journal_folder_on_the_data_volume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # B1: compose's long-syntax bind of ${H4_STATE_DIR}/gateway never makes its source, and nothing else on EC2 did, so
+    # the gateway couldn't start. The journal lives on the data volume, which outlives a replace; the root volume doesn't.
+    assert template()["H4_STATE_DIR"] == "/srv/h4reet/data/state"
+    gateway = COMPOSE["services"]["gateway"]
+    binds = [v for v in gateway["volumes"] if v.get("target") == "/var/lib/h4-gateway"]
+    assert binds and binds[0]["source"].endswith("/gateway")
+    code, state, owned, _ = prepared(tmp_path, monkeypatch)
+    assert code == 0
+    journal = state / "gateway"
+    assert journal.is_dir() and journal.stat().st_mode & 0o777 == 0o700
+    assert (str(journal), 1000, 1000) in owned
+
+
+def test_the_host_step_refuses_an_env_file_without_its_state_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env_file = tmp_path / "ec2.env"
+    env_file.write_text(
+        "H4_REGISTRY=" + "2" * 12 + ".dkr.ecr.us-east-1.amazonaws.com\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(eh, "INSTALLED", tmp_path / "opt" / "ec2_host.py")
+    monkeypatch.setattr(eh.os, "chown", lambda *a: None)
+    (tmp_path / "units").mkdir()
+    assert (
+        eh.prepare(
+            REPO, env_file, tmp_path / "aws", tmp_path / "units", lambda a, **k: Done(0)
+        )
+        == 1
+    )
+
+
+def test_a_failed_assume_degrades_bedrock_and_never_the_stack(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # I4: the outage that hides the bucket usually hides STS too, and Bedrock is EC2's second route alone. A failed
+    # assume leaves the profile in place without its document, so the gateway answers from the Anthropic API, and
+    # the timer tries again in 15 minutes; the host step, and so the stack's start, goes on.
+    code, state, _, asked = prepared(tmp_path, monkeypatch, assume=255)
+    assert code == 0
+    assert (state / "gateway").is_dir()
+    assert "credential_process" in (tmp_path / "aws" / "config").read_text()
+    assert not (tmp_path / "aws" / "credentials.json").exists()
+    assert ["systemctl", "enable", "--now", "h4-gateway-credentials.timer"] in asked
+    assert ["systemctl", "restart", "h4-sni-proxy.service"] in asked
+    assert "Bedrock answers degraded" in capsys.readouterr().err
+
+
+def dropin() -> dict[str, list[str]]:
+    return unit("docker-data.conf")
+
+
+def test_docker_refuses_to_start_without_the_data_volume_mounted(
+    tmp_path: Path,
+) -> None:
+    # I1: RequiresMountsFor= gives Requires= only for a mount unit with a unit file or an fstab line, which the boot
+    # command's hand mount has neither of. So Docker's start runs mountpoint itself, and fails while the path isn't one.
+    (guard,) = [v for v in dropin().get("ExecStartPre", []) if "mountpoint" in v]
+    argv = guard.split()
+    assert argv == ["/usr/bin/mountpoint", "-q", "/srv/h4reet/data"]
+    assert subprocess.run([*argv[:-1], str(tmp_path)], check=False).returncode != 0
+    assert subprocess.run([*argv[:-1], "/"], check=False).returncode == 0
+
+
+def test_docker_requires_the_packet_filter_not_only_its_order() -> None:
+    # I2: with no inet h4reet table, masquerade sends every container's 443 straight out, past the proxy (FR-051).
+    d = dropin()
+    assert "h4-nftables.service" in " ".join(d.get("Requires", [])).split()
+    assert "h4-nftables.service" in " ".join(d.get("After", [])).split()
+    # The filter replaces its own table whole, so loading it again (cloud-init's runcmd, then the unit) is safe.
+    assert "delete table inet h4reet" in NFT or "destroy table inet h4reet" in NFT
+
+
+def test_the_gateways_proxy_holds_its_connections_under_its_file_limit() -> None:
+    # Review B, nit 4: no connection cap and no idle timeout let a container exhaust the proxy's descriptors.
+    sni = unit("../release/h4-sni-proxy.service")
+    (limit,) = sni["LimitNOFILE"]
+    sp = _load("sni_proxy_for_ec2", REPO / "deploy" / "scripts" / "sni_proxy.py")
+    # Two descriptors a connection, and room for the listeners and the resolver.
+    assert 2 * sp.MAX_CONNECTIONS + 64 <= int(limit)
+    assert 0 < sp.IDLE_SECONDS <= 900

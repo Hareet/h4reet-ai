@@ -175,3 +175,21 @@ def test_a_name_that_resolves_inside_is_refused(
     got = asyncio.run(through(proxy, connect("api.ecr.us-east-1.amazonaws.com")))
     assert got.startswith(b"HTTP/1.1 403")
     assert "not public" in capsys.readouterr().err
+
+
+def test_a_name_resolves_to_its_ipv4_addresses_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Group 7's review B, I3: the VPC has no IPv6, and a string-sorted set put a name's AAAA first ("2…" before "9…"),
+    # so every connection to it failed. Only IPv4 is asked for.
+    import socket
+
+    def getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        rows = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:4860::8888", 0, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0)),
+        ]
+        return [r for r in rows if family in (0, r[0])]
+
+    monkeypatch.setattr(ep.socket, "getaddrinfo", getaddrinfo)
+    assert ep.resolve("api.anthropic.com") == ["93.184.216.34"]

@@ -1863,7 +1863,36 @@ def test_ec2s_phases_split_at_the_host_step(tmp_path: Path) -> None:
         ec2_aws(tmp_path, "2000-01-01T00:00:00Z"),
         phase="after",
     )
-    assert [(r.check, r.status) for r in after] == [("E6", "FAIL")]
+    # Group 7's review B, I4: expired credentials degrade Bedrock, EC2's second route, and never refuse the stack.
+    assert [(r.check, r.status) for r in after] == [("E6", "WARN")]
+
+
+def test_e6_warns_of_bedrock_without_its_document_and_refuses_a_wrong_profile(
+    tmp_path: Path,
+) -> None:
+    aws = ec2_aws(tmp_path)
+    assert pf.e6_credentials(aws, lambda: 0).status == "PASS"
+    (aws / "credentials.json").unlink()
+    missing = pf.e6_credentials(aws, lambda: 0)
+    assert missing.status == "WARN" and "Bedrock" in missing.reason
+    aws = ec2_aws(tmp_path)
+    (aws / "credentials.json").chmod(0o444)
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+    aws = ec2_aws(tmp_path)
+    (aws / "config").write_text("[profile other]\n", encoding="utf-8")
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+    (aws / "config").unlink()
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+
+
+def test_p17_refuses_an_image_override_from_the_shell(dev: Stage) -> None:
+    # Group 7's review B, nit 1: compose reads the process environment too, and make passes it on, so
+    # `H4_IMAGE_EDGE=… make up ENV=prod` would run an unpinned image. P5 refuses any H4_* in the shell; P17 says why.
+    assert dev.results()["P17"].status == "PASS"
+    dev.host.environ["H4_IMAGE_EDGE"] = "nginx:latest"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL" and "H4_IMAGE_EDGE" in result.reason
+    assert "nginx:latest" not in result.reason
 
 
 def test_an_image_override_is_read_as_its_pin_and_named_by_no_env_file() -> None:
