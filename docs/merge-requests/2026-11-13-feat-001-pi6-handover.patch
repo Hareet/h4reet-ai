@@ -1,0 +1,899 @@
+P-I6, spec 001 group 9 (W1): the handover's protected Terraform, the bridge's new kinds, and the hours, for the
+Author's hand.
+
+Built from plain copies: each file as W1's earlier patches leave it (a git archive export of 8418fd0b with P-I3, P-G1,
+P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, and P-G6 applied in order), and /dev/null for the one new file; edited
+in $TMPDIR, then diff -u with a/ and b/ labels after this preamble; never git apply, and nothing written into any
+worktree. Apply it on W1's -p branch after P-G6 (it needs P-I3, P-I7, and P-I4, whose files it changes), with
+`patch -p1 < <this file>` at the repository's root, and commit the result byte for byte (tasks.md T124, T171, T172).
+
+What it holds (tasks.md T119, T124; contracts/handover.md §1 to §5, §7; contracts/aws-alerts.md §2; research.md R-15,
+R-29, R-30; plan.md §16, "Why a switch", "No root holds another root's instance or health-check ID", "Group 9, as
+built"; ADR 0048 and ADR 0049, proposed):
+  - infra/prod/failover.tf, new: the Route 53 health check on the tunnel end's Elastic IP, 8087, /health, every 30 s,
+    threshold 3; and its alarm, h4-laptop-away, below 1 over a minute, missing data breaching. Both W1's;
+  - infra/prod/handover.tf: h4-ec2-spot-warning to h4-alerts as spot_interruption, and h4-ec2-running, both W1's;
+    behind prod's local.wired, h4-ec2-running's target, h4-ec2-guard, and h4-tunnel-end-running's second target,
+    h4-ec2-start `from: tunnel_end_back`, each by its name-built ARN;
+  - infra/prod/iam.tf: the tunnel end's dashboard reads (EC2's and its spot request's state, the autostart switch, the
+    health check's status, the server budget and its action, the functions' metrics) and its one-key write,
+    site/status/latest.json, put only (group 10's sink writes it);
+  - infra/account/handover.tf: local.ec2_hours, the hours' one source, provisionally America/Denver, 07:00 to 19:00
+    (the regrouping note's question 1a, recommended option A, until your answer; option B is "Etc/GMT+7", one line
+    here); the autostart switch, made "off", its value yours; the two functions' log groups; and behind the account's
+    local.wired: h4-ec2-start and h4-ec2-guard with H4_EC2_HOURS from the local, no retries, their three permissions,
+    h4-laptop-away-rule, and the hours' two schedules, h4-ec2-hours-open and h4-ec2-hours-close, in the local's zone;
+  - infra/account/iam.tf: h4-ec2-start-fn and h4-ec2-guard-fn, each reading by name (the alarm, the two parameters,
+    the budget) and starting or stopping only an instance tagged Name = h4-prod-ec2; h4-ec2-hours, the schedules'
+    role, which may invoke those two functions alone; and h4-ec2-stop, your permission set for the stop of the tagged
+    instance, whose assignment to your user stays yours, by hand in IAM Identity Center;
+  - infra/lambdas/alert_bridge/bridge.py and its test, and contracts/aws-alerts.md §2's table, which the test reads:
+    the reason outside_hours, and the guard's ec2_stopped_outside_hours, ec2_unrecognised_instance, and
+    ec2_guard_failed, each with its page.
+
+W1 holds both switches off, so W1's blocks make the check, the alarm, EC2's two rules, the roles, the permission set,
+the switch, and the log groups; P-W2 makes the rest in W2, with the functions' digests.
+
+Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, P-G6, and this patch,
+in that order: infra/test (test_handover.py among them) and infra/lambdas pass with each switch off and on; `make
+infra-check`'s policy finds nothing but prod's lockfile (T10, your step since group 5); terraform fmt is clean.
+--- a/infra/account/handover.tf
++++ b/infra/account/handover.tf
+@@ -1,7 +1,9 @@
+ # The account's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072; contracts/handover.md §2 to §5;
+-# plan.md §16, "Why a switch"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch.
+-# Group 5 writes the switch alone; group 9 adds h4-ec2-start, h4-ec2-guard, their permissions, the autostart switch,
+-# the hours' schedules, and h4-laptop-away-rule behind it.
++# plan.md §16, "Why a switch"; ADR 0048 and ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the
++# Author's patch. Group 5 writes the switch alone; group 9 (P-I6) adds the hours, h4-ec2-start and h4-ec2-guard, their
++# log groups and permissions, the autostart switch, h4-laptop-away-rule, and the hours' two schedules. Their roles are
++# iam.tf's. Nothing here names a prod instance or health check, or reads prod's state: the alarm, the rules, and the
++# functions are named by their names (plan.md §16, "No root holds another root's instance or health-check ID").
+ 
+ locals {
+   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
+@@ -9,3 +11,259 @@
+   # behind it is written `count = local.wired ? 1 : 0`.
+   wired = false
+ }
++
++# EC2's hours, in a block of their own, so P-W2 changes the switch's block alone.
++locals {
++  # EC2's hours (ADR 0048, decision 1; the Author's "12 hours, from 7am to 7pm Mountain Standard Time", 2026-11-12):
++  # the one source of the hours. Both schedules and both functions' H4_EC2_HOURS read it, and nothing else holds a
++  # copy. Provisional: question 1a, recommended option A, America/Denver, the local clock with daylight saving, until
++  # the Author's answer; option B is "Etc/GMT+7", a fixed UTC−7. The functions carry exactly those two zones' rules.
++  ec2_hours = {
++    zone  = "America/Denver"
++    open  = "07:00"
++    close = "19:00"
++  }
++  # The functions' one environment value, "<zone> <open>-<close>" (infra/lambdas/ec2_start/start.py).
++  ec2_hours_value = "${local.ec2_hours.zone} ${local.ec2_hours.open}-${local.ec2_hours.close}"
++  # EventBridge Scheduler's cron, in the zone's own clock: minute, hour, every day.
++  ec2_hours_open_cron  = "cron(${tonumber(split(":", local.ec2_hours.open)[1])} ${tonumber(split(":", local.ec2_hours.open)[0])} * * ? *)"
++  ec2_hours_close_cron = "cron(${tonumber(split(":", local.ec2_hours.close)[1])} ${tonumber(split(":", local.ec2_hours.close)[0])} * * ? *)"
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The autostart switch (contracts/handover.md §5): "on" lets EC2 start automatically, "off" stops that. Made "off", so
++# nothing starts EC2 on its own until the Author sets it at T178; its value is his from then on, written only by his
++# autostart target, and a plan never shows it as drift. W1's: it needs nothing of another root.
++resource "aws_ssm_parameter" "ec2_autostart" {
++  name        = "/h4reet/prod/ec2-autostart"
++  description = "on lets EC2 start automatically; off stops that (spec 001 contracts/handover.md §5)"
++  type        = "String"
++  value       = "off"
++
++  tags = {
++    component = "handover"
++  }
++
++  lifecycle {
++    ignore_changes = [value]
++  }
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The two functions (contracts/handover.md §3 and §4): container images on arm64, from their repositories by digest
++# (registry.tf; main.tf's local.lambda_images), behind the switch, since their digests exist only after W1's account
++# apply makes the repositories and the Author pushes (tasks.md T174). Their log groups need nothing and are W1's.
++
++resource "aws_cloudwatch_log_group" "ec2_start" {
++  name              = "/aws/lambda/h4-ec2-start"
++  retention_in_days = 90
++
++  tags = {
++    component = "handover"
++  }
++}
++
++resource "aws_cloudwatch_log_group" "ec2_guard" {
++  name              = "/aws/lambda/h4-ec2-guard"
++  retention_in_days = 90
++
++  tags = {
++    component = "handover"
++  }
++}
++
++resource "aws_lambda_function" "ec2_start" {
++  count         = local.wired ? 1 : 0
++  function_name = "h4-ec2-start"
++  description   = "Starts EC2 when its checks all pass (spec 001 contracts/handover.md §3)"
++  role          = aws_iam_role.ec2_start.arn
++  package_type  = "Image"
++  image_uri     = "${aws_ecr_repository.lambda["h4-ec2-start"].repository_url}@${local.lambda_images.ec2_start}"
++  architectures = ["arm64"]
++  memory_size   = 128
++  timeout       = 30
++
++  logging_config {
++    log_format = "Text"
++    log_group  = aws_cloudwatch_log_group.ec2_start.name
++  }
++
++  environment {
++    variables = {
++      H4_EC2_HOURS        = local.ec2_hours_value
++      H4_ALERTS_TOPIC_ARN = data.aws_sns_topic.alerts.arn
++    }
++  }
++
++  tags = {
++    component = "handover"
++  }
++
++  lifecycle {
++    precondition {
++      condition     = local.lambda_images.ec2_start != ""
++      error_message = "h4-ec2-start has no digest: tasks.md T174 pushes its image, and T175 writes local.lambda_images.ec2_start."
++    }
++  }
++}
++
++resource "aws_lambda_function" "ec2_guard" {
++  count         = local.wired ? 1 : 0
++  function_name = "h4-ec2-guard"
++  description   = "Stops EC2 when it runs and shouldn't (spec 001 contracts/handover.md §4)"
++  role          = aws_iam_role.ec2_guard.arn
++  package_type  = "Image"
++  image_uri     = "${aws_ecr_repository.lambda["h4-ec2-guard"].repository_url}@${local.lambda_images.ec2_guard}"
++  architectures = ["arm64"]
++  memory_size   = 128
++  timeout       = 30
++
++  logging_config {
++    log_format = "Text"
++    log_group  = aws_cloudwatch_log_group.ec2_guard.name
++  }
++
++  environment {
++    variables = {
++      H4_EC2_HOURS        = local.ec2_hours_value
++      H4_ALERTS_TOPIC_ARN = data.aws_sns_topic.alerts.arn
++    }
++  }
++
++  tags = {
++    component = "handover"
++  }
++
++  lifecycle {
++    precondition {
++      condition     = local.lambda_images.ec2_guard != ""
++      error_message = "h4-ec2-guard has no digest: tasks.md T174 pushes its image, and T175 writes local.lambda_images.ec2_guard."
++    }
++  }
++}
++
++# One attempt per invocation (FR-065): Lambda retries no asynchronous invocation of either. Each function also raises
++# nothing, so a retry could only follow Lambda's own failure.
++resource "aws_lambda_function_event_invoke_config" "ec2_start" {
++  count                        = local.wired ? 1 : 0
++  function_name                = aws_lambda_function.ec2_start[0].function_name
++  maximum_retry_attempts       = 0
++  maximum_event_age_in_seconds = 300
++}
++
++resource "aws_lambda_function_event_invoke_config" "ec2_guard" {
++  count                        = local.wired ? 1 : 0
++  function_name                = aws_lambda_function.ec2_guard[0].function_name
++  maximum_retry_attempts       = 0
++  maximum_event_age_in_seconds = 300
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# What invokes them. EventBridge's three rules, each by its name-built ARN: the account's own h4-laptop-away-rule, and
++# prod's h4-tunnel-end-running and h4-ec2-running, which name these functions by theirs (infra/prod/handover.tf). The
++# schedules invoke through their role, iam.tf's h4-ec2-hours, and need no permission here.
++
++resource "aws_lambda_permission" "ec2_start_laptop_away" {
++  count         = local.wired ? 1 : 0
++  statement_id  = "TheLaptopsAlarm"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.ec2_start[0].function_name
++  principal     = "events.amazonaws.com"
++  source_arn    = aws_cloudwatch_event_rule.laptop_away[0].arn
++}
++
++resource "aws_lambda_permission" "ec2_start_tunnel_end_back" {
++  count         = local.wired ? 1 : 0
++  statement_id  = "TheTunnelEndsReturn"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.ec2_start[0].function_name
++  principal     = "events.amazonaws.com"
++  source_arn    = "arn:aws:events:us-east-1:${data.aws_caller_identity.current.account_id}:rule/h4-tunnel-end-running"
++}
++
++resource "aws_lambda_permission" "ec2_guard_running" {
++  count         = local.wired ? 1 : 0
++  statement_id  = "EC2EnteringRunning"
++  action        = "lambda:InvokeFunction"
++  function_name = aws_lambda_function.ec2_guard[0].function_name
++  principal     = "events.amazonaws.com"
++  source_arn    = "arn:aws:events:us-east-1:${data.aws_caller_identity.current.account_id}:rule/h4-ec2-running"
++}
++
++# The laptop's alarm, prod's h4-laptop-away, by its name: its change into ALARM, the laptop going, starts EC2
++# (contracts/handover.md §2; research.md R-29). The function reads the event itself.
++resource "aws_cloudwatch_event_rule" "laptop_away" {
++  count       = local.wired ? 1 : 0
++  name        = "h4-laptop-away-rule"
++  description = "h4-laptop-away into ALARM, to h4-ec2-start (spec 001 contracts/handover.md §2)"
++  event_pattern = jsonencode({
++    source      = ["aws.cloudwatch"]
++    detail-type = ["CloudWatch Alarm State Change"]
++    detail = {
++      alarmName = ["h4-laptop-away"]
++      state = {
++        value = ["ALARM"]
++      }
++    }
++  })
++
++  tags = {
++    component = "handover"
++  }
++}
++
++resource "aws_cloudwatch_event_target" "laptop_away" {
++  count     = local.wired ? 1 : 0
++  rule      = aws_cloudwatch_event_rule.laptop_away[0].name
++  target_id = "h4-ec2-start"
++  arn       = aws_lambda_function.ec2_start[0].arn
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The hours' two schedules (ADR 0048, decision 2): at the open, the start function, `from: hours_open`; at the close,
++# the guard, `from: hours_close`. Each in the zone of local.ec2_hours, with no flexible window, and no retry: the
++# functions make their one attempt. Neither calls EC2's API, so only the functions start and stop EC2.
++
++resource "aws_scheduler_schedule" "ec2_hours_open" {
++  count                        = local.wired ? 1 : 0
++  name                         = "h4-ec2-hours-open"
++  description                  = "EC2's hours open: h4-ec2-start, from hours_open (spec 001 ADR 0048)"
++  schedule_expression          = local.ec2_hours_open_cron
++  schedule_expression_timezone = local.ec2_hours.zone
++
++  flexible_time_window {
++    mode = "OFF"
++  }
++
++  target {
++    arn      = aws_lambda_function.ec2_start[0].arn
++    role_arn = aws_iam_role.ec2_hours.arn
++    input    = jsonencode({ from = "hours_open" })
++
++    retry_policy {
++      maximum_retry_attempts = 0
++    }
++  }
++}
++
++resource "aws_scheduler_schedule" "ec2_hours_close" {
++  count                        = local.wired ? 1 : 0
++  name                         = "h4-ec2-hours-close"
++  description                  = "EC2's hours close: h4-ec2-guard, from hours_close (spec 001 ADR 0048)"
++  schedule_expression          = local.ec2_hours_close_cron
++  schedule_expression_timezone = local.ec2_hours.zone
++
++  flexible_time_window {
++    mode = "OFF"
++  }
++
++  target {
++    arn      = aws_lambda_function.ec2_guard[0].arn
++    role_arn = aws_iam_role.ec2_hours.arn
++    input    = jsonencode({ from = "hours_close" })
++
++    retry_policy {
++      maximum_retry_attempts = 0
++    }
++  }
++}
+--- a/infra/account/iam.tf
++++ b/infra/account/iam.tf
+@@ -1,8 +1,9 @@
+ # The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
+ # laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
+ # role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
+-# for the rehearsal; and the three functions' roles. Protected (FR-012; rule T5): it changes only by the Author's patch.
+-# Nothing here changes at run time (FR-070).
++# for the rehearsal; the three functions' roles; and, from group 9 (P-I6), the handover's: the start function's and the
++# guard's roles, the hours' schedules' role, and the Author's stop of EC2. Protected (FR-012; rule T5): it changes only
++# by the Author's patch. Nothing here changes at run time (FR-070).
+ 
+ # ----------------------------------------------------------------------------------------------------------------------
+ # The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
+@@ -362,3 +363,270 @@
+   role   = aws_iam_role.credential_audit.id
+   policy = data.aws_iam_policy_document.credential_audit.json
+ }
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The handover's identities (group 9, P-I6; research.md R-15, amended; contracts/handover.md §3, §4, §7; ADR 0048). Each
++# reads by name: the autostart switch's and EC2's ID's parameters by their paths, the server action's status by its
++# budget's name, and the laptop's serving from the alarm h4-laptop-away by its name-built ARN, never a Route 53 health
++# check, which IAM can't scope by tag and whose ID is prod's. EC2's start or stop holds only for an instance tagged
++# Name = h4-prod-ec2, the condition the credential audit reads (infra/lambdas/credential_audit/audit.py's
++# HANDOVER_ROLES and HANDOVER_SETS). W1's: none needs another root, and the functions arrive with W2's digests.
++
++# h4-ec2-start-fn: the start of the tagged instance, and the reads of its six checks.
++resource "aws_iam_role" "ec2_start" {
++  name               = "h4-ec2-start-fn"
++  path               = "/"
++  description        = "h4-ec2-start: its checks' reads, the start of the tagged instance, its alert"
++  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
++
++  tags = {
++    component = "handover"
++  }
++}
++
++data "aws_iam_policy_document" "ec2_start" {
++  statement {
++    sid       = "ItsLog"
++    effect    = "Allow"
++    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
++    resources = ["${aws_cloudwatch_log_group.ec2_start.arn}:*"]
++  }
++
++  statement {
++    sid     = "TheSwitchAndEC2sID"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
++    ]
++  }
++
++  statement {
++    sid       = "TheServerActionsStatus"
++    effect    = "Allow"
++    actions   = ["budgets:DescribeBudgetActionsForBudget"]
++    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
++  }
++
++  # The tunnel end's state, by its tag, and EC2's tag before the start. EC2's describe calls take no narrower resource.
++  statement {
++    sid       = "TheInstancesStates"
++    effect    = "Allow"
++    actions   = ["ec2:DescribeInstances"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid       = "TheLaptopsAlarm"
++    effect    = "Allow"
++    actions   = ["cloudwatch:DescribeAlarms"]
++    resources = ["arn:aws:cloudwatch:us-east-1:${data.aws_caller_identity.current.account_id}:alarm:h4-laptop-away"]
++  }
++
++  statement {
++    sid       = "StartTheTaggedInstance"
++    effect    = "Allow"
++    actions   = ["ec2:StartInstances"]
++    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:ResourceTag/Name"
++      values   = ["h4-prod-ec2"]
++    }
++  }
++
++  statement {
++    sid       = "ItsAlerts"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [data.aws_sns_topic.alerts.arn]
++  }
++}
++
++resource "aws_iam_role_policy" "ec2_start" {
++  name   = "ec2-start"
++  role   = aws_iam_role.ec2_start.id
++  policy = data.aws_iam_policy_document.ec2_start.json
++}
++
++# h4-ec2-guard-fn: the stop of any instance tagged h4-prod-ec2, so it can stop one it doesn't recognise (the regrouping
++# note's question 10), and the reads of its table. It may start nothing.
++resource "aws_iam_role" "ec2_guard" {
++  name               = "h4-ec2-guard-fn"
++  path               = "/"
++  description        = "h4-ec2-guard: its table's reads, the stop of a tagged instance, its alert"
++  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
++
++  tags = {
++    component = "handover"
++  }
++}
++
++data "aws_iam_policy_document" "ec2_guard" {
++  statement {
++    sid       = "ItsLog"
++    effect    = "Allow"
++    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
++    resources = ["${aws_cloudwatch_log_group.ec2_guard.arn}:*"]
++  }
++
++  statement {
++    sid     = "TheSwitchAndEC2sID"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-instance-id",
++    ]
++  }
++
++  statement {
++    sid       = "TheServerActionsStatus"
++    effect    = "Allow"
++    actions   = ["budgets:DescribeBudgetActionsForBudget"]
++    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
++  }
++
++  statement {
++    sid       = "TheTaggedInstances"
++    effect    = "Allow"
++    actions   = ["ec2:DescribeInstances"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid       = "TheLaptopsAlarm"
++    effect    = "Allow"
++    actions   = ["cloudwatch:DescribeAlarms"]
++    resources = ["arn:aws:cloudwatch:us-east-1:${data.aws_caller_identity.current.account_id}:alarm:h4-laptop-away"]
++  }
++
++  statement {
++    sid       = "StopATaggedInstance"
++    effect    = "Allow"
++    actions   = ["ec2:StopInstances"]
++    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:ResourceTag/Name"
++      values   = ["h4-prod-ec2"]
++    }
++  }
++
++  statement {
++    sid       = "ItsAlerts"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [data.aws_sns_topic.alerts.arn]
++  }
++}
++
++resource "aws_iam_role_policy" "ec2_guard" {
++  name   = "ec2-guard"
++  role   = aws_iam_role.ec2_guard.id
++  policy = data.aws_iam_policy_document.ec2_guard.json
++}
++
++# h4-ec2-hours: the hours' two schedules (handover.tf; ADR 0048, decision 2) invoke through it. It may invoke the two
++# functions by their name-built ARNs, and nothing else; EventBridge Scheduler alone, for this account, may assume it.
++data "aws_iam_policy_document" "ec2_hours_trust" {
++  statement {
++    sid     = "SchedulerForThisAccount"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["scheduler.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++}
++
++resource "aws_iam_role" "ec2_hours" {
++  name               = "h4-ec2-hours"
++  path               = "/"
++  description        = "EC2's hours: the two schedules' invocations of h4-ec2-start and h4-ec2-guard (ADR 0048)"
++  assume_role_policy = data.aws_iam_policy_document.ec2_hours_trust.json
++
++  tags = {
++    component = "handover"
++  }
++}
++
++data "aws_iam_policy_document" "ec2_hours" {
++  statement {
++    sid     = "TheTwoFunctions"
++    effect  = "Allow"
++    actions = ["lambda:InvokeFunction"]
++    resources = [
++      "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-start",
++      "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-guard",
++    ]
++  }
++}
++
++resource "aws_iam_role_policy" "ec2_hours" {
++  name   = "ec2-hours"
++  role   = aws_iam_role.ec2_hours.id
++  policy = data.aws_iam_policy_document.ec2_hours.json
++}
++
++# The Author's stop of EC2 (contracts/handover.md §6 and §7; research.md R-15, question 16's default): a permission set
++# of its own, which his laptop's h4-handover loop and his stop target use through his SSO session. The stop of a tagged
++# instance, the describe call, and the stop's alert, ec2_stopped_by_author. W1's, since its policy is on the tag, so his
++# stop works before the functions exist (plan.md §16, "Between W1's applies and W2's"). Its assignment to his user is
++# his, by hand in IAM Identity Center, as the laptop's was (tasks.md T173); nothing here names a user.
++resource "aws_ssoadmin_permission_set" "ec2_stop" {
++  name             = "h4-ec2-stop"
++  instance_arn     = tolist(data.aws_ssoadmin_instances.this.arns)[0]
++  description      = "Stop EC2, the instance tagged h4-prod-ec2, and say so (spec 001 contracts/handover.md §7)"
++  session_duration = "PT1H"
++
++  tags = {
++    component = "handover"
++  }
++}
++
++data "aws_iam_policy_document" "ec2_stop" {
++  statement {
++    sid       = "StopTheTaggedInstance"
++    effect    = "Allow"
++    actions   = ["ec2:StopInstances"]
++    resources = ["arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:instance/*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "ec2:ResourceTag/Name"
++      values   = ["h4-prod-ec2"]
++    }
++  }
++
++  statement {
++    sid       = "ItsState"
++    effect    = "Allow"
++    actions   = ["ec2:DescribeInstances"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid       = "ItsAlert"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [data.aws_sns_topic.alerts.arn]
++  }
++}
++
++resource "aws_ssoadmin_permission_set_inline_policy" "ec2_stop" {
++  instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
++  permission_set_arn = aws_ssoadmin_permission_set.ec2_stop.arn
++  inline_policy      = data.aws_iam_policy_document.ec2_stop.json
++}
+--- a/infra/lambdas/alert_bridge/bridge.py
++++ b/infra/lambdas/alert_bridge/bridge.py
+@@ -71,6 +71,11 @@
+     "ec2_stopped_paused": "handover.md",
+     "ec2_stopped_server_budget": "server-budget.md",
+     "ec2_stopped_by_author": "handover.md",
++    # Group 9 (P-I6; ADR 0048; contracts/handover.md §4, amended): the guard's stop outside the hours, its stop of a
++    # second tagged instance, and its own failure.
++    "ec2_stopped_outside_hours": "ec2.md",
++    "ec2_unrecognised_instance": "ec2.md",
++    "ec2_guard_failed": "ec2.md",
+     "spot_interruption": "spot-interruption.md",
+     "deploy_rolled_back": "deploy.md",
+     "deploy_rollback_failed": "deploy.md",
+@@ -83,6 +88,8 @@
+ REASONS: dict[str, dict[str, str]] = {
+     "ec2_start_refused": {
+         "paused": "handover.md",
++        # Group 9 (P-I6; ADR 0048): outside EC2's hours.
++        "outside_hours": "handover.md",
+         "server_budget_stopped": "handover.md",
+         "laptop_serving": "handover.md",
+         "start_failed": "handover.md",
+--- a/infra/lambdas/alert_bridge/test_bridge.py
++++ b/infra/lambdas/alert_bridge/test_bridge.py
+@@ -213,6 +213,23 @@
+         "ec2_stopped_server_budget", "EC2 stopped: the server action has run"
+     ),
+     "ec2_stopped_by_author": ours("ec2_stopped_by_author", "EC2 stopped by hand"),
++    # Group 9 (P-I6): the hours, and the guard's second instance and its own failure.
++    "ec2_start_refused outside_hours": ours(
++        "ec2_start_refused (outside_hours)", "EC2 not started", "- trigger: alarm"
++    ),
++    "ec2_stopped_outside_hours": ours(
++        "ec2_stopped_outside_hours", "EC2 stopped: outside its hours"
++    ),
++    "ec2_unrecognised_instance": ours(
++        "ec2_unrecognised_instance",
++        "a second instance tagged h4-prod-ec2 stopped",
++        "- instance: i-0abc",
++    ),
++    "ec2_guard_failed": ours(
++        "ec2_guard_failed",
++        "the guard couldn't act; EC2 left as it is",
++        "- unread: ParameterNotFound",
++    ),
+     "spot_interruption": event_notice(
+         "EC2 Spot Instance Interruption Warning",
+         "aws.ec2",
+--- /dev/null
++++ b/infra/prod/failover.tf
+@@ -0,0 +1,48 @@
++# The failover's health check and its alarm (spec 001 FR-054, FR-063 to FR-065; contracts/handover.md §1 and §2,
++# amended; research.md R-29; plan.md §16, "No root holds another root's instance or health-check ID"; ADR 0049,
++# proposed). Protected (FR-012; rule T5): it changes only by the Author's patch, P-I6.
++#
++# The check probes the laptop's health block through the tunnel end (contracts/tunnel.md §4): its Elastic IP, port
++# 8087, /health, which S17's reverse forward 2203 carries to the laptop's edge. So it fails if the tunnel end, the
++# tunnel, or the laptop's stack fails. Its alarm, h4-laptop-away, is what wakes EC2: the account's h4-laptop-away-rule
++# matches its change into ALARM by its name (W2), and both functions read its state by its name-built ARN as the
++# laptop's serving, OK meaning the laptop serves (research.md R-15, amended). Neither is behind the switch: both need
++# nothing of another root.
++
++resource "aws_route53_health_check" "laptop" {
++  type              = "HTTP"
++  ip_address        = aws_eip.tunnel_end.public_ip
++  port              = 8087
++  resource_path     = "/health"
++  request_interval  = 30
++  failure_threshold = 3
++
++  tags = {
++    Name      = "h4-laptop-health"
++    component = "handover"
++  }
++}
++
++# Route 53 publishes HealthCheckStatus in us-east-1, this root's Region: 1 while healthy, 0 while not. In alarm below 1
++# over one minute, and with missing data breaching, so a check that stops reporting reads as the laptop gone. No alarm
++# action: the account's rule reads the change itself, and the alert is the start function's.
++resource "aws_cloudwatch_metric_alarm" "laptop_away" {
++  alarm_name          = "h4-laptop-away"
++  alarm_description   = "The laptop's health block fails through the tunnel end (spec 001 contracts/handover.md §2)"
++  namespace           = "AWS/Route53"
++  metric_name         = "HealthCheckStatus"
++  statistic           = "Minimum"
++  period              = 60
++  evaluation_periods  = 1
++  threshold           = 1
++  comparison_operator = "LessThanThreshold"
++  treat_missing_data  = "breaching"
++
++  dimensions = {
++    HealthCheckId = aws_route53_health_check.laptop.id
++  }
++
++  tags = {
++    component = "handover"
++  }
++}
+--- a/infra/prod/handover.tf
++++ b/infra/prod/handover.tf
+@@ -2,8 +2,8 @@
+ # contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
+ # ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
+ # switch, the tunnel end's interruption warning, and its return's alert; group 7 adds EC2's ID parameter (P-I4); group 9
+-# adds EC2's rules and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target
+-# among them.
++# adds EC2's two rules, and the rules' function targets behind the switch, h4-tunnel-end-running's start-function
++# target among them (P-I6).
+ 
+ locals {
+   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
+@@ -81,6 +81,77 @@
+   }
+ }
+ 
++# The start function, once, on the tunnel end's return (contracts/handover.md §2 and §3, step 4; research.md R-29): the
++# alarm stays in ALARM through a tunnel end's outage, so it wouldn't change again. Named by its name-built ARN, since
++# the function is the account's; behind the switch until W2, when the account makes it.
++resource "aws_cloudwatch_event_target" "tunnel_end_running_start" {
++  count     = local.wired ? 1 : 0
++  rule      = aws_cloudwatch_event_rule.tunnel_end_running.name
++  target_id = "h4-ec2-start"
++  arn       = "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-start"
++  input     = jsonencode({ from = "tunnel_end_back" })
++}
++
++# AWS's two-minute warning before it stops EC2 (spec FR-071, "You get an alert"; contracts/aws-alerts.md §2,
++# spot_interruption): as the tunnel end's, naming the instance from this root, to h4-alerts, with no switch.
++resource "aws_cloudwatch_event_rule" "ec2_spot_warning" {
++  name        = "h4-ec2-spot-warning"
++  description = "AWS's interruption warning for EC2, to h4-alerts (spec 001 FR-071)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Spot Instance Interruption Warning"]
++    detail = {
++      instance-id = [aws_instance.ec2.id]
++    }
++  })
++
++  tags = {
++    component = "ec2"
++  }
++}
++
++# spot_interruption in §2's format, with the time and the action alone: never the account or the instance's ID.
++resource "aws_cloudwatch_event_target" "ec2_spot_warning" {
++  rule      = aws_cloudwatch_event_rule.ec2_spot_warning.name
++  target_id = "h4-alerts"
++  arn       = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++
++  input_transformer {
++    input_paths = {
++      action = "$.detail.instance-action"
++      at     = "$.time"
++    }
++    input_template = "\"[hareet.ai aws] spot_interruption: AWS will <action> EC2 in two minutes\\n- action: <action>\\n- at: <at>\""
++  }
++}
++
++# EC2 entering running, whoever started it, to the guard (contracts/handover.md §4; FR-071): AWS's own restart once
++# spot capacity returns among them. The rule needs nothing of another root; its one target, the account's guard by its
++# name-built ARN, waits behind the switch until W2.
++resource "aws_cloudwatch_event_rule" "ec2_running" {
++  name        = "h4-ec2-running"
++  description = "EC2 entering running, to h4-ec2-guard (spec 001 FR-071)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Instance State-change Notification"]
++    detail = {
++      instance-id = [aws_instance.ec2.id]
++      state       = ["running"]
++    }
++  })
++
++  tags = {
++    component = "ec2"
++  }
++}
++
++resource "aws_cloudwatch_event_target" "ec2_running_guard" {
++  count     = local.wired ? 1 : 0
++  rule      = aws_cloudwatch_event_rule.ec2_running.name
++  target_id = "h4-ec2-guard"
++  arn       = "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:h4-ec2-guard"
++}
++
+ # EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
+ # start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that
+ # it doesn't name (contracts/handover.md §4). A replace of EC2 updates it in the same plan. A String, never a secret.
+--- a/infra/prod/iam.tf
++++ b/infra/prod/iam.tf
+@@ -1,8 +1,9 @@
+ # Prod's identities (spec 001 FR-012; research.md R-15; the plan's question 7, provisional). The tunnel end's,
+ # h4-prod-tunnel-end: its instance role, which its host services use through IMDSv2 alone, with one hop, so no container
+ # on it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
+-# makes (plan.md §16). Group 9 adds the dashboard's reads. Group 6 adds the shared state's (P-I7): the two role
+-# passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Group 7 adds EC2's two (P-I4), below.
++# makes (plan.md §16). Group 9 adds the dashboard's reads and the public view's one key (P-I6). Group 6 adds the shared
++# state's (P-I7): the two role passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Group 7
++# adds EC2's two (P-I4), below.
+ # The budget actions' execution roles are killswitch.tf's. Protected (FR-012; rule T5): it changes only by the
+ # Author's patch.
+ 
+@@ -62,7 +63,8 @@
+   # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name). And the shared
+   # state's (group 6; contracts/shared-state.md §2, §3): its TLS key and certificate under its own path, and the two
+   # role passwords of /h4reet/ec2/ its roles target sets, by name. Nothing else of EC2's: a tunnel end that holds the
+-  # store's superuser gains nothing from those two.
++  # store's superuser gains nothing from those two. And, from group 9 (P-I6), the autostart switch, a String, for the
++  # dashboard (plan.md §11).
+   statement {
+     sid     = "ItsParameters"
+     effect  = "Allow"
+@@ -72,6 +74,7 @@
+       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
+       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
+       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
+     ]
+   }
+ 
+@@ -98,6 +101,7 @@
+         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
+         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
+         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/prod/ec2-autostart",
+       ]
+     }
+   }
+@@ -179,11 +183,52 @@
+   # The shared state's hourly backup (group 6; contracts/shared-state.md §1): its one prefix, put only. Nothing that
+   # reads, lists, or deletes there, so a compromised tunnel end can't read a dump; a restore's GET is presigned in the
+   # Author's terminal (§8).
++  #
++  # From group 9 (P-I6; research.md R-15; contracts/public-view.md §2), the sink's one key too: the public view's
++  # document, site/status/latest.json in the site's bucket, put only, which group 10's sink writes.
+   statement {
+-    sid       = "PutTheBackups"
++    sid    = "PutTheBackupsAndThePublicViewsDocument"
++    effect = "Allow"
++    actions = [
++      "s3:PutObject",
++    ]
++    resources = [
++      "${aws_s3_bucket.shared_state_backups.arn}/dumps/*",
++      "${aws_s3_bucket.site.arn}/site/status/latest.json",
++    ]
++  }
++
++  # The sink's cloud reads for the dashboard (group 9, P-I6; plan.md §11; contracts/public-view.md §2; research.md
++  # R-15): EC2's state and its spot request's, which EC2's describe calls give with no narrower resource; the health
++  # check's status, prod's own; the server budget's month and its action's status, by the budget's name; and the two
++  # functions' outcome counts, from their embedded metrics, which CloudWatch's GetMetricData gives with no narrower
++  # resource either. All reads.
++  statement {
++    sid    = "TheDashboardsEC2Reads"
++    effect = "Allow"
++    actions = [
++      "ec2:DescribeInstances",
++      "ec2:DescribeSpotInstanceRequests",
++      "cloudwatch:GetMetricData",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid       = "TheHealthChecksStatus"
+     effect    = "Allow"
+-    actions   = ["s3:PutObject"]
+-    resources = ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]
++    actions   = ["route53:GetHealthCheckStatus"]
++    resources = ["arn:aws:route53:::healthcheck/${aws_route53_health_check.laptop.id}"]
++  }
++
++  statement {
++    sid    = "TheServerBudget"
++    effect = "Allow"
++    actions = [
++      "budgets:ViewBudget",
++      "budgets:DescribeBudgetActionsForBudget",
++    ]
++    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/h4-server-month"]
+   }
+ }
+ 
+--- a/specs/001-cloud-elevation/contracts/aws-alerts.md
++++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
+@@ -27,8 +27,9 @@
+ | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
+ | `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
+ | `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
+-| `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
++| `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `outside_hours`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation; from W1 (ADR 0048), at the hours' open only for `start_failed`, `server_budget_stopped`, `tunnel_end_down`, and a failed read, the rest recorded and on the dashboard (provisional: the regrouping note's question 3, option A) | `handover.md` |
+ | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
++| `ec2_stopped_outside_hours`, `ec2_unrecognised_instance`, `ec2_guard_failed` | `h4-ec2-guard` | from W1 (ADR 0048; contracts/handover.md §4, amended): EC2 running outside its hours, but the close's routine stop (provisional: question 3, option A); a running instance tagged `h4-prod-ec2` that `/h4reet/prod/ec2-instance-id` doesn't name, with its ID; a read or a stop that failed | `ec2.md` |
+ | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |
+ | `spot_interruption` | `h4-ec2-spot-warning` | AWS's warning (spec FR-071, "You get an alert") | `spot-interruption.md` |
+ | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
