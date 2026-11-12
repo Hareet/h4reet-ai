@@ -40,7 +40,7 @@ The Author's answers:
 - **Named deviations** (spec.md Assumptions):
   - the constitution's Principle IV, "Cloud access is short-lived and identity-based";
   - FR-008, SC-004, and User Story 1's scenario 5: the listed identities keep their long-lived keys, and an OIDC provider exists before publication;
-  - FR-021 and SC-002: the project's tagged costs, not the account's;
+  - FR-021, FR-022, and SC-002: the project's tagged costs, not the account's;
   - spec 000's FR-013: `h4reet-runtime` keeps its keys.
 - **Least privilege across projects rests on IAM alone.** An allowed identity whose policies reach this project's resources could change them. The audit doesn't read their policies, so keeping them narrow is the Author's, by hand.
 - **The allowlist allows a key by name, active or not.** If `h4reet-runtime`'s key, which spec 000 recorded as removed, is in fact only inactive, reactivating it changes nothing the audit says.

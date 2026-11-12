@@ -52,7 +52,7 @@ The Author's decisions and answers, verbatim, as ADR 0044 records them. Multiple
 
   > "The server size and budget is outside the $20 model spend cost. Yes, bedrock stays as the ec2 second paid route."
 
-  Reading: the server's cost is outside the model ceilings and has a budget of its own (FR-020 to FR-022). "The server" is read as every cost of the account that isn't a model call: EC2, running or stopped, and the edge, DNS, the shared state, the health check, the start function, and the rest. Bedrock is EC2's second paid route, after the Anthropic API (FR-067).
+  Reading: the server's cost is outside the model ceilings and has a budget of its own (FR-020 to FR-022). "The server" is read as every cost of the account that isn't a model call (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"): EC2, running or stopped, and the edge, DNS, the shared state, the health check, the start function, and the rest. Bedrock is EC2's second paid route, after the Anthropic API (FR-067).
 
 - **The five points, and his approval.** The session put five points to him, as ADR 0044 records them (decisions 5 to 9). Their words are the session's, not his:
   1. "Route 53 can switch DNS by itself." "Failover" records plus a health check on the laptop move DNS in both directions automatically, with no Lambda for DNS. You'd still want a Lambda, fired when that health check fails, to start EC2. Your local startup script would stop EC2 when the laptop takes over.
@@ -481,7 +481,7 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
   EC2 SHALL run on the smallest measured type that fits. THE SYSTEM SHALL create no resource that the server budget covers before the Author has set the figure (FR-022).
 - **FR-022**: THE SYSTEM SHALL create these in this spec's first apply, no later than any other resource that costs money:
   - the model-spend budgets on Bedrock's cost, at the ceilings, with warnings at 70% ($3.50 a day, $14 a month);
-  - the server budget, on every other cost of the account, at the figure of FR-021, with a warning at 70%;
+  - the server budget, on every other cost of the account (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"), at the figure of FR-021, with a warning at 70%;
   - a cost-anomaly monitor on the account;
   - a budget for any other environment's tag, at the amount the Author sets before that environment exists.
   Each budget and the monitor SHALL alert through Telegram (primary) and email (secondary), never by SMS (ADR 0005).
@@ -617,7 +617,7 @@ The plan posted on pull requests (FR-014), the apply from a protected environmen
 - **Plan record**: a redacted Terraform plan for one environment at one commit. It is carried in the merge-request note. (Posting it on the pull request moved to the publication spec.)
 - **Apply record**: who applied which plan (by its hash), at which commit, when, which resources changed, and the outcome.
 - **Model-spend budget**: an AWS-side budget on Bedrock's cost at the ceilings, with FR-023's automated action. The Anthropic API's spend is outside AWS and bounded by the meter (FR-073).
-- **Server budget**: an AWS-side budget on every other cost of the account, with FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
+- **Server budget**: an AWS-side budget on every other cost of the account (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"), with FR-023's automated action. The cost-anomaly monitor sits beside the budgets.
 - **Tunnel**: the laptop's outbound connection to the tunnel end, its credential, and the local services it reaches.
 - **Public view**: the read-only dashboard visitors see, its values, the time those values were taken, and which host serves.
 - **Data-flow disclosure entry**: a row in spec 000's format, published on the site.
@@ -682,7 +682,7 @@ SC-015 moved to the publication spec (`publication-carryover.md`); its number is
   This departs from:
   - the constitution's Principle IV, "Cloud access is short-lived and identity-based": the listed users, `h4reet-runtime` among them, keep long-lived keys;
   - FR-008, SC-004, and User Story 1's scenario 5: the audit finds those keys and a CI identity before publication, and allows them;
-  - FR-021 and SC-002: the project's tagged costs, not the account's;
+  - FR-021, FR-022, and SC-002: the project's tagged costs, not the account's;
   - spec 000's FR-013: `h4reet-runtime` keeps its keys.
 
   Least privilege between this project and the other work rests on IAM, which the Author keeps narrow by hand. The audit allows a key by name whether it is active or not. Costs the tag doesn't carry aren't counted, so EC2's volumes and address must carry it (T154). Tasks T150 to T154.
@@ -690,7 +690,7 @@ SC-015 moved to the publication spec (`publication-carryover.md`); its number is
 - **ADR 0044's numbering.** ADR 0044 cites spec 001 by the 2026-09-07 outline's numbers (its "FR-005 to FR-008", "FR-007", "FR-009", "SC-002, SC-003", "US2 AS2" to "US5 AS2"), which this spec's traceability table maps. Where this spec cites ADR 0044, it cites the ADR's own decision and open-item numbers. The table under Clarifications maps each conflict the ADR names to this spec.
 - **The domain is hareet.ai.** The merge-request note of 2026-10-30 records it: "The domain: hareet.ai stays. Spec 001's FR-004 and the constitution still name h4reet.ai: spec 001 changes through its lifecycle, the constitution by your hand." This rework makes the change in spec 001; quotes keep their own spelling. The zone moves to Route 53, which the health check sits beside and which the Author's words name ("configure route53"). The change of the registration's name servers is a human action outside Terraform, recorded like an apply. That settles the October assumption about keeping another DNS provider.
 - **The memory estimate.** "About 8 GB" is the session's estimate, not a measured figure. The plan measures the stack's memory without the model server before it picks an instance type, and the Author sets the server budget's figure from the plan's prices (question 14; FR-021). Point 5's "$50 a month" is the session's unmeasured estimate too, and this spec uses it nowhere.
-- **The server budget's scope.** This is a reading of "The server size and budget is outside the $20 model spend cost". The server budget covers every cost of the account that isn't a model call: EC2 running, EC2 stopped (its volumes and any public address), the tunnel end and its address, the edge, DNS and the health check, the shared state, the start function, storage, and the registry (ADR 0044, open item 10).
+- **The server budget's scope.** This is a reading of "The server size and budget is outside the $20 model spend cost". The server budget covers every cost of the account that isn't a model call (amended 2026-11-11: every such cost tagged `project = h4reet-ai`; Assumptions, "One account, shared with the Author's other work"): EC2 running, EC2 stopped (its volumes and any public address), the tunnel end and its address, the edge, DNS and the health check, the shared state, the start function, storage, and the registry (ADR 0044, open item 10).
 - **The tunnel end and the relay.** Decided by the Author's answers to questions 13 and to the plan's questions 1 and 2.
   - **What the health check probes.** The laptop's health path at the tunnel end's public address, through the tunnel, so "the health check sees the whole path": the tunnel end, the tunnel, and the laptop's stack (FR-054). It only wakes EC2. If Route 53's checkers can't carry a credential, the health path is the one unauthenticated route through the tunnel, and it returns only health (FR-053).
   - **What serves the resting reply.** The relay, while no host serves; the edge, while the relay can't be reached (FR-066).

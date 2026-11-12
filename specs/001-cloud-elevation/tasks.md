@@ -276,7 +276,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 - [ ] T040 Author: on `main`:
   1. verify, import the laptop's Bedrock permission set, apply, and record;
   2. point the laptop's Bedrock profile at `h4-laptop-bedrock`, as the runbook says;
-  3. write the Telegram parameters;
+  3. write the Telegram parameters, and the credential audit's allowlist, `/h4reet/audit/IAM_ALLOW`, a SecureString holding the same lines as `~/.config/h4reet-ai/infra/iam-allow.txt` (ADR 0047; `infra/parameters.txt`), before the function's first run;
   4. set `rehearsal = true`, plan, and apply; start `h4-rehearsal-instance` before the trip, since stopping a stopped instance proves nothing;
   5. record each action's timings (contracts/aws-alerts.md §4; September §3.4), and, for the server action, the SSM run's status from the action's history and the instance's state after it;
   6. set `rehearsal = false`, plan, and apply.
@@ -684,7 +684,7 @@ The Author's answers of 2026-11-11, "Share it, scope the checks" and "Allow it t
   Once the project tag is active, Cost Explorer filtered on it shows the project's costs, and `h4-server-month`'s actual matches. At T040, his SecureString `/h4reet/audit/IAM_ALLOW` holds the same lines, before the function's first run.
 - [ ] T154 Group 7: EC2's volumes and its public address carry the `project` tag, and the server budget counts them. FR-021 says "EC2's while stopped included", which a tag-scoped budget sees only if the volumes are tagged. Check it in Cost Explorer after group 7's first apply.
 
-## Dependencies and execution order## Dependencies and execution order
+## Dependencies and execution order
 
 - **T000** first, then **T001**, the constitution, as the default order he confirms at T000. Then the groups in order: each branch is cut from `refs/heads/main` after the one before it merges.
 - **T001's check** is a precondition of groups 3 to 9. T020, group 3's first test task, writes the first file under `infra/`.

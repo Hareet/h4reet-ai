@@ -1,6 +1,6 @@
 # fix/001-shared-account: one account, shared with the Author's other work
 
-## Status: built, verified, and reviewed once (first form; its findings and your "Keep them out of the repo" fixed in this, the second form); your patch P-S1, your allowlist file, and the bootstrap's second plan go on `fix/001-shared-account-p`; not merged; nothing applied
+## Status: built, verified, and reviewed twice (the first form, then this second form; every finding fixed below); your patch P-S1, your allowlist file, and the bootstrap's second plan go on `fix/001-shared-account-p`; not merged; nothing applied
 
 ## What changed and why
 
@@ -47,10 +47,22 @@ None of your other work's identities is named in the repository or in this branc
 | Names in history, raised as a question | Your answer was "Keep them out of the repo". The list moved to your file and your SecureString, and this branch was rebuilt from main |
 | Nits: the server check's message; the term blocks' sizes unchecked; the credential-audit runbook; this project's names allowable; plan.md not in the code's commit | The message is "doesn't count every cost of this project but Bedrock's". Each term block is held to its own two lines. The runbook lists `iam_user_present`, `allowlist_entry_refused` and the list. Names starting `h4-` or `AWSReservedSSO_` are refused. plan.md changes in the GREEN commit |
 
+**The second form's review, 2026-11-12, of ca9ba40f, by an agent that wrote none of it: no blocker.** It found:
+- the terminal path correct;
+- P-S1's hunks matching main, and the grant exactly one parameter, with no `kms:Decrypt` needed under `aws/ssm`;
+- the tests RED before and GREEN after, nothing loosened;
+- no name in the branch's history.
+
+| Finding | Done |
+|---|---|
+| I-1: SSM's code for a missing parameter, `ParameterNotFound`, wasn't in `NOT_FOUND`. The weekly run would have died before the audit, storing nothing and alerting no one, not "no allowlist" as documented. T040's steps didn't write the parameter | RED: 9ea153b6's test. GREEN: c33eb787 adds the code. T040's step 3 now writes `/h4reet/audit/IAM_ALLOW` before the function's first run |
+| I-2: spec.md's Clarifications reading, FR-022, Key Entities, and the Assumption "The server budget's scope" still said every cost of the account. FR-022 wasn't named | Each carries an amendment pointer. FR-022 is named in the Assumption and in ADR 0047 |
+| Nits | 1, tasks.md's doubled heading: fixed. 2, killswitch.tf's header comment: P-S1 rewrites it. 3, test_bootstrap.py's docstring: updated. 4, the role's read is held exactly: every statement that could read a parameter must be the one `ssm:GetParameter` on the exact ARN, with the fixture `audit-reads-every-parameter`. 5, the first form's commits are unreachable locally and never pushed |
+
 ## Verification
 
 - **RED, on main's code with this branch's tests:** `infra/test` and `infra/lambdas` gave 106 failed and 170 passed. Every failure is the missing `parse_allow` or `terminal_allow`, or a root no longer clean on the budgets' and parameter's checks.
-- **GREEN, on an export of the branch with P-S1 applied:** `infra/test`, `infra/lambdas`, and `scripts/infra` gave 387 passed. One test failed because of the sandbox: `test_infra_check_runs_the_policy_then_waits_for_terraform` can't `mktemp` in this sandbox's read-only `/tmp`.
+- **GREEN, on an export of the branch with P-S1 applied:** `infra/test`, `infra/lambdas`, and `scripts/infra` gave 387 passed, and 389 after the second review's fixes. One test failed because of the sandbox: `test_infra_check_runs_the_policy_then_waits_for_terraform` can't `mktemp` in this sandbox's read-only `/tmp`.
 - **P-S1** was built from plain copies: each of main's three files by `git show`, edited, then `diff -u`. It dry-runs and applies cleanly, and the three resulting files match their edited copies byte for byte. `terraform fmt -check` passes on all three.
 - **Lint:** ruff check and ruff format pass, and Prettier passes on everything changed.
 
@@ -77,4 +89,5 @@ Pending: yours, on your branch.
 
 - **Least privilege between this project and your other work rests on IAM** (ADR 0047). The audit doesn't read the allowed identities' policies, so keeping them away from this project's resources is yours.
 - **Your file and your SecureString must hold the same lines.** Nothing in the repository can compare them.
+- **The weekly audit has no failure alarm of its own.** An AWS error other than a missing parameter, such as access denied or a key of your own, fails the run in its logs without an alert. That predates this branch. For W1 or Close: an Errors alarm on `h4-credential-audit` to `h4-alerts`.
 - **For W1's regrouping commit:** record T027's `metrics` finding beside T027 in tasks.md (plan.md's note 6 now has it).
