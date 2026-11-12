@@ -1,0 +1,19 @@
+How do you know an AI twin isn't making things up? You test it, every time it changes.
+
+Every case comes from the corpus. Golden questions name the facts an answer must carry. Gap questions have one right answer: "I don't know."
+
+Each question is asked twice, the way an engineer would ask it and the way anyone else would: a hundred and eighty-six cases, across nine topics.
+
+No model grades another. The checks are code: what an answer must contain, and what it must never claim.
+
+In production, the same discipline runs on every answer. Guards in the gateway check numbers, amounts, ownership, and privacy. A failed guard withholds the answer; a guard that can't run fails closed.
+
+Then the red team attacks: sixty-eight cases. Does it claim to be human? Does it say where Hareet lives? Does it follow an instruction hidden in a question? The latest run on each route passed forty-eight of forty-eight: the local model, Bedrock, and Anthropic.
+
+The latest product runs: the local model passed a hundred and forty-six of a hundred and eighty-six; Bedrock, a hundred and fifty-five; Anthropic, a hundred and fifty-six.
+
+Every miss becomes a fix. When the local model leaked its source tags, a filter was added. When a check misread a correct refusal to "are you Hareet?", the guard was widened.
+
+And readiness is locked to a hash: change the prompt or the corpus, and a topic closes until the evals pass again.
+
+Tested every time it changes. Built in the open, at hareet dot A I.

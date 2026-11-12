@@ -1,0 +1,23 @@
+Every answer the twin gives has a price, and you can watch it.
+
+In the room, a neon sign shows what each call cost, to the millionth of a dollar. It reads the gateway's own reply, not a dashboard.
+
+Every model call goes through the gateway, and every call carries four things: the provider, the model, the tokens, and the cost.
+
+Local answers cost nothing. The paid fallback is Claude Haiku: ten cents per million tokens in, fifty cents out.
+
+Why Haiku? In Hareet's words: "we chose haiku since our context base is small and manually evaluated haiku and sonnet."
+
+Money is counted in whole micro-dollars, never a float, in the gateway's own database.
+
+Every call is also traced in Langfuse, which runs inside the stack.
+
+And it's locked down: no route out, sign-up switched off, its own telemetry off, and no prompts or answers kept, unless sampling is switched on in development.
+
+Grafana puts spend beside latency and errors: today, this month, and the fallback's own budget.
+
+Why measure all of it? Because the meter is the control. Cloud billing alerts lag by hours; this one decides in real time.
+
+A full evaluation run, a hundred and eighty-six cases on Haiku, cost about twenty-one cents.
+
+A real-time cost meter. Built in the open, at hareet dot A I.

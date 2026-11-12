@@ -1,0 +1,25 @@
+Fifteen containers run hareet.ai in production. Here's what each one does, why it's there, and what happens when it fails.
+
+The edge is the only door: nginx, unprivileged, listening on six ports, all on the machine's own loopback address. If it fails, nothing can reach the stack, but the stack keeps running, and the meter keeps its state.
+
+Behind it, web serves the room. If web is down, the edge answers with its own page: "The room is unavailable right now."
+
+The gateway is the brain: routing, the meter, the kill switch, and every alert. It's the only container with a road out. If it fails, the edge answers "unavailable", nothing is spent, and alerts wait in the outbox until it's back.
+
+Gateway-state is the gateway's own database: the meter, the switch, the ledger, the audit log. If it can't be reached, every request fails closed at once, and after sixty seconds, one alert goes out.
+
+The model server is llama dot cpp, on the GPU. Nothing waits on it. If it's down, the gateway notices within a second and answers from the capped paid fallback; if that's down too, the answer is the degraded line, and an alert says so.
+
+Then the eyes. The OpenTelemetry collector strips prompts and answers out of the telemetry, then sends metrics to Prometheus, logs to Loki, and traces to Langfuse. If it fails, exports stop, a freshness panel shows how stale the data is, and enforcement never notices.
+
+Prometheus keeps thirty days of metrics, Loki thirty days of the gateway's logs, and Grafana draws them on one read-only dashboard.
+
+The alerts that guard the budget are the gateway's job, on Telegram first, then email, and they never wait on a dashboard. And every day, a summary reports the CPU metrics, with alerts based on them too.
+
+Langfuse keeps the traces, and it takes six containers: its web app and a worker, its own Postgres, ClickHouse for the traces, Valkey for the queue, and SeaweedFS for storage.
+
+If any of them fails, traces arrive late, or are dropped after ten minutes of retries, and a panel counts the drops. The twin keeps answering.
+
+Every container runs with no new privileges, on a network with no route out. Only the edge listens, and only the gateway leaves. And every alert names its runbook: what you see, what it means, what to do, how to check, how to undo, and what to record.
+
+Fifteen containers, one command. Built in the open, at hareet dot A I.
