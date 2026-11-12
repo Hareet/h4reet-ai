@@ -29,6 +29,7 @@ as plan §3 lists them.
 from __future__ import annotations
 
 import argparse
+import base64
 import configparser
 import hashlib
 import ipaddress
@@ -40,6 +41,7 @@ import socket
 import stat
 import subprocess
 import sys
+import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -130,7 +132,14 @@ STACKS = {
 # H4_HOST, each in the compose profile of the same name. The tunnel end's deployer starts its class's services by name,
 # so none of the laptop's runs there; and no laptop stack runs a cloud class's services, whose images its checks skip.
 HOST_CLASSES = {
-    "tunnel-end": ("tunnel-end", "relay", "snapshot-sink", "tunnel-end-collector"),
+    "tunnel-end": (
+        "tunnel-end",
+        "relay",
+        "snapshot-sink",
+        "tunnel-end-collector",
+        # Group 6's shared state (spec 001 contracts/shared-state.md §1).
+        "shared-state",
+    ),
 }
 CLOUD_PROFILES = frozenset(HOST_CLASSES)
 # The laptop's prod may add spec 001's tunnel profile, once the Author's tunnel-keys target has made its keys; P22 then
@@ -158,6 +167,15 @@ TUNNEL_END_TEMPLATE = Path("deploy") / "hosts" / "tunnel-end" / "tunnel-end.env.
 REGISTRY_RE = re.compile(r"[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com")
 RELEASE_BUCKET_RE = re.compile(r"h4reet-ai-releases-[a-z0-9]{1,40}")
 VPC_ENDPOINT_RE = re.compile(r"http://10\.42\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{2,5}")
+# Spec 001 group 6: the shared state's connection on the laptop's prod (contracts/env-cloud.md §2;
+# contracts/shared-state.md §3), empty until the Author's move (tasks.md T080); P23 checks it.
+SHARED_STATE_KEYS = ("GATEWAY_DB_URL", "GATEWAY_DB_TLS_SERVERNAME", "GATEWAY_DB_TLS_CA")
+PEM_CERTIFICATE_RE = re.compile(
+    r"-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\r?\n?"
+)
+SERVERNAME_RE = re.compile(r"[a-z0-9][a-z0-9.-]{0,252}")
+# The tunnel end's store certificate and key, which deploy/hosts/tunnel-end/shared_state.py writes to tmpfs (T5).
+SHARED_STATE_TLS_DIR = Path("/run/h4reet/shared-state")
 
 DEVCPU = {
     "H4_TREE": "/run/h4agents/tree",
@@ -584,6 +602,8 @@ def p3(ctx: Context) -> Result:
     if ctx.stack.name == "prod":
         # Spec 001's tunnel: empty until the Author's tunnel-keys target fills them; P22 checks them with the profile.
         allowed_empty |= set(TUNNEL_KEYS)
+        # Spec 001's shared state: empty until the Author's move; P23 checks them once set.
+        allowed_empty |= set(SHARED_STATE_KEYS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
     empty = [k for k, v in ctx.values.items() if v == "" and k not in allowed_empty]
     problems = []
@@ -1598,7 +1618,81 @@ def p22(ctx: Context) -> Result:
     )
 
 
-def tunnel_end_checks(root: Path, env_file: Path) -> list[Result]:
+def p23(ctx: Context) -> Result:
+    """Spec 001 group 6 (its contracts/env-cloud.md §2; contracts/shared-state.md §3; FR-018, FR-019): H4_HOST is the
+    laptop on every laptop stack; on prod, GATEWAY_DB_URL, once the Author's move sets it, is the shared state's,
+    through the tunnel, with TLS verified by its CA and its name; before the move, prod's meter is its own
+    gateway-state, which P23 warns of. Names keys, never a value."""
+    v = ctx.values
+    problems = []
+    if v.get("H4_HOST") != "laptop":
+        problems.append(
+            "H4_HOST isn't laptop: every stack this host runs is the laptop's (spec 001 contracts/env-cloud.md §2)"
+        )
+    url = v.get("GATEWAY_DB_URL", "")
+    if ctx.stack.name != "prod":
+        if url:
+            problems.append(
+                "GATEWAY_DB_URL is prod's alone: dev and dev-cpu keep their own gateway-state"
+            )
+        return summarize("P23", problems, "the host is the laptop")
+    if not url:
+        if problems:
+            return summarize("P23", problems, "")
+        return warn(
+            "P23",
+            "GATEWAY_DB_URL is empty, so prod's meter is still this laptop's gateway-state: the move to the shared "
+            "state is the Author's (spec 001 tasks.md T080; FR-018)",
+        )
+    try:
+        parts = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qs(parts.query)
+        hostname = parts.hostname or ""
+        password = parts.password
+    except ValueError:
+        parts, query, hostname, password = None, {}, "", None
+    if parts is None or parts.scheme not in ("postgres", "postgresql"):
+        problems.append("GATEWAY_DB_URL isn't a postgres:// URL")
+    else:
+        if password is not None:
+            problems.append(
+                "GATEWAY_DB_URL holds a password: GATEWAY_DB_PASSWORD holds it, never the URL"
+            )
+        if query != {"sslmode": ["verify-full"]}:
+            problems.append(
+                "GATEWAY_DB_URL lacks sslmode=verify-full, the shared state's TLS (contracts/shared-state.md §3)"
+            )
+        if hostname == "gateway-state":
+            problems.append(
+                "GATEWAY_DB_URL names the local gateway-state: the shared state is the tunnel end's"
+            )
+    if not SERVERNAME_RE.fullmatch(v.get("GATEWAY_DB_TLS_SERVERNAME", "")):
+        problems.append(
+            "GATEWAY_DB_TLS_SERVERNAME is empty: the name the shared state's certificate holds"
+        )
+    try:
+        ca = base64.b64decode(v.get("GATEWAY_DB_TLS_CA", ""), validate=True).decode()
+    except (ValueError, UnicodeDecodeError):
+        ca = ""
+    if not PEM_CERTIFICATE_RE.fullmatch(ca):
+        problems.append(
+            "GATEWAY_DB_TLS_CA isn't the shared state's CA certificate, base64 of one PEM certificate "
+            "(the Author's shared-state-tls target writes it)"
+        )
+    if "tunnel" not in ctx.profiles():
+        problems.append(
+            "the shared state is reached through the tunnel: COMPOSE_PROFILES needs tunnel (P22)"
+        )
+    return summarize(
+        "P23",
+        problems,
+        "the shared state, through the tunnel, with TLS by its CA and its name",
+    )
+
+
+def tunnel_end_checks(
+    root: Path, env_file: Path, tls_dir: Path = SHARED_STATE_TLS_DIR
+) -> list[Result]:
     """The tunnel end's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3): its env file is
     0600 and in the grammar (T1), with its template's keys (T2), names the tunnel end (T3), and holds values of their
     shapes (T4). Names keys, never a value."""
@@ -1641,6 +1735,24 @@ def tunnel_end_checks(root: Path, env_file: Path) -> list[Result]:
         if not shape.fullmatch(values.get(k, ""))
     ]
     out.append(summarize("T4", problems, "each value has its shape"))
+    # T5, spec 001 group 6: the shared state's key and certificate on tmpfs, which its host script writes before the
+    # stack starts; without them its TLS can't start (contracts/shared-state.md §3).
+    problems = []
+    for name, most in (("server.key", 0o600), ("server.crt", 0o644)):
+        path = tls_dir / name
+        try:
+            info = path.stat()
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            problems.append(f"{name} is missing from {tls_dir}")
+            continue
+        if info.st_mode & 0o777 & ~most:
+            problems.append(f"{name} in {tls_dir} is open beyond {most:o}")
+        if "-----BEGIN " not in text:
+            problems.append(f"{name} in {tls_dir} isn't PEM")
+    out.append(
+        summarize("T5", problems, "the shared state's key and certificate are in place")
+    )
     return out
 
 
@@ -1667,6 +1779,7 @@ def run_checks(ctx: Context) -> list[Result]:
             checks.append(p21)
         if ctx.stack.name == "prod":
             checks.append(p22)
+        checks.append(p23)
     results = []
     for check in checks:
         try:
@@ -1708,12 +1821,15 @@ def main(argv: list[str], host: Host | None = None) -> int:
     parser.add_argument("--path")
     parser.add_argument("--vhdx-mount", default="/mnt/c")
     parser.add_argument("--host-class", choices=sorted(HOST_CLASSES))
+    parser.add_argument("--shared-state-dir", type=Path, default=SHARED_STATE_TLS_DIR)
     args = parser.parse_args(argv)
     host = host or Host()
     if args.host_class:
         if not args.env_file:
             parser.error("--host-class needs --env-file")
-        results = tunnel_end_checks(args.root.resolve(), args.env_file)
+        results = tunnel_end_checks(
+            args.root.resolve(), args.env_file, args.shared_state_dir
+        )
     elif args.disk_only:
         if args.bytes is None or not args.path:
             parser.error("--disk-only needs --bytes and --path")

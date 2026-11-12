@@ -73,13 +73,12 @@ describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
   it("lets init accept the restored store, and refuses a stated value lower than a restored meter", async () => {
     const s = await restored();
     expect((await post(s, "/admin/restore", { reason: "Restored from the 06:00 dump." })).statusCode).toBe(200);
-    const lower = await post(s, "/admin/init", { reason: "Carried after the restore.", day_usd: "1.00" });
+    const lower = await post(s, "/admin/init", { reason: "Carried after the restore.", stated: { day_usd: "1.00" } });
     expect(lower.statusCode).toBe(409);
     expect(lower.json()).toMatchObject({ error: "below_restored_meters" });
     const ok = await post(s, "/admin/init", {
       reason: "Carried after the restore, with the providers' usage.",
-      day_usd: "1.40",
-      month_usd: "7.65",
+      stated: { day_usd: "1.40", month_usd: "7.65" },
     });
     expect(ok.statusCode, ok.body).toBe(200);
     const init = await s.db.pg.query<Rec>(

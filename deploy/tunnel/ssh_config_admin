@@ -1,0 +1,35 @@
+# The laptop's end of the tunnel for the operator's admin-only stack (spec 001 contracts/shared-state.md §7;
+# contracts/tunnel.md §3): ssh_config's connection and pinned host key, with one forward alone, -L 5432 to the
+# shared state, and no reverse forward, so neither the relay nor Route 53's checks reach the laptop through it. The
+# operator CLI's shared mode runs it as `tunnel admin` for one command while the laptop's prod isn't running.
+
+Host *
+  User tunnel
+  Port 2222
+  HostKeyAlias h4-tunnel-end
+  HostKeyAlgorithms ssh-ed25519
+  UserKnownHostsFile /run/tunnel-client/known_hosts
+  GlobalKnownHostsFile /dev/null
+  IdentityFile /run/tunnel-client/id_ed25519
+  IdentitiesOnly yes
+  StrictHostKeyChecking yes
+  UpdateHostKeys no
+  CheckHostIP no
+  BatchMode yes
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  ConnectTimeout 10
+  ServerAliveInterval 10
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes
+  SessionType none
+  RequestTTY no
+  ForwardAgent no
+  ForwardX11 no
+  PermitLocalCommand yes
+  LocalCommand /usr/local/bin/h4-tunnel connected
+  GatewayPorts yes
+
+
+  # From the laptop's admin-only stack: the shared state, as tunnel:5432, and nothing else.
+  LocalForward 0.0.0.0:5432 shared-state:5432

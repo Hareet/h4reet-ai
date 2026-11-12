@@ -167,6 +167,12 @@ services:
       # The Anthropic API's key (spec 010, FR-030): prod's env file's, empty until the Author chooses the Anthropic API,
       # and empty on every other stack. The gateway alone holds it; no service holds a variable the SDK reads itself.
       GATEWAY_ANTHROPIC_API_KEY: "${GATEWAY_ANTHROPIC_API_KEY:-}"
+      # Spec 001 group 6 (its contracts/env-cloud.md §2): the host, and the shared state's connection, empty until the
+      # Author's move, so prod keeps its local store meanwhile.
+      H4_HOST: "${H4_HOST:-laptop}"
+      GATEWAY_DB_URL: "${GATEWAY_DB_URL:-}"
+      GATEWAY_DB_TLS_SERVERNAME: "${GATEWAY_DB_TLS_SERVERNAME:-}"
+      GATEWAY_DB_TLS_CA: "${GATEWAY_DB_TLS_CA:-}"
       AWS_EC2_METADATA_DISABLED: "true"
       HOME: /home/node
       TZ: UTC

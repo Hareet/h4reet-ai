@@ -39,6 +39,7 @@ import {
   type OperatorResult,
   type StudioWindowState,
 } from "../meter/operator.js";
+import { restoreStore } from "../meter/restore.js";
 import { isStoreFailure, toBigInt, type MeterRow, type Store } from "../meter/store.js";
 import type { AuthFailureClass, GatewayMetrics } from "../telemetry/metrics.js";
 import { noteAction, noteErrorType, noteStudioWindowState } from "../telemetry/otel.js";
@@ -377,6 +378,7 @@ const AUDIT_ACTIONS = new Set([
   "studio_window", // spec 003 (its contracts/gpu-window.md §5)
   "twin_call", // spec 007 (its Amendment 0-4; operator-admin.md §8)
   "alert_samples", // spec 011 (its Amendment 0-8; operator-admin.md §2.4)
+  "restore", // spec 001 (its contracts/shared-state.md §8)
 ]);
 
 /** An incident draft's path, relative to the state directory, as the drafter writes it (alerts.md §7). */
@@ -479,6 +481,20 @@ export function registerAdmin(admin: FastifyInstance, deps: AdminDeps): void {
 
   admin.post("/admin/reset", reasonWrite(resetKillSwitch));
   admin.post("/admin/renew", reasonWrite(renewFallback));
+
+  // Spec 001's restore (its contracts/shared-state.md §8, step 3): prod's alone, whose shared state a backup restores.
+  if (deps.stack === "prod") {
+    admin.post(
+      "/admin/restore",
+      reasonWrite((d, reason, operator) =>
+        restoreStore(
+          { stack: d.stack, store: d.store, clock: d.clock, metrics: d.metrics, logger: d.logger },
+          reason,
+          operator,
+        ),
+      ),
+    );
+  }
 
   // spec 003's studio GPU window (its contracts/gpu-window.md §1): prod's, and dev-cpu's for rehearsals. dev routes no
   // fallback to hand hello to, so its listener doesn't serve the path, and answers 404 after authentication.

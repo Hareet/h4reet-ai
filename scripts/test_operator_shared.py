@@ -137,7 +137,7 @@ def test_it_never_starts_the_admin_only_stack_while_another_listener_holds_the_p
     code, _, err = base.run(["--stack", "shared", "status"], capsys)
     assert code == 4
     assert world.stack == [] and world.listener.requests == []
-    assert "18003" in err
+    assert "is held, and not by prod's gateway" in err
 
 
 def test_init_refuses_unless_the_store_is_uninitialized(world: Any, capsys) -> None:
@@ -160,7 +160,7 @@ def test_init_accepts_an_uninitialized_store(world: Any, capsys) -> None:
     assert code == 0, err
     posted = [r for r in world.listener.requests if r["method"] == "POST"]
     assert posted[0]["path"] == "/admin/init"
-    assert posted[0]["body"]["day_usd"] == "1.40"
+    assert posted[0]["body"]["stated"]["day_usd"] == "1.40"
 
 
 RESTORE_BODY = {

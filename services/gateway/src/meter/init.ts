@@ -76,6 +76,8 @@ const DETAILS = {
   confirm_zero_required:
     "No ledger row this month, no journal record, and nothing stated: initializing would set every meter to zero. Repeat with confirm_zero to confirm it.",
   journal_unreadable: "The journal directory exists but can't be read; fix its permissions first.",
+  below_restored_meters:
+    "A stated value is lower than the restored store's meter for this period: a restore starts from the restored meters, raised by the spend since its dump, never lower (spec 001 contracts/shared-state.md §8, step 4).",
 } as const;
 
 const refuse = (error: keyof typeof DETAILS): InitResult => ({
@@ -285,6 +287,20 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
       await q.query("SELECT pg_advisory_xact_lock($1)", [INIT_LOCK_KEY]);
       const exists = await q.query("SELECT 1 FROM gateway.stack_state WHERE id = 1");
       if (exists.rows.length > 0) throw new Rollback(refuse("already_initialized"));
+
+      // Spec 001 (contracts/shared-state.md §8, step 4): a store restored from a backup keeps its meters, and a stated
+      // value may raise them by the spend since the dump, never lower them. A new or emptied store has no meter rows.
+      const restored = await q.query<{ meter: string; spent_micro: unknown }>(
+        `SELECT meter, spent_micro FROM gateway.meters
+         WHERE (meter IN ('day', 'fallback_day') AND period_key = $1) OR (meter = 'month' AND period_key = $2)`,
+        [now.day, now.month],
+      );
+      for (const row of restored.rows) {
+        const stated = req.stated[row.meter as Meter];
+        if (stated !== undefined && stated < toBigInt(row.spent_micro)) {
+          throw new Rollback(refuse("below_restored_meters"));
+        }
+      }
 
       // 4–5. The candidates and the max rule.
       const ledger = await ledgerCandidates(q, now);

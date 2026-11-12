@@ -92,7 +92,7 @@ server() {
 }
 
 client() {
-	local end=laptop attempt=0 started lasted delay
+	local end=laptop attempt=0 started lasted delay config="${1:-/etc/ssh/h4/ssh_config}"
 	if [ -z "${TUNNEL_END_ADDRESS:-}" ]; then
 		echo "tunnel: TUNNEL_END_ADDRESS is empty; the Author's tunnel-keys target writes it (docs/runbooks/laptop.md)" >&2
 		exit 78
@@ -103,7 +103,7 @@ client() {
 	while true; do
 		rm -f "$STATE/connected"
 		started="$(date +%s)"
-		/usr/bin/ssh -F /etc/ssh/h4/ssh_config "$TUNNEL_END_ADDRESS" 2>&1 | scrub || true
+		/usr/bin/ssh -F "$config" "$TUNNEL_END_ADDRESS" 2>&1 | scrub || true
 		rm -f "$STATE/connected"
 		lasted=$(($(date +%s) - started))
 		if [ "$lasted" -ge 60 ]; then attempt=0; fi
@@ -117,10 +117,12 @@ client() {
 
 case "${1:-}" in
 server) server ;;
-client) client ;;
+client) client /etc/ssh/h4/ssh_config ;;
+# Spec 001's admin-only stack (contracts/shared-state.md §7): the shared state's forward alone.
+admin) client /etc/ssh/h4/ssh_config_admin ;;
 connected) mkdir -p "$STATE" && date +%s >"$STATE/connected" ;;
 *)
-	echo "usage: h4-tunnel server|client" >&2
+	echo "usage: h4-tunnel server|client|admin" >&2
 	exit 64
 	;;
 esac

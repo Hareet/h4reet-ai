@@ -17,7 +17,7 @@ RUN apt-get update \
  && rm -f /etc/ssh/ssh_host_* \
  && useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin tunnel \
  && usermod -p '*' tunnel
-COPY --chmod=0644 sshd_config ssh_config /etc/ssh/h4/
+COPY --chmod=0644 sshd_config ssh_config ssh_config_admin /etc/ssh/h4/
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/h4-tunnel
 # ssh runs its LocalCommand with $SHELL, and the user's own shell is nologin.
 ENV SHELL=/bin/sh

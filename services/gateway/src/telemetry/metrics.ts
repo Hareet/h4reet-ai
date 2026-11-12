@@ -72,7 +72,9 @@ export type OperatorAction =
   // spec 007's evaluation calls (its Amendment 0-4; contracts/operator-admin.md §8)
   | "twin_call"
   // spec 011's alert samples (its Amendment 0-8; contracts/operator-admin.md §2.4)
-  | "alert_samples";
+  | "alert_samples"
+  // spec 001's restore of the shared state (its contracts/shared-state.md §8)
+  | "restore";
 export type AuthFailureClass = "missing" | "malformed" | "wrong_prefix" | "mismatch";
 /** Why POST /room/events refused an event (spec 002, contracts/room-events.md §3). */
 export type RoomEventRefusal = "content_type" | "shape" | "kind" | "id";

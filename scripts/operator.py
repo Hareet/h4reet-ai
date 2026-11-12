@@ -596,6 +596,11 @@ class AdminClient:
         """POST /admin/reset (operator-admin.md §2.1): normal again; metered calls stay refused at a ceiling."""
         return self.request("POST", "/admin/reset", {"reason": check_reason(reason)})
 
+    def restore(self, reason: str) -> dict[str, Any]:
+        """POST /admin/restore (spec 001 contracts/shared-state.md §8, step 3): the restored meters, and the store
+        uninitialized until init."""
+        return self.request("POST", "/admin/restore", {"reason": check_reason(reason)})
+
     def renew(self, reason: str) -> dict[str, Any]:
         """POST /admin/renew (operator-admin.md §2.2): $2 more fallback at once, inside the daily ceiling."""
         return self.request("POST", "/admin/renew", {"reason": check_reason(reason)})
@@ -1249,7 +1254,7 @@ class Parser(argparse.ArgumentParser):
 def build_parser() -> Parser:
     # The common options go before the command or after it: the dev-cpu hop puts them first.
     common = Parser(add_help=False, allow_abbrev=False)
-    common.add_argument("--stack", choices=STACKS, default=argparse.SUPPRESS)
+    common.add_argument("--stack", choices=(*STACKS, SHARED), default=argparse.SUPPRESS)
     common.add_argument(
         "--json",
         action="store_true",
@@ -1306,6 +1311,10 @@ def build_parser() -> Parser:
     for name, what in (
         ("reset", "POST /admin/reset: restore normal after a trip"),
         ("renew", "POST /admin/renew: $2.00 more fallback, at once"),
+        (
+            "restore",
+            "POST /admin/restore: a restored shared state, uninitialized (spec 001; --stack shared alone)",
+        ),
     ):
         write = commands.add_parser(
             name, parents=[common], allow_abbrev=False, help=what
@@ -1615,6 +1624,252 @@ def record_command(
     return 0
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001's shared state (its contracts/shared-state.md §7, §8; FR-074; research.md R-32): --stack shared. The shared
+# state is prod's one meter, so the token and the listener's port are prod's. While the laptop's prod runs, its own
+# admin listener answers; otherwise an admin-only stack does, which this CLI composes and stops: the tunnel with
+# -L 5432 alone (deploy/tunnel/ssh_config_admin), the gateway, and edge for the admin port, with the relay block's and
+# the telemetry block's tokens empty, so both answer 401 and no visitor's request reaches it. The gateway writes each
+# action's audit row with its host.
+
+SHARED = "shared"
+PROD_PROJECT = "h4reet-prod"
+PROD_ENV_FILE = Path(".config") / "h4reet-ai" / "env" / "prod.env"
+EC2_TAG = "h4-prod-ec2"
+
+
+class StackProblem(Exception):
+    """The admin-only stack didn't start, or the host can't tell what runs."""
+
+
+def run_docker(argv: list[str], env: dict[str, str]) -> int:
+    try:
+        return subprocess.run(argv, env=env, check=False, timeout=300).returncode
+    except (OSError, subprocess.TimeoutExpired):
+        return 127
+
+
+def prod_gateway_running(port: int) -> bool:
+    """Whether the laptop's prod runs: its gateway's container, in its compose project."""
+    try:
+        done = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "--filter",
+                f"label=com.docker.compose.project={PROD_PROJECT}",
+                "--filter",
+                "label=com.docker.compose.service=gateway",
+                "--format",
+                "{{.Names}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise StackProblem(
+            "docker didn't answer, so whether prod runs is unknown"
+        ) from error
+    if done.returncode != 0:
+        raise StackProblem("docker ps failed, so whether prod runs is unknown")
+    return bool(done.stdout.strip())
+
+
+def port_held(port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return True
+    return False
+
+
+def ec2_running(profile: str | None) -> bool:
+    """Whether EC2 is anything but stopped, read with the Author's session; unknown counts as running."""
+    argv = [
+        "aws",
+        "ec2",
+        "describe-instances",
+        "--region",
+        "us-east-1",
+        "--no-cli-pager",
+        "--output",
+        "json",
+        "--filters",
+        f"Name=tag:Name,Values={EC2_TAG}",
+        "Name=instance-state-name,Values=pending,running,stopping,shutting-down",
+    ]
+    if profile:
+        argv += ["--profile", profile]
+    try:
+        done = subprocess.run(
+            argv, capture_output=True, text=True, check=False, timeout=60
+        )
+        found = json.loads(done.stdout or "{}") if done.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        found = None
+    if not isinstance(found, dict):
+        return True
+    return any(r.get("Instances") for r in found.get("Reservations") or [])
+
+
+class AdminOnlyStack:
+    """The tunnel's -L 5432, the gateway, and edge, under prod's project, for one command (shared-state.md §7)."""
+
+    def __init__(self, root: Path, env_file: Path) -> None:
+        self.base = [
+            "docker",
+            "compose",
+            "-p",
+            PROD_PROJECT,
+            "-f",
+            str(root / "deploy" / "compose.yaml"),
+            "--env-file",
+            str(env_file),
+            "--profile",
+            "tunnel",
+        ]
+        keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG")
+        self.env = {k: os.environ[k] for k in keep if k in os.environ}
+        # No relay block and no telemetry block: their tokens empty, both answer 401. The tree's own files.
+        self.env.update(
+            {"H4_TREE": str(root), "RELAY_TOKEN_SELF": "", "TELEMETRY_BLOCK_TOKEN": ""}
+        )
+
+    def start(self) -> None:
+        up = [*self.base, "up", "-d", "--wait", "--no-deps", "gateway", "edge"]
+        if run_docker(up, self.env) != 0:
+            raise StackProblem("the admin-only stack's gateway and edge didn't start")
+        tunnel = [
+            *self.base,
+            "run",
+            "-d",
+            "--rm",
+            "--no-deps",
+            "--use-aliases",
+            "tunnel",
+            "admin",
+        ]
+        if run_docker(tunnel, self.env) != 0:
+            raise StackProblem("the admin-only stack's tunnel didn't start")
+
+    def stop(self) -> None:
+        run_docker([*self.base, "down", "--remove-orphans"], self.env)
+
+
+def restore_lines(body: dict[str, Any]) -> list[str]:
+    restored = obj(body.get("restored"))
+    return [
+        "prod  restore · the shared state is uninitialized: every host and the relay answer degraded until init",
+        (
+            f"restored day {text(restored.get('day_usd'))} USD, month {text(restored.get('month_usd'))} USD, "
+            f"fallback today {text(restored.get('fallback_today_usd'))} USD"
+        ),
+        (
+            "next: make operator-init ENV=shared, never lower than these, raised by the spend since the dump "
+            "(contracts/shared-state.md §8, step 4)"
+        ),
+    ]
+
+
+def shared_command(
+    args: argparse.Namespace,
+    reason: str | None,
+    stated: dict[str, str],
+    *,
+    as_json: bool,
+    url: str | None,
+    token_stdin: bool,
+) -> int:
+    if url is not None or token_stdin:
+        raise Usage("--stack shared picks its own listener: no --url or --token-stdin")
+    if os.environ.get("SANDBOX_RUNTIME") == "1":
+        raise Usage(
+            "the shared state is the Author's: agent sessions reach dev-cpu's admin listener only (FR-008)"
+        )
+    if args.command not in ("status", "init", "reset", "renew", "restore", "audit"):
+        raise Usage(f"{args.command} isn't one of the shared state's actions")
+    port = ADMIN_PORTS["prod"]
+    try:
+        running = prod_gateway_running(port)
+        if args.command == "restore":
+            if ec2_running(os.environ.get("AWS_PROFILE")):
+                return failed(
+                    1,
+                    "EC2 isn't stopped: make ec2-autostart STATE=off and make ec2-stop first (§8, step 1)",
+                )
+            if running:
+                return failed(
+                    1,
+                    "the laptop's prod runs: make down ENV=prod first, so no gateway uses the store (§8, step 1)",
+                )
+        stack = None
+        if running:
+            via = "prod's admin listener"
+        else:
+            if port_held(port):
+                return failed(
+                    4,
+                    f"127.0.0.1:{port} is held, and not by prod's gateway: the admin-only stack can't take it",
+                )
+            stack = AdminOnlyStack(ROOT, Path.home() / PROD_ENV_FILE)
+            via = "the admin-only stack"
+    except StackProblem as problem:
+        return failed(4, str(problem))
+    try:
+        if stack is not None:
+            stack.start()
+        client = AdminClient("prod")
+        try:
+            if args.command == "status":
+                body = client.status()
+                lines = status_lines("prod", body)
+            elif args.command == "init":
+                store = text(client.status().get("store"))
+                if store != "uninitialized":
+                    return failed(
+                        1,
+                        f"the shared state is {store}, not uninitialized: init runs once, on an empty or a "
+                        "restored store",
+                    )
+                body = client.init(
+                    reason or "",
+                    stated=stated,
+                    confirm_zero=args.confirm_zero,
+                    renew=args.renew,
+                )
+                lines = init_lines("prod", body)
+            elif args.command == "reset":
+                body = client.reset(reason or "")
+                lines = reset_lines("prod", body)
+            elif args.command == "renew":
+                body = client.renew(reason or "")
+                lines = renew_lines("prod", body)
+            elif args.command == "restore":
+                body = client.restore(reason or "")
+                lines = restore_lines(body)
+            else:
+                body = client.audit(limit=args.limit, action=args.action)
+                lines = audit_lines("prod", body)
+        except AdminError as problem:
+            return refused(problem, client, as_json)
+    except StackProblem as problem:
+        return failed(4, str(problem))
+    finally:
+        if stack is not None:
+            stack.stop()
+    print(
+        json.dumps(body, indent=2)
+        if as_json
+        else "\n".join([*lines, f"(the shared state, via {via})"])
+    )
+    return 0
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -1648,8 +1903,24 @@ def main(
                 as_json=as_json,
             )
         reason, stated = init_arguments(args) if args.command == "init" else (None, {})
-        if args.command in ("reset", "renew", "studio-window", "alert-samples"):
+        if args.command in (
+            "reset",
+            "renew",
+            "studio-window",
+            "alert-samples",
+            "restore",
+        ):
             reason = check_reason(args.reason)
+        if args.command == "restore" and stack != SHARED:
+            raise Usage(
+                "restore is the shared state's: --stack shared, after a backup's load "
+                "(spec 001 contracts/shared-state.md §8)"
+            )
+        if stack == SHARED:
+            read_arguments(args)
+            return shared_command(
+                args, reason, stated, as_json=as_json, url=url, token_stdin=token_stdin
+            )
         if args.command == "studio-window" and stack not in STUDIO_STACKS:
             raise Usage(
                 "the studio window is prod's, and dev-cpu's for rehearsals: dev routes no fallback to hand hello "

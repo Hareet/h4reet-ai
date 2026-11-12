@@ -155,7 +155,24 @@ def test_the_entrypoint_reconnects_with_the_contracts_backoff() -> None:
     text = ENTRYPOINT.read_text(encoding="utf-8")
     assert re.search(r"^BACKOFF=\(1 2 5 10 30\)$", text, re.MULTILINE)
     assert "/usr/sbin/sshd -D -e -f /etc/ssh/h4/sshd_config" in text
-    assert "-F /etc/ssh/h4/ssh_config" in text
+    assert '-F "$config"' in text and "client) client /etc/ssh/h4/ssh_config ;;" in text
+
+
+# Spec 001 group 6 (tasks.md T071; contracts/shared-state.md §7): the admin-only stack's tunnel, the client's own
+# connection and pinned host key with the shared state's -L 5432 alone, and no reverse forward.
+ADMIN = HERE / "ssh_config_admin"
+
+
+def test_the_admin_only_tunnel_holds_the_shared_states_forward_alone() -> None:
+    assert setting(ADMIN, "LocalForward") == [["0.0.0.0:5432", "shared-state:5432"]]
+    assert (
+        setting(ADMIN, "RemoteForward") == [] and setting(ADMIN, "DynamicForward") == []
+    )
+    for name, value in CLIENT_SETTINGS.items():
+        assert setting(ADMIN, name) == [value], name
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    assert "admin) client /etc/ssh/h4/ssh_config_admin ;;" in text
+    assert "ssh_config_admin" in (HERE / "Dockerfile").read_text(encoding="utf-8")
 
 
 def test_both_ends_emit_up_and_reconnects() -> None:

@@ -436,8 +436,11 @@ def test_a_valid_stack_passes(
     assert {
         k: (r.status, r.reason) for k, r in results.items() if r.status == "FAIL"
     } == {}
-    expected = {f"P{i}" for i in range(1, 19)} | (
-        {"P19", "P21", "P22"} if any_stack.stack == "prod" else set()
+    # P23, spec 001 group 6's host and shared state, on every stack.
+    expected = (
+        {f"P{i}" for i in range(1, 19)}
+        | {"P23"}
+        | ({"P19", "P21", "P22"} if any_stack.stack == "prod" else set())
     )
     expected |= {"P21"} if any_stack.stack == "dev" else set()
     expected |= {"P20"} if any_stack.stack == "dev-cpu" else set()
@@ -464,7 +467,7 @@ def test_main_prints_one_line_per_check_and_never_a_value(
     assert code == 0, out
     lines = out.splitlines()
     assert [ln.split()[1] for ln in lines[:-1]] == [
-        f"P{i}" for i in (*range(1, 20), 21, 22)
+        f"P{i}" for i in (*range(1, 20), 21, 22, 23)
     ]
     assert lines[-1].startswith("preflight: passed with warnings")
     values = pf.read_env(prod.env_file)
@@ -1648,6 +1651,7 @@ def shared_state_tls(tmp_path: Path) -> Path:
     folder = tmp_path / "shared-state-tls"
     folder.mkdir(exist_ok=True)
     key = folder / "server.key"
+    key.unlink(missing_ok=True)
     key.write_text(
         "-----BEGIN "
         + "PRIVATE KEY-----\n"
@@ -1657,6 +1661,7 @@ def shared_state_tls(tmp_path: Path) -> Path:
     )
     key.chmod(0o400)
     cert = folder / "server.crt"
+    cert.unlink(missing_ok=True)
     cert.write_text(PEM)
     cert.chmod(0o444)
     return folder

@@ -26,8 +26,15 @@ endif
 # Sub-makes get a command-line ENV through MAKEFLAGS; the environment's ENV stays out of every recipe.
 unexport ENV
 # Exactly one word, and one of the three. $(filter) would read ENV as a pattern, so "%" or "prod junk" would pass.
-ifneq ($(filter-out prod dev dev-cpu,$(ENV))$(filter-out 1,$(words $(ENV))),)
+# Spec 001's shared state (its contracts/shared-state.md §7) is a fourth, for the operator's targets alone: ENV=shared
+# reaches prod's shared meter through prod's admin listener or an admin-only stack, and runs no stack of its own.
+ifneq ($(filter-out prod dev dev-cpu shared,$(ENV))$(filter-out 1,$(words $(ENV))),)
 $(error ENV must be prod, dev, or dev-cpu, not "$(ENV)")
+endif
+ifeq ($(ENV),shared)
+ifneq ($(or $(filter-out operator-status operator-init operator-reset operator-renew operator-audit operator-restore,$(MAKECMDGOALS)),$(if $(MAKECMDGOALS),,none)),)
+$(error ENV=shared is the operator's: make operator-status|init|reset|renew|audit|restore ENV=shared, and nothing else)
+endif
 endif
 ifeq ($(ENV),dev-cpu)
 ENVFILE := deploy/env.agents/dev-cpu.vars
@@ -610,6 +617,15 @@ operator-alert-samples: ## Send a marked sample of each alert kind through ENV's
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-alert-samples needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) alert-samples --reason="$$REASON"$(call OPERATOR_VALUE,KIND,--kind)
 .PHONY: operator-alert-samples
+
+# Spec 001's restore (its contracts/shared-state.md §8, step 3), the Author's, ENV=shared alone: after the last backup
+# is loaded into an emptied shared state, the restored meters, and the store uninitialized until operator-init.
+operator-restore: ## (the Author) A restored shared state set uninitialized, its meters printed: ENV=shared REASON="..."
+	$(OPERATOR_AGENTS)
+	@[ "$(ENV)" = shared ] || { echo 'make operator-restore is the shared state'"'"'s: ENV=shared' >&2; exit 2; }
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-restore needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) restore --reason="$$REASON"
+.PHONY: operator-restore
 
 # The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
 # start records the window through the operator CLI, then stops the model server, so hello falls back within the
