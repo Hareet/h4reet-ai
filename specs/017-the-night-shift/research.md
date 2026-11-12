@@ -113,7 +113,8 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
   - The intake's own checks are main's `tools/gates/arrival_check.py`, run on a copy of the candidate in a scratch repository, plus the brief's limits (triangles, bones and their names, clips, texture size, file size) from the GLB's JSON chunk.
   - The weights and nodes list is `assets/policy/studio-tools.json`, a new human-only file (his patch). Each entry names its kind (weight or node), name, version, licence ID from `licenses.json`, and `outputs_ship` (true or false). Qwen-Image-2.1 and FLUX [dev] are listed with `outputs_ship: false`; they stay "evaluate-only" (intent 003).
   - The folders `/srv/studio/briefs/` (repo roles write, the studio reads) and `/srv/studio/handoff/` (the studio writes, repo roles read) are made by the install script, owned by the Author.
-- **ComfyUI**: the studio agent queues a workflow's JSON with `POST /prompt`, waits on `GET /history/<id>`, and fetches with `GET /view`. It reads `/srv/studio/workflows` for the workflow files. It can't reach ComfyUI's install folder, its `custom_nodes`, or its models, and can't call ComfyUI-Manager's install routes, which the studio's settings layer refuses by permission rule and a hook.
+- **ComfyUI's launch**: the Author, 2026-11-12: "comfyui wasn't started, that needs to be launched and sometimes with parameters, so that should be done by the agents". So the studio agent starts it with `python main.py --listen 127.0.0.1 --port <p> --output-directory /srv/studio/outputs` plus the task's allowlisted parameters, under a command policy that holds the install read-only (FR-040). The probe's third version finds the install, its interpreter, its custom nodes, and its model folders. The Author's usual launch lines seed the allowlist.
+- **ComfyUI's API**: the studio agent queues a workflow's JSON with `POST /prompt`, waits on `GET /history/<id>`, and fetches with `GET /view`. It reads `/srv/studio/workflows` for the workflow files. It can't reach ComfyUI's install folder, its `custom_nodes`, or its models, and can't call ComfyUI-Manager's install routes, which the studio's settings layer refuses by permission rule and a hook.
 - **Blender**: `blender -b --python <script>` under its command policy: the GPU's paths (`/dev/dxg`, `/usr/lib/wsl/lib`, read), Blender's own folder (read), the studio's working folder and the handoff folder (write), no TCP port. `--allow-gpu` is listed as working on WSL2 ("WSL2 uses /dev/dxg … CUDA and ollama inference verified"); whether it covers `/usr/lib/wsl/lib` is unconfirmed, so the policy names both paths.
 
 ## R-12: how the Author's script stays exactly what he read
@@ -136,4 +137,23 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
   - a read of `~/.aws/config` inside nono, reported by exit code only.
 
   This answers the plan's largest unknown before anything is built on it. It installs nothing. `H4_PROBE_NEST=0` skips it, so the Author never edits the reviewed text.
+- **The second run** (the Author, 2026-11-12, at 7e0fad52), verdict "FAILED", which was wrong; the nesting wasn't tested:
+  - section 15: nono refused every run, the control too, with "Refusing to grant '/tmp' (source: group:system_write_linux) because it overlaps protected nono state root". The probe had put nono's state folder under `/tmp`;
+  - section 16: both runs inside nono stopped at nono's prompt to share the working folder ("use --allow-cwd to skip this prompt"), so Claude Code never started inside it;
+  - **`nono pull nolabs-ai/claude` installed a Claude Code plugin into the Author's real `~/.claude`.** It enabled `nono@nolabs-ai` in `settings.json`, merged two plugin index files, wrote files under `plugins/marketplaces/nolabs-ai/`, and linked `plugins/cache/nolabs-ai/nono/1.0.0` into the probe's temp folder (its lockfile records each prior value). The probe's fingerprint missed it, since it checked `~/.claude/hooks`, not `~/.claude/plugins`. The plugin's hooks exit at once outside nono (they need `NONO_CAP_FILE`). The Author removes it with `nono remove`;
+  - the facts, all confirmed:
+    - kernel 6.18.33.2, Landlock ABI 7;
+    - `/dev/dxg` and `/usr/lib/wsl/lib` present;
+    - Blender 5.2.3 LTS at `~/blender-5.2.3-linux-x64`;
+    - ComfyUI not running;
+    - Claude Code 2.1.322 from `~/.nvm`;
+    - the engine answers;
+    - nono v0.81.0's SHA-256 matches GitHub's digest (`7ecc33ff…c4e569`);
+    - bubblewrap 0.9.0 (not setuid) starts outside nono;
+    - the host's Docker socket connects outside nono;
+    - an unprivileged network namespace can't bring loopback up ("RTNETLINK answers: Operation not permitted");
+    - the outer mask's bind mount failed.
+
+    The last two weigh against plan §1's candidate A.
+  - the third version fixes all three: its folder sits under `$HOME`, it never pulls a pack (it inlines the pack's own profile), it passes `--allow-cwd` and gives nono no keyboard input, it reads UNTESTED when nono didn't start Claude Code, it fingerprints `~/.claude/plugins`, and it refuses to start while the plugin's files remain. It also looks for ComfyUI on disk.
 - **The review** (a reviewer agent, read-only, on 57988e67) found two blockers in the first draft, both fixed: section 15 ran under the Claude Code pack, which could write `~/.claude`; and the nesting test had no control and lacked `--unshare-pid`, so a refusal would have been misread as Landlock's.

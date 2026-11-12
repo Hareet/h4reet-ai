@@ -35,6 +35,7 @@ Questions this spec raised beyond his answers are on one page with a recommended
 - Q: Where does the example copy live, and must the Author apply a patch before the first install? → A (provisional, recommended): **on the branch, at `deploy/night-shift/profiles/`**, a path that his protection patch makes human-only when it merges. The install reads it by `git show` at the reviewed SHA, so it doesn't wait for the merge. The alternative was an existing human-only path, arriving only as his patch, with the install run from his patched branch (FR-016).
 - Q: Does an agent's plan take the state's lock? → A (provisional, recommended): **yes**: the plan-only role may write and delete only the state's `.tflock` objects, so an agent's plan never races his apply (FR-032).
 - Q: May the studio agent read `/srv/studio/outputs`? → A, **the Author's** (plan Q5, 2026-11-12): "i will remove all current files in outputs elsewhere, so the studio agent can read inside the directory and iterate on the creation of the remaining assets". Reading: once he has moved the current files out, the studio agent reads and writes `/srv/studio/outputs` as its working folder for the remaining assets. The first install refuses while the folder holds anything. Repo agents still can't read it (FR-027).
+- On ComfyUI, **the Author's words** (2026-11-12, after the probe's second run): "comfyui wasn't started, that needs to be launched and sometimes with parameters, so that should be done by the agents". Reading: the studio agent starts and stops ComfyUI itself, with the launch parameters a task needs, through a command policy (FR-040), under the GPU lock. Installing weights or custom nodes stays his (decision 5).
 - Q: If Claude Code's sandbox won't start nested inside nono's, should the rehearsal continue with a fallback or stop? → A, **the Author's** (plan Q8, 2026-11-12): "If nesting fails, let's stop quickly and let me know as we need another approach, i believe this is referring to nono and claude sandbox nested inside that, Let's test that out first before iterating on the whole workflow." Reading: the nesting is tested first, by the probe, before anything else is built. If it fails, everything stops and the session tells him; no fallback layering is built unless he chooses one then (FR-037).
 
 ## Terms
@@ -245,6 +246,13 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **FR-029**: THE intake SHALL refuse any candidate whose record names a weight or custom node missing from the weights and nodes list, or one whose licence the list doesn't mark as shippable, and SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output.
 - **FR-030**: THE studio agent SHALL install no custom node and download no weight; a request for one SHALL go on the decision page.
 - **FR-031**: A GPU job SHALL start only under the GPU lock and after the disk and memory preflight passes.
+- **FR-040**: THE studio agent SHALL launch and stop ComfyUI itself ("that should be done by the agents"), through a command policy that:
+  - reads ComfyUI's install, its custom nodes, and its models, and writes none of them, so no weight or node can arrive (FR-030);
+  - writes only ComfyUI's output folder (set to `/srv/studio/outputs`), its temp folder, and its user folder;
+  - listens only on `127.0.0.1` at its port, with no outbound connection, so neither ComfyUI-Manager nor a node can download;
+  - has the GPU's paths.
+
+  The launch parameters come from an allowlist in the studio's settings, seeded from the Author's own launch lines. A parameter outside it is refused and goes on the decision page. ComfyUI runs only while its task holds the GPU lock, and the runner stops it when the task ends.
 
 **Plan and gate (User Stories 5 and 6)**
 
