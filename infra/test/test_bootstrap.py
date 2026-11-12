@@ -210,10 +210,11 @@ def check_versions(root: dict[str, list], pinned: dict[str, str]) -> list[str]:
         "encrypt": True,
         "use_lockfile": True,
     }
-    if s3 is None or {k: ip.literal(s3.attr(k)) for k in (*want, "bucket")} != {
-        **want,
-        "bucket": None,
-    }:
+    if (
+        s3 is None
+        or s3.attr("bucket") is not None
+        or {k: ip.literal(s3.attr(k)) for k in want} != want
+    ):
         found.append(
             "versions: the state isn't in the bucket, under bootstrap.tfstate (tasks.md T030's move)"
         )
