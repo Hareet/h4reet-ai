@@ -358,7 +358,7 @@ def emf(trigger: str, kind: str, now: datetime) -> dict:
             "CloudWatchMetrics": [
                 {
                     "Namespace": NAMESPACE,
-                    "Dimensions": [["Function", "Outcome"]],
+                    "Dimensions": [["Function", "Trigger", "Outcome"]],
                     "Metrics": [{"Name": "Outcomes", "Unit": "Count"}],
                 }
             ],

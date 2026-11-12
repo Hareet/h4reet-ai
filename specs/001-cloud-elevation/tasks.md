@@ -790,7 +790,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T116 [P] [US4] Write `infra/lambdas/ec2_start/test_start.py`, with stub SSM, Budgets, EC2, and Route 53:
+- [x] T116 [P] [US4] Write `infra/lambdas/ec2_start/test_start.py`, with stub SSM, Budgets, EC2, and Route 53:
+  - **Done** (dc6884a3 RED, 58a94715 GREEN; W1's note, group 9). Questions 1a, 2, and 3 at their recommended options, **provisionally, until the Author's answers**, each one constant (the note's table). The base's time-zone database couldn't be confirmed, so the functions carry the two zones' rules.
   - step 1 refuses with `paused` while the autostart switch is `off`;
   - step 2 with `server_budget_stopped`;
   - step 3 with `tunnel_end_down`;
@@ -806,7 +807,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - the window comes from one environment value, which `local.ec2_hours` sets. The cases cover both of question 1a's zones, a day on each side of each daylight-saving change, and each edge of the window. Whether the base carries the time-zone database is to confirm here;
     - EC2's ID is read at run time from `/h4reet/prod/ec2-instance-id`, by its path, and the start acts on that instance only if it carries `h4-prod-ec2`. The laptop's serving is read from `h4-laptop-away`, by `cloudwatch:DescribeAlarms` on its name-built ARN (the review's I7). So no ID from prod is in the function's configuration;
     - alerts follow question 3's answer.
-- [ ] T117 [P] [US7] Write `infra/lambdas/ec2_guard/test_guard.py`, with stub SSM, Budgets, EC2, and Route 53:
+- [x] T117 [P] [US7] Write `infra/lambdas/ec2_guard/test_guard.py`, with stub SSM, Budgets, EC2, and Route 53:
   - it stops EC2 when the health check is healthy (`ec2_stopped_laptop_serving`);
   - when the autostart switch is `off` (`ec2_stopped_paused`);
   - when the server budget's action has run and isn't reversed (`ec2_stopped_server_budget`);
@@ -823,14 +824,15 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - "the health check is healthy" is read as `h4-laptop-away` in `OK`, by `cloudwatch:DescribeAlarms` on its name-built ARN, since Route 53's health checks can't be scoped by tag in IAM and the check's ID is prod's. The stub is CloudWatch's, not Route 53's;
     - **more than one tagged instance:** with two running instances tagged `h4-prod-ec2`, it stops the one `/h4reet/prod/ec2-instance-id` doesn't name, alerts `ec2_unrecognised_instance` with its ID, and then applies its table to the named one. It never stops the named one for being a second;
     - with the parameter unreadable, it stops nothing, and alerts once.
-- [ ] T118 [P] [US4] Write `deploy/scripts/test_handover.py`, with a stub status and a stub EC2:
+- [x] T118 [P] [US4] Write `deploy/scripts/test_handover.py`, with a stub status and a stub EC2:
   - waiting reads `serving`, then stops EC2 once it is `laptop` and records the window;
   - serving stops EC2 again after a flap, and after a start on the tunnel end's return while the laptop was reconnecting;
   - an expired session alerts once and keeps serving;
   - `make up` never fails on a failed stop.
 
   Check: RED (FR-063, FR-064) (feat/001-us4-us7-handover)
-- [ ] T119 [P] [US4] Write `infra/test/fixtures/handover/` and `infra/test/test_handover.py`:
+- [x] T119 [P] [US4] Write `infra/test/fixtures/handover/` and `infra/test/test_handover.py`:
+  - **Done** (e53db111 RED, 6cefd8ff GREEN): `infra/test/test_handover.py`, fourteen fixtures, P-I6.
   - the health check on the tunnel end's address, port 8087, `/health`;
   - the alarm;
   - the rules: the alarm's change, EC2's warning, EC2's `running`, and the tunnel end's `running` to the start function and the alert;
@@ -848,22 +850,23 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - **the functions' roles** (research.md R-15, amended): each reads `h4-laptop-away` by its name-built ARN, and `/h4reet/prod/ec2-instance-id` by its path. Neither reads a Route 53 health check. The guard may stop any instance tagged `h4-prod-ec2`, and the start function may start only the one that carries the tag;
     - **the parameter:** `/h4reet/prod/ec2-instance-id`, a String in `infra/prod/handover.tf`, takes its value from EC2's resource, so a replace updates it in the same plan;
     - each check passes with the switch off and on.
-- [ ] T120 [P] [US7] Write the tests of `make ec2-status`, `ec2-start`, `ec2-stop`, `ec2-autostart`, and `server-budget-restore`, with stubs: each is refused in an agent session; `ec2-start` invokes the function with `manual: true`; `ec2-autostart STATE=on` writes the switch, invokes the start once, and writes the audit row. Check: RED (FR-012, FR-065) (feat/001-us4-us7-handover)
+- [x] T120 [P] [US7] Write the tests of `make ec2-status`, `ec2-start`, `ec2-stop`, `ec2-autostart`, and `server-budget-restore`, with stubs: each is refused in an agent session; `ec2-start` invokes the function with `manual: true`; `ec2-autostart STATE=on` writes the switch, invokes the start once, and writes the audit row. Check: RED (FR-012, FR-065) (feat/001-us4-us7-handover)
   - **From W1:** `ec2-status` shows the hours and whether it is inside them; `ec2-stop` works in W1, before the functions exist, since its permission set is on the tag (plan.md §16, "Between W1's applies and W2's").
-- [ ] T121 [P] [US7] Write `deploy/scripts/test_snapshot_cloud.py`, with stub EC2, SSM, Route 53, Budgets, and CloudWatch: each of the sink's cloud reads (contracts/public-view.md §2) becomes its metric; a failed read is counted as an error, never shown as a fresh value; no secret, account ID, or address in a label. Check: RED (FR-060, FR-065) (feat/001-us4-us7-handover)
+- [x] T121 [P] [US7] Write `deploy/scripts/test_snapshot_cloud.py`, with stub EC2, SSM, Route 53, Budgets, and CloudWatch: each of the sink's cloud reads (contracts/public-view.md §2) becomes its metric; a failed read is counted as an error, never shown as a fresh value; no secret, account ID, or address in a label. Check: RED (FR-060, FR-065) (feat/001-us4-us7-handover)
 
 ### Implementation
 
-- [ ] T122 [US4] Write `infra/lambdas/ec2_start/` and `ec2_guard/`. Check: T116 and T117 pass (feat/001-us4-us7-handover)
+- [x] T122 [US4] Write `infra/lambdas/ec2_start/` and `ec2_guard/`. Check: T116 and T117 pass (feat/001-us4-us7-handover)
   - **From W1** (the review's I4): `infra/account/registry.tf`'s `lambda` list gains `h4-ec2-start` and `h4-ec2-guard`, made by W1's account apply so the Author can push to them before W2 (T174), test-first in `infra/test/test_account.py`. The functions themselves read `local.lambda_images`, empty until W2, so the account's W1 plan makes the repositories without the functions. Each function's Dockerfile is held to `deploy/images.lock`'s base by `infra/lambdas/test_images.py`.
-- [ ] T123 [US4] Write `deploy/scripts/handover.py`, started by `make up ENV=prod` and stopped by `make down ENV=prod`, with `h4.handover.window_seconds`. Check: T118 passes (FR-060) (feat/001-us4-us7-handover)
-- [ ] T124 [US4] Write `infra/prod/failover.tf`, `infra/account/handover.tf`, and the roles' changes in `iam.tf` as P-I6. Check: on a patched copy, T119 passes, and `make infra-check` passes (feat/001-us4-us7-handover)
+- [x] T123 [US4] Write `deploy/scripts/handover.py`, started by `make up ENV=prod` and stopped by `make down ENV=prod`, with `h4.handover.window_seconds`. Check: T118 passes (FR-060) (feat/001-us4-us7-handover)
+- [x] T124 [US4] Write `infra/prod/failover.tf`, `infra/account/handover.tf`, and the roles' changes in `iam.tf` as P-I6. Check: on a patched copy, T119 passes, and `make infra-check` passes (feat/001-us4-us7-handover)
   - **From W1:** P-I6 also holds `infra/prod/handover.tf`'s rules, the schedules, their role, and `local.ec2_hours`, in the zone his answer to question 1a names. That is FR-069's "by the Author's patch, with an ADR", with ADR 0048.
-- [ ] T125 [P] [US7] Write the `make ec2-*` and `server-budget-restore` targets. Check: T120 passes (feat/001-us4-us7-handover)
-- [ ] T126 [US7] Write the sink's cloud reads in `deploy/scripts/snapshot_sink.py`, and `snapshot-sink` in the `tunnel-end` profile, exporting the metrics through the tunnel end's collector (C15). Check: T121 passes (FR-060) (feat/001-us4-us7-handover)
-- [ ] T127 [P] [US7] Add the handover's and the server's panels to the "Hosts" row: EC2's state and interruptions; its starts and refusals and the guard's stops; the autostart switch; the health check's status; the handover window; and the server's month against its budget beside model spend against the ceilings and the adapter's month (plan §11; User Story 7). Check: the dashboard's provisioning test passes (FR-060, FR-065) (feat/001-us4-us7-handover)
+- [x] T125 [P] [US7] Write the `make ec2-*` and `server-budget-restore` targets. Check: T120 passes (feat/001-us4-us7-handover)
+- [x] T126 [US7] Write the sink's cloud reads in `deploy/scripts/snapshot_sink.py`, and `snapshot-sink` in the `tunnel-end` profile, exporting the metrics through the tunnel end's collector (C15). Check: T121 passes (FR-060) (feat/001-us4-us7-handover)
+  - **Done as a module** (plan.md §16, "Group 9, as built", 15): its service, and the credentials its reads need, are group 10's (T137).
+- [x] T127 [P] [US7] Add the handover's and the server's panels to the "Hosts" row: EC2's state and interruptions; its starts and refusals and the guard's stops; the autostart switch; the health check's status; the handover window; and the server's month against its budget beside model spend against the ceilings and the adapter's month (plan §11; User Story 7). Check: the dashboard's provisioning test passes (FR-060, FR-065) (feat/001-us4-us7-handover)
   - **From W1:** and the hours, with each scheduled start and stop, and `outside_hours`' refusals.
-- [ ] T128 [P] [US4] Write `docs/runbooks/handover.md` (with EC2 started on the tunnel end's return while the laptop reconnects, and stopped by the loop) and `spot-interruption.md`, and update `tunnel-end.md` and `server-budget.md` (the guard's `ec2_stopped_server_budget`). Add the disclosure row C6 and C5's change. Check: each alert kind of contracts/aws-alerts.md §2 names its runbook; `disclosure_check` passes (FR-040, FR-056) (feat/001-us4-us7-handover)
+- [x] T128 [P] [US4] Write `docs/runbooks/handover.md` (with EC2 started on the tunnel end's return while the laptop reconnects, and stopped by the loop) and `spot-interruption.md`, and update `tunnel-end.md` and `server-budget.md` (the guard's `ec2_stopped_server_budget`). Add the disclosure row C6 and C5's change. Check: each alert kind of contracts/aws-alerts.md §2 names its runbook; `disclosure_check` passes (FR-040, FR-056) (feat/001-us4-us7-handover)
   - **From W1:** `docs/runbooks/ec2.md` and `handover.md` gain the hours: what happens at the open and the close, a failed start at the open, and how the Author changes the hours (his patch). Each new kind, `outside_hours` and `ec2_stopped_outside_hours`, names its runbook. No new flow leaves a device: the schedules invoke functions inside the account.
   - **From W1** (the review's I6): `docs/runbooks/ec2.md` gains the step after any replace of EC2, T097's three, and the page for `ec2_unrecognised_instance`: what the guard stopped, then the spot request to cancel.
 

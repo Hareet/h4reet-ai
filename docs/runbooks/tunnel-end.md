@@ -10,6 +10,8 @@ The tunnel end is the small spot instance in the account that runs around the cl
 - **The dashboard's Hosts row:** "Tunnel up" reads `down` for `tunnel-end`, or for `laptop`; "Tunnel reconnects" climbs; "Telemetry delayed at the tunnel end" fills.
 - **The laptop's tunnel logs** `tunnel: the connection ended after … s; trying again in … s`, again and again, with ssh's own line before it: `Connection timed out` (the tunnel end is down), `Permission denied (publickey)` (its key was revoked), or `Host key verification failed` (the pinned host key isn't the tunnel end's).
 
+- **From W2, on its return:** `h4-tunnel-end-running` also invokes `h4-ec2-start` once, `from: tunnel_end_back`. It starts EC2 if the laptop isn't serving and the hours, the switch, and the server action allow; it may start EC2 while the laptop's tunnel reconnects, and the laptop's loop then stops EC2 within the window ([handover.md](handover.md)).
+
 ## Impact
 
 - **While the tunnel end is down,** nothing reaches the laptop from the cloud: once the relay exists (group 8), every dynamic request answers `no_host_serving`, the room shows its resting message, and the site itself still loads from the edge. EC2 can't serve either, since the relay is on the tunnel end. The Author's laptop prod keeps answering on its own `127.0.0.1`.

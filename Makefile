@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -400,8 +400,12 @@ up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEA
 	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
 	$(PY_HOST) $(TREE)/deploy/scripts/status.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --root $(TREE) --after-up; status=$$?; \
 	[ "$$up" -eq 0 ] && [ "$$status" -eq 0 ]
+	@# Spec 001's h4-handover (contracts/handover.md §6; tasks.md T123): on prod alone, the laptop's loop that stops EC2
+	@# once the relay serves the laptop. Its start returns at once and never fails make up.
+	@$(if $(filter prod,$(ENV)),[ ! -f $(TREE)/deploy/scripts/handover.py ] || $(PY_HOST) $(TREE)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod start || true,:)
 
 down: ## Stop the stack: its volumes, meters, and journal stay, because it never passes -v (FR-031)
+	@$(if $(filter prod,$(ENV)),[ ! -f $(CURDIR)/deploy/scripts/handover.py ] || $(PY_HOST) $(CURDIR)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod stop || true,:)
 	@$(call NOT_STARTED,stop) && $(COMPOSE) down --timeout 30 --remove-orphans
 
 # SERVICE= and TAIL= come from the command line, read by the shell, and checked before compose sees them.
@@ -826,6 +830,31 @@ shared-state-restore: ## (the Author) The last backup, or DUMP=dumps/<UTC>.dump,
 	$(call AUTHOR_ONLY,it presigns a backup's GET and runs a Systems Manager command with his SSO session)
 	@$(PY_HOST) scripts/infra/shared_state.py restore$(if $(call from_cli,DUMP), --dump "$$DUMP")$(WITH_PROFILE)
 
+# Spec 001's EC2 targets (contracts/handover.md §5 and §7; research.md R-32; tasks.md T125), the Author's, in his
+# terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1).
+ec2-status: ## (the Author) EC2's state and its spot request's, the autostart switch, the server action, the hours, the relay's host (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it reads EC2 and its switch with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py status$(WITH_PROFILE)
+
+ec2-start: ## (the Author) Invoke h4-ec2-start by hand, so its checks apply (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it invokes the start function with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py start$(WITH_PROFILE)
+
+ec2-stop: ## (the Author) Stop EC2 through his h4-ec2-stop profile; an audit line and an alert (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it stops EC2 with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py stop$(WITH_PROFILE)
+
+ec2-autostart: ## (the Author) The autostart switch: STATE=on|off; on also starts EC2 once (contracts/handover.md §5) [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes the autostart switch with his SSO session)
+	$(call NEEDS,STATE,on|off)
+	@$(PY_HOST) scripts/infra/ec2_ops.py autostart --state "$$STATE"$(WITH_PROFILE)
+
+server-budget-restore: ## (the Author) Reverse the server action, after the incident note: INCIDENT=docs/incidents/<note>.md [PROFILE=…]
+	$(call AUTHOR_ONLY,it reverses a budget action with his SSO session)
+	$(call NEEDS,INCIDENT,docs/incidents/<note>.md)
+	@$(PY_HOST) scripts/infra/ec2_ops.py restore --incident "$$INCIDENT"$(WITH_PROFILE)
+
 # The Author's release (spec 001 contracts/releases-deployer.md §2; deploy/scripts/release.py): refs/heads/main's
 # gated merge, from a fresh export of it, whatever the checkout holds: the project's images for each host's platform,
 # the upstream copies by their lock's index digests, the tree, and release.json, the pointer last. PUBLIC=1 when it
@@ -838,7 +867,7 @@ release: ## (the Author) A release of main's gated merge (contracts/releases-dep
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
 	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
-	shared-state-tls shared-state-roles shared-state-restore release
+	shared-state-tls shared-state-roles shared-state-restore release ec2-status ec2-start ec2-stop ec2-autostart server-budget-restore
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan

@@ -13,3 +13,17 @@ resource "aws_ssm_parameter" "tunnel_end_address" {
     component = "tunnel-end"
   }
 }
+
+# The laptop's health check's ID, which the tunnel end's snapshot sink reads for the dashboard's health-check panel
+# (group 9; contracts/handover.md §10; contracts/public-view.md §2): a String under the tunnel end's own path, which its
+# role reads already, made from the check in this root (infra/prod/failover.tf), so a replace updates it.
+resource "aws_ssm_parameter" "health_check_id" {
+  name        = "/h4reet/tunnel-end/HEALTH_CHECK_ID"
+  description = "The laptop's Route 53 health check, whose status the snapshot sink reads (spec 001 contracts/handover.md §10)"
+  type        = "String"
+  value       = aws_route53_health_check.laptop.id
+
+  tags = {
+    component = "handover"
+  }
+}

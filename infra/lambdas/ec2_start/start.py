@@ -22,7 +22,7 @@ Its checks, in order, each refusing with its reason (ADR 0048, decision 3):
 
 A read that fails refuses at its own step, with `unread` among the facts, so EC2 starts only when every check passes.
 It makes one attempt and never loops; it raises nothing, so Lambda never retries it. Each outcome is one log line in
-CloudWatch's embedded metric format (namespace h4reet/handover, dimensions Function and Outcome), and one alert on
+CloudWatch's embedded metric format (namespace h4reet/handover, dimensions Function, Trigger, and Outcome), and one alert on
 h4-alerts in contracts/aws-alerts.md §2's format, but the scheduled open's routine outcomes (SCHEDULED_ALERTED).
 
 The window is one environment value, H4_EC2_HOURS, "<zone> <HH:MM>-<HH:MM>", which infra/account/handover.tf's
@@ -364,7 +364,7 @@ def emf(out: Outcome, now: datetime) -> dict:
             "CloudWatchMetrics": [
                 {
                     "Namespace": NAMESPACE,
-                    "Dimensions": [["Function", "Outcome"]],
+                    "Dimensions": [["Function", "Trigger", "Outcome"]],
                     "Metrics": [{"Name": "Outcomes", "Unit": "Count"}],
                 }
             ],

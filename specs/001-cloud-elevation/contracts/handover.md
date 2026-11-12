@@ -125,3 +125,29 @@ Step 4 can run before the laptop's tunnel is back, while Route 53's check still 
 ## 9. Nothing changes configuration at run time (FR-072)
 
 The functions and the loop change EC2's running state only. The relay's choice is in its memory and in `handover_events`. The parameter's value is ignored by Terraform. So a plan from the same commit after any of these shows no change, which spec User Story 1's scenario 10 checks.
+## 10. The dashboard's Hosts row: the handover (group 9)
+
+(new in group 9; tasks.md T127; FR-059, FR-060, FR-063, FR-065; plan.md §11; ADR 0048.) `deploy/grafana/dashboards/h4-runtime.json`'s "Hosts" row, below group 8's panels (contracts/relay-http.md §9):
+
+| Panel | Type | Query |
+|---|---|---|
+| EC2's state (FR-060) | state timeline | `max by (state) (h4_ec2_state)` |
+| EC2's spot request (FR-071) | state timeline | `max by (state) (h4_ec2_spot_request)` |
+| EC2's starts, refusals, and the guard's stops (FR-065, FR-071) | time series | `sum by (function, trigger, outcome) (h4_ec2_outcomes_last_hour)` |
+| The hours' scheduled starts and stops (FR-069) | time series | `sum by (trigger, outcome) (h4_ec2_outcomes_last_hour{trigger=~"hours_.+"})` |
+| The autostart switch (FR-065) | stat | `max(h4_ec2_autostart)` |
+| The laptop's health check (FR-054) | time series | `max(h4_health_check_healthy_share)` |
+| The handover window (FR-063) | stat | `max(max_over_time(h4_handover_window_seconds[1d]))` |
+| The server's month against its budget (FR-021) | time series | `max(h4_server_month_usd)` and `max(h4_server_budget_usd)` |
+
+- **The sink's cloud reads** (`deploy/scripts/snapshot_sink.py`; contracts/public-view.md §2), every 2 minutes through the tunnel end's collector (C15), with no address or ID in a label:
+  - **`h4_ec2_state`** is `h4.ec2.state`, one-hot by `state` (`pending`, `running`, `stopping`, `stopped`, `shutting-down`, `terminated`, `none`): EC2's, the instance tagged `h4-prod-ec2`;
+  - **`h4_ec2_spot_request`** is `h4.ec2.spot_request`, one-hot by `state` (`open`, `active`, `disabled`, `closed`, `cancelled`, `failed`, `none`): its persistent request's. `disabled` is AWS holding it after an interruption, so the timeline shows each interruption;
+  - **`h4_ec2_outcomes_last_hour`** is `h4.ec2.outcomes_last_hour`, by `function`, `trigger`, and `outcome`: the start function's and the guard's outcomes in the last hour, from their embedded-metric lines (namespace `h4reet/handover`, dimensions `Function`, `Trigger`, and `Outcome`). Its `outcome` is `started`, a refusal's reason (`outside_hours` among them), a stop's kind, or `nothing`;
+  - **`h4_ec2_autostart`** is `h4.ec2.autostart`: 1 while the switch is `on`, 0 while `off`;
+  - **`h4_health_check_healthy_share`** is `h4.health_check.healthy_share`: the share of Route 53's checkers that see the laptop's health block answer, from 0 to 1;
+  - **`h4_server_month_usd`** and **`h4_server_budget_usd`** are `h4.server.month_usd` and `h4.server.budget_usd`: the server budget's month to date and its figure, read once an hour, beside spec 000's and spec 010's spend panels above.
+  - A read that fails gets no point and counts in `h4.sink.read_errors`, by `read`: the panels show no data, never a stale value as fresh.
+- **`h4_handover_window_seconds`** is `h4.handover.window_seconds`, the laptop loop's gauge (§6), posted through the laptop's collector: the last takeover's window, from the relay's first `laptop` to EC2's `stopped`. It reads green under 300 s (FR-063), red from 300 s.
+- **The hours** are the schedules', in the zone `local.ec2_hours` names; the panel shows each scheduled start and stop by its outcome. While spec 001's question 1b is open, no panel states the hours themselves: that is T170's.
+- `deploy/scripts/test_dashboard.py` reads this section's table with the other Hosts sections'.

@@ -2,7 +2,11 @@
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
   "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; §7.8), the cloud's hosts (spec 001; specs/001-cloud-elevation/contracts/tunnel.md §7), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md §3), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md §7). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
-  "tags": ["h4reet", "spec-000", "spec-003"],
+  "tags": [
+    "h4reet",
+    "spec-000",
+    "spec-003"
+  ],
   "timezone": "utc",
   "refresh": "10s",
   "time": {
@@ -126,7 +130,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -293,7 +299,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -526,7 +534,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -552,7 +563,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -675,7 +689,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -769,7 +785,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -795,7 +814,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -918,7 +940,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1027,7 +1051,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1172,7 +1198,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -1335,7 +1364,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -1361,7 +1393,10 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [10, 10]
+                  "dash": [
+                    10,
+                    10
+                  ]
                 }
               }
             ]
@@ -1484,7 +1519,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1605,7 +1642,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1926,7 +1965,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -2374,7 +2415,9 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": ["lastNotNull"]
+            "reducers": [
+              "lastNotNull"
+            ]
           }
         }
       ]
@@ -2531,7 +2574,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -2608,7 +2653,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3020,7 +3067,9 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": ["lastNotNull"]
+            "reducers": [
+              "lastNotNull"
+            ]
           }
         }
       ]
@@ -3087,7 +3136,9 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": ["lastNotNull"]
+            "reducers": [
+              "lastNotNull"
+            ]
           }
         }
       ]
@@ -3139,7 +3190,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3198,7 +3251,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3257,7 +3312,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3424,7 +3481,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3483,7 +3542,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3542,7 +3603,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3995,7 +4058,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4120,7 +4185,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4559,7 +4626,9 @@
         "justifyMode": "auto",
         "textMode": "value",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         }
@@ -4930,13 +4999,552 @@
       }
     },
     {
+      "type": "state-timeline",
+      "id": 100,
+      "title": "EC2's state",
+      "description": "EC2's state, from the sink's read every 2 minutes; no data while the read fails (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 196,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (state) (h4_ec2_state)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": " ",
+                  "color": "transparent",
+                  "index": 0
+                },
+                "1": {
+                  "text": "now",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "state-timeline",
+      "id": 101,
+      "title": "EC2's spot request",
+      "description": "Its persistent spot request's state: `disabled` while AWS holds it after an interruption (FR-071) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 196,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (state) (h4_ec2_spot_request)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": " ",
+                  "color": "transparent",
+                  "index": 0
+                },
+                "1": {
+                  "text": "now",
+                  "color": "blue",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 102,
+      "title": "EC2's starts, refusals, and the guard's stops",
+      "description": "The start function's and the guard's outcomes in the last hour, by trigger and outcome, outside_hours' refusals among them (FR-065, FR-071) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 203,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (function, trigger, outcome) (h4_ec2_outcomes_last_hour)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{function}} {{trigger}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 103,
+      "title": "The hours' scheduled starts and stops",
+      "description": "Each scheduled open and close of EC2's hours, by its outcome: recorded, and alerted only when it needs the Author (ADR 0048) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 203,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (trigger, outcome) (h4_ec2_outcomes_last_hour{trigger=~\"hours_.+\"})",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{trigger}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 104,
+      "title": "The autostart switch",
+      "description": "on lets EC2 start automatically; off stops that (contracts/handover.md §5) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 210,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_ec2_autostart)",
+          "range": false,
+          "instant": true,
+          "legendFormat": "switch"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "off",
+                  "color": "orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "on",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 105,
+      "title": "The laptop's health check",
+      "description": "The share of Route 53's checkers that see the laptop's health block answer through the tunnel end (FR-054) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 210,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_health_check_healthy_share)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "healthy share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 106,
+      "title": "The handover window",
+      "description": "The last takeover's window, from the relay's first laptop to EC2's stop: green under 300 s, red from 300 s (FR-063) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 210,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(max_over_time(h4_handover_window_seconds[1d]))",
+          "range": false,
+          "instant": true,
+          "legendFormat": "window"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no takeover today",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 107,
+      "title": "The server's month against its budget",
+      "description": "h4-server-month's month to date against its figure, read once an hour, beside model spend above (FR-021; User Story 7) (spec 001 FR-060; contracts/handover.md §10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 210,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_server_month_usd)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "month to date"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_server_budget_usd)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "budget"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
       "type": "row",
       "id": 49,
       "title": "Studio GPU windows",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 197,
+        "y": 218,
         "w": 24,
         "h": 1
       },
@@ -4953,7 +5561,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 198,
+        "y": 219,
         "w": 24,
         "h": 6
       },
@@ -5042,7 +5650,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 205,
+        "y": 226,
         "w": 24,
         "h": 1
       },
@@ -5059,7 +5667,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 206,
+        "y": 227,
         "w": 10,
         "h": 7
       },
@@ -5118,7 +5726,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 206,
+        "y": 227,
         "w": 4,
         "h": 7
       },
@@ -5150,7 +5758,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -5172,7 +5782,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 206,
+        "y": 227,
         "w": 10,
         "h": 7
       },
@@ -5222,7 +5832,9 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": ["lastNotNull"]
+            "reducers": [
+              "lastNotNull"
+            ]
           }
         }
       ]
@@ -5238,7 +5850,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 213,
+        "y": 234,
         "w": 4,
         "h": 7
       },
@@ -5270,7 +5882,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -5292,7 +5906,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 213,
+        "y": 234,
         "w": 8,
         "h": 7
       },
@@ -5342,7 +5956,9 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": ["lastNotNull"]
+            "reducers": [
+              "lastNotNull"
+            ]
           }
         }
       ]
@@ -5358,7 +5974,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 213,
+        "y": 234,
         "w": 12,
         "h": 7
       },
