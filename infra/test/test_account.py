@@ -1620,3 +1620,144 @@ def test_the_patch_reader_takes_a_new_files_lines_only() -> None:
 
 def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
     assert check_audit_allowlist(parsed(root_texts())) == []
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 017's plan-only role, h4-agent-plan (its FR-032; research.md R-06; tasks.md T062). It arrives with the Author's
+# patch P-6 (docs/merge-requests/2026-11-12-feat-017-p6.patch), so these tests are RED until he applies it: the root
+# then holds the role, and each fixture in fixtures/account-plan/ is one defect, as fixtures/account/'s are.
+#   - its trust: only the Author's administrator permission set's role, by the pattern h4-laptop-bedrock's trust uses,
+#     with the set's name a local of iam.tf alone and a precondition that refuses it unfilled; at most an hour a session;
+#   - its permissions: AWS's ReadOnlyAccess, attached alone; a deny of every parameter and secret value read; and
+#     s3:PutObject and s3:DeleteObject on the state bucket's lock files only;
+#   - its tags: component agent-plan, beside the provider's project and environment (check_provider).
+
+PLAN_ROLE = "h4-agent-plan"
+PLAN_FIXTURES = sorted((FIXTURES.parent / "account-plan").glob("*.tf"))
+_PLAN_ROLE_NAME = (
+    "AWSReservedSSO_${local.plan_permission_set}_" + "?" * ROLE_SUFFIX_LENGTH
+)
+PLAN_TRUST = [f"{_ARN}{_PLAN_ROLE_NAME}", f"{_ARN}*/{_PLAN_ROLE_NAME}"]
+READ_ONLY = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+# Every call that returns a parameter's or a secret's value. IAM has no condition key for GetParameter's decryption, so
+# the deny covers each read whole; Terraform reads none (rule T9).
+VALUE_READS = {
+    "ssm:GetParameter",
+    "ssm:GetParameters",
+    "ssm:GetParametersByPath",
+    "ssm:GetParameterHistory",
+    "secretsmanager:GetSecretValue",
+}
+LOCK_ACTIONS = {"s3:PutObject", "s3:DeleteObject"}
+# The bootstrap's bucket is h4reet-ai-tfstate-<suffix>, the suffix the Author's alone; S3's lock file is <key>.tflock.
+STATE_LOCKS = ["arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock"]
+
+
+def check_plan_role(root: dict[str, list]) -> list[str]:
+    plan = role(root, PLAN_ROLE)
+    if plan is None:
+        return ["plan role: h4-agent-plan isn't in the root"]
+    found = []
+    if not ordinary(plan):
+        found.append("plan role: h4-agent-plan isn't an ordinary role, at the path /")
+    if ip.literal(plan.attr("max_session_duration")) != 3600:
+        found.append("plan role: a session may last longer than an hour")
+    trust = statements(document(root, raw(plan, "assume_role_policy")))
+    ok = (
+        len(trust) == 1
+        and trust[0]["actions"] == {"sts:AssumeRole"}
+        and trust[0]["effect"] == "Allow"
+        and not trust[0]["not"]
+    )
+    if ok:
+        (t,) = trust
+        ok = t["principals"] == [
+            (
+                "AWS",
+                '["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]',
+            )
+        ] and [(test, var, quoted(vals)) for test, var, vals in t["conditions"]] == [
+            ("ArnLike", "aws:PrincipalArn", PLAN_TRUST)
+        ]
+    if not ok:
+        found.append(
+            "plan role: its trust admits more than the Author's administrator permission set's role"
+        )
+    homes = [
+        where(root, b)
+        for b in blocks(root, "locals")
+        if any(
+            isinstance(a, ip.Attribute) and a.name == "plan_permission_set"
+            for a in b.body
+        )
+    ]
+    if homes != ["iam.tf"]:
+        found.append(
+            "plan role: the permission set's name isn't a local of iam.tf alone"
+        )
+    life = plan.block("lifecycle")
+    if life is None or not any(
+        refs(raw(p, "condition"), "local.plan_permission_set")
+        for p in life.blocks("precondition")
+    ):
+        found.append(
+            "plan role: no precondition refuses the permission set's name unfilled"
+        )
+    managed = [ip.literal(a.attr("policy_arn")) for a in attachments(root, plan)]
+    if managed != [READ_ONLY]:
+        found.append("plan role: its managed policy isn't AWS's ReadOnlyAccess alone")
+    sts = [
+        s
+        for p in inline_policies(root, plan)
+        for s in statements(document(root, raw(p, "policy")))
+    ]
+    denied = set().union(
+        *(
+            s["actions"]
+            for s in sts
+            if s["effect"] == "Deny"
+            and not s["not"]
+            and not s["conditions"]
+            and quoted(s["resources"]) == ["*"]
+        )
+    )
+    if not VALUE_READS <= denied:
+        found.append("plan role: it may read a parameter's or a secret's value")
+    grants = [s for s in sts if s["effect"] == "Allow"]
+    if len(inline_policies(root, plan)) != 1 or not (
+        len(grants) == 1
+        and grants[0]["actions"] == LOCK_ACTIONS
+        and quoted(grants[0]["resources"]) == STATE_LOCKS
+        and not grants[0]["not"]
+        and not grants[0]["conditions"]
+    ):
+        found.append("plan role: it may write more than the state's lock files")
+    tags = ip.literal(plan.attr("tags"))
+    if not (isinstance(tags, dict) and tags.get("component") == "agent-plan"):
+        found.append("plan role: its component tag isn't agent-plan")
+    return found
+
+
+def test_h4_agent_plan_reads_only_and_locks_the_state_trusting_the_administrator_set_alone() -> (
+    None
+):
+    root = parsed(root_texts())
+    assert check_plan_role(root) == []
+    assert (
+        problems(root) == []
+    )  # and the root's own checks still hold, with the role in it
+
+
+def test_the_plan_role_has_its_fixtures() -> None:
+    assert len(PLAN_FIXTURES) >= 8
+
+
+@pytest.mark.parametrize("path", PLAN_FIXTURES, ids=[p.stem for p in PLAN_FIXTURES])
+def test_each_plan_role_fixture_is_found_as_its_defect(path: Path) -> None:
+    root = parsed(root_texts())
+    changed, expect = mutated(root, path)
+    assert expect, f"{path.name} names no problem it expects"
+    found = check_plan_role(changed)
+    for want in expect:
+        assert any(want in f for f in found), (want, found)
+    assert len(found) == len(expect), found
