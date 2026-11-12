@@ -61,7 +61,9 @@ def config() -> Path:
     return Path.home() / ".config" / "h4reet-ai"
 
 
-def aws(profile: str, *args: str) -> object:
+def aws_text(profile: str, *args: str) -> str:
+    """The AWS CLI's answer as it prints it: `s3 presign` answers in plain text, whatever --output says (group 6's
+    review, I-1)."""
     done = subprocess.run(
         [
             "aws",
@@ -82,7 +84,11 @@ def aws(profile: str, *args: str) -> object:
     )
     if done.returncode != 0:
         raise RuntimeError(f"aws {' '.join(args[:2])} exited {done.returncode}")
-    return json.loads(done.stdout or "{}")
+    return done.stdout
+
+
+def aws(profile: str, *args: str) -> object:
+    return json.loads(aws_text(profile, *args) or "{}")
 
 
 def put(profile: str, name: str, value: str, kind: str, folder: Path) -> None:
@@ -361,7 +367,7 @@ def restore(profile: str, dump: str | None) -> int:
     key = dump if dump is not None else max(objects)
     if key not in objects:
         raise Refused(f"{key} isn't in the backups' bucket")
-    url = aws(
+    url = aws_text(
         profile,
         "s3",
         "presign",
@@ -369,7 +375,8 @@ def restore(profile: str, dump: str | None) -> int:
         "--expires-in",
         str(URL_EXPIRY_S),
     )
-    if not isinstance(url, str) or not url.startswith("https://") or "'" in url:
+    url = url.strip()
+    if not url.startswith("https://") or "'" in url or any(c.isspace() for c in url):
         raise RuntimeError("s3 presign answered no URL")
     command_id = send(
         profile,
