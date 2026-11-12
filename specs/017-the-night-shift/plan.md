@@ -125,6 +125,8 @@ docs/how-we-build/night-shift.md, docs/runbooks/night-shift.md
 redteam/night-shift/rows.json, run.sh # §9 (run.sh runs the installed rehearse.py's R4); matrix rows are P-5
 ```
 
+**Runbooks**: `docs/runbooks/night-shift.md` (new): the night shift's operations for the Author: the token, the facts file, the install and its `--undo`, starting and stopping the runner, reading the decision page, a limit, an idle stop, a failed preflight, and the second install. It has the six sections every runbook has (spec 000's plan §16), and `evals/test_runbooks.py` reads this line, as it reads spec 010's.
+
 ## §1 The layers
 
 ```text

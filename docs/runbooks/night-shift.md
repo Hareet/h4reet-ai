@@ -4,9 +4,7 @@ The night shift runs agent sessions while you sleep: a supervisor, and up to ten
 
 **Who runs what.** Every command on this page is yours, typed in your own terminal. The sessions can't do them: they can't read your token or your facts file, and they have no route to the Docker socket. Each command line is short on purpose, so paste one line at a time. Variables such as `NS` or `SHA` are set on their own lines, and a new terminal needs them set again.
 
-**Impact.** Nothing here changes the site. A failed step stops the night. The night's containers and networks are named `h4-night-*`, and `night.py stop` touches only those.
-
-## Where to look first
+## Symptoms
 
 | What you see | Go to |
 |---|---|
@@ -17,7 +15,13 @@ The night shift runs agent sessions while you sleep: a supervisor, and up to ten
 | The page says a token expired, or was refused | [1](#1-the-night-shift-token) |
 | A plan or gate says "off: waiting for P-2, P-3, P-6" | [12](#12-the-second-install-plan-and-gate-on) |
 
-## Before the first night
+## Impact
+
+Nothing here changes the site: the night shift is build-time only, and no visitor ever reaches it. A failed step stops the night, and work waits at the last save point until you start it again. The night's containers and networks are named `h4-night-*`, and `night.py stop` touches only those.
+
+## Act
+
+### Before the first night
 
 ### 1. The night-shift token
 
@@ -185,7 +189,7 @@ To prove that undo leaves nothing behind, install again at the same SHA afterwar
 bash <(git show "$SHA:$IN") "$SHA"
 ```
 
-## Each night
+### Each night
 
 ### 6. Start, stop, status, check
 
@@ -254,7 +258,7 @@ cat installed.txt
 
 Never edit a live spec, the runner, or a prompt in place. A mismatch means the files differ from what the reviewed commit made. Re-run the install at the reviewed SHA (section 4). The install prints a diff against any spec it replaces (FR-005). Then `check` should pass. The install's summary prints the same digests, so you can compare them with the note's.
 
-## When the night stops
+### When the night stops
 
 ### 9. A usage limit
 
@@ -305,7 +309,7 @@ unset CLAUDE_CODE_USE_VERTEX
 unset CLAUDE_CODE_USE_FOUNDRY
 ```
 
-## The second install: plan and gate on
+### Plan and gate: off until the patches merge
 
 Until the Author's patches P-2, P-3, and P-6 merge, both the plan request and the gate request answer "off: waiting for P-2, P-3, P-6". Then the plan and gate are off, and today's rules hold: agents ask you for a plan, and you run the gate. Turn them on only when the patches are on main, and the account role is applied (ADR 0051).
 
@@ -351,6 +355,28 @@ Until the Author's patches P-2, P-3, and P-6 merge, both the plan request and th
    ```
 
 The install adds two rehearsal rows. R5 plans the bootstrap root, and expects "No changes". R6 runs a gate on a test branch, and expects its merge line, with main unmoved. If either fails, the summary says which, and the plan or gate stays off until the cause is fixed. To turn both back off, set `NIGHT_PLAN` and `NIGHT_GATE` to `off` in the facts file, then run `check`. The runner reads the facts file at each start.
+
+## Verify
+
+- After the install, its summary reads `ok` for R1 to R4, and `== end ==` closes it.
+- Before each night, `check` passes.
+- Each morning, the decision page lists every interruption with its cause. Your Claude account's usage page shows the night on your plan, with no API charges.
+
+```text
+NS=~/.local/share/h4reet-ai/night-shift
+python3 -I -B $NS/night.py check
+```
+
+## Undo
+
+- **Stop a night**: `night.py stop`. It stops only the `h4-night-*` containers, and the work waits at its save points.
+- **Remove the install**: run the install script with `--undo` at the same reviewed SHA, guarded as in [4](#4-install-and-rehearse). It removes only what its `installed.txt` lists: the live files, the networks and images it made. It names what it leaves, which is your token file and facts file.
+- **Revoke the night-shift token**: in your Claude account's settings. Your own sign-in is unaffected.
+
+```text
+NS=~/.local/share/h4reet-ai/night-shift
+python3 -I -B $NS/night.py stop
+```
 
 ## Record
 
