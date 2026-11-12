@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
 """A cloud host's env file and key files, at boot, from Parameter Store to tmpfs (spec 001 contracts/env-cloud.md §1;
-contracts/tunnel.md §5; research.md R-26, R-28; tasks.md T049). Runs on the host as root, before its stack starts
-(h4-write-env.service), through the host's egress proxy.
+contracts/tunnel.md §5; research.md R-26, R-28; tasks.md T049), as root, through the host's egress proxy.
 
     python3 -I -B write_env.py --host tunnel-end --template FILE --out /run/h4reet/tunnel-end.env
         --keys-dir /run/h4reet/tunnel-end/keys
 
-The template (deploy/hosts/<host>/<host>.env.example) names every key the file holds, each with its value as written,
-or one of:
-    __PARAMETER__          the parameter /h4reet/<host>/<KEY>, a SecureString the Author writes;
-    __PARAMETER:<path>__   that parameter;
-    __ACCOUNT_REGISTRY__   the account's ECR registry, <account>.dkr.ecr.us-east-1.amazonaws.com, from the instance's
-                           identity document (IMDSv2), which is no secret.
-The tunnel end also gets two key files, its sshd's host key and the laptop's authorized key, from
-/h4reet/tunnel-end/HOST_KEY and AUTHORIZED_KEY, owned by the tunnel image's user, 10001, so sshd reads them.
-
-Every file is 0600 in a 0700 folder, written beside its place and renamed over it, so no reader sees half a file. A
-missing parameter, or a value outside the env file's grammar, refuses the whole write, naming the parameter or the key
-and never a value. Exit codes: 0 written; 1 refused; 2 couldn't run. The standard library alone, and Python 3.9's
-syntax, Amazon Linux 2023's python3; the AWS CLI does the reads.
+The template's placeholders are its own header's (deploy/hosts/<host>/<host>.env.example). Every file is 0600 in a
+0700 folder, replaced whole; a missing parameter or a value outside the grammar refuses the whole write, naming the
+parameter or the key, never a value (deploy/scripts/test_write_env.py's docstring). Exit 0 written, 1 refused, 2
+couldn't run. The standard library alone, in Python 3.9's syntax: it travels in the tunnel end's user data.
 """
 
 from __future__ import annotations

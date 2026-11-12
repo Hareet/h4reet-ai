@@ -1691,11 +1691,18 @@ def p23(ctx: Context) -> Result:
 
 
 def tunnel_end_checks(
-    root: Path, env_file: Path, tls_dir: Path = SHARED_STATE_TLS_DIR
+    root: Path,
+    env_file: Path,
+    tls_dir: Path = SHARED_STATE_TLS_DIR,
+    phase: str = "all",
 ) -> list[Result]:
     """The tunnel end's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3): its env file is
     0600 and in the grammar (T1), with its template's keys (T2), names the tunnel end (T3), and holds values of their
-    shapes (T4). Names keys, never a value."""
+    shapes (T4); and the shared state's key and certificate are in place (T5). Names keys, never a value. The deployer
+    runs phase "before" (T1 to T4), which needs no host step, before the host step, and "after" (T5) after it.
+    """
+    if phase == "after":
+        return [t5_tls(tls_dir)]
     out: list[Result] = []
     try:
         mode = env_file.stat().st_mode
@@ -1735,8 +1742,14 @@ def tunnel_end_checks(
         if not shape.fullmatch(values.get(k, ""))
     ]
     out.append(summarize("T4", problems, "each value has its shape"))
-    # T5, spec 001 group 6: the shared state's key and certificate on tmpfs, which its host script writes before the
-    # stack starts; without them its TLS can't start (contracts/shared-state.md §3).
+    if phase == "before":
+        return out
+    return [*out, t5_tls(tls_dir)]
+
+
+def t5_tls(tls_dir: Path) -> Result:
+    """T5, spec 001 group 6: the shared state's key and certificate on tmpfs, which its host script writes before the
+    stack starts; without them its TLS can't start (contracts/shared-state.md §3)."""
     problems = []
     for name, most in (("server.key", 0o600), ("server.crt", 0o644)):
         path = tls_dir / name
@@ -1750,10 +1763,9 @@ def tunnel_end_checks(
             problems.append(f"{name} in {tls_dir} is open beyond {most:o}")
         if "-----BEGIN " not in text:
             problems.append(f"{name} in {tls_dir} isn't PEM")
-    out.append(
-        summarize("T5", problems, "the shared state's key and certificate are in place")
+    return summarize(
+        "T5", problems, "the shared state's key and certificate are in place"
     )
-    return out
 
 
 UP = (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18)
@@ -1822,13 +1834,14 @@ def main(argv: list[str], host: Host | None = None) -> int:
     parser.add_argument("--vhdx-mount", default="/mnt/c")
     parser.add_argument("--host-class", choices=sorted(HOST_CLASSES))
     parser.add_argument("--shared-state-dir", type=Path, default=SHARED_STATE_TLS_DIR)
+    parser.add_argument("--phase", choices=("all", "before", "after"), default="all")
     args = parser.parse_args(argv)
     host = host or Host()
     if args.host_class:
         if not args.env_file:
             parser.error("--host-class needs --env-file")
         results = tunnel_end_checks(
-            args.root.resolve(), args.env_file, args.shared_state_dir
+            args.root.resolve(), args.env_file, args.shared_state_dir, args.phase
         )
     elif args.disk_only:
         if args.bytes is None or not args.path:

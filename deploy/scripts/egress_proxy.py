@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """A cloud host's one way out (spec 001 FR-051; contracts/tunnel.md §6; research.md R-10; tasks.md T049): an HTTPS
-CONNECT proxy whose allowlist is the host's deploy/hosts/<host>/egress-allowlist.txt, every entry of which a row of
-docs/data-flow-disclosure.md names (tools/gates/disclosure_check.py). The host's nftables let only this proxy's user,
-h4-egress, open a connection beyond the VPC, so Docker's pulls, the AWS CLI, and the Systems Manager agent all come
-through here (h4-egress-proxy.service).
+CONNECT proxy to port 443 alone, to the names deploy/hosts/<host>/egress-allowlist.txt holds alone, each resolving to
+public addresses only; nothing in a tunnel is read, and each decision is one log line with no client address
+(deploy/scripts/test_egress_proxy.py's docstring). nftables lets only its user, h4-egress, beyond the VPC.
 
     python3 -I -B egress_proxy.py --allowlist FILE --listen 127.0.0.1:3128
 
-It takes CONNECT alone, to port 443 alone, to a name the allowlist holds alone: an entry matches the name exactly, or
-a `*` stands for one label or the rest of one, never for a dot. The name must resolve to public addresses only, so no
-DNS answer can point it at the instance's metadata or the VPC. An allowed CONNECT is tunnelled both ways and nothing
-in it is read. Each decision is one log line, the name, the port, and the verdict, never a client's address or a byte
-of the tunnel. The standard library alone, and Python 3.9's syntax, Amazon Linux 2023's python3.
+The standard library alone, in Python 3.9's syntax: it travels in the tunnel end's user data.
 """
 
 from __future__ import annotations

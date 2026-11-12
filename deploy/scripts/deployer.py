@@ -66,7 +66,7 @@ def host_step_argv(host: str, tree: Path) -> list[str]:
     ]
 
 
-def preflight_argv(host: str, tree: Path, env_file: Path) -> list[str]:
+def preflight_argv(host: str, tree: Path, env_file: Path, phase: str) -> list[str]:
     """The release tree's own preflight for the host's class, T1 to T5 (group 5's review, I7)."""
     return [
         "/usr/bin/python3",
@@ -79,6 +79,8 @@ def preflight_argv(host: str, tree: Path, env_file: Path) -> list[str]:
         str(env_file),
         "--root",
         str(tree),
+        "--phase",
+        phase,
     ]
 
 
@@ -123,7 +125,7 @@ class Docker(Protocol):
 
     def host_step(self, host: str, tree: Path) -> bool: ...
 
-    def preflight(self, host: str, tree: Path, env_file: Path) -> bool: ...
+    def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool: ...
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -287,11 +289,14 @@ class Deployer:
         registry = self.env.get("H4_REGISTRY", "")
         if pull and registry:
             self.aws.login(registry)
+        # T1 to T4 need no host step, so a refusal there leaves the host's files as they were; T5 reads what the
+        # host step writes (group 5's fixes' review, 2).
+        if not self.docker.preflight(self.host, tree, self.env_file, "before"):
+            raise Refused("preflight")
         if self.host in HOST_STEPS and not self.docker.host_step(self.host, tree):
             return False
-        # After the host step, which writes what T5 reads.
-        if not self.docker.preflight(self.host, tree, self.env_file):
-            raise Refused("preflight")
+        if not self.docker.preflight(self.host, tree, self.env_file, "after"):
+            raise Refused("preflight_after")
         for volume, uid in VOLUME_OWNERS.get(self.host, {}).items():
             if not self.docker.own_volume(f"{PROJECT}_{volume}", uid):
                 return False
@@ -380,8 +385,16 @@ class Deployer:
             )
             return 0
         except Refused as refused:
+            reason = str(refused)
+            if (
+                reason == "preflight_after"
+                and current is not None
+                and self.host in HOST_STEPS
+            ):
+                # The new tree's host step ran: the running release's puts its host files back.
+                self.docker.host_step(self.host, self.tree(current))
             self.ensure()
-            return self.refuse(release, str(refused))
+            return self.refuse(release, "preflight")
         if started:
             if current is not None:
                 self.keep("previous", current)
@@ -414,7 +427,15 @@ class Deployer:
         return 1
 
     def refuse(self, release: dict, reason: str) -> int:
+        """deploy_refused once per release and reason: the memory is the state folder's refused.json, which outlives
+        a run and a reboot (group 5's fixes' review, 2)."""
         rid = str(release.get("release", "latest"))
+        seen = self.recorded("refused") or {}
+        key = f"{rid}:{reason}"
+        if key in seen:
+            print(f"{PROG}: release {rid} stays refused ({reason})", file=sys.stderr)
+            return 1
+        self.keep("refused", {**seen, key: self.now()})
         self.aws.publish(
             alert(
                 "deploy_refused",
@@ -505,9 +526,9 @@ class AwsCli:
 
 
 class DockerCli:
-    def preflight(self, host: str, tree: Path, env_file: Path) -> bool:
+    def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool:
         done = subprocess.run(
-            preflight_argv(host, tree, env_file), check=False, timeout=120
+            preflight_argv(host, tree, env_file, phase), check=False, timeout=120
         )
         return done.returncode == 0
 
