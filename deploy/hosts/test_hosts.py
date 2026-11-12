@@ -8,7 +8,9 @@
   - the proxy's allowlist is the disclosure's, ECR (its deployer's pulls) and SNS (its alerts) among it, AWS's own
     endpoints only;
   - Docker's daemon: no userland proxy, the fixed address pool the chains name, pulls through the proxy;
-  - the env file's template, the class's services (preflight.HOST_CLASSES), and the systemd units that order the boot.
+  - the env file's template, the class's services (preflight.HOST_CLASSES), and the systemd units that order the boot;
+  - the env file write_env.py writes from that template loads the class's services in Docker Compose, with the
+    deployer's release env file and interpolation, offline (`docker compose config`; group 5's review, I5).
 """
 
 from __future__ import annotations
@@ -16,8 +18,12 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import secrets
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 import yaml
 
@@ -381,3 +387,105 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # EC2 takes 16 KB of user data before its base64; ec2-market.tf sends it gzipped. Later groups' host files would
     # pass it: they come from the release's tree instead (the note's backlog).
     assert len(gzip.compress(text.encode())) < 15 * 1024
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The env file in Compose (group 5's review, I5): the file write_env.py renders from the template, with stand-in
+# parameters of their shapes, and the deployer's release env file, load the class's services as the deployer runs
+# compose on the host (DockerCli.compose: the tree's compose file, both env files, H4_TREE, and nothing else of the
+# environment). `docker compose config` reads and interpolates offline, with no engine.
+
+
+def compose_cli() -> list[str]:
+    try:
+        done = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        done = None
+    if done is None or done.returncode != 0:
+        pytest.skip("no Docker Compose CLI here, which this check needs, offline")
+    return ["docker", "compose"]
+
+
+def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
+    we = _load("write_env_for_hosts", REPO / "deploy" / "scripts" / "write_env.py")
+    dp = _load("deployer_for_compose", REPO / "deploy" / "scripts" / "deployer.py")
+
+    def fetch(names: list[str]) -> dict[str, str]:
+        return {
+            n: ("h4reet-ai-releases-" + secrets.token_hex(4))
+            if n.endswith("RELEASE_BUCKET")
+            else secrets.token_urlsafe(32)
+            for n in names
+        }
+
+    text, _ = we.render(
+        "tunnel-end", TEMPLATE.read_text(encoding="utf-8"), fetch, lambda: "1" * 12
+    )
+    env_file = tmp_path / "tunnel-end.env"
+    env_file.write_text(text, encoding="utf-8")
+    services = yaml.safe_load(
+        (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    )["services"]
+    mine = [s for s in dp.HOST_CLASSES["tunnel-end"] if s in services]
+    # Each image's repository in the account's registry (infra/account/registry.tf), as the release names it.
+    repositories = {
+        "tunnel-end": "h4reet/tunnel",
+        "tunnel-end-collector": "h4reet/otel-collector",
+        "shared-state": "h4reet/shared-state",
+    }
+    assert set(mine) <= set(repositories), mine
+    release = {
+        "release": "r1",
+        "commit": secrets.token_hex(20),
+        "tree": {"key": "trees/r1.tar.gz", "sha256": secrets.token_hex(32)},
+        "compose": {"key": "tools/docker-compose", "sha256": secrets.token_hex(32)},
+        "services": {
+            name: {
+                "repository": repositories[name],
+                "digest": "sha256:" + secrets.token_hex(32),
+                "hosts": ["tunnel-end"],
+            }
+            for name in mine
+        },
+    }
+    deployer = dp.Deployer(
+        "tunnel-end", env_file, tmp_path / "state", None, None, tmp_path / "p", str
+    )
+    release_env = deployer.release_env(release)
+    done = subprocess.run(
+        [
+            *compose_cli(),
+            "-f",
+            str(REPO / "deploy" / "compose.yaml"),
+            "--env-file",
+            str(env_file),
+            "--env-file",
+            str(release_env),
+            "config",
+            "--format",
+            "json",
+            *mine,
+        ],
+        cwd=REPO,
+        env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(tmp_path), "H4_TREE": str(REPO)},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    errors = [line for line in done.stderr.splitlines() if "level=warning" not in line]
+    assert done.returncode == 0, errors
+    loaded = json.loads(done.stdout)["services"]
+    assert sorted(loaded) == sorted(mine)
+    registry = "1" * 12 + ".dkr.ecr.us-east-1.amazonaws.com/h4reet/"
+    for name in mine:
+        assert loaded[name]["image"].startswith(registry), (name, loaded[name]["image"])
+    # The release-built image by the release's own digest (group 5's departure 6).
+    assert loaded["tunnel-end"]["image"] == (
+        registry + "tunnel@" + release["services"]["tunnel-end"]["digest"]
+    )
