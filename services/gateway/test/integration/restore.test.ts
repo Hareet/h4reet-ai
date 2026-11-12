@@ -35,7 +35,27 @@ async function restored(): Promise<TestStack> {
   await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 7500000 WHERE meter = 'month' AND period_key = $1", [
     monthKey(now),
   ]);
+  await s.db.pg.query("UPDATE gateway.meters SET spent_micro = 400000 WHERE meter = 'fallback_day' AND period_key = $1", [
+    dayKey(now),
+  ]);
+  // The capped adapter's month (spec 010, FR-022), as the dump held it.
+  await s.db.pg.query(
+    `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, created_at, updated_at)
+     VALUES ('adapter_month', $1, 3000000, 0, now(), now())`,
+    [`anthropic:${monthKey(now)}`],
+  );
   return s;
+}
+
+/** The current periods' meters, spent, by meter. */
+async function spent(s: TestStack): Promise<Record<string, string>> {
+  const now = Date.now();
+  const { rows } = await s.db.pg.query<{ meter: string; spent_micro: unknown }>(
+    `SELECT meter, spent_micro FROM gateway.meters
+     WHERE period_key IN ($1, $2, $3)`,
+    [dayKey(now), monthKey(now), `anthropic:${monthKey(now)}`],
+  );
+  return Object.fromEntries(rows.map((r) => [r.meter, String(r.spent_micro)]));
 }
 
 describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
@@ -86,5 +106,33 @@ describe("POST /admin/restore (contracts/shared-state.md §8)", () => {
       "SELECT action, host FROM gateway.audit_log WHERE action = 'init' ORDER BY id DESC LIMIT 1",
     );
     expect(init.rows).toEqual([{ action: "init", host: LAPTOP }]);
+  });
+
+  // Group 6's review, I-3: the restored meters are init's fourth candidate, so a meter left unstated keeps its
+  // restored value, the capped adapter's month among them, and a restored store needs no zero confirmed.
+  it("keeps each meter the init leaves unstated at its restored value, a second restore in the month too", async () => {
+    const s = await restored();
+    expect((await post(s, "/admin/restore", { reason: "Restored from the 06:00 dump." })).statusCode).toBe(200);
+    const first = await post(s, "/admin/init", {
+      reason: "Carried after the restore: the month's spend from the providers.",
+      stated: { month_usd: "7.65" },
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    expect(await spent(s)).toMatchObject({
+      day: "1250000",
+      month: "7650000",
+      fallback_day: "400000",
+      adapter_month: "3000000",
+    });
+    // The same month, the store lost again and restored from a dump that holds the first init's meters.
+    expect((await post(s, "/admin/restore", { reason: "Restored again, from the 07:00 dump." })).statusCode).toBe(200);
+    const second = await post(s, "/admin/init", { reason: "Carried after the second restore, nothing stated." });
+    expect(second.statusCode, second.body).toBe(200);
+    expect(await spent(s)).toMatchObject({
+      day: "1250000",
+      month: "7650000",
+      fallback_day: "400000",
+      adapter_month: "3000000",
+    });
   });
 });
