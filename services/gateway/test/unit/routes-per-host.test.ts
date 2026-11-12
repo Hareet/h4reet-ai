@@ -150,7 +150,7 @@ ${ADAPTERS}envs:
 ${LAPTOP}
   dev: { primary: local }
 `),
-    ).toContain("R11 envs.prod");
+    ).toContainEqual(expect.stringMatching(/^R11 envs\.prod/));
   });
 });
 

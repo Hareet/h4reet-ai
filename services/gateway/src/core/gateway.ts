@@ -665,6 +665,11 @@ export interface GatewayOptions {
   realNow?: () => number;
   /** How often the gauges are refreshed from the store: 10 s (data-model.md §7.7). */
   gaugeIntervalMs?: number;
+  /**
+   * Spec 001's EC2 route (schema 2's first and second): its primary and fallback are both paid, called in that order
+   * with no local step, and every call is metered (rule A1). False or absent everywhere else.
+   */
+  paidRoute?: boolean;
 }
 
 /** GET /health's report (gateway-http.md §5), in the contract's key order. */
@@ -918,6 +923,18 @@ export class Gateway {
       if (early !== undefined) return this.degrade(span, early, traceId);
       const resolved = resolveCall(call);
 
+      // Spec 001's EC2 route: the first paid adapter while it is healthy, then the second, each metered (A1), so
+      // neither counts against fallback_day, the laptop's sub-budget.
+      if (this.opts.paidRoute === true) {
+        if (this.primary.health.status().healthy) {
+          const first = await this.callMetered(span, resolved, traceId, this.primary, "metered", null);
+          const failed = first.kind === "degraded" && first.decision.cause === "fallback_unavailable";
+          if (!failed || this.fallback === undefined) return first;
+        }
+        if (this.fallback === undefined) return this.degrade(span, degraded("fallback_unavailable"), traceId);
+        return this.callMetered(span, resolved, traceId, this.fallback, "metered", null);
+      }
+
       // 5.1: a healthy local adapter answers, free; one that fails as unavailable or timeout fails over (5.3).
       const localWasHealthy = this.primary.health.status().healthy;
       if (localWasHealthy) {
@@ -1112,6 +1129,7 @@ export class Gateway {
       read,
       local: { healthy: this.primary.health.status().healthy },
       hasFallback: this.fallback !== undefined,
+      ...(this.opts.paidRoute === true ? { metered: true } : {}),
       ...(this.fallback === undefined
         ? {}
         : {

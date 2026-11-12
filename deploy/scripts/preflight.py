@@ -912,13 +912,22 @@ def routing(ctx: Context) -> tuple[dict | None, str | None]:
 ANTHROPIC_KEY_RE = re.compile(r"[\x21-\x7e]{20,256}")
 
 
+def env_route(config: dict, env: str) -> dict:
+    """env's route as a laptop stack runs it: with routing's schema 2 (spec 001 data-model.md §2.1), prod's is
+    envs.prod.hosts.laptop; dev's, and schema 1's, are envs.<env>."""
+    route = (config.get("envs") or {}).get(env) or {}
+    if isinstance(route, dict) and isinstance(route.get("hosts"), dict):
+        route = route["hosts"].get("laptop") or {}
+    return route if isinstance(route, dict) else {}
+
+
 def routed_type(ctx: Context, env: str, adapter_type: str) -> str | None:
     """The adapter of this type env's route names, if any (spec 010)."""
     config, _ = routing(ctx)
     if not isinstance(config, dict):
         return None
     adapters = config.get("adapters") or {}
-    route = (config.get("envs") or {}).get(env) or {}
+    route = env_route(config, env)
     for role in ("primary", "fallback"):
         adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
         if isinstance(adapter, dict) and adapter.get("type") == adapter_type:
@@ -932,7 +941,7 @@ def paid_route(ctx: Context, env: str) -> str | None:
     if not isinstance(config, dict):
         return None
     adapters = config.get("adapters") or {}
-    route = (config.get("envs") or {}).get(env) or {}
+    route = env_route(config, env)
     for role in ("primary", "fallback"):
         adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
         if isinstance(adapter, dict) and adapter.get("kind") == "paid":

@@ -19,8 +19,12 @@ import { channelsFrom, Dispatcher, type Channels } from "./alerts/dispatcher.js"
 import { IncidentDrafts } from "./incidents/draft.js";
 import {
   ENV_CLASSES,
+  HOST_NAMES,
+  RouteMissingError,
   routeFor,
+  routingForHost,
   startupRefusals,
+  type HostName,
   type AlertsConfig,
   type Budgets,
   type EnvClass,
@@ -215,10 +219,26 @@ export interface ServiceOptions {
  */
 export async function createServices(opts: ServiceOptions): Promise<GatewayServices> {
   const { env, config, logger } = opts;
-  const { routing, prices, budgets, alerts } = config;
+  const { prices, budgets, alerts } = config;
   const envClass = ENV_CLASSES.find((c) => c === env.H4_ENV);
   const stack = env.H4_STACK as StackName;
-  if (!routing || !prices || !budgets || !alerts || !envClass) throw new Error("validated configuration is incomplete");
+  if (!config.routing || !prices || !budgets || !alerts || !envClass) {
+    throw new Error("validated configuration is incomplete");
+  }
+  // Spec 001's host (research.md R-28): its route is envs.prod.hosts.<H4_HOST> on prod (rule H2), and a host the
+  // gateway doesn't run on, or EC2 with no route of its own, refuses with exit 78.
+  const h4Host = env.H4_HOST === undefined || env.H4_HOST === "" ? "laptop" : env.H4_HOST;
+  if (!HOST_NAMES.includes(h4Host as HostName)) {
+    throw new RegistryError(78, "invalid_host", "H4_HOST must be laptop or ec2: no other host runs a gateway");
+  }
+  let routing: RoutingConfig;
+  try {
+    routing = envClass === "prod" ? routingForHost(config.routing, h4Host as HostName) : config.routing;
+  } catch (err) {
+    if (!(err instanceof RouteMissingError)) throw err;
+    throw new RegistryError(78, err.reason, err.message);
+  }
+  const paidRoute = routing.envs[envClass].paid === true;
   const realNow = opts.realNow ?? Date.now;
   const adapters = buildRoute({
     factories: opts.factories ?? (await loadFactories()),
@@ -247,8 +267,9 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     realNow,
     hasFallback: adapters.some((a) => a.role === "fallback"),
     // Spec 010 (FR-023, FR-037): an adapter month's cap sets the renewal flag only for the route's fallback, and its
-    // alerts name each adapter by its type's label.
-    fallbackAdapterId: adapters.find((a) => a.role === "fallback")?.config.id ?? null,
+    // alerts name each adapter by its type's label. EC2's paid route has no fallback in that sense: its calls are
+    // metered (spec 001's A1), and the renewal flag is the laptop's.
+    fallbackAdapterId: paidRoute ? null : (adapters.find((a) => a.role === "fallback")?.config.id ?? null),
     adapterLabels: new Map(adapters.map((a) => [a.config.id, a.config.spec.label ?? a.config.id] as [string, string])),
   });
   const gateway = new Gateway({
@@ -271,6 +292,7 @@ export async function createServices(opts: ServiceOptions): Promise<GatewayServi
     meter,
     realNow,
     roomFeatures: roomFeaturesOf(opts.twin ?? NO_TWIN),
+    paidRoute,
   });
   // A committed change to a meter or the state replaces the gauges' snapshot at once (telemetry.md §4.1).
   meter.onChange = () => void gateway.refreshGauges().catch(() => {});

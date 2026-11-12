@@ -201,12 +201,25 @@ export interface AdapterConfig {
 export interface Route {
   readonly primary: string;
   readonly fallback?: string;
+  /**
+   * Spec 001's EC2 route (schema 2, `first` and `second`; data-model.md §2.1): both are paid adapters, called in that
+   * order with no local step, and every call is attributed `metered` (rule A1). `primary` holds `first`, and
+   * `fallback` holds `second`, so the registry and the gateway take it as any route.
+   */
+  readonly paid?: true;
 }
+
+/** Spec 001's hosts: the laptop's route, and EC2's if the file names one (rules H1, H2). */
+export type HostName = "laptop" | "ec2";
+export const HOST_NAMES: readonly HostName[] = ["laptop", "ec2"];
 
 export interface RoutingConfig {
   readonly deadlineMs: number;
   readonly adapters: ReadonlyMap<string, AdapterConfig>;
+  /** The route of each env class; with schema 2, envs.prod is the laptop's (H2). */
   readonly envs: Readonly<Record<EnvClass, Route>>;
+  /** Schema 2's envs.prod.hosts (spec 001); absent with schema 1. */
+  readonly hosts?: { readonly laptop: Route; readonly ec2?: Route };
   /** SHA-256 of the file's bytes: h4.routing.sha on every span and ledger row. */
   readonly sha256: string;
 }
@@ -220,6 +233,7 @@ export interface RoutingOptions {
 const ADAPTER_ID = /^[a-z][a-z0-9-]{0,31}$/;
 const KINDS: readonly AdapterKind[] = ["local", "paid", "synthetic"];
 const ROUTE = z.strictObject({ primary: z.string().min(1), fallback: z.string().min(1).optional() });
+const PAID_ROUTE = z.strictObject({ first: z.string().min(1), second: z.string().min(1).optional() });
 
 function placeholderPaths(value: unknown, path: PathSegment[]): string[] {
   if (typeof value === "string") return PLACEHOLDER.test(value) ? [formatPath(path)] : [];
@@ -245,7 +259,7 @@ export function validateRouting(
   for (const key of Object.keys(data)) {
     if (!["schema", "deadline_ms", "adapters", "envs"].includes(key)) out.error(key, "R11", "unknown key");
   }
-  check(out, z.literal(1), data.schema, ["schema"], R11);
+  const schema = check(out, z.literal([1, 2]), data.schema, ["schema"], R11);
   const deadlineMs = check(out, int(5_000, 25_000), data.deadline_ms, ["deadline_ms"], R11);
 
   // Adapters.
@@ -297,8 +311,74 @@ export function validateRouting(
     }
   }
 
-  // Routes.
+  // Routes. Schema 2 (spec 001, data-model.md §2.1) holds envs.prod as a route per host; envs.dev stays a route.
   const routes: Partial<Record<EnvClass, Route>> = {};
+  let hosts: { laptop?: Route; ec2?: Route } | undefined;
+  /** One route's roles, checked against the adapters and R1 to R3; true when it holds. */
+  const checkRoles = (env: EnvClass, base: string, roles: [string, string | undefined][], paid: boolean): boolean => {
+    let ok = true;
+    for (const [role, id] of roles) {
+      if (id === undefined) continue;
+      const at = `${base}.${role}`;
+      if (!defined.has(id)) {
+        out.error(at, "R4", `names "${id}", which isn't defined under adapters`);
+        ok = false;
+        continue;
+      }
+      const adapter = adapters.get(id);
+      if (adapter === undefined) {
+        ok = false; // its own errors are already reported
+        continue;
+      }
+      if (paid) {
+        if (adapter.kind !== "paid") {
+          out.error(
+            at,
+            "R1",
+            `names "${id}", a ${adapter.kind} adapter; a first route names paid adapters only`,
+            "FR-067",
+          );
+          ok = false;
+        }
+      } else if (role === "primary" && adapter.kind !== "local") {
+        out.error(at, "R1", `names "${id}", a ${adapter.kind} adapter; every primary must be local`, "FR-022");
+        ok = false;
+      } else if (role === "fallback" && env === "dev" && adapter.kind === "paid") {
+        out.error(at, "R2", `names "${id}", a paid adapter; a paid adapter may be routed only in envs.prod`, "FR-031");
+        ok = false;
+      } else if (role === "fallback" && env === "prod" && adapter.kind === "synthetic") {
+        out.error(at, "R3", `names "${id}", a synthetic adapter; synthetic spend exists only in dev`, "FR-036");
+        ok = false;
+      } else if (role === "fallback" && adapter.kind === "local") {
+        const wanted = env === "prod" ? "paid" : "synthetic";
+        out.error(at, "R11", `names "${id}", a local adapter; ${env}'s fallback must be a ${wanted} adapter`);
+        ok = false;
+      }
+    }
+    return ok;
+  };
+  /** A primary-and-fallback route at `path`, or undefined with its errors reported. */
+  const plainRoute = (env: EnvClass, value: unknown, path: string[]): Route | undefined => {
+    if (isMapping(value) && ("first" in value || "second" in value)) {
+      out.error(path.join("."), "R1", "a route with first exists only as envs.prod.hosts.ec2", "FR-067");
+      return undefined;
+    }
+    const route = check(out, ROUTE, value, path, R11);
+    if (route === undefined) return undefined;
+    const ok = checkRoles(
+      env,
+      path.join("."),
+      [
+        ["primary", route.primary],
+        ["fallback", route.fallback],
+      ],
+      false,
+    );
+    if (!ok) return undefined;
+    return route.fallback === undefined
+      ? { primary: route.primary }
+      : { primary: route.primary, fallback: route.fallback };
+  };
   if (!isMapping(data.envs)) {
     out.error("envs", "R11", present(data, ["envs"]) ? "must be a mapping" : "is required");
   } else {
@@ -306,51 +386,53 @@ export function validateRouting(
     if (keys.length !== 2 || keys[0] !== "dev" || keys[1] !== "prod") {
       out.error("envs", "R10", "must have exactly the keys prod and dev");
     }
-    for (const env of ENV_CLASSES) {
-      if (!(env in data.envs)) continue;
-      const route = check(out, ROUTE, data.envs[env], ["envs", env], R11);
-      if (route === undefined) continue;
-      let ok = true;
-      for (const role of ["primary", "fallback"] as const) {
-        const id = route[role];
-        if (id === undefined) continue;
-        const at = `envs.${env}.${role}`;
-        if (!defined.has(id)) {
-          out.error(at, "R4", `names "${id}", which isn't defined under adapters`);
-          ok = false;
-          continue;
-        }
-        const adapter = adapters.get(id);
-        if (adapter === undefined) {
-          ok = false; // its own errors are already reported
-          continue;
-        }
-        if (role === "primary" && adapter.kind !== "local") {
-          out.error(at, "R1", `names "${id}", a ${adapter.kind} adapter; every primary must be local`, "FR-022");
-          ok = false;
-        } else if (role === "fallback" && env === "dev" && adapter.kind === "paid") {
-          out.error(
-            at,
-            "R2",
-            `names "${id}", a paid adapter; a paid adapter may be routed only in envs.prod`,
-            "FR-031",
-          );
-          ok = false;
-        } else if (role === "fallback" && env === "prod" && adapter.kind === "synthetic") {
-          out.error(at, "R3", `names "${id}", a synthetic adapter; synthetic spend exists only in dev`, "FR-036");
-          ok = false;
-        } else if (role === "fallback" && adapter.kind === "local") {
-          const wanted = env === "prod" ? "paid" : "synthetic";
-          out.error(at, "R11", `names "${id}", a local adapter; ${env}'s fallback must be a ${wanted} adapter`);
-          ok = false;
+    if ("dev" in data.envs) {
+      const dev = plainRoute("dev", data.envs.dev, ["envs", "dev"]);
+      if (dev !== undefined) routes.dev = dev;
+    }
+    const prod = data.envs.prod;
+    if (schema === 2 && "prod" in data.envs) {
+      if (!isMapping(prod) || Object.keys(prod).join(",") !== "hosts" || !isMapping(prod.hosts)) {
+        out.error("envs.prod", "H1", "with schema 2, envs.prod holds hosts, and nothing else", "FR-067");
+      } else {
+        const names = Object.keys(prod.hosts);
+        if (!names.includes("laptop") || names.some((n) => !HOST_NAMES.includes(n as HostName))) {
+          out.error("envs.prod.hosts", "H1", "holds laptop, may hold ec2, and holds no other host", "FR-067");
+        } else {
+          hosts = {};
+          const laptop = plainRoute("prod", prod.hosts.laptop, ["envs", "prod", "hosts", "laptop"]);
+          if (laptop !== undefined) hosts.laptop = laptop;
+          if ("ec2" in prod.hosts) {
+            const raw = prod.hosts.ec2;
+            if (isMapping(raw) && ("primary" in raw || "fallback" in raw)) {
+              out.error("envs.prod.hosts.ec2", "R1", "EC2's route names first and second, never a primary", "FR-067");
+            } else {
+              const ec2 = check(out, PAID_ROUTE, raw, ["envs", "prod", "hosts", "ec2"], R11);
+              if (
+                ec2 !== undefined &&
+                checkRoles(
+                  "prod",
+                  "envs.prod.hosts.ec2",
+                  [
+                    ["first", ec2.first],
+                    ["second", ec2.second],
+                  ],
+                  true,
+                )
+              ) {
+                hosts.ec2 =
+                  ec2.second === undefined
+                    ? { primary: ec2.first, paid: true }
+                    : { primary: ec2.first, fallback: ec2.second, paid: true };
+              }
+            }
+          }
+          if (hosts.laptop !== undefined) routes.prod = hosts.laptop;
         }
       }
-      if (ok) {
-        routes[env] =
-          route.fallback === undefined
-            ? { primary: route.primary }
-            : { primary: route.primary, fallback: route.fallback };
-      }
+    } else if ("prod" in data.envs) {
+      const route = plainRoute("prod", prod, ["envs", "prod"]);
+      if (route !== undefined) routes.prod = route;
     }
   }
 
@@ -359,8 +441,7 @@ export function validateRouting(
   // attempt of the fallback's twin_request_ms (local 10,000 + 500 + 9,000 = 19,500 in the committed file).
   if (deadlineMs !== undefined) {
     let needed = 0;
-    for (const env of ENV_CLASSES) {
-      const route = routes[env];
+    for (const route of [...ENV_CLASSES.map((env) => routes[env]), hosts?.ec2]) {
       const primary = route && adapters.get(route.primary);
       if (!route || !primary) continue;
       let n = primary.spec.timing(primary.settings).requestMs + 500;
@@ -378,7 +459,12 @@ export function validateRouting(
   }
 
   // Placeholders: a NOTE each; a route that uses one refuses to start (checkStartup).
-  const routed = new Set(Object.values(routes).flatMap((r) => [r.primary, r.fallback]));
+  const routed = new Set(
+    [...Object.values(routes), ...(hosts?.ec2 === undefined ? [] : [hosts.ec2])].flatMap((r) => [
+      r.primary,
+      r.fallback,
+    ]),
+  );
   for (const adapter of adapters.values()) {
     for (const path of adapter.placeholders) {
       out.note(
@@ -393,7 +479,15 @@ export function validateRouting(
 
   if (out.failed || deadlineMs === undefined || !routes.prod || !routes.dev) return { issues: out.issues };
   return {
-    value: { deadlineMs, adapters, envs: { prod: routes.prod, dev: routes.dev }, sha256: parsed.sha256 },
+    value: {
+      deadlineMs,
+      adapters,
+      envs: { prod: routes.prod, dev: routes.dev },
+      ...(hosts === undefined
+        ? {}
+        : { hosts: hosts.ec2 === undefined ? { laptop: routes.prod } : { laptop: routes.prod, ec2: hosts.ec2 } }),
+      sha256: parsed.sha256,
+    },
     issues: out.issues,
   };
 }
@@ -1136,6 +1230,27 @@ export interface StartupRefusal {
   message: string;
 }
 
+/** H4_HOST=ec2 while the file names no EC2 route (rule H1): exit 78, route_missing. */
+export class RouteMissingError extends Error {
+  readonly exitCode = 78;
+  readonly reason = "route_missing";
+}
+
+/**
+ * Rule H2 (spec 001 data-model.md §2.1): the routing as this host's gateway runs it, with envs.prod the host's own
+ * route. The laptop's is envs.prod already; EC2's is envs.prod.hosts.ec2, and without it EC2 refuses to start.
+ */
+export function routingForHost(routing: RoutingConfig, host: HostName): RoutingConfig {
+  if (host === "laptop") return routing;
+  const ec2 = routing.hosts?.ec2;
+  if (ec2 === undefined) {
+    throw new RouteMissingError(
+      "H4_HOST=ec2, and config/routing.yaml names no envs.prod.hosts.ec2: EC2's route is the Author's line (route_missing)",
+    );
+  }
+  return { ...routing, envs: { ...routing.envs, prod: ec2 } };
+}
+
 /** The route H4_ENV selects: prod for prod, dev for dev and dev-cpu. */
 export function routeFor(routing: RoutingConfig, env: EnvClass): AdapterConfig[] {
   const route = routing.envs[env];
@@ -1155,7 +1270,17 @@ export function checkStartup(
   const envClass = env.H4_ENV;
   if (envClass !== "prod" && envClass !== "dev") return []; // validate-env.ts refuses it
   const refusals: StartupRefusal[] = [];
-  const route = routeFor(config.routing, envClass);
+  // Spec 001's rule H2: EC2's gateway runs EC2's route, and refuses to start without one.
+  let routing = config.routing;
+  if (env.H4_HOST === "ec2") {
+    try {
+      routing = routingForHost(config.routing, "ec2");
+    } catch (err) {
+      if (!(err instanceof RouteMissingError)) throw err;
+      return [{ reason: err.reason, path: "config/routing.yaml: envs.prod.hosts.ec2", message: err.message }];
+    }
+  }
+  const route = routeFor(routing, envClass);
   for (const adapter of route) {
     const at = `config/routing.yaml: adapters.${adapter.id}`;
     if (adapter.kind === "paid" && envClass !== "prod") {
