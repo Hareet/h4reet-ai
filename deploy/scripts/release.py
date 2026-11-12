@@ -52,6 +52,8 @@ BUILDS = {
     "gateway": ("services/gateway/Dockerfile", "h4reet/gateway"),
     "web": ("apps/web/Dockerfile", "h4reet/web"),
     "tunnel-end": ("deploy/tunnel/Dockerfile", "h4reet/tunnel"),
+    # Group 8: the relay, on the tunnel end, from the repository root as the gateway's is.
+    "relay": ("services/relay/Dockerfile", "h4reet/relay"),
 }
 # A copy's lock line, where it isn't its own name; and its repository, where that isn't its own name.
 LOCK_LINES = {

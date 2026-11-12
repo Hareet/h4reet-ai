@@ -872,6 +872,112 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # The relay (spec 001 contracts/relay-http.md; the Author's answer to the plan's question 1, "Relay picks the host"),
+  # in the tunnel end's class: the edge listener on the private interface's fixed address, for CloudFront's VPC origin
+  # alone; the internal listener on the tunnel end's 127.0.0.1:18505, for the Author's session and the snapshot sink;
+  # and its own health on 8082, unpublished. Its image is the release's, by the release's digest. It picks the host:
+  # the laptop through the tunnel's reverse forward, tunnel-end:2201, while healthy, else EC2 at its private address,
+  # else none. It reads the kill switch as relay_ro and writes handovers as relay_rw, over TLS to shared-state. The
+  # refused peers, the hosts' addresses, and the roles are literals here, so no env file can move them; the tokens,
+  # the two passwords, and the shared state's CA come from the env file write_env.py writes. It joins edge, an ordinary
+  # bridge, since a port can't be published from internal alone; the tunnel end's nftables keep it inside the VPC.
+  relay:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}"
+    user: "1000:1000"
+    environment:
+      H4_STACK: "${H4_STACK}"
+      RELAY_LAPTOP_URL: http://tunnel-end:2201
+      RELAY_EC2_URL: http://10.42.0.20:8085
+      RELAY_TOKEN_LAPTOP: "${RELAY_TOKEN_LAPTOP:-}"
+      RELAY_TOKEN_EC2: "${RELAY_TOKEN_EC2:-}"
+      # Loopback, the daemon's address pool (deploy/hosts/tunnel-end/daemon.json), and the tunnel end's own two.
+      RELAY_REFUSED_PEERS: "127.0.0.0/8,::1/128,172.30.0.0/16,10.42.0.10/32,10.42.1.10/32"
+      RELAY_DB_HOST: shared-state
+      RELAY_DB_PORT: "5432"
+      RELAY_DB_NAME: h4reet
+      RELAY_DB_RO_USER: relay_ro
+      RELAY_DB_RO_PASSWORD: "${DB_RELAY_RO_PASSWORD:-}"
+      RELAY_DB_RW_USER: relay_rw
+      RELAY_DB_RW_PASSWORD: "${DB_RELAY_RW_PASSWORD:-}"
+      RELAY_DB_TLS_CA: "${SHARED_STATE_TLS_CA:-}"
+      RELAY_DB_TLS_SERVERNAME: shared-state
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tunnel-end-collector:4318
+      OTEL_SERVICE_NAME: relay
+      OTEL_RESOURCE_ATTRIBUTES: "h4.host=tunnel-end,h4.stack=${H4_STACK}"
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:8080:8080"
+      - "127.0.0.1:18505:8081"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/config/budgets.yaml"
+        target: /app/config/budgets.yaml
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8082/health/live').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
+  # The relay on dev and dev-cpu (spec 001 contracts/env-cloud.md §3; tasks.md T099), for the kill-switch rehearsal:
+  # the same code, built from this file's own tree, in the dev-relay profile, which no env file selects, so make up
+  # never starts it; the rehearsal starts it beside the stack and removes it after. It publishes nothing and joins
+  # internal alone: the breach probe reaches it there. Its one host is the stack's own gateway, whose serving check
+  # it reads directly, since dev's relay block has no token; it reads the kill switch as grafana_ro, the store's
+  # read-only role, and records no handover. Its public cap is config/budgets.yaml's, the Author's figures, so it
+  # starts only once P-6 holds them (ADR 0029).
+  dev-relay:
+    <<: *service
+    profiles: [dev-relay]
+    build:
+      context: ..
+      dockerfile: services/relay/Dockerfile
+      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
+      args:
+        HTTP_PROXY: "${H4_BUILD_PROXY}"
+        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    user: "1000:1000"
+    environment:
+      H4_STACK: "${H4_STACK}"
+      RELAY_LAPTOP_URL: http://gateway:8080
+      RELAY_HEALTH_PATH: /health/serving
+      RELAY_REFUSED_PEERS: "127.0.0.0/8,::1/128"
+      RELAY_DB_HOST: gateway-state
+      RELAY_DB_PORT: "5432"
+      RELAY_DB_NAME: gateway
+      RELAY_DB_RO_USER: grafana_ro
+      RELAY_DB_RO_PASSWORD: "${GATEWAY_GRAFANA_RO_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: relay
+      OTEL_RESOURCE_ATTRIBUTES: "h4.host=laptop,h4.stack=${H4_STACK}"
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/config/budgets.yaml"
+        target: /app/config/budgets.yaml
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
   # EC2's two doors from the tunnel end (spec 001 contracts/tunnel.md §4; contracts/env-cloud.md §3), in EC2's `ec2`
   # class: the relay block, edge's 8085, for the tunnel end's relay, and EC2's collector's OTLP/HTTP, 4318, for the
   # tunnel end's collector and the host's own deployer, forwarded byte for byte by nginx's stream module, with edge's

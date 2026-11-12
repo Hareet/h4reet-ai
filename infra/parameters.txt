@@ -21,6 +21,10 @@
 /h4reet/tunnel-end/RELAY_TOKEN_EC2 SecureString
 /h4reet/tunnel-end/SNAPSHOT_SINK_TOKEN SecureString
 /h4reet/tunnel-end/TELEMETRY_BLOCK_TOKEN SecureString
+# Group 8: the relay's two roles on the shared state (contracts/shared-state.md §2), which write_env.py puts in the
+# tunnel end's env file, and which the Author's roles target sets as verifiers.
+/h4reet/tunnel-end/DB_RELAY_RO_PASSWORD SecureString
+/h4reet/tunnel-end/DB_RELAY_RW_PASSWORD SecureString
 /h4reet/ec2/RELAY_TOKEN_SELF SecureString
 /h4reet/ec2/SNAPSHOT_SINK_TOKEN SecureString
 /h4reet/hosts/RELEASE_BUCKET String

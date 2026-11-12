@@ -678,7 +678,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T098 [P] [US3] Write `services/relay/test/**`, contracts/relay-http.md's suite, with stub hosts and a stub store:
+- [x] T098 [P] [US3] Write `services/relay/test/**`, contracts/relay-http.md's suite, with stub hosts and a stub store:
   - the listeners and the peer rule;
   - the order of §3: the probe mark, the address, the cap, the kill switch's 10 s rule, the host, the forward and its headers;
   - the cap sized from a `public` section in a test fixture, and a refusal to start while the section is missing or a figure is blank;
@@ -713,13 +713,13 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Implementation
 
-- [ ] T105 [US3] Write P-6 as `docs/merge-requests/<date>-feat-001-p6-public-cap.patch`, before the relay's code: `config/budgets.yaml`'s new `public` section, with keys for the per-address requests a minute, burst, and requests a day, and the global in-flight limit, each figure left blank and marked as the Author's (FR-033; plan §14). The ADR for the public cap (T007) names it. Check: the patch applies to a fresh export; on a patched copy, the gateway's validator refuses the blank figures, naming each key (feat/001-us3-us5-edge)
-- [ ] T106 [US3] Write `services/relay/` (Fastify on Node 24, a second npm workspace, the gateway's pins), and `relay` in compose's `tunnel-end` and `dev-relay` profiles. Make the gateway's validator accept the `public` section. Add the relay's spans and metrics (`relay.request`, `h4.relay.host`, `h4.relay.requests`, `h4.relay.host_healthy`, `h4.serving_host`, `h4.cap.refused`, `h4.handover.events`, `h4.handover.gap_seconds`). Check: T098 and T099 pass, with test figures in the tests' own fixtures (FR-060) (feat/001-us3-us5-edge)
+- [x] T105 [US3] Write P-6 as `docs/merge-requests/<date>-feat-001-p6-public-cap.patch`, before the relay's code: `config/budgets.yaml`'s new `public` section, with keys for the per-address requests a minute, burst, and requests a day, and the global in-flight limit, each figure left blank and marked as the Author's (FR-033; plan §14). The ADR for the public cap (T007) names it. Check: the patch applies to a fresh export; on a patched copy, the gateway's validator refuses the blank figures, naming each key (feat/001-us3-us5-edge)
+- [x] T106 [US3] Write `services/relay/` (Fastify on Node 24, a second npm workspace, the gateway's pins), and `relay` in compose's `tunnel-end` and `dev-relay` profiles. Make the gateway's validator accept the `public` section. Add the relay's spans and metrics (`relay.request`, `h4.relay.host`, `h4.relay.requests`, `h4.relay.host_healthy`, `h4.serving_host`, `h4.cap.refused`, `h4.handover.events`, `h4.handover.gap_seconds`). Check: T098 and T099 pass, with test figures in the tests' own fixtures (FR-060) (feat/001-us3-us5-edge)
 - [ ] T107 [US3] Write `infra/prod/{edge,dns,site}.tf`. Write P-I5: CloudFront's policies in `infra/prod/edge-limits.tf`, which rule T5 protects, and the one line in `infra/account/alerts.tf` that enables the probe's schedule. Check: on a patched copy, T104 passes, and `make infra-check` passes (feat/001-us3-us5-edge)
   - **From W1:** the resources T104 names wait behind the switches. The probe's line reads `local.wired`, so P-I5 enables nothing in W1, and P-W2 enables it in W2. `infra/prod/edge.tf` is under spec 000's protected names, so it's in P-I5 too (plan.md §16, "Groups 1 to 4, as one branch", 6).
 - [ ] T108 [US5] Change `apps/web`: the status page's links, the disclosure page's new rows, and `/_degraded/api.json` built from spec 000's schema. Amend spec 002's contract §3 by name, with the tier mapping. Check: T100 and T103 pass (feat/001-us3-us5-edge)
 - [ ] T109 [P] [US5] Write the visitor scan, and the red-team runner's support for the four adapters. Check: T101 and T102 pass (feat/001-us3-us5-edge)
-- [ ] T110 [P] [US3] Add the relay's panels to the "Hosts" row: which host serves (a state timeline), the handovers and their gaps (from `v_handovers`), the relay's requests by host and outcome, and the cap's refusals (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us3-us5-edge)
+- [x] T110 [P] [US3] Add the relay's panels to the "Hosts" row: which host serves (a state timeline), the handovers and their gaps (from `v_handovers`), the relay's requests by host and outcome, and the cap's refusals (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-us3-us5-edge)
 - [ ] T111 [P] [US5] Add the disclosure rows V1, V2's path, V4, V6 to V9, C1, C14, and S15, in the same commit as T106 and T107. Check: `disclosure_check` passes (FR-040) (feat/001-us3-us5-edge)
 
 ### The tunnel end, measured, and the new lines priced (W1)

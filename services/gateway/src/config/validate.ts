@@ -759,7 +759,28 @@ export interface Budgets {
     /** The twin's per-turn limits (spec 007, FR-027; Amendment 0-2): optional, the Author's patch P-2 sets them. */
     readonly twin?: TwinLimits;
   };
+  /** The relay's public request cap (spec 001 FR-033; ADR 0029): optional here, the Author's patch P-6 sets it, and
+   *  the relay, which enforces it, refuses to start without it. The gateway only validates it (rule B10). */
+  readonly public?: PublicCapLimits;
 }
+
+/** public (spec 001, FR-033): per address, the requests a minute, the burst, and the requests a UTC day; and the
+ *  requests in flight across every address. */
+export interface PublicCapLimits {
+  readonly requestsPerMinute: number;
+  readonly burst: number;
+  readonly requestsPerDay: number;
+  readonly inFlight: number;
+}
+
+/** The public section's keys and each figure's bounds, which the relay holds them to as well
+ *  (services/relay/src/config.ts). */
+const PUBLIC_FIGURES = [
+  ["per_address", "requests_per_minute", 1, 600],
+  ["per_address", "burst", 1, 600],
+  ["per_address", "requests_per_day", 1, 100_000],
+  ["global", "in_flight", 1, 256],
+] as const;
 
 /** limits.twin (spec 007, FR-027): a visitor turn's characters, the turns and characters of conversation a request
  *  carries, a twin call's input bound (its reservation's too), and its output cap. */
@@ -848,7 +869,56 @@ const BUDGETS_TOP = z.strictObject({
       })
       .optional(),
   }),
+  // Spec 001's P-6: optional; its keys and figures are rule B10, checked below, so a blank figure is named.
+  public: z.unknown().optional(),
 });
+
+/** Rule B10 (spec 001, FR-033): the public section's four figures, each a whole number in its bounds, never blank. */
+function validatePublic(out: Findings, section: unknown): PublicCapLimits | undefined {
+  const isMap = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+  if (!isMap(section)) {
+    out.error("public", "B10", "must be a mapping with per_address and global", "FR-033");
+    return undefined;
+  }
+  for (const key of Object.keys(section)) {
+    if (key !== "per_address" && key !== "global") out.error(`public.${key}`, "B10", "isn't a key of public");
+  }
+  for (const group of ["per_address", "global"] as const) {
+    const parent = section[group];
+    if (parent !== undefined && parent !== null && !isMap(parent))
+      out.error(`public.${group}`, "B10", "must be a mapping");
+    if (!isMap(parent)) continue;
+    const known: readonly string[] = PUBLIC_FIGURES.filter(([g]) => g === group).map(([, k]) => k);
+    for (const key of Object.keys(parent)) {
+      if (!known.includes(key)) out.error(`public.${group}.${key}`, "B10", "isn't a key of public");
+    }
+  }
+  const values: number[] = [];
+  for (const [group, key, min, max] of PUBLIC_FIGURES) {
+    const parent = section[group];
+    const value = isMap(parent) ? parent[key] : undefined;
+    const path = `public.${group}.${key}`;
+    if (value === undefined || value === null || value === "") {
+      out.error(path, "B10", "is blank: the Author's figure (P-6), which the relay needs to start", "FR-033");
+    } else if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+      out.error(path, "B10", `must be a whole number from ${min} to ${max}`, "FR-033");
+    } else {
+      values.push(value);
+    }
+  }
+  if (values.length !== PUBLIC_FIGURES.length) return undefined;
+  const [requestsPerMinute = 0, burst = 0, requestsPerDay = 0, inFlight = 0] = values;
+  let ok = true;
+  if (burst > requestsPerMinute) {
+    out.error("public.per_address.burst", "B10", "must be at most requests_per_minute");
+    ok = false;
+  }
+  if (requestsPerDay < requestsPerMinute) {
+    out.error("public.per_address.requests_per_day", "B10", "must be at least requests_per_minute");
+    ok = false;
+  }
+  return ok ? { requestsPerMinute, burst, requestsPerDay, inFlight } : undefined;
+}
 
 /** Two envs' adapter caps, the same adapters at the same caps (B8 holds them too). */
 function sameCaps(a: ReadonlyMap<string, bigint> = new Map(), b: ReadonlyMap<string, bigint> = new Map()): boolean {
@@ -960,9 +1030,12 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
     out.error("limits.twin.max_output_tokens", "B5", "must be at most limits.per_call.max_output_tokens");
   }
 
+  const publicCap = doc.public === undefined ? undefined : validatePublic(out, doc.public);
+
   if (out.failed || !prod || !dev) return { issues: out.issues };
   return {
     value: {
+      ...(publicCap === undefined ? {} : { public: publicCap }),
       timing: { timezone: "UTC", reservationTtlS: doc.timing.reservation_ttl_s },
       envs: { prod, dev },
       limits: {

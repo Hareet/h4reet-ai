@@ -4675,13 +4675,255 @@
       }
     },
     {
+      "type": "state-timeline",
+      "id": 96,
+      "title": "Which host serves",
+      "description": "The host the relay on the tunnel end sends visitors to: the laptop while it is healthy, else EC2, else none, in red (spec 001 FR-054, FR-060; contracts/relay-http.md §4, §9).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 182,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max by (h4_relay_host) (h4_serving_host)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_relay_host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": " ",
+                  "color": "transparent",
+                  "index": 0
+                },
+                "1": {
+                  "text": "serving",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "none"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 97,
+      "title": "Handovers and their gaps",
+      "description": "Each change of serving host the relay recorded, its reason, and the time no host served on a move out of none, straight from the shared state through grafana_ro (gateway.v_handovers: no address or client), so it still answers when telemetry is down (spec 001 SC-007, SC-016; data-model.md §1.2).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "gateway"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 182,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "gateway"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT at AS \"time\", from_host, to_host, reason, gap_ms / 1000.0 AS gap_s FROM gateway.v_handovers ORDER BY at DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 98,
+      "title": "The relay's requests by host and outcome",
+      "description": "The relay's requests a second, by the host it sent each to (or none) and how each ended: answered, degraded, refused, or a status request; never by address (spec 001 FR-060; contracts/relay-http.md §9).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 189,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_relay_host, h4_relay_outcome) (rate(h4_relay_requests_total[5m]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_relay_host}} {{h4_relay_outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 99,
+      "title": "The public cap's refusals",
+      "description": "Requests the relay's public cap refused in each hour, by its limit: per minute, per day, or in flight across every address; never by address (spec 001 FR-033; ADR 0029).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 189,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_cap_limit) (increase(h4_cap_refused_total[1h]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_cap_limit}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "type": "row",
       "id": 49,
       "title": "Studio GPU windows",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 183,
+        "y": 197,
         "w": 24,
         "h": 1
       },
@@ -4698,7 +4940,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 184,
+        "y": 198,
         "w": 24,
         "h": 6
       },
@@ -4787,7 +5029,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 191,
+        "y": 205,
         "w": 24,
         "h": 1
       },
@@ -4804,7 +5046,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 192,
+        "y": 206,
         "w": 10,
         "h": 7
       },
@@ -4863,7 +5105,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 192,
+        "y": 206,
         "w": 4,
         "h": 7
       },
@@ -4917,7 +5159,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 192,
+        "y": 206,
         "w": 10,
         "h": 7
       },
@@ -4983,7 +5225,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 199,
+        "y": 213,
         "w": 4,
         "h": 7
       },
@@ -5037,7 +5279,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 199,
+        "y": 213,
         "w": 8,
         "h": 7
       },
@@ -5103,7 +5345,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 199,
+        "y": 213,
         "w": 12,
         "h": 7
       },
