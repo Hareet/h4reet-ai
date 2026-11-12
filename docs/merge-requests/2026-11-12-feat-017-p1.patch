@@ -14,6 +14,15 @@ FR-016 (the example copy at deploy/night-shift/containers/), FR-036, and the Ass
 
 Needed for: the merge of feat/017-the-night-shift (plan.md §10). Apply it before P-5, whose matrix rows prove it.
 
+WHEN: only on a branch that already holds feat/017's deploy/night-shift/ (or on main after feat/017 merges), never on
+main before. A sandbox denyWrite entry for a path that doesn't exist makes Claude Code leave an empty, read-only
+(0444) placeholder file at that path in the checkout, here a file named deploy/night-shift, which would then block
+the merge that brings the folder. To check for one, and remove it, in your terminal (one line each):
+  P=deploy/night-shift
+  test -f "$P" && ! test -s "$P" && echo stray
+  rm -f -- "$P"
+Run the rm only when the test printed "stray": a placeholder is an empty regular file; the real one is a folder.
+
 How to apply, on your own branch, from the repository's root (one line each):
   B=feat/017-g5-patches
   F=docs/merge-requests/2026-11-12-feat-017-p1.patch

@@ -4,17 +4,29 @@ h4-agent-plan, the plan-only role a night-shift plan runs as.
 What it adds (FR-032):
   - local.plan_permission_set = "<ADMIN_PERMISSION_SET>", in iam.tf's locals beside laptop_permission_set. The
     repository doesn't hold your administrator permission set's name (spec 001's plan.md notes the same, for the
-    state bucket's administrator-only clause), so
-    write it there before you apply: IAM Identity Center, Permission sets, the one your h4reet-admin profile signs in
-    with. Until you do, the role's precondition refuses the account root's plan, naming the local. A wrong name admits
-    no one; it can't lock you out of anything.
+    state bucket's administrator-only clause), so write it there before you apply: IAM Identity Center, Multi-account
+    permissions, Permission sets, the one your h4reet-admin profile signs in with. Until you do, the role's
+    precondition refuses the account root's plan, and its message says where to find the name. A wrong name admits no
+    one; it can't lock you out of anything.
   - its trust: only that set's role, AWSReservedSSO_<set>_<16 characters> under Identity Center's path (and with a
     Region's segment), by the pattern h4-laptop-bedrock's trust uses; sts:AssumeRole; max_session_duration 3600.
-  - its permissions: AWS's ReadOnlyAccess, attached alone; an explicit deny of ssm:GetParameter, GetParameters,
-    GetParametersByPath, GetParameterHistory, secretsmanager:GetSecretValue, and BatchGetSecretValue on "*" (IAM has no
-    condition key for a parameter read's decryption, so the deny takes every value read; Terraform here reads none,
-    rule T9); and s3:PutObject and s3:DeleteObject on arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock only. The bucket's
-    suffix is yours and isn't in the account root, so the grant names the bootstrap's bucket prefix.
+  - its permissions: AWS's ReadOnlyAccess, attached alone, and these explicit denies, so a plan reads resources'
+    settings and the state, and no data's contents:
+      - ssm:GetParameter, GetParameters, GetParametersByPath, GetParameterHistory, secretsmanager:GetSecretValue and
+        BatchGetSecretValue on "*" (IAM has no condition key for a parameter read's decryption, so the deny takes every
+        value read; Terraform here reads none, rule T9);
+      - logs:GetLogEvents, FilterLogEvents, GetLogRecord, StartQuery, GetQueryResults, StartLiveTail on "*";
+      - ce:* on every resource but arn:aws:ce::<account>:anomalymonitor/* and anomalysubscription/*, and
+        ce:GetAnomalies on "*". The carve-out is the one read the roots need: the bootstrap's aws_ce_anomaly_monitor
+        and aws_ce_anomaly_subscription refresh through ce:GetAnomalyMonitors, GetAnomalySubscriptions, and
+        ListTagsForResource on those ARNs. Unconfirmed until the first plan of the bootstrap under the role (the
+        rehearsal's R5): that AWS authorizes those reads against the resources' ARNs. A refusal names the action;
+      - s3:GetObject and GetObjectVersion on every object but arn:aws:s3:::h4reet-ai-tfstate-*/* (the state);
+    and the one grant, s3:PutObject and s3:DeleteObject on arn:aws:s3:::h4reet-ai-tfstate-*/*.tflock only. The
+    bucket's suffix is yours and isn't in the account root, so both name the bootstrap's bucket prefix. No data source
+    in either root reads a log event, a cost figure, or an object (they are aws_caller_identity, aws_iam_policy_document,
+    aws_ami, aws_sns_topic, aws_ssoadmin_instances, aws_ssoadmin_permission_set), and no resource's refresh reads an
+    object or a log event.
   - its tags: component agent-plan, with project and environment from the provider's default_tags.
   - the file's header comment names it.
 Your apply, then: a profile for the runner (PLAN_AWS_PROFILE) whose role_arn is h4-agent-plan and whose source is your
@@ -24,7 +36,7 @@ Spec IDs: decision 1, FR-032, his Q4 answer taken as recommended (the plan takes
 the Assumptions' named deviation of Principle IV (an agent's command gets cloud access through a role assumed from his
 SSO identity; ADR 0051).
 
-Needed for: plan on. Not for the merge.
+Needed for: plan on. Not for the merge: until you apply it, the branch's tests read iam.tf from this patch.
 
 How to apply, on your own branch, from the repository's root (one line each):
   B=feat/017-g5-patches
@@ -37,9 +49,9 @@ Then write the set's name in infra/account/iam.tf, plan the account root as you 
 
 Verified on a fresh `git archive refs/heads/main` export (main d4870ec8), with the branch's infra/test/test_account.py
 and infra/test/fixtures/account-plan/ (T062, agent-written, committed RED first) copied in: dry run and apply clean;
-`pytest infra/test/`: 136 passed (in the branch's worktree, without this patch: 10 failed, 79 passed in
-test_account.py); `tools/gates/infra_policy.py`: "infra-policy: PASS, 15 files"; `terraform fmt -check` on iam.tf:
-clean. Not run here: terraform validate and plan, which need your provider mirror and your session.
+`pytest infra/test/`: 141 passed (in the branch's worktree, against this patch's previous version, which lacked the
+new denies: 14 failed, 127 passed); `tools/gates/infra_policy.py`: "infra-policy: PASS, 15 files"; `terraform fmt
+-check` on iam.tf: clean. Not run here: terraform validate and plan, which need your provider mirror and your session.
 
 --- a/infra/account/iam.tf
 +++ b/infra/account/iam.tf
@@ -67,7 +79,7 @@ clean. Not run here: terraform validate and plan, which need your provider mirro
  }
  
  data "aws_ssoadmin_instances" "this" {}
-@@ -183,6 +189,93 @@
+@@ -183,6 +189,137 @@
  }
  
  # ----------------------------------------------------------------------------------------------------------------------
@@ -101,9 +113,15 @@ clean. Not run here: terraform validate and plan, which need your provider mirro
 +  }
 +}
 +
++# A plan reads resources' settings and the state, and no data's contents, so ReadOnlyAccess's content reads are denied:
++# log events (and Logs Insights' queries), Cost Explorer's figures, and every object but the state's. The roots' data
++# sources read none of these; their refresh reads Cost Explorer's anomaly monitor and subscription (the bootstrap's),
++# so ce:* is denied on every resource but those two, and ce:GetAnomalies, which takes a monitor, on its own. The
++# carve-out assumes AWS authorizes those reads against the monitor's and the subscription's ARNs; the first plan of the
++# bootstrap under the role (the rehearsal's R5) says, and a refusal names the action.
 +# The bootstrap's state bucket is h4reet-ai-tfstate-<suffix>, and the suffix is the Author's, never in this root (its
-+# variable is denied to agent sessions), so the lock files are named by the bucket's prefix: S3's lock file for each
-+# root's state is <key>.tflock.
++# variable is denied to agent sessions), so the state and its lock files are named by the bucket's prefix: S3's lock
++# file for each root's state is <key>.tflock.
 +data "aws_iam_policy_document" "agent_plan" {
 +  statement {
 +    sid    = "NoParameterOrSecretValue"
@@ -117,6 +135,44 @@ clean. Not run here: terraform validate and plan, which need your provider mirro
 +      "secretsmanager:BatchGetSecretValue",
 +    ]
 +    resources = ["*"]
++  }
++
++  statement {
++    sid    = "NoLogEvents"
++    effect = "Deny"
++    actions = [
++      "logs:GetLogEvents",
++      "logs:FilterLogEvents",
++      "logs:GetLogRecord",
++      "logs:StartQuery",
++      "logs:GetQueryResults",
++      "logs:StartLiveTail",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid     = "NoCostFiguresButTheAnomalyResources"
++    effect  = "Deny"
++    actions = ["ce:*"]
++    not_resources = [
++      "arn:aws:ce::${data.aws_caller_identity.current.account_id}:anomalymonitor/*",
++      "arn:aws:ce::${data.aws_caller_identity.current.account_id}:anomalysubscription/*",
++    ]
++  }
++
++  statement {
++    sid       = "NoAnomalyFigures"
++    effect    = "Deny"
++    actions   = ["ce:GetAnomalies"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid           = "NoObjectButTheState"
++    effect        = "Deny"
++    actions       = ["s3:GetObject", "s3:GetObjectVersion"]
++    not_resources = ["arn:aws:s3:::h4reet-ai-tfstate-*/*"]
 +  }
 +
 +  statement {
@@ -141,7 +197,7 @@ clean. Not run here: terraform validate and plan, which need your provider mirro
 +  lifecycle {
 +    precondition {
 +      condition     = can(regex("^[A-Za-z0-9+=,.@_-]{1,32}$", local.plan_permission_set))
-+      error_message = "local.plan_permission_set: write the Author's administrator permission set's name in iam.tf (spec 017 P-6)."
++      error_message = "local.plan_permission_set: write the name of the Author's administrator permission set, the one his h4reet-admin profile signs in with, in infra/account/iam.tf. IAM Identity Center lists it under Multi-account permissions, Permission sets (spec 017 P-6)."
 +    }
 +  }
 +}
