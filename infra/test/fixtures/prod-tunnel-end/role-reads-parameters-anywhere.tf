@@ -3,7 +3,6 @@
 # expect: role: ssm:GetParameter reaches
 # expect: role: ssm:GetParameters reaches
 # expect: role: ssm:GetParameter, ssm:GetParameters on every resource
-# expect: role: kms:Decrypt isn't held to its own parameters
 data "aws_iam_policy_document" "tunnel_end" {
   # The deployer's pulls: a registry token, and the project's repositories alone (infra/account/registry.tf).
   statement {

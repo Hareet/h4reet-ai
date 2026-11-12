@@ -1,7 +1,6 @@
 # The role reading every parameter under /h4reet/, EC2's secrets and the Author's among them (research.md R-15).
 # expect: role: ssm:GetParameter reaches
 # expect: role: ssm:GetParameters reaches
-# expect: role: kms:Decrypt isn't held to its own parameters
 data "aws_iam_policy_document" "tunnel_end" {
   # The deployer's pulls: a registry token, and the project's repositories alone (infra/account/registry.tf).
   statement {

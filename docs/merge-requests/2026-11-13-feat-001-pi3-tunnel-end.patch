@@ -12,7 +12,8 @@ What it holds:
       infra/prod/iam.tf         h4-prod-tunnel-end, its instance role: ECR pulls from h4reet/*, its Parameter Store
                                 paths, the release bucket's reads, sns:Publish on h4-alerts, each by a name-built ARN,
                                 and Session Manager's and Run Command's own actions inline, with no managed policy
-                                (group 5's review, I1: AmazonSSMManagedInstanceCore reads every parameter);
+                                (group 5's review, I1: AmazonSSMManagedInstanceCore reads every parameter), and
+                                kms:Decrypt held to its own parameters by Parameter Store's encryption context;
       infra/prod/handover.tf    prod's local.wired = false; h4-tunnel-end-spot-warning to h4-alerts, naming the tunnel
                                 end from this root; and h4-tunnel-end-running's h4-alerts target, tunnel_end_back
                                 (FR-076's return alert; group 5's review, "Missing");
@@ -489,7 +490,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +}
 --- /dev/null
 +++ b/infra/prod/iam.tf
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,174 @@
 +# The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
 +# provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
 +# it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
@@ -560,7 +561,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +    ]
 +  }
 +
-+  # Its SecureStrings, decrypted by Parameter Store alone, with this account's keys. AWS's aws/ssm key may grant this by
++  # Its SecureStrings, decrypted by Parameter Store alone, with this account's keys, for its own parameters alone. AWS's aws/ssm key may grant this by
 +  # its own key policy already; to confirm at T058, after which a later patch can drop the statement.
 +  statement {
 +    sid       = "DecryptThroughParameterStore"
@@ -572,6 +573,16 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +      test     = "StringEquals"
 +      variable = "kms:ViaService"
 +      values   = ["ssm.us-east-1.amazonaws.com"]
++    }
++
++    # Only for the parameters ItsParameters reads: Parameter Store names each SecureString in its encryption context.
++    condition {
++      test     = "StringLike"
++      variable = "kms:EncryptionContext:PARAMETER_ARN"
++      values = [
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++      ]
 +    }
 +  }
 +

@@ -182,7 +182,9 @@ def statements(doc) -> list[dict]:
         out.append(
             {
                 "effect": lit(st, "effect") or "Allow",
-                "actions": set(as_list(lit(st, "actions"))),
+                "actions": {
+                    a for a in as_list(lit(st, "actions")) if isinstance(a, str)
+                },
                 "resources": raw(st, "resources"),
                 "conditions": [
                     (lit(c, "test"), lit(c, "variable"), raw(c, "values"))

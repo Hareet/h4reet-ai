@@ -51,7 +51,16 @@ apply. Apply it on W1's -p branch after P-I3, with `patch -p1 < <this file>` at 
      ]
    }
  
-@@ -148,13 +154,24 @@
+@@ -89,6 +95,8 @@
+       values = [
+         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
+         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
+       ]
+     }
+   }
+@@ -158,13 +166,24 @@
      }
    }
  
