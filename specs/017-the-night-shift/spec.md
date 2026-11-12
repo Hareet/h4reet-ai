@@ -262,7 +262,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **FR-040**: THE studio agent SHALL launch and stop ComfyUI itself ("that should be done by the agents"), through a command policy that:
   - reads ComfyUI's install, its custom nodes, and its models, and writes none of them, so no weight or node can arrive (FR-030);
   - writes only ComfyUI's output folder (set to `/srv/studio/outputs`), its temp folder, and its user folder;
-  - listens only on `127.0.0.1` at its port, with no outbound connection, so neither ComfyUI-Manager nor a node can download;
+  - listens at its port only on the studio's own internal network (`h4-night-studio`, no route out). Inside its container that means `--listen 0.0.0.0`, since `127.0.0.1` there would be unreachable from the studio's container. There's no outbound connection, so neither ComfyUI-Manager nor a node can download. (Amended 2026-11-12 from "only on `127.0.0.1`", written before the container answer; G1's review);
   - has the GPU's paths.
 
   The launch parameters come from an allowlist in the studio's settings, seeded from the Author's own launch lines. A parameter outside it is refused and goes on the decision page. ComfyUI runs only while its task holds the GPU lock, and the runner stops it when the task ends.
