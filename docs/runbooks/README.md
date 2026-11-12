@@ -67,5 +67,6 @@ Spec 001's pages, each with the group that needs it. Its AWS-side alerts reach T
 | [aws-budget-action.md](aws-budget-action.md) | `model_action_executed`: the model action attached `h4-deny-paid-models` to the Bedrock roles; reversing it after the incident note |
 | [server-budget.md](server-budget.md) | `server_budget_warn`, `server_budget_reached`, `server_action_executed`, and `ec2_stopped_server_budget`: the server budget, its action, and its rehearsal |
 | [aws-anomaly.md](aws-anomaly.md) | `aws_anomaly`: Cost Anomaly Detection found spend of $1 or more it didn't expect |
-| [credential-audit.md](credential-audit.md) | `credential_finding`: a long-lived key, a foreign trust, or one of spec 001's identities wider than Terraform writes it; `make infra-verify` refusing with `credential_finding` |
+| [credential-audit.md](credential-audit.md) | `credential_finding`: a long-lived key, a foreign trust, or one of spec 001's identities wider than Terraform writes it; `make infra-verify` refusing with `credential_finding`; `credential_audit_failed`: the weekly run raised and wrote no result |
+| [alert-bridge.md](alert-bridge.md) | `alert_bridge_failed`: a notice the alert bridge couldn't send to Telegram waits in `h4-alert-bridge-failed`; replaying it |
 | [laptop.md](laptop.md) | the laptop's prod in the cloud's design: its Bedrock profile chained to `h4-laptop-bedrock`, and preflight P19's refusals of it |

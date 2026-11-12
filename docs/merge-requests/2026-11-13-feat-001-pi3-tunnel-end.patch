@@ -1,0 +1,262 @@
+P-I3, spec 001 group 5 (W1): the tunnel end's protected files, and gate A's backlog, for the Author's hand.
+
+Built from plain copies (git show bdb9808a:<path> for each file it changes, /dev/null for each it creates), edited,
+then diff -u with a/ and b/ labels; never git apply. Apply it on W1's -p branch with `patch -p1 < <this file>`, at
+the repository's root, and commit the result byte for byte (tasks.md T171, T172).
+
+What it holds:
+  - tasks.md T160: infra/bootstrap/alerts.tf, h4-alerts' policy lets CloudWatch's alarms and EventBridge publish, each
+    for this account alone (aws:SourceAccount), and grants nothing else;
+  - tasks.md T159: infra/account/alerts.tf, the alarms h4-credential-audit-errors and h4-alert-bridge-failed to
+    h4-alerts, missing data not breaching; infra/lambdas/alert_bridge/bridge.py and its test, which read each alarm's
+    ALARM as its kind; contracts/aws-alerts.md §2's two rows, which arrive with the bridge that knows them (the bridge's
+    test holds every kind there to a notice);
+--- a/infra/account/alerts.tf
++++ b/infra/account/alerts.tf
+@@ -101,3 +101,50 @@
+   principal     = "events.amazonaws.com"
+   source_arn    = aws_cloudwatch_event_rule.credential_audit.arn
+ }
++
++# ----------------------------------------------------------------------------------------------------------------------
++# Two alarms to h4-alerts (tasks.md T159; group 4's Backlog; contracts/aws-alerts.md §2). Each reads missing data as
++# not breaching, so neither pages while its function or queue is idle; h4-alerts lets CloudWatch's alarms publish for
++# this account alone (the bootstrap's alerts.tf, T160).
++
++# The credential audit raised: its weekly run didn't finish, so no result was written and no finding was sent.
++resource "aws_cloudwatch_metric_alarm" "credential_audit_errors" {
++  count               = length(aws_lambda_function.credential_audit)
++  alarm_name          = "h4-credential-audit-errors"
++  alarm_description   = "h4-credential-audit raised: the weekly audit didn't finish (spec 001 FR-022)"
++  namespace           = "AWS/Lambda"
++  metric_name         = "Errors"
++  dimensions          = { FunctionName = aws_lambda_function.credential_audit[0].function_name }
++  statistic           = "Sum"
++  period              = 3600
++  evaluation_periods  = 1
++  comparison_operator = "GreaterThanOrEqualToThreshold"
++  threshold           = 1
++  treat_missing_data  = "notBreaching"
++  alarm_actions       = [data.aws_sns_topic.alerts.arn]
++
++  tags = {
++    component = "credential-audit"
++  }
++}
++
++# A notice the bridge couldn't send to Telegram, after Lambda's two retries, waits in its failure queue. The email half
++# still has SNS's own copy, and this alarm's.
++resource "aws_cloudwatch_metric_alarm" "bridge_failed" {
++  alarm_name          = "h4-alert-bridge-failed"
++  alarm_description   = "A notice the bridge couldn't send to Telegram is in h4-alert-bridge-failed (spec 001 FR-022)"
++  namespace           = "AWS/SQS"
++  metric_name         = "ApproximateNumberOfMessagesVisible"
++  dimensions          = { QueueName = aws_sqs_queue.alert_bridge_failed.name }
++  statistic           = "Maximum"
++  period              = 300
++  evaluation_periods  = 1
++  comparison_operator = "GreaterThanOrEqualToThreshold"
++  threshold           = 1
++  treat_missing_data  = "notBreaching"
++  alarm_actions       = [data.aws_sns_topic.alerts.arn]
++
++  tags = {
++    component = "alert-bridge"
++  }
++}
+--- a/infra/bootstrap/alerts.tf
++++ b/infra/bootstrap/alerts.tf
+@@ -10,9 +10,10 @@
+   }
+ }
+ 
+-# Who may publish, for now: AWS Budgets and Cost Anomaly Detection, for this account alone. contracts/aws-alerts.md §1's
+-# other publishers join with the groups that add them. The account's own principals keep what IAM gives them; this
+-# policy grants nothing else.
++# Who may publish: AWS Budgets, Cost Anomaly Detection, CloudWatch's alarms, and EventBridge, each for this account
++# alone. CloudWatch's and EventBridge's join in W1 (tasks.md T160; plan.md §16, W1's departure 4), for the credential
++# audit's and the bridge's alarms and the tunnel end's interruption warning. The account's own principals keep what IAM
++# gives them; this policy grants nothing else.
+ data "aws_iam_policy_document" "alerts" {
+   statement {
+     sid       = "Budgets"
+@@ -44,6 +45,42 @@
+     }
+ 
+     condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "CloudWatchAlarms"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["cloudwatch.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "EventBridge"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["events.amazonaws.com"]
++    }
++
++    condition {
+       test     = "StringEquals"
+       variable = "aws:SourceAccount"
+       values   = [data.aws_caller_identity.current.account_id]
+--- a/infra/lambdas/alert_bridge/bridge.py
++++ b/infra/lambdas/alert_bridge/bridge.py
+@@ -12,7 +12,8 @@
+     deployers, and the EventBridge rules' input transformers: its kind must be one §2 lists, and only its fact lines,
+     `- <key>: <value>`, pass;
+   - AWS Budgets' threshold notices and its actions' notices, by the budget's name;
+-  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's), and EventBridge's events (ACM's expiry, EC2's spot
++  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's, and from W1 the credential audit's errors and the
++    bridge's own failure queue), and EventBridge's events (ACM's expiry, EC2's spot
+     warning), as JSON.
+ Anything else is `unrecognized`, and carries nothing of the notice: the alerts mailbox has SNS's own copy.
+ 
+@@ -62,6 +63,8 @@
+     "probe_failing": "probe-failing.md",
+     "probe_recovered": "probe-failing.md",
+     "credential_finding": "credential-audit.md",
++    "credential_audit_failed": "credential-audit.md",
++    "alert_bridge_failed": "alert-bridge.md",
+     "ec2_started": "handover.md",
+     "ec2_start_refused": "handover.md",
+     "ec2_stopped_laptop_serving": "handover.md",
+@@ -93,6 +96,17 @@
+     "h4-rehearsal-server": ("server", True),
+ }
+ PROBE_ALARM = "h4-probe-failing"
++# W1's alarms (tasks.md T159; infra/account/alerts.tf): each has an ALARM action only, so ALARM is its one notice.
++ALARMS: dict[str, tuple[str, str]] = {
++    "h4-credential-audit-errors": (
++        "credential_audit_failed",
++        "the weekly credential audit raised",
++    ),
++    "h4-alert-bridge-failed": (
++        "alert_bridge_failed",
++        "a notice the bridge couldn't send is in its failure queue",
++    ),
++}
+ 
+ # What never leaves, in the order they're taken out: each shape, and what stands in for it.
+ SCRUB = (
+@@ -245,10 +259,16 @@
+     if not isinstance(doc, dict):
+         return None
+     if "AlarmName" in doc and "NewStateValue" in doc:
+-        if doc.get("AlarmName") != PROBE_ALARM:
+-            return unrecognized("alarm")
+         state = doc.get("NewStateValue")
+         since = str(doc.get("StateChangeTime", ""))[:19]
++        mine = ALARMS.get(str(doc.get("AlarmName")))
++        if mine is not None:
++            kind, what = mine
++            if state != "ALARM":
++                return unrecognized("alarm")
++            return Alert("alarm", kind, f"{what}, since {since}")
++        if doc.get("AlarmName") != PROBE_ALARM:
++            return unrecognized("alarm")
+         if state == "ALARM":
+             return Alert(
+                 "alarm",
+--- a/infra/lambdas/alert_bridge/test_bridge.py
++++ b/infra/lambdas/alert_bridge/test_bridge.py
+@@ -126,16 +126,16 @@
+     )
+ 
+ 
+-def alarm_notice(state: str) -> str:
++def alarm_notice(state: str, name: str = "h4-probe-failing") -> str:
+     return json.dumps(
+         {
+-            "AlarmName": "h4-probe-failing",
++            "AlarmName": name,
+             "AWSAccountId": ACCOUNT,
+             "NewStateValue": state,
+             "OldStateValue": "OK" if state == "ALARM" else "ALARM",
+             "NewStateReason": f"Threshold Crossed: 5 datapoints from {ADDRESS}",
+             "StateChangeTime": "2026-11-10T06:01:00.000+0000",
+-            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:h4-probe-failing",
++            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:{name}",
+         }
+     )
+ 
+@@ -179,6 +179,9 @@
+     ),
+     "probe_failing": alarm_notice("ALARM"),
+     "probe_recovered": alarm_notice("OK"),
++    # W1's two alarms (tasks.md T159; infra/account/alerts.tf).
++    "credential_audit_failed": alarm_notice("ALARM", "h4-credential-audit-errors"),
++    "alert_bridge_failed": alarm_notice("ALARM", "h4-alert-bridge-failed"),
+     "credential_finding": ours(
+         "credential_finding",
+         "2 findings",
+@@ -415,6 +418,35 @@
+     assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+ 
+ 
++def test_w1s_alarms_read_alarm_as_their_kind_and_nothing_else() -> None:
++    # tasks.md T159: neither alarm has an OK action, so an OK or an unknown alarm's notice carries nothing.
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-credential-audit-errors"))
++    assert telegram.texts[0].splitlines()[0] == (
++        "[hareet.ai aws] credential_audit_failed: the weekly credential audit raised, since 2026-11-10T06:01:00"
++    )
++    assert (
++        telegram.texts[0].splitlines()[-1]
++        == "Runbook: docs/runbooks/credential-audit.md"
++    )
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-alert-bridge-failed"))
++    assert telegram.texts[0].splitlines()[0] == (
++        "[hareet.ai aws] alert_bridge_failed: a notice the bridge couldn't send is in its failure queue, "
++        "since 2026-11-10T06:01:00"
++    )
++    assert (
++        telegram.texts[0].splitlines()[-1] == "Runbook: docs/runbooks/alert-bridge.md"
++    )
++    for name in (
++        "h4-credential-audit-errors",
++        "h4-alert-bridge-failed",
++        "h4-something-else",
++    ):
++        _, telegram, _ = deliver(alarm_notice("OK", name))
++        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), name
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-something-else"))
++    assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
++
++
+ def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:
+     _, telegram, _ = deliver(NOTICES["credential_finding"])
+     (text,) = telegram.texts
+--- a/specs/001-cloud-elevation/contracts/aws-alerts.md
++++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
+@@ -25,6 +25,8 @@
+ | `cert_expiring` | ACM | as September | `certificate.md` |
+ | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
+ | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
++| `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
++| `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
+ | `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
+ | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
+ | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |

@@ -319,9 +319,9 @@ def test_spec_001s_group_4_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
-# Spec 001's group 5 (its tasks.md T054, T159): the tunnel end's page, and the alert bridge's, whose failure queue's
+# Spec 001's group 5 (its tasks.md T159; T054 adds the tunnel end's page): the alert bridge's, whose failure queue's
 # alarm W1 adds. The credential audit's page is group 4's, and the test above holds it to its new kind.
-SPEC_001_GROUP_5 = ("tunnel-end.md", "alert-bridge.md")
+SPEC_001_GROUP_5 = ("alert-bridge.md",)
 
 
 def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -> None:

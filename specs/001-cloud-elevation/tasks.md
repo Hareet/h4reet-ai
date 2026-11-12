@@ -323,7 +323,7 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - `h4-credential-audit-errors`, on the function's `Errors`, at one or more;
   - `h4-alert-bridge-failed`, on the failure queue's visible messages, at one or more (group 4's Backlog: "the bridge's failure queue without an alarm").
 
-  Add their alert kinds to contracts/aws-alerts.md §2, and their runbooks' sections to `docs/runbooks/credential-audit.md` and the alert bridge's page. Check: RED; `evals/test_runbooks.py` holds each kind to its page (FR-022, FR-056) (feat/001-tunnel-end)
+  Add their alert kinds to contracts/aws-alerts.md §2, and their runbooks' sections to `docs/runbooks/credential-audit.md` and the alert bridge's page, `docs/runbooks/alert-bridge.md`, new. The two rows reach §2 in P-I3, with the bridge that knows them: the bridge's own test holds every kind there to a notice, and the bridge is protected. Check: RED; `evals/test_runbooks.py` holds each kind to its page (FR-022, FR-056) (feat/001-tunnel-end)
 - [ ] T160 [P] Extend `infra/test/test_bootstrap.py`: `h4-alerts`' policy also lets CloudWatch alarms (`cloudwatch.amazonaws.com`) and EventBridge (`events.amazonaws.com`) publish, each for this account alone (`aws:SourceAccount`), and grants nothing else. Group 4's departure 2 put the CloudWatch publisher in group 8; W1's first alarm (T159) and the tunnel end's warning rule (T046) come earlier. Check: RED (FR-022) (feat/001-tunnel-end)
 - [ ] T161 Write T159's two alarms in `infra/account/alerts.tf` and T160's two statements in `infra/bootstrap/alerts.tf`, into P-I3 with group 5's protected files (T051). Check: on a patched copy, T159 and T160 pass, and `make infra-check` passes on both roots (feat/001-tunnel-end)
 

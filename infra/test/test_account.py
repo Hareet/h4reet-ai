@@ -1210,7 +1210,13 @@ def check_registry(root: dict[str, list]) -> list[str]:
 
 # The policy's source list (tools/gates/infra_policy.py, TAGGABLE) lacks aws_budgets_budget_action, which takes tags:
 # the Author's T037 plan, 2026-11-12, found the model action's tags_all without component (rule T2 on the saved plan).
-TAGGABLE_HERE = ip.TAGGABLE | {"aws_budgets_budget_action"}
+# It lacks aws_sqs_queue and aws_ssoadmin_permission_set too, which take tags as well (tasks.md T157). P-G1 adds all
+# three to the policy's list (T158); once the Author applies it, this list can go.
+TAGGABLE_HERE = ip.TAGGABLE | {
+    "aws_budgets_budget_action",
+    "aws_sqs_queue",
+    "aws_ssoadmin_permission_set",
+}
 
 
 def check_tags(root: dict[str, list]) -> list[str]:
