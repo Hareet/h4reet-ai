@@ -134,7 +134,8 @@ The anchor is the fix commit, the tip after these fixes, written into section 7'
 
 ## Backlog
 
-- **Your branch, the patches, and the one gate** (For the Author, 5 to 7). T016, T017, section 2, and group 4's second pass are done.
+- **Your branch, the patches, and the one gate** (For the Author, 5 to 7). T016, T017, section 2, and group 4's second pass are done. Rebuild `-p` from 5ccc7b28 or later (section 5's redo).
+- **For W1's regrouping commit:** record T027's finding in plan.md §6 and beside T027 in tasks.md. hashicorp/aws 6.72.0 needs `metrics` beside `filter_expression`, and the two budgets that use it carry `metrics = ["UnblendedCost"]` (Verification, "After your T027 plan"). Both files are outside the guard's allowance after the anchor, so this waits for W1.
 - **The agents' engine now seeds the functions' base too.** The engine's seed, and so its reset and stage E's E10, moves every image `deploy/images.lock` pins except `model-server-gpu` and `probe:cuda`. It pulls whatever the host lacks, and E10 checks each image is back. `base:lambda-python` is an arm64 tag. Had the host's pull failed on this amd64 machine, the first seed or reset after the merge would have failed. This gate's `--prove` wouldn't have caught it, since it runs main's engine script (the second pass, I3). Your check of 2026-11-11 settled it: a single manifest, which the host's pull took (section 2). So P-E needs no change.
 - **The account's plan block** after T030 (the named deviation; For the Author, 8).
 - **The state's move** (group 3's departure 4) changes `infra/bootstrap/versions.tf`, so it changes `infra/`'s tree: it goes before T037's block or after T040's first apply, never between them, or the account's block goes stale.
@@ -247,7 +248,23 @@ c4fc2c622e2518c40c814892b788353ad29e4bba3c382df23b16d2aa78982bc8  infra/lambdas/
   Nothing else in either patch changed. `terraform fmt -check` passes on both edited copies. On a fresh export with P-1, P-E and P-3 as they are and the two rebuilt patches, each created file matches its edited copy byte for byte.
 - **GREEN:** `infra/test` and `scripts/infra`, on that export: 229 passed. One test failed because of the sandbox: `test_infra_check_runs_the_policy_then_waits_for_terraform` can't `mktemp` in this sandbox's read-only `/tmp`. It doesn't touch the budgets.
 - **P-I1** is now 9,261 bytes, SHA-256 9a5369b13f4a788c0f59543cb2a59fd5abd4b8a93283309bc879721ed99c4b2a. **P-I2** is 82,253 bytes, SHA-256 bcde67afe90003329c06924d747f8120b9a2c61ee11a47547b813bb696850f85. P-1, P-E and P-3 are unchanged.
-- **Not run here:** `terraform validate` with the provider. The sandbox refuses the provider plugin's socket. So the attribute's exact form is checked first by your re-run of the plan.
+- **The two edited files, as P-I1 and P-I2 now create them:**
+  - `infra/bootstrap/budgets.tf`: SHA-256 d2bc1df7634b8fffaade4dd7525888dcba2e51abf7b9c950fc58d4b01767d046.
+  - `infra/account/killswitch.tf`: SHA-256 5cc33eded8cdec3a29aa5511d8590fe6b2a162b8dbd8935c7e5d114d490149bb.
+  - These replace the earlier per-file hashes above for those two files. The other ten of P-I1's and P-I2's files are unchanged.
+- **Not run here:** `terraform validate` with the provider. The sandbox refuses the provider plugin's socket, so your re-run of the plan is the first check of the attribute's exact form. Your second plan, 2026-11-11, stopped the same way because it ran on the old `-p` (387a7f47). Section 5's redo resets the branch.
+- **Its review, 2026-11-11, by an agent that wrote none of it:** no blocker. In its words, "5ccc7b28 is ready to be the guard's new anchor". It confirmed:
+  - only the intended lines changed, and every hunk count holds;
+  - `server_month` and `rehearsal_server` are the only `filter_expression` budgets across all five patches and `infra/`;
+  - the checks fail without the metric and pass with it, and no check was loosened;
+  - the hashes above.
+  
+  What it raised, and what was done:
+  - **Important:** the note gave no redo for your branch. Section 5's redo now does.
+  - **Nits:**
+    - plan.md §6 still says filter_expression is "to confirm" at T027, and tasks.md doesn't record the result. Both are outside the guard's allowance after the anchor, so they go to W1's regrouping commit (Backlog).
+    - The RED and GREEN counts are summaries. The two new per-file hashes are above.
+    - P-I2's preamble wraps early. That's harmless, since `patch` skips it.
 
 #### The patched export's checks, the five patches
 
@@ -2217,6 +2234,20 @@ Your decision on the blocker, "Derive from settings (Recommended)", is built: P-
 
 ### 5. Your branch: the patches, the mirror, both lockfiles
 
+**The redo, 2026-11-11.** Your first `-p`, 387a7f47, was cut from 6a0d4610, before the metrics fix. Its `budgets.tf` has no `metrics`, so its plan stops as your first two did. Reset it to the fixed tip, from your checkout on it:
+
+```bash
+git status --short | grep -v '^??'
+cp CLAUDE.md ~/claude-md-001.txt
+o=--no-replace-objects
+b=feat/001-cloud-elevation
+pb=feat/001-cloud-elevation-p
+git $o switch -C "$pb" "refs/heads/$b"
+git log --oneline -1
+```
+
+The first line prints nothing. The last shows 5ccc7b28 or a later tip of this branch, which holds the anchor either way. Then the patches, as below. Your CLAUDE.md words come back with `cp ~/claude-md-001.txt CLAUDE.md` instead of the editor, and `grep -c metrics infra/bootstrap/budgets.tf` prints 3. Then both lockfiles: the mirror is in place, so skip `make infra-mirror`. Then the one commit, and section 6, whose clone moves an old `~/scratch-001ce` aside first. As first written, for a first build:
+
 Cut from the session's branch after section 4, so it holds the anchor; your untracked files stay as they are. P-E goes after P-1:
 
 ```bash
@@ -2367,12 +2398,12 @@ Then tell the session "done", and it takes dev-cpu down.
 
 It is ready when its summary names no FAIL or PENDING step and it prints a `merge:` line. It runs main's checkers, so no `infra-plan-note`, `infra-check`, or `disclosure` step (spec.md Assumptions; the disclosure check above and T027's policy stand in). On anything else, don't merge: tell the session.
 
-Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in human-only files (the patches' targets: P-1's, P-E's four, CLAUDE.md, P-I1's, and P-I2's), the two lockfiles, the behavioral tier's entry, and this one note, where your block goes; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. The patch files themselves, under `docs/merge-requests/`, are agent-writable, so the guard allows none of them after the anchor (the combined review's I1). Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. The anchor is ed5d9852, the tip after group 4's second pass and its fixes (Review). Copy this block from `git show ed5d9852:docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`, where it still reads `rv=PENDING-REVIEW`, and set `rv` to the anchor:
+Then the guard. It prints `guard: go`, and merges, only if: the gate printed its merge line; your checkout is on `main` and `$pb` is at the SHA the gate checked; `main` and the anchor are both ancestors of that SHA; that SHA's merge with main differs from the anchor's merge with main only in human-only files (the patches' targets: P-1's, P-E's four, CLAUDE.md, P-I1's, and P-I2's), the two lockfiles, the behavioral tier's entry, and this one note, where your block goes; and none of those differing files is one main changed after the anchor's merge base, so a later main can't mix with a patched file unseen. The patch files themselves, under `docs/merge-requests/`, are agent-writable, so the guard allows none of them after the anchor (the combined review's I1). Comparing the two merges keeps the anchor where it is when main is merged into the branch again. Whatever it prints, it then parks your checkout off `main`. The anchor is 5ccc7b28, the metrics fix, which its own short review passed (Review). It replaces ed5d9852, since the rebuilt P-I1 and P-I2 changed patch files after that anchor. Copy this block from `git show ed5d9852:docs/merge-requests/2026-11-10-feat-001-cloud-elevation.md`, where it still reads `rv=PENDING-REVIEW`, and set `rv` to the anchor:
 
 ```bash
 pb=feat/001-cloud-elevation-p
 log=~/gate-001.log
-rv=ed5d9852747e28e86851a3707367000c64a62b23
+rv=5ccc7b28afd571cf63e92218cf05c65630e1eb63
 s=$(grep '^gate: ' "$log" | tail -n 1)
 sha=$(printf '%s\n' "$s" | awk '{print $2}')
 n=$(grep -c '^merge: ' "$log")
