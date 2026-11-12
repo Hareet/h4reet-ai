@@ -27,14 +27,19 @@ const PUBLIC = `public:
 const withPublic = (section: string): string => `${budgetsText.trimEnd()}\n${section}`;
 const P6 = `${REPO}docs/merge-requests/2026-11-13-feat-001-p6-public-cap.patch`;
 
-/** config/budgets.yaml as P-6 leaves it: the patch's added lines appended to the real file, as its one hunk does. */
+/** config/budgets.yaml as P-6 leaves it, as drafted: the patch's added lines appended to the real file, as its one hunk
+ *  does. On a tree that holds P-6 already, the Author's `-p` branch, the file is first taken back to before it. */
 function patchedBudgets(): string {
   const patch = readFileSync(P6, "utf8");
   const added = patch
     .split("\n")
     .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
     .map((l) => l.slice(1));
-  return `${readFileSync(`${REPO}config/budgets.yaml`, "utf8").trimEnd()}\n${added.join("\n")}\n`;
+  const real = readFileSync(`${REPO}config/budgets.yaml`, "utf8");
+  const first = added.find((l) => l.trim() !== "") ?? "";
+  const at = first === "" ? -1 : real.indexOf(`\n${first}\n`);
+  const before = at === -1 ? real : real.slice(0, at + 1);
+  return `${before.trimEnd()}\n${added.join("\n")}\n`;
 }
 
 describe("config/budgets.yaml's public section (P-6)", () => {
