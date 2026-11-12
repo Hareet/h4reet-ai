@@ -1550,3 +1550,101 @@ class TestCommands:
 
     def test_an_unknown_command(self, night, h, capsys):
         assert night.main(["apply"], fx=nf.FakeFx(night, h), home=h.home) == 2
+
+
+# ---- the ComfyUI allowlist in G3's shape (tasks.md T045; fixtures/comfyui-params.json is its file, verbatim) ----
+
+G3_PARAMS = json.loads(nf.COMFY_PARAMS.read_text())
+
+
+def comfy_start(night, h, params):
+    runner, fx, t = running_task(night, h, "studio")
+    a = ask(runner, t, 1, {"kind": "comfyui", "action": "start", "params": params})
+    runs = [c for c in fx.docker_calls("run") if "h4-night-comfyui" in c]
+    return a, runs
+
+
+class TestComfyAllowlist:
+    def test_the_fake_home_holds_g3s_file(self, h):
+        assert (
+            h.config / "comfyui-params.json"
+        ).read_bytes() == nf.COMFY_PARAMS.read_bytes()
+        assert (
+            G3_PARAMS["schema"] == 1 and G3_PARAMS["allowed"][0]["flag"] == "--birefnet"
+        )
+
+    def test_birefnet_is_allowed(self, night, h):
+        a, runs = comfy_start(night, h, ["--birefnet"])
+        assert a["ok"] is True, a
+        assert runs and runs[0][-1] == "--birefnet"
+
+    def test_a_value_taking_form_is_refused(self, night, h):
+        a, runs = comfy_start(night, h, ["--birefnet=x"])
+        assert a["ok"] is False and "--birefnet=x" in a["answer"]
+        assert runs == []
+
+    @pytest.mark.parametrize("flag", G3_PARAMS["fixed_by_runner"])
+    def test_each_flag_fixed_by_the_runner_is_refused(self, night, h, flag):
+        a, runs = comfy_start(night, h, [flag])
+        assert a["ok"] is False and flag in a["answer"]
+        assert runs == []
+
+    def test_an_unknown_flag_is_refused(self, night, h):
+        a, runs = comfy_start(night, h, ["--enable-manager"])
+        assert a["ok"] is False and "--enable-manager" in a["answer"]
+        assert runs == []
+
+    def test_the_files_own_fixed_list_counts_beyond_the_floor(self, night, h):
+        data = json.loads(nf.COMFY_PARAMS.read_text())
+        data["fixed_by_runner"].append("--birefnet")
+        (h.config / "comfyui-params.json").write_text(json.dumps(data))
+        a, runs = comfy_start(night, h, ["--birefnet"])
+        assert a["ok"] is False and "--birefnet" in a["answer"]
+        assert runs == []
+
+    def test_the_floor_holds_if_the_file_drops_a_fixed_flag(self, night, h):
+        data = json.loads(nf.COMFY_PARAMS.read_text())
+        data["fixed_by_runner"] = []
+        data["allowed"].append({"flag": "--listen", "value": None})
+        (h.config / "comfyui-params.json").write_text(json.dumps(data))
+        a, runs = comfy_start(night, h, ["--listen"])
+        assert a["ok"] is False and runs == []
+
+    def test_an_entry_taking_a_value_isnt_allowed_yet(self, night, h):
+        data = json.loads(nf.COMFY_PARAMS.read_text())
+        data["allowed"][0]["value"] = "x"
+        (h.config / "comfyui-params.json").write_text(json.dumps(data))
+        a, runs = comfy_start(night, h, ["--birefnet"])
+        assert a["ok"] is False and runs == []
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"schema": 1, "params": ["--birefnet"]},  # the draft shape
+            {
+                "schema": 2,
+                "fixed_by_runner": [],
+                "allowed": [{"flag": "--birefnet", "value": None}],
+            },
+            {"schema": 1, "allowed": [{"flag": "--birefnet", "value": None}]},
+            {"schema": 1, "fixed_by_runner": [], "allowed": {"flag": "--birefnet"}},
+            {"schema": 1, "fixed_by_runner": [], "allowed": [{"flag": "--birefnet"}]},
+            {
+                "schema": 1,
+                "fixed_by_runner": [],
+                "allowed": [{"flag": "birefnet", "value": None}],
+            },
+            {
+                "schema": 1,
+                "fixed_by_runner": [3],
+                "allowed": [{"flag": "--birefnet", "value": None}],
+            },
+            [],
+            "not json",
+        ],
+    )
+    def test_any_other_shape_fails_closed(self, night, h, data):
+        p = h.config / "comfyui-params.json"
+        p.write_text(data if isinstance(data, str) else json.dumps(data))
+        a, runs = comfy_start(night, h, ["--birefnet"])
+        assert a["ok"] is False and runs == []

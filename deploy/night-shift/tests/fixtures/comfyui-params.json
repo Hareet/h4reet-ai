@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "about": "The ComfyUI launch allowlist (spec 017 FR-040; contracts/runner.md's comfyui start request; tasks.md T045). The studio agent asks the runner to start ComfyUI with a task's parameters; each must be a flag in allowed, else the runner refuses the request, naming it, and it goes on the decision page. The flags in fixed_by_runner are the runner's alone, set from the machine facts and the studio folders, never by the agent: a request naming one is refused.",
+  "fixed_by_runner": ["--listen", "--port", "--output-directory", "--temp-directory", "--user-directory"],
+  "allowed": [
+    {
+      "flag": "--birefnet",
+      "value": null,
+      "optional": true,
+      "core_flag_confirmed": false,
+      "source": "the Author, plan Q15: \"--birefnet\" and sometimes it was run with that parameter off, depending on the asset output that was needed",
+      "note": "On or off per task, taking no value. As far as the session knows it isn't one of ComfyUI's core flags (perhaps a custom node's), so the first studio task confirms that ComfyUI accepts it at launch, and puts the answer on the decision page if it doesn't."
+    }
+  ]
+}

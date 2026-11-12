@@ -23,6 +23,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 NIGHT_PY = HERE.parent / "runner" / "night.py"
+COMFY_PARAMS = HERE / "fixtures" / "comfyui-params.json"
 
 SESSION_ROLES = (
     "supervisor",
@@ -206,10 +207,9 @@ class Home:
         (self.config / "allowlist-plan.json").write_text(
             '{"sandbox": {"network": {"allowedDomains": ["sts.amazonaws.com"]}}}\n'
         )
-        # The ComfyUI allowlist's real content is G3's (T045); the runner's reader takes this shape.
-        (self.config / "comfyui-params.json").write_text(
-            json.dumps({"schema": 1, "params": ["--birefnet"]}) + "\n"
-        )
+        # The ComfyUI allowlist is G3's (T045): fixtures/comfyui-params.json is a verbatim copy of its file, as the
+        # install would place it.
+        (self.config / "comfyui-params.json").write_bytes(COMFY_PARAMS.read_bytes())
         for role in (*SESSION_ROLES, "plan", "comfyui"):
             self.write_spec(role, self.spec_for(role))
 
