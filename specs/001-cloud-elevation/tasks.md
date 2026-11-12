@@ -408,11 +408,11 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 **Precondition**: T001's check holds. `feat/010-anthropic-switch` is on `main`: `config/routing.yaml` names `prod: { primary: local, fallback: anthropic }`, and row F3 holds the Author's adopted words, quoted in that branch's note with his weighing, "We can say nothing is retained when running local models. Refer to Anthropic if cloud models are on." **W1:** the branch stacks on group 5's reviewed tip.
 
-**The shared state on the tunnel end** (spec.md Assumptions; plan.md §16, "The shared state on the tunnel end"). The Author's answer of 2026-11-11: "Postgres in a container on the tunnel end". FR-017 to FR-020's requirements stand. T066, T068, T073, T076, and T080 are rewritten below, and T162 to T165 are new. T163's backup cases, and T066's kept days, wait for the Author's answer to the regrouping note's question 4.
+**The shared state on the tunnel end** (spec.md Assumptions; plan.md §16, "The shared state on the tunnel end"). The Author's answer of 2026-11-11: "Postgres in a container on the tunnel end". FR-017 to FR-020's requirements stand. T066, T068, T073, T076, and T080 are rewritten below, and T162 to T165 are new. T163's backup cases, and T066's kept days, wait for the Author's answer to the regrouping note's question 4. **Answered:** option A, a `pg_dump` every hour kept 7 days, as the main session relayed (plan.md §16, group 6's departure 1).
 
 ### Documents first
 
-- [ ] T162 [US2] Amend the documents that name RDS, before the code, each passage marked "(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")":
+- [x] T162 [US2] Amend the documents that name RDS, before the code, each passage marked "(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end")":
   - contracts/shared-state.md: §1 becomes the `shared-state` service and its volume; §2's roles without `h4admin`; §3's TLS against the shared state's CA; §8's restore from the last backup, fetched by a presigned GET made in the Author's terminal (T164);
   - contracts/tunnel.md: `PermitOpen` `shared-state:5432`;
   - contracts/env-cloud.md: `GATEWAY_DB_URL`'s host, `GATEWAY_DB_TLS_SERVERNAME`, and the CA certificate's name in each env file;
@@ -426,12 +426,15 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - quickstart.md §6.
 
   Check: the docs-links check passes; no passage outside the September record names RDS as the shared state; FR-017 to FR-020 read as before (feat/001-shared-state)
+  - **Done** (e3b0e5f4): each passage marked; the docs-links check passes; FR-017 to FR-020 read as before.
 
 ### Tests first
 
-- [ ] T059 [P] [US2] Extend `services/gateway/test/integration/migrations.test.ts` for `0007_hosts.sql`: `host` on `ledger` and `audit_log`; `handover_events` with its checks; `relay_ro` and `relay_rw` with exactly their grants; `v_handovers` for `grafana_ro`; 0001 to 0006 byte-identical. Check: RED (data-model.md §1.2) (feat/001-shared-state)
-- [ ] T060 [P] [US2] Write `services/gateway/test/integration/shared-state.test.ts`: two gateway processes against one Postgres. Paid admission at the global limit never passes a ceiling beyond spec 000's in-flight bound. One rollover at the UTC boundary, one alert per crossing, and the kill switch seen by both within 10 s. Check: RED (FR-017, FR-019; data-model.md §1.3) (feat/001-shared-state)
-- [ ] T061 [P] [US2] Extend `test/unit/validate-config.test.ts` and write `test/unit/routes-per-host.test.ts`:
+- [x] T059 [P] [US2] Extend `services/gateway/test/integration/migrations.test.ts` for `0007_hosts.sql`: `host` on `ledger` and `audit_log`; `handover_events` with its checks; `relay_ro` and `relay_rw` with exactly their grants; `v_handovers` for `grafana_ro`; 0001 to 0006 byte-identical. Check: RED (data-model.md §1.2) (feat/001-shared-state)
+  - **Done:** RED in ab282a06, GREEN in 9e7bea8d.
+- [x] T060 [P] [US2] Write `services/gateway/test/integration/shared-state.test.ts`: two gateway processes against one Postgres. Paid admission at the global limit never passes a ceiling beyond spec 000's in-flight bound. One rollover at the UTC boundary, one alert per crossing, and the kill switch seen by both within 10 s. Check: RED (FR-017, FR-019; data-model.md §1.3) (feat/001-shared-state)
+  - **Done:** two whole gateways on one PGlite (plan.md §16, group 6's departure 14). At RED its first case failed, on 0007's host; its other two held already, since the meter's two-writer rules are spec 000's (data-model.md §1.3, "existing"); GREEN in 9e7bea8d.
+- [x] T061 [P] [US2] Extend `test/unit/validate-config.test.ts` and write `test/unit/routes-per-host.test.ts`:
   - schema 2, R1 amended, H1, H2, and A1;
   - `H4_HOST` selection, and exit 78 on `ec2` with a `primary`, `laptop` with a `first`, or `ec2` with no `envs.prod.hosts.ec2` (`route_missing`);
   - EC2's calls attributed `metered`, with `fallback_day` untouched;
@@ -439,23 +442,28 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - spec 010's refusals on the `ec2` route (`price_missing`, `adapter_cap_missing`, `missing_env`), tested on a fixture, since the file's `ec2` line is the Author's (T095).
 
   Check: RED (FR-067, FR-068) (feat/001-shared-state)
-- [ ] T062 [P] [US5] Extend `evals/test_disclosure.py` with cases for `placeholder_gate`, using schema-2 routing fixtures in `evals/fixtures/routing/`: with F3 holding its placeholder, the gate fails when any host route names the Anthropic API as `first`, `second`, or `fallback`, and on schema 1's `envs.prod.fallback`; with F3 holding his adopted words, it passes on each. Check: RED, since today's gate reads `envs.prod.fallback` only (FR-068; spec 010 FR-039) (feat/001-shared-state)
-- [ ] T063 [P] [US2] Extend `deploy/scripts/test_preflight.py` and `test_env_files.py`:
+  - **Done:** in `test/unit/routes-per-host.test.ts`; GREEN in d8a90065. `validate-config.test.ts` needed no case of its own: the committed file's schema 2 runs through `config.test.ts`'s.
+- [x] T062 [P] [US5] Extend `evals/test_disclosure.py` with cases for `placeholder_gate`, using schema-2 routing fixtures in `evals/fixtures/routing/`: with F3 holding its placeholder, the gate fails when any host route names the Anthropic API as `first`, `second`, or `fallback`, and on schema 1's `envs.prod.fallback`; with F3 holding his adopted words, it passes on each. Check: RED, since today's gate reads `envs.prod.fallback` only (FR-068; spec 010 FR-039) (feat/001-shared-state)
+  - **Done:** fixtures in `evals/fixtures/routing/`; GREEN in 892d1532.
+- [x] T063 [P] [US2] Extend `deploy/scripts/test_preflight.py` and `test_env_files.py`:
   - `GATEWAY_DB_URL` must use TLS on prod, and the local store is refused on `laptop` and `ec2`;
   - `GATEWAY_DB_TLS_SERVERNAME` is required with it;
   - the templates;
   - `H4_HOST` per class, and its mismatches.
 
   Check: RED (FR-019; contracts/env-cloud.md §2) (feat/001-shared-state)
-- [ ] T064 [P] [US2] Write `scripts/test_operator_shared.py`, with a stub laptop prod and a stub store:
+  - **Done:** P23 and the templates; GREEN in 8a83a217.
+- [x] T064 [P] [US2] Write `scripts/test_operator_shared.py`, with a stub laptop prod and a stub store:
   - while the laptop's prod runs, `ENV=shared` uses its admin listener on `127.0.0.1:18003` and starts no stack; otherwise it composes an admin-only stack (the tunnel's `-L 5432` only, the gateway's admin listener on the same port, no relay block); it never starts that stack while prod's gateway holds the port;
   - it refuses `init` unless the store is `uninitialized`;
   - `restore` refuses unless EC2 is stopped and the laptop's prod isn't running; it prints the restored meters, sets the store `uninitialized` under the initialization lock, and keeps the ledger and the audit log; `init` then accepts the store, and refuses values lower than the printed meters;
   - each action writes an audit row with `host`.
 
   Check: RED (FR-019, FR-074; contracts/shared-state.md §7, §8) (feat/001-shared-state)
-- [ ] T065 [P] [US3] Extend `evals/test_twin_readiness.py`: the evidence names both host routes' adapters, the laptop's local model and fallback and EC2's Anthropic API and Bedrock, read from schema 2. Check: RED (spec 010 FR-026 and spec 007 FR-031, amended by name) (feat/001-shared-state)
-- [ ] T163 [P] [US2] Write `deploy/hosts/test_shared_state.py` and extend the compose policy's and preflight's tests:
+  - **Done:** GREEN in 8a83a217.
+- [x] T065 [P] [US3] Extend `evals/test_twin_readiness.py`: the evidence names both host routes' adapters, the laptop's local model and fallback and EC2's Anthropic API and Bedrock, read from schema 2. Check: RED (spec 010 FR-026 and spec 007 FR-031, amended by name) (feat/001-shared-state)
+  - **Done:** GREEN in 14373d31.
+- [x] T163 [P] [US2] Write `deploy/hosts/test_shared_state.py` and extend the compose policy's and preflight's tests:
   - `shared-state` is in the `tunnel-end` profile and class, on spec 000's pinned Postgres 17 image, with its data on the volume's mount;
   - its configuration: `ssl = on`, with the key and certificate from tmpfs; `hostssl` lines only, with `scram-sha-256`, for `gateway`, `grafana_ro`, `relay_ro`, and `relay_rw`; the superuser through the local socket alone; `log_statement = none` and `log_min_duration_statement = -1`; listening on the compose network and the private interface only;
   - the backup timer, with a stub store and a stub S3: a dump over the socket, put under its prefix; a failed dump or put alerts `shared_state_backup_failed` once, and keeps the last good dump; `h4.shared_state.backup_age_seconds` is exported;
@@ -463,7 +471,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   - the tunnel end's preflight refuses a store without its certificate, and the laptop's and EC2's refuse a `GATEWAY_DB_URL` without the CA certificate.
 
   Check: RED (FR-019, FR-060; plan.md §16, "The shared state on the tunnel end") (feat/001-shared-state)
-- [ ] T066 [P] [US2] Write `infra/test/fixtures/prod-rds/` and `infra/test/test_prod_rds.py`: rule T12, the subnet group, the parameter group (`rds.force_ssl`, no statement logging), the security group admitting only EC2's and the tunnel end's groups, and no `password` argument. Check: RED (FR-019; contracts/shared-state.md §1) (feat/001-shared-state)
+  - **Done:** RED in ab282a06; GREEN in efd3f14c; the compose policy's own cases are P-G4's (group 6's departure 11).
+- [x] T066 [P] [US2] Write `infra/test/fixtures/prod-rds/` and `infra/test/test_prod_rds.py`: rule T12, the subnet group, the parameter group (`rds.force_ssl`, no statement logging), the security group admitting only EC2's and the tunnel end's groups, and no `password` argument. Check: RED (FR-019; contracts/shared-state.md §1) (feat/001-shared-state)
   - **Rewritten for W1:** `infra/test/fixtures/prod-shared-state/` and `infra/test/test_prod_shared_state.py`. They cover:
     - no `aws_db_*` or `aws_rds_*` resource;
     - the data volume: encrypted gp3, `prevent_destroy`, attached to the tunnel end, in its zone, tagged;
@@ -473,19 +482,27 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - the shared state's Parameter Store paths, read by the tunnel end's role, and no SecureString or secret in Terraform (rule T9).
 
     Check: RED.
+  - **Done:** 15 fixtures; GREEN in 4f916025, with P-I7.
 
 ### Implementation
 
-- [ ] T067 [US2] Write `migrations/0007_hosts.sql`, and set `host` on each ledger and audit row from `H4_HOST`. Check: T059 passes (feat/001-shared-state)
-- [ ] T068 [US2] Make the gateway's store connection take `GATEWAY_DB_URL` with TLS verified against the pinned RDS bundle and a server name. Emit `h4.shared_state.latency` and `h4.shared_state.errors`, labelled with `h4.host`. Check: T060 passes (FR-060) (feat/001-shared-state)
+- [x] T067 [US2] Write `migrations/0007_hosts.sql`, and set `host` on each ledger and audit row from `H4_HOST`. Check: T059 passes (feat/001-shared-state)
+  - **Done** (9e7bea8d): the host from the session's `h4.host` (group 6's departure 4).
+- [x] T068 [US2] Make the gateway's store connection take `GATEWAY_DB_URL` with TLS verified against the pinned RDS bundle and a server name. Emit `h4.shared_state.latency` and `h4.shared_state.errors`, labelled with `h4.host`. Check: T060 passes (FR-060) (feat/001-shared-state)
   - **Rewritten for W1:** TLS is verified against the shared state's CA certificate, read from the file the env names, and the server name `GATEWAY_DB_TLS_SERVERNAME`, not a pinned RDS bundle. The relay's connection does the same (T106). The metrics stand.
-- [ ] T069 [US5] Make `placeholder_gate` read every host route's `first`, `second`, and `fallback`, as well as schema 1's `envs.prod.fallback`, before schema 2 lands. Check: T062 passes; `make test` passes on main's routing file with his adopted F3 words (FR-068) (feat/001-shared-state)
-- [ ] T070 [US2] Add schema 2, the route per host, R1, H1, H2, and A1 to `src/config/validate.ts` and the router. Write `config/routing.yaml` as schema 2 with the laptop's line only, `laptop: { primary: local, fallback: anthropic }`, as main names prod's route, and no `ec2` line, which is the Author's (T095; ADR 0041). Check: T061 passes; T062 still passes on the schema-2 file; every existing gateway test passes (feat/001-shared-state)
-- [ ] T071 [US2] Extend preflight, the env templates, `operator.py`'s `ENV=shared` with its choice of admin listener, the gateway's admin action for `restore`, and `make shared-state-roles` and `make operator-restore` (both Author-only). Check: T063 and T064 pass (feat/001-shared-state)
-- [ ] T072 [P] [US3] Change `evals/twin_readiness.py`. Check: T065 passes; `make evals`'s exit status is unchanged by the report (feat/001-shared-state)
-- [ ] T073 [US2] Write `infra/prod/rds.tf`, and the RDS endpoint's permit in the tunnel's server configuration. Check: T066 passes; `make infra-check` passes (feat/001-shared-state)
+  - **Done** (9e7bea8d), with C2, C13, and S2's change.
+- [x] T069 [US5] Make `placeholder_gate` read every host route's `first`, `second`, and `fallback`, as well as schema 1's `envs.prod.fallback`, before schema 2 lands. Check: T062 passes; `make test` passes on main's routing file with his adopted F3 words (FR-068) (feat/001-shared-state)
+  - **Done** (892d1532).
+- [x] T070 [US2] Add schema 2, the route per host, R1, H1, H2, and A1 to `src/config/validate.ts` and the router. Write `config/routing.yaml` as schema 2 with the laptop's line only, `laptop: { primary: local, fallback: anthropic }`, as main names prod's route, and no `ec2` line, which is the Author's (T095; ADR 0041). Check: T061 passes; T062 still passes on the schema-2 file; every existing gateway test passes (feat/001-shared-state)
+  - **Done** (d8a90065).
+- [x] T071 [US2] Extend preflight, the env templates, `operator.py`'s `ENV=shared` with its choice of admin listener, the gateway's admin action for `restore`, and `make shared-state-roles` and `make operator-restore` (both Author-only). Check: T063 and T064 pass (feat/001-shared-state)
+  - **Done** (8a83a217): with POST /admin/restore and the admin-only stack (group 6's departures 3 and 13).
+- [x] T072 [P] [US3] Change `evals/twin_readiness.py`. Check: T065 passes; `make evals`'s exit status is unchanged by the report (feat/001-shared-state)
+  - **Done** (14373d31).
+- [x] T073 [US2] Write `infra/prod/rds.tf`, and the RDS endpoint's permit in the tunnel's server configuration. Check: T066 passes; `make infra-check` passes (feat/001-shared-state)
   - **Rewritten for W1:** write `infra/prod/shared-state.tf` (the data volume, its attachment, the backups' bucket, and 5432's rule), and the tunnel end role's bucket and Parameter Store grants in prod's `iam.tf`, as P-I7, group 6's protected patch: the group had no protected file before, and the number comes after P-I6 so that no other patch is renamed. No `rds.tf`. The tunnel's permit is `shared-state:5432` (T041). Check: T066 passes; `make infra-check` passes.
-- [ ] T164 [US2] Write the `shared-state` service in `deploy/compose.yaml`'s `tunnel-end` profile, its configuration, and the tunnel end's host parts: the volume's mount, the certificate's write to tmpfs from Parameter Store, and the backup timer. Write `make shared-state-tls` (the CA in `~/.config/h4reet-ai/shared-state/`, the server's key and certificate for Parameter Store, the CA certificate for each env file), `make shared-state-roles` (rewritten for the tunnel end), and `make shared-state-restore`, each Author-only. Add `shared_state_backup_failed` to contracts/aws-alerts.md §2 with its runbook section. Check: T163 passes (FR-019, FR-056, FR-060) (feat/001-shared-state)
+  - **Done** (4f916025): P-I7, after P-I3 (group 6's departures 7, 8, 11).
+- [x] T164 [US2] Write the `shared-state` service in `deploy/compose.yaml`'s `tunnel-end` profile, its configuration, and the tunnel end's host parts: the volume's mount, the certificate's write to tmpfs from Parameter Store, and the backup timer. Write `make shared-state-tls` (the CA in `~/.config/h4reet-ai/shared-state/`, the server's key and certificate for Parameter Store, the CA certificate for each env file), `make shared-state-roles` (rewritten for the tunnel end), and `make shared-state-restore`, each Author-only. Add `shared_state_backup_failed` to contracts/aws-alerts.md §2 with its runbook section. Check: T163 passes (FR-019, FR-056, FR-060) (feat/001-shared-state)
   - **The repository** (the review's I4): `infra/account/registry.tf`'s `stack` list gains `shared-state`, the copy of spec 000's pinned Postgres image by its index digest, test-first in `infra/test/test_account.py`.
   - **The restore's fetch** (the review's I8; plan.md §16, "The shared state on the tunnel end", Restore):
     - `make shared-state-restore` runs in the Author's terminal. It lists the backups' prefix with his session and picks the dump he names, or the latest;
@@ -493,7 +510,8 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
     - the command fetches the dump, empties `shared-state`, and loads the dump over the socket. It prints neither the URL nor the dump.
 
     The tunnel end's role still only puts. T163's cases gain: the URL's expiry at 15 minutes; one object only; nothing of the URL in the target's output; and a refusal while EC2 runs or the laptop's prod does (contracts/shared-state.md §8, step 1).
-- [ ] T165 [US2] List every secret, secret name, and Author-only target groups 5 and 6 add, and check each against `.claude/settings.json`'s denies and `credentials.envVars`, the bash gate, and P-1's matrix rows. The design adds no new environment name: the superuser has no password over TCP, and the four role passwords are P-1's `DB_*_PASSWORD` names. The note's table holds at least these:
+  - **Done** (efd3f14c): with P-G4 and C16 (group 6's departures 5, 6, 9, 11).
+- [x] T165 [US2] List every secret, secret name, and Author-only target groups 5 and 6 add, and check each against `.claude/settings.json`'s denies and `credentials.envVars`, the bash gate, and P-1's matrix rows. The design adds no new environment name: the superuser has no password over TCP, and the four role passwords are P-1's `DB_*_PASSWORD` names. The note's table holds at least these:
 
   | Item | Where it lives | Deny status |
   |---|---|---|
@@ -505,16 +523,20 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
   | the restore's presigned URL | the Author's terminal, then one Systems Manager command | a 15-minute bearer credential, never written to a file or printed |
 
   Write **P-G2** for the Author's hand, from plain copies: both new targets' rules in `.claude/hooks/bash-gate.sh`, and their rows in `redteam/forbidden-actions.sh` and `tools/gates/matrix-required.txt`, in every spelling the gate already covers, with a gap row for any that gets through. It applies before W1's gate (T171). If the build finds a new environment name after all, its deny by name goes in P-G2 too, before he writes its value (CLAUDE.md: a secret "gets its deny in the same patch that creates it, or an earlier one"). Check: the note holds the table; on a patched export the matrix refuses both targets in each spelling (FR-006, FR-011) (feat/001-shared-state)
-- [ ] T074 [P] [US2] Amend the other specs by name, in this branch, since its code needs them (plan §13), each passage marked "(spec 001)":
+  - **Done** (71dfc21d): the table is in W1's note; P-G2, with no gap row.
+- [x] T074 [P] [US2] Amend the other specs by name, in this branch, since its code needs them (plan §13), each passage marked "(spec 001)":
   - spec 000's FR-030 (the sub-budget is the laptop's fallback rule) and FR-031 (one shared meter for prod, in the account), its contracts/config-files.md (R1), contracts/env-files.md (`H4_HOST`, `GATEWAY_DB_URL`), its operator actions (`restore`), and data-model.md (§2 to §7: the shared store, `host`);
   - spec 010's FR-001 and FR-026, and its Out list;
   - spec 007's FR-031's evidence.
 
   Check: the docs-links check passes; the reviewer reads each against the FRs it serves (plan §13); the note lists every amended passage for the Author (feat/001-shared-state)
-- [ ] T075 [P] [US2] Add the shared state's panel to the "Hosts" row: latency and errors per host (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-shared-state)
+  - **Done** (56d57875).
+- [x] T075 [P] [US2] Add the shared state's panel to the "Hosts" row: latency and errors per host (plan §11). Check: the dashboard's provisioning test passes (FR-060) (feat/001-shared-state)
   - **From W1:** and the last good backup's age, `h4.shared_state.backup_age_seconds`.
-- [ ] T076 [P] [US2] Add the disclosure rows C2 and C13, and S2's shared-state change, in the same commit as T068.
+  - **Done** (a9f6892d): the panels' queries in contracts/shared-state.md §10.
+- [x] T076 [P] [US2] Add the disclosure rows C2 and C13, and S2's shared-state change, in the same commit as T068.
   - **From W1:** C2 in T162's words, and C16, the backups, in the same commit as T164's backup timer; the tunnel end's egress rows gain S3 for the backups' bucket. `docs/runbooks/shared-state.md`'s restore is from the last backup (contracts/shared-state.md §8, as T162 amends it), and its move of the tunnel end to another zone is that restore. The data volume's `prevent_destroy` blocks a plan that replaces it, so the move is a reviewed change: a second volume in the new zone, filled from the last backup, with the old one kept until a later change lifts its `prevent_destroy` (plan.md §16). Write `docs/runbooks/shared-state.md` (unreachable; the move; a restore from backup, with contracts/shared-state.md §8's five steps), and the laptop runbook's sentence that prod needs the network and an offline demo runs `make up ENV=dev` (plan Q4). Check: `disclosure_check` passes (FR-040, FR-056) (feat/001-shared-state)
+  - **Done** (2fbc100e); C2 and C16 landed with their code (9e7bea8d, efd3f14c).
 
 ### The Author's plan block
 
