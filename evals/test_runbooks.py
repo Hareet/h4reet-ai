@@ -319,6 +319,23 @@ def test_spec_001s_group_4_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
+# Spec 001's group 5 (its tasks.md T054, T159): the tunnel end's page, and the alert bridge's, whose failure queue's
+# alarm W1 adds. The credential audit's page is group 4's, and the test above holds it to its new kind.
+SPEC_001_GROUP_5 = ("tunnel-end.md", "alert-bridge.md")
+
+
+def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -> None:
+    assert set(SPEC_001_GROUP_5) <= spec_001_runbooks()
+    for page in SPEC_001_GROUP_5:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_GROUP_5):
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses

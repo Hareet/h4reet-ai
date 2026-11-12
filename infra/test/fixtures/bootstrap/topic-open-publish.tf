@@ -1,5 +1,5 @@
 # h4-alerts' policy letting any principal publish, in Cost Anomaly Detection's place (contracts/aws-alerts.md §1).
-# expect: h4-alerts: its policy lets a principal other than Budgets and Cost Anomaly Detection publish
+# expect: h4-alerts: its policy lets a principal other than Budgets, Cost Anomaly Detection, CloudWatch's alarms, and EventBridge publish
 data "aws_iam_policy_document" "alerts" {
   statement {
     sid       = "Budgets"

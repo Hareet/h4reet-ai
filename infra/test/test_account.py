@@ -121,6 +121,22 @@ if not READER.is_file():
     )
 
 
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# W1's patches (tasks.md Format): the protected files as P-I3 and the later ones leave them, until the Author applies
+# them on W1's -p branch, then as the tree holds them.
+patches = _load(
+    "infra_w1_patches_for_account", Path(__file__).resolve().parent / "patches.py"
+)
+
+
 def _reader():
     spec = importlib.util.spec_from_file_location("infra_policy_for_account", READER)
     assert spec is not None and spec.loader is not None
@@ -170,9 +186,9 @@ def root_texts() -> dict[str, str]:
     texts = {}
     patch = PI2.read_text(encoding="utf-8") if PI2.is_file() else ""
     for name in FILES:
-        path = ROOT / name
-        if path.is_file():
-            texts[name] = path.read_text(encoding="utf-8")
+        text = patches.patched_text(f"infra/account/{name}")
+        if text is not None:
+            texts[name] = text
         elif name in PROTECTED_FILES:
             text = from_patch(patch, f"infra/account/{name}")
             if text is not None:
@@ -1281,6 +1297,68 @@ def check_audit_allowlist(root: dict[str, list]) -> list[str]:
     return found
 
 
+# Gate A's backlog (tasks.md T159; group 4's Backlog; contracts/aws-alerts.md §2): two alarms to h4-alerts, only in
+# alerts.tf, each quiet while it has no data, so neither pages while its function or queue is idle.
+ALARMS = {
+    "h4-credential-audit-errors": (
+        "AWS/Lambda",
+        "Errors",
+        "FunctionName",
+        (
+            "h4-credential-audit",
+            "aws_lambda_function.credential_audit[0].function_name",
+        ),
+    ),
+    "h4-alert-bridge-failed": (
+        "AWS/SQS",
+        "ApproximateNumberOfMessagesVisible",
+        "QueueName",
+        ("h4-alert-bridge-failed", "aws_sqs_queue.alert_bridge_failed.name"),
+    ),
+}
+
+
+def check_alarms(root: dict[str, list]) -> list[str]:
+    found = []
+    alarms = resource(root, "aws_cloudwatch_metric_alarm")
+    for b in alarms:
+        if where(root, b) != "alerts.tf":
+            found.append(f"alarms: {address(b)} lives outside alerts.tf")
+    by_name = {ip.literal(b.attr("alarm_name")): b for b in alarms}
+    for name, (namespace, metric, dimension, values) in ALARMS.items():
+        b = by_name.get(name)
+        if b is None:
+            found.append(f"alarms: {name} is missing")
+            continue
+        dims = raw(b, "dimensions")
+        if (
+            ip.literal(b.attr("namespace")) != namespace
+            or ip.literal(b.attr("metric_name")) != metric
+            or not re.search(
+                rf"{dimension}\s*=\s*(?:\"{re.escape(values[0])}\"|{re.escape(values[1])})(?![\w.\[])",
+                dims,
+            )
+        ):
+            found.append(
+                f"alarms: {name} doesn't watch {namespace} {metric} on its {dimension}"
+            )
+        if (
+            ip.literal(b.attr("comparison_operator")) != "GreaterThanOrEqualToThreshold"
+            or ip.literal(b.attr("threshold")) not in (1, 1.0)
+            or ip.literal(b.attr("evaluation_periods")) != 1
+        ):
+            found.append(f"alarms: {name} doesn't fire at one or more in one period")
+        if ip.literal(b.attr("treat_missing_data")) != "notBreaching":
+            found.append(f"alarms: {name} treats missing data as breaching")
+        if (
+            raw(b, "alarm_actions") != f"[{TOPIC}]"
+            or b.attr("ok_actions")
+            or b.attr("insufficient_data_actions")
+        ):
+            found.append(f"alarms: {name} doesn't go to h4-alerts alone")
+    return found
+
+
 CHECKS = (
     check_versions,
     check_provider,
@@ -1291,6 +1369,7 @@ CHECKS = (
     check_model_action,
     check_rehearsal,
     check_schedules,
+    check_alarms,
     check_functions,
     check_audit_allowlist,
     check_bridge_subscription,
@@ -1525,6 +1604,12 @@ def test_the_rehearsals_own_change_is_held_as_strictly(
 
 def test_the_schedules_live_in_alerts_tf_and_the_probes_is_disabled() -> None:
     assert check_schedules(parsed(root_texts())) == []
+
+
+def test_the_audits_errors_and_the_bridges_failures_alarm_to_h4_alerts_from_alerts_tf() -> (
+    None
+):
+    assert check_alarms(parsed(root_texts())) == []
 
 
 def test_the_functions_run_their_images_on_arm64_and_the_bridge_retries_then_fails_to_its_queue() -> (
