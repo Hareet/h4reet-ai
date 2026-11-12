@@ -21,7 +21,7 @@
 ## Phase 1: Setup
 
 - [x] T001 Create `feat/017-the-night-shift` from `spec/017-the-night-shift`'s reviewed tip, in a worktree. Record the container probe's rows in `specs/017-the-night-shift/research.md`: whether Claude Code's sandbox starts inside a container, the engine forwarder, and the GPU runtime.
-- [ ] T002 Pin the night images' bases by digest, and Claude Code at `CLAUDE_VERSION`, in `deploy/night-shift/images/pins.json`. The pins are read by `install.sh` and checked by P-8.
+- [x] T002 Pin the night images' bases by digest, and Claude Code at `CLAUDE_VERSION`, in `deploy/night-shift/images/pins.json`. The pins are read by `install.sh` and checked by P-8.
 - [x] T003 Add `deploy/night-shift` to `PYTEST_DIRS` in `Makefile`. `deploy/night-shift/tests/` has no `conftest.py`; tests load modules by path, as `tools/gates/test/` does.
 
 ## Phase 2: G1, the runner (US3, P1)

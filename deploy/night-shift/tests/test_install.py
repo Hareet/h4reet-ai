@@ -925,9 +925,20 @@ def test_a_null_digest_refuses_and_names_the_line_that_reads_it(make_case) -> No
     assert_nothing_installed(c, before)
 
 
-def test_the_committed_pins_refuse_until_the_author_fills_the_digests() -> None:
+def test_the_committed_pins_hold_every_base_digest_the_author_read() -> None:
+    # T002: the Author read node's, python's, and docker-cli's digests on his engine (2026-11-12); ubuntu's is
+    # the one .devcontainer/Dockerfile pins. A null digest still refuses (test_a_null_digest_* above).
     pins = json.loads((NIGHT / "images" / "pins.json").read_text())
-    assert all(b["digest"] is None for b in pins["bases"].values())
+    digests = {k: b["digest"] for k, b in pins["bases"].items()}
+    assert all(
+        isinstance(d, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", d)
+        for d in digests.values()
+    ), digests
+    devcontainer = (NIGHT.parent.parent / ".devcontainer" / "Dockerfile").read_text()
+    assert (
+        f"{pins['bases']['ubuntu:24.04']['image']}:24.04@{digests['ubuntu:24.04']}"
+        in devcontainer
+    )
 
 
 def test_a_base_whose_digest_differs_installs_nothing(make_case) -> None:

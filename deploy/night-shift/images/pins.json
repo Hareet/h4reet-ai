@@ -5,22 +5,22 @@
     "node:22-bookworm-slim": {
       "image": "docker.io/library/node",
       "tag": "22-bookworm-slim",
-      "digest": null
+      "digest": "sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee"
     },
     "python:3.12-slim": {
       "image": "docker.io/library/python",
       "tag": "3.12-slim",
-      "digest": null
+      "digest": "sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b"
     },
     "ubuntu:24.04": {
       "image": "public.ecr.aws/docker/library/ubuntu",
       "tag": "24.04",
-      "digest": null
+      "digest": "sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
     },
     "docker:28.3.3-cli": {
       "image": "docker.io/library/docker",
       "tag": "28.3.3-cli",
-      "digest": null
+      "digest": "sha256:0135662b510037ea581d99c2e5929c5e01185139c0b86986a418bd4da0b98a44"
     }
   },
   "toolchain": {
@@ -132,6 +132,6 @@
     }
   },
   "x-h4": {
-    "note": "Read by install.sh (G4) and checked by P-8. Each base's digest is null until the Author fills it: the install refuses to build while any is null, and pulls each base as image@digest. Read a digest with: docker image inspect --format '{{index .RepoDigests 0}}' <image:tag> (the container probe already pulled node:22-bookworm-slim and python:3.12-slim). ubuntu:24.04 is the same image .devcontainer/Dockerfile pins by digest. The toolchain is the devcontainer image, built first from .devcontainer/Dockerfile with these args; its own bases are pinned by digest there. Each image's context is written from git show <sha>:<path> at the same relative paths (a repository-shaped folder), but context_from_main, which comes from refs/heads/main (tasks.md T033). BLENDER_SHA256 is the two halves joined: the published checksum, kept in halves so no 64-hex string sits in a file. Contexts are built with --build-arg NAME=value for each base (image@digest) and arg. An arg whose from is facts.KEY takes that key from the facts file (the Author's uid and gid, for the passwd entry each session image bakes)."
+    "note": "Read by install.sh (G4) and checked by P-8. Each base's digest is the one the Author read on his engine on 2026-11-12 (ubuntu's is .devcontainer/Dockerfile's pin): the install refuses to build while any is null, and pulls each base as image@digest. Read a digest with: docker image inspect --format '{{index .RepoDigests 0}}' <image:tag> (the container probe already pulled node:22-bookworm-slim and python:3.12-slim). ubuntu:24.04 is the same image .devcontainer/Dockerfile pins by digest. The toolchain is the devcontainer image, built first from .devcontainer/Dockerfile with these args; its own bases are pinned by digest there. Each image's context is written from git show <sha>:<path> at the same relative paths (a repository-shaped folder), but context_from_main, which comes from refs/heads/main (tasks.md T033). BLENDER_SHA256 is the two halves joined: the published checksum, kept in halves so no 64-hex string sits in a file. Contexts are built with --build-arg NAME=value for each base (image@digest) and arg. An arg whose from is facts.KEY takes that key from the facts file (the Author's uid and gid, for the passwd entry each session image bakes)."
   }
 }

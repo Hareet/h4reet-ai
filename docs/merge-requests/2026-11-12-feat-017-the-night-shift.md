@@ -151,8 +151,8 @@ Not verified here, and proven only by his install (T090): the images' builds, th
 
 The steps, in order, are on the runbook artifact as lines of 45 characters or fewer.
 
-1. **Base digests**: `pins.json`'s bases are null, and the install refuses until they're set. The agents' engine can't reach Docker Hub (Forbidden), so read three digests on your machine and paste them back: `node:22-bookworm-slim`, `python:3.12-slim`, `docker:28.3.3-cli`. `ubuntu:24.04` takes the digest `.devcontainer/Dockerfile` already pins. I commit them, and that commit is the reviewed SHA you install.
-2. **Before the install**: `facts.env` and the token file (`claude setup-token`, mode 0600) in `~/.config/h4reet-ai/night-shift/`; `/srv/studio/outputs` empty (your Q5); `/srv/studio/workflows` present.
+1. **Base digests (done, T002)**: you read node's, python's, and docker-cli's on your engine, since the agents' engine can't reach Docker Hub (Forbidden). Ubuntu's is the one `.devcontainer/Dockerfile` pins. They're committed in `pins.json`, and the branch's tip after that commit is the SHA you install.
+2. **Before the install**: `facts.env` and the token file (`claude setup-token`, mode 0600) in `~/.config/h4reet-ai/night-shift/`; `/srv/studio/outputs` empty (your Q5; you reported 0 files); `/srv/studio/workflows` present.
 3. **Install and rehearse**: the guard on the reviewed SHA, then `install.sh <sha> --branch feat/017-the-night-shift`. Paste back the summary; each failure is fixed on this branch, test-first, with a new SHA (T090).
 4. **GitHub**: push before the first night (Q17), since the objects store is writable to sessions.
 5. **Merge**: after spec 001's W1 gate, unless you say otherwise. `toolchain-check` is WARN until P-8 moves the floor to 2.1.322.
