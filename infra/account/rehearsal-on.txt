@@ -1,0 +1,1 @@
+note: docs/merge-requests/2026-11-12-feat-001-rehearsal-on.md
