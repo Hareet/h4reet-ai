@@ -1839,5 +1839,8 @@ def test_relay_ready_reads_the_public_sections_figures(tmp_path: Path) -> None:
     ]
     budgets.write_text("schema: 1\n" + "\n".join(added) + "\n", encoding="utf-8")
     assert "requests_per_minute" in (RELAY_READY(tmp_path) or "")
-    # And the tree as it is today, before P-6.
-    assert RELAY_READY(REPO) is not None
+    # And the tree as it is: before P-6 the relay can't start; with the Author's figures, on his -p branch, it can.
+    real = (REPO / "config" / "budgets.yaml").read_text(encoding="utf-8")
+    assert (RELAY_READY(REPO) is None) == (
+        "\npublic:" in f"\n{real}" and "the Author's figure" not in real
+    )
