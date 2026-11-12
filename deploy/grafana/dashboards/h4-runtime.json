@@ -2,11 +2,7 @@
   "uid": "h4-runtime",
   "title": "h4reet.ai runtime",
   "description": "The stack's runtime: the kill switch, spend, requests, the model server, the audit log and alerts, telemetry health, the room's use (spec 002; §7.8), the cloud's hosts (spec 001; specs/001-cloud-elevation/contracts/tunnel.md §7), the studio's GPU windows (spec 003; specs/003-studio-assets/contracts/gpu-window.md §3), and dev-time usage on the Team plan, outside the production meter (spec 000; specs/000-local-foundations/contracts/telemetry.md §7). Provisioned from deploy/grafana/dashboards; edit the file, not the UI.",
-  "tags": [
-    "h4reet",
-    "spec-000",
-    "spec-003"
-  ],
+  "tags": ["h4reet", "spec-000", "spec-003"],
   "timezone": "utc",
   "refresh": "10s",
   "time": {
@@ -130,9 +126,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -299,9 +293,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -534,10 +526,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -563,10 +552,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -689,9 +675,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -785,10 +769,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -814,10 +795,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -940,9 +918,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1051,9 +1027,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1198,10 +1172,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -1364,10 +1335,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -1393,10 +1361,7 @@
                 "id": "custom.lineStyle",
                 "value": {
                   "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
+                  "dash": [10, 10]
                 }
               }
             ]
@@ -1519,9 +1484,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1642,9 +1605,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1965,9 +1926,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -2415,9 +2374,7 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
+            "reducers": ["lastNotNull"]
           }
         }
       ]
@@ -2574,9 +2531,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -2653,9 +2608,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3067,9 +3020,7 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
+            "reducers": ["lastNotNull"]
           }
         }
       ]
@@ -3136,9 +3087,7 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
+            "reducers": ["lastNotNull"]
           }
         }
       ]
@@ -3190,9 +3139,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3251,9 +3198,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3312,9 +3257,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3481,9 +3424,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3542,9 +3483,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -3603,9 +3542,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -4058,9 +3995,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -4185,9 +4120,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -4626,9 +4559,7 @@
         "justifyMode": "auto",
         "textMode": "value",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         }
@@ -5345,9 +5276,7 @@
         "justifyMode": "auto",
         "textMode": "value",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         }
@@ -5464,9 +5393,7 @@
         "justifyMode": "auto",
         "textMode": "value",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         }
@@ -5758,9 +5685,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -5832,9 +5757,7 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
+            "reducers": ["lastNotNull"]
           }
         }
       ]
@@ -5882,9 +5805,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -5956,9 +5877,7 @@
           "id": "reduce",
           "options": {
             "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
+            "reducers": ["lastNotNull"]
           }
         }
       ]

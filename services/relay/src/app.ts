@@ -324,8 +324,7 @@ export function buildRelay(deps: RelayDeps): {
       const startedAt = Date.now();
       // The edge listener starts a root span: a visitor's traceparent never parents it, so no visitor turns sampling
       // off or picks the trace ID (group 8's review A, nit 1). The internal listener keeps its caller's context.
-      const parent =
-        listener === "edge" ? ROOT_CONTEXT : propagation.extract(context.active(), req.headers);
+      const parent = listener === "edge" ? ROOT_CONTEXT : propagation.extract(context.active(), req.headers);
       const attributes = { "http.request.method": req.method, "http.route": route };
       const annotate = (span: Span, done: Done): void => {
         span.setAttribute("http.response.status_code", done.status);
@@ -350,34 +349,29 @@ export function buildRelay(deps: RelayDeps): {
         deps.telemetry.counted(done.host, done.outcome, route);
         return;
       }
-      await deps.telemetry.tracer.startActiveSpan(
-        SPAN,
-        { kind: SpanKind.SERVER, attributes },
-        parent,
-        async (span) => {
-          try {
-            const done = await handle(listener, req, res, span);
-            annotate(span, done);
-            deps.telemetry.counted(done.host, done.outcome, route);
-            // The relay's log line: the route, the host, the status, the cause, the duration, and the request ID.
-            deps.logger.info(
-              {
-                event: "relay.request",
-                route,
-                host: done.host,
-                status: done.status,
-                cause: done.cause,
-                duration_ms: now() - started,
-                request_id: res.getHeader("x-request-id"),
-                listener,
-              },
-              "The relay answered a request.",
-            );
-          } finally {
-            span.end();
-          }
-        },
-      );
+      await deps.telemetry.tracer.startActiveSpan(SPAN, { kind: SpanKind.SERVER, attributes }, parent, async (span) => {
+        try {
+          const done = await handle(listener, req, res, span);
+          annotate(span, done);
+          deps.telemetry.counted(done.host, done.outcome, route);
+          // The relay's log line: the route, the host, the status, the cause, the duration, and the request ID.
+          deps.logger.info(
+            {
+              event: "relay.request",
+              route,
+              host: done.host,
+              status: done.status,
+              cause: done.cause,
+              duration_ms: now() - started,
+              request_id: res.getHeader("x-request-id"),
+              listener,
+            },
+            "The relay answered a request.",
+          );
+        } finally {
+          span.end();
+        }
+      });
     };
     const routes: [string, string][] =
       listener === "edge"

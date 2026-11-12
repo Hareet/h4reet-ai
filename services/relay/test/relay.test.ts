@@ -557,9 +557,18 @@ describe("§6: GET /api/status", () => {
   });
 
   it.each([
-    [{ serving: "laptop", normal: true }, { local_tier: "up", state: "normal", cause_now: null }],
-    [{ serving: "ec2", normal: true }, { local_tier: "down", state: "normal", cause_now: null }],
-    [{ serving: "none", normal: true }, { local_tier: "down", state: "normal", cause_now: "no_host_serving" }],
+    [
+      { serving: "laptop", normal: true },
+      { local_tier: "up", state: "normal", cause_now: null },
+    ],
+    [
+      { serving: "ec2", normal: true },
+      { local_tier: "down", state: "normal", cause_now: null },
+    ],
+    [
+      { serving: "none", normal: true },
+      { local_tier: "down", state: "normal", cause_now: "no_host_serving" },
+    ],
   ])("reads the A1 fields from the serving host and the switch: %j", async (given, want) => {
     const r = await rig();
     if (given.serving === "laptop") await r.checks(3);
@@ -806,7 +815,10 @@ describe("group 8's review A", () => {
     const r = await rig();
     await r.checks(3);
     await r.internal.inject({ method: "GET", url: "/api/status" });
-    const metrics = JSON.parse(await capture.metricsJson()) as { name: string; points: [Record<string, string>, number][] }[];
+    const metrics = JSON.parse(await capture.metricsJson()) as {
+      name: string;
+      points: [Record<string, string>, number][];
+    }[];
     const gauge = metrics.find((m) => m.name === "h4.relay.status.class");
     const points = (gauge?.points ?? []).map(([a, v]) => [a["h4.class"], v]);
     expect(points.filter(([, v]) => v === 1)).toEqual([["local", 1]]);
@@ -839,7 +851,10 @@ describe("group 8's review A", () => {
   it("I4. labels which host serves, and each host's health, with keys the collector doesn't route on", async () => {
     const r = await rig();
     await r.checks(3);
-    const metrics = JSON.parse(await capture.metricsJson()) as { name: string; points: [Record<string, string>, number][] }[];
+    const metrics = JSON.parse(await capture.metricsJson()) as {
+      name: string;
+      points: [Record<string, string>, number][];
+    }[];
     for (const name of ["h4.serving_host", "h4.relay.host_healthy"]) {
       const m = metrics.find((x) => x.name === name);
       expect(m?.points.length).toBeGreaterThan(0);

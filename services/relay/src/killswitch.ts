@@ -28,7 +28,6 @@ export type Verdict =
       readonly ceilings: readonly string[] | null;
     };
 
-
 const iso = (v: Date | string | null): string | null => {
   if (v === null) return null;
   const d = v instanceof Date ? v : new Date(v);
