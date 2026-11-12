@@ -15,7 +15,8 @@ gets a case for each. On an export with P-G3 and P-G4: 182 passed; the patched p
 
 Built from plain copies (the text P-G3 leaves, into $TMPDIR), edited, then diff -u with a/ and b/ labels; never git
 apply. Apply it on W1's -p branch after P-G3, with `patch -p1 < <this file>` at the repository's root. Until it is
-applied, the branch's policy step refuses shared-state (3 refusals: its port, its network, its binds).
+applied, the branch's policy step refuses shared-state, 5 refusals: its port, its network, its two binds, and its
+image (14 with P-G3's 9 too).
 --- a/tools/gates/compose_policy.py
 +++ b/tools/gates/compose_policy.py
 @@ -16,7 +16,8 @@
@@ -107,7 +108,7 @@ applied, the branch's policy step refuses shared-state (3 refusals: its port, it
  def check_model(
 --- a/tools/gates/test/test_compose_policy.py
 +++ b/tools/gates/test/test_compose_policy.py
-@@ -1519,3 +1519,100 @@
+@@ -1519,3 +1519,97 @@
  
  def test_the_tunnel_ends_env_file_is_rendered_too() -> None:
      assert ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example") in cp.ENV_FILES
@@ -116,16 +117,13 @@ applied, the branch's policy step refuses shared-state (3 refusals: its port, it
 +# Group 6 (spec 001 tasks.md T163; contracts/shared-state.md §1): the tunnel end's shared state, gateway-state's Postgres
 +# copied to its own repository, publishing exactly 5432 on the private interface's fixed address, binding its key and
 +# certificate read-only and its data writable, and nothing else.
-+GATEWAY_STATE = cp.LockEntry(
-+    "gateway-state",
-+    "public.ecr.aws/docker/library/postgres",
-+    "17.11-alpine3.24",
-+    "sha256:" + "e" * 64,
-+    "public.ecr.aws",
-+    "2026-11-13",
++# The copy keeps the lock's own gateway-state line, the tag and digest the laptop's store runs.
++GATEWAY_STATE = LOCK["gateway-state"]
++SHARED_LOCK = CLOUD_LOCK
++SHARED_IMAGE = (
++    "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:"
++    + f"{GATEWAY_STATE.tag}@{GATEWAY_STATE.digest}"
 +)
-+SHARED_LOCK = {**CLOUD_LOCK, "gateway-state": GATEWAY_STATE}
-+SHARED_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@sha256:" + "e" * 64
 +
 +
 +def shared_model() -> dict:
@@ -197,7 +195,7 @@ applied, the branch's policy step refuses shared-state (3 refusals: its port, it
 +
 +def test_the_shared_state_runs_gateway_states_digest_from_its_own_repository(tmp_path: Path) -> None:
 +    model = shared_model()
-+    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("e" * 64, "f" * 64)
++    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace(GATEWAY_STATE.digest, "sha256:" + "f" * 64)
 +    assert ("shared-state", "image") in shared_rules(model, tmp_path)
 +    model = shared_model()
 +    model["services"]["shared-state"]["image"] = SHARED_IMAGE.replace("/shared-state:", "/gateway-state:")

@@ -151,19 +151,57 @@ def apply_diff(current: str | None, diff: FileDiff, name: str) -> str | None:
     )
 
 
+def _diffs(rel: str, patches: tuple[Path, ...]) -> list[tuple[str, FileDiff]]:
+    out = []
+    for patch in patches:
+        if patch.is_file():
+            diff = parse(patch.read_text(encoding="utf-8")).get(rel)
+            if diff is not None:
+                out.append((patch.name, diff))
+    return out
+
+
+def _unapplied(text: str | None, diffs: list[tuple[str, FileDiff]]) -> str | None:
+    """The text before every diff, from the text after all of them: each reversed, the last first."""
+    for name, diff in reversed(diffs):
+        if text is None:
+            raise StalePatch(f"{name}: the file is gone before its diff is undone")
+        if diff.old_path is None:  # a new file: before it, no file
+            if text != ("".join(diff.hunks[0].new) if diff.hunks else ""):
+                raise StalePatch(f"{name} created a text the tree no longer holds")
+            text = None
+            continue
+        undone = _apply(text, _reversed(diff.hunks))
+        if undone is None:
+            raise StalePatch(f"{name}'s hunks for {diff.old_path} don't undo")
+        text = undone
+    return text
+
+
 def patched_text(
     rel: str, patches: tuple[Path, ...] = W1_PATCHES, repo: Path = REPO
 ) -> str | None:
-    """rel's text once each patch is applied, in order; None if the file doesn't exist either way."""
+    """rel's text once each patch is applied, in order; None if the file doesn't exist either way. A tree that holds
+    every patch already, which a later patch changing an earlier one's file leaves past each one's own check, is read
+    as it is once undoing them all and applying them again gives it back."""
     path = repo / rel
     current = path.read_text(encoding="utf-8") if path.is_file() else None
-    for patch in patches:
-        if not patch.is_file():
-            continue
-        diff = parse(patch.read_text(encoding="utf-8")).get(rel)
-        if diff is not None:
-            current = apply_diff(current, diff, patch.name)
-    return current
+    diffs = _diffs(rel, patches)
+    try:
+        text = current
+        for name, diff in diffs:
+            text = apply_diff(text, diff, name)
+        return text
+    except StalePatch:
+        if current is None or len(diffs) < 2:
+            raise
+        before = _unapplied(current, diffs)
+        text = before
+        for name, diff in diffs:
+            text = apply_diff(text, diff, name)
+        if text != current:
+            raise
+        return current
 
 
 def touched(patches: tuple[Path, ...] = W1_PATCHES) -> set[str]:

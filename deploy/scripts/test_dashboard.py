@@ -1137,6 +1137,10 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         "Tunnel reconnects",
         "Telemetry delayed at the tunnel end",
         "Telemetry lost at the tunnel end",
+        # Group 6's (tasks.md T075; contracts/shared-state.md §10).
+        "Shared state latency, p95",
+        "Shared state errors",
+        "Last good backup's age",
     }
     found = by_title()
     for title, (kind, queries_) in expected.items():
