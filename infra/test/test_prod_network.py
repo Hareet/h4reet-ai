@@ -200,7 +200,8 @@ def statements(doc) -> list[dict]:
 
 
 def document(root: dict[str, list], ref: str):
-    m = re.search(r"data\.aws_iam_policy_document\.([A-Za-z0-9_-]+)\.json", ref)
+    # The whole reference, never one inside replace(), merge(), or jsonencode() (the second review, I-A).
+    m = re.fullmatch(r"data\.aws_iam_policy_document\.(\w+)\.json", ref.strip())
     return one(root, "aws_iam_policy_document", m.group(1), "data") if m else None
 
 
@@ -590,6 +591,11 @@ def check_role(root: dict[str, list]) -> list[str]:
             found.append(f"role: {address(b)} names its role other than by a reference")
     if role.blocks("inline_policy"):
         found.append("role: it holds an inline_policy block")
+    # A module could attach a policy where this check can't see it (the second review, I-A).
+    for m in blocks(root, "module"):
+        found.append(
+            f"role: module {'.'.join(m.labels)} could give the role a policy the check doesn't read"
+        )
     granted: dict[str, str] = {}
     conditions: dict[str, list] = {}
     for p in resource(root, "aws_iam_role_policy"):
@@ -601,7 +607,29 @@ def check_role(root: dict[str, list]) -> list[str]:
                 f"role: {address(p)}'s policy isn't a data.aws_iam_policy_document this root reads"
             )
             continue
+        # What the check can't read is a finding, never empty (the second review, I-A): a document built from other
+        # documents, a dynamic statement, and an effect or an actions list that isn't a literal.
+        for key in ("source_policy_documents", "override_policy_documents"):
+            if doc.attr(key) is not None:
+                found.append(
+                    f"role: {address(doc)} takes {key}, which the check doesn't read"
+                )
+        if doc.blocks("dynamic"):
+            found.append(
+                f"role: {address(doc)} has a dynamic block, which the check doesn't read"
+            )
         for st in doc.blocks("statement"):
+            effect, actions = lit(st, "effect"), lit(st, "actions")
+            if (st.attr("effect") is not None and effect not in ("Allow", "Deny")) or (
+                st.attr("actions") is not None
+                and not (
+                    isinstance(actions, list)
+                    and all(isinstance(a, str) for a in actions)
+                )
+            ):
+                found.append(
+                    f"role: {address(doc)} has a statement whose effect or actions aren't literals"
+                )
             if any(
                 st.attr(k) is not None
                 for k in ("not_actions", "not_resources", "not_principals")
@@ -633,7 +661,7 @@ def check_role(root: dict[str, list]) -> list[str]:
     if "kms:Decrypt" in granted and (
         "StringLike",
         "kms:EncryptionContext:PARAMETER_ARN",
-        PARAMETERS,
+        granted.get("ssm:GetParameter", PARAMETERS),
     ) not in conditions.get("kms:Decrypt", []):
         found.append("role: kms:Decrypt isn't held to its own parameters")
     for action in ("s3:GetObject", "s3:ListBucket"):
