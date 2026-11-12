@@ -546,6 +546,16 @@ SESSION_MANAGER = (
 ROLE_GRANTS.update({action: '["*"]' for action in SESSION_MANAGER})
 
 
+# Every resource that gives a role a policy (group 5's fixes' review, 1).
+ATTACHING = (
+    "aws_iam_role_policy",
+    "aws_iam_role_policy_attachment",
+    "aws_iam_policy_attachment",
+    "aws_iam_role_policies_exclusive",
+    "aws_iam_role_policy_attachments_exclusive",
+)
+
+
 def check_role(root: dict[str, list]) -> list[str]:
     found = []
     roles = [
@@ -565,12 +575,39 @@ def check_role(root: dict[str, list]) -> list[str]:
     profile = one(root, "aws_iam_instance_profile", "tunnel_end")
     if profile is None or raw(profile, "role") != f"{me}.name":
         found.append("role: the instance profile isn't the role's")
+    # Fail closed (group 5's fixes' review, 1): every policy or attachment names its role by a reference to a role
+    # this root makes, never by a literal name; every policy on this role is a data.aws_iam_policy_document this root
+    # reads; no statement grants by exclusion; and the role holds no inline_policy block.
+    for b in blocks(root, "resource"):
+        if b.labels[0] not in ATTACHING:
+            continue
+        named = " ".join(raw(b, k) for k in ("role", "roles", "role_name")).strip()
+        if not re.fullmatch(
+            r"\[?\s*aws_iam_role\.[A-Za-z0-9_]+\.(id|name)\s*,?\s*\]?", named
+        ):
+            found.append(f"role: {address(b)} names its role other than by a reference")
+    if role.blocks("inline_policy"):
+        found.append("role: it holds an inline_policy block")
     granted: dict[str, str] = {}
     conditions: dict[str, list] = {}
     for p in resource(root, "aws_iam_role_policy"):
         if raw(p, "role") not in (f"{me}.id", f"{me}.name"):
             continue
-        for s in statements(document(root, raw(p, "policy"))):
+        doc = document(root, raw(p, "policy"))
+        if doc is None:
+            found.append(
+                f"role: {address(p)}'s policy isn't a data.aws_iam_policy_document this root reads"
+            )
+            continue
+        for st in doc.blocks("statement"):
+            if any(
+                st.attr(k) is not None
+                for k in ("not_actions", "not_resources", "not_principals")
+            ):
+                found.append(
+                    f"role: {address(doc)} grants by not_actions, not_resources, or not_principals"
+                )
+        for s in statements(doc):
             if s["effect"] != "Allow":
                 continue
             for a in s["actions"]:
@@ -591,6 +628,12 @@ def check_role(root: dict[str, list]) -> list[str]:
         '["ssm.us-east-1.amazonaws.com"]',
     ) not in conditions.get("kms:Decrypt", []):
         found.append("role: kms:Decrypt isn't only through Parameter Store")
+    if "kms:Decrypt" in granted and (
+        "StringLike",
+        "kms:EncryptionContext:PARAMETER_ARN",
+        PARAMETERS,
+    ) not in conditions.get("kms:Decrypt", []):
+        found.append("role: kms:Decrypt isn't held to its own parameters")
     for action in ("s3:GetObject", "s3:ListBucket"):
         if action in granted and not any(
             v == "aws:ResourceAccount" for _, v, _ in conditions.get(action, [])
