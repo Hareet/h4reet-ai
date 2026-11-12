@@ -1,8 +1,11 @@
 #!/bin/sh
 # edge's entrypoint (spec 001 contracts/tunnel.md §4; tasks.md T048): writes the hosts' blocks' token maps, then runs
 # nginx. nginx reads no environment, so the relay block's and the telemetry block's tokens reach it as two maps in a
-# file on edge's tmpfs, which nginx.conf includes: each map matches "Bearer <token>" and nothing else, and with no token
-# nothing matches, so the block answers 401 to everyone (dev and dev-cpu, and prod before the Author's tunnel-keys).
+# file on edge's tmpfs, which nginx.conf includes: each map matches "Bearer <token>" and nothing else, exactly, and with
+# no token nothing matches, so the block answers 401 to everyone (dev and dev-cpu, and prod before the Author's
+# tunnel-keys). The entry is a regular expression, "~^Bearer <token>$": nginx matches a map's plain strings without
+# case, and hashes them in buckets a long token overflows, so nginx wouldn't start (group 5's review). The token's
+# shape holds nothing a regular expression reads.
 # A token outside its shape stops edge, naming the key and never the value. The tokens leave the environment before
 # nginx starts.
 set -eu
@@ -29,7 +32,7 @@ if [ -n "${TELEMETRY_BLOCK_TOKEN:-}" ] && ! valid "$TELEMETRY_BLOCK_TOKEN"; then
 block_map() {
 	printf 'map $http_authorization %s {\n  default 0;\n' "$1"
 	if [ -n "$2" ]; then
-		printf '  "Bearer %s" 1;\n' "$2"
+		printf '  "~^Bearer %s$" 1;\n' "$2"
 	fi
 	printf '}\n'
 }

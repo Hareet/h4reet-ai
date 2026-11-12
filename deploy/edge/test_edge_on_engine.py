@@ -182,13 +182,13 @@ def test_a_blocks_token_matches_exactly_case_and_all(image: str) -> None:
                 break
             time.sleep(0.2)
         assert ready.returncode == 0, said(docker("logs", name))
-        # The token passes the 401: with no network the collector can't be reached, so nginx answers 502 or 504.
+        # The token passes the 401: with no network the collector can't be reached, so nginx answers 502 or 504. (A
+        # trailing blank isn't another token: HTTP trims it from the header's value before nginx reads it.)
         assert status(name, f"Bearer {telemetry}") in (502, 504)
         for other in (
             f"Bearer {telemetry.swapcase()}",
             f"bearer {telemetry}",
             f"BEARER {telemetry}",
-            f"Bearer {telemetry} ",
             f"Bearer {telemetry[:-1]}",
             "Bearer",
         ):
