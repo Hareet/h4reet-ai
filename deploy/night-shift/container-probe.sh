@@ -221,6 +221,11 @@ absent no-h4config "$H/.config/h4reet-ai"
 absent no-author-claude "$H/.claude"
 absent no-photos /srv/studio/photos
 absent no-key /srv/studio/key
+# No API-billing credential anywhere the session can see: in its environment, or as an API key's text in what it
+# can write. The OAuth token's own prefix (sk-ant-oat) doesn't match the API key's (sk-ant-api).
+creds="$(env | cut -d= -f1 | grep -E -c '^(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|ANTHROPIC_BASE_URL|CLAUDE_CODE_USE_BEDROCK|CLAUDE_CODE_USE_VERTEX|CLAUDE_CODE_USE_FOUNDRY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_PROFILE)$')"
+keys="$(grep -rIl 'sk-ant-api' "$WT" /night/claude /night/home 2>/dev/null | wc -l)"
+if [ "$creds" = 0 ] && [ "$keys" = 0 ]; then r no-api-credential ok; else r no-api-credential FAILED "$creds billing variables, $keys files with an API key's text"; fi
 
 viaproxy='import sys, urllib.request
 try:
@@ -310,29 +315,42 @@ CHECKS
 	# line to it never reached the API, and the stand-in credential was never used (the review's B1). That proof only
 	# holds when the proxy demonstrably works and the token demonstrably signs in, so both rows must be ok first; a
 	# turn that fails for want of a network would otherwise read as a refusal (the second run).
-	local v before after out rc
-	if ! grep -q '^row: egress-allowed ok' "$rows" || ! grep -q '^row: signin ok' "$rows"; then
-		row failclosed-api-key UNTESTED "needs egress-allowed and signin to be ok first"
-		row failclosed-auth-token UNTESTED "needs egress-allowed and signin to be ok first"
-	fi
-	for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; do
-		if ! { grep -q '^row: egress-allowed ok' "$rows" && grep -q '^row: signin ok' "$rows"; }; then break; fi
-		before="$(grep -c 'api.anthropic.com' "$t/state/egress.jsonl" 2>/dev/null || true)"
-		out="$("${w[@]}" -e "$v=probe-not-a-credential" "$IMG_W" timeout 120 claude -p 'Reply with exactly the word ok and nothing else.' --settings /night/settings.json --max-turns 2 2>&1)"
-		rc=$?
-		sleep 1
-		after="$(grep -c 'api.anthropic.com' "$t/state/egress.jsonl" 2>/dev/null || true)"
-		local name="failclosed-${v#ANTHROPIC_}"
-		name="$(printf '%s' "$name" | tr '[:upper:]_' '[:lower:]-')"
-		if [ "${after:-0}" != "${before:-0}" ]; then
-			row "$name" FAILED "with $v set, it reached api.anthropic.com ($before → $after proxy lines), exit $rc: $(printf '%s' "$out" | redact | tr '\n' ' ' | cut -c1-120)"
-		elif [ "$rc" -eq 124 ]; then
-			row "$name" FAILED "it hung until the 120 s timeout instead of refusing"
-		elif [ "$rc" -ne 0 ]; then
-			row "$name" ok "refused to start, no API call (exit $rc): $(printf '%s' "$out" | redact | tr '\n' ' ' | cut -c1-120)"
-		else
-			row "$name" FAILED "it exited 0 with $v set"
-		fi
+	#
+	# The second run showed `forceLoginMethod` in a --settings layer doesn't stop a stand-in key: Claude Code sent it
+	# and got a 401. This run tries it as managed settings (/etc/claude-code/managed-settings.json, mounted read-only),
+	# alone ("managed") and with the two variables blanked in its env ("managedenv"). A stand-in is "ok" when Claude
+	# Code refuses to start with no API call, or answers "ok" on the night token, the stand-in unused (a used stand-in
+	# can only get a 401). Either way it can't have used the stand-in.
+	local v before after out rc variant name last
+	printf '%s\n' '{"forceLoginMethod": "claudeai"}' >"$t/managed.json"
+	printf '%s\n' '{"forceLoginMethod": "claudeai", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": ""}}' >"$t/managedenv.json"
+	chmod 644 "$t/managed.json" "$t/managedenv.json"
+	local gate_ok=yes
+	if ! { grep -q '^row: egress-allowed ok' "$rows" && grep -q '^row: signin ok' "$rows"; }; then gate_ok=no; fi
+	for variant in managed managedenv; do
+		for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; do
+			name="failclosed-$variant-$(printf '%s' "${v#ANTHROPIC_}" | tr '[:upper:]_' '[:lower:]-')"
+			if [ "$gate_ok" != yes ]; then
+				row "$name" UNTESTED "needs egress-allowed and signin to be ok first"
+				continue
+			fi
+			before="$(grep -c 'api.anthropic.com' "$t/state/egress.jsonl" 2>/dev/null || true)"
+			out="$("${w[@]}" -v "$t/$variant.json:/etc/claude-code/managed-settings.json:ro" -e "$v=probe-not-a-credential" "$IMG_W" timeout 120 claude -p 'Reply with exactly the word ok and nothing else.' --settings /night/settings.json --max-turns 2 2>&1)"
+			rc=$?
+			sleep 1
+			after="$(grep -c 'api.anthropic.com' "$t/state/egress.jsonl" 2>/dev/null || true)"
+			last="$(printf '%s\n' "$out" | sed '/^[[:space:]]*$/d' | tail -n 1 | tr -d '[:space:].' | tr '[:upper:]' '[:lower:]')"
+			out="$(printf '%s' "$out" | redact | tr '\n' ' ' | cut -c1-120)"
+			if [ "$rc" -eq 0 ] && [ "$last" = ok ]; then
+				row "$name" ok "neutralized: it answered on the night token, the stand-in unused"
+			elif [ "$rc" -eq 124 ]; then
+				row "$name" FAILED "it hung until the 120 s timeout"
+			elif [ "$rc" -ne 0 ] && [ "${after:-0}" = "${before:-0}" ]; then
+				row "$name" ok "refused to start, no API call (exit $rc): $out"
+			else
+				row "$name" FAILED "it used the stand-in ($before → $after proxy lines, exit $rc): $out"
+			fi
+		done
 	done
 
 	h "7. what the egress proxy saw (host names and decisions only)"
@@ -354,10 +372,13 @@ for (host, dec, why), n in sorted(seen.items()):
 	echo "exit: $?"
 
 	h "8. the GPU, for the studio's containers (name and memory only)"
+	# Without --read-only: the NVIDIA runtime's hook writes into the container when it starts. The run before printed
+	# nothing with it on.
 	local gpu
-	gpu="$(docker run --rm "${lock[@]}" --gpus all "$IMG_W" nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>&1 | tail -n 1)"
+	gpu="$(docker run --rm --label "$LABEL" --cap-drop ALL --security-opt no-new-privileges --gpus all "$IMG_W" nvidia-smi -L 2>&1)"
 	echo "exit: $?"
-	row gpu info "$gpu"
+	printf '%s\n' "$gpu" | head -n 4
+	row gpu info "$(printf '%s' "$gpu" | head -n 1 | cut -c1-120)"
 
 	h "summary"
 	local need="no-socket no-socket-run no-aws no-ssh no-h4config no-author-claude no-photos no-key egress-allowed egress-refused no-route no-default-route worktree-write commit hooks-ro config-ro hookspath settings-ro main-ro tags-ro alternates-ro commondir-ro"
@@ -375,13 +396,21 @@ for (host, dec, why), n in sorted(seen.items()):
 		echo "BOUNDARY: holds"
 	fi
 	local p bad=""
-	for p in signin failclosed-api-key failclosed-auth-token; do
+	for p in signin no-api-credential; do
 		grep -q "^row: $p ok" "$rows" || bad="$bad $p"
 	done
-	if [ -z "$bad" ]; then
-		echo "PLAN-ONLY: yes (signed in with the token; an API key and an auth token each made it refuse to start, with no API call)"
-	else
+	local second=""
+	for variant in managed managedenv; do
+		if grep -q "^row: failclosed-$variant-api-key ok" "$rows" && grep -q "^row: failclosed-$variant-auth-token ok" "$rows"; then
+			second="${second:+$second, }$variant"
+		fi
+	done
+	if [ -n "$bad" ]; then
 		echo "PLAN-ONLY: FAILED or missing:$bad"
+	elif [ -n "$second" ]; then
+		echo "PLAN-ONLY: yes (signed in on the token; no API credential in the container; second layer holds: $second)"
+	else
+		echo "PLAN-ONLY: by absence only (signed in on the token; no API credential in the container; but neither managed-settings variant stopped a stand-in); tell the session"
 	fi
 	grep '^row: ' "$rows" | cut -c6- | cut -c1-200
 	echo "images left: $IMG_W $IMG_E (remove with: docker image rm $IMG_W $IMG_E)"

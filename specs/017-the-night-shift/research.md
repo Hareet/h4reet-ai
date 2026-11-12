@@ -217,3 +217,19 @@ A reviewer agent (read-only) reviewed the first version at 26d25c64.
 - the `PLAN-ONLY` line names any missing rows.
 
 **Kept:** while a container exists, `docker inspect` can show its environment, the token included. Only a holder of the host's socket can run it, and no session has the socket.
+
+## R-18: the container probe's runs, 2026-11-12
+
+**First run (17:07 UTC), at 7b756e2d.** The egress proxy couldn't open its script: the probe's `umask 077` and Docker's `COPY` left it readable only by root, and the container runs as the Author. The probe printed "running" without checking. Every file-system and git row held, and so did `no-route` and `engine-fwd`. The egress, sign-in, and fail-closed rows proved nothing. Fixed at b2b9074b: `COPY --chmod=0444`, a readiness check before any row, and fail-closed rows that stay UNTESTED unless egress and sign-in are proven first.
+
+**Second run (17:15 UTC), at b2b9074b.**
+- **BOUNDARY: holds.**
+  - Every never-mounted path is absent.
+  - `api.anthropic.com` is reached through the proxy (HTTP 404 at `/`), and `example.com` gets the proxy's 403.
+  - A direct connection is unreachable (errno 101), there's no default route, and outside names don't resolve.
+  - The worktree commits, and all eight masks refuse with the right errors.
+  - The engine forwarder connects.
+- **Sign-in on the plan works**: `claude -p` answered on the setup-token token (`"authMethod": "oauth_token"`).
+- **`forceLoginMethod` in a `--settings` layer doesn't fail closed.** With it set, Claude Code 2.1.322 sent a stand-in `ANTHROPIC_API_KEY` ("Invalid API key · Fix external API key") and a stand-in `ANTHROPIC_AUTH_TOKEN` ("API Error: 401 Invalid bearer token"). The proxy logged three `api.anthropic.com` lines for each. The stand-ins couldn't bill anything. This corrects R-16's reading. FR-041 now rests on the absence of any credential, with managed settings to be tested as the second layer.
+- **Claude Code's own sandbox doesn't start inside the container** ("Fixing this means changing the sandbox or kernel settings, for example enabling unprivileged…" user namespaces). The container is the boundary, and the token-in-environment gap (plan §13) stands.
+- **The GPU row printed nothing** under `--read-only`; the next version runs `nvidia-smi -L` without it.
