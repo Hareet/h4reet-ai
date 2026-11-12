@@ -211,7 +211,7 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
 | Request | The runner | State |
 |---|---|---|
 | `plan` (root, SHA) | a detached worktree at the SHA, then `aws configure export-credentials --profile $PLAN_AWS_PROFILE` into a 0600 env file it deletes after. It then runs the plan container on h4-night-plan, with egress-plan allowing the AWS hosts `infra/` uses in us-east-1 (`allowlist-plan.json`), running that commit's `scripts/infra/infra_plan.py`, and returns the redacted block | **off** until P-2, P-3, P-6 |
-| `gate` (SHA) | `tools/gates/gate <sha>` on the host, from his checkout while it's on `refs/heads/main` and clean, under the gate lock, never `--prove` | **off** until P-2, P-3 |
+| `gate` (SHA) | `tools/gates/gate <sha>` on the host, from his checkout while it's on `refs/heads/main` and clean, under the gate lock, never `--prove` | **off** until P-2, P-3, P-6 (the runner turns plan and gate on together) |
 | `comfyui start` (params) | under the studio task's GPU lock: the comfyui container, `python main.py --listen 0.0.0.0 --port 8188 --output-directory /srv/studio/outputs --temp-directory … --user-directory …` plus the params, each checked against the allowlist seeded from his `start-comfyui.sh` and his answer | on |
 | `comfyui stop` | stops it; also when the task ends | on |
 
