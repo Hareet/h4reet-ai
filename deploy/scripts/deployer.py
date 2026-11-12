@@ -113,7 +113,7 @@ class Refused(Exception):
 class Aws(Protocol):
     def get(self, bucket: str, key: str) -> bytes | None: ...
 
-    def publish(self, message: str) -> None: ...
+    def publish(self, message: str) -> bool: ...
 
     def login(self, registry: str) -> None: ...
 
@@ -223,6 +223,33 @@ class Deployer:
     def recorded(self, name: str) -> dict | None:
         path = self.state / f"{name}.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+    # The alert memory, refused.json (the second review, I-B): an incident's key, kept only once SNS took its alert;
+    # unreadable or unwritable, it is nothing seen, so it never silences an alert; a deploy forgets it.
+    def seen(self) -> dict:
+        try:
+            got = self.recorded("refused")
+        except (OSError, ValueError):
+            return {}
+        return got if isinstance(got, dict) else {}
+
+    def alert_once(self, key: str, message: str) -> bool:
+        if key in self.seen():
+            return False
+        try:
+            sent = self.aws.publish(message) is not False
+        except Unreachable:
+            sent = False
+        if sent:
+            try:
+                self.keep("refused", {**self.seen(), key: self.now()})
+            except OSError:
+                pass
+        return sent
+
+    def tried(self, rid: str) -> bool:
+        """A release refused or rolled back already: it isn't tried again until a newer one deploys."""
+        return any(k.startswith(f"{rid}:") for k in self.seen())
 
     def keep(self, name: str, release: dict) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
@@ -365,10 +392,19 @@ class Deployer:
             )
             return 0
         except (Refused, ValueError) as error:
-            return self.refuse({"release": "latest"}, str(error) or "release")
+            # Keyed on the pointer itself, so each new pointer's incident alerts (the second review, I-B).
+            mark = hashlib.sha256(pointer or b"").hexdigest()[:16]
+            return self.refuse(
+                {"release": "latest"}, str(error) or "release", f"latest@{mark}"
+            )
         current = self.recorded("current")
         if current is not None and current.get("release") == release.get("release"):
             return 0
+        if self.tried(str(release.get("release"))):
+            print(
+                f"{PROG}: release {release.get('release')} stays refused or rolled back; nothing changes"
+            )
+            return 1
         try:
             verify(self.host, release)
             self.prepare(release)
@@ -394,15 +430,20 @@ class Deployer:
                 reason == "preflight_after"
                 and current is not None
                 and self.host in HOST_STEPS
+                # The new tree's host step ran: the running release's puts its host files back, and says if it can't.
+                and not self.docker.host_step(self.host, self.tree(current))
             ):
-                # The new tree's host step ran: the running release's puts its host files back.
-                self.docker.host_step(self.host, self.tree(current))
+                reason = "preflight_after_restore_failed"
             self.ensure()
-            return self.refuse(release, "preflight")
+            return self.refuse(release, reason)
         if started:
             if current is not None:
                 self.keep("previous", current)
             self.keep("current", release)
+            try:
+                (self.state / "refused.json").unlink()
+            except OSError:
+                pass
             self.record(release, "deployed")
             print(f"{PROG}: {self.host} runs release {release['release']}")
             return 0
@@ -420,34 +461,28 @@ class Deployer:
             if back
             else f"{self.host} couldn't start {release['release']} or return to {old}"
         )
-        self.aws.publish(
-            alert(
-                kind,
-                summary,
-                [("release", str(release["release"])), ("previous", str(old))],
-            )
+        message = alert(
+            kind,
+            summary,
+            [("release", str(release["release"])), ("previous", str(old))],
         )
-        self.record(release, outcome)
+        # Once: the release isn't started again each minute (the second review, I-E).
+        if self.alert_once(f"{release['release']}:{outcome}", message):
+            self.record(release, outcome)
         return 1
 
-    def refuse(self, release: dict, reason: str) -> int:
-        """deploy_refused once per release and reason: the memory is the state folder's refused.json, which outlives
-        a run and a reboot (group 5's fixes' review, 2)."""
+    def refuse(self, release: dict, reason: str, key: str | None = None) -> int:
+        """deploy_refused once per incident, in refused.json, which outlives a run and a reboot."""
         rid = str(release.get("release", "latest"))
-        seen = self.recorded("refused") or {}
-        key = f"{rid}:{reason}"
-        if key in seen:
-            print(f"{PROG}: release {rid} stays refused ({reason})", file=sys.stderr)
-            return 1
-        self.keep("refused", {**seen, key: self.now()})
-        self.aws.publish(
-            alert(
-                "deploy_refused",
-                f"{self.host} refused release {rid}",
-                [("reason", reason), ("release", rid)],
-            )
+        message = alert(
+            "deploy_refused",
+            f"{self.host} refused release {rid}",
+            [("reason", reason), ("release", rid)],
         )
-        self.record(release, "refused")
+        if self.alert_once(key or f"{rid}:{reason}", message):
+            self.record(release, "refused")
+        else:
+            print(f"{PROG}: release {rid} stays refused ({reason})", file=sys.stderr)
         return 1
 
     def restart(self, service: str) -> int:
@@ -474,9 +509,19 @@ def run(
     deployer = Deployer(host, env_file, state, aws, docker, plugin, now)
     if restart is not None:
         return deployer.restart(restart)
-    # The Author's hold (releases-deployer.md §4): nothing starts, restarts, or deploys while it stands.
-    if (state / "hold").exists():
-        print(f"{PROG}: held ({state / 'hold'}): nothing changes", file=sys.stderr)
+    # The Author's hold (releases-deployer.md §4): nothing starts, restarts, or deploys while it stands; alerted once
+    # per hold, so a forgotten one doesn't stand unseen (the second review, nit 3).
+    hold = state / "hold"
+    if hold.exists():
+        print(f"{PROG}: held ({hold}): nothing changes", file=sys.stderr)
+        deployer.alert_once(
+            f"hold@{hold.stat().st_mtime_ns}",
+            alert(
+                "deploy_refused",
+                f"{host} is held: nothing starts or deploys until the hold goes",
+                [("reason", "held")],
+            ),
+        )
         return 0
     return deployer.boot() if boot else deployer.check()
 
@@ -516,9 +561,10 @@ class AwsCli:
         registry = read_env(ENV_FILE).get("H4_REGISTRY", "")
         return registry.split(".", 1)[0]
 
-    def publish(self, message: str) -> None:
+    def publish(self, message: str) -> bool:
         topic = f"arn:aws:sns:us-east-1:{self.account()}:h4-alerts"
-        self.run("sns", "publish", "--topic-arn", topic, "--message", message)
+        done = self.run("sns", "publish", "--topic-arn", topic, "--message", message)
+        return done.returncode == 0
 
     def login(self, registry: str) -> None:
         password = self.run("ecr", "get-login-password")

@@ -659,7 +659,9 @@ def test_a_hold_keeps_the_deployer_from_starting_or_deploying_anything(
     w.release("r2")
     assert w.run() == 0
     assert w.run(boot=True) == 0
-    assert w.docker.calls == [] and w.aws.alerts == []
+    # Nothing starts or deploys; the hold itself is alerted once (the second review, nit 3).
+    assert w.docker.calls == []
+    assert [a.splitlines()[-1] for a in w.aws.alerts] == ["- reason: held"]
     assert "held" in capsys.readouterr().err
     assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
     (w.state / "hold").unlink()

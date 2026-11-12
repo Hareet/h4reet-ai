@@ -58,6 +58,7 @@ class Aws:
         self.objects: dict[str, bytes] = {}
         self.alerts: list[str] = []
         self.reachable = True
+        self.publish_ok = True
 
     def get(self, bucket: str, key: str) -> bytes | None:
         assert bucket == BUCKET
@@ -65,8 +66,10 @@ class Aws:
             raise fs.Unreachable("the bucket")
         return self.objects.get(key)
 
-    def publish(self, message: str) -> None:
-        self.alerts.append(message)
+    def publish(self, message: str) -> bool:
+        if self.publish_ok:
+            self.alerts.append(message)
+        return self.publish_ok
 
 
 class Runner:
@@ -302,3 +305,16 @@ def test_it_keeps_to_amazon_linux_2023s_python_and_the_standard_library() -> Non
             assert {a.name.split(".")[0] for a in node.names} <= allowed
         if isinstance(node, ast.ImportFrom):
             assert (node.module or "").split(".")[0] in allowed
+
+
+def test_an_alert_sns_refused_is_sent_on_the_next_run(tmp_path: Path) -> None:
+    # The second review's I-B, as the deployer takes it: the memory keeps an alert only once SNS took it.
+    w = World(tmp_path)
+    new = w.started(w.release("r1"))
+    w.runner.codes[new.name] = 1
+    w.aws.publish_ok = False
+    w.run()
+    assert w.aws.alerts == []
+    w.aws.publish_ok = True
+    w.run()
+    assert len(w.aws.alerts) == 1

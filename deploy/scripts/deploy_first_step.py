@@ -62,17 +62,31 @@ def recorded(state: Path, name: str) -> dict | None:
 
 
 def alert_once(state: Path, aws, key: str, lines: list[str]) -> None:
-    """One alert per release and reason, in the deployer's own memory of them (state/refused.json)."""
-    seen = recorded(state, "refused") or {}
+    """One alert per release and reason, in the deployer's own memory of them (state/refused.json), kept only once SNS
+    took it; an unreadable or unwritable memory is nothing seen, so it never silences an alert."""
+    try:
+        seen = recorded(state, "refused") or {}
+    except OSError:
+        seen = {}
+    if not isinstance(seen, dict):
+        seen = {}
     if key in seen:
         return
-    state.mkdir(parents=True, exist_ok=True)
-    tmp = state / ".refused.json"
-    tmp.write_text(
-        json.dumps({**seen, key: "first-step"}, sort_keys=True), encoding="utf-8"
-    )
-    os.replace(tmp, state / "refused.json")
-    aws.publish("\n".join(lines))
+    try:
+        sent = aws.publish("\n".join(lines)) is not False
+    except Unreachable:
+        sent = False
+    if not sent:
+        return
+    try:
+        state.mkdir(parents=True, exist_ok=True)
+        tmp = state / ".refused.json"
+        tmp.write_text(
+            json.dumps({**seen, key: "first-step"}, sort_keys=True), encoding="utf-8"
+        )
+        os.replace(tmp, state / "refused.json")
+    except OSError:
+        pass
 
 
 def extract(data: bytes, into: Path) -> bool:
@@ -257,10 +271,15 @@ class AwsCli:
             return None
         raise Unreachable("s3")
 
-    def publish(self, message: str) -> None:
+    def publish(self, message: str) -> bool:
         account = read_env(self.env_file).get("H4_REGISTRY", "").split(".", 1)[0]
         topic = f"arn:aws:sns:us-east-1:{account}:h4-alerts"
-        self.call("sns", "publish", "--topic-arn", topic, "--message", message)
+        return (
+            self.call(
+                "sns", "publish", "--topic-arn", topic, "--message", message
+            ).returncode
+            == 0
+        )
 
 
 def process(argv: list[str]) -> int:
