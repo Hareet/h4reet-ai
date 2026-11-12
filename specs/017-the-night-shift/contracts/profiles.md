@@ -11,4 +11,6 @@ Plan §2 holds the table of grants and the lattice. This file is what the tests 
 7. **Ports**: as plan §2's table, and nothing else.
 8. **Placeholders**: `{{REPO}}`, `{{NIGHT_ROOT}}`, `{{CLAUDE_BIN}}`, `{{BLENDER_BIN}}`, `{{BLENDER_DIR}}`, `{{COMFYUI_PORT}}`, `{{ENGINE_PORT}}`, `{{ROLE_CLAUDE_DIR}}`. Any other `{{…}}` fails the build.
 9. **Off**: the plan and gate requests appear in no profile; they're the runner's (contracts/runner.md §5).
-10. **The example marker**: `"x-h4": {"example": true, …}`. The runner refuses a profile file that has it, or whose path isn't under `~/.config/h4reet-ai/nono/`.
+10. **The ceiling** isn't a file: the lattice test computes it as the union of the eight.
+11. **Request profiles**: `deploy/night-shift/profiles/plan.json` and `gate.json`, outside the lattice, used only by the runner (FR-039). Their grants are listed in plan §3; a test checks that no session profile names them, and that neither grants a session's worktree for writing.
+12. **The example marker**: `"x-h4": {"example": true, …}`. The runner refuses a profile file that has it, or whose path isn't under `~/.config/h4reet-ai/nono/`.

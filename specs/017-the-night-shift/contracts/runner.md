@@ -2,6 +2,8 @@
 
 Installed copy only: `~/.local/share/h4reet-ai/night-shift/night.py`, run as `/usr/bin/python3 -I -B night.py <command>`. The copy in the repository is never run by the Author.
 
+Its own `git` runs as `git -c core.hooksPath=/dev/null -c core.fsmonitor=false` with `GIT_NO_REPLACE_OBJECTS=1` and `GIT_CONFIG_NOSYSTEM=1`, because it runs outside every sandbox in worktrees agents write (the review's finding 11). It names main only as `refs/heads/main`.
+
 ## 1. Commands
 
 | Command | Does |
@@ -23,8 +25,12 @@ Exit codes: 0 on success, 1 when a check refuses, 2 when it can't run.
 
 ## 3. Starting a session
 
+Before any task with the `gpu` lock starts, the disk and memory checks of §2 run again; a failure leaves the task queued and writes the reason on the page (FR-031).
+
+Under `LAYERING=fallback` the runner first starts its allowlisting proxy, a thread listening on `~/.local/state/h4reet-ai/night-shift/proxy.sock`. It allows `CONNECT` only to the allowlist in the installed `allowlist.txt` (`api.anthropic.com:443`, the toolchain's mirrors, `198.18.0.1:2376`), and absolute-form HTTP only to `127.0.0.1:<COMFYUI_PORT>` for the studio role. Each refusal is a page line.
+
 ```text
-[unshare --user --map-current-user --mount -- <mask script>]      # LAYERING=fallback only
+[unshare --user --map-current-user --mount --net -- <mask and bridge script>]   # LAYERING=fallback only
 nono run --rollback --profile ~/.config/h4reet-ai/nono/<role>.json \
   --allow <worktree> --allow <repo>/.git/worktrees/<task> \
   --allow <repo>/.git/refs/heads/night/<task> --allow <repo>/.git/logs/refs/heads/night/<task> \

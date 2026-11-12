@@ -72,7 +72,11 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
 
 - **Decision**: each profile opens only the TCP ports its role needs: 443 for all; 2376 for the roles that run containers (implementer, red-teamer, ops, the gate runner); ComfyUI's port for the studio; 2376 and the npm and PyPI mirrors' 443 for `make check`. The hosts are held by the layer R-08 proves.
 - **Rationale**: "Landlock rules match TCP ports, not IP addresses … Use the domain proxy, not a raw port grant, when destination-host enforcement matters" (nono.sh/docs/cli/features/networking), and the domain proxy is off on WSL2. The kernel is 6.18 (Landlock ABI 7 per #2080; nono enforces up to V6, so V4's TCP port rules apply).
-- **Gap, named**: a session under nono alone can reach any host on 443. Claude Code's sandbox holds the host list for every Bash command where it runs (R-08); the permissions deny `WebFetch`; the bash gate refuses `curl`, `wget`, `nc`, `ssh`. A red-team gap row records the kernel layer's port-only limit.
+- **The hosts**: a session under nono alone could reach any host on 443, and the constitution prohibits "network egress to non-allowlisted domains from an agent session" without a human. So hosts are held by a second layer in both layerings (R-08):
+  - nested: Claude Code's own sandbox, for every Bash command, as today;
+  - fallback: the session's own network namespace with only loopback, bridged by `socat` to an allowlisting `CONNECT` proxy that the runner runs outside (a thread of `night.py`, standard library), the shape Claude Code's own sandbox uses.
+
+  The analysis (D1) moved this from a named gap to a requirement (FR-013).
 
 ## R-08: the nesting, and the outer mount namespace
 
@@ -81,14 +85,14 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
 - **Decision** (FR-037, FR-038):
   1. The probe tries it on the Author's machine (§R-14): bubblewrap inside nono, the Docker socket inside nono, and the fallback below.
   2. **Nested, if it starts**: Claude Code's sandbox runs inside nono's, as today plus nono.
-  3. **The fallback, if it doesn't**: the runner starts each session as `unshare --user --map-current-user --mount` → bind `/dev/null` over the Docker socket and an empty `tmpfs` over each never-readable folder → `nono run …` → `claude`, with Claude Code's own sandbox off in the role's settings layer and every hook on. The mounts happen before nono's Landlock domain exists, so the order is allowed. This is the "bubblewrap outside nono" shape, done with `unshare` and `mount` from util-linux.
-- **What each layering loses**: the fallback loses Claude Code's per-command host list (R-07's gap) and its per-command read masks, which the outer namespace and nono's own grants replace. The nested layering, if it works, loses nothing.
+  3. **The fallback, if it doesn't**: the runner starts each session as `unshare --user --map-current-user --mount --net`. Inside, it binds `/dev/null` over the Docker socket, mounts an empty `tmpfs` over each never-readable folder, and brings loopback up. `socat` then bridges `127.0.0.1:3128` to the runner's proxy socket, and the session runs `nono run …` → `claude`, with `HTTPS_PROXY` set and Claude Code's own sandbox off in the role's settings layer, every hook on. The mounts happen before nono's Landlock domain exists, so the order is allowed. This is the "bubblewrap outside nono" shape, done with `unshare` and `mount` from util-linux.
+- **What each layering loses**: the fallback replaces Claude Code's per-command host list with the namespace's single way out, and its per-command read masks with the outer mounts and nono's own grants. The nested layering, if it works, loses nothing.
 
 ## R-09: the gate, under decision 2
 
 - **Finding**: the gate (`tools/gates/gate`) refuses to start "unless HEAD is refs/heads/main" in its checkout, with a clean tree. Its container phase runs on the host's engine (`HOST_ENGINE = "unix:///var/run/docker.sock"`), and its image step uses the Author's engine certificate in `~/.config/h4reet-ai/agents-engine/docker`. Its `--prove` runs `deploy/agents-engine/engine.sh prove`. It never merges; it prints the merge line.
 - **Decision**:
-  - **The gate checkout**: a linked worktree of main at `~/h4reet-ai/gate`, made by the install script (`git worktree add ~/h4reet-ai/gate main`, from the Author's terminal, where his git is outside the bash gate). No profile writes it. His own checkout stays parked off main, so agents keep committing. He merges from the gate checkout.
+  - **The gate checkout**: a linked worktree of the branch main at `~/h4reet-ai/gate`, made by the install script from the Author's terminal, where his git is outside the bash gate. The install refuses while `refs/tags/main` or any other ref a bare `main` names exists, since `git worktree add <path> main` would then check out the wrong thing; the gate refuses the same refs. No profile writes it. His own checkout stays parked off main, so agents keep committing. He merges from the gate checkout.
   - **The gate runner**: a worker that asks the runner for a gate (branch, SHA). The runner takes the gate lock and runs `tools/gates/gate <sha>` from the gate checkout under the `gate` profile, whose grants are the host's Docker socket (outside the outer namespace's mask), the engine certificate's folder (read), the gate checkout (read), its temp folder, and gitleaks. The log goes to the worker's inbox and the decision page.
   - **No `--prove`** (Questions, Q7): stage E stays PENDING for the Author.
 - **Why it's acceptable**: the gate is main's reviewed code, built to run an untrusted branch as data in `--network none` containers with every capability dropped. The agent chooses only the SHA. The host socket is granted to that one command, which the agent can't edit (the gate checkout is read-only to every profile, and the gate refuses an unclean tree).
@@ -129,10 +133,12 @@ The rehearsal uses `run`, `audit verify`, `rollback list`, and `why`; the instal
 ## R-14: the probe
 
 - **Decision**: one script, `deploy/night-shift/probe.sh`, in `.claude/agents/ops.md`'s pattern. It writes only inside `mktemp -d /tmp/h4-probe.XXXXXX`, and points every nono folder there (`XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`). It prints to the terminal and keeps the same text in `report.txt` in that folder, so this session can read it by path once the Author has read it.
-- **What it adds to the brief's list**: one short block that runs the downloaded nono from the temp folder, four times, with all of nono's state there:
-  - bubblewrap inside nono (the nesting, R-08);
-  - a connection to the Docker socket inside nono (sends nothing);
-  - a read of `~/.aws` inside nono, reported by exit code only;
-  - the outer namespace's mask, then the same connection.
+- **What it adds to the brief's list**: section 15, which runs the downloaded nono from the temp folder six times, with all of nono's state there and explicit read-only grants (never the Claude Code pack, which grants `~/.claude` for writing):
+  - a `/bin/true` control;
+  - bubblewrap inside nono (the nesting, R-08), against section 3's control outside;
+  - a connection to the Docker socket inside nono (sends nothing), against section 8's control outside;
+  - the outer namespace's mask, then the same connection;
+  - a read of `~/.aws/config` inside nono, reported by exit code only.
 
-  This answers the plan's largest unknown before anything is built on it. It installs nothing; the block is marked so the Author can delete it before running if he'd rather not.
+  This answers the plan's largest unknown before anything is built on it. It installs nothing. `H4_PROBE_NEST=0` skips it, so the Author never edits the reviewed text.
+- **The review** (a reviewer agent, read-only, on 57988e67) found two blockers in the first draft, both fixed: section 15 ran under the Claude Code pack, which could write `~/.claude`; and the nesting test had no control and lacked `--unshare-pid`, so a refusal would have been misread as Landlock's.
