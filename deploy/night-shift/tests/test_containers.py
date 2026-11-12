@@ -1,10 +1,13 @@
 """The night shift's container specs, images, and allowlists (spec 017: FR-010 to FR-016, FR-038, FR-041;
-plan.md §1, §2; contracts/containers.md 1 to 11; tasks.md T030, T031).
+plan.md §1, §2; contracts/containers.md 1 to 12; tasks.md T030, T031).
 
 No Docker, no network: every claim here is about files. The Author's probe and rehearsal prove the containers.
-The masks follow main: they are computed from `refs/heads/main:.claude/settings.json`'s denyWrite, read with
-`GIT_NO_REPLACE_OBJECTS=1 git cat-file blob`. The tests use a committed fixture copy, and one test reads the real
-main copy when this checkout can (it skips in an export without `.git`).
+
+A spec holds its role's own mounts. The runner adds the task's: the worktree, `.git`, the masks, the role's Claude
+folder, and the io folder (contracts/runner.md §3). The lattice and never-mounted tests count those as the role's,
+built here as the runner builds them, with the masks computed from `refs/heads/main:.claude/settings.json`'s
+denyWrite. The tests use a committed fixture copy of main's settings, and some read the real main copy when this
+checkout can (they skip in an export without `.git`).
 """
 
 from __future__ import annotations
@@ -40,8 +43,20 @@ SESSION_ROLES = [
 RUNNER_ONLY = ["plan", "comfyui"]
 ALL_SPECS = SESSION_ROLES + RUNNER_ONLY
 WORKER_ROLES = [r for r in SESSION_ROLES if r != "studio"]
-# The specs that write the repository: each carries the masks (contracts/containers.md §4).
-WRITING = {"supervisor", "spec-writer", "implementer", "ops"}
+# What the runner mounts for each role's task (contracts/containers.md §4, contracts/runner.md §3).
+TASK = {
+    "supervisor": "writing",
+    "spec-writer": "writing",
+    "implementer": "writing",
+    "ops": "writing",
+    "reviewer": "reading",
+    "red-teamer": "reading",
+    "gate-runner": "reading",
+    "studio": "none",
+    "plan": "plan",
+    "comfyui": "none",
+}
+WRITING = {r for r, t in TASK.items() if t == "writing"}
 GPU = {"studio", "comfyui"}
 ENGINE_ROLES = {
     "implementer",
@@ -72,9 +87,8 @@ PLACEHOLDERS = {
     "COMFYUI_PORT",
     "BLENDER_DIR",
     "ENGINE_CERTS",
+    "IMAGE_TAG",
 }
-# What the runner fills per task (contracts/containers.md §9): never a `{{…}}`, which the install fills.
-TOKENS = {"worktree", "task", "claude", "io", "root", "credentials"}
 
 INTERNAL = {"h4-night", "h4-night-engine", "h4-night-studio", "h4-night-plan"}
 PROXY_FOR = {
@@ -82,13 +96,24 @@ PROXY_FOR = {
     "h4-night-studio": "egress-studio",
     "h4-night-plan": "egress-plan",
 }
-
 TOKEN_FILE = "{{HOME}}/.config/h4reet-ai/night-shift/claude.env"
-SHARE = "{{HOME}}/.local/share/h4reet-ai/night-shift"
-GIT = "{{REPO}}/.git"
-W = "<worktree>"
+# Container paths a spec's mount may not take (contracts/runner.md §3): the runner's own, and the system's.
+RESERVED = [
+    "/",
+    "/etc",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/night/claude",
+    "/night/io",
+]
 
-# FR-041 and contracts/containers.md §5: never in a session's environment, and the token only by env_file.
+# FR-041 and contracts/containers.md §5: never in a spec's environment, and the token only by env_file.
 FORBIDDEN_ENV = {
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
@@ -112,7 +137,7 @@ MANAGED = {
     "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": ""},
 }
 
-# The machine facts and task values the tests resolve paths with (data-model.md's shapes, a made-up user).
+# The machine facts the tests resolve paths with (data-model.md's shapes, a made-up user).
 FACTS = {
     "UID": "1000",
     "GID": "1000",
@@ -124,25 +149,17 @@ FACTS = {
     "COMFYUI_PORT": "8188",
     "BLENDER_DIR": "/home/author/blender-5.2.3-linux-x64",
     "ENGINE_CERTS": "/home/author/.config/h4reet/agents-engine/docker",
+    "IMAGE_TAG": "0123456789ab",
 }
+HOME = FACTS["HOME"]
+REPO = FACTS["REPO"]
+GIT = f"{REPO}/.git"
+WT = f"{FACTS['NIGHT_ROOT']}/2026-11-14/t-01"  # the runner's worktrees: <NIGHT_ROOT>/<date>/<task>
 
 
-def task_values(role: str) -> dict[str, str]:
-    return {
-        "worktree": "/home/author/h4reet-ai/night/t-01",
-        "task": "t-01",
-        "claude": f"/home/author/.local/share/h4reet-ai/night-shift/claude/{role}",
-        "io": "/home/author/h4reet-ai/night/.io/t-01",
-        "root": "bootstrap",
-        "credentials": "/home/author/.local/state/h4reet-ai/night-shift/plan-t-01.env",
-    }
-
-
-def resolve(text: str, role: str) -> str:
+def fill(text: str) -> str:
     for key, value in FACTS.items():
         text = text.replace("{{" + key + "}}", value)
-    for key, value in task_values(role).items():
-        text = text.replace(f"<{key}>", value)
     return text
 
 
@@ -150,6 +167,13 @@ def load(name: str) -> dict:
     path = CONTAINERS / f"{name}.json"
     assert path.is_file(), f"{path} is missing (contracts/containers.md §1)"
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def filled(name: str) -> dict:
+    """The spec as the install fills it: placeholders replaced, x-h4 dropped."""
+    spec = json.loads(fill((CONTAINERS / f"{name}.json").read_text(encoding="utf-8")))
+    spec.pop("x-h4", None)
+    return spec
 
 
 @pytest.fixture(scope="module")
@@ -185,7 +209,7 @@ def main_blob(path: str) -> bytes | None:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Paths
+# Paths, and the runner's task mounts
 # ---------------------------------------------------------------------------------------------------------------
 def under(path: str, base: str) -> bool:
     """`path` is `base` or inside it, by whole components."""
@@ -200,88 +224,133 @@ def ancestor(path: str, of: str) -> bool:
 
 RANK = {None: 0, "ro": 1, "rw": 2}
 
+# contracts/containers.md §4 (FR-012): `.git` is read-only; a writing task's own parts of it are read-write.
+OWN_GIT = [
+    "objects",
+    "worktrees/t-01",
+    "refs/heads/night/t-01",
+    "logs/refs/heads/night/t-01",
+]
+# What must stay read-only in `.git` whatever the role: under the read-only `.git`, or masked where an own part
+# would cover it.
+PROTECTED_GIT = [
+    "",
+    "commondir",
+    "hooks",
+    "config",
+    "info",
+    "packed-refs",
+    "refs/heads/main",
+    "refs/heads/other",
+    "refs/tags",
+    "refs/replace",
+    "objects/info",
+    "HEAD",
+    "index",
+    "worktrees/t-01/commondir",
+    "worktrees/t-02",
+    "logs/HEAD",
+]
+
+
+def denied_paths(settings: dict) -> list[str]:
+    """Each `./` path of main's denyWrite: `./.git/…` in the repository's `.git`, any other in the worktree."""
+    out = []
+    for entry in settings["sandbox"]["filesystem"]["denyWrite"]:
+        if not entry.startswith("./"):
+            continue  # outside the worktree: the never-mounted list's
+        rel = os.path.normpath(entry[2:])
+        if rel in (".", ".git") or rel.startswith(".."):
+            continue
+        p = f"{GIT}/{rel[5:]}" if rel.startswith(".git/") else f"{WT}/{rel}"
+        if p not in out:
+            out.append(p)
+    return out
+
+
+def expected_masks(settings: dict) -> list[str]:
+    """The read-only binds a writing task needs: only where a read-write mount would otherwise cover a path."""
+    out = [f"{GIT}/objects/info", f"{GIT}/worktrees/t-01/commondir"]
+    return out + [p for p in denied_paths(settings) if under(p, WT)]
+
+
+def protected(settings: dict) -> list[str]:
+    return [f"{GIT}/{p}".rstrip("/") for p in PROTECTED_GIT] + denied_paths(settings)
+
+
+def task_mounts(role: str, settings: dict) -> list[dict]:
+    """The runner's own mounts for a role's task, resolved."""
+    kind = TASK[role]
+    out: list[tuple[str, str, str]] = []
+    if kind == "writing":
+        out += [(WT, WT, "rw"), (GIT, GIT, "ro")]
+        out += [(f"{GIT}/{p}", f"{GIT}/{p}", "rw") for p in OWN_GIT]
+        out += [(p, p, "ro") for p in expected_masks(settings)]
+    elif kind == "reading":
+        out += [(WT, WT, "ro"), (GIT, GIT, "ro")]
+    elif kind == "plan":
+        out += [(WT, WT, "ro")]
+    if role in SESSION_ROLES:
+        # Each role's own Claude folder (claude/<role>): one slot, which the lattice compares as the same.
+        out += [
+            (
+                f"{HOME}/.local/share/h4reet-ai/night-shift/claude/the-role",
+                "/night/claude",
+                "rw",
+            ),
+            (f"{FACTS['NIGHT_ROOT']}/.io/t-01", "/night/io", "rw"),
+        ]
+    return [{"host": h, "container": c, "mode": m} for h, c, m in out]
+
+
+def whole(role: str, settings: dict | None = None) -> dict:
+    """The filled spec with the runner's task mounts: what the container gets."""
+    spec = filled(role)
+    spec["mounts"] = task_mounts(role, settings or fixture_settings()) + spec["mounts"]
+    return spec
+
 
 def effective(spec: dict, host: str) -> str | None:
     """The mode a host path has in a spec: that of the deepest mount whose host path holds it."""
     best, depth = None, -1
     for m in spec["mounts"]:
-        if under(host, m["host"]) and len(PurePosixPath(m["host"]).parts) > depth:
-            best, depth = m["mode"], len(PurePosixPath(m["host"]).parts)
+        d = len(PurePosixPath(m["host"]).parts)
+        if under(host, m["host"]) and d > depth:
+            best, depth = m["mode"], d
     return best
-
-
-def effective_in_container(spec: dict, path: str) -> str | None:
-    best, depth = None, -1
-    for m in spec["mounts"]:
-        if (
-            under(path, m["container"])
-            and len(PurePosixPath(m["container"]).parts) > depth
-        ):
-            best, depth = m["mode"], len(PurePosixPath(m["container"]).parts)
-    return best
-
-
-def expected_masks(settings: dict) -> set[str]:
-    """contracts/containers.md §4: the fixed masks, plus every denyWrite path inside the worktree.
-
-    A `./.git/…` entry names the repository's own `.git`, which a linked worktree shares; any other `./…` entry is
-    in the worktree. `~/…` and absolute entries are outside it (the never-mounted list covers those).
-    """
-    out = {
-        f"{GIT}/hooks",
-        f"{GIT}/config",
-        f"{GIT}/info",
-        f"{GIT}/packed-refs",
-        f"{GIT}/refs/heads/main",
-        f"{GIT}/refs/tags",
-        f"{GIT}/objects/info",
-        f"{GIT}/worktrees/<task>/commondir",
-        f"{W}/.git",
-    }
-    for entry in settings["sandbox"]["filesystem"]["denyWrite"]:
-        if not entry.startswith("./"):
-            continue
-        rel = entry[2:].rstrip("/")
-        if rel == ".git":
-            out.add(GIT)
-        elif rel.startswith(".git/"):
-            out.add(f"{GIT}/{rel[5:]}")
-        else:
-            out.add(f"{W}/{rel}")
-    return out
 
 
 def never_mounted(settings: dict, role: str) -> list[str]:
     """contracts/containers.md §3, resolved, plus what main's settings deny reading outside the worktree."""
-    home = FACTS["HOME"]
     out = [
-        f"{home}/.aws",
-        f"{home}/.ssh",
-        f"{home}/.config/h4reet-ai",
-        f"{home}/.config/gh",
-        f"{home}/.git-credentials",
-        f"{home}/.docker",
-        f"{home}/.claude",
-        f"{home}/.claude.json",
+        f"{HOME}/.aws",
+        f"{HOME}/.ssh",
+        f"{HOME}/.config/h4reet-ai",
+        f"{HOME}/.config/gh",
+        f"{HOME}/.git-credentials",
+        f"{HOME}/.docker",
+        f"{HOME}/.claude",
+        f"{HOME}/.claude.json",
         "/srv/studio/photos",
         "/srv/studio/key",
         "/var/run/docker.sock",
         "/run/docker.sock",
-        f"{home}/.local/state/h4reet",
-        f"{home}/.local/state/h4reet-ai",
-        f"{home}/.local/share/h4reet/terraform-providers",
+        f"{HOME}/.local/state/h4reet",
+        f"{HOME}/.local/state/h4reet-ai",
+        f"{HOME}/.local/share/h4reet/terraform-providers",
     ]
     if role != "studio":
         out += ["/srv/studio/outputs", "/srv/studio/workflows"]
     fs = settings["sandbox"]["filesystem"]
-    extra = list(fs.get("denyRead", [])) + [
+    extra = list(fs.get("denyRead", []))
+    extra += [
         f["path"] for f in settings["sandbox"].get("credentials", {}).get("files", [])
     ]
     for entry in extra:
         if entry.startswith("./"):
             continue
         if entry.startswith("~/"):
-            entry = f"{home}/{entry[2:]}"
+            entry = f"{HOME}/{entry[2:]}"
         if role == "studio" and entry in (
             "/srv/studio/outputs",
             "/srv/studio/workflows",
@@ -291,21 +360,21 @@ def never_mounted(settings: dict, role: str) -> list[str]:
     return sorted(set(out))
 
 
-def mount_violations(spec: dict, role: str, settings: dict) -> list[str]:
+def mount_violations(
+    mounts: list[dict], role: str, settings: dict, *, allow_git: bool
+) -> list[str]:
     bad = []
-    repo = FACTS["REPO"]
-    for m in spec["mounts"]:
-        host = resolve(m["host"], role)
-        if host in ("/", FACTS["HOME"], "/srv", "/srv/studio", "/var/run", "/run"):
+    for m in mounts:
+        host = fill(m["host"])
+        if host in ("/", HOME, "/srv", "/srv/studio", "/var/run", "/run"):
             bad.append(f"{m['host']}: an ancestor of a never-mounted path")
             continue
         for f in never_mounted(settings, role):
             if under(host, f) or ancestor(host, f):
                 bad.append(f"{m['host']} touches {f}")
-        # The main checkout's working tree: neither it, an ancestor, nor anything in it but its .git.
-        if under(host, repo) and not under(host, f"{repo}/.git"):
-            bad.append(f"{m['host']}: the main checkout's working tree")
-        if ancestor(host, repo):
+        if under(host, REPO) and not (allow_git and under(host, GIT)):
+            bad.append(f"{m['host']}: the main checkout")
+        if ancestor(host, REPO):
             bad.append(f"{m['host']}: an ancestor of the main checkout")
     return bad
 
@@ -328,11 +397,6 @@ def test_every_spec_file_exists(name: str) -> None:
     assert (CONTAINERS / f"{name}.json").is_file()
 
 
-def test_fragments_and_build_exist() -> None:
-    assert (CONTAINERS / "fragments.json").is_file()
-    assert BUILD.is_file()
-
-
 def test_no_other_spec_files() -> None:
     names = {p.stem for p in CONTAINERS.glob("*.json")} - {"fragments"}
     assert names == set(ALL_SPECS)
@@ -340,6 +404,13 @@ def test_no_other_spec_files() -> None:
 
 def test_build_check_passes_on_the_committed_files() -> None:
     done = run_build("--check", "--settings", str(FIXTURE))
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_build_check_passes_against_the_real_main() -> None:
+    if main_blob(".claude/settings.json") is None:
+        pytest.skip("no refs/heads/main here (an export): the fixture's copy stands in")
+    done = run_build("--check")
     assert done.returncode == 0, done.stdout + done.stderr
 
 
@@ -354,28 +425,16 @@ def scratch(tmp_path: Path) -> Path:
 
 
 def test_build_check_names_a_changed_file_and_fails(scratch: Path) -> None:
+    build = scratch / "containers" / "build.py"
     target = scratch / "containers" / "implementer.json"
     target.write_text(
         target.read_text(encoding="utf-8").replace('"rw"', '"ro"', 1), encoding="utf-8"
     )
-    done = run_build(
-        "--check", "--settings", str(FIXTURE), build=scratch / "containers" / "build.py"
-    )
+    done = run_build("--check", "--settings", str(FIXTURE), build=build)
     assert done.returncode == 1
     assert "implementer.json" in done.stdout + done.stderr
-    again = run_build(
-        "--settings", str(FIXTURE), build=scratch / "containers" / "build.py"
-    )
-    assert again.returncode == 0, again.stdout + again.stderr
-    assert (
-        run_build(
-            "--check",
-            "--settings",
-            str(FIXTURE),
-            build=scratch / "containers" / "build.py",
-        ).returncode
-        == 0
-    )
+    assert run_build("--settings", str(FIXTURE), build=build).returncode == 0
+    assert run_build("--check", "--settings", str(FIXTURE), build=build).returncode == 0
 
 
 def test_build_check_fails_on_a_missing_allowlist(scratch: Path) -> None:
@@ -398,53 +457,53 @@ def test_build_is_deterministic(scratch: Path) -> None:
 
 
 def test_build_refuses_unreadable_settings(scratch: Path, tmp_path: Path) -> None:
+    build = scratch / "containers" / "build.py"
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
-    done = run_build(
-        "--check", "--settings", str(bad), build=scratch / "containers" / "build.py"
+    assert run_build("--check", "--settings", str(bad), build=build).returncode == 2
+    assert (
+        run_build(
+            "--check", "--settings", str(tmp_path / "absent.json"), build=build
+        ).returncode
+        == 2
     )
-    assert done.returncode == 2
-    done = run_build(
-        "--check",
-        "--settings",
-        str(tmp_path / "absent.json"),
-        build=scratch / "containers" / "build.py",
-    )
-    assert done.returncode == 2
 
 
-def test_the_masks_follow_the_settings(scratch: Path, tmp_path: Path) -> None:
-    """A path main's settings come to deny writing becomes a mask in every writing spec, and nowhere else."""
+def test_the_night_allowlist_follows_the_settings(
+    scratch: Path, tmp_path: Path
+) -> None:
     settings = fixture_settings()
-    settings["sandbox"]["filesystem"]["denyWrite"] += [
-        "./newly/protected",
-        "~/.elsewhere",
-        "/srv/elsewhere",
+    settings["sandbox"]["network"]["allowedDomains"] += [
+        "New.Example.org",
+        "10.0.0.1",
+        "host.example:8443",
     ]
     changed = tmp_path / "settings.json"
     changed.write_text(json.dumps(settings), encoding="utf-8")
     build = scratch / "containers" / "build.py"
+    specs_before = {
+        p.name: p.read_bytes() for p in (scratch / "containers").glob("*.json")
+    }
     assert run_build("--check", "--settings", str(changed), build=build).returncode == 1
     assert run_build("--settings", str(changed), build=build).returncode == 0
-    for role in ALL_SPECS:
-        spec = json.loads(
-            (scratch / "containers" / f"{role}.json").read_text(encoding="utf-8")
-        )
-        hosts = {m["host"] for m in spec["mounts"]}
-        assert (f"{W}/newly/protected" in hosts) == (role in WRITING), role
-        assert not any("elsewhere" in h for h in hosts), role
+    hosts = json.loads((scratch / "allowlist.json").read_text(encoding="utf-8"))[
+        "sandbox"
+    ]["network"]
+    assert "new.example.org" in hosts["allowedDomains"]
+    assert not [h for h in hosts["allowedDomains"] if ":" in h or h.startswith("10.")]
+    assert specs_before == {
+        p.name: p.read_bytes() for p in (scratch / "containers").glob("*.json")
+    }
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# 2. Shape
+# 2. Shape, as the runner validates a live spec (contracts/runner.md §3)
 # ---------------------------------------------------------------------------------------------------------------
 REQUIRED_KEYS = {
     "role",
     "parent",
     "image",
     "user",
-    "init",
-    "workdir",
     "mounts",
     "networks",
     "env",
@@ -457,25 +516,22 @@ REQUIRED_KEYS = {
     "requests",
     "x-h4",
 }
-OPTIONAL_KEYS = {"gpus", "settings", "command"}
 
 
 @pytest.mark.parametrize("name", ALL_SPECS)
 def test_shape(specs: dict[str, dict], name: str) -> None:
     spec = specs[name]
-    assert REQUIRED_KEYS <= set(spec), REQUIRED_KEYS - set(spec)
-    assert set(spec) <= REQUIRED_KEYS | OPTIONAL_KEYS, (
-        set(spec) - REQUIRED_KEYS - OPTIONAL_KEYS
-    )
+    assert set(spec) - {"gpus"} == REQUIRED_KEYS, set(spec) ^ REQUIRED_KEYS
     assert spec["role"] == name
+    assert spec["parent"] == LATTICE.get(name, "runner")
     assert spec["user"] == "{{UID}}:{{GID}}"
-    assert spec["init"] is True
     assert spec["cap_drop"] == ["ALL"]
     assert spec["security_opt"] == ["no-new-privileges"]
     assert spec["read_only"] is (name not in GPU)
-    assert re.fullmatch(r"h4-night-(worker|studio|comfyui|egress)", spec["image"]), (
-        spec["image"]
+    want = (
+        "studio" if name == "studio" else "comfyui" if name == "comfyui" else "worker"
     )
+    assert spec["image"] == f"h4-night-{want}:{{{{IMAGE_TAG}}}}"
     assert "latest" not in json.dumps(spec)
     assert any(t.startswith("/tmp:") for t in spec["tmpfs"])
     assert set(spec["limits"]) == {"memory", "cpus", "pids"}
@@ -484,50 +540,53 @@ def test_shape(specs: dict[str, dict], name: str) -> None:
     assert (
         isinstance(spec["limits"]["pids"], int) and 0 < spec["limits"]["pids"] <= 1024
     )
-    assert isinstance(spec["env"], dict)
-    assert all(
-        isinstance(k, str) and isinstance(v, str) for k, v in spec["env"].items()
-    )
-    for m in spec["mounts"]:
-        assert (
-            {"host", "container", "mode"}
-            <= set(m)
-            <= {"host", "container", "mode", "mask", "if_missing"}
-        ), m
-        assert m["mode"] in ("ro", "rw"), m
-        assert m["container"].startswith("/") or m["container"].startswith(W), m
-        if "mask" in m:
-            assert (
-                m["mask"] is True and m["mode"] == "ro" and m["host"] == m["container"]
-            ), m
-        if "if_missing" in m:
-            assert m["if_missing"] in ("skip", "empty", "create"), m
+    assert spec["x-h4"]["task"] == TASK[name]
     containers = [m["container"] for m in spec["mounts"]]
     assert len(containers) == len(set(containers)), "two mounts at one container path"
-    # Parents before children, so a mask is never hidden by the mount it masks.
-    depths = [len(PurePosixPath(resolve(c, name)).parts) for c in containers]
-    assert depths == sorted(depths)
+    for i, outer in enumerate(containers):
+        for inner in containers[:i]:
+            assert not ancestor(fill(outer), fill(inner)), (
+                f"{outer} comes after {inner}, inside it"
+            )
 
 
-@pytest.mark.parametrize("name", SESSION_ROLES)
-def test_session_shape(specs: dict[str, dict], name: str) -> None:
-    spec = specs[name]
-    assert spec["parent"] == LATTICE[name]
-    assert spec["settings"] == f"/night/settings-{name}.json"
-    assert "command" not in spec, "a session's command is the runner's claude -p line"
-    assert spec["env_file"] == TOKEN_FILE
-    assert spec["image"] == (
-        "h4-night-studio" if name == "studio" else "h4-night-worker"
-    )
+@pytest.mark.parametrize("name", ALL_SPECS)
+def test_the_runner_would_take_the_filled_spec(name: str) -> None:
+    """The live checks of contracts/runner.md §3 on the filled copy: what the install writes must start."""
+    spec = filled(name)
+    assert "{{" not in json.dumps(spec)
+    assert re.fullmatch(r"h4-night-[a-z0-9-]+:[A-Za-z0-9._-]+", spec["image"])
+    assert spec["user"] == "1000:1000"
+    for t in spec["tmpfs"]:
+        assert re.fullmatch(r"/[A-Za-z0-9/_.-]+(?::[a-z0-9,=]+)?", t), t
+    for k, v in spec["env"].items():
+        assert re.fullmatch(r"[A-Z_][A-Z0-9_]*", k), k
+        assert "\n" not in v and "\0" not in v
+    for m in spec["mounts"]:
+        assert set(m) == {"host", "container", "mode"} and m["mode"] in ("ro", "rw"), m
+        for p in (m["host"], m["container"]):
+            assert os.path.isabs(p) and os.path.normpath(p) == p, p
+            assert not any(c in p for c in ":,\n\0"), p
+            assert not p.endswith(".sock"), p
+    if name in SESSION_ROLES:
+        assert spec["env_file"] == fill(TOKEN_FILE)
+    else:
+        assert spec["env_file"] is None, (
+            "the runner gives the plan its credentials itself, and ComfyUI no token"
+        )
 
 
-@pytest.mark.parametrize("name", RUNNER_ONLY)
-def test_runner_only_shape(specs: dict[str, dict], name: str) -> None:
-    spec = specs[name]
-    assert spec["parent"] == "runner"
-    assert "settings" not in spec
-    assert isinstance(spec["command"], list) and spec["command"]
-    assert spec["requests"] == []
+@pytest.mark.parametrize("name", ALL_SPECS)
+def test_no_spec_mount_takes_a_reserved_or_task_path(name: str) -> None:
+    spec = filled(name)
+    task = [m["container"] for m in task_mounts(name, fixture_settings())]
+    for m in spec["mounts"]:
+        c = m["container"]
+        assert not c.startswith("/night/settings"), c
+        for r in RESERVED:
+            assert not under(c, r) or (r == "/" and c != "/"), (c, r)
+        for t in task:
+            assert not under(c, t), (c, t)
 
 
 def test_no_bare_anywhere(specs: dict[str, dict]) -> None:
@@ -539,57 +598,72 @@ def test_no_bare_anywhere(specs: dict[str, dict]) -> None:
 # 3. Never mounted
 # ---------------------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("name", SESSION_ROLES)
-def test_no_session_mounts_a_never_mounted_path_or_its_ancestor(
-    specs: dict[str, dict], name: str
+def test_no_session_mounts_a_never_mounted_path_or_its_ancestor(name: str) -> None:
+    settings = fixture_settings()
+    assert (
+        mount_violations(filled(name)["mounts"], name, settings, allow_git=False) == []
+    )
+    assert (
+        mount_violations(task_mounts(name, settings), name, settings, allow_git=True)
+        == []
+    )
+
+
+def test_no_spec_mount_touches_the_main_checkout_or_its_git(
+    specs: dict[str, dict],
 ) -> None:
-    assert mount_violations(specs[name], name, fixture_settings()) == []
+    """Only the runner's task mounts reach `.git`, so no spec can reopen a mask."""
+    for name in ALL_SPECS:
+        for m in filled(name)["mounts"]:
+            assert not under(m["host"], REPO) and not ancestor(m["host"], REPO), (
+                name,
+                m["host"],
+            )
+            assert not under(m["host"], FACTS["NIGHT_ROOT"] + "/2026-11-14"), (
+                name,
+                m["host"],
+            )
 
 
-def test_only_the_studio_mounts_the_studio_outputs(specs: dict[str, dict]) -> None:
+def test_only_the_studio_mounts_the_studio_outputs() -> None:
     for name in SESSION_ROLES:
         mounted = any(
-            under(resolve(m["host"], name), "/srv/studio/outputs")
-            for m in specs[name]["mounts"]
+            under(m["host"], "/srv/studio/outputs") for m in filled(name)["mounts"]
         )
         assert mounted == (name == "studio"), name
 
 
 @pytest.mark.parametrize("name", RUNNER_ONLY)
-def test_runner_only_specs_still_mount_no_secret_or_socket(
-    specs: dict[str, dict], name: str
-) -> None:
-    home = FACTS["HOME"]
+def test_runner_only_specs_still_mount_no_secret_or_socket(name: str) -> None:
     never = [
-        f"{home}/.aws",
-        f"{home}/.ssh",
-        f"{home}/.config/gh",
-        f"{home}/.git-credentials",
-        f"{home}/.docker",
-        f"{home}/.claude",
-        f"{home}/.claude.json",
-        f"{home}/.config/h4reet-ai/env",
-        f"{home}/.config/h4reet-ai/night-shift",
+        f"{HOME}/.aws",
+        f"{HOME}/.ssh",
+        f"{HOME}/.config/gh",
+        f"{HOME}/.git-credentials",
+        f"{HOME}/.docker",
+        f"{HOME}/.claude",
+        f"{HOME}/.claude.json",
+        f"{HOME}/.config/h4reet-ai/env",
+        f"{HOME}/.config/h4reet-ai/night-shift",
         "/srv/studio/photos",
         "/srv/studio/key",
         "/var/run/docker.sock",
         "/run/docker.sock",
     ]
-    for m in specs[name]["mounts"]:
-        host = resolve(m["host"], name)
+    for m in filled(name)["mounts"]:
+        host = m["host"]
         assert host not in (
             "/",
-            home,
+            HOME,
             "/srv",
             "/srv/studio",
             "/var/run",
             "/run",
-            f"{home}/.config/h4reet-ai",
+            f"{HOME}/.config/h4reet-ai",
         )
         for f in never:
-            assert not (under(host, f) or ancestor(host, f)), (m["host"], f)
-        assert not (
-            under(host, FACTS["REPO"]) and not under(host, FACTS["REPO"] + "/.git")
-        ), m["host"]
+            assert not (under(host, f) or ancestor(host, f)), (host, f)
+        assert not under(host, REPO), host
 
 
 @pytest.mark.parametrize(
@@ -604,6 +678,7 @@ def test_runner_only_specs_still_mount_no_secret_or_socket(
         "{{HOME}}/.config",
         "{{REPO}}",
         "{{REPO}}/src",
+        "{{REPO}}/.git",
         "{{HOME}}/h4reet-ai",
         "{{HOME}}/.claude",
         "{{HOME}}/.config/h4reet-ai/env",
@@ -612,51 +687,51 @@ def test_runner_only_specs_still_mount_no_secret_or_socket(
     ],
 )
 def test_the_never_mounted_check_catches(host: str) -> None:
-    spec = {"mounts": [{"host": host, "container": "/x", "mode": "ro"}]}
-    assert mount_violations(spec, "implementer", fixture_settings())
+    assert mount_violations(
+        [{"host": host, "container": "/x", "mode": "ro"}],
+        "implementer",
+        fixture_settings(),
+        allow_git=False,
+    )
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# 4. The masks
+# 4. The masks: the runner's, over its own task mounts; no spec mount reopens one
 # ---------------------------------------------------------------------------------------------------------------
-def check_masks(spec: dict, name: str, settings: dict) -> None:
-    masks = {m["host"]: m for m in spec["mounts"] if m.get("mask")}
-    want = expected_masks(settings)
-    assert want <= set(masks), sorted(want - set(masks))
-    assert set(masks) <= want, sorted(set(masks) - want)
-    for host, m in masks.items():
-        assert m["mode"] == "ro" and m["container"] == host
-        assert effective(spec, host) == "ro", host
-        assert effective_in_container(spec, host) == "ro", host
-        # A mask the runner may skip when its path is missing must sit under a read-only mount already.
-        if m.get("if_missing") == "skip":
-            parents = [p for p in spec["mounts"] if ancestor(p["host"], host)]
-            deepest = max(parents, key=lambda p: len(PurePosixPath(p["host"]).parts))
-            assert deepest["mode"] == "ro", host
-        else:
-            assert m.get("if_missing") == "empty", host
-
-
 @pytest.mark.parametrize("name", sorted(WRITING))
-def test_every_writing_spec_carries_the_masks(
-    specs: dict[str, dict], name: str
-) -> None:
-    check_masks(specs[name], name, fixture_settings())
+def test_every_protected_path_stays_read_only_with_the_spec_mounts(name: str) -> None:
+    for settings in [fixture_settings()] + (
+        [json.loads(b)] if (b := main_blob(".claude/settings.json")) else []
+    ):
+        spec = whole(name, settings)
+        for p in protected(settings):
+            assert effective(spec, p) == "ro", (name, p)
+        for p in OWN_GIT:
+            assert effective(spec, f"{GIT}/{p}") == "rw", (name, p)
+        assert effective(spec, WT) == "rw"
 
 
-@pytest.mark.parametrize("name", sorted(set(ALL_SPECS) - WRITING))
-def test_a_spec_that_writes_no_repository_carries_no_masks_and_writes_no_repository(
-    specs: dict[str, dict], name: str
-) -> None:
-    spec = specs[name]
-    assert not any(m.get("mask") for m in spec["mounts"])
+@pytest.mark.parametrize("name", ALL_SPECS)
+def test_no_container_writes_the_repositorys_git_itself(name: str) -> None:
+    """A session that could write `.git` could write `.git/commondir` and steer git outside the container."""
+    for m in filled(name)["mounts"] + task_mounts(name, fixture_settings()):
+        assert not (m["host"] == GIT and m["mode"] == "rw"), (name, m)
+    spec = whole(name)
+    for p in ("", "commondir", "config", "hooks", "worktrees/t-02", "refs/heads/other"):
+        assert effective(spec, f"{GIT}/{p}".rstrip("/")) in (None, "ro"), (name, p)
+
+
+@pytest.mark.parametrize("name", ["reviewer", "red-teamer", "gate-runner"])
+def test_the_reading_roles_write_nothing_of_the_repository(name: str) -> None:
+    spec = whole(name)
     for m in spec["mounts"]:
         if m["mode"] == "rw":
-            assert not under(m["host"], W) and not under(m["host"], GIT), (name, m)
+            assert not under(m["host"], WT) and not under(m["host"], GIT), (name, m)
 
 
-def test_the_fixture_masks_include_the_human_only_paths() -> None:
-    want = expected_masks(fixture_settings())
+def test_the_masks_are_only_where_a_read_write_mount_covers_a_protected_path() -> None:
+    settings = fixture_settings()
+    masks = expected_masks(settings)
     for p in (
         ".claude",
         "CLAUDE.md",
@@ -665,25 +740,21 @@ def test_the_fixture_masks_include_the_human_only_paths() -> None:
         ".specify/memory/constitution.md",
         "assets/policy",
     ):
-        assert f"{W}/{p}" in want
-    assert f"{GIT}/refs/replace" in want
-
-
-def test_the_committed_masks_follow_the_real_main() -> None:
-    """The committed specs carry the masks main's settings call for today."""
-    blob = main_blob(".claude/settings.json")
-    if blob is None:
-        pytest.skip("no refs/heads/main here (an export): the fixture's copy stands in")
-    settings = json.loads(blob)
-    for name in sorted(WRITING):
-        check_masks(load(name), name, settings)
-    for name in SESSION_ROLES:
-        assert mount_violations(load(name), name, settings) == [], name
-    banned = {
-        v["name"] for v in settings["sandbox"].get("credentials", {}).get("envVars", [])
-    }
-    for name in SESSION_ROLES:
-        assert not set(load(name)["env"]) & banned, name
+        assert f"{WT}/{p}" in masks
+    assert f"{GIT}/objects/info" in masks and f"{GIT}/worktrees/t-01/commondir" in masks
+    rw = [f"{GIT}/{p}" for p in OWN_GIT] + [WT]
+    for p in masks:
+        assert any(under(p, r) for r in rw), p
+    for p in (
+        "hooks",
+        "config",
+        "HEAD",
+        "index",
+        "refs/heads/main",
+        "refs/tags",
+        "refs/replace",
+    ):
+        assert f"{GIT}/{p}" in protected(settings) and f"{GIT}/{p}" not in masks, p
 
 
 def test_the_fixture_is_mains_copy() -> None:
@@ -695,6 +766,23 @@ def test_the_fixture_is_mains_copy() -> None:
     assert fixture["filesystem"]["denyWrite"] == main["filesystem"]["denyWrite"]
     assert fixture["filesystem"]["denyRead"] == main["filesystem"]["denyRead"]
     assert fixture["network"]["allowedDomains"] == main["network"]["allowedDomains"]
+    assert fixture["credentials"]["files"] == main["credentials"]["files"]
+
+
+def test_the_specs_hold_against_the_real_main() -> None:
+    blob = main_blob(".claude/settings.json")
+    if blob is None:
+        pytest.skip("no refs/heads/main here (an export)")
+    settings = json.loads(blob)
+    banned = {
+        v["name"] for v in settings["sandbox"].get("credentials", {}).get("envVars", [])
+    }
+    for name in SESSION_ROLES:
+        assert (
+            mount_violations(filled(name)["mounts"], name, settings, allow_git=False)
+            == []
+        ), name
+        assert not set(load(name)["env"]) & banned, name
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -714,13 +802,9 @@ def test_session_environment(specs: dict[str, dict], name: str) -> None:
     env = spec["env"]
     for key, value in REQUIRED_ENV.items():
         assert env.get(key) == value, key
-    proxy = "http://egress-studio:3128" if name == "studio" else "http://egress:3128"
-    assert env["HTTPS_PROXY"] == proxy
-    assert env["https_proxy"] == proxy
-    claude = [m for m in spec["mounts"] if m["container"] == "/night/claude"]
-    assert claude == [{"host": "<claude>", "container": "/night/claude", "mode": "rw"}]
-    io = [m for m in spec["mounts"] if m["container"] == "/night/io"]
-    assert io == [{"host": "<io>", "container": "/night/io", "mode": "rw"}]
+    assert env["HTTPS_PROXY"] == (
+        "http://egress-studio:3128" if name == "studio" else "http://egress:3128"
+    )
     assert any(t.startswith("/night/home:") for t in spec["tmpfs"])
     if name in ENGINE_ROLES:
         assert env["DOCKER_HOST"] == "tcp://127.0.0.1:2376"
@@ -737,21 +821,28 @@ def test_session_environment(specs: dict[str, dict], name: str) -> None:
         assert not any(m["host"] == "{{ENGINE_CERTS}}" for m in spec["mounts"])
 
 
+def test_the_studio_reaches_comfyui_by_its_container_name(
+    specs: dict[str, dict],
+) -> None:
+    env = specs["studio"]["env"]
+    assert env["COMFYUI_URL"] == "http://h4-night-comfyui:{{COMFYUI_PORT}}"
+    assert "h4-night-comfyui" in env["NO_PROXY"].split(",")
+
+
 def test_comfyui_gets_no_token_and_no_proxy(specs: dict[str, dict]) -> None:
     spec = specs["comfyui"]
     assert spec["env_file"] is None
-    assert not {"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} & set(
-        spec["env"]
-    )
+    assert not {"HTTPS_PROXY", "HTTP_PROXY"} & set(spec["env"])
+    assert spec["env"]["HF_HUB_OFFLINE"] == "1"
 
 
-def test_the_plan_gets_its_credentials_only_by_env_file(specs: dict[str, dict]) -> None:
-    spec = specs["plan"]
-    assert spec["env_file"] == "<credentials>"
-    assert "SANDBOX_RUNTIME" not in spec["env"], (
-        "infra_plan.py refuses inside a sandbox"
+def test_the_plan_environment(specs: dict[str, dict]) -> None:
+    env = specs["plan"]["env"]
+    assert "SANDBOX_RUNTIME" not in env, "infra_plan.py refuses inside a sandbox"
+    assert env["HTTPS_PROXY"] == "http://egress-plan:3128"
+    assert env["HOME"] == "{{HOME}}", (
+        "infra_plan.py finds its values, data, and mirror under the home"
     )
-    assert spec["env"]["HTTPS_PROXY"] == "http://egress-plan:3128"
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -792,7 +883,7 @@ def test_the_managed_settings_file_is_exactly_the_proven_one() -> None:
     path = NIGHT / "claude" / "managed-settings.json"
     if not path.is_file():
         pytest.skip(
-            "deploy/night-shift/claude/managed-settings.json is G1's (T020), not on this branch yet"
+            "deploy/night-shift/claude/managed-settings.json is G1's (T020), not on this branch"
         )
     assert json.loads(path.read_text(encoding="utf-8")) == MANAGED
 
@@ -816,6 +907,16 @@ def test_no_credential_in_an_image(name: str) -> None:
     assert "CLAUDE_CODE_OAUTH_TOKEN" not in dockerfile(name)
 
 
+@pytest.mark.parametrize("name", ["worker", "studio", "comfyui"])
+def test_the_session_images_know_the_authors_uid(name: str) -> None:
+    """The runner mounts nothing at /etc, so the image holds a passwd entry for the uid it runs as."""
+    ins = instructions(dockerfile(name))
+    assert "ARG NIGHT_UID" in ins and "ARG NIGHT_GID" in ins
+    assert any(
+        "getent passwd" in i and "useradd" in i and "/night/home" in i for i in ins
+    )
+
+
 def test_the_worker_image_bakes_each_role_layer() -> None:
     ins = instructions(dockerfile("worker"))
     for role in WORKER_ROLES:
@@ -824,18 +925,26 @@ def test_the_worker_image_bakes_each_role_layer() -> None:
     assert not any("studio.settings.json" in i for i in ins)
     assert any(re.fullmatch(r"FROM \$\{TOOLCHAIN_IMAGE\}", i) for i in ins)
     assert any("claude --version" in i and "CLAUDE_CODE_VERSION" in i for i in ins)
-    assert any("socat" in i for i in ins) or "socat" in (
-        IMAGES / "entrypoint.sh"
-    ).read_text(encoding="utf-8")
+    assert any("socat" in i for i in ins)
+
+
+def test_the_worker_entrypoint_runs_the_runners_command_unchanged() -> None:
+    """The runner gives the program (`claude …`, or engine-fwd's `socat …`); the entrypoint only adds the
+    in-container forward for the engine roles, then executes it."""
+    ins = instructions(dockerfile("worker"))
     assert (
         "COPY --chmod=0555 deploy/night-shift/images/entrypoint.sh /night/entrypoint.sh"
         in ins
     )
+    assert 'ENTRYPOINT ["/night/entrypoint.sh"]' in ins
+    assert not any(i.startswith("CMD ") for i in ins)
+    script = (IMAGES / "entrypoint.sh").read_text(encoding="utf-8")
+    assert script.rstrip().endswith('exec "$@"')
+    assert "engine-fwd:2376" in script and "bind=127.0.0.1" in script
 
 
 def test_the_studio_image_bakes_its_layer_and_checks_blender() -> None:
-    text = dockerfile("studio")
-    ins = instructions(text)
+    ins = instructions(dockerfile("studio"))
     assert (
         "COPY --chmod=0444 deploy/night-shift/claude/studio.settings.json /night/settings-studio.json"
         in ins
@@ -863,7 +972,7 @@ def test_the_role_layers_hold_no_credential() -> None:
     folder = NIGHT / "claude"
     layers = sorted(folder.glob("*.settings.json")) if folder.is_dir() else []
     if not layers:
-        pytest.skip("the role layers are G1's (T020), not on this branch yet")
+        pytest.skip("the role layers are G1's (T020), not on this branch")
     for path in layers:
         layer = json.loads(path.read_text(encoding="utf-8"))
         assert "apiKeyHelper" not in layer, path.name
@@ -891,6 +1000,8 @@ def test_pins_shape() -> None:
     tool = p["toolchain"]
     assert tool["dockerfile"] == ".devcontainer/Dockerfile"
     assert tool["args"] == {"WITH_CLAUDE": "1", "CLAUDE_CODE_VERSION": p["claude_code"]}
+    for path in tool["context"]:
+        assert (REPO_ROOT / path).is_file(), path
 
 
 def test_pins_blender_checksum_is_whole_when_joined() -> None:
@@ -939,6 +1050,19 @@ def test_every_dockerfile_arg_has_a_value_in_the_pins() -> None:
             r"^ARG ([A-Z_0-9]+)", dockerfile(name), flags=re.MULTILINE
         ):
             assert arg in given, (name, arg)
+        for arg, value in image.get("args", {}).items():
+            assert isinstance(value, dict) and set(value) <= {"from", "join"}, (
+                name,
+                arg,
+            )
+            source = value["from"]
+            if source.startswith("facts."):
+                assert source[len("facts.") :] in PLACEHOLDERS, (name, arg)
+            else:
+                node: object = p
+                for part in source.split("."):
+                    assert isinstance(node, dict) and part in node, (name, arg, source)
+                    node = node[part]
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -957,11 +1081,25 @@ def test_gpu_only_where_needed(specs: dict[str, dict], name: str) -> None:
         assert spec["read_only"] is True
 
 
+EXPECTED_NETWORKS = {
+    "supervisor": ["h4-night"],
+    "spec-writer": ["h4-night"],
+    "implementer": ["h4-night", "h4-night-engine"],
+    "ops": ["h4-night", "h4-night-engine"],
+    "reviewer": ["h4-night"],
+    "red-teamer": ["h4-night", "h4-night-engine"],
+    "gate-runner": ["h4-night"],
+    "studio": ["h4-night-studio"],
+    "plan": ["h4-night-plan"],
+    "comfyui": ["h4-night-studio"],
+}
+
+
 @pytest.mark.parametrize("name", ALL_SPECS)
-def test_only_internal_networks(specs: dict[str, dict], name: str) -> None:
+def test_only_internal_networks_role_by_role(specs: dict[str, dict], name: str) -> None:
     nets = specs[name]["networks"]
-    assert nets and set(nets) <= INTERNAL, nets
-    assert len(nets) == len(set(nets))
+    assert nets == EXPECTED_NETWORKS[name]
+    assert set(nets) <= INTERNAL
     if name != "comfyui":
         proxy = specs[name]["env"]["HTTPS_PROXY"]
         assert proxy in {
@@ -981,153 +1119,109 @@ def test_the_fragments_declare_the_networks() -> None:
         "networks"
     ]
     assert {n for n, v in nets.items() if v["internal"]} == INTERNAL
-    outer = [n for n, v in nets.items() if not v["internal"]]
-    assert outer == ["h4-night-out"]
-
-
-EXPECTED_NETWORKS = {
-    "supervisor": ["h4-night"],
-    "spec-writer": ["h4-night"],
-    "implementer": ["h4-night", "h4-night-engine"],
-    "ops": ["h4-night", "h4-night-engine"],
-    "reviewer": ["h4-night"],
-    "red-teamer": ["h4-night", "h4-night-engine"],
-    "gate-runner": ["h4-night"],
-    "studio": ["h4-night-studio"],
-    "plan": ["h4-night-plan"],
-    "comfyui": ["h4-night-studio"],
-}
-
-
-@pytest.mark.parametrize("name", ALL_SPECS)
-def test_networks_role_by_role(specs: dict[str, dict], name: str) -> None:
-    assert specs[name]["networks"] == EXPECTED_NETWORKS[name]
+    assert [n for n, v in nets.items() if not v["internal"]] == ["h4-night-out"]
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# 8. The lattice (plan §2), mount by mount
+# 8. The lattice (plan §2), mount by mount, with the runner's task mounts counted as the role's
 # ---------------------------------------------------------------------------------------------------------------
-PW = {"host": f"{SHARE}/passwd", "container": "/etc/passwd", "mode": "ro"}
-GR = {"host": f"{SHARE}/group", "container": "/etc/group", "mode": "ro"}
-OWN_GIT = [
-    f"{GIT}/objects",
-    f"{GIT}/refs/heads/night/<task>",
-    f"{GIT}/logs/refs/heads/night/<task>",
-    f"{GIT}/worktrees/<task>",
-]
+def same(path: str, mode: str) -> tuple[str, str, str]:
+    return (path, path, mode)
 
 
-def same(host: str, mode: str) -> tuple[str, str, str]:
-    return (host, host, mode)
-
-
-SESSION_BASE = {
-    ("<claude>", "/night/claude", "rw"),
-    ("<io>", "/night/io", "rw"),
-    tuple(PW.values()),
-    tuple(GR.values()),
-}
-WRITER = (
-    SESSION_BASE | {same(W, "rw"), same(GIT, "ro")} | {same(p, "rw") for p in OWN_GIT}
-)
-READER = SESSION_BASE | {same(W, "ro"), same(GIT, "ro")}
-ENGINE = {("{{ENGINE_CERTS}}", "/night/engine", "ro")}
+ENGINE = ("{{ENGINE_CERTS}}", "/night/engine", "ro")
 EXPECTED_MOUNTS = {
-    "supervisor": WRITER
-    | {
+    "supervisor": {
         same("{{NIGHT_ROOT}}", "ro"),
         same("/srv/studio/briefs", "ro"),
         same("/srv/studio/handoff", "ro"),
     },
-    "spec-writer": WRITER,
-    "implementer": WRITER
-    | ENGINE
-    | {same("/srv/studio/briefs", "rw"), same("/srv/studio/handoff", "ro")},
-    "ops": WRITER
-    | ENGINE
-    | {same("/srv/studio/briefs", "rw"), same("/srv/studio/handoff", "ro")},
-    "reviewer": READER,
-    "red-teamer": READER | ENGINE,
-    "gate-runner": READER,
-    "studio": SESSION_BASE
-    | {
+    "spec-writer": set(),
+    "implementer": {
+        ENGINE,
+        same("/srv/studio/briefs", "rw"),
+        same("/srv/studio/handoff", "ro"),
+    },
+    "ops": {
+        ENGINE,
+        same("/srv/studio/briefs", "rw"),
+        same("/srv/studio/handoff", "ro"),
+    },
+    "reviewer": set(),
+    "red-teamer": {ENGINE},
+    "gate-runner": set(),
+    "studio": {
         same("/srv/studio/handoff", "rw"),
         same("/srv/studio/outputs", "rw"),
         same("/srv/studio/briefs", "ro"),
         same("/srv/studio/workflows", "ro"),
     },
-    "plan": {tuple(PW.values()), tuple(GR.values()), same(W, "ro"), same(GIT, "ro")}
-    | {
+    "plan": {
+        same("{{HOME}}/.config/h4reet-ai/infra", "ro"),
         same("{{HOME}}/.config/h4reet-ai/infra/data", "rw"),
         same("{{HOME}}/.config/h4reet-ai/infra/plans", "rw"),
         same("{{HOME}}/.config/h4reet-ai/infra/state", "rw"),
-        same("{{HOME}}/.config/h4reet-ai/infra/<root>.env", "ro"),
         same("{{HOME}}/.local/share/h4reet/terraform-providers", "ro"),
     },
-    "comfyui": {tuple(PW.values()), tuple(GR.values())}
-    | {
+    "comfyui": {
         same("{{COMFYUI_DIR}}", "ro"),
         same("{{COMFYUI_VENV}}", "ro"),
         same("/srv/studio/outputs", "rw"),
-        ("{{NIGHT_ROOT}}/.comfyui/user", "/night/comfyui/user", "rw"),
+        ("{{NIGHT_ROOT}}/.comfyui/user", "/comfyui/user", "rw"),
     },
 }
 
 
 @pytest.mark.parametrize("name", ALL_SPECS)
 def test_mounts_role_by_role(specs: dict[str, dict], name: str) -> None:
-    got = {
-        (m["host"], m["container"], m["mode"])
-        for m in specs[name]["mounts"]
-        if not m.get("mask")
-    }
+    got = {(m["host"], m["container"], m["mode"]) for m in specs[name]["mounts"]}
     assert got == EXPECTED_MOUNTS[name], (
         sorted(got - EXPECTED_MOUNTS[name]),
         sorted(EXPECTED_MOUNTS[name] - got),
     )
 
 
-def test_the_own_refs_are_made_by_the_runner_when_missing(
-    specs: dict[str, dict],
-) -> None:
-    for name in sorted(WRITING):
-        for m in specs[name]["mounts"]:
-            if m["host"] in OWN_GIT[1:]:
-                assert m.get("if_missing") == "create", (name, m)
+def test_comfyui_writes_only_its_own_folders(specs: dict[str, dict]) -> None:
+    spec = specs["comfyui"]
+    rw = {m["container"] for m in spec["mounts"] if m["mode"] == "rw"}
+    assert rw == {"/srv/studio/outputs", "/comfyui/user"}
+    tmp = {t.split(":", 1)[0] for t in spec["tmpfs"]}
+    assert {"/tmp", "/comfyui/temp", "{{COMFYUI_DIR}}/input"} <= tmp, (
+        "temp and uploads stay in the container"
+    )
 
 
-def ceiling(specs: dict[str, dict]) -> dict:
-    """The union of every session spec: each mount at its widest mode, every network, request, and device."""
-    mounts: dict[str, dict] = {}
-    for name in SESSION_ROLES:
-        for m in specs[name]["mounts"]:
-            cur = mounts.get(m["host"])
-            if cur is None or RANK[m["mode"]] > RANK[cur["mode"]]:
-                mounts[m["host"]] = {
-                    "host": m["host"],
-                    "container": m["container"],
-                    "mode": m["mode"],
-                }
-    # The union of masks is no mask: a path one role masks and another writes is writable in the ceiling.
-    for host, m in mounts.items():
-        widest = max(
-            (effective(specs[n], host) for n in SESSION_ROLES), key=lambda v: RANK[v]
+def ceiling() -> dict:
+    """The union of every session, task mounts included: each path at its widest, every network, request, device."""
+    whole_specs = {r: whole(r) for r in SESSION_ROLES}
+    hosts: dict[str, dict] = {}
+    for spec in whole_specs.values():
+        for m in spec["mounts"]:
+            hosts.setdefault(
+                m["host"],
+                {"host": m["host"], "container": m["container"], "mode": "ro"},
+            )
+    for host, m in hosts.items():
+        m["mode"] = (
+            max(
+                (effective(s, host) for s in whole_specs.values()),
+                key=lambda v: RANK[v],
+            )
+            or "ro"
         )
-        m["mode"] = widest
     return {
-        "mounts": list(mounts.values()),
-        "networks": sorted({n for r in SESSION_ROLES for n in specs[r]["networks"]}),
-        "requests": sorted({q for r in SESSION_ROLES for q in specs[r]["requests"]}),
-        "gpus": "all" if any("gpus" in specs[r] for r in SESSION_ROLES) else None,
-        "read_only": all(specs[r]["read_only"] for r in SESSION_ROLES),
-        "cap_add": [],
+        "mounts": list(hosts.values()),
+        "networks": sorted({n for s in whole_specs.values() for n in s["networks"]}),
+        "requests": sorted({q for s in whole_specs.values() for q in s["requests"]}),
+        "gpus": "all" if any("gpus" in s for s in whole_specs.values()) else None,
+        "read_only": all(s["read_only"] for s in whole_specs.values()),
         "security_opt": ["no-new-privileges"],
         "limits": {
             "memory": max(
-                int(specs[r]["limits"]["memory"][:-1]) for r in SESSION_ROLES
+                int(s["limits"]["memory"][:-1]) for s in whole_specs.values()
             ),
-            "cpus": max(float(specs[r]["limits"]["cpus"]) for r in SESSION_ROLES),
-            "pids": max(specs[r]["limits"]["pids"] for r in SESSION_ROLES),
+            "cpus": max(float(s["limits"]["cpus"]) for s in whole_specs.values()),
+            "pids": max(s["limits"]["pids"] for s in whole_specs.values()),
         },
     }
 
@@ -1152,13 +1246,13 @@ def lattice_violations(child: dict, parent: dict) -> list[str]:
         c, q = effective(child, p), effective(parent, p)
         if RANK[c] > RANK[q]:
             bad.append(f"mount {p}: {c} in the child, {q} in the parent")
-    for p in child["mounts"]:
-        match = [m for m in parent["mounts"] if under(p["host"], m["host"])]
+    for m in child["mounts"]:
+        match = [x for x in parent["mounts"] if under(m["host"], x["host"])]
         if match:
-            deepest = max(match, key=lambda m: len(PurePosixPath(m["host"]).parts))
-            rel = PurePosixPath(p["host"]).relative_to(deepest["host"])
-            if str(PurePosixPath(deepest["container"]) / rel) != p["container"]:
-                bad.append(f"mount {p['host']} lands at {p['container']} in the child")
+            deepest = max(match, key=lambda x: len(PurePosixPath(x["host"]).parts))
+            rel = PurePosixPath(m["host"]).relative_to(deepest["host"])
+            if str(PurePosixPath(deepest["container"]) / rel) != m["container"]:
+                bad.append(f"mount {m['host']} lands at {m['container']} in the child")
     if set(child["networks"]) - set(parent["networks"]):
         bad.append(
             f"networks {sorted(set(child['networks']) - set(parent['networks']))}"
@@ -1185,17 +1279,15 @@ def lattice_violations(child: dict, parent: dict) -> list[str]:
 
 
 @pytest.mark.parametrize("name", SESSION_ROLES)
-def test_each_spec_is_within_its_lattice_parent(
-    specs: dict[str, dict], name: str
-) -> None:
+def test_each_spec_is_within_its_lattice_parent(name: str) -> None:
     parent_name = LATTICE[name]
-    parent = ceiling(specs) if parent_name == "ceiling" else specs[parent_name]
-    assert lattice_violations(specs[name], parent) == []
+    parent = ceiling() if parent_name == "ceiling" else whole(parent_name)
+    assert lattice_violations(whole(name), parent) == []
 
 
-def test_the_lattice_check_catches_a_widening(specs: dict[str, dict]) -> None:
-    impl = specs["implementer"]
-    wider = json.loads(json.dumps(specs["spec-writer"]))
+def test_the_lattice_check_catches_a_widening() -> None:
+    impl = whole("implementer")
+    wider = whole("spec-writer")
     wider["mounts"].append(
         {
             "host": "/srv/studio/handoff",
@@ -1204,28 +1296,28 @@ def test_the_lattice_check_catches_a_widening(specs: dict[str, dict]) -> None:
         }
     )
     assert lattice_violations(wider, impl)
-    unmasked = json.loads(json.dumps(specs["spec-writer"]))
-    unmasked["mounts"] = [m for m in unmasked["mounts"] if m["host"] != f"{W}/.claude"]
+    unmasked = whole("spec-writer")
+    unmasked["mounts"] = [m for m in unmasked["mounts"] if m["host"] != f"{WT}/.claude"]
     assert lattice_violations(unmasked, impl)
-    netted = json.loads(json.dumps(specs["reviewer"]))
+    netted = whole("reviewer")
     netted["networks"].append("h4-night-engine")
-    assert lattice_violations(netted, specs["spec-writer"])
-    asks = json.loads(json.dumps(specs["implementer"]))
+    assert lattice_violations(netted, whole("spec-writer"))
+    asks = whole("implementer")
     asks["requests"].append("gate")
-    assert lattice_violations(asks, specs["ops"])
-    gpu = json.loads(json.dumps(specs["reviewer"]))
+    assert lattice_violations(asks, whole("ops"))
+    gpu = whole("reviewer")
     gpu["gpus"] = "all"
-    assert lattice_violations(gpu, specs["spec-writer"])
-    moved = json.loads(json.dumps(specs["reviewer"]))
+    assert lattice_violations(gpu, whole("spec-writer"))
+    moved = whole("red-teamer")
     for m in moved["mounts"]:
-        if m["host"] == "<claude>":
+        if m["container"] == "/night/engine":
             m["container"] = "/elsewhere"
-    assert lattice_violations(moved, specs["spec-writer"])
+    assert lattice_violations(moved, impl)
 
 
-def test_the_ceiling_is_the_union(specs: dict[str, dict]) -> None:
-    top = ceiling(specs)
-    assert effective(top, f"{W}/.claude") == "ro", (
+def test_the_ceiling_is_the_union() -> None:
+    top = ceiling()
+    assert effective(top, f"{WT}/.claude") == "ro", (
         "every role that writes the worktree masks .claude"
     )
     assert effective(top, "/srv/studio/outputs") == "rw"
@@ -1236,10 +1328,10 @@ def test_the_ceiling_is_the_union(specs: dict[str, dict]) -> None:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# 9. Placeholders, and the runner's tokens
+# 9 and 10. Placeholders; the plan's inputs are its own
 # ---------------------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("name", ALL_SPECS)
-def test_only_known_placeholders(name: str) -> None:
+def test_only_known_placeholders_and_no_runner_tokens(name: str) -> None:
     text = (CONTAINERS / f"{name}.json").read_text(encoding="utf-8")
     found = set(re.findall(r"\{\{([^{}]*)\}\}", text))
     assert found <= PLACEHOLDERS, found - PLACEHOLDERS
@@ -1248,17 +1340,11 @@ def test_only_known_placeholders(name: str) -> None:
         == text.count("}}")
         == len(re.findall(r"\{\{[A-Z_]+\}\}", text))
     )
-
-
-@pytest.mark.parametrize("name", ALL_SPECS)
-def test_only_known_tokens(specs: dict[str, dict], name: str) -> None:
-    spec = specs[name]
-    texts = [m["host"] for m in spec["mounts"]] + [
-        m["container"] for m in spec["mounts"]
-    ]
-    texts += [spec["workdir"], spec["env_file"] or ""] + list(spec.get("command", []))
-    found = {t for s in texts for t in re.findall(r"<([^<>]*)>", s)}
-    assert found <= TOKENS, found - TOKENS
+    spec = json.loads(text)
+    for value in [m[k] for m in spec["mounts"] for k in ("host", "container")] + spec[
+        "tmpfs"
+    ]:
+        assert "<" not in value and ">" not in value, value
 
 
 def test_build_refuses_an_unknown_placeholder(scratch: Path) -> None:
@@ -1276,21 +1362,21 @@ def test_build_refuses_an_unknown_placeholder(scratch: Path) -> None:
     assert "NIGHT_ROOOT" in done.stdout + done.stderr
 
 
-def test_build_refuses_an_unknown_token(scratch: Path) -> None:
+def test_build_refuses_a_runner_token_in_a_spec(scratch: Path) -> None:
     frag = scratch / "containers" / "fragments.json"
     frag.write_text(
-        frag.read_text(encoding="utf-8").replace("<io>", "<inbox>", 1), encoding="utf-8"
+        frag.read_text(encoding="utf-8").replace(
+            "/srv/studio/briefs", "/srv/studio/<task>", 1
+        ),
+        encoding="utf-8",
     )
     done = run_build(
         "--settings", str(FIXTURE), build=scratch / "containers" / "build.py"
     )
     assert done.returncode == 2
-    assert "inbox" in done.stdout + done.stderr
+    assert "token" in done.stdout + done.stderr
 
 
-# ---------------------------------------------------------------------------------------------------------------
-# 10. Off: the plan's values, saved plans, and the provider mirror are the plan container's alone
-# ---------------------------------------------------------------------------------------------------------------
 PLAN_ONLY = [
     "{{HOME}}/.config/h4reet-ai/infra",
     "{{HOME}}/.local/share/h4reet/terraform-providers",
@@ -1316,7 +1402,7 @@ def test_requests_role_by_role(specs: dict[str, dict]) -> None:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# 11. The example marker
+# 12. The example marker
 # ---------------------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("name", ALL_SPECS)
 def test_every_committed_spec_is_marked_an_example(

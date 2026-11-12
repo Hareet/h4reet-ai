@@ -1,0 +1,7 @@
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["api.anthropic.com", "files.pythonhosted.org", "ghcr.io", "pypi.org", "registry.npmjs.org"]
+    }
+  }
+}

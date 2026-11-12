@@ -27,7 +27,7 @@ One line, `CLAUDE_CODE_OAUTH_TOKEN=<the setup-token value>`, mode 0600, made by 
 
 ## Container spec (`deploy/night-shift/containers/<role>.json`)
 
-The shape, invariants, and placeholders are in contracts/containers.md. `x-h4` holds `role`, `parent` (the lattice parent, plan §2, or `ceiling`), and `example: true` in the repository. The install's fill step drops `x-h4` and records the live file's SHA-256. Invariants (tested):
+The shape, invariants, and placeholders are in contracts/containers.md. `role` and `parent` (the lattice parent, plan §2, `ceiling`, or `runner` for the runner-only specs) are top-level keys, and `x-h4` holds `example: true` and `task` (the runner's task mounts) in the repository. The install's fill step drops `x-h4` and records the live file's SHA-256. Invariants (tested):
 - every mount, network, device, and capability is the parent's;
 - no never-mounted path, or an ancestor of one, is mounted;
 - the masks over main's settings' denyWrite paths are present in every writing spec;

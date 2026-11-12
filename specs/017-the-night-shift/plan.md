@@ -139,7 +139,7 @@ the Author's terminal
    │   ├─ egress-studio    (api.anthropic.com only)
    │   ├─ studio           (Claude Code and Blender; --gpus all; the studio's folders)
    │   └─ comfyui          (started on the studio's request; --gpus all; his install read-only)
-   └─ h4-night-plan (internal) → plan container + egress-plan (*.amazonaws.com), only while a plan runs
+   └─ h4-night-plan (internal) → plan container + egress-plan (the AWS hosts `infra/` uses, `allowlist-plan.json`), only while a plan runs
 ```
 
 **Each session container**:
@@ -148,19 +148,20 @@ the Author's terminal
 - has limits: `--pids-limit 512`, `--memory 4g`, `--cpus 2`, and the supervisor `--memory 2g`. Ten workers then fit 62 GB and 24 cores, with the GPU's model off on studio nights;
 - has these mounts, and nothing else:
   - its worktree, read-write, at the same path as on the host;
-  - the repository's `.git`, read-write, at the same path, with read-only binds over `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, `.git/refs/heads/main`, `.git/refs/tags`, `.git/objects/info`, and its own `.git/worktrees/<task>/commondir`;
+  - the repository's `.git`, read-only, at the same path, with only the task's own parts read-write (FR-012): `.git/objects`, `.git/worktrees/<task>`, and its branch's refs and logs (`refs/heads/night/<task>/`, `logs/refs/heads/night/<task>/`). Read-only binds sit over `.git/objects/info` and the task's `.git/worktrees/<task>/commondir`. Everything else in `.git` (`hooks`, `config`, `HEAD`, `index`, `refs/heads/main`, `refs/tags`, …) stays read-only without a mask. A session that could write `.git` itself could change its `commondir` and steer git outside the container (G1's review). These are the runner's task mounts (contracts/runner.md §3, contracts/containers.md §4). The container probe proved `.git` read-write with masks; the rehearsal's R3 proves this narrower shape;
   - read-only binds over every path `refs/heads/main:.claude/settings.json` denies writing, inside the worktree (`.claude`, `CLAUDE.md`, `REVIEW.md`, `tools/gates`, …). Claude Code's own sandbox may be off in the container, so these binds do what its masks do today;
   - its role's Claude folder (`CLAUDE_CONFIG_DIR`);
   - its io folder;
   - per role: the engine's client certificates (read-only), and the studio folders listed in §2;
 - gets this environment, and nothing else:
   - `CLAUDE_CODE_OAUTH_TOKEN`, from `--env-file ~/.config/h4reet-ai/night-shift/claude.env`;
-  - `HTTPS_PROXY=http://egress:3128` and `NO_PROXY=engine-fwd`;
+  - `HTTPS_PROXY=http://egress:3128` and `NO_PROXY=localhost,127.0.0.1` (the engine roles add `engine-fwd`);
   - `SANDBOX_RUNTIME=1`, so the Author-only make targets refuse, as in today's sandbox, and the relay runs. If the container probe shows Claude Code's own sandbox starts inside a container, commands get the variable from that sandbox, and the runner doesn't set it;
-  - `DISABLE_AUTOUPDATER=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`.
+  - `DISABLE_AUTOUPDATER=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`;
+  - `HOME=/night/home` (a `tmpfs`), caches under `/tmp`, git's automatic gc off, and the commit identity `night-<role>` (contracts/containers.md §5).
 - signs in on the plan only. The role's settings layer sets `forceLoginMethod: "claudeai"`, and the runner refuses to start a container whose environment names an API-billing variable (FR-041).
 
-**Containers on the agents' engine** (`make check`'s and `make up ENV=dev-cpu`'s): a worker's `docker` client talks to `engine-fwd:2376` with the engine's mutual TLS. The relay's nesting path takes `DOCKER_HOST=tcp://127.0.0.1:2376`, which a `socat` inside the worker forwards to `engine-fwd`. The engine's own admission plugin, egress proxy, and firewall keep governing what runs there, as today.
+**Containers on the agents' engine** (`make check`'s and `make up ENV=dev-cpu`'s): a worker's `docker` client talks to `engine-fwd:2376` with the engine's mutual TLS. The relay's nesting path takes `DOCKER_HOST=tcp://127.0.0.1:2376`, which a `socat` inside the worker forwards to `engine-fwd`: the worker image's entrypoint starts it when the spec sets `NIGHT_ENGINE_FWD`, then runs the runner's command unchanged. The worker image adds the Docker CLI, with its compose and buildx plugins, to the devcontainer's toolchain for this. The engine's own admission plugin, egress proxy, and firewall keep governing what runs there, as today.
 
 **Why not the agents' engine for the sessions themselves**: it runs as `h4agents`, which can't write the Author's worktrees or `.git`, and it has no GPU. The host engine runs the session containers, and only the runner uses it.
 
@@ -179,18 +180,27 @@ ceiling (computed: the union)
 
 | Spec | Read-write mounts | Read-only mounts | Network | Extra |
 |---|---|---|---|---|
-| supervisor | its worktree | the night folder, `/srv/studio/briefs`, `/srv/studio/handoff` | h4-night | — |
-| spec-writer | its worktree, its refs, `.git/objects` | the masks | h4-night | — |
+| supervisor | its worktree, its own parts of `.git` | `.git`, the masks, the night folder, `/srv/studio/briefs`, `/srv/studio/handoff` | h4-night | — |
+| spec-writer | its worktree, its own parts of `.git` | `.git`, the masks | h4-night | — |
 | reviewer | — | its worktree, `.git` | h4-night | — |
-| implementer | as spec-writer, plus `/srv/studio/briefs` | the masks, `/srv/studio/handoff`, the engine certificates | h4-night, engine-fwd | — |
-| red-teamer | its temp | its worktree, `.git`, the engine certificates | h4-night, engine-fwd | — |
-| ops | as implementer, plus its plan outbox | as implementer | as implementer | plan request: **off** |
-| gate-runner | its gate outbox | its worktree | h4-night | gate request: **off** |
-| studio | `/srv/studio/handoff`, `/srv/studio/outputs` | `/srv/studio/briefs`, `/srv/studio/workflows` | h4-night-studio | `--gpus all` (Blender), under the GPU lock |
-| plan (runner only) | `~/.config/h4reet-ai/infra/{data,plans}` | the detached worktree, the root's values file, the provider mirror | h4-night-plan | the role's credentials for that run |
-| comfyui (runner only) | `/srv/studio/outputs`, its own temp and user folders | `~/ComfyUI`, `~/flux-env` | h4-night-studio | `--gpus all`; its port on the studio network only |
+| implementer | as spec-writer, plus `/srv/studio/briefs` | the masks, `/srv/studio/handoff`, the engine certificates | h4-night, h4-night-engine | — |
+| red-teamer | its temp (a `tmpfs`) | its worktree, `.git`, the engine certificates | h4-night, h4-night-engine | — |
+| ops | as implementer | as implementer | as implementer | plan request: **off** |
+| gate-runner | — | its worktree, `.git` | h4-night | gate request: **off** |
+| studio | `/srv/studio/handoff`, `/srv/studio/outputs` | `/srv/studio/briefs`, `/srv/studio/workflows` | h4-night-studio | `--gpus all` (Blender), under the GPU lock; the ComfyUI request |
+| plan (runner only) | `~/.config/h4reet-ai/infra/{data,plans,state}` | the detached worktree, `~/.config/h4reet-ai/infra`, the provider mirror | h4-night-plan | the role's credentials for that run |
+| comfyui (runner only) | `/srv/studio/outputs`, `/comfyui/user`; `/comfyui/temp` and its input folder as `tmpfs` | `~/ComfyUI`, `~/flux-env` | h4-night-studio | `--gpus all`; its port on the studio network only |
 
-**Never mounted in any session container**: `~/.aws`, `~/.ssh`, `~/.config/h4reet-ai`, `~/.config/gh`, `~/.git-credentials`, `~/.docker`, the Author's `~/.claude` and `~/.claude.json`, `/srv/studio/photos`, `/srv/studio/key`, `/var/run/docker.sock`, and the main checkout's working tree. A test checks every spec against that list.
+Every session also has its role's Claude folder (`/night/claude`) and its io folder (`/night/io`), read-write. A request (plan, gate, ComfyUI) is a file in the io folder's `out/`, so the plan's and the gate's outboxes are the io folder, and the spec's `requests` names the kinds the runner takes from the role. The worktree, `.git`, the masks, and those two folders are the runner's task mounts (contracts/runner.md §3); a spec holds only the role's own mounts, and none lies over a task mount, so none can reopen a mask (contracts/containers.md §4).
+
+**Changed while building G2** (contracts/containers.md has the detail):
+- The gate runner reads `.git` to name SHAs.
+- The plan mounts `~/.config/h4reet-ai/infra` read-only and its `state` read-write, because `bootstrap`'s state is local.
+- ComfyUI's uploads go to a `tmpfs` over its input folder, not into his install.
+- The session images bake a passwd entry for his uid, since the runner mounts nothing at `/etc`.
+- The specs name their image as `h4-night-<name>:{{IMAGE_TAG}}`, the tag the install builds.
+
+**Never mounted in any session container**: `~/.aws`, `~/.ssh`, `~/.config/h4reet-ai`, `~/.config/gh`, `~/.git-credentials`, `~/.docker`, the Author's `~/.claude` and `~/.claude.json`, `/srv/studio/photos`, `/srv/studio/key`, `/var/run/docker.sock`, and the main checkout's working tree. Nor is anything main's settings deny reading outside the worktree, the engine's and the runner's state, or the provider mirror. A test checks every spec, with the runner's task mounts, against that list and each path's ancestors.
 
 ## §3 Requests to the runner
 
@@ -198,7 +208,7 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
 
 | Request | The runner | State |
 |---|---|---|
-| `plan` (root, SHA) | a detached worktree at the SHA, then `aws configure export-credentials --profile $PLAN_AWS_PROFILE` into a 0600 env file it deletes after. It then runs the plan container on h4-night-plan, with egress-plan allowing `*.amazonaws.com`, running that commit's `scripts/infra/infra_plan.py`, and returns the redacted block | **off** until P-2, P-3, P-6 |
+| `plan` (root, SHA) | a detached worktree at the SHA, then `aws configure export-credentials --profile $PLAN_AWS_PROFILE` into a 0600 env file it deletes after. It then runs the plan container on h4-night-plan, with egress-plan allowing the AWS hosts `infra/` uses in us-east-1 (`allowlist-plan.json`), running that commit's `scripts/infra/infra_plan.py`, and returns the redacted block | **off** until P-2, P-3, P-6 |
 | `gate` (SHA) | `tools/gates/gate <sha>` on the host, from his checkout while it's on `refs/heads/main` and clean, under the gate lock, never `--prove` | **off** until P-2, P-3 |
 | `comfyui start` (params) | under the studio task's GPU lock: the comfyui container, `python main.py --listen 0.0.0.0 --port 8188 --output-directory /srv/studio/outputs --temp-directory … --user-directory …` plus the params, each checked against the allowlist seeded from his `start-comfyui.sh` and his answer | on |
 | `comfyui stop` | stops it; also when the task ends | on |
