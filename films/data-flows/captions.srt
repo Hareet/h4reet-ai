@@ -1,0 +1,63 @@
+1
+00:00:00,500 --> 00:00:04,400
+Every byte that leaves this stack is written down before it can leave.
+
+2
+00:00:05,340 --> 00:00:12,217
+The data-flow disclosure lists each flow: where it goes, what it carries, what it never carries, and how to switch it off.
+
+3
+00:00:13,340 --> 00:00:17,253
+And the build enforces it: a service without a row is refused.
+
+4
+00:00:18,540 --> 00:00:21,197
+When you talk to the twin, what leaves your device?
+
+5
+00:00:21,247 --> 00:00:26,658
+Your typed words, the last few turns, and the address and browser every request carries.
+
+6
+00:00:27,540 --> 00:00:33,009
+Never audio, the avatar, a cookie, or any identifier of the visit or the visitor.
+
+7
+00:00:33,059 --> 00:00:37,191
+And in production, no one's words land in any log, trace, or store.
+
+8
+00:00:39,240 --> 00:00:42,695
+When the paid fallback answers, your words go to Anthropic.
+
+9
+00:00:42,745 --> 00:00:50,516
+In Hareet's words: this site saves none of it, and Anthropic may keep a turn it answered for up to thirty days, never for training.
+
+10
+00:00:51,940 --> 00:00:53,736
+Then, what the twin says back.
+
+11
+00:00:53,786 --> 00:00:57,980
+It answers only from what Hareet wrote, and when that doesn't hold the answer, it says:
+
+12
+00:00:58,030 --> 00:00:59,623
+"I don't know yet."
+
+13
+00:01:00,640 --> 00:01:07,988
+Before any word leaves the gateway, code checks the answer against its sources: numbers, amounts, ownership, privacy.
+
+14
+00:01:08,038 --> 00:01:10,055
+A failed check withholds the answer.
+
+15
+00:01:12,340 --> 00:01:20,388
+And every change is tested: a hundred and eighty-six cases drawn from the corpus, graded by code, never by another model.
+
+16
+00:01:21,340 --> 00:01:25,808
+Every data flow disclosed. Built in the open, at hareet dot A I.

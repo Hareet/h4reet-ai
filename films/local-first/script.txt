@@ -1,0 +1,19 @@
+The whole production stack runs on one laptop, with one command.
+
+Make up starts fifteen containers: the edge, the gateway, the site, the meter's database, the model server, and the tools that watch them, from metrics and logs to Grafana and Langfuse.
+
+The model server is llama dot cpp on the laptop's GPU, running Qwen3, thirty billion parameters, in twenty-one of the card's twenty-four gigabytes.
+
+Every question tries it first. A local answer costs nothing, and nothing leaves the machine.
+
+Only when it's down does the capped paid fallback answer. On the cloud server, which has no GPU, the Anthropic API answers first.
+
+This is production, not a demo: every image pinned by its digest, and one build at one commit, the same image everywhere.
+
+Offline-first isn't new for Hareet. At Medic, the community health workers using the Community Health Toolkit had older Android phones, and mostly no network.
+
+So Hareet designed Voice for CHT: the health worker speaks the visit, and the form fills itself, offline. Hareet helped the team fine-tune its models to two hundred seventy-three megabytes, to run beside the app on a four-gigabyte phone. No audio or transcript leaves the phone as telemetry.
+
+At denverlocal dot A I, the same idea serves small Denver teams: private AI, with sensitive files kept on hardware they own.
+
+Local models first. Built in the open, at hareet dot A I.

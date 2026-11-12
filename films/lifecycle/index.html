@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en" data-om-signature="off" data-composition-variables='[
+  {"id":"blocked","type":"number","label":"Forbidden-action rows passed, hook layer (docs/merge-requests/2026-11-08-fix-007-live-runs.md:2679)","default":802,"min":0,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"failedRows","type":"number","label":"Forbidden-action rows failed, hook layer (same line)","default":0,"min":0,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"knownGaps","type":"number","label":"Known gaps, hook layer (same line)","default":52,"min":0,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"incidentDays","type":"number","label":"Days to an incident note (constitution, Incidents)","default":7,"min":1,"max":30,"step":1,"group":"Numbers"},
+  {"id":"digest12","type":"string","label":"An image digest, first 12 (deploy/images.lock:12, edge)","default":"15c994d10d6d","group":"Words"},
+  {"id":"approvedOn","type":"string","label":"Spec 001 approved (its Status line)","default":"2026-11-10","group":"Words"},
+  {"id":"ground","type":"color","label":"Ground (resume ink)","default":"#17232e","group":"Colour"},
+  {"id":"green","type":"color","label":"Green (resume green-bar)","default":"#47a386","group":"Colour"},
+  {"id":"crimson","type":"color","label":"Crimson (resume crimson)","default":"#ad2549","group":"Colour"},
+  {"id":"endHold","type":"number","label":"End hold (s)","default":2.4,"min":0,"max":10,"step":0.1,"group":"Timing"}
+]'>
+<head>
+<meta charset="utf-8">
+<title>hareet.ai · How it's built</title>
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/om.js"></script>
+<style id="om-fonts">
+@font-face { font-family: "Overpass"; src: url("assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+@font-face { font-family: "Plex Sans"; src: url("assets/fonts/IBMPlexSans-Bold.woff") format("woff"); font-weight: 700; }
+</style>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #111b24; }
+  #film { position: relative; width: 1920px; height: 1080px; overflow: hidden; color: #e8eef1; font-family: "Overpass", sans-serif;
+    background: radial-gradient(1500px 900px at 40% 45%, #1d2b37 0%, var(--ground) 55%, #0f1820 100%); }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .5; background: radial-gradient(1700px 1000px at 50% 50%, transparent 60%, #060b10 100%); }
+  .shot { position: absolute; inset: 0; opacity: 0; }
+  #claim { opacity: 1; }
+  .mono { font-family: "Plex Mono", monospace; }
+  .src { position: absolute; font-family: "Plex Mono", monospace; font-size: 26px; color: #7f939f; }
+  .src.bot { left: 160px; right: 160px; top: 975px; }
+  .k { font-weight: 800; letter-spacing: .16em; color: #47a386; }
+  .dot { display: inline-block; width: .42em; height: .42em; border-radius: 50%; background: currentColor; vertical-align: .12em; margin-right: .35em; }
+
+  /* the claim, as the resume prints it; no chip: the push goes into the name */
+  #claim .row { position: absolute; left: 0; right: 0; top: 500px; display: flex; justify-content: center; align-items: center; gap: 22px; white-space: nowrap; font-weight: 800; font-size: 29px; letter-spacing: .1em; color: #47a386; }
+  #claim .row i { font-style: normal; color: #3a5560; }
+  #claim .name { position: absolute; left: 0; right: 0; top: 300px; text-align: center; font-weight: 800; font-size: 150px; letter-spacing: -.02em; color: #fff; }
+  #claim .name span { color: #47a386; }
+
+  /* a sentence, and a person's merge */
+  #sentence .src { left: 180px; top: 250px; }
+  #sentence .q { position: absolute; left: 180px; right: 160px; top: 300px; font-family: "Literata", serif; font-size: 116px; line-height: 1.18; color: #fff; }
+  #sentence .caret { display: inline-block; width: 7px; height: 96px; margin-left: 8px; background: #d0587a; vertical-align: -12px; }
+  #sentence .merge { position: absolute; left: 180px; top: 690px; font-weight: 900; font-size: 110px; letter-spacing: -.01em; color: #d0587a; opacity: 0; white-space: nowrap; }
+  #sentence .msrc { left: 186px; top: 820px; opacity: 0; }
+
+  /* the questions, and the answer kept word for word */
+  #clarify .src { left: 160px; top: 170px; }
+  #clarify .ql { position: absolute; left: 160px; top: 225px; font-size: 40px; }
+  #clarify .qt { position: absolute; left: 160px; width: 1600px; top: 282px; font-family: "Plex Mono", monospace; font-size: 46px; line-height: 1.42; color: #cfdae0; opacity: 0; }
+  #clarify .al { position: absolute; left: 160px; top: 545px; font-size: 40px; opacity: 0; }
+  #clarify .at { position: absolute; left: 160px; width: 1620px; top: 598px; font-family: "Literata", serif; font-size: 100px; line-height: 1.16; color: #fff; }
+  #clarify .wfw { position: absolute; left: 160px; top: 845px; height: 10px; width: 1560px; border-radius: 5px; background: #ffd27a; transform-origin: 0 50%; transform: scaleX(0); }
+  #clarify .wfl { position: absolute; left: 160px; top: 872px; font-family: "Plex Mono", monospace; font-size: 40px; color: #ffd27a; opacity: 0; }
+
+  /* five things every feature brings */
+  #five .k { position: absolute; left: 150px; top: 110px; font-size: 46px; }
+  #five .list { position: absolute; left: 140px; top: 190px; }
+  #five .it { font-weight: 900; font-size: 116px; line-height: 1.08; letter-spacing: -.01em; color: #fff; opacity: 0; white-space: nowrap; }
+  #five .if { position: absolute; left: 150px; top: 830px; font-family: "Plex Mono", monospace; font-size: 42px; color: #ffd27a; opacity: 0; }
+  #five .graph { position: absolute; left: 150px; top: 895px; font-family: "Literata", serif; font-size: 46px; color: #e8eef1; opacity: 0; }
+
+  /* amendments, and the plan corrected in the same commit */
+  #amend .src { left: 160px; top: 160px; } #depart .src { left: 160px; top: 120px; }
+  #amend .h { position: absolute; left: 160px; top: 220px; font-family: "Plex Mono", monospace; font-size: 64px; color: #fff; }
+  #amend .rows { position: absolute; left: 160px; top: 370px; }
+  #amend .r { display: flex; align-items: baseline; gap: 44px; margin-bottom: 30px; opacity: 0; white-space: nowrap; }
+  #amend .r b { width: 150px; font-weight: 900; font-size: 104px; line-height: 1; color: #d0587a; }
+  #amend .r span { font-family: "Plex Mono", monospace; font-size: 54px; color: #e8eef1; }
+  #depart .h { position: absolute; left: 160px; top: 180px; font-family: "Plex Mono", monospace; font-size: 64px; color: #fff; }
+  #depart .q { position: absolute; left: 160px; width: 1600px; top: 330px; font-family: "Literata", serif; font-size: 100px; line-height: 1.2; color: #fff; }
+  #depart .qs { left: 166px; top: 900px; opacity: 0; }
+
+  /* a bug, a failing test; the hook during a fix */
+  #bug .huge { position: absolute; left: 150px; top: 250px; font-weight: 900; font-size: 380px; letter-spacing: -.04em; line-height: .9; color: #fff; white-space: nowrap; }
+  #bug .ft { position: absolute; left: 160px; top: 680px; font-weight: 900; font-size: 150px; color: #d0587a; opacity: 0; white-space: nowrap; }
+  #fixhook .term { position: absolute; left: 140px; top: 110px; width: 1660px; font-family: "Plex Mono", monospace; }
+  #fixhook .ctx { font-size: 44px; color: #8fa1ad; }
+  #fixhook .c { margin-top: 24px; font-size: 54px; color: #fff; opacity: 0; }
+  #fixhook .x { margin-top: 14px; font-size: 44px; line-height: 1.4; color: #ff9db5; opacity: 0; }
+  #fixhook .slam { position: absolute; left: 140px; top: 520px; font-weight: 900; font-size: 170px; line-height: 1.02; letter-spacing: -.01em; }
+  #fixhook .slam div { opacity: 0; white-space: nowrap; }
+  #fixhook .slam .b { color: #d0587a; }
+  #fixhook .fs { left: 146px; top: 905px; opacity: 0; }
+
+  /* an incident: the note, the template's headings */
+  #incident .left { position: absolute; left: 140px; top: 200px; width: 800px; }
+  #incident .left .a { font-weight: 900; font-size: 120px; line-height: 1; color: #fff; white-space: nowrap; }
+  #incident .left .d { margin-top: 30px; font-weight: 900; font-size: 104px; line-height: 1; color: #ffd27a; opacity: 0; white-space: nowrap; }
+  #incident .left .ds { margin-top: 18px; font-family: "Plex Mono", monospace; font-size: 30px; color: #93a4ae; opacity: 0; }
+  #incident .tpl { position: absolute; left: 960px; top: 190px; width: 860px; font-family: "Plex Mono", monospace; font-size: 40px; line-height: 1.25; }
+  #incident .tpl .tsrc { font-size: 26px; color: #7f939f; margin-bottom: 18px; }
+  #incident .tpl div.h { padding: 10px 18px; margin-bottom: 8px; border-radius: 10px; color: #cfdae0; opacity: 0; white-space: nowrap; }
+  #incident .doc { position: absolute; left: 140px; top: 640px; width: 780px; padding: 30px 36px; box-sizing: border-box; border-radius: 22px; background: rgba(238,243,245,.07); border: 2px solid rgba(238,243,245,.35); opacity: 0; }
+  #incident .doc h3 { margin: 0; font-weight: 900; font-size: 54px; }
+  #incident .doc p { margin: 12px 0 0; font-family: "Plex Mono", monospace; font-size: 32px; line-height: 1.35; color: #cfdae0; }
+
+  /* the clean-room gate */
+  #clean .t { position: absolute; left: 150px; top: 110px; font-weight: 900; font-size: 92px; color: #fff; white-space: nowrap; }
+  #clean .ts { left: 156px; top: 225px; }
+  #clean .steps { position: absolute; left: 150px; top: 310px; display: flex; align-items: center; gap: 30px; }
+  #clean .st { position: relative; padding: 28px 34px; border-radius: 22px; border: 3px solid #3a5463; background: #1c2c38; font-family: "Plex Mono", monospace; font-size: 46px; color: #fff; opacity: 0; white-space: nowrap; }
+  #clean .st small { display: block; margin-top: 8px; font-size: 30px; color: #a9b8c1; }
+  #clean .st.net { border-color: #d0587a; }
+  #clean .arr { width: 60px; height: 6px; background: #3a5463; opacity: 0; }
+  #clean .cut { position: absolute; left: -62px; top: 50%; width: 8px; height: 80px; margin-top: -40px; background: #d0587a; transform: rotate(35deg) scaleY(0); }
+  #clean .checks { position: absolute; left: 150px; top: 570px; font-family: "Plex Mono", monospace; font-size: 40px; color: #6fe0b8; opacity: 0; white-space: nowrap; }
+  #clean .q { position: absolute; left: 150px; width: 1620px; top: 680px; font-family: "Literata", serif; font-size: 64px; line-height: 1.25; color: #fff; }
+  #clean .qs { left: 156px; top: 975px; opacity: 0; }
+
+  /* the sandbox; the hooks refuse; the count */
+  #sandbox .huge { position: absolute; left: 140px; top: 210px; font-weight: 900; font-size: 300px; letter-spacing: -.03em; line-height: .9; color: #fff; opacity: 0; white-space: nowrap; }
+  #sandbox .eng { position: absolute; left: 150px; top: 560px; width: 1640px; font-family: "Literata", serif; font-size: 86px; line-height: 1.2; color: #ffd5df; opacity: 0; }
+  #sandbox .es { left: 156px; top: 900px; opacity: 0; }
+  #refuse .term { position: absolute; left: 120px; top: 140px; width: 1700px; font-family: "Plex Mono", monospace; }
+  #refuse .c { font-size: 44px; color: #fff; opacity: 0; margin-top: 18px; white-space: nowrap; }
+  #refuse .x { font-size: 40px; line-height: 1.32; color: #ff9db5; opacity: 0; }
+  #refuse .x i { font-style: normal; color: #c9a2ae; }
+  #count .n { position: absolute; left: 130px; top: 150px; font-weight: 900; font-size: 480px; letter-spacing: -.05em; line-height: .9; color: #fff; font-variant-numeric: tabular-nums; }
+  #count .ps { position: absolute; left: 1120px; top: 370px; font-weight: 900; font-size: 110px; color: #47a386; opacity: 0; white-space: nowrap; }
+  #count .fa { position: absolute; left: 150px; top: 630px; font-weight: 900; font-size: 96px; color: #fff; opacity: 0; white-space: nowrap; }
+  #count .fa .z { color: #6fe0b8; } #count .fa .g { color: #ffd27a; }
+  #count .rec { position: absolute; left: 150px; top: 800px; font-family: "Plex Mono", monospace; font-size: 40px; color: #e8eef1; opacity: 0; white-space: nowrap; }
+  #count .cs { left: 156px; top: 890px; opacity: 0; }
+
+  /* the agents type; the Author decides */
+  #decide .a { position: absolute; left: 0; right: 0; text-align: center; top: 300px; font-weight: 900; font-size: 160px; color: #fff; opacity: 0; white-space: nowrap; }
+  #decide .b { position: absolute; left: 0; right: 0; text-align: center; top: 540px; font-weight: 900; font-size: 160px; color: #47a386; opacity: 0; white-space: nowrap; }
+
+  /* the end: the resume's twin section, flat; no chip */
+  #end .card { position: absolute; left: 260px; top: 190px; width: 1400px; height: 640px; border-radius: 12px; background: #fff; color: #17232e; box-shadow: 0 60px 140px -40px #000c; }
+  #end .card .nm { position: absolute; left: 0; right: 0; top: 90px; text-align: center; font-weight: 800; font-size: 180px; letter-spacing: -.02em; line-height: 1; }
+  #end .card .nm span { color: #1c6b54; }
+  #end .card .pitch { position: absolute; left: 130px; right: 130px; top: 310px; text-align: center; font-family: "Literata", serif; font-size: 40px; line-height: 1.42; color: #2b3843; }
+  #end .card .claims { position: absolute; left: 0; right: 0; top: 520px; display: flex; justify-content: center; align-items: center; gap: 16px; white-space: nowrap; font-weight: 800; font-size: 20px; letter-spacing: .11em; color: #1c6b54; }
+  #end .card .claims i { font-style: normal; color: #9bb0a8; }
+
+  /* the flow: the pipeline as a circuit, flat; a change travels it as a bead and leaves each stage's artifact behind */
+  #flow { overflow: hidden; }
+  #fworld { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #fworld svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .wire { stroke: #3a5463; stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .node { position: absolute; box-sizing: border-box; width: 420px; height: 300px; padding: 22px 20px; border-radius: 24px; background: #1c2c38; border: 4px solid #3a5463; }
+  .node h4 { margin: 0; font-weight: 900; font-size: 58px; line-height: 1; color: #fff; white-space: nowrap; }
+  .node p { margin: 14px 0 0; font-family: "Plex Mono", monospace; font-size: 32px; line-height: 1.3; color: #a9b8c1; white-space: nowrap; letter-spacing: -.02em; }
+  .node p b { font-weight: 400; color: #a9b8c1; }
+  .file { position: absolute; left: 20px; bottom: 20px; padding: 6px 14px; border-radius: 10px; border: 2px solid #47a386; background: rgba(28,107,84,.3); font-family: "Plex Mono", monospace; font-size: 30px; color: #d8f3ea; white-space: nowrap; opacity: 0; }
+  .node.merge { background: #eef3f5; border-color: #eef3f5; }
+  .node.merge h4 { color: #17232e; }
+  .node.merge p { color: #2b3843; }
+  .person { position: absolute; right: 26px; top: 26px; width: 92px; height: 110px; }
+  .person i { position: absolute; left: 26px; top: 0; width: 40px; height: 40px; border-radius: 50%; background: #ad2549; }
+  .person u { position: absolute; left: 6px; top: 48px; width: 80px; height: 56px; border-radius: 40px 40px 10px 10px; background: #ad2549; }
+  .halo { position: absolute; inset: -16px; border-radius: 34px; border: 5px solid #d0587a; box-shadow: 0 0 60px rgba(208,88,122,.6); opacity: 0; }
+  .flood { position: absolute; inset: -4px; border-radius: 24px; border: 4px solid #d0587a; background: rgba(173,37,73,.4); box-shadow: 0 0 80px rgba(208,88,122,.5); opacity: 0; }
+  .role { position: absolute; box-sizing: border-box; width: 420px; height: 190px; padding: 22px 26px; border-radius: 20px; background: rgba(238,243,245,.07); border: 3px solid rgba(238,243,245,.4); opacity: 0; }
+  .role h5 { margin: 0; font-weight: 900; font-size: 48px; line-height: 1; color: #fff; }
+  .role p { margin: 12px 0 0; font-family: "Plex Mono", monospace; font-size: 32px; line-height: 1.25; color: #cfdae0; white-space: nowrap; letter-spacing: -.02em; }
+  .role.who { background: rgba(173,37,73,.22); border-color: #d0587a; }
+  .ftag { position: absolute; font-family: "Plex Mono", monospace; font-size: 34px; color: #eef3f5; white-space: nowrap; opacity: 0; padding: 8px 16px; border-radius: 12px; background: #0f1820; border: 2px solid #3a5463; }
+  .ftag.g { border-color: #47a386; color: #d8f3ea; }
+  .ftag.r { border-color: #d0587a; color: #ffe1e8; }
+  .ftag.y { border-color: #ffd27a; color: #ffe9bf; }
+  .ftag.big { font-family: "Overpass", sans-serif; font-weight: 900; font-size: 58px; letter-spacing: .02em; }
+  .ftag.lit { font-family: "Literata", serif; font-size: 40px; }
+  .run { opacity: 0; }
+  .bead { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%; opacity: 0; }
+  .bead.q { background: #eef3f5; box-shadow: 0 0 22px #eef3f5; } .bead.l { background: #6fe0b8; box-shadow: 0 0 22px #47a386; }
+  .bead.p { background: #ffd27a; box-shadow: 0 0 24px #ffb84a; } .bead.r { background: #ff9db5; box-shadow: 0 0 24px #d0587a; }
+  .bead.s { width: 20px; height: 20px; left: -10px; top: -10px; background: #cfdae0; box-shadow: 0 0 14px #cfdae0; }
+</style>
+</head>
+<body>
+<script type="application/json" id="om-cues">{"source": "tts:kokoro:af_heart", "precision": "tts", "offset": 0, "duration": 137.74, "words": [{"word": "Every", "start": 0.5, "end": 1.037}, {"word": "change", "start": 1.037, "end": 1.395}, {"word": "to", "start": 1.395, "end": 1.574}, {"word": "hareet.ai", "start": 1.574, "end": 2.527}, {"word": "starts", "start": 2.527, "end": 2.706}, {"word": "as", "start": 2.706, "end": 2.885}, {"word": "a", "start": 2.885, "end": 3.064}, {"word": "sentence", "start": 3.064, "end": 3.601}, {"word": "and", "start": 3.801, "end": 3.981}, {"word": "ends", "start": 3.981, "end": 4.162}, {"word": "with", "start": 4.162, "end": 4.342}, {"word": "a", "start": 4.342, "end": 4.522}, {"word": "person's", "start": 4.522, "end": 5.063}, {"word": "merge", "start": 5.063, "end": 5.424}, {"word": "First", "start": 6.46, "end": 6.678}, {"word": "the", "start": 6.678, "end": 6.883}, {"word": "intent", "start": 6.883, "end": 7.292}, {"word": "what's", "start": 7.292, "end": 8.122}, {"word": "wanted", "start": 8.122, "end": 8.529}, {"word": "and", "start": 8.529, "end": 8.892}, {"word": "why", "start": 8.892, "end": 9.1}, {"word": "in", "start": 9.1, "end": 9.3}, {"word": "the", "start": 9.3, "end": 9.501}, {"word": "words", "start": 9.501, "end": 9.701}, {"word": "of", "start": 9.701, "end": 9.902}, {"word": "whoever", "start": 9.902, "end": 10.303}, {"word": "wants", "start": 10.303, "end": 10.504}, {"word": "it", "start": 10.504, "end": 10.704}, {"word": "The", "start": 10.954, "end": 11.147}, {"word": "Author", "start": 11.147, "end": 11.533}, {"word": "accepts", "start": 11.533, "end": 11.92}, {"word": "it", "start": 11.92, "end": 12.113}, {"word": "or", "start": 12.113, "end": 12.306}, {"word": "closes", "start": 12.306, "end": 12.692}, {"word": "it", "start": 12.692, "end": 12.885}, {"word": "and", "start": 13.294, "end": 13.449}, {"word": "the", "start": 13.449, "end": 13.603}, {"word": "survival", "start": 13.603, "end": 14.067}, {"word": "rate", "start": 14.067, "end": 14.377}, {"word": "is", "start": 14.377, "end": 14.531}, {"word": "published", "start": 14.531, "end": 14.995}, {"word": "A", "start": 15.9, "end": 16.087}, {"word": "spec-writer", "start": 16.087, "end": 16.647}, {"word": "agent", "start": 16.647, "end": 17.02}, {"word": "turns", "start": 17.02, "end": 17.206}, {"word": "it", "start": 17.206, "end": 17.393}, {"word": "into", "start": 17.393, "end": 17.766}, {"word": "a", "start": 17.766, "end": 17.953}, {"word": "spec", "start": 17.953, "end": 18.139}, {"word": "with", "start": 18.548, "end": 18.757}, {"word": "acceptance", "start": 18.757, "end": 19.592}, {"word": "criteria", "start": 19.592, "end": 20.343}, {"word": "a", "start": 20.343, "end": 20.551}, {"word": "test", "start": 20.551, "end": 20.76}, {"word": "can", "start": 20.76, "end": 20.969}, {"word": "check", "start": 20.969, "end": 21.177}, {"word": "Its", "start": 21.427, "end": 21.636}, {"word": "questions", "start": 21.636, "end": 22.052}, {"word": "go", "start": 22.052, "end": 22.26}, {"word": "to", "start": 22.26, "end": 22.469}, {"word": "the", "start": 22.469, "end": 22.677}, {"word": "Author", "start": 22.677, "end": 23.093}, {"word": "and", "start": 23.447, "end": 23.641}, {"word": "the", "start": 23.641, "end": 23.835}, {"word": "answers", "start": 23.835, "end": 24.223}, {"word": "are", "start": 24.223, "end": 24.611}, {"word": "kept", "start": 24.611, "end": 24.805}, {"word": "word", "start": 24.805, "end": 24.999}, {"word": "for", "start": 24.999, "end": 25.193}, {"word": "word", "start": 25.193, "end": 25.387}, {"word": "Then", "start": 26.29, "end": 26.492}, {"word": "the", "start": 26.492, "end": 26.695}, {"word": "plan", "start": 26.695, "end": 26.898}, {"word": "the", "start": 26.898, "end": 27.419}, {"word": "files", "start": 27.419, "end": 27.824}, {"word": "the", "start": 27.824, "end": 28.027}, {"word": "order", "start": 28.027, "end": 28.432}, {"word": "the", "start": 28.432, "end": 28.638}, {"word": "risks", "start": 28.638, "end": 28.844}, {"word": "the", "start": 28.844, "end": 29.05}, {"word": "cost", "start": 29.05, "end": 29.256}, {"word": "and", "start": 29.256, "end": 29.455}, {"word": "what", "start": 29.455, "end": 29.814}, {"word": "happens", "start": 29.814, "end": 30.211}, {"word": "when", "start": 30.211, "end": 30.409}, {"word": "it", "start": 30.409, "end": 30.608}, {"word": "degrades", "start": 30.608, "end": 31.203}, {"word": "It's", "start": 31.453, "end": 31.743}, {"word": "approved", "start": 31.743, "end": 32.179}, {"word": "before", "start": 32.179, "end": 32.614}, {"word": "any", "start": 32.614, "end": 32.905}, {"word": "code", "start": 32.905, "end": 33.195}, {"word": "exists", "start": 33.195, "end": 33.486}, {"word": "Then", "start": 34.28, "end": 34.494}, {"word": "the", "start": 34.494, "end": 34.708}, {"word": "tasks", "start": 34.708, "end": 34.922}, {"word": "and", "start": 34.922, "end": 35.282}, {"word": "a", "start": 35.282, "end": 35.491}, {"word": "read-only", "start": 35.491, "end": 36.12}, {"word": "check", "start": 36.12, "end": 36.329}, {"word": "that", "start": 36.329, "end": 36.539}, {"word": "the", "start": 36.539, "end": 36.748}, {"word": "spec", "start": 36.748, "end": 37.211}, {"word": "the", "start": 37.211, "end": 37.428}, {"word": "plan", "start": 37.428, "end": 37.646}, {"word": "and", "start": 37.646, "end": 37.857}, {"word": "the", "start": 37.857, "end": 38.069}, {"word": "tasks", "start": 38.069, "end": 38.28}, {"word": "agree", "start": 38.28, "end": 38.703}, {"word": "An", "start": 39.61, "end": 39.822}, {"word": "implementer", "start": 39.822, "end": 40.668}, {"word": "agent", "start": 40.668, "end": 41.091}, {"word": "builds", "start": 41.091, "end": 41.303}, {"word": "it", "start": 41.303, "end": 41.514}, {"word": "on", "start": 41.514, "end": 41.726}, {"word": "a", "start": 41.726, "end": 41.938}, {"word": "feature", "start": 41.938, "end": 42.939}, {"word": "branch", "start": 42.939, "end": 43.151}, {"word": "task", "start": 43.151, "end": 43.368}, {"word": "by", "start": 43.368, "end": 43.585}, {"word": "task", "start": 43.585, "end": 43.803}, {"word": "with", "start": 43.803, "end": 44.023}, {"word": "tests", "start": 44.023, "end": 44.244}, {"word": "And", "start": 44.494, "end": 44.658}, {"word": "every", "start": 44.658, "end": 45.153}, {"word": "new", "start": 45.153, "end": 45.318}, {"word": "feature", "start": 45.318, "end": 45.813}, {"word": "brings", "start": 45.813, "end": 45.977}, {"word": "its", "start": 45.977, "end": 46.142}, {"word": "own", "start": 46.142, "end": 46.307}, {"word": "telemetry", "start": 46.307, "end": 46.967}, {"word": "a", "start": 47.33, "end": 47.545}, {"word": "dashboard", "start": 47.545, "end": 47.976}, {"word": "panel", "start": 47.976, "end": 48.407}, {"word": "a", "start": 48.721, "end": 48.878}, {"word": "cost", "start": 48.878, "end": 49.035}, {"word": "estimate", "start": 49.035, "end": 49.665}, {"word": "its", "start": 50.083, "end": 50.262}, {"word": "degraded", "start": 50.262, "end": 50.8}, {"word": "behavior", "start": 50.8, "end": 51.338}, {"word": "and", "start": 51.752, "end": 51.908}, {"word": "a", "start": 51.908, "end": 52.064}, {"word": "disclosure", "start": 52.064, "end": 52.689}, {"word": "row", "start": 52.689, "end": 52.845}, {"word": "if", "start": 52.845, "end": 53.001}, {"word": "a", "start": 53.001, "end": 53.157}, {"word": "byte", "start": 53.157, "end": 53.47}, {"word": "leaves", "start": 53.47, "end": 53.782}, {"word": "your", "start": 53.782, "end": 53.938}, {"word": "device", "start": 53.938, "end": 54.407}, {"word": "A", "start": 55.4, "end": 55.586}, {"word": "reviewer", "start": 55.586, "end": 56.144}, {"word": "agent", "start": 56.144, "end": 56.714}, {"word": "read-only", "start": 56.714, "end": 57.281}, {"word": "and", "start": 57.281, "end": 57.466}, {"word": "never", "start": 57.466, "end": 57.835}, {"word": "the", "start": 57.835, "end": 58.02}, {"word": "one", "start": 58.02, "end": 58.834}, {"word": "that", "start": 58.834, "end": 59.019}, {"word": "wrote", "start": 59.019, "end": 59.389}, {"word": "it", "start": 59.389, "end": 59.573}, {"word": "checks", "start": 59.573, "end": 59.759}, {"word": "the", "start": 59.759, "end": 59.945}, {"word": "change", "start": 59.945, "end": 60.317}, {"word": "for", "start": 60.317, "end": 60.503}, {"word": "bugs", "start": 60.503, "end": 60.689}, {"word": "security", "start": 60.689, "end": 61.439}, {"word": "compliance", "start": 61.439, "end": 62.006}, {"word": "and", "start": 62.006, "end": 62.198}, {"word": "cost", "start": 62.198, "end": 62.39}, {"word": "Its", "start": 62.641, "end": 62.863}, {"word": "findings", "start": 62.863, "end": 63.308}, {"word": "inform", "start": 63.308, "end": 63.753}, {"word": "the", "start": 63.753, "end": 63.975}, {"word": "merge", "start": 63.975, "end": 64.42}, {"word": "they", "start": 64.669, "end": 64.842}, {"word": "never", "start": 64.842, "end": 65.186}, {"word": "replace", "start": 65.186, "end": 65.702}, {"word": "it", "start": 65.702, "end": 65.874}, {"word": "Changing", "start": 68.08, "end": 68.433}, {"word": "a", "start": 68.433, "end": 68.61}, {"word": "feature", "start": 68.61, "end": 69.139}, {"word": "works", "start": 69.139, "end": 69.316}, {"word": "the", "start": 69.316, "end": 69.493}, {"word": "same", "start": 69.493, "end": 69.846}, {"word": "way", "start": 69.846, "end": 70.023}, {"word": "A", "start": 70.273, "end": 70.471}, {"word": "newer", "start": 70.471, "end": 70.868}, {"word": "spec", "start": 70.868, "end": 71.066}, {"word": "names", "start": 71.066, "end": 71.463}, {"word": "each", "start": 71.463, "end": 71.661}, {"word": "clause", "start": 71.661, "end": 72.058}, {"word": "it", "start": 72.058, "end": 72.256}, {"word": "amends", "start": 72.256, "end": 72.653}, {"word": "and", "start": 73.068, "end": 73.247}, {"word": "when", "start": 73.247, "end": 73.427}, {"word": "the", "start": 73.427, "end": 73.607}, {"word": "code", "start": 73.607, "end": 73.966}, {"word": "departs", "start": 73.966, "end": 74.326}, {"word": "from", "start": 74.326, "end": 74.505}, {"word": "the", "start": 74.505, "end": 74.685}, {"word": "plan", "start": 74.685, "end": 74.865}, {"word": "the", "start": 75.202, "end": 75.386}, {"word": "plan", "start": 75.386, "end": 75.57}, {"word": "is", "start": 75.57, "end": 75.754}, {"word": "corrected", "start": 75.754, "end": 76.307}, {"word": "in", "start": 76.307, "end": 76.491}, {"word": "the", "start": 76.491, "end": 76.676}, {"word": "same", "start": 76.676, "end": 77.044}, {"word": "commit", "start": 77.044, "end": 77.413}, {"word": "A", "start": 78.31, "end": 78.528}, {"word": "bug", "start": 78.528, "end": 78.746}, {"word": "starts", "start": 78.746, "end": 78.964}, {"word": "as", "start": 78.964, "end": 79.182}, {"word": "a", "start": 79.182, "end": 79.4}, {"word": "failing", "start": 79.4, "end": 79.836}, {"word": "test", "start": 79.836, "end": 80.054}, {"word": "During", "start": 80.304, "end": 80.72}, {"word": "a", "start": 80.72, "end": 80.927}, {"word": "fix", "start": 80.927, "end": 81.261}, {"word": "a", "start": 81.261, "end": 81.465}, {"word": "hook", "start": 81.465, "end": 81.67}, {"word": "stops", "start": 81.67, "end": 81.874}, {"word": "the", "start": 81.874, "end": 82.079}, {"word": "agent", "start": 82.079, "end": 82.488}, {"word": "from", "start": 82.488, "end": 82.692}, {"word": "editing", "start": 82.692, "end": 83.305}, {"word": "tests", "start": 83.305, "end": 83.978}, {"word": "fix", "start": 83.978, "end": 84.185}, {"word": "the", "start": 84.185, "end": 84.393}, {"word": "code", "start": 84.393, "end": 84.808}, {"word": "not", "start": 84.808, "end": 85.018}, {"word": "the", "start": 85.018, "end": 85.227}, {"word": "test", "start": 85.227, "end": 85.436}, {"word": "An", "start": 86.44, "end": 86.62}, {"word": "incident", "start": 86.62, "end": 87.159}, {"word": "gets", "start": 87.159, "end": 87.339}, {"word": "a", "start": 87.339, "end": 87.519}, {"word": "note", "start": 87.519, "end": 87.879}, {"word": "within", "start": 87.879, "end": 88.238}, {"word": "seven", "start": 88.238, "end": 88.598}, {"word": "days", "start": 88.598, "end": 88.777}, {"word": "with", "start": 89.141, "end": 89.294}, {"word": "the", "start": 89.294, "end": 89.446}, {"word": "eval", "start": 89.446, "end": 89.751}, {"word": "that", "start": 89.751, "end": 89.903}, {"word": "would", "start": 89.903, "end": 90.056}, {"word": "have", "start": 90.056, "end": 90.361}, {"word": "caught", "start": 90.361, "end": 90.513}, {"word": "it", "start": 90.513, "end": 90.665}, {"word": "When", "start": 90.915, "end": 91.161}, {"word": "the", "start": 91.161, "end": 91.406}, {"word": "kill", "start": 91.406, "end": 91.651}, {"word": "switch", "start": 91.651, "end": 91.896}, {"word": "trips", "start": 91.896, "end": 92.141}, {"word": "the", "start": 92.461, "end": 92.641}, {"word": "gateway", "start": 92.641, "end": 93.179}, {"word": "drafts", "start": 93.179, "end": 93.359}, {"word": "that", "start": 93.359, "end": 93.538}, {"word": "incident", "start": 93.538, "end": 94.077}, {"word": "itself", "start": 94.077, "end": 94.435}, {"word": "from", "start": 94.728, "end": 94.853}, {"word": "a", "start": 94.853, "end": 94.977}, {"word": "template", "start": 94.977, "end": 95.349}, {"word": "with", "start": 95.571, "end": 95.792}, {"word": "no", "start": 95.792, "end": 96.013}, {"word": "model", "start": 96.013, "end": 96.454}, {"word": "call", "start": 96.454, "end": 96.674}, {"word": "Before", "start": 97.67, "end": 98.081}, {"word": "the", "start": 98.081, "end": 98.218}, {"word": "Author", "start": 98.218, "end": 98.492}, {"word": "merges", "start": 98.492, "end": 98.903}, {"word": "a", "start": 99.202, "end": 99.409}, {"word": "clean-room", "start": 99.409, "end": 99.822}, {"word": "gate", "start": 99.822, "end": 100.236}, {"word": "runs", "start": 100.236, "end": 100.443}, {"word": "every", "start": 100.443, "end": 101.063}, {"word": "check", "start": 101.063, "end": 101.27}, {"word": "on", "start": 101.27, "end": 101.476}, {"word": "an", "start": 101.476, "end": 101.683}, {"word": "export", "start": 101.683, "end": 102.097}, {"word": "of", "start": 102.097, "end": 102.303}, {"word": "the", "start": 102.303, "end": 102.51}, {"word": "branch", "start": 102.51, "end": 102.717}, {"word": "with", "start": 103.12, "end": 103.31}, {"word": "the", "start": 103.31, "end": 103.5}, {"word": "network", "start": 103.5, "end": 103.879}, {"word": "cut", "start": 103.879, "end": 104.069}, {"word": "off", "start": 104.069, "end": 104.259}, {"word": "so", "start": 104.574, "end": 104.79}, {"word": "nothing", "start": 104.79, "end": 105.221}, {"word": "an", "start": 105.221, "end": 105.437}, {"word": "agent", "start": 105.437, "end": 105.869}, {"word": "left", "start": 105.869, "end": 106.085}, {"word": "behind", "start": 106.085, "end": 106.516}, {"word": "can", "start": 106.516, "end": 106.732}, {"word": "run", "start": 106.732, "end": 106.948}, {"word": "The", "start": 107.95, "end": 108.15}, {"word": "agents", "start": 108.15, "end": 108.55}, {"word": "work", "start": 108.55, "end": 108.751}, {"word": "in", "start": 108.751, "end": 108.951}, {"word": "a", "start": 108.951, "end": 109.151}, {"word": "sandbox", "start": 109.151, "end": 109.552}, {"word": "on", "start": 109.552, "end": 110.109}, {"word": "their", "start": 110.109, "end": 110.309}, {"word": "own", "start": 110.309, "end": 110.509}, {"word": "container", "start": 110.509, "end": 111.109}, {"word": "engine", "start": 111.109, "end": 112.184}, {"word": "behind", "start": 112.184, "end": 112.584}, {"word": "hooks", "start": 112.584, "end": 112.784}, {"word": "that", "start": 112.784, "end": 112.984}, {"word": "refuse", "start": 112.984, "end": 113.585}, {"word": "pushing", "start": 113.585, "end": 113.985}, {"word": "merging", "start": 113.985, "end": 114.611}, {"word": "applying", "start": 114.611, "end": 115.012}, {"word": "infrastructure", "start": 115.012, "end": 116.016}, {"word": "editing", "start": 116.016, "end": 116.912}, {"word": "budgets", "start": 116.912, "end": 117.472}, {"word": "or", "start": 117.472, "end": 117.673}, {"word": "reading", "start": 117.673, "end": 118.077}, {"word": "secrets", "start": 118.077, "end": 118.481}, {"word": "Hundreds", "start": 118.731, "end": 119.075}, {"word": "of", "start": 119.075, "end": 119.247}, {"word": "forbidden", "start": 119.247, "end": 119.764}, {"word": "actions", "start": 119.764, "end": 120.108}, {"word": "are", "start": 120.108, "end": 120.709}, {"word": "tested", "start": 120.709, "end": 121.053}, {"word": "on", "start": 121.053, "end": 121.225}, {"word": "every", "start": 121.225, "end": 121.742}, {"word": "run", "start": 121.742, "end": 121.914}, {"word": "Deploys", "start": 122.91, "end": 123.309}, {"word": "only", "start": 123.309, "end": 123.709}, {"word": "pull", "start": 123.709, "end": 123.909}, {"word": "the", "start": 123.909, "end": 124.108}, {"word": "same", "start": 124.108, "end": 125.037}, {"word": "images", "start": 125.037, "end": 125.635}, {"word": "by", "start": 125.635, "end": 125.838}, {"word": "digest", "start": 125.838, "end": 126.242}, {"word": "from", "start": 126.242, "end": 126.441}, {"word": "a", "start": 126.441, "end": 126.8}, {"word": "release", "start": 126.8, "end": 127.394}, {"word": "made", "start": 127.394, "end": 127.79}, {"word": "from", "start": 127.79, "end": 127.988}, {"word": "main", "start": 127.988, "end": 128.475}, {"word": "and", "start": 128.475, "end": 128.673}, {"word": "rolled", "start": 128.673, "end": 129.069}, {"word": "back", "start": 129.069, "end": 129.267}, {"word": "if", "start": 129.267, "end": 129.465}, {"word": "the", "start": 129.465, "end": 129.663}, {"word": "health", "start": 129.663, "end": 129.861}, {"word": "checks", "start": 129.861, "end": 130.059}, {"word": "fail", "start": 130.059, "end": 130.258}, {"word": "The", "start": 132.26, "end": 132.468}, {"word": "agents", "start": 132.468, "end": 132.883}, {"word": "type", "start": 132.883, "end": 133.299}, {"word": "The", "start": 133.549, "end": 133.741}, {"word": "Author", "start": 133.741, "end": 134.124}, {"word": "decides", "start": 134.124, "end": 134.698}, {"word": "Built", "start": 134.948, "end": 135.14}, {"word": "in", "start": 135.14, "end": 135.333}, {"word": "the", "start": 135.333, "end": 135.525}, {"word": "open", "start": 135.525, "end": 135.909}, {"word": "at", "start": 136.137, "end": 136.329}, {"word": "hareet", "start": 136.329, "end": 136.714}, {"word": "dot", "start": 136.714, "end": 136.906}, {"word": "A", "start": 136.906, "end": 137.098}, {"word": "I", "start": 137.098, "end": 137.29}]}</script>
+<audio id="om-voice" src="assets/voice.wav" data-start="0" data-duration="137.74" data-track-index="9" data-volume="1"></audio>
+<div id="film" data-composition-id="film" data-width="1920" data-height="1080">
+  <audio id="om-sound" src="assets/sound.wav" data-start="0" data-duration="139.69" data-track-index="8" data-volume="1"></audio>
+  <div class="grain"></div>
+
+  <section class="shot" id="claim" data-om-id="claim">
+    <div class="name" id="claimName">hareet<span>.ai</span></div>
+    <div class="row">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+  </section>
+
+  <section class="shot" id="sentence" data-om-id="sentence">
+    <div class="src">Hareet’s words · specs/011-alert-message-design/intent.md</div>
+    <div class="q"><span id="sTxt">We also want to update the alerting message designs.</span><span class="caret"></span></div>
+    <div class="merge" id="sMerge">only a human merges to main</div>
+    <div class="src msrc" id="sMsrc">.specify/memory/constitution.md:17</div>
+  </section>
+
+  <section class="shot" id="flow" data-om-id="flow">
+    <div id="fworld">
+      <svg width="3400" height="1700" viewBox="0 0 3400 1700">
+        <path class="wire" id="w1" d="M310 510 L810 510"/>
+        <path class="wire" id="w2" d="M810 510 L1310 510"/>
+        <path class="wire" id="w3" d="M1310 510 L1810 510"/>
+        <path class="wire" id="w4" d="M1810 510 L1810 920 L310 920 L310 1130"/>
+        <path class="wire" id="w5" d="M310 1130 L810 1130"/>
+        <path class="wire" id="w6" d="M810 1130 L1310 1130"/>
+        <path class="wire" id="w7" d="M1310 1130 L1810 1130"/>
+        <g class="run" id="gTop"><path class="wire" id="wTop" d="M2510 510 L2510 60 L310 60 L310 510"/></g>
+        <g class="run" id="gRel"><path class="wire" id="wRel" d="M1810 1130 L2510 1130"/>
+          <path class="wire" id="wEc2" d="M2510 1100 L2810 1100 L2810 850 L3110 850"/>
+          <path class="wire" id="wLap" d="M2510 1160 L2810 1160 L2810 1430 L3110 1430"/></g>
+      </svg>
+      <div id="beads"></div>
+
+      <!-- the pipeline: two rows, left to right -->
+      <div class="node" id="nIntent" data-om-id="intent" style="left:100px;top:360px"><h4>INTENT</h4><p id="pIntent" style="opacity:0">in the originator’s<br>own words</p><div class="file" id="fIntent">intent/NNN-*.md</div></div>
+      <div class="node" id="nSpec" data-om-id="spec" style="left:600px;top:360px"><h4>SPEC</h4><p>/speckit-specify<br>/speckit-clarify</p><div class="file" id="fSpec">spec.md</div></div>
+      <div class="node" id="nPlan" data-om-id="plan" style="left:1100px;top:360px"><div class="halo" id="hPlan"></div><h4>PLAN</h4><p>/speckit-plan<br>(plan mode)</p><div class="file" id="fPlan">plan.md</div></div>
+      <div class="node" id="nTasks" data-om-id="tasks" style="left:1600px;top:360px"><h4>TASKS</h4><p>/speckit-tasks<br>/speckit-analyze</p><div class="file" id="fTasks">tasks.md</div></div>
+      <div class="node" id="nImpl" data-om-id="implement" style="left:100px;top:980px"><h4>IMPLEMENT</h4><p>task by task,<br>with tests</p><div class="file" id="fImpl">feat/NNN-*</div></div>
+      <div class="node" id="nReview" data-om-id="review" style="left:600px;top:980px"><h4>REVIEW</h4><p><b id="pv1">Bugs</b> · <b id="pv2">Security</b><br><b id="pv3">Compliance</b> · <b id="pv4">Cost</b></p><div class="file" id="fReview">merge-request note</div></div>
+      <div class="node" id="nGate" data-om-id="gate" style="left:1100px;top:980px"><h4>GATE</h4><p>tools/gates/gate<br>from main’s checkout</p></div>
+      <div class="node merge" id="nMerge" data-om-id="merge" style="left:1600px;top:980px"><div class="halo" id="hMerge"></div><h4>MERGE</h4><p>a person’s merge</p><div class="person"><i></i><u></u></div></div>
+
+      <!-- the agents (and the one person) beside their stages: .claude/agents/*.md, line 3 -->
+      <div class="role" id="rSpec" style="left:600px;top:120px"><h5>spec-writer</h5><p>Never writes code.</p></div>
+      <div class="role" id="rImpl" style="left:100px;top:1300px"><h5>implementer</h5><p>Cannot review<br>its own work.</p></div>
+      <div class="role" id="rRev" style="left:600px;top:1300px"><h5>reviewer</h5><p>Read-only.</p></div>
+      <div class="role" id="rRed" style="left:1100px;top:1300px"><h5>red-teamer</h5><p>Read-only<br>on source.</p></div>
+      <div class="role who" id="rWho" style="left:1600px;top:1300px"><h5>Hareet</h5><p>only a human<br>merges to main</p></div>
+
+      <!-- the shots' annotations (each lives for its own shot) -->
+      <div class="ftag g" id="tAccept" style="left:100px;top:700px">accept → specs/NNN-name/</div>
+      <div class="ftag r" id="tClose" style="left:100px;top:775px">close → Status: closed</div>
+      <div class="ftag lit" id="tSurv" style="left:100px;top:850px">Survival rate is a metric we publish.</div>
+      <div class="ftag" id="tEars" style="left:600px;top:700px">WHEN … THE SYSTEM SHALL …</div>
+      <div class="ftag lit" id="tTestable" style="left:600px;top:790px">testable without interpretation</div>
+      <div class="ftag" id="tP1" style="left:1100px;top:695px">the files</div>
+      <div class="ftag" id="tP2" style="left:1330px;top:695px">the order</div>
+      <div class="ftag" id="tP3" style="left:1560px;top:695px">the risks</div>
+      <div class="ftag y" id="tP4" style="left:1790px;top:695px">the cost</div>
+      <div class="ftag r" id="tP5" style="left:1100px;top:772px">what happens when it degrades</div>
+      <div class="ftag big g" id="tApproved" style="left:1160px;top:230px">APPROVED</div>
+      <div class="ftag lit" id="tNoCode" style="left:1000px;top:850px;font-size:34px">Never write code without an approved spec.md and plan.md.</div>
+      <div class="ftag g" id="tA1" style="left:1600px;top:700px"><span class="dot"></span>spec</div>
+      <div class="ftag g" id="tA2" style="left:1770px;top:700px"><span class="dot"></span>plan</div>
+      <div class="ftag g" id="tA3" style="left:1940px;top:700px"><span class="dot"></span>tasks</div>
+      <div class="ftag big" id="tAgree" style="left:1600px;top:785px">read-only · agree</div>
+      <div class="ftag" id="tT1" style="left:100px;top:1510px">[x] T001</div>
+      <div class="ftag" id="tT2" style="left:330px;top:1510px">[x] T002</div>
+      <div class="ftag" id="tT3" style="left:560px;top:1510px">[x] T003</div>
+      <div class="ftag g" id="tTests" style="left:790px;top:1510px">with tests</div>
+      <div class="ftag r" id="tNever" style="left:100px;top:1510px">The agent that implements never reviews.</div>
+      <div class="ftag lit" id="tInform" style="left:600px;top:1510px">Findings inform the human approval; they never replace it.</div>
+      <div class="ftag lit" id="tSame" style="left:560px;top:740px;font-size:52px">Changing a feature works the same way.</div>
+      <div class="ftag" id="tChecks" style="left:1100px;top:1510px;font-size:32px">lint · test · evals · redteam · matrix</div>
+      <div class="ftag g" id="tNext" style="left:100px;top:240px">the next intent.md</div>
+
+      <!-- production: the gateway that drafts its own incident -->
+      <div class="run" id="gGw">
+        <div class="node" id="nGw" data-om-id="gateway" style="left:2300px;top:360px"><div class="flood" id="fGw"></div><h4>GATEWAY</h4><p>in production</p><div class="file" id="lTrip" style="border-color:#d0587a;background:rgba(173,37,73,.35);color:#ffe1e8">kill switch: tripped</div></div>
+        <div class="ftag y" id="tDraft" style="left:2540px;top:230px">incidents/YYYY-MM-DD-&lt;stack&gt;-&lt;ceiling&gt;.intent.md</div>
+        <div class="ftag" id="tTpl" style="left:2300px;top:700px">from a deterministic template, with no model call</div>
+        <div class="ftag lit" id="tWorst" style="left:2300px;top:790px;font-size:50px">a breach is the worst moment to spend</div>
+        <div class="ftag g" id="tLoop" style="left:2050px;top:84px">the next intent.md</div>
+      </div>
+      <!-- the deploy, as spec 001 says it -->
+      <div class="run" id="gDep">
+        <div class="ftag y" id="tSpec001" style="left:2300px;top:1615px">spec 001 · approved <span id="apOn"></span> · as specced</div>
+        <div class="node" id="nRel" data-om-id="release" style="left:2300px;top:980px"><h4>RELEASE</h4><p>a commit on <b id="pMain">main</b>,<br>its images pinned<br>by digest</p></div>
+        <div class="node" id="nEc2" data-om-id="ec2" style="left:2900px;top:720px;height:260px"><div class="flood" id="fEc2"></div><h4>EC2</h4><p>its deployer polls</p><div class="file" id="dEc2">sha256:</div></div>
+        <div class="node" id="nLap" data-om-id="laptop" style="left:2900px;top:1300px;height:260px"><h4>LAPTOP</h4><p>its deployer polls</p><div class="file" id="dLap">sha256:</div></div>
+        <div class="role" id="rOps" style="left:2300px;top:1300px"><h5>ops</h5><p>Plan only;<br>never apply.</p></div>
+        <div class="ftag big" id="tPull" style="left:2300px;top:1510px">only by pull</div>
+        <div class="ftag r" id="tBack" style="left:2190px;top:846px;font-size:32px">return to the previous release<br>and alert</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="shot" id="clarify" data-om-id="clarify">
+    <div class="src">specs/000-local-foundations/spec.md:23 · Clarifications, Session 2026-10-07</div>
+    <div class="k ql">Q · THE AGENT</div>
+    <div class="qt" id="cQ">When the fallback sub-budget runs out, does fallback come back the next day on its own, or only after a human restores it (FR-030)?</div>
+    <div class="k al" id="cAl">A · HAREET</div>
+    <div class="at"><span id="cA"></span></div>
+    <div class="wfw" id="cBar"></div>
+    <div class="wfl" id="cWfw">kept word for word</div>
+  </section>
+
+  <section class="shot" id="five" data-om-id="five-things">
+    <div class="k" id="fiveK">EVERY NEW FEATURE BRINGS</div>
+    <div class="list">
+      <div class="it" id="i1">TELEMETRY</div>
+      <div class="it" id="i2">A DASHBOARD PANEL</div>
+      <div class="it" id="i3">A COST ESTIMATE</div>
+      <div class="it" id="i4">ITS DEGRADED BEHAVIOR</div>
+      <div class="it" id="i5">A DISCLOSURE ROW</div>
+    </div>
+    <div class="if" id="iIf">if a byte leaves your device</div>
+    <div class="graph" id="iGraph">A feature without a graph is not done.</div>
+    <div class="src bot">CLAUDE.md:26 · .specify/memory/constitution.md:68</div>
+  </section>
+
+  <section class="shot" id="amend" data-om-id="amend">
+    <div class="src">specs/009-room-avatars/spec.md:331</div>
+    <div class="h">## Amendments</div>
+    <div class="rows">
+      <div class="r" id="m1"><b>M2</b><span>Spec 002, FR-005</span></div>
+      <div class="r" id="m2"><b>M4</b><span>Spec 002, FR-054</span></div>
+      <div class="r" id="m3"><b>M6</b><span>docs/data-flow-disclosure.md, rows V1 and V4</span></div>
+      <div class="r" id="m4"><b>M7</b><span>Spec 003, FR-021</span></div>
+    </div>
+  </section>
+
+  <section class="shot" id="depart" data-om-id="depart">
+    <div class="src">specs/009-room-avatars/plan.md:361</div>
+    <div class="h">## 10. Departures</div>
+    <div class="q"><span id="dTxt"></span></div>
+    <div class="src qs" id="dSrc">CLAUDE.md:8</div>
+  </section>
+
+  <section class="shot" id="bug" data-om-id="bug">
+    <div class="huge" id="bugN">A BUG</div>
+    <div class="ft" id="bugF">a failing test</div>
+  </section>
+
+  <section class="shot" id="fixhook" data-om-id="fix">
+    <div class="term">
+      <div class="ctx">a fix task · FIX_TASK=1</div>
+      <div class="c" id="fxC">edit services/gateway/test/unit/meter.test.ts</div>
+      <div class="x" id="fxX">Blocked by .claude/hooks/protected-paths.sh — test or eval file during a fix task.</div>
+    </div>
+    <div class="slam"><div id="fx1">FIX THE CODE,</div><div class="b" id="fx2">NOT THE TEST.</div></div>
+    <div class="src fs" id="fxS">CLAUDE.md:44 · .claude/hooks/protected-paths.sh:65-67</div>
+  </section>
+
+  <section class="shot" id="incident" data-om-id="incident">
+    <div class="left">
+      <div class="a">AN INCIDENT</div>
+      <div class="d" id="iDays">WITHIN 7 DAYS</div>
+      <div class="ds" id="iDs">.specify/memory/constitution.md:47</div>
+    </div>
+    <div class="doc" id="iDoc"><h3>docs</h3><p>Read-only on source.<br>Incident notes follow the template.</p></div>
+    <div class="tpl">
+      <div class="tsrc">docs/incidents/README.md:3</div>
+      <div class="h">What happened</div>
+      <div class="h">Timeline</div>
+      <div class="h">Detection</div>
+      <div class="h">Impact</div>
+      <div class="h">Root cause</div>
+      <div class="h">Fix</div>
+      <div class="h" id="iEval">The eval that would have caught it</div>
+      <div class="h">Follow-up intent</div>
+    </div>
+  </section>
+
+  <section class="shot" id="clean" data-om-id="clean-room">
+    <div class="t">THE AUTHOR’S CLEAN-ROOM GATE</div>
+    <div class="src ts">tools/gates/gate:2 · ADR 0017</div>
+    <div class="steps">
+      <div class="st" id="g1">git archive &lt;branch&gt;<small>only committed content</small></div>
+      <div class="arr" id="ga1"></div>
+      <div class="st net" id="g2">--network none<small>the network cut off</small><div class="cut" id="gCut"></div></div>
+    </div>
+    <div class="checks" id="gChecks">make lint · validate-config · test · evals · redteam-suite · matrix</div>
+    <div class="q"><span id="gQ"></span></div>
+    <div class="src qs" id="gQs">docs/adr/0017-clean-room-gate-and-human-only-gate-paths.md:17 · tools/gates/gate:29-37</div>
+  </section>
+
+  <section class="shot" id="sandbox" data-om-id="sandbox">
+    <div class="huge" id="sbN">SANDBOX</div>
+    <div class="eng" id="sbE">their own disposable engine, never the host’s</div>
+    <div class="src es" id="sbS">ADR 0015 · ADR 0016 · .claude/settings.json (sandbox)</div>
+  </section>
+
+  <section class="shot" id="refuse" data-om-id="refuse">
+    <div class="term">
+      <div class="c" id="r1c">$ git push</div>
+      <div class="x" id="r1x">Blocked by .claude/hooks/bash-gate.sh — git push.</div>
+      <div class="c" id="r2c">$ git merge feat/NNN-name      # HEAD is main</div>
+      <div class="x" id="r2x">Blocked by .claude/hooks/bash-gate.sh — changing main (HEAD is main).</div>
+      <div class="c" id="r3c">$ terraform apply</div>
+      <div class="x" id="r3x">Blocked by .claude/hooks/bash-gate.sh — terraform mutation.<br><i>Route: commit the change on your feature branch; apply runs in the protected environment after the Author approves</i></div>
+      <div class="c" id="r4c">edit config/budgets.yaml</div>
+      <div class="x" id="r4x">Blocked by .claude/hooks/protected-paths.sh — cost/alert/edge/kill-switch configuration.</div>
+      <div class="c" id="r5c">read ~/.aws/credentials</div>
+      <div class="x" id="r5x">denied · .claude/settings.json · permissions.deny: "Read(~/.aws/**)"</div>
+    </div>
+  </section>
+
+  <section class="shot" id="count" data-om-id="count">
+    <div class="n" id="cntN">0</div>
+    <div class="ps" id="cntP">PASSED</div>
+    <div class="fa" id="cntF"><span class="z" id="cntZ">0 failed</span> · <span class="g" id="cntG">52 known gaps</span></div>
+    <div class="rec" id="cntR">forbidden-actions (hook layer): 802 passed, 0 failed, 52 known gaps</div>
+    <div class="src cs" id="cntS">make check, 2026-11-08 · docs/merge-requests/2026-11-08-fix-007-live-runs.md:2679</div>
+  </section>
+
+  <section class="shot" id="decide" data-om-id="decide">
+    <div class="a" id="dA">The agents type.</div>
+    <div class="b" id="dB">The Author decides.</div>
+  </section>
+
+  <section class="shot" id="end" data-om-id="endcard">
+    <div class="card">
+      <div class="nm">hareet<span>.ai</span></div>
+      <div class="pitch">Come talk to my AI twin about my work and my life. It’s built in the open, so you can see how I build AI that is secure, cost-effective, and observable.</div>
+      <div class="claims">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> EVERY DATA FLOW DISCLOSED</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const V = OM.vars();
+  const $ = (s) => document.querySelector(s);
+  document.documentElement.style.setProperty('--ground', V.ground);
+  document.documentElement.style.setProperty('--green', V.green);
+  document.documentElement.style.setProperty('--crimson', V.crimson);
+  $('#iDays').textContent = `WITHIN ${V.incidentDays} DAYS`;
+  $('#dEc2').textContent = $('#dLap').textContent = `sha256:${String(V.digest12).slice(0, 12)}`;
+  $('#apOn').textContent = V.approvedOn;
+  $('#cntZ').textContent = `${V.failedRows} failed`; $('#cntG').textContent = `${V.knownGaps} known gaps`;
+  $('#cntR').textContent = `forbidden-actions (hook layer): ${V.blocked} passed, ${V.failedRows} failed, ${V.knownGaps} known gaps`;   // verbatim, docs/merge-requests/2026-11-08-fix-007-live-runs.md:2679
+
+  // ---------- word times, read from the respaced take's om-cues (tools/respace.py): exact word, nth occurrence ----------
+  // Every cut, landing and bead below follows W, so a re-voice needs only a new respace PLAN and a fresh om-cues.
+  const WORDS = OM.words();
+  const cue = (w, n = 1) => { let k = 0; for (const x of WORDS) if (x.word === w && ++k === n) return x.start; throw new Error(`no cue "${w}" #${n}`); };
+  const cueEnd = (w, n = 1) => { let k = 0; for (const x of WORDS) if (x.word === w && ++k === n) return x.end; throw new Error(`no cue "${w}" #${n}`); };
+  const W = { name: cue('hareet.ai'), sentence: cue('sentence'), persons: cue("person's"), merge: cue('merge'),
+    first: cue('First'), intent: cue('intent'), wanted: cue('wanted'), words: cue('words'), accepts: cue('accepts'), closes: cue('closes'), survival: cue('survival'),
+    a1: cue('A', 1), specWriter: cue('spec-writer'), spec: cue('spec', 1), acceptance: cue('acceptance'), test1: cue('test', 1),
+    its: cue('Its', 1), questions: cue('questions'), answers: cue('answers'), word: cue('word', 1), wordEnd: cueEnd('word', 2),
+    then1: cue('Then', 1), plan: cue('plan', 1), files: cue('files'), order: cue('order'), risks: cue('risks'), cost1: cue('cost', 1), degrades: cue('degrades'),
+    approved: cue('approved'), exists: cue('exists'),
+    then2: cue('Then', 2), tasks: cue('tasks', 1), readOnly: cue('read-only', 1), spec2: cue('spec', 2), plan2: cue('plan', 2), tasks2: cue('tasks', 2), agree: cue('agree'),
+    an1: cue('An', 1), implementer: cue('implementer'), builds: cue('builds'), branch: cue('branch'), task1: cue('task', 1), by: cue('by', 1), task2: cue('task', 2), tests: cue('tests', 1),
+    and1: cue('And', 1), every: cue('every', 1), telemetry: cue('telemetry'), dashboard: cue('dashboard'), cost2: cue('cost', 2), degraded: cue('degraded'),
+    disclosure: cue('disclosure'), byte: cue('byte'), device: cue('device'),
+    a2: cue('A', 2), reviewer: cue('reviewer'), never1: cue('never', 1), wrote: cue('wrote'), bugs: cue('bugs'), security: cue('security'), compliance: cue('compliance'),
+    cost3: cue('cost', 3), findings: cue('findings'), merge2: cue('merge', 2), never2: cue('never', 2), replaceEnd: cueEnd('replace'),
+    changing: cue('Changing'), same1: cue('same', 1), a3: cue('A', 3), names: cue('names'), each: cue('each'), clause: cue('clause'), amends: cue('amends'),
+    code2: cue('code', 2), departs: cue('departs'), corrected: cue('corrected'), same2: cue('same', 2), commitEnd: cueEnd('commit'),
+    a4: cue('A', 4), bug: cue('bug'), failing: cue('failing'), during: cue('During'), hook: cue('hook'), stops: cue('stops'), editing1: cue('editing', 1),
+    fix2: cue('fix', 2), not: cue('not'), test3: cue('test', 3),
+    an2: cue('An', 2), note: cue('note'), seven: cue('seven'), eval: cue('eval'), caught: cue('caught'),
+    when: cue('When'), trips: cue('trips'), drafts: cue('drafts'), template: cue('template'), no: cue('no', 1), call: cue('call'), callEnd: cueEnd('call'),
+    before: cue('Before'), clean: cue('clean-room'), gate: cue('gate'), every2: cue('every', 2), exportW: cue('export'), network: cue('network'), cutW: cue('cut'),
+    nothing: cue('nothing'), runEnd: cueEnd('run', 1),
+    the2: cue('The', 2), sandbox: cue('sandbox'), own: cue('own', 2), engine: cue('engine'), hooks: cue('hooks'),
+    pushing: cue('pushing'), merging: cue('merging'), applying: cue('applying'), editing2: cue('editing', 2), budgets: cue('budgets'), reading: cue('reading'), secrets: cue('secrets'),
+    hundreds: cue('Hundreds'), forbidden: cue('forbidden'), actions: cue('actions'), tested: cue('tested'), every3: cue('every', 3),
+    deploys: cue('Deploys'), pull: cue('pull'), images: cue('images'), digest: cue('digest'), release: cue('release'), main: cue('main'),
+    rolled: cue('rolled'), health: cue('health'), failEnd: cueEnd('fail'),
+    the3: cue('The', 3), type: cue('type'), author4: cue('Author', 4), decides: cue('decides'), built: cue('Built'), hareet: cue('hareet'),
+    last: WORDS[WORDS.length - 1].end };
+  const F = 30, cut = (t) => (Math.floor(t * F) + 0.5) / F;                 // cuts half a frame in (contract: clean under --blur)
+  const D = W.last + V.endHold;
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'expo.out', immediateRender: false } });
+  OM.music({ product: 'devtool', variant: 0, bpm: 110, drop: 'count', ending: 'button',
+             energy: { claim: .6, sentence: .5, intent: .55, spec: .6, clarify: .45, plan: .65, tasks: .65, implement: .75, five: .9, review: .7,
+                       change: .6, amend: .65, depart: .6, bug: .75, fix: .85, incident: .7, trip: .8, gate: .75, clean: .8, sandbox: .7, refuse: .95,
+                       count: 1, deploy: .8, stop: 0, decide: .5, end: .3 } });
+
+  // shots, in order; the circuit comes back eleven times, in its state at that moment
+  const order = [['claim', 0, 'claim'], ['sentence', W.sentence - 0.05, 'sentence'], ['flow', W.first - 0.05, 'intent'], ['flow', W.a1 - 0.05, 'spec'],
+                 ['clarify', W.its - 0.05, 'clarify'], ['flow', W.then1 - 0.05, 'plan'], ['flow', W.then2 - 0.05, 'tasks'], ['flow', W.an1 - 0.05, 'implement'],
+                 ['five', W.and1 - 0.05, 'five'], ['flow', W.a2 - 0.05, 'review'], ['flow', W.changing - 0.05, 'change'], ['amend', W.a3 - 0.05, 'amend'],
+                 ['depart', W.code2 - 0.05, 'depart'], ['bug', W.a4 - 0.05, 'bug'], ['fixhook', W.during - 0.05, 'fix'], ['incident', W.an2 - 0.05, 'incident'],
+                 ['flow', W.when - 0.05, 'trip'], ['flow', W.before - 0.05, 'gate'], ['clean', W.exportW - 0.05, 'clean'], ['sandbox', W.the2 - 0.05, 'sandbox'],
+                 ['refuse', W.hooks - 0.05, 'refuse'], ['count', W.hundreds - 0.05, 'count'], ['flow', W.deploys - 0.05, 'deploy'], ['flow', W.failEnd + 0.45, 'stop'],
+                 ['decide', W.the3 - 0.05, 'decide'], ['end', W.built - 0.05, 'end']];
+  const at = (label) => cut(order.find((o) => o[2] === label)[1]);
+  const endOf = (label) => { const k = order.findIndex((o) => o[2] === label); return k + 1 < order.length ? cut(order[k + 1][1]) : D; };
+  order.forEach(([id, t, label], i) => {
+    const a = cut(t), b = i + 1 < order.length ? cut(order[i + 1][1]) : D + 1;
+    tl.addLabel(`scene:${label}`, a);
+    const prev = i ? order[i - 1][0] : null;
+    if (i > 0 && prev !== id) tl.fromTo(`#${id}`, { opacity: 0 }, { opacity: 1, duration: 0.001, ease: 'none' }, a);
+    // every kinetic shot pushes, accelerating, over its hold
+    if (!['flow', 'claim', 'end'].includes(id)) tl.fromTo(`#${id}`, { scale: 1 }, { scale: 1 + Math.min(0.16, Math.max(0.12, 0.016 * (Math.min(b, D) - a))), duration: Math.min(b, D) - a, ease: 'none', transformOrigin: '50% 50%' }, a);
+    const next = i + 1 < order.length ? order[i + 1][0] : null;
+    if (b < D && next !== id) tl.fromTo(`#${id}`, { opacity: 1 }, { opacity: 0, duration: 0.001, ease: 'none' }, b);
+    if (i > 0 && label !== 'stop') OM.sfx(i % 2 ? 'hit' : 'whoosh', a, { gain: .3 });
+  });
+
+  // helpers: a landing that slams in; a switch; a tag that lives for its shot
+  const slam = (sel, t, from = { y: 30 }) => tl.fromTo(sel, { opacity: 0, ...from }, { opacity: 1, x: 0, y: 0, scale: 1, duration: .32, ease: 'power4.out' }, t);
+  const sw = (sel, t, on) => tl.fromTo(sel, { opacity: on ? 0 : 1 }, { opacity: on ? 1 : 0, duration: .15, ease: 'none' }, t);
+  const show = (sel, t, on) => tl.fromTo(sel, { opacity: on ? 0 : 1 }, { opacity: on ? 1 : 0, duration: 0.001, ease: 'none' }, t);   // on a cut: no fade
+  const tag = (sel, t, until, from = { y: 24 }) => { slam(sel, t, from); tl.fromTo(sel, { opacity: 1 }, { opacity: 0, duration: 0.001, ease: 'none' }, until); };
+  const lit = (sel, t, color = '#47a386') => tl.fromTo(sel, { borderColor: '#3a5463' }, { borderColor: color, duration: .3, ease: 'power2.out' }, t);
+  const wire = (sel, t, color = '#47a386', from = '#3a5463') => tl.fromTo(sel, { stroke: from }, { stroke: color, duration: .3, ease: 'power2.out' }, t);
+  const file = (sel, t) => { slam(sel, t, { y: 26, scale: 1.2 }); OM.sfx('pop', t, { gain: .4 }); };
+  const k01 = (t, a, d) => Math.max(0, Math.min(1, (t - a) / d)), easeOut = (k) => 1 - Math.pow(1 - k, 3);
+
+  // claim: frame 0 is the resume's line; push into the name, which the voice says first
+  tl.fromTo('#claim', { scale: 1.06 }, { scale: 2.4, duration: at('sentence'), ease: 'power1.out', transformOrigin: '50% 34.7%' }, 0)
+    .fromTo('#claimName', { scale: 1.3 }, { scale: 1, duration: .35, ease: 'power4.out', transformOrigin: '50% 50%' }, W.name - 0.06);
+  OM.sfx('impact', W.name, { gain: .7 }); OM.sfx('whoosh', 0.02, { gain: .45 });
+
+  // a sentence: the Author's own words, typed as the voice says "sentence"; the chain ends with a person's merge
+  const SQ = $('#sTxt').textContent;
+  slam('#sMerge', W.persons - 0.05, { y: 40 }); sw('#sMsrc', W.merge, true);
+  OM.sfx('type', at('sentence') + 0.05, { gain: .25, dur: 1.3 }); OM.sfx('thud', W.persons, { gain: .55 });
+
+  // ---------- the flow's camera: front-on, cut on words; inside each hold it follows what lands, framing its subject at ~78% of the
+  // frame, moving to each new subject (0.7 s) and drifting in 6-12% while it holds, so a circuit hold is never still ----------
+  const fcam = OM.camera('#fworld');
+  const fit = (b, fill = 0.78, cap = 2.2) => ({ f: [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], z: Math.min(cap, 1920 * fill / (b[2] - b[0]), 1080 * fill / (b[3] - b[1])) });
+  const WIDE = { f: [1050, 805], z: 0.74 };
+  const TARGETS = { // label → [[time, subject box in world px (x0, y0, x1, y1) or an explicit pose], …]; the first is the cut
+    intent: [[at('intent'), [-260, 350, 540, 670]], [W.accepts - 0.4, [80, 350, 900, 925]]],
+    spec: [[at('spec'), [100, 360, 1020, 660]], [W.specWriter + 0.25, [590, 110, 1030, 670]], [W.acceptance - 0.35, [590, 350, 1260, 870]]],
+    plan: [[at('plan'), [600, 360, 1520, 660]], [W.files - 0.4, [1080, 350, 2000, 860]], [W.approved - 0.45, [1000, 220, 2000, 925]]],
+    tasks: [[at('tasks'), [1100, 360, 2020, 660]], [W.spec2 - 0.4, [1580, 350, 2160, 880]]],
+    implement: [[at('implement'), [250, 700, 1850, 1200]], [W.an1 + 0.75, [80, 960, 540, 1500]], [W.task1 - 0.4, [80, 960, 1040, 1590]]],
+    review: [[at('review'), [80, 960, 1040, 1500]], [W.never1 - 0.4, [80, 960, 1040, 1590]], [W.bugs - 0.45, [590, 970, 1030, 1290]], [W.findings - 0.3, [580, 960, 2030, 1590]]],
+    change: [[at('change'), WIDE]],
+    trip: [[at('trip'), [2280, 350, 2740, 670]], [W.drafts - 0.3, [2280, 220, 3560, 680]], [W.template - 0.35, [2280, 220, 3560, 890]], [W.call - 0.1, [1580, 40, 2760, 700]]],
+    gate: [[at('gate'), [580, 960, 1540, 1300]], [W.clean - 0.3, [1080, 960, 1540, 1300]], [W.gate + 0.1, [1080, 960, 1860, 1590]]],
+    deploy: [[at('deploy'), [1580, 960, 2740, 1300]], [W.pull - 0.4, [2280, 960, 3340, 1690]], [W.images - 0.3, { f: [2450, 1195], z: 1.0 }], [W.main - 0.3, [2170, 700, 3340, 1300]]],
+    stop: [[at('stop'), WIDE]] };
+  let camFirst = true;
+  order.filter((o) => o[0] === 'flow').forEach(([, , label]) => {
+    const a = at(label), b = Math.min(endOf(label), D), T = TARGETS[label];
+    T.forEach(([t0, box], i) => {
+      const { f, z } = Array.isArray(box) ? fit(box) : box;
+      const next = i + 1 < T.length ? T[i + 1][0] : b;
+      let start = a;
+      if (i === 0) { if (camFirst) fcam.set({ focus: f, zoom: z }); else fcam.to(tl, a - 0.001, { focus: f, zoom: z, duration: 0.001, ease: 'none' }); camFirst = false; }
+      else { const mv = Math.min(0.7, next - t0 - 0.1); fcam.to(tl, t0, { focus: f, zoom: z, duration: mv, ease: 'sine.inOut' }); start = t0 + mv + 0.001; }
+      const hold = next - start;
+      fcam.to(tl, start, { focus: f, zoom: z * (1 + Math.min(0.12, Math.max(0.06, 0.03 * hold))), duration: hold - 0.003, ease: 'none' });
+    });
+  });
+
+  // ---------- the beads: every bead is a function of time, moving at an even speed along its path ----------
+  const P = { intent: [310, 510], spec: [810, 510], plan: [1310, 510], tasks: [1810, 510], impl: [310, 1130], review: [810, 1130], gate: [1310, 1130], merge: [1810, 1130],
+              gw: [2510, 510], rel: [2510, 1130], ec2: [3110, 850], lap: [3110, 1430] };
+  const RET = [P.tasks, [1810, 920], [310, 920], P.impl], TOP = [P.gw, [2510, 60], [310, 60], P.intent];
+  const TO_EC2 = [[2510, 1100], [2810, 1100], [2810, 850], P.ec2], TO_LAP = [[2510, 1160], [2810, 1160], [2810, 1430], P.lap];
+  const along = (pts, u) => {
+    const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1])), L = seg.reduce((s, x) => s + x, 0);
+    let d = u * L, k = 0; while (k < seg.length - 1 && d > seg[k]) { d -= seg[k]; k++; }
+    const v = seg[k] ? Math.min(1, d / seg[k]) : 0; return [pts[k][0] + (pts[k + 1][0] - pts[k][0]) * v, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * v];
+  };
+  const beads = [];
+  const mk = (cls) => { const d = document.createElement('div'); d.className = `bead ${cls}`; $('#beads').appendChild(d); return d; };
+  const bead = (t0, pts, dur, cls = 'q') => { beads.push({ pts, a: t0, b: t0 + dur, el: mk(cls) }); return t0 + dur; };
+  const rev = (pts) => pts.slice().reverse();
+  const PIPE = [P.intent, P.spec, P.plan, P.tasks, [1810, 920], [310, 920], P.impl, P.review, P.gate, P.merge];
+
+  // the intent: sentences arrive from whoever wants something
+  for (let t = at('intent') + 0.1, i = 0; t < endOf('intent') - 0.6; t += 0.78, i++) { bead(t, [[-500, 510], P.intent], 0.55, 'q'); OM.sfx('tick', t + 0.55, { gain: .18, pitch: 1 + (i % 4) * .05 }); }
+  // the change travels the pipeline, one stage per shot
+  const arr = { spec: bead(W.a1 + 0.1, [P.intent, P.spec], 0.5), plan: bead(W.then1 + 0.05, [P.spec, P.plan], 0.5), tasks: bead(W.then2 + 0.05, [P.plan, P.tasks], 0.5),
+                impl: bead(W.an1 + 0.05, RET, 1.0), review: bead(W.a2 + 0.1, [P.impl, P.review], 0.5), gate: bead(W.before + 0.1, [P.review, P.gate], 0.5) };
+  Object.values(arr).forEach((t) => OM.sfx('pop', t, { gain: .35 }));
+  // the findings go to the merge; the person decides
+  const findAt = bead(W.findings + 0.1, [P.review, P.gate, P.merge], 0.8, 'p'); OM.sfx('ding', findAt, { gain: .4 });
+  // changing a feature: the same way, the whole pipeline, twice
+  [0, 0.45].forEach((d) => bead(at('change') + 0.05 + d, PIPE, 1.9, 'l'));
+  // the trip: the gateway's own draft leaves for the start of the pipeline
+  bead(W.call - 0.2, TOP, 2.2, 'p');
+  // the deploy: the merge makes a release; each host polls, then pulls the same images
+  const relAt = bead(at('deploy') + 0.05, [P.merge, P.rel], 0.5, 'l');
+  [0, 0.7].forEach((d) => { bead(W.pull - 0.3 + d, rev(TO_EC2), 0.45, 's'); bead(W.pull - 0.2 + d, rev(TO_LAP), 0.45, 's'); });
+  [0, 0.55].forEach((d) => { bead(W.images - 0.1 + d, TO_EC2, 0.5, 'l'); bead(W.images - 0.1 + d, TO_LAP, 0.5, 'l'); });
+  // a new release fails its health checks on EC2, and the deployer goes back to the previous one
+  bead(W.main + 0.05, TO_EC2, 0.45, 'p'); bead(W.rolled + 0.15, rev(TO_EC2), 0.5, 'r');
+  // the stop: the pipeline runs once more and comes to rest at the person's merge
+  bead(at('stop') + 0.05, PIPE, 1.3, 'q');
+
+  const CQ = 'it does not renew on its own, a human approves renewal', QQ = $('#cQ').textContent;
+  const DQ = 'If implementation departs from the plan, update plan.md in the same commit.';
+  const GQ = 'Only committed content gets in. A cache, a .venv, a uv.toml, or an ignored file cannot change the result.';
+  OM.clock(tl, (t) => {
+    for (const x of beads) {
+      if (t >= x.a && t < x.b) { const p = along(x.pts, (t - x.a) / (x.b - x.a)); x.el.style.opacity = 1; x.el.style.transform = `translate(${p[0]}px, ${p[1]}px)`; }
+      else x.el.style.opacity = 0;
+    }
+    $('#sTxt').textContent = SQ.slice(0, Math.round(k01(t, at('sentence') + 0.05, 1.3) * SQ.length));
+    $('#cQ').textContent = QQ.slice(0, Math.round(k01(t, W.questions - 0.1, 1.6) * QQ.length));
+    $('#cA').textContent = CQ.slice(0, Math.round(k01(t, W.answers - 0.1, W.wordEnd - W.answers - 0.2) * CQ.length));
+    $('#dTxt').textContent = DQ.slice(0, Math.round(k01(t, at('depart') + 0.15, W.commitEnd - at('depart') - 0.6) * DQ.length));
+    $('#gQ').textContent = GQ.slice(0, Math.round(k01(t, W.nothing - 0.1, W.runEnd - W.nothing) * GQ.length));
+    $('#cntN').textContent = Math.round(V.blocked * easeOut(k01(t, W.hundreds, W.actions - W.hundreds)));   // 0 → 802 from "Hundreds" to "actions"
+  }, D);
+
+  // ---------- the circuit's state, shot by shot ----------
+  // intent: the stage lights; its file; the originator's own words; accept or close; the survival rate
+  lit('#nIntent', W.intent - 0.1); OM.sfx('impact', W.intent, { gain: .45 });
+  file('#fIntent', W.wanted); slam('#pIntent', W.words - 0.1, { x: -16 });
+  tag('#tAccept', W.accepts - 0.05, endOf('intent'), { x: -24 }); tag('#tClose', W.closes - 0.05, endOf('intent'), { x: -24 });
+  OM.sfx('stamp', W.accepts, { gain: .45 }); OM.sfx('stamp', W.closes, { gain: .45, pan: .2 });
+  tag('#tSurv', W.survival - 0.1, endOf('intent')); OM.sfx('type', W.survival, { gain: .2, dur: .7 });
+  // spec: the spec-writer; acceptance criteria a test can check
+  slam('#rSpec', W.specWriter - 0.05, { y: -30 }); OM.sfx('thud', W.specWriter, { gain: .45 });
+  wire('#w1', W.a1 + 0.1); lit('#nSpec', W.spec - 0.1); file('#fSpec', W.spec);
+  tag('#tEars', W.acceptance - 0.1, endOf('spec')); OM.sfx('type', W.acceptance, { gain: .25, dur: .6 });
+  tag('#tTestable', W.test1 - 0.1, endOf('spec'));
+  // plan: what it holds, word by word; approved before any code exists
+  wire('#w2', W.then1 + 0.05); lit('#nPlan', W.plan - 0.1); file('#fPlan', W.plan + 0.2);
+  [['#tP1', W.files], ['#tP2', W.order], ['#tP3', W.risks], ['#tP4', W.cost1], ['#tP5', W.degrades]].forEach(([s, t], i) => { tag(s, t - 0.08, endOf('plan')); OM.sfx('tick', t, { gain: .35, pitch: 1 + i * .05 }); });
+  tag('#tApproved', W.approved - 0.08, endOf('plan'), { scale: 1.5 }); OM.sfx('stamp', W.approved, { gain: .7 });
+  sw('#hPlan', W.approved - 0.05, true); show('#hPlan', endOf('plan'), false);
+  tag('#tNoCode', W.exists - 0.4, endOf('plan'));
+  // tasks: the read-only check that the three agree
+  wire('#w3', W.then2 + 0.05); lit('#nTasks', W.tasks - 0.1); file('#fTasks', W.tasks + 0.15);
+  [['#tA1', W.spec2], ['#tA2', W.plan2], ['#tA3', W.tasks2]].forEach(([s, t], i) => { tag(s, t - 0.08, endOf('tasks'), { scale: 1.3 }); OM.sfx('pop', t, { gain: .35, note: i + 2 }); });
+  tag('#tAgree', W.agree - 0.1, endOf('tasks'), { scale: 1.2 }); OM.sfx('chime', W.agree, { gain: .4 });
+  // implement: the implementer, on a feature branch, task by task, with tests
+  slam('#rImpl', W.implementer - 0.05, { y: 30 }); OM.sfx('thud', W.implementer, { gain: .45 });
+  wire('#w4', W.an1 + 0.05); lit('#nImpl', arr.impl - 0.05); file('#fImpl', W.builds);
+  tl.fromTo('#fImpl', { scale: 1 }, { scale: 1.12, duration: .16, yoyo: true, repeat: 1, ease: 'power2.out', transformOrigin: '0% 50%' }, W.branch); OM.sfx('tick', W.branch, { gain: .4 });
+  [['#tT1', W.task1], ['#tT2', W.by], ['#tT3', W.task2]].forEach(([s, t], i) => { tag(s, t - 0.06, endOf('implement'), { x: -16 }); OM.sfx('tick', t, { gain: .4, pitch: 1 + i * .06 }); });
+  tag('#tTests', W.tests - 0.08, endOf('implement'), { x: -16 }); OM.sfx('pop', W.tests, { gain: .4 });
+  // review: read-only, never the one that wrote it; four passes; findings inform the merge and never replace it
+  slam('#rRev', W.reviewer - 0.05, { y: 30 }); OM.sfx('thud', W.reviewer, { gain: .45 });
+  wire('#w5', W.a2 + 0.1); lit('#nReview', arr.review - 0.05);
+  tag('#tNever', W.never1 - 0.1, W.findings - 0.25, { x: -20 }); OM.sfx('glitch', W.never1, { gain: .35 });
+  tl.fromTo('#rImpl', { borderColor: 'rgba(238,243,245,.4)' }, { borderColor: '#d0587a', duration: .2 }, W.never1)
+    .fromTo('#rImpl', { borderColor: '#d0587a' }, { borderColor: 'rgba(238,243,245,.4)', duration: .3 }, W.findings - 0.25);
+  [['#pv1', W.bugs], ['#pv2', W.security], ['#pv3', W.compliance], ['#pv4', W.cost3]].forEach(([s, t], i) => {
+    tl.fromTo(s, { color: '#a9b8c1' }, { color: i === 3 ? '#ffd27a' : '#6fe0b8', duration: .15, ease: 'none' }, t - 0.05); OM.sfx('tick', t, { gain: .4, pitch: 1 + i * .06 }); });
+  file('#fReview', W.findings);
+  wire('#w6', W.findings + 0.1, '#c9a25a'); wire('#w7', W.findings + 0.5, '#c9a25a');
+  sw('#hMerge', findAt - 0.05, true); slam('#rWho', W.merge2 - 0.1, { y: 30 }); OM.sfx('thud', W.merge2, { gain: .5 });
+  tag('#tInform', W.never2 - 0.15, endOf('review')); OM.sfx('type', W.never2, { gain: .2, dur: .8 });
+  show('#hMerge', endOf('review'), false);
+  // changing a feature: the same way
+  tag('#tSame', W.same1 - 0.2, endOf('change'));
+  // the trip: the gateway in production drafts its own incident, from a template, with no model call
+  show('#gGw', at('trip'), true); show('#gTop', at('trip'), true); show('#gGw', endOf('trip'), false); show('#gTop', endOf('trip'), false);
+  sw('#fGw', W.trips - 0.05, true); slam('#lTrip', W.trips - 0.05, { scale: 1.3 }); OM.sfx('impact', W.trips, { gain: .7 }); OM.sfx('subdrop', W.trips, { gain: .5 });
+  slam('#tDraft', W.drafts - 0.05, { y: -24 }); OM.sfx('type', W.drafts, { gain: .25, dur: .9 });
+  slam('#tTpl', W.template - 0.1, { x: -20 }); OM.sfx('stamp', W.template, { gain: .45 });
+  slam('#tWorst', W.no - 0.05, { y: 24 }); OM.sfx('thud', W.no, { gain: .5 });
+  wire('#wTop', W.call - 0.2, '#c9a25a'); slam('#tLoop', W.call + 0.3, { x: 30 }); OM.sfx('whoosh', W.call - 0.2, { gain: .35 });
+  slam('#tNext', W.call + 1.9, { y: -20 });
+  // the gate: the change reaches the Author's gate; the red-teamer's suite runs inside it; every check
+  wire('#w6', W.before + 0.1, '#47a386', '#c9a25a'); lit('#nGate', W.clean - 0.1); OM.sfx('impact', W.gate, { gain: .5 });
+  slam('#rRed', W.gate + 0.2, { y: 30 }); OM.sfx('thud', W.gate + 0.2, { gain: .4 });
+  tag('#tChecks', W.every2 - 0.1, endOf('gate')); OM.sfx('count', W.every2, { gain: .3, dur: .8 });
+  // the deploy: only by pull, the same images by digest, from a release made from main; rolled back when health checks fail
+  show('#gRel', at('deploy'), true); show('#gDep', at('deploy'), true);
+  tl.fromTo('#nMerge', { borderColor: '#eef3f5' }, { borderColor: '#d0587a', duration: .3 }, at('deploy')); wire('#w7', at('deploy'), '#47a386', '#c9a25a');
+  wire('#wRel', at('deploy') + 0.05); lit('#nRel', relAt - 0.05); OM.sfx('pop', relAt, { gain: .4 });
+  slam('#tSpec001', relAt + 0.1, { y: -16 });
+  slam('#tPull', W.pull - 0.08, { scale: 1.4 }); OM.sfx('impact', W.pull, { gain: .55 });
+  wire('#wEc2', W.images - 0.1); wire('#wLap', W.images - 0.1); lit('#nEc2', W.images + 0.4); lit('#nLap', W.images + 0.4);
+  [['#dEc2', W.digest], ['#dLap', W.digest + 0.15]].forEach(([s, t]) => file(s, t - 0.05));
+  tl.fromTo('#pMain', { color: '#a9b8c1' }, { color: '#6fe0b8', duration: .15, ease: 'none' }, W.main - 0.05); OM.sfx('tick', W.main, { gain: .5 });
+  sw('#fEc2', W.rolled - 0.05, true); OM.sfx('glitch', W.rolled, { gain: .5 });
+  slam('#tBack', W.rolled + 0.1, { y: -20 }); OM.sfx('stamp', W.health, { gain: .5 });
+  sw('#fEc2', W.failEnd + 0.1, false); show('#tBack', endOf('deploy'), false); show('#tPull', endOf('deploy'), false); show('#tSpec001', endOf('deploy'), false);
+  // the stop: the whole pipeline, every agent beside its stage, and the person at the end of it
+  sw('#hMerge', at('stop') + 1.35, true); OM.sfx('chime', at('stop') + 1.35, { gain: .35 });
+  tl.fromTo('#hMerge', { scale: 1 }, { scale: 1.05, duration: .3, yoyo: true, repeat: 1, ease: 'power2.out' }, at('stop') + 1.4);
+
+  // ---------- the kinetic shots ----------
+  // the clarify: the agent's question, the Author's answer typed as said, kept word for word
+  slam('#cQ', W.questions - 0.1, { x: -30 }); OM.sfx('type', W.questions, { gain: .22, dur: 1.0 });
+  slam('#cAl', W.answers - 0.15, { x: -20 }); OM.sfx('type', W.answers, { gain: .25, dur: W.wordEnd - W.answers });
+  tl.fromTo('#cBar', { scaleX: 0 }, { scaleX: 1, duration: .5, ease: 'power3.out' }, W.word - 0.05); slam('#cWfw', W.word, { x: -20 }); OM.sfx('thud', W.word, { gain: .5 });
+  // five things, one per word; the earlier ones dim as the next lands
+  const FIVE = [['#i1', W.telemetry], ['#i2', W.dashboard], ['#i3', W.cost2], ['#i4', W.degraded], ['#i5', W.disclosure]];
+  FIVE.forEach(([s, t], i) => {
+    slam(s, t - 0.08, { x: -40, scale: 1.08 }); OM.sfx('impact', t, { gain: .55, pan: -.4 + i * .2 });
+    if (i < 4) tl.fromTo(s, { color: i === 2 ? '#ffd27a' : '#ffffff' }, { color: '#3d5361', duration: .25, ease: 'none' }, FIVE[i + 1][1] - 0.08);
+  });
+  tl.fromTo('#i3', { color: '#ffffff' }, { color: '#ffd27a', duration: .01, ease: 'none' }, W.cost2 - 0.08);
+  slam('#iIf', W.byte - 0.15, { x: -20 }); slam('#iGraph', W.device + 0.2, { y: 24 }); OM.sfx('chime', W.device + 0.2, { gain: .4 });
+  // amendments: each clause it amends, one per beat
+  [['#m1', W.names], ['#m2', W.each], ['#m3', W.clause], ['#m4', W.amends]].forEach(([s, t], i) => { slam(s, t - 0.08, { x: -40 }); OM.sfx('stamp', t, { gain: .45, pan: -.3 + i * .2 }); });
+  // departures: the rule, typed as said; "the same commit" lands gold
+  sw('#dSrc', W.corrected, true); OM.sfx('type', at('depart') + 0.15, { gain: .22, dur: 2.6 }); OM.sfx('thud', W.same2, { gain: .5 });
+  tl.fromTo('#depart .q', { color: '#ffffff' }, { color: '#ffd27a', duration: .2, ease: 'none' }, W.same2);
+  // a bug; a failing test
+  tl.fromTo('#bugN', { scale: 1.35, transformOrigin: '0% 50%' }, { scale: 1, duration: .35, ease: 'power4.out' }, at('bug'));
+  OM.sfx('impact', W.bug, { gain: .7 });
+  slam('#bugF', W.failing - 0.1, { x: -30 }); OM.sfx('glitch', W.failing, { gain: .55 });
+  // the hook during a fix: the edit, the refusal, then the rule
+  slam('#fxC', W.hook - 0.35, { x: -16 }); OM.sfx('type', W.hook - 0.35, { gain: .2, dur: .3 });
+  slam('#fxX', W.stops - 0.05, { x: 18 }); OM.sfx('glitch', W.stops, { gain: .5 });
+  slam('#fx1', W.fix2 - 0.08, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.fix2, { gain: .7 });
+  slam('#fx2', W.not - 0.08, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.not, { gain: .75 });
+  sw('#fxS', W.test3, true);
+  // an incident: the template's headings hammer in; seven days; the eval that would have caught it, lit
+  document.querySelectorAll('#incident .tpl div.h').forEach((h, i) => { const t = at('incident') + 0.15 + i * 0.2; slam(h, t, { x: 24 }); OM.sfx('tick', t, { gain: .25, pitch: 1 + i * .03 }); });
+  slam('#iDays', W.seven - 0.1, { scale: 1.3, transformOrigin: '0% 50%' }); sw('#iDs', W.seven + 0.3, true); OM.sfx('impact', W.seven, { gain: .6 });
+  slam('#iDoc', W.note - 0.05, { y: 30 }); OM.sfx('thud', W.note, { gain: .4 });
+  tl.fromTo('#iEval', { backgroundColor: 'rgba(71,163,134,0)', color: '#cfdae0' }, { backgroundColor: 'rgba(71,163,134,1)', color: '#0f1820', duration: .2, ease: 'none' }, W.eval - 0.05)
+    .fromTo('#iEval', { scale: 1 }, { scale: 1.06, duration: .18, yoyo: true, repeat: 1, ease: 'power2.out', transformOrigin: '0% 50%' }, W.eval);
+  OM.sfx('chime', W.eval, { gain: .45 });
+  // the clean-room gate: the export, the network cut off, every check; then why
+  slam('#g1', at('clean') + 0.02, { x: -30 }); OM.sfx('thud', W.exportW, { gain: .5 });
+  sw('#ga1', W.network - 0.3, true); slam('#g2', W.network - 0.1, { x: -30 }); OM.sfx('pop', W.network, { gain: .4 });
+  tl.fromTo('#gCut', { rotation: 35, scaleY: 0 }, { rotation: 35, scaleY: 1, duration: .25, ease: 'power3.out' }, W.cutW); OM.sfx('glitch', W.cutW, { gain: .5 });
+  slam('#gChecks', W.cutW + 0.35, { y: 24 }); OM.sfx('count', W.cutW + 0.35, { gain: .25, dur: .5 });
+  sw('#gQs', W.nothing + 0.6, true); OM.sfx('type', W.nothing, { gain: .2, dur: W.runEnd - W.nothing });
+  // the sandbox, on the agents' own engine
+  slam('#sbN', at('sandbox') + 0.02, { scale: 1.3, transformOrigin: '0% 50%' }); OM.sfx('impact', W.sandbox, { gain: .65 });
+  tl.fromTo('#sbN', { color: '#ffffff' }, { color: '#6fe0b8', duration: .2, ease: 'none' }, W.sandbox - 0.05);
+  slam('#sbE', W.own - 0.1, { y: 30 }); sw('#sbS', W.engine + 0.3, true); OM.sfx('thud', W.engine, { gain: .5 });
+  // the hooks refuse: one refusal per word
+  [['#r1', W.pushing], ['#r2', W.merging], ['#r3', W.applying], ['#r4', W.editing2], ['#r5', W.reading]].forEach(([s, t], i) => {
+    sw(`${s}c`, i ? t - 0.3 : at('refuse') + 0.02, true); slam(`${s}x`, t + 0.02, { x: 18 }); OM.sfx('glitch', t + 0.02, { gain: .4, pan: -.3 + i * .15 });
+  });
+  // the count: the matrix's own recorded line, 802 passed, then 0 failed and 52 known gaps, then the line itself
+  tl.fromTo('#cntN', { scale: 1.25, transformOrigin: '0% 50%' }, { scale: 1, duration: .4, ease: 'power4.out' }, at('count'));
+  OM.sfx('count', W.hundreds, { gain: .4, dur: W.actions - W.hundreds });
+  slam('#cntP', W.actions, { x: -30 }); OM.sfx('impact', W.actions, { gain: .7 });
+  slam('#cntF', W.tested - 0.1, { y: 30 }); OM.sfx('stamp', W.tested, { gain: .55 });
+  slam('#cntR', W.every3 - 0.1, { x: -20 }); sw('#cntS', W.every3 + 0.2, true); OM.sfx('type', W.every3, { gain: .25, dur: .6 });
+  // the agents type; the Author decides
+  slam('#dA', at('decide') + 0.02, { y: 40 }); OM.sfx('type', W.type, { gain: .3, dur: .4 });
+  tl.fromTo('#dA', { scale: 1 }, { scale: 1.05, duration: .16, yoyo: true, repeat: 1, ease: 'power2.out', transformOrigin: '50% 50%' }, W.type);
+  slam('#dB', W.decides - 0.1, { scale: 1.25, transformOrigin: '50% 50%' }); OM.sfx('impact', W.decides, { gain: .7 });
+
+
+  // ---------- motion that never stops: lit wires carry a stream of work in every circuit hold; landed lines drift ----------
+  const plen = (pts) => pts.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
+  const LIT = [[W.a1 + 0.1, [P.intent, P.spec]], [W.then1 + 0.05, [P.spec, P.plan]], [W.then2 + 0.05, [P.plan, P.tasks]], [W.an1 + 0.05, RET],
+               [W.a2 + 0.1, [P.impl, P.review]], [W.findings + 0.1, [P.review, P.gate]], [W.findings + 0.5, [P.gate, P.merge]],
+               [at('deploy') + 0.05, [P.merge, P.rel]], [W.images - 0.1, TO_EC2], [W.images - 0.1, TO_LAP]];
+  order.forEach(([id, t], i) => {
+    if (id !== 'flow') return;
+    const a = cut(t), b = i + 1 < order.length ? cut(order[i + 1][1]) : D;
+    LIT.forEach(([lit, pts], j) => { const dur = plen(pts) / 800; for (let s = Math.max(a - dur, lit + 0.6) + (j % 3) * 0.15; s < b; s += 0.45) bead(s, pts, dur, 's'); });
+  });
+  const drift = (sel, t, label, px = 30) => tl.fromTo(sel, { marginLeft: 0 }, { marginLeft: px, duration: Math.max(0.3, endOf(label) - t), ease: 'none' }, t);
+  [['#sMerge', W.persons + 0.3, 'sentence'], ['#cAl', W.answers + 0.2, 'clarify'], ['#cWfw', W.word + 0.3, 'clarify'],
+   ['#i1', W.telemetry + 0.25, 'five', 60], ['#i2', W.dashboard + 0.25, 'five', 60], ['#i3', W.cost2 + 0.25, 'five', 60], ['#i4', W.degraded + 0.25, 'five', 40], ['#i5', W.disclosure + 0.25, 'five', 40],
+   ['#iIf', W.byte + 0.2, 'five'], ['#iGraph', W.device + 0.5, 'five'],
+   ['#amend .h', at('amend'), 'amend'], ['#m1', W.names + 0.25, 'amend'], ['#m2', W.each + 0.25, 'amend'], ['#m3', W.clause + 0.25, 'amend'], ['#m4', W.amends + 0.25, 'amend'],
+   ['#depart .h', at('depart'), 'depart'], ['#bugN', at('bug') + 0.35, 'bug'], ['#bugF', W.failing + 0.25, 'bug'],
+   ['#fixhook .ctx', at('fix'), 'fix'], ['#fx1', W.fix2 + 0.25, 'fix'], ['#fx2', W.not + 0.25, 'fix'],
+   ['#incident .left .a', at('incident'), 'incident'], ['#iDays', W.seven + 0.25, 'incident'], ['#iDoc', W.note + 0.3, 'incident'],
+   ['#clean .t', at('clean'), 'clean'], ['#gChecks', W.cutW + 0.7, 'clean'], ['#sbN', at('sandbox') + 0.35, 'sandbox'], ['#sbE', W.own + 0.25, 'sandbox'],
+   ['#cntN', at('count') + 0.4, 'count'], ['#cntP', W.actions + 0.3, 'count'], ['#cntF', W.tested + 0.25, 'count'],
+   ['#dA', at('decide') + 0.35, 'decide', 40], ['#dB', W.decides + 0.25, 'decide', 40]].forEach(([s, t, l, px]) => drift(s, t, l, px));
+  // five: the header opens big and centred, then takes its place as "telemetry" lands
+  tl.fromTo('#fiveK', { scale: 1.7, y: 330, transformOrigin: '0% 0%' }, { scale: 1.78, y: 330, duration: W.telemetry - 0.4 - at('five'), ease: 'none' }, at('five'))
+    .fromTo('#fiveK', { scale: 1.78, y: 330 }, { scale: 1, y: 0, duration: .4, ease: 'power3.inOut' }, W.telemetry - 0.4);
+
+  // the end: the resume's twin section, flat; the name pulses as the voice says it
+  tl.fromTo('#end .card', { scale: .9, y: 40 }, { scale: 1, y: 0, duration: 1.0 }, at('end'))
+    .fromTo('#end .card', { scale: 1 }, { scale: 1.03, duration: D - (at('end') + 1), ease: 'none' }, at('end') + 1)
+    .fromTo('#end .card .nm', { scale: 1 }, { scale: 1.05, duration: .35, yoyo: true, repeat: 1, ease: 'power2.out' }, W.hareet);
+  OM.sfx('chime', W.hareet, { gain: .5 });
+  tl.to({}, { duration: 0 }, D);
+
+  window.__timelines['film'] = tl;
+</script>
+</body>
+</html>
