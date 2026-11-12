@@ -7,7 +7,7 @@ Its own `git` runs as `git -c core.hooksPath=/dev/null -c core.fsmonitor=false` 
 Added in the build (G1), each for a reason:
 - Its git drops the caller's `GIT_*` variables, and sets `GIT_COMMON_DIR=<repo>/.git` (and `GIT_DIR`) on every call (G1's review, B1), so no `commondir` file, a planted top-level one included, ever steers which config or refs it reads. In a session's worktree it sets `GIT_DIR` (the worktree's folder under `.git/worktrees/`, recorded when the runner made it) and `GIT_WORK_TREE` itself, and never reads the worktree's own `.git` file again: a session can rewrite that file, and only the common config is out of its reach.
 - What it reads or writes in a folder a session can write (the queue, the page, the inbox and outbox) it opens one component at a time with `O_NOFOLLOW`, so a planted link can't make it read or write elsewhere as the Author.
-- `installed.txt` is `~/.local/share/h4reet-ai/night-shift/installed.txt`, with lines `file <path> <sha256>`, `image <ref> <id>`, and `network <name> <id>` (the install, G4, writes it).
+- `installed.txt` is `~/.local/share/h4reet-ai/night-shift/installed.txt`, with lines `file <path> <sha256>`, `image <ref> <id>`, and `network <name> <id>` (the install, G4, writes it). The install's own `sha`, `dir`, and `scratch` lines are for `--undo`, and the runner ignores them (contracts/install.md).
 
 ## 1. Commands
 

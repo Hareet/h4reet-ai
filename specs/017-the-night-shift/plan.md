@@ -50,7 +50,7 @@ A container gives all three: its own mount namespace (what isn't mounted doesn't
   - CLAUDE.md's 6 KB cap (R-13);
   - protected paths only as patches built from plain copies;
   - this session can't run Docker (its sandbox blocks the socket), so every container claim is proven by the Author's runs.
-- **Scale/Scope**: eight container specs, four images, two internal networks, about 600 lines of runner, a 300-line probe, a 400-line install script, two schemas, and about 40 red-team rows.
+- **Scale/Scope**: eight container specs, four images, two internal networks, about 600 lines of runner, a 300-line probe, a 500-line install script with a 900-line rehearsal, two schemas, and about 360 red-team rows (every never-mounted path and forbidden write in every spelling, tasks.md T051; the rehearsal runs about half).
 
 ## Constitution Check
 
@@ -98,6 +98,7 @@ deploy/night-shift/                  # human-only once P-1 merges (the example c
 ├── probe.sh                         # the nono probe, kept as the record (research R-14)
 ├── container-probe.sh               # §5, the next run
 ├── install.sh                       # §6, the Author's one command
+├── rehearse.py                      # §6, the install's Python half: the facts, the pins, R1 to R4
 ├── images/
 │   ├── worker.Dockerfile            # FROM the devcontainer's base, WITH_CLAUDE=1, the repo toolchain
 │   ├── studio.Dockerfile            # Claude Code and Blender 5.2.3 (pinned checksum)
@@ -121,7 +122,7 @@ infra/test/test_account.py           # the role's tests
 assets/policy/studio-tools.json      # P-7, his patch: the weights and nodes list
 docs/adr/0050-…, 0051-…, 0052-…      # §11
 docs/how-we-build/night-shift.md, docs/runbooks/night-shift.md
-redteam/night-shift/                 # §9; matrix rows are P-5
+redteam/night-shift/rows.json, run.sh # §9 (run.sh runs the installed rehearse.py's R4); matrix rows are P-5
 ```
 
 ## §1 The layers
@@ -270,18 +271,26 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 
 | Step | What | Stops if |
 |---|---|---|
-| 0 | its own `git` (no replace objects, no system config, no hooks); `/usr/bin/python3 -I -B`; the SHA resolves; the facts file and the token file exist | any is missing |
-| 1 | images: each build context written from `git show $sha:deploy/night-shift/images/…` and the devcontainer's files into a fresh folder; bases pulled by digest; built with `--pull=false` once pulled; tagged `h4-night-<name>:<sha12>` | a base's digest differs from its pin |
-| 2 | specs, allowlist, settings layers, runner, and prompts: `git show`, placeholders filled from the facts file, refused if any is left, written read-only; `installed.txt` records each SHA-256 | a placeholder is left |
-| 3 | networks: `h4-night`, `h4-night-studio`, `h4-night-plan` (internal) and the egress containers' outer network; folders: `/srv/studio/briefs`, `/srv/studio/handoff`, `~/h4reet-ai/night/`; `/srv/studio/outputs` must be empty on the first install (his Q5) | `/srv/studio/outputs` holds a file (the count is printed, never the names) |
+| 0 | its own `git` (no replace objects, no system config, no hooks); `/usr/bin/python3 -I -B`; the SHA resolves; the facts file (the runner's `read_facts`) and the token file (mode and shape); no billing variable, no night running; on the first install, `/srv/studio/outputs` empty (his Q5) | any is missing or wrong; outputs holds a file (the count is printed, never the names) |
+| 1 | images: each build context written from `git show $sha:deploy/night-shift/images/…` and the devcontainer's files into a fresh folder; bases pulled by digest; built with `--pull=false` once pulled; tagged `h4-night-<name>:<sha12>` | a base's digest is null (the line that reads it is printed) or differs from its pin |
+| 2 | specs, allowlists, settings layers, `comfyui-params.json`, runner, prompts, `rehearse.py`, and the rows: `git show`; `build.py --check`, then `build.py --fill` (placeholders filled from the facts file, refused if any is left); written read-only | a placeholder is left; the specs aren't what `fragments.json` makes |
+| 3 | networks: `h4-night`, `h4-night-engine`, `h4-night-studio`, `h4-night-plan` (internal) and `h4-night-out`; folders: `/srv/studio/briefs`, `/srv/studio/handoff`, `~/h4reet-ai/night/` and its `.comfyui/user`; then `installed.txt`, with each file's SHA-256, image ID, and network ID | a network of that name exists with the wrong `Internal` |
 | 4 | **R1**: one test session in an implementer container on a scratch worktree of SHA answers, signed in on the plan | it doesn't |
-| 5 | **R2**: the same with `ANTHROPIC_API_KEY=probe-not-a-key` refuses to start | it starts |
-| 6 | **R3**: `make check` and the red-team suite inside the container | either fails |
+| 5 | **R2**: the same line with a stand-in `ANTHROPIC_API_KEY`, then `ANTHROPIC_AUTH_TOKEN`: the runner's last look refuses it, and the managed settings neutralize it or refuse to start, with no `api.anthropic.com` line in the egress log for that turn | it used the stand-in, or hung |
+| 6 | **R3**: `make setup && make check` inside the container (make check holds the red-team suite and the matrix) | a gate fails that isn't a named, known item: `toolchain-check` (P-8), `image` (needs the agents' engine), stage S's matrix rows (P-5), PENDING |
 | 7 | **R4**: §9's rehearsal rows, each expecting a refusal | any succeeds |
 | 8 | the summary: step outcomes, image digests, every spec's SHA-256, the reviewed SHA; no token, no env | — |
 
 - **Idempotent**: each step compares before writing; a second run at the same SHA prints `unchanged`.
 - **`--undo`**: removes what `installed.txt` lists, the networks, and the images it tagged. It prints what it left: the token file, which is his.
+
+**Changed while building G4** (contracts/install.md has the detail):
+- The outputs check runs at step 0, so a refusal installs nothing (the table put it at step 3, after the images and files).
+- R2 runs both stand-ins, as the probe did, and passes when the managed settings neutralize them as well as when they refuse to start (research R-18's third run); the runner's own refusal of the line is checked first.
+- R3 names its known, environmental results instead of failing on them.
+- `deploy/night-shift/rehearse.py` is the install's Python half and the rehearsal: it builds every session line with the installed runner's own code, so R1 to R4 prove the runner's line. `build.py` gains `--fill`, the fill step. `--undo` needs only `installed.txt`, which records the folders the install made (`dir`) and its scratch (`scratch`) besides the files, images, and networks.
+- §9's rows are about 360, not 40: T051 asks for every never-mounted path and forbidden write in every spelling. R4 runs the rows marked `rehearsal` (the spellings that reach another path or program, and every row of the other kinds), and `redteam/night-shift/run.sh --all` runs them all. Each row runs only where its host path exists.
+- `H4_NIGHT_STUDIO` moves `/srv/studio`, for the install's tests only.
 
 ## §7 The studio line
 

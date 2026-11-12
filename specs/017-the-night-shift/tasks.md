@@ -87,9 +87,9 @@
 
 ## Phase 5: G4, red-team rows and the install (US1, P1; US2)
 
-- [ ] T050 [P] [US2] `redteam/night-shift/rows.json` and `run.sh`: the rows of plan §9, each with `id`, `role`, the command, the expected refusal, `layer`, and `rehearsal: true|false`. It includes the gap row for the token in a command's environment, with its bounds.
-- [ ] T051 [P] [US2] RED: `deploy/night-shift/tests/test_rows.py`. Every never-mounted path and every forbidden write has rows for each spelling in CLAUDE.md's list (`git -C`/`-c`, `bash -c`, a subshell, quoting, config or API equivalents) plus a symlink and a hard link, and every row names a role that exists.
-- [ ] T052 [P] [US1] RED: `deploy/night-shift/tests/test_install.py`, with a stub `docker` and `git` and a fake `$HOME`:
+- [x] T050 [P] [US2] `redteam/night-shift/rows.json` and `run.sh`: the rows of plan §9, each with `id`, `role`, the command, the expected refusal, `layer`, and `rehearsal: true|false`. It includes the gap row for the token in a command's environment, with its bounds.
+- [x] T051 [P] [US2] RED: `deploy/night-shift/tests/test_rows.py`. Every never-mounted path and every forbidden write has rows for each spelling in CLAUDE.md's list (`git -C`/`-c`, `bash -c`, a subshell, quoting, config or API equivalents) plus a symlink and a hard link, and every row names a role that exists.
+- [x] T052 [P] [US1] RED: `deploy/night-shift/tests/test_install.py`, with a stub `docker` and `git` and a fake `$HOME`:
   - it refuses a SHA that doesn't resolve, a facts file missing a key, a token file of the wrong mode or shape, and a base whose digest differs (installs nothing);
   - it reads only by `git show`;
   - it fills placeholders and refuses a leftover;
@@ -99,8 +99,8 @@
   - the first install refuses while `/srv/studio/outputs` holds a file, printing only the count;
   - a second run prints `unchanged`;
   - `--undo` leaves the fake home as it was, but the token and facts files, which it names.
-- [ ] T053 [P] [US1] RED: `deploy/night-shift/tests/test_container_probe.py`, the container probe with a stub `docker`. It writes only in its folder, removes its containers and networks on success and on failure, passes the token only by `--env-file`, prints no planted secret, and ends with every row of contracts/probe.md §2.
-- [ ] T054 [US1] GREEN: `deploy/night-shift/install.sh` per plan §6 and contracts/install.md.
+- [x] T053 [P] [US1] RED: `deploy/night-shift/tests/test_container_probe.py`, the container probe with a stub `docker`. It writes only in its folder, removes its containers and networks on success and on failure, passes the token only by `--env-file`, prints no planted secret, and ends with every row of contracts/probe.md §2.
+- [x] T054 [US1] GREEN: `deploy/night-shift/install.sh` per plan §6 and contracts/install.md.
 - [ ] T055 Review G4; fix blockers; backlog the rest.
 
 ## Phase 6: G5, ADRs, docs, the plan role, the patches (US5, US6, P2)
