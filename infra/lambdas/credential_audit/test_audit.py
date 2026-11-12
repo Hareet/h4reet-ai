@@ -739,13 +739,39 @@ def terminal(
     )
 
 
+# A clean account after T040b's cutover (2026-11-12), which the module's named set now asks for: h4-laptop-bedrock,
+# Terraform's, and the laptop's set, Terraform's, holding only the assume.
+LAPTOP_SET_ARN = (
+    f"{INSTANCE_ARN.replace(':instance/', ':permissionSet/')}/ps-0123456789abcdef"
+)
 CLEAN = {
     "sts get-caller-identity": {"Account": ACCOUNT},
     "iam list-users": {"Users": []},
     "iam get-account-summary": {"SummaryMap": {"AccountAccessKeysPresent": 0}},
-    "iam list-roles": {"Roles": []},
+    "iam list-roles": {
+        "Roles": [
+            {
+                "RoleName": "h4-laptop-bedrock",
+                "Path": "/",
+                "AssumeRolePolicyDocument": trust(allow({"AWS": SSO_ROLE})),
+            }
+        ]
+    },
+    "iam get-role": {"Role": {"RoleName": "h4-laptop-bedrock", "Tags": TERRAFORM_TAGS}},
     "iam list-open-id-connect-providers": {"OpenIDConnectProviderList": []},
-    "sso-admin list-instances": {"Instances": []},
+    "sso-admin list-instances": {"Instances": [{"InstanceArn": INSTANCE_ARN}]},
+    "sso-admin list-permission-sets": {"PermissionSets": [LAPTOP_SET_ARN]},
+    "sso-admin describe-permission-set": {"PermissionSet": {"Name": "h4reet-ai-cloud"}},
+    "sso-admin list-tags-for-resource": {"Tags": TERRAFORM_TAGS},
+    "sso-admin get-inline-policy-for-permission-set": {
+        "InlinePolicy": json.dumps(ASSUME_ONLY)
+    },
+    "sso-admin list-managed-policies-in-permission-set": {
+        "AttachedManagedPolicies": []
+    },
+    "sso-admin list-customer-managed-policy-references-in-permission-set": {
+        "CustomerManagedPolicyReferences": []
+    },
 }
 
 
