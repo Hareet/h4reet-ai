@@ -194,7 +194,6 @@ def check_self(runner: Runner, root: Path) -> None:
             )
 
 
-
 # What the red team's live cases exercise (group 8's review B, I3; contracts/releases-deployer.md §2): the gateway's
 # code, the configuration and the corpus it reads, the cases, and this runner. An EC2 run is keyed by their SHA-256,
 # so a release whose export holds the same bytes counts a run made on an earlier release, and a release that changes
@@ -220,7 +219,11 @@ def exercised(root: Path) -> str:
         if path.is_file():
             files.append(path)
         elif path.is_dir():
-            files.extend(p for p in path.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+            files.extend(
+                p
+                for p in path.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts
+            )
     for path in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
         digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
         digest.update(path.read_bytes() + b"\0")
@@ -253,7 +256,9 @@ def check_redteam(
         host = str(run.get("host") or "laptop")
         same_commit = run.get("commit") == commit
         same_bytes = (
-            host == "ec2" and exercised is not None and run.get("exercised") == exercised
+            host == "ec2"
+            and exercised is not None
+            and run.get("exercised") == exercised
         )
         if not (same_commit or same_bytes):
             continue

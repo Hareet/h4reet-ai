@@ -100,7 +100,9 @@ def token_file_problem(path: Path) -> str | None:
     if info.st_uid != os.getuid():
         return f"{path} belongs to another user"
     if stat.S_IMODE(info.st_mode) not in (0o600, 0o400):
-        return f"{path} is mode {stat.S_IMODE(info.st_mode):04o}; it must be 0600 or 0400"
+        return (
+            f"{path} is mode {stat.S_IMODE(info.st_mode):04o}; it must be 0600 or 0400"
+        )
     return None
 
 

@@ -86,11 +86,17 @@ def exercised(root: Path) -> str:
         if path.is_file():
             files.append(path)
         elif path.is_dir():
-            files.extend(p for p in path.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+            files.extend(
+                p
+                for p in path.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts
+            )
     for path in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
         digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
         digest.update(path.read_bytes() + b"\0")
     return digest.hexdigest()
+
+
 HISTORY = REPO / "redteam" / "history"
 CORPUS = REPO / "corpus"
 CORPUS_CHECK = CORPUS / "tools" / "check_corpus.py"
