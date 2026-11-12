@@ -12,7 +12,7 @@ Two kinds of check:
 The second kind needs the image, which builds from Ubuntu's archive (deploy/tunnel/Dockerfile). The agents' engine
 reaches only the hosts its egress proxy allows, which don't include the archive. So these checks take the image the
 Author built on his engine and moved to the agents' engine as `h4reet-tunnel-seed:local` (W1's note, "For the Author",
-group 5), when its files are the tree's; otherwise they build it, and skip only when the build fails exactly as the
+group 5), when its files and what its Dockerfile makes of it are the tree's (seeded()); otherwise they build it, and skip only when the build fails exactly as the
 archive out of reach makes it fail (archive_unreachable). Any other failure fails them (group 5's review, I2). Keys are
 made at run time, never written as literals.
 """
@@ -20,6 +20,7 @@ made at run time, never written as literals.
 from __future__ import annotations
 
 import io
+import json
 import os
 import re
 import secrets
@@ -315,8 +316,45 @@ def said(done: subprocess.CompletedProcess) -> str:
 
 
 def seeded() -> bool:
-    """The seed is on the engine and holds the tree's files, so it was built from this tree's folder."""
+    """The seed is on the engine and was built from this tree's folder: it holds the tree's files, and what the
+    Dockerfile makes of the image shows in it, its pinned base's layers first, its user, its entrypoint, its SHELL, and
+    the two packages its RUN installs, with the user's uid (group 5's fixes' review, nit 5)."""
     if docker("image", "inspect", "--format", "{{.Id}}", SEED).returncode != 0:
+        return False
+    layers = "{{json .RootFS.Layers}}"
+    base = docker("image", "inspect", "--format", layers, lock_base("base:ubuntu"))
+    mine = docker("image", "inspect", "--format", layers, SEED)
+    config = docker(
+        "image",
+        "inspect",
+        "--format",
+        "{{json .Config.User}} {{json .Config.Entrypoint}} {{json .Config.Env}}",
+        SEED,
+    )
+    if base.returncode != 0 or mine.returncode != 0 or config.returncode != 0:
+        return False
+    base_layers = json.loads(base.stdout)
+    if json.loads(mine.stdout)[: len(base_layers)] != base_layers:
+        return False
+    user, entrypoint, env = config.stdout.decode().split(" ", 2)
+    if (
+        json.loads(user) != "tunnel"
+        or json.loads(entrypoint) != ["/usr/local/bin/h4-tunnel"]
+        or "SHELL=/bin/sh" not in json.loads(env)
+    ):
+        return False
+    probe = docker(
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--entrypoint",
+        "/bin/sh",
+        SEED,
+        "-c",
+        "dpkg-query -W openssh-server openssh-client >/dev/null && id -u tunnel",
+    )
+    if probe.returncode != 0 or probe.stdout.strip() != str(UID).encode():
         return False
     for place, path in BAKED.items():
         done = docker(

@@ -321,7 +321,8 @@ def test_the_host_scripts_run_on_amazon_linux_2023s_python() -> None:
     # Amazon Linux 2023's python3 is 3.9: each script the tunnel end runs keeps to its syntax.
     import ast
 
-    for name in HOST_SCRIPTS:
+    # preflight.py, too: the deployer runs the release tree's with the host's python (group 5's fixes' review).
+    for name in (*HOST_SCRIPTS, "preflight.py"):
         text = (REPO / "deploy" / "scripts" / name).read_text(encoding="utf-8")
         ast.parse(text, filename=name, feature_version=(3, 9))
         assert text.startswith("#!/usr/bin/env python3\n"), name
@@ -394,7 +395,6 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
         )
     # EC2 takes 16 KB of user data before its base64; ec2-market.tf sends it gzipped. Later groups' host files would
     # pass it: they come from the release's tree instead (the note's backlog).
-    assert len(gzip.compress(text.encode())) < 15 * 1024
     # Terraform's base64gzip writes at Go's default level, 6, not 9: held under EC2's 16,384 bytes with 768 to spare for
     # Go's encoder, which writes a little more than zlib's (group 5's review, nits).
     assert len(gzip.compress(text.encode(), 6)) < 16384 - 768
