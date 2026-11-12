@@ -399,7 +399,9 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # pass it: they come from the release's tree instead (the note's backlog).
     # Terraform's base64gzip writes at Go's default level, 6, not 9: held under EC2's 16,384 bytes with 768 to spare for
     # Go's encoder, which writes a little more than zlib's (group 5's review, nits).
-    assert len(gzip.compress(text.encode(), 6)) < 16384 - 768
+    # From the release (plan.md §16): with the deployer out of it, 11,975 bytes on 2026-11-13; held under 12,800, so a
+    # new host file shows here before it nears the limit.
+    assert len(gzip.compress(text.encode(), 6)) < 12800
 
 
 # ----------------------------------------------------------------------------------------------------------------------

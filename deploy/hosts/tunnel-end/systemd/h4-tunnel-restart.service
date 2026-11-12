@@ -9,4 +9,4 @@ After=h4-write-env.service
 Type=oneshot
 Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
 ExecStart=/usr/bin/systemctl restart h4-write-env.service
-ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deployer.py --host tunnel-end --restart tunnel-end
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deploy_first_step.py --host tunnel-end --restart tunnel-end

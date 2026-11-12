@@ -35,6 +35,8 @@ Each run, as September §3:
 4. on a failed health check, return to the previous release and alert;
 5. record the deployment.
 
+**The deployer from the release** (plan.md §16; the Author's answer of 2026-11-13, "From the release (Recommended)"): a cloud host's user data carries a small first step, `deploy/scripts/deploy_first_step.py`, not the deployer. Each run, the first step runs the deployer of the release the host last started, from that release's tree; before any has started it fetches the newest release's tree as the deployer does, held to `release.json`'s SHA-256, and runs its deployer, which verifies the whole release again. No release yet, or the bucket out of reach, runs and alerts nothing until the next run. A tree that isn't the release's is `deploy_refused` (reason `tree`), and a deployer that doesn't run (any exit but 0, or 75, its exit for a run that refused or rolled back and alerted) is `deploy_refused` (reason `deployer`), each once per release; then the previous release's deployer runs, so the host still takes the next. The deployer's own guarantees stand: the boot's cached images, the hold, preflight's phases, `refused.json`, and the registry out of reach. EC2's user data takes the same step (group 7).
+
 **EC2's boot run:** EC2's stack doesn't start until its deployer has checked the bucket. If the bucket can't be reached, it starts its last release and alerts (FR-046).
 
 ## 4. Rollback and holds (FR-047, FR-049)

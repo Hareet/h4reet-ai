@@ -1,5 +1,5 @@
 # The tunnel end's stack at boot: its last release, before the deployer asks the bucket (spec 001 contracts/releases-
-# deployer.md §3; deploy/scripts/deployer.py --boot). Its class's services alone (preflight's HOST_CLASSES).
+# deployer.md §3; the release's deployer --boot, by deploy_first_step.py). Its class's services alone (preflight's HOST_CLASSES).
 [Unit]
 Description=h4reet: the tunnel end's stack
 After=docker.service h4-write-env.service
@@ -9,7 +9,7 @@ Requires=docker.service h4-write-env.service
 Type=oneshot
 RemainAfterExit=yes
 Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
-ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deployer.py --host tunnel-end --boot
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deploy_first_step.py --host tunnel-end --boot
 
 [Install]
 WantedBy=multi-user.target

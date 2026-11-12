@@ -9,7 +9,8 @@ Each run verifies the bucket's newest release (RELEASE_BUCKET) for this host's c
 refuses, with an alert in contracts/aws-alerts.md §2's format that carries no address, account, or secret; and first
 keeps the running release up, from the images the host holds. deploy/scripts/test_deployer.py's docstring and
 contracts/releases-deployer.md §3 give each step. --restart restarts one service of the running release. The standard
-library alone, in Python 3.9's syntax: it travels in the tunnel end's user data, whose 16 KB it nearly fills.
+library alone, in Python 3.9's syntax: it runs from the release's own tree, by the user data's first step
+(deploy/scripts/deploy_first_step.py; plan.md §16, "From the release").
 """
 
 from __future__ import annotations
@@ -90,6 +91,9 @@ VOLUME_OWNERS = {
     "tunnel-end": {"tunnel-end-collector-queue": 10001},
 }
 PROJECT = "h4reet-prod"
+# main's exit for a run that refused or rolled back and alerted; anything else non-zero is a deployer that didn't run,
+# which the first step alerts (deploy/scripts/deploy_first_step.py).
+EXIT_ALERTED = 75
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX_RE = re.compile(r"[0-9a-f]{64}")
@@ -609,7 +613,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--env-file", type=Path, default=ENV_FILE)
     parser.add_argument("--state", type=Path, default=STATE)
     args = parser.parse_args(argv)
-    return run(
+    code = run(
         args.host,
         env_file=args.env_file,
         state=args.state,
@@ -618,6 +622,7 @@ def main(argv: list[str]) -> int:
         boot=args.boot,
         restart=args.restart,
     )
+    return EXIT_ALERTED if code == 1 else code
 
 
 if __name__ == "__main__":

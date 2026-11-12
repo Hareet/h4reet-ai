@@ -1,4 +1,4 @@
-# The tunnel end's deployer, one run (spec 001 contracts/releases-deployer.md §3; deploy/scripts/deployer.py):
+# The tunnel end's deployer, one run (spec 001 contracts/releases-deployer.md §3; the release's deployer, by deploy_first_step.py):
 # h4-deployer.timer starts it every minute.
 [Unit]
 Description=h4reet: the tunnel end's deployer
@@ -8,4 +8,4 @@ Requires=docker.service h4-write-env.service
 [Service]
 Type=oneshot
 Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254
-ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deployer.py --host tunnel-end
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/deploy/scripts/deploy_first_step.py --host tunnel-end
