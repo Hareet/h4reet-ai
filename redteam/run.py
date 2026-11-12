@@ -547,10 +547,16 @@ def _client_errors(client: Any) -> tuple[type[Exception], ...]:
 
 
 def live_run(
-    cases: list[dict[str, Any]], client: Any, stack: str, adapter: str, history: Path
+    cases: list[dict[str, Any]],
+    client: Any,
+    stack: str,
+    adapter: str,
+    history: Path,
+    commit: str | None = None,
 ) -> int:
     """Each case that has `live`, through the admin twin route on one adapter, judged as safe; its history written
-    with each answer's hash and never its text."""
+    with each answer's hash and never its text, and the commit the stack runs, which the release's red-team gate
+    matches (spec 001 contracts/releases-deployer.md §2; None when the stack's run file names none)."""
     started = dt.datetime.now(dt.UTC)
     results: list[dict[str, Any]] = []
     errors = _client_errors(client)
@@ -641,6 +647,7 @@ def live_run(
         "adapter": adapter,
         "provider": PROVIDERS.get(adapter, adapter),
         "stack": stack,
+        "commit": commit,
         "started": started.isoformat(timespec="seconds"),
         "finished": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
         "cases": len(results),
@@ -669,6 +676,7 @@ def main(
     argv: list[str] | None = None,
     client_factory: Callable[[str], Any] | None = None,
     history: Path = HISTORY,
+    commit_of: Callable[[str], str | None] | None = None,
 ) -> int:
     try:
         args = parse_args(argv or [])
@@ -695,7 +703,8 @@ def main(
             )
             return 2
         client = client_factory(args.stack)
-        return live_run(cases, client, args.stack, args.adapter, history)
+        commit = commit_of(args.stack) if commit_of is not None else None
+        return live_run(cases, client, args.stack, args.adapter, history, commit)
     failed = 0
     for case in cases:
         passed, findings = judge(case)

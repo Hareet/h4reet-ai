@@ -22,6 +22,14 @@ On a clean `main`:
 
 Releases refuse a site build that holds drafts or placeholders (spec 002's rule).
 
+**As built in group 7, after its review A** (`deploy/scripts/release.py`; plan.md §16, "Group 7, after review A"):
+- **What is released:** refs/heads/main's commit, from a fresh `git archive` export of it, so the checkout's HEAD and its untracked files don't matter (I-D). Every build, the tree, and the site's check read the export.
+- **Step 1, the gate:** the commit must be a merge whose message carries the gate's line for the tip it merged, `gate: <second parent> (<branch>) by tools/gates/gate at …`, which the Author's hand guard writes into each merge (I-H). A commit of the Author's own on main, or a merge without that line, is refused. The release reads the line's presence; the merge is the Author's word on what the gate said.
+- **Step 1, the red team:** with `PUBLIC=1`, a passing run of that very commit on each of `local`, `bedrock`, and `anthropic`, matched by the run's record's `commit` field (redteam/run.py writes the stack's running commit, its run file's `H4_REF`), read from `REDTEAM=` (default `redteam/history`, outside the export). FR-039's four adapters are three names: the laptop's paid fallback is one of EC2's two.
+- **The site's check:** the web image built from the export with `--load`, never pushed; its `/usr/share/nginx/html` copied out (`docker create`, `docker cp`); main's `tools/gates/content_check.py`, from the export, on that copy. The site builds inside the image (`npm ci --ignore-scripts`), so nothing of a checkout's `node_modules` runs in the Author's terminal (I-E).
+- **Step 5, the site's sync, is group 8's** (contracts/edge.md §5), with the edge it syncs to.
+- **Exits:** 0 released; 1 refused, nothing pushed past the step that refused; 2 couldn't run (a command missing, or a timeout).
+
 ## 3. The deployers
 
 | Host | Runs | Source | Pulls from |

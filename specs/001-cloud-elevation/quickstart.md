@@ -83,6 +83,8 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - with both healthy, 100% of answered turns come from the Anthropic adapter;
    - with it failing, 100% of admitted turns come from Bedrock;
    - `fallback_day` is unchanged in both.
+
+   **As built (plan.md §16, "Group 7, after review A", 7):** the recorded run uses the real APIs, about $0.05 at most; the stand-ins are the harness's own test's. In a session on EC2, as root, from the running release's tree, `evals/sc017_ec2_routes.py` refuses the Anthropic key in a copy of the env file, recreates the gateway with it under the deployer's hold, and restores both after the second phase (its `deploy_refused`, reason `held`, is the run's).
 5. **SC-005:** destroy and recreate EC2 (plan, apply). Its digests match the release, and `make operator-status ENV=shared` is unchanged.
 
 ## 8. Group 8: the edge and the relay

@@ -148,10 +148,10 @@ def extract(data: bytes, into: Path) -> bool:
                 assert source is not None
                 target.write_bytes(source.read())
                 os.chmod(str(target), m.mode & 0o755)
+        os.replace(str(partial), str(into))
     except (tarfile.TarError, OSError):
         shutil.rmtree(str(partial), ignore_errors=True)
         return False
-    os.replace(str(partial), str(into))
     return True
 
 

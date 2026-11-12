@@ -2,19 +2,26 @@
 """The Author's release (spec 001 FR-039, FR-046 to FR-048; contracts/releases-deployer.md §1 and §2; research.md R-17;
 tasks.md T088). His terminal alone: it pushes to the account's registry and its release bucket with his SSO session.
 
-    python3 -I -B deploy/scripts/release.py --registry ACCOUNT.dkr.ecr.us-east-1.amazonaws.com --bucket BUCKET
+    python3 -I -B -X pycache_prefix=/dev/null deploy/scripts/release.py
+        --registry ACCOUNT.dkr.ecr.us-east-1.amazonaws.com --bucket BUCKET
         --compose-plugin FILE --compose-sha256 HEX [--public] [--redteam DIR]
 
-On a clean `main` alone, in this order, and nothing pushed before every check has passed:
-  1. the gates: when the release makes hello or the twin's turns public (--public), each of the four adapters' newest
-     red-team run since the commit passed (redteam/history/); the Compose plugin is the file its SHA-256 names; the
-     room's site builds with no draft, as main's approvals admit (tools/gates/content_check.py);
-  2. one build of each project image, for linux/amd64, and for linux/arm64 where its hosts name a Graviton host (EC2,
-     the tunnel end), pushed by the commit; and a copy of each upstream image a cloud host runs, to the account's
-     registry, by its lock line's index digest, refused if the copy's digest isn't the lock's;
+It releases refs/heads/main's commit from a fresh git archive export of it, whatever the checkout's HEAD or untracked
+files (group 7's review A, I-D), in this order, and nothing pushed before every check has passed:
+  1. the gates: the commit is a merge whose message carries the gate's `gate: <tip> (` line for the branch tip it
+     merged, which the Author's hand guard writes (contract §2.1; I-H); when the release makes hello or the twin's
+     turns public (--public), a passing red-team run of that very commit on each adapter that answers on either host,
+     read from --redteam, outside the export, by each record's commit field; the Compose plugin is the file its
+     SHA-256 names; and the room's site, in the web image built from the export and loaded, never pushed, holds no
+     draft main doesn't approve, by main's tools/gates/content_check.py on the dist copied out of that image. Nothing
+     of a checkout's node_modules runs here (I-E);
+  2. one build of each project image from the export, for linux/amd64, and for linux/arm64 where its hosts name a
+     Graviton host (EC2, the tunnel end), pushed by the commit; and a copy of each upstream image a cloud host runs, to
+     the account's registry, by its lock line's index digest, refused if the copy's digest isn't the lock's;
   3. the commit's tree, at trees/<commit>.tar.gz, and the plugin, by their SHA-256s; release.json, to the bucket and to
      ~/.local/state/h4reet/releases/; and the pointer, releases/latest.json, last.
-The site's sync to the edge is group 8's (contracts/edge.md §5). Exit 0 released, 1 refused, 2 couldn't run.
+The site's sync to the edge is group 8's (contracts/edge.md §5; plan.md §16). Exit 0 released, 1 refused, 2 couldn't
+run.
 """
 
 from __future__ import annotations
@@ -26,7 +33,10 @@ import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 from collections.abc import Callable
@@ -54,9 +64,14 @@ COPY_REPOSITORIES = {
     "ec2-relay-block": "edge",
 }
 GRAVITON = frozenset({"ec2", "tunnel-end"})
-ADAPTERS = ("fake", "local", "bedrock", "anthropic")
+# FR-039's adapters, those that answer on either host: the laptop's local model and its paid fallback, EC2's two paid
+# APIs. Three names: "fake" answers nothing live, and redteam-live refuses it (group 7's review A, I-D).
+ADAPTERS = ("local", "bedrock", "anthropic")
 CLOUD_CLASSES = ("ec2", "tunnel-end")
 DIGEST_LINE = re.compile(r"^Digest:\s+(sha256:[0-9a-f]{64})\s*$", re.MULTILINE)
+COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+# The site in the web image, where its Dockerfile's runtime stage copies dist/.
+SITE_IN_IMAGE = "/usr/share/nginx/html"
 
 Runner = Callable[..., "tuple[int, str]"]
 
@@ -129,22 +144,20 @@ def digest_of(runner: Runner, ref: str) -> str:
     return m.group(1)
 
 
-def check_redteam(runner: Runner, folder: Path) -> None:
-    code, out = runner(["git", "show", "-s", "--format=%ct", "HEAD"])
-    if code != 0:
-        raise Refused("the commit's time can't be read")
-    since = datetime.datetime.fromtimestamp(int(out.strip()), datetime.timezone.utc)
+def check_redteam(folder: Path, commit: str) -> None:
+    """A passing run of this very commit on each adapter, matched by each record's own commit field (redteam/run.py's
+    live record), never by its time: a run made after the merge needn't touch the checkout."""
     newest: dict[str, dict] = {}
     for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
         try:
             run = json.loads(path.read_text(encoding="utf-8"))
             finished = datetime.datetime.fromisoformat(str(run["finished"]))
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if run.get("commit") != commit:
             continue
         adapter = str(run.get("adapter"))
-        if finished >= since and (
-            adapter not in newest or finished >= newest[adapter]["_at"]
-        ):
+        if adapter not in newest or finished >= newest[adapter]["_at"]:
             newest[adapter] = {**run, "_at": finished}
     failing = [
         a
@@ -156,7 +169,94 @@ def check_redteam(runner: Runner, folder: Path) -> None:
     ]
     if failing:
         raise Refused(
-            f"the red-team gate: no passing run since this commit on {', '.join(failing)} (FR-039)"
+            f"the red-team gate: no passing run of {commit[:12]} on {', '.join(failing)} (FR-039)"
+        )
+
+
+def check_gate(runner: Runner, commit: str) -> None:
+    """The commit is a merge whose message carries the gate's line for the tip it merged (contract §2.1): the Author's
+    hand guard writes `gate: <tip> (<branch>) by tools/gates/gate at …` in each merge's message."""
+    code, out = runner(["git", "show", "-s", "--format=%P%n%B", commit])
+    parents, _, body = (out or "").partition("\n")
+    tips = parents.split()
+    if code != 0 or len(tips) < 2 or not COMMIT_RE.fullmatch(tips[1]):
+        raise Refused(
+            f"{commit[:12]} isn't a merge: a release is of a gated merge into main (contract §2.1)"
+        )
+    if not re.search(rf"^gate: {tips[1]} \(", body, re.MULTILINE):
+        raise Refused(
+            f"{commit[:12]}'s message has no `gate: {tips[1][:12]}…` line: its branch didn't pass the gate"
+        )
+
+
+def export_tree(runner: Runner, commit: str, work: Path) -> Path:
+    """The commit's tree, by git archive, into work/src, with tarfile's data filter: no member outside the folder, no
+    link out of it, no device."""
+    work.mkdir(parents=True, exist_ok=True)
+    archive, src = work / "src.tar", work / "src"
+    if (
+        runner(["git", "archive", "--format=tar", "--output", str(archive), commit])[0]
+        != 0
+    ):
+        raise Refused("the commit's tree didn't export")
+    src.mkdir()
+    try:
+        with tarfile.open(str(archive)) as tar:
+            tar.extractall(str(src), filter="data")
+    except tarfile.TarError as error:
+        raise Refused(f"the export holds what it may not: {error}") from error
+    return src
+
+
+def check_site(
+    runner: Runner, src: Path, root: Path, commit: str, contexts, work: Path
+) -> None:
+    """The room's site as the web image holds it: built from the export and loaded, never pushed, its dist copied
+    out, and main's content check run on that copy (spec 002's rule)."""
+    tag = f"h4reet-release-check:{commit}"
+    build = [
+        "docker",
+        "buildx",
+        "build",
+        "--load",
+        "--platform",
+        "linux/amd64",
+        "--file",
+        str(src / BUILDS["web"][0]),
+        "--tag",
+        tag,
+        *contexts("web", src),
+        str(src),
+    ]
+    if runner(build)[0] != 0:
+        raise Refused("the room's site didn't build")
+    code, out = runner(["docker", "create", tag])
+    container = (out or "").strip()
+    if code != 0 or not re.fullmatch(r"[0-9a-f]{12,64}", container):
+        raise Refused("the room's image gave no container to copy its site from")
+    dist = work / "dist"
+    try:
+        if runner(["docker", "cp", f"{container}:{SITE_IN_IMAGE}", str(dist)])[0]:
+            raise Refused("the room's site didn't copy out of its image")
+    finally:
+        runner(["docker", "rm", container])
+    content = [
+        "python3",
+        "-I",
+        "-B",
+        "-X",
+        "pycache_prefix=/dev/null",
+        str(src / "tools" / "gates" / "content_check.py"),
+        "--tree",
+        str(src),
+        "--dist",
+        str(dist),
+        "--repo",
+        str(root),
+    ]
+    if runner(content)[0] != 0:
+        raise Refused(
+            "the room's site holds a draft or a placeholder main doesn't approve (spec 002's rule)"
         )
 
 
@@ -165,56 +265,46 @@ def run(
     runner: Runner,
     root: Path = ROOT,
     now: Callable[[], str] = lambda: time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
-    contexts: Callable[[str], list[str]] | None = None,
+    contexts: Callable[[str, Path], list[str]] | None = None,
+    exported: Callable[[str, Path], Path] | None = None,
 ) -> int:
-    contexts = contexts or (lambda name: [])
+    contexts = contexts or (lambda name, src: [])
+    exported = exported or (lambda commit, work: export_tree(runner, commit, work))
+    work = Path(tempfile.mkdtemp(prefix="h4-release-"))
     try:
-        return released(opts, runner, root, now, contexts)
+        return released(opts, runner, root, now, contexts, exported, work)
     except Refused as refused:
         print(
             f"{PROG}: refused, nothing pushed past the step that refused: {refused}",
             file=sys.stderr,
         )
         return 1
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"{PROG}: couldn't run: {type(error).__name__}", file=sys.stderr)
+        return 2
+    finally:
+        shutil.rmtree(str(work), ignore_errors=True)
 
 
-def released(opts: Options, runner: Runner, root: Path, now, contexts) -> int:
-    # 1. The gates, before anything is built or pushed.
-    head = runner(["git", "rev-parse", "HEAD"])[1].strip()
-    main = runner(["git", "rev-parse", "refs/heads/main"])[1].strip()
-    if not re.fullmatch(r"[0-9a-f]{40}", head) or head != main:
-        raise Refused(
-            "HEAD isn't refs/heads/main: a release is made from main alone (FR-046)"
-        )
-    if runner(["git", "status", "--porcelain"])[1].strip():
-        raise Refused("the tree isn't clean")
+def released(
+    opts: Options, runner: Runner, root: Path, now, contexts, exported, work: Path
+) -> int:
+    # 1. The gates, before anything is built or pushed: refs/heads/main's commit, never the checkout's HEAD.
+    head = runner(["git", "rev-parse", "--verify", "refs/heads/main"])[1].strip()
+    if not COMMIT_RE.fullmatch(head):
+        raise Refused("refs/heads/main doesn't name a commit (FR-046)")
+    check_gate(runner, head)
     plugin = opts.compose_plugin.read_bytes()
     if hashlib.sha256(plugin).hexdigest() != opts.compose_sha256:
         raise Refused("the Compose plugin isn't the file its SHA-256 names")
     if opts.public:
-        check_redteam(runner, opts.redteam)
-    # The room's site, built without drafts whatever the shell's ROOM_DRAFTS, as make content-check builds it.
-    if runner(["env", "ROOM_DRAFTS=", "npm", "run", "build", "-w", "apps/web"])[0] != 0:
-        raise Refused("the room's site didn't build")
-    content = [
-        "python3",
-        "-I",
-        "-B",
-        "-X",
-        "pycache_prefix=/dev/null",
-        "tools/gates/content_check.py",
-    ]
-    if (
-        runner([*content, "--tree", ".", "--dist", "apps/web/dist", "--repo", "."])[0]
-        != 0
-    ):
-        raise Refused(
-            "the room's site holds a draft or a placeholder main doesn't approve (spec 002's rule)"
-        )
+        check_redteam(opts.redteam, head)
+    src = exported(head, work)
+    check_site(runner, src, root, head, contexts, work)
 
-    # 2. The images.
-    hosts = cloud_services(root)
-    lock = read_lock(root)
+    # 2. The images, from the export.
+    hosts = cloud_services(src)
+    lock = read_lock(src)
     services: dict[str, dict] = {}
     for name, its_hosts in hosts.items():
         if name in BUILDS:
@@ -228,11 +318,11 @@ def released(opts: Options, runner: Runner, root: Path, now, contexts) -> int:
                 "--platform",
                 ",".join(platforms(its_hosts)),
                 "--file",
-                str(root / dockerfile),
+                str(src / dockerfile),
                 "--tag",
                 ref,
-                *contexts(name),
-                str(root / Path(dockerfile).parent if name == "tunnel-end" else root),
+                *contexts(name, src),
+                str(src / Path(dockerfile).parent if name == "tunnel-end" else src),
             ]
             if runner(argv)[0] != 0:
                 raise Refused(f"{name}'s image didn't build")
@@ -269,7 +359,6 @@ def released(opts: Options, runner: Runner, root: Path, now, contexts) -> int:
 
     # 3. The tree, the plugin, release.json, and the pointer last.
     rid = f"{now()}-{head[:12]}"
-    work = Path(tempfile.mkdtemp(prefix="h4-release-"))
     tree = work / "tree.tar.gz"
     tree.write_bytes(b"")
     if (
@@ -331,8 +420,6 @@ def released(opts: Options, runner: Runner, root: Path, now, contexts) -> int:
 
 
 def subprocess_runner(argv: list[str], env: dict | None = None) -> tuple[int, str]:
-    import subprocess
-
     done = subprocess.run(
         argv,
         capture_output=True,
@@ -345,11 +432,12 @@ def subprocess_runner(argv: list[str], env: dict | None = None) -> tuple[int, st
     return done.returncode, done.stdout
 
 
-def web_contexts(name: str) -> list[str]:
-    """The room's named build contexts, as deploy/scripts/web_image.py gives them on a host stack, without drafts."""
+def web_contexts(name: str, src: Path) -> list[str]:
+    """The room's named build contexts, as deploy/scripts/web_image.py gives them on a host stack, without drafts: main's
+    policy files, which web_image.py reads from the repository's refs/heads/main itself, and the export's assets."""
     if name != "web":
         return []
-    wi = _load("web_image_for_release", ROOT / "deploy" / "scripts" / "web_image.py")
+    wi = _load("web_image_for_release", src / "deploy" / "scripts" / "web_image.py")
     folder = wi.write_policy(wi.read_policy(ROOT))
     out = ["--build-arg", "ROOM_DRAFTS=", "--build-context", f"policy={folder}"]
     for folder_name, context in (
@@ -357,7 +445,7 @@ def web_contexts(name: str) -> list[str]:
         (wi.VISITOR_ASSETS, wi.VISITOR_ASSETS_CONTEXT),
         (wi.TWIN_ASSETS, wi.TWIN_ASSETS_CONTEXT),
     ):
-        found = wi.room_assets(ROOT, folder_name)
+        found = wi.room_assets(src, folder_name)
         if found is not None:
             out += ["--build-context", f"{context}={found}"]
     return out
@@ -372,6 +460,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--compose-plugin", required=True, type=Path)
     parser.add_argument("--compose-sha256", required=True)
     parser.add_argument("--public", action="store_true")
+    # The red-team runs: the checkout's redteam/history by default, outside the export the release builds from.
     parser.add_argument("--redteam", type=Path, default=ROOT / "redteam" / "history")
     args = parser.parse_args(argv)
     if os.environ.get("SANDBOX_RUNTIME") == "1":

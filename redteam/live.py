@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -31,6 +32,26 @@ def load(name: str, path: Path) -> ModuleType:
     return module
 
 
+COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def running_commit(stack: str) -> str | None:
+    """The commit a host stack runs, its run file's H4_REF, which make up writes; None for dev-cpu, which runs the
+    working tree, or for a run file that names none. The release's red-team gate matches a run by it (spec 001)."""
+    if stack not in ("prod", "dev"):
+        return None
+    path = Path.home() / ".local" / "state" / "h4reet" / stack / "run.env"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        if line.startswith("H4_REF="):
+            value = line.partition("=")[2].strip()
+            return value if COMMIT_RE.fullmatch(value) else None
+    return None
+
+
 def main(argv: list[str]) -> int:
     if os.environ.get("SANDBOX_RUNTIME") == "1":
         print(
@@ -45,7 +66,7 @@ def main(argv: list[str]) -> int:
             stack=stack
         )
 
-    return run.main(argv=argv, client_factory=client)
+    return run.main(argv=argv, client_factory=client, commit_of=running_commit)
 
 
 if __name__ == "__main__":
