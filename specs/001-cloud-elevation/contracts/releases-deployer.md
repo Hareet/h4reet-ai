@@ -9,6 +9,8 @@ As September §1: the commit, each service's image index digest, the platforms, 
 
 The deployer of each host checks only its own services' digests.
 
+**The tree's key** (the deployer's review, nit 2): `tree.key` is `trees/<commit>.tar.gz`, the release's own commit, and nothing else; the first step and the deployer each refuse any other (`deploy_refused`, reason `tree`). `tree.sha256` is the SHA-256 of that object.
+
 ## 2. `make release` (the Author's terminal; refused to agents)
 
 On a clean `main`:
@@ -36,6 +38,24 @@ Each run, as September §3:
 5. record the deployment.
 
 **The deployer from the release** (plan.md §16; the Author's answer of 2026-11-13, "From the release (Recommended)"): a cloud host's user data carries a small first step, `deploy/scripts/deploy_first_step.py`, not the deployer. Each run, the first step runs the deployer of the release the host last started, from that release's tree; before any has started it fetches the newest release's tree as the deployer does, held to `release.json`'s SHA-256, and runs its deployer, which verifies the whole release again. No release yet, or the bucket out of reach, runs and alerts nothing until the next run. A tree that isn't the release's is `deploy_refused` (reason `tree`), and a deployer that doesn't run (any exit but 0, or 75, its exit for a run that refused or rolled back and alerted) is `deploy_refused` (reason `deployer`), each once per release; then the previous release's deployer runs, so the host still takes the next. The deployer's own guarantees stand: the boot's cached images, the hold, preflight's phases, `refused.json`, and the registry out of reach. EC2's user data takes the same step (group 7).
+
+**The first step's arguments and exits** (the deployer's review, nit 3):
+
+```text
+python3 -I -B deploy_first_step.py --host tunnel-end|ec2 [--state DIR] [--boot | --restart SERVICE]
+```
+
+It runs under an exclusive lock on `<state>/.lock`, so the boot's run, the timer's, and a restart never overlap. It passes `--boot` or `--restart` on to the deployer, with `--env-file` (the host's, `/run/h4reet/<host>.env`) and `--state`.
+
+| Exit | Run | Means |
+|---|---|---|
+| 0 | the boot's or the timer's | the deployer ran: it deployed, kept what runs, or refused or rolled back and alerted (its own 75); or there's no release yet, or the bucket is out of the network's reach |
+| 1 | the boot's or the timer's | nothing ran that should have: no env file; the bucket refuses (`deploy_refused`, reason `bucket`, once per boot); a tree that isn't the release's (reason `tree`); or the release's deployer, and the previous release's, didn't run (reason `deployer`) |
+| the deployer's own | a restart | passed through as it is, with no fallback: a failed restart fails its unit and the Systems Manager command that started it |
+
+**The deployer's exits:** 0 for a run that changed nothing or deployed; 75 for a check or a boot that refused or rolled back and alerted; 1 for a restart that failed; anything else is a deployer that didn't run.
+
+**The retry rule** (the deployer's review, 1 and 2). Each attempt is recorded in `deployments.jsonl` and marked in `attempts.json`, whether or not SNS takes its alert; the alert memory, `refused.json`, only deduplicates, and an alert SNS refused waits in `pending.json` for a later run. A refusal is tried again once a newer release comes; a failed start (`rolled_back`, `rollback_failed`) after a backoff that doubles from two minutes to an hour. At boot every attempt is tried again, and a host running nothing tries each run. The manual retry is `docs/runbooks/deploy.md`'s.
 
 **EC2's boot run:** EC2's stack doesn't start until its deployer has checked the bucket. If the bucket can't be reached, it starts its last release and alerts (FR-046).
 

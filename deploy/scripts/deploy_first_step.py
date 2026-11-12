@@ -3,10 +3,13 @@
 plan.md §16, "From the release", the Author's answer of 2026-11-13, "From the release (Recommended)"). It runs the
 deployer of the release the host last started, from that release's tree, so the deployer changes with a release, not
 with a replace of the host. Before any release started it fetches the newest one's tree, held to release.json's
-SHA-256, and runs its deployer, which verifies the whole release again. A deployer that doesn't run is alerted once,
-and the previous release's runs instead. deploy/scripts/test_deploy_first_step.py's docstring gives each case.
+SHA-256, and runs its deployer, which verifies the release's other parts (its digests, its plugin) itself and trusts
+the tree folder, which only a hash-checked extraction, renamed into place whole under the state folder's lock, makes.
+A deployer that doesn't run is alerted once, and the previous release's runs instead. A restart's exit passes through
+as it is. deploy/scripts/test_deploy_first_step.py's docstring gives each case; contracts/releases-deployer.md §3 the
+arguments and the exits.
 
-    python3 -I -B deploy_first_step.py --host tunnel-end [the deployer's arguments: --boot, --restart SERVICE]
+    python3 -I -B deploy_first_step.py --host tunnel-end|ec2 [--state DIR] [--boot | --restart SERVICE]
 
 The standard library alone, in Python 3.9's syntax; the AWS CLI does the reads.
 """
@@ -14,12 +17,14 @@ The standard library alone, in Python 3.9's syntax; the AWS CLI does the reads.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import io
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -34,14 +39,40 @@ ENV_FILES = {"tunnel-end": Path("/run/h4reet/tunnel-end.env")}
 PYTHON = "/usr/bin/python3"
 # The deployer's exit for a run that refused or rolled back and alerted (deploy/scripts/deployer.py's EXIT_ALERTED).
 DEPLOYER_ALERTED = 75
+# Longer than the deployer's worst case, about 2,760 s (its pull, its up's --wait, a rollback's), and the whole process
+# group is killed at its end, not the Python child alone (the deployer's review, nit 4).
+DEPLOYER_TIMEOUT = 3600
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 HEX_RE = re.compile(r"[0-9a-f]{64}")
 RELEASE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-KEY_RE = re.compile(r"trees/[A-Za-z0-9._/-]{1,200}")
 
 
 class Unreachable(Exception):
     """The bucket, or the AWS CLI, didn't answer."""
+
+
+class Misconfigured(Exception):
+    """The bucket answered and refused (access denied, no such bucket, a bad name), or the env file names none: alerted
+    once per boot, never waited out in silence (the deployer's review, nit 5)."""
+
+
+REFUSALS = (
+    b"(AccessDenied)",
+    b"(403)",
+    b"(NoSuchBucket)",
+    b"InvalidBucketName",
+    b"Invalid bucket name",
+    b"(AllAccessDisabled)",
+)
+
+
+def boot_id() -> str:
+    try:
+        return (
+            Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+        )
+    except OSError:
+        return "unknown"
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -74,7 +105,7 @@ def alert_once(state: Path, aws, key: str, lines: list[str]) -> None:
         return
     try:
         sent = aws.publish("\n".join(lines)) is not False
-    except Unreachable:
+    except (Unreachable, Misconfigured, OSError):
         sent = False
     if not sent:
         return
@@ -146,9 +177,10 @@ def fetch_newest(
         str(tree.get("key", "")),
         str(tree.get("sha256", "")),
     )
+    # The one key a tree may have, as the deployer pins it (contracts/releases-deployer.md §1).
     data = (
         aws.get(bucket, key)
-        if COMMIT_RE.fullmatch(commit) and KEY_RE.fullmatch(key)
+        if COMMIT_RE.fullmatch(commit) and key == f"trees/{commit}.tar.gz"
         else None
     )
     folder = state / "trees" / commit
@@ -199,10 +231,47 @@ def run(
     runner: Callable[[list[str]], int],
     args: list[str],
 ) -> int:
+    """One run, under the state folder's lock, so --boot, the timer, and a restart never share a tree's partial folder
+    (the deployer's review, nit 4)."""
+    state.mkdir(parents=True, exist_ok=True)
+    with open(str(state / ".lock"), "a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return locked_run(host, env_file, state, aws, runner, args)
+
+
+def locked_run(
+    host: str,
+    env_file: Path,
+    state: Path,
+    aws,
+    runner: Callable[[list[str]], int],
+    args: list[str],
+) -> int:
+    if not env_file.is_file():
+        # write_env.py refused at boot, naming what's missing in its unit's journal: nothing starts without the file.
+        print(f"{PROG}: no env file ({env_file}): nothing runs", file=sys.stderr)
+        return 1
     current = recorded(state, "current")
+    if "--restart" in args:
+        # The key's revocation (FR-055): the running release's deployer restarts one service, and its exit is the
+        # unit's, with no fallback, so a failed restart fails the Systems Manager command (the deployer's review, 3).
+        if current is None:
+            print(f"{PROG}: no release runs here: nothing to restart", file=sys.stderr)
+            return 1
+        tree = state / "trees" / str(current.get("commit", ""))
+        return runner(deployer_argv(host, tree, env_file, state, args))
     if current is None:
-        bucket = read_env(env_file).get("RELEASE_BUCKET", "")
         try:
+            bucket = read_env(env_file).get("RELEASE_BUCKET", "")
+        except OSError:
+            print(
+                f"{PROG}: the env file ({env_file}) can't be read: nothing runs",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            if not bucket:
+                raise Misconfigured("RELEASE_BUCKET")
             release, tree = fetch_newest(host, state, bucket, aws)
         except Unreachable:
             print(
@@ -210,12 +279,42 @@ def run(
                 file=sys.stderr,
             )
             return 0
+        except Misconfigured:
+            alert_once(
+                state,
+                aws,
+                f"bucket@{boot_id()}",
+                [
+                    f"{PREFIX} deploy_refused: {host} can't read the release bucket",
+                    "- reason: bucket",
+                ],
+            )
+            print(
+                f"{PROG}: the release bucket refuses, or none is named; nothing runs",
+                file=sys.stderr,
+            )
+            return 1
         if release is None:
             return 0
         if tree is None:
             return 1
         code = runner(deployer_argv(host, tree, env_file, state, args))
-        return 0 if code in (0, DEPLOYER_ALERTED) else 1
+        if code in (0, DEPLOYER_ALERTED):
+            return 0
+        # The first boot's deployer didn't run: alerted once, as any release's (the deployer's review, 4).
+        rid = str(release.get("release", "?"))
+        alert_once(
+            state,
+            aws,
+            f"{rid}:deployer",
+            [
+                f"{PREFIX} deploy_refused: {host} couldn't run release {rid}'s deployer",
+                "- reason: deployer",
+                f"- release: {rid}",
+                "- fallback: none",
+            ],
+        )
+        return 1
     tree = state / "trees" / str(current.get("commit", ""))
     code = runner(deployer_argv(host, tree, env_file, state, args))
     if code in (0, DEPLOYER_ALERTED):
@@ -269,10 +368,15 @@ class AwsCli:
         said = done.stderr.decode(errors="replace")
         if "404" in said or "NoSuchKey" in said or "Not Found" in said:
             return None
+        if any(r in done.stderr for r in REFUSALS):
+            raise Misconfigured("s3")
         raise Unreachable("s3")
 
     def publish(self, message: str) -> bool:
-        account = read_env(self.env_file).get("H4_REGISTRY", "").split(".", 1)[0]
+        try:
+            account = read_env(self.env_file).get("H4_REGISTRY", "").split(".", 1)[0]
+        except OSError:
+            return False
         topic = f"arn:aws:sns:us-east-1:{account}:h4-alerts"
         return (
             self.call(
@@ -284,8 +388,17 @@ class AwsCli:
 
 def process(argv: list[str]) -> int:
     try:
-        return subprocess.run(argv, check=False, timeout=1800).returncode
-    except (OSError, subprocess.TimeoutExpired):
+        child = subprocess.Popen(argv, start_new_session=True)
+    except OSError:
+        return 1
+    try:
+        return child.wait(timeout=DEPLOYER_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        child.wait()
         return 1
 
 

@@ -3,7 +3,9 @@
 [Unit]
 Description=h4reet: the tunnel end's deployer
 After=h4-stack.service
-Requires=docker.service h4-write-env.service
+# Wants, not Requires, the env file's unit, as the stack's: the key's revocation restarts it (the deployer's review).
+Requires=docker.service
+Wants=h4-write-env.service
 
 [Service]
 Type=oneshot

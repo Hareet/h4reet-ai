@@ -407,9 +407,13 @@ def test_the_user_data_renders_each_host_file_whole_and_fits_ec2s_limit() -> Non
     # pass it: they come from the release's tree instead (the note's backlog).
     # Terraform's base64gzip writes at Go's default level, 6, not 9: held under EC2's 16,384 bytes with 768 to spare for
     # Go's encoder, which writes a little more than zlib's (group 5's review, nits).
-    # From the release (plan.md §16): with the deployer out of it, 11,975 bytes on 2026-11-13; held under 12,800, so a
-    # new host file shows here before it nears the limit.
-    assert len(gzip.compress(text.encode(), 6)) < 12800
+    # From the release (plan.md §16): with the deployer out of it, 12,208 bytes on 2026-11-13 (the deployer's review,
+    # nit 1: the earlier 11,975 wasn't the run's own figure); 13,316 after that review's fixes to the first step (its
+    # lock, its timeout, its alerts). Held under 14,000, so a new host file shows here before it nears the limit.
+    size = len(gzip.compress(text.encode(), 6))
+    assert size < 14000, (
+        f"the tunnel end's user data is {size} bytes gzipped at level 6"
+    )
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -462,10 +466,12 @@ def test_the_env_file_loads_the_class_in_compose(tmp_path: Path) -> None:
         "shared-state": "h4reet/shared-state",
     }
     assert set(mine) <= set(repositories), mine
+    commit = secrets.token_hex(20)
     release = {
         "release": "r1",
-        "commit": secrets.token_hex(20),
-        "tree": {"key": "trees/r1.tar.gz", "sha256": secrets.token_hex(32)},
+        "commit": commit,
+        # The one key a tree may have (contracts/releases-deployer.md §1; the deployer's review, nit 2).
+        "tree": {"key": f"trees/{commit}.tar.gz", "sha256": secrets.token_hex(32)},
         "compose": {"key": "tools/docker-compose", "sha256": secrets.token_hex(32)},
         "services": {
             name: {

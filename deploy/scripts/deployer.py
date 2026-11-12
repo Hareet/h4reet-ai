@@ -102,8 +102,47 @@ REPOSITORY_RE = re.compile(r"h4reet/[a-z0-9-]{1,40}")
 KEY_RE = re.compile(r"(releases|trees|tools)/[A-Za-z0-9._/-]{1,200}")
 
 
+def tree_key(commit: str) -> str:
+    """The one key a release's tree may have (contracts/releases-deployer.md §1; the deployer's review, nit 2)."""
+    return f"trees/{commit}.tar.gz"
+
+
 class Unreachable(Exception):
     """The bucket, or the AWS CLI, didn't answer."""
+
+
+class Misconfigured(Exception):
+    """The bucket answered, and refused: access denied, no such bucket, a bad name, or none in the env file. No network
+    hiccup, so it is alerted once per boot rather than waited out in silence (the deployer's review, nit 5)."""
+
+
+# What the AWS CLI's stderr says when S3 refused rather than wasn't reached.
+REFUSALS = (
+    b"(AccessDenied)",
+    b"(403)",
+    b"(NoSuchBucket)",
+    b"InvalidBucketName",
+    b"Invalid bucket name",
+    b"(AllAccessDisabled)",
+)
+
+
+def s3_error(said: bytes) -> Exception:
+    """The S3 failure the CLI's stderr names: Misconfigured for a refusal, Unreachable for anything else."""
+    return (
+        Misconfigured("s3") if any(r in said for r in REFUSALS) else Unreachable("s3")
+    )
+
+
+# The retry rule (the deployer's review, 1): every attempt is tried again at boot; on the timer, a failed start after a
+# backoff that doubles from two minutes to an hour, and a refusal once a newer release comes. With nothing running,
+# every run tries, so a host is never stranded by one failure. The Author's manual retry removes attempts.json
+# (docs/runbooks/deploy.md).
+RETRY_BASE_SECONDS = 120
+RETRY_CAP_SECONDS = 3600
+RETRIED = ("rolled_back", "rollback_failed")
+# A refusal's wait: until a newer release deploys (which forgets every attempt) or a boot.
+NEVER_SECONDS = 10**12
 
 
 class Refused(Exception):
@@ -154,9 +193,9 @@ def verify(host: str, release: dict) -> list[str]:
     if not COMMIT_RE.fullmatch(str(release.get("commit", ""))):
         raise Refused("commit")
     tree = release.get("tree") or {}
-    if not KEY_RE.fullmatch(str(tree.get("key", ""))) or not HEX_RE.fullmatch(
-        str(tree.get("sha256", ""))
-    ):
+    if str(tree.get("key", "")) != tree_key(
+        str(release["commit"])
+    ) or not HEX_RE.fullmatch(str(tree.get("sha256", ""))):
         raise Refused("tree")
     plugin = release.get("compose") or {}
     if not KEY_RE.fullmatch(str(plugin.get("key", ""))) or not HEX_RE.fullmatch(
@@ -213,11 +252,14 @@ class Deployer:
         docker: Docker,
         plugin: Path,
         now: Callable[[], str],
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self.host, self.env_file, self.state = host, env_file, state
         self.aws, self.docker, self.plugin, self.now = aws, docker, plugin, now
+        self.clock = clock
         self.env = read_env(env_file)
         self.bucket = self.env.get("RELEASE_BUCKET", "")
+        self.booting = False
 
     # The state folder: current.json, previous.json, each release's tree and env file, and the record.
     def recorded(self, name: str) -> dict | None:
@@ -233,23 +275,89 @@ class Deployer:
             return {}
         return got if isinstance(got, dict) else {}
 
-    def alert_once(self, key: str, message: str) -> bool:
-        if key in self.seen():
-            return False
+    def memory(self, name: str) -> dict:
         try:
-            sent = self.aws.publish(message) is not False
-        except Unreachable:
-            sent = False
-        if sent:
+            got = self.recorded(name)
+        except (OSError, ValueError):
+            return {}
+        return got if isinstance(got, dict) else {}
+
+    def publish(self, message: str) -> bool:
+        try:
+            return self.aws.publish(message) is not False
+        except (Unreachable, Misconfigured, OSError):
+            return False
+
+    def alert_once(self, key: str, message: str) -> bool:
+        """The alert, once per key. One SNS refused waits in pending.json and goes on a later run (flush), so the
+        memory only deduplicates: the attempt and its record never wait for SNS (the deployer's review, 2)."""
+        if key in self.seen() or key in self.memory("pending"):
+            return False
+        if self.publish(message):
             try:
                 self.keep("refused", {**self.seen(), key: self.now()})
             except OSError:
                 pass
-        return sent
+            return True
+        try:
+            self.keep("pending", {**self.memory("pending"), key: message})
+        except OSError:
+            pass
+        return False
 
-    def tried(self, rid: str) -> bool:
-        """A release refused or rolled back already: it isn't tried again until a newer one deploys."""
-        return any(k.startswith(f"{rid}:") for k in self.seen())
+    def flush(self) -> None:
+        """Each alert SNS refused earlier, again; kept in the memory once SNS takes it."""
+        pending = self.memory("pending")
+        if not pending:
+            return
+        for key, message in list(pending.items()):
+            if self.publish(str(message)):
+                pending.pop(key)
+                try:
+                    self.keep("refused", {**self.seen(), key: self.now()})
+                except OSError:
+                    pass
+        try:
+            self.keep("pending", pending)
+        except OSError:
+            pass
+
+    def tried(self, key: str) -> bool:
+        """An attempt that waits: a refusal until a newer release, a failed start for its backoff; at boot, none waits,
+        and with nothing running every run tries (the deployer's review, 1)."""
+        attempt = self.memory("attempts").get(key)
+        if not isinstance(attempt, dict) or self.recorded("current") is None:
+            return False
+        if self.booting:
+            return False
+        try:
+            return self.clock() < float(attempt.get("next_at", 0))
+        except (TypeError, ValueError):
+            return False
+
+    def mark(self, key: str, outcome: str) -> None:
+        """The attempt, whatever SNS does: its outcome, its count, and when it may be tried again."""
+        attempts = self.memory("attempts")
+        before = attempts.get(key) if isinstance(attempts.get(key), dict) else {}
+        count = (
+            int(before.get("count", 0) or 0) + 1
+            if before.get("outcome") == outcome
+            else 1
+        )
+        wait = (
+            min(RETRY_BASE_SECONDS * 2 ** (count - 1), RETRY_CAP_SECONDS)
+            if outcome in RETRIED
+            else NEVER_SECONDS
+        )
+        attempts[key] = {
+            "outcome": outcome,
+            "count": count,
+            "next_at": self.clock() + wait,
+        }
+        try:
+            self.keep("attempts", attempts)
+        except OSError:
+            pass
 
     def keep(self, name: str, release: dict) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
@@ -366,14 +474,50 @@ class Deployer:
         )
 
     def boot(self) -> int:
+        self.booting = True
+        self.count_boot()
         current = self.recorded("current")
         if current is not None:
             self.restart_cached(current, "the last release didn't start at boot")
         return self.check()
 
+    def count_boot(self) -> None:
+        try:
+            boots = int((self.state / "boots").read_text(encoding="utf-8").strip() or 0)
+        except (OSError, ValueError):
+            boots = 0
+        try:
+            self.state.mkdir(parents=True, exist_ok=True)
+            (self.state / "boots").write_text(f"{boots + 1}\n", encoding="utf-8")
+        except OSError:
+            pass
+
+    def boot_mark(self) -> str:
+        try:
+            return (self.state / "boots").read_text(encoding="utf-8").strip() or "0"
+        except OSError:
+            return "0"
+
+    def misconfigured(self) -> int:
+        """The bucket refused, or the env file names none: one alert per boot, and nothing changes."""
+        message = alert(
+            "deploy_refused",
+            f"{self.host} can't read the release bucket",
+            [("reason", "bucket")],
+        )
+        self.alert_once(f"bucket@boot{self.boot_mark()}", message)
+        print(
+            f"{PROG}: the release bucket refuses, or none is named; nothing changes",
+            file=sys.stderr,
+        )
+        return 1
+
     def check(self) -> int:
+        self.flush()
         self.ensure()
         try:
+            if not self.bucket:
+                raise Misconfigured("RELEASE_BUCKET")
             pointer = self.aws.get(self.bucket, "releases/latest.json")
             if pointer is None:
                 print(f"{PROG}: no release yet")
@@ -391,6 +535,8 @@ class Deployer:
                 file=sys.stderr,
             )
             return 0
+        except Misconfigured:
+            return self.misconfigured()
         except (Refused, ValueError) as error:
             # Keyed on the pointer itself, so each new pointer's incident alerts (the second review, I-B).
             mark = hashlib.sha256(pointer or b"").hexdigest()[:16]
@@ -410,6 +556,8 @@ class Deployer:
             self.prepare(release)
         except Refused as refused:
             return self.refuse(release, str(refused))
+        except Misconfigured:
+            return self.misconfigured()
         except Unreachable:
             print(
                 f"{PROG}: the release bucket can't be reached; nothing changes",
@@ -440,10 +588,11 @@ class Deployer:
             if current is not None:
                 self.keep("previous", current)
             self.keep("current", release)
-            try:
-                (self.state / "refused.json").unlink()
-            except OSError:
-                pass
+            for name in ("refused", "attempts"):
+                try:
+                    (self.state / f"{name}.json").unlink()
+                except OSError:
+                    pass
             self.record(release, "deployed")
             print(f"{PROG}: {self.host} runs release {release['release']}")
             return 0
@@ -466,23 +615,27 @@ class Deployer:
             summary,
             [("release", str(release["release"])), ("previous", str(old))],
         )
-        # Once: the release isn't started again each minute (the second review, I-E).
-        if self.alert_once(f"{release['release']}:{outcome}", message):
-            self.record(release, outcome)
+        # Recorded and marked whatever SNS does; the alert once per incident (the deployer's review, 1 and 2).
+        self.record(release, outcome)
+        self.mark(str(release["release"]), outcome)
+        self.alert_once(f"{release['release']}:{outcome}", message)
         return 1
 
     def refuse(self, release: dict, reason: str, key: str | None = None) -> int:
-        """deploy_refused once per incident, in refused.json, which outlives a run and a reboot."""
+        """deploy_refused: the attempt recorded and marked, its alert once per incident, which outlives a reboot."""
         rid = str(release.get("release", "latest"))
+        attempt = key or rid
+        if self.tried(attempt):
+            print(f"{PROG}: release {rid} stays refused ({reason})", file=sys.stderr)
+            return 1
         message = alert(
             "deploy_refused",
             f"{self.host} refused release {rid}",
             [("reason", reason), ("release", rid)],
         )
-        if self.alert_once(key or f"{rid}:{reason}", message):
-            self.record(release, "refused")
-        else:
-            print(f"{PROG}: release {rid} stays refused ({reason})", file=sys.stderr)
+        self.record(release, "refused")
+        self.mark(attempt, "refused")
+        self.alert_once(key or f"{rid}:{reason}", message)
         return 1
 
     def restart(self, service: str) -> int:
@@ -505,8 +658,9 @@ def run(
     plugin: Path = PLUGIN,
     now: Callable[[], str] = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     restart: str | None = None,
+    clock: Callable[[], float] = time.time,
 ) -> int:
-    deployer = Deployer(host, env_file, state, aws, docker, plugin, now)
+    deployer = Deployer(host, env_file, state, aws, docker, plugin, now, clock)
     if restart is not None:
         return deployer.restart(restart)
     # The Author's hold (releases-deployer.md §4): nothing starts, restarts, or deploys while it stands; alerted once
@@ -533,7 +687,8 @@ def run(
 class AwsCli:
     """The AWS CLI with the instance role, through the host's egress proxy (the units' HTTPS_PROXY)."""
 
-    def __init__(self) -> None:
+    def __init__(self, env_file: Path = ENV_FILE) -> None:
+        self.env_file = env_file
         self.base = ["aws", "--region", "us-east-1", "--no-cli-pager"]
 
     def run(self, *args: str, data: bytes | None = None) -> subprocess.CompletedProcess:
@@ -555,14 +710,19 @@ class AwsCli:
         said = done.stderr.decode(errors="replace")
         if "404" in said or "NoSuchKey" in said or "Not Found" in said:
             return None
-        raise Unreachable("s3")
+        raise s3_error(done.stderr)
 
     def account(self) -> str:
-        registry = read_env(ENV_FILE).get("H4_REGISTRY", "")
+        """The account, from the registry the env file it was given names (the deployer's review, 2)."""
+        registry = read_env(self.env_file).get("H4_REGISTRY", "")
         return registry.split(".", 1)[0]
 
     def publish(self, message: str) -> bool:
-        topic = f"arn:aws:sns:us-east-1:{self.account()}:h4-alerts"
+        try:
+            account = self.account()
+        except OSError:
+            return False
+        topic = f"arn:aws:sns:us-east-1:{account}:h4-alerts"
         done = self.run("sns", "publish", "--topic-arn", topic, "--message", message)
         return done.returncode == 0
 
@@ -663,12 +823,14 @@ def main(argv: list[str]) -> int:
         args.host,
         env_file=args.env_file,
         state=args.state,
-        aws=AwsCli(),
+        aws=AwsCli(args.env_file),
         docker=DockerCli(),
         boot=args.boot,
         restart=args.restart,
     )
-    return EXIT_ALERTED if code == 1 else code
+    # 75 for a check or a boot that refused or rolled back and alerted; a restart's failure stays 1, so its unit fails
+    # (the key's revocation, FR-055; the deployer's review, 3).
+    return EXIT_ALERTED if code == 1 and args.restart is None else code
 
 
 if __name__ == "__main__":

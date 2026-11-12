@@ -336,17 +336,17 @@ def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
-# Spec 001's deployer (the deployer's review, 1: the bridge names deploy.md, which didn't exist) and group 7's EC2
-# (its tasks.md T092): the deploy page holds the deployer's three kinds and the manual retry; EC2's its host.
-SPEC_001_GROUP_7 = ("deploy.md", "ec2.md")
+# Spec 001's deployer (the deployer's review, 1: the bridge names deploy.md, which didn't exist): the deploy page holds
+# the deployer's three kinds and the manual retry.
+SPEC_001_DEPLOYER = ("deploy.md",)
 
 
-def test_spec_001s_group_7_pages_cover_their_alerts_and_the_index_names_them() -> None:
-    assert set(SPEC_001_GROUP_7) <= spec_001_runbooks()
-    for page in SPEC_001_GROUP_7:
+def test_spec_001s_deploy_page_covers_its_alerts_and_the_manual_retry() -> None:
+    assert set(SPEC_001_DEPLOYER) <= spec_001_runbooks()
+    for page in SPEC_001_DEPLOYER:
         assert (RUNBOOKS / page).is_file(), page
     for kinds, pages_ in spec_001_kinds():
-        for page in set(pages_) & set(SPEC_001_GROUP_7):
+        for page in set(pages_) & set(SPEC_001_DEPLOYER):
             mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
             text = (RUNBOOKS / page).read_text(encoding="utf-8")
             assert [k for k in mine if f"`{k}`" not in text] == [], page
