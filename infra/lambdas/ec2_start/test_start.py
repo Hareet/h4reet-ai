@@ -478,7 +478,7 @@ def test_one_embedded_metric_line_per_outcome(
     (line,) = emf_lines(capsys)
     (directive,) = line["_aws"]["CloudWatchMetrics"]
     assert directive["Namespace"] == "h4reet/handover"
-    assert directive["Dimensions"] == [["Function", "Outcome"]]
+    assert directive["Dimensions"] == [["Function", "Trigger", "Outcome"]]
     assert directive["Metrics"] == [{"Name": "Outcomes", "Unit": "Count"}]
     assert line["Outcomes"] == 1 and line["Trigger"] == trigger
 

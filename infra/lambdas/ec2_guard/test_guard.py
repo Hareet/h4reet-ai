@@ -405,7 +405,7 @@ def test_each_stop_is_one_line_and_the_namespace_is_the_start_functions(
     for line in lines:
         (directive,) = line["_aws"]["CloudWatchMetrics"]
         assert directive["Namespace"] == "h4reet/handover"
-        assert directive["Dimensions"] == [["Function", "Outcome"]]
+        assert directive["Dimensions"] == [["Function", "Trigger", "Outcome"]]
 
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -1075,3 +1075,13 @@ def test_the_patch_is_json_free_of_ids() -> None:
     assert not re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", text)
     assert not re.search(r"\bi-0[0-9a-f]{8,}\b", text)
     json.dumps(text)  # it reads as text
+
+
+def test_the_health_checks_id_is_a_string_parameter_the_tunnel_end_reads() -> None:
+    # The sink's read of the check's status (T121, T126) needs its ID, prod's own: a String in the tunnel end's path,
+    # which its role reads already, made from the check in the same root, so a replace updates it.
+    root = prod()
+    found = named(root, "aws_ssm_parameter", "/h4reet/tunnel-end/HEALTH_CHECK_ID")
+    assert len(found) == 1 and where(root, found[0]) == "ssm.tf"
+    assert lit(found[0], "type") == "String"
+    assert raw(found[0], "value") == "aws_route53_health_check.laptop.id"

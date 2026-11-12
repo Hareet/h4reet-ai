@@ -57,6 +57,9 @@ RELEASES = (
 RELAY = (REPO / "specs/001-cloud-elevation/contracts/relay-http.md").read_text(
     encoding="utf-8"
 )
+HANDOVER = (REPO / "specs/001-cloud-elevation/contracts/handover.md").read_text(
+    encoding="utf-8"
+)
 HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
@@ -171,6 +174,8 @@ def hosts_section() -> str:
         + contract_section(SHARED_STATE, "10.")
         + contract_section(RELEASES, "6.")
         + contract_section(RELAY, "9.")
+        # Group 9's (tasks.md T127): the handover's panels.
+        + contract_section(HANDOVER, "10.")
     )
 
 
@@ -1168,6 +1173,15 @@ def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
         "Handovers and their gaps",
         "The relay's requests by host and outcome",
         "The public cap's refusals",
+        # Group 9's (tasks.md T127; contracts/handover.md §10).
+        "EC2's state",
+        "EC2's spot request",
+        "EC2's starts, refusals, and the guard's stops",
+        "The hours' scheduled starts and stops",
+        "The autostart switch",
+        "The laptop's health check",
+        "The handover window",
+        "The server's month against its budget",
     }
     found = by_title()
     for title, (kind, queries_) in expected.items():
@@ -1211,7 +1225,11 @@ def test_which_host_serves_reads_none_in_red() -> None:
     # Group 8's review A, I4: a value mapping's colour wins over a field's, so none's own mapping paints its 1 red; a
     # colour override alone would leave it the default mapping's green.
     (mapping,) = [p["value"] for p in override["properties"] if p["id"] == "mappings"]
-    ones = [m["options"]["1"] for m in mapping if m["type"] == "value" and "1" in m["options"]]
+    ones = [
+        m["options"]["1"]
+        for m in mapping
+        if m["type"] == "value" and "1" in m["options"]
+    ]
     assert [o["color"] for o in ones] == ["red"]
     # Its series are labelled by h4.serving, which the tunnel end's collector doesn't route on, so the one-hot set
     # reaches either host's Prometheus whole.

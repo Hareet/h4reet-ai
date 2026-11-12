@@ -513,9 +513,12 @@ def walk_strings(node: object):
 
 def test_x004_writes_dev_time_metrics_only_and_no_identity() -> None:
     (condition,) = PROCESSORS["filter/devtime"]["metrics"]["metric"]
+    # Spec 001 group 9 (its plan.md §16, "Group 9, as built"): and one named exception, the laptop's handover loop's
+    # window, h4.handover.window_seconds from h4-handover alone (the note's question W-9).
     assert condition == (
-        'not (IsMatch(name, "^(claude_code|h4\\\\.devtime)\\\\.") and (resource.attributes["service.name"] == '
-        '"claude-code" or resource.attributes["service.name"] == "h4-gate"))'
+        'not ((IsMatch(name, "^(claude_code|h4\\\\.devtime)\\\\.") and (resource.attributes["service.name"] == '
+        '"claude-code" or resource.attributes["service.name"] == "h4-gate")) or (name == "h4.handover.window_seconds" '
+        'and resource.attributes["service.name"] == "h4-handover"))'
     )
     kept = re.compile(ottl_unquote("^(claude_code|h4\\\\.devtime)\\\\."))
     assert kept.match("claude_code.cost.usage") and kept.match("h4.devtime.eval.tokens")
