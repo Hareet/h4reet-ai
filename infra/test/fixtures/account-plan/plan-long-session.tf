@@ -14,7 +14,7 @@ resource "aws_iam_role" "agent_plan" {
   lifecycle {
     precondition {
       condition     = can(regex("^[A-Za-z0-9+=,.@_-]{1,32}$", local.plan_permission_set))
-      error_message = "local.plan_permission_set: write the Author's administrator permission set's name in iam.tf (spec 017 P-6)."
+      error_message = "local.plan_permission_set: write the name of the Author's administrator permission set, the one his h4reet-admin profile signs in with, in infra/account/iam.tf. IAM Identity Center lists it under Multi-account permissions, Permission sets (spec 017 P-6)."
     }
   }
 }
