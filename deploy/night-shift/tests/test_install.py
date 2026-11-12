@@ -1097,7 +1097,9 @@ def test_the_script_is_shellcheck_clean() -> None:
 def test_b1_r1_fails_when_the_egress_log_records_nothing(make_case) -> None:
     c = make_case({"egress_silent": True})
     r = c.run()
-    assert_refused(c, r, "4 R1", "egress log .*(isn.t there|added no api.anthropic.com line)")
+    assert_refused(
+        c, r, "4 R1", "egress log .*(isn.t there|added no api.anthropic.com line)"
+    )
     assert "R2" not in rehearsal_kinds(c)
 
 

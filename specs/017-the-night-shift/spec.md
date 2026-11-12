@@ -85,9 +85,9 @@ The Author runs the container probe, then later reads and runs one install-and-r
 **Acceptance Scenarios**:
 
 1. **Given** the night-shift token in its file, **When** the Author runs the container probe, **Then** it reports each row of FR-037 and FR-041, removes its containers and networks, and names the images it leaves.
-2. **Given** the reviewed commit's SHA, **When** the Author runs the install script with that SHA and the branch's tip has moved, **Then** it refuses before doing anything, naming the two SHAs.
+2. **Given** the reviewed commit's SHA, **When** the Author runs the install script with that SHA and `--branch <name>`, and that branch's tip has moved, **Then** it refuses before doing anything, naming the two SHAs (G4's review, S9: `install.sh <sha> --branch <name>`).
 3. **Given** a base image whose digest differs from the pinned one, **When** the script builds, **Then** it refuses and installs nothing.
-4. **Given** a successful install, **When** the script rehearses, **Then** every forbidden read, write, and connection is refused; `make check` and the red-team suite pass inside the worker container; and the session signs in on his plan, while an API key in its environment makes it refuse to start.
+4. **Given** a successful install, **When** the script rehearses, **Then** every forbidden read, write, and connection is refused; `make check` and the red-team suite pass inside the worker container; and the session signs in on his plan, while a stand-in API key or auth token in its environment is refused by the runner and, run anyway, is refused or neutralized by Claude Code (it refuses to start, or answers on the night-shift token with the stand-in unused), with no API call in an egress log the same step proved records calls.
 5. **Given** any failed step, **When** the script stops, **Then** it prints one line naming the step and the reason, and the summary to paste back.
 6. **Given** an installed night shift, **When** the Author runs the script again at the same SHA, **Then** nothing changes; **When** he runs `--undo`, **Then** the specs, the runner, the networks, and the images it built are removed, and nothing else.
 
@@ -195,7 +195,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 
 - **Claude Code's own sandbox won't start inside the container**: it stays off there, and the container is the boundary, with the hooks on (FR-037). If it does start, it stays on as a second layer.
 - **A container boundary row fails** in the container probe or the rehearsal: everything stops, and the session tells the Author (his Q8 answer).
-- **An API-billing credential reaches a container's environment**: Claude Code refuses to start (`forceLoginMethod`), and the runner's preflight refuses before that (FR-041).
+- **An API-billing credential reaches a container's environment**: the runner refuses the line before that; inside, the managed settings blank the API variables, so Claude Code answers on the night-shift token or refuses to start (`forceLoginMethod`), never using the credential (FR-041).
 - **The plan's weekly limit is reached**: the night stops at save points and resumes after the reset; extra usage is never accepted (FR-041).
 - **The night-shift token expires or is revoked**: every session fails to sign in; the runner stops the night and writes it on the decision page.
 - **The Author's AWS session expires overnight**: plans fail closed, and the decision page says when the session ended.
@@ -219,7 +219,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **FR-005**: THE install script SHALL write the live container specs and the egress allowlist into `~/.config/h4reet-ai/night-shift/`, filling each placeholder from the Author's machine facts file, set them and their folder read-only, print each file's SHA-256, and print a diff against any spec it replaces.
 - **FR-006**: THE install script SHALL rehearse in this order, stopping at the first failure with one line naming the step:
   - start one test session in a worker container, signed in on the plan;
-  - prove an API key in its environment makes it refuse to start;
+  - prove a stand-in API key, then a stand-in auth token, in its environment is refused by the runner's last look, and, run anyway, is refused or neutralized by Claude Code (it refuses to start, or answers on the night-shift token with the stand-in unused), with no API call in an egress log that a signed-in turn first proved records calls;
   - run `make check` and the red-team suite inside it;
   - try each forbidden read, write, and connection, and expect a refusal.
 - **FR-007**: THE install script SHALL print one summary for the Author to paste back, holding step outcomes, versions, image digests, and SHA-256s, and nothing secret.
@@ -281,13 +281,13 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
   - **the second layer**: each image's managed settings (`/etc/claude-code/managed-settings.json`, read-only, from the reviewed commit) SHALL hold `{"forceLoginMethod": "claudeai", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": ""}}`. The container probe's third run proved it: with a stand-in key, then a stand-in auth token, Claude Code answered on the night-shift token and never used either. A `--settings` layer didn't hold (the second run), and `forceLoginMethod` alone in managed settings refused to start, but only after two API calls (research R-18). A test SHALL check that every image carries exactly this file;
   - THE runner SHALL start no container whose environment holds any of `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, or `CLAUDE_CODE_USE_FOUNDRY`;
   - no session SHALL run with `--bare`, which ignores the token;
-  - the two refusals are Claude Code's and the runner's. THE container probe SHALL prove Claude Code's, for an `ANTHROPIC_API_KEY` and for an `ANTHROPIC_AUTH_TOKEN`: it refuses to start, and the egress log shows no API call. THE runner's tests and the rehearsal SHALL prove the runner's, and its preflight SHALL check them on every start;
+  - the two refusals are Claude Code's and the runner's. THE container probe and the rehearsal SHALL prove Claude Code's, for an `ANTHROPIC_API_KEY` and for an `ANTHROPIC_AUTH_TOKEN`: it refuses to start with no API call in the egress log, or it answers on the night-shift token with the stand-in unused (the managed settings blank it; research R-18). The egress log counts only after a signed-in turn in the same run has added a line to it. THE runner's tests and the rehearsal SHALL prove the runner's, and its preflight SHALL check them on every start;
   - WHEN a session reports the plan's limit, THE runner SHALL wait for the reset and never accept extra usage. The Author turns extra usage off in his account (plan, his step).
 
 **The layers (research.md R-07, R-08)**
 
 - **FR-037**: THE container SHALL be each session's outer boundary. Before anything else is built, a container probe SHALL test on the Author's machine:
-  - a session signs in with the night-shift token, and refuses to start when an API key is present;
+  - a session signs in with the night-shift token, and an API key or auth token present is refused or neutralized (it refuses to start, or answers on the token with the stand-in unused), with no API call in the egress log;
   - its only way out is the allowlisting proxy;
   - it sees no Docker socket and none of the never-readable paths;
   - it can write its worktree and commit, but not `.git/hooks`, `.git/config`, or the human-only paths;

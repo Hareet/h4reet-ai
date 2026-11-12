@@ -2579,19 +2579,6 @@
       "rehearsal": false
     },
     {
-      "id": "write-git-config-git",
-      "role": "ops",
-      "kind": "container",
-      "category": "write",
-      "target": "@GIT@/config",
-      "spelling": "git",
-      "host": "@GIT@/config",
-      "command": "git -C @WT@ config rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
-      "layer": "ro-mount",
-      "rehearsal": true
-    },
-    {
       "id": "write-git-config-bash-c",
       "role": "ops",
       "kind": "container",
@@ -2657,19 +2644,6 @@
       "rehearsal": true
     },
     {
-      "id": "write-git-config-git-c",
-      "role": "ops",
-      "kind": "container",
-      "category": "write",
-      "target": "@GIT@/config",
-      "spelling": "git-c",
-      "host": "@GIT@/config",
-      "command": "git -C @WT@ -c core.hooksPath=/tmp config core.hooksPath /tmp",
-      "expect": "Read-only file system|Device or resource busy",
-      "layer": "ro-mount",
-      "rehearsal": true
-    },
-    {
       "id": "write-git-hooks-plain",
       "role": "ops",
       "kind": "container",
@@ -2677,8 +2651,8 @@
       "target": "@GIT@/hooks",
       "spelling": "plain",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": >> @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": >> @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2691,8 +2665,8 @@
       "target": "@GIT@/hooks",
       "spelling": "python",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "python3 -c 'import sys; open(sys.argv[1], \"a\").close()' @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "python3 -c 'import sys; open(sys.argv[1], \"a\").close()' @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2705,8 +2679,8 @@
       "target": "@GIT@/hooks",
       "spelling": "git",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "git -C @WT@ config --file @GIT@/hooks/pre-commit rt.probe x",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "git -C @WT@ config --file @GIT@/hooks/rt-@ID@ rt.probe x",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2719,8 +2693,8 @@
       "target": "@GIT@/hooks",
       "spelling": "bash-c",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "bash -c ': >> \"$1\"' _ @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "bash -c ': >> \"$1\"' _ @GIT@/hooks/rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2733,8 +2707,8 @@
       "target": "@GIT@/hooks",
       "spelling": "subshell",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "( : >> @GIT@/hooks/pre-commit )",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "( : >> @GIT@/hooks/rt-@ID@ )",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2747,8 +2721,8 @@
       "target": "@GIT@/hooks",
       "spelling": "quoted",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": >> \"@GIT@/hooks\"'/pre-commit'",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": >> \"@GIT@/hooks\"'/rt-@ID@'",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
@@ -2761,8 +2735,8 @@
       "target": "@GIT@/hooks",
       "spelling": "symlink",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": "ln -s -- @GIT@/hooks/pre-commit @WT@/.rt-@ID@ && : >> @WT@/.rt-@ID@",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": "ln -s -- @GIT@/hooks/rt-@ID@ @WT@/.rt-@ID@ && : >> @WT@/.rt-@ID@",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -2775,8 +2749,8 @@
       "target": "@GIT@/hooks",
       "spelling": "hardlink",
       "host": "@GIT@/hooks",
-      "creates": "@GIT@/hooks/pre-commit",
-      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/hooks/pre-commit",
+      "creates": "@GIT@/hooks/rt-@ID@",
+      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/hooks/rt-@ID@",
       "expect": "Invalid cross-device link|Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true

@@ -179,7 +179,7 @@ If a step fails, the install prints one line, `install: FAILED at <step>: <reaso
 bash <(git show "$SHA:$IN") "$SHA" --undo
 ```
 
-To prove that undo leaves nothing behind, install again at the same SHA afterwards. The second summary should match the first.
+To prove that undo leaves nothing behind, install again at the same SHA afterwards. In the second summary, the `sha`, `spec`, and `allowlist` lines should match the first's; the `image` and `network` IDs change, since both are made again.
 
 ```text
 bash <(git show "$SHA:$IN") "$SHA"
