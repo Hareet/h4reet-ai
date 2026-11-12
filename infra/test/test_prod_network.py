@@ -9,7 +9,9 @@ What the root must hold:
   - its security groups: 2222 from anywhere and 8087 from Route 53's health checkers on the public interface, 8080 from
     CloudFront's origin-facing list on the private one, and nothing else in;
   - its role, h4-prod-tunnel-end (R-15): ECR pulls from the project's repositories, its Parameter Store path, the
-    release bucket's reads, sns:Publish on h4-alerts, and Session Manager, by name-built ARNs only;
+    release bucket's reads, sns:Publish on h4-alerts, by name-built ARNs only, and Session Manager's and Run Command's
+    own actions inline, with no managed policy (group 5's review, I1: AmazonSSMManagedInstanceCore reads every
+    parameter in the account);
   - the warning rule, h4-tunnel-end-spot-warning, in prod's own handover.tf, naming the tunnel end from this root, to
     h4-alerts as tunnel_end_interruption;
   - both roots' handover.tf with local.wired = false (plan.md §16, "Why a switch");
@@ -474,7 +476,8 @@ ROLE_GRANTS = {
     "ecr:BatchCheckLayerAvailability": f'["{ECR}"]',
     "ssm:GetParameter": PARAMETERS,
     "ssm:GetParameters": PARAMETERS,
-    "kms:Decrypt": '["*"]',
+    # Its SecureStrings, this account's keys alone, and only through Parameter Store (the condition, below).
+    "kms:Decrypt": f'["arn:aws:kms:us-east-1:{ACCOUNT_ID}:key/*"]',
     "s3:GetObject": '[ "arn:aws:s3:::h4reet-ai-releases-*/releases/*", "arn:aws:s3:::h4reet-ai-releases-*/trees/*", '
     '"arn:aws:s3:::h4reet-ai-releases-*/tools/*", ]',
     "s3:ListBucket": '["arn:aws:s3:::h4reet-ai-releases-*"]',
@@ -482,7 +485,24 @@ ROLE_GRANTS = {
     # Group 6 (tasks.md T066): the hourly backup's put, under its one prefix; nothing reads or deletes there.
     "s3:PutObject": '["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]',
 }
-SESSION_MANAGER = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+# Session Manager and Run Command, the one way in (FR-050), as AWS documents an instance profile's own policy for them
+# without AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in
+# the account, EC2's secrets and the Author's among them (group 5's review, I1). None of these actions takes a narrower
+# resource in AWS's documented policy, and none reads a parameter, a secret, or an object.
+SESSION_MANAGER = (
+    "ssm:UpdateInstanceInformation",
+    "ssmmessages:CreateControlChannel",
+    "ssmmessages:CreateDataChannel",
+    "ssmmessages:OpenControlChannel",
+    "ssmmessages:OpenDataChannel",
+    "ec2messages:AcknowledgeMessage",
+    "ec2messages:DeleteMessage",
+    "ec2messages:FailMessage",
+    "ec2messages:GetEndpoint",
+    "ec2messages:GetMessages",
+    "ec2messages:SendReply",
+)
+ROLE_GRANTS.update({action: '["*"]' for action in SESSION_MANAGER})
 
 
 def check_role(root: dict[str, list]) -> list[str]:
@@ -535,13 +555,27 @@ def check_role(root: dict[str, list]) -> list[str]:
             v == "aws:ResourceAccount" for _, v, _ in conditions.get(action, [])
         ):
             found.append(f"role: {action} isn't held to this account's buckets")
+    # Any managed policy on the role, by any of the three resources that attach one.
     managed = [
-        raw(a, "policy_arn")
+        address(a)
         for a in resource(root, "aws_iam_role_policy_attachment")
-        if raw(a, "role") in (f"{me}.name", f"{me}.id")
+        + resource(root, "aws_iam_policy_attachment")
+        + resource(root, "aws_iam_role_policy_attachments_exclusive")
+        if me in raw(a, "role") or me in raw(a, "roles") or me in raw(a, "role_name")
     ]
-    if managed != [f'"{SESSION_MANAGER}"']:
-        found.append("role: Session Manager isn't its one managed policy")
+    if managed or lit(role, "managed_policy_arns"):
+        found.append(
+            "role: a managed policy is attached, whose grants this root doesn't read (I1)"
+        )
+    wide = sorted(
+        a
+        for a, r in granted.items()
+        if r == '["*"]'
+        and re.match(r"(ssm|kms|s3|secretsmanager):", a)
+        and a != "ssm:UpdateInstanceInformation"
+    )
+    if wide:
+        found.append(f"role: {', '.join(wide)} on every resource")
     for b in blocks(root, "resource"):
         if b.labels[0].startswith("aws_iam_") and where(root, b) != "iam.tf":
             found.append(f"role: {address(b)} lives outside iam.tf")
