@@ -65,8 +65,8 @@ A file `~/.local/state/h4reet-ai/night-shift/locks/<name>` (0444) held by `flock
 ```
 
 - `round`: 1 to 3;
-- `limits`: never above main's `caps.json` for the kind;
-- `tools`: IDs from `studio-tools.json` whose entries have `outputs_ship: true`;
+- `limits`: never above main's `caps.json` for the kind, read from `refs/heads/main` only;
+- `tools`: IDs from main's `studio-tools.json` whose entries have `outputs_ship: true`;
 - `findings`: the previous round's failures, empty in round 1.
 
 ## Candidate (`/srv/studio/handoff/<asset>/<round>/candidate.json`)
@@ -77,6 +77,16 @@ A file `~/.local/state/h4reet-ai/night-shift/locks/<name>` (0444) held by `flock
 ```
 
 `files` exist in the folder, and `tools` ⊆ the brief's `tools`. `records.json` follows the arrival check's format.
+
+## Round result (`/srv/studio/briefs/<asset>/<round>.result.json`)
+
+```json
+{"schema": 1, "asset": "dog", "round": 1, "result": "fail", "findings": ["triangles dog.glb: 200000 (limit: the brief's, 180000)"]}
+```
+
+Written once, by `line.py candidate --record`, and only for the round's own handoff folder, `/srv/studio/handoff/<asset>/<round>/`. Never for a round with a result, or one a later handoff folder or result follows. Round *n*+1's brief copies a failed round's `findings` verbatim.
+
+The briefs folder is writable by repo agents, so `line.py round` doesn't trust it alone. Rounds used = the higher of the highest handoff folder (the studio's) and the highest result. A result's `pass` counts only while that round's handoff folder exists and the candidate re-checks clean.
 
 ## Tools list (`assets/policy/studio-tools.json`, human-only, P-7)
 
