@@ -54,7 +54,11 @@ export function assemble(
   check: (target: HostTarget) => Promise<boolean> = (t) => checkHost(t),
 ): Running {
   const targets = new Map<HostName, HostTarget>(ready.env.hosts.map((h) => [h.name, h]));
-  const holder: { telemetry?: RelayTelemetry; statusClass?: () => StatusClass } = {};
+  const holder: {
+    telemetry?: RelayTelemetry;
+    statusClass?: () => StatusClass;
+    refreshStatus?: () => Promise<void>;
+  } = {};
   const hosts = new HostChoice([...targets.keys()], now, (event) => {
     holder.telemetry?.handover(event);
     logger.info(
@@ -95,12 +99,15 @@ export function assemble(
       // No address outlives its day, or its bucket's refill, for want of a request (FR-042; nit 4).
       deps.cap.sweep();
       deps.statusCap.sweep();
+      // The class gauge's read of the store, at most once in 5 s, whether or not a status is asked (nit 4).
+      await holder.refreshStatus?.().catch(() => undefined);
     } finally {
       checking = false;
     }
   };
   const listeners = buildRelay(deps);
   holder.statusClass = listeners.statusClass;
+  holder.refreshStatus = listeners.refreshStatus;
   return {
     deps,
     listeners,

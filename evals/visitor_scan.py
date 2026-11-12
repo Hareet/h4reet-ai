@@ -72,19 +72,28 @@ VALKEY = (
     "esac; done"
 )
 # Loki's and Prometheus's live answers, asked from the gateway's container on the stack's internal network: Node's
-# fetch prints each answer's text, which the scan reads as it reads every file. Two hours back covers the visit.
+# fetch prints each answer's text, which the scan reads as it reads every file. Two hours back covers the visit. Each
+# exits 2, a source that couldn't be read, unless every answer is HTTP's ok and says `success` (an error's body, such
+# as Loki's "ingester not ready", would otherwise scan clean); and Loki's, when it returns its limit's 5000 lines,
+# since the window was cut short (group 8's fixes' review, I2).
 LIVE_STORES = {
     "loki": (
-        "const end=Date.now()*1e6,start=end-7200e9;"
+        "(async()=>{const end=Date.now()*1e6,start=end-7200e9,limit=5000;"
         "const q=encodeURIComponent('{service_name=~\".+\"}');"
-        "fetch(`http://loki:3100/loki/api/v1/query_range?query=${q}&start=${start}&end=${end}&limit=5000`)"
-        ".then(r=>r.text()).then(t=>process.stdout.write(t)).catch(()=>process.exit(2))"
+        "const r=await fetch(`http://loki:3100/loki/api/v1/query_range?query=${q}&start=${start}&end=${end}&limit=${limit}`);"
+        "const t=await r.text();const j=JSON.parse(t);"
+        "if(!r.ok||j.status!=='success')process.exit(2);"
+        "const n=((j.data||{}).result||[]).reduce((a,s)=>a+(s.values||[]).length,0);"
+        "if(n>=limit)process.exit(2);"
+        "process.stdout.write(t)})().catch(()=>process.exit(2))"
     ),
     "prometheus": (
         "(async()=>{const base='http://prometheus:9090/api/v1';"
-        "const names=(await (await fetch('http://prometheus:9090/api/v1/labels')).json()).data||[];"
-        "process.stdout.write(JSON.stringify(names)+'\\n');"
-        "for(const n of names){process.stdout.write(await (await fetch(`${base}/label/${encodeURIComponent(n)}/values`)).text()+'\\n')}"
+        "const get=async(u)=>{const r=await fetch(u);const t=await r.text();const j=JSON.parse(t);"
+        "if(!r.ok||j.status!=='success')process.exit(2);return [t,j]};"
+        "const [lt,lj]=await get('http://prometheus:9090/api/v1/labels');process.stdout.write(lt+'\\n');"
+        "for(const n of lj.data||[]){const [vt]=await get(`${base}/label/${encodeURIComponent(n)}/values`);"
+        "process.stdout.write(vt+'\\n')}"
         "})().catch(()=>process.exit(2))"
     ),
 }

@@ -77,12 +77,19 @@ function ipv6Groups(text: string): number[] | undefined {
 /** The client's key, as the public cap counts it and X-H4-Viewer carries it to the host's own per-client cap: an IPv4
  *  address as it is, and an IPv6 address by its /64, the network one subscriber holds, written as that network's first
  *  address (`2001:db8:1:2::`), so rotating the lower 64 bits rotates nothing past either cap (group 8's review A,
- *  I1). An address that doesn't parse is returned unchanged. */
+ *  I1); an IPv4-mapped one, in either form, as its IPv4 address. An address that doesn't parse is returned unchanged. */
 export function clientKey(address: string): string {
   const plain = plainAddress(address);
   if (isIP(plain.split("%")[0] ?? "") !== 6) return plain;
   const groups = ipv6Groups(plain);
   if (groups === undefined) return plain;
+  // An IPv4-mapped address (::ffff:0:0/96) in its hex form is the IPv4 address, as the dotted form is (the review of
+  // group 8's fixes, nit 3): never one /64 that every mapped client would share.
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    const c = groups[6] ?? 0;
+    const d = groups[7] ?? 0;
+    return `${c >> 8}.${c & 255}.${d >> 8}.${d & 255}`;
+  }
   return `${groups
     .slice(0, 4)
     .map((g) => g.toString(16))

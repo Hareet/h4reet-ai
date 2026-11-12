@@ -891,6 +891,13 @@ The Degraded Modes row on the shared state changes in one cause: "RDS down, or b
 15. **The sink's cloud reads are a module, not yet a service** (`deploy/scripts/snapshot_sink.py`): its compose service is group 10's, with the document part (T137). Its reads need the tunnel end's role, which no container reaches (IMDSv2, one hop), so group 10 runs them as a host timer, as the backup's, or hands a container credentials as EC2's gateway gets them. The health check's ID reaches it as `/h4reet/tunnel-end/HEALTH_CHECK_ID`, a String in prod's unprotected `ssm.tf`. The label order CloudWatch's `SEARCH` gives the outcomes is to confirm at W2's first run.
 16. **The hours aren't on a panel themselves,** only the scheduled starts and stops: a panel stating them would need a copy, or T170's read of the schedules, which waits for question 1b.
 
+**Group 8's fixes, reviewed** (the review of 8418fd0b..080eb731, group 8's fixes alone; the note's "Group 8's fixes, reviewed"). What its fixes change of group 8 as built:
+- **I1:** B-6's strict xfail reads the tunnel end's `primary_network_interface` too, and takes option B's internal Network Load Balancer; a test of its own holds the parse, so the xfail can fail only on the comparison (item 13, after review B).
+- **I2:** the visitor scan's live sources exit 2 unless each answer is HTTP's ok and says `success`, and Loki's when its window reaches its 5000-line limit, so an error's body never scans clean (item 20).
+- **Nit 1:** EC2's red-team key hashes `services/gateway` whole but its `test/`, so its Dockerfile, migrations, and build settings count; option A of B-3 has a gap B hasn't: nothing enforces "while the laptop serves" (contracts/releases-deployer.md §2).
+- **Nit 3:** an IPv4-mapped address in its hex form keys as its IPv4 address, as the dotted form does.
+- **Nit 4:** the relay reads the status's verdict in its 1 s round, at most once in 5 s, so `h4.relay.status.class` never holds a class older than that with no status poll.
+
 **Group 9's review A, and what was done** (the review of 8418fd0b..080eb731; the note's "Group 9's review, and what was done"). What its fixes change of group 9 as built:
 - **I1:** the laptop's loop stops EC2 only while the relay's status says `laptop`; on anything else it records `released` and goes back to waiting (FR-064's "WHILE"), so a laptop whose tunnel or gateway failed no longer stops the EC2 that took over.
 - **I2:** a hung or missing CLI, or an answer that isn't JSON, is the step's failure (`Ec2Error`); any other error in a round is recorded and the loop goes on.

@@ -194,20 +194,24 @@ def check_self(runner: Runner, root: Path) -> None:
             )
 
 
-# What the red team's live cases exercise (group 8's review B, I3; contracts/releases-deployer.md §2): the gateway's
-# code, the configuration and the corpus it reads, the cases, and this runner. An EC2 run is keyed by their SHA-256,
-# so a release whose export holds the same bytes counts a run made on an earlier release, and a release that changes
-# any of them needs a run of its own first. deploy/scripts/release.py carries the same function, and a test holds the
-# two alike.
+# What the red team's live cases exercise (group 8's review B, I3; contracts/releases-deployer.md §2): the gateway,
+# but its tests, the configuration and the corpus it reads, the cases, and this runner. An EC2 run is keyed by their
+# SHA-256, so a release whose export holds the same bytes counts a run made on an earlier release, and a release that
+# changes any of them needs a run of its own first. deploy/scripts/release.py carries the same function, and a test
+# holds the two alike.
 EXERCISED = (
-    "services/gateway/src",
-    "services/gateway/package.json",
+    "services/gateway",
     "package-lock.json",
     "config",
     "corpus",
     "redteam/cases",
     "redteam/run.py",
 )
+
+
+# Never what EC2 runs: the gateway's tests, and a checkout's own builds and caches, which an export doesn't hold
+# (group 8's fixes' review, nit 1: the gateway whole, its Dockerfile, migrations, and build settings among it).
+SKIPPED = frozenset({"test", "node_modules", "dist", "coverage", "__pycache__"})
 
 
 def exercised(root: Path) -> str:
@@ -222,7 +226,7 @@ def exercised(root: Path) -> str:
             files.extend(
                 p
                 for p in path.rglob("*")
-                if p.is_file() and "__pycache__" not in p.parts
+                if p.is_file() and not set(p.relative_to(root).parts) & SKIPPED
             )
     for path in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
         digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")

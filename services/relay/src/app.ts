@@ -92,6 +92,7 @@ export function buildRelay(deps: RelayDeps): {
   internal: FastifyInstance;
   health: FastifyInstance;
   statusClass: () => StatusClass;
+  refreshStatus: () => Promise<void>;
 } {
   const now = deps.now ?? Date.now;
   const send = deps.forward ?? defaultForward;
@@ -150,6 +151,11 @@ export function buildRelay(deps: RelayDeps): {
 
   /** The class the status would reduce to now, for the gauge; from the last status read, unknown before one. */
   const statusClass = (): StatusClass => classOf(statusBody(statusRead?.verdict ?? null));
+  /** The status's read, in the relay's 1 s round, so the gauge never holds a class older than the read's own 5 s
+   *  (the review of group 8's fixes, nit 4): with no status poll, it would hold the last class it saw. */
+  const refreshStatus = async (): Promise<void> => {
+    await status();
+  };
 
   function reply(
     res: FastifyReply,
@@ -407,5 +413,5 @@ export function buildRelay(deps: RelayDeps): {
   const health = Fastify({ logger: false });
   health.get("/health/live", (_req, res) => res.code(200).send({ status: "live" }));
 
-  return { edge: listenerApp("edge"), internal: listenerApp("internal"), health, statusClass };
+  return { edge: listenerApp("edge"), internal: listenerApp("internal"), health, statusClass, refreshStatus };
 }
