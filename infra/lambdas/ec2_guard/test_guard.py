@@ -64,7 +64,7 @@ def instance(iid: str, state: str = "running") -> dict:
 
 
 class Aws:
-    def __init__(self, **over: object) -> None:
+    def __init__(self, over: dict | None = None) -> None:
         self.calls: list[tuple[str, str, dict]] = []
         self.answers: dict[tuple[str, str], object] = {
             ("ssm", "/h4reet/prod/ec2-autostart"): {"Parameter": {"Value": "on"}},
@@ -81,7 +81,7 @@ class Aws:
             ("ec2", "StopInstances"): {"StoppingInstances": []},
             ("sns", "Publish"): {"MessageId": "m-1"},
         }
-        self.answers.update(over)  # type: ignore[arg-type]
+        self.answers.update(over or {})
 
     def call(self, service: str, op: str, **params: object) -> dict:
         self.calls.append((service, op, dict(params)))
@@ -170,7 +170,7 @@ def with_alarm(state: str) -> dict:
 def test_it_stops_the_named_instance_and_alerts_why(
     over: dict, now: datetime, kind: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    aws = Aws(**over)
+    aws = Aws(over)
     result = run(RUNNING, aws, now=now)
     assert result["stopped"] == [EC2_ID] and result["outcome"] == kind
     assert aws.stops() == [[EC2_ID]]
@@ -204,14 +204,13 @@ def test_the_switch_wins_then_the_hours_then_the_budget_then_the_laptop() -> Non
         },
         **with_alarm("OK"),
     }
-    assert run(RUNNING, Aws(**every), now=OUTSIDE)["outcome"] == "ec2_stopped_paused"
+    assert run(RUNNING, Aws(every), now=OUTSIDE)["outcome"] == "ec2_stopped_paused"
     del every[("ssm", "/h4reet/prod/ec2-autostart")]
     assert (
-        run(RUNNING, Aws(**every), now=OUTSIDE)["outcome"]
-        == "ec2_stopped_outside_hours"
+        run(RUNNING, Aws(every), now=OUTSIDE)["outcome"] == "ec2_stopped_outside_hours"
     )
     assert (
-        run(RUNNING, Aws(**every), now=INSIDE)["outcome"] == "ec2_stopped_server_budget"
+        run(RUNNING, Aws(every), now=INSIDE)["outcome"] == "ec2_stopped_server_budget"
     )
 
 
@@ -231,9 +230,7 @@ def test_it_stops_only_tagged_instances_found_by_their_tag() -> None:
 
 def test_an_untagged_named_instance_isnt_stopped() -> None:
     # The parameter names an instance the tag filter doesn't find: the guard may stop only a tagged one.
-    aws = Aws(
-        **{("ec2", "DescribeInstances"): {"Reservations": []}, **with_alarm("OK")}
-    )
+    aws = Aws({("ec2", "DescribeInstances"): {"Reservations": []}, **with_alarm("OK")})
     result = run(RUNNING, aws)
     assert result["outcome"] == "nothing" and aws.stops() == []
 
@@ -246,7 +243,7 @@ def test_a_second_tagged_instance_is_stopped_and_alerted_with_its_id_then_the_ta
     None
 ):
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances"): {
                 "Reservations": [
                     {"Instances": [instance(OTHER_ID)]},
@@ -267,7 +264,7 @@ def test_a_second_tagged_instance_is_stopped_and_alerted_with_its_id_then_the_ta
 
 def test_it_never_stops_the_named_one_for_being_a_second() -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances"): {
                 "Reservations": [{"Instances": [instance(EC2_ID), instance(OTHER_ID)]}]
             }
@@ -279,7 +276,7 @@ def test_it_never_stops_the_named_one_for_being_a_second() -> None:
 
 def test_the_unrecognised_one_is_alerted_at_the_close_too() -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances"): {
                 "Reservations": [{"Instances": [instance(OTHER_ID)]}]
             }
@@ -292,7 +289,7 @@ def test_the_unrecognised_one_is_alerted_at_the_close_too() -> None:
 
 def test_with_the_parameter_unreadable_it_stops_nothing_and_alerts_once() -> None:
     aws = Aws(
-        **{("ssm", "/h4reet/prod/ec2-instance-id"): guard.AwsError("ParameterNotFound")}
+        {("ssm", "/h4reet/prod/ec2-instance-id"): guard.AwsError("ParameterNotFound")}
     )
     result = run(RUNNING, aws)
     assert aws.stops() == [] and result["outcome"] == "ec2_guard_failed"
@@ -302,7 +299,7 @@ def test_with_the_parameter_unreadable_it_stops_nothing_and_alerts_once() -> Non
 
 
 def test_with_the_listing_unreadable_it_stops_nothing_and_alerts_once() -> None:
-    aws = Aws(**{("ec2", "DescribeInstances"): guard.AwsError("UnauthorizedOperation")})
+    aws = Aws({("ec2", "DescribeInstances"): guard.AwsError("UnauthorizedOperation")})
     run(CLOSE, aws)
     assert aws.stops() == []
     (alert,) = aws.alerts()
@@ -320,7 +317,7 @@ def test_with_the_listing_unreadable_it_stops_nothing_and_alerts_once() -> None:
 def test_a_failed_read_of_a_condition_counts_as_it_holding(
     broken: tuple[str, str], kind: str
 ) -> None:
-    aws = Aws(**{broken: guard.AwsError("ThrottlingException")})
+    aws = Aws({broken: guard.AwsError("ThrottlingException")})
     result = run(RUNNING, aws)
     assert result["outcome"] == kind and aws.stops() == [[EC2_ID]]
     (alert,) = aws.alerts()
@@ -329,7 +326,7 @@ def test_a_failed_read_of_a_condition_counts_as_it_holding(
 
 def test_a_failed_stop_is_alerted_as_the_guards_failure() -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "StopInstances"): guard.AwsError("IncorrectInstanceState"),
             **with_alarm("OK"),
         }
@@ -341,7 +338,7 @@ def test_a_failed_stop_is_alerted_as_the_guards_failure() -> None:
 
 
 def test_an_unexpected_error_is_one_alert_never_a_raise() -> None:
-    aws = Aws(**{("ec2", "StopInstances"): RuntimeError("boom"), **with_alarm("OK")})
+    aws = Aws({("ec2", "StopInstances"): RuntimeError("boom"), **with_alarm("OK")})
     assert run(RUNNING, aws)["outcome"] == "ec2_guard_failed"
 
 
@@ -374,7 +371,7 @@ def test_the_closes_routine_stop_isnt_alerted_provisionally_question_3() -> None
 def test_the_close_writes_only_its_line_while_ec2_is_stopped(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    aws = Aws(**{("ec2", "DescribeInstances"): {"Reservations": []}})
+    aws = Aws({("ec2", "DescribeInstances"): {"Reservations": []}})
     result = run(CLOSE, aws)
     assert result["outcome"] == "nothing" and aws.stops() == [] and aws.alerts() == []
     (line,) = emf_lines(capsys)
@@ -392,7 +389,7 @@ def test_each_stop_is_one_line_and_the_namespace_is_the_start_functions(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances"): {
                 "Reservations": [{"Instances": [instance(OTHER_ID), instance(EC2_ID)]}]
             },

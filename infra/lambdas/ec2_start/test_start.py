@@ -64,7 +64,7 @@ class Context:
 class Aws:
     """AWS's APIs as the function calls them: each answer by (service, operation), an AwsError where the test says."""
 
-    def __init__(self, **over: object) -> None:
+    def __init__(self, over: dict | None = None) -> None:
         self.calls: list[tuple[str, str, dict]] = []
         self.answers: dict[tuple[str, str], object] = {
             ("ssm", "GetParameter:/h4reet/prod/ec2-autostart"): {
@@ -110,7 +110,7 @@ class Aws:
             },
             ("sns", "Publish"): {"MessageId": "m-1"},
         }
-        self.answers.update(over)  # type: ignore[arg-type]
+        self.answers.update(over or {})
 
     def key(self, service: str, op: str, params: dict) -> tuple[str, str]:
         if op == "GetParameter":
@@ -198,7 +198,7 @@ def test_it_starts_the_named_tagged_instance_once_and_alerts_ec2_started(
 @pytest.mark.parametrize("trigger", sorted(TRIGGERS))
 def test_step_1_refuses_paused_while_the_switch_is_off(trigger: str) -> None:
     aws = Aws(
-        **{
+        {
             ("ssm", "GetParameter:/h4reet/prod/ec2-autostart"): {
                 "Parameter": {"Value": "off"}
             }
@@ -252,7 +252,7 @@ def test_step_3_refuses_server_budget_stopped_unless_the_action_waits_or_is_reve
     status: str,
 ) -> None:
     aws = Aws(
-        **{
+        {
             ("budgets", "DescribeBudgetActionsForBudget"): {
                 "Actions": [{"ActionType": "RUN_SSM_DOCUMENTS", "Status": status}]
             }
@@ -267,7 +267,7 @@ def test_step_3_refuses_server_budget_stopped_unless_the_action_waits_or_is_reve
 @pytest.mark.parametrize("status", ["STANDBY", "REVERSE_SUCCESS"])
 def test_step_3_passes_while_the_action_waits_or_was_reversed(status: str) -> None:
     aws = Aws(
-        **{
+        {
             ("budgets", "DescribeBudgetActionsForBudget"): {
                 "Actions": [
                     # The month's other actions don't count: only the server's, which runs a document.
@@ -282,7 +282,7 @@ def test_step_3_passes_while_the_action_waits_or_was_reversed(status: str) -> No
 
 def test_step_3_refuses_when_the_budget_holds_no_server_action() -> None:
     aws = Aws(
-        **{("budgets", "DescribeBudgetActionsForBudget"): {"Actions": []}}  # type: ignore[arg-type]
+        {("budgets", "DescribeBudgetActionsForBudget"): {"Actions": []}}  # type: ignore[arg-type]
     )
     result = run(ALARM, aws)
     assert result["reason"] == "server_budget_stopped"
@@ -291,7 +291,7 @@ def test_step_3_refuses_when_the_budget_holds_no_server_action() -> None:
 @pytest.mark.parametrize("state", ["stopped", "stopping", "pending", "shutting-down"])
 def test_step_4_refuses_tunnel_end_down_while_it_isnt_running(state: str) -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances:tunnel"): {
                 "Reservations": [
                     {"Instances": [{"InstanceId": TUNNEL_ID, "State": {"Name": state}}]}
@@ -318,7 +318,7 @@ def test_step_5_refuses_laptop_serving_by_hand_on_return_and_at_the_open(
     trigger: str,
 ) -> None:
     aws = Aws(
-        **{
+        {
             ("cloudwatch", "DescribeAlarms"): {
                 "MetricAlarms": [{"AlarmName": "h4-laptop-away", "StateValue": "OK"}]
             }
@@ -334,7 +334,7 @@ def test_step_5_refuses_laptop_serving_by_hand_on_return_and_at_the_open(
 def test_step_5_is_skipped_on_the_alarms_own_change() -> None:
     # The alarm's change into ALARM is the laptop going: nothing to read.
     aws = Aws(
-        **{
+        {
             ("cloudwatch", "DescribeAlarms"): {
                 "MetricAlarms": [{"AlarmName": "h4-laptop-away", "StateValue": "OK"}]
             }
@@ -367,7 +367,7 @@ def test_the_order_is_paused_hours_budget_tunnel_end_laptop_then_the_start() -> 
 
 def test_step_6_reads_the_instance_by_its_parameter_and_needs_its_tag() -> None:
     aws = Aws(
-        **{
+        {
             ("ec2", "DescribeInstances:ec2"): {
                 "Reservations": [
                     {
@@ -392,7 +392,7 @@ def test_step_6_reads_the_instance_by_its_parameter_and_needs_its_tag() -> None:
 
 def test_start_failed_carries_awss_code_and_makes_one_attempt() -> None:
     aws = Aws(
-        **{("ec2", "StartInstances"): start.AwsError("InsufficientInstanceCapacity")}  # type: ignore[arg-type]
+        {("ec2", "StartInstances"): start.AwsError("InsufficientInstanceCapacity")}  # type: ignore[arg-type]
     )
     result = run(ALARM, aws)
     assert (result["outcome"], result["reason"]) == ("refused", "start_failed")
@@ -420,7 +420,7 @@ def test_start_failed_carries_awss_code_and_makes_one_attempt() -> None:
 def test_a_failed_read_refuses_at_its_step_and_alerts(
     broken: tuple[str, str], reason: str
 ) -> None:
-    aws = Aws(**{broken: start.AwsError("ThrottlingException")})  # type: ignore[arg-type]
+    aws = Aws({broken: start.AwsError("ThrottlingException")})  # type: ignore[arg-type]
     result = run(OPEN, aws)
     assert (result["outcome"], result["reason"]) == ("refused", reason)
     assert ("ec2", "StartInstances") not in aws.ops()
@@ -460,7 +460,7 @@ def test_an_unknown_event_starts_nothing_and_alerts() -> None:
 
 def test_an_unexpected_error_is_one_refusal_never_a_raise() -> None:
     # A raise would let Lambda retry the invocation, a second attempt (FR-065: one per invocation).
-    aws = Aws(**{("ec2", "StartInstances"): RuntimeError("boom")})  # type: ignore[arg-type]
+    aws = Aws({("ec2", "StartInstances"): RuntimeError("boom")})  # type: ignore[arg-type]
     result = run(ALARM, aws)
     assert (result["outcome"], result["reason"]) == ("refused", "start_failed")
     assert "- code: RuntimeError" in aws.alerts()[0].splitlines()
@@ -545,7 +545,7 @@ def test_the_alerted_set_at_the_scheduled_open_is_one_constant_provisionally_que
 def test_the_scheduled_open_alerts_only_what_needs_the_author(
     over: dict, reason: str, alerted: bool, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    aws = Aws(**over)
+    aws = Aws(over)
     result = run(OPEN, aws)
     assert result.get("reason", result["outcome"]) == reason
     assert bool(aws.alerts()) is alerted
@@ -556,7 +556,7 @@ def test_the_scheduled_open_alerts_only_what_needs_the_author(
 @pytest.mark.parametrize("trigger", ["alarm", "manual", "tunnel_end_back"])
 def test_every_other_trigger_alerts_each_outcome_as_fr_065_says(trigger: str) -> None:
     aws = Aws(
-        **{
+        {
             ("ssm", "GetParameter:/h4reet/prod/ec2-autostart"): {
                 "Parameter": {"Value": "off"}
             }
@@ -576,7 +576,7 @@ def test_an_alert_carries_no_account_no_instance_beyond_ec2s_and_no_address() ->
 
 
 def test_a_failed_publish_is_logged_and_never_raised() -> None:
-    aws = Aws(**{("sns", "Publish"): start.AwsError("AuthorizationError")})  # type: ignore[arg-type]
+    aws = Aws({("sns", "Publish"): start.AwsError("AuthorizationError")})  # type: ignore[arg-type]
     assert run(ALARM, aws)["outcome"] == "started"
 
 
