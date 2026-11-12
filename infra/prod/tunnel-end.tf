@@ -9,9 +9,15 @@ locals {
   # prod's plan fails until T166 sets it.
   tunnel_end_type = "measure-in-T166"
 
+  # The tunnel end's generation: a new one replaces it on the newest Amazon Linux 2023 image, which is how its OS is
+  # updated (docs/runbooks/tunnel-end.md, "An OS update"), since nftables keeps dnf from the repository after the first
+  # boot. terraform_data.tunnel_end_host holds it.
+  tunnel_end_generation = 1
+
   # The host's files, from deploy/hosts/tunnel-end/ and deploy/scripts/, into cloud-init's user data at the first boot.
-  # A later change to them reaches a running tunnel end only through a reviewed replace, since ec2-market.tf ignores the
-  # user data's drift (docs/runbooks/tunnel-end.md).
+  # A later change to them reaches a running tunnel end only through a replace, which the plan shows: ec2-market.tf
+  # ignores the user data's drift, and is replaced when terraform_data.tunnel_end_host, its SHA-256, changes (group 5's
+  # review, I3; docs/runbooks/tunnel-end.md).
   host_files = {
     "/etc/h4reet/nftables.nft"                                     = { source = "deploy/hosts/tunnel-end/nftables.nft", mode = "0600" }
     "/etc/h4reet/egress-allowlist.txt"                             = { source = "deploy/hosts/tunnel-end/egress-allowlist.txt", mode = "0644" }
@@ -32,6 +38,16 @@ locals {
   tunnel_end_user_data = templatefile("${path.module}/../../deploy/hosts/tunnel-end/cloud-init.yaml.tftpl", {
     files = { for path, f in local.host_files : path => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
   })
+}
+
+# What the tunnel end's host is made of: its rendered user data's SHA-256 and its generation. A change to either is an
+# update here, and the instance's replace_triggered_by makes that its replace (ec2-market.tf), so a changed host file or
+# an OS update shows in the plan as the tunnel end replaced, never as drift it ignores (group 5's review, I3).
+resource "terraform_data" "tunnel_end_host" {
+  input = {
+    user_data  = sha256(local.tunnel_end_user_data)
+    generation = local.tunnel_end_generation
+  }
 }
 
 # Amazon Linux 2023 for arm64, the standard image, which carries the AWS CLI and the Systems Manager agent. Its newest

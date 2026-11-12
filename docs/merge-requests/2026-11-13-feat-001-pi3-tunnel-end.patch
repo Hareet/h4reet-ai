@@ -280,7 +280,7 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
      (text,) = telegram.texts
 --- /dev/null
 +++ b/infra/prod/ec2-market.tf
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,67 @@
 +# The tunnel end on spot (spec 001 FR-076; research.md R-04, R-30; the Author's answer to the plan's question 2;
 +# contracts/tunnel.md §1): a persistent spot request that stops on interruption, so the instance, its volumes, its
 +# interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns. Protected (FR-012; rule T5: what
@@ -306,7 +306,6 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +    http_endpoint               = "enabled"
 +    http_tokens                 = "required"
 +    http_put_response_hop_limit = 1
-+    instance_metadata_tags      = "enabled"
 +  }
 +
 +  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
@@ -336,8 +335,11 @@ was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change
 +
 +  lifecycle {
 +    # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
-+    # a later plan (docs/runbooks/tunnel-end.md).
-+    ignore_changes = [ami, user_data_base64]
++    # a later plan: terraform_data.tunnel_end_host holds the user data's SHA-256 and local.tunnel_end_generation
++    # (tunnel-end.tf), so a changed host file or a new generation plans as the replace (group 5's review, I3;
++    # docs/runbooks/tunnel-end.md).
++    ignore_changes       = [ami, user_data_base64]
++    replace_triggered_by = [terraform_data.tunnel_end_host]
 +
 +    # T166 measures the type with the tunnel end's five services; until then prod's plan stops here.
 +    precondition {

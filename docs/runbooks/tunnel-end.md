@@ -70,6 +70,10 @@ An instance that is gone, or a root volume that won't boot: your prod plan shows
 
 `tunnel_end_interruption` gives two minutes. Nothing to do: the request is persistent and stops on interruption, so the instance, its volumes, its interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns, with `tunnel_end_back` (from group 9). Its boot starts the release it last recorded before its deployer asks the bucket. If it stays stopped for hours, the next case.
 
+### An OS update, or a changed host file
+
+Nothing on the tunnel end updates itself: after its first boot nftables keeps `dnf` from Amazon Linux's repository, and the instance ignores its image's and its user data's drift. Both reach it as a replace your prod plan shows. A changed file under `deploy/hosts/tunnel-end/`, or a host script of `deploy/scripts/` the user data carries, changes `terraform_data.tunnel_end_host`'s SHA-256, so the plan replaces the tunnel end with it. For an OS update, a reviewed change adds one to `local.tunnel_end_generation` in `infra/prod/tunnel-end.tf`; the plan replaces the tunnel end on the newest Amazon Linux 2023 image. Either way, read the block for the instance replaced and nothing else of the tunnel end's: its interfaces, its Elastic IP, and the shared state's data volume stay and attach to the new instance. While it boots the site rests, as at a spot interruption, and its deployer then takes the newest release.
+
 ### A move to another zone
 
 A spot instance stops and starts in its zone, so a zone without capacity keeps it stopped. The move is a reviewed change: `local.zone` in `infra/prod/main.tf`, to a zone with capacity (`aws ec2 describe-spot-price-history` shows the zones that hold its type). Your plan replaces both subnets, both interfaces, and the instance, and moves the Elastic IP to the new public interface, so the address stays. From group 6, the shared state's volume can't follow: its page makes a second volume in the new zone from the last backup.
