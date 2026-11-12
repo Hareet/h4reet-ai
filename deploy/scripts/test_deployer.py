@@ -67,6 +67,9 @@ class Aws:
         self.reachable = True
         self.logins: list[str] = []
         self.registry_reachable = True
+        # Whether SNS takes the publish (the second review, I-B): a refused one isn't an alert sent.
+        self.publish_ok = True
+        self.refused_publishes: list[str] = []
 
     def get(self, bucket: str, key: str) -> bytes | None:
         assert bucket == BUCKET
@@ -74,8 +77,12 @@ class Aws:
             raise dp.Unreachable("the bucket")
         return self.objects.get(key)
 
-    def publish(self, message: str) -> None:
+    def publish(self, message: str) -> bool:
+        if not self.publish_ok:
+            self.refused_publishes.append(message)
+            return False
         self.alerts.append(message)
+        return True
 
     def login(self, registry: str) -> None:
         if not self.registry_reachable:
@@ -93,6 +100,7 @@ class Docker:
         self.preflight_fails_for: set[str] = set()
         # Releases whose T5, the check after the host step, refuses (group 5's fixes' review, 2).
         self.preflight_after_fails_for: set[str] = set()
+        self.host_step_fails_trees: set[str] = set()
 
     def own_volume(self, name: str, uid: int) -> bool:
         self.owned.append((name, uid))
@@ -100,7 +108,7 @@ class Docker:
 
     def host_step(self, host: str, tree: Path) -> bool:
         self.calls.append((str(tree), ["host-step", host], {}))
-        return host not in self.fail_for
+        return host not in self.fail_for and str(tree) not in self.host_step_fails_trees
 
     def preflight(self, host: str, tree: Path, env_file: Path, phase: str) -> bool:
         self.calls.append((str(tree), ["preflight", host, str(env_file), phase], {}))
@@ -611,7 +619,7 @@ def test_a_refusal_after_the_host_step_puts_the_running_releases_host_files_back
     steps = [tree for tree, args, _ in w.docker.calls if args[0] == "host-step"]
     assert steps == [tree_of(w, "r2"), tree_of(w, "r1")]
     assert ups(w) == []
-    assert "- reason: preflight" in w.aws.alerts[0]
+    assert "- reason: preflight_after" in w.aws.alerts[0]
     assert json.loads((w.state / "current.json").read_text())["release"] == "r1"
 
 
@@ -668,3 +676,112 @@ def test_main_exits_75_for_a_run_that_refused_or_rolled_back_and_alerted(
     assert dp.main(["--host", "tunnel-end"]) == dp.EXIT_ALERTED == 75
     monkeypatch.setattr(dp, "run", lambda *a, **k: 0)
     assert dp.main(["--host", "tunnel-end"]) == 0
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# The second review (I-B, I-C, I-E, nit 3): the alert memory keys a pointer's incident on the pointer itself, keeps an
+# alert only once SNS took it, reads an unreadable or unwritable memory as nothing seen, forgets on a deploy; a
+# refused or rolled-back release isn't tried again each minute; T5's restore checks its host step; a hold alerts once.
+
+
+def test_a_pointer_incident_is_keyed_on_the_pointer_not_on_latest(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.aws.objects["releases/latest.json"] = b"not json"
+    assert w.run() == 1
+    w.aws.objects["releases/latest.json"] = b"another, not json"
+    assert w.run() == 1
+    assert w.run() == 1
+    assert len(w.aws.alerts) == 2
+
+
+def test_an_alert_sns_refused_is_kept_for_the_next_run(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1", commit="not-a-commit")
+    w.aws.publish_ok = False
+    w.run()
+    assert w.aws.alerts == [] and len(w.aws.refused_publishes) == 1
+    w.aws.publish_ok = True
+    w.run()
+    assert len(w.aws.alerts) == 1 and "- reason: commit" in w.aws.alerts[0]
+
+
+@pytest.mark.parametrize("damage", ["unreadable", "unwritable"])
+def test_a_damaged_memory_is_nothing_seen_and_never_silences(
+    tmp_path: Path, damage: str
+) -> None:
+    w = World(tmp_path)
+    w.state.mkdir(parents=True)
+    if damage == "unreadable":
+        (w.state / "refused.json").write_text("{not json", encoding="utf-8")
+    else:
+        (w.state / "refused.json").mkdir()  # a write over it fails
+    w.release("r1", commit="not-a-commit")
+    w.run()
+    assert len(w.aws.alerts) == 1
+
+
+def test_a_deploy_forgets_what_was_refused(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1", commit="not-a-commit")
+    w.run()
+    w.release("r2")
+    assert w.run() == 0
+    assert (
+        not (w.state / "refused.json").exists()
+        or json.loads((w.state / "refused.json").read_text()) == {}
+    )
+
+
+def test_t5s_restore_checks_its_host_step_and_isnt_run_again_each_minute(
+    tmp_path: Path,
+) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.preflight_after_fails_for = {"r2"}
+    w.docker.host_step_fails_trees = {tree_of(w, "r1")}
+    w.run()
+    (alert,) = w.aws.alerts
+    assert "- reason: preflight_after_restore_failed" in alert
+    w.docker.calls.clear()
+    w.run()
+    assert [c for c in w.docker.calls if c[1][0] == "host-step"] == []
+    assert len(w.aws.alerts) == 1
+
+
+def test_a_rolled_back_release_isnt_started_again_each_minute(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    w.release("r2")
+    w.docker.fail_for = {"r2"}
+    assert w.run() == 1
+    w.run()
+    w.run()
+    assert [env["H4_RELEASE"] for _, env in ups(w)] == ["r1", "r2", "r1"]
+    assert len(w.aws.alerts) == 1
+
+
+def test_a_hold_alerts_once_per_hold(tmp_path: Path) -> None:
+    import os
+
+    w = World(tmp_path)
+    w.release("r1")
+    assert w.run() == 0
+    hold = w.state / "hold"
+    hold.write_text("maintenance\n", encoding="utf-8")
+    w.run()
+    w.run(boot=True)
+    (alert,) = w.aws.alerts
+    assert (
+        alert.startswith("[hareet.ai aws] deploy_refused: tunnel-end is held")
+        and "- reason: held" in alert
+    )
+    os.utime(
+        hold, ns=(hold.stat().st_mtime_ns + 10**9, hold.stat().st_mtime_ns + 10**9)
+    )
+    w.run()
+    assert len(w.aws.alerts) == 2
