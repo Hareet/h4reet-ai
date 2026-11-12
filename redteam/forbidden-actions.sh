@@ -1230,6 +1230,192 @@ mkdir -p "$gov_wt/assets/policy"
 check protected-paths.sh block "Edit in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg f "$gov_wt/assets/policy/content-approvals.json" '{file_path:$f}')"
 check bash-gate.sh gap "a shell write in a linked worktree: assets/policy/content-approvals.json" "$(jq -cn --arg c "cp /tmp/new $gov_wt/assets/policy/content-approvals.json" '{command:$c}')"
 
+# --- Spec 001's guard patch, P-1 (its plan §2; research.md R-16, R-32; FR-006, FR-011, FR-012) ----------------------
+# Terraform's state-changing commands in every spelling R-16 names, and init that moves state; the offline checks agents
+# run stay allowed. A subcommand counts only inside the simple command that names the binary, so a separator ends it.
+cmd block 'terraform -chdir="infra dir" apply'
+cmd block 'tofu destroy'
+cmd block 'tofu -chdir=infra state push x'
+cmd block 'terragrunt run-all apply'
+cmd block 'terragrunt apply-all'
+cmd block 'terragrunt destroy-all'
+cmd block 'terraform import aws_instance.x i-1'
+cmd block 'terraform refresh'
+cmd block 'terraform taint aws_instance.x'
+cmd block 'terraform untaint aws_instance.x'
+cmd block 'terraform force-unlock 1234'
+cmd block 'terraform test'
+cmd block 'terraform state replace-provider a b'
+cmd block "terraform 'state' 'rm' x"
+cmd block 'terraform workspace new x'
+cmd block 'terraform workspace delete x'
+cmd block 'terraform init -migrate-state'
+cmd block 'terraform -chdir=infra/bootstrap init -force-copy'
+cmd block 'terraform init -reconfigure'
+cmd block 'terraform init --migrate-state=true'
+cmd block 'bash -c "terraform apply"'
+cmd block "sh -c 'cd infra && terraform destroy'"
+cmd block '(terraform apply)'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'echo $(terraform apply)'
+cmd block '/usr/local/bin/terraform apply'
+cmd block './terraform apply'
+cmd block "terra'form' apply"
+cmd block 'terraform "apply"'
+cmd block 'ter\raform apply'
+cmd block 'command terraform apply'
+cmd block 'exec terraform apply'
+cmd block 'nice -n 5 terraform apply'
+cmd block 'timeout 60 terraform apply'
+cmd block 'xargs -I{} terraform apply {}'
+cmd block 'env -i PATH=/usr/bin terraform apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform -chdir=infra $TF_FLAGS apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform $(echo apply)'
+cmd allow 'terraform plan -out=apply.tfplan'
+cmd allow 'terraform fmt -check -recursive infra/test'
+cmd allow 'terraform init -backend=false -input=false'
+cmd allow 'terraform validate -json'
+cmd allow 'terraform workspace select prod'
+cmd allow 'terraform state list'
+cmd allow 'terraform show -json tf.plan'
+cmd allow 'terraform validate; make test'
+cmd allow 'terraform fmt -check && make test'
+cmd allow 'terraform version | grep apply'
+# The review's B6 and nit 5 (T009): a subcommand reached through a parameter's default (${v:-apply}) or an IFS
+# expansion; make plan's ROOT with quotes in or around its name; and the AWS CLI's invoke-… Lambda subcommands and
+# EC2's start, stop, and terminate, with SSM's AWS-StopEC2Instance, the API equivalents of make ec2-start and ec2-stop.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform ${v:-apply}'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform state ${v:-rm} x'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform ${v:-init} -migrate-state'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform${IFS}apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'tofu${IFS}destroy'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform$IFS"apply"'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd block 'terraform -chdir=infra${IFS}apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd allow 'terraform fmt ${dir:-infra}'
+cmd block 'make plan "ROOT"=prod'
+cmd block "make plan R'OO'T=prod"
+cmd block 'make plan ROOT"=prod"'
+cmd block 'aws lambda invoke-async --function-name h4-ec2-start --invoke-args x'
+cmd block 'aws lambda invoke-with-response-stream --function-name h4-ec2-guard out'
+cmd block 'aws ec2 start-instances --instance-ids i-0123'
+cmd block 'aws ec2 stop-instances --instance-ids i-0123'
+cmd block 'aws ec2 terminate-instances --instance-ids i-0123'
+cmd block 'aws ssm start-automation-execution --document-name AWS-StopEC2Instance'
+cmd allow 'aws ec2 describe-instances'
+check bash-gate.sh block "terraform in\<newline>it -migrate-state" "$(jq -cn --arg c "$(printf 'terraform in\\\nit -migrate-state')" '{command:$c}')"
+# TF_CLI_ARGS adds flags or a plan file to every command: refused by name anywhere, and any terraform-family command is
+# refused while the session's own environment sets one.
+cmd block 'TF_CLI_ARGS_apply=-auto-approve terraform plan'
+cmd block 'export TF_CLI_ARGS=-auto-approve'
+cmd block 'env TF_CLI_ARGS_plan=x make plan'
+check bash-gate.sh block "terraform plan, with TF_CLI_ARGS_plan set in the session" '{"command":"terraform plan"}' TF_CLI_ARGS_plan=-lock=false
+check bash-gate.sh allow "make test, with TF_CLI_ARGS_plan set in the session" '{"command":"make test"}' TF_CLI_ARGS_plan=-lock=false
+# The gaps: a name a variable, a function, an alias, or a copy holds, or one built at run time. Agent sessions hold no
+# AWS credential and reach no AWS endpoint, so these still change nothing; the rows keep them visible.
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'tf=terraform; $tf apply'
+cmd gap 'alias t=terraform; t apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'f() { terraform "$@"; }; f apply'
+cmd gap 'cp /usr/local/bin/terraform ./x && ./x apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap '$(printf terr)aform apply'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'export TF_CLI_$(echo ARGS)=-auto-approve'
+# The Author-only targets (research.md R-16, R-32), by make's spellings: a path, gmake, -C, a wrapper, ./, quotes.
+cmd block 'make infra-mirror'
+cmd block 'make infra-verify ROOT=prod'
+cmd block 'make infra-record ROOT=prod OUTCOME=ok'
+cmd block 'make infra-audit'
+cmd block 'make secrets-check'
+cmd block 'make release'
+cmd block 'make rollback ENV=ec2'
+cmd block 'make ec2-status'
+cmd block 'make ec2-start'
+cmd block 'make ec2-stop'
+cmd block 'make ec2-autostart STATE=on'
+cmd block 'make cloud-session HOST=ec2'
+cmd block 'make shared-state-roles'
+cmd block 'make server-budget-restore'
+cmd block 'make tunnel-keys'
+cmd block 'make tunnel-revoke'
+cmd block 'make aws-login PROFILE=h4reet-admin'
+cmd block 'bash deploy/scripts/aws-sso-profile.sh h4reet-admin'
+cmd block './deploy/scripts/aws-sso-profile.sh h4reet-admin'
+cmd block 'cat deploy/scripts/aws-sso-profile.sh | bash -s h4reet-admin'
+cmd allow 'shellcheck deploy/scripts/aws-sso-profile.sh'
+cmd block 'gmake infra-mirror'
+cmd block 'make -C . infra-mirror'
+cmd block 'bash -c "make infra-mirror"'
+cmd block 'make ./infra-mirror'
+cmd block 'make "infra-"mirror'
+cmd block 'make ec2-"start"'
+cmd block 'python3 tools/gates/run_checks.py infra-mirror'
+check bash-gate.sh block "make infra-mi\<newline>rror" "$(jq -cn --arg c "$(printf 'make infra-mi\\\nrror')" '{command:$c}')"
+cmd allow 'make releases-x'
+# make plan alone is the offline checks; with a ROOT it is the real plan, the Author's.
+cmd block 'make plan ROOT=prod'
+cmd block 'ROOT=bootstrap make plan'
+cmd block 'make plan ROOT= bootstrap'
+cmd allow 'make plan PROJECT_ROOT=x'
+# shellcheck disable=SC2016 # the command text is the test input, not an expansion
+cmd gap 'make plan $(echo ROOT)=prod'
+# The operator's actions on the shared state (R-32): ENV=shared isn't dev-cpu, so spec 000's rule refuses them.
+cmd block 'make operator-status ENV=shared'
+cmd block 'make operator-init ENV=shared REASON=x'
+cmd block 'make operator-restore ENV=shared'
+# Their API equivalents: the AWS CLI writing a /h4reet/ parameter (the secrets, the autostart switch), or invoking the
+# handover's functions (make ec2-start's).
+cmd block 'aws ssm put-parameter --name /h4reet/prod/ec2-autostart --value on --overwrite'
+cmd block 'aws ssm delete-parameter --name /h4reet/ec2/DB_GATEWAY_PASSWORD'
+cmd block 'aws lambda invoke --function-name h4-ec2-start out.json'
+cmd block 'aws lambda invoke --function-name h4-ec2-guard out.json'
+cmd allow 'aws --version'
+# The protected Terraform files (contracts/infra-records.md §3, rule T5; FR-012), by name in any case, .tf or .tf.json,
+# anywhere under infra/ but infra/test/; the policy's own folder; and state, saved plans, and variable files.
+edit block 'infra/account/iam.tf'
+edit block 'infra/bootstrap/budgets.tf'
+edit block 'infra/bootstrap/alerts.tf'
+edit block 'infra/account/killswitch.tf'
+edit block 'infra/account/handover.tf'
+edit block 'infra/prod/failover.tf'
+edit block 'infra/prod/ec2-market.tf'
+edit block 'infra/prod/edge-limits.tf'
+edit block 'infra/modules/lambda-image/iam.tf'
+edit block 'infra/account/IAM.tf'
+edit block 'infra/account/killswitch.tf.json'
+edit block 'infra/prod/handover_extra.tf'
+edit block 'infra/prod/../account/handover.tf'
+edit block 'infra/policy/rules.txt'
+edit block 'infra/policy'
+edit block 'infra/bootstrap/terraform.tfstate'
+edit block 'infra/prod/terraform.tfstate.backup'
+edit block 'infra/prod/prod.tfplan'
+edit block 'infra/prod/prod.tfvars'
+edit block 'infra/prod/prod.tfvars.json'
+edit allow 'infra/prod/main.tf'
+edit allow 'infra/prod/ec2.tf'
+edit allow 'infra/prod/rds.tf'
+edit allow 'infra/account/lambdas.tf'
+edit allow 'infra/test/fixtures/handover/main.tf'
+edit allow 'infra/README.md'
+mkdir -p "$gov_wt/infra/account"
+: >"$gov_wt/infra/account/iam.tf"
+check protected-paths.sh block "Edit in a linked worktree: infra/account/iam.tf" "$(jq -cn --arg f "$gov_wt/infra/account/iam.tf" '{file_path:$f}')"
+# A shell write to a protected file the sandbox can't mask yet: its deny takes paths, and these files don't exist until
+# their groups' patches. The gate's infra-plan-note and the review hold it (contracts/infra-records.md §3).
+check bash-gate.sh gap "a shell write: infra/account/iam.tf" "$(jq -cn --arg c 'cp /tmp/new infra/account/iam.tf' '{command:$c}')"
+
 # =================================================================================================
 # T089: stage S, inside the sandbox (plan §13). It runs only when SANDBOX_RUNTIME=1 and .git/hooks isn't
 # writable (the agent sandbox); otherwise it is skipped with a notice. Every row only probes — test -w,
@@ -1244,6 +1430,8 @@ rid "S/studio-folders"
 # So do spec 004's: the folders' writes and case variants (P-2, Amendment C3), and ComfyUI's port (FR-025).
 rid "S/studio-folder-writes"
 rid "S/studio-listener"
+# Spec 001's P-1 (contracts/env-cloud.md §5): the Author's infra, tunnel, and release folders, each its own row.
+rid "S/spec-001-config-folders"
 stage_s_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [ -n "$stage_s_common" ]; then stage_s_tree="$(dirname -- "$stage_s_common")"; else stage_s_tree="$repo"; fi
 git_hooks_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)"
@@ -1449,6 +1637,12 @@ PY
   done
   s_unreadable '/etc/h4agents/pki' /etc/h4agents/pki
   s_unreadable '/mnt/c/Users' /mnt/c/Users
+  # Spec 001's P-1 (contracts/env-cloud.md §5): the folders that hold Terraform's local state, its saved plans, and each
+  # root's TF_VAR_ lines; the tunnel's keys; and the release directory. Spec 000's deny of ~/.config/h4reet-ai holds them.
+  for d in infra tunnel release; do
+    # shellcheck disable=SC2088 # "~/..." is the row's label; the path is "$HOME/..."
+    s_unreadable "~/.config/h4reet-ai/$d" "$HOME/.config/h4reet-ai/$d"
+  done
   # Spec 003's studio folders (FR-003; research R-07), from tools/gates/studio-folders.txt, which the guard patch adds
   # (stage H's block above): PLANNED until it's there, and a FAIL naming the placeholder while a line still holds one.
   # A path with nothing at it fails: there would be nothing to read, but a mistyped path looks the same, and the deny
@@ -2618,6 +2812,15 @@ has "Claude Code's default reporting is off, and its metrics go to prod's collec
 # The governance patch (plan §15; tasks.md T098): the gates and the agent-config evals, in both layers behind the hook.
 # shellcheck disable=SC2016 # $w, $d, and $p are jq variables, not shell expansions
 has "the gates and the agent-config evals are write-denied, by the sandbox and by Edit denies (T098)" '(.sandbox.filesystem.denyWrite as $w | ["./tools/gates", "./evals/agent-config"] | all(. as $p | $w | index($p) != null)) and (.permissions.deny as $d | ["Edit(/tools/gates/**)", "Edit(/evals/agent-config/**)"] | all(. as $p | $d | index($p) != null))'
+
+# Spec 001's guard patch, P-1 (its plan §2; contracts/env-cloud.md §5; FR-011): each name its own row. The families
+# TF_VAR_*, AWS_*, TF_CLI_ARGS*, RELAY_TOKEN_*, and DB_*_PASSWORD are denied by their members' names: the sandbox's
+# credentials.envVars takes names, and a pattern there is unconfirmed. TF_CLI_ARGS* is also refused by the bash gate.
+for v in GATEWAY_DB_URL GATEWAY_DB_TLS_SERVERNAME RELAY_TOKEN_SELF RELAY_TOKEN_LAPTOP RELAY_TOKEN_EC2 SNAPSHOT_SINK_TOKEN TELEMETRY_BLOCK_TOKEN DB_GATEWAY_PASSWORD DB_GRAFANA_RO_PASSWORD DB_RELAY_RO_PASSWORD DB_RELAY_RW_PASSWORD TF_VAR_alert_email TF_VAR_state_bucket_suffix TF_VAR_server_budget_usd TF_VAR_bedrock_service_names TF_CLI_ARGS TF_CLI_ARGS_init TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_import TF_CLI_ARGS_refresh TF_CLI_ARGS_state TF_CLI_ARGS_taint TF_CLI_ARGS_test TF_CLI_ARGS_workspace AWS_SECURITY_TOKEN AWS_DEFAULT_PROFILE AWS_ROLE_SESSION_NAME AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE AWS_BEARER_TOKEN_BEDROCK; do
+  set_has "spec 001: $v is denied by name" "[.sandbox.credentials.envVars[] | select(.mode == \"deny\") | .name] | index(\"$v\") != null"
+done
+# shellcheck disable=SC2016 # $d and $r are jq variables, not shell expansions
+set_has "spec 001: Terraform state, saved plans, and variable files are Read- and Edit-denied, and infra/policy is Edit-denied" '.permissions.deny as $d | ["Read(*.tfstate*)", "Edit(*.tfstate*)", "Read(*.tfplan)", "Edit(*.tfplan)", "Read(*.tfvars*)", "Edit(*.tfvars*)", "Edit(/infra/policy/**)"] | all(. as $r | $d | index($r) != null)'
 
 # Every listed row ran (T088), checked last so the rows above it count too (convergence T200).
 require_rows

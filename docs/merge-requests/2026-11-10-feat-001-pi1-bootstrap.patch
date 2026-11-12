@@ -1,0 +1,265 @@
+P-I1, spec 001 group 3's protected Terraform: infra/bootstrap/budgets.tf and infra/bootstrap/alerts.tf (tasks.md
+T023; plan.md §3.1, §14; research.md R-22, R-23; contracts/aws-alerts.md §1 and §3). Both are new files. For the
+Author's hand only: the protected names (FR-012; .claude/hooks/protected-paths.sh) keep them from agent sessions.
+
+Built on 2026-11-10 from plain copies, `diff -u` against /dev/null, never `git apply` or a write into a worktree, on
+feat/001-us1-bootstrap, stacked on groups 1 and 2; rebuilt the same day for T028's review (B3 and nit 4). Apply it
+from the repository's top with `patch -p1`, which skips this preamble, byte for byte as in T027's scratch clone (T029).
+
+  - budgets.tf: h4-model-month ($20 a month) and h4-model-day ($5 a day) on Bedrock's cost, the services
+    var.bedrock_service_names names, counting usage, not cost net of credits; h4-server-month at
+    var.server_budget_usd on every cost but those services'; each notifying h4-alerts at 70% and 100% of actual.
+    The account's DIMENSIONAL SERVICE anomaly monitor, with an IMMEDIATE subscription at $1 of impact.
+  - alerts.tf: h4-alerts; its policy, which lets Budgets and Cost Anomaly Detection publish, for this account alone;
+    the email subscription to var.alert_email; and the topic's output.
+
+Before T027 (the merge-request note's "For the Author"): the service names Bedrock's cost shows under in his Cost
+Explorer, as TF_VAR_bedrock_service_names in ~/.config/h4reet-ai/infra/bootstrap.env. To confirm at T027, before any
+apply: that the provider takes aws_budgets_budget's filter_expression with not, and cost_types, which make plan
+ROOT=bootstrap validates (its first run, 2026-11-11, refused filter_expression without metrics, so h4-server-month
+now carries metrics = ["UnblendedCost"]: rebuilt that day from plain copies, the account having no credits); and
+that the account has no AWS services anomaly monitor of its own already, since an account holds one.
+
+--- /dev/null
++++ b/infra/bootstrap/budgets.tf
+@@ -0,0 +1,166 @@
++# The model-spend budgets and the server budget, and the account's anomaly monitor (spec 001 FR-021, FR-022;
++# research.md R-22; contracts/aws-alerts.md §3), applied first. Each budget notifies h4-alerts (alerts.tf) at 70% and
++# 100% of actual cost; the monitor, at once, on any anomaly of $1 or more. Protected (FR-012; contracts/infra-records.md
++# §3, rule T5): it changes only by the Author's patch, with an ADR. Its two actions are infra/account's (group 4).
++#
++# Bedrock's cost is the services var.bedrock_service_names names, as the Author reads them in his Cost Explorer: Claude
++# on Bedrock is sold through AWS Marketplace and can show under a name of its own (T028's review, B3). The model budgets
++# count usage, not cost net of credits, so a credit can't hide the spend from them (nit 4); the server budget keeps
++# AWS's default, his to change.
++
++resource "aws_budgets_budget" "model_month" {
++  name         = "h4-model-month"
++  budget_type  = "COST"
++  limit_amount = "20"
++  limit_unit   = "USD"
++  time_unit    = "MONTHLY"
++
++  cost_filter {
++    name   = "Service"
++    values = var.bedrock_service_names
++  }
++
++  cost_types {
++    include_credit = false
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 70
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 100
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  tags = {
++    component = "model-spend"
++  }
++
++  depends_on = [aws_sns_topic_policy.alerts]
++}
++
++resource "aws_budgets_budget" "model_day" {
++  name         = "h4-model-day"
++  budget_type  = "COST"
++  limit_amount = "5"
++  limit_unit   = "USD"
++  time_unit    = "DAILY"
++
++  cost_filter {
++    name   = "Service"
++    values = var.bedrock_service_names
++  }
++
++  cost_types {
++    include_credit = false
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 70
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 100
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  tags = {
++    component = "model-spend"
++  }
++
++  depends_on = [aws_sns_topic_policy.alerts]
++}
++
++# Every cost of the account but Bedrock's (FR-021): model spend has the two budgets above, and the meter. Its figure is
++# the Author's, which nothing here sets.
++resource "aws_budgets_budget" "server_month" {
++  name         = "h4-server-month"
++  budget_type  = "COST"
++  limit_amount = tostring(var.server_budget_usd)
++  limit_unit   = "USD"
++  time_unit    = "MONTHLY"
++  # hashicorp/aws 6.72.0 refuses filter_expression without metrics (the T027 plan, 2026-11-11). Unblended cost:
++  # the account has no credits (the Author's answer, 2026-11-11).
++  metrics = ["UnblendedCost"]
++
++  filter_expression {
++    not {
++      dimensions {
++        key    = "SERVICE"
++        values = var.bedrock_service_names
++      }
++    }
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 70
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  notification {
++    comparison_operator       = "GREATER_THAN"
++    threshold                 = 100
++    threshold_type            = "PERCENTAGE"
++    notification_type         = "ACTUAL"
++    subscriber_sns_topic_arns = [aws_sns_topic.alerts.arn]
++  }
++
++  tags = {
++    component = "server-spend"
++  }
++
++  depends_on = [aws_sns_topic_policy.alerts]
++}
++
++resource "aws_ce_anomaly_monitor" "account" {
++  name              = "h4-anomaly"
++  monitor_type      = "DIMENSIONAL"
++  monitor_dimension = "SERVICE"
++
++  tags = {
++    component = "anomaly"
++  }
++}
++
++resource "aws_ce_anomaly_subscription" "account" {
++  name             = "h4-anomaly-at-once"
++  frequency        = "IMMEDIATE"
++  monitor_arn_list = [aws_ce_anomaly_monitor.account.arn]
++
++  subscriber {
++    type    = "SNS"
++    address = aws_sns_topic.alerts.arn
++  }
++
++  threshold_expression {
++    dimension {
++      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
++      match_options = ["GREATER_THAN_OR_EQUAL"]
++      values        = ["1"]
++    }
++  }
++
++  tags = {
++    component = "anomaly"
++  }
++
++  depends_on = [aws_sns_topic_policy.alerts]
++}
+--- /dev/null
++++ b/infra/bootstrap/alerts.tf
+@@ -0,0 +1,71 @@
++# h4-alerts, the one topic every AWS-side alert goes to, and its email subscription to the alerts mailbox, the Author's
++# sensitive variable (spec 001 FR-010, FR-022; research.md R-23; contracts/aws-alerts.md §1). Telegram's half, through
++# h4-alert-bridge, comes with group 4. Protected (FR-012; contracts/infra-records.md §3, rule T5).
++
++resource "aws_sns_topic" "alerts" {
++  name = "h4-alerts"
++
++  tags = {
++    component = "alerts"
++  }
++}
++
++# Who may publish, for now: AWS Budgets and Cost Anomaly Detection, for this account alone. contracts/aws-alerts.md §1's
++# other publishers join with the groups that add them. The account's own principals keep what IAM gives them; this
++# policy grants nothing else.
++data "aws_iam_policy_document" "alerts" {
++  statement {
++    sid       = "Budgets"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["budgets.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "CostAnomalyDetection"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["costalerts.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++}
++
++resource "aws_sns_topic_policy" "alerts" {
++  arn    = aws_sns_topic.alerts.arn
++  policy = data.aws_iam_policy_document.alerts.json
++}
++
++# SNS asks the mailbox to confirm, once, before it delivers (tasks.md T030).
++resource "aws_sns_topic_subscription" "email" {
++  topic_arn = aws_sns_topic.alerts.arn
++  protocol  = "email"
++  endpoint  = var.alert_email
++}
++
++# The account root's publishers and subscribers read the topic by this. It sits here, beside the topic, so the files the
++# branch holds without this patch still make a whole root.
++output "alerts_topic_arn" {
++  description = "h4-alerts (contracts/aws-alerts.md §1)."
++  value       = aws_sns_topic.alerts.arn
++}

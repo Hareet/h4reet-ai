@@ -77,6 +77,16 @@ contract-live reaches it through the checkout's own Makefile and operator.py, wh
      main tree's tools/gates/studio_settings_check.py runs with no option, as the Author runs it, on the settings the
      studio's session loads, with the shell's CLAUDE_CONFIG_DIR when set: PASS on exit 0, FAIL on any other, its
      lines in the report. Otherwise SKIP: no studio file in the range. The step names no path or file of the range;
+   - infra-plan-note: spec 001's step (its contracts/infra-records.md §2; the guard patch, P-1): the main tree's
+     tools/gates/infra_plan_note.py over $(git merge-base refs/heads/main SHA)..SHA, the commits read as git data.
+     SKIP when the range touches no root's files under infra/; otherwise each root it touches needs exactly one plan
+     block, in a merge-request note the range adds or changes, made from SHA's infra/ tree, its text redacted;
+   - infra-check: the main tree's tools/gates/infra_policy.py over the export's infra/, as data (rules T0 to T13),
+     SKIP while the export has none. terraform's fmt and validate need the Author's provider mirror and run in make
+     infra-check; the Author's make plan runs the same policy before init;
+   - disclosure: the main tree's tools/gates/disclosure_check.py over the export: every outward thing it holds (a
+     compose service on egress, an sshd permit, an egress-proxy host, a CloudFront origin, an EventBridge API
+     destination, a security-group rule open to an outside range) has its row in docs/data-flow-disclosure.md;
    - image: the images the export builds, on the agents' engine (198.18.0.1:2376) with the Author's certificate, and
      only after the policy passed, because an unvetted build could read host files into the engine. First the engine
      must answer one docker version within ENGINE_PROBE_SECONDS (15), as make image asks it (tasks.md T167), or the
@@ -1443,6 +1453,69 @@ def studio_settings(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
     )
 
 
+def main_check(
+    repo: Path,
+    name: str,
+    script: str,
+    what: str,
+    args: list[str],
+    tmp: Path,
+    **env: str,
+) -> Step:
+    """One of spec 001's host steps (the guard patch, P-1): a checker of the main tree's, under PY_HOST, the export or
+    the commits read as data. A missing checker or one that couldn't check (an exit but 0 or 1) fails the step."""
+    begin(name, what)
+    step = Step(name)
+    checker = repo / "tools" / "gates" / script
+    if not checker.is_file():
+        return step.fail(f"{checker} is missing (spec 001's guard patch, P-1)")
+    rc, out = stream(py_host(checker, *args), tool_env(**env), tmp)
+    if rc not in (0, 1):
+        return step.fail(
+            f"{script} exited {rc}: it couldn't check, which counts as a failure"
+        )
+    return classify(step, rc, out)
+
+
+def infra_plan_note(repo: Path, sha: str, base: str | None, tmp: Path) -> Step:
+    if base is None:
+        begin("infra-plan-note", "the plan blocks in the branch's note")
+        return Step("infra-plan-note").fail(
+            "no merge base with main, so the range can't be named"
+        )
+    return main_check(
+        repo,
+        "infra-plan-note",
+        "infra_plan_note.py",
+        "the plan blocks in the branch's note, against the commit's infra/ tree",
+        ["--repo", str(repo), "--base", base, "--head", sha],
+        tmp,
+        GIT_NO_REPLACE_OBJECTS="1",
+    )
+
+
+def infra_check(repo: Path, export_dir: Path, tmp: Path) -> Step:
+    return main_check(
+        repo,
+        "infra-check",
+        "infra_policy.py",
+        "the infrastructure policy over the export's infra/, as data",
+        ["--root", str(export_dir)],
+        tmp,
+    )
+
+
+def disclosure(repo: Path, export_dir: Path, tmp: Path) -> Step:
+    return main_check(
+        repo,
+        "disclosure",
+        "disclosure_check.py",
+        "every outward thing in the export has its disclosure row",
+        ["--root", str(export_dir)],
+        tmp,
+    )
+
+
 def engine_problem(docker: str, engine: dict[str, str], tmp: Path) -> str | None:
     """Why the image step can't build on the agents' engine, or None when the engine answered one docker version
     within ENGINE_PROBE_SECONDS, as make image asks it (tasks.md T167). At the bound, subprocess.run kills the client
@@ -2009,6 +2082,9 @@ def run_gate(repo: Path, ref: str, host_only: bool, prove: bool, url: str) -> in
         report.add(gitleaks_tree(repo, export_dir, tmp))
         report.add(arrival(repo, sha, base, tmp))
         report.add(studio_settings(repo, sha, base, tmp))
+        report.add(infra_plan_note(repo, sha, base, tmp))
+        report.add(infra_check(repo, export_dir, tmp))
+        report.add(disclosure(repo, export_dir, tmp))
         report.add(image(export_dir, policy_step, tmp, sha))
         report.add(stage_e(repo, paths, prove, ref))
         report.add(agent_config_evals(repo, export_dir, base, paths))

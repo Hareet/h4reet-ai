@@ -338,6 +338,8 @@ pytest covers every refusal with a fixture env file and a stubbed `docker` (plan
 
 **(spec 010)** P3: `GATEWAY_ANTHROPIC_API_KEY` may be empty while prod's route names no `anthropic-messages` adapter, and must not be while it does. P7: while it does, the key is printable ASCII without spaces, 20 to 256 characters, and preflight names the key, never its value. P19: the AWS profile's checks apply while prod's route names a `bedrock-converse` adapter, rather than any paid adapter.
 
+**(spec 001)** P19 also takes `[profile h4reet-bedrock]` as a role profile: `role_arn` naming `h4-laptop-bedrock`, the ordinary role the laptop's permission set may assume, and `source_profile` naming an SSO profile in the same config, whose SSO region, its own or its sso-session's, must be us-east-1. One hop, to that role alone: any other role, a missing source, or a source that assumes a role again fails, and no reason names the account (spec 001's tasks.md T036; `docs/runbooks/laptop.md`). `deploy/scripts/aws-login.sh` then starts the source's session, in the same directory. `GATEWAY_AWS_PROFILE` stays `h4reet-bedrock` (P7).
+
 ## 11. What the gateway checks for itself
 
 The gateway validates the variables it receives at startup (`src/config/validate-env.ts`) and exits 78 with a named reason ([plan.md §5.8](../plan.md#58-startup-refusals)). Preflight checks the same things earlier, but the gateway never relies on it: a container can be started without `make up`.

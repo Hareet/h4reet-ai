@@ -16,4 +16,7 @@ RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --
 COPY scripts/operator.py /app/operator.py
 COPY scripts/hello.py /app/hello.py
 COPY evals/breach_probe.py /app/breach_probe.py
+# Spec 001's measurement (research.md R-33; tasks.md T014): the load deploy/scripts/measure_stack.py sends from here,
+# hello and twin turns through edge, in-network.
+COPY deploy/scripts/measure_load.py /app/measure_load.py
 USER probe

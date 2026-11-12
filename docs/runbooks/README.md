@@ -56,3 +56,16 @@ Commands that act on prod or dev run in the Author's terminal. On dev-cpu, an ag
 |---|---|
 | [agents-engine.md](agents-engine.md) | the agents' engine down or unreachable, its plugin or proxy down, images or the stand-in model missing, a reset |
 | [local-gate.md](local-gate.md) | `make check` or the Author's gate failing, waiting, or unable to run; a secret finding; a history scan that can't certify |
+
+## The cloud: AWS's alerts and the laptop (spec 001)
+
+Spec 001's pages, each with the group that needs it. Its AWS-side alerts reach Telegram through the alert bridge and the alerts mailbox through SNS, as `[hareet.ai aws] <kind>: …`, and each names its page on its last line ([contracts/aws-alerts.md §2](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts)).
+
+| Runbook | Use it for |
+|---|---|
+| [aws-budget.md](aws-budget.md) | `model_budget_warn` and `model_budget_reached`: AWS's budgets on Bedrock's spend, `h4-model-month` and `h4-model-day`, at 70% or 100% |
+| [aws-budget-action.md](aws-budget-action.md) | `model_action_executed`: the model action attached `h4-deny-paid-models` to the Bedrock roles; reversing it after the incident note |
+| [server-budget.md](server-budget.md) | `server_budget_warn`, `server_budget_reached`, `server_action_executed`, and `ec2_stopped_server_budget`: the server budget, its action, and its rehearsal |
+| [aws-anomaly.md](aws-anomaly.md) | `aws_anomaly`: Cost Anomaly Detection found spend of $1 or more it didn't expect |
+| [credential-audit.md](credential-audit.md) | `credential_finding`: a long-lived key, a foreign trust, or one of spec 001's identities wider than Terraform writes it; `make infra-verify` refusing with `credential_finding` |
+| [laptop.md](laptop.md) | the laptop's prod in the cloud's design: its Bedrock profile chained to `h4-laptop-bedrock`, and preflight P19's refusals of it |

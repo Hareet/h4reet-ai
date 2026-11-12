@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -109,7 +109,8 @@ endif
 # agent-writable, and without these flags uv would run or obey it in the Author's terminal.
 PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with-requirements .devcontainer/requirements-tools.txt pytest)
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
-PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts)
+# infra/ holds spec 001's tests of its roots (infra/test/) and of its Lambda functions (infra/lambdas/*/test_*.py).
+PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra)
 
 # node_modules and pytest, with any conftest.py, run code that agents can write and git doesn't show. The targets
 # that run them work only in the agent sandbox or the devcontainer. In your own terminal, read the merge-request
@@ -135,7 +136,7 @@ PRE_COMMIT_PLANNED :=
 # make check's gates, in order (plan §11). label=target runs another target under the gate's name; @Tnnn names the
 # task that adds the target, so its absence is SKIP rather than FAIL. That task removes the mark: a mark whose target
 # exists fails, so a later rename can't turn a gate into a silent SKIP.
-CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival evals redteam=redteam-suite matrix image
+CHECK_GATES := makefiles-check githooks-check toolchain-check policy validate-config lint test content-check secrets arrival infra-check infra-plan-note disclosure-check evals redteam=redteam-suite matrix image
 
 # -h: with a GNUmakefile that includes this file (tasks.md T183), MAKEFILE_LIST names two files, and grep would put a
 # file name before every line.
@@ -476,10 +477,78 @@ init-env: ## (the Author) Write ~/.config/h4reet-ai/env/ENV.env from its templat
 # prod's Bedrock session (plan §4 and §5.2; research.md R-17; tasks.md T104): aws sso login for the runtime identity's
 # profile, with HOME at ~/.config/h4reet-ai/aws-home, whose .aws prod's gateway mounts read-only. Only prod has one:
 # dev and dev-cpu mount deploy/aws-none. Agent sessions can't read that directory, and the script refuses them too.
-aws-login: ## (the Author) A new SSO session for prod's Bedrock identity: aws sso login --profile h4reet-bedrock
+# With PROFILE (spec 001, tasks.md T008; research.md R-32): the Author's own SSO session for a named profile in his
+# ~/.aws, such as the administrator profile his make plan ROOT=… uses, never the runtime identity's, whose session
+# lives in aws-home. PROFILE comes from the command line only and reaches the script as "$$PROFILE".
+aws-login: ## (the Author) A new SSO session: prod's Bedrock identity, or with PROFILE=h4reet-… his own named profile
 	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make aws-login is the Author's: it writes prod's Bedrock session to ~/.config/h4reet-ai, which agent sessions can't read" >&2; exit 2; }
+ifneq ($(call from_cli,PROFILE),)
+	bash deploy/scripts/aws-sso-profile.sh "$$PROFILE"
+else
 	@[ "$(ENV)" = prod ] || { echo "make aws-login ENV=$(ENV): the session is prod's alone; dev and dev-cpu mount deploy/aws-none and route no paid adapter" >&2; exit 2; }
 	bash deploy/scripts/aws-login.sh
+endif
+
+# Spec 001's provider mirror (research.md R-14; tasks.md T008, T011): the pinned hashicorp/aws, seeded from the registry
+# in the Author's terminal into ~/.local/share/h4reet/terraform-providers, which agents read and can't write. make
+# infra-check's terraform init reads only that mirror. The bash gate refuses it to agent sessions (P-1).
+infra-mirror: ## (the Author) Seed the Terraform provider mirror at .devcontainer/toolchain.vars's pins (spec 001)
+	@[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make infra-mirror is the Author's: it reaches the Terraform registry, which agent sessions can't" >&2; exit 2; }
+	$(PY_HOST) scripts/infra/infra_mirror.py
+
+# Spec 001's offline checks (contracts/infra-records.md §1 and §3; quickstart.md §1), each PLANNED, naming its task,
+# until its part exists: the guard patch's checkers (P-1, T010), the Author's provider mirror (T011), and infra/
+# (T020). Then infra_policy.py on the HCL, terraform fmt, and, per root, init against the mirror alone and validate.
+# Each is one shell script, so a PLANNED step's exit 0 ends the whole target; make plan runs the same script.
+INFRA_MIRROR := $(HOME)/.local/share/h4reet/terraform-providers
+INFRA_ROOTS := $(notdir $(wildcard infra/bootstrap infra/account infra/prod))
+INFRA_CHECK_SH = set -e; \
+	if [ ! -f tools/gates/infra_policy.py ]; then echo "PLANNED (T010): tools/gates/infra_policy.py arrives with the guard patch, P-1"; exit 0; fi; \
+	if [ ! -d "$(INFRA_MIRROR)" ]; then echo "PLANNED (T011): the provider mirror, $(INFRA_MIRROR), is the Author's make infra-mirror"; exit 0; fi; \
+	if [ ! -d infra ]; then echo "PLANNED (T020): no infra/ yet; group 3 writes its first file"; exit 0; fi; \
+	$(PY_HOST) tools/gates/infra_policy.py; \
+	if ! command -v terraform >/dev/null 2>&1; then echo "PLANNED (T011): terraform isn't installed here; the Author's make check runs fmt and validate"; exit 0; fi; \
+	CHECKPOINT_DISABLE=1 terraform fmt -check -recursive infra; \
+	cfg="$$(mktemp)"; data="$$(mktemp -d)"; trap 'rm -rf "$$cfg" "$$data"' EXIT; \
+	printf 'provider_installation {\n  filesystem_mirror {\n    path = "%s"\n  }\n}\n' "$(INFRA_MIRROR)" >"$$cfg"; \
+	for root in $(INFRA_ROOTS); do \
+	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" init -backend=false -input=false -lockfile=readonly >/dev/null; \
+	  TF_CLI_CONFIG_FILE="$$cfg" TF_DATA_DIR="$$data/$$root" CHECKPOINT_DISABLE=1 terraform -chdir="infra/$$root" validate -no-color; \
+	done
+infra-check: ## Spec 001's offline Terraform checks: the policy, fmt, and validate against the provider mirror
+	@$(INFRA_CHECK_SH)
+
+infra-plan-note: ## Spec 001's plan blocks: every root the branch changes has its block in the branch's note
+	@if [ ! -f tools/gates/infra_plan_note.py ]; then echo "PLANNED (T010): tools/gates/infra_plan_note.py arrives with the guard patch, P-1"; \
+	else $(PY_HOST) tools/gates/infra_plan_note.py; fi
+
+# Spec 001's measurement (research.md R-33; tasks.md T014, T016): dev-cpu's stack without its model server, under the
+# load deploy/scripts/measure_load.py sends from a breach-probe container, with each service's peak memory from docker
+# stats, the volumes' sizes before and after, and the images'. dev-cpu only, on the agents' engine, with the stack up:
+# prod's route would send the load to its paid fallback, and dev's repeat on the laptop isn't built (plan.md §16, group
+# 2's departures). Inside the sandbox it runs itself again through the relay, as up does; the script refuses any other
+# engine, and a linked worktree, whose files the engine doesn't bind. MINUTES comes from the command line only and
+# reaches the script as "$$MINUTES".
+measure-stack: ## Measure dev-cpu's memory and disks without its model server, under load (spec 001 R-33): ENV=dev-cpu [MINUTES=30]
+	@[ "$(ENV)" = dev-cpu ] || { echo "make measure-stack ENV=$(ENV): dev-cpu only, on the agents' engine; prod's route would send its load to the paid fallback (research.md R-33)" >&2; exit 2; }
+ifeq ($(VIA_RELAY),1)
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make measure-stack: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory measure-stack ENV=dev-cpu
+else
+	$(PY_HOST) deploy/scripts/measure_stack.py --stack dev-cpu --env-file $(ENVFILE)$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
+endif
+
+# Spec 001's architecture inventory (research.md R-33, R-04; tasks.md T015): every image deploy/images.lock pins, read
+# from the engine's own store, never a registry, with its platforms and the hosts it runs on (contracts/env-cloud.md
+# §3). Read-only: it pulls nothing. Inside the sandbox, the agents' engine through the relay, as engine-status reaches
+# it; elsewhere, the engine DOCKER_HOST names.
+arch-inventory: ## Which pinned images have linux/arm64, from the engine's store alone, and the hosts each runs on (spec 001 R-33)
+	@if [ "$${SANDBOX_RUNTIME:-}" = 1 ] && [ -z "$${DOCKER_HOST:-}" ]; then $(RELAY) make --no-print-directory arch-inventory; \
+	else $(PY_HOST) deploy/scripts/arch_inventory.py; fi
+
+disclosure-check: ## Every outward thing the tree holds has its row in docs/data-flow-disclosure.md (spec 001 plan §8.3)
+	@if [ ! -f tools/gates/disclosure_check.py ]; then echo "PLANNED (T010): tools/gates/disclosure_check.py arrives with the guard patch, P-1"; \
+	else $(PY_HOST) tools/gates/disclosure_check.py; fi
 
 # The operator CLI (contracts/operator-admin.md §6, §6.1): scripts/operator.py, by path through PY_HOST, because it
 # holds the operator token. prod and dev are the Author's, with ~/.config/h4reet-ai/operator/<stack>.token. dev-cpu's
@@ -672,12 +741,48 @@ else
 	$(PY_HOST) $(TREE)/evals/breach.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE))$(if $(call from_cli,DELIVERY), --delivery="$$DELIVERY")
 endif
 
-plan: ## Terraform plan for ENV (never apply from here); infra/ arrives with spec 001
-	cd infra && terraform init -input=false && terraform workspace select $(ENV) && terraform plan -input=false -out=tf.plan
+# Spec 001's plan-and-apply cycle (contracts/infra-records.md §1 and §2; research.md R-13, R-32; tasks.md T024). make
+# plan alone is the offline checks. Everything else here is the Author's, in his terminal, with his SSO session named by
+# PROFILE=h4reet-… (or AWS_PROFILE): each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1). There is no apply target: make infra-verify prints the one terraform apply
+# to run, and make infra-record records it. Each value comes from the command line only and reaches its script as
+# "$$NAME", read by the shell, never spliced into the recipe. Each script line starts with @, so make adds nothing to
+# its stdout: make plan ROOT=…'s is the block for the note, and make infra-verify's the one command.
+AUTHOR_ONLY = @[ "$${SANDBOX_RUNTIME:-}" != 1 ] || { echo "make $@ is the Author's: $(1)" >&2; exit 2; }
+NEEDS = @[ -n "$(call from_cli,$(1))" ] || { echo "make $@ needs $(1)=$(2)" >&2; exit 2; }
+WITH_PROFILE = $(if $(call from_cli,PROFILE), --profile "$$PROFILE")
+
+plan: ## The offline Terraform checks (make infra-check); never apply from here. ROOT=… [PROFILE=…] is the Author's real plan
+ifneq ($(call from_cli,ROOT),)
+	$(call AUTHOR_ONLY,it runs terraform init and plan with his SSO session in his terminal (contracts/infra-records.md §1))
+	@$(PY_HOST) scripts/infra/infra_plan.py --root "$$ROOT"$(WITH_PROFILE)
+else
+	@$(INFRA_CHECK_SH)
+endif
+
+infra-verify: ## (the Author) On main, before an apply: the saved plan is the reviewed one; prints the one apply command: ROOT=… [PROFILE=…]
+	$(call AUTHOR_ONLY,it checks his saved plan and runs the credential audit with his SSO session)
+	$(call NEEDS,ROOT,bootstrap|account|prod)
+	@$(PY_HOST) scripts/infra/infra_verify.py --root "$$ROOT"$(WITH_PROFILE)
+
+infra-record: ## (the Author) After an apply: its record, on a new ops/apply-* branch: ROOT=… OUTCOME=ok|failed [EXIT_STATUS=n] [PROFILE=…]
+	$(call AUTHOR_ONLY,it records his apply and commits the record on a branch of his)
+	$(call NEEDS,ROOT,bootstrap|account|prod)
+	$(call NEEDS,OUTCOME,ok|failed)
+	@$(PY_HOST) scripts/infra/infra_record.py --root "$$ROOT" --outcome "$$OUTCOME"$(if $(call from_cli,EXIT_STATUS), --exit-status "$$EXIT_STATUS")$(WITH_PROFILE)
+
+infra-audit: ## (the Author) The credential audit, with his SSO session: no long-lived credential, the laptop's identity narrow (FR-008) [PROFILE=…]
+	$(call AUTHOR_ONLY,it reads the account's IAM with his SSO session)
+	@$(PY_HOST) infra/lambdas/credential_audit/audit.py --terminal$(WITH_PROFILE)
+
+secrets-check: ## (the Author) Which Parameter Store names infra/parameters.txt expects exist, by name and type, never a value [PROFILE=…]
+	$(call AUTHOR_ONLY,it lists his account's parameters with his SSO session)
+	@$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
 
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
-	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan
+	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
+	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan

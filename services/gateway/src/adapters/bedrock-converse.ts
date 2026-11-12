@@ -175,26 +175,21 @@ export function fromSdk(err: unknown): ProviderError {
  * reads. A cache entry holding a refresh token (an sso_session profile) gives the access token's end, not the
  * session's, and the SDK refreshes the token past it, so the session's end is unknown and nothing is reported: a
  * warning from it would come at every login, then go stale. A legacy profile's token lasts the session.
+ *
+ * Spec 001's group 4 (its tasks.md T036; docs/runbooks/laptop.md): a profile that assumes a role (role_arn, with a
+ * source_profile) takes its session from that source, one hop away and no further, as preflight's P19 allows it.
  */
 export async function readSsoSessionEnd(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home: string = homedir(),
 ): Promise<string | undefined> {
   try {
-    const profile = env.AWS_PROFILE ?? "default";
     const config = await readFile(env.AWS_CONFIG_FILE ?? join(home, ".aws", "config"), "utf8");
-    const header =
-      profile === "default" ? /^\[(profile\s+)?default\]$/ : new RegExp(`^\\[profile\\s+${escape(profile)}\\]$`);
-    const settings = new Map<string, string>();
-    let inSection = false;
-    for (const raw of config.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (line.startsWith("[")) {
-        inSection = header.test(line);
-        continue;
-      }
-      const m = inSection ? /^([A-Za-z0-9_]+)\s*=\s*(.*)$/.exec(line) : null;
-      if (m !== null) settings.set(m[1] as string, (m[2] as string).trim());
+    let settings = profileSettings(config, env.AWS_PROFILE ?? "default");
+    const source = settings.get("source_profile");
+    if (source !== undefined) {
+      settings = profileSettings(config, source);
+      if (settings.has("source_profile") || settings.has("role_arn")) return undefined;
     }
     const key = settings.get("sso_session") ?? settings.get("sso_start_url");
     if (key === undefined || key === "") return undefined;
@@ -209,6 +204,24 @@ export async function readSsoSessionEnd(
   } catch {
     return undefined;
   }
+}
+
+/** A profile's keys in ~/.aws/config, as the CLI reads them; none when the config has no such profile. */
+function profileSettings(config: string, profile: string): Map<string, string> {
+  const header =
+    profile === "default" ? /^\[(profile\s+)?default\]$/ : new RegExp(`^\\[profile\\s+${escape(profile)}\\]$`);
+  const settings = new Map<string, string>();
+  let inSection = false;
+  for (const raw of config.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith("[")) {
+      inSection = header.test(line);
+      continue;
+    }
+    const m = inSection ? /^([A-Za-z0-9_]+)\s*=\s*(.*)$/.exec(line) : null;
+    if (m !== null) settings.set(m[1] as string, (m[2] as string).trim());
+  }
+  return settings;
 }
 
 /** A profile name, quoted for a RegExp. */

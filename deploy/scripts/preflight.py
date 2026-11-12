@@ -1391,6 +1391,8 @@ def p19(ctx: Context) -> Result:
             "P19",
             f"{config} isn't a config the AWS CLI can read ({type(error).__name__}), so its SSO region can't be checked",
         )
+    except ProfileChain as error:
+        return fail("P19", str(error))
     if region != "us-east-1":
         return fail(
             "P19",
@@ -1400,10 +1402,21 @@ def p19(ctx: Context) -> Result:
     return ok("P19", f"{aws} is 0700, with the h4reet-bedrock profile, in us-east-1")
 
 
+class ProfileChain(ValueError):
+    """The h4reet-bedrock profile assumes a role, but not as P19 takes it. The message names no account."""
+
+
+LAPTOP_ROLE = re.compile(r"arn:aws:iam::[0-9]{12}:role/h4-laptop-bedrock")
+
+
 def sso_region(config: Path) -> str | None:
     """The h4reet-bedrock profile's SSO region, as the AWS CLI reads it: its sso-session's, when it names one.
 
-    A config that doesn't parse raises configparser.Error, so P19 can say so rather than call the region missing.
+    Spec 001's group 4 (its tasks.md T036; docs/runbooks/laptop.md): the laptop's permission set allows only
+    sts:AssumeRole on h4-laptop-bedrock, so the profile may assume that role from an SSO profile, its source_profile,
+    whose region this is. One hop, to that role alone: any other role, a missing source, or a source that assumes a
+    role again raises ProfileChain. A config that doesn't parse raises configparser.Error, so P19 can say so rather
+    than call the region missing.
     """
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     try:
@@ -1412,6 +1425,28 @@ def sso_region(config: Path) -> str | None:
         return None
     parser.read_string(text)
     profile = "profile h4reet-bedrock"
+    if parser.has_option(profile, "role_arn") or parser.has_option(
+        profile, "source_profile"
+    ):
+        if not LAPTOP_ROLE.fullmatch(
+            parser.get(profile, "role_arn", fallback="").strip()
+        ):
+            raise ProfileChain(
+                "the h4reet-bedrock profile assumes a role, which must be h4-laptop-bedrock, the one its permission "
+                "set allows (docs/runbooks/laptop.md)"
+            )
+        source = f"profile {parser.get(profile, 'source_profile', fallback='').strip()}"
+        if not parser.has_section(source):
+            raise ProfileChain(
+                "the h4reet-bedrock profile's source_profile names no profile in its config (docs/runbooks/laptop.md)"
+            )
+        if parser.has_option(source, "role_arn") or parser.has_option(
+            source, "source_profile"
+        ):
+            raise ProfileChain(
+                "the h4reet-bedrock profile's source_profile assumes a role too: one hop, from an SSO profile, only"
+            )
+        profile = source
     session = parser.get(profile, "sso_session", fallback=None)
     if session:
         return parser.get(f"sso-session {session}", "sso_region", fallback=None)

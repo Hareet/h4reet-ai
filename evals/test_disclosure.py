@@ -2,8 +2,9 @@
 T110).
 
 The compose policy already requires a row for every service (tools/gates/compose_policy.py). These hold rows to what
-the code does: the breach probe's row names exactly the services evals/breach_probe.py calls, and the alerts' rows
-name the Telegram Bot API and the alerts mailbox, which the gateway's egress row points at. Bedrock's two rows keep
+the code does: the breach probe's row names exactly the services evals/breach_probe.py and spec 001's measurement load,
+which runs in the probe, call; and the alerts' rows name the Telegram Bot API and the alerts mailbox, which the
+gateway's egress row points at. Bedrock's two rows keep
 plan §17's words, name the region config/routing.yaml must use, and name the SSO token's refresh while prod runs.
 Every flow plan §17 lists has its row (T110); the rows T110 adds keep the plan's words too, and say what their code
 does; the file closes with FR-040's sentence; and SECURITY.md links it. From US6's review, the Claude Code row lists
@@ -56,8 +57,12 @@ def named(cell: str) -> set[str]:
 
 
 def called_hosts() -> set[str]:
-    """Every host a URL in breach_probe.py's source names, constant or not, and those its module constants hold."""
+    """Every host a URL in breach_probe.py's source names, constant or not, and those its module constants hold; and,
+    since the probe's image holds it too, the hosts spec 001's measurement load calls (deploy/scripts/measure_load.py)."""
     source = (REPO / "evals" / "breach_probe.py").read_text(encoding="utf-8")
+    source += (REPO / "deploy" / "scripts" / "measure_load.py").read_text(
+        encoding="utf-8"
+    )
     urls = set(re.findall(r"""https?://[^\s"'/{}]+""", source))
     urls |= {v for v in vars(probe).values() if isinstance(v, str) and "://" in v}
     return {urllib.parse.urlsplit(url).hostname or "" for url in urls}
@@ -363,6 +368,7 @@ def test_spec_000s_part_closes_with_fr_040s_sentence() -> None:
     assert [section.splitlines()[0] for section in later] == [
         "Spec 002: the room",
         "Spec 010: the Anthropic API",  # spec 010, FR-038 (its plan, D12)
+        "Spec 001: the cloud",  # spec 001, FR-040 (its plan §8.3; tasks.md T026)
     ]
     assert "aren't here yet" not in TEXT  # the intro no longer waits for rows
 
@@ -448,6 +454,93 @@ def test_row_f1_adds_spec_007s_turn_to_its_own_words() -> None:
 def test_security_md_links_the_disclosure() -> None:
     security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
     assert "](docs/data-flow-disclosure.md)" in security
+
+
+# Spec 001 (FR-040; its plan §8.3): its rows go in a section of their own, each in the commit that creates its flow.
+# Group 3 (tasks.md T026, in T023's commit) adds C8's email half, AWS's budgets and anomaly monitor to the alerts
+# mailbox through SNS's email subscription on h4-alerts, and C9, the Author's terminal to AWS's APIs. Group 4 (T036, in
+# T034's commit) adds C8's Telegram half, through the alert bridge, C10, the Author's releases to the account's
+# registry and release bucket, and C11, the uptime probe; and F2's change, the laptop's sts:AssumeRole on
+# h4-laptop-bedrock.
+SPEC_001 = REPO / "specs" / "001-cloud-elevation" / "spec.md"
+
+
+def spec_001_entry(row_id: str) -> list[str]:
+    """The row of specs/001-cloud-elevation/spec.md's "New rows" table: its eight cells, the ID first."""
+    new_rows = SPEC_001.read_text(encoding="utf-8").split("\n### New rows\n", 1)[1]
+    (entry,) = [ln for ln in new_rows.splitlines() if ln.startswith(f"| {row_id} |")]
+    return [c.strip() for c in entry.strip().strip("|").split("|")]
+
+
+def test_spec_001s_rows_are_in_its_own_section_in_the_specs_words() -> None:
+    section = TEXT.split("\n## Spec 001: the cloud\n", 1)[1]
+    assert "| C8 |" in section and "| C9 |" in section
+    c8, c9 = rows()["C8"], rows()["C9"]
+    entry_c8, entry_c9 = spec_001_entry("C8"), spec_001_entry("C9")
+    # C9 is the spec's row, word for word, with its FR.
+    assert c9[:7] == entry_c9[1:8]
+    # C8, both halves since group 4: the spec's From → To, then each path named after it, and its other cells word for
+    # word.
+    assert (
+        entry_c8[1]
+        == "AWS's budgets and anomaly monitor → Telegram and the alerts mailbox"
+    )
+    assert c8[0].startswith(f"{entry_c8[1]}: ")
+    assert "`h4-alerts`" in c8[0]
+    assert c8[1:7] == entry_c8[2:8]
+    assert "spec 001 FR-022" in c8[7] and "spec 001 FR-001" in c9[7]
+
+
+def test_c8s_telegram_half_names_the_bridge_and_the_bot_api() -> None:
+    c8 = rows()["C8"]
+    for name in ("h4-alerts", "h4-alert-bridge", "api.telegram.org"):
+        assert f"`{name}`" in c8[0], name
+    assert "`infra/bootstrap/alerts.tf`" in c8[0]
+    assert "`infra/lambdas/alert_bridge/`" in c8[0]
+    # What this section adds beside the spec's cells: the bridge's parameters, and the other kinds it forwards.
+    section = TEXT.split("\n## Spec 001: the cloud\n", 1)[1]
+    assert "`/h4reet/alerts/TELEGRAM_BOT_TOKEN`" in section
+    assert "contracts/aws-alerts.md §2" in section
+
+
+def test_c10_and_c11_keep_the_specs_words() -> None:
+    section = TEXT.split("\n## Spec 001: the cloud\n", 1)[1]
+    for row_id, where in (
+        ("C10", "`infra/account/registry.tf`"),
+        ("C11", "`infra/lambdas/probe/`"),
+    ):
+        assert f"| {row_id} |" in section, row_id
+        row, entry = rows()[row_id], spec_001_entry(row_id)
+        assert row[0].startswith(f"{entry[1]}: "), row_id
+        assert where in row[0], row_id
+        assert row[1:7] == entry[2:8], row_id
+        assert "spec 001" in row[7], row_id
+    # The probe's two requests, and its mark, as infra/lambdas/probe/probe.py makes them.
+    c11 = rows()["C11"][0]
+    for text in (
+        "`GET https://hareet.ai/`",
+        "`GET https://hareet.ai/api/status`",
+        "`X-H4-Probe: 1`",
+    ):
+        assert text in c11, text
+    # Its schedule is written disabled until group 8 (contracts/aws-alerts.md §5): said beside the spec's "on".
+    assert "disabled until group 8" in section
+
+
+def f2_change() -> str:
+    """spec.md's Changed rows: F2's sentence, as it gives it in quotes after "Add: "."""
+    changed = SPEC_001.read_text(encoding="utf-8").split("\n### Changed rows\n", 1)[1]
+    (line,) = [ln for ln in changed.splitlines() if ln.startswith("| F2 |")]
+    cell = [c.strip() for c in line.strip().strip("|").split("|")][2]
+    return cell.removeprefix('Add: "').removesuffix('"')
+
+
+def test_f2_carries_spec_001s_change_in_its_words() -> None:
+    sentence = f2_change()
+    assert sentence.startswith("The permission set now allows only `sts:AssumeRole`")
+    f2 = rows()["F2"]
+    assert sentence in f2[0] and sentence in f2[2]
+    assert "spec 001 FR-013" in f2[7] and "FR-023" in f2[7]
 
 
 # Spec 010 (FR-038, FR-039, SC-010; its plan §10, D12): the Anthropic API's row, F3, in a section of its own in the

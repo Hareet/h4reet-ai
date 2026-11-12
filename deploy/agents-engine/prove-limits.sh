@@ -613,7 +613,8 @@ e6_readonly_tree() {
 }
 
 # deny_tree_rel <fs|rule> <entry>: the tree-relative path a sandbox read deny names, or nothing when it names a
-# path outside the tree, or a glob (the env-file probe covers .env* and *.env). The two layers spell paths
+# path outside the tree, or a glob (the env-file probe covers .env* and *.env, and the name probe the other bare
+# file-name patterns, deny_name_glob's). The two layers spell paths
 # differently: in sandbox.filesystem a leading / is absolute; in a Read() rule it is the project's root, and //
 # is absolute (Claude Code's permission syntax). A trailing /** names the directory itself.
 deny_tree_rel() {
@@ -634,6 +635,31 @@ deny_tree_rel() {
 	esac
 }
 
+# deny_name_glob <fs|rule> <entry>: the entry, when it is a bare file-name pattern, as engine.sh's check_tree_masks
+# takes them from the settings (no /, a glob character; spec 001's *.tfstate*, *.tfplan, *.tfvars*), or nothing.
+# Both layers spell a bare name alike. The env-file globs are the env probe's, and * or ** names the whole tree.
+deny_name_glob() {
+	case "$2" in */*) return 0 ;; esac
+	case "$2" in *'*'* | *'?'* | *'['*) ;; *) return 0 ;; esac
+	case "$2" in '*' | '**' | '.env*' | '.env.*' | '*.env') return 0 ;; esac
+	printf '%s\n' "$2"
+}
+
+# glob_sample <pattern>: a file name the pattern matches, to plant for engine.sh up to refuse: the pattern's leading
+# * made __h4-prove-e7, any other * dropped, each ? an x. Nothing for a pattern without a leading *, so no plausible
+# name is ever planted, or with a [, whose sample can't be written.
+glob_sample() {
+	local sample
+	case "$1" in '*'*) ;; *) return 0 ;; esac
+	case "$1" in *'['*) return 0 ;; esac
+	sample="__h4-prove-e7${1#\*}"
+	sample="${sample//\*/}"
+	sample="${sample//\?/x}"
+	# shellcheck disable=SC2053 # the pattern, matched as a glob
+	[[ $sample == $1 ]] || return 0
+	printf '%s\n' "$sample"
+}
+
 # mask_covers <tree-relative path>: is it a masked path, or inside one?
 mask_covers() {
 	local mask
@@ -645,15 +671,18 @@ mask_covers() {
 }
 
 e7_hidden_paths() {
-	local ok=true seen="" facts="" denies layer entry rel out rc mask planted_file n=0
-	local -a existing=()
+	local ok=true seen="" facts="" denies layer entry rel out rc mask planted_file glob sample n=0
+	local -a existing=() name_globs=() samples=()
 	# Inside a container with the tree bound: each listed path that exists must be a mount in the container's own
 	# table, read-only, and empty. A listing alone can't tell: a mask is mode 0000, and the directory under it is
 	# the Author's 0700, so a container can list neither. Then no env file but a template may be visible anywhere
-	# in the tree; the tree's own copy of the list is the control that the walk saw the tree at all. Exits 3 on any
-	# finding.
+	# in the tree, nor any file a bare file-name pattern of the settings matches (the arguments after --); the tree's
+	# own copy of the list is the control that the walk saw the tree at all. Exits 3 on any finding.
 	local script='import fnmatch, os, stat, sys
-masks = sys.argv[1:]
+tree = "/tree"
+args = sys.argv[1:]
+masks = args[: args.index("--")] if "--" in args else args
+names = args[args.index("--") + 1 :] if "--" in args else []
 mounts = {}
 for line in open("/proc/self/mountinfo"):
     left, _, right = line.partition(" - ")
@@ -661,7 +690,7 @@ for line in open("/proc/self/mountinfo"):
     mounts[fields[4].replace("\\040", " ")] = (right.split()[0], fields[5].split(","))
 issues = []
 for rel in masks:
-    path = "/tree/" + rel
+    path = tree + "/" + rel
     if path not in mounts:
         issues.append(rel + " is not masked")
         continue
@@ -679,22 +708,26 @@ for rel in masks:
             issues.append(rel + " is not empty")
     except PermissionError:
         pass  # the mask is mode 0000 to a container: nothing to list
-env, walked = [], 0
-for root, _, files in os.walk("/tree"):
+env, named, walked = [], [], 0
+for root, _, files in os.walk(tree):
     for name in files:
         walked += 1
         template = fnmatch.fnmatchcase(name, "*.env.example")
-        if not template and (fnmatch.fnmatchcase(name, "*.env") or fnmatch.fnmatchcase(name, ".env.*")):
+        is_env = not template and (fnmatch.fnmatchcase(name, "*.env") or fnmatch.fnmatchcase(name, ".env.*"))
+        is_named = any(fnmatch.fnmatchcase(name, glob) for glob in names)
+        if is_env or is_named:
             path = os.path.join(root, name)
             try:
                 if stat.S_ISREG(os.lstat(path).st_mode):
-                    env.append(path[len("/tree/"):])
+                    (env if is_env else named).append(path[len(tree) + 1 :])
             except OSError:
                 pass
-if not os.path.isfile("/tree/deploy/agents-engine/tree-masks.txt"):
+if not os.path.isfile(tree + "/deploy/agents-engine/tree-masks.txt"):
     issues.append("the tree is not visible")
 if env:
     issues.append("env files visible: " + ", ".join(sorted(env)[:5]))
+if named:
+    issues.append("files the sandbox denies by name visible: " + ", ".join(sorted(named)[:5]))
 print("%d masks, %d files walked%s" % (len(masks), walked, "; " + "; ".join(issues) if issues else ""))
 sys.exit(3 if issues else 0)'
 	# The installed list is the one bind-tree.sh mounts; engine.sh up refuses while it differs from the tree's.
@@ -714,6 +747,12 @@ sys.exit(3 if issues else 0)'
 		"$H4_EGRESS_SETTINGS" 2>/dev/null)"; then
 		while IFS=$'\t' read -r layer entry; do
 			[ -n "$entry" ] || continue
+			# A bare file-name pattern no mask can hold: the walk below looks for a file it matches, and up refuses one.
+			glob="$(deny_name_glob "$layer" "$entry")"
+			if [ -n "$glob" ]; then
+				name_globs+=("$glob")
+				continue
+			fi
 			rel="$(deny_tree_rel "$layer" "$entry")"
 			[ -n "$rel" ] || continue
 			n=$((n + 1))
@@ -722,7 +761,7 @@ sys.exit(3 if issues else 0)'
 				seen+="; the sandbox read-denies $rel, which no mask covers"
 			fi
 		done <<<"$denies"
-		facts+="; the sandbox's $n read denies inside the tree are all masked"
+		facts+="; the sandbox's $n read denies inside the tree are all masked, and its ${#name_globs[@]} bare name patterns walked for"
 	else
 		ok=false
 		seen+="; the sandbox's read denies can't be read from $H4_EGRESS_SETTINGS"
@@ -730,10 +769,10 @@ sys.exit(3 if issues else 0)'
 	for mask in "${tree_masks[@]}"; do
 		if [ -e "$repo/$mask" ] || [ -L "$repo/$mask" ]; then existing+=("$mask"); fi
 	done
-	out="$(engine_docker run --rm -v /run/h4agents/tree:/tree:ro "$probe_image" python3 -I -c "$script" "${existing[@]}" 2>&1)"
+	out="$(engine_docker run --rm -v /run/h4agents/tree:/tree:ro "$probe_image" python3 -I -c "$script" "${existing[@]}" -- "${name_globs[@]}" 2>&1)"
 	rc=$?
 	case "$rc" in
-	0) facts+="; inside a container, $(tail -n1 <<<"$out"): every mask read-only and empty, no env file" ;;
+	0) facts+="; inside a container, $(tail -n1 <<<"$out"): every mask read-only and empty, no env file, and no file a name pattern matches" ;;
 	3)
 		ok=false
 		seen+="; inside a container: $(tail -n1 <<<"$out")"
@@ -743,26 +782,38 @@ sys.exit(3 if issues else 0)'
 		seen+="; the probe container didn't run: $(last_error "$out")"
 		;;
 	esac
-	# engine.sh up refuses while an env file sits outside a mask, and names it. Never over an existing file.
-	planted_file="$repo/__h4-prove-e7.env"
-	if (set -C && : >"$planted_file") 2>/dev/null; then
-		planted+=("$planted_file")
-		out="$("$here/engine.sh" up 2>&1)"
-		rc=$?
-		rm -f -- "$planted_file"
-		if [ "$rc" -eq 0 ]; then
-			ok=false
-			seen+="; engine.sh up ran with ${planted_file##*/} planted"
-		elif grep -qF "${planted_file##*/}" <<<"$out"; then
-			facts+="; engine.sh up refused, naming ${planted_file##*/}"
+	# engine.sh up refuses while an env file, or a file a bare name pattern matches, sits outside a mask, and names
+	# it: one planted file at a time, each never over an existing file.
+	samples=(__h4-prove-e7.env)
+	for glob in "${name_globs[@]}"; do
+		sample="$(glob_sample "$glob")"
+		if [ -n "$sample" ]; then
+			samples+=("$sample")
+		else
+			facts+="; no sample name to plant for $glob, which the walk alone covers"
+		fi
+	done
+	for sample in "${samples[@]}"; do
+		planted_file="$repo/$sample"
+		if (set -C && : >"$planted_file") 2>/dev/null; then
+			planted+=("$planted_file")
+			out="$("$here/engine.sh" up 2>&1)"
+			rc=$?
+			rm -f -- "$planted_file"
+			if [ "$rc" -eq 0 ]; then
+				ok=false
+				seen+="; engine.sh up ran with ${planted_file##*/} planted"
+			elif grep -qF "${planted_file##*/}" <<<"$out"; then
+				facts+="; engine.sh up refused, naming ${planted_file##*/}"
+			else
+				ok=false
+				seen+="; engine.sh up refused without naming ${planted_file##*/}: $(last_error "$out")"
+			fi
 		else
 			ok=false
-			seen+="; engine.sh up refused without naming ${planted_file##*/}: $(last_error "$out")"
+			seen+="; couldn't plant $planted_file"
 		fi
-	else
-		ok=false
-		seen+="; couldn't plant $planted_file"
-	fi
+	done
 	record E7 "$(verdict $ok)" "$(detail "$ok" "a container sees the tree without the paths the sandbox denies" "$facts" "$seen")"
 }
 

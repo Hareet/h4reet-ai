@@ -61,6 +61,23 @@ check() {
     tools/gates | tools/gates/* | evals/agent-config | evals/agent-config/*) block "the local gates or the agent-config evals (the gate runs in the Author's terminal, and the evals decide what merges; plan §15's governance patch)" ;;
     deploy/env/* | *.env) block "environment file (it holds secrets and selects what a stack runs; spec 000 FR-007)" ;;
     assets/policy | assets/policy/*) block "the asset policy: the license allowlist, the likeness approvals, and the caps, which only the Author changes (spec 003 FR-005)" ;;
+    infra/policy | infra/policy/*) block "the infrastructure policy's rules and fixtures (spec 001 plan §2; contracts/infra-records.md §3)" ;;
+    *.tfstate* | *.tfplan | *.tfvars*) block "Terraform state, a saved plan, or a variables file (spec 001 FR-011)" ;;
+  esac
+  # Spec 001's protected Terraform files (its plan §2; contracts/infra-records.md §3, rule T5; FR-012), by file name in
+  # any case, .tf or .tf.json, anywhere under infra/ but infra/test/, whose fixtures Terraform never plans. Spec 000's
+  # names above (infra/*iam* and the rest) stay, and still hold any infra/ path that contains them.
+  case "${1,,}" in
+    infra/test/*) ;;
+    infra/*.tf | infra/*.tf.json)
+      tf_name="${1##*/}"
+      tf_name="${tf_name,,}"
+      tf_name="${tf_name%.json}"
+      case "$tf_name" in
+        iam*.tf | budgets*.tf | alerts*.tf | killswitch*.tf | handover*.tf | failover*.tf | ec2-market*.tf | edge-limits*.tf)
+          block "a protected Terraform file (spec 001 FR-012; contracts/infra-records.md §3, rule T5): it arrives as the Author's patch" ;;
+      esac
+      ;;
   esac
   if [ "${FIX_TASK:-0}" = "1" ]; then
     case "$1" in

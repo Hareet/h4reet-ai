@@ -343,3 +343,189 @@ H/bash-gate.sh/make evals \<newline>ADAPTER=anthropic
 H/bash-gate.sh/bash <<EOF make evals ADAPTER=anthropic EOF
 H/bash-gate.sh/make lint && pytest -q evals/test_disclosure.py -k anthropic
 H/bash-gate.sh/npm ls @anthropic-ai/sdk -w services/gateway
+
+# --- spec 001's guard patch, P-1 (its plan §2; research.md R-16, R-32; contracts/env-cloud.md §5; FR-006, FR-011, FR-012):
+# Terraform's state-changing commands in every spelling, the Author-only targets, the protected files, the names, and the
+# config folders' stage S marker ---
+H/bash-gate.sh/terraform -chdir="infra dir" apply
+H/bash-gate.sh/tofu destroy
+H/bash-gate.sh/tofu -chdir=infra state push x
+H/bash-gate.sh/terragrunt run-all apply
+H/bash-gate.sh/terragrunt apply-all
+H/bash-gate.sh/terragrunt destroy-all
+H/bash-gate.sh/terraform import aws_instance.x i-1
+H/bash-gate.sh/terraform refresh
+H/bash-gate.sh/terraform taint aws_instance.x
+H/bash-gate.sh/terraform untaint aws_instance.x
+H/bash-gate.sh/terraform force-unlock 1234
+H/bash-gate.sh/terraform test
+H/bash-gate.sh/terraform state replace-provider a b
+H/bash-gate.sh/terraform 'state' 'rm' x
+H/bash-gate.sh/terraform workspace new x
+H/bash-gate.sh/terraform workspace delete x
+H/bash-gate.sh/terraform init -migrate-state
+H/bash-gate.sh/terraform -chdir=infra/bootstrap init -force-copy
+H/bash-gate.sh/terraform init -reconfigure
+H/bash-gate.sh/terraform init --migrate-state=true
+H/bash-gate.sh/bash -c "terraform apply"
+H/bash-gate.sh/sh -c 'cd infra && terraform destroy'
+H/bash-gate.sh/(terraform apply)
+H/bash-gate.sh/echo $(terraform apply)
+H/bash-gate.sh//usr/local/bin/terraform apply
+H/bash-gate.sh/./terraform apply
+H/bash-gate.sh/terra'form' apply
+H/bash-gate.sh/terraform "apply"
+H/bash-gate.sh/ter\raform apply
+H/bash-gate.sh/command terraform apply
+H/bash-gate.sh/exec terraform apply
+H/bash-gate.sh/nice -n 5 terraform apply
+H/bash-gate.sh/timeout 60 terraform apply
+H/bash-gate.sh/xargs -I{} terraform apply {}
+H/bash-gate.sh/env -i PATH=/usr/bin terraform apply
+H/bash-gate.sh/terraform -chdir=infra $TF_FLAGS apply
+H/bash-gate.sh/terraform $(echo apply)
+H/bash-gate.sh/terraform plan -out=apply.tfplan
+H/bash-gate.sh/terraform fmt -check -recursive infra/test
+H/bash-gate.sh/terraform init -backend=false -input=false
+H/bash-gate.sh/terraform validate -json
+H/bash-gate.sh/terraform workspace select prod
+H/bash-gate.sh/terraform state list
+H/bash-gate.sh/terraform show -json tf.plan
+H/bash-gate.sh/terraform validate; make test
+H/bash-gate.sh/terraform fmt -check && make test
+H/bash-gate.sh/terraform version | grep apply
+H/bash-gate.sh/terraform ${v:-apply}
+H/bash-gate.sh/terraform state ${v:-rm} x
+H/bash-gate.sh/terraform ${v:-init} -migrate-state
+H/bash-gate.sh/terraform${IFS}apply
+H/bash-gate.sh/tofu${IFS}destroy
+H/bash-gate.sh/terraform$IFS"apply"
+H/bash-gate.sh/terraform -chdir=infra${IFS}apply
+H/bash-gate.sh/terraform fmt ${dir:-infra}
+H/bash-gate.sh/make plan "ROOT"=prod
+H/bash-gate.sh/make plan R'OO'T=prod
+H/bash-gate.sh/make plan ROOT"=prod"
+H/bash-gate.sh/aws lambda invoke-async --function-name h4-ec2-start --invoke-args x
+H/bash-gate.sh/aws lambda invoke-with-response-stream --function-name h4-ec2-guard out
+H/bash-gate.sh/aws ec2 start-instances --instance-ids i-0123
+H/bash-gate.sh/aws ec2 stop-instances --instance-ids i-0123
+H/bash-gate.sh/aws ec2 terminate-instances --instance-ids i-0123
+H/bash-gate.sh/aws ssm start-automation-execution --document-name AWS-StopEC2Instance
+H/bash-gate.sh/aws ec2 describe-instances
+H/bash-gate.sh/terraform in\<newline>it -migrate-state
+H/bash-gate.sh/TF_CLI_ARGS_apply=-auto-approve terraform plan
+H/bash-gate.sh/export TF_CLI_ARGS=-auto-approve
+H/bash-gate.sh/env TF_CLI_ARGS_plan=x make plan
+H/bash-gate.sh/terraform plan, with TF_CLI_ARGS_plan set in the session
+H/bash-gate.sh/make test, with TF_CLI_ARGS_plan set in the session
+H/bash-gate.sh/tf=terraform; $tf apply
+H/bash-gate.sh/alias t=terraform; t apply
+H/bash-gate.sh/f() { terraform "$@"; }; f apply
+H/bash-gate.sh/cp /usr/local/bin/terraform ./x && ./x apply
+H/bash-gate.sh/$(printf terr)aform apply
+H/bash-gate.sh/export TF_CLI_$(echo ARGS)=-auto-approve
+H/bash-gate.sh/make infra-mirror
+H/bash-gate.sh/make infra-verify ROOT=prod
+H/bash-gate.sh/make infra-record ROOT=prod OUTCOME=ok
+H/bash-gate.sh/make infra-audit
+H/bash-gate.sh/make secrets-check
+H/bash-gate.sh/make release
+H/bash-gate.sh/make rollback ENV=ec2
+H/bash-gate.sh/make ec2-status
+H/bash-gate.sh/make ec2-start
+H/bash-gate.sh/make ec2-stop
+H/bash-gate.sh/make ec2-autostart STATE=on
+H/bash-gate.sh/make cloud-session HOST=ec2
+H/bash-gate.sh/make shared-state-roles
+H/bash-gate.sh/make server-budget-restore
+H/bash-gate.sh/make tunnel-keys
+H/bash-gate.sh/make tunnel-revoke
+H/bash-gate.sh/make aws-login PROFILE=h4reet-admin
+H/bash-gate.sh/bash deploy/scripts/aws-sso-profile.sh h4reet-admin
+H/bash-gate.sh/./deploy/scripts/aws-sso-profile.sh h4reet-admin
+H/bash-gate.sh/cat deploy/scripts/aws-sso-profile.sh | bash -s h4reet-admin
+H/bash-gate.sh/shellcheck deploy/scripts/aws-sso-profile.sh
+H/bash-gate.sh/gmake infra-mirror
+H/bash-gate.sh/make -C . infra-mirror
+H/bash-gate.sh/bash -c "make infra-mirror"
+H/bash-gate.sh/make ./infra-mirror
+H/bash-gate.sh/make "infra-"mirror
+H/bash-gate.sh/make ec2-"start"
+H/bash-gate.sh/python3 tools/gates/run_checks.py infra-mirror
+H/bash-gate.sh/make infra-mi\<newline>rror
+H/bash-gate.sh/make releases-x
+H/bash-gate.sh/make plan ROOT=prod
+H/bash-gate.sh/ROOT=bootstrap make plan
+H/bash-gate.sh/make plan ROOT= bootstrap
+H/bash-gate.sh/make plan PROJECT_ROOT=x
+H/bash-gate.sh/make plan $(echo ROOT)=prod
+H/bash-gate.sh/make operator-status ENV=shared
+H/bash-gate.sh/make operator-init ENV=shared REASON=x
+H/bash-gate.sh/make operator-restore ENV=shared
+H/bash-gate.sh/aws ssm put-parameter --name /h4reet/prod/ec2-autostart --value on --overwrite
+H/bash-gate.sh/aws ssm delete-parameter --name /h4reet/ec2/DB_GATEWAY_PASSWORD
+H/bash-gate.sh/aws lambda invoke --function-name h4-ec2-start out.json
+H/bash-gate.sh/aws lambda invoke --function-name h4-ec2-guard out.json
+H/bash-gate.sh/aws --version
+H/protected-paths.sh/infra/account/iam.tf
+H/protected-paths.sh/infra/bootstrap/budgets.tf
+H/protected-paths.sh/infra/bootstrap/alerts.tf
+H/protected-paths.sh/infra/account/killswitch.tf
+H/protected-paths.sh/infra/account/handover.tf
+H/protected-paths.sh/infra/prod/failover.tf
+H/protected-paths.sh/infra/prod/ec2-market.tf
+H/protected-paths.sh/infra/prod/edge-limits.tf
+H/protected-paths.sh/infra/modules/lambda-image/iam.tf
+H/protected-paths.sh/infra/account/IAM.tf
+H/protected-paths.sh/infra/account/killswitch.tf.json
+H/protected-paths.sh/infra/prod/handover_extra.tf
+H/protected-paths.sh/infra/prod/../account/handover.tf
+H/protected-paths.sh/infra/policy/rules.txt
+H/protected-paths.sh/infra/policy
+H/protected-paths.sh/infra/bootstrap/terraform.tfstate
+H/protected-paths.sh/infra/prod/terraform.tfstate.backup
+H/protected-paths.sh/infra/prod/prod.tfplan
+H/protected-paths.sh/infra/prod/prod.tfvars
+H/protected-paths.sh/infra/prod/prod.tfvars.json
+H/protected-paths.sh/infra/prod/main.tf
+H/protected-paths.sh/infra/prod/ec2.tf
+H/protected-paths.sh/infra/prod/rds.tf
+H/protected-paths.sh/infra/account/lambdas.tf
+H/protected-paths.sh/infra/test/fixtures/handover/main.tf
+H/protected-paths.sh/infra/README.md
+H/protected-paths.sh/Edit in a linked worktree: infra/account/iam.tf
+H/bash-gate.sh/a shell write: infra/account/iam.tf
+H/settings/spec 001: GATEWAY_DB_URL is denied by name
+H/settings/spec 001: GATEWAY_DB_TLS_SERVERNAME is denied by name
+H/settings/spec 001: RELAY_TOKEN_SELF is denied by name
+H/settings/spec 001: RELAY_TOKEN_LAPTOP is denied by name
+H/settings/spec 001: RELAY_TOKEN_EC2 is denied by name
+H/settings/spec 001: SNAPSHOT_SINK_TOKEN is denied by name
+H/settings/spec 001: TELEMETRY_BLOCK_TOKEN is denied by name
+H/settings/spec 001: DB_GATEWAY_PASSWORD is denied by name
+H/settings/spec 001: DB_GRAFANA_RO_PASSWORD is denied by name
+H/settings/spec 001: DB_RELAY_RO_PASSWORD is denied by name
+H/settings/spec 001: DB_RELAY_RW_PASSWORD is denied by name
+H/settings/spec 001: TF_VAR_alert_email is denied by name
+H/settings/spec 001: TF_VAR_state_bucket_suffix is denied by name
+H/settings/spec 001: TF_VAR_server_budget_usd is denied by name
+H/settings/spec 001: TF_VAR_bedrock_service_names is denied by name
+H/settings/spec 001: TF_CLI_ARGS is denied by name
+H/settings/spec 001: TF_CLI_ARGS_init is denied by name
+H/settings/spec 001: TF_CLI_ARGS_plan is denied by name
+H/settings/spec 001: TF_CLI_ARGS_apply is denied by name
+H/settings/spec 001: TF_CLI_ARGS_destroy is denied by name
+H/settings/spec 001: TF_CLI_ARGS_import is denied by name
+H/settings/spec 001: TF_CLI_ARGS_refresh is denied by name
+H/settings/spec 001: TF_CLI_ARGS_state is denied by name
+H/settings/spec 001: TF_CLI_ARGS_taint is denied by name
+H/settings/spec 001: TF_CLI_ARGS_test is denied by name
+H/settings/spec 001: TF_CLI_ARGS_workspace is denied by name
+H/settings/spec 001: AWS_SECURITY_TOKEN is denied by name
+H/settings/spec 001: AWS_DEFAULT_PROFILE is denied by name
+H/settings/spec 001: AWS_ROLE_SESSION_NAME is denied by name
+H/settings/spec 001: AWS_CONTAINER_CREDENTIALS_RELATIVE_URI is denied by name
+H/settings/spec 001: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE is denied by name
+H/settings/spec 001: AWS_BEARER_TOKEN_BEDROCK is denied by name
+H/settings/spec 001: Terraform state, saved plans, and variable files are Read- and Edit-denied, and infra/policy is Edit-denied
+S/spec-001-config-folders

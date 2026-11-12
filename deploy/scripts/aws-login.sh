@@ -84,6 +84,20 @@ ini_value() {
 	done <"$aws_dir/config"
 	return 0
 }
+# Spec 001's group 4 (its tasks.md T036 and T040; docs/runbooks/laptop.md): the profile may assume h4-laptop-bedrock
+# from an SSO profile, its source_profile, as preflight's P19 allows. The session to start is then that source's: one
+# hop, to that role alone. No message names the account.
+role="$(ini_value "profile $profile" role_arn)"
+source_profile="$(ini_value "profile $profile" source_profile)"
+if [ -n "$role$source_profile" ]; then
+	[[ "$role" =~ ^arn:aws:iam::[0-9]{12}:role/h4-laptop-bedrock$ ]] \
+		|| die "the $profile profile assumes a role, which must be h4-laptop-bedrock, the one its permission set allows (docs/runbooks/laptop.md)"
+	{ [[ "$source_profile" =~ ^[A-Za-z0-9_-]+$ ]] && grep -Eq "^\[profile $source_profile\][[:space:]]*$" "$aws_dir/config"; } \
+		|| die "the $profile profile's source_profile names no profile in $aws_dir/config (docs/runbooks/laptop.md)"
+	[ -z "$(ini_value "profile $source_profile" role_arn)$(ini_value "profile $source_profile" source_profile)" ] \
+		|| die "the $profile profile's source_profile assumes a role too: one hop, from an SSO profile, only"
+	profile="$source_profile"
+fi
 session="$(ini_value "profile $profile" sso_session)"
 if [ -n "$session" ]; then
 	region="$(ini_value "sso-session $session" sso_region)"
