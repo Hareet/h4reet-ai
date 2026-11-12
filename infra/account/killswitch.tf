@@ -104,6 +104,11 @@ resource "aws_budgets_budget_action" "model" {
     subscription_type = "SNS"
   }
 
+  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
+  tags = {
+    component = "kill-switch"
+  }
+
   depends_on = [aws_iam_role_policy.model_action]
 }
 
@@ -208,6 +213,11 @@ resource "aws_budgets_budget_action" "rehearsal_model" {
   subscriber {
     address           = data.aws_sns_topic.alerts.arn
     subscription_type = "SNS"
+  }
+
+  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
+  tags = {
+    component = "rehearsal"
   }
 
   depends_on = [aws_iam_role_policy.rehearsal_model_action]
@@ -338,6 +348,11 @@ resource "aws_budgets_budget_action" "rehearsal_server" {
   subscriber {
     address           = data.aws_sns_topic.alerts.arn
     subscription_type = "SNS"
+  }
+
+  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
+  tags = {
+    component = "rehearsal"
   }
 
   depends_on = [aws_iam_role_policy.rehearsal_server_action]

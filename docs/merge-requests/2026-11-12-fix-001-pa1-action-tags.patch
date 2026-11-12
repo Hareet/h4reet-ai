@@ -1,0 +1,49 @@
+P-A1, spec 001's budget actions tagged (tasks.md T155; the Author's T037 plan, 2026-11-12). For the Author's hand
+only: infra/account/killswitch.tf is protected (FR-012; .claude/hooks/protected-paths.sh, killswitch*.tf).
+
+Built on 2026-11-12 from a plain copy, never `git apply` or a write into a worktree: main's file by
+`git show refs/heads/main:…`, edited, then `diff -u` with a/ and b/ labels. Apply it from the repository's top with
+`patch -p1`, which skips this preamble.
+
+  - infra/account/killswitch.tf: aws_budgets_budget_action.model, .rehearsal_model, and .rehearsal_server each set
+    tags with component ("kill-switch", "rehearsal", "rehearsal"). The T037 plan's policy check found the model
+    action's tags_all without component (rule T2 on the saved plan); the rehearsal actions, absent from that plan
+    while local.rehearsal is false, had the same gap.
+
+--- a/infra/account/killswitch.tf
++++ b/infra/account/killswitch.tf
+@@ -104,6 +104,11 @@
+     subscription_type = "SNS"
+   }
+ 
++  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
++  tags = {
++    component = "kill-switch"
++  }
++
+   depends_on = [aws_iam_role_policy.model_action]
+ }
+ 
+@@ -210,6 +215,11 @@
+     subscription_type = "SNS"
+   }
+ 
++  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
++  tags = {
++    component = "rehearsal"
++  }
++
+   depends_on = [aws_iam_role_policy.rehearsal_model_action]
+ }
+ 
+@@ -340,5 +350,10 @@
+     subscription_type = "SNS"
+   }
+ 
++  # Budget actions take tags; the saved plan's tags_all must name component (rule T2; the T037 plan, 2026-11-12).
++  tags = {
++    component = "rehearsal"
++  }
++
+   depends_on = [aws_iam_role_policy.rehearsal_server_action]
+ }
