@@ -123,7 +123,10 @@ EOF
 		echo "egress proxy: couldn't read deploy/agents-engine/egress-proxy.py from $REPO's refs/heads/main"
 		return 1
 	fi
-	printf 'FROM python:3.12-slim\nCOPY egress-proxy.py /egress-proxy.py\n' >"$t/ctx-e/Dockerfile"
+	# The probe's umask is 077, and COPY keeps a file's mode: --chmod makes the script readable by the container's user
+	# (the second run's egress proxy couldn't open it).
+	chmod 644 "$t/ctx-e/egress-proxy.py"
+	printf 'FROM python:3.12-slim\nCOPY --chmod=0444 egress-proxy.py /egress-proxy.py\n' >"$t/ctx-e/Dockerfile"
 	if docker build -q -t "$IMG_E" "$t/ctx-e" >"$t/build-egress.log" 2>&1; then
 		echo "egress image: built, egress-proxy.py sha256 $(sha256sum "$t/ctx-e/egress-proxy.py" | cut -c1-12)…"
 	else
@@ -153,9 +156,26 @@ EOF
 		echo "engine forwarder: FAILED to start"
 		return 1
 	fi
-	sleep 2
+	# Both must be running and answering on the internal network before any check, or every row after this proves
+	# nothing (the second run's egress proxy had exited, unnoticed).
+	local tries ready=no
+	for tries in 1 2 3 4 5 6 7 8 9 10; do
+		if [ "$(docker inspect -f '{{.State.Running}}' "$EGRESS" 2>/dev/null)" = true ] &&
+			[ "$(docker inspect -f '{{.State.Running}}' "$FWD" 2>/dev/null)" = true ] &&
+			docker run --rm "${lock[@]}" --network "$NET_IN" "$IMG_W" python3 -I -c 'import socket; socket.create_connection(("egress", 3128), timeout=3)' >/dev/null 2>&1; then
+			ready=yes
+			break
+		fi
+		sleep 1
+	done
 	docker logs "$EGRESS" 2>&1 | tail -n 3
-	echo "egress and engine-fwd: running"
+	if [ "$ready" != yes ]; then
+		echo "egress proxy or engine forwarder: NOT answering after $tries tries; stopping here (nothing after this would prove anything)"
+		echo "egress running: $(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$EGRESS" 2>&1)"
+		echo "forwarder running: $(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$FWD" 2>&1)"
+		return 1
+	fi
+	echo "egress proxy: answering on egress:3128 inside $NET_IN; engine forwarder: running"
 	echo "exit: 0"
 
 	h "4. a scratch repository and its worktree, as the night's are"
@@ -250,10 +270,11 @@ refused tags-ro git tag main
 refused alternates-ro sh -c "echo /tmp >'$GIT/objects/info/alternates'"
 refused commondir-ro sh -c "echo .. >'$GIT/worktrees/probe/commondir'"
 
-e="$(timeout 120 claude -p 'Reply with exactly the word ok and nothing else.' --settings /night/settings.json --max-turns 2 2>&1 | tail -n 3)"
+e="$(timeout 120 claude -p 'Reply with exactly the word ok and nothing else.' --settings /night/settings.json --max-turns 2 2>&1)"
+es=$?
 case "$(printf '%s\n' "$e" | sed '/^[[:space:]]*$/d' | tail -n 1 | tr -d '[:space:].' | tr '[:upper:]' '[:lower:]')" in
 	ok) r signin ok "claude -p answered on the token" ;;
-	*) r signin FAILED "$(printf '%s' "$e" | tr '\n' ' ' | cut -c1-160)" ;;
+	*) r signin FAILED "exit $es: $(printf '%s' "$e" | tail -n 3 | tr '\n' ' ' | cut -c1-160)" ;;
 esac
 st="$(timeout 60 claude auth status 2>&1 | grep -v '@' | grep -iE 'method|subscription|plan|type|login|token|account' | head -n 5 | tr '\n' ' ')"
 r auth-status info "${st:-no such command, or nothing matched}"
@@ -284,11 +305,18 @@ CHECKS
 	"${w[@]}" "$IMG_W" /night/checks.sh "$HOME" "$git" "$wt" 2>&1 | redact | tee -a "$rows"
 	echo "exit: ${PIPESTATUS[0]}"
 
-	h "6. fail closed: an API key, then an auth token, beside the night-shift token"
+	h "6. fail closed, with stand-in credentials"
 	# The proof is the egress log: the container's only way out is the proxy, so a turn that adds no api.anthropic.com
-	# line to it never reached the API, and the stand-in credential was never used (the review's B1).
+	# line to it never reached the API, and the stand-in credential was never used (the review's B1). That proof only
+	# holds when the proxy demonstrably works and the token demonstrably signs in, so both rows must be ok first; a
+	# turn that fails for want of a network would otherwise read as a refusal (the second run).
 	local v before after out rc
+	if ! grep -q '^row: egress-allowed ok' "$rows" || ! grep -q '^row: signin ok' "$rows"; then
+		row failclosed-api-key UNTESTED "needs egress-allowed and signin to be ok first"
+		row failclosed-auth-token UNTESTED "needs egress-allowed and signin to be ok first"
+	fi
 	for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; do
+		if ! { grep -q '^row: egress-allowed ok' "$rows" && grep -q '^row: signin ok' "$rows"; }; then break; fi
 		before="$(grep -c 'api.anthropic.com' "$t/state/egress.jsonl" 2>/dev/null || true)"
 		out="$("${w[@]}" -e "$v=probe-not-a-credential" "$IMG_W" timeout 120 claude -p 'Reply with exactly the word ok and nothing else.' --settings /night/settings.json --max-turns 2 2>&1)"
 		rc=$?
