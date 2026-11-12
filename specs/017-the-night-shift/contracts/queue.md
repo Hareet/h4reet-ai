@@ -9,4 +9,6 @@
 - a `base` isn't a full ref or a 40-hex SHA that resolves;
 - a `prompt` isn't one of the installed prompts.
 
+The build (G1) also refuses: a field the data model doesn't name; a `slug` that breaks `[a-z0-9-]{1,40}` (it names the branch, `night/<id>/<slug>`); an `id` the runner keeps for itself (`supervisor`, `egress`, `egress-studio`, `egress-plan`, `engine-fwd`, `comfyui`); a studio task without the `gpu` lock; a `name` that breaks `feat/NNN-<words>`; and a queue file that is a link, not JSON, or over 1 MB. A task may carry `"name"` to mark its stack done (contracts/runner.md §6), even after it has run.
+
 A refusal is one line on the decision page, naming the field. Tasks with every `after` done and their locks free start in file order, up to ten at once.

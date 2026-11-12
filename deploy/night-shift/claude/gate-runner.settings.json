@@ -1,0 +1,10 @@
+{
+  "forceLoginMethod": "claudeai",
+  "sandbox": { "enabled": false },
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "allow": ["Bash", "Read", "Glob", "Grep", "TodoWrite", "Edit(//night/io/out/**)"],
+    "deny": ["WebFetch"]
+  }
+}

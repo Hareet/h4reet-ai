@@ -131,7 +131,8 @@ the Author's terminal
 └─ night.py (the runner: the only process that uses the host's Docker socket)
    ├─ h4-night (internal network: no route out)
    │   ├─ egress           (also on a normal network; egress-proxy.py with the night allowlist, :3128)
-   │   ├─ engine-fwd       (also on a normal network; forwards :2376 to 198.18.0.1:2376 only)
+   │   ├─ engine-fwd       (also on a normal network; forwards :2376 to 198.18.0.1:2376 only; on h4-night-engine,
+   │   │                    not h4-night, so only the roles whose specs name that network reach it: the build, runner.md §2)
    │   ├─ supervisor       (its worktree)
    │   └─ workers ×≤10     (each: its worktree, its Claude folder, its io folder)
    │        └─ Claude Code: the project's hooks and permissions, its role's settings layer,
@@ -149,7 +150,7 @@ the Author's terminal
 - has limits: `--pids-limit 512`, `--memory 4g`, `--cpus 2`, and the supervisor `--memory 2g`. Ten workers then fit 62 GB and 24 cores, with the GPU's model off on studio nights;
 - has these mounts, and nothing else:
   - its worktree, read-write, at the same path as on the host;
-  - the repository's `.git`, read-write, at the same path, with read-only binds over `.git/hooks`, `.git/config`, `.git/info`, `.git/packed-refs`, `.git/refs/heads/main`, `.git/refs/tags`, `.git/objects/info`, and its own `.git/worktrees/<task>/commondir`;
+  - the repository's `.git`, read-only, at the same path, and read-write only where a commit on its own branch writes (FR-012; G1's review, B1, which found the broad read-write `.git` let a session plant a top-level `commondir` the runner's git would follow): `.git/objects` (with `objects/info` read-only over it), its own `.git/worktrees/<task>` (with its `commondir` read-only over it), `.git/refs/heads/night/<task>`, and `.git/logs/refs/heads/night/<task>`, made outside before the run (contracts/runner.md §3). The container probe tested the broad shape; the rehearsal's commit row proves the narrow one;
   - read-only binds over every path `refs/heads/main:.claude/settings.json` denies writing, inside the worktree (`.claude`, `CLAUDE.md`, `REVIEW.md`, `tools/gates`, …). Claude Code's own sandbox may be off in the container, so these binds do what its masks do today;
   - its role's Claude folder (`CLAUDE_CONFIG_DIR`);
   - its io folder;

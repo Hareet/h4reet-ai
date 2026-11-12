@@ -22,17 +22,17 @@
 
 - [ ] T001 Create `feat/017-the-night-shift` from `spec/017-the-night-shift`'s reviewed tip, in a worktree. Record the container probe's rows in `specs/017-the-night-shift/research.md`: whether Claude Code's sandbox starts inside a container, the engine forwarder, and the GPU runtime.
 - [ ] T002 Pin the night images' bases by digest, and Claude Code at `CLAUDE_VERSION`, in `deploy/night-shift/images/pins.json`. The pins are read by `install.sh` and checked by P-8.
-- [ ] T003 Add `deploy/night-shift` to `PYTEST_DIRS` in `Makefile`. `deploy/night-shift/tests/` has no `conftest.py`; tests load modules by path, as `tools/gates/test/` does.
+- [x] T003 Add `deploy/night-shift` to `PYTEST_DIRS` in `Makefile`. `deploy/night-shift/tests/` has no `conftest.py`; tests load modules by path, as `tools/gates/test/` does.
 
 ## Phase 2: G1, the runner (US3, P1)
 
 **Goal**: the supervisor and up to ten workers, locks, save points, the weekly resume, idle stop, the page, and the requests, with every `docker run` line built and checked without an engine. **Independent test**: `pytest deploy/night-shift/tests/test_runner.py` with a stub `docker` and stub streams.
 
-- [ ] T010 [P] [US3] RED: the queue's validation per contracts/queue.md: `id` matches `[a-z0-9-]{3,40}` and is unique; `role` and `locks` come from their sets; no cycle; `base` is a full ref or a 40-hex SHA; a refused file keeps the last good one.
-- [ ] T011 [P] [US3] RED: scheduling. At most ten run at once with fifteen ready; locks serialise (two GPU tasks); `after` waits; starts are staggered by 10 s (a fake clock); before a `gpu` task the disk and memory checks rerun, and a failure leaves it queued with a page line.
-- [ ] T012 [P] [US3] RED: a stub stream's usage-limit event with a reset time stops all containers. The runner sleeps once until the reset plus 300 s (one sleep call on a fake clock, no other timer) and requeues. A limit with no time stops the night and writes the page line.
-- [ ] T013 [P] [US3] RED: the idle stop. Silent for 15 minutes with a clean worktree means stopped and recorded; a dirty worktree isn't stopped; a session that ends dirty is recorded, not committed for.
-- [ ] T014 [P] [US3] RED: the preflight of contracts/runner.md §2:
+- [x] T010 [P] [US3] RED: the queue's validation per contracts/queue.md: `id` matches `[a-z0-9-]{3,40}` and is unique; `role` and `locks` come from their sets; no cycle; `base` is a full ref or a 40-hex SHA; a refused file keeps the last good one.
+- [x] T011 [P] [US3] RED: scheduling. At most ten run at once with fifteen ready; locks serialise (two GPU tasks); `after` waits; starts are staggered by 10 s (a fake clock); before a `gpu` task the disk and memory checks rerun, and a failure leaves it queued with a page line.
+- [x] T012 [P] [US3] RED: a stub stream's usage-limit event with a reset time stops all containers. The runner sleeps once until the reset plus 300 s (one sleep call on a fake clock, no other timer) and requeues. A limit with no time stops the night and writes the page line.
+- [x] T013 [P] [US3] RED: the idle stop. Silent for 15 minutes with a clean worktree means stopped and recorded; a dirty worktree isn't stopped; a session that ends dirty is recorded, not committed for.
+- [x] T014 [P] [US3] RED: the preflight of contracts/runner.md §2:
   - a spec with the example marker or outside the live folder;
   - a SHA-256 mismatch;
   - a token file that isn't 0600 or not exactly one `CLAUDE_CODE_OAUTH_TOKEN=` line;
@@ -42,20 +42,20 @@
   - a second runner.
 
   Each refuses with one line, and the token's value appears in no output.
-- [ ] T015 [P] [US3] RED: the `docker run` line of contracts/runner.md §3 for every role:
+- [x] T015 [P] [US3] RED: the `docker run` line of contracts/runner.md §3 for every role:
   - `--cap-drop ALL`, `no-new-privileges`, `--read-only`, the limits, the internal network, and `--env-file` for the token;
   - none of FR-041's variables, and no `--bare`;
   - every never-mounted path absent, and every mask of contracts/containers.md §4 present.
-- [ ] T016 [P] [US3] RED: requests (contracts/runner.md §5):
+- [x] T016 [P] [US3] RED: requests (contracts/runner.md §5):
   - plan or gate while off: refused with "off: waiting for P-2, P-3, P-6";
   - a gate (on, with a stub) only while `REPO`'s HEAD is `refs/heads/main` and clean, never `--prove`, under the gate lock;
   - a plan (on, with a stub) writes its credentials file 0600 and deletes it after;
   - `comfyui start` only under a studio task's GPU lock, each parameter checked against the allowlist;
   - an unknown kind is refused.
-- [ ] T017 [P] [US3] RED: the decision page (contracts/decision-page.md). Its sections come in order; each question appears once, with a recommended answer and the task it blocks; the runner appends only under `## The runner`.
-- [ ] T018 [US3] GREEN: `deploy/night-shift/runner/night.py` (standard library, `python3 -I -B`), with `start`, `stop`, `status`, and `check`.
-- [ ] T019 [P] [US3] `deploy/night-shift/runner/prompts/{supervisor,spec-writer,implementer,reviewer,red-teamer,ops,gate-runner,studio}.md`. Each states its role's limits, the save point before each step, how to ask for a plan, a gate, or ComfyUI, and that questions go to the decision page with a recommended answer.
-- [ ] T020 [P] [US3] `deploy/night-shift/claude/managed-settings.json` (the proven `forceLoginMethod` with the two variables blanked, baked into every image) and `deploy/night-shift/claude/<role>.settings.json`: each role's permission mode, no `apiKeyHelper`, no credential in `env`, and Claude Code's sandbox off (the probe: it can't start in a container). A test checks both.
+- [x] T017 [P] [US3] RED: the decision page (contracts/decision-page.md). Its sections come in order; each question appears once, with a recommended answer and the task it blocks; the runner appends only under `## The runner`.
+- [x] T018 [US3] GREEN: `deploy/night-shift/runner/night.py` (standard library, `python3 -I -B`), with `start`, `stop`, `status`, and `check`.
+- [x] T019 [P] [US3] `deploy/night-shift/runner/prompts/{supervisor,spec-writer,implementer,reviewer,red-teamer,ops,gate-runner,studio}.md`. Each states its role's limits, the save point before each step, how to ask for a plan, a gate, or ComfyUI, and that questions go to the decision page with a recommended answer.
+- [x] T020 [P] [US3] `deploy/night-shift/claude/managed-settings.json` (the proven `forceLoginMethod` with the two variables blanked, baked into every image) and `deploy/night-shift/claude/<role>.settings.json`: each role's permission mode, no `apiKeyHelper`, no credential in `env`, and Claude Code's sandbox off (the probe: it can't start in a container). A test checks both.
 - [ ] T021 [US3] Review G1; fix blockers; backlog the rest.
 
 ## Phase 3: G2, images and container specs (US2, P1)

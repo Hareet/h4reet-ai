@@ -110,7 +110,8 @@ endif
 PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv run --no-project --no-config --python "$$(command -v python3)" --quiet --with-requirements .devcontainer/requirements-tools.txt pytest)
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
 # infra/ holds spec 001's tests of its roots (infra/test/) and of its Lambda functions (infra/lambdas/*/test_*.py).
-PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine scripts infra)
+# deploy/night-shift holds spec 017's runner and its tests (no conftest.py: the tests load modules by path).
+PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine deploy/night-shift scripts infra)
 
 # node_modules and pytest, with any conftest.py, run code that agents can write and git doesn't show. The targets
 # that run them work only in the agent sandbox or the devcontainer. In your own terminal, read the merge-request
