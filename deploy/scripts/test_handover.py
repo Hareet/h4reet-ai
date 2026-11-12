@@ -308,7 +308,7 @@ def test_serving_leaves_ec2_running_once_the_relay_sends_elsewhere(
 ) -> None:
     # I1, FR-064: the loop stops EC2 only WHILE the relay sends to the laptop. A laptop whose tunnel, edge, or gateway
     # fails stays up, the relay moves to EC2 or to none, and the start function starts EC2: the loop must leave it.
-    ec2 = Ec2("stopped", "running")
+    ec2 = Ec2("stopped", "stopped", "running")
     h, _, _ = loop(tmp_path, Status("laptop", elsewhere), ec2)
     h.wait_for_laptop()
     h.settle()
@@ -322,7 +322,7 @@ def test_serving_leaves_ec2_running_once_the_relay_sends_elsewhere(
 def test_back_in_waiting_it_stops_ec2_again_once_the_relay_serves_the_laptop(
     tmp_path: Path,
 ) -> None:
-    ec2 = Ec2("stopped", "running", "running", "stopped")
+    ec2 = Ec2("stopped", "stopped", "running")
     h, _, _ = loop(tmp_path, Status("laptop", "none", "laptop"), ec2)
     h.wait_for_laptop()
     h.settle()
