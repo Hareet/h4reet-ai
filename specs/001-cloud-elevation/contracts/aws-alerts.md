@@ -34,6 +34,7 @@ Message format as September: `[hareet.ai aws] <kind>: <facts>`, one line, then f
 | `deploy_rolled_back`, `deploy_rollback_failed`, `deploy_refused` | each cloud host's deployer | contracts/releases-deployer.md §3 | `deploy.md` |
 | `tunnel_end_interruption` | `h4-tunnel-end-spot-warning` | AWS's warning for the tunnel end (spec FR-076) | `tunnel-end.md` |
 | `tunnel_end_back` | `h4-tunnel-end-running` | the tunnel end running again | `tunnel-end.md` |
+| `shared_state_backup_failed` | the tunnel end's backup timer, `h4-shared-state-backup.timer` (group 6) | an hourly dump, or its put to the backups' bucket, failed: once per failing streak, the last good dump kept | `shared-state.md` |
 | `ec2_start_refused (tunnel_end_down)` | `h4-ec2-start` | the laptop gone while the tunnel end is down | `tunnel-end.md` |
 
 The laptop's own alerts, such as the handover loop's failed stop, go through spec 000's dispatcher, as its other alerts do.

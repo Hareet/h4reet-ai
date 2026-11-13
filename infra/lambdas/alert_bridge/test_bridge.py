@@ -233,6 +233,13 @@ NOTICES: dict[str, str] = {
     "tunnel_end_back": ours(
         "tunnel_end_back", "the tunnel end runs again", "- instance: i-0def"
     ),
+    # Group 6 (spec 001 tasks.md T164): the tunnel end's backup timer, once per failing streak.
+    "shared_state_backup_failed": ours(
+        "shared_state_backup_failed",
+        "the shared state's hourly dump failed, and the last good one is kept",
+        "- step: put",
+        "- last_good: 2026-11-13T05:00:00Z",
+    ),
 }
 
 

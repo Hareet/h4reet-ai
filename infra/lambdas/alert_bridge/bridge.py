@@ -77,6 +77,8 @@ KINDS: dict[str, str] = {
     "deploy_refused": "deploy.md",
     "tunnel_end_interruption": "tunnel-end.md",
     "tunnel_end_back": "tunnel-end.md",
+    # Group 6: the tunnel end's backup timer (deploy/hosts/tunnel-end/shared_state.py).
+    "shared_state_backup_failed": "shared-state.md",
 }
 REASONS: dict[str, dict[str, str]] = {
     "ec2_start_refused": {

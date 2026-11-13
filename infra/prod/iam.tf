@@ -1,8 +1,9 @@
 # The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
 # provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
 # it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
-# makes (plan.md §16). Group 9 adds the dashboard's reads. Protected (FR-012; rule T5): it changes only by the Author's
-# patch.
+# makes (plan.md §16). Group 9 adds the dashboard's reads. Group 6 adds the shared state's (P-I7): the two role
+# passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Protected (FR-012; rule T5): it changes
+# only by the Author's patch.
 
 data "aws_iam_policy_document" "tunnel_end_trust" {
   statement {
@@ -57,7 +58,10 @@ data "aws_iam_policy_document" "tunnel_end" {
     resources = ["arn:aws:ecr:us-east-1:${data.aws_caller_identity.current.account_id}:repository/h4reet/*"]
   }
 
-  # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name).
+  # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name). And the shared
+  # state's (group 6; contracts/shared-state.md §2, §3): its TLS key and certificate under its own path, and the two
+  # role passwords of /h4reet/ec2/ its roles target sets, by name. Nothing else of EC2's: a tunnel end that holds the
+  # store's superuser gains nothing from those two.
   statement {
     sid     = "ItsParameters"
     effect  = "Allow"
@@ -65,6 +69,8 @@ data "aws_iam_policy_document" "tunnel_end" {
     resources = [
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
       "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
+      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
     ]
   }
 
@@ -89,6 +95,8 @@ data "aws_iam_policy_document" "tunnel_end" {
       values = [
         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
         "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
+        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GATEWAY_PASSWORD",
+        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/DB_GRAFANA_RO_PASSWORD",
       ]
     }
   }
@@ -158,12 +166,23 @@ data "aws_iam_policy_document" "tunnel_end" {
     }
   }
 
-  # Its deployer's alerts (contracts/aws-alerts.md §1): deploy_rolled_back, deploy_rollback_failed, deploy_refused.
+  # Its deployer's alerts (contracts/aws-alerts.md §1): deploy_rolled_back, deploy_rollback_failed, deploy_refused; and,
+  # from group 6, the backup timer's shared_state_backup_failed.
   statement {
     sid       = "ItsAlerts"
     effect    = "Allow"
     actions   = ["sns:Publish"]
     resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
+  }
+
+  # The shared state's hourly backup (group 6; contracts/shared-state.md §1): its one prefix, put only. Nothing that
+  # reads, lists, or deletes there, so a compromised tunnel end can't read a dump; a restore's GET is presigned in the
+  # Author's terminal (§8).
+  statement {
+    sid       = "PutTheBackups"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.shared_state_backups.arn}/dumps/*"]
   }
 }
 
