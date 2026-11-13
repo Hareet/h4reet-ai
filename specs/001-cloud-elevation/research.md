@@ -200,6 +200,20 @@ The record goes in this file under R-33 and in the group's note. The Author pric
   - **Disks:** the data volumes grew from 118.9 MiB to 243.6 MiB in the 30 minutes, mostly ClickHouse (+91.7) and SeaweedFS (+23.3). The stack runs 14 images, 9,402.4 MiB as the engine stores them. Those are x86-64 builds, and layers two images share count twice, so the arm64 figure will differ. `telegram-standin` is built locally and isn't in `docker system df`'s image list.
   - **The smallest instance types that fit, by memory alone, have 8 GiB.** The largest sample, 3,497.3 MiB, would leave about 0.6 GiB of a 4 GiB size (`t4g.medium`, `m7g.medium`) for the OS and Docker, with nothing left for an answered load: no headroom. The 8 GiB arm64 sizes are `t4g.large` and `m7g.large` (2 vCPU each) and `r7g.medium` (1 vCPU). The services' limits sum to 11,360 MiB, more than 8 GiB, so the limits alone don't bound the host. No price is written here: the prices are the Author's (T017, R-05).
   - **What the run doesn't show:** these are x86-64 peaks on the agents' engine, not Graviton's. With 1.1% of requests answered, Langfuse and ClickHouse ingested few traces, so an answered load may peak higher.
+- **The tunnel end: measured on 2026-11-13** by `make measure-tunnel-end` (tasks.md T166) on the Author's own engine, at a clone of 4c56e440, from 16:36 to 17:09 UTC: 142 samples, 0 failed. The load: hello `{"200": 1800}`, the status `{"200": 360}`, the host part `{"204": 30}`. The block's verdict, in its words: "**The type, the larger of the two (R-33's rule on the peaks and on the limits): t4g.small.**"
+
+  | Service | Peak (MiB) | Limit (MiB), as run | Limit (MiB), after |
+  |---|---|---|---|
+  | tunnel-end | 5.4 | 32 | 32 |
+  | relay | 96.0 | 96 | 128 |
+  | snapshot-sink | 44.6 | 48 | 48 |
+  | tunnel-end-collector | 94.6 | 96 | 128 |
+  | shared-state | 63.2 | 256 | 256 |
+  | The five, the largest total in one sample | 262.6 | 528.0 | 592.0 |
+
+  - **The data volume after the run:** 46.8 MiB.
+  - **By the peaks, t4g.micro; by the limits, t4g.small;** the type is the larger, `t4g.small`, which `infra/prod/tunnel-end.tf`'s `local.tunnel_end_type` now holds.
+  - **Two findings:** the relay peaked at exactly its 96 MiB limit, and the collector at 94.6 of its 96 MiB (group 8's review had called 96M tight). Both limits rise to 128M (and `dev-relay`'s with the relay's); the five's limits total 592 MiB, which beside the OS's and Docker's 512 MiB is 1,104 MiB, within 80% of t4g.small's 2,048, so the type holds by the harness's own rule (`type_for`, tested). The collector's own `memory_limiter` stays at 72 MiB, so the raise is headroom for the process around it.
 - **The record must show, beside the peaks,** the share of requests the stub answered (the table's first line, and the record's `answered`). About 20 of some 1,800 is the expected share: the peaks are then of a mostly degraded stack. The Author can accept that figure, or ask for a longer answered window (plan.md §16, group 2's departure 3).
 
 ---

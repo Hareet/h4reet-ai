@@ -5,9 +5,10 @@
 
 locals {
   # The tunnel end's type, measured with its five services before W1's plan blocks (tasks.md T166) and priced by the
-  # Author (T167). It is the only type the root names, and ec2-market.tf's precondition refuses this placeholder, so
-  # prod's plan fails until T166 sets it.
-  tunnel_end_type = "measure-in-T166"
+  # Author (T167). It is the only type the root names; ec2-market.tf's precondition still refuses the placeholder,
+  # "measure-in-T166". T166's block, on his engine, 2026-11-13: "The type, the larger of the two (R-33's rule on the
+  # peaks and on the limits): t4g.small." (research.md R-33).
+  tunnel_end_type = "t4g.small"
 
   # The tunnel end's generation: a new one replaces it on the newest Amazon Linux 2023 image, which is how its OS is
   # updated (docs/runbooks/tunnel-end.md, "An OS update"), since nftables keeps dnf from the repository after the first

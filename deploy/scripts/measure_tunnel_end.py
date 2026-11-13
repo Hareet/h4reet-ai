@@ -34,8 +34,8 @@ How it runs, in its own project, h4reet-measure-tunnel-end, never a stack's:
 It prints a block for W1's note, then the record as one JSON line, marked "h4_measure_tunnel_end": 1. Two types, each
 the smallest t4g by R-33's rule as T016 applied it (a figure, beside OS_DOCKER_MIB for the OS and Docker, within
 USABLE_SHARE of the type's memory): by the largest total of the five at one sample, and by the five's memory limits
-together, as docker stats reports them (deploy/compose.yaml's, 528 MiB); the type it names is the larger. The host's
-own timers (the sink's writer and the backup) run beside Docker and aren't counted, which the block says. The images
+together, as docker stats reports them (deploy/compose.yaml's, 592 MiB since T166's run raised the relay's and the
+collector's to 128M); the type it names is the larger. The host's own timers (the sink's writer and the backup) run beside Docker and aren't counted, which the block says. The images
 it builds, h4reet-measure-{tunnel,relay,snapshot}:local, stay after the run (the note's "T166" says how to remove
 them). Standard library only, by path through PY_HOST. Nothing it prints holds a stand-in secret, a payload, or an
 address.
