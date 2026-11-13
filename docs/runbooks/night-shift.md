@@ -1,6 +1,6 @@
 # Runbook: the night shift
 
-The night shift runs agent sessions while you sleep: a supervisor, and up to ten workers, each in its own container and worktree. This page is what you do: the token, the facts file, the push, the install, the nights, and the second install that turns on the plan and the gate. The design is in [how-we-build/night-shift.md](../how-we-build/night-shift.md), and the decisions are in [ADR 0050](../adr/0050-containers-around-every-agent-session.md), [ADR 0051](../adr/0051-agents-plan-and-run-the-gate.md), and [ADR 0052](../adr/0052-the-studio-line.md).
+The night shift runs agent sessions while you sleep: a supervisor, and up to ten workers, each in its own container and worktree. This page is what you do: the token, the facts file, the push, the install, the nights, and the second install that turns on the plan and the gate. The design is in [how-we-build/night-shift.md](../how-we-build/night-shift.md), and the decisions are in [ADR 0051](../adr/0051-containers-around-every-agent-session.md), [ADR 0052](../adr/0052-agents-plan-and-run-the-gate.md), and [ADR 0053](../adr/0053-the-studio-line.md).
 
 **Who runs what.** Every command on this page is yours, typed in your own terminal. The sessions can't do them: they can't read your token or your facts file, and they have no route to the Docker socket. Each command line is short on purpose, so paste one line at a time. Variables such as `NS` or `SHA` are set on their own lines, and a new terminal needs them set again.
 
@@ -104,7 +104,7 @@ The file is valid when every key is present, every path is absolute, `NIGHT_PLAN
 
 ### 3. Push to GitHub before the first night
 
-The Author's decision, of 2026-11-12 (Q17): "Let's accept the risk, and I will push up to github manually before we start these night shift agents". The repository has no remote, and the night's writing sessions can write its object store (ADR 0050). Your push gives the history a copy outside this machine. The session can't do it: its sandbox denies github.com. The push, and any publication it amounts to under ADR 0013, are yours.
+The Author's decision, of 2026-11-12 (Q17): "Let's accept the risk, and I will push up to github manually before we start these night shift agents". The repository has no remote, and the night's writing sessions can write its object store (ADR 0051). Your push gives the history a copy outside this machine. The session can't do it: its sandbox denies github.com. The push, and any publication it amounts to under ADR 0013, are yours.
 
 First, run the repository's own check before any first push (FR-042). It exits 0 when clean, 1 on findings, and 3 when it can't certify. Fix anything it names before going on.
 
@@ -311,7 +311,7 @@ unset CLAUDE_CODE_USE_FOUNDRY
 
 ### Plan and gate: off until the patches merge
 
-Until the Author's patches P-2, P-3, and P-6 merge, both the plan request and the gate request answer "off: waiting for P-2, P-3, P-6". Then the plan and gate are off, and today's rules hold: agents ask you for a plan, and you run the gate. Turn them on only when the patches are on main, and the account role is applied (ADR 0051).
+Until the Author's patches P-2, P-3, and P-6 merge, both the plan request and the gate request answer "off: waiting for P-2, P-3, P-6". Then the plan and gate are off, and today's rules hold: agents ask you for a plan, and you run the gate. Turn them on only when the patches are on main, and the account role is applied (ADR 0052).
 
 ### 12. The second install: plan and gate on
 

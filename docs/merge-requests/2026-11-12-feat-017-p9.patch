@@ -13,7 +13,7 @@ runner for a plan, and changes to role definitions still run the agent-configura
 
 Spec IDs: Q10 ("The constitution's roles list: amend or deviate?"), recommended "amend, P-9", taken by your approval of
 2026-11-12 ("Approve, all recommended"). The Governance section asks for an ADR with an amendment: the night shift's
-ADRs (T060: 0050, containers around every session; 0051, agents plan and run the gate) are where it's explained.
+ADRs (T060: 0051, containers around every session; 0052, agents plan and run the gate) are where it's explained.
 
 Needed for: your choice (plan.md §10). It reads best merged with P-3.
 

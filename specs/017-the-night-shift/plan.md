@@ -62,11 +62,11 @@ A container gives all three: its own mount namespace (what isn't mounted doesn't
 | III. Only a human merges, applies, or amends | Pass | The gate never merges; the plan role's apply is his; the constitution patch (P-9) is his. |
 | IV. Each role scoped; the implementer never reviews | Pass | One container spec per role; reviewers are other agents. |
 | IV. Policy in enforcement points | Pass | The container (mounts, network, capabilities) beneath the hooks and the bash gate, with red-team rows. |
-| IV. "Cloud access is short-lived and identity-based (OIDC for CI, SSO for humans)" | **Deviation, named** | Decision 1: an agent's plan uses a role assumed from his SSO session for one hour. ADR 0051. |
+| IV. "Cloud access is short-lived and identity-based (OIDC for CI, SSO for humans)" | **Deviation, named** | Decision 1: an agent's plan uses a role assumed from his SSO session for one hour. ADR 0052. |
 | IV. "No secrets … in agent context" | Pass, with a named limit | AWS credentials exist only in the plan container's run. The Claude token is in each session's environment, where its own commands could read it; it can reach only the allowlist's hosts, signs in only on the plan, and is revocable on its own (§13). |
 | Security: "network egress to non-allowlisted domains from an agent session" prohibited | Pass | Internal networks have no route out; the egress proxy allows only the night's list (FR-013). |
 | Governance: the roles listed in the constitution | **Deviation until P-9** | The supervisor, studio, and gate-runner roles aren't in its list. P-9 proposes 1.2.0 (MINOR), his to apply. |
-| Development standard: "run under the project's committed … sandbox settings" | **Deviation, named** | Inside a container, Claude Code's own sandbox may not start (the probe says); the container replaces it. The live specs stay outside (decision 4). ADR 0050. |
+| Development standard: "run under the project's committed … sandbox settings" | **Deviation, named** | Inside a container, Claude Code's own sandbox may not start (the probe says); the container replaces it. The live specs stay outside (decision 4). ADR 0051. |
 | CLAUDE.md: the Author plans and runs the gate | **Reversed by decisions 1 and 2** | Off until his patches merge (FR-015). |
 | V. Cost | Pass | No paid route; sessions sign in on the plan, and fail closed on API keys (FR-041). |
 | II. Done is a checklist | Pass | Tests, the probes, the rehearsal, a how-we-build page, a runbook, and three ADRs. |
@@ -120,7 +120,7 @@ scripts/studio/line.py, test_line.py
 infra/account/iam.tf                 # P-6, his patch: h4-agent-plan
 infra/test/test_account.py           # the role's tests
 assets/policy/studio-tools.json      # P-7, his patch: the weights and nodes list
-docs/adr/0050-…, 0051-…, 0052-…      # §11
+docs/adr/0051-…, 0052-…, 0053-…      # §11
 docs/how-we-build/night-shift.md, docs/runbooks/night-shift.md
 redteam/night-shift/rows.json, run.sh # §9 (run.sh runs the installed rehearse.py's R4); matrix rows are P-5
 ```
@@ -339,9 +339,9 @@ Each built from plain copies (`git show refs/heads/main:<path>`, edit, `diff -u`
 
 ## §11 The ADRs
 
-- **ADR 0050, containers around every agent session, after nono on WSL2.** Context: the walls, and the brief's nono. Decision: a container per session, the runner, internal networks with the egress proxy, sign-in on the plan, live specs outside and the example inside. The nono evaluation is the record (R-01 to R-14): the nesting fails, there's no socket mediation, and no host filtering on WSL2. Alternatives: nono with the insecure proxy; bubblewrap outside nono (loopback and the bind mount both failed in the second run); Claude Code's sandbox alone. Consequences: the token in each session's environment (§13); Claude Code's own sandbox off where it can't start.
-- **ADR 0051, agents plan through a plan-only role and run the gate.** Decisions 1 and 2, verbatim. The role, the plan request's container, the gate from his checkout of main, all off until P-2, P-3, P-6. Reverses CLAUDE.md's lines and amends ADR 0017's "the Author runs the gate".
-- **ADR 0052, the studio line.** Decision 5, his studio and ComfyUI words, verbatim. Two folders, no network path between the sides, three rounds, the tools list, ComfyUI launched by the agent with his install read-only, his look approval last.
+- **ADR 0051, containers around every agent session, after nono on WSL2.** Context: the walls, and the brief's nono. Decision: a container per session, the runner, internal networks with the egress proxy, sign-in on the plan, live specs outside and the example inside. The nono evaluation is the record (R-01 to R-14): the nesting fails, there's no socket mediation, and no host filtering on WSL2. Alternatives: nono with the insecure proxy; bubblewrap outside nono (loopback and the bind mount both failed in the second run); Claude Code's sandbox alone. Consequences: the token in each session's environment (§13); Claude Code's own sandbox off where it can't start.
+- **ADR 0052, agents plan through a plan-only role and run the gate.** Decisions 1 and 2, verbatim. The role, the plan request's container, the gate from his checkout of main, all off until P-2, P-3, P-6. Reverses CLAUDE.md's lines and amends ADR 0017's "the Author runs the gate".
+- **ADR 0053, the studio line.** Decision 5, his studio and ComfyUI words, verbatim. Two folders, no network path between the sides, three rounds, the tools list, ComfyUI launched by the agent with his install read-only, his look approval last.
 
 (ADR 0048 and 0049 are W1's; these renumber if W1 claims more.)
 

@@ -10,7 +10,7 @@ The night shift's code, configuration, tests, and documents are on this branch. 
 
 ## What changed and why
 
-The Author wants the night shift: a supervisor and up to ten Claude Code workers, plus a studio agent driving Blender and ComfyUI, spec and build his improvements list overnight, so only decisions and merges reach him. nono, the first plan, couldn't hold it on WSL2. Its probe found that Claude Code's own sandbox can't nest inside Landlock (bwrap's uid map is denied), and that there's no socket mediation or host filter without `insecure_proxy` ([ADR 0050](../adr/0050-containers-around-every-agent-session.md), research R-14). So every session runs in a container on his Docker engine, started only by the runner, and the container probe proved that boundary on his machine (`BOUNDARY holds`, `PLAN-ONLY yes`; research R-16 to R-18).
+The Author wants the night shift: a supervisor and up to ten Claude Code workers, plus a studio agent driving Blender and ComfyUI, spec and build his improvements list overnight, so only decisions and merges reach him. nono, the first plan, couldn't hold it on WSL2. Its probe found that Claude Code's own sandbox can't nest inside Landlock (bwrap's uid map is denied), and that there's no socket mediation or host filter without `insecure_proxy` ([ADR 0051](../adr/0051-containers-around-every-agent-session.md), research R-14). So every session runs in a container on his Docker engine, started only by the runner, and the container probe proved that boundary on his machine (`BOUNDARY holds`, `PLAN-ONLY yes`; research R-16 to R-18).
 
 | Group | What | Where |
 |---|---|---|
@@ -19,7 +19,7 @@ The Author wants the night shift: a supervisor and up to ten Claude Code workers
 | G2 | Four images (worker, studio, ComfyUI, egress), the pins, ten container specs built from fragments with `--check` and `--fill`, the three egress allowlists | `deploy/night-shift/images/`, `deploy/night-shift/containers/`, `deploy/night-shift/allowlist*.json` |
 | G3 | The studio line: brief, candidate, and round checks, with policy read from main only and rounds counted from the studio's handoff folders; ComfyUI's launch allowlist (`--birefnet`) ([G3's note](2026-11-12-feat-017-g3-studio.md)) | `scripts/studio/line.py`, `deploy/night-shift/comfyui-params.json` |
 | G4 | `install.sh <sha> [--branch <name>] [--undo]` and its rehearsal R1 to R4; 359 red-team rows | `deploy/night-shift/install.sh`, `deploy/night-shift/rehearse.py`, `redteam/night-shift/` |
-| G5 | ADRs 0050 to 0052, the how-we-build page, the runbook; the patches P-1 to P-11 and T062's tests for the plan role (P-12 came with T090's round 2) | `docs/adr/`, `docs/how-we-build/night-shift.md`, `docs/runbooks/night-shift.md`, `docs/merge-requests/2026-11-12-feat-017-p*.patch`, `infra/test/` |
+| G5 | ADRs 0051 to 0053, the how-we-build page, the runbook; the patches P-1 to P-11 and T062's tests for the plan role (P-12 came with T090's round 2) | `docs/adr/`, `docs/how-we-build/night-shift.md`, `docs/runbooks/night-shift.md`, `docs/merge-requests/2026-11-12-feat-017-p*.patch`, `infra/test/` |
 | G6 | The runbook's six sections and its test line; this note | `docs/runbooks/night-shift.md`, `evals/test_runbooks.py`, `specs/017-the-night-shift/plan.md` |
 
 117 files, every group test-first: a RED commit, then GREEN, and the same for each review's fixes. Departures from the plan are in plan.md and the contracts in the same commits (G3's, G4's "Changed while building", the narrow `.git` mount, the merge-time refusal).
@@ -44,10 +44,10 @@ plan.md's Constitution Check table, re-checked at the end:
 | III. Only a human merges, applies, or amends | Pass: the gate prints its merge command and never merges; the plan role's apply, the constitution patch (P-9), and every protected path are his. |
 | IV. Each role scoped; the implementer never reviews | Pass: one container spec per role; every group was reviewed by another agent. |
 | IV. Policy in enforcement points | Pass: mounts, internal networks, the egress proxy, capabilities, the managed settings, and the merge-time refusal, with 359 red-team rows. |
-| IV. Short-lived identity-based cloud access | **Deviation, named**: an agent's plan uses a role assumed from his SSO session for one hour (decision 1, ADR 0051). |
+| IV. Short-lived identity-based cloud access | **Deviation, named**: an agent's plan uses a role assumed from his SSO session for one hour (decision 1, ADR 0052). |
 | IV. No secrets in agent context | Pass, with the named limit: the Claude token is in each session's environment; it reaches only the allowlist's hosts, signs in only on the plan, and is revoked on its own. |
 | Governance: the roles list | **Deviation until P-9**: supervisor, studio, and gate-runner. |
-| Development standard: the committed sandbox settings | **Deviation, named**: inside a container the container replaces Claude Code's sandbox; the live specs stay outside (ADR 0050). |
+| Development standard: the committed sandbox settings | **Deviation, named**: inside a container the container replaces Claude Code's sandbox; the live specs stay outside (ADR 0051). |
 | CLAUDE.md: the Author plans and runs the gate | **Reversed by decisions 1 and 2**, and off until his patches merge (FR-015, P-2). |
 | V. Cost | Pass: sessions sign in on the plan; an API key makes them refuse to start or is neutralized (FR-041). |
 
@@ -157,7 +157,7 @@ Not verified here, and proven only by his install (T090): the images' builds, th
 - **Model spend**: none added. Sessions draw on the Author's subscription inside its weekly limits; the managed settings blank `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` and force the claude.ai login, so no session can bill API credits (FR-041; proven by the probe's third run). The runner sleeps until the weekly reset instead of buying more.
 - **AWS**: the plan-only role is free; plans' read calls are free; the S3 lock's writes are fractions of a cent a month. Off until P-6.
 - **Electricity**: the GPU on studio nights.
-- **Data flow**: no visitor byte; nothing here runs at runtime, so `docs/data-flow-disclosure.md` is unchanged. On the build side, sessions reach only the egress allowlist's hosts, and the plan's command reaches AWS's read APIs (ADR 0051).
+- **Data flow**: no visitor byte; nothing here runs at runtime, so `docs/data-flow-disclosure.md` is unchanged. On the build side, sessions reach only the egress allowlist's hosts, and the plan's command reaches AWS's read APIs (ADR 0052).
 
 ## For the Author
 

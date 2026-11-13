@@ -29,7 +29,7 @@ No test or matrix row matches the message's text (searched).
  if has "$make_word" && has "${tb}$(spelled plan)${te}" && # Quotes in or around the name count as part of it (make plan "ROOT"=prod), as only_dev_cpu reads ENV.
  has "(^|[^[:alnum:]_.-])${eq}$(spelled ROOT)${eq}[[:space:]]*[:+?!]*${eq}="; then
 -  block "make plan with a ROOT, the real plan" "make plan alone runs the offline checks; $p1_route"
-+  # Spec 017 (P-4): once the night shift's plans are on, its ops task asks the runner instead (ADR 0051). The rule stays.
++  # Spec 017 (P-4): once the night shift's plans are on, its ops task asks the runner instead (ADR 0052). The rule stays.
 +  block "make plan with a ROOT, the real plan" "make plan alone runs the offline checks; in the night shift, once plans are on, an ops task writes a plan request for its runner ({\"kind\": \"plan\", \"root\": …, \"sha\": …} in /night/io/out/), which plans that commit as the plan-only role; otherwise $p1_route"
  fi
  if has "${nb}$(spelled aws)${ne}" && { { has "${nb}($(spelled put-parameter)|$(spelled delete-parameter)|$(spelled delete-parameters))${ne}" \

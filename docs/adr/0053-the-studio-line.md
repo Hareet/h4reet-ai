@@ -1,4 +1,4 @@
-# ADR 0052: The studio line: two folders, no network path between the repo and the studio
+# ADR 0053: The studio line: two folders, no network path between the repo and the studio
 
 Status: proposed, 2026-11-12 · Spec: 017 (FR-026 to FR-031, FR-040; User Story 4; spec.md "The Author's words" (decision 5), Clarifications (Q5, Q15, the ComfyUI words), Assumptions "The studio line"; plan.md §7, §11, §13) · Accepted when the Author merges `feat/017-the-night-shift`. The weights and nodes list (P-7) is his patch, and the Author's look approval of each asset is his step.
 
@@ -88,5 +88,5 @@ On the launch parameters:
 
 - Spec: [017 spec](../../specs/017-the-night-shift/spec.md) (The Author's words, Clarifications Q5 and Q15, Assumptions "The studio line") · Plan: [plan.md](../../specs/017-the-night-shift/plan.md) §7, §11, §13 · Research: [R-11](../../specs/017-the-night-shift/research.md#r-11-the-studio-line)
 - Contracts: [studio-line](../../specs/017-the-night-shift/contracts/studio-line.md), [runner §5, ComfyUI](../../specs/017-the-night-shift/contracts/runner.md)
-- Related: [ADR 0030](0030-media-license-and-ai-mark.md) (the media license and the AI-likeness mark), [ADR 0031](0031-assets-in-plain-git.md) (assets in plain git, the intake's destination), [ADR 0034](0034-content-approvals-by-hash-read-from-main.md) (approvals read from main), [ADR 0050](0050-containers-around-every-agent-session.md), [ADR 0051](0051-agents-plan-and-run-the-gate.md)
+- Related: [ADR 0030](0030-media-license-and-ai-mark.md) (the media license and the AI-likeness mark), [ADR 0031](0031-assets-in-plain-git.md) (assets in plain git, the intake's destination), [ADR 0034](0034-content-approvals-by-hash-read-from-main.md) (approvals read from main), [ADR 0051](0051-containers-around-every-agent-session.md), [ADR 0052](0052-agents-plan-and-run-the-gate.md)
 - Merge-request note: `docs/merge-requests/`, written at the build's last group (G6); not yet written.

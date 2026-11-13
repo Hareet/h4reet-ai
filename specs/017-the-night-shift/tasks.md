@@ -105,7 +105,7 @@
 
 ## Phase 6: G5, ADRs, docs, the plan role, the patches (US5, US6, P2)
 
-- [x] T060 [P] `docs/adr/0050-containers-around-every-agent-session.md` (with the nono evaluation), `docs/adr/0051-agents-plan-and-run-the-gate.md`, and `docs/adr/0052-the-studio-line.md`, with plan §11's content and the Author's words verbatim. Add their rows to `docs/adr/README.md`, and renumber if W1 has claimed them by then.
+- [x] T060 [P] `docs/adr/0051-containers-around-every-agent-session.md` (with the nono evaluation), `docs/adr/0052-agents-plan-and-run-the-gate.md`, and `docs/adr/0053-the-studio-line.md`, with plan §11's content and the Author's words verbatim. Add their rows to `docs/adr/README.md`, and renumber if W1 has claimed them by then.
 - [x] T061 [P] `docs/how-we-build/night-shift.md` and `docs/runbooks/night-shift.md` (start, stop, status, resume, undo, the token's renewal and revocation, the second install).
 - [x] T062 [P] [US5] RED: `infra/test/test_account.py` gains `h4-agent-plan`'s tests:
   - trust only the Author's Identity Center permission-set role, with a one-hour maximum session;

@@ -1,4 +1,4 @@
-# ADR 0050: Containers around every agent session, after nono on WSL2
+# ADR 0051: Containers around every agent session, after nono on WSL2
 
 Status: proposed, 2026-11-12 · Spec: 017 (FR-010 to FR-016, FR-036 to FR-038, FR-041; spec.md Clarifications of 2026-11-12, Assumptions "The brief's nono, replaced by containers" and "The live container specs outside the repository", and Edge Cases "Claude Code's own sandbox won't start inside the container"; plan.md §1, §2, §11, §13) · **Reverses ADR 0015's "never the host's" for the night's session containers, and amends ADR 0018's "under the full sandbox" for those containers.** The spec does not name either ADR; this one does. Accepted when the Author merges `feat/017-the-night-shift`, which is also his acceptance of both amendments.
 
@@ -92,5 +92,5 @@ The container probe is the evidence that replaced it. It ran three times (R-18).
 - Research: [R-01 to R-18](../../specs/017-the-night-shift/research.md); the nono evaluation is [R-14](../../specs/017-the-night-shift/research.md#r-14-the-probe), the container runs are [R-18](../../specs/017-the-night-shift/research.md#r-18-the-container-probes-runs-2026-11-12)
 - Contracts: [containers](../../specs/017-the-night-shift/contracts/containers.md), [runner](../../specs/017-the-night-shift/contracts/runner.md), [probe](../../specs/017-the-night-shift/contracts/probe.md), [install](../../specs/017-the-night-shift/contracts/install.md)
 - Reverses or amends: [ADR 0015](0015-agents-run-containers-on-their-own-engine.md) (for the night's session containers), [ADR 0016](0016-agents-engine-rootless-docker.md), [ADR 0018](0018-agent-sessions-on-wsl.md) (its first decision, for those containers)
-- Related: [ADR 0013](0013-local-until-publication.md), [ADR 0017](0017-clean-room-gate-and-human-only-gate-paths.md), [ADR 0051](0051-agents-plan-and-run-the-gate.md), [ADR 0052](0052-the-studio-line.md)
+- Related: [ADR 0013](0013-local-until-publication.md), [ADR 0017](0017-clean-room-gate-and-human-only-gate-paths.md), [ADR 0052](0052-agents-plan-and-run-the-gate.md), [ADR 0053](0053-the-studio-line.md)
 - Merge-request note: `docs/merge-requests/`, written at the build's last group (G6); not yet written.

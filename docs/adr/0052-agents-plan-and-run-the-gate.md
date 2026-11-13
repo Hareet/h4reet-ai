@@ -1,4 +1,4 @@
-# ADR 0051: Agents plan through a plan-only role and run the gate from the Author's checkout of main
+# ADR 0052: Agents plan through a plan-only role and run the gate from the Author's checkout of main
 
 Status: proposed, 2026-11-12 · Spec: 017 (FR-015, FR-032, FR-033, FR-039; User Stories 5 and 6; spec.md Clarifications, Q1 and Q7; Assumptions "Decision 1 reverses today's rules", "Decision 2 reverses today's rules", and "Plan and gate off until his patches merge"; plan.md §3, §8, §10) · **Reverses two lines of CLAUDE.md** (the Infra line and the Verifying line, by patch P-2) **and amends ADR 0017's statement that the Author runs the gate.** Accepted when the Author merges `feat/017-the-night-shift`. Neither request turns on before patches P-2, P-3, and P-6 merge.
 
@@ -79,7 +79,7 @@ Spec 017's Assumptions name these, and the Governance section asks for a written
 - **The plan's reach is only as wide as ReadOnlyAccess.** Whether the managed policy covers every data source the roots read is unconfirmed (R-06). The first plan under the role will say so, and a refusal names the action. The Author then decides whether to widen the role, by his patch.
 - **The Author's AWS session matters overnight.** A plan fails closed when his session has ended, and the page says when it ended (spec 017, Edge Cases). Renewing it is his step (runbook).
 - **The gate depends on the Author's checkout.** It runs only while that checkout is on `refs/heads/main` and clean. On nights with a gate queued, he leaves it that way; otherwise the request waits on the page with the reason.
-- **The gate's container phase runs on the host's engine.** That is the Author's engine, and the gate runs with the socket, which the gate's own design needs (ADR 0017, R-09). The agent chooses only the SHA. The gate runs an untrusted branch as data, in containers with no network and every capability dropped, and the session's own container never gets the socket (ADR 0050).
+- **The gate's container phase runs on the host's engine.** That is the Author's engine, and the gate runs with the socket, which the gate's own design needs (ADR 0017, R-09). The agent chooses only the SHA. The gate runs an untrusted branch as data, in containers with no network and every capability dropped, and the session's own container never gets the socket (ADR 0051).
 - **One gate at a time.** The gate lock serialises the gate runs. Plans have their own state-lock behaviour, described above.
 - **Off until the patches merge.** Until then, the page records each refusal, so the Author can see how often a plan or gate was needed and when the second install is worth doing.
 
@@ -87,5 +87,5 @@ Spec 017's Assumptions name these, and the Governance section asks for a written
 
 - Spec: [017 spec](../../specs/017-the-night-shift/spec.md) (Clarifications, Assumptions, User Stories 5 and 6) · Plan: [plan.md](../../specs/017-the-night-shift/plan.md) §3, §8, §10 · Research: [R-06](../../specs/017-the-night-shift/research.md#r-06-the-plan-under-decision-1), [R-09](../../specs/017-the-night-shift/research.md#r-09-the-gate-under-decision-2)
 - Contract: [runner, §5 requests](../../specs/017-the-night-shift/contracts/runner.md)
-- Amends: [ADR 0017](0017-clean-room-gate-and-human-only-gate-paths.md) (who runs the gate). Related: [ADR 0008](0008-terraform-reviewed-plans-recorded-apply.md) (the reviewed plan and the recorded apply, unchanged), [ADR 0050](0050-containers-around-every-agent-session.md), [ADR 0052](0052-the-studio-line.md)
+- Amends: [ADR 0017](0017-clean-room-gate-and-human-only-gate-paths.md) (who runs the gate). Related: [ADR 0008](0008-terraform-reviewed-plans-recorded-apply.md) (the reviewed plan and the recorded apply, unchanged), [ADR 0051](0051-containers-around-every-agent-session.md), [ADR 0053](0053-the-studio-line.md)
 - Merge-request note: `docs/merge-requests/`, written at the build's last group (G6); not yet written.

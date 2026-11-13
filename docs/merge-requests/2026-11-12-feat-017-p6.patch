@@ -34,7 +34,7 @@ SSO session; the runbook (T061) has it.
 
 Spec IDs: decision 1, FR-032, his Q4 answer taken as recommended (the plan takes the state's lock, *.tflock only),
 the Assumptions' named deviation of Principle IV (an agent's command gets cloud access through a role assumed from his
-SSO identity; ADR 0051).
+SSO identity; ADR 0052).
 
 Needed for: plan on. Not for the merge: until you apply it, the branch's tests read iam.tf from this patch.
 
@@ -83,7 +83,7 @@ new denies: 14 failed, 127 passed); `tools/gates/infra_policy.py`: "infra-policy
  }
  
  # ----------------------------------------------------------------------------------------------------------------------
-+# h4-agent-plan, the night shift's plan-only role (spec 017 FR-032; its research.md R-06; ADR 0051): the runner, outside
++# h4-agent-plan, the night shift's plan-only role (spec 017 FR-032; its research.md R-06; ADR 0052): the runner, outside
 +# every container, assumes it from the Author's live SSO session with `aws configure export-credentials`, for one plan,
 +# and the plan's container holds those credentials for that run alone. AWS's ReadOnlyAccess, minus any parameter's or
 +# secret's value: IAM has no condition key for a parameter read's decryption, so every ssm:GetParameter* read is denied,

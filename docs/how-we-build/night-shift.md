@@ -2,7 +2,7 @@
 
 The night shift is how agents keep working while the Author sleeps. A supervisor session reads a queue and starts up to ten worker sessions. Each worker takes one task, in its own git worktree, inside its own container. Anything that needs a human becomes a question on one decision page in the morning, with a recommended answer. The Author merges. The night never does.
 
-This page explains how it works and why each piece is where it is. The decisions are in [ADR 0050](../adr/0050-containers-around-every-agent-session.md), [ADR 0051](../adr/0051-agents-plan-and-run-the-gate.md), and [ADR 0052](../adr/0052-the-studio-line.md). The spec is [017](../../specs/017-the-night-shift/spec.md), the plan is [plan.md](../../specs/017-the-night-shift/plan.md), and the research, with each probe's runs, is [research.md](../../specs/017-the-night-shift/research.md). The Author's operations are in the [night-shift runbook](../runbooks/night-shift.md).
+This page explains how it works and why each piece is where it is. The decisions are in [ADR 0051](../adr/0051-containers-around-every-agent-session.md), [ADR 0052](../adr/0052-agents-plan-and-run-the-gate.md), and [ADR 0053](../adr/0053-the-studio-line.md). The spec is [017](../../specs/017-the-night-shift/spec.md), the plan is [plan.md](../../specs/017-the-night-shift/plan.md), and the research, with each probe's runs, is [research.md](../../specs/017-the-night-shift/research.md). The Author's operations are in the [night-shift runbook](../runbooks/night-shift.md).
 
 **Status.** The Author approved the plan on 2026-11-12 ("Approve, all recommended"), after the container probe passed. The build is on `feat/017-the-night-shift`. The install, and the Author's rehearsal of it, come after the build's review and his run. The night shift has no runtime: the site has no agents, no visitor's byte moves, and no data-flow disclosure entry is needed (spec 017, Data-Flow Disclosure).
 
@@ -40,10 +40,10 @@ Each container's spec is one JSON file. A child's spec may hold no mount, networ
 
 | Wall | What it stops | What it doesn't stop |
 |---|---|---|
-| Mounts | Reading `~/.aws`, `~/.ssh`, the gateway's keys, the Author's `~/.claude`, the studio's likeness folder and key, and the Docker socket. Writing `.git/hooks`, `.git/config`, `refs/heads/main`, or any path main's settings deny. | Writing the worktree's own files, and writing the task's own git objects, which is the accepted risk in ADR 0050. |
+| Mounts | Reading `~/.aws`, `~/.ssh`, the gateway's keys, the Author's `~/.claude`, the studio's likeness folder and key, and the Docker socket. Writing `.git/hooks`, `.git/config`, `refs/heads/main`, or any path main's settings deny. | Writing the worktree's own files, and writing the task's own git objects, which is the accepted risk in ADR 0051. |
 | Network | Any connection that isn't through the proxy. The proxy refuses hosts not on the night's allowlist, and IP literals. | Anything the allowlist permits, which today is Anthropic's API and the toolchain's mirrors. |
 | Capabilities | Privilege inside the container: all capabilities dropped, no new privileges, a read-only root with a temporary folder. | Mistakes inside the worktree. |
-| Sign-in | API billing: no session has a billing credential to find, and Claude Code is set to refuse one (managed settings). | A session printing its own token. This is a named gap (ADR 0050). |
+| Sign-in | API billing: no session has a billing credential to find, and Claude Code is set to refuse one (managed settings). | A session printing its own token. This is a named gap (ADR 0051). |
 | Hooks, permissions, bash gate | Everything they stopped before. | Nothing is removed; these stay in every session. |
 
 Claude Code's own sandbox is off inside a night container, because it can't start there (research R-18). The container is the boundary. Where the sandbox does start, it stays on as a second layer.
@@ -58,7 +58,7 @@ Claude Code's own sandbox is off inside a night container, because it can't star
 
 4. **Save points.** Before each step, the worker commits `wip(<task>): <step>` on its own branch. The runner never commits for a session. If a session ends with uncommitted changes, the runner records that on the page.
 
-5. **Requests.** A session can't start anything. To ask for a plan, a gate run, or ComfyUI, it writes a small JSON file to its out folder. The runner answers in its in folder. A request holds only the keys its kind allows; any other key refuses it. The plan and gate answers are "off: waiting for P-2, P-3, P-6" until the Author's patches merge (ADR 0051).
+5. **Requests.** A session can't start anything. To ask for a plan, a gate run, or ComfyUI, it writes a small JSON file to its out folder. The runner answers in its in folder. A request holds only the keys its kind allows; any other key refuses it. The plan and gate answers are "off: waiting for P-2, P-3, P-6" until the Author's patches merge (ADR 0052).
 
 6. **Ending.** A worker ends when its stream reports a result or its container exits. Two other endings stop it: an idle stop, when its stream has been silent for 15 minutes with a clean worktree, no pending request, and only idle processes left; and a limit stop, below. The runner records either.
 
@@ -104,7 +104,7 @@ Each session signs in with a token from `claude setup-token`, which the Author m
 - **Managed settings in every image** set `forceLoginMethod` to `claudeai` and blank the two key variables. The probe showed that a session with a stand-in key answered on the night-shift token and used neither.
 - **No session runs with `--bare`**, which would ignore the token.
 
-The token is the one secret a session can read. A command a session runs can print its environment. The bounds are that the token is revocable on its own, signs in only on the plan, carries no AWS or repository power, and can reach only the allowlist's hosts (plan.md §13; ADR 0050).
+The token is the one secret a session can read. A command a session runs can print its environment. The bounds are that the token is revocable on its own, signs in only on the plan, carries no AWS or repository power, and can reach only the allowlist's hosts (plan.md §13; ADR 0051).
 
 ## What stays the Author's
 
@@ -128,7 +128,7 @@ Agents build all of this and can't do the following. The runbook has the steps.
 - **ComfyUI's `--birefnet`.** Unconfirmed as a core flag. The first studio task checks that ComfyUI accepts it at launch (Q15).
 - **Answering the page.** The contracts don't define how an answer to a question reaches the next session. Until they do, the Author answers in the session's next prompt.
 - **The first queue file.** The contracts say where `queue.json` lives, in the supervisor's worktree, and not how the first one gets there. That is for the first night's runbook.
-- **Two reversals the spec doesn't name.** ADR 0015 and ADR 0018 are amended for the night's containers (ADR 0050). Spec 017's Assumptions should name them too; that's a spec change for the Author's review.
+- **Two reversals the spec doesn't name.** ADR 0015 and ADR 0018 are amended for the night's containers (ADR 0051). Spec 017's Assumptions should name them too; that's a spec change for the Author's review.
 
 ## Testing
 
@@ -148,5 +148,5 @@ The check that matters most is the rehearsal on the Author's machine: a session 
 - [Plan](../../specs/017-the-night-shift/plan.md): the layers, the lattice, the runner, the probe, the install steps, and the patches.
 - [Research](../../specs/017-the-night-shift/research.md): the nono evaluation (R-01 to R-14) and the container runs (R-18).
 - [Contracts](../../specs/017-the-night-shift/contracts/): the containers, the runner, the probes, the install, the queue, the decision page, and the studio line.
-- ADRs [0050](../adr/0050-containers-around-every-agent-session.md), [0051](../adr/0051-agents-plan-and-run-the-gate.md), [0052](../adr/0052-the-studio-line.md).
+- ADRs [0051](../adr/0051-containers-around-every-agent-session.md), [0052](../adr/0052-agents-plan-and-run-the-gate.md), [0053](../adr/0053-the-studio-line.md).
 - The lifecycle this follows is [lifecycle.md](lifecycle.md). The threat model it was sized against is [threat-model.md](threat-model.md).
