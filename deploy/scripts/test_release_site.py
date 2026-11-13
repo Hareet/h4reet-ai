@@ -6,8 +6,9 @@ built"): the release syncs the site it checked to the site's bucket.
     everything else no-cache; each GLB's build-time gzip copy under its own name, without .gz, with Content-Encoding
     gzip, as nginx's gzip_static serves it; the PDF's text file never;
   - then that copy becomes site/: its assets first, so no page names one that isn't there yet, then the rest, objects
-    gone from the release deleted, but the public view's status/, which the snapshot sink writes, and the hashed
-    assets and the content-addressed files, which a tab still open on the release before may yet load;
+    gone from the release deleted, but the public view's status/latest.json, which the snapshot sink writes, and the
+    hashed assets and the content-addressed files, which a tab still open on the release before may yet load; the
+    build's own status/ page, its index.html and stylesheet, reaches site/ like any other page (W2's review, I1);
   - then one invalidation of the distribution, when the Author names it; a failed one is a warning that names its
     recovery, and the release goes on, since site/ already holds the release (W2; group 8's review B, nit 1);
   - then the assets the release lacks are retired: each is kept a day from the release that first lacked it, by a
@@ -19,6 +20,7 @@ built"): the release syncs the site it checked to the site's bucket.
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 import json
 import sys
@@ -98,6 +100,9 @@ class SiteRunner(base.Runner):
                 "a/desk.0123456789abcdef.glb.gz": b"\x1f\x8bgz",
                 "a/card.0123456789abcdef.png": b"png",
                 "disclosure/index.html": b"<html></html>",
+                # The public view's page, the build's (apps/web/build/status.ts); the sink writes latest.json beside it.
+                "status/index.html": b"<html></html>",
+                "status/style.css": b"css",
                 "_degraded/api.json": b"{}",
                 "resume.pdf": b"%PDF",
                 "resume.pdf.txt": b"text",
@@ -167,7 +172,7 @@ def test_the_site_goes_to_its_release_copy_then_to_site_then_one_invalidation(
     promote = syncs[3]
     assert promote[3] == copy and "--delete" in promote
     excluded = [promote[i + 1] for i, a in enumerate(promote) if a == "--exclude"]
-    assert excluded == ["status/*", "assets/*", "a/*"]
+    assert excluded == ["status/latest.json", "assets/*", "a/*"]
     assert "--include" not in promote
     # Each GLB under its name, without .gz, as nginx's gzip_static serves it.
     (glb,) = [c for c in aws(r, "aws", "s3", "cp") if c[-1].endswith(".glb")]
@@ -186,6 +191,31 @@ def test_the_site_goes_to_its_release_copy_then_to_site_then_one_invalidation(
         i for i, c in enumerate(order) if SITE in c or "create-invalidation" in c
     )
     assert last_site < pointer
+
+
+def excluded_by(argv: list[str], key: str) -> bool:
+    """Whether a sync's --exclude patterns, the CLI's own (`*` crosses `/`), leave key out; no --include follows them
+    in these syncs, so the last match is an exclude's."""
+    patterns = [argv[i + 1] for i, a in enumerate(argv) if a == "--exclude"]
+    return any(fnmatch.fnmatchcase(key, p) for p in patterns)
+
+
+def test_the_builds_status_page_reaches_site_and_the_sinks_file_stays(
+    tmp_path: Path,
+) -> None:
+    # W2's review, I1: `--exclude status/*` kept the build's status/index.html and its stylesheet out of site/, so
+    # /status/ answered S3's AccessDenied. Only the sink's own file is spared the --delete.
+    r = SiteRunner()
+    assert release(tmp_path, r, bucket=SITE, distribution=DISTRIBUTION) == 0
+    syncs = aws(r, "aws", "s3", "sync")
+    to_copy, promote = syncs[1], syncs[3]
+    assert "--delete" in promote
+    for key in ("status/index.html", "status/style.css"):
+        assert not excluded_by(to_copy, key), key
+        assert not excluded_by(promote, key), key
+    # The sink writes status/latest.json alone (contracts/public-view.md §1): the release lacks it, and never deletes it.
+    assert excluded_by(promote, "status/latest.json")
+    assert not excluded_by(promote, "status/index.html")
 
 
 def test_without_a_site_bucket_nothing_is_synced_and_the_release_says_so(
