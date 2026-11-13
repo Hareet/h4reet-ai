@@ -72,6 +72,11 @@ PORTS = {
     # contracts/relay-http.md §1).
     "relay": (8080, 8081, 8082),
     "dev-relay": (8080, 8081, 8082),
+    # Spec 001 group 10: the public view's sink, on the tunnel end (its contracts/public-view.md §2); the publishers,
+    # on the laptop and EC2, listen on nothing.
+    "snapshot-sink": (8080,),
+    "snapshot-publisher": (),
+    "ec2-snapshot-publisher": (),
 }
 
 Resolve = Callable[[str], list[str]]

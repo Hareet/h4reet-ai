@@ -44,6 +44,8 @@ ENV_KEYS = (
     "H4_TUNNEL_DIR",
     "RELAY_TOKEN_SELF",
     "TELEMETRY_BLOCK_TOKEN",
+    # Group 10: the public view's sink's token, for the laptop's publisher.
+    "SNAPSHOT_SINK_TOKEN",
 )
 ADDRESS_PARAMETER = "/h4reet/prod/tunnel-end-address"
 TOKENS = (
@@ -235,6 +237,7 @@ def keys(profile: str, rotate: bool) -> int:
                 "H4_TUNNEL_DIR": str(client),
                 "RELAY_TOKEN_SELF": tokens["RELAY_TOKEN_LAPTOP"],
                 "TELEMETRY_BLOCK_TOKEN": tokens["TELEMETRY_BLOCK_TOKEN"],
+                "SNAPSHOT_SINK_TOKEN": tokens["SNAPSHOT_SINK_TOKEN"],
             },
         )
     finally:

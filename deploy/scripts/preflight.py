@@ -160,6 +160,8 @@ HOST_CLASSES = {
         "valkey",
         "seaweedfs",
         "ec2-relay-block",
+        # Group 10: EC2's publisher of the public view's host part (contracts/public-view.md §1).
+        "ec2-snapshot-publisher",
     ),
 }
 # A shared service's image on EC2: the account's registry's copy, which the deployer's release env file names as
@@ -180,7 +182,8 @@ CLOUD_PROFILES = frozenset(HOST_CLASSES)
 # The laptop's prod may add spec 001's tunnel profile, once the Author's tunnel-keys target has made its keys; P22 then
 # checks what it needs (contracts/env-cloud.md §2; contracts/tunnel.md §3 and §5).
 OPTIONAL_PROFILES = {"prod": ("tunnel",)}
-TUNNEL_TOKENS = ("RELAY_TOKEN_SELF", "TELEMETRY_BLOCK_TOKEN")
+# Group 10: the public view's sink's token too, which the laptop's publisher posts with.
+TUNNEL_TOKENS = ("RELAY_TOKEN_SELF", "TELEMETRY_BLOCK_TOKEN", "SNAPSHOT_SINK_TOKEN")
 TUNNEL_KEYS = ("TUNNEL_END_ADDRESS", *TUNNEL_TOKENS)
 TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{32,128}")
 # Ranges the tunnel end's Elastic IP can't be in.

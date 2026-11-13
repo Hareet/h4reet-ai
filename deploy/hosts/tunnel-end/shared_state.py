@@ -12,7 +12,8 @@ deployer runs `prepare` before each start of the tunnel end's class (deploy/scri
 prepare:  the data volume, /dev/sdf, formatted once while it holds no filesystem, mounted at /srv/h4reet/shared-state;
           the store's TLS key and certificate from Parameter Store to /run/h4reet/shared-state on tmpfs, 0400, the
           container's user's (70, the image's postgres), and a superuser password nobody keeps, which only the image's
-          first start reads; this file and the backup's units installed, and the timer enabled. A missing parameter
+          first start reads; this file and the backup's units installed, and the timer enabled; and, from group 10, the
+          public view's write, deploy/scripts/snapshot_sink.py, with its unit, enabled and restarted. A missing parameter
           stops it, naming it, and the deployer's start with it.
 backup:   pg_dump inside the container, over its socket, as its postgres user; the dump put to
           s3://h4reet-ai-shared-state-<account>/dumps/<UTC>.dump through the egress proxy. The last good dump stays on
@@ -68,7 +69,12 @@ ROLE_ATTRIBUTES = {
     "relay_ro": "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT",
     "relay_rw": "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT",
 }
-UNITS = ("h4-shared-state-backup.service", "h4-shared-state-backup.timer")
+UNITS = (
+    "h4-shared-state-backup.service",
+    "h4-shared-state-backup.timer",
+    # Group 10: the public view's write, a long-lived host service (deploy/scripts/snapshot_sink.py write).
+    "h4-snapshot-sink.service",
+)
 PROXY = "http://127.0.0.1:3128"
 
 
@@ -80,6 +86,7 @@ class Paths:
         state: Path = Path("/var/lib/h4reet/shared-state"),
         install: Path = Path("/opt/h4reet/shared-state"),
         units: Path = Path("/etc/systemd/system"),
+        snapshot: Path = Path("/opt/h4reet/snapshot"),
     ) -> None:
         self.data, self.tls, self.state, self.install, self.units = (
             data,
@@ -88,6 +95,7 @@ class Paths:
             install,
             units,
         )
+        self.snapshot = snapshot
 
 
 def iso(epoch: float) -> str:
@@ -204,6 +212,13 @@ def prepare(host, paths: Paths, tree: Path) -> int:
             str(source / "shared_state.py"), str(paths.install / "shared_state.py")
         )
         (paths.install / "shared_state.py").chmod(0o755)
+        # Group 10: the public view's write runs the release's own sink script on the host.
+        paths.snapshot.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(
+            str(tree / "deploy" / "scripts" / "snapshot_sink.py"),
+            str(paths.snapshot / "snapshot_sink.py"),
+        )
+        (paths.snapshot / "snapshot_sink.py").chmod(0o755)
         paths.units.mkdir(parents=True, exist_ok=True)
         for unit in UNITS:
             shutil.copyfile(str(source / "release" / unit), str(paths.units / unit))
@@ -221,6 +236,13 @@ def prepare(host, paths: Paths, tree: Path) -> int:
     ):
         print("shared_state: the backup timer didn't start", file=sys.stderr)
         return 1
+    # The public view's write: enabled, and restarted, so each release's script runs (group 10). A failure here is
+    # the view's alone, said, and never stops the store's start.
+    if (
+        host.run(["systemctl", "enable", "h4-snapshot-sink.service"])[0] != 0
+        or host.run(["systemctl", "restart", "h4-snapshot-sink.service"])[0] != 0
+    ):
+        print("shared_state: the public view's write didn't start", file=sys.stderr)
     return 0
 
 

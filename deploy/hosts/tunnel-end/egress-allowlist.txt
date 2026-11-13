@@ -23,3 +23,10 @@ sns.us-east-1.amazonaws.com
 # Group 6's backups (disclosure row C16): the shared state's hourly dump to its own bucket, whose name holds the
 # account's ID; and a restore's presigned GET of one dump (contracts/shared-state.md §8).
 h4reet-ai-shared-state-*.s3.us-east-1.amazonaws.com
+
+# Group 10's public view (rows C4, C17): the write's cloud reads, and its one key in the site's bucket.
+ec2.us-east-1.amazonaws.com
+monitoring.us-east-1.amazonaws.com
+route53.amazonaws.com
+budgets.amazonaws.com
+h4reet-ai-site-*.s3.us-east-1.amazonaws.com

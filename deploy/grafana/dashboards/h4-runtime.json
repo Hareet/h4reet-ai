@@ -5465,13 +5465,141 @@
       }
     },
     {
+      "type": "stat",
+      "id": 108,
+      "title": "The public view's age",
+      "description": "The public view's host part's age at the sink's last write: green under 300 s, red from 300 s (FR-058) (spec 001 FR-060; contracts/public-view.md §5).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 217,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "max(h4_snapshot_age_seconds)",
+          "range": false,
+          "instant": true,
+          "legendFormat": "age"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no host part yet",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 109,
+      "title": "The public view's writes and posts",
+      "description": "The sink's writes of site/status/latest.json by outcome, and each host's posts to it by outcome, over the last hour (FR-057) (spec 001 FR-060; contracts/public-view.md §5).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 217,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (outcome) (increase(h4_snapshot_writes_total[1h]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "write {{outcome}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "sum by (h4_host, outcome) (increase(h4_snapshot_publishes_total[1h]))",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{h4_host}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
       "type": "row",
       "id": 49,
       "title": "Studio GPU windows",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 218,
+        "y": 226,
         "w": 24,
         "h": 1
       },
@@ -5488,7 +5616,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 219,
+        "y": 227,
         "w": 24,
         "h": 6
       },
@@ -5577,7 +5705,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 226,
+        "y": 234,
         "w": 24,
         "h": 1
       },
@@ -5594,7 +5722,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 227,
+        "y": 235,
         "w": 10,
         "h": 7
       },
@@ -5653,7 +5781,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 227,
+        "y": 235,
         "w": 4,
         "h": 7
       },
@@ -5707,7 +5835,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 227,
+        "y": 235,
         "w": 10,
         "h": 7
       },
@@ -5773,7 +5901,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 234,
+        "y": 242,
         "w": 4,
         "h": 7
       },
@@ -5827,7 +5955,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 234,
+        "y": 242,
         "w": 8,
         "h": 7
       },
@@ -5893,7 +6021,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 234,
+        "y": 242,
         "w": 12,
         "h": 7
       },

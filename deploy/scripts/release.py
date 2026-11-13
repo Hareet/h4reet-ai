@@ -54,6 +54,9 @@ BUILDS = {
     "tunnel-end": ("deploy/tunnel/Dockerfile", "h4reet/tunnel"),
     # Group 8: the relay, on the tunnel end, from the repository root as the gateway's is.
     "relay": ("services/relay/Dockerfile", "h4reet/relay"),
+    # Group 10: the public view's image, one build for the tunnel end's sink and EC2's publisher.
+    "snapshot-sink": ("deploy/snapshot/Dockerfile", "h4reet/snapshot"),
+    "ec2-snapshot-publisher": ("deploy/snapshot/Dockerfile", "h4reet/snapshot"),
 }
 # A copy's lock line, where it isn't its own name; and its repository, where that isn't its own name.
 LOCK_LINES = {
@@ -498,9 +501,16 @@ def released(
     hosts = cloud_services(src)
     lock = read_lock(src)
     services: dict[str, dict] = {}
+    built: dict[str, dict] = {}
     for name, its_hosts in hosts.items():
         if name in BUILDS:
             dockerfile, repository = BUILDS[name]
+            # One build a repository: a second service of the same image takes its digest (group 10's snapshot).
+            if repository in built and set(platforms(its_hosts)) <= set(
+                built[repository]["platforms"]
+            ):
+                services[name] = {**built[repository], "hosts": its_hosts}
+                continue
             ref = f"{opts.registry}/{repository}:{head}"
             argv = [
                 "docker",
@@ -524,6 +534,7 @@ def released(
                 "hosts": its_hosts,
                 "platforms": platforms(its_hosts),
             }
+            built[repository] = services[name]
             continue
         line = LOCK_LINES.get(name, name)
         if line not in lock:

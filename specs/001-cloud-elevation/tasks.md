@@ -906,19 +906,19 @@ It replaces the September task list (`tasks.md` at 00309c47). Revised on 2026-11
 
 ### Tests first
 
-- [ ] T135 [P] [US8] Write `deploy/scripts/test_snapshot.py`:
+- [x] T135 [P] [US8] Write `deploy/scripts/test_snapshot.py`:
   - the sink refuses each forbidden kind of field;
   - it writes the cloud part while no host serves;
   - a stale host part keeps its time;
   - the publisher posts only while its host serves, read from the relay's status.
 
   Check: RED (FR-057 to FR-059) (feat/001-us8-public-view)
-- [ ] T136 [P] [US8] Extend `apps/web`'s tests for `/status/`: it renders each part with its time, names `none` while no host serves, shows the handovers and their gaps, and shows the server's month beside its budget and model spend beside the ceilings. It names `none` when `latest.json` names a host but `/api/status` gives the edge's degraded answer (503, `no_host_serving`, `stack` null) or none, as while the tunnel end is gone, and shows the document's values as last-known. Check: RED (SC-013; FR-057) (feat/001-us8-public-view)
+- [x] T136 [P] [US8] Extend `apps/web`'s tests for `/status/`: it renders each part with its time, names `none` while no host serves, shows the handovers and their gaps, and shows the server's month beside its budget and model spend beside the ceilings. It names `none` when `latest.json` names a host but `/api/status` gives the edge's degraded answer (503, `no_host_serving`, `stack` null) or none, as while the tunnel end is gone, and shows the document's values as last-known. Check: RED (SC-013; FR-057) (feat/001-us8-public-view)
 
 ### Implementation
 
-- [ ] T137 [US8] Write `snapshot_publisher.py` and the sink's document part in `snapshot_sink.py`, and the publisher's compose service on both hosts. The sink's write uses the tunnel end's one-key grant from group 9 (T124). Check: T135 passes (feat/001-us8-public-view)
-- [ ] T138 [US8] Write `/status/`, taking the serving host from `/api/status` first (contracts/public-view.md §3). Check: T136 passes (FR-057, FR-059) (feat/001-us8-public-view)
+- [x] T137 [US8] Write `snapshot_publisher.py` and the sink's document part in `snapshot_sink.py`, and the publisher's compose service on both hosts. The sink's write uses the tunnel end's one-key grant from group 9 (T124). Check: T135 passes (feat/001-us8-public-view)
+- [x] T138 [US8] Write `/status/`, taking the serving host from `/api/status` first (contracts/public-view.md §3). Check: T136 passes (FR-057, FR-059) (feat/001-us8-public-view)
 
 ### Close
 

@@ -62,6 +62,8 @@ HOST_CLASSES = {
         "valkey",
         "seaweedfs",
         "ec2-relay-block",
+        # Group 10: EC2's publisher of the public view's host part (contracts/public-view.md §1).
+        "ec2-snapshot-publisher",
     ),
 }
 # EC2's images (group 7; plan.md §16, "Group 7, as built"). The two the release builds run under the laptop's own build
@@ -69,6 +71,9 @@ HOST_CLASSES = {
 # (H4_REF). Every other shared service runs the account's registry's copy, by the lock's own tag and digest, which the
 # deployer names in H4_IMAGE_<SERVICE>; compose's `:-` default, the pin itself, runs on every other host.
 RELEASE_TAGS = {"gateway": "h4reet-gateway", "web": "h4reet-web"}
+# EC2's own release-built images, which only EC2's class runs: by the release's digest, as the tunnel end's are, in
+# H4_DIGEST_<REPOSITORY> (group 10's publisher, the public view's image).
+DIGESTED = {"ec2-snapshot-publisher"}
 # The lock line each copy must match: its own, but the relay block's, which is edge's image.
 COPIES = {"ec2-relay-block": "edge"}
 # The hosts whose boot asks the bucket before anything starts, and start their last release only when it can't be read
@@ -261,6 +266,7 @@ def verify(host: str, release: dict) -> list[str]:
         if (
             host in BUCKET_FIRST
             and name not in RELEASE_TAGS
+            and name not in DIGESTED
             and not TAG_RE.fullmatch(str(service.get("tag", "")))
         ):
             raise Refused("digest")
@@ -287,7 +293,7 @@ def check_pins(host: str, release: dict, tree: Path) -> None:
         return
     lock = read_lock(tree)
     for name in verify(host, release):
-        if name in RELEASE_TAGS:
+        if name in RELEASE_TAGS or name in DIGESTED:
             continue
         service = release["services"][name]
         if lock.get(COPIES.get(name, name)) != (
@@ -592,7 +598,7 @@ class Deployer:
         for name in verify(self.host, release):
             service = release["services"][name]
             repository = str(service["repository"]).split("/", 1)[1]
-            if self.host in BUCKET_FIRST:
+            if self.host in BUCKET_FIRST and name not in DIGESTED:
                 if name not in RELEASE_TAGS and name not in COPIES:
                     lines.append(
                         f"{image_variable(name)}={registry}/{service['repository']}:{service['tag']}@{service['digest']}"

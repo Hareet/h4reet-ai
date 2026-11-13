@@ -1,0 +1,186 @@
+P-G7, spec 001 group 10 (W1): the compose policy's public view, for the Author's hand.
+
+Built from plain copies: tools/gates/compose_policy.py and tools/gates/test/test_compose_policy.py as P-G3 to P-G6
+leave them (a git archive export of 6584bda2 with W1's twelve patches applied in order, P-I6 as rebuilt after group
+9's review A); edited in $TMPDIR, then diff -u with a/ and b/ labels after this preamble; never git apply, and nothing
+written into any worktree. Apply it on W1's -p branch after P-I6, with `patch -p1 < <this file>` at the repository's
+root, and commit the result byte for byte (tasks.md T137, T171, T172).
+
+What it holds (tasks.md T137; contracts/public-view.md §1 and §2; plan.md §16, "Group 10, as built"):
+  - snapshot-sink, on the tunnel end: on the edge network, publishing exactly 10.42.1.10:2301 (for EC2's publisher,
+    which the security group holds to EC2's group), in the tunnel end's class alone, with the release's own image,
+    h4reet/snapshot by the release's digest;
+  - ec2-snapshot-publisher, on EC2: on egress, to reach the sink inside the VPC (EC2's nftables keep it there), in
+    EC2's class alone, with the same image by the same digest;
+  - nothing for the laptop's snapshot-publisher, which spec 000's rules already admit: built from the tree, on
+    internal alone, no port.
+
+Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, P-G6, P-I6, and this
+patch, in that order: the policy's own tests pass, and `compose policy: PASS` on the real tree with its five env
+files. Before it, on the same export, its new test of the three services fails ("5 failed, 191 passed": that one,
+and the four real-file tests the new services trip).
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -103,14 +103,20 @@
+ # tunnel, which dials the tunnel end, and the tunnel end's collector, which exports to EC2's inside the VPC (its host's
+ # nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
+ # internal alone.
+-EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
++# From group 10, EC2's publisher of the public view, which posts to the tunnel end's sink inside the VPC (its
++# contracts/public-view.md §1); EC2's nftables keep it there.
++EGRESS_SERVICES = frozenset(
++    {EGRESS_SERVICE, "tunnel", "tunnel-end-collector", "ec2-snapshot-publisher"}
++)
+ # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
+ # state.md §1).
+ # From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
+ # From group 8, the tunnel end's relay, which publishes its edge listener on the private interface (its contracts/
+ # relay-http.md §1).
++# From group 10, the tunnel end's public view sink, which publishes its port for EC2's publisher on the private
++# interface (its contracts/public-view.md §2).
+ EDGE_NETWORK_SERVICES = frozenset(
+-    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay"}
++    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay", "snapshot-sink"}
+ )
+ # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
+ CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
+@@ -130,6 +136,9 @@
+     # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
+     # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
+     "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
++    # Group 10: the public view's sink, for EC2's publisher, on the private interface's fixed address, which the
++    # security group holds to EC2's group; the laptop's reaches it through the tunnel, on internal.
++    "snapshot-sink": frozenset({("10.42.1.10", "2301", 8080)}),
+ }
+ # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
+ # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+@@ -149,8 +158,14 @@
+ # release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
+ # line of the service it copies, by the repository's name.
+ REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
+-# Group 8: the relay, which the release builds too.
+-RELEASE_IMAGES = {"tunnel-end": "tunnel", "relay": "relay"}
++# Group 8: the relay, which the release builds too. Group 10: the public view's image, one build for the tunnel end's
++# sink and EC2's publisher.
++RELEASE_IMAGES = {
++    "tunnel-end": "tunnel",
++    "relay": "relay",
++    "snapshot-sink": "snapshot",
++    "ec2-snapshot-publisher": "snapshot",
++}
+ UPSTREAM_COPIES = {
+     "tunnel-end-collector": "otel-collector",
+     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1074,7 +1074,8 @@
+     assert cp.run(tree) == 1
+     out = capsys.readouterr().out
+     assert (
+-        "FAIL deploy/compose.yaml service gateway-state: networks: only gateway, tunnel, tunnel-end-collector join "
++        "FAIL deploy/compose.yaml service gateway-state: networks: only ec2-snapshot-publisher, gateway, tunnel, "
++        "tunnel-end-collector join "
+         "egress" in out
+     )
+     assert "FAIL deploy/stray.env: env file" in out
+@@ -1775,3 +1776,100 @@
+     assert ("dev-relay", "ports") in {
+         (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
+     }
++
++
++# Spec 001 group 10 (its contracts/public-view.md §1 and §2): the tunnel end's sink, on the edge network, publishing
++# exactly 10.42.1.10:2301 in the tunnel end's class alone; EC2's publisher, on egress, in EC2's class alone; both by the
++# release's own image, h4reet/snapshot by its digest; and the laptop's publisher, built from the tree, on internal.
++SNAPSHOT_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
++
++
++def snapshot_model() -> dict:
++    model = relay_model()
++    model["services"]["snapshot-sink"] = service(
++        profiles=["tunnel-end"],
++        image=SNAPSHOT_IMAGE,
++        networks={"internal": None, "edge": None},
++        ports=["10.42.1.10:2301:8080"],
++    )
++    model["services"]["ec2-snapshot-publisher"] = service(
++        profiles=["ec2"],
++        image=SNAPSHOT_IMAGE,
++        networks={"internal": None, "egress": None},
++    )
++    model["services"]["snapshot-publisher"] = service(
++        profiles=["tunnel"],
++        build={"context": "tunnel"},
++    )
++    return model
++
++
++SNAPSHOT_DISCLOSED = RELAY_DISCLOSED | {
++    "snapshot-sink",
++    "ec2-snapshot-publisher",
++    "snapshot-publisher",
++}
++
++
++def snapshot_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
++    found = cp.check_model(model, CLOUD_LOCK, tree, SNAPSHOT_DISCLOSED)
++    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
++
++
++def test_the_public_views_services_pass(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    assert snapshot_rules(snapshot_model(), tmp_path) == set()
++
++
++def test_the_sink_publishes_exactly_2301_on_the_private_address_in_the_tunnel_ends_class_alone(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    for ports in (
++        ["0.0.0.0:2301:8080"],
++        ["10.42.0.10:2301:8080"],
++        ["10.42.1.10:2301:8080", "127.0.0.1:18506:8080"],
++        ["10.42.1.10:8080:8080"],
++    ):
++        model = snapshot_model()
++        model["services"]["snapshot-sink"]["ports"] = ports
++        assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path), ports
++    model = snapshot_model()
++    model["services"]["snapshot-sink"]["profiles"] = ["tunnel-end", "tunnel"]
++    assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path)
++
++
++def test_the_public_views_cloud_services_run_the_releases_image(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    for name in ("snapshot-sink", "ec2-snapshot-publisher"):
++        model = snapshot_model()
++        model["services"][name]["image"] = "ghcr.io/someone/snapshot:1@sha256:" + "0" * 64
++        assert (name, "image") in snapshot_rules(model, tmp_path), name
++
++
++def test_only_ec2s_publisher_joins_egress_and_the_sink_alone_the_edge_network(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    model = snapshot_model()
++    model["services"]["snapshot-publisher"]["networks"] = {
++        "internal": None,
++        "egress": None,
++    }
++    assert ("snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
++    model = snapshot_model()
++    model["services"]["snapshot-sink"]["networks"] = {
++        "internal": None,
++        "edge": None,
++        "egress": None,
++    }
++    assert ("snapshot-sink", "networks") in snapshot_rules(model, tmp_path)
++    model = snapshot_model()
++    model["services"]["ec2-snapshot-publisher"]["networks"] = {
++        "internal": None,
++        "edge": None,
++    }
++    assert ("ec2-snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
++    model = snapshot_model()
++    model["services"]["snapshot-publisher"]["ports"] = ["127.0.0.1:2301:8080"]
++    assert ("snapshot-publisher", "ports") in snapshot_rules(model, tmp_path)

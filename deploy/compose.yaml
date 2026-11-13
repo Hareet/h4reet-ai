@@ -933,6 +933,106 @@ services:
           cpus: "0.25"
           memory: 96M
 
+  # The public view's sink (spec 001 contracts/public-view.md §2; tasks.md T137; disclosure row C4), in the tunnel end's
+  # class: the publishers' one way in, the laptop's through the tunnel's -L 2301 (snapshot-sink:8080 on internal), EC2's
+  # on the private interface's fixed address, 2301, which the security group holds to EC2's group. It holds the sink's
+  # token and nothing of AWS's or the store's: it checks each host part against the document's schema, keeps the last,
+  # and tells a publisher which host the relay serves, from the relay's internal listener. The tunnel end's host timer,
+  # h4-snapshot-sink.timer, reads the last part from it, adds the cloud part with the instance role, and writes the
+  # document (plan.md §16, "Group 10, as built"). Its image is the release's, by the release's digest. It joins edge,
+  # an ordinary bridge, since a port can't be published from internal alone; the tunnel end's nftables keep it inside
+  # the VPC.
+  snapshot-sink:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+    command: ["snapshot_sink.py", "serve"]
+    user: "10001:10001"
+    environment:
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      RELAY_STATUS_URL: http://relay:8081/api/status
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:2301:8080"
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -I
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/health/live', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 48M
+
+  # The laptop's publisher (spec 001 contracts/public-view.md §1; tasks.md T137; disclosure row C4), in the tunnel
+  # profile, which prod's env file adds with the tunnel: every 2 minutes, while the relay serves the laptop (the
+  # sink's /v1/serving), its FR-028 panels from its own Prometheus, by the provisioned dashboard's queries, posted to
+  # the sink through the tunnel's -L 2301 with the sink's token. Built from this file's tree; internal alone.
+  snapshot-publisher:
+    <<: *service
+    profiles: [tunnel]
+    build:
+      context: ..
+      dockerfile: deploy/snapshot/Dockerfile
+    command: ["snapshot_publisher.py"]
+    user: "10001:10001"
+    environment:
+      H4_HOST: laptop
+      SNAPSHOT_SINK_URL: http://tunnel:2301
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      PROMETHEUS_URL: http://prometheus:9090
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/dashboards"
+        target: /etc/h4reet/dashboards
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 48M
+
+  # EC2's publisher, the same script in EC2's class, by the release's image and digest: it reaches the sink on the
+  # tunnel end's private address, 2301, through egress, which EC2's nftables keep inside the VPC.
+  ec2-snapshot-publisher:
+    <<: *service
+    profiles: [ec2]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+    command: ["snapshot_publisher.py"]
+    user: "10001:10001"
+    environment:
+      H4_HOST: ec2
+      SNAPSHOT_SINK_URL: http://10.42.1.10:2301
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      PROMETHEUS_URL: http://prometheus:9090
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    networks: [internal, egress]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/dashboards"
+        target: /etc/h4reet/dashboards
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 48M
+
   # The relay on dev and dev-cpu (spec 001 contracts/env-cloud.md §3; tasks.md T099), for the kill-switch rehearsal:
   # the same code, built from this file's own tree, in the dev-relay profile, which no env file selects, so make up
   # never starts it; the rehearsal starts it beside the stack and removes it after. It publishes nothing and joins

@@ -85,6 +85,15 @@ One action (FR-055): `make tunnel-revoke PROFILE=h4reet-admin`. It empties `/h4r
 
 An instance that is gone, or a root volume that won't boot: your prod plan shows the tunnel end to be made again, and your apply makes it. Its Elastic IP is a resource of its own, so the laptop dials the same address; its host key comes from Parameter Store at boot, so the laptop's pinned key still matches. Its first boot installs its host from the user data, then its deployer takes the newest release. From group 6, the shared state's data volume has its own page for a restore.
 
+### The public view gone stale
+
+`/status/` says its values are older than 5 minutes, or last-known, while a host serves; the Hosts row's "The public view's age" reads red, and "The public view's writes and posts" shows `failed`, `refused`, or a host's `not_serving` or `unread` (spec 001 FR-057, FR-058; contracts/public-view.md §5).
+
+1. **The write, on the tunnel end,** in your Systems Manager session: `sudo journalctl -u h4-snapshot-sink.service -n 20` prints one word a run, `written`, `failed`, or `refused`. `failed` with nothing else: the put didn't reach the site's bucket (before W2's apply the bucket doesn't exist, so every write fails, which is right). `refused`: the document failed its own schema, which is a bug to report, never a value to see.
+2. **The sink:** `sudo docker logs --tail 20 h4reet-prod-snapshot-sink-1` prints each request's method, path, and status, never a body. 401: a publisher's token isn't the sink's (your tunnel-keys target writes both). 409: the relay doesn't serve that host. 400: a part failed the schema.
+3. **A publisher,** on the serving host: its container's log, one word a run. `unread`: it can't reach the sink (the laptop's tunnel, or EC2's route to `10.42.1.10:2301`); `not_serving`: the relay serves another host, which is right.
+4. **Restart the write:** `sudo systemctl restart h4-snapshot-sink.service`. The document it keeps in `/var/lib/h4reet/snapshot/` holds the last host part, so a restart never empties the view.
+
 ### A spot interruption
 
 `tunnel_end_interruption` gives two minutes. Nothing to do: the request is persistent and stops on interruption, so the instance, its volumes, its interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns, with `tunnel_end_back`. Its boot starts the release it last recorded before its deployer asks the bucket. If it stays stopped for hours, the next case.
