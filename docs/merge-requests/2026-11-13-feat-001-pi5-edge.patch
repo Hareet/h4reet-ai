@@ -32,6 +32,11 @@ W2; the distribution, still behind the switch, names aws_cloudfront_vpc_origin.r
 with its line count before the distribution's behaviors unchanged, so W2's P-I5b applies at its lines. Rebuilt from a
 git archive export of ef173c58 with P-I3 (as rebuilt for option C), P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, and P-6
 applied, the same way, with a/ and b/ labels.
+Rebuilt again for the plan policy (2026-11-13): the Author's prod plan refused "aws_cloudfront_function.index: tags_all
+lacks component", since provider 6.72 tags the function; it gains tags = { component = "edge" }, as the edge's other
+resources have (project and environment come from prod's default_tags). Rebuilt from a git archive export of 8e7bbd61
+with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, and P-6 applied, the same way, with a/ and b/ labels. A -p branch
+that already holds the earlier P-I5 takes 2026-11-13-feat-001-pi5-tags.patch instead.
 --- a/infra/account/alerts.tf
 +++ b/infra/account/alerts.tf
 @@ -30,15 +30,16 @@
@@ -92,7 +97,7 @@ applied, the same way, with a/ and b/ labels.
  resource "aws_cloudwatch_metric_alarm" "bridge_failed" {
 --- /dev/null
 +++ b/infra/prod/edge.tf
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,175 @@
 +# The edge: hareet.ai's certificate and its CloudFront distribution (spec 001 FR-027 to FR-029, FR-034, FR-042,
 +# FR-066, FR-076; contracts/edge.md §2 to §4 and §6; research.md R-07 to R-09; plan.md §8.1 and §16, "Why a switch").
 +# Under spec 000's protected names (infra/*edge*), so it arrives as the Author's patch P-I5 (plan.md §16, "Groups 1 to
@@ -128,6 +133,10 @@ applied, the same way, with a/ and b/ labels.
 +      return request;
 +    }
 +  EOT
++
++  tags = {
++    component = "edge"
++  }
 +}
 +
 +# hareet.ai and www.hareet.ai, in us-east-1 as CloudFront requires, validated by DNS in the zone (dns.tf) and renewed
