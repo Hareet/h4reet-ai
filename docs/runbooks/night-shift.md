@@ -173,7 +173,7 @@ bash <(git show "$SHA:$IN") "$SHA"
 
 It ends with a summary between `== night-shift summary ==` and `== end ==`. The summary holds each step's outcome, the image IDs, each spec's SHA-256, and R1 to R4 as `ok` or `FAILED`. It holds nothing secret, by design. Paste the summary back to the session.
 
-If a step fails, the install prints one line, `install: FAILED at <step>: <reason>`, and stops. Paste that line back with the summary so far. A second run at the same SHA is safe to make: each step compares before it writes, and prints `unchanged` for each step already done.
+Step 0 checks disk and memory before anything builds: 15 GB free on the system disk and on the Windows drive, and 8 GB of free memory. If a step fails, the install prints one line, `install: FAILED at <step>: <reason>`, and stops. Paste that line back with the summary so far. A second run at the same SHA is safe to make: each step compares before it writes, and prints `unchanged` for each step already done.
 
 ### 5. Undo
 
@@ -296,7 +296,7 @@ Run `check` first. It names one failing check, in one line, and never prints the
 | An API-billing variable in the runner's environment | Your shell exports a key or a cloud switch | Open a fresh terminal, or unset it (below), then `start` again. |
 | A network missing, or not internal | The install's networks are wrong | Re-run the install. |
 | The facts file (exit 2) | A key is missing, a path isn't absolute, or a placeholder is left | Fix `facts.env` (section 2). |
-| Disk or memory | Under 30 GB free on the system disk or the Windows drive, or under 8 GB free memory | Free space, or wait. A GPU task waits and says why on the page. |
+| Disk or memory | Under 15 GB free on the system disk or the Windows drive, or under 8 GB free memory | Free space, or wait. Every task checks again before it starts; one that's short waits and says why on the page. |
 | A stray `commondir`, `main`, or `refs/…/main` in the repository's `.git` | Something could shadow main | Don't delete anything in `.git` by hand. Tell the session first. |
 | A second runner | Another `start` holds the runner's lock | Wait for it, or find the other terminal. |
 

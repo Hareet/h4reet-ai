@@ -73,6 +73,12 @@ The docs (G5's ADRs, how-we-build page, and runbook) were reviewed with the inte
 - FR-020's save point at a step's start is in the prompts only; the runner records uncommitted changes at a worker's end.
 - P-6: the precondition checks only the name's characters, so a typo passes until the first plan; whether AWS checks the anomaly reads against their ARNs is shown by R5.
 - P-2 has no pointer to `docs/how-we-build/night-shift.md` (size).
+- The disk floor (b97c21dd's review, Importants 1 and 2 and nits 1 to 3):
+  - Step 0's floor is a flat 15 GB, not 15 GB plus the build's size when images are missing. A cold build starting at 15–19 GB can end under 15 GB, and R1 then refuses.
+  - Nothing re-reads the disk while sessions run. Ten workers can all start at about 19 GB, and the agents' engine's stacks (about 30 GB a day of stack work in October) are not in plan §15's estimate. A hard floor of about 5 GB that pages and stops running sessions is one fix.
+  - Hold lines carry the GB reading, so queued tasks write a new page line for each GB the disk loses.
+  - A disk hold with nothing running never ends the night; `night.py stop` does.
+  - `H4_NIGHT_TEST_RESOURCES` set in a real shell would fake step 0's check silently.
 - No telemetry span or dashboard panel: the night shift is build-time tooling with no runtime path. Its record is the nightly decision page, `installed.txt`, and the egress log. The G1 review asked for this to be confirmed; see "For the Author".
 
 ## Verification
@@ -160,5 +166,6 @@ The steps, in order, are on the runbook artifact as lines of 45 characters or fe
 7. **Questions, each with a recommendation**:
    - Commit identity for night commits: `night-<role>@night-shift.invalid`. **Recommended: keep it.** It can't be mistaken for yours, and publish_check only scans it for denylisted phrases.
    - The pilot's size (Q14): the Resume stream at two or three workers. **Recommended: two on the first night**, three once the morning page shows no interruption that isn't a decision or a merge.
+   - The disk floor: 15 GB free on `/` and `/mnt/c`, checked at install step 0 and before every task (b97c21dd). It was 30 GB, from the October rule's margin, and your first install stopped at R1 with 20 GB on C:. Spec 001's measure run keeps its own 30 GB check (`2026-11-10-feat-001-measure.md`), which this doesn't change; a night writes about 0.5 GB per worktree. **Recommended: 15 GB for the night shift**, and compact WSL's disk when it's convenient, since C: shrinks with every build.
    - Telemetry: **recommended: none for this build-time tool.** Its record is the decision page, `installed.txt`, and the egress log. If you want a dashboard panel, it would be a follow-up spec.
 8. **Seen on the way**: `git rev-list --all` fails in your checkout with `fatal: bad object refs/replace`, a ref or file named `refs/replace` itself. Replace objects are off everywhere this branch reads, but you may want to look at it.

@@ -29,7 +29,7 @@
 **Goal**: the supervisor and up to ten workers, locks, save points, the weekly resume, idle stop, the page, and the requests, with every `docker run` line built and checked without an engine. **Independent test**: `pytest deploy/night-shift/tests/test_runner.py` with a stub `docker` and stub streams.
 
 - [x] T010 [P] [US3] RED: the queue's validation per contracts/queue.md: `id` matches `[a-z0-9-]{3,40}` and is unique; `role` and `locks` come from their sets; no cycle; `base` is a full ref or a 40-hex SHA; a refused file keeps the last good one.
-- [x] T011 [P] [US3] RED: scheduling. At most ten run at once with fifteen ready; locks serialise (two GPU tasks); `after` waits; starts are staggered by 10 s (a fake clock); before a `gpu` task the disk and memory checks rerun, and a failure leaves it queued with a page line.
+- [x] T011 [P] [US3] RED: scheduling. At most ten run at once with fifteen ready; locks serialise (two GPU tasks); `after` waits; starts are staggered by 10 s (a fake clock); before a `gpu` task the disk and memory checks rerun, and a failure leaves it queued with a page line (before every task since T090, 2026-11-12).
 - [x] T012 [P] [US3] RED: a stub stream's usage-limit event with a reset time stops all containers. The runner sleeps once until the reset plus 300 s (one sleep call on a fake clock, no other timer) and requeues. A limit with no time stops the night and writes the page line.
 - [x] T013 [P] [US3] RED: the idle stop. Silent for 15 minutes with a clean worktree means stopped and recorded; a dirty worktree isn't stopped; a session that ends dirty is recorded, not committed for.
 - [x] T014 [P] [US3] RED: the preflight of contracts/runner.md §2:
