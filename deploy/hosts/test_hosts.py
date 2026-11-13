@@ -325,11 +325,20 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
     assert wait is not None, (
         "runcmd doesn't wait, bounded, for the public interface's route"
     )
+    # The review of 59dfdc4a (nit 3): the route's wait, dnf, and the filter are one chain, by `&&` or one `sh -ec`,
+    # that ends the script on a failure (`|| exit 1`), so a missing route fails cloud-init rather than running on.
+    assert "dnf install -y docker nftables" in wait, wait
+    assert "nft -f /etc/h4reet/nftables.nft" in wait, wait
+    assert wait.find("ip -4 route") < wait.find("dnf install") < wait.find("nft -f"), (
+        wait
+    )
+    assert "sh -ec" in wait or (
+        re.search(r"&&\s*dnf install -y docker nftables\s*&&\s*nft -f ", wait)
+    ), wait
+    assert wait.rstrip().endswith("|| exit 1"), wait
     order = [
         "networkctl reload",
         wait,
-        "dnf install -y docker nftables",
-        "nft -f /etc/h4reet/nftables.nft",
         "systemctl enable --now h4-egress-proxy.service",
         "systemctl enable --now h4-write-env.service",
         "systemctl enable --now docker.service",
@@ -348,7 +357,27 @@ def test_cloud_init_installs_the_host_and_loads_the_chains_before_anything_runs(
 # the private interface, whose subnet has no way out. A systemd-networkd drop-in in the user data gives the public
 # interface's the lower metric, so the host's own traffic beyond the VPC (the egress proxy's 443, and so Session
 # Manager's and the image pulls'; the first boot's dnf) leaves by the public interface, and nothing lowers the private
-# one's. To confirm at T058 with `ip route` on the host (docs/runbooks/tunnel-end.md).
+# one's. Named to sort last among the interface's drop-ins (the review of 59dfdc4a, nit 3). To confirm at T058 with
+# `ip route` on the host (docs/runbooks/tunnel-end.md).
+def dropins() -> dict[str, str]:
+    tf = patches.patched_text("infra/prod/tunnel-end.tf") or ""
+    places = dict(re.findall(r'"([^"]+)"\s*=\s*\{ source = "([^"]+)"', tf))
+    return {
+        place: source
+        for place, source in places.items()
+        if re.fullmatch(r"/etc/systemd/network/[^/]+\.network\.d/[^/]+\.conf", place)
+    }
+
+
+def networkd(source: str):
+    import configparser
+
+    config = configparser.ConfigParser(strict=False, interpolation=None)
+    config.optionxform = str
+    config.read_string((REPO / source).read_text(encoding="utf-8"))
+    return config
+
+
 def test_the_public_interfaces_default_route_comes_first() -> None:
     import configparser
 
@@ -367,7 +396,39 @@ def test_the_public_interfaces_default_route_comes_first() -> None:
     config.optionxform = str
     config.read_string((REPO / source).read_text(encoding="utf-8"))
     assert int(config["DHCPv4"]["RouteMetric"]) < 512
-    assert not [place for place in dropins if PRIVATE_IF in place.split("/")[4]]
+    assert public[0].endswith("/zz-h4-public-first.conf"), public
+    # The private interface's drop-ins never change its route's metric (the review of 59dfdc4a, I1, narrowed this).
+    for place, path in dropins.items():
+        if PRIVATE_IF in place.split("/")[4]:
+            assert not any(
+                "RouteMetric" in section for section in networkd(path).values()
+            ), place
+
+
+# The review of 59dfdc4a, I1: EC2, at its fixed address in the public subnet, connects to the shared state's 5432 and
+# the sink's 2301 on 10.42.1.10, so it arrives on the private interface; without a route, the reply would leave by the
+# public interface's connected 10.42.0.0/24 with the private address as its source, and the interface's source/dest
+# check would drop it. A drop-in for the private interface holds one host route to EC2's address, by its DHCP gateway,
+# and changes nothing else.
+def test_the_private_interface_answers_ec2_by_one_host_route() -> None:
+    ec2 = patches.patched_text("infra/prod/ec2-market.tf") or ""
+    block = re.search(r'resource "aws_instance" "ec2" \{(.*?)\n\}', ec2, re.DOTALL)
+    assert block, "aws_instance.ec2"
+    m = re.search(r'^\s*private_ip\s*=\s*"([0-9.]+)"', block.group(1), re.MULTILINE)
+    assert m, "EC2's fixed address"
+    address = m.group(1)
+    private = {p: s for p, s in dropins().items() if PRIVATE_IF in p.split("/")[4]}
+    assert len(private) == 1, private
+    ((place, source),) = private.items()
+    assert source.startswith("deploy/hosts/tunnel-end/"), source
+    config = networkd(source)
+    sections = {name: dict(config[name]) for name in config.sections()}
+    assert sections == {
+        "Route": {"Destination": f"{address}/32", "Gateway": "_dhcp4"}
+    }, (
+        place,
+        sections,
+    )
 
 
 # The scripts the user data carries. The deployer isn't one: the first step runs the release's own (plan.md §16, "From

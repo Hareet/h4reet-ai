@@ -571,6 +571,10 @@ ROLE_GRANTS = {
     "route53:GetHealthCheckStatus": '["arn:aws:route53:::healthcheck/${aws_route53_health_check.laptop.id}"]',
     "budgets:ViewBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
     "budgets:DescribeBudgetActionsForBudget": f'["arn:aws:budgets::{ACCOUNT_ID}:budget/h4-server-month"]',
+    # T170 (the Author's answer to question 1b, "1b A"): the sink reads EC2's hours from the two schedules, by name,
+    # so local.ec2_hours stays their one source.
+    "scheduler:GetSchedule": f'[ "arn:aws:scheduler:us-east-1:{ACCOUNT_ID}:schedule/default/h4-ec2-hours-open", '
+    f'"arn:aws:scheduler:us-east-1:{ACCOUNT_ID}:schedule/default/h4-ec2-hours-close", ]',
 }
 # Session Manager and Run Command, the one way in (FR-050), as AWS documents an instance profile's own policy for them
 # without AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in
