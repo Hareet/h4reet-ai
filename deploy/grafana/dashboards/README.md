@@ -11,3 +11,5 @@ How a row of the contract becomes panels:
 - "table (SQL)" panels read the store's `gateway.v_state` and `gateway.audit_log` through the `gateway` datasource, as `grafana_ro`; "logs" panels read Loki; every other panel is PromQL on `prom`.
 
 Spec 003's studio GPU window adds a row, "Studio GPU windows", above the dev-time row, with its one panel, and an annotation from `h4_studio_window` on every time series. Both are in `specs/003-studio-assets/contracts/gpu-window.md` §3, which the test reads as it reads telemetry.md §7. The panel is "table (SQL)" too, over `gateway.v_studio_windows`.
+
+Spec 001's hosts add a row, "Hosts", below the room's rows and above the studio's, which each of its groups fills with its feature's panels, in that feature's contract. Group 5's are the tunnel's state and reconnects, and telemetry delayed or lost at the tunnel end, in `specs/001-cloud-elevation/contracts/tunnel.md` §7, which the test reads as it reads the studio's.

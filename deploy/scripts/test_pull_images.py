@@ -91,11 +91,15 @@ def test_it_pulls_the_compose_images_and_bases_by_digest_once(
     assert run(fake, []) == 0
     pulled = [c[-1] for c in fake.calls if c[0] == "pull"]
     # By service name, each image once: langfuse-db and gateway-state share theirs.
+    # A cloud host's services are its registry's, never the laptop's to pull; a shared service's EC2 override is pulled
+    # as the pin inside it (spec 001 group 7).
     images = list(
         dict.fromkeys(
-            s["image"]
-            for _, s in sorted(services.items())
-            if "image" in s and s["image"] != ref("edge")
+            pull.as_pinned(name, s["image"])
+            for name, s in sorted(services.items())
+            if "image" in s
+            and not set(s.get("profiles") or []) & {"tunnel-end", "ec2"}
+            and pull.as_pinned(name, s["image"]) != ref("edge")
         )
     )
     # edge is present; gateway is built; both model servers come, whatever the stack's own profile.

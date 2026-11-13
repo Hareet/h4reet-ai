@@ -1,0 +1,45 @@
+#!/usr/sbin/nft -f
+# EC2's packet filter (spec 001 FR-050, FR-051; contracts/tunnel.md §4 and §6; research.md R-10). Its own table, replaced
+# whole, so Docker's tables stay as Docker writes them. h4-nftables.service loads it before Docker and the proxies start,
+# and cloud-init at the first boot. The security group is the first filter (infra/prod/network.tf): 8085 and 4318 from
+# the tunnel end's two addresses alone.
+#   in:      new connections on its one interface (ens5) to the relay block's 8085 and the collector's 4318 alone;
+#   gateway: each container's HTTPS, and SMTP's implicit TLS on 465, goes to the gateway's proxy, which reads the name
+#            the TLS hello asks for and connects to it only if gateway-allowlist.txt holds it (sni_proxy.py);
+#   out:     only the proxies' user, h4-egress, beyond the VPC, on 443 and 465; root alone to the instance metadata;
+#            time, the VPC's resolver, the VPC, and Docker's own bridges;
+#   forward: no container reaches beyond the VPC: each goes out through the proxy or not at all.
+# The interface's name is the Nitro instances' (to confirm at T096, docs/runbooks/ec2.md).
+
+table inet h4reet
+delete table inet h4reet
+table inet h4reet {
+  chain prerouting {
+    type filter hook prerouting priority mangle; policy accept;
+    iifname "ens5" ct state new tcp dport { 4318, 8085 } accept
+    iifname "ens5" ct state new drop
+  }
+
+  chain gateway {
+    type nat hook prerouting priority dstnat - 10; policy accept;
+    iifname "br-*" tcp dport 443 dnat ip to 10.42.0.20:3129
+    iifname "br-*" tcp dport 465 dnat ip to 10.42.0.20:3130
+  }
+
+  chain output {
+    type filter hook output priority filter; policy drop;
+    oifname "lo" accept
+    ct state established,related accept
+    ip daddr 169.254.169.254 meta skuid 0 tcp dport 80 accept
+    ip daddr 169.254.169.123 udp dport 123 accept
+    ip daddr { 10.42.0.2, 169.254.169.253 } meta l4proto { tcp, udp } th dport 53 accept
+    ip daddr 10.42.0.0/16 accept
+    ip daddr 172.30.0.0/16 accept
+    meta skuid "h4-egress" tcp dport { 443, 465 } accept
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    ip saddr 172.30.0.0/16 ct state new ip daddr != { 172.30.0.0/16, 10.42.0.0/16 } drop
+  }
+}

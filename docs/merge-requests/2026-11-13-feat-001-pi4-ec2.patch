@@ -1,0 +1,596 @@
+P-I4, spec 001 group 7 (W1): EC2's protected files, for the Author's hand.
+
+Built from plain copies: for each file it changes, the text P-I3 and P-I7 leave (a git archive export of 23622319
+with both applied, in order), and /dev/null for the file it creates; edited, then diff -u with a/ and b/ labels; never
+git apply. Apply it on W1's -p branch after P-I3 and P-I7, with `patch -p1 < <this file>` at the repository's root,
+and commit the result byte for byte (tasks.md T171, T172).
+
+What it holds (tasks.md T084, T089, T180; plan.md §16, "Group 7, as built"):
+  infra/prod/ec2-market.tf  EC2, a persistent spot instance that stops on interruption, IMDSv2 with hop limit 1 and its
+                            tags in its metadata, standard credits, one interface at 10.42.0.20 in the public subnet with
+                            an address AWS assigns at each start, an encrypted gp3 root volume tagged with project and
+                            component (T154), local.ec2_type (ec2.tf), and replace_triggered_by
+                            terraform_data.ec2_generation (T097);
+  infra/prod/iam.tf         h4-prod-ec2, its instance role (ECR pulls, its Parameter Store paths with kms:Decrypt held
+                            to them, the release bucket's reads, sns:Publish on h4-alerts, Session Manager's actions
+                            inline, sts:AssumeRole on h4-prod-gateway), and h4-prod-gateway, which only h4-prod-ec2 may
+                            assume, holding Bedrock on the one inference profile and its models through it (R-15);
+  infra/prod/handover.tf    /h4reet/prod/ec2-instance-id, a String of EC2's ID;
+  infra/prod/killswitch.tf  the server action, AWS-StopEC2Instance on EC2 by its ID from this root at 100% of
+                            h4-server-month, with its execution role; and EC2's model action, a second action on
+                            h4-model-month by its name, attaching h4-deny-paid-models to h4-prod-gateway alone, with its
+                            execution role (T180). The account's model action gains no target.
+
+Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, and this patch, in that order:
+infra/test/test_prod_ec2.py and the other infra suites pass; the infra policy's one finding stays T10 on infra/prod,
+prod's lockfile, the Author's step from his mirror. To confirm in W1's prod plan: that aws_ec2_instance_state takes an
+instance a persistent spot request launched. To confirm in W1's prod apply, since a plan never calls Budgets: that one
+budget takes two actions of one type (research.md R-22). If it doesn't, the apply fails at
+aws_budgets_budget_action.model alone: stop EC2 if it runs, keep the apply record, and ask for the fallback, the
+account's second target behind the switch (docs/runbooks/aws-budget-action.md, "A partly failed apply").
+
+Rebuilt after group 7's review B, from the same plain copies: iam.tf's comment names deploy/hosts/ec2/ec2_host.py, the
+credential timer's script (nit 3); the Budgets check moves from the plan to the apply, with the step for a partly
+failed apply (nit 2).
+--- a/infra/prod/ec2-market.tf
++++ b/infra/prod/ec2-market.tf
+@@ -1,7 +1,8 @@
+-# The tunnel end on spot (spec 001 FR-076; research.md R-04, R-30; the Author's answer to the plan's question 2;
+-# contracts/tunnel.md §1): a persistent spot request that stops on interruption, so the instance, its volumes, its
+-# interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns. Protected (FR-012; rule T5: what
+-# holds instance_market_options lives only in ec2-market*): it changes only by the Author's patch.
++# The tunnel end and EC2 on spot (spec 001 FR-069, FR-076; research.md R-04, R-30; the Author's answers to the spec's
++# question 15 and the plan's question 2; contracts/tunnel.md §1): each a persistent spot request that stops on
++# interruption, so the instance, its volumes, and its interfaces stay, and AWS starts it again when capacity returns.
++# Protected (FR-012; rule T5: what holds instance_market_options lives only in ec2-market*): it changes only by the
++# Author's patch. Group 5 wrote the tunnel end; group 7 adds EC2 (P-I4).
+ 
+ resource "aws_instance" "tunnel_end" {
+   ami                  = data.aws_ami.al2023.id
+@@ -65,3 +66,70 @@
+     }
+   }
+ }
++
++# EC2, prod's default host (spec 001 FR-043, FR-044, FR-050, FR-069; research.md R-04, R-28, R-30; plan.md §5.1): the
++# whole stack but the model server, from its release. Its type, its generation, its user data, its data volume, and
++# W1's stop are the unprotected ec2.tf's. One interface, in the public subnet, at its fixed private address, a literal
++# the compose file's ec2 class publishes on, with an address AWS assigns at each start, used only for egress through
++# its proxy (R-10): no Elastic IP, and nothing reaches it from outside but the tunnel end (network.tf's group).
++resource "aws_instance" "ec2" {
++  ami                         = data.aws_ami.al2023.id
++  instance_type               = local.ec2_type
++  iam_instance_profile        = aws_iam_instance_profile.ec2.name
++  user_data_base64            = base64gzip(local.ec2_user_data)
++  subnet_id                   = aws_subnet.public.id
++  private_ip                  = "10.42.0.20"
++  associate_public_ip_address = true
++  vpc_security_group_ids      = [aws_security_group.ec2.id]
++
++  instance_market_options {
++    market_type = "spot"
++
++    spot_options {
++      spot_instance_type             = "persistent"
++      instance_interruption_behavior = "stop"
++    }
++  }
++
++  # IMDSv2 alone, one hop, so no container reaches the instance's credentials (rule T13; research.md R-15). Its tags are
++  # in its metadata: write_env.py and preflight confirm the Name tag, h4-prod-ec2, before the stack starts (R-28).
++  metadata_options {
++    http_endpoint               = "enabled"
++    http_tokens                 = "required"
++    http_put_response_hop_limit = 1
++    instance_metadata_tags      = "enabled"
++  }
++
++  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
++  credit_specification {
++    cpu_credits = "standard"
++  }
++
++  # The images and the OS; the stack's stores are on the data volume (ec2.tf). Tagged with project too, which the
++  # server budget's filter reads and the provider's default tags may not reach on a root volume (T154).
++  root_block_device {
++    volume_type           = "gp3"
++    volume_size           = 20
++    encrypted             = true
++    delete_on_termination = true
++
++    tags = {
++      project   = "h4reet-ai"
++      component = "ec2"
++    }
++  }
++
++  tags = {
++    Name      = "h4-prod-ec2"
++    component = "ec2"
++  }
++
++  lifecycle {
++    # A newer image or a changed host file reaches EC2 only through a reviewed replace: terraform_data.ec2_generation
++    # holds the user data's SHA-256 and local.ec2_generation (ec2.tf), and W2 sets the generation to 2 for SC-005
++    # (tasks.md T097). The server action, EC2's model action's role, and /h4reet/prod/ec2-instance-id name this
++    # instance from this root, so the same plan updates them.
++    ignore_changes       = [ami, user_data_base64]
++    replace_triggered_by = [terraform_data.ec2_generation]
++  }
++}
+--- a/infra/prod/handover.tf
++++ b/infra/prod/handover.tf
+@@ -1,8 +1,9 @@
+ # Prod's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072, FR-076; contracts/handover.md §2;
+ # contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
+ # ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
+-# switch, the tunnel end's interruption warning, and its return's alert; groups 7 and 9 add EC2's rules, the ID
+-# parameter, and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target among them.
++# switch, the tunnel end's interruption warning, and its return's alert; group 7 adds EC2's ID parameter (P-I4); group 9
++# adds EC2's rules and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target
++# among them.
+ 
+ locals {
+   # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
+@@ -79,3 +80,17 @@
+     input_template = "\"[hareet.ai aws] tunnel_end_back: the tunnel end runs again\\n- at: <at>\""
+   }
+ }
++
++# EC2's ID, by its name, for what acts on it from another root at run time (plan.md §16; research.md R-15, amended): the
++# start function and the guard read it (W2; group 9), and the guard stops any running instance tagged h4-prod-ec2 that
++# it doesn't name (contracts/handover.md §4). A replace of EC2 updates it in the same plan. A String, never a secret.
++resource "aws_ssm_parameter" "ec2_instance_id" {
++  name        = "/h4reet/prod/ec2-instance-id"
++  description = "EC2's instance ID, which the start function and the guard act on (spec 001 contracts/handover.md §2)"
++  type        = "String"
++  value       = aws_instance.ec2.id
++
++  tags = {
++    component = "ec2"
++  }
++}
+--- a/infra/prod/iam.tf
++++ b/infra/prod/iam.tf
+@@ -1,9 +1,10 @@
+-# The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
+-# provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
+-# it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
++# Prod's identities (spec 001 FR-012; research.md R-15; the plan's question 7, provisional). The tunnel end's,
++# h4-prod-tunnel-end: its instance role, which its host services use through IMDSv2 alone, with one hop, so no container
++# on it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
+ # makes (plan.md §16). Group 9 adds the dashboard's reads. Group 6 adds the shared state's (P-I7): the two role
+-# passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Protected (FR-012; rule T5): it changes
+-# only by the Author's patch.
++# passwords of /h4reet/ec2/ its roles target sets, and the hourly backup's put. Group 7 adds EC2's two (P-I4), below.
++# The budget actions' execution roles are killswitch.tf's. Protected (FR-012; rule T5): it changes only by the
++# Author's patch.
+ 
+ data "aws_iam_policy_document" "tunnel_end_trust" {
+   statement {
+@@ -191,3 +192,238 @@
+   role   = aws_iam_role.tunnel_end.id
+   policy = data.aws_iam_policy_document.tunnel_end.json
+ }
++
++# ----------------------------------------------------------------------------------------------------------------------
++# EC2's two ordinary roles (research.md R-15; group 7, P-I4). h4-prod-ec2, the instance's, for its host services through
++# IMDSv2 alone, with one hop: the deployer's pulls and reads, write_env.py's parameters, its alerts, Session Manager, and
++# the credential timer's assume of h4-prod-gateway. h4-prod-gateway holds Bedrock, and only h4-prod-ec2 may assume it,
++# so the model action's deny attaches to the one role EC2's gateway calls Bedrock with (killswitch.tf; tasks.md T180).
++
++data "aws_iam_policy_document" "ec2_trust" {
++  statement {
++    sid     = "TheInstanceItself"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["ec2.amazonaws.com"]
++    }
++  }
++}
++
++resource "aws_iam_role" "ec2" {
++  name                 = "h4-prod-ec2"
++  path                 = "/"
++  description          = "EC2's host services (spec 001 research.md R-15)"
++  assume_role_policy   = data.aws_iam_policy_document.ec2_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "ec2"
++  }
++}
++
++resource "aws_iam_instance_profile" "ec2" {
++  name = "h4-prod-ec2"
++  role = aws_iam_role.ec2.name
++
++  tags = {
++    component = "ec2"
++  }
++}
++
++data "aws_iam_policy_document" "ec2" {
++  # The deployer's pulls: a registry token, and the project's repositories alone (infra/account/registry.tf).
++  statement {
++    sid       = "RegistryToken"
++    effect    = "Allow"
++    actions   = ["ecr:GetAuthorizationToken"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "PullTheProjectsImages"
++    effect = "Allow"
++    actions = [
++      "ecr:BatchGetImage",
++      "ecr:GetDownloadUrlForLayer",
++      "ecr:BatchCheckLayerAvailability",
++    ]
++    resources = ["arn:aws:ecr:us-east-1:${data.aws_caller_identity.current.account_id}:repository/h4reet/*"]
++  }
++
++  # write_env.py's reads at boot: EC2's own path (the Anthropic key, the alert channels', the store's passwords, its
++  # relay token) and the hosts' shared one (the release bucket's name, the shared state's CA certificate).
++  statement {
++    sid     = "ItsParameters"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter", "ssm:GetParameters"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/*",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++    ]
++  }
++
++  # Its SecureStrings, decrypted by Parameter Store alone, with this account's keys, for its own parameters alone.
++  statement {
++    sid       = "DecryptThroughParameterStore"
++    effect    = "Allow"
++    actions   = ["kms:Decrypt"]
++    resources = ["arn:aws:kms:us-east-1:${data.aws_caller_identity.current.account_id}:key/*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "kms:ViaService"
++      values   = ["ssm.us-east-1.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringLike"
++      variable = "kms:EncryptionContext:PARAMETER_ARN"
++      values = [
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/ec2/*",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++      ]
++    }
++  }
++
++  # Session Manager and Run Command, the one way in (FR-050; make cloud-session HOST=ec2), as the tunnel end's: the
++  # actions AWS documents for an instance profile without AmazonSSMManagedInstanceCore, none of which reads a parameter.
++  statement {
++    sid    = "SessionManager"
++    effect = "Allow"
++    actions = [
++      "ssm:UpdateInstanceInformation",
++      "ssmmessages:CreateControlChannel",
++      "ssmmessages:CreateDataChannel",
++      "ssmmessages:OpenControlChannel",
++      "ssmmessages:OpenDataChannel",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "RunCommand"
++    effect = "Allow"
++    actions = [
++      "ec2messages:AcknowledgeMessage",
++      "ec2messages:DeleteMessage",
++      "ec2messages:FailMessage",
++      "ec2messages:GetEndpoint",
++      "ec2messages:GetMessages",
++      "ec2messages:SendReply",
++    ]
++    resources = ["*"]
++  }
++
++  # The deployer's reads of the release bucket, by its name's prefix, in this account.
++  statement {
++    sid     = "ReadReleases"
++    effect  = "Allow"
++    actions = ["s3:GetObject"]
++    resources = [
++      "arn:aws:s3:::h4reet-ai-releases-*/releases/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/trees/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/tools/*",
++    ]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "ListReleases"
++    effect    = "Allow"
++    actions   = ["s3:ListBucket"]
++    resources = ["arn:aws:s3:::h4reet-ai-releases-*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  # Its deployer's alerts (contracts/aws-alerts.md §1).
++  statement {
++    sid       = "ItsAlerts"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
++  }
++
++  # The credential timer's assume (deploy/hosts/ec2/ec2_host.py credentials): h4-prod-gateway's short-lived credentials,
++  # written to tmpfs for EC2's gateway alone.
++  statement {
++    sid       = "AssumeTheGatewaysRole"
++    effect    = "Allow"
++    actions   = ["sts:AssumeRole"]
++    resources = [aws_iam_role.gateway.arn]
++  }
++}
++
++resource "aws_iam_role_policy" "ec2" {
++  name   = "ec2"
++  role   = aws_iam_role.ec2.id
++  policy = data.aws_iam_policy_document.ec2.json
++}
++
++# Only h4-prod-ec2 may assume h4-prod-gateway, by its ARN from this root.
++data "aws_iam_policy_document" "gateway_trust" {
++  statement {
++    sid     = "EC2sHostRoleOnly"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "AWS"
++      identifiers = [aws_iam_role.ec2.arn]
++    }
++  }
++}
++
++resource "aws_iam_role" "gateway" {
++  name                 = "h4-prod-gateway"
++  path                 = "/"
++  description          = "EC2 gateway's Bedrock, assumed by its credential timer (spec 001 research.md R-15)"
++  assume_role_policy   = data.aws_iam_policy_document.gateway_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "ec2"
++  }
++}
++
++# bedrock:InvokeModel* on the one inference profile, and on its models only through that profile, as
++# h4-laptop-bedrock's (infra/account/iam.tf). Converse is authorized by these two.
++data "aws_iam_policy_document" "gateway" {
++  statement {
++    sid       = "TheInferenceProfile"
++    effect    = "Allow"
++    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
++    resources = ["arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.anthropic.claude-haiku-5-5"]
++  }
++
++  statement {
++    sid       = "ItsModelsThroughTheProfileOnly"
++    effect    = "Allow"
++    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
++    resources = ["arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5*"]
++
++    condition {
++      test     = "StringLike"
++      variable = "bedrock:InferenceProfileArn"
++      values   = ["arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.anthropic.claude-haiku-5-5"]
++    }
++  }
++}
++
++resource "aws_iam_role_policy" "gateway" {
++  name   = "bedrock-invoke"
++  role   = aws_iam_role.gateway.id
++  policy = data.aws_iam_policy_document.gateway.json
++}
+--- /dev/null
++++ b/infra/prod/killswitch.tf
+@@ -0,0 +1,184 @@
++# Prod's budget actions (spec 001 FR-021, FR-023; research.md R-22, amended; contracts/aws-alerts.md §4; plan.md §16,
++# "No root holds another root's instance or health-check ID", W1's departure 10; ADR 0049, proposed): the server action,
++# which stops EC2, and EC2's model action, which revokes Bedrock from h4-prod-gateway. Each names what it acts on from
++# this root, beside it, so a replace of EC2 updates them in its own plan, and each is W1's, made in the same apply as
++# what it acts on. What they share with the account's, the budgets and the deny policy, they name by name. Protected
++# (FR-012; rule T5): it changes only by the Author's patch, P-I4.
++
++# AWS Budgets runs each action with its execution role, for this account alone.
++data "aws_iam_policy_document" "budgets_trust" {
++  statement {
++    sid     = "BudgetsForThisAccount"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["budgets.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# The server action (FR-023): at 100% of h4-server-month's actual cost (infra/bootstrap/budgets.tf), automatically, it
++# stops EC2 through Systems Manager's AWS-StopEC2Instance. The start function refuses while it stands
++# (server_budget_stopped; group 9), and `make server-budget-restore` reverses it (docs/runbooks/server-budget.md). Its
++# role, as the rehearsal's (infra/account/killswitch.tf), may run that document and its reverse, on EC2 alone.
++
++resource "aws_iam_role" "server_action" {
++  name               = "h4-budget-action-server"
++  path               = "/"
++  description        = "The server action: AWS-StopEC2Instance and its reverse on EC2, and nothing else"
++  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
++
++  tags = {
++    component = "kill-switch"
++  }
++}
++
++data "aws_iam_policy_document" "server_action" {
++  statement {
++    sid     = "TheStopDocumentAndItsReverse"
++    effect  = "Allow"
++    actions = ["ssm:StartAutomationExecution"]
++    resources = [
++      "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*",
++      "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*",
++    ]
++  }
++
++  statement {
++    sid       = "ThatInstanceThroughSystemsManager"
++    effect    = "Allow"
++    actions   = ["ec2:StartInstances", "ec2:StopInstances"]
++    resources = [aws_instance.ec2.arn]
++
++    condition {
++      test     = "ForAnyValue:StringEquals"
++      variable = "aws:CalledVia"
++      values   = ["ssm.amazonaws.com"]
++    }
++  }
++
++  statement {
++    sid       = "ItsState"
++    effect    = "Allow"
++    actions   = ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"]
++    resources = ["*"]
++  }
++}
++
++resource "aws_iam_role_policy" "server_action" {
++  name   = "stop-ec2"
++  role   = aws_iam_role.server_action.id
++  policy = data.aws_iam_policy_document.server_action.json
++}
++
++resource "aws_budgets_budget_action" "server" {
++  budget_name        = "h4-server-month"
++  action_type        = "RUN_SSM_DOCUMENTS"
++  approval_model     = "AUTOMATIC"
++  notification_type  = "ACTUAL"
++  execution_role_arn = aws_iam_role.server_action.arn
++
++  action_threshold {
++    action_threshold_type  = "PERCENTAGE"
++    action_threshold_value = 100
++  }
++
++  definition {
++    ssm_action_definition {
++      action_sub_type = "STOP_EC2_INSTANCES"
++      instance_ids    = [aws_instance.ec2.id]
++      region          = "us-east-1"
++    }
++  }
++
++  subscriber {
++    address           = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++    subscription_type = "SNS"
++  }
++
++  tags = {
++    component = "kill-switch"
++  }
++
++  depends_on = [aws_iam_role_policy.server_action]
++}
++
++# ----------------------------------------------------------------------------------------------------------------------
++# EC2's model action (FR-023; tasks.md T180): a second action on h4-model-month, by its name, at 100% of actual,
++# automatically, attaching the account's h4-deny-paid-models to h4-prod-gateway alone. The account's model action
++# reaches h4-laptop-bedrock and gains no target. Whether one budget may hold two actions of one type shows in W1's prod
++# apply, not its plan, which never calls Budgets; if it may not, that apply fails at this resource alone, EC2 must be
++# stopped before anything else, and the fallback is the account's second target behind the switch (research.md R-22).
++# Both steps, and the reverse after the incident note, are docs/runbooks/aws-budget-action.md's.
++
++resource "aws_iam_role" "model_action" {
++  name               = "h4-budget-action-model-ec2"
++  path               = "/"
++  description        = "EC2's model action: h4-deny-paid-models on h4-prod-gateway, and nothing else"
++  assume_role_policy = data.aws_iam_policy_document.budgets_trust.json
++
++  tags = {
++    component = "kill-switch"
++  }
++}
++
++data "aws_iam_policy_document" "model_action" {
++  statement {
++    sid       = "ThatPolicyOnThatRole"
++    effect    = "Allow"
++    actions   = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
++    resources = [aws_iam_role.gateway.arn]
++
++    condition {
++      test     = "ArnEquals"
++      variable = "iam:PolicyARN"
++      values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/h4-deny-paid-models"]
++    }
++  }
++}
++
++resource "aws_iam_role_policy" "model_action" {
++  name   = "attach-the-deny"
++  role   = aws_iam_role.model_action.id
++  policy = data.aws_iam_policy_document.model_action.json
++}
++
++resource "aws_budgets_budget_action" "model" {
++  budget_name        = "h4-model-month"
++  action_type        = "APPLY_IAM_POLICY"
++  approval_model     = "AUTOMATIC"
++  notification_type  = "ACTUAL"
++  execution_role_arn = aws_iam_role.model_action.arn
++
++  action_threshold {
++    action_threshold_type  = "PERCENTAGE"
++    action_threshold_value = 100
++  }
++
++  definition {
++    iam_action_definition {
++      policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/h4-deny-paid-models"
++      roles      = [aws_iam_role.gateway.name]
++    }
++  }
++
++  subscriber {
++    address           = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++    subscription_type = "SNS"
++  }
++
++  tags = {
++    component = "kill-switch"
++  }
++
++  depends_on = [aws_iam_role_policy.model_action]
++}

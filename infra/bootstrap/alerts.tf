@@ -10,9 +10,10 @@ resource "aws_sns_topic" "alerts" {
   }
 }
 
-# Who may publish, for now: AWS Budgets and Cost Anomaly Detection, for this account alone. contracts/aws-alerts.md §1's
-# other publishers join with the groups that add them. The account's own principals keep what IAM gives them; this
-# policy grants nothing else.
+# Who may publish: AWS Budgets, Cost Anomaly Detection, CloudWatch's alarms, and EventBridge, each for this account
+# alone. CloudWatch's and EventBridge's join in W1 (tasks.md T160; plan.md §16, W1's departure 4), for the credential
+# audit's and the bridge's alarms and the tunnel end's interruption warning. The account's own principals keep what IAM
+# gives them; this policy grants nothing else.
 data "aws_iam_policy_document" "alerts" {
   statement {
     sid       = "Budgets"
@@ -41,6 +42,42 @@ data "aws_iam_policy_document" "alerts" {
     principals {
       type        = "Service"
       identifiers = ["costalerts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid       = "CloudWatchAlarms"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid       = "EventBridge"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
     }
 
     condition {

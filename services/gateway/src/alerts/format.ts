@@ -64,7 +64,7 @@ export interface AlertContext {
   meters?: MeterFacts;
 }
 
-export type InitSource = "ledger" | "journal" | "stated";
+export type InitSource = "ledger" | "journal" | "stated" | "restored";
 export type Ceiling = "day" | "month";
 
 /**
@@ -189,6 +189,8 @@ const SOURCE_WORDS: Record<InitSource, string> = {
   ledger: "the ledger",
   journal: "the journal",
   stated: "the stated values",
+  // Spec 001: a store restored from a backup keeps its meters (contracts/shared-state.md §8, step 4).
+  restored: "the restored store",
 };
 
 /** A label at a sentence's start: "the Anthropic API" as "The Anthropic API". */

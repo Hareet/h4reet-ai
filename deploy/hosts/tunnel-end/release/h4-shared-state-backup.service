@@ -1,0 +1,12 @@
+# The shared state's hourly backup (spec 001 contracts/shared-state.md §1; deploy/hosts/tunnel-end/shared_state.py): a
+# pg_dump inside the container, over its socket, put to its own bucket through the egress proxy. From the release's
+# tree: the deployer's host step installs it, so it never travels in the user data.
+[Unit]
+Description=h4reet: the shared state's hourly backup
+After=h4-stack.service h4-egress-proxy.service
+Requires=docker.service h4-egress-proxy.service
+
+[Service]
+Type=oneshot
+Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254,172.30.0.0/16
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/shared-state/shared_state.py backup

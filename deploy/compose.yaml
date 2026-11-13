@@ -73,15 +73,24 @@ x-langfuse-env: &langfuse-env
   HOSTNAME: 0.0.0.0
 
 services:
+  # (Spec 001 group 7: on EC2, each upstream image runs as the account's registry's copy, by the same digest and tag,
+  # which the deployer names in H4_IMAGE_<SERVICE> in the release's env file; no other env file names one, so every
+  # other host runs the reference after `:-` as written, which the lock pins. deploy/scripts/deployer.py.)
   # The only publisher: nginx, unprivileged, on the stack's six 127.0.0.1 ports (deploy/edge/nginx.conf). The sixth,
   # x005, is the room's site (spec 002, contracts/web-serving.md §2). It resolves each upstream per request, so it
   # starts with no dependencies.
   edge:
     <<: *service
-    image: ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
-    # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root.
-    entrypoint: ["nginx"]
-    command: ["-g", "daemon off;"]
+    image: "${H4_IMAGE_EDGE:-ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3}"
+    # nginx itself, without the image's entrypoint scripts, which try to rewrite files on a read-only root. Ours, a
+    # few lines of sh, first writes spec 001's hosts' blocks' token maps to tmpfs from the two tokens, then runs nginx
+    # without them in its environment (deploy/edge/entrypoint.sh; its contracts/tunnel.md §4). Unset, as on dev and
+    # dev-cpu, the blocks answer 401 to everyone.
+    entrypoint: ["/bin/sh", "/etc/nginx/h4-entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    environment:
+      RELAY_TOKEN_SELF: "${RELAY_TOKEN_SELF:-}"
+      TELEMETRY_BLOCK_TOKEN: "${TELEMETRY_BLOCK_TOKEN:-}"
     networks: [edge, internal]
     ports:
       - "127.0.0.1:${H4_API_PORT}:8080"
@@ -94,6 +103,10 @@ services:
       - type: bind
         source: "${H4_TREE:?set by make up}/deploy/edge/nginx.conf"
         target: /etc/nginx/nginx.conf
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/edge/entrypoint.sh"
+        target: /etc/nginx/h4-entrypoint.sh
         read_only: true
     read_only: true
     tmpfs: [/tmp]
@@ -157,6 +170,12 @@ services:
       # The Anthropic API's key (spec 010, FR-030): prod's env file's, empty until the Author chooses the Anthropic API,
       # and empty on every other stack. The gateway alone holds it; no service holds a variable the SDK reads itself.
       GATEWAY_ANTHROPIC_API_KEY: "${GATEWAY_ANTHROPIC_API_KEY:-}"
+      # Spec 001 group 6 (its contracts/env-cloud.md §2): the host, and the shared state's connection, empty until the
+      # Author's move, so prod keeps its local store meanwhile.
+      H4_HOST: "${H4_HOST:-laptop}"
+      GATEWAY_DB_URL: "${GATEWAY_DB_URL:-}"
+      GATEWAY_DB_TLS_SERVERNAME: "${GATEWAY_DB_TLS_SERVERNAME:-}"
+      GATEWAY_DB_TLS_CA: "${GATEWAY_DB_TLS_CA:-}"
       AWS_EC2_METADATA_DISABLED: "true"
       HOME: /home/node
       TZ: UTC
@@ -367,7 +386,7 @@ services:
   # answers on 13133. Nothing waits on it, so a failed telemetry pipeline never blocks hello.
   otel-collector:
     <<: *service
-    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6
+    image: "${H4_IMAGE_OTEL_COLLECTOR:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6}"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     networks: [internal]
     environment:
@@ -392,7 +411,7 @@ services:
   # 30 days or 2 GB of data, whichever comes first; no admin or lifecycle API.
   prometheus:
     <<: *service
-    image: quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    image: "${H4_IMAGE_PROMETHEUS:-quay.io/prometheus/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e}"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -427,7 +446,7 @@ services:
   # Loki 3, single binary on its own volume: the gateway's logs over OTLP (deploy/loki/loki.yaml).
   loki:
     <<: *service
-    image: docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    image: "${H4_IMAGE_LOKI:-docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193}"
     command: ["-config.file=/etc/loki/loki.yaml"]
     networks: [internal]
     volumes:
@@ -452,7 +471,7 @@ services:
   # phone-home has its switch off (FR-040), and the internal network would block it anyway.
   grafana:
     <<: *service
-    image: docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    image: "${H4_IMAGE_GRAFANA:-docker.io/grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572}"
     networks: [internal]
     environment:
       # What the provisioning files expand (contracts/telemetry.md §6.6).
@@ -507,7 +526,7 @@ services:
   # for its four stores to be healthy; nothing in hello's path waits on it.
   langfuse-web:
     <<: *service
-    image: ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c
+    image: "${H4_IMAGE_LANGFUSE_WEB:-ghcr.io/langfuse/langfuse:4.54.0@sha256:ea9f763af1181b444c081353cd2f8174323c84b2447ed7295857d04ae1153f2c}"
     networks: [internal]
     depends_on: &langfuse-stores
       langfuse-db:
@@ -551,7 +570,7 @@ services:
   # worker makes traces late, never lost.
   langfuse-worker:
     <<: *service
-    image: ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2
+    image: "${H4_IMAGE_LANGFUSE_WORKER:-ghcr.io/langfuse/langfuse-worker:4.54.0@sha256:fe7ea9e288c6586783989920ced1704172624f45da495a68d8ae07ba466641f2}"
     networks: [internal]
     depends_on: *langfuse-stores
     environment:
@@ -572,7 +591,7 @@ services:
   # Langfuse's own Postgres, the same image as gateway-state's, with its own volume.
   langfuse-db:
     <<: *service
-    image: public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: "${H4_IMAGE_LANGFUSE_DB:-public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24}"
     # The entrypoint takes ownership of the data directory, then drops to the postgres user.
     cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
     networks: [internal]
@@ -600,7 +619,7 @@ services:
   # config.d: a low-memory profile for its 4 GiB, crash reports to its vendor off, and its Prometheus endpoint on 9363.
   clickhouse:
     <<: *service
-    image: docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364
+    image: "${H4_IMAGE_CLICKHOUSE:-docker.io/clickhouse/clickhouse-server:26.8.20.9@sha256:9b61e3c635c04ad5bb521eb4f6e61ce7585b5580814e51c25bb9e8292ce43364}"
     # The image's own clickhouse user, as Langfuse's compose runs it: the entrypoint then changes no ownership, so
     # the container gets no capability back.
     user: "101:101"
@@ -641,7 +660,7 @@ services:
   # full queue refuses rather than drops, and an append-only file on its volume.
   valkey:
     <<: *service
-    image: docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    image: "${H4_IMAGE_VALKEY:-docker.io/valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507}"
     # The entrypoint takes ownership of /data, then drops to the valkey user.
     cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
     command:
@@ -680,7 +699,7 @@ services:
   # found, in T063.
   seaweedfs:
     <<: *service
-    image: docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: "${H4_IMAGE_SEAWEEDFS:-docker.io/chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d}"
     # The image's own user, seaweed, uid 1000, which owns /data. The image's entrypoint chowns /data and drops to that
     # user; ours replaces it, and root with no capabilities can't write a directory it doesn't own. T065's second prod
     # start, 2026-10-09: the master died at "mkdir /data/m9333: permission denied", and Langfuse never started.
@@ -710,6 +729,383 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
+
+  # Spec 001's tunnel (contracts/tunnel.md §2 and §3; research.md R-11; FR-052 to FR-055): one image, deploy/tunnel/,
+  # for both ends. Each end runs unprivileged as the image's `tunnel` user, with no capability, a read-only root, and
+  # its state on tmpfs.
+  #
+  # The laptop's end, in prod's `tunnel` profile, which the Author adds to COMPOSE_PROFILES once his tunnel-keys target
+  # has made the keys (tasks.md T058). Built here, from deploy/tunnel/ alone. It dials the tunnel end's Elastic IP, the
+  # one connection this stack opens to the internet besides the gateway's, so it joins egress; it opens no port. The
+  # stack reaches the shared state as tunnel:5432 and the sink as tunnel:2301 (contracts/tunnel.md §3). Its client key
+  # and pinned host key are the Author's, read-only, from H4_TUNNEL_DIR, which only prod's env file names.
+  tunnel:
+    <<: *service
+    profiles: [tunnel]
+    build:
+      context: tunnel
+    command: ["client"]
+    user: "10001:10001"
+    environment:
+      TUNNEL_END_ADDRESS: "${TUNNEL_END_ADDRESS:-}"
+      H4_OTLP_HTTP: http://otel-collector:4318
+    networks: [internal, egress]
+    volumes:
+      - type: bind
+        source: "${H4_TUNNEL_DIR}"
+        target: /run/tunnel-client
+        read_only: true
+    read_only: true
+    tmpfs: ["/run/tunnel:uid=10001,gid=10001,mode=0700"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+
+  # The tunnel end's sshd, in the tunnel end's `tunnel-end` class (contracts/env-cloud.md §3): the tunnel's image from
+  # ECR, by the release's digest, which the deployer writes to the release's env file (deploy/scripts/deployer.py). It
+  # publishes the tunnel's 2222 and the health port, 8087 to its reverse forward 2203, on the public interface's fixed
+  # address, a literal, so no env file can move them; on any other host that address doesn't exist, and Docker refuses
+  # to start it. It joins edge, an ordinary bridge, since a port can't be published from internal alone. Its host key
+  # and the laptop's authorized key are the host's files on tmpfs, which write_env.py writes at boot.
+  tunnel-end:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/tunnel@${H4_DIGEST_TUNNEL:-}"
+    command: ["server"]
+    user: "10001:10001"
+    environment:
+      H4_OTLP_HTTP: http://tunnel-end-collector:4318
+    networks: [internal, edge]
+    ports:
+      - "10.42.0.10:2222:2222"
+      - "10.42.0.10:8087:2203"
+    volumes:
+      - type: bind
+        source: /run/h4reet/tunnel-end/keys
+        target: /run/keys
+        read_only: true
+    read_only: true
+    tmpfs: ["/run:uid=10001,gid=10001,mode=0700"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+
+  # The tunnel end's collector (spec 001 research.md R-25; disclosure row C15): spec 000's collector image, copied to
+  # the account's registry by its own digest, with deploy/otel/collector-tunnel-end.yaml, which routes each record to
+  # the host it concerns, the laptop's through the tunnel, EC2's inside the VPC, from a file-backed queue on its own
+  # volume, and redacts as spec 000's does. It joins egress to reach EC2's collector; the tunnel end's nftables keep
+  # it inside the VPC. Its image runs as its own user, 10001, whom the deployer gives the queue's volume.
+  tunnel-end-collector:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/otel-collector:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    networks: [internal, egress]
+    environment:
+      TELEMETRY_BLOCK_TOKEN: "${TELEMETRY_BLOCK_TOKEN:-}"
+      EC2_COLLECTOR_ENDPOINT: "${EC2_COLLECTOR_ENDPOINT:-}"
+      TELEMETRY_PAYLOAD_SAMPLING: "${TELEMETRY_PAYLOAD_SAMPLING:-off}"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/otel/collector-tunnel-end.yaml"
+        target: /etc/otelcol/config.yaml
+        read_only: true
+      - type: volume
+        source: tunnel-end-collector-queue
+        target: /var/lib/otelcol/queue
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # The shared state (spec 001 contracts/shared-state.md §1; the Author's answer of 2026-11-11, "Postgres in a container
+  # on the tunnel end"): prod's one meter and kill switch, in the tunnel end's class. Spec 000's pinned Postgres 17,
+  # gateway-state's image, copied to the account's registry by the lock's own tag and digest. Its data is the data
+  # volume's mount, /srv/h4reet/shared-state; its key and certificate the host script's tmpfs files, with the
+  # superuser's password nobody keeps (deploy/hosts/tunnel-end/shared_state.py prepare); its configuration the
+  # deployed tree's, read-only. It publishes 5432 on the private interface's fixed address alone, which the security
+  # group holds to EC2's group; the relay reaches it on internal, the laptop through the tunnel's -L 5432. It joins
+  # edge, an ordinary bridge, since a port can't be published from internal alone; the tunnel end's nftables keep every
+  # container inside the VPC.
+  shared-state:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/shared-state:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+    # The entrypoint takes ownership of the data directory, then drops to the postgres user, as gateway-state's does.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    command: ["postgres", "-c", "config_file=/etc/h4reet/shared-state/postgresql.conf"]
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:5432:5432"
+    environment:
+      POSTGRES_DB: h4reet
+      POSTGRES_PASSWORD_FILE: /run/shared-state/superuser.password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/shared-state"
+        target: /etc/h4reet/shared-state
+        read_only: true
+      - type: bind
+        source: /run/h4reet/shared-state
+        target: /run/shared-state
+        read_only: true
+      - type: bind
+        source: /srv/h4reet/shared-state
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "--host=/var/run/postgresql", "--username=postgres", "--dbname=h4reet"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # The relay (spec 001 contracts/relay-http.md; the Author's answer to the plan's question 1, "Relay picks the host"),
+  # in the tunnel end's class: the edge listener on the private interface's fixed address, for CloudFront's VPC origin
+  # alone; the internal listener on the tunnel end's 127.0.0.1:18505, for the Author's session and the snapshot sink;
+  # and its own health on 8082, unpublished. Its image is the release's, by the release's digest. It picks the host:
+  # the laptop through the tunnel's reverse forward, tunnel-end:2201, while healthy, else EC2 at its private address,
+  # else none. It reads the kill switch as relay_ro and writes handovers as relay_rw, over TLS to shared-state. The
+  # refused peers, the hosts' addresses, and the roles are literals here, so no env file can move them; the tokens,
+  # the two passwords, and the shared state's CA come from the env file write_env.py writes. It joins edge, an ordinary
+  # bridge, since a port can't be published from internal alone; the tunnel end's nftables keep it inside the VPC.
+  relay:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}"
+    user: "1000:1000"
+    environment:
+      H4_STACK: "${H4_STACK}"
+      RELAY_LAPTOP_URL: http://tunnel-end:2201
+      RELAY_EC2_URL: http://10.42.0.20:8085
+      RELAY_TOKEN_LAPTOP: "${RELAY_TOKEN_LAPTOP:-}"
+      RELAY_TOKEN_EC2: "${RELAY_TOKEN_EC2:-}"
+      # Loopback, the daemon's address pool (deploy/hosts/tunnel-end/daemon.json), and the tunnel end's own two.
+      RELAY_REFUSED_PEERS: "127.0.0.0/8,::1/128,172.30.0.0/16,10.42.0.10/32,10.42.1.10/32"
+      RELAY_DB_HOST: shared-state
+      RELAY_DB_PORT: "5432"
+      RELAY_DB_NAME: h4reet
+      RELAY_DB_RO_USER: relay_ro
+      RELAY_DB_RO_PASSWORD: "${DB_RELAY_RO_PASSWORD:-}"
+      RELAY_DB_RW_USER: relay_rw
+      RELAY_DB_RW_PASSWORD: "${DB_RELAY_RW_PASSWORD:-}"
+      RELAY_DB_TLS_CA: "${SHARED_STATE_TLS_CA:-}"
+      RELAY_DB_TLS_SERVERNAME: shared-state
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tunnel-end-collector:4318
+      OTEL_SERVICE_NAME: relay
+      OTEL_RESOURCE_ATTRIBUTES: "h4.host=tunnel-end,h4.stack=${H4_STACK}"
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:8080:8080"
+      - "127.0.0.1:18505:8081"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/config/budgets.yaml"
+        target: /app/config/budgets.yaml
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8082/health/live').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # The public view's sink (spec 001 contracts/public-view.md §2; tasks.md T137; disclosure row C4), in the tunnel end's
+  # class: the publishers' one way in, the laptop's through the tunnel's -L 2301 (snapshot-sink:8080 on internal), EC2's
+  # on the private interface's fixed address, 2301, which the security group holds to EC2's group. It holds the sink's
+  # token and nothing of AWS's or the store's: it checks each host part against the document's schema, keeps the last,
+  # and tells a publisher which host the relay serves, from the relay's internal listener. The tunnel end's host timer,
+  # h4-snapshot-sink.timer, reads the last part from it, adds the cloud part with the instance role, and writes the
+  # document (plan.md §16, "Group 10, as built"). Its image is the release's, by the release's digest. It joins edge,
+  # an ordinary bridge, since a port can't be published from internal alone; the tunnel end's nftables keep it inside
+  # the VPC.
+  snapshot-sink:
+    <<: *service
+    profiles: [tunnel-end]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+    command: ["snapshot_sink.py", "serve"]
+    user: "10001:10001"
+    environment:
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      RELAY_STATUS_URL: http://relay:8081/api/status
+    networks: [internal, edge]
+    ports:
+      - "10.42.1.10:2301:8080"
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -I
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/health/live', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 48M
+
+  # The laptop's publisher (spec 001 contracts/public-view.md §1; tasks.md T137; disclosure row C4), in the tunnel
+  # profile, which prod's env file adds with the tunnel: every 2 minutes, while the relay serves the laptop (the
+  # sink's /v1/serving), its FR-028 panels from its own Prometheus, by the provisioned dashboard's queries, posted to
+  # the sink through the tunnel's -L 2301 with the sink's token. Built from this file's tree; internal alone.
+  snapshot-publisher:
+    <<: *service
+    profiles: [tunnel]
+    build:
+      context: ..
+      dockerfile: deploy/snapshot/Dockerfile
+    command: ["snapshot_publisher.py"]
+    user: "10001:10001"
+    environment:
+      H4_HOST: laptop
+      SNAPSHOT_SINK_URL: http://tunnel:2301
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      PROMETHEUS_URL: http://prometheus:9090
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/dashboards"
+        target: /etc/h4reet/dashboards
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 48M
+
+  # EC2's publisher, the same script in EC2's class, by the release's image and digest: it reaches the sink on the
+  # tunnel end's private address, 2301, through egress, which EC2's nftables keep inside the VPC.
+  ec2-snapshot-publisher:
+    <<: *service
+    profiles: [ec2]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+    command: ["snapshot_publisher.py"]
+    user: "10001:10001"
+    environment:
+      H4_HOST: ec2
+      SNAPSHOT_SINK_URL: http://10.42.1.10:2301
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+      PROMETHEUS_URL: http://prometheus:9090
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    networks: [internal, egress]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/grafana/dashboards"
+        target: /etc/h4reet/dashboards
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 48M
+
+  # The relay on dev and dev-cpu (spec 001 contracts/env-cloud.md §3; tasks.md T099), for the kill-switch rehearsal:
+  # the same code, built from this file's own tree, in the dev-relay profile, which no env file selects, so make up
+  # never starts it; the rehearsal starts it beside the stack and removes it after. It publishes nothing and joins
+  # internal alone: the breach probe reaches it there. Its one host is the stack's own gateway, whose serving check
+  # it reads directly, since dev's relay block has no token; it reads the kill switch as grafana_ro, the store's
+  # read-only role, and records no handover. Its public cap is config/budgets.yaml's, the Author's figures, so it
+  # starts only once P-6 holds them (ADR 0029).
+  dev-relay:
+    <<: *service
+    profiles: [dev-relay]
+    build:
+      context: ..
+      dockerfile: services/relay/Dockerfile
+      # Only the agents' engine builds through a proxy; on host stacks this is empty. Never a container variable.
+      args:
+        HTTP_PROXY: "${H4_BUILD_PROXY}"
+        HTTPS_PROXY: "${H4_BUILD_PROXY}"
+    user: "1000:1000"
+    environment:
+      H4_STACK: "${H4_STACK}"
+      RELAY_LAPTOP_URL: http://gateway:8080
+      RELAY_HEALTH_PATH: /health/serving
+      RELAY_REFUSED_PEERS: "127.0.0.0/8,::1/128"
+      RELAY_DB_HOST: gateway-state
+      RELAY_DB_PORT: "5432"
+      RELAY_DB_NAME: gateway
+      RELAY_DB_RO_USER: grafana_ro
+      RELAY_DB_RO_PASSWORD: "${GATEWAY_GRAFANA_RO_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: relay
+      OTEL_RESOURCE_ATTRIBUTES: "h4.host=laptop,h4.stack=${H4_STACK}"
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/config/budgets.yaml"
+        target: /app/config/budgets.yaml
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # EC2's two doors from the tunnel end (spec 001 contracts/tunnel.md §4; contracts/env-cloud.md §3), in EC2's `ec2`
+  # class: the relay block, edge's 8085, for the tunnel end's relay, and EC2's collector's OTLP/HTTP, 4318, for the
+  # tunnel end's collector and the host's own deployer, forwarded byte for byte by nginx's stream module, with edge's
+  # image, copied to the account's registry by its own digest. It publishes on EC2's private address alone, a literal,
+  # so no env file can move it and on any other host Docker refuses to start it; EC2's security group admits only the
+  # tunnel end's two addresses there. edge stays on 127.0.0.1 on every host. It joins edge, an ordinary bridge, since a
+  # port can't be published from internal alone.
+  ec2-relay-block:
+    <<: *service
+    profiles: [ec2]
+    image: "${H4_REGISTRY:-registry.invalid}/h4reet/edge:1.30.5-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3"
+    command: ["nginx", "-c", "/etc/nginx/ec2-relay-block.conf", "-g", "daemon off;"]
+    networks: [internal, edge]
+    ports:
+      - "10.42.0.20:8085:8085"
+      - "10.42.0.20:4318:4318"
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by make up}/deploy/edge/ec2-relay-block.conf"
+        target: /etc/nginx/ec2-relay-block.conf
+        read_only: true
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
 
   # The alert receivers in stand-in mode (plan §2 and §8; contracts/alerts.md §4.3; tasks.md T079): dev's and dev-cpu's
   # gateways send their alerts to these two, inside the stack, unless the Author's recorded run switches dev to the
@@ -831,3 +1227,5 @@ volumes:
   clickhouse-data: {}
   valkey-data: {}
   seaweedfs-data: {}
+  # Spec 001's tunnel end: its collector's file-backed queue.
+  tunnel-end-collector-queue: {}

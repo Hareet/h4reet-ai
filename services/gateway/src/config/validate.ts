@@ -12,6 +12,7 @@ import {
   type AdapterTypeSpec,
   type Env,
 } from "../adapters/_settings.js";
+import { EC2, HOST_NAMES, LAPTOP, type HostName } from "./hosts.js";
 import type { AdapterKind } from "../core/types.js";
 import {
   formatIssue,
@@ -201,12 +202,25 @@ export interface AdapterConfig {
 export interface Route {
   readonly primary: string;
   readonly fallback?: string;
+  /**
+   * Spec 001's EC2 route (schema 2, `first` and `second`; data-model.md §2.1): both are paid adapters, called in that
+   * order with no local step, and every call is attributed `metered` (rule A1). `primary` holds `first`, and
+   * `fallback` holds `second`, so the registry and the gateway take it as any route.
+   */
+  readonly paid?: true;
 }
+
+/** Spec 001's hosts: the laptop's route, and EC2's if the file names one (rules H1, H2). */
+export type { HostName };
+export { HOST_NAMES };
 
 export interface RoutingConfig {
   readonly deadlineMs: number;
   readonly adapters: ReadonlyMap<string, AdapterConfig>;
+  /** The route of each env class; with schema 2, envs.prod is the laptop's (H2). */
   readonly envs: Readonly<Record<EnvClass, Route>>;
+  /** Schema 2's envs.prod.hosts (spec 001); absent with schema 1. */
+  readonly hosts?: Readonly<Partial<Record<HostName, Route>>>;
   /** SHA-256 of the file's bytes: h4.routing.sha on every span and ledger row. */
   readonly sha256: string;
 }
@@ -220,6 +234,7 @@ export interface RoutingOptions {
 const ADAPTER_ID = /^[a-z][a-z0-9-]{0,31}$/;
 const KINDS: readonly AdapterKind[] = ["local", "paid", "synthetic"];
 const ROUTE = z.strictObject({ primary: z.string().min(1), fallback: z.string().min(1).optional() });
+const PAID_ROUTE = z.strictObject({ first: z.string().min(1), second: z.string().min(1).optional() });
 
 function placeholderPaths(value: unknown, path: PathSegment[]): string[] {
   if (typeof value === "string") return PLACEHOLDER.test(value) ? [formatPath(path)] : [];
@@ -245,7 +260,7 @@ export function validateRouting(
   for (const key of Object.keys(data)) {
     if (!["schema", "deadline_ms", "adapters", "envs"].includes(key)) out.error(key, "R11", "unknown key");
   }
-  check(out, z.literal(1), data.schema, ["schema"], R11);
+  const schema = check(out, z.literal([1, 2]), data.schema, ["schema"], R11);
   const deadlineMs = check(out, int(5_000, 25_000), data.deadline_ms, ["deadline_ms"], R11);
 
   // Adapters.
@@ -297,8 +312,74 @@ export function validateRouting(
     }
   }
 
-  // Routes.
+  // Routes. Schema 2 (spec 001, data-model.md §2.1) holds envs.prod as a route per host; envs.dev stays a route.
   const routes: Partial<Record<EnvClass, Route>> = {};
+  let hosts: Partial<Record<HostName, Route>> | undefined;
+  /** One route's roles, checked against the adapters and R1 to R3; true when it holds. */
+  const checkRoles = (env: EnvClass, base: string, roles: [string, string | undefined][], paid: boolean): boolean => {
+    let ok = true;
+    for (const [role, id] of roles) {
+      if (id === undefined) continue;
+      const at = `${base}.${role}`;
+      if (!defined.has(id)) {
+        out.error(at, "R4", `names "${id}", which isn't defined under adapters`);
+        ok = false;
+        continue;
+      }
+      const adapter = adapters.get(id);
+      if (adapter === undefined) {
+        ok = false; // its own errors are already reported
+        continue;
+      }
+      if (paid) {
+        if (adapter.kind !== "paid") {
+          out.error(
+            at,
+            "R1",
+            `names "${id}", a ${adapter.kind} adapter; a first route names paid adapters only`,
+            "FR-067",
+          );
+          ok = false;
+        }
+      } else if (role === "primary" && adapter.kind !== "local") {
+        out.error(at, "R1", `names "${id}", a ${adapter.kind} adapter; every primary must be local`, "FR-022");
+        ok = false;
+      } else if (role === "fallback" && env === "dev" && adapter.kind === "paid") {
+        out.error(at, "R2", `names "${id}", a paid adapter; a paid adapter may be routed only in envs.prod`, "FR-031");
+        ok = false;
+      } else if (role === "fallback" && env === "prod" && adapter.kind === "synthetic") {
+        out.error(at, "R3", `names "${id}", a synthetic adapter; synthetic spend exists only in dev`, "FR-036");
+        ok = false;
+      } else if (role === "fallback" && adapter.kind === "local") {
+        const wanted = env === "prod" ? "paid" : "synthetic";
+        out.error(at, "R11", `names "${id}", a local adapter; ${env}'s fallback must be a ${wanted} adapter`);
+        ok = false;
+      }
+    }
+    return ok;
+  };
+  /** A primary-and-fallback route at `path`, or undefined with its errors reported. */
+  const plainRoute = (env: EnvClass, value: unknown, path: string[]): Route | undefined => {
+    if (isMapping(value) && ("first" in value || "second" in value)) {
+      out.error(path.join("."), "R1", "a route with first exists only as envs.prod.hosts.ec2", "FR-067");
+      return undefined;
+    }
+    const route = check(out, ROUTE, value, path, R11);
+    if (route === undefined) return undefined;
+    const ok = checkRoles(
+      env,
+      path.join("."),
+      [
+        ["primary", route.primary],
+        ["fallback", route.fallback],
+      ],
+      false,
+    );
+    if (!ok) return undefined;
+    return route.fallback === undefined
+      ? { primary: route.primary }
+      : { primary: route.primary, fallback: route.fallback };
+  };
   if (!isMapping(data.envs)) {
     out.error("envs", "R11", present(data, ["envs"]) ? "must be a mapping" : "is required");
   } else {
@@ -306,51 +387,53 @@ export function validateRouting(
     if (keys.length !== 2 || keys[0] !== "dev" || keys[1] !== "prod") {
       out.error("envs", "R10", "must have exactly the keys prod and dev");
     }
-    for (const env of ENV_CLASSES) {
-      if (!(env in data.envs)) continue;
-      const route = check(out, ROUTE, data.envs[env], ["envs", env], R11);
-      if (route === undefined) continue;
-      let ok = true;
-      for (const role of ["primary", "fallback"] as const) {
-        const id = route[role];
-        if (id === undefined) continue;
-        const at = `envs.${env}.${role}`;
-        if (!defined.has(id)) {
-          out.error(at, "R4", `names "${id}", which isn't defined under adapters`);
-          ok = false;
-          continue;
-        }
-        const adapter = adapters.get(id);
-        if (adapter === undefined) {
-          ok = false; // its own errors are already reported
-          continue;
-        }
-        if (role === "primary" && adapter.kind !== "local") {
-          out.error(at, "R1", `names "${id}", a ${adapter.kind} adapter; every primary must be local`, "FR-022");
-          ok = false;
-        } else if (role === "fallback" && env === "dev" && adapter.kind === "paid") {
-          out.error(
-            at,
-            "R2",
-            `names "${id}", a paid adapter; a paid adapter may be routed only in envs.prod`,
-            "FR-031",
-          );
-          ok = false;
-        } else if (role === "fallback" && env === "prod" && adapter.kind === "synthetic") {
-          out.error(at, "R3", `names "${id}", a synthetic adapter; synthetic spend exists only in dev`, "FR-036");
-          ok = false;
-        } else if (role === "fallback" && adapter.kind === "local") {
-          const wanted = env === "prod" ? "paid" : "synthetic";
-          out.error(at, "R11", `names "${id}", a local adapter; ${env}'s fallback must be a ${wanted} adapter`);
-          ok = false;
+    if ("dev" in data.envs) {
+      const dev = plainRoute("dev", data.envs.dev, ["envs", "dev"]);
+      if (dev !== undefined) routes.dev = dev;
+    }
+    const prod = data.envs.prod;
+    if (schema === 2 && "prod" in data.envs) {
+      if (!isMapping(prod) || Object.keys(prod).join(",") !== "hosts" || !isMapping(prod.hosts)) {
+        out.error("envs.prod", "H1", "with schema 2, envs.prod holds hosts, and nothing else", "FR-067");
+      } else {
+        const names = Object.keys(prod.hosts);
+        if (!names.includes(LAPTOP) || names.some((n) => !HOST_NAMES.includes(n))) {
+          out.error("envs.prod.hosts", "H1", `holds ${LAPTOP}, may hold ${EC2}, and holds no other host`, "FR-067");
+        } else {
+          hosts = {};
+          const laptop = plainRoute("prod", prod.hosts[LAPTOP], ["envs", "prod", "hosts", LAPTOP]);
+          if (laptop !== undefined) hosts[LAPTOP] = laptop;
+          if ("ec2" in prod.hosts) {
+            const raw = prod.hosts.ec2;
+            if (isMapping(raw) && ("primary" in raw || "fallback" in raw)) {
+              out.error("envs.prod.hosts.ec2", "R1", "EC2's route names first and second, never a primary", "FR-067");
+            } else {
+              const ec2 = check(out, PAID_ROUTE, raw, ["envs", "prod", "hosts", "ec2"], R11);
+              if (
+                ec2 !== undefined &&
+                checkRoles(
+                  "prod",
+                  "envs.prod.hosts.ec2",
+                  [
+                    ["first", ec2.first],
+                    ["second", ec2.second],
+                  ],
+                  true,
+                )
+              ) {
+                hosts.ec2 =
+                  ec2.second === undefined
+                    ? { primary: ec2.first, paid: true }
+                    : { primary: ec2.first, fallback: ec2.second, paid: true };
+              }
+            }
+          }
+          if (hosts.laptop !== undefined) routes.prod = hosts.laptop;
         }
       }
-      if (ok) {
-        routes[env] =
-          route.fallback === undefined
-            ? { primary: route.primary }
-            : { primary: route.primary, fallback: route.fallback };
-      }
+    } else if ("prod" in data.envs) {
+      const route = plainRoute("prod", prod, ["envs", "prod"]);
+      if (route !== undefined) routes.prod = route;
     }
   }
 
@@ -359,8 +442,7 @@ export function validateRouting(
   // attempt of the fallback's twin_request_ms (local 10,000 + 500 + 9,000 = 19,500 in the committed file).
   if (deadlineMs !== undefined) {
     let needed = 0;
-    for (const env of ENV_CLASSES) {
-      const route = routes[env];
+    for (const route of [...ENV_CLASSES.map((env) => routes[env]), hosts?.ec2]) {
       const primary = route && adapters.get(route.primary);
       if (!route || !primary) continue;
       let n = primary.spec.timing(primary.settings).requestMs + 500;
@@ -378,7 +460,12 @@ export function validateRouting(
   }
 
   // Placeholders: a NOTE each; a route that uses one refuses to start (checkStartup).
-  const routed = new Set(Object.values(routes).flatMap((r) => [r.primary, r.fallback]));
+  const routed = new Set(
+    [...Object.values(routes), ...(hosts?.ec2 === undefined ? [] : [hosts.ec2])].flatMap((r) => [
+      r.primary,
+      r.fallback,
+    ]),
+  );
   for (const adapter of adapters.values()) {
     for (const path of adapter.placeholders) {
       out.note(
@@ -393,7 +480,15 @@ export function validateRouting(
 
   if (out.failed || deadlineMs === undefined || !routes.prod || !routes.dev) return { issues: out.issues };
   return {
-    value: { deadlineMs, adapters, envs: { prod: routes.prod, dev: routes.dev }, sha256: parsed.sha256 },
+    value: {
+      deadlineMs,
+      adapters,
+      envs: { prod: routes.prod, dev: routes.dev },
+      ...(hosts === undefined
+        ? {}
+        : { hosts: hosts.ec2 === undefined ? { [LAPTOP]: routes.prod } : { [LAPTOP]: routes.prod, [EC2]: hosts.ec2 } }),
+      sha256: parsed.sha256,
+    },
     issues: out.issues,
   };
 }
@@ -664,7 +759,28 @@ export interface Budgets {
     /** The twin's per-turn limits (spec 007, FR-027; Amendment 0-2): optional, the Author's patch P-2 sets them. */
     readonly twin?: TwinLimits;
   };
+  /** The relay's public request cap (spec 001 FR-033; ADR 0029): optional here, the Author's patch P-6 sets it, and
+   *  the relay, which enforces it, refuses to start without it. The gateway only validates it (rule B10). */
+  readonly public?: PublicCapLimits;
 }
+
+/** public (spec 001, FR-033): per address, the requests a minute, the burst, and the requests a UTC day; and the
+ *  requests in flight across every address. */
+export interface PublicCapLimits {
+  readonly requestsPerMinute: number;
+  readonly burst: number;
+  readonly requestsPerDay: number;
+  readonly inFlight: number;
+}
+
+/** The public section's keys and each figure's bounds, which the relay holds them to as well
+ *  (services/relay/src/config.ts). */
+const PUBLIC_FIGURES = [
+  ["per_address", "requests_per_minute", 1, 600],
+  ["per_address", "burst", 1, 600],
+  ["per_address", "requests_per_day", 1, 100_000],
+  ["global", "in_flight", 1, 256],
+] as const;
 
 /** limits.twin (spec 007, FR-027): a visitor turn's characters, the turns and characters of conversation a request
  *  carries, a twin call's input bound (its reservation's too), and its output cap. */
@@ -753,7 +869,56 @@ const BUDGETS_TOP = z.strictObject({
       })
       .optional(),
   }),
+  // Spec 001's P-6: optional; its keys and figures are rule B10, checked below, so a blank figure is named.
+  public: z.unknown().optional(),
 });
+
+/** Rule B10 (spec 001, FR-033): the public section's four figures, each a whole number in its bounds, never blank. */
+function validatePublic(out: Findings, section: unknown): PublicCapLimits | undefined {
+  const isMap = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+  if (!isMap(section)) {
+    out.error("public", "B10", "must be a mapping with per_address and global", "FR-033");
+    return undefined;
+  }
+  for (const key of Object.keys(section)) {
+    if (key !== "per_address" && key !== "global") out.error(`public.${key}`, "B10", "isn't a key of public");
+  }
+  for (const group of ["per_address", "global"] as const) {
+    const parent = section[group];
+    if (parent !== undefined && parent !== null && !isMap(parent))
+      out.error(`public.${group}`, "B10", "must be a mapping");
+    if (!isMap(parent)) continue;
+    const known: readonly string[] = PUBLIC_FIGURES.filter(([g]) => g === group).map(([, k]) => k);
+    for (const key of Object.keys(parent)) {
+      if (!known.includes(key)) out.error(`public.${group}.${key}`, "B10", "isn't a key of public");
+    }
+  }
+  const values: number[] = [];
+  for (const [group, key, min, max] of PUBLIC_FIGURES) {
+    const parent = section[group];
+    const value = isMap(parent) ? parent[key] : undefined;
+    const path = `public.${group}.${key}`;
+    if (value === undefined || value === null || value === "") {
+      out.error(path, "B10", "is blank: the Author's figure (P-6), which the relay needs to start", "FR-033");
+    } else if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+      out.error(path, "B10", `must be a whole number from ${min} to ${max}`, "FR-033");
+    } else {
+      values.push(value);
+    }
+  }
+  if (values.length !== PUBLIC_FIGURES.length) return undefined;
+  const [requestsPerMinute = 0, burst = 0, requestsPerDay = 0, inFlight = 0] = values;
+  let ok = true;
+  if (burst > requestsPerMinute) {
+    out.error("public.per_address.burst", "B10", "must be at most requests_per_minute");
+    ok = false;
+  }
+  if (requestsPerDay < requestsPerMinute) {
+    out.error("public.per_address.requests_per_day", "B10", "must be at least requests_per_minute");
+    ok = false;
+  }
+  return ok ? { requestsPerMinute, burst, requestsPerDay, inFlight } : undefined;
+}
 
 /** Two envs' adapter caps, the same adapters at the same caps (B8 holds them too). */
 function sameCaps(a: ReadonlyMap<string, bigint> = new Map(), b: ReadonlyMap<string, bigint> = new Map()): boolean {
@@ -865,9 +1030,12 @@ export function validateBudgets(parsed: ParsedYaml): { value?: Budgets; issues: 
     out.error("limits.twin.max_output_tokens", "B5", "must be at most limits.per_call.max_output_tokens");
   }
 
+  const publicCap = doc.public === undefined ? undefined : validatePublic(out, doc.public);
+
   if (out.failed || !prod || !dev) return { issues: out.issues };
   return {
     value: {
+      ...(publicCap === undefined ? {} : { public: publicCap }),
       timing: { timezone: "UTC", reservationTtlS: doc.timing.reservation_ttl_s },
       envs: { prod, dev },
       limits: {
@@ -1136,6 +1304,27 @@ export interface StartupRefusal {
   message: string;
 }
 
+/** H4_HOST=ec2 while the file names no EC2 route (rule H1): exit 78, route_missing. */
+export class RouteMissingError extends Error {
+  readonly exitCode = 78;
+  readonly reason = "route_missing";
+}
+
+/**
+ * Rule H2 (spec 001 data-model.md §2.1): the routing as this host's gateway runs it, with envs.prod the host's own
+ * route. The laptop's is envs.prod already; EC2's is envs.prod.hosts.ec2, and without it EC2 refuses to start.
+ */
+export function routingForHost(routing: RoutingConfig, host: HostName): RoutingConfig {
+  if (host === LAPTOP) return routing;
+  const ec2 = routing.hosts?.ec2;
+  if (ec2 === undefined) {
+    throw new RouteMissingError(
+      "H4_HOST=ec2, and config/routing.yaml names no envs.prod.hosts.ec2: EC2's route is the Author's line (route_missing)",
+    );
+  }
+  return { ...routing, envs: { ...routing.envs, prod: ec2 } };
+}
+
 /** The route H4_ENV selects: prod for prod, dev for dev and dev-cpu. */
 export function routeFor(routing: RoutingConfig, env: EnvClass): AdapterConfig[] {
   const route = routing.envs[env];
@@ -1155,7 +1344,17 @@ export function checkStartup(
   const envClass = env.H4_ENV;
   if (envClass !== "prod" && envClass !== "dev") return []; // validate-env.ts refuses it
   const refusals: StartupRefusal[] = [];
-  const route = routeFor(config.routing, envClass);
+  // Spec 001's rule H2: EC2's gateway runs EC2's route, and refuses to start without one.
+  let routing = config.routing;
+  if (env.H4_HOST === "ec2") {
+    try {
+      routing = routingForHost(config.routing, "ec2");
+    } catch (err) {
+      if (!(err instanceof RouteMissingError)) throw err;
+      return [{ reason: err.reason, path: "config/routing.yaml: envs.prod.hosts.ec2", message: err.message }];
+    }
+  }
+  const route = routeFor(routing, envClass);
   for (const adapter of route) {
     const at = `config/routing.yaml: adapters.${adapter.id}`;
     if (adapter.kind === "paid" && envClass !== "prod") {

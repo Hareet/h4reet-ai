@@ -108,6 +108,10 @@ export const RESTING_CAUSES: readonly string[] = [
   "local_error",
   "no_fallback_in_stack",
   "fallback_unavailable",
+  // Spec 001's relay (its contracts/relay-http.md §5; spec 002's contract §3, amended by name): no host serving, and a
+  // host's error that named no cause.
+  "no_host_serving",
+  "host_error",
 ];
 
 /** Spec 000's causes for "today's budget is used"; a kill-switch trip follows a ceiling, so it counts here. */

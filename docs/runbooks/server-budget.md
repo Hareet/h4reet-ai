@@ -43,7 +43,7 @@ In your own terminal, with your SSO session (`pf` your administrator profile).
 
 - An alert changes nothing. The budget resets on the 1st.
 - The rehearsal's action: reverse it with `aws budgets execute-budget-action --execution-type REVERSE_BUDGET_ACTION` on `h4-rehearsal-server`, as the runbook `aws-budget-action.md`'s Undo does for the model's, then end the rehearsal (tasks.md T040, step 6).
-- The server action itself, from group 7: after the incident note, its own restore, which group 9 adds; until then, the same reverse on `h4-server-month`.
+- The server action itself, from group 7: after the incident note, `make server-budget-restore INCIDENT=docs/incidents/<note>.md PROFILE=$pf`, which reverses the server action alone, refuses without the note, and writes an audit line. The guard then stops a start no longer (`ec2_stopped_server_budget`), and the start function no longer refuses `server_budget_stopped`.
 
 ## Record
 

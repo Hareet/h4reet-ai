@@ -10,8 +10,8 @@ What the root must hold:
   - Bedrock's cost as the service names the Author reads in his Cost Explorer, var.bedrock_service_names, a list
     with no default (T028's review, B3: Claude on Bedrock may show under its own Marketplace name);
   - the anomaly monitor, with its immediate $1 subscription;
-  - h4-alerts, with its email subscription from a sensitive variable, and a policy that lets only Budgets and Cost
-    Anomaly Detection publish, for this account;
+  - h4-alerts, with its email subscription from a sensitive variable, and a policy that lets only Budgets, Cost
+    Anomaly Detection, CloudWatch's alarms, and EventBridge publish, each for this account (from W1, T160);
   - the tags: project and environment from default_tags, and component on every taggable resource.
 
 budgets.tf and alerts.tf are protected (FR-012), so they reach the branch only with the Author's patch, P-I1
@@ -57,12 +57,38 @@ VARIABLES = {
 PROTECTED_KINDS = ("aws_budgets_", "aws_ce_", "aws_sns_", "aws_iam_")
 BEDROCK = "var.bedrock_service_names"
 TOPIC = "aws_sns_topic.alerts.arn"
+# Who may publish to h4-alerts, each for this account alone (contracts/aws-alerts.md §1). CloudWatch's alarms and
+# EventBridge join in W1 (tasks.md T160; plan.md §16, W1's departure 4): the credential audit's and the bridge's
+# alarms (T159), and the tunnel end's warning rule (T046), come before group 8.
+PUBLISHERS = {
+    "budgets.amazonaws.com",
+    "costalerts.amazonaws.com",
+    "cloudwatch.amazonaws.com",
+    "events.amazonaws.com",
+}
+WHO = "Budgets, Cost Anomaly Detection, CloudWatch's alarms, and EventBridge"
 
 if not READER.is_file():
     pytest.skip(
         "PLANNED (T010): the reader, tools/gates/infra_policy.py, arrives with the guard patch, P-1",
         allow_module_level=True,
     )
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# W1's patches (tasks.md Format): the protected files as P-I3 leaves them, until the Author applies it on W1's -p
+# branch, then as the tree holds them.
+patches = _load(
+    "infra_w1_patches_for_bootstrap", Path(__file__).resolve().parent / "patches.py"
+)
 
 
 def _reader():
@@ -114,9 +140,9 @@ def root_texts() -> dict[str, str]:
     texts = {}
     patch = PI1.read_text(encoding="utf-8") if PI1.is_file() else ""
     for name in FILES:
-        path = ROOT / name
-        if path.is_file():
-            texts[name] = path.read_text(encoding="utf-8")
+        text = patches.patched_text(f"infra/bootstrap/{name}")
+        if text is not None:
+            texts[name] = text
         elif name in PROTECTED_FILES:
             text = from_patch(patch, f"infra/bootstrap/{name}")
             if text is not None:
@@ -573,15 +599,13 @@ def check_topic(root: dict[str, list]) -> list[str]:
             )
         ):
             found.append(
-                "h4-alerts: its policy lets a principal other than Budgets and Cost Anomaly Detection publish, "
-                "or not for this account alone"
+                f"h4-alerts: its policy lets a principal other than {WHO} publish, or not for this account alone"
             )
             continue
         publishers.update(principals[0][1])
-    if publishers != {"budgets.amazonaws.com", "costalerts.amazonaws.com"}:
+    if publishers != PUBLISHERS:
         found.append(
-            "h4-alerts: its policy lets a principal other than Budgets and Cost Anomaly Detection publish, "
-            "or not for this account alone"
+            f"h4-alerts: its policy lets a principal other than {WHO} publish, or not for this account alone"
         )
     return sorted(set(found), key=found.index)
 
@@ -748,7 +772,7 @@ def test_the_anomaly_monitor_alerts_at_once_on_a_dollar() -> None:
     assert check_anomaly(parsed(root_texts())) == []
 
 
-def test_h4_alerts_mails_the_sensitive_address_and_only_budgets_and_anomalies_publish() -> (
+def test_h4_alerts_mails_the_sensitive_address_and_only_its_four_publishers_publish() -> (
     None
 ):
     assert check_topic(parsed(root_texts())) == []

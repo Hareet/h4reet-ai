@@ -901,8 +901,15 @@ def test_no_two_live_cases_send_the_same_turn() -> None:
         if "live" not in case:
             continue
         live = case["live"]
+        # Spec 001 group 8's hello cases carry {route: hello} alone (redteam/test_hello_cases.py).
         key = rt.json.dumps(
-            [live["feature"], live["path"], live["turns"], case["prompt"]],
+            [
+                live.get("route", "twin"),
+                live.get("feature"),
+                live.get("path"),
+                live.get("turns"),
+                case["prompt"],
+            ],
             sort_keys=True,
         )
         assert key not in sent, f"{case['id']} sends {sent.get(key)}'s turn"
@@ -1306,3 +1313,59 @@ def test_live_mode_refuses_a_paid_adapter_off_prod(
     for adapter in ("anthropic", "bedrock"):
         assert rt.main(argv=["--live", "--stack", "dev", "--adapter", adapter]) == 2
         assert "is prod's adapter" in capsys.readouterr().err
+
+
+# Spec 001 group 7's review A, I-D: the release's red-team gate matches a run to the commit it released, by the record's
+# own commit field, which is the stack's running commit (its run file's H4_REF), never the checkout's HEAD.
+def test_live_mode_records_the_commit_the_stack_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SANDBOX_RUNTIME", raising=False)
+    history = tmp_path / "history"
+    asked: list[str] = []
+
+    def commit_of(stack: str) -> str:
+        asked.append(stack)
+        return "a" * 40
+
+    assert (
+        rt.main(
+            live_folder(tmp_path),
+            argv=LIVE_ARGS,
+            client_factory=lambda _s: StubClient("He builds tools, from his corpus."),
+            history=history,
+            commit_of=commit_of,
+        )
+        == 0
+    )
+    [written] = sorted(history.glob("*-local.json"))
+    assert rt.json.loads(written.read_text())["commit"] == "a" * 40
+    assert asked == ["prod"]
+    history2 = tmp_path / "history2"
+    rt.main(
+        live_folder(tmp_path),
+        argv=LIVE_ARGS,
+        client_factory=lambda _s: StubClient("He builds tools, from his corpus."),
+        history=history2,
+    )
+    [unknown] = sorted(history2.glob("*-local.json"))
+    assert rt.json.loads(unknown.read_text())["commit"] is None
+
+
+def test_the_live_entry_reads_the_commit_from_the_stacks_run_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "redteam_live_commit", REPO / "redteam" / "live.py"
+    )
+    assert spec and spec.loader
+    live = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(live)
+    run_file = tmp_path / ".local" / "state" / "h4reet" / "prod" / "run.env"
+    run_file.parent.mkdir(parents=True)
+    run_file.write_text(f"H4_TREE=/x\nH4_REF={'b' * 40}\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert live.running_commit("prod") == "b" * 40
+    run_file.write_text("H4_REF=not-a-commit\n", encoding="utf-8")
+    assert live.running_commit("prod") is None
+    assert live.running_commit("dev-cpu") is None

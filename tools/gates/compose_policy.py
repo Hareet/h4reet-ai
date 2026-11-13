@@ -15,17 +15,23 @@ and refuses, in what compose rendered:
   - devices, device cgroup rules, gpus, and runtimes, except model-server-gpu's one NVIDIA reservation in the gpu
     profile;
   - binds outside ${H4_TREE}/deploy, ${H4_TREE}/config, ${H4_MODEL_DIR}, ${H4_STATE_DIR}/gateway, and ${H4_AWS_DIR}, or
-    writable outside ${H4_STATE_DIR}/gateway; a volume that isn't a declared, local named volume;
-  - ports on any service but edge, or on anything but the literal 127.0.0.1;
-  - the egress network on any service but gateway, the edge network on any service but edge, a service off the
-    internal network, and any network but internal (internal-only), edge, and egress;
+    writable outside ${H4_STATE_DIR}/gateway, but for the one read-only bind each of spec 001's tunnel's ends takes
+    (SERVICE_BINDS), and the shared state's data, writable, from group 6; a volume that isn't a declared, local named
+    volume;
+  - ports on any service but edge, or on anything but the literal 127.0.0.1, but for the tunnel end's two, exactly,
+    on its public interface's fixed address (CLOUD_PORTS);
+  - the egress network on any service but gateway, spec 001's laptop tunnel, and the tunnel end's collector; the edge
+    network on any service but edge and the tunnel end's sshd; a service off the internal network, and any network but
+    internal (internal-only), edge, and egress;
   - an image without a digest, or one that differs from deploy/images.lock. One exception, reported PLANNED rather
     than refused: a service of OPEN_PINS whose lock line is still open (tag and digest "-") and whose image is that
     line's bare repository, until make pin-images pins it. Once the lock holds a digest the ordinary check applies,
     so the mark expires with the pin (plan §11). And two names that are no registry's: the images of SHARED_IMAGES,
     make up's own builds of the gateway (tasks.md T184) and of the room's site (spec 002, contracts/web-serving.md
     §1), each on its service alone, as written there, with pull_policy: never, so compose never pulls an image by
-    either name;
+    either name. And spec 001's cloud classes (its contracts/env-cloud.md §3): a service in a cloud host's profile
+    alone runs from the account's registry, an image its release builds by the release's digest (RELEASE_IMAGES), or
+    an upstream image's copy by the lock's own digest (UPSTREAM_COPIES), and never builds;
   - a build context that is absolute, interpolated, or outside the compose file's tree; a built service that
     names an image; inline Dockerfiles, extra contexts, host networking, and entitlements in a build;
   - plan §1's rules for every service: no container_name, no env_file, no external resource, no extra_hosts or
@@ -74,6 +80,10 @@ ENV_FILES = (
     ("prod", "deploy/env.example/prod.env.example"),
     ("dev", "deploy/env.example/dev.env.example"),
     ("dev-cpu", "deploy/env.agents/dev-cpu.vars"),
+    # Spec 001's tunnel end, prod on another host: write_env.py fills its template at boot (contracts/env-cloud.md §1).
+    ("prod", "deploy/hosts/tunnel-end/tunnel-end.env.example"),
+    # Spec 001 group 7's EC2, prod on another host, the same way.
+    ("prod", "deploy/hosts/ec2/ec2.env.example"),
 )
 
 BIND_ROOTS = (
@@ -89,6 +99,103 @@ WRITABLE_ROOT = "${H4_STATE_DIR}/gateway"
 NETWORKS = ("internal", "edge", "egress")
 PUBLISHER = "edge"
 EGRESS_SERVICE = "gateway"
+# Spec 001 (its contracts/tunnel.md §1 and §3; contracts/env-cloud.md §3). The egress network's other two: the laptop's
+# tunnel, which dials the tunnel end, and the tunnel end's collector, which exports to EC2's inside the VPC (its host's
+# nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
+# internal alone.
+# From group 10, EC2's publisher of the public view, which posts to the tunnel end's sink inside the VPC (its
+# contracts/public-view.md §1); EC2's nftables keep it there.
+EGRESS_SERVICES = frozenset(
+    {EGRESS_SERVICE, "tunnel", "tunnel-end-collector", "ec2-snapshot-publisher"}
+)
+# From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
+# state.md §1).
+# From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
+# From group 8, the tunnel end's relay, which publishes its edge listener on the private interface (its contracts/
+# relay-http.md §1).
+# From group 10, the tunnel end's public view sink, which publishes its port for EC2's publisher on the private
+# interface (its contracts/public-view.md §2).
+EDGE_NETWORK_SERVICES = frozenset(
+    {
+        PUBLISHER,
+        "tunnel-end",
+        "shared-state",
+        "ec2-relay-block",
+        "relay",
+        "snapshot-sink",
+    }
+)
+# The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
+CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
+# What a cloud class's service publishes, exactly (host address, published port, container port): the tunnel end's
+# public interface's fixed address, a literal no other host has, so the service fails closed anywhere else.
+CLOUD_PORTS = {
+    "tunnel-end": frozenset(
+        {("10.42.0.10", "2222", 2222), ("10.42.0.10", "8087", 2203)}
+    ),
+    # The shared state's 5432, on the private interface's fixed address alone, which the security group holds to EC2.
+    "shared-state": frozenset({("10.42.1.10", "5432", 5432)}),
+    # Group 7: EC2's relay block and its collector, on EC2's one private address, which its group opens to the tunnel
+    # end's two addresses alone.
+    "ec2-relay-block": frozenset(
+        {("10.42.0.20", "8085", 8085), ("10.42.0.20", "4318", 4318)}
+    ),
+    # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
+    # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
+    "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
+    # Group 10: the public view's sink, for EC2's publisher, on the private interface's fixed address, which the
+    # security group holds to EC2's group; the laptop's reaches it through the tunnel, on internal.
+    "snapshot-sink": frozenset({("10.42.1.10", "2301", 8080)}),
+}
+# The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
+# laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+# ~/.config/h4reet-ai/tunnel/ (prod's H4_TUNNEL_DIR); the tunnel end's host key and authorized key, which write_env.py
+# writes to tmpfs at boot; and, from group 6, the shared state's key and certificate on tmpfs, read-only, and its data,
+# the data volume's mount, its one writable bind (deploy/hosts/tunnel-end/shared_state.py).
+SERVICE_BINDS: dict[str, dict[str, bool]] = {
+    "tunnel": {"${H4_TUNNEL_DIR}": False},
+    "tunnel-end": {"/run/h4reet/tunnel-end/keys": False},
+    "shared-state": {
+        "/run/h4reet/shared-state": False,
+        "/srv/h4reet/shared-state": True,
+    },
+}
+# A cloud class's images, from the account's registry (the release's ECR repositories; spec 001 contracts/releases-
+# deployer.md §1). An image the release builds runs by the release's digest, which the deployer writes to the
+# release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
+# line of the service it copies, by the repository's name.
+REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
+# Group 8: the relay, which the release builds too. Group 10: the public view's image, one build for the tunnel end's
+# sink and EC2's publisher.
+RELEASE_IMAGES = {
+    "tunnel-end": "tunnel",
+    "relay": "relay",
+    "snapshot-sink": "snapshot",
+    "ec2-snapshot-publisher": "snapshot",
+}
+UPSTREAM_COPIES = {
+    "tunnel-end-collector": "otel-collector",
+    # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
+    "shared-state": "gateway-state",
+    # Group 7: EC2's doors run edge's nginx, copied by its index digest.
+    "ec2-relay-block": "edge",
+}
+# Group 7: on EC2, a shared service's upstream image runs as the account's registry's copy, which EC2's deployer names
+# in its release's env file as H4_IMAGE_<SERVICE>; the reference after ":-" is the lock's, and runs on every other
+# host. No env file this policy reads may name one (check_env_values).
+MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
+
+
+def mirrored_pin(name: str, image: str) -> str | None:
+    """The pin inside a shared service's EC2 override; None if image isn't one, or names another service's variable."""
+    m = MIRRORED_RE.fullmatch(image)
+    if m is None or m.group(1) != "H4_IMAGE_" + name.upper().replace("-", "_"):
+        return None
+    return m.group(2)
+
+
+# A copy whose repository isn't its lock line's name.
+COPY_REPOSITORIES = {"shared-state": "shared-state"}
 # Spec 010 (FR-030, FR-032): prod's Anthropic API key, which compose passes to the gateway alone, from the env file.
 ANTHROPIC_KEY = "GATEWAY_ANTHROPIC_API_KEY"
 ANTHROPIC_KEY_FORM = "${GATEWAY_ANTHROPIC_API_KEY:-}"
@@ -475,12 +582,24 @@ def check_service(
             f"log driver {driver!r}: only Docker's local driver, so no log leaves the host",
         )
 
-    # Ports: edge alone publishes, on the literal 127.0.0.1 (plan §1, FR-020).
-    for host_ip, text in port_entries(service):
-        if name != PUBLISHER:
-            refuse("ports", f"{text}: only {PUBLISHER} publishes ports")
-        elif host_ip != "127.0.0.1":
-            refuse("ports", f"{text}: not bound to the literal 127.0.0.1")
+    # Ports: edge alone publishes, on the literal 127.0.0.1 (plan §1, FR-020); and a cloud class's service exactly its
+    # own (CLOUD_PORTS).
+    if name in CLOUD_PORTS:
+        published = cloud_ports(service)
+        if service.get("ports") and published != CLOUD_PORTS[name]:
+            refuse(
+                "ports",
+                f"{name} publishes exactly "
+                + ", ".join(f"{a}:{p}->{t}" for a, p, t in sorted(CLOUD_PORTS[name])),
+            )
+        if not cloud_only(service):
+            refuse("ports", f"{name} publishes only in a cloud host's profile")
+    else:
+        for host_ip, text in port_entries(service):
+            if name != PUBLISHER:
+                refuse("ports", f"{text}: only {PUBLISHER} publishes ports")
+            elif host_ip != "127.0.0.1":
+                refuse("ports", f"{text}: not bound to the literal 127.0.0.1")
 
     # Networks (plan §1).
     networks = as_mapping(service.get("networks"))
@@ -494,13 +613,16 @@ def check_service(
             refuse("networks", f"network {net!r} isn't one of {', '.join(NETWORKS)}")
     if networks and "internal" not in networks:
         refuse("networks", "every service joins internal")
-    if "egress" in networks and name != EGRESS_SERVICE:
+    if "egress" in networks and name not in EGRESS_SERVICES:
         refuse(
             "networks",
-            f"only {EGRESS_SERVICE} joins egress, the stack's one route out (FR-040)",
+            f"only {', '.join(sorted(EGRESS_SERVICES))} join egress, the stack's routes out (FR-040)",
         )
-    if "edge" in networks and name != PUBLISHER:
-        refuse("networks", f"only {PUBLISHER} joins the edge network")
+    if "edge" in networks and name not in EDGE_NETWORK_SERVICES:
+        refuse(
+            "networks",
+            f"only {', '.join(sorted(EDGE_NETWORK_SERVICES))} join the edge network",
+        )
 
     # Volumes and binds (plan §11).
     declared = model.get("volumes") or {}
@@ -521,6 +643,13 @@ def check_service(
             plain = strip_required(source)
             if ".." in plain.split("/"):
                 refuse("binds", f"{source} -> {target}: '..' in a bind source")
+                continue
+            own = SERVICE_BINDS.get(name, {})
+            if plain in own:
+                if not own[plain] and not volume.get("read_only"):
+                    refuse(
+                        "binds", f"{source} -> {target}: {name}'s keys bind read-only"
+                    )
                 continue
             root = next(
                 (r for r in BIND_ROOTS if plain == r or plain.startswith(r + "/")), None
@@ -547,7 +676,22 @@ def check_service(
     # Images and builds (plan §2, §11; FR-014).
     build = service.get("build")
     image = service.get("image")
-    if build is not None:
+    if cloud_only(service) and build is not None:
+        refuse(
+            "build", "a cloud host's service runs its release's image, and never builds"
+        )
+    elif name in RELEASE_IMAGES or name in UPSTREAM_COPIES:
+        if not cloud_only(service):
+            refuse("image", f"{name} runs in a cloud host's profile alone")
+        want = cloud_image(name, lock)
+        if image != want:
+            refuse("image", f"{image}: the account's registry's, as {want}")
+    elif cloud_only(service):
+        refuse(
+            "image",
+            f"{name} is a cloud host's, with no image in RELEASE_IMAGES or UPSTREAM_COPIES",
+        )
+    elif build is not None:
         found.extend(check_build(where, build, image, tree))
     elif not image:
         refuse("image", "neither an image nor a build")
@@ -558,6 +702,16 @@ def check_service(
                 f"{image} is make up's own build, which no registry has: pull_policy: never, so compose never "
                 "pulls an image by that name",
             )
+    elif str(image).startswith("${H4_IMAGE_"):
+        pin = mirrored_pin(name, str(image))
+        if pin is None:
+            refuse(
+                "image",
+                f"{image}: an override names its own service's variable, as "
+                f"${{H4_IMAGE_{name.upper().replace('-', '_')}:-<the lock's pin>}}",
+            )
+        else:
+            found.extend(check_image(where, name, pin, lock, tree))
     else:
         found.extend(check_image(where, name, str(image), lock, tree))
 
@@ -745,6 +899,46 @@ def check_build(where: str, build: object, image: object, tree: Path) -> list[Fi
     return found
 
 
+def cloud_only(service: dict) -> bool:
+    """The service runs on a cloud host alone: each of its profiles is a cloud class's."""
+    profiles = set(service.get("profiles") or [])
+    return bool(profiles) and profiles <= CLOUD_PROFILES
+
+
+def cloud_ports(service: dict) -> frozenset[tuple[str, str, int]]:
+    """(host address, published port, container port) for each port, as written or as compose renders it."""
+    out = set()
+    for item in service.get("ports") or []:
+        if isinstance(item, dict):
+            out.add(
+                (
+                    str(item.get("host_ip") or ""),
+                    str(item.get("published") or ""),
+                    int(item.get("target") or 0),
+                )
+            )
+            continue
+        parts = split_outside_braces(str(item).split("/", 1)[0])
+        if len(parts) == 3 and parts[2].isdigit():
+            out.add((parts[0], parts[1], int(parts[2])))
+        else:
+            out.add(("", str(item), 0))
+    return frozenset(out)
+
+
+def cloud_image(name: str, lock: dict[str, LockEntry]) -> str:
+    """The image a cloud class's service must name (RELEASE_IMAGES, UPSTREAM_COPIES)."""
+    if name in RELEASE_IMAGES:
+        repository = RELEASE_IMAGES[name]
+        return f"{REGISTRY}{repository}@${{H4_DIGEST_{repository.upper().replace('-', '_')}:-}}"
+    upstream = UPSTREAM_COPIES[name]
+    repository = COPY_REPOSITORIES.get(name, upstream)
+    entry = lock.get(upstream)
+    if entry is None:
+        return f"{REGISTRY}{repository}:<{LOCK_FILE} has no line for {upstream}>"
+    return f"{REGISTRY}{repository}:{entry.tag}@{entry.digest}"
+
+
 def check_model(
     model: dict, lock: dict[str, LockEntry], tree: Path, disclosed: set[str]
 ) -> list[Finding]:
@@ -888,6 +1082,14 @@ def check_env_values(where: str, values: dict[str, str]) -> list[Finding]:
             found.append(
                 Finding(
                     where, "docker key", f"{key} would point compose at another engine"
+                )
+            )
+        if key.startswith("H4_IMAGE_"):
+            found.append(
+                Finding(
+                    where,
+                    "image key",
+                    f"{key} would replace a pinned image: only EC2's deployer names one, in its release's env file",
                 )
             )
     return found

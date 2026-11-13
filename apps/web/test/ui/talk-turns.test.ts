@@ -420,6 +420,20 @@ describe("the limits in the room (T055; FR-027, FR-036, FR-041)", () => {
     });
   }
 
+  // Spec 001's relay (its contracts/relay-http.md §3, step 3): the public cap's refusal is spec 000's 429 shape,
+  // error public_cap, which the room shows as any 429.
+  it("shows turn_refused.slow_down on the relay's public_cap 429", async () => {
+    const { v, sent } = await room(ready(), { freeTalk: true });
+    say(v, "What drives him?");
+    sent[0]?.ended({
+      kind: "response",
+      status: 429,
+      body: { error: "public_cap", limit: "per_minute", retry_after_s: 10, request_id: "r" },
+    });
+    expect(message(v)).toBe("turn_refused.slow_down");
+    expect(box(v).value).toBe("What drives him?");
+  });
+
   it("keeps what the visitor typed while the refused turn was out", async () => {
     const { v, sent } = await room(ready(), { freeTalk: true });
     say(v, "What drives him?");

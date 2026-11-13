@@ -112,10 +112,15 @@ describe("the repository's hints (T019)", () => {
   it("fill every figure from the configuration that enforces it (D5)", () => {
     const built = roomIndex().hints;
     const budgets = yamlOf<{ envs: { prod: Record<string, number> } }>("config/budgets.yaml").envs.prod;
-    const routing = yamlOf<{ adapters: Record<string, { model?: string }>; envs: { prod: { fallback: string } } }>(
-      "config/routing.yaml",
-    );
-    const model = routing.adapters[routing.envs.prod.fallback]?.model;
+    // Spec 001's schema 2: prod's local-first host route, the one with a primary, is the one priced.
+    type Route = { primary?: string; fallback?: string };
+    const routing = yamlOf<{
+      adapters: Record<string, { model?: string }>;
+      envs: { prod: Route & { hosts?: Record<string, Route> } };
+    }>("config/routing.yaml");
+    const prod = routing.envs.prod;
+    const route = prod.hosts === undefined ? prod : Object.values(prod.hosts).find((r) => r.primary !== undefined);
+    const model = routing.adapters[route?.fallback ?? ""]?.model;
     const prices = yamlOf<{ versions: { entries: { model: string; input: number; output: number }[] }[] }>(
       "config/prices.yaml",
     );

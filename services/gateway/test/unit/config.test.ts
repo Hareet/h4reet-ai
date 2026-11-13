@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse as parseYamlText, parseDocument, stringify } from "yaml";
 
+import { LAPTOP } from "../../src/config/hosts.js";
 import { ADAPTER_TYPE_SPECS, type Env } from "../../src/adapters/_settings.js";
 import {
   PLANNED_CONFIG_FILES,
@@ -136,9 +137,9 @@ describe("every file (§0)", () => {
     expect(formatIssue(errors(parsed.issues)[0] as ConfigIssue)).toContain("multiple documents");
   });
 
-  it("requires schema: 1", () => {
+  it("requires schema: 1, or spec 001's schema 2", () => {
     expect(errorLines(routing((d) => delete d.schema).issues)).toEqual(["config/routing.yaml: schema: is required"]);
-    expect(errorLines(routing((d) => (d.schema = 2)).issues)).toEqual(["config/routing.yaml: schema: must be 1"]);
+    expect(errorLines(routing((d) => (d.schema = 3)).issues)).toEqual(["config/routing.yaml: schema: must be 1 or 2"]);
   });
 
   it("accepts a placeholder only in routing.yaml's Bedrock model and a price entry's model and prices", () => {
@@ -1241,8 +1242,13 @@ describe("the config directory", () => {
   const COMMITTED = ["routing.yaml", "prices.yaml", "budgets.yaml"];
   const committedRouting = (): Doc => parseYamlText(readFileSync(join(REPO, "config", "routing.yaml"), "utf8")) as Doc;
   /** The env keys the route H4_ENV selects reads its adapters' API keys from. */
+  // Spec 001's schema 2: prod's route on the laptop is envs.prod.hosts.laptop.
+  const envRoute = (routing: Doc, env: Env): Record<string, string> => {
+    const route = (routing.envs?.[env.H4_ENV ?? ""] ?? {}) as Doc;
+    return ((route.hosts as Doc | undefined)?.[LAPTOP] ?? route) as Record<string, string>;
+  };
   const routedKeyEnvs = (routing: Doc, env: Env): string[] =>
-    Object.values((routing.envs?.[env.H4_ENV ?? ""] ?? {}) as Record<string, string>)
+    Object.values(envRoute(routing, env))
       .map((id) => routing.adapters?.[id]?.api_key_env as unknown)
       .filter((key): key is string => typeof key === "string");
   const withRoutedKeys = (routing: Doc, env: Env): Env => ({
@@ -1279,7 +1285,7 @@ describe("the config directory", () => {
       const dir = await dirWith(["alerts.yaml"]);
       for (const n of COMMITTED) await writeFile(join(dir, n), readFileSync(join(REPO, "config", n), "utf8"));
       const routing = parseDocument(readFileSync(join(REPO, "config", "routing.yaml"), "utf8"));
-      routing.setIn(["envs", "prod", "fallback"], fallback);
+      routing.setIn(["envs", "prod", "hosts", LAPTOP, "fallback"], fallback);
       await writeFile(join(dir, "routing.yaml"), routing.toString());
       const set = await loadConfig(dir, { allowPlanned: false });
       expect(errorLines(set.issues), fallback).toEqual([]);

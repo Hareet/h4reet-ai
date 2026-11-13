@@ -70,9 +70,9 @@ export const STRIPPED_SPAN_ATTRIBUTES = [
   "url.full",
 ] as const;
 
-const HEALTH_PATHS = new Set(["/health/live", "/health"]);
+const HEALTH_PATHS = new Set(["/health/live", "/health", "/health/serving"]);
 
-/** GET /health/live and GET /health produce no spans (§3.1). */
+/** GET /health/live, GET /health, and spec 001's GET /health/serving produce no spans (§3.1). */
 export function isHealthProbe(url: string | undefined): boolean {
   if (url === undefined) return false;
   const q = url.indexOf("?");

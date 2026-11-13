@@ -1,0 +1,312 @@
+# The tunnel end's collector (spec 001 FR-060; research.md R-25; plan.md §11; disclosure row C15; tasks.md T050).
+# Mounted read-only, so compose never interpolates it: the collector expands its ${env:...} itself, from the three
+# variables compose gives it. It receives the tunnel end's own services' OTLP, on the internal network, and sends each
+# record to the host it concerns:
+#
+#   traces, metrics, logs   otlp > memory_limiter > spec 000's redaction > resource > batch > routing/<signal>
+#   routing/<signal>        h4.relay.host = laptop       > <signal>/laptop > otlphttp/laptop, the tunnel's -R 2202 to
+#                                                          the laptop edge's telemetry block, 8086, behind its token
+#                           h4.relay.host = ec2 or none  > <signal>/ec2    > otlphttp/ec2, EC2's collector in the VPC
+#                           no h4.relay.host (the tunnel end's own, its collector's counters among them): both
+#
+# Each exporter queues to a file, 32 MiB each, so a host that is gone delays its telemetry rather than losing it; past
+# the bound the queue refuses, and its counters say so. Spec 000's redaction runs again here, the same processors with
+# the same statements (deploy/otel/test_collector_tunnel_end.py holds them equal), so no payload, address, or client
+# identifier leaves. The routing connector's contexts, span, datapoint, and log, are to confirm at the tunnel end's
+# first run (T058).
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  file_storage/queue:
+    directory: /var/lib/otelcol/queue
+    create_directory: false
+    timeout: 5s
+    compaction:
+      on_start: true
+      directory: /var/lib/otelcol/queue
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        max_request_body_size: 4194304
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 72
+    spike_limit_mib: 16
+  transform/payloads:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_matching_keys(attributes, "^(gen_ai\\.(input|output)\\.messages|gen_ai\\.system_instructions|gen_ai\\.(prompt|completion)(\\..*)?|langfuse\\.observation\\.(input|output)|input\\.value|output\\.value|http\\.(request|response)\\.body(\\..*)?)$")
+            where not (attributes["h4.payload.sampled"] == true and "${env:TELEMETRY_PAYLOAD_SAMPLING}" == "on")
+          - delete_key(attributes, "client.address")
+          - delete_key(attributes, "client.port")
+          - delete_key(attributes, "network.peer.address")
+          - delete_key(attributes, "network.peer.port")
+          - delete_key(attributes, "user_agent.original")
+          - delete_key(attributes, "url.query")
+          - delete_key(attributes, "authorization")
+          - delete_key(attributes, "cookie")
+          - delete_matching_keys(attributes, "^http\\.(request|response)\\.header\\..*$")
+          - set(attributes["gen_ai.usage.cost"], attributes["h4.cost.usd"]) where attributes["h4.cost.usd"] != nil
+      - context: spanevent
+        statements:
+          - delete_matching_keys(attributes, "^(gen_ai\\.(input|output)\\.messages|gen_ai\\.system_instructions|gen_ai\\.(prompt|completion)(\\..*)?|langfuse\\.observation\\.(input|output)|input\\.value|output\\.value|http\\.(request|response)\\.body(\\..*)?)$")
+            where not (span.attributes["h4.payload.sampled"] == true and "${env:TELEMETRY_PAYLOAD_SAMPLING}" == "on")
+    log_statements:
+      - context: log
+        statements:
+          - delete_matching_keys(attributes, "^(gen_ai\\.(input|output)\\.messages|gen_ai\\.system_instructions|gen_ai\\.(prompt|completion)(\\..*)?|langfuse\\.observation\\.(input|output)|input\\.value|output\\.value|http\\.(request|response)\\.body(\\..*)?|messages|prompt|completion)$")
+          - delete_key(attributes, "client.address")
+          - delete_key(attributes, "client.port")
+          - delete_key(attributes, "network.peer.address")
+          - delete_key(attributes, "network.peer.port")
+          - delete_key(attributes, "user_agent.original")
+          - delete_key(attributes, "url.query")
+          - delete_key(attributes, "authorization")
+          - delete_key(attributes, "cookie")
+          - delete_matching_keys(attributes, "^http\\.(request|response)\\.header\\..*$")
+  redaction:
+    allow_all_keys: true
+    summary: info
+    blocked_values:
+      - '-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----'
+      - (?:sk|pk)-lf-[0-9A-Za-z-]{8,}
+      - \b(?:AKIA|ASIA)[0-9A-Z]{16}\b
+      - sk-ant-[A-Za-z0-9_-]{20,}
+      - (?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}
+      - h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}
+      - eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}
+      - (?i)\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}
+      - '[A-Za-z][A-Za-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@'
+      - (?i)\b(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*[^\s,;]+
+  transform/redact-text:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")
+          - replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")
+          - replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")
+          - replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")
+          - replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")
+          - replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")
+          - replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")
+          - replace_pattern(name, "(?i)\\b(?:bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "****")
+          - replace_pattern(name, "[A-Za-z][A-Za-z0-9+.-]*://[^\\s/:@]+:[^\\s/@]+@", "****")
+          - replace_pattern(name, "(?i)\\b(?:password|passwd|secret|token|api[_-]?key)\\s*[=:]\\s*[^\\s,;]+", "****")
+          - replace_pattern(status.message, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")
+          - replace_pattern(status.message, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")
+          - replace_pattern(status.message, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")
+          - replace_pattern(status.message, "sk-ant-[A-Za-z0-9_-]{20,}", "****")
+          - replace_pattern(status.message, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")
+          - replace_pattern(status.message, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")
+          - replace_pattern(status.message, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")
+          - replace_pattern(status.message, "(?i)\\b(?:bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "****")
+          - replace_pattern(status.message, "[A-Za-z][A-Za-z0-9+.-]*://[^\\s/:@]+:[^\\s/@]+@", "****")
+          - replace_pattern(status.message, "(?i)\\b(?:password|passwd|secret|token|api[_-]?key)\\s*[=:]\\s*[^\\s,;]+", "****")
+          - replace_pattern(attributes["url.full"], "\\?.*$", "")
+      - context: spanevent
+        statements:
+          - replace_pattern(name, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****")
+          - replace_pattern(name, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****")
+          - replace_pattern(name, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****")
+          - replace_pattern(name, "sk-ant-[A-Za-z0-9_-]{20,}", "****")
+          - replace_pattern(name, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****")
+          - replace_pattern(name, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****")
+          - replace_pattern(name, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****")
+          - replace_pattern(name, "(?i)\\b(?:bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "****")
+          - replace_pattern(name, "[A-Za-z][A-Za-z0-9+.-]*://[^\\s/:@]+:[^\\s/@]+@", "****")
+          - replace_pattern(name, "(?i)\\b(?:password|passwd|secret|token|api[_-]?key)\\s*[=:]\\s*[^\\s,;]+", "****")
+    log_statements:
+      - context: log
+        statements:
+          - replace_pattern(body, "-----BEGIN [A-Z0-9 ]+-----[\\s\\S]*?-----END [A-Z0-9 ]+-----", "****") where IsString(body)
+          - replace_pattern(body, "(?:sk|pk)-lf-[0-9A-Za-z-]{8,}", "****") where IsString(body)
+          - replace_pattern(body, "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b", "****") where IsString(body)
+          - replace_pattern(body, "sk-ant-[A-Za-z0-9_-]{20,}", "****") where IsString(body)
+          - replace_pattern(body, "(?:bot)?[0-9]{6,12}:[A-Za-z0-9_-]{30,}", "****") where IsString(body)
+          - replace_pattern(body, "h4op_(?:prod|dev|devcpu)_[A-Za-z0-9_-]{43}", "****") where IsString(body)
+          - replace_pattern(body, "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", "****") where IsString(body)
+          - replace_pattern(body, "(?i)\\b(?:bearer|basic)\\s+[A-Za-z0-9._~+/=-]{8,}", "****") where IsString(body)
+          - replace_pattern(body, "[A-Za-z][A-Za-z0-9+.-]*://[^\\s/:@]+:[^\\s/@]+@", "****") where IsString(body)
+          - replace_pattern(body, "(?i)\\b(?:password|passwd|secret|token|api[_-]?key)\\s*[=:]\\s*[^\\s,;]+", "****") where IsString(body)
+  resource:
+    attributes:
+      - key: h4.host
+        value: tunnel-end
+        action: upsert
+      - key: service.namespace
+        value: h4reet
+        action: upsert
+      - key: deployment.environment.name
+        value: prod
+        action: upsert
+      - key: host.name
+        action: delete
+      - pattern: ^process\..*
+        action: delete
+  batch:
+    timeout: 2s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+connectors:
+  routing/traces:
+    default_pipelines:
+      - traces/laptop
+      - traces/ec2
+    table:
+      - context: span
+        condition: attributes["h4.relay.host"] == "laptop"
+        pipelines:
+          - traces/laptop
+      - context: span
+        condition: attributes["h4.relay.host"] == "ec2" or attributes["h4.relay.host"] == "none"
+        pipelines:
+          - traces/ec2
+  routing/metrics:
+    default_pipelines:
+      - metrics/laptop
+      - metrics/ec2
+    table:
+      - context: datapoint
+        condition: attributes["h4.relay.host"] == "laptop"
+        pipelines:
+          - metrics/laptop
+      - context: datapoint
+        condition: attributes["h4.relay.host"] == "ec2" or attributes["h4.relay.host"] == "none"
+        pipelines:
+          - metrics/ec2
+  routing/logs:
+    default_pipelines:
+      - logs/laptop
+      - logs/ec2
+    table:
+      - context: log
+        condition: attributes["h4.relay.host"] == "laptop"
+        pipelines:
+          - logs/laptop
+      - context: log
+        condition: attributes["h4.relay.host"] == "ec2" or attributes["h4.relay.host"] == "none"
+        pipelines:
+          - logs/ec2
+exporters:
+  otlphttp/laptop:
+    endpoint: http://tunnel-end:2202
+    headers: &id001
+      Authorization: Bearer ${env:TELEMETRY_BLOCK_TOKEN}
+    compression: gzip
+    timeout: 10s
+    retry_on_failure: &id002
+      enabled: true
+      initial_interval: 5s
+      max_interval: 60s
+      max_elapsed_time: 0s
+    sending_queue: &id003
+      enabled: true
+      storage: file_storage/queue
+      sizer: bytes
+      queue_size: 33554432
+      num_consumers: 2
+  otlphttp/ec2:
+    endpoint: ${env:EC2_COLLECTOR_ENDPOINT}
+    compression: gzip
+    timeout: 10s
+    retry_on_failure: *id002
+    sending_queue: *id003
+service:
+  extensions:
+    - health_check
+    - file_storage/queue
+  telemetry:
+    logs:
+      level: info
+    resource:
+      attributes:
+        - name: service.name
+          value: tunnel-end-collector
+        - name: service.namespace
+          value: h4reet
+        - name: deployment.environment.name
+          value: prod
+        - name: service.instance.id
+          value: tunnel-end-collector
+    metrics:
+      level: normal
+      readers:
+        - periodic:
+            interval: 15000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://127.0.0.1:4318/v1/metrics
+                temporality_preference: cumulative
+  pipelines:
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - transform/payloads
+        - redaction
+        - transform/redact-text
+        - resource
+        - batch
+      exporters:
+        - routing/traces
+    traces/laptop:
+      receivers:
+        - routing/traces
+      exporters:
+        - otlphttp/laptop
+    traces/ec2:
+      receivers:
+        - routing/traces
+      exporters:
+        - otlphttp/ec2
+    metrics:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - redaction
+        - resource
+        - batch
+      exporters:
+        - routing/metrics
+    metrics/laptop:
+      receivers:
+        - routing/metrics
+      exporters:
+        - otlphttp/laptop
+    metrics/ec2:
+      receivers:
+        - routing/metrics
+      exporters:
+        - otlphttp/ec2
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - transform/payloads
+        - redaction
+        - transform/redact-text
+        - resource
+        - batch
+      exporters:
+        - routing/logs
+    logs/laptop:
+      receivers:
+        - routing/logs
+      exporters:
+        - otlphttp/laptop
+    logs/ec2:
+      receivers:
+        - routing/logs
+      exporters:
+        - otlphttp/ec2

@@ -1,6 +1,7 @@
 // What the gateway checks of its own environment at startup, and exits 78 for (contracts/env-files.md §4, §11;
 // plan §5.8; config-files.md §4.4). Preflight checks the same things earlier, but the gateway never relies on it:
 // a container can be started without `make up`. Every message names keys, never a value.
+import { HOST_NAMES, HOSTS_TEXT, LAPTOP } from "./hosts.js";
 import type { ConfigIssue } from "./load.js";
 
 /**
@@ -69,6 +70,15 @@ export function validateGatewayEnv(env: GatewayEnv, opts: ValidateEnvOptions = {
   }
   const dev = envClass === "dev";
   const prod = envClass === "prod";
+
+  // Spec 001's host (its contracts/env-cloud.md §2; research.md R-28): a gateway runs on the laptop or on EC2, and no
+  // other host; unset is the laptop, as every laptop stack is.
+  const host = env.H4_HOST;
+  if (host !== undefined && host !== "" && !HOST_NAMES.includes(host)) {
+    refuse("invalid_host", "H4_HOST", `H4_HOST must be ${HOSTS_TEXT}: no other host runs a gateway`);
+  } else if (host === "ec2" && !prod) {
+    refuse("invalid_host", "H4_HOST", "H4_HOST=ec2 runs prod alone");
+  }
 
   // The dev-only switches (env-files.md §7.1, D1–D3). Anywhere but H4_ENV=dev they would get around FR-034.
   for (const key of ["GATEWAY_TEST_CLOCK", "GATEWAY_TEST_SYNTHETIC_SPEND"]) {
@@ -240,9 +250,14 @@ export function gatewayEnvFromFile(
     "LOCAL_MODEL_BASE_URL",
     "GATEWAY_DB_PASSWORD",
     "GATEWAY_GRAFANA_RO_PASSWORD",
+    // Spec 001 group 6: the shared state's connection, empty until the Author's move.
+    "GATEWAY_DB_URL",
+    "GATEWAY_DB_TLS_SERVERNAME",
+    "GATEWAY_DB_TLS_CA",
   ]) {
     env[key] = file[key];
   }
+  env.H4_HOST = orDefault("H4_HOST", LAPTOP);
   env.LOCAL_MODEL_NAME = file.MODEL_ALIAS;
   env.AWS_PROFILE = orDefault("GATEWAY_AWS_PROFILE", "none");
   env.GATEWAY_TEST_CLOCK = orDefault("GATEWAY_TEST_CLOCK", "0");

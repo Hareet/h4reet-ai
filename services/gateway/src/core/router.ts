@@ -87,6 +87,8 @@ export interface RouteView {
   local: { healthy: boolean };
   /** Whether this stack routes a fallback adapter, as built. */
   hasFallback: boolean;
+  /** Spec 001's EC2 route: its calls are metered, so the sub-budget's two causes never apply (rule A1). */
+  metered?: boolean;
   /** The fallback branch's view: its adapter's health, the meters when they could be read, the ceilings, the journal. */
   fallback?: {
     healthy: boolean;
@@ -114,8 +116,10 @@ export function wouldDegrade(view: RouteView): DegradedCause | null {
     return "meter_at_ceiling";
   }
   if (m?.adapterMonth !== undefined && m.adapterMonth.level >= m.adapterMonth.cap) return "adapter_month_spent";
-  if (view.read.kind === "ok" && view.read.fallbackAwaitingRenewal) return "fallback_awaiting_renewal";
-  if (m !== undefined && m.fallbackLevel >= m.allowance) return "fallback_spent_today";
+  if (view.metered !== true) {
+    if (view.read.kind === "ok" && view.read.fallbackAwaitingRenewal) return "fallback_awaiting_renewal";
+    if (m !== undefined && m.fallbackLevel >= m.allowance) return "fallback_spent_today";
+  }
   if (f !== undefined && !f.healthy) return "fallback_unavailable";
   if (f?.journalUnwritable === true) return "journal_unwritable";
   return null;

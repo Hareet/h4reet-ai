@@ -14,6 +14,9 @@ any check failed; make up stops there, before anything starts.
   with P13 counting every image and, with --models all, every model it will fetch.
 - --disk-only runs P13 and P14 for N bytes written under DIR (deploy/scripts/pull-models.sh, before each
   download).
+- --host-class tunnel-end --env-file PATH runs the tunnel end's class checks, T1 to T4, on the env file write_env.py
+  wrote, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3); --host-class ec2, EC2's, E1 to E6. The
+  laptop's prod adds P22, its tunnel, and may add the tunnel profile.
 - On a host stack make runs the copy of this script in the export of the commit being started, so the templates,
   locks, and compose file it checks are that commit's; --repo names the working tree, for P9, P20, and P21.
 
@@ -26,8 +29,11 @@ as plan §3 lists them.
 from __future__ import annotations
 
 import argparse
+import base64
 import configparser
+import datetime
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -36,6 +42,9 @@ import socket
 import stat
 import subprocess
 import sys
+import time
+import urllib.parse
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -122,6 +131,93 @@ STACKS = {
     "dev": Stack("dev", "dev", "gpu,dev-receivers", 18100),
     "dev-cpu": Stack("dev-cpu", "dev", "cpu,dev-receivers", 18300),
 }
+# Spec 001's host classes (its contracts/env-cloud.md §3; research.md R-28): the services a cloud host runs, by its
+# H4_HOST, each in the compose profile of the same name. The tunnel end's deployer starts its class's services by name,
+# so none of the laptop's runs there; and no laptop stack runs a cloud class's services, whose images its checks skip.
+HOST_CLASSES = {
+    "tunnel-end": (
+        "tunnel-end",
+        "relay",
+        "snapshot-sink",
+        "tunnel-end-collector",
+        # Group 6's shared state (spec 001 contracts/shared-state.md §1).
+        "shared-state",
+    ),
+    # Group 7's EC2 (spec 001 contracts/env-cloud.md §3; plan.md §5.1): the whole topology but the model server and the
+    # local store, and its two doors from the tunnel end, ec2-relay-block.
+    "ec2": (
+        "edge",
+        "web",
+        "gateway",
+        "otel-collector",
+        "prometheus",
+        "loki",
+        "grafana",
+        "langfuse-web",
+        "langfuse-worker",
+        "langfuse-db",
+        "clickhouse",
+        "valkey",
+        "seaweedfs",
+        "ec2-relay-block",
+        # Group 10: EC2's publisher of the public view's host part (contracts/public-view.md §1).
+        "ec2-snapshot-publisher",
+    ),
+}
+# A shared service's image on EC2: the account's registry's copy, which the deployer's release env file names as
+# H4_IMAGE_<SERVICE>; on every other host, the pinned reference after ":-" (deploy/compose.yaml). No host's own env file
+# names one (P17, E4).
+MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
+
+
+def as_pinned(name: str, image: str) -> str:
+    """The image compose runs on every host but EC2: the reference after ":-", when the variable is the service's."""
+    m = MIRRORED_RE.fullmatch(image)
+    if m and m.group(1) == "H4_IMAGE_" + name.upper().replace("-", "_"):
+        return m.group(2)
+    return image
+
+
+CLOUD_PROFILES = frozenset(HOST_CLASSES)
+# The laptop's prod may add spec 001's tunnel profile, once the Author's tunnel-keys target has made its keys; P22 then
+# checks what it needs (contracts/env-cloud.md §2; contracts/tunnel.md §3 and §5).
+OPTIONAL_PROFILES = {"prod": ("tunnel",)}
+# Group 10: the public view's sink's token too, which the laptop's publisher posts with.
+TUNNEL_TOKENS = ("RELAY_TOKEN_SELF", "TELEMETRY_BLOCK_TOKEN", "SNAPSHOT_SINK_TOKEN")
+TUNNEL_KEYS = ("TUNNEL_END_ADDRESS", *TUNNEL_TOKENS)
+TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{32,128}")
+# Ranges the tunnel end's Elastic IP can't be in.
+NOT_PUBLIC = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+    )
+)
+TUNNEL_END_TEMPLATE = Path("deploy") / "hosts" / "tunnel-end" / "tunnel-end.env.example"
+EC2_TEMPLATE = Path("deploy") / "hosts" / "ec2" / "ec2.env.example"
+EC2_DB_URL = "postgres://gateway@10.42.1.10:5432/h4reet?sslmode=verify-full"
+EC2_AWS_DIR = Path("/run/h4reet/ec2/aws")
+REGISTRY_RE = re.compile(r"[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com")
+RELEASE_BUCKET_RE = re.compile(r"h4reet-ai-releases-[a-z0-9]{1,40}")
+VPC_ENDPOINT_RE = re.compile(r"http://10\.42\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{2,5}")
+# Spec 001 group 6: the shared state's connection on the laptop's prod (contracts/env-cloud.md §2;
+# contracts/shared-state.md §3), empty until the Author's move (tasks.md T080); P23 checks it.
+SHARED_STATE_KEYS = ("GATEWAY_DB_URL", "GATEWAY_DB_TLS_SERVERNAME", "GATEWAY_DB_TLS_CA")
+PEM_CERTIFICATE_RE = re.compile(
+    r"-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\r?\n?"
+)
+SERVERNAME_RE = re.compile(r"[a-z0-9][a-z0-9.-]{0,252}")
+# The tunnel end's store certificate and key, which deploy/hosts/tunnel-end/shared_state.py writes to tmpfs (T5).
+SHARED_STATE_TLS_DIR = Path("/run/h4reet/shared-state")
+
 DEVCPU = {
     "H4_TREE": "/run/h4agents/tree",
     "H4_MODEL_DIR": "/run/h4agents/models",
@@ -337,6 +433,12 @@ def active(service: dict, profiles: set[str]) -> bool:
     return not wanted or bool(wanted & profiles)
 
 
+def other_host(service: dict) -> bool:
+    """The service is a cloud host's alone: each of its profiles is a host class's (HOST_CLASSES)."""
+    profiles = set(service.get("profiles") or [])
+    return bool(profiles) and profiles <= CLOUD_PROFILES
+
+
 def shared_build(name: str, service: dict) -> bool:
     """The service runs make up's own build, the gateway's or the room's, which compose never pulls (SHARED_IMAGES)."""
     return (
@@ -538,6 +640,11 @@ def p3(ctx: Context) -> Result:
             allowed_empty.add("GATEWAY_ANTHROPIC_API_KEY")
     if ctx.stack.name == "dev":
         allowed_empty |= set(CHANNELS)
+    if ctx.stack.name == "prod":
+        # Spec 001's tunnel: empty until the Author's tunnel-keys target fills them; P22 checks them with the profile.
+        allowed_empty |= set(TUNNEL_KEYS)
+        # Spec 001's shared state: empty until the Author's move; P23 checks them once set.
+        allowed_empty |= set(SHARED_STATE_KEYS)
     left = [k for k, v in ctx.values.items() if any(p in v for p in PLACEHOLDERS)]
     empty = [k for k, v in ctx.values.items() if v == "" and k not in allowed_empty]
     problems = []
@@ -602,8 +709,10 @@ def p6(ctx: Context) -> Result:
     if v.get("COMPOSE_PROJECT_NAME") != f"h4reet-{s.name}":
         problems.append(f"COMPOSE_PROJECT_NAME isn't h4reet-{s.name}")
     profiles = v.get("COMPOSE_PROFILES", "").split(",")
-    if v.get("COMPOSE_PROFILES") != s.profiles:
-        problems.append(f"COMPOSE_PROFILES isn't {s.profiles}")
+    optional = OPTIONAL_PROFILES.get(s.name, ())
+    if ",".join(p for p in profiles if p not in optional) != s.profiles:
+        extra = f", with {', '.join(optional)} or without" if optional else ""
+        problems.append(f"COMPOSE_PROFILES isn't {s.profiles}{extra}")
     elif ("gpu" in profiles) == ("cpu" in profiles) or "breach" in profiles:
         problems.append(
             "COMPOSE_PROFILES needs exactly one of gpu and cpu, and never breach"
@@ -864,13 +973,22 @@ def routing(ctx: Context) -> tuple[dict | None, str | None]:
 ANTHROPIC_KEY_RE = re.compile(r"[\x21-\x7e]{20,256}")
 
 
+def env_route(config: dict, env: str) -> dict:
+    """env's route as a laptop stack runs it: with routing's schema 2 (spec 001 data-model.md §2.1), prod's is
+    envs.prod.hosts.laptop; dev's, and schema 1's, are envs.<env>."""
+    route = (config.get("envs") or {}).get(env) or {}
+    if isinstance(route, dict) and isinstance(route.get("hosts"), dict):
+        route = route["hosts"].get("laptop") or {}
+    return route if isinstance(route, dict) else {}
+
+
 def routed_type(ctx: Context, env: str, adapter_type: str) -> str | None:
     """The adapter of this type env's route names, if any (spec 010)."""
     config, _ = routing(ctx)
     if not isinstance(config, dict):
         return None
     adapters = config.get("adapters") or {}
-    route = (config.get("envs") or {}).get(env) or {}
+    route = env_route(config, env)
     for role in ("primary", "fallback"):
         adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
         if isinstance(adapter, dict) and adapter.get("type") == adapter_type:
@@ -884,7 +1002,7 @@ def paid_route(ctx: Context, env: str) -> str | None:
     if not isinstance(config, dict):
         return None
     adapters = config.get("adapters") or {}
-    route = (config.get("envs") or {}).get(env) or {}
+    route = env_route(config, env)
     for role in ("primary", "fallback"):
         adapter = adapters.get(route.get(role)) if isinstance(route, dict) else None
         if isinstance(adapter, dict) and adapter.get("kind") == "paid":
@@ -1112,7 +1230,7 @@ def images_missing(ctx: Context) -> list[str]:
         if shared_build(name, service):
             continue  # built by make up after preflight; its cached layers fit the margin
         if service.get("image") and (ctx.mode == "pull" or active(service, profiles)):
-            refs.append(str(service["image"]))
+            refs.append(as_pinned(name, str(service["image"])))
     for base in ("base:node", "base:python"):
         if base in lock and lock[base][2].startswith("sha256:"):
             repository, tag, digest = lock[base]
@@ -1288,9 +1406,28 @@ def p17(ctx: Context) -> Result:
         return fail("P17", "docker compose config didn't render the compose file (P10)")
     lock = read_lock(ctx.root / "deploy/images.lock")
     problems = []
+    # Only a cloud host's deployer names an image, in its release's env file (spec 001 group 7).
+    named = sorted(k for k in ctx.values if k.startswith("H4_IMAGE_"))
+    if named:
+        problems.append(
+            f"{', '.join(named)}: only EC2's deployer names an image, never an env file"
+        )
+    # Compose reads the process environment too (group 7's review B, nit 1); P5 refuses it, and this says why.
+    shell = sorted(k for k in ctx.host.environ if k.startswith("H4_IMAGE_"))
+    if shell:
+        problems.append(
+            f"{', '.join(shell)}: set in the shell, it would run an image no lock pins"
+        )
     for name, service in sorted((model.get("services") or {}).items()):
         image = service.get("image")
-        if service.get("build") is not None or not image or shared_build(name, service):
+        if image:
+            image = as_pinned(name, str(image))
+        if (
+            service.get("build") is not None
+            or not image
+            or shared_build(name, service)
+            or other_host(service)
+        ):
             continue
         repository, tag, digest = split_reference(str(image))
         if SHARED_IMAGES.get(name) == image:
@@ -1488,6 +1625,362 @@ def p21(ctx: Context) -> Result:
     return ok("P21", f"nothing uncommitted under {', '.join(WATCHED)}")
 
 
+def p22(ctx: Context) -> Result:
+    """Spec 001's tunnel, while prod's profiles add it: the tunnel end's address, the client's key and the tunnel end's
+    pinned host key in H4_TUNNEL_DIR, and the two tokens the laptop's edge blocks check (contracts/tunnel.md §3 to §5).
+    Names keys and files, never a value."""
+    if "tunnel" not in ctx.profiles():
+        return ok("P22", "no tunnel profile")
+    v = ctx.values
+    problems = []
+    try:
+        address = ipaddress.ip_address(v.get("TUNNEL_END_ADDRESS", ""))
+        public = address.version == 4 and not any(address in n for n in NOT_PUBLIC)
+    except ValueError:
+        public = False
+    if not public:
+        problems.append(
+            "TUNNEL_END_ADDRESS isn't the tunnel end's public IPv4 address (the Author's tunnel-keys target writes it)"
+        )
+    for key in TUNNEL_TOKENS:
+        if not TOKEN_RE.fullmatch(v.get(key, "")):
+            problems.append(
+                f"{key} isn't a token's shape (the tunnel-keys target writes it)"
+            )
+    folder = Path(v.get("H4_TUNNEL_DIR", "") or "/nonexistent")
+    if not folder.is_dir() or folder.stat().st_mode & 0o077:
+        problems.append("H4_TUNNEL_DIR isn't a folder only its owner can open (0700)")
+    else:
+        key = folder / "id_ed25519"
+        if not key.is_file() or key.stat().st_mode & 0o077:
+            problems.append(
+                f"{key.name} in H4_TUNNEL_DIR is missing or others can read it (0600)"
+            )
+        known = folder / "known_hosts"
+        lines = (
+            [ln for ln in known.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if known.is_file()
+            else []
+        )
+        if len(lines) != 1 or not lines[0].startswith("h4-tunnel-end ssh-ed25519 "):
+            problems.append(
+                "known_hosts in H4_TUNNEL_DIR doesn't pin the tunnel end's one host key, as h4-tunnel-end"
+            )
+    return summarize(
+        "P22",
+        problems,
+        "the tunnel's address, key, pinned host key, and tokens are in place",
+    )
+
+
+def p23(ctx: Context) -> Result:
+    """Spec 001 group 6 (its contracts/env-cloud.md §2; contracts/shared-state.md §3; FR-018, FR-019): H4_HOST is the
+    laptop on every laptop stack; on prod, GATEWAY_DB_URL, once the Author's move sets it, is the shared state's,
+    through the tunnel, with TLS verified by its CA and its name; before the move, prod's meter is its own
+    gateway-state, which P23 warns of. Names keys, never a value."""
+    v = ctx.values
+    problems = []
+    if v.get("H4_HOST") != "laptop":
+        problems.append(
+            "H4_HOST isn't laptop: every stack this host runs is the laptop's (spec 001 contracts/env-cloud.md §2)"
+        )
+    url = v.get("GATEWAY_DB_URL", "")
+    if ctx.stack.name != "prod":
+        if url:
+            problems.append(
+                "GATEWAY_DB_URL is prod's alone: dev and dev-cpu keep their own gateway-state"
+            )
+        return summarize("P23", problems, "the host is the laptop")
+    if not url:
+        if problems:
+            return summarize("P23", problems, "")
+        return warn(
+            "P23",
+            "GATEWAY_DB_URL is empty, so prod's meter is still this laptop's gateway-state: the move to the shared "
+            "state is the Author's (spec 001 tasks.md T080; FR-018)",
+        )
+    try:
+        parts = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qs(parts.query)
+        hostname = parts.hostname or ""
+        password = parts.password
+    except ValueError:
+        parts, query, hostname, password = None, {}, "", None
+    if parts is None or parts.scheme not in ("postgres", "postgresql"):
+        problems.append("GATEWAY_DB_URL isn't a postgres:// URL")
+    else:
+        if password is not None:
+            problems.append(
+                "GATEWAY_DB_URL holds a password: GATEWAY_DB_PASSWORD holds it, never the URL"
+            )
+        if query != {"sslmode": ["verify-full"]}:
+            problems.append(
+                "GATEWAY_DB_URL lacks sslmode=verify-full, the shared state's TLS (contracts/shared-state.md §3)"
+            )
+        if hostname == "gateway-state":
+            problems.append(
+                "GATEWAY_DB_URL names the local gateway-state: the shared state is the tunnel end's"
+            )
+    if not SERVERNAME_RE.fullmatch(v.get("GATEWAY_DB_TLS_SERVERNAME", "")):
+        problems.append(
+            "GATEWAY_DB_TLS_SERVERNAME is empty: the name the shared state's certificate holds"
+        )
+    try:
+        ca = base64.b64decode(v.get("GATEWAY_DB_TLS_CA", ""), validate=True).decode()
+    except (ValueError, UnicodeDecodeError):
+        ca = ""
+    if not PEM_CERTIFICATE_RE.fullmatch(ca):
+        problems.append(
+            "GATEWAY_DB_TLS_CA isn't the shared state's CA certificate, base64 of one PEM certificate "
+            "(the Author's shared-state-tls target writes it)"
+        )
+    if "tunnel" not in ctx.profiles():
+        problems.append(
+            "the shared state is reached through the tunnel: COMPOSE_PROFILES needs tunnel (P22)"
+        )
+    return summarize(
+        "P23",
+        problems,
+        "the shared state, through the tunnel, with TLS by its CA and its name",
+    )
+
+
+def tunnel_end_checks(
+    root: Path,
+    env_file: Path,
+    tls_dir: Path = SHARED_STATE_TLS_DIR,
+    phase: str = "all",
+) -> list[Result]:
+    """The tunnel end's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3): its env file is
+    0600 and in the grammar (T1), with its template's keys (T2), names the tunnel end (T3), and holds values of their
+    shapes (T4); and the shared state's key and certificate are in place (T5). Names keys, never a value. The deployer
+    runs phase "before" (T1 to T4), which needs no host step, before the host step, and "after" (T5) after it.
+    """
+    if phase == "after":
+        return [t5_tls(tls_dir)]
+    out: list[Result] = []
+    try:
+        mode = env_file.stat().st_mode
+        values, errors = parse_env(env_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        return [fail("T1", f"{env_file} unreadable: {type(error).__name__}")]
+    problems = list(errors)
+    if mode & 0o077:
+        problems.append(f"{env_file} is readable by others: it must be 0600")
+    out.append(summarize("T1", problems, f"{env_file} is 0600 and in the grammar"))
+    template, _ = parse_env((root / TUNNEL_END_TEMPLATE).read_text(encoding="utf-8"))
+    missing, extra = (
+        sorted(set(template) - set(values)),
+        sorted(set(values) - set(template)),
+    )
+    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems += [f"not in the template: {', '.join(extra)}"] if extra else []
+    out.append(summarize("T2", problems, "the keys are the template's"))
+    want = {
+        "H4_HOST": "tunnel-end",
+        "H4_STACK": "prod",
+        "H4_ENV": "prod",
+        "COMPOSE_PROJECT_NAME": "h4reet-prod",
+        "COMPOSE_PROFILES": "tunnel-end",
+    }
+    problems = [f"{k} isn't {w}" for k, w in want.items() if values.get(k) != w]
+    out.append(summarize("T3", problems, "the file names the tunnel end, on prod"))
+    shapes = {
+        "TELEMETRY_BLOCK_TOKEN": TOKEN_RE,
+        "H4_REGISTRY": REGISTRY_RE,
+        "RELEASE_BUCKET": RELEASE_BUCKET_RE,
+        "EC2_COLLECTOR_ENDPOINT": VPC_ENDPOINT_RE,
+    }
+    problems = [
+        f"{k} isn't of its shape"
+        for k, shape in shapes.items()
+        if not shape.fullmatch(values.get(k, ""))
+    ]
+    out.append(summarize("T4", problems, "each value has its shape"))
+    if phase == "before":
+        return out
+    return [*out, t5_tls(tls_dir)]
+
+
+def t5_tls(tls_dir: Path) -> Result:
+    """T5, spec 001 group 6: the shared state's key and certificate on tmpfs, which its host script writes before the
+    stack starts; without them its TLS can't start (contracts/shared-state.md §3)."""
+    problems = []
+    for name, most in (("server.key", 0o600), ("server.crt", 0o644)):
+        path = tls_dir / name
+        try:
+            info = path.stat()
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            problems.append(f"{name} is missing from {tls_dir}")
+            continue
+        if info.st_mode & 0o777 & ~most:
+            problems.append(f"{name} in {tls_dir} is open beyond {most:o}")
+        if "-----BEGIN " not in text:
+            problems.append(f"{name} in {tls_dir} isn't PEM")
+    return summarize(
+        "T5", problems, "the shared state's key and certificate are in place"
+    )
+
+
+def ec2_checks(
+    root: Path,
+    env_file: Path,
+    aws_dir: Path = EC2_AWS_DIR,
+    phase: str = "all",
+    name_tag: Callable[[], str] | None = None,
+    now: Callable[[], float] | None = None,
+) -> list[Result]:
+    """EC2's class, before its stack starts (spec 001 contracts/env-cloud.md §1 to §3; research.md R-28): its env file
+    is 0600 and in the grammar (E1), with its template's keys (E2), names EC2 on prod with its class's profile alone, so
+    no model server and no local store (E3), holds values of their shapes, the shared state's TLS, SMTP's implicit TLS,
+    and no image (E4); the instance is h4-prod-ec2 by its metadata's Name tag (E5); and the gateway's Bedrock profile is
+    in place and fresh (E6). Names keys, never a value. The deployer runs "before" (E1 to E5) before the host step and
+    "after" (E6) after it."""
+    if phase == "after":
+        return [e6_credentials(aws_dir, now or time.time)]
+    try:
+        mode = env_file.stat().st_mode
+        values, errors = parse_env(env_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        return [fail("E1", f"{env_file} unreadable: {type(error).__name__}")]
+    out: list[Result] = []
+    problems = list(errors)
+    if mode & 0o077:
+        problems.append(f"{env_file} is readable by others: it must be 0600")
+    out.append(summarize("E1", problems, f"{env_file} is 0600 and in the grammar"))
+    template, _ = parse_env((root / EC2_TEMPLATE).read_text(encoding="utf-8"))
+    missing, extra = (
+        sorted(set(template) - set(values)),
+        sorted(set(values) - set(template)),
+    )
+    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems += [f"not in the template: {', '.join(extra)}"] if extra else []
+    out.append(summarize("E2", problems, "the keys are the template's"))
+    want = {
+        "H4_HOST": "ec2",
+        "H4_STACK": "prod",
+        "H4_ENV": "prod",
+        "COMPOSE_PROJECT_NAME": "h4reet-prod",
+        "COMPOSE_PROFILES": "ec2",
+    }
+    problems = [f"{k} isn't {w}" for k, w in want.items() if values.get(k) != w]
+    out.append(
+        summarize(
+            "E3",
+            problems,
+            "the file names EC2 on prod, its class alone: no model server, no local store",
+        )
+    )
+    problems = [
+        f"{k} isn't of its shape"
+        for k, shape in (
+            ("H4_REGISTRY", REGISTRY_RE),
+            ("RELEASE_BUCKET", RELEASE_BUCKET_RE),
+            ("RELAY_TOKEN_SELF", TOKEN_RE),
+        )
+        if not shape.fullmatch(values.get(k, ""))
+    ]
+    fixed = {
+        "GATEWAY_DB_URL": EC2_DB_URL,
+        "GATEWAY_DB_TLS_SERVERNAME": "shared-state",
+        "SMTP_PORT": "465",
+        "SMTP_TLS": "implicit",
+        "ALERT_DELIVERY": "real",
+        "GATEWAY_AWS_PROFILE": "h4reet-bedrock",
+    }
+    problems += [f"{k} isn't {w}" for k, w in fixed.items() if values.get(k) != w]
+    try:
+        ca = base64.b64decode(
+            values.get("GATEWAY_DB_TLS_CA", ""), validate=True
+        ).decode()
+    except (ValueError, UnicodeDecodeError):
+        ca = ""
+    if not PEM_CERTIFICATE_RE.fullmatch(ca):
+        problems.append("GATEWAY_DB_TLS_CA isn't base64 of one PEM certificate")
+    if not values.get("GATEWAY_ANTHROPIC_API_KEY"):
+        problems.append(
+            "GATEWAY_ANTHROPIC_API_KEY is empty: EC2's first route needs its key (FR-068)"
+        )
+    named = sorted(k for k in values if k.startswith("H4_IMAGE_"))
+    if named:
+        problems.append(
+            f"{', '.join(named)}: only the deployer's release env file names an image"
+        )
+    out.append(summarize("E4", problems, "each value has its shape"))
+    tag = (name_tag or _imds_name_tag)()
+    out.append(
+        summarize(
+            "E5",
+            []
+            if tag == "h4-prod-ec2"
+            else ["this instance's Name tag isn't h4-prod-ec2"],
+            "the instance is h4-prod-ec2, by its metadata",
+        )
+    )
+    if phase == "before":
+        return out
+    return [*out, e6_credentials(aws_dir, now or time.time)]
+
+
+def e6_credentials(aws_dir: Path, now: Callable[[], float]) -> Result:
+    """E6: the gateway's Bedrock profile, which EC2's host step writes (deploy/hosts/ec2/ec2_host.py), in place and the
+    gateway's user's alone to read. Its document missing or expired warns: Bedrock, EC2's second route, answers degraded
+    until the credential timer's next run, and the stack starts on the Anthropic API (group 7's review B, I4)."""
+    try:
+        config = (aws_dir / "config").read_text(encoding="utf-8")
+    except OSError:
+        return fail("E6", f"the gateway's Bedrock profile isn't in place in {aws_dir}")
+    problems, warnings = [], []
+    if "[profile h4reet-bedrock]" not in config or "credential_process" not in config:
+        problems.append(
+            "its config isn't the h4reet-bedrock profile's credential_process"
+        )
+    document = aws_dir / "credentials.json"
+    try:
+        mode = document.stat().st_mode & 0o777
+    except OSError:
+        mode = None
+    if mode is not None and mode & 0o377:
+        problems.append("credentials.json is open beyond 0400")
+    try:
+        expires = datetime.datetime.fromisoformat(
+            str(json.loads(document.read_text(encoding="utf-8"))["Expiration"]).replace(
+                "Z", "+00:00"
+            )
+        ).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        expires = None
+    if expires is None or expires <= now():
+        warnings.append(
+            "its credentials are missing or expired: Bedrock answers degraded until the credential timer's next run"
+        )
+    return summarize(
+        "E6", problems, "the gateway's Bedrock profile is in place and fresh", warnings
+    )
+
+
+def _imds_name_tag() -> str:
+    """The instance's Name tag, through IMDSv2 from the host, never a proxy (write_env.py's imds)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        token_request = urllib.request.Request(
+            "http://169.254.169.254/latest/api/token",
+            method="PUT",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "60"},
+        )
+        with opener.open(token_request, timeout=5) as response:
+            token = response.read().decode()
+        request = urllib.request.Request(
+            "http://169.254.169.254/latest/meta-data/tags/instance/Name",
+            headers={"X-aws-ec2-metadata-token": token},
+        )
+        with opener.open(request, timeout=5) as response:
+            return response.read().decode().strip()
+    except OSError:
+        return ""
+
+
 UP = (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18)
 PULL = (p1, p2, p3, p4, p5, p6, p7, p10, p13, p14)
 
@@ -1509,6 +2002,9 @@ def run_checks(ctx: Context) -> list[Result]:
             checks.append(p20)
         if ctx.stack.host:
             checks.append(p21)
+        if ctx.stack.name == "prod":
+            checks.append(p22)
+        checks.append(p23)
     results = []
     for check in checks:
         try:
@@ -1549,9 +2045,22 @@ def main(argv: list[str], host: Host | None = None) -> int:
     parser.add_argument("--bytes", type=int)
     parser.add_argument("--path")
     parser.add_argument("--vhdx-mount", default="/mnt/c")
+    parser.add_argument("--host-class", choices=sorted(HOST_CLASSES))
+    parser.add_argument("--shared-state-dir", type=Path, default=SHARED_STATE_TLS_DIR)
+    parser.add_argument("--phase", choices=("all", "before", "after"), default="all")
     args = parser.parse_args(argv)
     host = host or Host()
-    if args.disk_only:
+    if args.host_class:
+        if not args.env_file:
+            parser.error("--host-class needs --env-file")
+        results = (
+            ec2_checks(args.root.resolve(), args.env_file, phase=args.phase)
+            if args.host_class == "ec2"
+            else tunnel_end_checks(
+                args.root.resolve(), args.env_file, args.shared_state_dir, args.phase
+            )
+        )
+    elif args.disk_only:
         if args.bytes is None or not args.path:
             parser.error("--disk-only needs --bytes and --path")
         results = disk_only(host, args.bytes, args.path, args.vhdx_mount)

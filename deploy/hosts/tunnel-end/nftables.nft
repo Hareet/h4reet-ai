@@ -1,0 +1,41 @@
+#!/usr/sbin/nft -f
+# The tunnel end's packet filter (spec 001 FR-051, FR-052; contracts/tunnel.md §1 and §6; research.md R-10). Its own
+# table, replaced whole, so Docker's tables stay as Docker writes them. h4-nftables.service loads it before Docker and
+# the egress proxy start, and cloud-init at the first boot. The security groups are the first filter
+# (infra/prod/tunnel-end.tf): 8087's sources are Route 53's checkers there.
+#   in:  new connections on the public interface (ens6) to 2222 and 8087 alone, before Docker's DNAT; on the private
+#        interface (ens5), to the relay's 8080 and, from group 6, the shared state's 5432, and from group 10 the
+#        sink's 2301, which the security group holds to EC2's group;
+#   out: only the egress proxy's user, h4-egress, beyond the VPC, on 443; root alone to the instance metadata; time,
+#        the VPC's resolver, the VPC, and Docker's own bridges;
+#   forward: no container reaches beyond the VPC: each goes out through nothing.
+# The interface names are the Nitro instances' by device, private ens5, public ens6 (to confirm at T058, its runbook).
+
+table inet h4reet
+delete table inet h4reet
+table inet h4reet {
+  chain prerouting {
+    type filter hook prerouting priority mangle; policy accept;
+    iifname "ens6" ct state new tcp dport { 2222, 8087 } accept
+    iifname "ens6" ct state new drop
+    iifname "ens5" ct state new tcp dport { 2301, 5432, 8080 } accept
+    iifname "ens5" ct state new drop
+  }
+
+  chain output {
+    type filter hook output priority filter; policy drop;
+    oifname "lo" accept
+    ct state established,related accept
+    ip daddr 169.254.169.254 meta skuid 0 tcp dport 80 accept
+    ip daddr 169.254.169.123 udp dport 123 accept
+    ip daddr { 10.42.0.2, 169.254.169.253 } meta l4proto { tcp, udp } th dport 53 accept
+    ip daddr 10.42.0.0/16 accept
+    ip daddr 172.30.0.0/16 accept
+    meta skuid "h4-egress" tcp dport 443 accept
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    ip saddr 172.30.0.0/16 ct state new ip daddr != { 172.30.0.0/16, 10.42.0.0/16 } drop
+  }
+}

@@ -7,7 +7,8 @@
 One line per ready entry: "ready, its evidence at the running hashes", or why not:
 - its hashes moved (the pack's or the prompt's changed since the Author marked it);
 - its evidence is missing: a product run (evals/product/history/) and a red-team run (redteam/history/) on prod's local
-  model, and on the paid adapter config/routing.yaml's `envs.prod.fallback` names, or none when it names no fallback;
+  model, and on each paid adapter config/routing.yaml's prod routes name: schema 1's `envs.prod.fallback`, or, with
+  spec 001's schema 2, the laptop's fallback and EC2's first and second; none when they name none;
   each identified by its file's name and by its record's `adapter`;
 - a run is incomplete: a product run must hold every committed Golden Q&A case of the entry's topic on both paths and
   every gap case of the topic (evals/product/cases/twin-*.yaml; every twin case for free talk), and a red-team run every
@@ -97,37 +98,46 @@ def golden_bar(n: int, golden: float) -> int:
     return next((k for k in range(n + 1) if k / n >= golden), n)
 
 
-def paid_adapter(root: Path) -> tuple[bool, str | None]:
-    """Whether config/routing.yaml reads, and the paid adapter its prod route names as its fallback, if any (FR-026)."""
+def paid_adapter(root: Path) -> tuple[bool, list[str]]:
+    """Whether config/routing.yaml reads, and the paid adapters prod's routes name (FR-026): schema 1's
+    envs.prod.fallback, or, with spec 001's schema 2, the laptop's fallback and EC2's first and second, in that order,
+    each once (spec 001 tasks.md T072)."""
     try:
         doc = yaml.safe_load(_read(root, ROUTING) or "")
     except yaml.YAMLError:
-        return False, None
+        return False, []
     envs = doc.get("envs") if isinstance(doc, dict) else None
     route = envs.get("prod") if isinstance(envs, dict) else None
     if not isinstance(route, dict):
-        return False, None
-    fallback = route.get("fallback")
-    return True, fallback if isinstance(fallback, str) else None
+        return False, []
+    hosts = route.get("hosts")
+    if isinstance(hosts, dict):
+        laptop = hosts.get("laptop") if isinstance(hosts.get("laptop"), dict) else {}
+        ec2 = hosts.get("ec2") if isinstance(hosts.get("ec2"), dict) else {}
+        named = [laptop.get("fallback"), ec2.get("first"), ec2.get("second")]
+    else:
+        named = [route.get("fallback")]
+    return True, list(dict.fromkeys(n for n in named if isinstance(n, str)))
 
 
-def needed(paid: str | None) -> list[tuple[str, str, str]]:
-    """The runs an entry needs: (folder, adapter, what it is), on prod's local model and on the routed paid adapter."""
+def needed(paid: list[str]) -> list[tuple[str, str, str]]:
+    """The runs an entry needs: (folder, adapter, what it is), on prod's local model and on each routed paid
+    adapter."""
     runs = [
         (PRODUCT, "local", "a local product run"),
         (REDTEAM, "local", "a local red-team run"),
     ]
-    if paid is not None:
+    for adapter in paid:
         runs += [
             (
                 PRODUCT,
-                paid,
-                f"a product run on {paid}, the paid adapter prod's route names",
+                adapter,
+                f"a product run on {adapter}, the paid adapter prod's route names",
             ),
             (
                 REDTEAM,
-                paid,
-                f"a red-team run on {paid}, the paid adapter prod's route names",
+                adapter,
+                f"a red-team run on {adapter}, the paid adapter prod's route names",
             ),
         ]
     return runs
@@ -183,7 +193,7 @@ def _check(
     expected: Callable[[Any], str | None],
     topic_of: Callable[[Any], str | None],
     golden: float,
-    routing: tuple[bool, str | None],
+    routing: tuple[bool, list[str]],
     cases: tuple[list[dict[str, str]], list[str]],
 ) -> str:
     """One ready entry's line. `expected` gives a case's feature the running pack hash it binds: its topic's, or the

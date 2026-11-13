@@ -1,6 +1,6 @@
 # Runbook: a credential finding
 
-The credential audit found an identity that holds a long-lived credential, or one of this spec's identities wider than Terraform writes it. This page covers the alert `credential_finding` ([spec 001 contracts/aws-alerts.md §2](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts); [contracts/infra-records.md §4](../../specs/001-cloud-elevation/contracts/infra-records.md#4-the-credential-audit-fr-008-sc-004)). The audit is `infra/lambdas/credential_audit/audit.py`: weekly as `h4-credential-audit` (`infra/account/alerts.tf`'s schedule), and in your terminal by `make infra-audit` and before every apply by `make infra-verify` (spec 001 FR-008, FR-013; SC-004).
+The credential audit found an identity that holds a long-lived credential, or one of this spec's identities wider than Terraform writes it. This page covers the alerts `credential_finding` and, from W1, `credential_audit_failed` ([spec 001 contracts/aws-alerts.md §2](../../specs/001-cloud-elevation/contracts/aws-alerts.md#2-the-alerts); [contracts/infra-records.md §4](../../specs/001-cloud-elevation/contracts/infra-records.md#4-the-credential-audit-fr-008-sc-004)). The audit is `infra/lambdas/credential_audit/audit.py`: weekly as `h4-credential-audit` (`infra/account/alerts.tf`'s schedule), and in your terminal by `make infra-audit` and before every apply by `make infra-verify` (spec 001 FR-008, FR-013; SC-004).
 
 ## Symptoms
 
@@ -17,6 +17,7 @@ The credential audit found an identity that holds a long-lived credential, or on
 - **The allowlist** (ADR 0047): your other work in the shared account, kept out of the repository, in `~/.config/h4reet-ai/infra/iam-allow.txt` for your terminal, and the SecureString `/h4reet/audit/IAM_ALLOW` for the weekly function, the same lines in each. A finding it names shows under `allowed`, not failing. Only `iam_user_present`, `iam_user_access_key`, `oidc_provider_present`, and `role_foreign_trust` can be allowed. It allows a key by name, active or not: reactivating one changes nothing the audit says.
 - **`make infra-verify` refuses** with `credential_finding`, and so no apply can start.
 - The weekly result is in the release bucket, under `audits/credential/<date>.json`.
+- **`credential_audit_failed`** (from W1, tasks.md T159): the alarm `h4-credential-audit-errors` (`infra/account/alerts.tf`) saw the function raise, `[hareet.ai aws] credential_audit_failed: the weekly credential audit raised, since <time>`. The run wrote no result and sent no finding, so the week's audit is missing, not clean. The alarm reads missing data as not breaching, so a week without a run stays quiet.
 
 ## Impact
 
@@ -33,13 +34,14 @@ make infra-audit PROFILE=h4reet-admin
 
 Then, by check:
 
+- **`credential_audit_failed`:** the run itself failed. Read its log group, `/aws/lambda/h4-credential-audit`, in the console for the run's last lines; the function logs the check it was on and the error's kind, never a value. Likely causes: its role can't make a call a new identity type needs, or `/h4reet/audit/IAM_ALLOW` is missing or unreadable (`make secrets-check PROFILE=h4reet-admin` names it). Meanwhile run `make infra-audit PROFILE=h4reet-admin` in your terminal, which runs the same checks: its result stands for the week's.
 - **`iam_user_access_key`, `root_access_key`:** delete the key in the console (IAM, the user, Security credentials). If something used it, that thing moves to a short-lived identity first.
 - **`role_foreign_trust`, `oidc_provider_present`:** if Terraform made it, the plan that did is in a merged note; otherwise remove it in the console, and find out who made it.
 - **`laptop_identity_not_terraform`, `laptop_permission_set_too_broad`:** the set or the role was changed outside Terraform. Its next plan, `make plan ROOT=account`, shows the drift; apply the reviewed plan to put it back. Spec 000's hand-made customer-managed policy on the set is detached once, at the cutover (tasks.md T040; the runbook `laptop.md`).
 
 ## Verify
 
-`make infra-audit PROFILE=h4reet-admin` exits 0, with `"clean": true` and no finding; `make infra-verify` passes its `credential_finding` step.
+`make infra-audit PROFILE=h4reet-admin` exits 0, with `"clean": true` and no finding; `make infra-verify` passes its `credential_finding` step. After a `credential_audit_failed`, the next run writes `audits/credential/<date>.json`, and the alarm returns to OK in the console.
 
 ## Undo
 

@@ -1349,6 +1349,28 @@ cmd block 'make shared-state-roles'
 cmd block 'make server-budget-restore'
 cmd block 'make tunnel-keys'
 cmd block 'make tunnel-revoke'
+# Spec 001 group 6's two Author-only targets (tasks.md T165, P-G2): the shared state's CA and its restore, in each of
+# the spellings the gate already covers. The roles target is P-1's, above.
+cmd block 'make shared-state-tls'
+cmd block 'make shared-state-tls ROTATE=1'
+cmd block 'make shared-state-restore'
+cmd block 'make shared-state-restore DUMP=dumps/2026-11-13T06:00:00Z.dump'
+cmd block 'gmake shared-state-tls'
+cmd block 'make -C . shared-state-restore'
+cmd block 'bash -c "make shared-state-tls"'
+cmd block 'make ./shared-state-restore'
+cmd block 'make "shared-state-"tls'
+cmd block 'make shared-state-"restore"'
+cmd block '(make shared-state-restore)'
+cmd block 'env PROFILE=x make shared-state-tls'
+cmd allow 'make shared-state-tlsx'
+# The targets' script run directly, not through make (group 6's review, nit 2): the gate's Author-only rule reads
+# make's words alone, so these get through it; the script refuses itself in the sandbox (SANDBOX_RUNTIME), and
+# an agent session holds no AWS credential to act with.
+cmd gap 'python3 -I -B scripts/infra/shared_state.py tls'
+cmd gap 'python3 -I -B scripts/infra/shared_state.py restore'
+# And the roles target's (P-1's), the same way (the second review, nit 2).
+cmd gap 'python3 -I -B scripts/infra/shared_state.py roles'
 cmd block 'make aws-login PROFILE=h4reet-admin'
 cmd block 'bash deploy/scripts/aws-sso-profile.sh h4reet-admin'
 cmd block './deploy/scripts/aws-sso-profile.sh h4reet-admin'

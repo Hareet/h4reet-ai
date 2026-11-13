@@ -1,0 +1,12 @@
+# A routing fixture for evals/test_disclosure.py's placeholder gate (spec 001 tasks.md T062): only the adapters' types
+# and the routes, which is all the gate reads.
+adapters:
+  local: { type: openai-compatible, kind: local }
+  bedrock: { type: bedrock-converse, kind: paid }
+  anthropic: { type: anthropic-messages, kind: paid }
+schema: 2
+envs:
+  prod:
+    hosts:
+      laptop: { primary: local, fallback: anthropic }
+  dev: { primary: local }

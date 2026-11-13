@@ -1,7 +1,7 @@
 # Data model: the shared state, the routes per host, the handover, and the records
 
 Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review. It replaces the September data model (`data-model.md` at 00309c47), whose `cloud` stack, `prod-cloud` route class, and `infra` attribution this design doesn't need. It defines:
-- **the shared state:** spec 000's store, moved to RDS, and migration 0007;
+- **the shared state:** spec 000's store, moved to Postgres in a container on the tunnel end (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"), and migration 0007;
 - **the route per host** and the environment key that selects it;
 - **the relay's memory;**
 - **the records:** handovers, releases, deployments, plans, applies, audits, and the public view's document;
@@ -13,13 +13,13 @@ The relay runs on the tunnel end and picks the host, by the Author's answer to t
 
 ### 1.1 Where it lives
 
-One RDS for PostgreSQL 17 instance in `infra/prod`, holding spec 000's `gateway` schema (`services/gateway/migrations/0001` to `0006`) and 0007 below. Both production hosts use it with `H4_STACK=prod` (research.md R-28), so `gateway.stack_state`'s one row (`CHECK (id = 1)`) is the one kill switch, and `gateway.meters` holds the one `day`, `month`, and `fallback_day` per period. Dev and dev-cpu keep their own local `gateway-state`, unchanged.
+(amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") One Postgres 17, the tunnel end's `shared-state` service, on spec 000's pinned image and its own encrypted data volume (contracts/shared-state.md §1), holding spec 000's `gateway` schema (`services/gateway/migrations/0001` to `0006`) and 0007 below. Both production hosts use it with `H4_STACK=prod` (research.md R-28), so `gateway.stack_state`'s one row (`CHECK (id = 1)`) is the one kill switch, and `gateway.meters` holds the one `day`, `month`, and `fallback_day` per period. Dev and dev-cpu keep their own local `gateway-state`, unchanged.
 
 | Who | Role | Reaches it |
 |---|---|---|
-| EC2's gateway | `gateway` (spec 000's owner role) | in the VPC, TLS verified |
-| The laptop's gateway | `gateway` | through the tunnel's `-L 5432`, TLS verified with the endpoint's name |
-| The relay, on the tunnel end | `relay_ro`, `relay_rw` (new) | in the VPC |
+| EC2's gateway | `gateway` (spec 000's owner role) | in the VPC, at the tunnel end's private address, TLS verified against the shared state's CA, as `shared-state` |
+| The laptop's gateway | `gateway` | through the tunnel's `-L 5432` to `shared-state:5432`, TLS verified against the same CA, as `shared-state` |
+| The relay, on the tunnel end | `relay_ro`, `relay_rw` (new) | over the tunnel end's compose network, TLS verified the same way |
 | Grafana on each host | `grafana_ro` (spec 000's) | as its gateway does |
 | The operator's commands | `gateway` | through the laptop prod's admin listener while it runs, else an admin-only stack through the tunnel (research.md R-32; contracts/shared-state.md §7) |
 
@@ -55,7 +55,7 @@ A host whose gateway can't read the shared state, or can't confirm it within 10 
 
 | Step | Who | State of the shared store |
 |---|---|---|
-| 1. RDS applied; the first gateway to start runs 0001–0007 | the Author's apply; the gateway | `uninitialized` (spec 000's empty-store rule): degraded everywhere |
+| 1. The tunnel end's release starts `shared-state` (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"); the Author's roles target sets the four passwords; the first gateway to start runs 0001–0007 | the Author's apply, release, and roles target; the gateway | `uninitialized` (spec 000's empty-store rule): degraded everywhere |
 | 2. The laptop's prod stops its paid route, so nothing more lands on its local meter | the Author: his route change (ADR 0041 makes prod's route change his) and `make up` (tasks.md T080) | unchanged |
 | 3. The Author reads the local meter | `make operator-status ENV=prod` | unchanged |
 | 4. The Author initializes the shared meter with the carried values | `make operator-init ENV=shared DAY_USD=… MONTH_USD=… FALLBACK_TODAY_USD=… ADAPTER_MONTH_USD=… [RENEW=…]` | `normal`, or `degraded` with the carried crossed ceilings |
@@ -96,7 +96,7 @@ Spec 010's refusals hold for each named paid adapter: its price version, its cap
 | `H4_HOST` (new) | `laptop` | `ec2` | `tunnel-end` | `laptop` | preflight; the gateway (exit 78 on a mismatch); EC2's preflight against IMDSv2 |
 | `H4_STACK` | `prod` | `prod` | `prod` | `dev`, `dev-cpu` | as spec 000 |
 | `H4_ENV` | `prod` | `prod` | `prod` | `dev` | as spec 000 |
-| `GATEWAY_DB_URL` (new; spec 000's local default otherwise) | the tunnel's forward, with the endpoint's name for TLS | RDS's endpoint | — | local | preflight: TLS required on `prod` |
+| `GATEWAY_DB_URL` (new; spec 000's local default otherwise) (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") | the tunnel's forward, `tunnel:5432`, with `shared-state` as the name for TLS | the tunnel end's private address, `10.42.1.10:5432`, with the same name | — | local | preflight: TLS required on `prod` |
 | `GATEWAY_ANTHROPIC_API_KEY` | prod's env file, as spec 010 | written at boot from Parameter Store, never to the root volume | — | absent | spec 010's preflight |
 
 [contracts/env-cloud.md](contracts/env-cloud.md) has the full tables.
@@ -134,6 +134,7 @@ No message, answer, or address is written anywhere (FR-031, FR-042).
 | `server` | `month_to_date_usd`, `budget_usd`, `as_of` | `budgets:DescribeBudget`, hourly |
 | `host_panels` | spec 000's FR-028 panels from the serving host: requests, latency p50 and p95, errors, model-server health (laptop only), degraded causes | that host's publisher |
 | `handovers` | the last 10 events and their gap lengths | `gateway.v_handovers` |
+| `ec2_hours` | `open`, `close` (`HH:MM`), `zone`, or `null` (T170) | `scheduler:GetSchedule` on `h4-ec2-hours-open` and `h4-ec2-hours-close`, each write |
 | `taken_at` | per part | each writer |
 
 Numbers, states, and times only. No payload, client identifier, operator reason, or secret (spec FR-059). The sink refuses anything else.

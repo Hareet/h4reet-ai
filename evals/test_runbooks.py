@@ -319,6 +319,92 @@ def test_spec_001s_group_4_pages_cover_their_alerts_and_the_index_names_them() -
             assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
 
 
+# Spec 001's group 5 (its tasks.md T054, T159): the tunnel end's page, and the alert bridge's, whose failure queue's
+# alarm W1 adds. The credential audit's page is group 4's, and the test above holds it to its new kind.
+SPEC_001_GROUP_5 = ("tunnel-end.md", "alert-bridge.md")
+
+
+def test_spec_001s_group_5_pages_cover_their_alerts_and_the_index_names_them() -> None:
+    assert set(SPEC_001_GROUP_5) <= spec_001_runbooks()
+    for page in SPEC_001_GROUP_5:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_GROUP_5):
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+
+
+# Spec 001's deployer (the deployer's review, 1: the bridge names deploy.md, which didn't exist): the deploy page holds
+# the deployer's three kinds and the manual retry.
+SPEC_001_DEPLOYER = ("deploy.md",)
+
+
+def test_spec_001s_deploy_page_covers_its_alerts_and_the_manual_retry() -> None:
+    assert set(SPEC_001_DEPLOYER) <= spec_001_runbooks()
+    for page in SPEC_001_DEPLOYER:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_DEPLOYER):
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+    deploy = (RUNBOOKS / "deploy.md").read_text(encoding="utf-8")
+    # The manual retry of a release the deployer won't try again until its backoff ends (the review's 1).
+    assert "attempts.json" in deploy and "h4-deployer.service" in deploy
+
+
+# Group 7's EC2 page (its tasks.md T092), restored (group 7's review A, I-C). c8571b3e's RED named ec2.md beside deploy.md,
+# a page of group 7, which hadn't been written; b10e8446, a GREEN, then dropped it from the test, where it should have
+# been left failing until group 7 wrote the page. contracts/aws-alerts.md §2 sends no kind to ec2.md, so the kinds it
+# holds are those EC2's boot sends itself (contracts/releases-deployer.md §3): `deploy_refused`, reasons `unreachable`
+# and `bucket`, which deploy.md, holding every reason, names too.
+def test_spec_001s_ec2_page_covers_its_boots_alerts_and_the_index_names_them() -> None:
+    assert "ec2.md" in spec_001_runbooks()
+    ec2 = (RUNBOOKS / "ec2.md").read_text(encoding="utf-8")
+    assert "`deploy_refused`" in ec2 and "`deploy_refused`" in index_line("ec2.md")
+    for reason in ("unreachable", "bucket"):
+        assert f"`{reason}`" in ec2, reason
+    deploy = (RUNBOOKS / "deploy.md").read_text(encoding="utf-8")
+    assert "`unreachable`" in deploy and "E1 to E6" in deploy
+
+
+# Spec 001's group 9 (its tasks.md T128): the handover's page, EC2's spot interruption's, and EC2's page, which gains
+# the guard's kinds from P-I6's contract row (as the tree holds it, or as the patch leaves it). Each kind its row sends
+# to a page is on the page and on the index's line for it; and the hours' open, close, and change are on EC2's.
+SPEC_001_GROUP_9 = ("handover.md", "spot-interruption.md", "ec2.md")
+
+
+def test_spec_001s_group_9_pages_cover_their_alerts_and_the_index_names_them() -> None:
+    assert set(SPEC_001_GROUP_9) <= spec_001_runbooks()
+    for page in SPEC_001_GROUP_9:
+        assert (RUNBOOKS / page).is_file(), page
+    for kinds, pages_ in spec_001_kinds():
+        for page in set(pages_) & set(SPEC_001_GROUP_9):
+            mine = kinds if len(pages_) == 1 or page == pages_[0] else kinds[-1:]
+            text = (RUNBOOKS / page).read_text(encoding="utf-8")
+            assert [k for k in mine if f"`{k}`" not in text] == [], page
+            assert [k for k in mine if f"`{k}`" not in index_line(page)] == [], page
+    ec2 = (RUNBOOKS / "ec2.md").read_text(encoding="utf-8")
+    for kind in (
+        "ec2_stopped_outside_hours",
+        "ec2_unrecognised_instance",
+        "ec2_guard_failed",
+    ):
+        assert f"`{kind}`" in ec2 and f"`{kind}`" in index_line("ec2.md"), kind
+    for words in (
+        "h4-ec2-hours-open",
+        "h4-ec2-hours-close",
+        "local.ec2_hours",
+        "`start_failed`",
+    ):
+        assert words in ec2, words
+    handover = (RUNBOOKS / "handover.md").read_text(encoding="utf-8")
+    assert "`outside_hours`" in handover and "handover_stop_failed" in handover
+
+
 def test_the_folder_holds_exactly_the_pages_plan_16_lists() -> None:
     names = plan_runbooks()
     assert len(names) == 16  # not vacuous: the list parses
@@ -522,3 +608,52 @@ def test_the_gates_page_says_prove_resets_the_engine() -> None:
         start = text.index(f"\n{heading}\n")
         part = text[start : text.index("\n## ", start + 1)]
         assert "`tools/gates/gate --prove`" in part, heading
+
+
+def test_the_tunnel_ends_page_covers_each_case_t054_names() -> None:
+    # Spec 001 tasks.md T054: a restart; a crash, a failed deploy, or a revoked key; a key's revocation; its loss; a spot
+    # interruption; a move to another zone. And the laptop's page has its tunnel part.
+    text = (RUNBOOKS / "tunnel-end.md").read_text(encoding="utf-8")
+    for case in (
+        "### A restart",
+        "### A crash, a failed deploy, or a revoked key",
+        "### Revoking the laptop's key",
+        "### The tunnel end lost",
+        "### A spot interruption",
+        "### A move to another zone",
+    ):
+        assert case in text, case
+    laptop = (RUNBOOKS / "laptop.md").read_text(encoding="utf-8")
+    assert "### The tunnel" in laptop
+    for name in ("make tunnel-keys", "COMPOSE_PROFILES=gpu,tunnel", "P22"):
+        assert name in laptop, name
+
+
+# Spec 001's group 6 (its tasks.md T076; contracts/shared-state.md §8): the shared state's page, its alert, the cases T076
+# names, the restore in its five steps, and the laptop's sentence that prod needs the network.
+def test_the_shared_states_page_covers_its_alert_and_each_case_t076_names() -> None:
+    assert "shared-state.md" in spec_001_runbooks()
+    text = (RUNBOOKS / "shared-state.md").read_text(encoding="utf-8")
+    assert "`shared_state_backup_failed`" in text
+    assert "`shared_state_backup_failed`" in index_line("shared-state.md")
+    for case in (
+        "### The store unreachable",
+        "### The backup failed",
+        "### A restore from the last backup",
+        "### A move to another zone",
+    ):
+        assert case in text, case
+    restore = text[
+        text.index("### A restore from the last backup") : text.index(
+            "### A move to another zone"
+        )
+    ]
+    assert [n for n in range(1, 6) if f"\n{n}. **" not in restore] == []
+    for name in (
+        "shared-state-restore",
+        "operator-restore ENV=shared",
+        "operator-init ENV=shared",
+    ):
+        assert f"make {name}" in restore, name
+    laptop = (RUNBOOKS / "laptop.md").read_text(encoding="utf-8")
+    assert "### The shared state" in laptop and "make up ENV=dev" in laptop

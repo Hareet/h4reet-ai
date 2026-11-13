@@ -1,0 +1,47 @@
+# The tunnel end's sshd (spec 001 contracts/tunnel.md §2; research.md R-11; FR-052, FR-053, FR-055): one user, one
+# key, no shell, no command, and exactly the forwards the contract lists. It runs unprivileged as `tunnel`, in the
+# `tunnel-end` service, so it serves that one user and needs no privilege separation. The host key and the authorized
+# key are the host's files from Parameter Store, which write_env.py puts on tmpfs at boot (contracts/tunnel.md §5).
+# Started with -f, so no other file is read.
+
+Port 2222
+ListenAddress 0.0.0.0
+HostKey /run/keys/ssh_host_ed25519_key
+HostKeyAlgorithms ssh-ed25519
+AuthorizedKeysFile /run/keys/authorized_keys
+PubkeyAcceptedAlgorithms ssh-ed25519
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin no
+AllowUsers tunnel
+UsePAM no
+StrictModes yes
+MaxAuthTries 2
+LoginGraceTime 10
+MaxStartups 4:50:10
+# From one address fewer still: 2222 is open to the world, and one client connects (group 5's review).
+PerSourceMaxStartups 2
+
+# No shell, no command, no terminal, and no other kind of forward.
+MaxSessions 0
+PermitTTY no
+X11Forwarding no
+AllowAgentForwarding no
+AllowStreamLocalForwarding no
+PermitTunnel no
+PermitUserRC no
+PermitUserEnvironment no
+
+# The three reverse forwards to the laptop's edge, bound on the container's interface so the relay, the collector,
+# and the published health port reach them; and the two local forwards the laptop may open (W1: the store is the
+# tunnel end's own shared-state, plan.md §16).
+AllowTcpForwarding yes
+GatewayPorts clientspecified
+PermitListen 0.0.0.0:2201 0.0.0.0:2202 0.0.0.0:2203
+PermitOpen shared-state:5432 snapshot-sink:8080
+
+ClientAliveInterval 10
+ClientAliveCountMax 3
+PidFile none
+LogLevel VERBOSE

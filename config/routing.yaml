@@ -1,6 +1,7 @@
 # The gateway's adapters and each environment class's route (contracts/config-files.md §1). Agents edit this file,
 # reviewed in the merge-request note; its schema keeps every primary local, a paid adapter in prod's route only, and
-# synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu.
+# synthetic spend in dev's only. The gateway selects the route by H4_ENV: prod for prod, dev for dev and dev-cpu; and
+# on prod by H4_HOST, from spec 001's schema 2.
 #
 # It grows in steps, so every adapter it defines is registered when it lands (§1.2, rule R6). This is the sixth step:
 # tasks.md T073 added the synthetic adapter and dev's fallback, T102 added bedrock with a placeholder model, T105 set
@@ -8,8 +9,9 @@
 # anthropic, the Anthropic API, beside bedrock, and its T059 makes the Anthropic API prod's fallback, the Author's
 # choice of 2026-11-09, after his price, his cap, his key, and his words in the disclosure's row F3 (spec 010, FR-002,
 # FR-039), each of which the gateway, preflight, or the test suite holds him to. Bedrock stays defined, so going back
-# is the one line `fallback: bedrock`.
-schema: 1
+# is the one line `fallback: bedrock`. Spec 001's T070 makes it schema 2, a route per host, with the laptop's line
+# alone: the seventh step.
+schema: 2
 deadline_ms: 20000
 
 adapters:
@@ -69,6 +71,14 @@ adapters:
     output_tokens: 1000 # 1,000 tokens at dev's $100 per million = $0.10 a call
 
 envs:
-  # The Anthropic API, the Author's choice of 2026-11-09 (spec 010, T059); bedrock, defined above, is one line away.
-  prod: { primary: local, fallback: anthropic } # the paid fallback, inside the $2 a day sub-budget (FR-030)
+  # Schema 2 (spec 001, tasks.md T070; its data-model.md §2.1): prod's route per host, which each gateway selects by
+  # H4_HOST. The laptop's line is the route main named for prod; EC2's line, `ec2: { first: ..., second: ... }`, is the
+  # Author's own step (spec 001 tasks.md T095; ADR 0041), and until it is here a gateway on EC2 refuses to start
+  # (route_missing).
+  prod:
+    hosts:
+      # The Anthropic API, the Author's choice of 2026-11-09 (spec 010, T059); bedrock, defined above, is one line
+      # away. The paid fallback, inside the $2 a day sub-budget (FR-030).
+      laptop: { primary: local, fallback: anthropic }
+      ec2: { first: anthropic, second: bedrock }
   dev: { primary: local, fallback: synthetic } # synthetic only with GATEWAY_TEST_SYNTHETIC_SPEND=1

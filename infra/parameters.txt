@@ -12,3 +12,47 @@
 # with the Author's other work"; ADR 0047; infra/account/lambdas.tf). The same lines as his terminal's
 # ~/.config/h4reet-ai/infra/iam-allow.txt.
 /h4reet/audit/IAM_ALLOW SecureString
+
+# Group 5: the tunnel end's, which write_env.py reads at boot, and EC2's copies, which group 7's reads. The Author's
+# tunnel-keys target writes each (contracts/tunnel.md §5); RELEASE_BUCKET is the account's Terraform's, a String.
+/h4reet/tunnel-end/HOST_KEY SecureString
+/h4reet/tunnel-end/AUTHORIZED_KEY String
+/h4reet/tunnel-end/RELAY_TOKEN_LAPTOP SecureString
+/h4reet/tunnel-end/RELAY_TOKEN_EC2 SecureString
+/h4reet/tunnel-end/SNAPSHOT_SINK_TOKEN SecureString
+/h4reet/tunnel-end/TELEMETRY_BLOCK_TOKEN SecureString
+# Group 8: the relay's two roles on the shared state (contracts/shared-state.md §2), which write_env.py puts in the
+# tunnel end's env file, and which the Author's roles target sets as verifiers.
+/h4reet/tunnel-end/DB_RELAY_RO_PASSWORD SecureString
+/h4reet/tunnel-end/DB_RELAY_RW_PASSWORD SecureString
+/h4reet/ec2/RELAY_TOKEN_SELF SecureString
+/h4reet/ec2/SNAPSHOT_SINK_TOKEN SecureString
+/h4reet/hosts/RELEASE_BUCKET String
+/h4reet/prod/tunnel-end-address String
+
+# Group 7: EC2's, which write_env.py reads at boot (deploy/hosts/ec2/ec2.env.example): its gateway's secrets and
+# the stores' it runs, each the Author's SecureString; the shared state's CA certificate is the hosts' String.
+/h4reet/ec2/ALERT_EMAIL_FROM SecureString
+/h4reet/ec2/ALERT_EMAIL_TO SecureString
+/h4reet/ec2/CLICKHOUSE_PASSWORD SecureString
+/h4reet/ec2/DB_GATEWAY_PASSWORD SecureString
+/h4reet/ec2/DB_GRAFANA_RO_PASSWORD SecureString
+/h4reet/ec2/GATEWAY_ANTHROPIC_API_KEY SecureString
+/h4reet/ec2/GF_SECURITY_ADMIN_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_DB_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_ENCRYPTION_KEY SecureString
+/h4reet/ec2/LANGFUSE_INIT_USER_PASSWORD SecureString
+/h4reet/ec2/LANGFUSE_NEXTAUTH_SECRET SecureString
+/h4reet/ec2/LANGFUSE_PUBLIC_KEY SecureString
+/h4reet/ec2/LANGFUSE_SALT SecureString
+/h4reet/ec2/LANGFUSE_SECRET_KEY SecureString
+/h4reet/ec2/OPERATOR_TOKEN_SHA256 SecureString
+/h4reet/ec2/SEAWEEDFS_S3_ACCESS_KEY SecureString
+/h4reet/ec2/SEAWEEDFS_S3_SECRET_KEY SecureString
+/h4reet/ec2/SMTP_HOST SecureString
+/h4reet/ec2/SMTP_PASSWORD SecureString
+/h4reet/ec2/SMTP_USER SecureString
+/h4reet/ec2/TELEGRAM_BOT_TOKEN SecureString
+/h4reet/ec2/TELEGRAM_CHAT_ID SecureString
+/h4reet/ec2/VALKEY_PASSWORD SecureString
+/h4reet/hosts/SHARED_STATE_TLS_CA String

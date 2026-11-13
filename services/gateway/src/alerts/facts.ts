@@ -175,7 +175,7 @@ const FINGERPRINT = /^[0-9a-f]{8}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const CROSSED = /^(day:\d{4}-\d{2}-\d{2}|month:\d{4}-\d{2})$/;
 const CEILINGS: readonly Ceiling[] = ["day", "month"];
-const SOURCES: readonly InitSource[] = ["ledger", "journal", "stated"];
+const SOURCES: readonly InitSource[] = ["ledger", "journal", "stated", "restored"];
 const AUTH_CLASSES: readonly AuthFailureClass[] = ["missing", "malformed", "wrong_prefix", "mismatch"];
 const label = (v: unknown): string => text(v, 1, 64);
 

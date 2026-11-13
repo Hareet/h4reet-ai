@@ -1,0 +1,20 @@
+# The public view's write (spec 001 contracts/public-view.md §2; deploy/scripts/snapshot_sink.py write; plan.md §16,
+# "Group 10, as built"): on the host, as root, with the instance role, which no container reaches (IMDSv2, one hop).
+# Every 2 minutes, whether or not a host serves: the cloud reads, the relay's status, the shared state over its socket
+# as grafana_ro, and the snapshot-sink container's last part, merged and written to site/status/latest.json through
+# the egress proxy. One long-lived process, so the hourly and half-hourly reads keep their cadence; systemd restarts
+# it. From the release's tree: the deployer's host step installs it, so it never travels in the user data.
+[Unit]
+Description=h4reet: the public view's write, every 2 minutes
+After=h4-stack.service h4-egress-proxy.service
+Requires=docker.service h4-egress-proxy.service
+
+[Service]
+Type=simple
+Environment=HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=169.254.169.254,127.0.0.1,172.30.0.0/16
+ExecStart=/usr/bin/python3 -I -B /opt/h4reet/snapshot/snapshot_sink.py write
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

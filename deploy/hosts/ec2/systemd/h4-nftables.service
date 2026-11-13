@@ -1,0 +1,14 @@
+# EC2's packet filter, loaded before anything that sends (spec 001 FR-051; deploy/hosts/ec2/nftables.nft).
+[Unit]
+Description=h4reet: EC2's packet filter
+DefaultDependencies=no
+Before=network-pre.target docker.service h4-egress-proxy.service amazon-ssm-agent.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/h4reet/nftables.nft
+
+[Install]
+WantedBy=multi-user.target

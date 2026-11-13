@@ -10,6 +10,8 @@ Spec 001, re-planned 2026-11-09. Replaces the September contract (`contracts/tun
 | 8087 | public, the Elastic IP | Route 53's health-checker address ranges only (the published form to confirm in the first task) | `tunnel-end:2203`, the reverse forward to the laptop's health block |
 | 8080 | private | CloudFront's VPC origin only | the relay (contracts/relay-http.md) |
 
+**The interfaces** (B-6, option C; plan.md §16, "B-6: option C, and the VPC origin from W1"). The private interface, `10.42.1.10` in the private subnet, is the instance's primary, device 0, so CloudFront's VPC origin, which reaches an instance at its primary interface's private address, reaches the relay there. The public interface, `10.42.0.10` with the Elastic IP, is the second, device 1, attached once the instance runs. The private subnet has no route out, so the host's own traffic leaves by the public interface: a systemd-networkd drop-in (`deploy/hosts/tunnel-end/networkd/zz-h4-public-first.conf`) gives its default route a lower metric than the 512 amazon-ec2-net-utils gives device 0, and the first boot waits for that route before it installs anything. A second, for the private interface (`zz-h4-ec2-route.conf`), holds one host route to EC2's `10.42.0.20` by its gateway, so EC2's 5432 and 2301 replies leave by the interface they came in on. On Nitro the private interface is `ens5` and the public one `ens6`, the names nftables keys on (to confirm at T058; docs/runbooks/tunnel-end.md, "The interfaces and the way out (T058)"). Each port is published on its own address, so no port moves.
+
 Nothing else is open. The policy (contracts/infra-records.md §3, T7) refuses any other rule from outside the account.
 
 **The instance** is a persistent spot request that stops on interruption (the Author's answer to the plan's question 2; spec FR-076). Its Elastic IP stays associated with its interface across a stop (to confirm), so the laptop's `tunnel` reconnects to the same address within its backoff once AWS starts it again.
@@ -31,12 +33,12 @@ MaxSessions 0
 AllowTcpForwarding yes
 GatewayPorts clientspecified
 PermitListen 0.0.0.0:2201 0.0.0.0:2202 0.0.0.0:2203
-PermitOpen <rds-endpoint>:5432 snapshot-sink:8080
+PermitOpen shared-state:5432 snapshot-sink:8080
 ClientAliveInterval 10
 ClientAliveCountMax 3
 ```
 
-`<rds-endpoint>` is written at boot from a `String` parameter Terraform writes. The keys come from Parameter Store at boot (§6).
+From W1 the store is the tunnel end's own `shared-state` (plan.md §16, "The shared state on the tunnel end"), so no endpoint is written at boot (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end"). The keys come from Parameter Store at boot (§5). **As built in group 5:** `deploy/tunnel/sshd_config` holds these lines and closes every other kind of session and forward (`PermitTTY no`, `X11Forwarding no`, `AllowAgentForwarding no`, `AllowStreamLocalForwarding no`, `PermitTunnel no`, `PermitUserRC no`, `UsePAM no`, `PidFile none`); the image is Ubuntu's OpenSSH on the pinned `base:ubuntu` (plan.md §16, group 5's departure 4).
 
 ## 3. `tunnel` (the client, on the laptop)
 
@@ -46,8 +48,8 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 |---|---|---|---|
 | `-R 0.0.0.0:2201` | the tunnel end | `edge:8085`, the relay block (§4) | visitors' requests from the relay |
 | `-R 0.0.0.0:2202` | the tunnel end | `edge:8086`, the telemetry block | the tunnel end's collector's export (research.md R-25) |
-| `-R 0.0.0.0:2203` | the tunnel end | `edge:8087`, the health block | Route 53's health checks (research.md R-29) |
-| `-L 0.0.0.0:5432` | the laptop's stack (`tunnel:5432`) | `<rds-endpoint>:5432` | the laptop's gateway to the shared state, inside TLS (contracts/shared-state.md §3) |
+| `-R 0.0.0.0:2203` | the tunnel end | `edge:8088`, the health block (edge's 8087 is spec 002's site) | Route 53's health checks (research.md R-29) |
+| `-L 0.0.0.0:5432` | the laptop's stack (`tunnel:5432`) | `shared-state:5432` (W1) | the laptop's gateway to the shared state, inside TLS (contracts/shared-state.md §3) |
 | `-L 0.0.0.0:2301` | the laptop's stack (`tunnel:2301`) | `snapshot-sink:8080` | the public view's panels |
 
 - **Reconnecting:** backoff 1, 2, 5, 10, 30 s, with `ServerAliveInterval 10`, `ServerAliveCountMax 3` and `ExitOnForwardFailure yes`.
@@ -60,9 +62,11 @@ In the laptop's prod, profile `tunnel`. The same image, unprivileged. It connect
 |---|---|---|---|---|---|
 | 8085, relay | the laptop; EC2 | the laptop: unpublished (the tunnel reaches it). EC2: its private address, a literal in the `ec2` class, admitted only from the tunnel end's security group | `POST /hello`, `POST /room/turn`, `POST /room/events` to `gateway:8080`; `GET /health` (below) | `Authorization: Bearer <relay token for this host>`, from the host's env file; 401 otherwise, logged with no address | it moves `X-H4-Viewer` into the one `X-Forwarded-For` value it sends on, drops any other, and keeps `traceparent` |
 | 8086, telemetry | the laptop | unpublished | `POST /v1/{traces,metrics,logs}` to `otel-collector:4318` | its own bearer token, `TELEMETRY_BLOCK_TOKEN` | EC2's collector is reached in the VPC instead |
-| 8087, health | the laptop | unpublished | `GET /health` only | none: Route 53's checkers can't send one (spec FR-053's conditional) | answers 200 or 503 with an empty body; rate-limited to 10 requests a second |
+| 8088, health (8087 until group 5, which found edge's 8087 taken) | the laptop | unpublished | `GET /health` only | none: Route 53's checkers can't send one (spec FR-053's conditional) | answers 200 or 503 with an empty body; rate-limited to 10 requests a second |
 
-**`GET /health` on 8085 and 8087** both ask `gateway:8080/health` and answer 200 only if it reports itself up and the shared state readable. The plan's gateway task adds that field to the gateway's health answer if it isn't there.
+**`GET /health` on 8085 and on the health block** both ask the gateway, and answer 200 only if it answers and the shared state reads. **As built in group 5** (tasks.md T043, T048): the gateway's health answer already carries the store's readability, `store`, but it answers 200 whatever the state (spec 000's contracts/gateway-http.md §5), so the blocks ask the gateway's `GET /health/serving`, which answers 200 while the store reads and 503 otherwise, each with an empty body, and pass that on as it is; a gateway that doesn't answer is 503 too. **The health block listens on edge's 8088,** since edge's 8087 is spec 002's site, x005: the tunnel's `-R 2203` leads to `edge:8088`, and the tunnel end still publishes 2203 on its public 8087 (§1, §3).
+
+**The tokens** reach nginx, which reads no environment, as two maps in a file on edge's tmpfs, which `deploy/edge/entrypoint.sh` writes from `RELAY_TOKEN_SELF` and `TELEMETRY_BLOCK_TOKEN` before nginx starts: each matches `Bearer <token>` and nothing else, and with no token, as on dev and dev-cpu, nothing matches. **After group 5's review:** each entry is the regular expression `~^Bearer <token>$`, so it matches exactly, case and all; nginx matches a map's plain strings without case, and hashes them in buckets that a token of the longest shape overflows, so nginx wouldn't start (`nginx -t` on the pinned image, `deploy/edge/test_edge_on_engine.py`).
 
 ## 5. Keys and revocation (FR-055)
 
@@ -85,3 +89,19 @@ On EC2 and on the tunnel end, as September: a host proxy with a hostname allowli
 | The tunnel end | the AWS endpoints for ECR (its deployer's pulls), S3, Systems Manager, STS, Budgets, EC2's describe calls, SNS (its alerts to `h4-alerts`; row C7), Route 53's health-check status, and CloudWatch's metric reads (the dashboard's reads, plan §11) | RDS; EC2's relay block; EC2's collector |
 
 `tools/gates/disclosure_check.py` fails the gate when an allowlist and the disclosure differ.
+
+## 7. The dashboard's Hosts row: the tunnel (group 5)
+
+`deploy/grafana/dashboards/h4-runtime.json`, in its own row, "Hosts", below the room's rows and above the studio's (plan.md §11). Later groups add their panels to the row, each in the contract of its feature. Group 5's:
+
+| Panel | Type | Query |
+|---|---|---|
+| Tunnel up (FR-060) | stat, and a state timeline | `max by (h4_tunnel_end) (h4_tunnel_up)` |
+| Tunnel reconnects | time series | `sum by (h4_tunnel_end) (increase(h4_tunnel_reconnects_total[1h]))` |
+| Telemetry delayed at the tunnel end (FR-060) | time series | `max by (exporter) (otelcol_exporter_queue_size{service_name="tunnel-end-collector"} / otelcol_exporter_queue_capacity{service_name="tunnel-end-collector"})` |
+| Telemetry lost at the tunnel end (FR-060) | time series | `sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total{service_name="tunnel-end-collector"}[5m]))`, and the same for metric points and log records |
+
+- **`h4_tunnel_up`** is `h4.tunnel.up`, a gauge each end of the tunnel pushes every 15 seconds, labelled `h4.tunnel.end`: `laptop` from the `tunnel` service, 1 while its connection is up; `tunnel-end` from `tunnel-end`, 1 while its three reverse forwards listen. Up reads "up" in green, down "down" in red.
+- **`h4_tunnel_reconnects_total`** is `h4.tunnel.reconnects`, a counter: each new connection after the first, on the laptop; each accepted login, on the tunnel end.
+- **The tunnel end's collector** pushes its own counters through its own pipeline, as `service.name` `tunnel-end-collector`, so they reach whichever host is up; its two exporters are `otlphttp/laptop` and `otlphttp/ec2`. "Delayed" is its file-backed queue's fill, "lost" what the queue refused when full.
+- `deploy/scripts/test_dashboard.py` reads this section's table.
