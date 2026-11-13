@@ -511,6 +511,39 @@ def judge_absent(row: dict, rc: int, out: str, err: str) -> tuple[str, str]:
     return verdict, text
 
 
+def mask_rows(pre: list, worktree: str, repo: str, is_under) -> list[dict]:
+    """A row for each read-only mount of the ops session but .git itself: it appends nothing to the mount's path as
+    the container sees it (the gitleaks config's comes from the share and lands at the main checkout's path), and
+    `creates` names the host's file a folder's row would make. A mount outside the worktree and .git is the main
+    checkout's, named `mask-main-…`."""
+    out = []
+    for h, c, m in pre:
+        if m != "ro" or c == f"{repo}/.git":
+            continue
+        if is_under(c, worktree):
+            rel = os.path.relpath(c, worktree)
+        else:
+            rel = os.path.relpath(c, repo)
+            if not (rel == ".git" or rel.startswith(".git/")):
+                rel = f"main/{rel}"
+        slug = re.sub(r"[^a-z0-9]+", "-", rel.lower()).strip("-")[:60] or "root"
+        folder = os.path.isdir(h)
+        out.append(
+            {
+                "id": f"mask-{slug}",
+                "role": "ops",
+                "kind": "container",
+                "category": "write",
+                "command": f": >> {c}/.rt-mask" if folder else f": >> {c}",
+                "expect": "Read-only file system",
+                "layer": "ro-mount",
+                "rehearsal": True,
+                "creates": f"{h}/.rt-mask" if folder else "",
+            }
+        )
+    return out
+
+
 def tally(verdicts: list[str]) -> tuple[int, int]:
     """(rows that ran, rows skipped): a row checked absent on the host and in the container ran."""
     ran = sum(1 for v in verdicts if v in ("refused", "absent", "gap"))
@@ -1015,31 +1048,7 @@ class Rehearsal:
 
     def mask_rows(self) -> list[dict]:
         s = self.session("ops")
-        out = []
-        for h, _c, m in s.pre:
-            if m != "ro" or h == f"{self.facts['REPO']}/.git":
-                continue
-            rel = (
-                os.path.relpath(h, s.task.worktree)
-                if self.N.is_under(h, s.task.worktree)
-                else os.path.relpath(h, self.facts["REPO"])
-            )
-            slug = re.sub(r"[^a-z0-9]+", "-", rel.lower()).strip("-")[:60] or "root"
-            target = f"{h}/.rt-mask" if os.path.isdir(h) else h
-            out.append(
-                {
-                    "id": f"mask-{slug}",
-                    "role": "ops",
-                    "kind": "container",
-                    "category": "write",
-                    "command": f": >> {target}",
-                    "expect": "Read-only file system",
-                    "layer": "ro-mount",
-                    "rehearsal": True,
-                    "creates": target if os.path.isdir(h) else "",
-                }
-            )
-        return out
+        return mask_rows(s.pre, s.task.worktree, self.facts["REPO"], self.N.is_under)
 
     def preflight(self) -> None:
         """The installed runner's own preflight (S1): every live spec (the studio's and ComfyUI's folders included),

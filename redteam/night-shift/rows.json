@@ -3007,8 +3007,8 @@
       "target": "@GIT@/objects/info",
       "spelling": "git",
       "host": "@GIT@/objects/info",
-      "creates": "@GIT@/objects/info/alternates",
-      "command": "git -C @WT@ config --file @GIT@/objects/info/alternates rt.probe x",
+      "creates": "@GIT@/objects/info/rt-@ID@",
+      "command": "git -C @WT@ config --file @GIT@/objects/info/rt-@ID@ rt.probe x",
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -3077,8 +3077,8 @@
       "target": "@GIT@/objects/info",
       "spelling": "hardlink",
       "host": "@GIT@/objects/info",
-      "creates": "@GIT@/objects/info/alternates",
-      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/objects/info/alternates",
+      "creates": "@GIT@/objects/info/rt-@ID@",
+      "command": ": > @WT@/.rt-@ID@-src && ln -- @WT@/.rt-@ID@-src @GIT@/objects/info/rt-@ID@",
       "expect": "Invalid cross-device link|Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
@@ -3097,6 +3097,19 @@
       "rehearsal": true
     },
     {
+      "id": "write-own-commondir-git",
+      "role": "ops",
+      "kind": "container",
+      "category": "write",
+      "target": "@ADMIN@/commondir",
+      "spelling": "git",
+      "host": "@ADMIN@/commondir",
+      "command": "git -C @WT@ bundle create @ADMIN@/commondir HEAD",
+      "expect": "Device or resource busy|Read-only file system",
+      "layer": "ro-mount",
+      "rehearsal": true
+    },
+    {
       "id": "write-own-commondir-python",
       "role": "ops",
       "kind": "container",
@@ -3108,19 +3121,6 @@
       "expect": "Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": false
-    },
-    {
-      "id": "write-own-commondir-git",
-      "role": "ops",
-      "kind": "container",
-      "category": "write",
-      "target": "@ADMIN@/commondir",
-      "spelling": "git",
-      "host": "@ADMIN@/commondir",
-      "command": "git -C @WT@ config --file @ADMIN@/commondir rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
-      "layer": "ro-mount",
-      "rehearsal": true
     },
     {
       "id": "write-own-commondir-bash-c",
@@ -3186,6 +3186,20 @@
       "expect": "Invalid cross-device link|Read-only file system|Device or resource busy",
       "layer": "ro-mount",
       "rehearsal": true
+    },
+    {
+      "id": "write-own-commondir-rename",
+      "role": "ops",
+      "kind": "container",
+      "category": "write",
+      "target": "@ADMIN@/commondir",
+      "spelling": "rename",
+      "host": "@ADMIN@/commondir",
+      "command": "mv -- @ADMIN@/commondir @ADMIN@/.rt-@ID@",
+      "expect": "Device or resource busy|Read-only file system",
+      "layer": "ro-mount",
+      "rehearsal": true,
+      "creates": "@ADMIN@/.rt-@ID@"
     },
     {
       "id": "write-top-commondir-plain",
@@ -3669,10 +3683,11 @@
       "target": "@WT@/CLAUDE.md",
       "spelling": "git",
       "host": "@WT@/CLAUDE.md",
-      "command": "git -C @WT@ config --file @WT@/CLAUDE.md rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
+      "command": "git -C @WT@ mv -- CLAUDE.md .rt-@ID@",
+      "expect": "Device or resource busy|Read-only file system",
       "layer": "ro-mount",
-      "rehearsal": true
+      "rehearsal": true,
+      "creates": "@WT@/.rt-@ID@"
     },
     {
       "id": "write-mask-claude-md-bash-c",
@@ -3773,10 +3788,11 @@
       "target": "@WT@/REVIEW.md",
       "spelling": "git",
       "host": "@WT@/REVIEW.md",
-      "command": "git -C @WT@ config --file @WT@/REVIEW.md rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
+      "command": "git -C @WT@ mv -- REVIEW.md .rt-@ID@",
+      "expect": "Device or resource busy|Read-only file system",
       "layer": "ro-mount",
-      "rehearsal": true
+      "rehearsal": true,
+      "creates": "@WT@/.rt-@ID@"
     },
     {
       "id": "write-mask-review-md-bash-c",
@@ -3877,10 +3893,11 @@
       "target": "@WT@/.specify/memory/constitution.md",
       "spelling": "git",
       "host": "@WT@/.specify/memory/constitution.md",
-      "command": "git -C @WT@ config --file @WT@/.specify/memory/constitution.md rt.probe x",
-      "expect": "Read-only file system|Device or resource busy",
+      "command": "git -C @WT@ mv -- .specify/memory/constitution.md .rt-@ID@",
+      "expect": "Device or resource busy|Read-only file system",
       "layer": "ro-mount",
-      "rehearsal": true
+      "rehearsal": true,
+      "creates": "@WT@/.rt-@ID@"
     },
     {
       "id": "write-mask-constitution-bash-c",

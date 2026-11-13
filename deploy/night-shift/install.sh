@@ -7,6 +7,9 @@
 #                                       # the same, refusing first, naming both SHAs, if that branch's tip isn't $sha
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --branch feat/017-the-night-shift --disk-floor 8
 #                                       # the same, with the disk floor at 8 GB for this run only (5 to 15; nights keep 15)
+#   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --branch feat/017-the-night-shift --rehearse R4
+#                                       # the same, rehearsing only R4 (any of R1 to R4, in order: R3,R4); the main pass
+#                                       # runs all four
 #   bash <(git show "$sha:deploy/night-shift/install.sh") "$sha" --undo   # remove what installed.txt lists
 #
 # Steps, stopping at the first failure with `install: FAILED at <step>: <reason>`, then the summary so far:
@@ -40,21 +43,38 @@ BRANCH=""
 BRANCH_GIVEN=""
 DISK_FLOOR=""
 DISK_FLOOR_GIVEN=""
-rest=("${@:2}")
-if [ "${rest[0]:-}" = --branch ]; then
-	BRANCH="${rest[1]:-}"
-	BRANCH_GIVEN=1
-	MODE=install
-	rest=("${rest[@]:2}")
-fi
-# --disk-floor <GB>: the Author lowers the disk floor for this one run, from 5 to 15 GB; a night keeps 15 (2026-11-12).
-if [ "${rest[0]:-}" = --disk-floor ]; then
-	DISK_FLOOR="${rest[1]-}"
-	DISK_FLOOR_GIVEN=1
-	MODE=install
-	rest=("${rest[@]:2}")
-fi
+REHEARSE=""
+REHEARSE_GIVEN=""
+RUN_STEPS=(R1 R2 R3 R4)
 EXTRA_ARGS=0
+rest=("${@:2}")
+# The install's options, in any order, each at most once:
+#   --branch <name>     refuse unless that branch's tip is the SHA
+#   --disk-floor <GB>   the Author lowers the disk floor for this one run, from 5 to 15 GB; a night keeps 15 (2026-11-12)
+#   --rehearse <steps>  run only these of R1 to R4, for a change that touches only them; the summary names the steps
+#                       not run, and no later run takes the install as rehearsed (2026-11-13). The main pass runs all four.
+while [ "${#rest[@]}" -gt 0 ]; do
+	case "${rest[0]}" in
+	--branch)
+		[ -z "$BRANCH_GIVEN" ] || EXTRA_ARGS=1
+		BRANCH="${rest[1]:-}"
+		BRANCH_GIVEN=1
+		;;
+	--disk-floor)
+		[ -z "$DISK_FLOOR_GIVEN" ] || EXTRA_ARGS=1
+		DISK_FLOOR="${rest[1]-}"
+		DISK_FLOOR_GIVEN=1
+		;;
+	--rehearse)
+		[ -z "$REHEARSE_GIVEN" ] || EXTRA_ARGS=1
+		REHEARSE="${rest[1]-}"
+		REHEARSE_GIVEN=1
+		;;
+	*) break ;;
+	esac
+	MODE=install
+	rest=("${rest[@]:2}")
+done
 if [ "$MODE" = install ] && [ "${#rest[@]}" -gt 0 ]; then EXTRA_ARGS=1; fi
 if [ "$MODE" = --undo ] && [ "${#rest[@]}" -gt 1 ]; then EXTRA_ARGS=1; fi
 LABEL="h4-night=install"
@@ -82,6 +102,7 @@ redact() { sed -u -E 's#(://[^/@[:space:]]*:)[^@[:space:]]+@#\1<redacted>@#g; s#
 
 STEP="0 preflight"
 SUMMARY=()
+RECORD=() # the rehearsal's lines, kept for a later run at the same SHA only when all four ran
 CHANGED=0
 STEP_CHANGED=0
 t=""
@@ -161,8 +182,18 @@ night_running() {
 preflight() {
 	STEP="0 preflight"
 	[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || fail "give the reviewed commit as its full 40-hex SHA (usage: install.sh <sha> [--undo])"
-	case "$MODE" in install | --undo) ;; *) fail "usage: install.sh <sha> [--undo | [--branch <name>] [--disk-floor <GB>]]" ;; esac
-	[ "$EXTRA_ARGS" = 0 ] || fail "usage: install.sh <sha> [--undo | [--branch <name>] [--disk-floor <GB>]]"
+	local usage="usage: install.sh <sha> [--undo | [--branch <name>] [--disk-floor <GB>] [--rehearse <steps>]]"
+	case "$MODE" in install | --undo) ;; *) fail "$usage" ;; esac
+	[ "$EXTRA_ARGS" = 0 ] || fail "$usage"
+	if [ -n "${REHEARSE_GIVEN:-}" ]; then
+		local r last=0
+		[[ "$REHEARSE" =~ ^R[1-4](,R[1-4])*$ ]] || fail "--rehearse takes steps from R1 to R4, in order, such as R4 or R3,R4"
+		IFS=, read -r -a RUN_STEPS <<<"$REHEARSE"
+		for r in "${RUN_STEPS[@]}"; do
+			[ "${r#R}" -gt "$last" ] || fail "--rehearse takes steps from R1 to R4, in order, such as R4 or R3,R4"
+			last="${r#R}"
+		done
+	fi
 	FLOOR_ARGS=()
 	if [ -n "${DISK_FLOOR_GIVEN:-}" ]; then
 		if ! [[ "$DISK_FLOOR" =~ ^([5-9]|1[0-5])$ ]]; then
@@ -459,6 +490,22 @@ networks() {
 # ---------------------------------------------------------------------------------------------------------------
 rehearse() {
 	local n=4 r out rc line rows=()
+	if [ "${#RUN_STEPS[@]}" -ne 4 ]; then
+		# --rehearse: only the steps given run; the rest are named as not run, and no record is kept, so the next run
+		# without it, at this SHA too, rehearses all four
+		rm -f -- "$REHEARSED"
+		for r in R1 R2 R3 R4; do
+			STEP="$n $r"
+			n=$((n + 1))
+			if [[ ",$REHEARSE," != *",$r,"* ]]; then
+				step_done "not run (--rehearse $REHEARSE)"
+				SUMMARY+=("$r not run (--rehearse $REHEARSE; the main pass runs R1 to R4)")
+				continue
+			fi
+			rehearse_one "$r"
+		done
+		return 0
+	fi
 	if [ "$CHANGED" = 0 ] && [ -f "$REHEARSED" ] && [ "$(head -n 1 "$REHEARSED")" = "sha $SHA" ] && grep -q '^R4 ok' "$REHEARSED"; then
 		for r in R1 R2 R3 R4; do
 			STEP="$n $r"
@@ -471,29 +518,34 @@ rehearse() {
 		return 0
 	fi
 	rm -f -- "$REHEARSED"
-	local record=("sha $SHA")
+	RECORD=("sha $SHA")
 	for r in R1 R2 R3 R4; do
 		STEP="$n $r"
-		echo "running $r"
-		[ "$(sha_of "$SHARE/rehearse.py")" = "${NEW_FILES[$SHARE/rehearse.py]}" ] || fail "$SHARE/rehearse.py isn't the file this install wrote"
-		out="$("$PY" -I -B "$SHARE/rehearse.py" step "$r" --sha "$SHA" "${FLOOR_ARGS[@]}" 2>&1)"
-		rc=$?
-		rows=()
-		while IFS= read -r line; do
-			case "$line" in row\ *) rows+=("$line") ;; esac
-		done <<<"$out"
-		line="$(printf '%s\n' "$out" | grep -E "^$r (ok|FAILED)" | tail -n 1)"
-		[ -n "$line" ] || line="$r FAILED it printed no result: $(printf '%s\n' "$out" | tail -n 1)"
-		SUMMARY+=("$line" "${rows[@]}")
-		record+=("$line" "${rows[@]}")
-		printf '%s\n' "$out" | grep -v -E '^row .* refused-by=' | grep -v -E "^$r (ok|FAILED)" | redact
-		if [ "$rc" -ne 0 ] || [[ "$line" != "$r ok"* ]]; then
-			fail "${line#"$r FAILED "}"
-		fi
-		step_done ok
+		rehearse_one "$r"
 		n=$((n + 1))
 	done
-	(umask 077 && printf '%s\n' "${record[@]}" >"$REHEARSED")
+	(umask 077 && printf '%s\n' "${RECORD[@]}" >"$REHEARSED")
+}
+
+# rehearse_one <step>: one of R1 to R4, from the installed rehearse.py; its lines go to the summary and RECORD.
+rehearse_one() {
+	local r="$1" out rc line rows=()
+	echo "running $r"
+	[ "$(sha_of "$SHARE/rehearse.py")" = "${NEW_FILES[$SHARE/rehearse.py]}" ] || fail "$SHARE/rehearse.py isn't the file this install wrote"
+	out="$("$PY" -I -B "$SHARE/rehearse.py" step "$r" --sha "$SHA" "${FLOOR_ARGS[@]}" 2>&1)"
+	rc=$?
+	while IFS= read -r line; do
+		case "$line" in row\ *) rows+=("$line") ;; esac
+	done <<<"$out"
+	line="$(printf '%s\n' "$out" | grep -E "^$r (ok|FAILED)" | tail -n 1)"
+	[ -n "$line" ] || line="$r FAILED it printed no result: $(printf '%s\n' "$out" | tail -n 1)"
+	SUMMARY+=("$line" "${rows[@]}")
+	RECORD+=("$line" "${rows[@]}")
+	printf '%s\n' "$out" | grep -v -E '^row .* refused-by=' | grep -v -E "^$r (ok|FAILED)" | redact
+	if [ "$rc" -ne 0 ] || [[ "$line" != "$r ok"* ]]; then
+		fail "${line#"$r FAILED "}"
+	fi
+	step_done ok
 }
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -567,7 +619,11 @@ main() {
 	networks
 	rehearse
 	summary
-	echo "install: done"
+	if [ "${#RUN_STEPS[@]}" -ne 4 ]; then
+		echo "install: done (rehearsed $REHEARSE only; the main pass runs R1 to R4)"
+	else
+		echo "install: done"
+	fi
 }
 
 main 2>&1 | redact

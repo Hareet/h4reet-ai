@@ -1433,3 +1433,76 @@ def test_undo_refuses_anything_after_it(make_case, extra) -> None:
         "install: FAILED at undo: usage: install.sh <sha> --undo, with nothing after it"
         in c.output
     )
+
+
+# ---- --rehearse: the Author reruns only the steps a change touched; the main pass runs R1 to R4 (2026-11-13) ------
+def test_rehearse_r4_runs_only_r4_and_says_so(make_case) -> None:
+    c = make_case()
+    r = c.run(c.sha, "--branch", "feat/night", "--rehearse", "R4")
+    assert r.returncode == 0, c.output[-3000:]
+    kinds = rehearsal_kinds(c)
+    assert kinds and set(kinds) == {"R4"}, kinds
+    for n, step in ((4, "R1"), (5, "R2"), (6, "R3")):
+        assert f"step {n} {step}: not run (--rehearse R4)" in c.output, step
+        assert (
+            f"{step} not run (--rehearse R4; the main pass runs R1 to R4)"
+            in summary(c.output)
+        ), step
+    assert "step 7 R4: ok" in c.output
+    assert any(x.startswith("R4 ok") for x in summary(c.output))
+    assert "install: done (rehearsed R4 only; the main pass runs R1 to R4)" in c.output
+
+
+def test_rehearse_takes_any_order_of_the_options(make_case) -> None:
+    c = make_case()
+    r = c.run(
+        c.sha,
+        "--rehearse",
+        "R3,R4",
+        "--disk-floor",
+        "8",
+        "--branch",
+        "feat/night",
+        extra={"H4_NIGHT_TEST_RESOURCES": "10,32,62"},
+    )
+    assert r.returncode == 0, c.output[-3000:]
+    assert set(rehearsal_kinds(c)) == {"R3", "R4"}
+    assert "disk_floor 8 GB (this run only; nights keep 15 GB)" in summary(c.output)
+
+
+def test_a_partial_rehearsal_isnt_a_rehearsed_install(make_case) -> None:
+    """A later run at the same SHA with no --rehearse runs all four, not `unchanged`."""
+    c = make_case()
+    r = c.run(c.sha, "--rehearse", "R4")
+    assert r.returncode == 0, c.output[-3000:]
+    r = c.run(c.sha)
+    assert r.returncode == 0, c.output[-3000:]
+    for n, step in ((4, "R1"), (5, "R2"), (6, "R3"), (7, "R4")):
+        assert f"step {n} {step}: ok" in c.output, step
+    assert "not run" not in " ".join(summary(c.output))
+
+
+@pytest.mark.parametrize(
+    "value", [["R5"], ["r4"], [""], ["R4,R4"], ["R4,R1"], ["R4,"], ["all"], []]
+)
+def test_rehearse_takes_only_steps_r1_to_r4_in_order(make_case, value) -> None:
+    c = make_case()
+    r = c.run(c.sha, "--rehearse", *value)
+    assert_refused(
+        c,
+        r,
+        "0 preflight",
+        "--rehearse takes steps from R1 to R4, in order, such as R4 or R3,R4",
+    )
+    assert not c.stub_state().get("images")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["--rehearse", "R4", "--rehearse", "R3"], ["--branch", "a", "--branch", "b"]],
+)
+def test_an_option_given_twice_refuses(make_case, args) -> None:
+    c = make_case()
+    r = c.run(c.sha, *args)
+    assert r.returncode != 0
+    assert "install: FAILED at 0 preflight: usage: install.sh <sha>" in c.output

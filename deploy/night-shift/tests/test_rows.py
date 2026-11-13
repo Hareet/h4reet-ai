@@ -646,3 +646,106 @@ def test_r3_fails_on_any_other_policy_line() -> None:
     assert not ok and "policy" in detail
     ok, _ = rehearse.judge_check(CHECK_OK + "== policy\n-> FAIL policy\n", 2)
     assert not ok
+
+
+# ---- install 4's R4 (T090): six rows refused, each with an error that proved nothing about the mount ---------------
+def test_a_git_config_row_writes_only_a_file_it_creates(rows) -> None:
+    """git config --file parses the file before it writes: on a file that isn't git config (CLAUDE.md, a commondir),
+    git itself refuses with `bad config line`, before the mount is ever tried."""
+    for r in rows:
+        m = re.search(r"\sconfig --file (\S+)", r["command"])
+        if m:
+            assert r.get("creates") == m.group(1), r["id"]
+
+
+def test_the_masked_files_git_spelling_renames_them_with_git_mv(rows) -> None:
+    by_id = {r["id"]: r for r in rows}
+    for slug, rel in (
+        ("claude-md", "CLAUDE.md"),
+        ("review-md", "REVIEW.md"),
+        ("constitution", ".specify/memory/constitution.md"),
+    ):
+        r = by_id[f"write-mask-{slug}-git"]
+        assert r["command"] == f"git -C @WT@ mv -- {rel} .rt-@ID@", r["id"]
+        assert r["creates"] == "@WT@/.rt-@ID@", r["id"]
+        assert re.search(r["expect"], "fatal: renaming failed: Device or resource busy")
+
+
+def test_the_sessions_own_commondir_is_replaced_by_git_and_by_a_rename(rows) -> None:
+    """git bundle create writes `<path>.lock` in the session's read-write admin folder, then renames it over the
+    commondir mask, as git's own lockfiles replace a file; a plain mv tries the same."""
+    by_id = {r["id"]: r for r in rows}
+    git = by_id["write-own-commondir-git"]
+    assert git["command"] == "git -C @WT@ bundle create @ADMIN@/commondir HEAD"
+    assert re.search(
+        git["expect"], "fatal: cannot create '/x/commondir': Device or resource busy"
+    )
+    mv = by_id["write-own-commondir-rename"]
+    assert mv["command"] == "mv -- @ADMIN@/commondir @ADMIN@/.rt-@ID@"
+    assert mv["creates"] == "@ADMIN@/.rt-@ID@" and mv["rehearsal"]
+
+
+def test_no_row_runs_git_config_on_his_alternates(rows) -> None:
+    """His repository has an empty alternates (the sandbox's placeholder): a git config row that got through would
+    write a line into it, and `made_before` would keep it there."""
+    r = next(r for r in rows if r["id"] == "write-alternates-git")
+    assert (
+        r["command"]
+        == "git -C @WT@ config --file @GIT@/objects/info/rt-@ID@ rt.probe x"
+    )
+    assert r["creates"] == "@GIT@/objects/info/rt-@ID@"
+
+
+def test_the_alternates_hardlink_makes_a_new_name_in_objects_info(rows) -> None:
+    """An empty alternates can already be there (the sandbox's placeholder): ln onto it says `File exists`, which
+    proves nothing; a new name in the same folder meets the mount."""
+    r = next(r for r in rows if r["id"] == "write-alternates-hardlink")
+    assert r["command"].endswith("ln -- @WT@/.rt-@ID@-src @GIT@/objects/info/rt-@ID@")
+    assert r["creates"] == "@GIT@/objects/info/rt-@ID@"
+
+
+def under(p: str, root: str) -> bool:
+    return p != root and p.startswith(root.rstrip("/") + "/")
+
+
+def test_mask_rows_write_where_the_container_sees_each_mount(tmp_path: Path) -> None:
+    """The gitleaks config's mount comes from the share and lands in the main checkout's path: its row writes the
+    container's path, which the host's path isn't."""
+    wt, repo = tmp_path / "wt", tmp_path / "repo"
+    (wt / "tools/gates").mkdir(parents=True)
+    (wt / "CLAUDE.md").write_text("x")
+    (wt / ".gitleaks.toml").write_text("x")
+    (repo / ".git/objects/info").mkdir(parents=True)
+    gate = tmp_path / "share/gate"
+    gate.mkdir(parents=True)
+    (gate / "gitleaks.toml").write_text("x")
+    same = lambda p: (str(p), str(p), "ro")
+    pre = [
+        (str(wt), str(wt), "rw"),
+        same(repo / ".git"),
+        same(repo / ".git/objects/info"),
+        same(wt / "CLAUDE.md"),
+        same(wt / ".gitleaks.toml"),
+        same(wt / "tools/gates"),
+        (str(gate / "gitleaks.toml"), str(repo / ".gitleaks.toml"), "ro"),
+    ]
+    got = rehearse.mask_rows(pre, str(wt), str(repo), under)
+    by_id = {r["id"]: r for r in got}
+    assert len(by_id) == len(got) == 5
+    assert by_id["mask-main-gitleaks-toml"]["command"] == f": >> {repo}/.gitleaks.toml"
+    assert by_id["mask-main-gitleaks-toml"]["creates"] == ""
+    assert by_id["mask-gitleaks-toml"]["command"] == f": >> {wt}/.gitleaks.toml"
+    assert by_id["mask-claude-md"]["command"] == f": >> {wt}/CLAUDE.md"
+    assert (
+        by_id["mask-git-objects-info"]["command"]
+        == f": >> {repo}/.git/objects/info/.rt-mask"
+    )
+    assert (
+        by_id["mask-git-objects-info"]["creates"]
+        == f"{repo}/.git/objects/info/.rt-mask"
+    )
+    assert by_id["mask-tools-gates"]["creates"] == f"{wt}/tools/gates/.rt-mask"
+    for r in got:
+        assert r["role"] == "ops" and r["layer"] == "ro-mount" and r["rehearsal"], r[
+            "id"
+        ]

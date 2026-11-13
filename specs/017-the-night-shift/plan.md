@@ -269,7 +269,7 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 
 ## §6 The install-and-rehearse script
 
-`deploy/night-shift/install.sh SHA [--undo | [--branch <name>] [--disk-floor <GB>]]` (contracts/install.md; `--disk-floor`, 5 to 15, lowers the 15 GB disk floor for that one run only, and nights keep 15 GB: the Author's choice on 2026-11-12, so the install could run without a WSL shutdown while sessions were working), run after a guard on SHA as `bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"`.
+`deploy/night-shift/install.sh SHA [--undo | [--branch <name>] [--disk-floor <GB>] [--rehearse <steps>]]` (contracts/install.md; the options in any order, each once; `--disk-floor`, 5 to 15, lowers the 15 GB disk floor for that one run only, and nights keep 15 GB: the Author's choice on 2026-11-12, so the install could run without a WSL shutdown while sessions were working; `--rehearse`, such as `R4` or `R3,R4`, runs only those rehearsal steps for a change that touches only them, names the rest as not run, and keeps no rehearsed record, so the main pass runs R1 to R4: the Author's choice on 2026-11-13), run after a guard on SHA as `bash <(git show "$sha:deploy/night-shift/install.sh") "$sha"`.
 
 | Step | What | Stops if |
 |---|---|---|
