@@ -326,24 +326,57 @@ def test_a_service_missing_from_every_sample_is_named_never_counted_zero() -> No
 # --- The run's plumbing ------------------------------------------------------------------------------------------------
 
 
+# deploy/compose.yaml's memory limits on the five, in MiB, as docker stats reports each container's: 528 MiB together.
+LIMITS = {
+    "tunnel-end": 32,
+    "relay": 96,
+    "snapshot-sink": 48,
+    "tunnel-end-collector": 96,
+    "shared-state": 256,
+}
+LOAD_LINE = json.dumps(
+    {
+        "h4_measure_load": 1,
+        "hello": {"200": 300},
+        "status": {"200": 60},
+        "part": {"202": 5},
+    }
+)
+
+
 class Runner:
-    def __init__(self, fail_on: str | None = None) -> None:
+    def __init__(
+        self,
+        fail_on: str | None = None,
+        fail_times: int | None = None,
+        events: list[str] | None = None,
+        load_line: str = LOAD_LINE,
+    ) -> None:
         self.calls: list[list[str]] = []
         self.stdins: list[str | None] = []
+        self.timeouts: list[float] = []
         self.fail_on = fail_on
+        self.fail_times = fail_times
         self.env_files: list[Path] = []
+        self.events = events if events is not None else []
+        self.load_line = load_line
 
     def __call__(
         self, argv: list[str], stdin: str | None = None, timeout: float = 120
     ) -> tuple[int, str, str]:
         self.calls.append(list(argv))
         self.stdins.append(stdin)
+        self.timeouts.append(timeout)
         if "--env-file" in argv:
             path = Path(argv[argv.index("--env-file") + 1])
             self.env_files.append(path)
             assert path.is_file()
         joined = " ".join(argv)
-        if self.fail_on and self.fail_on in joined:
+        self.events.append(f"run {joined}")
+        failing = self.fail_on is not None and self.fail_on in f" {joined} "
+        if failing and (self.fail_times is None or self.fail_times > 0):
+            if self.fail_times is not None:
+                self.fail_times -= 1
             return 1, "", "failed"
         if " stats " in f" {joined} ":
             return (
@@ -352,28 +385,17 @@ class Runner:
                     json.dumps(
                         {
                             "Name": f"h4reet-measure-tunnel-end-{s}-1",
-                            "MemUsage": "10MiB / 1GiB",
+                            "MemUsage": f"10MiB / {LIMITS[s]}MiB",
                         }
                     )
                     for s in FIVE
                 ),
                 "",
             )
-        if "system df" in joined:
-            return (
-                0,
-                json.dumps(
-                    {
-                        "Volumes": [
-                            {
-                                "Name": "h4reet-measure-tunnel-end_measure-shared-state-data",
-                                "Size": "48MB",
-                            }
-                        ]
-                    }
-                ),
-                "",
-            )
+        if " du " in f" {joined} ":
+            return 0, "49152\t/var/lib/postgresql/data\n", ""
+        if argv[:2] == ["docker", "logs"]:
+            return 0, f"starting\n{self.load_line}\n", ""
         if " ps " in f" {joined} ":
             return (
                 0,
@@ -404,18 +426,36 @@ class Clock:
         self.t += seconds
 
 
-def run(te, runner: Runner, tmp_path: Path, minutes: int = 5):
-    clock = Clock()
-    said: list[str] = []
-    ctx = te.Context(
-        tree=REPO,
-        minutes=minutes,
-        run=runner,
-        clock=clock,
-        sleep=clock.sleep,
-        say=said.append,
-        scratch_root=tmp_path,
-    )
+def context(te, runner: Runner, tmp_path: Path, minutes: int = 5, **extra):
+    """A Context on a fake clock. The monotonic clock is passed only when the Context has one, so a test of an older
+    harness reaches its own assertion rather than a TypeError."""
+    clock = extra.pop("clock", None) or Clock()
+    sleep = extra.pop("sleep", None) or clock.sleep
+    said: list[str] = extra.pop("said", None) or []
+    fields = te.Context.__dataclass_fields__
+    kwargs = {
+        "tree": REPO,
+        "minutes": minutes,
+        "run": runner,
+        "clock": clock,
+        "sleep": sleep,
+        "say": said.append,
+        "scratch_root": tmp_path,
+    }
+    if "monotonic" in fields:
+        kwargs["monotonic"] = extra.pop("monotonic", clock)
+    else:
+        extra.pop("monotonic", None)
+    if "hold_signals" in fields:
+        kwargs["hold_signals"] = extra.pop("hold_signals", lambda: None)
+    else:
+        extra.pop("hold_signals", None)
+    kwargs.update(extra)
+    return te.Context(**kwargs), said
+
+
+def run(te, runner: Runner, tmp_path: Path, minutes: int = 5, **extra):
+    ctx, said = context(te, runner, tmp_path, minutes, **extra)
     return te.measure(ctx), said
 
 
@@ -430,7 +470,9 @@ def test_the_run_keeps_its_stand_in_secrets_in_a_temporary_folder_and_removes_th
         assert path.is_relative_to(tmp_path)
         assert "deploy/env" not in str(path) and ".config" not in str(path)
         assert not path.exists()
-    assert record["type"] == "t4g.micro"
+    # The peaks (50 MiB together) fit t4g.micro; the five's limits (528 MiB) need t4g.small, and the larger stands
+    # (the safety review's nit 5).
+    assert record["type"] == "t4g.small"
     stand_in_values = set()
     for stdin in runner.stdins:
         if stdin:
@@ -465,6 +507,198 @@ def test_the_run_names_its_five_services_and_the_stub_and_no_other(
     named = [a for a in up if a in (*FIVE, "measure-host")]
     assert sorted(named) == sorted((*FIVE, "measure-host"))
     assert set(te.SERVICES) == {*FIVE, "measure-host"}
+
+
+# --- The safety review's nits (the note's "T166's harness, and the final review") ----------------------------------------
+
+
+def test_the_overlay_never_restarts_the_five_after_the_run() -> None:
+    # Nit 1: the base's `restart: unless-stopped` would bring an interrupted measurement back at the engine's next start.
+    services = overlay()["services"]
+    for name in FIVE:
+        assert services[name].get("restart") == "no", name
+
+
+def test_cleanup_holds_the_signals_and_takes_the_project_down_even_when_saying_so_fails(
+    tmp_path: Path,
+) -> None:
+    # Nit 1: a second Ctrl-C, a closed terminal's SIGHUP, or its EIO on print must not stop the down.
+    te = _te()
+    events: list[str] = []
+    runner = Runner(events=events)
+
+    def say(text: str) -> None:
+        if "taking" in text:
+            raise OSError(5, "Input/output error")
+
+    try:
+        run(
+            te,
+            runner,
+            tmp_path,
+            say=say,
+            hold_signals=lambda: events.append("hold"),
+        )
+    except OSError:
+        pass  # the harness as it was: the failed print ended the cleanup; the assertions below say so
+    downs = [i for i, e in enumerate(events) if " down " in f"{e} "]
+    assert downs, events
+    assert "hold" in events and events.index("hold") < downs[-1]
+
+
+def test_the_default_hold_ignores_sigint_sigterm_and_sighup() -> None:
+    import signal
+
+    te = _te()
+    sigs = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    saved = {sig: signal.getsignal(sig) for sig in sigs}
+    try:
+        te.hold_signals()
+        for sig in sigs:
+            assert signal.getsignal(sig) is signal.SIG_IGN, sig
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+@pytest.mark.parametrize("failing", [" ps ", " stats "])
+def test_a_failed_sample_is_skipped_and_counted_not_fatal(
+    tmp_path: Path, failing: str
+) -> None:
+    # Nit 2: one transient docker failure no longer throws the run away.
+    te = _te()
+    runner = Runner(fail_on=failing, fail_times=2)
+    record, _said = run(te, runner, tmp_path)
+    assert record["failed_samples"] == 2
+    assert record["samples"] == 5 * 60 // te.INTERVAL_S - 2
+    assert record["type"] is not None
+
+
+def test_the_data_volume_is_read_from_the_projects_own_volume_alone(
+    tmp_path: Path,
+) -> None:
+    # Nit 2: never `docker system df -v`, which sizes every volume on the engine, prod's among them.
+    te = _te()
+    runner = Runner()
+    record, _said = run(te, runner, tmp_path)
+    assert not [c for c in runner.calls if "system" in c and "df" in c]
+    (du,) = [c for c in runner.calls if "du" in c]
+    assert te.STORE_CONTAINER in du and "/var/lib/postgresql/data" in du
+    assert record["data_volume_mib"] == 48.0
+
+
+def test_a_failed_volume_read_is_said_and_the_peaks_kept(tmp_path: Path) -> None:
+    te = _te()
+    runner = Runner(fail_on=" du ")
+    record, _said = run(te, runner, tmp_path)
+    assert record["data_volume_mib"] is None
+    assert record["peak_mib"] and record["type"] is not None
+    assert "data volume after the run: not read" in "\n".join(te.block(record))
+
+
+def test_the_load_is_given_its_grace_before_its_counts_are_read(tmp_path: Path) -> None:
+    # Nit 3: a hello in flight at the deadline can hold the load's JSON line back.
+    te = _te()
+    runner = Runner()
+    record, _said = run(te, runner, tmp_path)
+    waits = [i for i, c in enumerate(runner.calls) if c[:2] == ["docker", "wait"]]
+    logs = [i for i, c in enumerate(runner.calls) if c[:2] == ["docker", "logs"]]
+    assert waits and logs and waits[0] < logs[0]
+    assert te.LOAD_CONTAINER in runner.calls[waits[0]]
+    assert runner.timeouts[waits[0]] >= te.GRACE_S
+    assert record["load"]["hello"] == {"200": 300}
+
+
+def test_missing_load_counts_are_said(tmp_path: Path) -> None:
+    te = _te()
+    runner = Runner(load_line="")
+    record, _said = run(te, runner, tmp_path)
+    assert "load counts not read" in "\n".join(te.block(record))
+
+
+def test_the_sampling_window_is_kept_by_the_monotonic_clock(tmp_path: Path) -> None:
+    # Nit 4: the wall clock steps back on this WSL host; the window must not grow with it.
+    te = _te()
+
+    class Wall:
+        def __init__(self, mono: Clock) -> None:
+            self.mono = mono
+            self.calls = 0
+
+        def __call__(self) -> float:
+            self.calls += 1
+            back = 3600.0 if self.calls > 3 else 0.0
+            return self.mono.t - back
+
+    mono = Clock()
+    wall = Wall(mono)
+    record, _said = run(
+        te, Runner(), tmp_path, clock=wall, sleep=mono.sleep, monotonic=mono
+    )
+    assert record["samples"] == 5 * 60 // te.INTERVAL_S
+
+
+def test_the_record_names_the_limits_and_the_larger_of_the_two_types() -> None:
+    # Nit 5: the five's limits (528 MiB) with the OS's and Docker's 512 MiB need t4g.small, though the peaks fit
+    # t4g.micro; the type the block recommends is the larger.
+    te = _te()
+    record = te.record_of(
+        samples(),
+        volume_bytes=48 * MIB,
+        minutes=30,
+        per_minute=60,
+        started=1_800_000_000.0,
+        ended=1_800_001_800.0,
+        limits={k: v * MIB for k, v in LIMITS.items()},
+    )
+    assert record["limits_total_mib"] == 528.0
+    assert record["type_by_peaks"] == "t4g.micro"
+    assert record["type_by_limits"] == "t4g.small"
+    assert record["type"] == "t4g.small"
+    text = "\n".join(te.block(record))
+    assert "528.0 MiB" in text and "t4g.small" in text and "t4g.micro" in text
+    assert "h4-snapshot-sink.service" in text and "h4-shared-state-backup.timer" in text
+    assert "not counted" in text
+
+
+def test_the_larger_type_is_the_peaks_when_they_pass_the_limits() -> None:
+    te = _te()
+    big = [{k: 600 * MIB for k in FIVE}]
+    record = te.record_of(
+        big,
+        volume_bytes=None,
+        minutes=5,
+        per_minute=60,
+        started=0.0,
+        ended=300.0,
+        limits={k: v * MIB for k, v in LIMITS.items()},
+    )
+    assert record["type_by_peaks"] == "t4g.large"
+    assert record["type"] == "t4g.large"
+
+
+def test_the_run_reads_each_services_limit_from_docker_stats(tmp_path: Path) -> None:
+    te = _te()
+    record, _said = run(te, Runner(), tmp_path)
+    assert record["limits_mib"] == {k: float(v) for k, v in LIMITS.items()}
+    assert record["limits_total_mib"] == 528.0
+
+
+def test_the_longest_run_stays_under_the_stand_in_daily_cap() -> None:
+    # Nit 7: past about 133 minutes each of the load's addresses passes the stand-in's requests a day, and the relay
+    # answers 429.
+    te = _te()
+    spec = importlib.util.spec_from_file_location(
+        "h4_measure_load", MEASURE / "load_tunnel_end.py"
+    )
+    assert spec and spec.loader
+    load = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(load)
+    per_day = yaml.safe_load(STAND_IN.read_text(encoding="utf-8"))["public"][
+        "per_address"
+    ]["requests_per_day"]
+    per_minute = te.metered_per_minute(REPO)
+    assert te.MAX_MINUTES * per_minute < len(load.ADDRESSES) * per_day
 
 
 # --- make measure-tunnel-end ------------------------------------------------------------------------------------------
