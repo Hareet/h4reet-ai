@@ -1074,7 +1074,8 @@ def test_end_to_end_refusals(tree: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert cp.run(tree) == 1
     out = capsys.readouterr().out
     assert (
-        "FAIL deploy/compose.yaml service gateway-state: networks: only gateway, tunnel, tunnel-end-collector join "
+        "FAIL deploy/compose.yaml service gateway-state: networks: only ec2-snapshot-publisher, gateway, tunnel, "
+        "tunnel-end-collector join "
         "egress" in out
     )
     assert "FAIL deploy/stray.env: env file" in out
@@ -1775,3 +1776,104 @@ def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
     assert ("dev-relay", "ports") in {
         (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
     }
+
+
+# Spec 001 group 10 (its contracts/public-view.md §1 and §2): the tunnel end's sink, on the edge network, publishing
+# exactly 10.42.1.10:2301 in the tunnel end's class alone; EC2's publisher, on egress, in EC2's class alone; both by the
+# release's own image, h4reet/snapshot by its digest; and the laptop's publisher, built from the tree, on internal.
+SNAPSHOT_IMAGE = (
+    "${H4_REGISTRY:-registry.invalid}/h4reet/snapshot@${H4_DIGEST_SNAPSHOT:-}"
+)
+
+
+def snapshot_model() -> dict:
+    model = relay_model()
+    model["services"]["snapshot-sink"] = service(
+        profiles=["tunnel-end"],
+        image=SNAPSHOT_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=["10.42.1.10:2301:8080"],
+    )
+    model["services"]["ec2-snapshot-publisher"] = service(
+        profiles=["ec2"],
+        image=SNAPSHOT_IMAGE,
+        networks={"internal": None, "egress": None},
+    )
+    model["services"]["snapshot-publisher"] = service(
+        profiles=["tunnel"],
+        build={"context": "tunnel"},
+    )
+    return model
+
+
+SNAPSHOT_DISCLOSED = RELAY_DISCLOSED | {
+    "snapshot-sink",
+    "ec2-snapshot-publisher",
+    "snapshot-publisher",
+}
+
+
+def snapshot_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, SNAPSHOT_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_public_views_services_pass(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert snapshot_rules(snapshot_model(), tmp_path) == set()
+
+
+def test_the_sink_publishes_exactly_2301_on_the_private_address_in_the_tunnel_ends_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["0.0.0.0:2301:8080"],
+        ["10.42.0.10:2301:8080"],
+        ["10.42.1.10:2301:8080", "127.0.0.1:18506:8080"],
+        ["10.42.1.10:8080:8080"],
+    ):
+        model = snapshot_model()
+        model["services"]["snapshot-sink"]["ports"] = ports
+        assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path), ports
+    model = snapshot_model()
+    model["services"]["snapshot-sink"]["profiles"] = ["tunnel-end", "tunnel"]
+    assert ("snapshot-sink", "ports") in snapshot_rules(model, tmp_path)
+
+
+def test_the_public_views_cloud_services_run_the_releases_image(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for name in ("snapshot-sink", "ec2-snapshot-publisher"):
+        model = snapshot_model()
+        model["services"][name]["image"] = (
+            "ghcr.io/someone/snapshot:1@sha256:" + "0" * 64
+        )
+        assert (name, "image") in snapshot_rules(model, tmp_path), name
+
+
+def test_only_ec2s_publisher_joins_egress_and_the_sink_alone_the_edge_network(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = snapshot_model()
+    model["services"]["snapshot-publisher"]["networks"] = {
+        "internal": None,
+        "egress": None,
+    }
+    assert ("snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["snapshot-sink"]["networks"] = {
+        "internal": None,
+        "edge": None,
+        "egress": None,
+    }
+    assert ("snapshot-sink", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["ec2-snapshot-publisher"]["networks"] = {
+        "internal": None,
+        "edge": None,
+    }
+    assert ("ec2-snapshot-publisher", "networks") in snapshot_rules(model, tmp_path)
+    model = snapshot_model()
+    model["services"]["snapshot-publisher"]["ports"] = ["127.0.0.1:2301:8080"]
+    assert ("snapshot-publisher", "ports") in snapshot_rules(model, tmp_path)

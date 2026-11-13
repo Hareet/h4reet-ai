@@ -103,14 +103,27 @@ EGRESS_SERVICE = "gateway"
 # tunnel, which dials the tunnel end, and the tunnel end's collector, which exports to EC2's inside the VPC (its host's
 # nftables keep both there). The edge network's other one: the tunnel end's sshd, since a port can't be published from
 # internal alone.
-EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
+# From group 10, EC2's publisher of the public view, which posts to the tunnel end's sink inside the VPC (its
+# contracts/public-view.md §1); EC2's nftables keep it there.
+EGRESS_SERVICES = frozenset(
+    {EGRESS_SERVICE, "tunnel", "tunnel-end-collector", "ec2-snapshot-publisher"}
+)
 # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
 # state.md §1).
 # From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
 # From group 8, the tunnel end's relay, which publishes its edge listener on the private interface (its contracts/
 # relay-http.md §1).
+# From group 10, the tunnel end's public view sink, which publishes its port for EC2's publisher on the private
+# interface (its contracts/public-view.md §2).
 EDGE_NETWORK_SERVICES = frozenset(
-    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay"}
+    {
+        PUBLISHER,
+        "tunnel-end",
+        "shared-state",
+        "ec2-relay-block",
+        "relay",
+        "snapshot-sink",
+    }
 )
 # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
 CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
@@ -130,6 +143,9 @@ CLOUD_PORTS = {
     # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
     # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
     "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
+    # Group 10: the public view's sink, for EC2's publisher, on the private interface's fixed address, which the
+    # security group holds to EC2's group; the laptop's reaches it through the tunnel, on internal.
+    "snapshot-sink": frozenset({("10.42.1.10", "2301", 8080)}),
 }
 # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
 # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
@@ -149,8 +165,14 @@ SERVICE_BINDS: dict[str, dict[str, bool]] = {
 # release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
 # line of the service it copies, by the repository's name.
 REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
-# Group 8: the relay, which the release builds too.
-RELEASE_IMAGES = {"tunnel-end": "tunnel", "relay": "relay"}
+# Group 8: the relay, which the release builds too. Group 10: the public view's image, one build for the tunnel end's
+# sink and EC2's publisher.
+RELEASE_IMAGES = {
+    "tunnel-end": "tunnel",
+    "relay": "relay",
+    "snapshot-sink": "snapshot",
+    "ec2-snapshot-publisher": "snapshot",
+}
 UPSTREAM_COPIES = {
     "tunnel-end-collector": "otel-collector",
     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
