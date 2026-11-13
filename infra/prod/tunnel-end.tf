@@ -19,23 +19,38 @@ locals {
   # ignores the user data's drift, and is replaced when terraform_data.tunnel_end_host, its SHA-256, changes (group 5's
   # review, I3; docs/runbooks/tunnel-end.md).
   host_files = {
-    "/etc/h4reet/nftables.nft"                                     = { source = "deploy/hosts/tunnel-end/nftables.nft", mode = "0600" }
-    "/etc/h4reet/egress-allowlist.txt"                             = { source = "deploy/hosts/tunnel-end/egress-allowlist.txt", mode = "0644" }
-    "/etc/h4reet/tunnel-end.env.example"                           = { source = "deploy/hosts/tunnel-end/tunnel-end.env.example", mode = "0644" }
-    "/etc/docker/daemon.json"                                      = { source = "deploy/hosts/tunnel-end/daemon.json", mode = "0644" }
-    "/etc/systemd/system/h4-nftables.service"                      = { source = "deploy/hosts/tunnel-end/systemd/h4-nftables.service", mode = "0644" }
-    "/etc/systemd/system/h4-egress-proxy.service"                  = { source = "deploy/hosts/tunnel-end/systemd/h4-egress-proxy.service", mode = "0644" }
-    "/etc/systemd/system/h4-write-env.service"                     = { source = "deploy/hosts/tunnel-end/systemd/h4-write-env.service", mode = "0644" }
-    "/etc/systemd/system/h4-stack.service"                         = { source = "deploy/hosts/tunnel-end/systemd/h4-stack.service", mode = "0644" }
-    "/etc/systemd/system/h4-deployer.service"                      = { source = "deploy/hosts/tunnel-end/systemd/h4-deployer.service", mode = "0644" }
-    "/etc/systemd/system/h4-deployer.timer"                        = { source = "deploy/hosts/tunnel-end/systemd/h4-deployer.timer", mode = "0644" }
-    "/etc/systemd/system/h4-tunnel-restart.service"                = { source = "deploy/hosts/tunnel-end/systemd/h4-tunnel-restart.service", mode = "0644" }
-    "/etc/systemd/system/amazon-ssm-agent.service.d/h4-proxy.conf" = { source = "deploy/hosts/tunnel-end/systemd/amazon-ssm-agent-proxy.conf", mode = "0644" }
-    "/etc/systemd/network/70-ens6.network.d/h4-public-first.conf"  = { source = "deploy/hosts/tunnel-end/networkd/h4-public-first.conf", mode = "0644" }
-    "/opt/h4reet/deploy/scripts/write_env.py"                      = { source = "deploy/scripts/write_env.py", mode = "0755" }
-    "/opt/h4reet/deploy/scripts/egress_proxy.py"                   = { source = "deploy/scripts/egress_proxy.py", mode = "0755" }
-    "/opt/h4reet/deploy/scripts/deploy_first_step.py"              = { source = "deploy/scripts/deploy_first_step.py", mode = "0755" }
+    "/etc/h4reet/nftables.nft"                                       = { source = "deploy/hosts/tunnel-end/nftables.nft", mode = "0600" }
+    "/etc/h4reet/egress-allowlist.txt"                               = { source = "deploy/hosts/tunnel-end/egress-allowlist.txt", mode = "0644" }
+    "/etc/h4reet/tunnel-end.env.example"                             = { source = "deploy/hosts/tunnel-end/tunnel-end.env.example", mode = "0644" }
+    "/etc/docker/daemon.json"                                        = { source = "deploy/hosts/tunnel-end/daemon.json", mode = "0644" }
+    "/etc/systemd/system/h4-nftables.service"                        = { source = "deploy/hosts/tunnel-end/systemd/h4-nftables.service", mode = "0644" }
+    "/etc/systemd/system/h4-egress-proxy.service"                    = { source = "deploy/hosts/tunnel-end/systemd/h4-egress-proxy.service", mode = "0644" }
+    "/etc/systemd/system/h4-write-env.service"                       = { source = "deploy/hosts/tunnel-end/systemd/h4-write-env.service", mode = "0644" }
+    "/etc/systemd/system/h4-stack.service"                           = { source = "deploy/hosts/tunnel-end/systemd/h4-stack.service", mode = "0644" }
+    "/etc/systemd/system/h4-deployer.service"                        = { source = "deploy/hosts/tunnel-end/systemd/h4-deployer.service", mode = "0644" }
+    "/etc/systemd/system/h4-deployer.timer"                          = { source = "deploy/hosts/tunnel-end/systemd/h4-deployer.timer", mode = "0644" }
+    "/etc/systemd/system/h4-tunnel-restart.service"                  = { source = "deploy/hosts/tunnel-end/systemd/h4-tunnel-restart.service", mode = "0644" }
+    "/etc/systemd/system/amazon-ssm-agent.service.d/h4-proxy.conf"   = { source = "deploy/hosts/tunnel-end/systemd/amazon-ssm-agent-proxy.conf", mode = "0644" }
+    "/etc/systemd/network/70-ens6.network.d/zz-h4-public-first.conf" = { source = "deploy/hosts/tunnel-end/networkd/zz-h4-public-first.conf", mode = "0644" }
+    "/etc/systemd/network/70-ens5.network.d/zz-h4-ec2-route.conf"    = { source = "deploy/hosts/tunnel-end/networkd/zz-h4-ec2-route.conf", mode = "0644" }
+    "/opt/h4reet/deploy/scripts/write_env.py"                        = { source = "deploy/scripts/write_env.py", mode = "0755" }
+    "/opt/h4reet/deploy/scripts/egress_proxy.py"                     = { source = "deploy/scripts/egress_proxy.py", mode = "0755" }
+    "/opt/h4reet/deploy/scripts/deploy_first_step.py"                = { source = "deploy/scripts/deploy_first_step.py", mode = "0755" }
   }
+  # The tunnel end's first boot, deploy/hosts/tunnel-end/cloud-init.yaml.tftpl (spec 001 FR-051, FR-076;
+  # contracts/tunnel.md §1 and §6; research.md R-10): a template this local fills with templatefile(), and the
+  # instance takes gzipped as its user data. `files` is the host's files, by their place on the host, each with its
+  # mode and its text from deploy/hosts/tunnel-end/ and deploy/scripts/ at the plan's commit; nothing in it is secret,
+  # and the secrets come from Parameter Store at each boot (h4-write-env.service). A later change to these files reaches
+  # the tunnel end only through a reviewed replace, since the instance ignores its user data's drift
+  # (docs/runbooks/tunnel-end.md).
+  #
+  # The packages come first, from Amazon Linux's own repository in the Region, before the packet filter is loaded: at
+  # the first boot only, the security group's 443 lets dnf reach it directly (disclosure row C17). Then the filter, then
+  # the egress proxy, and only then anything that sends. The way out is ens6, attached once the instance runs (B-6,
+  # option C): runcmd waits for it and its default route, then installs and loads the filter in one chain that ends the
+  # script on a failure. This comment was the template's; it lives here to keep the user data under its bound (the
+  # review of 59dfdc4a, nit 3).
   tunnel_end_user_data = templatefile("${path.module}/../../deploy/hosts/tunnel-end/cloud-init.yaml.tftpl", {
     files = { for path, f in local.host_files : path => { mode = f.mode, content = file("${path.module}/../../${f.source}") } }
   })
@@ -199,7 +214,7 @@ resource "aws_network_interface" "tunnel_end_private" {
 # The second interface, device 1: the public one. B-6, option C (the Author's answer: "We aren't building option A, we
 # went with Option C"): the private one is the instance's primary, device 0 (ec2-market.tf), so the instance sits in the
 # private subnet and CloudFront's VPC origin reaches 10.42.1.10, where the relay listens. The host's way out is this
-# interface's default route, which the user data's networkd drop-in puts first (h4-public-first.conf). Both stay
+# interface's default route, which the user data's networkd drop-in puts first (zz-h4-public-first.conf). Both stay
 # through a spot stop, and the Elastic IP with the public one, on a second interface as on a first (contracts/tunnel.md
 # §1, to confirm at T058). Attached once the instance runs, so its first boot waits for it (cloud-init.yaml.tftpl).
 resource "aws_network_interface_attachment" "tunnel_end_public" {

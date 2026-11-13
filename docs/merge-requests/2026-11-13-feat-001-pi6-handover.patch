@@ -40,6 +40,10 @@ the switch, and the log groups; P-W2 makes the rest in W2, with the functions' d
 Its checks, on a fresh export with P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-6, P-I5, P-G6, and this patch,
 in that order: infra/test (test_handover.py among them) and infra/lambdas pass with each switch off and on; `make
 infra-check`'s policy finds nothing but prod's lockfile (T10, your step since group 5); terraform fmt is clean.
+Rebuilt for T170 (the Author's answers "1b A" and "Only /status/ (Recommended)"): prod's iam.tf gains the tunnel end's
+read of EC2's hours, scheduler:GetSchedule on the two schedules' name-built ARNs, in a policy of its own,
+tunnel-end-hours, after the role's main one, so no later patch's lines move. Rebuilt from a git archive export of
+5b178699 with the branch's working files and the eleven patches before it applied, the same way, with a/ and b/ labels.
 --- a/infra/account/handover.tf
 +++ b/infra/account/handover.tf
 @@ -1,7 +1,9 @@
@@ -896,6 +900,34 @@ infra-check`'s policy finds nothing but prod's lockfile (T10, your step since gr
    }
  }
  
+@@ -193,6 +238,27 @@
+   policy = data.aws_iam_policy_document.tunnel_end.json
+ }
+ 
++# T170 (the Author's answers "1b A" and "Only /status/ (Recommended)"): EC2's hours for the public view, read from the
++# two schedules local.ec2_hours sets in the account's root, by their name-built ARNs, so that local stays their one
++# source. A read, in a policy of its own beside the role's main one.
++data "aws_iam_policy_document" "tunnel_end_hours" {
++  statement {
++    sid     = "TheHoursSchedules"
++    effect  = "Allow"
++    actions = ["scheduler:GetSchedule"]
++    resources = [
++      "arn:aws:scheduler:us-east-1:${data.aws_caller_identity.current.account_id}:schedule/default/h4-ec2-hours-open",
++      "arn:aws:scheduler:us-east-1:${data.aws_caller_identity.current.account_id}:schedule/default/h4-ec2-hours-close",
++    ]
++  }
++}
++
++resource "aws_iam_role_policy" "tunnel_end_hours" {
++  name   = "tunnel-end-hours"
++  role   = aws_iam_role.tunnel_end.id
++  policy = data.aws_iam_policy_document.tunnel_end_hours.json
++}
++
+ # ----------------------------------------------------------------------------------------------------------------------
+ # EC2's two ordinary roles (research.md R-15; group 7, P-I4). h4-prod-ec2, the instance's, for its host services through
+ # IMDSv2 alone, with one hop: the deployer's pulls and reads, write_env.py's parameters, its alerts, Session Manager, and
 --- a/specs/001-cloud-elevation/contracts/aws-alerts.md
 +++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
 @@ -27,9 +27,11 @@
