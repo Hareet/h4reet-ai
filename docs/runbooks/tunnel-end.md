@@ -96,17 +96,21 @@ An instance that is gone, or a root volume that won't boot: your prod plan shows
 
 ### The interfaces and the way out (T058)
 
-B-6, option C (contracts/tunnel.md §1): the private interface, `10.42.1.10`, is device 0, and the public one, `10.42.0.10` with the Elastic IP, device 1, attached once the instance runs. The first boot waits up to 5 minutes for the public interface, and as long again for its default route, before `dnf` runs. Once the first boot is done, in a `make cloud-session HOST=tunnel-end PROFILE=h4reet-admin` session:
+B-6, option C (contracts/tunnel.md §1): the private interface, `10.42.1.10`, is device 0, and the public one, `10.42.0.10` with the Elastic IP, device 1, attached once the instance runs. The first boot waits up to 5 minutes for the public interface, and as long again for its default route, before `dnf` runs. Once the first boot is done, in a shell on the tunnel end (`aws ssm start-session --profile h4reet-admin --region us-east-1 --target "$id"`, with `id` as at the top of "Act"):
 
 ```bash
 ip -br -4 addr
-ip -4 route show default
+ip -4 route
 ip -4 route get 192.0.2.1
+cloud-init status --long
 ```
 
-- `ens5` holds `10.42.1.10` and `ens6` holds `10.42.0.10`. If the names differ, nftables' `iifname` lines (`deploy/hosts/tunnel-end/nftables.nft`) and the drop-in's directory (`70-ens6.network.d`) are wrong: record the names; the fix is a reviewed host-file change, which replaces the tunnel end.
-- Two default routes: `ens6`'s at metric 100, from `h4-public-first.conf`, and `ens5`'s at amazon-ec2-net-utils' own, 512 for device 0. Another figure for `ens5` changes nothing while `ens6`'s is lower; record it.
+- `ens5` holds `10.42.1.10` and `ens6` holds `10.42.0.10`. If the names differ, nftables' `iifname` lines (`deploy/hosts/tunnel-end/nftables.nft`) and the drop-ins' directories (`70-ens6.network.d`, `70-ens5.network.d`) are wrong: record the names; the fix is a reviewed host-file change, which replaces the tunnel end.
+- Two default routes: `ens6`'s at metric 100, from `zz-h4-public-first.conf`, and `ens5`'s at amazon-ec2-net-utils' own, 512 for device 0: this confirms the 512, or records the figure it is. Another figure for `ens5` changes nothing while `ens6`'s is lower.
+- A host route, `10.42.0.20 via 10.42.1.1 dev ens5`, from `zz-h4-ec2-route.conf`: EC2's replies leave by the interface they came in on (the review of 59dfdc4a, I1).
 - `route get` names `dev ens6`: the host's way out is the public interface.
+- `cloud-init status --long` reads `status: done`, with no error.
+- From EC2, in a shell on it (the same `start-session`, with `id` found by `Name=tag:Name,Values=h4-prod-ec2`), inside its hours: `pg_isready -h 10.42.1.10` answers `accepting connections`, and a request to the sink, `python3 -c "import socket; socket.create_connection(('10.42.1.10', 2301), 5)"`, connects (where the host has no `pg_isready`, the same `python3` line on port 5432 stands in). A timeout on either is the reply leaving by the wrong interface: check the host route above.
 - If the first boot timed out (`/var/log/cloud-init-output.log` shows `dnf` failing), the public interface wasn't attached or had no route: check the attachment in the console, then replace the tunnel end.
 
 ### A spot interruption
@@ -115,7 +119,7 @@ ip -4 route get 192.0.2.1
 
 ### An OS update, or a changed host file
 
-Nothing on the tunnel end updates itself: after its first boot nftables keeps `dnf` from Amazon Linux's repository, and the instance ignores its image's and its user data's drift. Both reach it as a replace your prod plan shows. A changed host file the user data carries (`local.host_files` in `infra/prod/tunnel-end.tf`: the boot's files under `deploy/hosts/tunnel-end/`, and `write_env.py`, `egress_proxy.py`, and `deploy_first_step.py`) changes `terraform_data.tunnel_end_host`'s SHA-256, so the plan replaces the tunnel end with it. The release tree's parts aren't among them: the deployer itself runs from the release's tree, by the first step, and `shared_state.py` and `deploy/hosts/tunnel-end/release/` come by the deployer's host step, so each changes with a release, with no replace. For an OS update, a reviewed change adds one to `local.tunnel_end_generation` in `infra/prod/tunnel-end.tf`; the plan replaces the tunnel end on the newest Amazon Linux 2023 image. Either way, read the block for the instance replaced and nothing else of the tunnel end's: its interfaces, its Elastic IP, and the shared state's data volume stay and attach to the new instance. While it boots the site rests, as at a spot interruption, and its deployer then takes the newest release.
+Nothing on the tunnel end updates itself: after its first boot nftables keeps `dnf` from Amazon Linux's repository, and the instance ignores its image's and its user data's drift. Both reach it as a replace your prod plan shows. A changed host file the user data carries (`local.host_files` in `infra/prod/tunnel-end.tf`: the boot's files under `deploy/hosts/tunnel-end/`, and `write_env.py`, `egress_proxy.py`, and `deploy_first_step.py`) changes `terraform_data.tunnel_end_host`'s SHA-256, so the plan replaces the tunnel end with it. The release tree's parts aren't among them: the deployer itself runs from the release's tree, by the first step, and `shared_state.py` and `deploy/hosts/tunnel-end/release/` come by the deployer's host step, so each changes with a release, with no replace. For an OS update, a reviewed change adds one to `local.tunnel_end_generation` in `infra/prod/tunnel-end.tf`; the plan replaces the tunnel end on the newest Amazon Linux 2023 image. Either way, read the block for the instance replaced and nothing else of the tunnel end's: its interfaces, its Elastic IP, and the shared state's data volume stay and attach to the new instance. While it boots the site rests, as at a spot interruption, and its deployer then takes the newest release. **Watch the VPC origin** (the review of 59dfdc4a, nit 5): a replace changes `aws_cloudfront_vpc_origin.relay`'s target ARN, and once W2's distribution uses the origin, that may plan as the origin's replace, about 15 minutes, or be refused while in use. If the plan shows it, record it and ask before the apply.
 
 ### A move to another zone
 
