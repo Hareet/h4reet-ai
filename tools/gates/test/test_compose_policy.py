@@ -1696,3 +1696,82 @@ def test_the_shared_state_never_joins_egress(tmp_path: Path) -> None:
     model = shared_model()
     model["services"]["shared-state"]["networks"] = {"internal": None, "egress": None}
     assert ("shared-state", "networks") in shared_rules(model, tmp_path)
+
+
+# Spec 001 group 8 (its contracts/relay-http.md §1): the tunnel end's relay, on the edge network, publishing exactly its
+# edge listener on the private interface's fixed address and its internal listener on the tunnel end's loopback, in
+# the tunnel end's class alone, with the release's image by its digest; and dev-relay, built from the tree, on internal.
+RELAY_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}"
+
+
+def relay_model() -> dict:
+    model = ec2_model()
+    model["services"]["relay"] = service(
+        profiles=["tunnel-end"],
+        image=RELAY_IMAGE,
+        networks={"internal": None, "edge": None},
+        ports=["10.42.1.10:8080:8080", "127.0.0.1:18505:8081"],
+    )
+    return model
+
+
+RELAY_DISCLOSED = EC2_DISCLOSED | {"relay"}
+
+
+def relay_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
+    found = cp.check_model(model, CLOUD_LOCK, tree, RELAY_DISCLOSED)
+    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
+
+
+def test_the_relay_passes(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    assert relay_rules(relay_model(), tmp_path) == set()
+
+
+def test_the_relay_publishes_exactly_its_two_listeners_in_the_tunnel_ends_class_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    for ports in (
+        ["10.42.1.10:8080:8080"],
+        ["0.0.0.0:8080:8080", "127.0.0.1:18505:8081"],
+        ["10.42.0.10:8080:8080", "127.0.0.1:18505:8081"],
+        ["10.42.1.10:8080:8080", "0.0.0.0:18505:8081"],
+        ["10.42.1.10:8080:8080", "127.0.0.1:18505:8081", "10.42.1.10:8082:8082"],
+    ):
+        model = relay_model()
+        model["services"]["relay"]["ports"] = ports
+        assert ("relay", "ports") in relay_rules(model, tmp_path), ports
+    model = relay_model()
+    model["services"]["relay"]["profiles"] = ["tunnel-end", "dev-relay"]
+    assert ("relay", "ports") in relay_rules(model, tmp_path)
+
+
+def test_the_relay_runs_the_releases_image_and_joins_no_egress(tmp_path: Path) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = relay_model()
+    model["services"]["relay"]["image"] = "ghcr.io/someone/relay:1@sha256:" + "0" * 64
+    assert ("relay", "image") in relay_rules(model, tmp_path)
+    model = relay_model()
+    model["services"]["relay"]["networks"] = {
+        "internal": None,
+        "edge": None,
+        "egress": None,
+    }
+    assert ("relay", "networks") in relay_rules(model, tmp_path)
+
+
+def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
+    model = relay_model()
+    model["services"]["dev-relay"] = service(
+        profiles=["dev-relay"],
+        build={"context": "tunnel"},
+        ports=["127.0.0.1:18505:8081"],
+    )
+    found = cp.check_model(model, CLOUD_LOCK, tmp_path, RELAY_DISCLOSED | {"dev-relay"})
+    assert ("dev-relay", "ports") in {
+        (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
+    }

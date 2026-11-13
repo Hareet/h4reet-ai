@@ -107,8 +107,10 @@ EGRESS_SERVICES = frozenset({EGRESS_SERVICE, "tunnel", "tunnel-end-collector"})
 # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
 # state.md §1).
 # From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
+# From group 8, the tunnel end's relay, which publishes its edge listener on the private interface (its contracts/
+# relay-http.md §1).
 EDGE_NETWORK_SERVICES = frozenset(
-    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block"}
+    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay"}
 )
 # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
 CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
@@ -125,6 +127,9 @@ CLOUD_PORTS = {
     "ec2-relay-block": frozenset(
         {("10.42.0.20", "8085", 8085), ("10.42.0.20", "4318", 4318)}
     ),
+    # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
+    # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
+    "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
 }
 # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
 # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
@@ -144,7 +149,8 @@ SERVICE_BINDS: dict[str, dict[str, bool]] = {
 # release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
 # line of the service it copies, by the repository's name.
 REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
-RELEASE_IMAGES = {"tunnel-end": "tunnel"}
+# Group 8: the relay, which the release builds too.
+RELEASE_IMAGES = {"tunnel-end": "tunnel", "relay": "relay"}
 UPSTREAM_COPIES = {
     "tunnel-end-collector": "otel-collector",
     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
