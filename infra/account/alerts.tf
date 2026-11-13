@@ -30,15 +30,16 @@ resource "aws_sns_topic_subscription" "alert_bridge" {
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
-# The probe's schedule (FR-061): once a minute, written disabled. The line that enables it is group 8's P-I5, once the
-# site and the status request exist, with its alarm after 5 failed minutes and h4-alerts' CloudWatch publisher (plan.md
-# §16, group 4's departures). Until then the probe calls nothing (row C11).
+# The probe's schedule (FR-061): once a minute, enabled by the account's switch, local.wired, in handover.tf (group 8's
+# P-I5). W1 holds the switch off, so the schedule stays disabled until W2's apply, after prod's, has made the site and
+# the status request it checks (plan.md §16, "Why a switch", "W2's order"). Until then the probe calls nothing (row
+# C11).
 
 resource "aws_cloudwatch_event_rule" "probe" {
   name                = "h4-probe-every-minute"
-  description         = "h4-probe once a minute; enabled in group 8 (spec 001 FR-061)"
+  description         = "h4-probe once a minute, from W2 (spec 001 FR-061)"
   schedule_expression = "rate(1 minute)"
-  state               = "DISABLED"
+  state               = local.wired ? "ENABLED" : "DISABLED"
 
   tags = {
     component = "probe"
@@ -125,6 +126,33 @@ resource "aws_cloudwatch_metric_alarm" "credential_audit_errors" {
 
   tags = {
     component = "credential-audit"
+  }
+}
+
+# The probe failed for 5 minutes in a row (contracts/aws-alerts.md §5; group 4's departure 2): probe_failing, and on its
+# next pass probe_recovered. A run that didn't happen counts as a failed one, so the alarm reads missing data as
+# breaching, and so it waits behind the switch with the schedule: in W1 it would page every five minutes. It also waits
+# for the probe's function, which exists once its digest is set: an alarm on a function that isn't there would page as
+# surely (group 8's review B, nit 5).
+resource "aws_cloudwatch_metric_alarm" "probe_failing" {
+  count               = local.wired && length(aws_lambda_function.probe) > 0 ? 1 : 0
+  alarm_name          = "h4-probe-failing"
+  alarm_description   = "h4-probe failed for 5 minutes: hareet.ai or its status request isn't answering (spec 001 FR-061)"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = "h4-probe" }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  datapoints_to_alarm = 5
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = [data.aws_sns_topic.alerts.arn]
+  ok_actions          = [data.aws_sns_topic.alerts.arn]
+
+  tags = {
+    component = "probe"
   }
 }
 
