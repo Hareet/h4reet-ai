@@ -200,10 +200,23 @@ def check_versions(root: dict[str, list], pinned: dict[str, str]) -> list[str]:
     }
     if aws != [want]:
         found.append(f"versions: the aws provider isn't pinned to {want['version']}")
-    backends = [b.labels for t in tfs for b in t.blocks("backend")]
-    if backends != [["local"]]:
+    # T030's state move (group 3's departure 4), done after the account's first apply: the bucket main.tf made, under
+    # the bootstrap's own key, as infra/account/versions.tf holds the account's. make plan supplies the bucket's name.
+    backends = [b for t in tfs for b in t.blocks("backend")]
+    s3 = backends[0] if len(backends) == 1 and backends[0].labels == ["s3"] else None
+    want = {
+        "key": "bootstrap.tfstate",
+        "region": "us-east-1",
+        "encrypt": True,
+        "use_lockfile": True,
+    }
+    if (
+        s3 is None
+        or s3.attr("bucket") is not None
+        or {k: ip.literal(s3.attr(k)) for k in want} != want
+    ):
         found.append(
-            "versions: the state doesn't start local (its move to the bucket is tasks.md T030's)"
+            "versions: the state isn't in the bucket, under bootstrap.tfstate (tasks.md T030's move)"
         )
     return found
 
@@ -705,7 +718,7 @@ def test_every_file_reads_as_hcl() -> None:
         assert name.endswith(".tf")
 
 
-def test_terraform_and_the_provider_are_pinned_and_the_state_starts_local() -> None:
+def test_terraform_and_the_provider_are_pinned_and_the_state_is_in_the_bucket() -> None:
     assert check_versions(parsed(root_texts()), pins()) == []
 
 
