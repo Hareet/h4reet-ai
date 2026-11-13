@@ -803,6 +803,16 @@ def test_a_folders_path_is_its_index() -> None:
     assert check_index(prod()) == []
 
 
+# The Author's prod plan (2026-11-13): the plan policy's T2 refused "aws_cloudfront_function.index: tags_all lacks
+# component". Provider 6.72 gives the function tags; project and environment come from prod's default_tags, so the
+# function names its component, as the edge's other resources do. (tools/gates/infra_policy.py's static TAGGABLE list
+# lacks aws_cloudfront_function, so only the plan's check saw it: the note's backlog.)
+def test_the_index_function_names_its_component() -> None:
+    fn = one(prod(), "aws_cloudfront_function", "index")
+    assert fn is not None
+    assert lit(fn, "tags") == {"component": "edge"}
+
+
 def test_the_probe_enabled_by_the_accounts_switch_with_its_alarm() -> None:
     assert check_probe(account()) == []
 
