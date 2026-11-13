@@ -2179,12 +2179,17 @@ class Runner:
 
     def mains_gitleaks_config(self) -> str | None:
         """make check's secrets gate reads .gitleaks.toml from the main working tree, which no task mounts (FR-012):
-        refs/heads/main's committed copy, written into the runner's own state at 0444, or None while main has none
+        refs/heads/main's committed copy, written at 0444 into share/gate (a folder the install makes), or None while main has none
         (the gate then says so). T090 round 2."""
         r = self.git("cat-file", "blob", f"{MAIN}:.gitleaks.toml")
         if r.rc != 0:
             return None
-        fd = open_dir_chain(self.p.share, "gate", make=True)
+        try:
+            fd = open_dir_chain(self.p.share, "gate")
+        except OSError:
+            raise Refused(
+                f"{self.p.share}/gate is missing or isn't a plain folder: run the install again"
+            ) from None
         try:
             write_at(fd, "gitleaks.toml", r.out.encode("utf-8"), 0o444)
         finally:

@@ -6,7 +6,7 @@ Authorized by: the spec and plan, approved by the Author on 2026-11-12 ("Approve
 
 ## Status: built in five groups, each reviewed once by an agent that didn't write it; every blocker fixed; nothing installed, applied, or merged
 
-The night shift's code, configuration, tests, and documents are on this branch. Its protected-path changes are eleven patches for the Author's hand, P-1 to P-11 ([index](2026-11-12-feat-017-patches.md)). The install-and-rehearse script runs only on the Author's machine, from his runbook, by `git show <sha>:<path>`.
+The night shift's code, configuration, tests, and documents are on this branch. Its protected-path changes are twelve patches for the Author's hand, P-1 to P-12 ([index](2026-11-12-feat-017-patches.md)). The install-and-rehearse script runs only on the Author's machine, from his runbook, by `git show <sha>:<path>`.
 
 ## What changed and why
 
@@ -19,7 +19,7 @@ The Author wants the night shift: a supervisor and up to ten Claude Code workers
 | G2 | Four images (worker, studio, ComfyUI, egress), the pins, ten container specs built from fragments with `--check` and `--fill`, the three egress allowlists | `deploy/night-shift/images/`, `deploy/night-shift/containers/`, `deploy/night-shift/allowlist*.json` |
 | G3 | The studio line: brief, candidate, and round checks, with policy read from main only and rounds counted from the studio's handoff folders; ComfyUI's launch allowlist (`--birefnet`) ([G3's note](2026-11-12-feat-017-g3-studio.md)) | `scripts/studio/line.py`, `deploy/night-shift/comfyui-params.json` |
 | G4 | `install.sh <sha> [--branch <name>] [--undo]` and its rehearsal R1 to R4; 359 red-team rows | `deploy/night-shift/install.sh`, `deploy/night-shift/rehearse.py`, `redteam/night-shift/` |
-| G5 | ADRs 0050 to 0052, the how-we-build page, the runbook; the patches P-1 to P-11 and T062's tests for the plan role | `docs/adr/`, `docs/how-we-build/night-shift.md`, `docs/runbooks/night-shift.md`, `docs/merge-requests/2026-11-12-feat-017-p*.patch`, `infra/test/` |
+| G5 | ADRs 0050 to 0052, the how-we-build page, the runbook; the patches P-1 to P-11 and T062's tests for the plan role (P-12 came with T090's round 2) | `docs/adr/`, `docs/how-we-build/night-shift.md`, `docs/runbooks/night-shift.md`, `docs/merge-requests/2026-11-12-feat-017-p*.patch`, `infra/test/` |
 | G6 | The runbook's six sections and its test line; this note | `docs/runbooks/night-shift.md`, `evals/test_runbooks.py`, `specs/017-the-night-shift/plan.md` |
 
 117 files, every group test-first: a RED commit, then GREEN, and the same for each review's fixes. Departures from the plan are in plan.md and the contracts in the same commits (G3's, G4's "Changed while building", the narrow `.git` mount, the merge-time refusal).
@@ -164,11 +164,11 @@ The steps, in order, are on the runbook artifact as lines of 45 characters or fe
    - **Sessions' `/tmp` and home were `noexec`** (Docker's tmpfs default): every test that writes a fake program there and runs it failed, terraform's fake included, and the matrix's exit-126 rows. Now `rw,exec,nosuid`.
    - **`policy`**: the four night Dockerfiles had `FROM ${ARG}` with no default. Node and python now come from the lock's own `base:node` and `base:python` (ECR, the same digests every other image uses), ubuntu was already the lock's, and docker-cli has a new `base:docker-cli` line with your digest. The worker's `FROM ${TOOLCHAIN_IMAGE}` needs **P-12**; until it merges, R3 names that one line as known and fails on any other.
    - **`patch(1)`**: T062's tests read iam.tf through P-6 with patch, which the toolchain image (the gate's too) lacked. `.devcontainer/Dockerfile` now installs it.
-   - **`secrets`**: its message was redacted in R3's log (the redactor eats any line beginning `secrets:`; backlog). The gate reads `.gitleaks.toml` from the main working tree, which no task mounts, so it stopped there. The runner now writes `refs/heads/main`'s committed copy into its own state at 0444 and mounts that, read-only, at the path the gate reads; the main checkout itself stays unmounted (FR-012).
+   - **`secrets`**: its message was redacted in R3's log (the redactor eats any line beginning `secrets:`; backlog). The gate reads `.gitleaks.toml` from the main working tree, which no task mounts, so it stopped there. The runner now writes `refs/heads/main`'s committed copy at 0444 into `~/.local/share/h4reet-ai/night-shift/gate/`, a folder the install makes (the share folder itself stays 0555), and mounts that, read-only, at the path the gate reads; the main checkout itself stays unmounted (FR-012).
    - Not yet known: whatever the matrix's git-hook and pre-commit rows and the engine-endpoint tests still show once programs can run under `/tmp`. The next R3 says.
 4. **GitHub**: push before the first night (Q17), since the objects store is writable to sessions.
 5. **Merge**: after spec 001's W1 gate, unless you say otherwise. `toolchain-check` is WARN until P-8 moves the floor to 2.1.322.
-6. **Patches** ([index](2026-11-12-feat-017-patches.md), with each SHA-256): P-1 only where `deploy/night-shift/` already exists, then P-5; P-6 needs your permission set's name in its one local; P-7 on main, with each licence and `outputs_ship` set by you (nothing ships until one is true); plan and gate stay off until P-2, P-3, and P-6 merge and a second install sets `NIGHT_PLAN=on` and `NIGHT_GATE=on` (T092).
+6. **Patches** ([index](2026-11-12-feat-017-patches.md), with each SHA-256): **P-12 on main before this branch's gate**, or its `policy` step fails on the worker's toolchain line; P-1 only where `deploy/night-shift/` already exists, then P-5; P-6 needs your permission set's name in its one local; P-7 on main, with each licence and `outputs_ship` set by you (nothing ships until one is true); plan and gate stay off until P-2, P-3, and P-6 merge and a second install sets `NIGHT_PLAN=on` and `NIGHT_GATE=on` (T092).
 7. **Questions, each with a recommendation**:
    - Commit identity for night commits: `night-<role>@night-shift.invalid`. **Recommended: keep it.** It can't be mistaken for yours, and publish_check only scans it for denylisted phrases.
    - The pilot's size (Q14): the Resume stream at two or three workers. **Recommended: two on the first night**, three once the morning page shows no interruption that isn't a decision or a merge.

@@ -1144,9 +1144,9 @@ def test_each_image_names_its_pins_and_its_context(name: str) -> None:
     for arg, base in image["bases"].items():
         assert base == "toolchain" or base in p["bases"], (arg, base)
         # a pinned default since T090 round 2 (make check's policy gate); test_install.py holds it to pins.json
-    assert re.search(
-        rf"^ARG {arg}(=\S+@sha256:[0-9a-f]{{64}})?$", text, flags=re.MULTILINE
-    ), arg
+        assert re.search(
+            rf"^ARG {arg}(=\S+@sha256:[0-9a-f]{{64}})?$", text, flags=re.MULTILINE
+        ), arg
     # Every COPY source from the context is listed, so the install writes exactly these from `git show`.
     sources = set()
     for ins in instructions(text):
@@ -1645,6 +1645,7 @@ def test_a_sessions_tmp_and_home_run_programs(
         where, opts = t.split(":", 1)
         if where in ("/tmp", "/night/home"):
             assert "exec" in opts.split(","), t
+            assert "noexec" not in opts.split(","), t
             assert "nosuid" in opts.split(","), t
 
 

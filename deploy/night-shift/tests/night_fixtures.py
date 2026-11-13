@@ -198,6 +198,9 @@ class Home:
                 f"You are the night shift's {role}.\n"
             )
             (self.share / "claude" / role).mkdir(parents=True, exist_ok=True)
+        (self.share / "gate").mkdir(
+            mode=0o700, exist_ok=True
+        )  # the install's (T090 round 2)
         self.write_token(f"CLAUDE_CODE_OAUTH_TOKEN={token_value()}\n")
         self.write_facts()
         (self.config / "allowlist.json").write_text(

@@ -863,7 +863,11 @@ class TestDockerRun:
     def test_a_task_reads_mains_committed_gitleaks_config(self, night, h, role):
         # T090 round 2: make check's secrets gate reads .gitleaks.toml from the main working tree, which no task
         # mounts. The runner writes refs/heads/main's committed copy into its own state and mounts that, read-only.
-        _runner, fx, _t, argv = self.start_role(night, h, role)
+        h.share.chmod(0o555)  # as the install leaves it
+        try:
+            _runner, fx, _t, argv = self.start_role(night, h, role)
+        finally:
+            h.share.chmod(0o755)
         want = f"{h.repo}/.gitleaks.toml"
         got = [(host, mode) for host, c, mode in vols(argv) if c == want]
         assert len(got) == 1, got
@@ -872,6 +876,16 @@ class TestDockerRun:
         assert not host.startswith(str(h.repo) + "/"), host
         assert Path(host).read_text() == fx.main_gitleaks
         assert Path(host).stat().st_mode & 0o777 == 0o444
+
+    def test_a_missing_gate_folder_refuses_the_task_and_says_why(self, night, h):
+        # The install leaves the share folder 0555 and makes gate/ itself; the runner never makes it.
+        runner, fx = nf.make_runner(night, h)
+        (h.share / "gate").rmdir()
+        with pytest.raises(night.Refused) as e:
+            runner.start_supervisor()
+        assert "gate is missing" in str(e.value) and "install" in str(e.value)
+        assert not (h.share / "gate").exists()
+        assert not fx.spawned
 
     def test_without_one_on_main_none_is_mounted(self, night, h):
         runner, fx = nf.make_runner(night, h)

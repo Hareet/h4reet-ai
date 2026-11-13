@@ -31,6 +31,7 @@ Plan §1 and §2 hold the design; this file is what the tests check (`deploy/nig
    - `reading` (reviewer, red-teamer, gate-runner): the worktree and `.git` read-only;
    - `none` (studio, comfyui): no worktree;
    - `plan`: its detached worktree, read-only, and `{{REPO}}/.git` read-only (the detached worktree's `.git` file points into `.git/worktrees/`; G2's integration review);
+   - `writing` and `reading`, besides: `refs/heads/main:.gitleaks.toml`, which the runner writes at 0444 into `<share>/gate/` (a folder the install makes), read-only at `{{REPO}}/.gitleaks.toml`, where make check's secrets gate reads it (T090 round 2);
    - every session, besides: its role's Claude folder at `/night/claude` and its io folder at `/night/io`, read-write.
 
    The masks are read-only binds, which the runner adds only where a read-write mount would otherwise cover a protected path:

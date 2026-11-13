@@ -13,13 +13,14 @@ What it changes:
 
 Why: R3, the install's make check in a night container, failed policy on the four night-shift Dockerfiles
 (FROM ${ARG} without a default). Three are fixed on the branch; this is the fourth. Until it merges, the branch's
-make check and the gate's policy step FAIL on that one line, and R3 names it as known (P-12).
+make check and the gate's policy step FAIL on that one line, and R3 names it as known (P-12). So apply it on main
+before feat/017-the-night-shift's gate.
 
 Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat-017-p12.patch
 
 --- a/tools/gates/compose_policy.py
 +++ b/tools/gates/compose_policy.py
-@@ -68,6 +68,12 @@
+@@ -68,6 +68,13 @@
  ROOT = Path(__file__).resolve().parents[2]
  COMPOSE_FILE = "deploy/compose.yaml"
  LOCK_FILE = "deploy/images.lock"
@@ -27,12 +28,13 @@ Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat
 +# builds itself, from a Dockerfile this policy checks, so no registry pins it. The night shift's install (spec 017,
 +# P-12) builds the toolchain from .devcontainer/Dockerfile first and passes its image by its tag here.
 +LOCAL_BASES = {
-+    ("deploy/night-shift/images/worker.Dockerfile", "TOOLCHAIN_IMAGE"): ".devcontainer/Dockerfile",
++    # the toolchain image, built from .devcontainer/Dockerfile, which this policy checks as it checks every Dockerfile
++    ("deploy/night-shift/images/worker.Dockerfile", "TOOLCHAIN_IMAGE"),
 +}
  DISCLOSURE_FILE = "docs/data-flow-disclosure.md"
  DEVCONTAINER_FILE = ".devcontainer/devcontainer.json"
  ENV_FILES = (
-@@ -985,6 +991,9 @@
+@@ -985,6 +992,9 @@
              stages.add(tokens[2].lower())
          if ref.lower() in stages or ref == "scratch":
              continue

@@ -344,6 +344,8 @@ files() {
 	install_file "$t/stage/rows.json" "$SHARE/rows.json"
 	# Each role's Claude folder, the sessions' own: written by them, so 0700, never recorded as files.
 	for role in $SESSION_ROLES; do mkd "$SHARE/claude/$role" 0700; done
+	# The runner writes refs/heads/main's .gitleaks.toml here for the tasks' secrets gate (T090 round 2).
+	mkd "$SHARE/gate" 0700
 	# A file the last install made that this commit doesn't have: removed while it's still as installed.
 	for p in "${!OLD_FILES[@]}"; do
 		[ -n "${NEW_FILES[$p]:-}" ] && continue
@@ -514,6 +516,8 @@ undo() {
 	done <"$INSTALLED"
 	[ -d "$SHARE" ] && chmod u+w -- "$SHARE"
 	rm -f -- "$INSTALLED"
+	# The runner's copy of main's committed .gitleaks.toml, a regular file only: nothing of his is kept there.
+	[ -f "$SHARE/gate/gitleaks.toml" ] && [ ! -L "$SHARE/gate/gitleaks.toml" ] && rm -f -- "$SHARE/gate/gitleaks.toml"
 	mapfile -t dirs < <(for p in "${!OURS[@]}"; do printf '%s\n' "$p"; done | awk '{ print length($0) " " $0 }' | sort -rn | cut -d' ' -f2-)
 	for p in "${dirs[@]}"; do
 		[ -d "$p" ] || continue

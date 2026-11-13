@@ -103,7 +103,7 @@ deploy/night-shift/                  # human-only once P-1 merges (the example c
 │   ├── worker.Dockerfile            # FROM the devcontainer's base, WITH_CLAUDE=1, the repo toolchain
 │   ├── studio.Dockerfile            # Claude Code and Blender 5.2.3 (pinned checksum)
 │   ├── comfyui.Dockerfile           # Ubuntu 24.04's Python 3.12, to run his venv read-only
-│   └── egress.Dockerfile            # python:3.12-slim with main's egress-proxy.py
+│   └── egress.Dockerfile            # the lock's base:python (3.12.15-slim-trixie) with main's egress-proxy.py
 ├── containers/
 │   ├── build.py                     # makes every spec from fragments.json
 │   ├── fragments.json               # shared pieces, with {{PLACEHOLDERS}}
@@ -279,7 +279,7 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 | 3 | networks: `h4-night`, `h4-night-engine`, `h4-night-studio`, `h4-night-plan` (internal) and `h4-night-out`; folders: `/srv/studio/briefs`, `/srv/studio/handoff`, `~/h4reet-ai/night/` and its `.comfyui/user`; then `installed.txt`, with each file's SHA-256, image ID, and network ID | a network of that name exists with the wrong `Internal` |
 | 4 | **R1**: one test session in an implementer container on a scratch worktree of SHA answers, signed in on the plan | it doesn't |
 | 5 | **R2**: the same line with a stand-in `ANTHROPIC_API_KEY`, then `ANTHROPIC_AUTH_TOKEN`: the runner's last look refuses it, and the managed settings neutralize it or refuse to start, with no `api.anthropic.com` line in the egress log for that turn | it used the stand-in, or hung |
-| 6 | **R3**: `make setup && make check` inside the container (make check holds the red-team suite and the matrix) | a gate fails that isn't a named, known item: `toolchain-check` (P-8), `image` (needs the agents' engine), stage S's matrix rows (P-5), PENDING |
+| 6 | **R3**: `make setup && make check` inside the container (make check holds the red-team suite and the matrix) | a gate fails that isn't a named, known item: `toolchain-check` (P-8), `image` (needs the agents' engine), stage S's matrix rows (P-5), `policy`'s one line for the worker's `FROM ${TOOLCHAIN_IMAGE}` (P-12), PENDING |
 | 7 | **R4**: §9's rehearsal rows, each expecting a refusal | any succeeds |
 | 8 | the summary: step outcomes, image digests, every spec's SHA-256, the reviewed SHA; no token, no env | — |
 

@@ -17,6 +17,7 @@ leaving the fake home as it was, but the token and facts files, which it names.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -24,6 +25,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -125,6 +127,8 @@ def template(tmp_path_factory) -> dict:
     (repo / "deploy" / "agents-engine" / "egress-proxy.py").write_text(
         "# main's egress proxy\n"
     )
+    # make check's secrets gate reads it from the main tree; the runner mounts main's committed copy (T090 round 2)
+    (repo / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "main")
     git(repo, "checkout", "-q", "-b", "feat/night")
@@ -519,6 +523,8 @@ def test_files_are_0444_and_folders_0555(full) -> None:
         ".local/share/h4reet-ai/night-shift/claude",
     ):
         assert tree[d] == ("dir", 0o555), d
+    # the runner writes main's committed .gitleaks.toml here for tasks to mount; the install makes it (T090 round 2)
+    assert tree[".local/share/h4reet-ai/night-shift/gate"] == ("dir", 0o700)
     for role in ("supervisor", "implementer", "studio"):
         assert tree[f".local/share/h4reet-ai/night-shift/claude/{role}"] == (
             "dir",
@@ -620,9 +626,6 @@ def test_installed_txt_is_what_the_runner_reads(full) -> None:
 
 
 def load_night():
-    import importlib.util
-    import sys
-
     spec = importlib.util.spec_from_file_location(
         "night_for_install", NIGHT / "runner" / "night.py"
     )
@@ -786,6 +789,8 @@ def test_undo_leaves_the_home_as_it_was_but_the_token_and_facts(full) -> None:
     assert not any(n.startswith("h4-night") for n in st["networks"])
     assert not (c.studio / "briefs").exists() and not (c.studio / "handoff").exists()
     assert (c.studio / "outputs").is_dir()  # his, there before
+    # the rehearsal's sessions mounted main's .gitleaks.toml from the runner's gate folder, and undo took both
+    assert "(not empty)" not in full["undo_out"], full["undo_out"][-2000:]
     # the rehearsal's worktrees and branches are gone from the repository
     assert "rehearse" not in git(c.repo, "worktree", "list")
     assert "rehearse" not in git(c.repo, "branch", "--list", "night/*")
@@ -960,18 +965,28 @@ def test_each_from_defaults_to_its_pinned_base_but_the_toolchains() -> None:
 
 
 def test_the_policy_gate_refuses_only_the_toolchain_line_until_p12() -> None:
-    r = subprocess.run(
-        ["python3", "-I", "-B", "tools/gates/compose_policy.py"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
+    # The policy's own Dockerfile check, which needs no docker (its whole run SKIPs where compose is missing)
+    spec = importlib.util.spec_from_file_location(
+        "compose_policy_for_install", ROOT / "tools" / "gates" / "compose_policy.py"
     )
-    fails = [ln for ln in r.stdout.splitlines() if ln.startswith("FAIL ")]
-    night = [ln for ln in fails if "deploy/night-shift/" in ln]
-    assert all("${TOOLCHAIN_IMAGE}" in ln for ln in night), night
-    assert len(night) <= 1, night
+    assert spec and spec.loader
+    cp = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = cp
+    spec.loader.exec_module(cp)
+    lock = cp.parse_lock(ROOT / cp.LOCK_FILE)
+    found = []
+    for path in sorted((NIGHT / "images").glob("*.Dockerfile")):
+        found += cp.check_dockerfile(path, path.relative_to(ROOT).as_posix(), lock)
+    got = [(f.where, f.detail) for f in found]
+    if getattr(cp, "LOCAL_BASES", None):  # P-12 applied
+        assert got == [], got
+    else:
+        assert got == [
+            (
+                "deploy/night-shift/images/worker.Dockerfile:21",
+                "${TOOLCHAIN_IMAGE}: a build argument without a default",
+            )
+        ], got
 
 
 def test_a_base_whose_digest_differs_installs_nothing(make_case) -> None:
