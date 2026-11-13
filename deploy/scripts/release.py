@@ -441,7 +441,8 @@ def sync_site(
     for argv in steps:
         if runner(argv)[0] != 0:
             raise Refused(
-                "the site didn't sync; the pointer still names the release before"
+                "the site didn't sync, and the pointer still names the release before: run `make release` again, "
+                "which syncs the same copy whole (docs/runbooks/deploy.md, Act 4)"
             )
     if opts.distribution is not None:
         invalidate = [
