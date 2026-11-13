@@ -671,7 +671,11 @@ def reached_by_the_origin(r: dict[str, list]) -> list[str] | None:
     if m is None:
         return None
     lb = one(r, "aws_lb", m.group(1))
-    if lb is None or lit(lb, "internal") is not True or lit(lb, "load_balancer_type") != "network":
+    if (
+        lb is None
+        or lit(lb, "internal") is not True
+        or lit(lb, "load_balancer_type") != "network"
+    ):
         return None
     reached: list[str] = []
     for b in blocks(r, "resource"):
@@ -700,7 +704,9 @@ def test_the_tunnel_ends_primary_interface_parses_to_one_interface() -> None:
 def test_the_vpc_origin_reaches_the_interface_the_relay_publishes_on() -> None:
     r = prod()
     reached = reached_by_the_origin(r)
-    assert reached is not None, "the VPC origin names neither the tunnel end nor an internal NLB in front of it"
+    assert reached is not None, (
+        "the VPC origin names neither the tunnel end nor an internal NLB in front of it"
+    )
     compose = (net.REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
     published = re.findall(r'"(10\.42\.[01]\.10):8080:8080"', compose)
     assert published and set(published) <= set(reached), (reached, published)

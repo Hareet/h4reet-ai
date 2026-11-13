@@ -379,12 +379,16 @@ def test_the_close_writes_only_its_line_while_ec2_is_stopped(
     assert (line["Outcome"], line["Trigger"]) == ("nothing", "hours_close")
 
 
-def test_at_the_close_an_unreadable_parameter_still_stops_every_tagged_instance() -> None:
+def test_at_the_close_an_unreadable_parameter_still_stops_every_tagged_instance() -> (
+    None
+):
     # Group 9's review A, nit 1: the close needs no parameter, so every running instance tagged h4-prod-ec2 stops, and
     # the failed read is still alerted.
     aws = Aws(
         {
-            ("ssm", "/h4reet/prod/ec2-instance-id"): guard.AwsError("ThrottlingException"),
+            ("ssm", "/h4reet/prod/ec2-instance-id"): guard.AwsError(
+                "ThrottlingException"
+            ),
             ("ec2", "DescribeInstances"): {
                 "Reservations": [{"Instances": [instance(EC2_ID), instance(OTHER_ID)]}]
             },

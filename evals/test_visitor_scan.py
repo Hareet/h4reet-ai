@@ -211,6 +211,8 @@ def test_each_postgres_dump_names_its_database_and_user_never_a_password() -> No
     }
     for s in dumps:
         assert "pg_dump" in s.argv and "--data-only" in s.argv
+
+
 # Group 8's fixes' review, I2: each live source exits 2 unless every answer is ok and says success, and Loki's
 # answer at its limit is a truncated window, never a clean one. Run with node, its fetch a stub.
 NODE = shutil.which("node")

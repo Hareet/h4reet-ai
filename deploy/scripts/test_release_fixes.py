@@ -186,7 +186,9 @@ def test_the_gates_full_passing_line_is_accepted(tmp_path: Path) -> None:
     assert base.run(tmp_path, r) == 0
 
 
-def test_the_exercised_files_are_the_whole_gateway_but_its_tests(tmp_path: Path) -> None:
+def test_the_exercised_files_are_the_whole_gateway_but_its_tests(
+    tmp_path: Path,
+) -> None:
     # Group 8's fixes' review, nit 1: the gateway's Dockerfile, its migrations, and its build settings change what EC2
     # runs as surely as its source; its tests don't. So the key hashes services/gateway whole, less test/.
     gw = tmp_path / "services" / "gateway"

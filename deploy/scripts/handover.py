@@ -260,9 +260,7 @@ class Handover:
         serving = self.status()
         if serving != "laptop":
             self.phase = "waiting"
-            self.record(
-                "released", serving=serving if serving in SERVING else "unread"
-            )
+            self.record("released", serving=serving if serving in SERVING else "unread")
             return
         self.stop_running("flap")
 
@@ -284,8 +282,10 @@ def stop_failed_message(step: str, code: str) -> str:
     """handover_stop_failed, in the bridge's form (contracts/aws-alerts.md §2): its line, then its facts."""
     return "\n".join(
         [
-            f"{PREFIX} handover_stop_failed: the laptop's loop couldn't stop EC2; the laptop keeps serving and retries"
-            " each minute",
+            (
+                f"{PREFIX} handover_stop_failed: the laptop's loop couldn't stop EC2; the laptop keeps serving and"
+                " retries each minute"
+            ),
             f"- step: {step}",
             f"- code: {code}",
         ]
