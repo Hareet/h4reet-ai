@@ -132,7 +132,7 @@
 ## Phase 8: After his run (US1, then US7)
 
 - [x] T090 [US1] Read his summary; fix each failure on the branch, test-first; a new reviewed SHA and a new script, until R1 to R4 are `ok`. Done 2026-11-13: R1 to R3 `ok` at a8373026 (install 5), and R4 `ok` at cfa29548 (install 7, `--rehearse R4`, the Author's choice so R3's hour wasn't rerun for an R4-only fix). R1 to R4 run together again at T092.
-- [ ] T091 [US7] The pilot: the Resume stream's first queue, at two or three workers (Q14), under the supervisor. The morning page counts each interruption with its cause (SC-004), and his usage page shows the plan, not API charges.
+- [ ] T091 [US7] The pilot: the Author's ordered list of 2026-11-13 (spec Clarifications) from his `orders.md`, at four workers (his Q14 answer, `NIGHT_WORKERS=4`), under the supervisor. The morning page counts each interruption with its cause (SC-004), and his usage page shows the plan, not API charges.
 - [ ] T092 [US5] [US6] After P-2, P-3, and P-6 merge and the role is applied: the second install, with `NIGHT_PLAN=on` and `NIGHT_GATE=on`, then R5 and R6.
 
 ## Dependencies

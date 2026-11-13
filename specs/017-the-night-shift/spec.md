@@ -41,6 +41,13 @@ Questions this spec raised beyond his answers are on one page with a recommended
 - On ComfyUI, **the Author's words** (2026-11-12, after the probe's second run): "comfyui wasn't started, that needs to be launched and sometimes with parameters, so that should be done by the agents". Reading: the studio agent starts and stops ComfyUI itself, with the launch parameters a task needs, through a command policy (FR-040), under the GPU lock. Installing weights or custom nodes stays his (decision 5).
 - Q: If Claude Code's sandbox won't start nested inside nono's, should the rehearsal continue with a fallback or stop? → A, **the Author's** (plan Q8, 2026-11-12): "If nesting fails, let's stop quickly and let me know as we need another approach, i believe this is referring to nono and claude sandbox nested inside that, Let's test that out first before iterating on the whole workflow." Reading: the nesting is tested first, by the probe, before anything else is built. If it fails, everything stops and the session tells him; no fallback layering is built unless he chooses one then (FR-037).
 
+### Session 2026-11-13
+
+- Q18, the night's commit identity → A, **the Author's**: "let's use "night-<role>@night-shift.h4reet-ai" as the commit author". Every role's `GIT_AUTHOR_EMAIL` and `GIT_COMMITTER_EMAIL` is `night-<role>@night-shift.h4reet-ai`.
+- Q14, how many workers → A, **the Author's**: "Let's run 4". `NIGHT_WORKERS=4` in his facts file. The runner reads the cap from there, never from the queue, because agents write the queue. It defaults to 10 and takes 1 to 10.
+- The night's work, **the Author's words**: "Okay, we want the night-shift, in order of importance, from the"improvements, in your words" section: a) "better HUD with examples provided, and load screen", c) "avatar walking leg animations", d) "dog modeled and brought in", e) "dinosaur modeled and brought in", g) "hareet-ai corpus from film scripts", "b) "re-do PDF resume with links from films", i) "dino being able to eat chunks of assets like desk, busy sign, laptop, chalkboard", h) "twin and dog running from dino" .... I will give you the examples of the HUD and placement of the interface layout, and provide you photos of my dog to model and it's okay that we use the likeness of my dog." Reading: the pilot is this list, in this order, not the Resume stream alone. The list reaches the supervisor through `orders.md`, beside his facts file, which no session can write. This answers the runbook's open question of how the first queue gets in. Items f and j stay parked.
+- Q19 (telemetry) and Q20 (the 15 GB floor) keep their recommended answers, provisionally, until he says otherwise.
+
 ## Terms
 
 - **nono**: the kernel sandbox the Author first chose (nono.sh). The probe showed that Claude Code's sandbox can't start inside it, and that on WSL2 it can't block Unix sockets or filter hosts (research R-14). It isn't installed; the night shift uses containers (the Author's answer of 2026-11-12).
@@ -69,7 +76,7 @@ Questions this spec raised beyond his answers are on one page with a recommended
 
 **Out of scope** (later specs or the Author's own steps):
 - Moving the bash gate's text rules into the container specs (design page step 6). The gate stays as it is; this spec only adds the container boundary beneath it.
-- The five workstreams' own specs (Room, Resume, Creatures, Corpus, Knowledge). The pilot is the Resume stream, after the rehearsal passes.
+- The five workstreams' own specs (Room, Resume, Creatures, Corpus, Knowledge). The pilot is the Author's ordered list of 2026-11-13 (Clarifications), after the rehearsal passed.
 - Any runtime change. The site has no agents.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -179,17 +186,17 @@ Under decision 2, a gate-runner worker runs `tools/gates/gate <branch>` from a c
 
 ---
 
-### User Story 7 - The pilot: the Resume stream under the supervisor (Priority: P3)
+### User Story 7 - The pilot: the Author's ordered list under the supervisor (Priority: P3)
 
-Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume with links from films") is the first queue. Every time it needed the Author, and why, is counted on the decision page and fixed in the profiles before the next stream.
+Once the rehearsal passes, the first queue is the Author's ordered list of 2026-11-13 (Clarifications), which he gives the night in his `orders.md`. Four workers run it, his Q14 answer. Every time the night needed the Author, and why, is counted on the decision page and fixed in the profiles before the next night. (It was the Resume stream alone until his list of 2026-11-13.)
 
-**Why this priority**: it proves the night shift on a small stream with no assets.
+**Why this priority**: it proves the night shift on his real list. Each item's first night drafts its intent, spec, and plan for his approval, so no asset ships before he has approved it.
 
 **Independent Test**: the pilot's night ends with a decision page whose count of interruptions has a cause for each.
 
 **Acceptance Scenarios**:
 
-1. **Given** the rehearsal passed, **When** the Resume queue runs, **Then** the decision page counts each time the night needed the Author, with its cause.
+1. **Given** the rehearsal passed and his `orders.md` holds his list, **When** the night runs, **Then** the queue follows his order, each item's brief quotes his words, and the decision page counts each time the night needed the Author, with its cause.
 
 ### Edge Cases
 
@@ -243,7 +250,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 **The supervisor and the runner (User Story 3)**
 
 - **FR-017**: THE runner SHALL start the supervisor and each worker in its role's container, with its worktree under the Author's home, never under `/tmp`.
-- **FR-018**: THE runner SHALL run at most ten workers at once.
+- **FR-018**: THE runner SHALL run at most ten workers at once, and at most `NIGHT_WORKERS` (1 to 10, default 10) when the Author's facts file sets it. Only his facts file sets it, never the queue, which agents write (his Q14 answer, 2026-11-13: "Let's run 4").
 - **FR-019**: THE runner SHALL hold one exclusive lock each for the matrix, the gate, and the GPU, and start a task that needs one only while holding it.
 - **FR-020**: WHEN a step starts, THE worker SHALL first commit a save point on its own branch; WHEN a worker ends with uncommitted changes, THE runner SHALL record it on the decision page.
 - **FR-021**: WHEN a session reports a usage limit with a reset time, THE runner SHALL stop the workers at their save points, wait once until the reset, and resume; it SHALL NOT poll on an hourly or other fixed interval.
@@ -299,6 +306,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 **Red-team and review**
 
 - **FR-034**: `redteam/` SHALL hold a row for each refusal of FR-011 to FR-016 and FR-027, in every spelling CLAUDE.md lists (`git -C`/`-c`, `bash -c`, subshells, quoting, config or API equivalents), with a gap row for any that gets through; rows that run in the Author's rehearsal SHALL be marked so.
+- **FR-036**: THE runner SHALL give the supervisor, on every start, the Author's `orders.md` (beside his facts file) word for word, closed by an end marker, and give it to no other role. It SHALL refuse the start when the file is a link, isn't a plain file, isn't UTF-8, holds a NUL, or is over 32 KB. The supervisor SHALL quote each item's words in its tasks' briefs.
 - **FR-035**: EACH group of the build SHALL be reviewed by a reviewer agent that did not write it, and `make lint`, `make test`, and `make evals` SHALL pass before the branch is called done, with the output pasted.
 
 ### Key Entities
@@ -325,6 +333,8 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **SC-006**: No asset reaches intake after a third failed round without the Author's decision.
 
 ## Assumptions
+
+- **The night drafts an item's intent, spec, and plan before he accepts the intent (deviation, named).** The constitution: "An accepted intent becomes a specification"; `intent/README.md`: correct anything misunderstood "before committing". From his ordered list (2026-11-13), one spec-writer task drafts the item's intent (`Status: draft`, his words quoted), then its spec and plan, on its own night branch, and stops. One question on the decision page asks him to accept the intent and approve the spec and plan together. Nothing reaches main without his merge, and if he corrects the intent, the spec and plan follow it before any tasks or code. The reason: his list is already in his words and in his order, and one approval per item saves him a night per step.
 
 - **Decision 1 reverses today's rules (deviation, named).** CLAUDE.md: "Infra: `make plan` only. There is no `make apply` on purpose — apply is a human action: the Author's, in his terminal, until publication". Spec 001's research.md R-32 and the bash gate's rule "make plan with a ROOT, the real plan" make the real plan the Author's ("the Author runs it in his terminal"). Decision 1, "Yes, let agents run terraform plan", reverses that for the plan, never the apply. Constitution clauses it touches:
   - Principle IV, "Cloud access is short-lived and identity-based (OIDC for CI, SSO for humans)": an agent's command gets cloud access, through a role assumed from his SSO identity. Short-lived and identity-based hold; the actor is neither CI nor a human. **Deviation, named**, with ADR "agents plan through a plan-only role".

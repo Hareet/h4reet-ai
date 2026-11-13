@@ -2278,3 +2278,97 @@ class TestMemorySum:
     )
     def test_memory_limits_parse(self, night, text, n):
         assert night.mem_bytes(text) == n
+
+
+# ================================================================================================================
+# The Author's answers of 2026-11-13: Q14 "Let's run 4", and his ordered list for the night
+# ================================================================================================================
+def prompt_of(fx) -> str:
+    argv = fx.spawned[-1][1]
+    return argv[argv.index("-p") + 1]
+
+
+class TestTheAuthorsNight:
+    def test_night_workers_caps_the_running_tasks(self, night, h):
+        h.set_fact("NIGHT_WORKERS", "4")
+        runner, fx = ready_runner(night, h, *(nf.task(f"t-{i:02d}") for i in range(8)))
+        for _ in range(20):
+            fx.t += 10
+            runner.schedule()
+        assert running_ids(runner) == [f"t-{i:02d}" for i in range(4)]
+
+    def test_without_night_workers_ten_run(self, night, h):
+        h.set_fact("NIGHT_WORKERS", None)
+        assert night.read_facts(h.facts)["NIGHT_WORKERS"] == "10"
+
+    @pytest.mark.parametrize("value", ["0", "11", "x", "04", "", "4.5"])
+    def test_night_workers_is_a_whole_number_from_1_to_10(self, night, h, value):
+        h.set_fact("NIGHT_WORKERS", value)
+        with pytest.raises(
+            night.CantRun, match="NIGHT_WORKERS must be a whole number from 1 to 10"
+        ):
+            night.read_facts(h.facts)
+
+    def test_the_supervisor_reads_the_authors_orders_word_for_word(self, night, h):
+        words = 'a) "better HUD with examples provided, and load screen"\nc) "avatar walking leg animations"\n'
+        (h.config / "orders.md").write_text(words)
+        runner, fx = nf.make_runner(night, h)
+        runner.start_supervisor()
+        prompt = prompt_of(fx)
+        assert (
+            "## The Author's orders, word for word (~/.config/h4reet-ai/night-shift/orders.md)"
+            in prompt
+        )
+        assert words.rstrip("\n") in prompt
+        # the orders end with a marker, so a wake line after them can't read as one more order
+        assert prompt.index(words.rstrip("\n")) < prompt.index(
+            "(end of the Author's orders)"
+        )
+
+    def test_a_worker_never_gets_the_orders(self, night, h):
+        (h.config / "orders.md").write_text("a) the HUD\n")
+        runner, fx = nf.make_runner(night, h)
+        runner.start_supervisor()
+        nf.write_queue(runner, nf.queue(nf.task("t-1")))
+        assert runner.load_queue()
+        fx.t += 10
+        runner.schedule()
+        assert "The Author's orders" not in prompt_of(fx)
+
+    def test_without_orders_the_supervisor_is_told_there_are_none(self, night, h):
+        runner, fx = nf.make_runner(night, h)
+        runner.start_supervisor()
+        assert "## The Author's orders: none (no orders.md)" in prompt_of(fx)
+
+    def test_orders_over_32_kb_are_refused(self, night, h):
+        (h.config / "orders.md").write_text("x" * (32 * 1024 + 1))
+        runner, fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused, match="orders.md is over 32 KB"):
+            runner.start_supervisor()
+        assert fx.spawned == []
+
+    def test_orders_that_are_a_link_are_refused(self, night, h):
+        (h.home / "elsewhere.md").write_text("a) x\n")
+        (h.config / "orders.md").symlink_to(h.home / "elsewhere.md")
+        runner, fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused, match="orders.md isn't a plain file"):
+            runner.start_supervisor()
+        assert fx.spawned == []
+
+    @pytest.mark.parametrize(
+        ("data", "why"),
+        [(b"a) x\x00\n", "holds a NUL"), (b"a) \xff\n", "isn't UTF-8")],
+    )
+    def test_orders_with_a_nul_or_not_utf8_are_refused(self, night, h, data, why):
+        (h.config / "orders.md").write_bytes(data)
+        runner, fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused, match=f"orders.md {why}"):
+            runner.start_supervisor()
+        assert fx.spawned == []
+
+    def test_orders_that_are_a_folder_are_refused(self, night, h):
+        (h.config / "orders.md").mkdir()
+        runner, fx = nf.make_runner(night, h)
+        with pytest.raises(night.Refused, match="orders.md isn't a plain file"):
+            runner.start_supervisor()
+        assert fx.spawned == []

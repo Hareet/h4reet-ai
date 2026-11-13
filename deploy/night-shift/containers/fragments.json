@@ -89,9 +89,9 @@
       "GIT_CONFIG_KEY_1": "maintenance.auto",
       "GIT_CONFIG_VALUE_1": "false",
       "GIT_AUTHOR_NAME": "night-{role}",
-      "GIT_AUTHOR_EMAIL": "night-{role}@night-shift.invalid",
+      "GIT_AUTHOR_EMAIL": "night-{role}@night-shift.h4reet-ai",
       "GIT_COMMITTER_NAME": "night-{role}",
-      "GIT_COMMITTER_EMAIL": "night-{role}@night-shift.invalid"
+      "GIT_COMMITTER_EMAIL": "night-{role}@night-shift.h4reet-ai"
     },
     "studio": {
       "HTTPS_PROXY": "http://egress-studio:3128",

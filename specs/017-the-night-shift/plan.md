@@ -9,7 +9,7 @@
 The night shift has three parts:
 
 - **A container around every agent session.** A supervisor session and its workers each run in their own container, started by one small runner outside every container. Each container mounts only what its role needs. It reaches the internet only through an allowlisting egress proxy, and signs in with a `claude setup-token` token that draws on the Author's plan, never on API credits.
-- **A queue, three locks, and one decision page.** The supervisor turns the queue into tasks. Up to ten workers at a time spec and build the Author's improvements, and anything that needs him lands on the page.
+- **A queue, three locks, and one decision page.** The supervisor turns the Author's orders (`orders.md`, his words) into the queue's tasks. Up to `NIGHT_WORKERS` workers at a time (ten at most; his Q14 answer is 4) spec and build the Author's improvements, and anything that needs him lands on the page.
 - **The studio line.** Repo agents and the studio agent pass briefs and candidates through two folders, with the intake's checks between them. The studio agent starts ComfyUI itself, in its own GPU container.
 
 Agents build all of it inside today's sandbox. The Author runs two things: the container probe now, then one install-and-rehearse script read from a reviewed commit.
@@ -232,7 +232,7 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
 
   Then it starts egress, engine-fwd, and the supervisor.
 - **The queue**: `queue.json` in the supervisor's worktree (contracts/queue.md), validated on each change.
-- **Workers**: up to ten at once, starts staggered by 10 s. Each gets a worktree on `night/<task>/<slug>`, made outside, and `docker run` with its role's spec and `claude -p "<prompt>" --output-format stream-json --settings <role layer>`.
+- **Workers**: up to `NIGHT_WORKERS` at once (his facts file, 1 to 10, default 10), starts staggered by 10 s. Each gets a worktree on `night/<task>/<slug>`, made outside, and `docker run` with its role's spec and `claude -p "<prompt>" --output-format stream-json --settings <role layer>`.
 - **Locks**: `matrix`, `gate`, `gpu`, each a `flock(2)` held for the task's whole run. Before every task, the disk and memory checks run again (2026-11-12; GPU tasks only before).
 - **Save points**: every role prompt commits `wip(<task>): <step>` before each step. The runner records a dirty worktree at a session's end and never commits for it.
 - **The weekly limit**: on a stream's usage-limit event, the runner parses the reset time and stops every container. It sleeps once until the reset plus five minutes, then restarts the unfinished tasks from their branches' tips, the supervisor first. No interval check anywhere (decision 3). Extra usage is never accepted (FR-041).
@@ -401,7 +401,7 @@ As the spec's. Plus: if an image's digest or a spec's SHA-256 no longer matches,
 | Q8 | If a boundary fails, continue or stop? | **His**: stop |
 | Q10 | The constitution's roles list: amend or deviate? | Recommended: amend, P-9 |
 | Q13 | Prompts and settings layers outside `.claude/`? | Recommended: yes, with P-10 |
-| **Q14** | Ten unattended sessions on one subscription: the docs say OAuth is "intended for ordinary Claude Code use" and point products to API keys, and the session couldn't find what the consumer terms say about unattended, concurrent use. Proceed? | Recommended: **yes, for your own development of your own project, which is ordinary Claude Code use**. Start the pilot at two to three workers; you confirm the terms yourself, or ask Anthropic |
+| **Q14** | Ten unattended sessions on one subscription: the docs say OAuth is "intended for ordinary Claude Code use" and point products to API keys, and the session couldn't find what the consumer terms say about unattended, concurrent use. Proceed? | Recommended: **yes, for your own development of your own project, which is ordinary Claude Code use**. **Answered 2026-11-13: "Let's run 4"** (`NIGHT_WORKERS=4`). Earlier recommendation: start the pilot at two to three workers; you confirm the terms yourself, or ask Anthropic |
 | Q15 | ComfyUI's launch parameters? | **His**: "--birefnet" and sometimes it was run with that parameter off, depending on the asset output that was needed. The allowlist is `--birefnet`, on or off per task; the runner fixes `--listen`, `--port`, and the folders. It isn't one of ComfyUI's core flags, as far as the session knows, so the first studio task checks that ComfyUI accepts it at launch |
 | **Q16** | Per-worker limits: 2 CPUs and 4 GB each (ten use 20 of your 24 cores, 40 of your 62 GB)? | Recommended: yes |
 

@@ -84,7 +84,8 @@ RESERVED_IDS = {
     "comfyui",
 }
 
-MAX_WORKERS = 10  # FR-018
+MAX_WORKERS = 10  # FR-018; the Author's facts file may set fewer, NIGHT_WORKERS (Q14)
+ORDERS_MAX = 32 * 1024  # orders.md, the Author's orders for the night
 STAGGER_S = 10  # contracts/runner.md §3
 IDLE_S = 15 * 60  # FR-022: IDLE_MINUTES
 LIMIT_MARGIN_S = 300  # the reset plus five minutes (plan §4)
@@ -606,6 +607,10 @@ def read_facts(path) -> dict[str, str]:
         r"[A-Za-z0-9._-]{1,64}", facts.get("PLAN_AWS_PROFILE", "")
     ):
         raise CantRun("facts: PLAN_AWS_PROFILE is missing or malformed")
+    # Q14, the Author's answer of 2026-11-13: "Let's run 4". His file, not the queue, sets it: agents write the queue.
+    facts.setdefault("NIGHT_WORKERS", str(MAX_WORKERS))
+    if not re.fullmatch(r"[1-9]|10", facts["NIGHT_WORKERS"]):
+        raise CantRun("facts: NIGHT_WORKERS must be a whole number from 1 to 10")
     return facts
 
 
@@ -2019,7 +2024,8 @@ class Runner:
         now = self.now()
         if now < self.next_start_at:
             return
-        if len([t for t in self.tasks.values() if t.state == "running"]) >= MAX_WORKERS:
+        running = len([t for t in self.tasks.values() if t.state == "running"])
+        if running >= int(self.facts.get("NIGHT_WORKERS", MAX_WORKERS)):
             return
         for t in self.tasks.values():
             if not self.ready(t):
@@ -2302,6 +2308,37 @@ class Runner:
                 raise Refused(f"{t.id}: {why}")
         return pre, post
 
+    def orders_section(self) -> list[str]:
+        """The Author's orders for the night, `orders.md` beside the facts file: his file, which no session can write,
+        given to the supervisor word for word on every start (the first queue's source; contracts/queue.md). A link,
+        a non-file, or more than 32 KB refuses the start."""
+        path = f"{self.p.config}/orders.md"
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except FileNotFoundError:
+            return ["## The Author's orders: none (no orders.md)"]
+        except OSError:
+            raise Refused(f"{path}: orders.md isn't a plain file") from None
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise Refused(f"{path}: orders.md isn't a plain file")
+            data = os.read(fd, ORDERS_MAX + 1)
+        finally:
+            os.close(fd)
+        if len(data) > ORDERS_MAX:
+            raise Refused(f"{path}: orders.md is over 32 KB")
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise Refused(f"{path}: orders.md isn't UTF-8") from None
+        if "\0" in text:
+            raise Refused(f"{path}: orders.md holds a NUL")  # no argv can carry one
+        return [
+            "## The Author's orders, word for word (~/.config/h4reet-ai/night-shift/orders.md)",
+            text.rstrip("\n"),
+            "(end of the Author's orders)",
+        ]
+
     def compose_prompt(self, t: Task, extra: str = "") -> str:
         name = t.prompt
         if name not in self.installed_prompts():
@@ -2332,6 +2369,8 @@ class Runner:
         )
         if t.brief:
             lines += ["", "## The brief", t.brief]
+        if t is self.sup:
+            lines += ["", *self.orders_section()]
         if extra:
             lines += ["", extra]
         prompt = "\n".join(lines) + "\n"

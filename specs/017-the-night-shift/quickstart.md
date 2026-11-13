@@ -5,4 +5,4 @@
 3. **The build** (agents): `make lint`, `make test`, `make evals` on `feat/017-the-night-shift`, pasted in its note. Expected: the spec, lattice, runner, studio-line, install, and probe tests pass.
 4. **The install and rehearsal** (the Author): write `~/.config/h4reet-ai/night-shift/facts.env`, then run the install at the reviewed SHA. Expected: R1 to R4 `ok`.
 5. **The undo** (the Author, to prove it): `install.sh <sha> --undo`, then the install again. Expected: the second install's summary matches the first.
-6. **The pilot** (after 4): `night.py start` with the Resume stream's queue, starting at two or three workers (Q14). Expected: a decision page in the morning whose interruptions each have a cause (SC-004), and his account's usage page showing Claude Code usage on the plan and no API charges.
+6. **The pilot** (after 4): his `orders.md` with his ordered list of 2026-11-13 and `NIGHT_WORKERS=4` in his facts file (his Q14 answer), then `night.py start`. Expected: a decision page in the morning whose interruptions each have a cause (SC-004), and his account's usage page showing Claude Code usage on the plan and no API charges.

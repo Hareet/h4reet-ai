@@ -223,7 +223,7 @@ To stop the night, use `stop`. It stops every night container, first with SIGTER
 
 After a WSL restart, the worktrees survive. Run `check`, then `start`.
 
-**The queue.** The supervisor reads `queue.json` in its own worktree, which is `~/h4reet-ai/night/<date>/supervisor/`. The runner validates the file each time it changes, and a refused file keeps the last good one. Each refusal is one line on the page, naming the field. The queue's shape is in the data model (`specs/017-the-night-shift/data-model.md`). The contracts don't say how the first queue file gets into the supervisor's worktree. That's an open question for the first night, and the session should answer it before you start.
+**The queue.** The supervisor reads `queue.json` in its own worktree, which is `~/h4reet-ai/night/<date>/supervisor/`. The runner validates the file each time it changes, and a refused file keeps the last good one. Each refusal is one line on the page, naming the field. The queue's shape is in the data model (`specs/017-the-night-shift/data-model.md`). The first queue comes from your orders: `~/.config/h4reet-ai/night-shift/orders.md`, your list for the night in your words, in order. Each time the supervisor starts, the runner adds it to the supervisor's prompt word for word, and the supervisor writes the queue from it. No session can write that file. `NIGHT_WORKERS` in your facts file caps how many workers run at once (1 to 10; your Q14 answer was 4).
 
 ### 7. Reading the decision page
 

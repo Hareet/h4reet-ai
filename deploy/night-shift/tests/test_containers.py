@@ -1657,3 +1657,21 @@ def test_the_toolchain_installs_patch() -> None:
         r"apt-get install -y --no-install-recommends \\\n(.*?)\n", text, re.DOTALL
     )
     assert install and "patch" in install.group(1).split(), install
+
+
+def test_night_commits_are_authored_as_the_authors_q18_answer() -> None:
+    """Q18, 2026-11-13: "let's use "night-<role>@night-shift.h4reet-ai" as the commit author"."""
+    frag = json.loads((NIGHT / "containers" / "fragments.json").read_text())
+    text = json.dumps(frag)
+    assert "night-{role}@night-shift.h4reet-ai" in text
+    assert ".invalid" not in text
+    for p in (NIGHT / "containers").glob("*.json"):
+        if p.name == "fragments.json":
+            continue
+        spec = json.loads(p.read_text())
+        if spec["role"] in ("comfyui", "plan", "studio"):
+            continue  # no worktree, so no commits
+        env = spec.get("env", {})
+        want = f"night-{spec['role']}@night-shift.h4reet-ai"
+        assert env.get("GIT_AUTHOR_EMAIL") == want, p.name
+        assert env.get("GIT_COMMITTER_EMAIL") == want, p.name

@@ -18,8 +18,11 @@ All entities are files. Paths in `{{…}}` are placeholders the install fills fr
 | `ENGINE_CERTS` | `/home/<user>/.config/h4reet/agents-engine/docker` | the relay's client folder |
 | `NIGHT_PLAN`, `NIGHT_GATE` | `off` | `on` only from the second install (plan §8) |
 | `PLAN_AWS_PROFILE` | the plan role's AWS profile name | the second install |
+| `NIGHT_WORKERS` (optional) | `4` | the Author's Q14 answer, 2026-11-13; 1 to 10, default 10 |
 
-Validation: every key present, each path absolute, `NIGHT_PLAN` and `NIGHT_GATE` from their sets, no `{{`. The gate runs from `REPO` (his Q1 answer).
+Validation: every key present, each path absolute, `NIGHT_PLAN` and `NIGHT_GATE` from their sets, `NIGHT_WORKERS` a whole number from 1 to 10 when given, no `{{`. The gate runs from `REPO` (his Q1 answer).
+
+**The orders** (`~/.config/h4reet-ai/night-shift/orders.md`, the Author's, optional): his list for the night, in his words. Each time the supervisor starts, the runner adds it to the supervisor's prompt, word for word, and gives it to no other role. The runner refuses the start when the file is a link, isn't a plain file, isn't UTF-8, or is over 32 KB. It refuses a NUL too, and closes the text with `(end of the Author's orders)`. With no file, the prompt says there are none.
 
 ## The token file (`~/.config/h4reet-ai/night-shift/claude.env`, the Author's)
 

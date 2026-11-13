@@ -76,7 +76,7 @@ Three exclusive locks are `flock(2)` files in the runner's state folder, which n
 - **gate**: one gate run at a time. A gate request takes it unless its own task already holds it, and a second request is answered "the gate lock is held".
 - **gpu**: ComfyUI and Blender jobs. Before a GPU task starts, the runner reruns the disk and memory check, and a failure leaves the task queued with the reason on the page (FR-031). ComfyUI is stopped when its task ends.
 
-A task that needs a lock starts only while it holds the lock. At most ten workers run at once, and their starts are staggered by ten seconds (FR-018; contracts/runner.md §3). The two-holders-never-overlap property is SC-005.
+A task that needs a lock starts only while it holds the lock. At most ten workers run at once, or fewer when the Author's facts file sets `NIGHT_WORKERS` (his Q14 answer was 4), and their starts are staggered by ten seconds (FR-018; contracts/runner.md §3). The night's work comes from his `orders.md`, which the runner gives the supervisor word for word (FR-036). The two-holders-never-overlap property is SC-005.
 
 ## The weekly-limit wait
 
