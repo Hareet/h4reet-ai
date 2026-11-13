@@ -860,6 +860,64 @@ def test_the_write_loop_goes_on_past_a_round_that_raises(
     assert "RuntimeError" in capsys.readouterr().err
 
 
+def test_the_write_loop_sleeps_the_period_less_its_runs_own_time() -> None:
+    # The final review, nit 1: the clock moves inside the round, so a fixed sleep would show here.
+    clock = [NOW]
+    sleeps: list[float] = []
+
+    def write() -> str:
+        clock[0] += 17.5
+        return "written"
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+        if len(sleeps) >= 2:
+            raise StopLoop
+
+    with pytest.raises(StopLoop):
+        sink.run_writes(write, lambda: None, sleep=sleep, clock=lambda: clock[0])
+    assert sleeps == [sink.EVERY_S - 17.5, sink.EVERY_S - 17.5]
+
+
+def test_the_publish_loop_sleeps_the_period_less_its_runs_own_time() -> None:
+    clock = [NOW]
+    sleeps: list[float] = []
+    outcomes: list[str] = []
+
+    def once() -> str:
+        clock[0] += 4.0
+        return "posted"
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+        if len(sleeps) >= 2:
+            raise StopLoop
+
+    with pytest.raises(StopLoop):
+        publisher.run_publishes(
+            once, outcomes.append, sleep=sleep, clock=lambda: clock[0]
+        )
+    assert sleeps == [publisher.EVERY_S - 4.0, publisher.EVERY_S - 4.0]
+    assert outcomes == ["posted", "posted"]
+
+
+def test_both_cadences_keep_time_by_a_monotonic_clock() -> None:
+    # The final review, nit 3: a wall clock that steps back never lengthens a sleep.
+    import inspect
+    import time as _time
+
+    assert (
+        inspect.signature(sink.run_writes).parameters["clock"].default
+        is _time.monotonic
+    )
+    assert (
+        inspect.signature(publisher.run_publishes).parameters["clock"].default
+        is _time.monotonic
+    )
+
+
 def test_the_writes_count_is_cumulative_from_the_process_start(tmp_path: Path) -> None:
     # The collector passes counters on to Prometheus unconverted, so each outcome's count is the process's own total.
     clock = [NOW]
