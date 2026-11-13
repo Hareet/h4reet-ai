@@ -200,7 +200,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **The night-shift token expires or is revoked**: every session fails to sign in; the runner stops the night and writes it on the decision page.
 - **The Author's AWS session expires overnight**: plans fail closed, and the decision page says when the session ended.
 - **ComfyUI isn't running**: the studio agent asks the runner to start it (FR-040); if it fails to start, the task goes on the decision page.
-- **The disk or memory preflight fails** before a GPU job: the job doesn't start, and the reason goes on the decision page.
+- **The disk or memory preflight fails** before a task (any task, GPU or not): the task stays queued, and the reason goes on the decision page.
 - **WSL restarts mid-night**: worktrees under the Author's home survive; the runner resumes from save points when he starts it again.
 - **A worker edits a file its container leaves writable but the hooks protect**: the hooks still refuse, and the red-team rows show which layer refused.
 - **A brief or candidate fails its schema**: it is refused as a whole and counts as a failed round.
@@ -259,7 +259,7 @@ Once the rehearsal passes, the Resume stream (improvement b, "re-do PDF resume w
 - **FR-028**: WHEN a candidate fails its checks for the third round, THE line SHALL write no further brief and SHALL put the asset on the decision page.
 - **FR-029**: THE intake SHALL refuse any candidate whose record names a weight or custom node missing from the weights and nodes list, or one whose licence the list doesn't mark as shippable, and SHALL refuse every Qwen-Image-2.1 and FLUX [dev] output.
 - **FR-030**: THE studio agent SHALL install no custom node and download no weight; a request for one SHALL go on the decision page.
-- **FR-031**: A GPU job SHALL start only under the GPU lock and after the disk and memory preflight passes.
+- **FR-031**: A GPU job SHALL start only under the GPU lock, and every task only after the disk and memory preflight passes (every task since 2026-11-12, after the first install: a night that starts above the floor mustn't run C: down to zero).
 - **FR-040**: THE studio agent SHALL launch and stop ComfyUI itself ("that should be done by the agents"), through a command policy that:
   - reads ComfyUI's install, its custom nodes, and its models, and writes none of them, so no weight or node can arrive (FR-030);
   - writes only ComfyUI's output folder (set to `/srv/studio/outputs`), its temp folder, and its user folder;

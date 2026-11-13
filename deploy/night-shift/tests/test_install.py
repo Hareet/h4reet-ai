@@ -1138,13 +1138,21 @@ def test_b1_r2_proves_the_log_itself_before_reading_a_refusal_from_it(full) -> N
     assert "no API call in a proven log" in line
 
 
-def test_s1_the_runners_preflight_runs_first_and_refuses_low_disk(make_case) -> None:
+def test_low_disk_refuses_at_step_0_before_any_build(make_case) -> None:
+    # 2026-11-12: the first install built five images, Blender's download among them, with no disk check of its own;
+    # step 0 now runs the runner's own disk and memory check, so nothing builds short of disk
     c = make_case()
     r = c.run(extra={"H4_NIGHT_TEST_RESOURCES": "10,32,62"})
-    assert_refused(
-        c, r, "4 R1", "the runner's preflight refuses: / has 10 GB free, under 30 GB"
-    )
+    assert_refused(c, r, "0 preflight", "/ has 10 GB free, under 15 GB")
+    assert not c.stub_state().get("images")
     assert rehearsal_kinds(c) == []
+
+
+def test_low_memory_refuses_at_step_0_too(make_case) -> None:
+    c = make_case()
+    r = c.run(extra={"H4_NIGHT_TEST_RESOURCES": "100,4,62"})
+    assert_refused(c, r, "0 preflight", "free memory is 4 GB, under 8 GB")
+    assert not c.stub_state().get("images")
 
 
 def test_s1_the_studio_and_comfyui_specs_are_checked_before_r1(make_case) -> None:

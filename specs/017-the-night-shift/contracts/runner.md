@@ -29,7 +29,7 @@ Exit codes: 0 on success, 1 when a check refuses, 2 when it can't run.
 - the networks `h4-night`, `h4-night-studio`, `h4-night-plan`, and `h4-night-engine` exist and are internal, and so does every network a live spec names. `h4-night-engine` is the build's addition: `engine-fwd` sits on it alone, so a role without it has no route to the forwarder (plan §9's row). The install (G4) makes it, and the implementer, red-teamer, and ops specs (G2) name it;
 - the facts file is valid (data-model.md); if not, the runner can't run (exit 2);
 - none of `commondir`, `main`, `refs/main`, `refs/remotes/main`, or `refs/tags/main` exists in the repository's `.git`, and `packed-refs` names none of those refs (G1's review, B1): a top-level `commondir` would steer any git run without `GIT_COMMON_DIR` (the Author's, the gate's), and a ref named main anywhere else shadows the branch;
-- `/` and `/mnt/c` each have at least 30 GB free, and free memory is at least 8 GB (the 2026-10-08 rule; settings);
+- `/` and `/mnt/c` each have at least 15 GB free, and free memory is at least 8 GB (the 2026-10-08 rule's check; 30 GB until the first install, 2026-11-12);
 - no other `night.py start` holds the runner's own lock.
 
 ## 3. Starting a session
@@ -65,7 +65,7 @@ docker run --rm --name h4-night-<task> --user <uid>:<gid> \
 - A spec's mount may not lie over a task mount, nor sit at `/`, `/etc`, `/usr`, `/night/claude`, `/night/io`, or `/night/settings*`; and no spec mount (only the runner's task mounts) touches the main checkout, `.git` included.
 - `--bare` never appears.
 - Starts are staggered by 10 s.
-- Before any task with the `gpu` lock starts, the disk and memory checks run again; a failure leaves the task queued and writes the reason on the page (FR-031).
+- Before any task starts (with the `gpu` lock or not, since 2026-11-12), the disk and memory checks run again; a failure leaves the task queued and writes the reason on the page (FR-031).
 - Every container (sessions, helpers, the plan, ComfyUI) runs with `--init` (FR-014), so a session's orphaned children are reaped.
 - **The memory sum** (FR-014): a container starts only while the memory limits of every running night container (sessions, the egress helpers and engine-fwd, ComfyUI, a running plan and its egress) plus the new one sum to no more than the host's total memory (`MemTotal`) less 8 GB. Otherwise a queued task stays queued with one page line, a ComfyUI or plan request is refused with the reason, and the supervisor's start refuses. On a studio night that holds the studio's 8 GB and ComfyUI's 24 GB against the workers.
 - **The never-mounted check** at every start covers contracts/containers.md §3 whole: besides the secrets and sockets, `~/.local/state/h4reet` and `~/.local/state/h4reet-ai`, the provider mirror `~/.local/share/h4reet/terraform-providers` (but for `plan.json`), `/srv/studio/workflows` and `/srv/studio/outputs` (but for the studio; ComfyUI keeps the outputs), and, for the session roles, every path outside the worktree in main's `sandbox.filesystem.denyRead` and `sandbox.credentials.files`, with `~` expanded.

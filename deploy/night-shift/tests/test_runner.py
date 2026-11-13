@@ -268,9 +268,17 @@ class TestScheduling:
         runner.schedule()
         assert runner.tasks["gpu-1"].state == "running"
 
-    def test_a_non_gpu_task_doesnt_rerun_them(self, night, h):
+    def test_every_task_reruns_them(self, night, h):
+        # 2026-11-12: a night that starts above the floor mustn't run C: down to zero, so each task start checks
         runner, fx = ready_runner(night, h, nf.task("aaa"))
         fx.disk["/mnt/c"] = 10 * 2**30
+        fx.t += 10
+        runner.schedule()
+        runner.schedule()
+        assert running_ids(runner) == []
+        lines = [ln for ln in nf.page_text(runner).splitlines() if "aaa" in ln]
+        assert len(lines) == 1 and "/mnt/c has 10 GB free, under 15 GB" in lines[0]
+        fx.disk["/mnt/c"] = 20 * 2**30
         fx.t += 10
         runner.schedule()
         assert running_ids(runner) == ["aaa"]
@@ -646,6 +654,13 @@ class TestPreflight:
         assert rc == 0, out
         assert out.strip() == "check: ok"
 
+    def test_the_authors_c_drive_on_2026_11_12_passes(self, night, h, capsys):
+        # the first install's R1 refused at 20 GB free on /mnt/c, under the old 30 GB floor
+        fx = nf.FakeFx(night, h)
+        fx.disk["/mnt/c"] = 20 * 2**30
+        rc, out = run_check(night, h, fx, capsys)
+        assert rc == 0, out
+
     def refused(self, night, h, capsys, fx=None):
         fx = fx or nf.FakeFx(night, h)
         rc, out = run_check(night, h, fx, capsys)
@@ -747,7 +762,7 @@ class TestPreflight:
         del fx.internal["h4-night-plan"]
         assert "h4-night-plan" in self.refused(night, h, capsys, fx)
 
-    @pytest.mark.parametrize(("where", "free"), [("/", 29), ("/mnt/c", 5)])
+    @pytest.mark.parametrize(("where", "free"), [("/", 14), ("/mnt/c", 5)])
     def test_low_disk(self, night, h, capsys, where, free):
         fx = nf.FakeFx(night, h)
         fx.disk[where] = free * 2**30

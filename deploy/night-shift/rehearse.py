@@ -240,6 +240,12 @@ def cmd_facts(args) -> int:
             f"facts: CLAUDE_VERSION is {facts['CLAUDE_VERSION']}, but the images pin {pins.get('claude_code')}"
         )
         return 1
+    why = night.resources_short(
+        effects(night)
+    )  # before any build (2026-11-12): the heavy-scripts rule
+    if why:
+        say(f"facts: {why}")
+        return 1
     for key in ("REPO", "NIGHT_ROOT", "UID", "GID", "NIGHT_PLAN", "NIGHT_GATE"):
         say(f"fact {key} {facts[key]}")
     say("facts: ok")

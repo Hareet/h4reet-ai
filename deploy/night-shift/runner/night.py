@@ -95,7 +95,9 @@ LIMIT_AGAIN_S = (
     600  # a second limit this soon after resuming stops the night instead of looping
 )
 STOP_GRACE_S = 60  # docker stop: SIGTERM, then SIGKILL after 60 s
-MIN_DISK = 30 * 2**30  # the 2026-10-08 rule: / and /mnt/c
+MIN_DISK = (
+    15 * 2**30
+)  # / and /mnt/c (C: holds WSL's disk), checked at the start and before every task (2026-11-12)
 MIN_MEM = 8 * 2**30
 EGRESS_MEM, FWD_MEM = "256m", "128m"  # the helpers' memory limits
 MEM_HEADROOM = (
@@ -247,6 +249,24 @@ LIMIT_CLOCK = re.compile(
     re.IGNORECASE,
 )
 LIMIT_MAX_TEXT = 500
+
+
+def resources_short(fx) -> str | None:
+    """Why the disk or memory is short, or None: the runner's check, and the install's before it builds (step 0)."""
+    for where in DISKS:
+        try:
+            free = fx.disk_free(where)
+        except OSError:
+            return f"can't read the free space on {where}"
+        if free < MIN_DISK:
+            return f"{where} has {free // 2**30} GB free, under {MIN_DISK // 2**30} GB"
+    try:
+        mem = fx.mem_available()
+    except OSError:
+        return "can't read the free memory"
+    if mem < MIN_MEM:
+        return f"free memory is {mem // 2**30} GB, under {MIN_MEM // 2**30} GB"
+    return None
 
 
 class Refused(Exception):
@@ -1681,22 +1701,7 @@ class Runner:
                 )
 
     def check_resources(self) -> str | None:
-        for where in DISKS:
-            try:
-                free = self.fx.disk_free(where)
-            except OSError:
-                return f"can't read the free space on {where}"
-            if free < MIN_DISK:
-                return (
-                    f"{where} has {free // 2**30} GB free, under {MIN_DISK // 2**30} GB"
-                )
-        try:
-            mem = self.fx.mem_available()
-        except OSError:
-            return "can't read the free memory"
-        if mem < MIN_MEM:
-            return f"free memory is {mem // 2**30} GB, under {MIN_MEM // 2**30} GB"
-        return None
+        return resources_short(self.fx)
 
     def preflight(self, keep_lock: bool) -> dict[str, dict]:
         installed = self.installed()
@@ -2016,13 +2021,12 @@ class Runner:
                 continue
             if any(self.lock_holders.get(n) for n in t.locks):
                 continue
-            if "gpu" in t.locks:
-                why = self.check_resources()
-                if why:
-                    if t.held_reason != why:
-                        t.held_reason = why
-                        self.page(f"{t.id} stays queued: {why} (FR-031)")
-                    continue
+            why = self.check_resources()  # every task, not only a GPU one (FR-031)
+            if why:
+                if t.held_reason != why:
+                    t.held_reason = why
+                    self.page(f"{t.id} stays queued: {why} (FR-031)")
+                continue
             try:
                 spec = self.load_live_spec(t.role)
             except Refused as e:

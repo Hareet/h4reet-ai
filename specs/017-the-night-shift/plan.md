@@ -228,12 +228,12 @@ A session never starts a container. It asks: it writes `<NIGHT_ROOT>/.io/<task>/
   - the token file exists, is 0600, and holds exactly one `CLAUDE_CODE_OAUTH_TOKEN=` line;
   - no API-billing variable is in the runner's own environment (FR-041);
   - the networks exist and are internal;
-  - disk and memory are above the 2026-10-08 thresholds.
+  - disk and memory are above the floors: 15 GB free on `/` and on `/mnt/c` (C: holds WSL's disk), and 8 GB of free memory.
 
   Then it starts egress, engine-fwd, and the supervisor.
 - **The queue**: `queue.json` in the supervisor's worktree (contracts/queue.md), validated on each change.
 - **Workers**: up to ten at once, starts staggered by 10 s. Each gets a worktree on `night/<task>/<slug>`, made outside, and `docker run` with its role's spec and `claude -p "<prompt>" --output-format stream-json --settings <role layer>`.
-- **Locks**: `matrix`, `gate`, `gpu`, each a `flock(2)` held for the task's whole run. Before a GPU task, the disk and memory checks run again.
+- **Locks**: `matrix`, `gate`, `gpu`, each a `flock(2)` held for the task's whole run. Before every task, the disk and memory checks run again (2026-11-12; GPU tasks only before).
 - **Save points**: every role prompt commits `wip(<task>): <step>` before each step. The runner records a dirty worktree at a session's end and never commits for it.
 - **The weekly limit**: on a stream's usage-limit event, the runner parses the reset time and stops every container. It sleeps once until the reset plus five minutes, then restarts the unfinished tasks from their branches' tips, the supervisor first. No interval check anywhere (decision 3). Extra usage is never accepted (FR-041).
 - **Idle stop**: 15 minutes of a silent stream with a clean worktree stops the container, and the stop is recorded.
@@ -293,7 +293,7 @@ The summary's first line is `BOUNDARY: holds`, `BOUNDARY: FAILED <row>` (stop, h
 - `deploy/night-shift/rehearse.py` is the install's Python half and the rehearsal: it builds every session line with the installed runner's own code, so R1 to R4 prove the runner's line. `build.py` gains `--fill`, the fill step. `--undo` needs only `installed.txt`, which records the folders the install made (`dir`) and its scratch (`scratch`) besides the files, images, and networks.
 - §9's rows are about 360, not 40: T051 asks for every never-mounted path and forbidden write in every spelling. R4 runs the rows marked `rehearsal` (the spellings that reach another path or program, and every row of the other kinds), and `redteam/night-shift/run.sh --all` runs them all. A read row whose host path is absent still runs, and passes when the path is absent in the container too; R4's 90% floor counts it as run.
 - `H4_NIGHT_STUDIO` moves `/srv/studio`, for the install's tests only.
-- After G4's review (2026-11-12): R1 and R2 each prove the egress log records a signed-in turn before R2 reads a refusal from it (B1); each rehearsal step runs the installed runner's own preflight first, ComfyUI's and the studio's specs and the 30 GB disk floor included (S1); the rehearsal refuses while a night runs or the runner's lock is held (S2); the two git rows that would write his real `.git/config` are gone (S3); it never prunes his worktrees (S4); `--undo` removes only networks and images carrying the install's label and ID, every SHA's images included (S5); a replaced live file is printed as a diff, and the allowlists' SHA-256s are in the summary (S6); the specs follow main's settings, never the commit's (S7); R3 needs make check's exit and summary line (S8); `--branch` refuses a moved tip, naming both SHAs (S9).
+- After G4's review (2026-11-12): R1 and R2 each prove the egress log records a signed-in turn before R2 reads a refusal from it (B1); each rehearsal step runs the installed runner's own preflight first, ComfyUI's and the studio's specs and the disk floor included (S1; 30 GB then, 15 GB since the first install refused at 20 GB on C:, when every task start began re-checking it); the rehearsal refuses while a night runs or the runner's lock is held (S2); the two git rows that would write his real `.git/config` are gone (S3); it never prunes his worktrees (S4); `--undo` removes only networks and images carrying the install's label and ID, every SHA's images included (S5); a replaced live file is printed as a diff, and the allowlists' SHA-256s are in the summary (S6); the specs follow main's settings, never the commit's (S7); R3 needs make check's exit and summary line (S8); `--branch` refuses a moved tip, naming both SHAs (S9).
 
 ## §7 The studio line
 
@@ -381,7 +381,7 @@ Each built from plain copies (`git show refs/heads/main:<path>`, edit, `diff -u`
 
 ## §15 Cost
 
-No paid route. Sessions sign in on the plan and fail closed on API keys; extra usage is off in his account. The plan role and its reads are free. Ten workers spend the weekly allowance faster, and the runner waits for the reset rather than buying more. Disk: four images, about 4 GB together; C: has 51 GB free, and the images live on WSL's disk.
+No paid route. Sessions sign in on the plan and fail closed on API keys; extra usage is off in his account. The plan role and its reads are free. Ten workers spend the weekly allowance faster, and the runner waits for the reset rather than buying more. Disk: four images, about 4 GB together; C: had 51 GB free at planning and 20 GB after the first install's builds (2026-11-12), and the images live on WSL's disk. A night's worktrees take about 0.5 GB each (0.1 GB of files, 0.45 GB of node_modules), so ten come to about 5 GB; the runner stops starting tasks under 15 GB free.
 
 ## §16 Degraded modes
 
