@@ -77,11 +77,800 @@ This branch builds on `ops/apply-account-2026-11-12-2` (6fa72fd8), the account's
 
 ### The plan blocks
 
-Pending: yours, on your branch.
+<!-- h4-plan root=bootstrap tree=8dd1346c3984331e4f95d47b5febcb2f6d08f58b sha256=0800a8613ab194171c112570144da13bc44d47dc58a19f51732fd78ce2ce4174 terraform=1.17.1 made=2026-11-13T04:56:45Z -->
+```terraform-plan
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+```
+<!-- /h4-plan -->
+
+<!-- h4-plan root=account tree=8dd1346c3984331e4f95d47b5febcb2f6d08f58b sha256=05137fda259dedd3709ff46ba9d5fef71f466bb138c9c611f7edd76695be0fcf terraform=1.17.1 made=2026-11-13T04:56:58Z -->
+```terraform-plan
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_budgets_budget.rehearsal_model[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_budgets_budget" "rehearsal_model" {
+      - account_id        = "<account>" -> null
+      - arn               = "arn:aws:budgets::<account>:budget/h4-rehearsal-model" -> null
+      - budget_type       = "COST" -> null
+      - id                = "<account>:h4-rehearsal-model" -> null
+      - limit_amount      = "0.01" -> null
+      - limit_unit        = "USD" -> null
+      - metrics           = [] -> null
+      - name              = "h4-rehearsal-model" -> null
+      - tags              = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all          = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - time_period_end   = "2087-06-15_00:00" -> null
+      - time_period_start = "2026-11-01_00:00" -> null
+      - time_unit         = "MONTHLY" -> null
+        # (2 unchanged attributes hidden)
+
+      - cost_filter {
+          - name   = "Service" -> null
+          - values = [
+              - "Claude Haiku 5.5 (Bedrock Edition)",
+            ] -> null
+        }
+
+      - cost_types {
+          - include_credit             = false -> null
+          - include_discount           = true -> null
+          - include_other_subscription = true -> null
+          - include_recurring          = true -> null
+          - include_refund             = true -> null
+          - include_subscription       = true -> null
+          - include_support            = true -> null
+          - include_tax                = true -> null
+          - include_upfront            = true -> null
+          - use_amortized              = false -> null
+          - use_blended                = false -> null
+        }
+
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "ACTUAL" -> null
+          - subscriber_email_addresses = [] -> null
+          - subscriber_sns_topic_arns  = [
+              - "arn:aws:sns:us-east-1:<account>:h4-alerts",
+            ] -> null
+          - threshold                  = 100 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+    }
+
+  # aws_budgets_budget.rehearsal_server[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_budgets_budget" "rehearsal_server" {
+      - account_id        = "<account>" -> null
+      - arn               = "arn:aws:budgets::<account>:budget/h4-rehearsal-server" -> null
+      - budget_type       = "COST" -> null
+      - id                = "<account>:h4-rehearsal-server" -> null
+      - limit_amount      = "0.01" -> null
+      - limit_unit        = "USD" -> null
+      - metrics           = [
+          - "UnblendedCost",
+        ] -> null
+      - name              = "h4-rehearsal-server" -> null
+      - tags              = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all          = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - time_period_end   = "2087-06-15_00:00" -> null
+      - time_period_start = "2026-11-01_00:00" -> null
+      - time_unit         = "MONTHLY" -> null
+        # (2 unchanged attributes hidden)
+
+      - filter_expression {
+          - and {
+              - not {
+                  - dimensions {
+                      - key           = "SERVICE" -> null
+                      - match_options = [] -> null
+                      - values        = [
+                          - "Claude Haiku 5.5 (Bedrock Edition)",
+                        ] -> null
+                    }
+                }
+            }
+          - and {
+              - tags {
+                  - key           = "project" -> null
+                  - match_options = [] -> null
+                  - values        = [
+                      - "h4reet-ai",
+                    ] -> null
+                }
+            }
+        }
+
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "ACTUAL" -> null
+          - subscriber_email_addresses = [] -> null
+          - subscriber_sns_topic_arns  = [
+              - "arn:aws:sns:us-east-1:<account>:h4-alerts",
+            ] -> null
+          - threshold                  = 100 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+    }
+
+  # aws_budgets_budget_action.rehearsal_model[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_budgets_budget_action" "rehearsal_model" {
+      - account_id         = "<account>" -> null
+      - action_id          = "<redacted-budget-action-id>" -> null
+      - action_type        = "APPLY_IAM_POLICY" -> null
+      - approval_model     = "AUTOMATIC" -> null
+      - arn                = "arn:aws:budgets::<account>:budget/h4-rehearsal-model/action/<redacted-budget-action-id>" -> null
+      - budget_name        = "h4-rehearsal-model" -> null
+      - execution_role_arn = "arn:aws:iam::<account>:role/h4-budget-action-rehearsal-model" -> null
+      - id                 = "<account>:<redacted-budget-action-id>:h4-rehearsal-model" -> null
+      - notification_type  = "ACTUAL" -> null
+      - status             = "STANDBY" -> null
+      - tags               = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all           = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+
+      - action_threshold {
+          - action_threshold_type  = "PERCENTAGE" -> null
+          - action_threshold_value = 100 -> null
+        }
+
+      - definition {
+          - iam_action_definition {
+              - groups     = [] -> null
+              - policy_arn = "arn:aws:iam::<account>:policy/h4-deny-paid-models" -> null
+              - roles      = [
+                  - "h4-rehearsal-target",
+                ] -> null
+              - users      = [] -> null
+            }
+        }
+
+      - subscriber {
+          - address           = "arn:aws:sns:us-east-1:<account>:h4-alerts" -> null
+          - subscription_type = "SNS" -> null
+        }
+    }
+
+  # aws_budgets_budget_action.rehearsal_server[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_budgets_budget_action" "rehearsal_server" {
+      - account_id         = "<account>" -> null
+      - action_id          = "<redacted-budget-action-id>" -> null
+      - action_type        = "RUN_SSM_DOCUMENTS" -> null
+      - approval_model     = "AUTOMATIC" -> null
+      - arn                = "arn:aws:budgets::<account>:budget/h4-rehearsal-server/action/<redacted-budget-action-id>" -> null
+      - budget_name        = "h4-rehearsal-server" -> null
+      - execution_role_arn = "arn:aws:iam::<account>:role/h4-budget-action-rehearsal-server" -> null
+      - id                 = "<account>:<redacted-budget-action-id>:h4-rehearsal-server" -> null
+      - notification_type  = "ACTUAL" -> null
+      - status             = "EXECUTION_FAILURE" -> null
+      - tags               = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all           = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+
+      - action_threshold {
+          - action_threshold_type  = "PERCENTAGE" -> null
+          - action_threshold_value = 100 -> null
+        }
+
+      - definition {
+          - ssm_action_definition {
+              - action_sub_type = "STOP_EC2_INSTANCES" -> null
+              - instance_ids    = [
+                  - "i-<redacted>",
+                ] -> null
+              - region          = "us-east-1" -> null
+            }
+        }
+
+      - subscriber {
+          - address           = "arn:aws:sns:us-east-1:<account>:h4-alerts" -> null
+          - subscription_type = "SNS" -> null
+        }
+    }
+
+  # aws_iam_role.rehearsal_model_action[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role" "rehearsal_model_action" {
+      - arn                   = "arn:aws:iam::<account>:role/h4-budget-action-rehearsal-model" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:SourceAccount" = "<account>"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "budgets.amazonaws.com"
+                        }
+                      - Sid       = "BudgetsForThisAccount"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-11-12T06:59:02Z" -> null
+      - description           = "The model rehearsal: h4-deny-paid-models on h4-rehearsal-target, and nothing else" -> null
+      - force_detach_policies = false -> null
+      - id                    = "h4-budget-action-rehearsal-model" -> null
+      - managed_policy_arns   = [] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "h4-budget-action-rehearsal-model" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all              = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - unique_id             = "AROASFWY43QOJFBSYJWS4" -> null
+        # (2 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "attach-the-deny" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action    = [
+                              - "iam:DetachRolePolicy",
+                              - "iam:AttachRolePolicy",
+                            ]
+                          - Condition = {
+                              - ArnEquals = {
+                                  - "iam:PolicyARN" = "arn:aws:iam::<account>:policy/h4-deny-paid-models"
+                                }
+                            }
+                          - Effect    = "Allow"
+                          - Resource  = "arn:aws:iam::<account>:role/h4-rehearsal-target"
+                          - Sid       = "ThatPolicyOnTheTarget"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role.rehearsal_server_action[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role" "rehearsal_server_action" {
+      - arn                   = "arn:aws:iam::<account>:role/h4-budget-action-rehearsal-server" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:SourceAccount" = "<account>"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "budgets.amazonaws.com"
+                        }
+                      - Sid       = "BudgetsForThisAccount"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-11-12T06:59:02Z" -> null
+      - description           = "The server rehearsal: AWS-StopEC2Instance and its reverse on h4-rehearsal-instance, and nothing else" -> null
+      - force_detach_policies = false -> null
+      - id                    = "h4-budget-action-rehearsal-server" -> null
+      - managed_policy_arns   = [] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "h4-budget-action-rehearsal-server" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all              = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - unique_id             = "AROASFWY43QOFZUVIGUPZ" -> null
+        # (2 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "stop-the-rehearsal-instance" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = "ssm:StartAutomationExecution"
+                          - Effect   = "Allow"
+                          - Resource = [
+                              - "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*",
+                              - "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*",
+                            ]
+                          - Sid      = "TheStopDocumentAndItsReverse"
+                        },
+                      - {
+                          - Action    = [
+                              - "ec2:StopInstances",
+                              - "ec2:StartInstances",
+                            ]
+                          - Condition = {
+                              - "ForAnyValue:StringEquals" = {
+                                  - "aws:CalledVia" = "ssm.amazonaws.com"
+                                }
+                            }
+                          - Effect    = "Allow"
+                          - Resource  = "arn:aws:ec2:us-east-1:<account>:instance/i-<redacted>"
+                          - Sid       = "ThatInstanceThroughSystemsManager"
+                        },
+                      - {
+                          - Action   = [
+                              - "ec2:DescribeInstances",
+                              - "ec2:DescribeInstanceStatus",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "*"
+                          - Sid      = "ItsState"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role.rehearsal_target[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role" "rehearsal_target" {
+      - arn                   = "arn:aws:iam::<account>:role/h4-rehearsal-target" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Condition = {
+                          - ArnEquals = {
+                              - "aws:PrincipalArn" = "arn:aws:iam::<account>:root"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - AWS = "arn:aws:iam::<account>:root"
+                        }
+                      - Sid       = "NoOne"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-11-12T06:59:02Z" -> null
+      - description           = "The model rehearsal's target, of h4-laptop-bedrock's shape; no one assumes it (spec 001 FR-026)" -> null
+      - force_detach_policies = false -> null
+      - id                    = "h4-rehearsal-target" -> null
+      - managed_policy_arns   = [] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "h4-rehearsal-target" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all              = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - unique_id             = "AROASFWY43QOIQUJ6MYXW" -> null
+        # (2 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "bedrock-invoke" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "bedrock:InvokeModelWithResponseStream",
+                              - "bedrock:InvokeModel",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "arn:aws:bedrock:us-east-1:<account>:inference-profile/us.anthropic.claude-haiku-5-5"
+                          - Sid      = "TheInferenceProfile"
+                        },
+                      - {
+                          - Action    = [
+                              - "bedrock:InvokeModelWithResponseStream",
+                              - "bedrock:InvokeModel",
+                            ]
+                          - Condition = {
+                              - StringLike = {
+                                  - "bedrock:InferenceProfileArn" = "arn:aws:bedrock:us-east-1:<account>:inference-profile/us.anthropic.claude-haiku-5-5"
+                                }
+                            }
+                          - Effect    = "Allow"
+                          - Resource  = "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5*"
+                          - Sid       = "ItsModelsThroughTheProfileOnly"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role_policy.rehearsal_model_action[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role_policy" "rehearsal_model_action" {
+      - id          = "h4-budget-action-rehearsal-model:attach-the-deny" -> null
+      - name        = "attach-the-deny" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = [
+                          - "iam:DetachRolePolicy",
+                          - "iam:AttachRolePolicy",
+                        ]
+                      - Condition = {
+                          - ArnEquals = {
+                              - "iam:PolicyARN" = "arn:aws:iam::<account>:policy/h4-deny-paid-models"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "arn:aws:iam::<account>:role/h4-rehearsal-target"
+                      - Sid       = "ThatPolicyOnTheTarget"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "h4-budget-action-rehearsal-model" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.rehearsal_server_action[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role_policy" "rehearsal_server_action" {
+      - id          = "h4-budget-action-rehearsal-server:stop-the-rehearsal-instance" -> null
+      - name        = "stop-the-rehearsal-instance" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = "ssm:StartAutomationExecution"
+                      - Effect   = "Allow"
+                      - Resource = [
+                          - "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StopEC2Instance:*",
+                          - "arn:aws:ssm:us-east-1:*:automation-definition/AWS-StartEC2Instance:*",
+                        ]
+                      - Sid      = "TheStopDocumentAndItsReverse"
+                    },
+                  - {
+                      - Action    = [
+                          - "ec2:StopInstances",
+                          - "ec2:StartInstances",
+                        ]
+                      - Condition = {
+                          - "ForAnyValue:StringEquals" = {
+                              - "aws:CalledVia" = "ssm.amazonaws.com"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "arn:aws:ec2:us-east-1:<account>:instance/i-<redacted>"
+                      - Sid       = "ThatInstanceThroughSystemsManager"
+                    },
+                  - {
+                      - Action   = [
+                          - "ec2:DescribeInstances",
+                          - "ec2:DescribeInstanceStatus",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "*"
+                      - Sid      = "ItsState"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "h4-budget-action-rehearsal-server" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.rehearsal_target[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role_policy" "rehearsal_target" {
+      - id          = "h4-rehearsal-target:bedrock-invoke" -> null
+      - name        = "bedrock-invoke" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "bedrock:InvokeModelWithResponseStream",
+                          - "bedrock:InvokeModel",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "arn:aws:bedrock:us-east-1:<account>:inference-profile/us.anthropic.claude-haiku-5-5"
+                      - Sid      = "TheInferenceProfile"
+                    },
+                  - {
+                      - Action    = [
+                          - "bedrock:InvokeModelWithResponseStream",
+                          - "bedrock:InvokeModel",
+                        ]
+                      - Condition = {
+                          - StringLike = {
+                              - "bedrock:InferenceProfileArn" = "arn:aws:bedrock:us-east-1:<account>:inference-profile/us.anthropic.claude-haiku-5-5"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5*"
+                      - Sid       = "ItsModelsThroughTheProfileOnly"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "h4-rehearsal-target" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_instance.rehearsal[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_instance" "rehearsal" {
+      - ami                                  = "ami-0ac4d209e5e82d684" -> null
+      - arn                                  = "arn:aws:ec2:us-east-1:<account>:instance/i-<redacted>" -> null
+      - associate_public_ip_address          = false -> null
+      - availability_zone                    = "us-east-1a" -> null
+      - disable_api_stop                     = false -> null
+      - disable_api_termination              = false -> null
+      - ebs_optimized                        = false -> null
+      - force_destroy                        = false -> null
+      - get_password_data                    = false -> null
+      - hibernation                          = false -> null
+      - id                                   = "i-<redacted>" -> null
+      - instance_initiated_shutdown_behavior = "stop" -> null
+      - instance_state                       = "running" -> null
+      - instance_type                        = "t4g.nano" -> null
+      - ipv6_address_count                   = 0 -> null
+      - ipv6_addresses                       = [] -> null
+      - monitoring                           = false -> null
+      - placement_partition_number           = 0 -> null
+      - primary_network_interface_id         = "eni-<redacted>" -> null
+      - private_dns                          = "ip-10-250-0-4.ec2.internal" -> null
+      - private_ip                           = "10.250.0.4" -> null
+      - region                               = "us-east-1" -> null
+      - secondary_private_ips                = [] -> null
+      - security_groups                      = [] -> null
+      - source_dest_check                    = true -> null
+      - subnet_id                            = "subnet-<redacted>" -> null
+      - tags                                 = {
+          - "Name"      = "h4-rehearsal-instance"
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all                             = {
+          - "Name"        = "h4-rehearsal-instance"
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - tenancy                              = "default" -> null
+      - user_data_replace_on_change          = false -> null
+      - vpc_security_group_ids               = [
+          - "sg-<redacted>",
+        ] -> null
+        # (11 unchanged attributes hidden)
+
+      - capacity_reservation_specification {
+          - capacity_reservation_preference = "open" -> null
+        }
+
+      - cpu_options {
+          - core_count            = 2 -> null
+          - threads_per_core      = 1 -> null
+            # (2 unchanged attributes hidden)
+        }
+
+      - credit_specification {
+          - cpu_credits = "unlimited" -> null
+        }
+
+      - enclave_options {
+          - enabled = false -> null
+        }
+
+      - maintenance_options {
+          - auto_recovery = "default" -> null
+        }
+
+      - metadata_options {
+          - http_endpoint               = "enabled" -> null
+          - http_protocol_ipv6          = "disabled" -> null
+          - http_put_response_hop_limit = 1 -> null
+          - http_tokens                 = "required" -> null
+          - instance_metadata_tags      = "disabled" -> null
+        }
+
+      - primary_network_interface {
+          - delete_on_termination = true -> null
+          - network_interface_id  = "eni-<redacted>" -> null
+        }
+
+      - private_dns_name_options {
+          - enable_resource_name_dns_a_record    = false -> null
+          - enable_resource_name_dns_aaaa_record = false -> null
+          - hostname_type                        = "ip-name" -> null
+        }
+
+      - root_block_device {
+          - delete_on_termination = true -> null
+          - device_name           = "/dev/xvda" -> null
+          - encrypted             = true -> null
+          - iops                  = 3000 -> null
+          - kms_key_id            = "arn:aws:kms:us-east-1:<account>:key/<redacted-kms-key-id>" -> null
+          - tags                  = {} -> null
+          - tags_all              = {
+              - "environment" = "account"
+              - "project"     = "h4reet-ai"
+            } -> null
+          - throughput            = 125 -> null
+          - volume_id             = "vol-<redacted>" -> null
+          - volume_size           = 2 -> null
+          - volume_type           = "gp3" -> null
+        }
+    }
+
+  # aws_lambda_function.credential_audit[0] will be updated in-place
+  ~ resource "aws_lambda_function" "credential_audit" {
+        id                             = "h4-credential-audit"
+      ~ image_uri                      = "<account>.dkr.ecr.us-east-1.amazonaws.com/h4-credential-audit@sha256:9a660808453e99673c769f4fb9e51ffd2b1396bfa15fd7707a3db6881be8793d" -> "<account>.dkr.ecr.us-east-1.amazonaws.com/h4-credential-audit@sha256:dd899845f873e200d23db827797e8e556588f5c4c74aee2c4e4e1f0d71264494"
+      ~ last_modified                  = "2026-11-12T06:59:02.449+0000" -> (known after apply)
+        tags                           = {
+            "component" = "credential-audit"
+        }
+        # (29 unchanged attributes hidden)
+
+        # (4 unchanged blocks hidden)
+    }
+
+  # aws_security_group.rehearsal[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_security_group" "rehearsal" {
+      - arn                    = "arn:aws:ec2:us-east-1:<account>:security-group/sg-<redacted>" -> null
+      - description            = "h4-rehearsal-instance: no rule in or out" -> null
+      - egress                 = [] -> null
+      - id                     = "sg-<redacted>" -> null
+      - ingress                = [] -> null
+      - name                   = "h4-rehearsal" -> null
+      - owner_id               = "<account>" -> null
+      - region                 = "us-east-1" -> null
+      - revoke_rules_on_delete = false -> null
+      - tags                   = {
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all               = {
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - vpc_id                 = "vpc-<redacted>" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_subnet.rehearsal[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_subnet" "rehearsal" {
+      - arn                                            = "arn:aws:ec2:us-east-1:<account>:subnet/subnet-<redacted>" -> null
+      - assign_ipv6_address_on_creation                = false -> null
+      - availability_zone                              = "us-east-1a" -> null
+      - availability_zone_id                           = "use1-az4" -> null
+      - cidr_block                                     = "10.250.0.0/28" -> null
+      - enable_dns64                                   = false -> null
+      - enable_lni_at_device_index                     = 0 -> null
+      - enable_resource_name_dns_a_record_on_launch    = false -> null
+      - enable_resource_name_dns_aaaa_record_on_launch = false -> null
+      - id                                             = "subnet-<redacted>" -> null
+      - ipv6_native                                    = false -> null
+      - map_customer_owned_ip_on_launch                = false -> null
+      - map_public_ip_on_launch                        = false -> null
+      - owner_id                                       = "<account>" -> null
+      - private_dns_hostname_type_on_launch            = "ip-name" -> null
+      - region                                         = "us-east-1" -> null
+      - tags                                           = {
+          - "Name"      = "h4-rehearsal"
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all                                       = {
+          - "Name"        = "h4-rehearsal"
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+      - vpc_id                                         = "vpc-<redacted>" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_vpc.rehearsal[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_vpc" "rehearsal" {
+      - arn                                  = "arn:aws:ec2:us-east-1:<account>:vpc/vpc-<redacted>" -> null
+      - assign_generated_ipv6_cidr_block     = false -> null
+      - cidr_block                           = "10.250.0.0/28" -> null
+      - default_network_acl_id               = "acl-<redacted>" -> null
+      - default_route_table_id               = "rtb-<redacted>" -> null
+      - default_security_group_id            = "sg-<redacted>" -> null
+      - dhcp_options_id                      = "dopt-57d0ad32" -> null
+      - enable_dns_hostnames                 = false -> null
+      - enable_dns_support                   = true -> null
+      - enable_network_address_usage_metrics = false -> null
+      - id                                   = "vpc-<redacted>" -> null
+      - instance_tenancy                     = "default" -> null
+      - ipv6_netmask_length                  = 0 -> null
+      - main_route_table_id                  = "rtb-<redacted>" -> null
+      - owner_id                             = "<account>" -> null
+      - region                               = "us-east-1" -> null
+      - tags                                 = {
+          - "Name"      = "h4-rehearsal"
+          - "component" = "rehearsal"
+        } -> null
+      - tags_all                             = {
+          - "Name"        = "h4-rehearsal"
+          - "component"   = "rehearsal"
+          - "environment" = "account"
+          - "project"     = "h4reet-ai"
+        } -> null
+        # (4 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 14 to destroy.
+```
+<!-- /h4-plan -->
 
 ## The state's move (T030 step 2)
 
-Pending: the date; init's "Successfully configured the backend "s3"" line; and the two `state list` counts, before and after.
+2026-11-12, by the Author from his copy branch's checkout, as in step 3. Terraform asked "Do you want to copy existing state to the new backend?" and he answered `yes`. Init printed "Successfully configured the backend "s3"!".
+
+- **The first count printed 0, not 14.** Terraform refused `state list` before init because the configured backend had changed: its output ended in an error box, and `wc -l` counted no lines. Step 3 was wrong to expect it to read the local state. Init itself found the old state: "Pre-existing state was found while migrating the previous "local" backend".
+- **The second count printed 17, from the bucket.** That is right. `state list` also lists data sources: the bootstrap holds 14 resources (the 14 rows of docs/infra/applies/2026-11-12-bootstrap.md) and 3 data sources. Step 3's 14 left the data sources out.
+- The plan in step 4 is the check that the move kept the contents: it must read "No changes".
 
 ## The rehearsal's record (SC-009)
 
