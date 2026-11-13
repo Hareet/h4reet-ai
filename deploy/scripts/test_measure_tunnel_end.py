@@ -79,6 +79,7 @@ def strings(value: object) -> list[str]:
     return [str(value)]
 
 
+RELAY_TARGET = "/app/config/budgets.yaml"
 PROD_MARKS = (
     "10.42.",
     "/run/h4reet",
@@ -95,7 +96,9 @@ PROD_MARKS = (
 
 
 def test_the_overlay_names_no_prod_address_path_or_project() -> None:
-    text = " ".join(strings(overlay()))
+    # The relay's own path inside its image, /app/config/budgets.yaml, is where the stand-in goes, not the repository's
+    # config/budgets.yaml, which no bind source may name.
+    text = " ".join(strings(overlay())).replace(RELAY_TARGET, "")
     for mark in PROD_MARKS:
         assert mark not in text, mark
 
@@ -175,7 +178,7 @@ def test_the_merged_project_has_no_prod_address_path_or_port(tmp_path: Path) -> 
     assert merged["name"] == "h4reet-measure-tunnel-end"
     for name, service in merged["services"].items():
         assert not service.get("ports"), name
-        text = json.dumps(service)
+        text = json.dumps(service).replace(RELAY_TARGET, "")
         for mark in ("10.42.", "/run/h4reet", "/srv/h4reet", "config/budgets.yaml"):
             assert mark not in text, (name, mark)
 
