@@ -34,8 +34,11 @@ PI6 = MERGE_REQUESTS / "2026-11-13-feat-001-pi6-handover.patch"
 # W2's, after W1's (tasks.md T175): P-W2, both roots' local.wired = true. A patch that isn't in the tree yet is skipped,
 # so a test that needs it fails until it is (W2's RED).
 PW2 = MERGE_REQUESTS / "2026-11-13-feat-001-pw2-switch-on.patch"
+# And P-I5b, after P-W2: edge.tf's index function on the folders alone, and a folder's path to its slash (group 8's
+# review B, the smaller ones).
+PI5B = MERGE_REQUESTS / "2026-11-13-feat-001-pi5b-edge.patch"
 W1_PATCHES = (PI3, PI7, PI4, PI5, PI6)
-W2_PATCHES = (PW2,)
+W2_PATCHES = (PW2, PI5B)
 PATCHES = W1_PATCHES + W2_PATCHES
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
