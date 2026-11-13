@@ -374,12 +374,13 @@ done
 # The Author-only targets (research.md R-16, R-32; contracts/infra-records.md §1): make plan with a ROOT (the real plan,
 # with his SSO session; make plan alone is the offline checks), infra-verify, infra-record, infra-mirror, infra-audit,
 # secrets-check, release, rollback, the ec2-* commands, cloud-session, shared-state-roles, server-budget-restore,
-# tunnel-keys, and tunnel-revoke, by make's two matches above. make aws-login, already refused, takes a named profile
+# tunnel-keys, and tunnel-revoke, by make's two matches above; and, from spec 001 group 6 (its tasks.md T165, P-G2),
+# shared-state-tls and shared-state-restore, the shared state's CA and its restore from a backup. make aws-login, already refused, takes a named profile
 # now; operator-* with ENV=shared is refused by the dev-cpu rule below. Their API equivalents too: the AWS CLI writing or
 # deleting a /h4reet/ parameter (the secrets and the autostart switch, R-26; FR-012) or invoking h4-ec2-start or
 # h4-ec2-guard (make ec2-start's function).
 p1_route="the Author runs it in his terminal (spec 001 research.md R-32); ask the Author"
-p1_targets="$(spelled infra-verify)|$(spelled infra-record)|$(spelled infra-mirror)|$(spelled infra-audit)|$(spelled secrets-check)|$(spelled release)|$(spelled rollback)|$(spelled ec2-)[[:alnum:]_\"'\\\$-]*|$(spelled cloud-session)|$(spelled shared-state-roles)|$(spelled server-budget-restore)|$(spelled tunnel-keys)|$(spelled tunnel-revoke)"
+p1_targets="$(spelled infra-verify)|$(spelled infra-record)|$(spelled infra-mirror)|$(spelled infra-audit)|$(spelled secrets-check)|$(spelled release)|$(spelled rollback)|$(spelled ec2-)[[:alnum:]_\"'\\\$-]*|$(spelled cloud-session)|$(spelled shared-state-roles)|$(spelled server-budget-restore)|$(spelled tunnel-keys)|$(spelled tunnel-revoke)|$(spelled shared-state-tls)|$(spelled shared-state-restore)"
 if has "$make_word" && has "${tb}(${p1_targets})${te}"; then
   block "an Author-only make target (spec 001)" "$p1_route"
 fi

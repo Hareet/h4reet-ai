@@ -1,0 +1,11 @@
+# Every minute, after the boot's own run (spec 001 contracts/releases-deployer.md §3).
+[Unit]
+Description=h4reet: the tunnel end's deployer, every minute
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=60
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,25 @@
+P-I5 tags, spec 001 W1: the index CloudFront Function's component tag, for a -p branch that already holds P-I5.
+
+The Author's prod plan (2026-11-13) refused "aws_cloudfront_function.index: tags_all lacks component": provider 6.72
+tags the function, and project and environment come from prod's default_tags, so it names its component, "edge", as
+the edge's other resources do. P-I5 itself is rebuilt with the same lines (its new SHA-256 in W1's note, step 5); this
+delta takes infra/prod/edge.tf from the earlier P-I5 (1b830477...) to the rebuilt one, and nothing else.
+
+Built from plain copies: edge.tf as the earlier P-I5 leaves it on a git archive export of 8e7bbd61 with P-I3, P-G1,
+P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, and P-6 applied, and as the rebuilt P-I5 leaves it; diff -u with a/ and b/ labels
+after this preamble; never git apply. Apply it on the -p branch after P-I5's commit (and after its rebase onto W1's
+tip), with `patch -p1 < <this file>` at the repository's root, and commit the result byte for byte as
+"enforce(001): P-I5 tags". The earlier P-I5 plus this delta gives the rebuilt P-I5's tree, byte for byte.
+--- a/infra/prod/edge.tf
++++ b/infra/prod/edge.tf
+@@ -33,6 +33,10 @@
+       return request;
+     }
+   EOT
++
++  tags = {
++    component = "edge"
++  }
+ }
+ 
+ # hareet.ai and www.hareet.ai, in us-east-1 as CloudFront requires, validated by DNS in the zone (dns.tf) and renewed

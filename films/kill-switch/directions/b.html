@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · The breach test, live</title>
+<style>
+@font-face { font-family: "Overpass"; src: url("../assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Plex Mono"; src: url("../assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+@font-face { font-family: "Plex Sans"; src: url("../assets/fonts/IBMPlexSans-Bold.woff") format("woff"); font-weight: 700; }
+:root { --ground:#17232e; --surface:#1f2e3a; --line:#2f4250; --text:#e8eef1; --muted:#8fa1ad; --green:#47a386; --crimson:#d0587a; --crimson-deep:#ad2549; }
+html,body { margin:0; width:1920px; height:1080px; overflow:hidden; }
+#film { position:relative; width:1920px; height:1080px; overflow:hidden; color:var(--text); font-family:"Plex Mono",monospace;
+  background: radial-gradient(1500px 900px at 35% 45%, #1d2b37 0%, #17232e 55%, #111b24 100%); }
+.term { position:absolute; left:90px; top:80px; width:1180px; height:920px; overflow:hidden; font-size:21px; line-height:1.62; color:var(--muted); }
+.term .cmd { color:var(--text); }
+.term .step { color:var(--text); margin-top:6px; }
+.term .row { white-space:nowrap; }
+.term .row b { color:var(--green); font-weight:400; }
+.term .hot { color:#fff; background:linear-gradient(90deg, rgba(173,37,73,.55), rgba(173,37,73,.15) 85%, transparent); margin-left:-14px; padding-left:14px; }
+.term .hot b { color:#ffd5df; }
+.fade { position:absolute; left:0; right:0; top:0; height:180px; background:linear-gradient(#17232e, transparent); }
+.big { position:absolute; left:700px; top:470px; text-shadow:0 0 0 #17232e, 0 10px 60px rgba(17,27,36,.9); font-family:"Overpass",sans-serif; font-weight:900; font-size:380px; line-height:1; letter-spacing:-.045em; color:var(--crimson); mix-blend-mode:normal; }
+.cap { position:absolute; left:722px; top:870px; font-family:"Overpass",sans-serif; font-weight:800; font-size:30px; letter-spacing:.2em; color:var(--text); }
+/* the real Telegram trip alert, as delivered to the stand-in */
+.tg { position:absolute; right:90px; top:110px; width:560px; padding:28px 30px; border-radius:22px; background:#22323f; border:1px solid var(--line); box-shadow:0 30px 80px rgba(0,0,0,.45); font-family:"Plex Sans",sans-serif; color:var(--text); }
+.tg .h { font-size:22px; color:var(--muted); font-weight:700; }
+.tg .t { margin-top:10px; font-size:27px; font-weight:700; line-height:1.3; }
+.tg pre { margin:16px 0 0; font-family:"Plex Mono",monospace; font-size:19px; line-height:1.55; color:#cfdae0; }
+.tg .n { margin-top:14px; font-size:19px; font-family:"Plex Mono",monospace; color:var(--muted); }
+.tally { position:absolute; right:90px; bottom:90px; font-family:"Overpass",sans-serif; font-weight:800; font-size:40px; color:var(--green); text-align:right; }
+.tally span { display:block; font-family:"Plex Mono",monospace; font-weight:400; font-size:20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="film" data-composition-id="dir-b" data-width="1920" data-height="1080">
+  <div class="term">
+    <div class="cmd">$ make breach-test ENV=dev-cpu</div>
+    <div>breach test: h4reet-dev-cpu, checking /health first</div>
+    <div class="step">step 6 · US5-6: a same-day renewal grants $2 more; the next day's grants $2, not $4</div>
+    <div class="row">6g   6    US5-6    L      <b>PASS</b>   that hello's call.degraded record names fallback_awaiting_renewal</div>
+    <div class="row">6h   6    US5-6    M      <b>PASS</b>   the next day's renewal: the allowance reads 2.00, not 4.00</div>
+    <div class="step">step 7 · US2-3: the model server back, and metered calls to $5.00 today: the kill switch trips</div>
+    <div class="row hot">7a   7    US2-3    M      <b>PASS</b>   the kill switch reads degraded within 60 s of the crossing</div>
+    <div class="row">7b   7    US2-3    L      <b>PASS</b>   killswitch.tripped within 60 s of the crossing call's record (SC-002)</div>
+    <div class="row">7c   7    US2-3    L      <b>PASS</b>   the trip alert is delivered on both channels within 300 s</div>
+    <div class="row">7d   7    US2-3    L      <b>PASS</b>   both stand-ins hold the trip alert</div>
+    <div class="row">7e   7    US2-3    M      <b>PASS</b>   Why responses are degraded shows kill_switch_tripped, with local healthy</div>
+    <div class="row">7f   7    US2-3    L      <b>PASS</b>   a hello's call.degraded record names kill_switch_tripped: local is refused too</div>
+    <div class="step">step 8 · US2-6: the incident draft, with its evidence</div>
+    <div class="row">8a   8    US2-6    L      <b>PASS</b>   incident.drafted for the daily ceiling</div>
+    <div class="step">step 9 · US2-4: a reset brings local answers back; metered calls stay refused at the ceiling</div>
+    <div class="row">9a   9    US2-4    L      <b>PASS</b>   operator.reset, and its audit row: who, when, why</div>
+  </div>
+  <div class="fade"></div>
+  <div class="big">$5.00</div>
+  <div class="cap">THE KILL SWITCH TRIPS</div>
+  <div class="tg">
+    <div class="h">🔴 Critical · [h4reet.ai prod]</div>
+    <div class="t">🛑 KILL SWITCH TRIPPED: daily ceiling reached</div>
+    <pre>Daily      5.00 /  5.00 USD   warning  3.50
+Month     13.40 / 20.00 USD   warning 14.00
+Fallback   2.00 /  4.00 USD   grant 2</pre>
+    <div class="n">Only an operator reset restores service.</div>
+  </div>
+  <div class="tally">52 / 52 PASS<span>summary: 52 assertions: 52 passed, 0 missed</span></div>
+</div>
+</body>
+</html>

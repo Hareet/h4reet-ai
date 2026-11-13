@@ -47,26 +47,30 @@ How to apply, on your own branch, from the repository's root (one line each):
   patch -p1 < /tmp/p6.patch
 Then write the set's name in infra/account/iam.tf, plan the account root as you do today, and apply.
 
-Verified on a fresh `git archive refs/heads/main` export (main d4870ec8), with the branch's infra/test/test_account.py
-and infra/test/fixtures/account-plan/ (T062, agent-written, committed RED first) copied in: dry run and apply clean;
-`pytest infra/test/`: 141 passed (in the branch's worktree, against this patch's previous version, which lacked the
-new denies: 14 failed, 127 passed); `tools/gates/infra_policy.py`: "infra-policy: PASS, 15 files"; `terraform fmt
--check` on iam.tf: clean. Not run here: terraform validate and plan, which need your provider mirror and your session.
-
+Verified on a fresh `git archive refs/heads/main` export (main 9d35ac9b; rebuilt after W1 merged): dry run and apply
+clean; `tools/gates/infra_policy.py`: "infra-policy: PASS, 32 files"; `terraform fmt -check` on iam.tf: clean. In the
+branch's worktree, where infra/test/test_account.py reads iam.tf through this patch: 101 passed. On the patched export,
+`pytest infra/test/` fails (138 failed, 222 passed), and not because of this role: spec 001's infra/test/patches.py
+checks that W1's applied patches (P-I6 here) still match iam.tf at their exact line numbers, so any lines added above
+P-I6's hunks make it StalePatch. That check needs offsets, or to stop reading applied patches, before this patch goes
+on main (the note says so). Not run here: terraform validate and plan, which need your provider mirror and your session.
 --- a/infra/account/iam.tf
 +++ b/infra/account/iam.tf
-@@ -1,8 +1,8 @@
+@@ -1,9 +1,10 @@
  # The account's identities (spec 001 FR-012, FR-013, FR-023; research.md R-15; contracts/aws-alerts.md §4): the
  # laptop's Bedrock permission set, imported from spec 000's hand-made one and narrowed; h4-laptop-bedrock, the ordinary
  # role it assumes, which holds Bedrock and takes the model action's deny; h4-rehearsal-target, a role of the same shape
--# for the rehearsal; and the three functions' roles. Protected (FR-012; rule T5): it changes only by the Author's patch.
--# Nothing here changes at run time (FR-070).
-+# for the rehearsal; h4-agent-plan, the night shift's plan-only role (spec 017 FR-032); and the three functions'
-+# roles. Protected (FR-012; rule T5): it changes only by the Author's patch. Nothing here changes at run time (FR-070).
+-# for the rehearsal; the three functions' roles; and, from group 9 (P-I6), the handover's: the start function's and the
+-# guard's roles, the hours' schedules' role, and the Author's stop of EC2. Protected (FR-012; rule T5): it changes only
+-# by the Author's patch. Nothing here changes at run time (FR-070).
++# for the rehearsal; h4-agent-plan, the night shift's plan-only role (spec 017 FR-032); the three functions' roles;
++# and, from group 9 (P-I6), the handover's: the start function's and the guard's roles, the hours' schedules' role, and
++# the Author's stop of EC2. Protected (FR-012; rule T5): it changes only by the Author's patch. Nothing here changes at
++# run time (FR-070).
  
  # ----------------------------------------------------------------------------------------------------------------------
  # The laptop's Bedrock permission set (row F2): imported, then holding nothing but sts:AssumeRole on h4-laptop-bedrock.
-@@ -17,6 +17,12 @@
+@@ -18,6 +19,12 @@
    # (T038's review, I4). The Author read it from IAM Identity Center on 2026-11-11 (the merge-request note, For the
    # Author, 2), and the session put it in this patch.
    laptop_permission_set = "h4reet-ai-cloud"
@@ -79,7 +83,7 @@ new denies: 14 failed, 127 passed); `tools/gates/infra_policy.py`: "infra-policy
  }
  
  data "aws_ssoadmin_instances" "this" {}
-@@ -183,6 +189,137 @@
+@@ -184,6 +191,137 @@
  }
  
  # ----------------------------------------------------------------------------------------------------------------------

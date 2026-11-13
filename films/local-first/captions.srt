@@ -1,0 +1,59 @@
+1
+00:00:00,500 --> 00:00:04,386
+The whole production stack runs on one laptop, with one command.
+
+2
+00:00:04,940 --> 00:00:16,374
+Make up starts fifteen containers: the edge, the gateway, the site, the meter's database, the model server, and the tools that watch them, from metrics and logs to Grafana and Langfuse.
+
+3
+00:00:16,920 --> 00:00:27,472
+The model server is llama dot cpp on the laptop's GPU, running Qwen3, thirty billion parameters, in twenty-one of the card's twenty-four gigabytes.
+
+4
+00:00:28,020 --> 00:00:29,812
+Every question tries it first.
+
+5
+00:00:29,862 --> 00:00:33,367
+A local answer costs nothing, and nothing leaves the machine.
+
+6
+00:00:34,620 --> 00:00:37,607
+Only when it's down does the capped paid fallback answer.
+
+7
+00:00:37,657 --> 00:00:42,853
+On the cloud server, which has no GPU, the Anthropic API answers first.
+
+8
+00:00:43,400 --> 00:00:51,276
+This is production, not a demo: every image pinned by its digest, and one build at one commit, the same image everywhere.
+
+9
+00:00:52,330 --> 00:00:54,450
+Offline-first isn't new for Hareet.
+
+10
+00:00:54,500 --> 00:01:01,811
+At Medic, the community health workers using the Community Health Toolkit had older Android phones, and mostly no network.
+
+11
+00:01:02,310 --> 00:01:09,157
+So Hareet designed Voice for CHT: the health worker speaks the visit, and the form fills itself, offline.
+
+12
+00:01:09,207 --> 00:01:17,145
+Hareet helped the team fine-tune its models to two hundred seventy-three megabytes, to run beside the app on a four-gigabyte phone.
+
+13
+00:01:17,195 --> 00:01:20,815
+No audio or transcript leaves the phone as telemetry.
+
+14
+00:01:21,380 --> 00:01:30,157
+At denverlocal dot A I, the same idea serves small Denver teams: private AI, with sensitive files kept on hardware they own.
+
+15
+00:01:30,660 --> 00:01:34,779
+Local models first. Built in the open, at hareet dot A I.

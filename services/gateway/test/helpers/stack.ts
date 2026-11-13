@@ -17,6 +17,7 @@ import type { TwinLoad } from "../../src/config/twin.js";
 import { loadConfig } from "../../src/config/validate.js";
 import { readMigrations, Store } from "../../src/meter/store.js";
 import type { GatewayMetrics } from "../../src/telemetry/metrics.js";
+import { EC2, LAPTOP } from "../../src/config/hosts.js";
 import { testDatabase, type TestDatabase } from "./pglite.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/config/", import.meta.url));
@@ -85,6 +86,11 @@ export async function testStack(
     factories?: ReadonlyMap<string, AdapterFactory>;
     /** The alert channels, such as stubs on the loopback (spec 011's samples); ALERT_DELIVERY's by default. */
     channels?: Channels;
+    /**
+     * A database another stack already uses: spec 001's two gateways on one shared state (its tasks.md T060). The
+     * stack's close() leaves it open, for the test that made it to close.
+     */
+    db?: TestDatabase;
   } = {},
 ): Promise<TestStack> {
   const stack = o.stack ?? "dev";
@@ -98,7 +104,11 @@ export async function testStack(
   const at = (level: string) => (record: object) =>
     void logged.push({ level, record: record as Record<string, unknown> });
   const logger = { info: at("info"), warn: at("warn"), error: at("error"), fatal: at("fatal") };
-  const db = await testDatabase();
+  const db = o.db ?? (await testDatabase());
+  // The host on every row the gateway writes (spec 001's 0007): production's pool sets it on each connection from
+  // H4_HOST (src/meter/store.ts); PGlite is one session, so it is set once here.
+  const h4Host = o.env?.H4_HOST ?? LAPTOP;
+  if (h4Host === LAPTOP || h4Host === EC2) await db.pg.exec(`SET h4.host = '${h4Host}'`);
   const store = new Store({
     db,
     migrations: await readMigrations(),
@@ -154,7 +164,7 @@ export async function testStack(
       await services.dispatcher.stop();
       await services.gateway.close();
       await Promise.allSettled([api.close(), admin.close()]);
-      await store.close();
+      if (o.db === undefined) await store.close();
       await rm(stateDir, { recursive: true, force: true });
       if (configDir !== undefined) await rm(configDir, { recursive: true, force: true });
     },

@@ -1,0 +1,14 @@
+# EC2's gateway egress allowlist (spec 001 FR-051, FR-067, FR-068; contracts/tunnel.md §6): every name the gateway's
+# proxy, deploy/scripts/sni_proxy.py, lets a container's TLS reach, by the name its hello asks for, on 443. Each is named,
+# in backticks, by a row of docs/data-flow-disclosure.md (F3, F1, A1, and C18). The alerts mailbox's SMTP host, on 465,
+# is the env file's SMTP_HOST, which the proxy reads at start (row A2), since its name is the Author's and not the
+# repository's.
+
+# EC2's first route, the Anthropic API (F3).
+api.anthropic.com
+
+# EC2's second route, Bedrock (F1).
+bedrock-runtime.us-east-1.amazonaws.com
+
+# The alerts' first channel, Telegram's Bot API (A1).
+api.telegram.org

@@ -689,7 +689,8 @@ def test_lint_typechecks_the_room_as_a_workspace(tmp_path: Path) -> None:
         check=False,
     )
     assert done.returncode == 0, done.stderr
-    assert "for ws in services/gateway apps/web;" in done.stdout
+    # Spec 001 group 8's relay is the second services workspace, typechecked as the gateway is.
+    assert "for ws in services/gateway services/relay apps/web;" in done.stdout
 
 
 # --------------------------------------------------------------------------------------------------

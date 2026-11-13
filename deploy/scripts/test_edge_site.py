@@ -174,6 +174,8 @@ def test_the_events_limit_is_one_zone_per_stack() -> None:
     assert zones == [
         ["$server_port", "zone=room_events:1m", "rate=10r/s"],
         ["$server_port", "zone=room_turn:1m", "rate=1r/s"],
+        # Spec 001's health block, 8088, for Route 53's checkers (deploy/edge/test_tunnel_blocks.py).
+        ["$server_port", "zone=health_block:1m", "rate=10r/s"],
     ]
     assert HTTP.one("limit_req_status").args == ["429"]
 

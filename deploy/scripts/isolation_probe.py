@@ -37,7 +37,8 @@ from dataclasses import dataclass, field
 TIMEOUT_S = 1.5
 # What each service of deploy/compose.yaml listens on, beside what its image exposes.
 PORTS = {
-    "edge": (8080, 8081, 8082, 8083, 8084, 8087, 8090),
+    # Spec 001's hosts' blocks: the relay's 8085, telemetry's 8086, and health's 8088 (its contracts/tunnel.md §4).
+    "edge": (8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8090),
     "gateway": (8080, 8081),
     # The room's site (spec 002): its nginx, behind edge's 8087.
     "web": (8080,),
@@ -58,6 +59,24 @@ PORTS = {
     "mailpit": (1025, 8025),
     # A one-off client in the breach profile (tasks.md T144): it listens on nothing.
     "breach-probe": (),
+    # Spec 001's tunnel (its contracts/tunnel.md §3): the laptop's end listens for its two local forwards, the shared
+    # state's and the sink's, inside the stack; the tunnel end's runs on the tunnel end alone.
+    "tunnel": (5432, 2301),
+    "tunnel-end": (2222, 2201, 2202, 2203),
+    "tunnel-end-collector": (4318, 13133),
+    # Spec 001 group 6: the shared state, on the tunnel end alone (its contracts/shared-state.md §1).
+    "shared-state": (5432,),
+    # Spec 001 group 7: EC2's two doors from the tunnel end, on EC2 alone (its contracts/tunnel.md §4).
+    "ec2-relay-block": (8085, 4318),
+    # Spec 001 group 8: the relay's three listeners, on the tunnel end, and dev-relay's on dev and dev-cpu (its
+    # contracts/relay-http.md §1).
+    "relay": (8080, 8081, 8082),
+    "dev-relay": (8080, 8081, 8082),
+    # Spec 001 group 10: the public view's sink, on the tunnel end (its contracts/public-view.md §2); the publishers,
+    # on the laptop and EC2, listen on nothing.
+    "snapshot-sink": (8080,),
+    "snapshot-publisher": (),
+    "ec2-snapshot-publisher": (),
 }
 
 Resolve = Callable[[str], list[str]]

@@ -409,6 +409,129 @@ def test_the_rooms_rows_are_in_its_own_section_with_the_specs_words() -> None:
     assert named(rows()["S14"][0].split("→", 1)[0]) == {"web"}
 
 
+# Spec 001 group 7 (its tasks.md T092; its spec.md, "Data-Flow Disclosure Entries"): EC2's parts of S2, F1, F3, A1,
+# A2, D1, V2, and C7, each added after the earlier specs' words, which stay as they were; and F3's adopted words,
+# untouched. before_group_7 gives the rows as they read before it, which the earlier specs' checks hold to their words.
+GROUP_7_ADDS = {
+    (
+        "S2",
+        0,
+    ): "On EC2 (spec 001), the same, through the instance's egress allowlist (spec 001, FR-051), which admits only the destinations listed in their own rows: every TLS connection the gateway opens goes to EC2's gateway proxy, which admits only the names row C18 lists.",
+    (
+        "S2",
+        1,
+    ): "On EC2: F3 first, then F1. On prod, on either host: the shared state, C2.",
+    (
+        "S2",
+        6,
+    ): "On EC2, stop EC2. The laptop's `egress` network still has no destination allowlist, the Author's open decision.",
+    (
+        "A1",
+        0,
+    ): "(spec 001) and EC2's `gateway`, while EC2 serves, through EC2's gateway proxy (C18).",
+    (
+        "A2",
+        0,
+    ): "(spec 001) and EC2's `gateway`, while EC2 serves, on 465 with implicit TLS alone, through EC2's gateway proxy, which admits the env file's `SMTP_HOST` there and nothing else (C18).",
+    (
+        "F1",
+        1,
+    ): "On EC2 (spec 001), as its second route, when the Anthropic API can't answer, inside the $5 daily and $20 monthly ceilings, with no sub-budget, attributed `metered`. EC2's credentials come from its instance role, not F2's session: its credential timer assumes `h4-prod-gateway`, the one role EC2's gateway calls Bedrock as, which EC2's model action can revoke (spec 001, FR-023), and the call leaves through EC2's gateway proxy (C18).",
+    (
+        "V2",
+        4,
+    ): "On EC2, prod's default host, there is no local model: every turn goes to the Anthropic API first (F3), and to Bedrock (F1) when it can't answer. In the Author's words: \"On the ec2 server, anthropic api will answer first.\" (2026-11-09; spec 001)",
+    ("V2", 5): "On EC2, every turn the meter admits is a paid call.",
+    ("V2", 6): "Stop EC2 and set its autostart switch off (spec 001, FR-065).",
+    (
+        "F3",
+        1,
+    ): "On EC2 (spec 001): every `POST /hello` and room turn that the kill switch and admission let through, inside the ceilings and the adapter's monthly cap, with no local model before it and no sub-budget; and the health check, once a minute while EC2 runs.",
+    (
+        "F3",
+        5,
+    ): "On EC2 (spec 001): on, once its route names the Anthropic API first, the Author's line in `config/routing.yaml`, which waits on his price, his cap, his key, and his words in this row (spec 010, FR-002 and FR-039; spec 001, FR-068).",
+    (
+        "F3",
+        6,
+    ): "On EC2, change its route, or stop EC2. On EC2 the meter's bound is the $5 daily and $20 monthly ceilings and the adapter's cap; $2 of fallback a day stays the laptop's.",
+    (
+        "C7",
+        0,
+    ): "On EC2 (group 7): its deployer reads the release bucket at each boot, before its stack starts, and each minute; pulls its images from ECR by digest, each upstream one as the account's copy; reads its secrets from Parameter Store at boot (`write_env.py`); assumes `h4-prod-gateway` through STS for its gateway; and is reached by the Author through Systems Manager alone; each through its egress proxy (C18). The laptop's release record stays in the Author's own release directory, `~/.local/state/h4reet/releases/`, and nothing leaves it.",
+    (
+        "C7",
+        2,
+    ): "On EC2, the instance role's signed requests, and the gateway role's short-lived credentials back.",
+}
+GROUP_7_CHANGES = {
+    ("S2", 2): (
+        "what A1, A2, F1, F2, and F3 say",
+        "what A1, A2, C2, F1, F2, and F3 say (F2 on the laptop only)",
+    ),
+    ("D1", 5): (
+        (
+            "the stack's only calls to Anthropic are F3's, prod's gateway with its own key, while prod's route names "
+            "the Anthropic API (spec 010)"
+        ),
+        (
+            "the stack's only calls to Anthropic are F3's, prod's gateway with its own key: on EC2 always, and on the "
+            "laptop while its route names the Anthropic API (spec 010; spec 001)"
+        ),
+    ),
+}
+# Spec 001 group 8's changes (tasks.md T111): V2's path, in spec 001's Data-Flow Disclosure Entries' own words, which
+# replace "after spec 001, through its edge and relay".
+GROUP_8_CHANGES = {
+    ("V2", 0): (
+        "after spec 001, through its edge and relay",
+        (
+            "after spec 001, through hareet.ai's edge to the one relay, on the tunnel end (C1), which sends it to the "
+            "serving host's relay block: EC2's by default, inside the account, or the laptop's through its tunnel "
+            "while the Author runs it (C14)"
+        ),
+    ),
+}
+
+
+def before_group_7(found: dict[str, list[str]]) -> dict[str, list[str]]:
+    out = {rid: list(cells) for rid, cells in found.items()}
+    for (rid, i), (old, new) in GROUP_8_CHANGES.items():
+        assert new in out[rid][i], (rid, i)
+        out[rid][i] = out[rid][i].replace(new, old, 1)
+    for (rid, i), text in GROUP_7_ADDS.items():
+        assert out[rid][i].endswith(f" {text}"), (rid, i)
+        out[rid][i] = out[rid][i][: -len(text) - 1]
+    for (rid, i), (old, new) in GROUP_7_CHANGES.items():
+        assert new in out[rid][i], (rid, i)
+        out[rid][i] = out[rid][i].replace(new, old, 1)
+    return out
+
+
+def test_group_8s_v2_path_is_spec_001s_words() -> None:
+    spec = (REPO / "specs" / "001-cloud-elevation" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    for old, new in GROUP_8_CHANGES.values():
+        assert f'"{old}" becomes "{new}"' in spec
+
+
+def test_group_7s_ec2_parts_stand_beside_the_earlier_words_and_f3s_adopted_words_are_untouched() -> (
+    None
+):
+    found = rows()
+    before = before_group_7(found)
+    assert found["F3"][0] == before["F3"][0]
+    assert all("EC2" in text for text in GROUP_7_ADDS.values())
+    # The spec's own sentences for V2, which its entries give word for word.
+    assert found["V2"][5].endswith(
+        "On EC2, every turn the meter admits is a paid call."
+    )
+    assert found["V2"][6].endswith(
+        "Stop EC2 and set its autostart switch off (spec 001, FR-065)."
+    )
+
+
 def spec_007_entry(row_id: str) -> list[str]:
     """specs/007-twin-conversation/spec.md's Data-Flow Disclosure Entries row: its eight cells."""
     spec = (REPO / "specs" / "007-twin-conversation" / "spec.md").read_text(
@@ -426,7 +549,7 @@ def test_the_twins_turn_has_row_v2_in_spec_007s_words() -> None:
     room = TEXT.split("\n## Spec 002: the room\n", 1)[1]
     assert "| V2 |" in room
     entry = spec_007_entry("V2")
-    row = rows()["V2"]
+    row = before_group_7(rows())["V2"]
     # Spec 010's Amendment 7-5: its Why is spec 007's words, then spec 010's sentence; the other cells unchanged.
     assert row[:4] == entry[1:5] and row[5:7] == entry[6:8]
     assert row[4] == f"{entry[5]}. {v2_sentence()}"
@@ -586,7 +709,7 @@ def test_f3s_host_is_the_adapters_own_constant() -> None:
 
 
 def test_s2_d1_and_v2_change_as_spec_010s_entries_give_them() -> None:
-    found = rows()
+    found = before_group_7(rows())
     s2 = spec_010_entry("S2")
     assert s2[2].removeprefix("as before, and: ") in found["S2"][1]
     assert found["S2"][2] == "what A1, A2, F1, F2, and F3 say"
@@ -597,20 +720,36 @@ def test_s2_d1_and_v2_change_as_spec_010s_entries_give_them() -> None:
     assert found["V2"][4].endswith(v2_sentence())
 
 
+def anthropic_routes(routing: dict) -> list[str]:
+    """Every place a prod route names an anthropic-messages adapter: schema 1's envs.prod.fallback, and each host
+    route's first, second, and fallback in schema 2 (spec 001, tasks.md T069; FR-068)."""
+    adapters = routing.get("adapters") or {}
+    prod = (routing.get("envs") or {}).get("prod") or {}
+    routes = {"envs.prod": prod}
+    for host, route in (prod.get("hosts") or {}).items():
+        routes[f"envs.prod.hosts.{host}"] = route or {}
+    found = []
+    for where, route in routes.items():
+        for role in ("first", "second", "fallback"):
+            adapter = adapters.get(route.get(role)) or {}
+            if adapter.get("type") == "anthropic-messages":
+                found.append(f"{where}.{role}")
+    return found
+
+
 def placeholder_gate(routing_text: str, disclosure_text: str) -> list[str]:
-    """What stops the Anthropic API's route (FR-039): F3's placeholder, while prod's fallback is anthropic-messages."""
-    routing = yaml.safe_load(routing_text)
-    fallback = ((routing.get("envs") or {}).get("prod") or {}).get("fallback")
-    adapter = (routing.get("adapters") or {}).get(fallback) or {}
-    if adapter.get("type") != "anthropic-messages":
+    """What stops the Anthropic API's route (FR-039): F3's placeholder, while any prod route names
+    anthropic-messages."""
+    routes = anthropic_routes(yaml.safe_load(routing_text) or {})
+    if not routes:
         return []
     (f3,) = [ln for ln in disclosure_text.splitlines() if ln.startswith("| F3 |")]
     from_to = [c.strip() for c in f3.strip().strip("|").split("|")][1]
     if PLACEHOLDER in from_to:
         return [
             (
-                "config/routing.yaml names the Anthropic API as prod's fallback while F3 holds the placeholder for "
-                "the Author's words about what Anthropic keeps (spec 010, FR-039)"
+                f"config/routing.yaml names the Anthropic API at {', '.join(routes)} while F3 holds the placeholder "
+                "for the Author's words about what Anthropic keeps (spec 010, FR-039)"
             )
         ]
     return []
@@ -667,7 +806,7 @@ def f3_departures(text: str) -> list[str]:
     """Where F3 departs from spec 010's entry (FR-038), the placeholder aside: the entry keeps it, and F3 holds it or,
     once T059 writes them, the Author's words in its place (FR-039, SC-010). Nothing else in the row may differ."""
     entry = spec_010_entry("F3")
-    row = rows(text)["F3"]
+    row = before_group_7(rows(text))["F3"]
     found = []
     start = entry[1].index(PLACEHOLDER)
     before, after = entry[1][:start], entry[1][entry[1].index(">", start) + 1 :]
@@ -756,3 +895,36 @@ def test_the_alert_rows_add_spec_011s_words() -> None:
     assert checked == 14
     # No row is added: spec 011's entries change four rows that exist.
     assert {"A1", "A2", "S12", "S13"} <= set(found)
+
+
+# Spec 001 (tasks.md T062; FR-068; spec 010 FR-039): the gate over every host route of schema 2, and schema 1's
+# envs.prod.fallback as before. Each fixture in evals/fixtures/routing/ names the Anthropic API in one place, but the
+# last, which names it nowhere.
+ROUTING_FIXTURES = REPO / "evals" / "fixtures" / "routing"
+NAMES_ANTHROPIC = (
+    "schema1-fallback-anthropic.yaml",
+    "schema2-laptop-fallback-anthropic.yaml",
+    "schema2-ec2-first-anthropic.yaml",
+    "schema2-ec2-second-anthropic.yaml",
+)
+
+
+def test_the_placeholder_gate_reads_every_host_route() -> None:
+    before = before_the_authors_words(TEXT)
+    worded = with_the_authors_words(before)
+    for name in NAMES_ANTHROPIC:
+        text = (ROUTING_FIXTURES / name).read_text(encoding="utf-8")
+        assert placeholder_gate(text, before) != [], name
+        assert placeholder_gate(text, worded) == [], name
+    clear = (ROUTING_FIXTURES / "schema2-no-anthropic.yaml").read_text(encoding="utf-8")
+    assert placeholder_gate(clear, before) == []
+    assert placeholder_gate(clear, worded) == []
+
+
+def test_the_placeholder_gate_names_the_route_it_found() -> None:
+    before = before_the_authors_words(TEXT)
+    text = (ROUTING_FIXTURES / "schema2-ec2-second-anthropic.yaml").read_text(
+        encoding="utf-8"
+    )
+    (found,) = placeholder_gate(text, before)
+    assert "envs.prod.hosts.ec2.second" in found

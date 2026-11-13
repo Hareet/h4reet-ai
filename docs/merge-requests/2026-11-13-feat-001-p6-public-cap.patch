@@ -1,0 +1,36 @@
+P-6: config/budgets.yaml's `public` section, the relay's public request cap (spec 001 FR-033; plan.md §14, P-6;
+tasks.md T105; ADR 0029). For the Author's hand: config/budgets.yaml is human-only (ADR 0017).
+
+Built by the implementer agent on feat/001-w1 from plain copies: `git show 7c5f1259:config/budgets.yaml` into $TMPDIR,
+the section appended, then `diff -u` with a/ and b/ labels after this preamble. Never `git apply`; no protected file
+written into any worktree.
+
+Each figure is left blank and marked as the Author's. Before he applies it (T114), he writes his four figures where
+the patch says "the Author's figure", and the same figures, with the date, into ADR 0029's Decision 4. With a figure
+blank the gateway's validator refuses the file (rule B10, naming each key) and the relay refuses to start, so this
+patch applies only with his figures in it. The bounds the validator holds them to: requests_per_minute 1 to 600,
+burst 1 to 600 and at most requests_per_minute, requests_per_day 1 to 100000 and at least requests_per_minute,
+in_flight 1 to 256.
+
+Applies to config/budgets.yaml as of 7c5f1259, with `patch -p1`, first in the stack, since no other patch touches the file.
+
+--- a/config/budgets.yaml
++++ b/config/budgets.yaml
+@@ -26,3 +26,17 @@
+   # turns and characters of conversation a request carries, a twin call's input bound (also its reservation's), and
+   # its output cap.
+   twin:        { turn_max_chars: 600, history_max_turns: 8, history_max_chars: 4000, max_input_chars: 32000, max_output_tokens: 300 }
++
++# The relay's public request cap (spec 001 FR-033, FR-042; ADR 0029; contracts/relay-http.md §3, step 3), on the
++# tunnel end, before any gateway: per address, from the address CloudFront supplies, a token bucket of `burst`
++# refilled at `requests_per_minute`, and at most `requests_per_day` a UTC day; and across every address at most
++# `in_flight` requests forwarded and not yet answered. Held in memory only, for at most one UTC day. Each figure is
++# the Author's (P-6; tasks.md T114): the relay refuses to start, and the gateway's validator refuses the file, while
++# one is blank, naming each key.
++public:
++  per_address:
++    requests_per_minute:   # the Author's figure
++    burst:                 # the Author's figure
++    requests_per_day:      # the Author's figure
++  global:
++    in_flight:             # the Author's figure

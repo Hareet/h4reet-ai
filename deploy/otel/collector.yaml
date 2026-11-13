@@ -182,12 +182,14 @@ processors:
     send_batch_size: 512
     send_batch_max_size: 1024
 
-  # x004 writes dev-time metrics and nothing else: Claude Code's and the eval history's, from those two senders.
+  # x004 writes dev-time metrics and nothing else: Claude Code's and the eval history's, from those two senders; and one
+  # named exception, the laptop's handover loop's window, h4.handover.window_seconds from h4-handover alone (spec 001
+  # group 9; its plan.md §16, "Group 9, as built"; W1's note, question W-9).
   filter/devtime:
     error_mode: ignore
     metrics:
       metric:
-        - 'not (IsMatch(name, "^(claude_code|h4\\.devtime)\\.") and (resource.attributes["service.name"] == "claude-code" or resource.attributes["service.name"] == "h4-gate"))'
+        - 'not ((IsMatch(name, "^(claude_code|h4\\.devtime)\\.") and (resource.attributes["service.name"] == "claude-code" or resource.attributes["service.name"] == "h4-gate")) or (name == "h4.handover.window_seconds" and resource.attributes["service.name"] == "h4-handover"))'
 
   # No account, email, or organization identifier is stored.
   transform/devtime:

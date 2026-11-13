@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -27,6 +28,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKOFF_S = (5, 15, 45)
 BASES = ("base:node", "base:python")
+# Spec 001's cloud classes, whose services no laptop stack pulls (preflight.py's HOST_CLASSES).
+CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
+# A shared service's EC2 override, "${H4_IMAGE_<SERVICE>:-<pin>}": the laptop pulls the pin (spec 001 group 7).
+MIRRORED_RE = re.compile(r"\$\{(H4_IMAGE_[A-Z0-9_]+):-([^}]+)\}")
+
+
+def as_pinned(name: str, image: str) -> str:
+    m = MIRRORED_RE.fullmatch(image)
+    if m and m.group(1) == "H4_IMAGE_" + name.upper().replace("-", "_"):
+        return m.group(2)
+    return image
+
+
 # The gateway's one image per commit, and the room's web image, which make up builds and compose never pulls (tasks.md
 # T184, deploy/scripts/gateway_image.py; spec 002, deploy/scripts/web_image.py): no registry has either, so neither is
 # pulled or unpinned.
@@ -82,6 +96,9 @@ def wanted(
             continue
         if SHARED_IMAGES.get(name) == image and service.get("pull_policy") == "never":
             continue
+        if service.get("profiles") and set(service["profiles"]) <= CLOUD_PROFILES:
+            continue  # a cloud host's alone: its image is the account's registry's copy (spec 001)
+        image = as_pinned(name, str(image))
         (refs if "@sha256:" in str(image) else unpinned).append(
             str(image) if "@sha256:" in str(image) else name
         )

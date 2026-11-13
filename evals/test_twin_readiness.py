@@ -643,3 +643,77 @@ def test_the_thresholds_are_over_the_complete_set(
     out = line(tree, capsys, files)
     assert "misses the thresholds" in out
     assert "golden cases passed 0 of 2, under the bar of 1" in out
+
+
+# Spec 001 (tasks.md T065; spec 010 FR-026 and spec 007 FR-031, amended by name): with routing's schema 2, the
+# evidence names both host routes' paid adapters: the laptop's fallback, and EC2's first and second.
+SCHEMA_2 = """schema: 2
+envs:
+  prod:
+    hosts:
+      laptop: {{ primary: local{laptop} }}
+{ec2}  dev: {{ primary: local }}
+"""
+
+
+def hosts_route(tree: Path, laptop: str | None, ec2: list[str]) -> None:
+    line_ec2 = (
+        ""
+        if not ec2
+        else "      ec2: { "
+        + ", ".join(f"{k}: {v}" for k, v in zip(("first", "second"), ec2))
+        + " }\n"
+    )
+    (tree / "config" / "routing.yaml").write_text(
+        SCHEMA_2.format(
+            laptop="" if laptop is None else f", fallback: {laptop}", ec2=line_ec2
+        ),
+        encoding="utf-8",
+    )
+
+
+def runs_on(tree: Path, adapters: list[str]) -> list[str]:
+    """A product run and a red-team run on each adapter, the local model's among them."""
+    out: list[str] = []
+    for i, adapter in enumerate(adapters):
+        out += [
+            history(
+                tree,
+                "evals/product/history",
+                f"2026-11-1{i}T000000Z-{adapter}.json",
+                pack=h("topic"),
+                prompt=prompt_sha(tree),
+            ),
+            history(
+                tree,
+                "redteam/history",
+                f"2026-11-1{i}T010000Z-{adapter}.json",
+                pack=h("topic"),
+                prompt=prompt_sha(tree),
+            ),
+        ]
+    return out
+
+
+def test_schema_2_names_both_host_routes_adapters(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hosts_route(tree, "anthropic", ["anthropic", "bedrock"])
+    out = line(tree, capsys, runs_on(tree, ["local", "anthropic"]))
+    assert "evidence missing" in out
+    assert "a product run on bedrock" in out
+    assert "a red-team run on bedrock" in out
+    assert "ready, its evidence" in line(
+        tree, capsys, runs_on(tree, ["local", "anthropic", "bedrock"])
+    )
+
+
+def test_schema_2_with_the_laptops_line_alone_names_its_fallback(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hosts_route(tree, "anthropic", [])
+    out = line(tree, capsys, runs_on(tree, ["local"]))
+    assert "a product run on anthropic" in out
+    assert "ready, its evidence" in line(
+        tree, capsys, runs_on(tree, ["local", "anthropic"])
+    )

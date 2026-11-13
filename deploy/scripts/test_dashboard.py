@@ -40,6 +40,31 @@ STUDIO = (REPO / "specs/003-studio-assets/contracts/gpu-window.md").read_text(
     encoding="utf-8"
 )
 STUDIO_ROW = "gpu-window §3"
+# Spec 001's "Hosts" row (its plan §11): each group's panels land with its feature, in the contract that owns the
+# feature. Group 5's, the tunnel's and the tunnel end's collector's, are contracts/tunnel.md §7's table (tasks.md T053).
+TUNNEL = (REPO / "specs/001-cloud-elevation/contracts/tunnel.md").read_text(
+    encoding="utf-8"
+)
+# Group 6's, the shared state's, are contracts/shared-state.md §10's (tasks.md T075).
+SHARED_STATE = (REPO / "specs/001-cloud-elevation/contracts/shared-state.md").read_text(
+    encoding="utf-8"
+)
+# Group 7's, the release's, are contracts/releases-deployer.md §6's (tasks.md T091).
+RELEASES = (
+    REPO / "specs/001-cloud-elevation/contracts/releases-deployer.md"
+).read_text(encoding="utf-8")
+# Group 8's, the relay's, are contracts/relay-http.md §9's (tasks.md T110).
+RELAY = (REPO / "specs/001-cloud-elevation/contracts/relay-http.md").read_text(
+    encoding="utf-8"
+)
+HANDOVER = (REPO / "specs/001-cloud-elevation/contracts/handover.md").read_text(
+    encoding="utf-8"
+)
+# Group 10's, the public view's, are contracts/public-view.md §5's (tasks.md T137).
+PUBLIC_VIEW = (REPO / "specs/001-cloud-elevation/contracts/public-view.md").read_text(
+    encoding="utf-8"
+)
+HOSTS_ROW = "tunnel §7"
 US1 = ("7.3", "7.4", "7.6")
 US2 = ("7.1", "7.2", "7.5")
 US3 = ("7.7",)
@@ -135,7 +160,48 @@ def all_contract_panels() -> dict[str, tuple[str, list[str]]]:
     for number in SECTIONS:
         expected.update(contract_panels(number))
     expected.update(studio_panels())
+    expected.update(hosts_panels())
     return expected
+
+
+def contract_section(text: str, heading: str) -> str:
+    start = text.index(f"\n## {heading} ")
+    end = text.find("\n## ", start + 1)
+    return text[start : end if end > 0 else None]
+
+
+def hosts_section() -> str:
+    """The Hosts row's panels: tunnel.md §7, group 5's, and shared-state.md §10, group 6's, each up to its next "## "
+    heading."""
+    return (
+        contract_section(TUNNEL, "7.")
+        + contract_section(SHARED_STATE, "10.")
+        + contract_section(RELEASES, "6.")
+        + contract_section(RELAY, "9.")
+        # Group 9's (tasks.md T127): the handover's panels.
+        + contract_section(HANDOVER, "10.")
+        # Group 10's (tasks.md T137): the public view's.
+        + contract_section(PUBLIC_VIEW, "5.")
+    )
+
+
+def hosts_panels() -> dict[str, tuple[str, list[str]]]:
+    """tunnel.md §7's panel table, read as contract_panels reads telemetry.md §7's, its two-visualization rows too."""
+    out: dict[str, tuple[str, list[str]]] = {}
+    for line in hosts_section().splitlines():
+        if not line.startswith("| ") or line.startswith("| Panel"):
+            continue
+        title, kind, query = cells(line)[:3]
+        title = re.sub(r"\s*\((?:FR|SC)-[^)]*\)$", "", title)
+        queries_ = expand(query, [])
+        two = TWO_KINDS.fullmatch(kind)
+        if two:
+            first, second = two.groups()
+            out[title] = (first, queries_)
+            out[f"{title} ({second})"] = (second, queries_)
+        else:
+            out[title] = (kind, queries_)
+    return out
 
 
 def studio_section() -> str:
@@ -158,8 +224,12 @@ def studio_panels() -> dict[str, tuple[str, list[str]]]:
 
 
 def row_panels(key: str) -> dict[str, tuple[str, list[str]]]:
-    """A row's panels: a section of telemetry.md §7, or the studio window's."""
-    return studio_panels() if key == STUDIO_ROW else contract_panels(key)
+    """A row's panels: a section of telemetry.md §7, the studio window's, or spec 001's Hosts row."""
+    if key == STUDIO_ROW:
+        return studio_panels()
+    if key == HOSTS_ROW:
+        return hosts_panels()
+    return contract_panels(key)
 
 
 def panels() -> list[dict]:
@@ -330,7 +400,7 @@ def test_every_metric_name_is_the_contracts() -> None:
     """telemetry.md §8: every metric name the dashboard queries appears in the contract, or is one of the "the same
     for" names it spells with _metric_points_total or _log_records_total in place of _spans_total (the collector's
     counters, pushed with _total since T185). The PromQL panels hold them all."""
-    words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT))
+    words = set(re.findall(r"[A-Za-z_:][A-Za-z0-9_:]*", CONTRACT + hosts_section()))
     names = set()
     for panel in panels():
         if panel["datasource"]["uid"] != "prom":
@@ -409,6 +479,8 @@ def test_the_store_panels_read_their_sql_as_a_table() -> None:
         "The model each turn used",
         # Spec 010's table of the paid adapters' months reads gateway.v_adapter_months (its FR-036).
         "Paid adapters' months (authoritative)",
+        # Spec 001 group 8's handovers read the shared state's gateway.v_handovers (contracts/relay-http.md §9).
+        "Handovers and their gaps",
     }
     for panel in sql:
         (target,) = panel["targets"]
@@ -437,6 +509,8 @@ ROWS = {
     "Telemetry health": "7.6",
     "Room": "7.8",
     "Room conversation": "7.10",
+    # Spec 001's hosts, below the room's rows; the studio's window stays just above the dev-time row.
+    "Hosts": HOSTS_ROW,
     "Studio GPU windows": STUDIO_ROW,
     dev_time_row(): "7.7",
 }
@@ -954,13 +1028,17 @@ def test_room_live_states_metrics_are_named_in_the_contracts_text() -> None:
 
 def test_the_dashboard_holds_none_of_room_live_state_yet() -> None:
     # The section is all or nothing (test_each_section_is_all_or_nothing), and nothing yet: no panel by its titles,
-    # no query of its series, and no row named for it.
+    # no query of its series as the room's live state reads them, and no row named for it. Spec 001 group 8's relay
+    # brings h4_relay_requests_total itself, which its own Hosts panel reads by host and outcome (contracts/relay-
+    # http.md §9); the room's live state reads it by its route label, which spec 004's Amendment A2 adds later.
     assert not set(contract_panels("7.9")) & set(by_title())
     for panel in panels():
         for expr in queries(panel):
-            assert not LIVE_SERIES & set(re.findall(r"\bh4_[a-z_]+\b", expr)), panel[
+            names = set(re.findall(r"\bh4_[a-z_]+\b", expr))
+            assert not (LIVE_SERIES - {"h4_relay_requests_total"}) & names, panel[
                 "title"
             ]
+            assert "h4_relay_route" not in names, panel["title"]
     rows = [p["title"] for p in DASHBOARD["panels"] if p["type"] == "row"]
     assert "Room live state" not in rows
 
@@ -1077,3 +1155,102 @@ def test_the_paid_adapters_month_has_its_panels() -> None:
     ]
     assert table["type"] == "table"
     assert table["datasource"]["uid"] == "gateway"
+
+
+def test_the_hosts_row_holds_group_5s_panels_whole() -> None:
+    # Spec 001 tasks.md T053: the tunnel's state and reconnects, and telemetry delayed or lost on its way from the
+    # tunnel end (its collector's queue and drops), each with the contract's exact queries, in their row.
+    expected = hosts_panels()
+    assert set(expected) == {
+        "Tunnel up",
+        "Tunnel up (state timeline)",
+        "Tunnel reconnects",
+        "Telemetry delayed at the tunnel end",
+        "Telemetry lost at the tunnel end",
+        # Group 6's (tasks.md T075; contracts/shared-state.md §10).
+        "Shared state latency, p95",
+        "Shared state errors",
+        "Last good backup's age",
+        # Group 7's (tasks.md T091; contracts/releases-deployer.md §6).
+        "The release on each host",
+        "Deployments",
+        # Group 8's (tasks.md T110; contracts/relay-http.md §9).
+        "Which host serves",
+        "Handovers and their gaps",
+        "The relay's requests by host and outcome",
+        "The public cap's refusals",
+        # Group 9's (tasks.md T127; contracts/handover.md §10).
+        "EC2's state",
+        "EC2's spot request",
+        "EC2's starts, refusals, and the guard's stops",
+        "The hours' scheduled starts and stops",
+        "The autostart switch",
+        "The laptop's health check",
+        "The handover window",
+        "The server's month against its budget",
+        # Group 10's (tasks.md T137; contracts/public-view.md §5).
+        "The public view's age",
+        "The public view's writes and posts",
+    }
+    found = by_title()
+    for title, (kind, queries_) in expected.items():
+        assert title in found, title
+        assert queries(found[title]) == queries_, title
+    # Group 7's review A, nit 6: the release table shows what each host's deployer said in its last few runs, so the old
+    # release's row goes within minutes, not an hour.
+    assert expected["The release on each host"][1] == [
+        "max by (h4_host, h4_release, h4_commit, h4_started_by) (last_over_time(h4_release_info[5m]))"
+    ]
+    assert expected["Telemetry lost at the tunnel end"][1] == [
+        'sum by (exporter) (rate(otelcol_exporter_enqueue_failed_spans_total{service_name="tunnel-end-collector"}[5m]))',
+        'sum by (exporter) (rate(otelcol_exporter_enqueue_failed_metric_points_total{service_name="tunnel-end-collector"}[5m]))',
+        'sum by (exporter) (rate(otelcol_exporter_enqueue_failed_log_records_total{service_name="tunnel-end-collector"}[5m]))',
+    ]
+
+
+def test_the_tunnel_reads_up_and_down_as_words() -> None:
+    for title in ("Tunnel up", "Tunnel up (state timeline)"):
+        mappings = by_title()[title]["fieldConfig"]["defaults"]["mappings"]
+        words = {
+            m["options"][k]["text"]
+            for m in mappings
+            if m["type"] == "value"
+            for k in m["options"]
+        }
+        assert words == {"up", "down"}, title
+
+
+def test_which_host_serves_reads_none_in_red() -> None:
+    # Spec 001 group 8 (contracts/relay-http.md §9): the timeline shows each host's one-hot series, none's in red.
+    panel = by_title()["Which host serves"]
+    assert panel["type"] == "state-timeline"
+    steps = panel["fieldConfig"]["defaults"]["thresholds"]["steps"]
+    assert steps[0]["color"] == "transparent" and steps[-1] == {
+        "color": "green",
+        "value": 1,
+    }
+    (override,) = panel["fieldConfig"]["overrides"]
+    assert override["matcher"] == {"id": "byName", "options": "none"}
+    # Group 8's review A, I4: a value mapping's colour wins over a field's, so none's own mapping paints its 1 red; a
+    # colour override alone would leave it the default mapping's green.
+    (mapping,) = [p["value"] for p in override["properties"] if p["id"] == "mappings"]
+    ones = [
+        m["options"]["1"]
+        for m in mapping
+        if m["type"] == "value" and "1" in m["options"]
+    ]
+    assert [o["color"] for o in ones] == ["red"]
+    # Its series are labelled by h4.serving, which the tunnel end's collector doesn't route on, so the one-hot set
+    # reaches either host's Prometheus whole.
+    assert queries(panel) == ["max by (h4_serving) (h4_serving_host)"]
+    assert panel["targets"][0]["legendFormat"] == "{{h4_serving}}"
+
+
+def test_the_relays_panels_read_no_address() -> None:
+    for title in (
+        "The relay's requests by host and outcome",
+        "The public cap's refusals",
+        "Handovers and their gaps",
+    ):
+        for query in queries(by_title()[title]):
+            assert "address" not in query and "client" not in query, title

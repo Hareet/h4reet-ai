@@ -436,8 +436,11 @@ def test_a_valid_stack_passes(
     assert {
         k: (r.status, r.reason) for k, r in results.items() if r.status == "FAIL"
     } == {}
-    expected = {f"P{i}" for i in range(1, 19)} | (
-        {"P19", "P21"} if any_stack.stack == "prod" else set()
+    # P23, spec 001 group 6's host and shared state, on every stack.
+    expected = (
+        {f"P{i}" for i in range(1, 19)}
+        | {"P23"}
+        | ({"P19", "P21", "P22"} if any_stack.stack == "prod" else set())
     )
     expected |= {"P21"} if any_stack.stack == "dev" else set()
     expected |= {"P20"} if any_stack.stack == "dev-cpu" else set()
@@ -464,7 +467,7 @@ def test_main_prints_one_line_per_check_and_never_a_value(
     assert code == 0, out
     lines = out.splitlines()
     assert [ln.split()[1] for ln in lines[:-1]] == [
-        f"P{i}" for i in (*range(1, 20), 21)
+        f"P{i}" for i in (*range(1, 20), 21, 22, 23)
     ]
     assert lines[-1].startswith("preflight: passed with warnings")
     values = pf.read_env(prod.env_file)
@@ -1436,3 +1439,467 @@ def test_p19_checks_aws_only_for_a_route_that_names_bedrock(prod: Stage) -> None
     prod.set(GATEWAY_ANTHROPIC_API_KEY="k" + "x" * 39)
     result = prod.results()["P19"]
     assert result.status == "PASS" and "no Bedrock adapter" in result.reason
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Spec 001 group 5 (tasks.md T044): the laptop's prod takes the tunnel profile, and P22 checks what its tunnel needs;
+# the tunnel end's class selects its own services only.
+
+TUNNEL_TOKEN = "t" * 43  # a token's shape, made here
+
+
+def tunnel_dir(stage: Stage) -> Path:
+    """The tunnel's client files as the Author's tunnel-keys target leaves them: the key, 0600, and the pinned host
+    key."""
+    folder = stage.home / ".config/h4reet-ai/tunnel/client"
+    folder.mkdir(parents=True)
+    folder.chmod(0o700)
+    key = folder / "id_ed25519"
+    stage.write(
+        key,
+        "-" * 5 + "BEGIN OPENSSH " + "PRIVATE KEY" + "-" * 5 + "\nstand-in\n",
+    )
+    key.chmod(0o600)
+    stage.write(folder / "known_hosts", "h4-tunnel-end ssh-ed25519 " + "A" * 68 + "\n")
+    (folder / "known_hosts").chmod(0o644)
+    return folder
+
+
+def with_tunnel(stage: Stage) -> Path:
+    folder = tunnel_dir(stage)
+    stage.set(
+        COMPOSE_PROFILES="gpu,tunnel",
+        TUNNEL_END_ADDRESS="198.51.100.7",
+        H4_TUNNEL_DIR=str(folder),
+        RELAY_TOKEN_SELF=TUNNEL_TOKEN,
+        TELEMETRY_BLOCK_TOKEN=TUNNEL_TOKEN[::-1] + "u",
+        SNAPSHOT_SINK_TOKEN=TUNNEL_TOKEN[::-1] + "s",
+    )
+    return folder
+
+
+def test_p6_prod_may_add_the_tunnel_profile(prod: Stage) -> None:
+    with_tunnel(prod)
+    assert prod.results()["P6"].status == "PASS", prod.results()["P6"].reason
+
+
+def test_p6_only_prods_laptop_takes_the_tunnel_profile(dev: Stage) -> None:
+    dev.set(COMPOSE_PROFILES="gpu,dev-receivers,tunnel")
+    result = dev.results()["P6"]
+    assert (
+        result.status == "FAIL"
+        and "COMPOSE_PROFILES isn't gpu,dev-receivers" in result.reason
+    )
+
+
+def test_p22_passes_with_no_tunnel_profile(prod: Stage) -> None:
+    result = prod.results()["P22"]
+    assert result.status == "PASS" and "no tunnel profile" in result.reason
+
+
+def test_p22_passes_with_the_tunnels_address_keys_and_tokens(prod: Stage) -> None:
+    with_tunnel(prod)
+    result = prod.results()["P22"]
+    assert result.status == "PASS", result.reason
+    assert TUNNEL_TOKEN not in result.reason
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        ({"TUNNEL_END_ADDRESS": ""}, "TUNNEL_END_ADDRESS"),
+        ({"TUNNEL_END_ADDRESS": "tunnel.example.invalid"}, "TUNNEL_END_ADDRESS"),
+        ({"TUNNEL_END_ADDRESS": "10.42.0.10"}, "TUNNEL_END_ADDRESS"),
+        ({"RELAY_TOKEN_SELF": ""}, "RELAY_TOKEN_SELF"),
+        ({"RELAY_TOKEN_SELF": "short"}, "RELAY_TOKEN_SELF"),
+        ({"TELEMETRY_BLOCK_TOKEN": ""}, "TELEMETRY_BLOCK_TOKEN"),
+        # Group 10: the publisher's token to the public view's sink.
+        ({"SNAPSHOT_SINK_TOKEN": ""}, "SNAPSHOT_SINK_TOKEN"),
+        ({"H4_TUNNEL_DIR": "/nonexistent/tunnel"}, "H4_TUNNEL_DIR"),
+    ],
+)
+def test_p22_names_what_the_tunnel_lacks_never_a_value(
+    prod: Stage, change: dict, named: str
+) -> None:
+    with_tunnel(prod)
+    prod.set(**change)
+    result = prod.results()["P22"]
+    assert result.status == "FAIL" and named in result.reason, result.reason
+    assert TUNNEL_TOKEN not in result.reason
+
+
+def test_p22_refuses_a_key_others_can_read_and_a_host_key_unpinned(
+    prod: Stage,
+) -> None:
+    folder = with_tunnel(prod)
+    (folder / "id_ed25519").chmod(0o644)
+    assert "id_ed25519" in prod.results()["P22"].reason
+    (folder / "id_ed25519").chmod(0o600)
+    (folder / "known_hosts").write_text("", encoding="utf-8")
+    result = prod.results()["P22"]
+    assert result.status == "FAIL" and "known_hosts" in result.reason
+
+
+def tunnel_end_env(tmp_path: Path, **changes: str) -> Path:
+    """The tunnel end's env file as write_env.py writes it: its template, with each parameter filled."""
+    template = REPO / "deploy/hosts/tunnel-end/tunnel-end.env.example"
+    lines = []
+    for line in template.read_text(encoding="utf-8").splitlines():
+        key, sep, value = line.partition("=")
+        if sep and not line.startswith("#"):
+            filled = {
+                "__PARAMETER__": TUNNEL_TOKEN,
+                "__PARAMETER:/h4reet/hosts/RELEASE_BUCKET__": "h4reet-ai-releases-"
+                + "a" * 8,
+                "__ACCOUNT_REGISTRY__": "".join(str(i % 10) for i in range(12))
+                + ".dkr.ecr.us-east-1.amazonaws.com",
+            }.get(value, value)
+            line = f"{key}={changes.pop(key, filled)}"
+        lines.append(line)
+    assert not changes, changes
+    path = tmp_path / "tunnel-end.env"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_the_tunnel_end_class_selects_its_services_only() -> None:
+    assert pf.HOST_CLASSES["tunnel-end"] == (
+        "tunnel-end",
+        "relay",
+        "snapshot-sink",
+        "tunnel-end-collector",
+        # Spec 001's shared state, on the tunnel end from W1 (tasks.md T163).
+        "shared-state",
+    )
+    in_profile = {
+        name
+        for name, s in RAW["services"].items()
+        if "tunnel-end" in (s.get("profiles") or [])
+    }
+    assert in_profile and in_profile <= set(pf.HOST_CLASSES["tunnel-end"])
+    for name in in_profile:
+        assert RAW["services"][name]["profiles"] == ["tunnel-end"], name
+
+
+def test_the_tunnel_end_class_passes_its_env_file(tmp_path: Path) -> None:
+    results = {
+        r.check: r
+        for r in pf.tunnel_end_checks(
+            REPO, tunnel_end_env(tmp_path), shared_state_tls(tmp_path)
+        )
+    }
+    assert {k: r.reason for k, r in results.items() if r.status != "PASS"} == {}
+    assert set(results) == {"T1", "T2", "T3", "T4", "T5"}
+
+
+@pytest.mark.parametrize(
+    ("change", "check", "named"),
+    [
+        ({"H4_HOST": "laptop"}, "T3", "H4_HOST"),
+        ({"H4_STACK": "dev"}, "T3", "H4_STACK"),
+        ({"COMPOSE_PROFILES": "tunnel-end,gpu"}, "T3", "COMPOSE_PROFILES"),
+        ({"TELEMETRY_BLOCK_TOKEN": ""}, "T4", "TELEMETRY_BLOCK_TOKEN"),
+        ({"H4_REGISTRY": "elsewhere.example.invalid"}, "T4", "H4_REGISTRY"),
+        ({"RELEASE_BUCKET": "someone-elses-bucket"}, "T4", "RELEASE_BUCKET"),
+    ],
+)
+def test_the_tunnel_end_class_names_what_is_wrong(
+    tmp_path: Path, change: dict, check: str, named: str
+) -> None:
+    results = {
+        r.check: r
+        for r in pf.tunnel_end_checks(
+            REPO, tunnel_end_env(tmp_path, **change), shared_state_tls(tmp_path)
+        )
+    }
+    assert results[check].status == "FAIL" and named in results[check].reason
+    assert TUNNEL_TOKEN not in results[check].reason
+
+
+def test_the_tunnel_end_class_refuses_a_file_others_can_read(tmp_path: Path) -> None:
+    path = tunnel_end_env(tmp_path)
+    path.chmod(0o644)
+    results = {
+        r.check: r for r in pf.tunnel_end_checks(REPO, path, shared_state_tls(tmp_path))
+    }
+    assert results["T1"].status == "FAIL"
+
+
+# Spec 001 group 6 (tasks.md T063, T163; FR-018, FR-019; contracts/env-cloud.md §2; contracts/shared-state.md §3): the
+# shared state's connection on the laptop's prod, H4_HOST per class, and the tunnel end's store certificate. The CA
+# certificate and the server's are certificate-shaped text built here, at run time.
+PEM = (
+    "-----BEGIN "
+    + "CERTIFICATE-----\n"
+    + "M" * 64
+    + "\n-----END "
+    + "CERTIFICATE-----\n"
+)
+CA_B64 = __import__("base64").b64encode(PEM.encode()).decode()
+SHARED_URL = "postgres://gateway@tunnel:5432/h4reet?sslmode=verify-full"
+
+
+def with_shared_state(stage: Stage) -> None:
+    with_tunnel(stage)
+    stage.set(
+        GATEWAY_DB_URL=SHARED_URL,
+        GATEWAY_DB_TLS_SERVERNAME="shared-state",
+        GATEWAY_DB_TLS_CA=CA_B64,
+    )
+
+
+def shared_state_tls(tmp_path: Path) -> Path:
+    """/run/h4reet/shared-state as the tunnel end's host script leaves it: the key 0400, the certificate 0444."""
+    folder = tmp_path / "shared-state-tls"
+    folder.mkdir(exist_ok=True)
+    key = folder / "server.key"
+    key.unlink(missing_ok=True)
+    key.write_text(
+        "-----BEGIN "
+        + "PRIVATE KEY-----\n"
+        + "K" * 64
+        + "\n-----END "
+        + "PRIVATE KEY-----\n"
+    )
+    key.chmod(0o400)
+    cert = folder / "server.crt"
+    cert.unlink(missing_ok=True)
+    cert.write_text(PEM)
+    cert.chmod(0o444)
+    return folder
+
+
+def test_p23_warns_while_the_laptops_prod_keeps_its_own_store(prod: Stage) -> None:
+    # Before the Author's move (tasks.md T080), prod's meter is the laptop's own gateway-state: make up still works.
+    result = prod.results()["P23"]
+    assert result.status == "WARN", result.reason
+    assert "T080" in result.reason and "FR-018" in result.reason
+
+
+def test_p23_passes_with_the_shared_state_over_tls(prod: Stage) -> None:
+    with_shared_state(prod)
+    result = prod.results()["P23"]
+    assert result.status == "PASS", result.reason
+    assert CA_B64 not in result.reason and SHARED_URL not in result.reason
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("verify-full", "require")},
+            "sslmode=verify-full",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("?sslmode=verify-full", "")},
+            "sslmode=verify-full",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("gateway@", "gateway:pw@")},
+            "password",
+        ),
+        (
+            {"GATEWAY_DB_URL": SHARED_URL.replace("tunnel:", "gateway-state:")},
+            "gateway-state",
+        ),
+        ({"GATEWAY_DB_TLS_SERVERNAME": ""}, "GATEWAY_DB_TLS_SERVERNAME"),
+        ({"GATEWAY_DB_TLS_CA": ""}, "GATEWAY_DB_TLS_CA"),
+        ({"GATEWAY_DB_TLS_CA": "bm90IGEgY2VydGlmaWNhdGU="}, "GATEWAY_DB_TLS_CA"),
+        ({"COMPOSE_PROFILES": "gpu"}, "tunnel"),
+    ],
+)
+def test_p23_names_what_the_shared_states_connection_lacks_never_a_value(
+    prod: Stage, change: dict, named: str
+) -> None:
+    with_shared_state(prod)
+    prod.set(**change)
+    result = prod.results()["P23"]
+    assert result.status == "FAIL" and named in result.reason, result.reason
+    assert "pw@" not in result.reason and CA_B64 not in result.reason
+
+
+@pytest.mark.parametrize("value", ["ec2", "tunnel-end", "", "server"])
+def test_p23_holds_each_laptop_stack_to_h4_host_laptop(
+    any_stack: Stage, value: str
+) -> None:
+    any_stack.set(H4_HOST=value)
+    result = any_stack.results()["P23"]
+    assert result.status == "FAIL" and "H4_HOST" in result.reason, result.reason
+
+
+def test_p23_refuses_the_shared_state_on_dev(dev: Stage) -> None:
+    dev.set(GATEWAY_DB_URL=SHARED_URL)
+    result = dev.results()["P23"]
+    assert result.status == "FAIL" and "GATEWAY_DB_URL" in result.reason
+
+
+def test_the_tunnel_end_class_refuses_a_store_without_its_certificate(
+    tmp_path: Path,
+) -> None:
+    env = tunnel_end_env(tmp_path)
+    folder = shared_state_tls(tmp_path)
+    (folder / "server.crt").unlink()
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, env, folder)}
+    assert results["T5"].status == "FAIL" and "server.crt" in results["T5"].reason
+    folder = shared_state_tls(tmp_path)
+    (folder / "server.key").chmod(0o644)
+    results = {r.check: r for r in pf.tunnel_end_checks(REPO, env, folder)}
+    assert results["T5"].status == "FAIL" and "server.key" in results["T5"].reason
+    assert "K" * 64 not in results["T5"].reason
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Spec 001 group 7 (tasks.md T081): EC2's class, E1 to E6, and the image overrides no host's own env file may name.
+
+EC2_TEMPLATE = REPO / "deploy" / "hosts" / "ec2" / "ec2.env.example"
+
+
+def ec2_env(tmp_path: Path, **change: str) -> Path:
+    import base64
+    import secrets
+
+    values, _ = pf.parse_env(EC2_TEMPLATE.read_text(encoding="utf-8"))
+    dashes = "-" * 5
+    pem = f"{dashes}BEGIN CERTIFICATE{dashes}\nQUJD\n{dashes}END CERTIFICATE{dashes}\n"
+    for key, value in values.items():
+        if value.startswith("__PARAMETER"):
+            values[key] = secrets.token_urlsafe(32)
+    values.update(
+        {
+            "H4_REGISTRY": "3" * 12 + ".dkr.ecr.us-east-1.amazonaws.com",
+            "RELEASE_BUCKET": "h4reet-ai-releases-abc123",
+            "GATEWAY_DB_TLS_CA": base64.b64encode(pem.encode()).decode(),
+        }
+    )
+    values.update(change)
+    path = tmp_path / "ec2.env"
+    path.write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def ec2_aws(tmp_path: Path, expires: str = "2999-01-01T00:00:00Z") -> Path:
+    import json
+
+    aws = tmp_path / "aws"
+    aws.mkdir(exist_ok=True)
+    (aws / "credentials.json").unlink(missing_ok=True)
+    (aws / "config").write_text(
+        "[profile h4reet-bedrock]\nregion = us-east-1\ncredential_process = /bin/cat /home/node/.aws/credentials.json\n",
+        encoding="utf-8",
+    )
+    (aws / "credentials.json").write_text(
+        json.dumps({"Version": 1, "Expiration": expires}), encoding="utf-8"
+    )
+    (aws / "credentials.json").chmod(0o400)
+    return aws
+
+
+def ec2_statuses(results) -> dict[str, str]:
+    return {r.check: r.status for r in results}
+
+
+def test_ec2s_class_passes_its_template_on_h4_prod_ec2(tmp_path: Path) -> None:
+    results = pf.ec2_checks(
+        REPO, ec2_env(tmp_path), ec2_aws(tmp_path), name_tag=lambda: "h4-prod-ec2"
+    )
+    assert ec2_statuses(results) == {f"E{n}": "PASS" for n in range(1, 7)}, [
+        r.line() for r in results
+    ]
+
+
+@pytest.mark.parametrize(
+    ("change", "check"),
+    [
+        # No model-server profile and no local store: EC2's profile is its class's alone.
+        ({"COMPOSE_PROFILES": "ec2,gpu"}, "E3"),
+        ({"COMPOSE_PROFILES": "ec2,cpu"}, "E3"),
+        ({"H4_HOST": "laptop"}, "E3"),
+        ({"GATEWAY_DB_URL": "postgres://gateway@gateway-state:5432/gateway"}, "E4"),
+        (
+            {
+                "GATEWAY_DB_URL": "postgres://gateway:pw@10.42.1.10:5432/h4reet?sslmode=verify-full"
+            },
+            "E4",
+        ),
+        ({"SMTP_PORT": "587"}, "E4"),
+        ({"GATEWAY_ANTHROPIC_API_KEY": ""}, "E4"),
+        ({"H4_IMAGE_EDGE": "elsewhere/edge@sha256:" + "0" * 64}, "E2"),
+    ],
+)
+def test_ec2s_class_refuses_what_isnt_its_own(
+    tmp_path: Path, change: dict, check: str
+) -> None:
+    results = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path, **change),
+        ec2_aws(tmp_path),
+        name_tag=lambda: "h4-prod-ec2",
+    )
+    assert ec2_statuses(results)[check] == "FAIL", [r.line() for r in results]
+    for value in change.values():
+        if value:
+            assert not any(value in r.reason for r in results)
+
+
+def test_the_imdsv2_tag_check_against_a_stub(tmp_path: Path) -> None:
+    for tag in ("", "h4-prod-tunnel-end"):
+        results = pf.ec2_checks(
+            REPO, ec2_env(tmp_path), ec2_aws(tmp_path), name_tag=lambda t=tag: t
+        )
+        assert ec2_statuses(results)["E5"] == "FAIL"
+
+
+def test_ec2s_phases_split_at_the_host_step(tmp_path: Path) -> None:
+    before = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path),
+        tmp_path / "none",
+        phase="before",
+        name_tag=lambda: "h4-prod-ec2",
+    )
+    assert [r.check for r in before] == ["E1", "E2", "E3", "E4", "E5"]
+    after = pf.ec2_checks(
+        REPO,
+        ec2_env(tmp_path),
+        ec2_aws(tmp_path, "2000-01-01T00:00:00Z"),
+        phase="after",
+    )
+    # Group 7's review B, I4: expired credentials degrade Bedrock, EC2's second route, and never refuse the stack.
+    assert [(r.check, r.status) for r in after] == [("E6", "WARN")]
+
+
+def test_e6_warns_of_bedrock_without_its_document_and_refuses_a_wrong_profile(
+    tmp_path: Path,
+) -> None:
+    aws = ec2_aws(tmp_path)
+    assert pf.e6_credentials(aws, lambda: 0).status == "PASS"
+    (aws / "credentials.json").unlink()
+    missing = pf.e6_credentials(aws, lambda: 0)
+    assert missing.status == "WARN" and "Bedrock" in missing.reason
+    aws = ec2_aws(tmp_path)
+    (aws / "credentials.json").chmod(0o444)
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+    aws = ec2_aws(tmp_path)
+    (aws / "config").write_text("[profile other]\n", encoding="utf-8")
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+    (aws / "config").unlink()
+    assert pf.e6_credentials(aws, lambda: 0).status == "FAIL"
+
+
+def test_p17_refuses_an_image_override_from_the_shell(dev: Stage) -> None:
+    # Group 7's review B, nit 1: compose reads the process environment too, and make passes it on, so
+    # `H4_IMAGE_EDGE=… make up ENV=prod` would run an unpinned image. P5 refuses any H4_* in the shell; P17 says why.
+    assert dev.results()["P17"].status == "PASS"
+    dev.host.environ["H4_IMAGE_EDGE"] = "nginx:latest"
+    result = dev.results()["P17"]
+    assert result.status == "FAIL" and "H4_IMAGE_EDGE" in result.reason
+    assert "nginx:latest" not in result.reason
+
+
+def test_an_image_override_is_read_as_its_pin_and_named_by_no_env_file() -> None:
+    pin = "ghcr.io/nginx/nginx-unprivileged:1.30.5-alpine@sha256:" + "1" * 64
+    assert pf.as_pinned("edge", "${H4_IMAGE_EDGE:-" + pin + "}") == pin
+    # Another service's variable isn't this one's override: read as written, and P17 refuses it.
+    assert pf.as_pinned("edge", "${H4_IMAGE_LOKI:-" + pin + "}").startswith("${")

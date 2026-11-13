@@ -126,16 +126,16 @@ def anomaly_notice() -> str:
     )
 
 
-def alarm_notice(state: str) -> str:
+def alarm_notice(state: str, name: str = "h4-probe-failing") -> str:
     return json.dumps(
         {
-            "AlarmName": "h4-probe-failing",
+            "AlarmName": name,
             "AWSAccountId": ACCOUNT,
             "NewStateValue": state,
             "OldStateValue": "OK" if state == "ALARM" else "ALARM",
             "NewStateReason": f"Threshold Crossed: 5 datapoints from {ADDRESS}",
             "StateChangeTime": "2026-11-10T06:01:00.000+0000",
-            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:h4-probe-failing",
+            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:{name}",
         }
     )
 
@@ -179,6 +179,9 @@ NOTICES: dict[str, str] = {
     ),
     "probe_failing": alarm_notice("ALARM"),
     "probe_recovered": alarm_notice("OK"),
+    # W1's two alarms (tasks.md T159; infra/account/alerts.tf).
+    "credential_audit_failed": alarm_notice("ALARM", "h4-credential-audit-errors"),
+    "alert_bridge_failed": alarm_notice("ALARM", "h4-alert-bridge-failed"),
     "credential_finding": ours(
         "credential_finding",
         "2 findings",
@@ -210,6 +213,30 @@ NOTICES: dict[str, str] = {
         "ec2_stopped_server_budget", "EC2 stopped: the server action has run"
     ),
     "ec2_stopped_by_author": ours("ec2_stopped_by_author", "EC2 stopped by hand"),
+    # Group 9's review A (I3): the laptop's loop's failed stop, in deploy/scripts/handover.py's own form.
+    "handover_stop_failed": ours(
+        "handover_stop_failed",
+        "the laptop's loop couldn't stop EC2; the laptop keeps serving and retries each minute",
+        "- step: stop",
+        "- code: ExpiredToken",
+    ),
+    # Group 9 (P-I6): the hours, and the guard's second instance and its own failure.
+    "ec2_start_refused outside_hours": ours(
+        "ec2_start_refused (outside_hours)", "EC2 not started", "- trigger: alarm"
+    ),
+    "ec2_stopped_outside_hours": ours(
+        "ec2_stopped_outside_hours", "EC2 stopped: outside its hours"
+    ),
+    "ec2_unrecognised_instance": ours(
+        "ec2_unrecognised_instance",
+        "a second instance tagged h4-prod-ec2 stopped",
+        "- instance: i-0abc",
+    ),
+    "ec2_guard_failed": ours(
+        "ec2_guard_failed",
+        "the guard couldn't act; EC2 left as it is",
+        "- unread: ParameterNotFound",
+    ),
     "spot_interruption": event_notice(
         "EC2 Spot Instance Interruption Warning",
         "aws.ec2",
@@ -229,6 +256,13 @@ NOTICES: dict[str, str] = {
     ),
     "tunnel_end_back": ours(
         "tunnel_end_back", "the tunnel end runs again", "- instance: i-0def"
+    ),
+    # Group 6 (spec 001 tasks.md T164): the tunnel end's backup timer, once per failing streak.
+    "shared_state_backup_failed": ours(
+        "shared_state_backup_failed",
+        "the shared state's hourly dump failed, and the last good one is kept",
+        "- step: put",
+        "- last_good: 2026-11-13T05:00:00Z",
     ),
 }
 
@@ -413,6 +447,63 @@ def test_the_probes_alarm_reads_alarm_as_failing_and_ok_as_recovered() -> None:
     assert telegram.texts[0].startswith("[hareet.ai aws] probe_recovered: ")
     _, telegram, _ = deliver(alarm_notice("INSUFFICIENT_DATA"))
     assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+
+
+def test_w1s_alarms_read_alarm_as_their_kind_and_nothing_else() -> None:
+    # tasks.md T159: neither alarm has an OK action, so an OK or an unknown alarm's notice carries nothing.
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-credential-audit-errors"))
+    assert telegram.texts[0].splitlines()[0] == (
+        "[hareet.ai aws] credential_audit_failed: the weekly credential audit raised, since 2026-11-10T06:01:00"
+    )
+    assert (
+        telegram.texts[0].splitlines()[-1]
+        == "Runbook: docs/runbooks/credential-audit.md"
+    )
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-alert-bridge-failed"))
+    assert telegram.texts[0].splitlines()[0] == (
+        "[hareet.ai aws] alert_bridge_failed: a notice the bridge couldn't send is in its failure queue, "
+        "since 2026-11-10T06:01:00"
+    )
+    assert (
+        telegram.texts[0].splitlines()[-1] == "Runbook: docs/runbooks/alert-bridge.md"
+    )
+    for name in (
+        "h4-credential-audit-errors",
+        "h4-alert-bridge-failed",
+        "h4-something-else",
+    ):
+        _, telegram, _ = deliver(alarm_notice("OK", name))
+        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), name
+    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-something-else"))
+    assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+
+
+# EventBridge's input transformer, given a string template, publishes that string's JSON text: its quotes, and each
+# line break as the two characters \n (infra/prod/handover.tf's rules; group 5's review, I6).
+EVENTBRIDGE_STRING = (
+    '"[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes'
+    '\\n- action: stop\\n- at: 2026-11-13T05:00:00Z"'
+)
+
+
+def test_an_eventbridge_string_template_is_read_as_the_notice_it_encodes() -> None:
+    assert json.loads(EVENTBRIDGE_STRING).count("\n") == 2
+    _, telegram, _ = deliver(EVENTBRIDGE_STRING)
+    (text,) = telegram.texts
+    assert text.splitlines() == [
+        "[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes",
+        "- action: stop",
+        "- at: 2026-11-13T05:00:00Z",
+        "Runbook: docs/runbooks/tunnel-end.md",
+    ]
+    # A JSON string is read once, as text: one of no known shape, or a string inside a string, is unrecognized.
+    for message in (
+        json.dumps("not a notice of ours"),
+        json.dumps(EVENTBRIDGE_STRING),
+        json.dumps("[hareet.ai aws] no_such_kind: x"),
+    ):
+        _, telegram, _ = deliver(message)
+        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), message
 
 
 def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:

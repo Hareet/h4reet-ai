@@ -1,0 +1,27 @@
+Every change to hareet.ai starts as a sentence, and ends with a person's merge.
+
+First, the intent: what's wanted, and why, in the words of whoever wants it. The Author accepts it or closes it, and the survival rate is published.
+
+A spec-writer agent turns it into a spec, with acceptance criteria a test can check. Its questions go to the Author, and the answers are kept word for word.
+
+Then the plan: the files, the order, the risks, the cost, and what happens when it degrades. It's approved before any code exists.
+
+Then the tasks, and a read-only check that the spec, the plan, and the tasks agree.
+
+An implementer agent builds it on a feature branch, task by task, with tests. And every new feature brings its own telemetry, a dashboard panel, a cost estimate, its degraded behavior, and a disclosure row if a byte leaves your device.
+
+A reviewer agent, read-only, and never the one that wrote it, checks the change for bugs, security, compliance, and cost. Its findings inform the merge; they never replace it.
+
+Changing a feature works the same way. A newer spec names each clause it amends, and when the code departs from the plan, the plan is corrected in the same commit.
+
+A bug starts as a failing test. During a fix, a hook stops the agent from editing tests: fix the code, not the test.
+
+An incident gets a note within seven days, with the eval that would have caught it. When the kill switch trips, the gateway drafts that incident itself, from a template, with no model call.
+
+Before the Author merges, a clean-room gate runs every check on an export of the branch, with the network cut off, so nothing an agent left behind can run.
+
+The agents work in a sandbox, on their own container engine, behind hooks that refuse pushing, merging, applying infrastructure, editing budgets, or reading secrets. Hundreds of forbidden actions are tested on every run.
+
+Deploys only pull: the same images, by digest, from a release made from main, and rolled back if the health checks fail.
+
+The agents type. The Author decides. Built in the open, at hareet dot A I.

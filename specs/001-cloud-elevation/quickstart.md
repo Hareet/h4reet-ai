@@ -63,7 +63,7 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
 
 ## 6. Group 6: the shared state, and the move
 
-1. Apply RDS. Write the role passwords to Parameter Store and the laptop's env file, then run `make shared-state-roles`.
+1. (amended 2026-11-12; spec.md Assumptions, "The shared state on the tunnel end") After W1's applies: run `make shared-state-tls`, and write the four role passwords to Parameter Store and the laptop's two to its prod env file. Run `make secrets-check`, then `make release` for the tunnel end, whose deployer starts `shared-state` with the rest. Then run `make shared-state-roles`, and check that the first hourly backup reached its bucket (docs/runbooks/shared-state.md).
 2. Start any prod gateway against it: migrations 0001–0007 run once, and the store is `uninitialized`, so it answers degraded.
 3. Move the meter (data-model.md §1.5):
    - stop the laptop's paid route;
@@ -83,11 +83,13 @@ Phase 1 output of `/speckit-plan`, drafted on 2026-11-09 for the Author's review
    - with both healthy, 100% of answered turns come from the Anthropic adapter;
    - with it failing, 100% of admitted turns come from Bedrock;
    - `fallback_day` is unchanged in both.
+
+   **As built (plan.md §16, "Group 7, after review A", 7):** the recorded run uses the real APIs, about $0.05 at most; the stand-ins are the harness's own test's. In a session on EC2, as root, from the running release's tree, `evals/sc017_ec2_routes.py` refuses the Anthropic key in a copy of the env file, recreates the gateway with it under the deployer's hold, and restores both after the second phase (its `deploy_refused`, reason `held`, is the run's).
 5. **SC-005:** destroy and recreate EC2 (plan, apply). Its digests match the release, and `make operator-status ENV=shared` is unchanged.
 
 ## 8. Group 8: the edge and the relay
 
-1. Point the registrar's name servers at the zone, and record it. Apply the certificate, the distribution, and the VPC origin, and `infra/account`'s P-I5 line that enables the probe's schedule. Deploy the relay on the tunnel end.
+1. Point the registrar's name servers at the zone, and record it. Apply the certificate and the distribution (W1 already made the VPC origin; plan.md §16, "B-6: option C, and the VPC origin from W1"), and `infra/account`'s P-I5 line that enables the probe's schedule. Deploy the relay on the tunnel end.
 2. Run the red-team cases on all four adapters, and record that they passed (FR-039).
 3. `curl -I https://hareet.ai/`: TLS, HSTS, the CSP. `curl http://hareet.ai/` redirects to HTTPS.
 4. Stop EC2 with the laptop off. `POST /api/hello` gets 503 `no_host_serving` from the relay. Stop the relay: the edge's own body, the same cause. The site still loads.

@@ -1,0 +1,91 @@
+1
+00:00:00,500 --> 00:00:03,538
+How do you know an AI twin isn't making things up?
+
+2
+00:00:03,588 --> 00:00:06,001
+You test it, every time it changes.
+
+3
+00:00:06,480 --> 00:00:08,321
+Every case comes from the corpus.
+
+4
+00:00:08,371 --> 00:00:11,586
+Golden questions name the facts an answer must carry.
+
+5
+00:00:11,636 --> 00:00:13,654
+Gap questions have one right answer:
+
+6
+00:00:13,738 --> 00:00:14,577
+"I don't know."
+
+7
+00:00:14,970 --> 00:00:24,070
+Each question is asked twice, the way an engineer would ask it and the way anyone else would: a hundred and eighty-six cases, across nine topics.
+
+8
+00:00:24,460 --> 00:00:26,083
+No model grades another.
+
+9
+00:00:26,133 --> 00:00:30,694
+The checks are code: what an answer must contain, and what it must never claim.
+
+10
+00:00:31,130 --> 00:00:34,626
+In production, the same discipline runs on every answer.
+
+11
+00:00:34,676 --> 00:00:38,784
+Guards in the gateway check numbers, amounts, ownership, and privacy.
+
+12
+00:00:38,834 --> 00:00:43,010
+A failed guard withholds the answer; a guard that can't run fails closed.
+
+13
+00:00:44,350 --> 00:00:47,305
+Then the red team attacks: sixty-eight cases.
+
+14
+00:00:47,355 --> 00:00:48,826
+Does it claim to be human?
+
+15
+00:00:48,876 --> 00:00:50,583
+Does it say where Hareet lives?
+
+16
+00:00:50,633 --> 00:00:53,229
+Does it follow an instruction hidden in a question?
+
+17
+00:00:53,279 --> 00:00:59,390
+The latest run on each route passed forty-eight of forty-eight: the local model, Bedrock, and Anthropic.
+
+18
+00:00:59,790 --> 00:01:10,448
+The latest product runs: the local model passed a hundred and forty-six of a hundred and eighty-six; Bedrock, a hundred and fifty-five; Anthropic, a hundred and fifty-six.
+
+19
+00:01:10,840 --> 00:01:12,510
+Every miss becomes a fix.
+
+20
+00:01:12,560 --> 00:01:16,171
+When the local model leaked its source tags, a filter was added.
+
+21
+00:01:16,221 --> 00:01:21,716
+When a check misread a correct refusal to "are you Hareet?", the guard was widened.
+
+22
+00:01:22,110 --> 00:01:29,252
+And readiness is locked to a hash: change the prompt or the corpus, and a topic closes until the evals pass again.
+
+23
+00:01:29,690 --> 00:01:34,445
+Tested every time it changes. Built in the open, at hareet dot A I.

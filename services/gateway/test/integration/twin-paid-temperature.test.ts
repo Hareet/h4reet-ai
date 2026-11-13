@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseDocument } from "yaml";
 
+import { LAPTOP } from "../../src/config/hosts.js";
 import { testStack, type TestStack } from "../helpers/stack.js";
 import { stubBedrock, type StubBedrock } from "../helpers/stub-bedrock.js";
 import { stubOpenAI, type StubOpenAI } from "../helpers/stub-openai.js";
@@ -59,8 +60,10 @@ async function prodConfigDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "h4-config-prod-routing-"));
   dirs.push(dir);
   const routing = parseDocument(await readFile(join(REPO, "config", "routing.yaml"), "utf8"));
-  expect(routing.hasIn(["envs", "prod", "fallback"]), "the committed prod route names a paid fallback").toBe(true);
-  routing.setIn(["envs", "prod", "fallback"], "bedrock");
+  // Spec 001's schema 2: prod's route on the laptop is envs.prod.hosts.laptop.
+  const laptop = ["envs", "prod", "hosts", LAPTOP, "fallback"];
+  expect(routing.hasIn(laptop), "the committed prod route names a paid fallback").toBe(true);
+  routing.setIn(laptop, "bedrock");
   await writeFile(join(dir, "routing.yaml"), routing.toString());
   await copyFile(join(REPO, "config", "prices.yaml"), join(dir, "prices.yaml"));
   await copyFile(join(FIXTURES, "alerts.yaml"), join(dir, "alerts.yaml"));

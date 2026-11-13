@@ -17,7 +17,7 @@ With the relay on the tunnel end (ADR 0025), every dynamic request passes throug
 1. **The cap lives in the relay,** keyed on the address CloudFront supplies (`CloudFront-Viewer-Address`), held in memory only and never logged or stored (FR-042): a per-address limit of requests a minute, a burst, and requests a day, and a global in-flight limit.
 2. **Its figures are the Author's,** in `config/budgets.yaml`'s new `public` section, by his patch P-6 (human-only, ADR 0017's file). The agent drafts the keys with each figure blank (tasks.md T105); the relay refuses to start while the section is missing or a figure is blank, naming each key.
 3. **A refusal** answers spec 000's degraded body with the cause `public_cap`, which the room shows as `turn_refused.slow_down` (FR-066).
-4. **The figures recorded here** when he sets them, with the date: none yet.
+4. **The figures recorded here** when he sets them, with the date: 2026-11-13, requests_per_minute 12, burst 6, requests_per_day 300, in_flight 8.
 
 ## Alternatives considered
 

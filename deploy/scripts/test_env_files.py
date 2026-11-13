@@ -70,6 +70,16 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
     assert set(ENV["prod"]) == (dev - TEST_SWITCHES) | {
         "GATEWAY_AWS_PROFILE",
         "GATEWAY_ANTHROPIC_API_KEY",  # spec 010, Amendment 0-9
+        # spec 001's tunnel (its contracts/env-cloud.md §2): the laptop's prod alone runs it.
+        "TUNNEL_END_ADDRESS",
+        "RELAY_TOKEN_SELF",
+        "TELEMETRY_BLOCK_TOKEN",
+        # spec 001 group 10: the public view's sink's token, for the laptop's publisher.
+        "SNAPSHOT_SINK_TOKEN",
+        # spec 001's shared state (its contracts/env-cloud.md §2): empty until the Author's move (tasks.md T080).
+        "GATEWAY_DB_URL",
+        "GATEWAY_DB_TLS_SERVERNAME",
+        "GATEWAY_DB_TLS_CA",
     }  # §4, §7.1
     assert (
         "H4_TREE" not in ENV["prod"] and "H4_TREE" not in ENV["dev"]
@@ -78,6 +88,8 @@ def test_the_key_sets_differ_only_where_the_contract_says() -> None:
 
 STACK_KEYS = {
     "prod": {
+        # spec 001's host (its contracts/env-cloud.md §2; research.md R-28): every laptop stack is the laptop.
+        "H4_HOST": "laptop",
         "H4_STACK": "prod",
         "H4_ENV": "prod",
         "COMPOSE_PROJECT_NAME": "h4reet-prod",
@@ -85,10 +97,13 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "__HOME__/.local/share/h4reet/models",
         "H4_STATE_DIR": "__HOME__/.local/state/h4reet/prod",
         "H4_AWS_DIR": "__HOME__/.config/h4reet-ai/aws-home/.aws",
+        "H4_TUNNEL_DIR": "__HOME__/.config/h4reet-ai/tunnel/client",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "",
     },
     "dev": {
+        # spec 001's host (its contracts/env-cloud.md §2; research.md R-28): every laptop stack is the laptop.
+        "H4_HOST": "laptop",
         "H4_STACK": "dev",
         "H4_ENV": "dev",
         "COMPOSE_PROJECT_NAME": "h4reet-dev",
@@ -96,10 +111,13 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "__HOME__/.local/share/h4reet/models",
         "H4_STATE_DIR": "__HOME__/.local/state/h4reet/dev",
         "H4_AWS_DIR": "__REPO__/deploy/aws-none",
+        "H4_TUNNEL_DIR": "__REPO__/deploy/tunnel-none",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "",
     },
     "dev-cpu": {
+        # spec 001's host (its contracts/env-cloud.md §2; research.md R-28): every laptop stack is the laptop.
+        "H4_HOST": "laptop",
         "H4_STACK": "dev-cpu",
         "H4_ENV": "dev",
         "COMPOSE_PROJECT_NAME": "h4reet-dev-cpu",
@@ -108,6 +126,7 @@ STACK_KEYS = {
         "H4_MODEL_DIR": "/run/h4agents/models",
         "H4_STATE_DIR": "/var/lib/h4agents/state/dev-cpu",
         "H4_AWS_DIR": "/run/h4agents/tree/deploy/aws-none",
+        "H4_TUNNEL_DIR": "/run/h4agents/tree/deploy/tunnel-none",
         "H4_VHDX_MOUNT": "/mnt/c",
         "H4_BUILD_PROXY": "http://198.18.0.1:3128",
     },
@@ -282,3 +301,30 @@ def test_compose_passes_the_anthropic_key_to_the_gateway_alone() -> None:
             )
         else:
             assert "GATEWAY_ANTHROPIC_API_KEY" not in environment, name
+
+
+# Spec 001 group 6 (tasks.md T063; contracts/env-cloud.md §2; contracts/shared-state.md §3).
+SHARED_STATE_KEYS = ("GATEWAY_DB_URL", "GATEWAY_DB_TLS_SERVERNAME", "GATEWAY_DB_TLS_CA")
+
+
+def test_the_shared_states_keys_are_prods_alone_and_empty_in_its_template() -> None:
+    assert {k: ENV["prod"][k] for k in SHARED_STATE_KEYS} == dict.fromkeys(
+        SHARED_STATE_KEYS, ""
+    )
+    for stack in ("dev", "dev-cpu"):
+        assert not [k for k in SHARED_STATE_KEYS if k in ENV[stack]], stack
+
+
+def test_compose_passes_the_host_and_the_shared_state_to_the_gateway_alone() -> None:
+    import yaml
+
+    compose = yaml.safe_load((REPO / "deploy/compose.yaml").read_text(encoding="utf-8"))
+    gateway = compose["services"]["gateway"]["environment"]
+    assert gateway["H4_HOST"] == "${H4_HOST:-laptop}"
+    for key in SHARED_STATE_KEYS:
+        assert gateway[key] == "${" + key + ":-}", key
+    for name, service in compose["services"].items():
+        if name == "gateway":
+            continue
+        environment = service.get("environment") or {}
+        assert not [k for k in SHARED_STATE_KEYS if k in environment], name

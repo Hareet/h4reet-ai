@@ -1,0 +1,87 @@
+1
+00:00:00,500 --> 00:00:03,011
+Every answer the twin gives can cost money.
+
+2
+00:00:03,061 --> 00:00:05,613
+So it has a ceiling: five dollars a day.
+
+3
+00:00:07,440 --> 00:00:09,808
+Every question falls through the same layers.
+
+4
+00:00:09,858 --> 00:00:14,593
+The gateway reads the kill switch first, and if it can't read it, it assumes the worst.
+
+5
+00:00:16,040 --> 00:00:17,862
+Local answers cost nothing.
+
+6
+00:00:17,912 --> 00:00:22,560
+Paid ones are metered to the millionth of a dollar, in the gateway's own database.
+
+7
+00:00:25,540 --> 00:00:29,030
+At three fifty, a warning goes out on Telegram and email.
+
+8
+00:00:30,040 --> 00:00:31,351
+At five dollars...
+
+9
+00:00:32,640 --> 00:00:33,947
+it stops itself.
+
+10
+00:00:35,040 --> 00:00:39,468
+One transaction sets the switch, opens an incident, and queues the alert.
+
+11
+00:00:39,518 --> 00:00:43,605
+Every request after that gets one line, local answers included.
+
+12
+00:00:44,640 --> 00:00:46,487
+"The twin can't talk right now.
+
+13
+00:00:46,537 --> 00:00:49,016
+Today's budget for its answers is used."
+
+14
+00:00:50,040 --> 00:00:51,778
+A new day doesn't bring it back.
+
+15
+00:00:51,828 --> 00:00:56,567
+Only an operator reset does: a person, with a reason, in the audit log.
+
+16
+00:00:57,640 --> 00:01:02,416
+The breach test trips it on purpose: fifty-two assertions, fifty-two passed.
+
+17
+00:01:03,640 --> 00:01:10,556
+From outside, there's no door: no inbound ports, only an outbound tunnel, and only the gateway has a road out.
+
+18
+00:01:11,640 --> 00:01:14,180
+The agents that built it are fenced in too.
+
+19
+00:01:14,230 --> 00:01:16,151
+The one that writes never reviews.
+
+20
+00:01:16,201 --> 00:01:20,114
+None can touch the budgets or the switch, push, merge, or apply.
+
+21
+00:01:20,164 --> 00:01:22,565
+And only Hareet runs the final gate.
+
+22
+00:01:24,040 --> 00:01:28,616
+A five-dollar-a-day kill switch. Built in the open, at hareet dot A I.

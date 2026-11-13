@@ -244,9 +244,10 @@ def reopen_seaweedfs(root: Path) -> None:
 
 
 def reopen_compose(text: str) -> str:
+    # Inside EC2's override (spec 001 group 7): "${H4_IMAGE_SEAWEEDFS:-<pin>}".
     return re.sub(
-        r"(?m)^    image: docker\.io/chrislusf/seaweedfs\S*$",
-        "    image: docker.io/chrislusf/seaweedfs",
+        r'(?m)^(    image: "\$\{H4_IMAGE_SEAWEEDFS:-)docker\.io/chrislusf/seaweedfs[^}]*(\}")$',
+        r"\1docker.io/chrislusf/seaweedfs\2",
         text,
     )
 
@@ -263,7 +264,12 @@ def test_rewrite_compose_pins_an_open_image_line_in_place() -> None:
         (a, b)
         for a, b in zip(text.splitlines(), rewritten.splitlines(), strict=True)
         if a != b
-    ] == [("    image: docker.io/chrislusf/seaweedfs", f"    image: {pinned}")]
+    ] == [
+        (
+            '    image: "${H4_IMAGE_SEAWEEDFS:-docker.io/chrislusf/seaweedfs}"',
+            f'    image: "${{H4_IMAGE_SEAWEEDFS:-{pinned}}}"',
+        )
+    ]
 
 
 def test_rewrite_compose_changes_only_the_pinned_image_lines() -> None:
@@ -278,8 +284,12 @@ def test_rewrite_compose_changes_only_the_pinned_image_lines() -> None:
     rewritten, changes = pi.rewrite_compose(text, pins)
     assert changes == {"edge": (lock["edge"].ref, new_ref)}
     before, after = text.splitlines(), rewritten.splitlines()
+    # EC2's override keeps its wrapper, the pin inside it (spec 001 group 7).
     assert [(a, b) for a, b in zip(before, after, strict=True) if a != b] == [
-        (f"    image: {lock['edge'].ref}", f"    image: {new_ref}")
+        (
+            f'    image: "${{H4_IMAGE_EDGE:-{lock["edge"].ref}}}"',
+            f'    image: "${{H4_IMAGE_EDGE:-{new_ref}}}"',
+        )
     ]
 
 
@@ -304,10 +314,10 @@ def test_pinning_updates_the_lock_and_compose_together(
     ) == ("3.97", digest("5"), TODAY)
     assert lock["gateway-state"].digest == current(REPO)["gateway-state"].digest
     compose = (root / pi.COMPOSE).read_text(encoding="utf-8")
-    assert f"image: {lock['edge'].ref}" in compose
+    assert f":-{lock['edge'].ref}}}" in compose
     assert f"image: {lock['gateway-state'].ref}" in compose
     # The open line is pinned in both files together, so the compose policy's PLANNED mark expires with it.
-    assert f"    image: {lock['seaweedfs'].ref}\n" in compose
+    assert f'    image: "${{H4_IMAGE_SEAWEEDFS:-{lock["seaweedfs"].ref}}}"\n' in compose
     assert "    image: docker.io/chrislusf/seaweedfs\n" not in compose
     assert "edge" in out and "updated" in out and "pinned" in out and "same" in out
     assert "update FROM by hand (base:node" in out and ".devcontainer/Dockerfile" in out

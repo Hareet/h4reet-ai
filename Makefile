@@ -8,7 +8,7 @@ SHELL := /usr/bin/env bash
 # recipe, so "$5" vanishes and "$(shell ...)" runs. So before anything else, each one the targets read is rebound to
 # the literal text typed, and exported (ENV aside: it stays out of recipes, below). CLI_VARS names the ones given on
 # the command line, which the targets check, since an override's origin is no longer "command line" (T056's review).
-LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS
+LITERAL_VARS := ENV REF FILE REASON DAY_USD MONTH_USD FALLBACK_TODAY_USD RENEW CONFIRM_ZERO ONLY TAG DRY_RUN SERVICE TAIL MODELS SYNC DELIVERY MESSAGE ADAPTER LIMIT ID RECORD STATE KIND PROFILE ROOT MINUTES OUTCOME EXIT_STATUS HOST ROTATE RESTORE DUMP REGISTRY BUCKET COMPOSE_PLUGIN COMPOSE_SHA256 PUBLIC REDTEAM SITE_BUCKET DISTRIBUTION INCIDENT
 CLI_VARS := $(foreach v,$(LITERAL_VARS),$(if $(filter command line,$(origin $(v))),$(v)))
 $(foreach v,$(CLI_VARS),$(eval override $(v) := $$(value $(v))))
 $(foreach v,$(filter-out ENV,$(CLI_VARS)),$(eval export $(v)))
@@ -26,8 +26,15 @@ endif
 # Sub-makes get a command-line ENV through MAKEFLAGS; the environment's ENV stays out of every recipe.
 unexport ENV
 # Exactly one word, and one of the three. $(filter) would read ENV as a pattern, so "%" or "prod junk" would pass.
-ifneq ($(filter-out prod dev dev-cpu,$(ENV))$(filter-out 1,$(words $(ENV))),)
+# Spec 001's shared state (its contracts/shared-state.md §7) is a fourth, for the operator's targets alone: ENV=shared
+# reaches prod's shared meter through prod's admin listener or an admin-only stack, and runs no stack of its own.
+ifneq ($(filter-out prod dev dev-cpu shared,$(ENV))$(filter-out 1,$(words $(ENV))),)
 $(error ENV must be prod, dev, or dev-cpu, not "$(ENV)")
+endif
+ifeq ($(ENV),shared)
+ifneq ($(or $(filter-out operator-status operator-init operator-reset operator-renew operator-audit operator-restore,$(MAKECMDGOALS)),$(if $(MAKECMDGOALS),,none)),)
+$(error ENV=shared is the operator's: make operator-status|init|reset|renew|audit|restore ENV=shared, and nothing else)
+endif
 endif
 ifeq ($(ENV),dev-cpu)
 ENVFILE := deploy/env.agents/dev-cpu.vars
@@ -111,7 +118,7 @@ PYTEST := $(shell command -v pytest >/dev/null 2>&1 && echo pytest || echo uv ru
 PYTEST_ARGS := -q -p no:cacheprovider --import-mode=importlib
 # infra/ holds spec 001's tests of its roots (infra/test/) and of its Lambda functions (infra/lambdas/*/test_*.py).
 # deploy/night-shift holds spec 017's runner and its tests (no conftest.py: the tests load modules by path).
-PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine deploy/night-shift scripts infra)
+PYTEST_DIRS := $(wildcard corpus/tools evals redteam tools/gates deploy/scripts deploy/agents-engine deploy/tunnel deploy/edge deploy/hosts deploy/otel deploy/night-shift scripts infra)
 
 # node_modules and pytest, with any conftest.py, run code that agents can write and git doesn't show. The targets
 # that run them work only in the agent sandbox or the devcontainer. In your own terminal, read the merge-request
@@ -394,8 +401,12 @@ up: $(if $(RUNFILE),up-export) ## Start the stack: the commit (REF=, default HEA
 	@$(COMPOSE) up -d --build --remove-orphans --wait --wait-timeout 600; up=$$?; \
 	$(PY_HOST) $(TREE)/deploy/scripts/status.py --stack $(ENV) --env-file $(ENVFILE)$(if $(RUNFILE), --run-file $(RUNFILE)) --root $(TREE) --after-up; status=$$?; \
 	[ "$$up" -eq 0 ] && [ "$$status" -eq 0 ]
+	@# Spec 001's h4-handover (contracts/handover.md §6; tasks.md T123): on prod alone, the laptop's loop that stops EC2
+	@# once the relay serves the laptop. Its start returns at once and never fails make up.
+	@$(if $(filter prod,$(ENV)),[ ! -f $(TREE)/deploy/scripts/handover.py ] || $(PY_HOST) $(TREE)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod start --env-file $(ENVFILE) || true,:)
 
 down: ## Stop the stack: its volumes, meters, and journal stay, because it never passes -v (FR-031)
+	@$(if $(filter prod,$(ENV)),[ ! -f $(CURDIR)/deploy/scripts/handover.py ] || $(PY_HOST) $(CURDIR)/deploy/scripts/handover.py --state-dir $(HOME)/.local/state/h4reet/prod stop || true,:)
 	@$(call NOT_STARTED,stop) && $(COMPOSE) down --timeout 30 --remove-orphans
 
 # SERVICE= and TAIL= come from the command line, read by the shell, and checked before compose sees them.
@@ -539,6 +550,19 @@ else
 	$(PY_HOST) deploy/scripts/measure_stack.py --stack dev-cpu --env-file $(ENVFILE)$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
 endif
 
+# T166's harness (spec 001 tasks.md T166; plan.md §16, "T166's harness"): the tunnel end's five services, measured on
+# the engine of whoever runs it, in a project of their own, under deploy/measure's overlay, with stand-in secrets in a
+# temporary folder and stand-in public-cap figures. Not Author-only: it touches no stack, account, or secret of his,
+# spends nothing (a stub host answers), and from an agent's sandbox it reaches the agents' engine alone, through the
+# relay. The Author runs it on his engine, where the tunnel's image builds; the session sets the type from his block.
+measure-tunnel-end: ## Measure the tunnel end's five services under the relay's load, on this engine (spec 001 T166) [MINUTES=30]
+ifeq ($(VIA_RELAY),1)
+	@[ -x $(RELAY) ] && [ -f "$(ENGINE_CERT)" ] || { echo "make measure-tunnel-end: the agents' engine isn't set up yet (tasks.md T046); ask the Author" >&2; exit 2; }
+	$(RELAY) make --no-print-directory measure-tunnel-end$(if $(call from_cli,MINUTES), MINUTES="$$MINUTES")
+else
+	$(PY_HOST) deploy/scripts/measure_tunnel_end.py$(if $(call from_cli,MINUTES), --minutes="$$MINUTES")
+endif
+
 # Spec 001's architecture inventory (research.md R-33, R-04; tasks.md T015): every image deploy/images.lock pins, read
 # from the engine's own store, never a registry, with its platforms and the hosts it runs on (contracts/env-cloud.md
 # §3). Read-only: it pulls nothing. Inside the sandbox, the agents' engine through the relay, as engine-status reaches
@@ -611,6 +635,15 @@ operator-alert-samples: ## Send a marked sample of each alert kind through ENV's
 	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-alert-samples needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
 	$(OPERATOR) alert-samples --reason="$$REASON"$(call OPERATOR_VALUE,KIND,--kind)
 .PHONY: operator-alert-samples
+
+# Spec 001's restore (its contracts/shared-state.md §8, step 3), the Author's, ENV=shared alone: after the last backup
+# is loaded into an emptied shared state, the restored meters, and the store uninitialized until operator-init.
+operator-restore: ## (the Author) A restored shared state set uninitialized, its meters printed: ENV=shared REASON="..."
+	$(OPERATOR_AGENTS)
+	@[ "$(ENV)" = shared ] || { echo 'make operator-restore is the shared state'"'"'s: ENV=shared' >&2; exit 2; }
+	@[ -n "$(call from_cli,REASON)" ] && [ -n "$$REASON" ] || { echo 'make operator-restore needs REASON="<why, at least 10 characters>" on the command line' >&2; exit 2; }
+	$(OPERATOR) restore --reason="$$REASON"
+.PHONY: operator-restore
 
 # The studio's GPU window (spec 003 FR-035; specs/003-studio-assets/contracts/gpu-window.md §2), the Author's on prod.
 # start records the window through the operator CLI, then stops the model server, so hello falls back within the
@@ -780,10 +813,75 @@ secrets-check: ## (the Author) Which Parameter Store names infra/parameters.txt 
 	$(call AUTHOR_ONLY,it lists his account's parameters with his SSO session)
 	@$(PY_HOST) scripts/infra/secrets_check.py$(WITH_PROFILE)
 
+# Spec 001's tunnel (contracts/tunnel.md §5; contracts/handover.md §7; research.md R-32; tasks.md T052), the Author's,
+# in his terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1).
+tunnel-keys: ## (the Author) The tunnel's keys and tokens: Parameter Store, and the laptop's prod env file (contracts/tunnel.md §5) [ROTATE=1] [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes his tunnel's keys to Parameter Store with his SSO session)
+	@$(PY_HOST) scripts/infra/tunnel_keys.py keys$(if $(call from_cli,ROTATE), --rotate)$(WITH_PROFILE)
+
+tunnel-revoke: ## (the Author) The laptop's tunnel key revoked in one action, or put back with RESTORE=1 (FR-055) [PROFILE=…]
+	$(call AUTHOR_ONLY,it changes the tunnel end's authorized key with his SSO session)
+	@$(PY_HOST) scripts/infra/tunnel_keys.py revoke$(if $(call from_cli,RESTORE), --restore)$(WITH_PROFILE)
+
+cloud-session: ## (the Author) A Systems Manager port-forwarding session to a cloud host's listener (FR-050): HOST=ec2|tunnel-end [PROFILE=…]
+	$(call AUTHOR_ONLY,it opens a session to a cloud host with his SSO session)
+	$(call NEEDS,HOST,ec2|tunnel-end)
+	@$(PY_HOST) scripts/infra/cloud_session.py --host "$$HOST"$(WITH_PROFILE)
+
+# Spec 001's shared state on the tunnel end (contracts/shared-state.md §2, §3, §8; tasks.md T164), the Author's, in his
+# terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1 for the roles target, P-G2 for the other two).
+shared-state-tls: ## (the Author) The shared state's CA, kept here, and its server key and certificate for Parameter Store (contracts/shared-state.md §3) [ROTATE=1] [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes the shared state's TLS key to Parameter Store with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py tls$(if $(call from_cli,ROTATE), --rotate)$(WITH_PROFILE)
+
+shared-state-roles: ## (the Author) The shared state's four role passwords, set on the tunnel end from Parameter Store (contracts/shared-state.md §2) [PROFILE=…]
+	$(call AUTHOR_ONLY,it runs a Systems Manager command on the tunnel end with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py roles$(WITH_PROFILE)
+
+shared-state-restore: ## (the Author) The last backup, or DUMP=dumps/<UTC>.dump, loaded into an emptied shared state (contracts/shared-state.md §8) [PROFILE=…]
+	$(call AUTHOR_ONLY,it presigns a backup's GET and runs a Systems Manager command with his SSO session)
+	@$(PY_HOST) scripts/infra/shared_state.py restore$(if $(call from_cli,DUMP), --dump "$$DUMP")$(WITH_PROFILE)
+
+# Spec 001's EC2 targets (contracts/handover.md §5 and §7; research.md R-32; tasks.md T125), the Author's, in his
+# terminal, with his SSO session: each refuses inside the agent sandbox before its script runs, and the bash gate
+# refuses each to agent sessions too (P-1).
+ec2-status: ## (the Author) EC2's state and its spot request's, the autostart switch, the server action, the hours, the relay's host (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it reads EC2 and its switch with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py status$(WITH_PROFILE)
+
+ec2-start: ## (the Author) Invoke h4-ec2-start by hand, so its checks apply (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it invokes the start function with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py start$(WITH_PROFILE)
+
+ec2-stop: ## (the Author) Stop EC2 through his h4-ec2-stop profile; an audit line and an alert (contracts/handover.md §7) [PROFILE=…]
+	$(call AUTHOR_ONLY,it stops EC2 with his SSO session)
+	@$(PY_HOST) scripts/infra/ec2_ops.py stop$(WITH_PROFILE)
+
+ec2-autostart: ## (the Author) The autostart switch: STATE=on|off; on also starts EC2 once (contracts/handover.md §5) [PROFILE=…]
+	$(call AUTHOR_ONLY,it writes the autostart switch with his SSO session)
+	$(call NEEDS,STATE,on|off)
+	@$(PY_HOST) scripts/infra/ec2_ops.py autostart --state "$$STATE"$(WITH_PROFILE)
+
+server-budget-restore: ## (the Author) Reverse the server action, after the incident note: INCIDENT=docs/incidents/<note>.md [PROFILE=…]
+	$(call AUTHOR_ONLY,it reverses a budget action with his SSO session)
+	$(call NEEDS,INCIDENT,docs/incidents/<note>.md)
+	@$(PY_HOST) scripts/infra/ec2_ops.py restore --incident "$$INCIDENT"$(WITH_PROFILE)
+
+# The Author's release (spec 001 contracts/releases-deployer.md §2; deploy/scripts/release.py): refs/heads/main's
+# gated merge, from a fresh export of it, whatever the checkout holds: the project's images for each host's platform,
+# the upstream copies by their lock's index digests, the tree, and release.json, the pointer last. PUBLIC=1 when it
+# makes hello or the twin's turns public: the red-team gate then, on the runs in REDTEAM= (default redteam/history).
+release: ## (the Author) A release of main's gated merge (contracts/releases-deployer.md §2): REGISTRY=… BUCKET=… COMPOSE_PLUGIN=… COMPOSE_SHA256=… [PUBLIC=1] [REDTEAM=dir] [SITE_BUCKET=… DISTRIBUTION=…]
+	$(call AUTHOR_ONLY,it pushes to the account's registry and its release bucket with his SSO session)
+	@$(PY_HOST) deploy/scripts/release.py --registry "$$REGISTRY" --bucket "$$BUCKET" --compose-plugin "$$COMPOSE_PLUGIN" --compose-sha256 "$$COMPOSE_SHA256"$(if $(call from_cli,PUBLIC), --public)$(if $(call from_cli,REDTEAM), --redteam "$$REDTEAM")$(if $(call from_cli,SITE_BUCKET), --site-bucket "$$SITE_BUCKET")$(if $(call from_cli,DISTRIBUTION), --distribution "$$DISTRIBUTION")
+
 .PHONY: help setup tools toolchain-check makefiles-check check policy githooks-check git-hooks build lint fmt fmt-file lint-file test test-fast content-check \
 	corpus-check secrets arrival assets-scrub assets-credits credits-check validate-config engine-status engine-smoke evals evals-agent-config redteam redteam-suite redteam-live matrix up up-export down logs status pull image gateway-image web-image compose-images pin-images \
 	init-env aws-login operator-token operator-status operator-init hello isolation-check breach-test plan infra-mirror infra-check infra-plan-note disclosure-check \
-	measure-stack arch-inventory infra-verify infra-record infra-audit secrets-check
+	measure-stack measure-tunnel-end arch-inventory infra-verify infra-record infra-audit secrets-check tunnel-keys tunnel-revoke cloud-session \
+	shared-state-tls shared-state-roles shared-state-restore release ec2-status ec2-start ec2-stop ec2-autostart server-budget-restore
 
 # Before it runs a target, make remakes each makefile it has read, with its built-in rules: a Makefile.sh or
 # GNUmakefile.sh planted beside one is copied over it (cat $< >$@), and make then runs the copy (T183's review; plan

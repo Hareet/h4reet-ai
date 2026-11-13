@@ -54,8 +54,10 @@ FILES = (
     "iam.tf",
     "killswitch.tf",
     "alerts.tf",
+    "handover.tf",
 )
-PROTECTED_FILES = ("iam.tf", "killswitch.tf", "alerts.tf")
+# handover.tf arrives in W1, holding the account's switch alone (P-I3; plan.md §16, "Why a switch").
+PROTECTED_FILES = ("iam.tf", "killswitch.tf", "alerts.tf", "handover.tf")
 # The one variable, the Bedrock service names group 3's budgets read too; the guard patch denies the TF_VAR_ names to
 # agent sessions (contracts/env-cloud.md §5), so a new variable needs its deny first (FR-011).
 VARIABLES = {"bedrock_service_names"}
@@ -79,6 +81,9 @@ EVENTS = (
     "aws_cloudwatch_event_target",
     "aws_scheduler_schedule",
 )
+# Group 9's, by their resource names, in handover.tf (tasks.md T119): h4-laptop-away-rule and its target, and the
+# hours' two schedules.
+HANDOVER_EVENTS = {"laptop_away", "ec2_hours_open", "ec2_hours_close"}
 INVOKE = {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"}
 TOPIC = "data.aws_sns_topic.alerts.arn"
 SSO_PATH = "aws-reserved/sso.amazonaws.com/"
@@ -116,12 +121,34 @@ FUNCTIONS = {
     "probe": "h4-probe",
     "credential_audit": "h4-credential-audit",
 }
+# Group 9's two (tasks.md T119, T122; test_handover.py holds them): their digests and repositories are the account's
+# too, the repositories made by W1's apply so the Author can push before W2 (T174), the functions behind the switch.
+HANDOVER_FUNCTIONS = {
+    "ec2_start": "h4-ec2-start",
+    "ec2_guard": "h4-ec2-guard",
+}
 
 if not READER.is_file():
     pytest.skip(
         "PLANNED (T010): the reader, tools/gates/infra_policy.py, arrives with the guard patch, P-1",
         allow_module_level=True,
     )
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# W1's patches (tasks.md Format): the protected files as P-I3 and the later ones leave them, until the Author applies
+# them on W1's -p branch, then as the tree holds them.
+patches = _load(
+    "infra_w1_patches_for_account", Path(__file__).resolve().parent / "patches.py"
+)
 
 
 def _reader():
@@ -173,9 +200,9 @@ def root_texts() -> dict[str, str]:
     texts = {}
     patch = PI2.read_text(encoding="utf-8") if PI2.is_file() else ""
     for name in FILES:
-        path = ROOT / name
-        if path.is_file():
-            texts[name] = path.read_text(encoding="utf-8")
+        text = patches.patched_text(f"infra/account/{name}")
+        if text is not None:
+            texts[name] = text
         elif name in PROTECTED_FILES:
             text = from_patch(patch, f"infra/account/{name}")
             if text is not None:
@@ -435,7 +462,12 @@ def check_variables(root: dict[str, list]) -> list[str]:
 
 def check_permission_set(root: dict[str, list]) -> list[str]:
     found = []
-    sets = resource(root, "aws_ssoadmin_permission_set")
+    # Group 9 adds h4-ec2-stop, a literal name, which test_handover.py holds; every other set is the laptop's.
+    sets = [
+        s
+        for s in resource(root, "aws_ssoadmin_permission_set")
+        if ip.literal(s.attr("name")) != "h4-ec2-stop"
+    ]
     if len(sets) != 1:
         return [
             "permission set: the root doesn't hold the laptop's Bedrock permission set alone"
@@ -973,7 +1005,10 @@ def check_rehearsal(
 def check_schedules(root: dict[str, list]) -> list[str]:
     found = []
     for b in [x for t in EVENTS for x in resource(root, t)]:
-        if where(root, b) != "alerts.tf":
+        # Group 9's: the handover's rule and the hours' schedules are handover.tf's (test_handover.py; rule T5).
+        if where(root, b) != "alerts.tf" and not (
+            where(root, b) == "handover.tf" and b.labels[1] in HANDOVER_EVENTS
+        ):
             found.append(f"schedules: {address(b)} lives outside alerts.tf")
     rules = {
         ip.literal(r.attr("name")): r
@@ -986,10 +1021,12 @@ def check_schedules(root: dict[str, list]) -> list[str]:
     if (
         probe is None
         or ip.literal(probe.attr("schedule_expression")) != "rate(1 minute)"
-        or ip.literal(probe.attr("state")) != "DISABLED"
+        # Group 8's P-I5: enabled by the account's switch, which W1 holds off (test_prod_cdn.py, check_probe).
+        or re.sub(r"\s+", " ", probe.attr("state").raw if probe.attr("state") else "")
+        != 'local.wired ? "ENABLED" : "DISABLED"'
     ):
         found.append(
-            "schedules: the probe's isn't once a minute, written disabled (group 8's P-I5 enables it)"
+            "schedules: the probe's isn't once a minute, enabled by the account's switch alone"
         )
     if (
         audit is None
@@ -1028,9 +1065,11 @@ def check_schedules(root: dict[str, list]) -> list[str]:
 def check_functions(root: dict[str, list]) -> list[str]:
     found = []
     images = locals_of(root).get("lambda_images")
-    if not isinstance(images, dict) or set(images) != set(FUNCTIONS):
+    if not isinstance(images, dict) or set(images) != set(FUNCTIONS) | set(
+        HANDOVER_FUNCTIONS
+    ):
         found.append(
-            "functions: local.lambda_images doesn't name the three functions' digests"
+            "functions: local.lambda_images doesn't name the five functions' digests"
         )
     for key, name in FUNCTIONS.items():
         fns = named(root, "aws_lambda_function", name, "function_name")
@@ -1142,9 +1181,9 @@ def check_registry(root: dict[str, list]) -> list[str]:
             "registry: a repository's tags can move, or it isn't scanned on push"
         )
     names = set(as_list(locals_of(root).get("lambda_repositories")))
-    if names != set(FUNCTIONS.values()):
+    if names != set(FUNCTIONS.values()) | set(HANDOVER_FUNCTIONS.values()):
         found.append(
-            "registry: the three functions' repositories aren't local.lambda_repositories"
+            "registry: the five functions' repositories aren't local.lambda_repositories"
         )
     buckets = resource(root, "aws_s3_bucket")
     releases = [
@@ -1197,7 +1236,13 @@ def check_registry(root: dict[str, list]) -> list[str]:
 
 # The policy's source list (tools/gates/infra_policy.py, TAGGABLE) lacks aws_budgets_budget_action, which takes tags:
 # the Author's T037 plan, 2026-11-12, found the model action's tags_all without component (rule T2 on the saved plan).
-TAGGABLE_HERE = ip.TAGGABLE | {"aws_budgets_budget_action"}
+# It lacks aws_sqs_queue and aws_ssoadmin_permission_set too, which take tags as well (tasks.md T157). P-G1 adds all
+# three to the policy's list (T158); once the Author applies it, this list can go.
+TAGGABLE_HERE = ip.TAGGABLE | {
+    "aws_budgets_budget_action",
+    "aws_sqs_queue",
+    "aws_ssoadmin_permission_set",
+}
 
 
 def check_tags(root: dict[str, list]) -> list[str]:
@@ -1233,7 +1278,7 @@ def check_files(root: dict[str, list]) -> list[str]:
                 )
             ):
                 found.append(
-                    f"files: {address(b)} lives outside iam.tf, killswitch.tf, and alerts.tf"
+                    f"files: {address(b)} lives outside iam.tf, killswitch.tf, alerts.tf, and handover.tf"
                 )
     return found
 
@@ -1284,6 +1329,68 @@ def check_audit_allowlist(root: dict[str, list]) -> list[str]:
     return found
 
 
+# Gate A's backlog (tasks.md T159; group 4's Backlog; contracts/aws-alerts.md §2): two alarms to h4-alerts, only in
+# alerts.tf, each quiet while it has no data, so neither pages while its function or queue is idle.
+ALARMS = {
+    "h4-credential-audit-errors": (
+        "AWS/Lambda",
+        "Errors",
+        "FunctionName",
+        (
+            "h4-credential-audit",
+            "aws_lambda_function.credential_audit[0].function_name",
+        ),
+    ),
+    "h4-alert-bridge-failed": (
+        "AWS/SQS",
+        "ApproximateNumberOfMessagesVisible",
+        "QueueName",
+        ("h4-alert-bridge-failed", "aws_sqs_queue.alert_bridge_failed.name"),
+    ),
+}
+
+
+def check_alarms(root: dict[str, list]) -> list[str]:
+    found = []
+    alarms = resource(root, "aws_cloudwatch_metric_alarm")
+    for b in alarms:
+        if where(root, b) != "alerts.tf":
+            found.append(f"alarms: {address(b)} lives outside alerts.tf")
+    by_name = {ip.literal(b.attr("alarm_name")): b for b in alarms}
+    for name, (namespace, metric, dimension, values) in ALARMS.items():
+        b = by_name.get(name)
+        if b is None:
+            found.append(f"alarms: {name} is missing")
+            continue
+        dims = raw(b, "dimensions")
+        if (
+            ip.literal(b.attr("namespace")) != namespace
+            or ip.literal(b.attr("metric_name")) != metric
+            or not re.search(
+                rf"{dimension}\s*=\s*(?:\"{re.escape(values[0])}\"|{re.escape(values[1])})(?![\w.\[])",
+                dims,
+            )
+        ):
+            found.append(
+                f"alarms: {name} doesn't watch {namespace} {metric} on its {dimension}"
+            )
+        if (
+            ip.literal(b.attr("comparison_operator")) != "GreaterThanOrEqualToThreshold"
+            or ip.literal(b.attr("threshold")) not in (1, 1.0)
+            or ip.literal(b.attr("evaluation_periods")) != 1
+        ):
+            found.append(f"alarms: {name} doesn't fire at one or more in one period")
+        if ip.literal(b.attr("treat_missing_data")) != "notBreaching":
+            found.append(f"alarms: {name} treats missing data as breaching")
+        if (
+            raw(b, "alarm_actions") != f"[{TOPIC}]"
+            or b.attr("ok_actions")
+            or b.attr("insufficient_data_actions")
+        ):
+            found.append(f"alarms: {name} doesn't go to h4-alerts alone")
+    return found
+
+
 CHECKS = (
     check_versions,
     check_provider,
@@ -1294,6 +1401,7 @@ CHECKS = (
     check_model_action,
     check_rehearsal,
     check_schedules,
+    check_alarms,
     check_functions,
     check_audit_allowlist,
     check_bridge_subscription,
@@ -1379,7 +1487,7 @@ FIXTURE_FILES = sorted(FIXTURES.glob("*.tf"))
 # The tests.
 
 
-def test_the_root_holds_its_nine_files_with_the_protected_three_from_p_i2_until_applied() -> (
+def test_the_root_holds_its_ten_files_with_the_protected_ones_from_their_patches_until_applied() -> (
     None
 ):
     texts = root_texts()
@@ -1389,7 +1497,8 @@ def test_the_root_holds_its_nine_files_with_the_protected_three_from_p_i2_until_
             assert (
                 from_patch(PI2.read_text(encoding="utf-8"), f"infra/account/{name}")
                 is not None
-            )
+                or patches.patched_text(f"infra/account/{name}") is not None
+            ), name
 
 
 def test_every_file_reads_as_hcl() -> None:
@@ -1530,6 +1639,12 @@ def test_the_schedules_live_in_alerts_tf_and_the_probes_is_disabled() -> None:
     assert check_schedules(parsed(root_texts())) == []
 
 
+def test_the_audits_errors_and_the_bridges_failures_alarm_to_h4_alerts_from_alerts_tf() -> (
+    None
+):
+    assert check_alarms(parsed(root_texts())) == []
+
+
 def test_the_functions_run_their_images_on_arm64_and_the_bridge_retries_then_fails_to_its_queue() -> (
     None
 ):
@@ -1623,6 +1738,69 @@ def test_the_patch_reader_takes_a_new_files_lines_only() -> None:
 
 def test_the_audit_reads_the_authors_allowlist_parameter_and_no_other() -> None:
     assert check_audit_allowlist(parsed(root_texts())) == []
+
+
+# The repositories the tunnel end pulls from (tasks.md T051; the regrouping review's I4): each image a tunnel-end-class
+# service runs, by the repository the release copies it to. The deployer's first pull needs them before groups 8 and 9
+# make the relay's and the snapshot's images.
+TUNNEL_END_IMAGES = {
+    "tunnel-end": "tunnel",
+    "tunnel-end-collector": "otel-collector",
+    "relay": "relay",
+    "snapshot-sink": "snapshot",
+    # Spec 001's shared state (tasks.md T164): spec 000's pinned Postgres, copied by its index digest.
+    "shared-state": "shared-state",
+}
+
+
+def test_each_image_the_tunnel_end_runs_has_its_repository() -> None:
+    compose = yaml.safe_load(
+        (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    )
+    in_class = {
+        name
+        for name, service in compose["services"].items()
+        if "tunnel-end" in (service.get("profiles") or [])
+    }
+    assert in_class and in_class <= set(TUNNEL_END_IMAGES), in_class - set(
+        TUNNEL_END_IMAGES
+    )
+    root = parsed(root_texts())
+    stack = locals_of(root)["stack_repositories"]
+    assert set(TUNNEL_END_IMAGES.values()) <= set(stack), set(
+        TUNNEL_END_IMAGES.values()
+    ) - set(stack)
+    # Each by the same for_each, so each is tagged and keeps the lifecycle policy the others have.
+    (repos,) = [
+        r for r in resource(root, "aws_ecr_repository") if r.labels[1] == "stack"
+    ]
+    assert raw(repos, "for_each") == "toset(local.stack_repositories)"
+    assert check_registry(root) == [] and check_tags(root) == []
+
+
+# The repositories EC2 pulls from (tasks.md T089; the regrouping review's I4): each image an ec2-class service runs, by
+# the repository the release pushes or copies it to: a shared service's own name, the relay block's forwarder edge's.
+def ec2_repository(name: str) -> str:
+    # Group 10: EC2's publisher runs the public view's image, the snapshot repository the sink's comes from too.
+    return {"ec2-relay-block": "edge", "ec2-snapshot-publisher": "snapshot"}.get(
+        name, name
+    )
+
+
+def test_each_image_ec2_runs_has_its_repository() -> None:
+    compose = yaml.safe_load(
+        (REPO / "deploy" / "compose.yaml").read_text(encoding="utf-8")
+    )
+    preflight = _load(
+        "preflight_for_account", REPO / "deploy" / "scripts" / "preflight.py"
+    )
+    in_class = preflight.HOST_CLASSES["ec2"]
+    assert set(in_class) <= set(compose["services"]), set(in_class) - set(
+        compose["services"]
+    )
+    stack = locals_of(parsed(root_texts()))["stack_repositories"]
+    wanted = {ec2_repository(n) for n in in_class}
+    assert wanted <= set(stack), wanted - set(stack)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

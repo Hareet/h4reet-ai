@@ -76,6 +76,8 @@ const DETAILS = {
   confirm_zero_required:
     "No ledger row this month, no journal record, and nothing stated: initializing would set every meter to zero. Repeat with confirm_zero to confirm it.",
   journal_unreadable: "The journal directory exists but can't be read; fix its permissions first.",
+  below_restored_meters:
+    "A stated value is lower than the restored store's meter for this period: a restore starts from the restored meters, raised by the spend since its dump, never lower (spec 001 contracts/shared-state.md §8, step 4).",
 } as const;
 
 const refuse = (error: keyof typeof DETAILS): InitResult => ({
@@ -286,17 +288,41 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
       const exists = await q.query("SELECT 1 FROM gateway.stack_state WHERE id = 1");
       if (exists.rows.length > 0) throw new Rollback(refuse("already_initialized"));
 
+      // Spec 001 (contracts/shared-state.md §8, step 4): a store restored from a backup keeps its meters, and a stated
+      // value may raise them by the spend since the dump, never lower them. A new or emptied store has no meter rows.
+      const restored = await q.query<{ meter: string; spent_micro: unknown }>(
+        `SELECT meter, spent_micro FROM gateway.meters
+         WHERE (meter IN ('day', 'fallback_day') AND period_key = $1) OR (meter = 'month' AND period_key = $2)`,
+        [now.day, now.month],
+      );
+      for (const row of restored.rows) {
+        const stated = req.stated[row.meter as Meter];
+        if (stated !== undefined && stated < toBigInt(row.spent_micro)) {
+          throw new Rollback(refuse("below_restored_meters"));
+        }
+      }
+      // The restored meters are the max rule's fourth candidate, so a meter the operator leaves unstated keeps its
+      // restored value rather than falling to what the ledger and the journal show (group 6's review, I-3).
+      const fromRestore = Object.fromEntries(
+        METERS.map((m) => [m, toBigInt(restored.rows.find((r) => r.meter === m)?.spent_micro ?? 0)]),
+      ) as Record<Meter, bigint>;
+
       // 4–5. The candidates and the max rule.
       const ledger = await ledgerCandidates(q, now);
       const journal = Object.fromEntries(
         METERS.map((m) => [m, max(fromJournal.calls[m], fromJournal.floor[m])]),
       ) as Record<Meter, bigint>;
       const chosen = Object.fromEntries(
-        METERS.map((m) => [m, max(ledger.values[m], journal[m], req.stated[m])]),
+        METERS.map((m) => [m, max(ledger.values[m], journal[m], req.stated[m], fromRestore[m])]),
       ) as Record<Meter, bigint>;
 
       // 7. Zero needs confirming.
-      const evidence = ledger.ledgerRows > 0 || ledger.reservations > 0 || fromJournal.callRecords > 0 || anyStated;
+      const evidence =
+        ledger.ledgerRows > 0 ||
+        ledger.reservations > 0 ||
+        fromJournal.callRecords > 0 ||
+        anyStated ||
+        METERS.some((m) => fromRestore[m] > 0n);
       if (!evidence && !req.confirmZero) throw new Rollback(refuse("confirm_zero_required"));
 
       // 6. The allowance: neither summed nor maxed.
@@ -336,14 +362,20 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
           grantNo,
         ],
       );
-      // Spec 010 (FR-022): each capped adapter's month, the larger of the ledger's and the journal's. Its reservations
-      // are counted at their maximum, as the meters' are, so reserved starts at 0.
+      // Spec 010 (FR-022): each capped adapter's month, the largest of the ledger's, the journal's, and, on a restored
+      // store, the restored row's (group 6's review, I-3). Its reservations are counted at their maximum, as the
+      // meters' are, so reserved starts at 0.
       const capped = new Set(t.adapterCaps.keys());
       if (capped.size > 0) {
         const fromLedger = await adapterMonthsFromLedger(q, now.month);
         const fromJournalMonths = adapterMonthsFromJournal(scan.records, now.month, capped);
         for (const id of capped) {
-          const spent = max(fromLedger.get(id), fromJournalMonths.get(id));
+          const kept = await q.query<{ spent_micro: unknown }>(
+            "SELECT spent_micro FROM gateway.meters WHERE meter = 'adapter_month' AND period_key = $1",
+            [adapterMonthKey(id, now.month)],
+          );
+          const restoredMonth = kept.rows[0] === undefined ? undefined : toBigInt(kept.rows[0].spent_micro);
+          const spent = max(fromLedger.get(id), fromJournalMonths.get(id), restoredMonth);
           if (spent === 0n) continue;
           await q.query(
             `INSERT INTO gateway.meters (meter, period_key, spent_micro, reserved_micro, allowance_micro, grant_no,
@@ -365,6 +397,7 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
             journal_calls: big(fromJournal.calls[m]),
             journal_floor: big(fromJournal.floor[m]),
             stated: big(req.stated[m]),
+            restored: big(fromRestore[m]),
           },
         ]),
       );
@@ -409,9 +442,16 @@ export async function initializeStore(deps: InitDeps, req: InitRequest, operator
       const auditId = Number(toBigInt(audit.rows[0]?.id));
 
       // The confirmation alert, in the same transaction (operator-admin.md §1.3; alerts.md §2, §3).
-      const sources = (["ledger", "journal", "stated"] as InitSource[]).filter((source) =>
+      const sources = (["ledger", "journal", "stated", "restored"] as InitSource[]).filter((source) =>
         METERS.some((m) => {
-          const value = source === "ledger" ? ledger.values[m] : source === "journal" ? journal[m] : req.stated[m];
+          const value =
+            source === "ledger"
+              ? ledger.values[m]
+              : source === "journal"
+                ? journal[m]
+                : source === "stated"
+                  ? req.stated[m]
+                  : fromRestore[m];
           return chosen[m] > 0n && value === chosen[m];
         }),
       );

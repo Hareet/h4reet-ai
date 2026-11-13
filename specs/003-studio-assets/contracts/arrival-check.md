@@ -18,6 +18,7 @@
 ## 2. Which files it checks
 
 - **Asset roots:** `assets/**` (but `assets/policy/`), and `docs/research/images/**`.
+- **A film's media folder** ([ADR 0050](../../../docs/adr/0050-films-media-in-git.md)): `films/<name>/media/`, `<name>` matching `[a-z0-9-]+`, in a film's own folder, the one holding its `index.html`. Not an asset root: it takes a film's renders alone, an MP4 or a GIF, under rule A11, with no record, notice, or mark. Anywhere else under `films/`, the next line applies as it does everywhere.
 - **Anywhere, by format:** every file whose extension or leading bytes mark an image, video, or model format, so a studio file can't hide outside the roots:
   - images: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.tif`, `.tiff`, `.dng` (TIFF's `II*\0` or `MM\0*`), `.heic`, `.heif`, `.avif`;
   - video: `.mp4`, `.mov`, `.m4v` (HEIC, HEIF, AVIF, MP4, and MOV share ISO BMFF's `ftyp` box at byte 4, which identifies them whatever their name);
@@ -37,6 +38,7 @@ Each refusal names one rule's ID.
 | **A3** | In an asset root: a file that isn't PNG, JPEG, WebP, GLB, `records.json`, or `LICENSE.md` (a workflow, a node pack, a script, a `.gltf`, a KTX2 file, a HEIC, AVIF, TIFF, DNG, or video file, an editor's backup such as `*_original`) | FR-001, FR-008 |
 | **A4** | An XMP sidecar file (`.xmp`), text or not, anywhere; and camera metadata in any binary file anywhere: an EXIF header, an XMP packet, or a GPS directory (§2, "by content"), apart from the mark's own packet in a file the M rules admit | FR-002, FR-006 |
 | **A9** | A branch changes `assets/policy/`. It applies under `--staged` when the current branch isn't `main`, and under `--range`; never to the Author's own policy commits on `main`, and not under `--history`, where they're expected | FR-005 |
+| **A11** | In a film's media folder (§2): a file that isn't an MP4 (by its name, an `ftyp` box at byte 4, and an MP4 brand: `isom`, `iso2`, `iso4` to `iso6`, `mp41`, `mp42`, or `avc1`) of at most 60 MiB (62,914,560 bytes) or a GIF (by its name, and `GIF87a` or `GIF89a`) of at most 10 MiB (10,485,760 bytes); a link, a submodule, or a subfolder; a media folder beside no `index.html`. In an MP4: a location atom (`©xyz`, `loci`), a `keys` box naming a location, an `XMP_` box, a `uuid` box (XMP's or another), a track whose handler isn't `vide`, `soun`, `text`, `sbtl`, or `subt` (a timed-metadata track, where a camera keeps its GPS), a `meta` handler other than `mdir` or `mdta`, a top-level box an MP4 doesn't hold, or bytes no box accounts for. In a GIF: an XMP application extension (`XMP DataXMP`), any other but the loop count's (`NETSCAPE2.0`, `ANIMEXTS1.0`), or bytes after the trailer. The encoder's tags (`©too`, `handler_name`, `vendor_id`) pass; the B rules read every `udta`, `meta`, and `hdlr` box and a GIF's comments, and A4 the whole file | ADR 0050; FR-002, FR-007 |
 | **M1** | PNG: a chunk outside research R-03's list, or more than one `iTXt` mark | FR-006 |
 | **M2** | JPEG: a segment outside the list; an EXIF `APP1`; an `APP0` that isn't JFIF; an `APP2` that isn't an ICC profile | FR-002, FR-006 |
 | **M3** | WebP: a chunk outside the list, or a `VP8X` flag other than XMP | FR-006 |
@@ -114,6 +116,7 @@ It never prints the bytes a B rule matched, only the offset; never a key or toke
 - a three-commit branch where the second commit adds a failing file and the third fixes it (`--range` fails); a merge commit whose resolution adds a failing file (`--range` fails); a branch that deletes a directory's `LICENSE.md` (`--range` fails on the tip's tree);
 - the policy read from the fixture repository's `refs/heads/main`, with the branch's own copy, the working tree's checked-out copy, a tag named `main`, and a `refs/replace` entry all ignored;
 - a commit on `main` that changes `assets/policy/` passing under `--staged` (A9 doesn't apply), and the same change on a branch refused;
-- a commit with no studio file passing while `main` has no policy.
+- a commit with no studio file passing while `main` has no policy;
+- a film's MP4 and GIF in its media folder passing by path, staged, in a range, and in the history; a film's WAV narration and WOFF fonts passing (neither is §2's format); a PNG, a JPEG, a MOV, a text file, a `records.json`, and a file whose bytes aren't its name's in the media folder refused (A11), and an MP4 or a GIF anywhere else under `films/` refused as before (A1, or A3 under `assets/`); a render over its cap refused, and one at its cap passing; an MP4 with a location atom, a location key, XMP, a `uuid` box, a timed-metadata track, a QuickTime brand, or trailing bytes, and a GIF with XMP, an ICC application extension, or bytes after its trailer, refused (A11); a local path in an MP4's tag or a GIF's comment refused (B3), by its offset alone.
 
 SC-001: every rule refuses its fixture, and every passing fixture passes.

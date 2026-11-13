@@ -47,6 +47,8 @@ Each `cannot_talk` message ends with a link to the resume and one to the PDF. Th
 
 **(spec 010, Amendment 2-1)** `adapter_month_spent`, the paid fallback's monthly cap, is of the budget class: `cannot_talk.budget`, with the resume and the PDF (`apps/web/src/room/signals/tier.ts`'s `BUDGET_CAUSES`).
 
+**(spec 001)** The relay on the tunnel end adds two causes to the "local tier off" class, `cannot_talk.resting`: `no_host_serving`, which the relay answers while neither host is healthy and the edge answers while it can't reach the relay (spec 001 FR-066; its contracts/relay-http.md §5 and contracts/edge.md §4), and `host_error`, a host's 502 or 504 that named no cause (`apps/web/src/room/signals/tier.ts`'s `RESTING_CAUSES`). The relay's public cap refuses with spec 000's 429 shape, error `public_cap`, which the room shows as it shows any 429: `turn_refused.slow_down` (spec 007's table).
+
 ## 4. Push-to-talk (for the push-to-talk group)
 
 - **Capture:** only while the button or its held key is down, at most 30 s, stopped on `visibilitychange` to hidden (FR-026, FR-029).

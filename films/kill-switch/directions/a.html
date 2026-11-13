@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A · Blueprint on the resume's paper</title>
+<style>
+@font-face { font-family: "Overpass"; src: url("../assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("../assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("../assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+:root { --paper:#ffffff; --ink:#17232e; --text:#2b3843; --muted:#5b6973; --rule:#d6dee2; --green:#1c6b54; --green-bar:#47a386; --crimson:#ad2549; --crimson-bar:#d0587a; }
+html,body { margin:0; width:1920px; height:1080px; overflow:hidden; }
+#film { position:relative; width:1920px; height:1080px; overflow:hidden; color:var(--ink); font-family:"Overpass",sans-serif;
+  background:
+    radial-gradient(1400px 900px at 30% 40%, #ffffff 0%, #f4f7f8 70%, #e9eef0 100%); }
+.grid { position:absolute; inset:0; opacity:.55;
+  background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: 48px 48px; }
+.kicker { position:absolute; left:120px; top:96px; font-weight:800; font-size:26px; letter-spacing:.22em; color:var(--green); }
+.kicker b { color:var(--crimson); font-weight:800; }
+/* the meter, as the alert prints it */
+.meter { position:absolute; left:120px; top:170px; width:1000px; }
+.meter .row { display:flex; justify-content:space-between; font-family:"Plex Mono",monospace; font-size:24px; color:var(--muted); }
+.meter .bar { position:relative; height:28px; margin-top:12px; background:#eef2f4; border:2px solid var(--ink); }
+.meter .fill { position:absolute; left:0; top:0; bottom:0; width:100%; background:var(--crimson); }
+.meter .warn { position:absolute; left:70%; top:-12px; bottom:-12px; width:2px; background:var(--ink); }
+.meter .warn span { position:absolute; top:-30px; left:8px; font-family:"Plex Mono",monospace; font-size:20px; color:var(--muted); white-space:nowrap; }
+.big { position:absolute; left:108px; top:250px; font-weight:900; font-size:300px; line-height:1; letter-spacing:-.04em; color:var(--ink); }
+.big small { font-size:110px; letter-spacing:-.02em; color:var(--crimson); vertical-align: 120px; margin-left:20px; font-weight:800; }
+svg { position:absolute; left:0; top:0; }
+.label { font-family:"Overpass",sans-serif; font-weight:800; font-size:26px; fill:var(--ink); letter-spacing:.04em; }
+.sub { font-family:"Plex Mono",monospace; font-size:19px; fill:var(--muted); }
+.quote { position:absolute; left:1300px; top:640px; width:520px; font-family:"Literata",serif; font-size:38px; line-height:1.35; color:var(--text); }
+.quote .src { display:block; margin-top:22px; font-family:"Plex Mono",monospace; font-size:20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="film" data-composition-id="dir-a" data-width="1920" data-height="1080">
+  <div class="grid"></div>
+  <div class="kicker">HAREET.AI · <b>A $5-A-DAY KILL SWITCH</b></div>
+  <div class="meter">
+    <div class="row"><span>Daily</span><span>5.00 / 5.00 USD</span></div>
+    <div class="bar"><div class="fill"></div><div class="warn"><span>warning 3.50</span></div></div>
+  </div>
+  <div class="big">$5.00<small>tripped</small></div>
+
+  <!-- the request path, drawn: visitor → edge → gateway ⟂ switch → model-server / paid route; gateway-state below -->
+  <svg width="1920" height="1080" viewBox="0 0 1920 1080">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#17232e"/></marker>
+    </defs>
+    <!-- boxes -->
+    <g stroke="#17232e" stroke-width="3" fill="#ffffff">
+      <rect x="120" y="700" width="230" height="110" rx="6"/>
+      <rect x="470" y="700" width="230" height="110" rx="6"/>
+      <rect x="820" y="700" width="260" height="110" rx="6"/>
+      <rect x="1220" y="250" width="300" height="100" rx="6"/>
+      <rect x="1220" y="420" width="300" height="100" rx="6"/>
+      <rect x="820" y="900" width="260" height="110" rx="6" fill="#fbeef2" stroke="#ad2549"/>
+    </g>
+    <text class="label" x="150" y="752">VISITOR</text><text class="sub" x="150" y="784">the room</text>
+    <text class="label" x="500" y="752">EDGE</text><text class="sub" x="500" y="784">127.0.0.1 only</text>
+    <text class="label" x="850" y="752">GATEWAY</text><text class="sub" x="850" y="784">reads state first</text>
+    <text class="label" x="1250" y="298">MODEL-SERVER</text><text class="sub" x="1250" y="328">local · $0</text>
+    <text class="label" x="1250" y="468">ANTHROPIC API</text><text class="sub" x="1250" y="498">paid fallback</text>
+    <text class="label" x="850" y="952" style="fill:#ad2549">GATEWAY-STATE</text><text class="sub" x="850" y="984">kill switch: degraded</text>
+    <!-- live wires -->
+    <g stroke="#17232e" stroke-width="3" fill="none">
+      <path d="M350 755 H462" marker-end="url(#arr)"/>
+      <path d="M700 755 H812" marker-end="url(#arr)"/>
+      <path d="M950 900 V818" stroke="#ad2549" stroke-dasharray="0" />
+    </g>
+    <!-- the switch, thrown open: both routes cut -->
+    <g stroke="#ad2549" stroke-width="6" stroke-linecap="round" fill="none">
+      <circle cx="1130" cy="755" r="9" fill="#ad2549"/>
+      <path d="M1130 755 L1185 690"/>
+    </g>
+    <g stroke="#b8c3c9" stroke-width="3" stroke-dasharray="10 10" fill="none">
+      <path d="M1080 755 H1120"/>
+      <path d="M1195 680 V300 H1212"/>
+      <path d="M1195 680 V470 H1212"/>
+    </g>
+  </svg>
+
+  <div class="quote">“The twin can’t talk right now. Today’s budget for its answers is used.”<span class="src">what the visitor sees · apps/web/content/messages.yaml</span></div>
+</div>
+</body>
+</html>

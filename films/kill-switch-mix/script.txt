@@ -1,0 +1,25 @@
+Every answer the twin gives can cost money. So it has a ceiling: five dollars a day.
+
+Every question falls through the same layers. The gateway reads the kill switch first, and if it can't read it, it assumes the worst.
+
+Local answers cost nothing. Paid ones are metered to the millionth of a dollar, in the gateway's own database.
+
+At three fifty, a warning goes out on Telegram and email.
+
+At five dollars...
+
+it stops itself.
+
+One transaction sets the switch, opens an incident, and queues the alert. Every request after that gets one line, local answers included.
+
+"The twin can't talk right now. Today's budget for its answers is used."
+
+A new day doesn't bring it back. Only an operator reset does: a person, with a reason, in the audit log.
+
+The breach test trips it on purpose: fifty-two assertions, fifty-two passed.
+
+From outside, there's no door: no inbound ports, only an outbound tunnel, and only the gateway has a road out.
+
+The agents that built it are fenced in too. The one that writes never reviews. None can touch the budgets or the switch, push, merge, or apply. And only Hareet runs the final gate.
+
+A five-dollar-a-day kill switch. Built in the open, at hareet dot A I.

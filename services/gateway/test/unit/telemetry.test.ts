@@ -397,7 +397,8 @@ describe("the SDK's setup (telemetry.md §3.1)", () => {
 
 describe("what never reaches a trace", () => {
   it("makes no span for a health probe", () => {
-    for (const path of ["/health/live", "/health", "/health?x=1", "/health/live?probe"]) {
+    // Spec 001 (T043): /health/serving, the hosts' blocks' status, which the relay asks every second.
+    for (const path of ["/health/live", "/health", "/health/serving", "/health?x=1", "/health/live?probe"]) {
       expect(isHealthProbe(path), path).toBe(true);
     }
     for (const path of ["/hello", "/healthz", "/health/", "/admin/status", undefined]) {

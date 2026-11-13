@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en" data-om-signature="off" data-composition-variables='[
+  {"id":"rowCount","type":"number","label":"Rows in docs/data-flow-disclosure.md (counted 2026-11-10)","default":32,"min":1,"max":99,"step":1,"group":"Numbers"},
+  {"id":"newestTurns","type":"number","label":"Row V2: the newest turns the page sends","default":8,"min":1,"max":99,"step":1,"group":"Numbers"},
+  {"id":"maxChars","type":"number","label":"Row V2: characters at most","default":4000,"min":1,"max":99999,"step":1,"group":"Numbers"},
+  {"id":"keepDays","type":"number","label":"Row F3: days Anthropic may keep a turn (the Author’s words; keep as written)","default":30,"min":1,"max":999,"step":1,"group":"Numbers"},
+  {"id":"cases","type":"number","label":"Product eval cases (evals/product/cases)","default":186,"min":1,"max":9999,"step":1,"group":"Numbers"},
+  {"id":"ground","type":"color","label":"Ground (resume ink)","default":"#17232e","group":"Colour"},
+  {"id":"green","type":"color","label":"Green (resume green-bar)","default":"#47a386","group":"Colour"},
+  {"id":"crimson","type":"color","label":"Crimson (resume crimson)","default":"#ad2549","group":"Colour"},
+  {"id":"endHold","type":"number","label":"End hold (s)","default":2.4,"min":0,"max":10,"step":0.1,"group":"Timing"}
+]'>
+<head>
+<meta charset="utf-8">
+<title>hareet.ai · Every data flow disclosed</title>
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/om.js"></script>
+<style id="om-fonts">
+@font-face { font-family: "Overpass"; src: url("assets/fonts/Overpass-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Literata"; src: url("assets/fonts/Literata-normal.woff2") format("woff2"); font-weight: 200 900; }
+@font-face { font-family: "Plex Mono"; src: url("assets/fonts/IBMPlexMono-Regular.woff") format("woff"); font-weight: 400; }
+@font-face { font-family: "Plex Sans"; src: url("assets/fonts/IBMPlexSans-Bold.woff") format("woff"); font-weight: 700; }
+</style>
+<style>
+  :root { --ground: #17232e; --green: #47a386; --crimson: #ad2549; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #111b24; }
+  #film { position: relative; width: 1920px; height: 1080px; overflow: hidden; color: #e8eef1; font-family: "Overpass", sans-serif;
+    background: radial-gradient(1500px 900px at 40% 45%, #1d2b37 0%, var(--ground) 55%, #0f1820 100%); }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .5; background: radial-gradient(1700px 1000px at 50% 50%, transparent 60%, #060b10 100%); }
+  .shot { position: absolute; inset: 0; opacity: 0; }
+  #claim { opacity: 1; }
+  .src { font-family: "Plex Mono", monospace; font-size: 26px; color: #7f939f; }
+
+  /* the claim, as the resume prints it */
+  #claim .row { position: absolute; left: 0; right: 0; top: 500px; display: flex; justify-content: center; align-items: center; gap: 22px; white-space: nowrap; font-weight: 800; font-size: 29px; letter-spacing: .1em; color: #47a386; }
+  #claim .row i { font-style: normal; color: #3a5560; }
+  #claim .row b { display: inline-block; color: #fff; background: var(--crimson); padding: 12px 20px 6px; border-radius: 6px; font-weight: 800; }
+  #claim .name { position: absolute; left: 0; right: 0; top: 300px; text-align: center; font-weight: 800; font-size: 150px; letter-spacing: -.02em; color: #fff; }
+  #claim .name span { color: #47a386; }
+
+  /* every kinetic shot: a pushed block (.in) in the frame's safe box, and its source caption pinned at the bottom (.cap) */
+  .shot .in { position: absolute; inset: 0; }
+  .cap { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-family: "Plex Mono", monospace; font-size: 24px; color: #7f939f; }
+
+  /* the disclosure's rows, hammering in */
+  #rows .hd { position: absolute; left: 140px; top: 116px; font-weight: 900; font-size: 128px; line-height: 1; letter-spacing: -.01em; color: #fff; }
+  #rows .cnt { position: absolute; right: 140px; top: 96px; text-align: right; font-weight: 900; font-size: 170px; line-height: 1; letter-spacing: -.03em; color: #fff; font-variant-numeric: tabular-nums; }
+  #rows .cnt small { font-size: 56px; font-weight: 800; letter-spacing: .06em; color: #47a386; }
+  #rows .win { position: absolute; left: 140px; top: 300px; width: 1660px; height: 630px; overflow: hidden; }
+  #rlist .r { height: 70px; display: flex; align-items: baseline; white-space: nowrap; font-family: "Plex Mono", monospace; font-size: 42px; color: #cfdae0; opacity: 0; }
+  #rlist .r b { width: 150px; flex: none; font-family: "Overpass", sans-serif; font-weight: 900; font-size: 54px; color: #47a386; }
+  #rlist .r i { font-style: normal; color: #5b6973; padding: 0 .4em; }
+  #rlist .r .n { color: #6f8f86; } #rlist .r .o { color: #fff; } #rlist .r .p { color: #ffd27a; }
+
+  /* its columns: the five names as a ribbon, and one at a time, slammed, with row S4's cell */
+  #cols .rib { position: absolute; left: 140px; top: 210px; white-space: nowrap; font-weight: 800; font-size: 44px; letter-spacing: .02em; color: #3e5563; }
+  #cols .rib span { display: inline-block; }
+  #cols .rib i { font-style: normal; color: #2f4250; padding: 0 .35em; }
+  #cols .tag { position: absolute; left: 140px; top: 310px; font-weight: 800; font-size: 52px; letter-spacing: .12em; color: #47a386; }
+  #cols .pair { position: absolute; left: 140px; top: 430px; width: 1660px; opacity: 0; transform-origin: 0% 50%; }
+  #cols .pair .l { font-weight: 900; font-size: 118px; line-height: 1; letter-spacing: -.01em; color: #fff; }
+  #cols .pair .v { margin-top: 50px; font-family: "Plex Mono", monospace; font-size: 60px; line-height: 1.25; color: #d8f3ea; }
+  #cols .pair .v.bad { color: #ff9db5; }
+
+  /* the gate */
+  #gate .cmd { position: absolute; left: 140px; top: 120px; font-family: "Plex Mono", monospace; font-size: 110px; line-height: 1.2; color: #fff; opacity: 0; transform-origin: 0% 50%; }
+  #gate .cmd .cur { display: inline-block; width: 56px; height: 100px; margin-left: 14px; background: #e8eef1; vertical-align: -12px; }
+  #gate .term { position: absolute; left: 140px; top: 300px; width: 1660px; font-family: "Plex Mono", monospace; font-size: 44px; line-height: 1.4; }
+  #gate .x { color: #ff9db5; opacity: 0; }
+  #gate .x em { font-style: normal; padding: 0 8px; border-radius: 8px; background: rgba(173,37,73,.4); }
+  #gate .s { color: #e8eef1; opacity: 0; margin-top: 12px; }
+  #gate .huge { position: absolute; left: 120px; top: 620px; font-weight: 900; font-size: 300px; line-height: .9; letter-spacing: -.03em; color: #d0587a; opacity: 0; transform-origin: 0% 60%; }
+
+  /* never carries: on the crimson ground */
+  #never { background: var(--crimson); }
+  #never .t { position: absolute; left: 140px; top: 110px; font-weight: 900; font-size: 200px; line-height: 1; letter-spacing: .02em; color: #fff; transform-origin: 0% 50%; }
+  #never .it { position: absolute; left: 150px; font-weight: 800; font-size: 88px; line-height: 1; color: #fff; white-space: nowrap; opacity: 0; }
+  #never .it .k { position: absolute; left: -12px; right: -12px; top: 38px; height: 12px; border-radius: 6px; background: #17232e; transform-origin: 0 50%; transform: scaleX(0); }
+  #never .ph { position: absolute; left: 140px; top: 380px; font-weight: 900; font-size: 130px; line-height: 1; letter-spacing: .02em; color: #17232e; opacity: 0; }
+  #never .prod { position: absolute; left: 150px; top: 560px; width: 1640px; font-family: "Plex Mono", monospace; font-size: 56px; line-height: 1.35; color: #fff; opacity: 0; }
+  #never .prod span { display: inline-block; }
+  #never .cap { color: #ffd5df; }
+
+  /* Hareet's words, row F3 */
+  #quote .big { position: absolute; left: 0; right: 0; top: 400px; text-align: center; font-weight: 900; font-size: 140px; line-height: 1; letter-spacing: -.01em; color: #fff; }
+  #quote .lab { position: absolute; left: 150px; top: 130px; font-weight: 800; font-size: 48px; letter-spacing: .1em; color: #47a386; opacity: 0; }
+  #quote .q { position: absolute; left: 150px; width: 1620px; top: 230px; font-family: "Literata", serif; font-size: 104px; line-height: 1.2; color: #fff; }
+  #quote .q .hot { color: #ffb3c4; } #quote .q .ok { color: #8fe0c4; }
+  #quote .q .caret { display: inline-block; width: 8px; height: 96px; margin-left: 8px; background: #d0587a; vertical-align: -12px; }
+  #quote .who { position: absolute; left: 150px; top: 890px; font-weight: 800; font-size: 56px; letter-spacing: .04em; color: #47a386; opacity: 0; }
+
+  /* I don't know yet. */
+  #idk .q { position: absolute; left: 0; right: 0; top: 420px; text-align: center; font-family: "Literata", serif; font-size: 200px; line-height: 1; color: #fff; }
+
+  /* tested */
+  #tested .hd { position: absolute; left: 150px; top: 110px; font-weight: 800; font-size: 52px; letter-spacing: .14em; color: #47a386; }
+  #tested .huge { position: absolute; left: 130px; top: 160px; font-weight: 900; font-size: 440px; line-height: .9; letter-spacing: -.05em; color: #fff; font-variant-numeric: tabular-nums; transform-origin: 0% 60%; }
+  #tested .ln { position: absolute; left: 150px; font-weight: 800; font-size: 84px; line-height: 1; opacity: 0; }
+  #tested .mono { position: absolute; left: 150px; top: 900px; font-family: "Plex Mono", monospace; font-size: 40px; color: #cfdae0; opacity: 0; }
+  /* the end: the resume's twin section */
+  #end .card { position: absolute; left: 260px; top: 190px; width: 1400px; height: 640px; border-radius: 12px; background: #fff; color: #17232e; box-shadow: 0 60px 140px -40px #000c; }
+  #end .card .nm { position: absolute; left: 0; right: 0; top: 90px; text-align: center; font-weight: 800; font-size: 180px; letter-spacing: -.02em; line-height: 1; }
+  #end .card .nm span { color: #1c6b54; }
+  #end .card .pitch { position: absolute; left: 130px; right: 130px; top: 310px; text-align: center; font-family: "Literata", serif; font-size: 40px; line-height: 1.42; color: #2b3843; }
+  #end .card .claims { position: absolute; left: 0; right: 0; top: 520px; display: flex; justify-content: center; align-items: center; gap: 16px; white-space: nowrap; font-weight: 800; font-size: 20px; letter-spacing: .11em; color: #1c6b54; }
+  #end .card .claims i { font-style: normal; color: #9bb0a8; }
+  #end .card .claims b { display: inline-block; color: #fff; background: #ad2549; padding: 8px 14px 4px; border-radius: 4px; }
+
+  /* the flow: the stack as a circuit, flat, from the visitor's side */
+  #flow { overflow: hidden; }
+  #fworld { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #fworld svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .wire { stroke: #3a5463; stroke-width: 6; fill: none; stroke-linecap: round; }
+  .node { position: absolute; box-sizing: border-box; padding: 26px 30px; border-radius: 22px; background: #1c2c38; border: 3px solid #3a5463; }
+  .node h4 { margin: 0; font-weight: 900; font-size: 42px; letter-spacing: .04em; line-height: 1; color: #fff; }
+  .node p { margin: 12px 0 0; font-family: "Plex Mono", monospace; font-size: 25px; line-height: 1.35; color: #a9b8c1; }
+  #nGw { border-color: #47a386; }
+  #nPaid { background: #232e36; border-style: dashed; border-color: #6b7f8c; }
+  #nCorpus { opacity: 0; }
+  #fDevice { position: absolute; left: 40px; top: 350px; width: 400px; height: 430px; border: 5px dashed rgba(238,243,245,.45); border-radius: 30px; box-sizing: border-box; }
+  #fDevice span { position: absolute; left: 30px; bottom: 18px; font-weight: 900; font-size: 38px; letter-spacing: .1em; color: rgba(238,243,245,.85); opacity: 0; }
+  #fHost { position: absolute; left: 470px; top: 40px; width: 960px; height: 1000px; border: 5px dashed rgba(238,243,245,.4); border-radius: 36px; box-sizing: border-box; opacity: 0; }
+  #fHost span { position: absolute; left: 30px; top: 20px; font-weight: 900; font-size: 50px; letter-spacing: .1em; color: rgba(238,243,245,.8); }
+  .guards { margin-top: 30px; }
+  .g { height: 46px; margin-bottom: 8px; padding: 0 16px; box-sizing: border-box; border-radius: 10px; border: 2px solid #3a5463; background: #15222c;
+    font-family: "Plex Mono", monospace; font-size: 28px; line-height: 42px; color: #cfdae0; opacity: 0; }
+  .panel { position: absolute; box-sizing: border-box; font-family: "Plex Mono", monospace; font-size: 30px; line-height: 1.37; color: #e8eef1; }
+  .panel .h { font-family: "Overpass", sans-serif; font-weight: 800; font-size: 30px; letter-spacing: .12em; color: #47a386; opacity: 0; }
+  .panel .ln { opacity: 0; }
+  #pV2 { left: 40px; top: 86px; width: 810px; }
+  #pF3 { left: 1460px; top: 380px; width: 400px; }
+  #pF3 .ln b { font-weight: 400; color: #ffd27a; }
+  #pEgr { left: 1460px; top: 570px; width: 400px; color: #cfdae0; }
+  #xWh { position: absolute; left: 500px; top: 350px; padding: 6px 18px; border-radius: 10px; border: 3px solid #d0587a; background: rgba(173,37,73,.35); font-family: "Plex Mono", monospace; font-size: 34px; color: #ffd5df; opacity: 0; white-space: nowrap; }
+  .bead { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; opacity: 0; }
+  .bead.q { background: #eef3f5; box-shadow: 0 0 22px #eef3f5; } .bead.l { background: #6fe0b8; box-shadow: 0 0 22px #47a386; }
+  .bead.p { background: #ffd27a; box-shadow: 0 0 24px #ffb84a; } .bead.x { background: #ff6f93; box-shadow: 0 0 30px #d0587a; }
+  .bead.k { width: 20px; height: 20px; left: -10px; top: -10px; background: #8fe0c4; box-shadow: 0 0 16px #47a386; }
+</style>
+</head>
+<body>
+<script type="application/json" id="om-cues">{"source": "tts:kokoro:af_heart", "precision": "tts", "offset": 0, "duration": 86.008, "words": [{"word": "Every", "start": 0.5, "end": 0.981}, {"word": "byte", "start": 0.981, "end": 1.302}, {"word": "that", "start": 1.302, "end": 1.462}, {"word": "leaves", "start": 1.462, "end": 1.783}, {"word": "this", "start": 1.783, "end": 1.943}, {"word": "stack", "start": 1.943, "end": 2.104}, {"word": "is", "start": 2.104, "end": 2.546}, {"word": "written", "start": 2.546, "end": 2.867}, {"word": "down", "start": 2.867, "end": 3.027}, {"word": "before", "start": 3.027, "end": 3.508}, {"word": "it", "start": 3.508, "end": 3.669}, {"word": "can", "start": 3.669, "end": 3.829}, {"word": "leave", "start": 3.829, "end": 4.15}, {"word": "The", "start": 5.34, "end": 5.529}, {"word": "data-flow", "start": 5.529, "end": 6.094}, {"word": "disclosure", "start": 6.094, "end": 6.847}, {"word": "lists", "start": 6.847, "end": 7.036}, {"word": "each", "start": 7.036, "end": 7.224}, {"word": "flow", "start": 7.224, "end": 7.412}, {"word": "where", "start": 7.412, "end": 8.277}, {"word": "it", "start": 8.277, "end": 8.468}, {"word": "goes", "start": 8.468, "end": 8.66}, {"word": "what", "start": 8.66, "end": 8.851}, {"word": "it", "start": 8.851, "end": 9.042}, {"word": "carries", "start": 9.042, "end": 9.425}, {"word": "what", "start": 9.425, "end": 9.615}, {"word": "it", "start": 9.615, "end": 10.07}, {"word": "never", "start": 10.07, "end": 10.449}, {"word": "carries", "start": 10.449, "end": 10.829}, {"word": "and", "start": 10.829, "end": 11.019}, {"word": "how", "start": 11.019, "end": 11.208}, {"word": "to", "start": 11.208, "end": 11.398}, {"word": "switch", "start": 11.398, "end": 11.588}, {"word": "it", "start": 11.588, "end": 11.778}, {"word": "off", "start": 11.778, "end": 11.967}, {"word": "And", "start": 13.34, "end": 13.504}, {"word": "the", "start": 13.504, "end": 13.669}, {"word": "build", "start": 13.669, "end": 13.833}, {"word": "enforces", "start": 13.833, "end": 14.327}, {"word": "it", "start": 14.327, "end": 14.492}, {"word": "a", "start": 14.922, "end": 15.095}, {"word": "service", "start": 15.095, "end": 15.615}, {"word": "without", "start": 15.615, "end": 15.962}, {"word": "a", "start": 15.962, "end": 16.136}, {"word": "row", "start": 16.136, "end": 16.309}, {"word": "is", "start": 16.309, "end": 16.482}, {"word": "refused", "start": 16.482, "end": 17.003}, {"word": "When", "start": 18.54, "end": 18.716}, {"word": "you", "start": 18.716, "end": 18.891}, {"word": "talk", "start": 18.891, "end": 19.067}, {"word": "to", "start": 19.067, "end": 19.242}, {"word": "the", "start": 19.242, "end": 19.418}, {"word": "twin", "start": 19.418, "end": 19.593}, {"word": "what", "start": 19.844, "end": 20.009}, {"word": "leaves", "start": 20.009, "end": 20.338}, {"word": "your", "start": 20.338, "end": 20.503}, {"word": "device", "start": 20.503, "end": 20.997}, {"word": "Your", "start": 21.247, "end": 21.497}, {"word": "typed", "start": 21.497, "end": 21.996}, {"word": "words", "start": 21.996, "end": 22.245}, {"word": "the", "start": 22.447, "end": 22.701}, {"word": "last", "start": 22.701, "end": 22.955}, {"word": "few", "start": 22.955, "end": 23.209}, {"word": "turns", "start": 23.209, "end": 23.463}, {"word": "and", "start": 23.843, "end": 24.027}, {"word": "the", "start": 24.027, "end": 24.21}, {"word": "address", "start": 24.21, "end": 24.576}, {"word": "and", "start": 24.576, "end": 24.76}, {"word": "browser", "start": 24.76, "end": 25.126}, {"word": "every", "start": 25.126, "end": 25.676}, {"word": "request", "start": 25.676, "end": 26.042}, {"word": "carries", "start": 26.042, "end": 26.408}, {"word": "Never", "start": 27.54, "end": 27.886}, {"word": "audio", "start": 27.886, "end": 28.232}, {"word": "the", "start": 28.232, "end": 28.406}, {"word": "avatar", "start": 28.406, "end": 29.192}, {"word": "a", "start": 29.192, "end": 29.367}, {"word": "cookie", "start": 29.367, "end": 29.716}, {"word": "or", "start": 29.716, "end": 29.886}, {"word": "any", "start": 29.886, "end": 30.599}, {"word": "identifier", "start": 30.599, "end": 31.279}, {"word": "of", "start": 31.279, "end": 31.449}, {"word": "the", "start": 31.449, "end": 31.619}, {"word": "visit", "start": 31.619, "end": 31.959}, {"word": "or", "start": 31.959, "end": 32.129}, {"word": "the", "start": 32.129, "end": 32.299}, {"word": "visitor", "start": 32.299, "end": 32.809}, {"word": "And", "start": 33.059, "end": 33.231}, {"word": "in", "start": 33.231, "end": 33.403}, {"word": "production", "start": 33.403, "end": 34.218}, {"word": "no", "start": 34.218, "end": 34.388}, {"word": "one's", "start": 34.388, "end": 34.899}, {"word": "words", "start": 34.899, "end": 35.07}, {"word": "land", "start": 35.07, "end": 35.24}, {"word": "in", "start": 35.24, "end": 35.41}, {"word": "any", "start": 35.41, "end": 35.751}, {"word": "log", "start": 35.751, "end": 36.064}, {"word": "trace", "start": 36.064, "end": 36.418}, {"word": "or", "start": 36.418, "end": 36.593}, {"word": "store", "start": 36.593, "end": 36.941}, {"word": "When", "start": 39.24, "end": 39.448}, {"word": "the", "start": 39.448, "end": 39.656}, {"word": "paid", "start": 39.656, "end": 39.864}, {"word": "fallback", "start": 39.864, "end": 40.28}, {"word": "answers", "start": 40.28, "end": 40.696}, {"word": "your", "start": 40.991, "end": 41.206}, {"word": "words", "start": 41.206, "end": 41.421}, {"word": "go", "start": 41.421, "end": 41.635}, {"word": "to", "start": 41.635, "end": 41.85}, {"word": "Anthropic", "start": 41.85, "end": 42.495}, {"word": "In", "start": 42.745, "end": 42.951}, {"word": "Hareet's", "start": 42.951, "end": 43.568}, {"word": "words", "start": 43.568, "end": 43.774}, {"word": "this", "start": 44.224, "end": 44.361}, {"word": "site", "start": 44.361, "end": 44.636}, {"word": "saves", "start": 44.636, "end": 44.911}, {"word": "none", "start": 44.911, "end": 45.185}, {"word": "of", "start": 45.185, "end": 45.323}, {"word": "it", "start": 45.323, "end": 45.46}, {"word": "and", "start": 45.771, "end": 45.95}, {"word": "Anthropic", "start": 45.95, "end": 46.487}, {"word": "may", "start": 46.487, "end": 46.666}, {"word": "keep", "start": 46.666, "end": 46.845}, {"word": "a", "start": 46.845, "end": 47.024}, {"word": "turn", "start": 47.024, "end": 47.203}, {"word": "it", "start": 47.203, "end": 47.382}, {"word": "answered", "start": 47.382, "end": 47.919}, {"word": "for", "start": 47.919, "end": 48.098}, {"word": "up", "start": 48.098, "end": 48.277}, {"word": "to", "start": 48.277, "end": 48.456}, {"word": "thirty", "start": 48.456, "end": 48.814}, {"word": "days", "start": 48.814, "end": 48.993}, {"word": "never", "start": 49.315, "end": 49.695}, {"word": "for", "start": 49.695, "end": 49.886}, {"word": "training", "start": 49.886, "end": 50.266}, {"word": "Then", "start": 51.94, "end": 52.201}, {"word": "what", "start": 52.228, "end": 52.489}, {"word": "the", "start": 52.489, "end": 52.751}, {"word": "twin", "start": 52.751, "end": 53.013}, {"word": "says", "start": 53.013, "end": 53.275}, {"word": "back", "start": 53.275, "end": 53.537}, {"word": "It", "start": 53.786, "end": 53.963}, {"word": "answers", "start": 53.963, "end": 54.316}, {"word": "only", "start": 54.316, "end": 54.67}, {"word": "from", "start": 54.67, "end": 54.846}, {"word": "what", "start": 54.846, "end": 55.023}, {"word": "Hareet", "start": 55.023, "end": 55.376}, {"word": "wrote", "start": 55.376, "end": 55.73}, {"word": "and", "start": 55.73, "end": 56.246}, {"word": "when", "start": 56.246, "end": 56.423}, {"word": "that", "start": 56.423, "end": 56.6}, {"word": "doesn't", "start": 56.6, "end": 56.954}, {"word": "hold", "start": 56.954, "end": 57.131}, {"word": "the", "start": 57.131, "end": 57.308}, {"word": "answer", "start": 57.308, "end": 57.662}, {"word": "it", "start": 57.662, "end": 57.846}, {"word": "says", "start": 57.846, "end": 58.03}, {"word": "I", "start": 58.03, "end": 58.631}, {"word": "don't", "start": 58.631, "end": 59.002}, {"word": "know", "start": 59.002, "end": 59.188}, {"word": "yet", "start": 59.188, "end": 59.373}, {"word": "Before", "start": 60.64, "end": 61.048}, {"word": "any", "start": 61.048, "end": 61.321}, {"word": "word", "start": 61.321, "end": 61.457}, {"word": "leaves", "start": 61.457, "end": 61.729}, {"word": "the", "start": 61.729, "end": 61.865}, {"word": "gateway", "start": 61.865, "end": 62.273}, {"word": "code", "start": 62.563, "end": 62.958}, {"word": "checks", "start": 62.958, "end": 63.155}, {"word": "the", "start": 63.155, "end": 63.352}, {"word": "answer", "start": 63.352, "end": 63.746}, {"word": "against", "start": 63.746, "end": 64.141}, {"word": "its", "start": 64.141, "end": 64.338}, {"word": "sources", "start": 64.338, "end": 64.732}, {"word": "numbers", "start": 65.229, "end": 65.823}, {"word": "amounts", "start": 65.951, "end": 66.463}, {"word": "ownership", "start": 66.586, "end": 67.045}, {"word": "privacy", "start": 67.187, "end": 67.788}, {"word": "A", "start": 68.038, "end": 68.234}, {"word": "failed", "start": 68.234, "end": 68.627}, {"word": "check", "start": 68.627, "end": 68.823}, {"word": "withholds", "start": 68.823, "end": 69.216}, {"word": "the", "start": 69.216, "end": 69.412}, {"word": "answer", "start": 69.412, "end": 69.805}, {"word": "And", "start": 72.34, "end": 72.509}, {"word": "every", "start": 72.509, "end": 73.015}, {"word": "change", "start": 73.015, "end": 73.353}, {"word": "is", "start": 73.353, "end": 73.522}, {"word": "tested", "start": 73.522, "end": 73.86}, {"word": "a", "start": 74.388, "end": 74.596}, {"word": "hundred", "start": 74.596, "end": 75.014}, {"word": "and", "start": 75.014, "end": 75.222}, {"word": "eighty-six", "start": 75.222, "end": 75.848}, {"word": "cases", "start": 75.848, "end": 76.265}, {"word": "drawn", "start": 76.265, "end": 76.474}, {"word": "from", "start": 76.474, "end": 76.682}, {"word": "the", "start": 76.682, "end": 76.891}, {"word": "corpus", "start": 76.891, "end": 77.308}, {"word": "graded", "start": 77.618, "end": 78.021}, {"word": "by", "start": 78.021, "end": 78.223}, {"word": "code", "start": 78.223, "end": 78.626}, {"word": "never", "start": 78.92, "end": 79.224}, {"word": "by", "start": 79.224, "end": 79.377}, {"word": "another", "start": 79.377, "end": 79.833}, {"word": "model", "start": 79.833, "end": 80.138}, {"word": "Every", "start": 81.34, "end": 81.882}, {"word": "data", "start": 81.882, "end": 82.244}, {"word": "flow", "start": 82.244, "end": 82.424}, {"word": "disclosed", "start": 82.424, "end": 82.966}, {"word": "Built", "start": 83.216, "end": 83.408}, {"word": "in", "start": 83.408, "end": 83.601}, {"word": "the", "start": 83.601, "end": 83.793}, {"word": "open", "start": 83.793, "end": 84.177}, {"word": "at", "start": 84.405, "end": 84.597}, {"word": "hareet", "start": 84.597, "end": 84.982}, {"word": "dot", "start": 84.982, "end": 85.174}, {"word": "A", "start": 85.174, "end": 85.366}, {"word": "I", "start": 85.366, "end": 85.558}]}</script>
+<audio id="om-voice" src="assets/voice.wav" data-start="0" data-duration="86.008" data-track-index="9" data-volume="1"></audio>
+<div id="film" data-composition-id="film" data-width="1920" data-height="1080">
+  <audio id="om-sound" src="assets/sound.wav" data-start="0" data-duration="88.3" data-track-index="8" data-volume="1"></audio>
+  <div class="grain"></div>
+
+  <section class="shot" id="claim" data-om-id="claim">
+    <div class="name">hareet<span>.ai</span></div>
+    <div class="row" id="claimRow">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> <b id="chip">EVERY DATA FLOW DISCLOSED</b></div>
+  </section>
+
+  <section class="shot" id="rows" data-om-id="disclosure-rows"><div class="in">
+    <div class="hd" id="rowsHd">WRITTEN DOWN</div>
+    <div class="cnt"><span id="rowN">0</span><small> ROWS</small></div>
+    <div class="win"><div id="rlist"></div></div></div>
+    <div class="cap">docs/data-flow-disclosure.md · every row: its ID, From → To</div>
+  </section>
+
+  <section class="shot" id="cols" data-om-id="disclosure-columns"><div class="in">
+    <div class="rib"><span id="r0">ID</span><i>·</i><span id="r1">From → To</span><i>·</i><span id="r2">Carries</span><i>·</i><span id="r3">Never carries</span><i>·</i><span id="r4">How to switch it off</span></div>
+    <div class="tag" id="colTag">ROW S4</div>
+    <div class="pair" id="k1"><div class="l">FROM → TO</div><div class="v">model-server-gpu and model-server-cpu → nothing</div></div>
+    <div class="pair" id="k2"><div class="l">CARRIES</div><div class="v">nothing leaves the local tier</div></div>
+    <div class="pair" id="k3"><div class="l">NEVER CARRIES</div><div class="v bad">prompts and completions in its logs or on an endpoint</div></div>
+    <div class="pair" id="k4"><div class="l">HOW TO SWITCH IT OFF</div><div class="v">make down ENV=&lt;stack&gt;</div></div></div>
+    <div class="cap">docs/data-flow-disclosure.md:7 · its columns, filled with row S4 (:14)</div>
+  </section>
+
+  <section class="shot" id="gate" data-om-id="gate"><div class="in">
+    <div class="cmd" id="g1">$ make policy<span class="cur" id="gCur"></span></div>
+    <div class="term">
+      <div class="x" id="g2">FAIL deploy/compose.yaml service <em>{name}</em>: disclosure:</div>
+      <div class="x" id="g3">no row in docs/data-flow-disclosure.md whose From names `<em>{name}</em>` (FR-040)</div>
+      <div class="s" id="g4">compose policy: 1 refusal(s)</div>
+    </div>
+    <div class="huge" id="refused">REFUSED</div></div>
+    <div class="cap">tools/gates/compose_policy.py:762 · make policy</div>
+  </section>
+  <section class="shot" id="flow" data-om-id="flow">
+    <div id="fworld">
+      <svg width="1920" height="1080" viewBox="0 0 1920 1080">
+        <path class="wire" id="wIn" d="M240 540 L1090 540"/>
+        <path class="wire" id="wModel" d="M1090 540 L1090 165"/>
+        <path class="wire" id="wCorpus" d="M1090 540 L1090 910"/>
+        <path class="wire" id="wPaid" d="M1090 540 L1710 190"/>
+      </svg>
+      <div id="fHost" data-om-id="stack"><span>THE STACK</span></div>
+      <div id="fDevice" data-om-id="device"><span id="devL">YOUR DEVICE</span></div>
+      <div id="beads"></div>
+      <div class="node" id="nBrowser" data-om-id="browser" style="left:60px;top:430px;width:360px;height:210px"><h4>VISITOR'S BROWSER</h4><p>the room</p></div>
+      <div class="node" id="nEdge" data-om-id="edge" style="left:510px;top:440px;width:290px;height:200px"><h4>EDGE</h4><p>POST /api/room/turn</p></div>
+      <div class="node" id="nGw" data-om-id="gateway" style="left:870px;top:350px;width:440px;height:380px"><h4>GATEWAY</h4><p>POST /room/turn</p>
+        <div class="guards"><div class="g" id="gd1">G1 numbers</div><div class="g" id="gd2">G2 amounts</div><div class="g" id="gd3">G7 ownership</div><div class="g" id="gd4">G8 privacy</div></div></div>
+      <div class="node" id="nModel" data-om-id="model-server" style="left:870px;top:90px;width:440px;height:150px"><h4>MODEL-SERVER</h4><p>llama.cpp, on the GPU</p></div>
+      <div class="node" id="nCorpus" data-om-id="corpus" style="left:870px;top:820px;width:440px;height:180px"><h4>CORPUS</h4><p>the twin's only source of truth</p></div>
+      <div class="node" id="nPaid" data-om-id="anthropic" style="left:1540px;top:90px;width:340px;height:200px"><h4>ANTHROPIC API</h4><p>the paid fallback</p></div>
+      <div class="panel" id="pV2" data-om-id="v2-carries"><div class="h" id="v2h">CARRIES · ROW V2</div>
+        <div class="ln" id="v2a">the visitor's typed words</div>
+        <div class="ln" id="v2b">the conversation so far,<br>the newest <span id="v2n">8</span> and <span id="v2c">4,000</span> characters at most</div>
+        <div class="ln" id="v2d">the IP address and the user agent,<br>as every request carries them</div></div>
+      <div class="panel" id="pF3" data-om-id="f3"><div class="h" id="f3h">ROW F3</div><div class="ln" id="f3a">on prod only:<br>gateway →<br><b>api.anthropic.com</b></div></div>
+      <div class="panel" id="pEgr" data-om-id="egress"><div class="ln" id="egr">through the egress network, the only route out any service has</div></div>
+      <div id="xWh" data-om-id="withheld">withheld</div>
+      <div id="beadsTop"></div>
+    </div>
+  </section>
+
+  <section class="shot" id="never" data-om-id="never"><div class="in">
+    <div class="t" id="nT">NEVER</div>
+    <div id="nList">
+      <div class="it" id="n1" style="top:350px">audio<div class="k"></div></div>
+      <div class="it" id="n2" style="top:455px">the avatar<div class="k"></div></div>
+      <div class="it" id="n3" style="top:560px">a cookie<div class="k"></div></div>
+      <div class="it" id="n4" style="top:665px">any identifier of the visit<div class="k"></div></div>
+      <div class="it" id="n5" style="top:770px">or the visitor<div class="k"></div></div>
+    </div>
+    <div class="ph" id="nPh">ON PROD,</div>
+    <div class="prod" id="nProd">no turn's words in any <span id="nLog">log</span>, <span id="nTrace">trace</span>, <span id="nStore">store</span>, or volume of the stack</div></div>
+    <div class="cap">docs/data-flow-disclosure.md:49 · row V2, Never carries</div>
+  </section>
+
+  <section class="shot" id="quote" data-om-id="quote"><div class="in">
+    <div class="big" id="qBig">IN HAREET'S WORDS</div>
+    <div class="lab" id="qLab">IN HAREET'S WORDS · ROW F3</div>
+    <div class="q"><span id="qTxt"></span><span class="caret" id="caret"></span></div>
+    <div class="who" id="qWho">Hareet, 2026-11-09</div></div>
+    <div class="cap">docs/data-flow-disclosure.md:62 · row F3</div>
+  </section>
+
+  <section class="shot" id="idk" data-om-id="dont-know"><div class="in">
+    <div class="q" id="idkQ">I don't know yet.</div></div>
+    <div class="cap" id="idkS">config/twin/prompt.md:9</div>
+  </section>
+
+  <section class="shot" id="tested" data-om-id="tested"><div class="in">
+    <div class="hd">EVERY CHANGE IS TESTED</div>
+    <div class="huge" id="caseN">0</div>
+    <div class="ln" id="t1" style="top:590px;color:#e8eef1">cases drawn from the corpus</div>
+    <div class="ln" id="t2" style="top:700px;color:#47a386">graded by code</div>
+    <div class="ln" id="t3" style="top:810px;color:#d0587a">never by another model</div>
+    <div class="mono" id="t4">Scoring is deterministic: no model judges another.</div></div>
+    <div class="cap">evals/product/cases (186 files) · evals/run.py:21</div>
+  </section>
+  <section class="shot" id="end" data-om-id="endcard">
+    <div class="card">
+      <div class="nm">hareet<span>.ai</span></div>
+      <div class="pitch">Come talk to my AI twin about my work and my life. It’s built in the open, so you can see how I build AI that is secure, cost-effective, and observable.</div>
+      <div class="claims">LOCAL MODELS FIRST <i>•</i> A REAL-TIME COST METER <i>•</i> A $5-A-DAY KILL SWITCH <i>•</i> <b id="endChip">EVERY DATA FLOW DISCLOSED</b></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const V = OM.vars();
+  const $ = (s) => document.querySelector(s);
+  const num = (n) => Number(n).toLocaleString('en-US');
+  $('#v2n').textContent = num(V.newestTurns); $('#v2c').textContent = num(V.maxChars);
+
+  // ---------- the disclosure's rows: each row's ID and its From → To, cut to its head (materials.md) ----------
+  const ROWS = [
+    ['S1', 'edge', 'nothing beyond the host', 'n'], ['S2', 'gateway', 'the internet, through the egress network', 'o'],
+    ['S3', 'gateway-state', 'nothing', 'n'], ['S4', 'model-server-gpu and model-server-cpu', 'nothing', 'n'],
+    ['S5', 'otel-collector', 'nothing beyond the stack', 'n'], ['S6', 'prometheus', 'nothing', 'n'], ['S7', 'loki', 'nothing', 'n'],
+    ['S8', 'grafana', 'nothing', 'n'], ['S9', 'langfuse-web and langfuse-worker', 'nothing beyond the stack', 'n'],
+    ['S10', 'langfuse-db, clickhouse, valkey, and seaweedfs', 'nothing', 'n'], ['S11', 'breach-probe', 'nothing beyond the stack', 'n'],
+    ['S12', 'telegram-standin', 'nothing', 'n'], ['S13', 'mailpit', 'nothing', 'n'],
+    ['A1', 'gateway', 'api.telegram.org', 'o'], ['A2', 'gateway', "the alerts mailbox's SMTP host", 'o'],
+    ['F1', 'gateway', 'bedrock-runtime.us-east-1.amazonaws.com', 'p'], ['F2', 'gateway', 'portal.sso.us-east-1.amazonaws.com', 'o'],
+    ['B1', "Hareet's browser", 'whatever those pages fetch', 'o'],
+    ['P1', "the host's Docker engine", 'ghcr.io, quay.io, …', 'o'], ['P2', "the gateway's image build", 'registry.npmjs.org', 'o'],
+    ['P3', 'deploy/scripts/pull-models.sh', 'huggingface.co', 'o'], ['E1', "the agents' engine", 'its egress proxy', 'o'],
+    ['H1', 'Langfuse, Grafana, Loki, ClickHouse, …', 'their vendors', 'n'],
+    ['D1', "Claude Code, the agents' harness", 'Anthropic', 'o'], ['D2', "the devcontainer's image build", "Ubuntu's archive mirrors, …", 'o'],
+    ['D3', 'make tools', 'nodejs.org, pypi.org, ghcr.io, …', 'o'], ['D4', "the studio's Claude Code session", 'Anthropic', 'o'],
+    ['S14', 'web', 'nothing', 'n'], ['V1', "the visitor's browser", "the site's own origin", 'o'],
+    ['V2', "the visitor's browser", 'POST /api/room/turn', 'o'], ['V4', "the visitor's browser", "the stack's telemetry", 'o'],
+    ['F3', 'gateway', 'api.anthropic.com', 'p'] ];
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  $('#rlist').innerHTML = ROWS.map(([id, f, t, c]) => `<div class="r"><b>${id}</b><span>${esc(f)}</span><i>→</i><span class="${c}">${esc(t)}</span></div>`).join('');
+
+  // ---------- word times: the respaced take's om-cues (tools/respace.py) ----------
+  const W = { written: 2.55, where: 7.41, carries: 9.04, never1: 10.07, switch: 11.40, and3: 13.34, build: 13.67, service: 15.10, without: 15.62, refused: 16.48,
+    when4: 18.54, leaves: 20.01, your: 20.34, device: 20.50, typed: 21.50, last: 22.70, address: 24.21, carries4: 26.04,
+    never5: 27.54, audio: 27.89, avatar: 28.41, cookie: 29.37, any: 29.89, visit: 31.62, or5: 31.96, visitor: 32.30, production: 33.40, log: 35.75, trace: 36.06, store: 36.59,
+    when6: 39.24, paid: 39.66, fallback: 39.86, anthropic: 41.85, in6: 42.74, hareets: 42.95, this: 44.22, thirty: 48.46, never6: 49.31, training: 49.89,
+    then7: 51.94, back: 53.27, only: 54.32, hareet7: 55.02, wrote: 55.38, when7: 56.25, hold: 56.95, says7: 57.85, i: 58.03,
+    before: 60.64, word: 61.32, code8: 62.56, against: 63.75, sources: 64.34, numbers: 65.23, amounts: 65.95, ownership: 66.59, privacy: 67.19,
+    a8: 68.04, failed: 68.23, withholds: 68.82, and9: 72.34, tested: 73.52, hundred: 74.60, eightysix: 75.22, cases: 75.85, graded: 77.62, code9: 78.22, never9: 78.92, model: 79.83,
+    end: 81.34, disclosed: 82.42 };
+  const F = 30, cut = (t) => (Math.floor(t * F) + 0.5) / F;                 // cuts half a frame in (contract: clean under --blur)
+  const D = 85.9 + V.endHold;
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'expo.out', immediateRender: false } });
+  OM.music({ product: 'devtool', variant: 0, bpm: 110, drop: 'tested', ending: 'button',
+             energy: { claim: .6, rows: .8, cols: .65, gate: .85, visitor: .6, never: .75, egress: .7, quote: .35, twin: .6, idk: .5, guards: .8, stop: 0, tested: 1, end: .3 } });
+
+  const PUSH = { tested: 1.12 };
+  // shots, in order; the flow comes back five times, the same circuit in its state at that moment
+  const order = [['claim', 0, 'claim'], ['rows', W.written, 'rows'], ['cols', W.where, 'cols'], ['gate', W.and3, 'gate'], ['flow', W.when4, 'visitor'],
+                 ['never', W.never5, 'never'], ['flow', W.store, 'egress'], ['quote', W.in6, 'quote'], ['flow', W.then7, 'twin'], ['idk', W.i, 'idk'],
+                 ['flow', W.before, 'guards'], ['flow', W.withholds, 'stop'], ['tested', W.and9, 'tested'], ['end', W.end, 'end']];
+  order.forEach(([id, t, label], i) => {
+    const a = cut(t), b = i + 1 < order.length ? cut(order[i + 1][1]) : D + 1;
+    tl.addLabel(`scene:${label}`, a);
+    const prev = i ? order[i - 1][0] : null;
+    if (i > 0 && prev !== id) tl.fromTo(`#${id}`, { opacity: 0 }, { opacity: 1, duration: 0.001, ease: 'none' }, a);
+    if (id !== 'flow' && !['claim', 'end'].includes(id)) tl.fromTo(`#${id} .in`, { scale: 1 }, { scale: PUSH[id] || 1.14, duration: Math.min(b, D) - a, ease: 'power1.in', transformOrigin: '50% 50%' }, a);
+    const next = i + 1 < order.length ? order[i + 1][0] : null;
+    if (b < D && next !== id) tl.fromTo(`#${id}`, { opacity: 1 }, { opacity: 0, duration: 0.001, ease: 'none' }, b);
+    if (i > 0 && label !== 'stop') OM.sfx(i % 2 ? 'hit' : 'whoosh', a, { gain: .3 });
+  });
+
+  // claim: frame 0 is the resume's line; the push lands on the chip. The chip sits last in the line, so the camera
+  // travels to it: its centre is measured from the laid-out line in draw(), so the fonts' own widths decide it.
+  $('#claim').style.transformOrigin = '0 0';
+  const claimPush = (t) => {
+    const row = $('#claimRow'), chip = $('#chip');
+    const cx = chip.offsetWidth ? row.offsetLeft + chip.offsetLeft + chip.offsetWidth / 2 : 1640;
+    const cy = chip.offsetHeight ? row.offsetTop + chip.offsetTop + chip.offsetHeight / 2 : 518;
+    const u = Math.max(0, Math.min(1, t / 2.6)), e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;   // an in-out ease
+    const s = 1 + 0.95 * e, fx = 960 + (cx - 960) * e, fy = 540 + (cy - 540) * e;
+    $('#claim').style.transform = `translate(${960 - s * fx}px, ${540 - s * fy}px) scale(${s})`;
+  };
+  tl.fromTo('#chip', { scale: 1 }, { scale: 1.12, duration: .3, yoyo: true, repeat: 1, ease: 'power2.out' }, OM.sfx('pop', 0.9, { gain: .5 }));
+
+  // the rows: one per tick, the list scrolling as they land; the count climbs with them
+  const rowEls = [...document.querySelectorAll('#rlist .r')];
+  const rowAt = (i) => W.written + 0.05 + i * (4.5 / (rowEls.length - 1));
+  rowEls.forEach((r, i) => { const t = rowAt(i);
+    tl.fromTo(r, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: .12, ease: 'power2.out' }, t);
+    OM.sfx('tick', t, { gain: .2, pitch: 1 + (i % 8) * .03 }); });
+  const VIS = 9;
+  tl.fromTo('#rlist', { y: 0 }, { y: -(rowEls.length - VIS) * 70, duration: rowAt(rowEls.length - 1) - rowAt(VIS - 1), ease: 'none' }, rowAt(VIS - 1));
+  tl.fromTo('#rowsHd', { scale: 1.3, transformOrigin: '0% 50%' }, { scale: 1, duration: .35, ease: 'power4.out' }, cut(W.written));
+  OM.sfx('impact', W.written, { gain: .45 });
+  // the columns: each lands on its clause
+  const DIM = '#3e5563', LIT = '#ffffff';
+  tl.fromTo('#colTag', { scale: 1.4, opacity: 0, transformOrigin: '0% 50%' }, { scale: 1, opacity: 1, duration: .3, ease: 'power4.out' }, cut(W.where))
+    .fromTo('#r0', { color: DIM }, { color: '#47a386', duration: .15, ease: 'none' }, cut(W.where));
+  const colAt = [W.where + 0.25, W.carries, W.never1, W.switch];
+  colAt.forEach((t, i) => {
+    const id = `#k${i + 1}`;
+    tl.fromTo(id, { opacity: 0, scale: 1.25, x: 80 }, { opacity: 1, scale: 1, x: 0, duration: .35, ease: 'power4.out' }, t - 0.05)
+      .fromTo(`#r${i + 1}`, { color: DIM }, { color: LIT, duration: .15, ease: 'none' }, t - 0.05);
+    if (i + 1 < colAt.length) {
+      tl.fromTo(id, { opacity: 1, y: 0 }, { opacity: 0, y: -70, duration: .14, ease: 'power2.in' }, colAt[i + 1] - 0.18)
+        .fromTo(`#r${i + 1}`, { color: LIT }, { color: DIM, duration: .15, ease: 'none' }, colAt[i + 1] - 0.05);
+    } else tl.fromTo(id, { x: 0 }, { x: -60, duration: cut(W.and3) - t - 0.3, ease: 'none' }, t + 0.3);
+    OM.sfx('thud', t, { gain: .4 + i * .05 }); OM.sfx('whoosh', t - 0.15, { gain: .18 });
+  });
+  // the gate: make policy, the refusal in its own words, then the slam
+  tl.fromTo('#g1', { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: .3, ease: 'power4.out' }, cut(W.and3))
+    .fromTo('#gCur', { opacity: 1 }, { opacity: 0, duration: .01 }, W.service)
+    .fromTo('#g2', { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: .15 }, W.service)
+    .fromTo('#g3', { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: .15 }, W.without)
+    .fromTo('#refused', { opacity: 0, scale: 1.35 }, { opacity: 1, scale: 1, duration: .35, ease: 'power4.out' }, W.refused - 0.08)
+    .fromTo('#refused', { x: 0 }, { x: 60, duration: cut(W.when4) - W.refused - 0.4, ease: 'none' }, W.refused + 0.35)
+    .fromTo('#gate .term', { x: 0 }, { x: 16, duration: .06, yoyo: true, repeat: 3, ease: 'none' }, W.refused)
+    .fromTo('#g4', { opacity: 0 }, { opacity: 1, duration: .2 }, W.refused + 0.5);
+  OM.sfx('type', cut(W.and3), { gain: .25, dur: .5 }); OM.sfx('glitch', W.service, { gain: .4 }); OM.sfx('glitch', W.without, { gain: .3 });
+  OM.sfx('impact', W.refused, { gain: .8 }); OM.sfx('thud', W.refused + 0.5, { gain: .4 });
+
+  // ---------- the flow's camera: front-on, cut on words, a slow push while it holds ----------
+  const fcam = OM.camera('#fworld');
+  const FS = [ // [cut time, focus, zoom, zoom at the end of the hold, focus at the end of the hold]
+    [W.when4, [640, 440], 1.25, 1.33], [W.store, [960, 540], 0.98, 1.06], [W.then7, [960, 540], 1.0, 1.07, [960, 560]],
+    [W.before, [1000, 650], 1.55, 1.65], [W.withholds, [930, 530], 1.7, 1.78] ];
+  const ends = [W.never5, W.in6, W.i, W.withholds, W.and9];
+  fcam.set({ focus: FS[0][1], zoom: FS[0][2] });
+  FS.forEach(([t, f, z0, z1, f1], i) => {
+    const a = cut(t), b = cut(ends[i]);
+    if (i) fcam.to(tl, a - 0.001, { focus: f, zoom: z0, duration: 0.001, ease: 'none' });
+    fcam.to(tl, a, { focus: f1 || f, zoom: z1, duration: b - a - 0.002, ease: 'none' });
+  });
+
+  // ---------- the calls: every bead is a function of time ----------
+  const P = { browser: [240, 540], edge: [655, 540], gw: [1090, 540], model: [1090, 165], corpus: [1090, 910], paid: [1710, 190] };
+  const along = (pts, u) => {                                                 // a point along a polyline, by distance
+    const L = []; let tot = 0;
+    for (let k = 1; k < pts.length; k++) { const d = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); L.push(d); tot += d; }
+    let r = u * tot;
+    for (let k = 0; k < L.length; k++) { if (r <= L[k] || k === L.length - 1) { const v = L[k] ? Math.min(1, r / L[k]) : 1; return [pts[k][0] + (pts[k + 1][0] - pts[k][0]) * v, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * v]; } r -= L[k]; }
+    return pts[pts.length - 1];
+  };
+  const beads = [], keyed = [];
+  const mk = (cls, top) => { const d = document.createElement('div'); d.className = `bead ${cls}`; $(top ? '#beadsTop' : '#beads').appendChild(d); return d; };
+  // a leg: [path, duration, bead class]; a call: a start time and its legs (under the nodes, as b2's)
+  const IN = [[P.browser, P.edge, P.gw], 0.6, 'q'], TO_M = [[P.gw, P.model], 0.3, 'q'], FROM_M = [[P.model, P.gw], 0.3, 'l'],
+        OUT = [[P.gw, P.edge, P.browser], 0.6, 'l'], OUT_Q = [[P.gw, P.edge, P.browser], 0.6, 'q'],
+        TO_P = [[P.gw, P.paid], 0.9, 'p'], FROM_P = [[P.paid, P.gw], 0.6, 'p'];
+  const call = (t0, legs) => { let t = t0; for (const [pts, d, cls] of legs) { beads.push({ pts, a: t, b: t + d, el: mk(cls) }); t += d; } return t; };
+  // a keyed bead, over the nodes: [[t, x, y], ...], shown from its first key to its last
+  const key = (cls, keys) => keyed.push({ keys, el: mk(cls, true) });
+  const LOCAL = [IN, TO_M, FROM_M, OUT];
+  // the visitor's side: turns from the browser, answered by the local model
+  [18.7, 19.95, 21.2, 22.5, 23.8, 25.1, 26.3].forEach((t) => { const back = call(t, LOCAL); OM.sfx('pop', back, { gain: .22 }); });
+  // the egress: a burst of local turns while the wall draws in, then one turn the paid fallback answers, out through the wall
+  [36.7, 37.1, 37.5, 37.9, 38.3, 38.7].forEach((t, i) => { const back = call(t, LOCAL); OM.sfx('pop', back, { gain: .24, note: i + 1 }); });
+  call(W.anthropic - 1.5, [IN, TO_P, FROM_P]);
+  // the twin's side: a turn and its answer back; the corpus feeds the gateway; then a question it doesn't hold
+  call(51.95, LOCAL);
+  [54.3, 54.55, 54.8, 55.05, 55.3].forEach((t) => key('k', [[t, ...P.corpus], [t + 0.35, 1090, 735]]));
+  call(55.6, [IN, TO_M, FROM_M]); call(56.3, [IN, TO_M, FROM_M]); call(W.says7 - 0.45, [OUT_Q]);
+  // the guards: the answer waits at the gateway, whole, then passes each check on its word; the next one fails at G7
+  call(60.0, [IN, TO_M]);
+  const GX = 1240, GY = [517, 571, 625, 679];
+  key('l', [[60.9, 1090, 240], [61.5, GX, 478], [64.95, GX, 478], [W.numbers, GX, GY[0]], [W.amounts, GX, GY[1]], [W.ownership, GX, GY[2]], [W.privacy, GX, GY[3]],
+            [67.45, GX, 712], [67.7, 860, 712], [67.85, 860, 540], [68.1, ...P.edge], [68.4, ...P.browser]]);
+  [63.7, 63.95, 64.2].forEach((t) => key('k', [[t, ...P.corpus], [t + 0.35, 1090, 735]]));
+  key('q', [[67.3, 1090, 240], [67.75, GX, 478], [67.9, GX, GY[0]], [W.a8, GX, GY[1]], [W.failed, GX, GY[2]]]);
+  key('x', [[W.failed, GX, GY[2]], [D, GX, GY[2]]]);
+
+  const qWords = (() => {                                                     // row F3's words, each shown on its spoken word
+    const ws = JSON.parse($('#om-cues').textContent).words; const k = ws.findIndex((w, i) => w.word === 'this' && ws[i - 1] && /words/.test(ws[i - 1].word));
+    const text = `this site saves none of it, and Anthropic may keep a turn it answered for up to ${V.keepDays} days, never for training.`.split(' ');
+    return text.map((w, i) => [w, k >= 0 && ws[k + i] ? ws[k + i].start : W.this + i * 0.27]);
+  })();
+  const qHtml = (n) => qWords.slice(0, n).map(([w], i) => (i >= 15 && i <= 18 ? `<span class="hot">${w}</span>` : i >= 19 ? `<span class="ok">${w}</span>` : w)).join(' ');
+
+  OM.clock(tl, (t) => {
+    claimPush(t);
+    for (const x of beads) {
+      if (t >= x.a && t < x.b) { const p = along(x.pts, (t - x.a) / (x.b - x.a)); x.el.style.opacity = 1; x.el.style.transform = `translate(${p[0]}px, ${p[1]}px)`; }
+      else x.el.style.opacity = 0;
+    }
+    for (const x of keyed) {
+      const K = x.keys;
+      if (t < K[0][0] || t >= K[K.length - 1][0]) { x.el.style.opacity = 0; continue; }
+      let j = 0; while (j < K.length - 2 && t >= K[j + 1][0]) j++;
+      const u = (t - K[j][0]) / Math.max(1e-6, K[j + 1][0] - K[j][0]);
+      x.el.style.opacity = 1; x.el.style.transform = `translate(${K[j][1] + (K[j + 1][1] - K[j][1]) * u}px, ${K[j][2] + (K[j + 1][2] - K[j][2]) * u}px)`;
+    }
+    const nr = rowEls.filter((r, i) => t >= rowAt(i)).length;
+    $('#rowN').textContent = nr >= rowEls.length ? V.rowCount : nr;
+    const nq = qWords.filter(([, s]) => t >= s).length;
+    $('#qTxt').innerHTML = qHtml(nq);
+    $('#caret').style.opacity = nq >= qWords.length && Math.floor(t * 2) % 2 ? 0 : 1;
+    $('#gCur').style.visibility = Math.floor(t * 2.5) % 2 ? 'hidden' : 'visible';
+    const kc = Math.max(0, Math.min(1, (t - cut(W.and9)) / (W.eightysix - cut(W.and9))));
+    $('#caseN').textContent = Math.round(V.cases * (1 - Math.pow(1 - kc, 3)));
+  }, D);
+
+  // ---------- the circuit's state ----------
+  const sw = (sel, t, on, d) => tl.fromTo(sel, { opacity: on ? 0 : 1 }, { opacity: on ? 1 : 0, duration: d == null ? .15 : d, ease: 'none' }, t);
+  const wire = (sel, t, from, to, d) => tl.fromTo(sel, { stroke: from }, { stroke: to, duration: d == null ? .3 : d, ease: 'none' }, t);
+  // the visitor's side: the device, and what a turn carries (row V2)
+  sw('#devL', W.device - 0.1, true, .3);
+  wire('#wIn', W.leaves, '#3a5463', '#cfdae0');
+  OM.sfx('pop', W.device, { gain: .35 });
+  [['#v2h', W.typed - 0.3], ['#v2a', W.typed], ['#v2b', W.last], ['#v2d', W.address]].forEach(([id, t], i) => {
+    tl.fromTo(id, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: .3, ease: 'power4.out' }, t - 0.05);
+    if (i) OM.sfx('tick', t, { gain: .4, pitch: 1 + i * .06 });
+  });
+  sw('#pV2', cut(W.store), false, .01);
+  // the egress: the stack's wall draws in; the paid wire lights; one turn leaves through the wall (row F3)
+  sw('#fHost', cut(W.store), true, .4);
+  wire('#wPaid', W.paid, '#3a5463', '#c9a25a');
+  sw('#egr', W.fallback, true, .3); sw('#f3h', W.anthropic - 0.1, true, .3); sw('#f3a', W.anthropic, true, .3);
+  OM.sfx('glitch', W.paid, { gain: .25 }); OM.sfx('whoosh', W.anthropic - 0.6, { gain: .45 }); OM.sfx('ding', W.anthropic, { gain: .5 });
+  // the twin's side: the corpus, which the gateway answers from; then a question it doesn't hold
+  sw('#pF3, #pEgr', cut(W.then7), false, .01);
+  wire('#wPaid', cut(W.then7), '#c9a25a', '#3a5463', .01);
+  sw('#nCorpus', cut(W.then7), true, .01);
+  tl.fromTo('#nCorpus', { borderColor: '#3a5463' }, { borderColor: '#47a386', duration: .3 }, W.only);
+  wire('#wCorpus', W.only, '#3a5463', '#47a386');
+  OM.sfx('chime', W.back, { gain: .35 }); OM.sfx('tick', W.hareet7, { gain: .35 });
+  tl.fromTo('#nCorpus', { borderColor: '#47a386' }, { borderColor: '#3a5463', duration: .3 }, W.hold)
+    .fromTo('#nCorpus', { opacity: 1 }, { opacity: .45, duration: .3 }, W.hold);
+  wire('#wCorpus', W.hold, '#47a386', '#2a3a46');
+  // the guards: in the gateway, before any word leaves it
+  tl.fromTo('#nCorpus', { opacity: .45 }, { opacity: 1, duration: .01 }, cut(W.before));
+  wire('#wCorpus', W.against, '#2a3a46', '#47a386');
+  ['#gd1', '#gd2', '#gd3', '#gd4'].forEach((g, i) => { sw(g, W.code8 + i * 0.12, true, .2); OM.sfx('thud', W.code8 + i * 0.12, { gain: .25 }); });
+  const lit = (g, t, from, to) => tl.fromTo(g, { borderColor: from[0], backgroundColor: from[1] }, { borderColor: to[0], backgroundColor: to[1], duration: .12, ease: 'none' }, t);
+  const N0 = ['#3a5463', '#15222c'], OK = ['#47a386', '#1c4a3d'], BAD = ['#d0587a', '#5a1e30'];
+  [W.numbers, W.amounts, W.ownership, W.privacy].forEach((t, i) => { lit(`#gd${i + 1}`, t, N0, OK); OM.sfx('tick', t, { gain: .45, pitch: 1 + i * .08 }); });
+  ['#gd1', '#gd2', '#gd3', '#gd4'].forEach((g) => lit(g, 67.7, OK, N0));
+  lit('#gd1', 67.9, N0, OK); lit('#gd2', W.a8, N0, OK); lit('#gd3', W.failed, N0, BAD);
+  OM.sfx('tick', 67.9, { gain: .35 }); OM.sfx('tick', W.a8, { gain: .35, pitch: 1.08 }); OM.sfx('glitch', W.failed, { gain: .55 });
+  tl.fromTo('#xWh', { opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1, duration: .25, ease: 'power4.out' }, W.failed + 0.3);
+  wire('#wIn', W.failed + 0.3, '#cfdae0', '#5a1e30', .2);
+  OM.sfx('stamp', W.failed + 0.3, { gain: .6 }); OM.sfx('subdrop', W.withholds, { gain: .7 });
+
+  // never carries: on the crimson ground, each struck through as it's said; then prod's line takes the frame
+  [['#n1', W.audio, W.audio + 0.25], ['#n2', W.avatar, W.avatar + 0.25], ['#n3', W.cookie, W.cookie + 0.25],
+   ['#n4', W.any, W.visit + 0.1], ['#n5', W.or5, W.visitor + 0.35]].forEach(([id, t, k], i) => {
+    tl.fromTo(id, { opacity: 0, x: 60, scale: 1.15, transformOrigin: '0% 50%' }, { opacity: 1, x: 0, scale: 1, duration: .3, ease: 'power4.out' }, t - 0.08)
+      .fromTo(`${id} .k`, { scaleX: 0 }, { scaleX: 1, duration: .25, ease: 'power2.inOut' }, k);
+    OM.sfx('thud', t, { gain: .3 }); OM.sfx('stamp', k, { gain: .45, pan: -.3 + i * .15 });
+  });
+  tl.fromTo('#nT', { scale: 1.3 }, { scale: 1, duration: .35, ease: 'power4.out' }, cut(W.never5))
+    .fromTo('#nT', { x: 0 }, { x: 50, duration: W.store - W.never5, ease: 'none' }, cut(W.never5));
+  OM.sfx('impact', W.never5, { gain: .55 });
+  tl.fromTo('#nList', { opacity: 1, y: 0 }, { opacity: 0, y: -60, duration: .22, ease: 'power2.in' }, W.production - 0.3)
+    .fromTo('#nPh', { opacity: 0, scale: 1.35, transformOrigin: '0% 50%' }, { opacity: 1, scale: 1, duration: .35, ease: 'power4.out' }, W.production - 0.08)
+    .fromTo('#nProd', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: .4 }, W.production + 0.4);
+  [['#nLog', W.log], ['#nTrace', W.trace]].forEach(([id, t]) => {
+    tl.fromTo(id, { color: '#ffffff' }, { color: '#17232e', duration: .1, ease: 'none' }, t)
+      .fromTo(id, { scale: 1 }, { scale: 1.25, duration: .14, yoyo: true, repeat: 1, ease: 'power2.out' }, t);
+    OM.sfx('tick', t, { gain: .45 });
+  });
+  OM.sfx('impact', W.production, { gain: .5 });
+
+  // Hareet's words: the attribution slammed on the cut, then each word of row F3 on its spoken word
+  tl.fromTo('#qBig', { opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1, duration: .3, ease: 'power4.out' }, cut(W.in6))
+    .fromTo('#qBig', { opacity: 1, y: 0, scale: 1 }, { opacity: 0, y: -200, scale: .7, duration: .3, ease: 'power2.in' }, W.this - 0.35)
+    .fromTo('#qLab', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .3 }, W.this - 0.1);
+  OM.sfx('impact', W.in6, { gain: .45 }); OM.sfx('whoosh', W.this - 0.35, { gain: .3 });
+  OM.sfx('type', W.this, { gain: .22, dur: W.training - W.this + 0.3 });
+  tl.fromTo('#qWho', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .4 }, W.hareets);
+  // "I don't know yet."
+  tl.fromTo('#idkQ', { scale: 1.3, opacity: 0 }, { scale: 1, opacity: 1, duration: .35, ease: 'power4.out' }, cut(W.i))
+    .fromTo('#idkS', { opacity: 0 }, { opacity: 1, duration: .3 }, W.i + 0.6);
+  OM.sfx('impact', W.i, { gain: .6 });
+  // every change tested: the count rolls from the cut and lands on "eighty-six"
+  OM.sfx('count', cut(W.and9), { gain: .35, dur: W.eightysix - W.and9 });
+  tl.fromTo('#caseN', { scale: 1 }, { scale: 1.1, duration: .18, yoyo: true, repeat: 1, ease: 'power2.out', transformOrigin: '0% 60%' }, W.eightysix);
+  OM.sfx('impact', W.eightysix, { gain: .7 });
+  [['#t1', W.cases], ['#t2', W.graded], ['#t3', W.never9], ['#t4', W.model + 0.2]].forEach(([id, t], i) => {
+    tl.fromTo(id, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .35, ease: 'power4.out' }, t - 0.05);
+    OM.sfx(i === 3 ? 'type' : 'thud', t, i === 3 ? { gain: .2, dur: .8 } : { gain: .45 });
+  });
+
+  // the end: the resume's twin section, flat
+  tl.fromTo('#end .card', { scale: .9, y: 40 }, { scale: 1, y: 0, duration: 1.0 }, cut(W.end))
+    .fromTo('#end .card', { scale: 1 }, { scale: 1.03, duration: D - W.end - 1, ease: 'none' }, W.end + 1)
+    .fromTo('#endChip', { scale: 1 }, { scale: 1.12, duration: .35, yoyo: true, repeat: 1, ease: 'power2.out' }, W.disclosed);
+  OM.sfx('chime', W.disclosed, { gain: .5 });
+  tl.to({}, { duration: 0 }, D);
+
+  window.__timelines['film'] = tl;
+</script>
+</body>
+</html>

@@ -278,7 +278,16 @@ describe("one cause map (§4): causeClass and the talk panel's cannotTalkFor", (
 
   it("holds §4's table", () => {
     expect([...RESTING_CAUSES].sort()).toEqual(
-      ["fallback_unavailable", "local_error", "local_unhealthy", "no_fallback_in_stack"].sort(),
+      // Spec 001's relay (its contracts/relay-http.md §5; spec 002's contract §3, amended by name): no host
+      // serving, and a host's error with no cause, are the local tier off: cannot_talk.resting.
+      [
+        "fallback_unavailable",
+        "local_error",
+        "local_unhealthy",
+        "no_fallback_in_stack",
+        "no_host_serving",
+        "host_error",
+      ].sort(),
     );
     // Spec 010's Amendment 2-1: the paid fallback's monthly cap, adapter_month_spent, is of the budget class.
     expect([...BUDGET_CAUSES].sort()).toEqual(

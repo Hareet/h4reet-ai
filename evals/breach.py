@@ -155,6 +155,9 @@ class Assertion:
     # Spec 011's step 12, and its checks of the designed forms beside the receivers' (FR-053), run in stand-in mode
     # only: with --delivery real they are skipped, and read SKIP, not MISS.
     stand_in_only: bool = False
+    # Spec 001 group 8 (tasks.md T099; FR-025): the relay's rows, through dev-relay, which starts only once
+    # config/budgets.yaml holds the Author's public figures (P-6); until then they read SKIP, with the reason.
+    relay: bool = False
 
 
 RECEIVED = "Telegram's message_id and SMTP's 250 reply are in its delivery records, and neither stand-in holds it"
@@ -383,6 +386,14 @@ CATALOG = (
         "both stand-ins hold the trip alert in its designed form (spec 011)",
         stand_in_only=True,
     ),
+    Assertion(
+        "7h",
+        7,
+        "US2-3",
+        "M",
+        "the relay answers hello degraded, kill_switch_tripped, within 10 s of the trip (spec 001 FR-025)",
+        relay=True,
+    ),
     Assertion("8a", 8, "US2-6", "L", "incident.drafted for the daily ceiling"),
     Assertion(
         "8b",
@@ -410,6 +421,14 @@ CATALOG = (
         "a metered call is refused with meter_at_ceiling (call.degraded)",
     ),
     Assertion("9e", 9, "US2-4", "M", "Spend today stays at its 5.00 ceiling"),
+    Assertion(
+        "9f",
+        9,
+        "US2-4",
+        "M",
+        "the relay forwards hello again within 10 s of the reset (spec 001 FR-025)",
+        relay=True,
+    ),
     Assertion(
         "10a",
         10,
@@ -499,6 +518,14 @@ CATALOG = (
         "US2-7",
         "M",
         "the rebuilt meters read 0.10 today and this month, with renewal awaited",
+    ),
+    Assertion(
+        "11f",
+        11,
+        "US2-7",
+        "M",
+        "with the store stopped, the relay answers hello degraded, store_unreachable, at once (spec 001 FR-030, SC-008)",
+        relay=True,
     ),
     # Spec 011 (FR-040, SC-006; its plan §8.2, D16): the samples, in stand-in mode only.
     Assertion(
@@ -674,6 +701,8 @@ class Context:
     overlay: Path | None = None
     results: dict[str, dict[str, Any]] = field(default_factory=dict)
     stopped: set[str] = field(default_factory=set)
+    # Spec 001 group 8: dev-relay, which the run starts in step 7 and cleanup removes.
+    relay_started: bool = False
 
     @property
     def sandboxed(self) -> bool:
@@ -734,6 +763,33 @@ class Context:
             f"docker compose start {service}", self.compose("start", service)
         )
         self.stopped.discard(service)
+
+    def start_relay(self) -> None:
+        """dev-relay, the relay's own code on the stack (spec 001 tasks.md T099), built from the tree and started beside
+        the stack in its profile, which no env file selects; cleanup removes it."""
+        self.relay_started = True
+        self.lifecycle(
+            "docker compose up dev-relay",
+            self.compose(
+                "--profile",
+                "dev-relay",
+                "up",
+                "--detach",
+                "--no-deps",
+                "--build",
+                *UP_WAIT,
+                "dev-relay",
+            ),
+        )
+
+    def stop_relay(self) -> None:
+        self.lifecycle(
+            "docker compose rm dev-relay",
+            self.compose(
+                "--profile", "dev-relay", "rm", "--force", "--stop", "dev-relay"
+            ),
+        )
+        self.relay_started = False
 
     def restart_gateway(self) -> None:
         """The checks after a restart are timed, and their samples counted, from the probe's first /health answer
@@ -887,6 +943,8 @@ class Report:
     delivery: str
     outcomes: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     stopped: str | None = None
+    # Why the relay's rows didn't run, when they didn't (relay_ready); None once dev-relay started.
+    relay_skip: str | None = None
 
     def add(self, assertion: str, result: dict[str, Any]) -> None:
         self.outcomes.setdefault(assertion, []).append(result)
@@ -894,6 +952,8 @@ class Report:
     def verdict(self, assertion: Assertion) -> tuple[str, str]:
         if assertion.stand_in_only and self.delivery == "real":
             return "SKIP", "stand-in mode only: real delivery sends no samples"
+        if assertion.relay and self.relay_skip is not None:
+            return "SKIP", self.relay_skip
         results = self.outcomes.get(assertion.id, [])
         if not results:
             return "MISS", f"not run: {self.stopped}" if self.stopped else "not run"
@@ -1651,8 +1711,26 @@ class Steps:
         self.ctx.say(
             "step 7 · US2-3: the model server back, and metered calls to $5.00 today: the kill switch trips"
         )
+        # Spec 001 group 8 (FR-025): dev-relay beside the stack, before the trip, once the Author's figures let it start.
+        relay = self.report.relay_skip is None
+        if relay and not self.ctx.relay_started:
+            self.ctx.start_relay()
         self.ctx.start_model_server()
         crossing = "{{s7.spend.calls.-1.trace_id}}"
+        relay_ops = (
+            [
+                # Within 10 s of the trip, as the gateway's own hello sees it (SC-008).
+                {
+                    "op": "relay_hello",
+                    "assert": "7h",
+                    "after": "s7.hello",
+                    "within_s": 10,
+                    "expect": {"status": 503, "cause": "kill_switch_tripped"},
+                }
+            ]
+            if relay
+            else []
+        )
         self.call(
             "7",
             [
@@ -1699,6 +1777,7 @@ class Steps:
                     cause="kill_switch_tripped",
                     trace_id="{{s7.hello.trace_id}}",
                 ),
+                *relay_ops,
             ],
         )
 
@@ -1779,6 +1858,20 @@ class Steps:
                     "id": "s9.hello",
                     "expect": {"status": 200, "route": "local"},
                 },
+                # Spec 001 group 8 (FR-025): the relay forwards again within 10 s of the reset.
+                *(
+                    [
+                        {
+                            "op": "relay_hello",
+                            "assert": "9f",
+                            "after": "s9.reset",
+                            "within_s": 10,
+                            "expect": {"status": 200},
+                        }
+                    ]
+                    if self.ctx.relay_started
+                    else []
+                ),
                 {
                     "op": "trace",
                     "assert": "9c",
@@ -1933,6 +2026,20 @@ class Steps:
                 ),
                 self.log(
                     "11b", "state.unknown", stopped, condition="store_unreachable"
+                ),
+                # Spec 001 group 8's review A, I3: the relay reads the same store, and fails closed at once.
+                *(
+                    [
+                        {
+                            "op": "relay_hello",
+                            "assert": "11f",
+                            "after": "s11.hello",
+                            "within_s": 10,
+                            "expect": {"status": 503, "cause": "store_unreachable"},
+                        }
+                    ]
+                    if self.ctx.relay_started
+                    else []
                 ),
             ],
         )
@@ -2139,7 +2246,8 @@ def remove_overlay(ctx: Context) -> None:
 
 
 def cleanup(ctx: Context) -> None:
-    """Put back what the run stopped, whatever happened: the model server and the store."""
+    """Put back what the run stopped, whatever happened: the model server and the store; and remove dev-relay, which
+    the run started, so the stack is left as make up made it."""
     for service in sorted(ctx.stopped):
         try:
             if service == "gateway-state":
@@ -2152,10 +2260,47 @@ def cleanup(ctx: Context) -> None:
                 ctx.start_model_server()
         except Stop as problem:
             ctx.say(f"  cleanup: {problem}")
+    if ctx.relay_started:
+        try:
+            ctx.stop_relay()
+        except Stop as problem:
+            ctx.say(f"  cleanup: {problem}")
+
+
+def relay_ready(root: Path) -> str | None:
+    """Why dev-relay can't start, or None: it refuses to start while config/budgets.yaml's public section is missing or
+    a figure is blank, the Author's figures (P-6; ADR 0029), so the relay's rows wait for them, reading SKIP."""
+    try:
+        text = (root / "config" / "budgets.yaml").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "config/budgets.yaml can't be read"
+    # The standard library alone reads it, as this harness does everything: the top-level `public:` block, to the next
+    # top-level key, and each figure in it as a whole number, in either YAML style. The relay itself reads the file
+    # with a YAML parser and holds each figure to its bounds; this only says whether it would start.
+    section = re.search(
+        r"^public:[^\n]*\n((?:[ \t]+[^\n]*\n?|[ \t]*#[^\n]*\n?|\n)*)",
+        text,
+        re.MULTILINE,
+    )
+    if section is None:
+        return "config/budgets.yaml has no public figures yet: the relay refuses to start (P-6, tasks.md T114)"
+    blank = [
+        f"public.{group}.{key}"
+        for group, keys in (
+            ("per_address", ("requests_per_minute", "burst", "requests_per_day")),
+            ("global", ("in_flight",)),
+        )
+        for key in keys
+        if not re.search(rf"\b{key}:[ \t]*\d+[ \t]*(?:[,}}#\n]|$)", section.group(1))
+    ]
+    if blank:
+        return f"config/budgets.yaml's {', '.join(blank)} blank: the relay refuses to start (P-6, tasks.md T114)"
+    return None
 
 
 def run(ctx: Context) -> int:
     report = Report(ctx.delivery)
+    report.relay_skip = relay_ready(ROOT)
     steps = Steps(ctx, report)
     began = time.monotonic()
     overlaid = False

@@ -1,0 +1,19 @@
+Every byte that leaves this stack is written down before it can leave.
+
+The data-flow disclosure lists each flow: where it goes, what it carries, what it never carries, and how to switch it off.
+
+And the build enforces it: a service without a row is refused.
+
+When you talk to the twin, what leaves your device? Your typed words, the last few turns, and the address and browser every request carries.
+
+Never audio, the avatar, a cookie, or any identifier of the visit or the visitor. And in production, no one's words land in any log, trace, or store.
+
+When the paid fallback answers, your words go to Anthropic. In Hareet's words: this site saves none of it, and Anthropic may keep a turn it answered for up to thirty days, never for training.
+
+Then, what the twin says back. It answers only from what Hareet wrote, and when that doesn't hold the answer, it says: "I don't know yet."
+
+Before any word leaves the gateway, code checks the answer against its sources: numbers, amounts, ownership, privacy. A failed check withholds the answer.
+
+And every change is tested: a hundred and eighty-six cases drawn from the corpus, graded by code, never by another model.
+
+Every data flow disclosed. Built in the open, at hareet dot A I.

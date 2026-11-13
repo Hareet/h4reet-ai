@@ -71,6 +71,11 @@ LOKI = "http://loki:3100"
 LANGFUSE = "http://langfuse-web:3000"
 TELEGRAM = "http://telegram-standin:8080"
 MAILPIT = "http://mailpit:8025"
+# Spec 001 group 8 (tasks.md T099): dev-relay, the relay's own code beside the stack, on its edge listener. Its peer rule
+# refuses loopback alone on dev, so the probe asks as CloudFront would, with a viewer address from the documentation
+# range, which the relay holds for its cap and never logs.
+RELAY = "http://dev-relay:8080"
+RELAY_VIEWER = "192.0.2.77:40000"
 
 STACKS = ("dev", "dev-cpu")  # the breach test's only stacks (FR-036)
 MARK = "h4_breach_probe"
@@ -103,6 +108,7 @@ EVERY_S = {
     "mailpit": 2.0,
     "audit": 2.0,
     "incident": 3.0,
+    "relay_hello": 1.0,
 }
 # Keys whose values could be a payload, wherever they arrive: dropped from every answer before it is printed.
 PAYLOAD_KEYS = frozenset(
@@ -768,7 +774,16 @@ def shorten(text: str, limit: int = 200) -> str:
 
 
 ACTIONS = ("health", "wait_health", "admin", "spend", "hello", "sleep")
-CHECKS = ("metric", "log", "trace", "telegram", "mailpit", "audit", "incident")
+CHECKS = (
+    "metric",
+    "log",
+    "trace",
+    "telegram",
+    "mailpit",
+    "audit",
+    "incident",
+    "relay_hello",
+)
 NEEDS_ADMIN = ("admin", "spend", "audit", "incident")
 
 
@@ -1086,6 +1101,53 @@ class Probe:
         }
         wrong = misses(result, op.get("expect", {}))
         return {"ok": not wrong, **result, **({"misses": wrong} if wrong else {})}
+
+    def op_relay_hello(self, op: dict[str, Any], started: float) -> dict[str, Any]:
+        """Spec 001 group 8 (FR-025): POST /api/hello to dev-relay, as the edge sends it, until its status and cause
+        are the expected ones or the window closes; its status, its cause, and how long after its action it held,
+        never its answer."""
+        expect = op.get("expect", {})
+        window = self.window(op, started, 10)
+
+        def attempt(cutoff: float) -> tuple[bool, Any]:
+            try:
+                response = self.http.request(
+                    "POST",
+                    f"{RELAY}/api/hello",
+                    body={},
+                    headers={"CloudFront-Viewer-Address": RELAY_VIEWER},
+                )
+                body = response.json()
+            except (SourceError, Unreachable) as problem:
+                raise SourceError(f"the relay: {problem}") from problem
+            body = body if isinstance(body, dict) else {}
+            seen = {
+                "status": response.status,
+                "cause": body.get("cause"),
+                "header_cause": {k.lower(): v for k, v in response.headers.items()}.get(
+                    "x-h4-degraded-cause"
+                ),
+            }
+            return not misses(seen, expect), seen
+
+        outcome = poll(
+            attempt,
+            due_s=window.due_s,
+            every_s=EVERY_S["relay_hello"],
+            clock=self.clock,
+        )
+        result = {
+            "ok": outcome.ok,
+            **(outcome.value or {}),
+            **self.timing(window, outcome),
+        }
+        if not outcome.ok:
+            result["misses"] = (
+                misses(outcome.value or {}, expect) if outcome.value else list(expect)
+            )
+            if outcome.error:
+                result["error"] = outcome.error
+        return result
 
     def op_sleep(self, op: dict[str, Any], started: float) -> dict[str, Any]:
         seconds = float(op.get("s", 0))

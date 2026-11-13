@@ -1,0 +1,162 @@
+# MEASUREMENT ONLY (tasks.md T166; plan.md §16, "T166's harness"): the tunnel end's five services on the engine of
+# whoever runs `make measure-tunnel-end`, as project h4reet-measure-tunnel-end, never a stack's. It is read after
+# deploy/compose.yaml by deploy/scripts/measure_tunnel_end.py alone; no make up, deployer, release, or preflight reads it,
+# and deploy/scripts/test_measure_tunnel_end.py holds it to that and to what follows:
+#   - no port is published: each of the five resets its ports, so the tunnel end's literal addresses never appear;
+#   - each host path the five bind on the tunnel end (its keys and the store's key, certificate, password, and data, on
+#     tmpfs and the data volume) becomes a named volume of the measurement's own project, or the tree's own files,
+#     read-only;
+#   - the relay reads deploy/measure/budgets.measure.yaml, stand-in public-cap figures, never config/budgets.yaml; it
+#     forwards to a stub host, measure-host, as both hosts; and it refuses no peer but loopback, so the load's
+#     container, on the engine's bridge, reaches its edge listener;
+#   - the store runs without TLS (deploy/measure/pg_hba.measure.conf), and the relay with it as on dev: TLS's memory
+#     isn't what T166 records;
+#   - the images the release builds are built from the tree, and the copies are the lock's own pins.
+#   - none of the five restarts (`restart: "no"`), so a measurement cut short never comes back at the engine's next
+#     start, beside his own stacks.
+# The stand-in secrets come from the harness's temporary env file, which it removes after the run.
+
+services:
+  tunnel-end:
+    image: h4reet-measure-tunnel:local
+    restart: "no"
+    build:
+      context: tunnel
+    ports: !reset []
+    volumes: !override
+      - type: volume
+        source: measure-tunnel-keys
+        target: /run/keys
+        read_only: true
+    depends_on:
+      measure-keys:
+        condition: service_completed_successfully
+
+  relay:
+    image: h4reet-measure-relay:local
+    restart: "no"
+    build:
+      context: ..
+      dockerfile: services/relay/Dockerfile
+    ports: !reset []
+    environment:
+      H4_STACK: dev
+      RELAY_LAPTOP_URL: http://measure-host:8080
+      RELAY_EC2_URL: http://measure-host:8080
+      RELAY_REFUSED_PEERS: "127.0.0.0/8,::1/128"
+      RELAY_DB_TLS_CA: ""
+      RELAY_DB_TLS_SERVERNAME: ""
+    volumes: !override
+      - type: bind
+        source: "${H4_TREE:?set by the harness}/deploy/measure/budgets.measure.yaml"
+        target: /app/config/budgets.yaml
+        read_only: true
+
+  snapshot-sink:
+    image: h4reet-measure-snapshot:local
+    restart: "no"
+    build:
+      context: ..
+      dockerfile: deploy/snapshot/Dockerfile
+    ports: !reset []
+
+  tunnel-end-collector:
+    image: "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
+    restart: "no"
+    ports: !reset []
+    environment:
+      EC2_COLLECTOR_ENDPOINT: http://measure-host:8080
+
+  shared-state:
+    image: "public.ecr.aws/docker/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+    restart: "no"
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/h4reet/shared-state/postgresql.conf
+      - -c
+      - ssl=off
+      - -c
+      - hba_file=/etc/h4reet/measure/pg_hba.measure.conf
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD_FILE: ""
+      POSTGRES_PASSWORD: "${MEASURE_SUPERUSER_PASSWORD:?set by the harness}"
+    volumes: !override
+      - type: bind
+        source: "${H4_TREE:?set by the harness}/deploy/shared-state"
+        target: /etc/h4reet/shared-state
+        read_only: true
+      - type: bind
+        source: "${H4_TREE:?set by the harness}/deploy/measure"
+        target: /etc/h4reet/measure
+        read_only: true
+      - type: volume
+        source: measure-shared-state-data
+        target: /var/lib/postgresql/data
+
+  # The tunnel end's host key and the one authorized key, made for the run in the tunnel's own image and kept in the
+  # project's volume, owned by the image's user, as write_env.py writes them on the host.
+  measure-keys:
+    image: h4reet-measure-tunnel:local
+    build:
+      context: tunnel
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        umask 077 && rm -f /k/ssh_host_ed25519_key /k/authorized_keys &&
+        ssh-keygen -q -t ed25519 -N '' -f /k/ssh_host_ed25519_key &&
+        ssh-keygen -q -t ed25519 -N '' -f /tmp/client && cp /tmp/client.pub /k/authorized_keys &&
+        rm -f /k/ssh_host_ed25519_key.pub &&
+        chmod 0400 /k/ssh_host_ed25519_key && chmod 0444 /k/authorized_keys &&
+        chown 10001:10001 /k/ssh_host_ed25519_key /k/authorized_keys
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    networks: [internal]
+    volumes:
+      - type: volume
+        source: measure-tunnel-keys
+        target: /k
+    tmpfs: [/tmp]
+
+  # The serving host, both of them: the relay's health checks, hello, and the collector's OTLP, answered and dropped.
+  measure-host:
+    image: "public.ecr.aws/docker/library/python:3.12.15-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+    command: ["python3", "-I", "/measure/stub_host.py", "--port", "8080"]
+    user: "10001:10001"
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by the harness}/deploy/measure"
+        target: /measure
+        read_only: true
+    read_only: true
+
+  # The load, a one-off run: hello at the gateway's global metered limit, the status, and a host part a minute.
+  measure-load:
+    profiles: [measure-load]
+    image: "public.ecr.aws/docker/library/python:3.12.15-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+    entrypoint: ["python3", "-I", "/measure/load_tunnel_end.py"]
+    user: "10001:10001"
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      SNAPSHOT_SINK_TOKEN: "${SNAPSHOT_SINK_TOKEN:-}"
+    networks: [internal]
+    volumes:
+      - type: bind
+        source: "${H4_TREE:?set by the harness}/deploy/measure"
+        target: /measure
+        read_only: true
+    read_only: true
+
+volumes:
+  measure-tunnel-keys: {}
+  measure-shared-state-data: {}

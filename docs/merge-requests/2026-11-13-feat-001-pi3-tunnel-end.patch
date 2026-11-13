@@ -1,0 +1,682 @@
+P-I3, spec 001 group 5 (W1): the tunnel end's protected files, and gate A's backlog, for the Author's hand.
+
+Built from plain copies (git show bdb9808a:<path> for each file it changes, /dev/null for each it creates), edited,
+then diff -u with a/ and b/ labels; never git apply. Apply it on W1's -p branch with `patch -p1 < <this file>`, at
+the repository's root, and commit the result byte for byte (tasks.md T171, T172).
+
+What it holds:
+  - tasks.md T051, prod's protected files (plan.md §16, "No root holds another root's instance or health-check ID"):
+      infra/prod/ec2-market.tf  the tunnel end, a persistent spot instance that stops on interruption, IMDSv2 with hop
+                                limit 1, its type local.tunnel_end_type, which a precondition refuses while it holds
+                                T166's placeholder, so prod's plan stops there until T166 measures it;
+      infra/prod/iam.tf         h4-prod-tunnel-end, its instance role: ECR pulls from h4reet/*, its Parameter Store
+                                paths, the release bucket's reads, sns:Publish on h4-alerts, each by a name-built ARN,
+                                and Session Manager's and Run Command's own actions inline, with no managed policy
+                                (group 5's review, I1: AmazonSSMManagedInstanceCore reads every parameter), and
+                                kms:Decrypt held to its own parameters by Parameter Store's encryption context;
+      infra/prod/handover.tf    prod's local.wired = false; h4-tunnel-end-spot-warning to h4-alerts, naming the tunnel
+                                end from this root; and h4-tunnel-end-running's h4-alerts target, tunnel_end_back
+                                (FR-076's return alert; group 5's review, "Missing");
+      infra/account/handover.tf the account's local.wired = false, alone;
+  - tasks.md T160: infra/bootstrap/alerts.tf, h4-alerts' policy lets CloudWatch's alarms and EventBridge publish, each
+    for this account alone (aws:SourceAccount), and grants nothing else;
+  - tasks.md T159: infra/account/alerts.tf, the alarms h4-credential-audit-errors and h4-alert-bridge-failed to
+    h4-alerts, missing data not breaching; infra/lambdas/alert_bridge/bridge.py and its test, which read each alarm's
+    ALARM as its kind; contracts/aws-alerts.md §2's two rows, which arrive with the bridge that knows them (the bridge's
+    test holds every kind there to a notice);
+  - group 5's review, I6: the bridge reads an EventBridge rule's string template, which arrives as a JSON string, once,
+    as the notice it encodes, with its test of exactly that shape.
+
+Its checks, on a patched export: infra/test, infra/lambdas, deploy/hosts, and evals/test_runbooks.py pass; the policy
+passes both roots' files but for T10 on infra/prod, whose lockfile is the Author's step from his mirror, as each root's
+was. The bridge's test alone: RED 3 failed, 52 passed without bridge.py's change; GREEN 55 passed.
+Rebuilt for B-6's option C (the Author's answer, "We aren't building option A, we went with Option C"): the tunnel
+end's primary interface, device 0, is the private one, so the instance sits in the private subnet and CloudFront's
+VPC origin reaches 10.42.1.10, where the relay listens; tunnel-end.tf attaches the public one as device 1. One line
+of ec2-market.tf changes; rebuilt from a git archive export of ef173c58, the same way, with a/ and b/ labels.
+--- a/infra/account/alerts.tf
++++ b/infra/account/alerts.tf
+@@ -101,3 +101,50 @@
+   principal     = "events.amazonaws.com"
+   source_arn    = aws_cloudwatch_event_rule.credential_audit.arn
+ }
++
++# ----------------------------------------------------------------------------------------------------------------------
++# Two alarms to h4-alerts (tasks.md T159; group 4's Backlog; contracts/aws-alerts.md §2). Each reads missing data as
++# not breaching, so neither pages while its function or queue is idle; h4-alerts lets CloudWatch's alarms publish for
++# this account alone (the bootstrap's alerts.tf, T160).
++
++# The credential audit raised: its weekly run didn't finish, so no result was written and no finding was sent.
++resource "aws_cloudwatch_metric_alarm" "credential_audit_errors" {
++  count               = length(aws_lambda_function.credential_audit)
++  alarm_name          = "h4-credential-audit-errors"
++  alarm_description   = "h4-credential-audit raised: the weekly audit didn't finish (spec 001 FR-022)"
++  namespace           = "AWS/Lambda"
++  metric_name         = "Errors"
++  dimensions          = { FunctionName = aws_lambda_function.credential_audit[0].function_name }
++  statistic           = "Sum"
++  period              = 3600
++  evaluation_periods  = 1
++  comparison_operator = "GreaterThanOrEqualToThreshold"
++  threshold           = 1
++  treat_missing_data  = "notBreaching"
++  alarm_actions       = [data.aws_sns_topic.alerts.arn]
++
++  tags = {
++    component = "credential-audit"
++  }
++}
++
++# A notice the bridge couldn't send to Telegram, after Lambda's two retries, waits in its failure queue. The email half
++# still has SNS's own copy, and this alarm's.
++resource "aws_cloudwatch_metric_alarm" "bridge_failed" {
++  alarm_name          = "h4-alert-bridge-failed"
++  alarm_description   = "A notice the bridge couldn't send to Telegram is in h4-alert-bridge-failed (spec 001 FR-022)"
++  namespace           = "AWS/SQS"
++  metric_name         = "ApproximateNumberOfMessagesVisible"
++  dimensions          = { QueueName = aws_sqs_queue.alert_bridge_failed.name }
++  statistic           = "Maximum"
++  period              = 300
++  evaluation_periods  = 1
++  comparison_operator = "GreaterThanOrEqualToThreshold"
++  threshold           = 1
++  treat_missing_data  = "notBreaching"
++  alarm_actions       = [data.aws_sns_topic.alerts.arn]
++
++  tags = {
++    component = "alert-bridge"
++  }
++}
+--- /dev/null
++++ b/infra/account/handover.tf
+@@ -0,0 +1,11 @@
++# The account's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072; contracts/handover.md §2 to §5;
++# plan.md §16, "Why a switch"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch.
++# Group 5 writes the switch alone; group 9 adds h4-ec2-start, h4-ec2-guard, their permissions, the autostart switch,
++# the hours' schedules, and h4-laptop-away-rule behind it.
++
++locals {
++  # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
++  # may need another root's W1 apply, or an image not pushed yet. The Author's P-W2 sets it true for W2. Each resource
++  # behind it is written `count = local.wired ? 1 : 0`.
++  wired = false
++}
+--- a/infra/bootstrap/alerts.tf
++++ b/infra/bootstrap/alerts.tf
+@@ -10,9 +10,10 @@
+   }
+ }
+ 
+-# Who may publish, for now: AWS Budgets and Cost Anomaly Detection, for this account alone. contracts/aws-alerts.md §1's
+-# other publishers join with the groups that add them. The account's own principals keep what IAM gives them; this
+-# policy grants nothing else.
++# Who may publish: AWS Budgets, Cost Anomaly Detection, CloudWatch's alarms, and EventBridge, each for this account
++# alone. CloudWatch's and EventBridge's join in W1 (tasks.md T160; plan.md §16, W1's departure 4), for the credential
++# audit's and the bridge's alarms and the tunnel end's interruption warning. The account's own principals keep what IAM
++# gives them; this policy grants nothing else.
+ data "aws_iam_policy_document" "alerts" {
+   statement {
+     sid       = "Budgets"
+@@ -44,6 +45,42 @@
+     }
+ 
+     condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "CloudWatchAlarms"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["cloudwatch.amazonaws.com"]
++    }
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:SourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "EventBridge"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = [aws_sns_topic.alerts.arn]
++
++    principals {
++      type        = "Service"
++      identifiers = ["events.amazonaws.com"]
++    }
++
++    condition {
+       test     = "StringEquals"
+       variable = "aws:SourceAccount"
+       values   = [data.aws_caller_identity.current.account_id]
+--- a/infra/lambdas/alert_bridge/bridge.py
++++ b/infra/lambdas/alert_bridge/bridge.py
+@@ -10,9 +10,10 @@
+ The kinds and their pages are contracts/aws-alerts.md §2's. It knows a notice by its shape:
+   - this project's own, already in the format, from the credential audit, the handover's functions, the hosts'
+     deployers, and the EventBridge rules' input transformers: its kind must be one §2 lists, and only its fact lines,
+-    `- <key>: <value>`, pass;
++    `- <key>: <value>`, pass; a rule's string template arrives as a JSON string, read once as its text;
+   - AWS Budgets' threshold notices and its actions' notices, by the budget's name;
+-  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's), and EventBridge's events (ACM's expiry, EC2's spot
++  - Cost Anomaly Detection's, CloudWatch's alarms' (the probe's, and from W1 the credential audit's errors and the
++    bridge's own failure queue), and EventBridge's events (ACM's expiry, EC2's spot
+     warning), as JSON.
+ Anything else is `unrecognized`, and carries nothing of the notice: the alerts mailbox has SNS's own copy.
+ 
+@@ -62,6 +63,8 @@
+     "probe_failing": "probe-failing.md",
+     "probe_recovered": "probe-failing.md",
+     "credential_finding": "credential-audit.md",
++    "credential_audit_failed": "credential-audit.md",
++    "alert_bridge_failed": "alert-bridge.md",
+     "ec2_started": "handover.md",
+     "ec2_start_refused": "handover.md",
+     "ec2_stopped_laptop_serving": "handover.md",
+@@ -93,6 +96,17 @@
+     "h4-rehearsal-server": ("server", True),
+ }
+ PROBE_ALARM = "h4-probe-failing"
++# W1's alarms (tasks.md T159; infra/account/alerts.tf): each has an ALARM action only, so ALARM is its one notice.
++ALARMS: dict[str, tuple[str, str]] = {
++    "h4-credential-audit-errors": (
++        "credential_audit_failed",
++        "the weekly credential audit raised",
++    ),
++    "h4-alert-bridge-failed": (
++        "alert_bridge_failed",
++        "a notice the bridge couldn't send is in its failure queue",
++    ),
++}
+ 
+ # What never leaves, in the order they're taken out: each shape, and what stands in for it.
+ SCRUB = (
+@@ -245,10 +259,16 @@
+     if not isinstance(doc, dict):
+         return None
+     if "AlarmName" in doc and "NewStateValue" in doc:
+-        if doc.get("AlarmName") != PROBE_ALARM:
+-            return unrecognized("alarm")
+         state = doc.get("NewStateValue")
+         since = str(doc.get("StateChangeTime", ""))[:19]
++        mine = ALARMS.get(str(doc.get("AlarmName")))
++        if mine is not None:
++            kind, what = mine
++            if state != "ALARM":
++                return unrecognized("alarm")
++            return Alert("alarm", kind, f"{what}, since {since}")
++        if doc.get("AlarmName") != PROBE_ALARM:
++            return unrecognized("alarm")
+         if state == "ALARM":
+             return Alert(
+                 "alarm",
+@@ -313,7 +333,7 @@
+     return None
+ 
+ 
+-def classify(message: str) -> Alert:
++def classify(message: str, decoded: bool = False) -> Alert:
+     text = message or ""
+     for reader in (from_ours, from_budgets):
+         found = reader(text)
+@@ -323,6 +343,11 @@
+         doc = json.loads(text)
+     except ValueError:
+         doc = None
++    # An EventBridge rule's input transformer, given a string template, publishes that string's JSON text: its quotes,
++    # and its line breaks as \n (infra/prod/handover.tf's rules; group 5's review, I6). Read it once, as the text it
++    # encodes; a string inside that string is no shape of ours.
++    if isinstance(doc, str) and not decoded:
++        return classify(doc, decoded=True)
+     return from_json(doc) or unrecognized("unknown")
+ 
+ 
+--- a/infra/lambdas/alert_bridge/test_bridge.py
++++ b/infra/lambdas/alert_bridge/test_bridge.py
+@@ -126,16 +126,16 @@
+     )
+ 
+ 
+-def alarm_notice(state: str) -> str:
++def alarm_notice(state: str, name: str = "h4-probe-failing") -> str:
+     return json.dumps(
+         {
+-            "AlarmName": "h4-probe-failing",
++            "AlarmName": name,
+             "AWSAccountId": ACCOUNT,
+             "NewStateValue": state,
+             "OldStateValue": "OK" if state == "ALARM" else "ALARM",
+             "NewStateReason": f"Threshold Crossed: 5 datapoints from {ADDRESS}",
+             "StateChangeTime": "2026-11-10T06:01:00.000+0000",
+-            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:h4-probe-failing",
++            "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:{name}",
+         }
+     )
+ 
+@@ -179,6 +179,9 @@
+     ),
+     "probe_failing": alarm_notice("ALARM"),
+     "probe_recovered": alarm_notice("OK"),
++    # W1's two alarms (tasks.md T159; infra/account/alerts.tf).
++    "credential_audit_failed": alarm_notice("ALARM", "h4-credential-audit-errors"),
++    "alert_bridge_failed": alarm_notice("ALARM", "h4-alert-bridge-failed"),
+     "credential_finding": ours(
+         "credential_finding",
+         "2 findings",
+@@ -415,6 +418,63 @@
+     assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
+ 
+ 
++def test_w1s_alarms_read_alarm_as_their_kind_and_nothing_else() -> None:
++    # tasks.md T159: neither alarm has an OK action, so an OK or an unknown alarm's notice carries nothing.
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-credential-audit-errors"))
++    assert telegram.texts[0].splitlines()[0] == (
++        "[hareet.ai aws] credential_audit_failed: the weekly credential audit raised, since 2026-11-10T06:01:00"
++    )
++    assert (
++        telegram.texts[0].splitlines()[-1]
++        == "Runbook: docs/runbooks/credential-audit.md"
++    )
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-alert-bridge-failed"))
++    assert telegram.texts[0].splitlines()[0] == (
++        "[hareet.ai aws] alert_bridge_failed: a notice the bridge couldn't send is in its failure queue, "
++        "since 2026-11-10T06:01:00"
++    )
++    assert (
++        telegram.texts[0].splitlines()[-1] == "Runbook: docs/runbooks/alert-bridge.md"
++    )
++    for name in (
++        "h4-credential-audit-errors",
++        "h4-alert-bridge-failed",
++        "h4-something-else",
++    ):
++        _, telegram, _ = deliver(alarm_notice("OK", name))
++        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), name
++    _, telegram, _ = deliver(alarm_notice("ALARM", "h4-something-else"))
++    assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: ")
++
++
++# EventBridge's input transformer, given a string template, publishes that string's JSON text: its quotes, and each
++# line break as the two characters \n (infra/prod/handover.tf's rules; group 5's review, I6).
++EVENTBRIDGE_STRING = (
++    '"[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes'
++    '\\n- action: stop\\n- at: 2026-11-13T05:00:00Z"'
++)
++
++
++def test_an_eventbridge_string_template_is_read_as_the_notice_it_encodes() -> None:
++    assert json.loads(EVENTBRIDGE_STRING).count("\n") == 2
++    _, telegram, _ = deliver(EVENTBRIDGE_STRING)
++    (text,) = telegram.texts
++    assert text.splitlines() == [
++        "[hareet.ai aws] tunnel_end_interruption: AWS will stop the tunnel end in two minutes",
++        "- action: stop",
++        "- at: 2026-11-13T05:00:00Z",
++        "Runbook: docs/runbooks/tunnel-end.md",
++    ]
++    # A JSON string is read once, as text: one of no known shape, or a string inside a string, is unrecognized.
++    for message in (
++        json.dumps("not a notice of ours"),
++        json.dumps(EVENTBRIDGE_STRING),
++        json.dumps("[hareet.ai aws] no_such_kind: x"),
++    ):
++        _, telegram, _ = deliver(message)
++        assert telegram.texts[0].startswith("[hareet.ai aws] unrecognized: "), message
++
++
+ def test_a_notice_of_ours_passes_with_its_fact_lines_and_the_tables_runbook() -> None:
+     _, telegram, _ = deliver(NOTICES["credential_finding"])
+     (text,) = telegram.texts
+--- /dev/null
++++ b/infra/prod/ec2-market.tf
+@@ -0,0 +1,67 @@
++# The tunnel end on spot (spec 001 FR-076; research.md R-04, R-30; the Author's answer to the plan's question 2;
++# contracts/tunnel.md §1): a persistent spot request that stops on interruption, so the instance, its volumes, its
++# interfaces, and its Elastic IP stay, and AWS starts it again when capacity returns. Protected (FR-012; rule T5: what
++# holds instance_market_options lives only in ec2-market*): it changes only by the Author's patch.
++
++resource "aws_instance" "tunnel_end" {
++  ami                  = data.aws_ami.al2023.id
++  instance_type        = local.tunnel_end_type
++  iam_instance_profile = aws_iam_instance_profile.tunnel_end.name
++  user_data_base64     = base64gzip(local.tunnel_end_user_data)
++
++  instance_market_options {
++    market_type = "spot"
++
++    spot_options {
++      spot_instance_type             = "persistent"
++      instance_interruption_behavior = "stop"
++    }
++  }
++
++  # IMDSv2 alone, one hop, so no container reaches the instance's credentials (rule T13; research.md R-15).
++  metadata_options {
++    http_endpoint               = "enabled"
++    http_tokens                 = "required"
++    http_put_response_hop_limit = 1
++  }
++
++  # A busy burstable instance slows down rather than billing past its baseline (research.md R-04).
++  credit_specification {
++    cpu_credits = "standard"
++  }
++
++  root_block_device {
++    volume_type           = "gp3"
++    volume_size           = 8
++    encrypted             = true
++    delete_on_termination = true
++
++    tags = {
++      component = "tunnel-end"
++    }
++  }
++
++  primary_network_interface {
++    network_interface_id = aws_network_interface.tunnel_end_private.id
++  }
++
++  tags = {
++    Name      = "h4-prod-tunnel-end"
++    component = "tunnel-end"
++  }
++
++  lifecycle {
++    # A newer image or a changed host file reaches the tunnel end only through a reviewed replace, never as drift in
++    # a later plan: terraform_data.tunnel_end_host holds the user data's SHA-256 and local.tunnel_end_generation
++    # (tunnel-end.tf), so a changed host file or a new generation plans as the replace (group 5's review, I3;
++    # docs/runbooks/tunnel-end.md).
++    ignore_changes       = [ami, user_data_base64]
++    replace_triggered_by = [terraform_data.tunnel_end_host]
++
++    # T166 measures the type with the tunnel end's five services; until then prod's plan stops here.
++    precondition {
++      condition     = local.tunnel_end_type != "measure-in-T166"
++      error_message = "The tunnel end's type isn't measured yet: tasks.md T166 sets local.tunnel_end_type in infra/prod/tunnel-end.tf."
++    }
++  }
++}
+--- /dev/null
++++ b/infra/prod/handover.tf
+@@ -0,0 +1,81 @@
++# Prod's half of the handover (spec 001 FR-063 to FR-066, FR-069 to FR-072, FR-076; contracts/handover.md §2;
++# contracts/aws-alerts.md §2; plan.md §16, "Why a switch" and "No root holds another root's instance or health-check
++# ID"; ADR 0049, proposed). Protected (FR-012; rule T5): it changes only by the Author's patch. Group 5 writes the
++# switch, the tunnel end's interruption warning, and its return's alert; groups 7 and 9 add EC2's rules, the ID
++# parameter, and the rules' function targets behind the switch, h4-tunnel-end-running's start-function target among them.
++
++locals {
++  # The switch (plan.md §16): false in W1, whose three plan blocks are made before any of W1's applies, so nothing here
++  # may need another root's W1 apply. The Author's P-W2 sets it true for W2, whose blocks follow W1's applies. Each
++  # resource behind it is written `count = local.wired ? 1 : 0`.
++  wired = false
++}
++
++# AWS's two-minute warning before it stops the tunnel end (spec FR-076, "You get an alert"): the rule names the
++# instance from this root, so a replace or a move to another zone updates it in the same plan. It targets h4-alerts
++# directly, so it needs no other root's apply and waits behind no switch.
++resource "aws_cloudwatch_event_rule" "tunnel_end_spot_warning" {
++  name        = "h4-tunnel-end-spot-warning"
++  description = "AWS's interruption warning for the tunnel end, to h4-alerts (spec 001 FR-076)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Spot Instance Interruption Warning"]
++    detail = {
++      instance-id = [aws_instance.tunnel_end.id]
++    }
++  })
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++# One line of kind and facts, as contracts/aws-alerts.md §2 gives it, and nothing of the event but its time and the
++# action AWS names: never the account or the instance's ID.
++resource "aws_cloudwatch_event_target" "tunnel_end_spot_warning" {
++  rule      = aws_cloudwatch_event_rule.tunnel_end_spot_warning.name
++  target_id = "h4-alerts"
++  arn       = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++
++  input_transformer {
++    input_paths = {
++      action = "$.detail.instance-action"
++      at     = "$.time"
++    }
++    input_template = "\"[hareet.ai aws] tunnel_end_interruption: AWS will <action> the tunnel end in two minutes\\n- action: <action>\\n- at: <at>\""
++  }
++}
++
++# The tunnel end's return (spec FR-076, "its return SHALL be alerted"; contracts/handover.md §2): AWS starting it again
++# after an interruption, or a replace's first boot. Its h4-alerts target is W1's and needs no other root; its
++# start-function target, invoked `from: tunnel_end_back`, waits behind the switch with the function (W2; group 9).
++resource "aws_cloudwatch_event_rule" "tunnel_end_running" {
++  name        = "h4-tunnel-end-running"
++  description = "The tunnel end entering running, to h4-alerts (spec 001 FR-076)"
++  event_pattern = jsonencode({
++    source      = ["aws.ec2"]
++    detail-type = ["EC2 Instance State-change Notification"]
++    detail = {
++      instance-id = [aws_instance.tunnel_end.id]
++      state       = ["running"]
++    }
++  })
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++# tunnel_end_back in §2's format, with the time alone: never the account or the instance's ID.
++resource "aws_cloudwatch_event_target" "tunnel_end_running" {
++  rule      = aws_cloudwatch_event_rule.tunnel_end_running.name
++  target_id = "h4-alerts"
++  arn       = "arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"
++
++  input_transformer {
++    input_paths = {
++      at = "$.time"
++    }
++    input_template = "\"[hareet.ai aws] tunnel_end_back: the tunnel end runs again\\n- at: <at>\""
++  }
++}
+--- /dev/null
++++ b/infra/prod/iam.tf
+@@ -0,0 +1,174 @@
++# The tunnel end's identity, h4-prod-tunnel-end (spec 001 FR-012; research.md R-15; the plan's question 7,
++# provisional): its instance role, which its host services use through IMDSv2 alone, with one hop, so no container on
++# it reaches the role. Every grant names its target by a name-built ARN, since this root reads nothing another root
++# makes (plan.md §16). Group 9 adds the dashboard's reads. Protected (FR-012; rule T5): it changes only by the Author's
++# patch.
++
++data "aws_iam_policy_document" "tunnel_end_trust" {
++  statement {
++    sid     = "TheInstanceItself"
++    effect  = "Allow"
++    actions = ["sts:AssumeRole"]
++
++    principals {
++      type        = "Service"
++      identifiers = ["ec2.amazonaws.com"]
++    }
++  }
++}
++
++resource "aws_iam_role" "tunnel_end" {
++  name                 = "h4-prod-tunnel-end"
++  description          = "The tunnel end's host services (spec 001 research.md R-15)"
++  assume_role_policy   = data.aws_iam_policy_document.tunnel_end_trust.json
++  max_session_duration = 3600
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++resource "aws_iam_instance_profile" "tunnel_end" {
++  name = "h4-prod-tunnel-end"
++  role = aws_iam_role.tunnel_end.name
++
++  tags = {
++    component = "tunnel-end"
++  }
++}
++
++data "aws_iam_policy_document" "tunnel_end" {
++  # The deployer's pulls: a registry token, and the project's repositories alone (infra/account/registry.tf).
++  statement {
++    sid       = "RegistryToken"
++    effect    = "Allow"
++    actions   = ["ecr:GetAuthorizationToken"]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "PullTheProjectsImages"
++    effect = "Allow"
++    actions = [
++      "ecr:BatchGetImage",
++      "ecr:GetDownloadUrlForLayer",
++      "ecr:BatchCheckLayerAvailability",
++    ]
++    resources = ["arn:aws:ecr:us-east-1:${data.aws_caller_identity.current.account_id}:repository/h4reet/*"]
++  }
++
++  # write_env.py's reads at boot: its own path, and the hosts' shared one (the release bucket's name).
++  statement {
++    sid     = "ItsParameters"
++    effect  = "Allow"
++    actions = ["ssm:GetParameter", "ssm:GetParameters"]
++    resources = [
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
++      "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++    ]
++  }
++
++  # Its SecureStrings, decrypted by Parameter Store alone, with this account's keys, for its own parameters alone. AWS's aws/ssm key may grant this by
++  # its own key policy already; to confirm at T058, after which a later patch can drop the statement.
++  statement {
++    sid       = "DecryptThroughParameterStore"
++    effect    = "Allow"
++    actions   = ["kms:Decrypt"]
++    resources = ["arn:aws:kms:us-east-1:${data.aws_caller_identity.current.account_id}:key/*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "kms:ViaService"
++      values   = ["ssm.us-east-1.amazonaws.com"]
++    }
++
++    # Only for the parameters ItsParameters reads: Parameter Store names each SecureString in its encryption context.
++    condition {
++      test     = "StringLike"
++      variable = "kms:EncryptionContext:PARAMETER_ARN"
++      values = [
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/tunnel-end/*",
++        "arn:aws:ssm:us-east-1:${data.aws_caller_identity.current.account_id}:parameter/h4reet/hosts/*",
++      ]
++    }
++  }
++
++  # Session Manager and Run Command, the one way in for the Author (FR-050; his cloud-session target), and the Systems
++  # Manager commands his targets send: the actions AWS documents for an instance profile without the managed
++  # AmazonSSMManagedInstanceCore, whose ssm:GetParameter and ssm:GetParameters on "*" would read every parameter in the
++  # account, EC2's and the Author's among them (group 5's review, I1). AWS documents each on "*"; none reads a
++  # parameter, a secret, or an object.
++  statement {
++    sid    = "SessionManager"
++    effect = "Allow"
++    actions = [
++      "ssm:UpdateInstanceInformation",
++      "ssmmessages:CreateControlChannel",
++      "ssmmessages:CreateDataChannel",
++      "ssmmessages:OpenControlChannel",
++      "ssmmessages:OpenDataChannel",
++    ]
++    resources = ["*"]
++  }
++
++  statement {
++    sid    = "RunCommand"
++    effect = "Allow"
++    actions = [
++      "ec2messages:AcknowledgeMessage",
++      "ec2messages:DeleteMessage",
++      "ec2messages:FailMessage",
++      "ec2messages:GetEndpoint",
++      "ec2messages:GetMessages",
++      "ec2messages:SendReply",
++    ]
++    resources = ["*"]
++  }
++
++  # The deployer's reads of the release bucket (infra/account/registry.tf), by its name's prefix, in this account.
++  statement {
++    sid    = "ReadReleases"
++    effect = "Allow"
++    actions = [
++      "s3:GetObject",
++    ]
++    resources = [
++      "arn:aws:s3:::h4reet-ai-releases-*/releases/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/trees/*",
++      "arn:aws:s3:::h4reet-ai-releases-*/tools/*",
++    ]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  statement {
++    sid       = "ListReleases"
++    effect    = "Allow"
++    actions   = ["s3:ListBucket"]
++    resources = ["arn:aws:s3:::h4reet-ai-releases-*"]
++
++    condition {
++      test     = "StringEquals"
++      variable = "aws:ResourceAccount"
++      values   = [data.aws_caller_identity.current.account_id]
++    }
++  }
++
++  # Its deployer's alerts (contracts/aws-alerts.md §1): deploy_rolled_back, deploy_rollback_failed, deploy_refused.
++  statement {
++    sid       = "ItsAlerts"
++    effect    = "Allow"
++    actions   = ["sns:Publish"]
++    resources = ["arn:aws:sns:us-east-1:${data.aws_caller_identity.current.account_id}:h4-alerts"]
++  }
++}
++
++resource "aws_iam_role_policy" "tunnel_end" {
++  name   = "tunnel-end"
++  role   = aws_iam_role.tunnel_end.id
++  policy = data.aws_iam_policy_document.tunnel_end.json
++}
+--- a/specs/001-cloud-elevation/contracts/aws-alerts.md
++++ b/specs/001-cloud-elevation/contracts/aws-alerts.md
+@@ -25,6 +25,8 @@
+ | `cert_expiring` | ACM | as September | `certificate.md` |
+ | `probe_failing`, `probe_recovered` | the probe's alarm | 5 failed minutes; the next pass | `probe-failing.md` |
+ | `credential_finding` | the credential audit | any finding | `credential-audit.md` |
++| `credential_audit_failed` | the alarm `h4-credential-audit-errors` (W1) | the audit raised, so its run wrote no result | `credential-audit.md` |
++| `alert_bridge_failed` | the alarm `h4-alert-bridge-failed` (W1) | a notice the bridge couldn't send to Telegram is in its failure queue | `alert-bridge.md` |
+ | `ec2_started`, `ec2_start_refused` (`paused`, meaning the autostart switch is `off`; `server_budget_stopped`, `laptop_serving`, `start_failed`) | `h4-ec2-start` | each invocation | `handover.md` |
+ | `ec2_stopped_laptop_serving`, `ec2_stopped_paused`, `ec2_stopped_server_budget` | `h4-ec2-guard` | each stop | `handover.md`; `server-budget.md` for the last |
+ | `ec2_stopped_by_author` | `make ec2-stop` | each stop | `handover.md` |

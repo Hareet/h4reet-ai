@@ -1,6 +1,6 @@
 # Runbook: the model action ran
 
-`h4-model-month` reached 100% of its $20, and AWS Budgets attached `h4-deny-paid-models` to the Bedrock roles by itself: `h4-laptop-bedrock`, the role the laptop's permission set assumes, and, from spec 001's group 7, EC2's `h4-prod-gateway`. This page covers the alert `model_action_executed` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#4-the-two-actions-infraaccountkillswitchtf-protected)). The action is `infra/account/killswitch.tf`'s (spec 001 FR-023).
+`h4-model-month` reached 100% of its $20, and AWS Budgets attached `h4-deny-paid-models` to the Bedrock roles by itself: `h4-laptop-bedrock`, the role the laptop's permission set assumes, and, from spec 001's group 7, EC2's `h4-prod-gateway`. This page covers the alert `model_action_executed` ([spec 001 contracts/aws-alerts.md §2 and §4](../../specs/001-cloud-elevation/contracts/aws-alerts.md#4-the-two-actions-infraaccountkillswitchtf-protected)). Two actions on `h4-model-month` do it (spec 001 FR-023; tasks.md T180): the laptop's, `infra/account/killswitch.tf`'s, on `h4-laptop-bedrock`; and EC2's, `infra/prod/killswitch.tf`'s, on `h4-prod-gateway`. Each is reversed on its own.
 
 ## Symptoms
 
@@ -45,6 +45,8 @@ In your own terminal, with your SSO session (`pf` your administrator profile).
     --role-name "$r" --profile "$pf"
   ```
 
+  and again with `r=h4-prod-gateway`, EC2's.
+
 - After the Undo, the same list is empty, and `make operator-status ENV=prod` shows Bedrock's adapter healthy again within its health interval.
 
 ## Undo
@@ -68,7 +70,24 @@ aws "${e[@]}" "${a[@]}" --account-id "$id" \
   --budget-name "$n" --action-id "$x"
 ```
 
+**The reverse of each of the two model actions.** The list above prints both of `h4-model-month`'s actions, each with its `ActionId`: the one whose `Definition` names `h4-laptop-bedrock` is the account's, and the one that names `h4-prod-gateway` is EC2's (prod's). Run the reverse once for each, with its own `x`, and check each role's list in Verify: reversing one leaves the other's deny on its role.
+
 For the rehearsal's, the budget is `h4-rehearsal-model`, and the role `h4-rehearsal-target`. Never detach the policy by hand in the console: the action would read as executed while the policy is gone.
+
+**A partly failed apply** (W1's prod apply; P-I4's `infra/prod/killswitch.tf`). Whether one budget takes two actions of one type, `APPLY_IAM_POLICY` here, shows only in the apply: a plan never calls Budgets (group 7's review B, nit 2). If AWS refuses the second action, the apply fails at `aws_budgets_budget_action.model`, and Terraform may still have made what doesn't depend on it, EC2 among them. Then, before anything else:
+
+1. Check EC2 is stopped, with `pf` and `a` as in Act, step 2:
+
+   ```bash
+   t="Name=tag:Name,Values=h4-prod-ec2"
+   q='Reservations[].Instances[].State.Name'
+   aws ec2 describe-instances "${a[@]}" \
+     --filters "$t" --query "$q"
+   ```
+
+   Anything but `stopped` (or no instance): stop it from the EC2 console. Don't start it until step 3 is done, since FR-023's revoke wouldn't reach `h4-prod-gateway`.
+2. Keep the apply record whole, the error among it (`make infra-record`), and tell the main session.
+3. The fallback (research.md R-22): the account's model action takes `h4-prod-gateway` as its second target behind W2's switch, and prod's `aws_budgets_budget_action.model` goes, both in a patch for your hand; then prod's plan and apply again.
 
 ## Record
 

@@ -1,0 +1,135 @@
+P-G6, spec 001 group 8 (W1): the compose policy's relay, for the Author's hand.
+
+Built from plain copies: tools/gates/compose_policy.py and tools/gates/test/test_compose_policy.py as P-G3, P-G4, and
+P-G5 leave them (a git archive export of 7c5f1259 with W1's eight patches applied in order); edited in $TMPDIR, then
+diff -u with a/ and b/ labels after this preamble; never git apply, and nothing written into any worktree. Apply it on
+W1's -p branch after P-G5, with `patch -p1 < <this file>` at the repository's root, and commit the result byte for byte
+(tasks.md T171, T172).
+
+What it holds (tasks.md T106; contracts/relay-http.md §1; plan.md §16, "Group 8, as built"):
+  - relay, on the tunnel end: on the edge network, publishing exactly 10.42.1.10:8080 (its edge listener, for
+    CloudFront's VPC origin) and 127.0.0.1:18505 (its internal listener), in the tunnel end's class alone, with the
+    release's own image, h4reet/relay by the release's digest;
+  - nothing for dev-relay, which spec 000's rules already admit: built from the tree, on internal alone, no port.
+
+Its checks, on a fresh export with P-6, P-I3, P-G1, P-G3, P-I7, P-G4, P-G2, P-I4, P-G5, P-I5, and this patch, in that
+order: the policy's own tests pass, and `compose policy: PASS` on the real tree with its five env files.
+--- a/tools/gates/compose_policy.py
++++ b/tools/gates/compose_policy.py
+@@ -107,8 +107,10 @@
+ # From group 6, the tunnel end's shared state too, which publishes on the private interface (its contracts/shared-
+ # state.md §1).
+ # From group 7, EC2's two doors from the tunnel end, which publish on EC2's private address.
++# From group 8, the tunnel end's relay, which publishes its edge listener on the private interface (its contracts/
++# relay-http.md §1).
+ EDGE_NETWORK_SERVICES = frozenset(
+-    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block"}
++    {PUBLISHER, "tunnel-end", "shared-state", "ec2-relay-block", "relay"}
+ )
+ # The cloud hosts' classes: the profiles whose services run on a cloud host alone, which no laptop stack selects.
+ CLOUD_PROFILES = frozenset({"tunnel-end", "ec2"})
+@@ -125,6 +127,9 @@
+     "ec2-relay-block": frozenset(
+         {("10.42.0.20", "8085", 8085), ("10.42.0.20", "4318", 4318)}
+     ),
++    # Group 8: the relay's edge listener on the private interface's fixed address, which the security group holds to
++    # CloudFront's origin-facing list, and its internal listener on the tunnel end's own loopback alone.
++    "relay": frozenset({("10.42.1.10", "8080", 8080), ("127.0.0.1", "18505", 8081)}),
+ }
+ # The binds each of spec 001's services takes outside BIND_ROOTS, each read-only but where it says writable: the
+ # laptop's client key and pinned host key, which the Author's tunnel-keys target leaves under
+@@ -144,7 +149,8 @@
+ # release's env file; an upstream image's copy runs by the lock's own digest and tag, which the copy keeps: the lock's
+ # line of the service it copies, by the repository's name.
+ REGISTRY = "${H4_REGISTRY:-registry.invalid}/h4reet/"
+-RELEASE_IMAGES = {"tunnel-end": "tunnel"}
++# Group 8: the relay, which the release builds too.
++RELEASE_IMAGES = {"tunnel-end": "tunnel", "relay": "relay"}
+ UPSTREAM_COPIES = {
+     "tunnel-end-collector": "otel-collector",
+     # Group 6: the shared state runs gateway-state's Postgres, copied to a repository of its own name.
+--- a/tools/gates/test/test_compose_policy.py
++++ b/tools/gates/test/test_compose_policy.py
+@@ -1696,3 +1696,82 @@
+     model = shared_model()
+     model["services"]["shared-state"]["networks"] = {"internal": None, "egress": None}
+     assert ("shared-state", "networks") in shared_rules(model, tmp_path)
++
++
++# Spec 001 group 8 (its contracts/relay-http.md §1): the tunnel end's relay, on the edge network, publishing exactly its
++# edge listener on the private interface's fixed address and its internal listener on the tunnel end's loopback, in
++# the tunnel end's class alone, with the release's image by its digest; and dev-relay, built from the tree, on internal.
++RELAY_IMAGE = "${H4_REGISTRY:-registry.invalid}/h4reet/relay@${H4_DIGEST_RELAY:-}"
++
++
++def relay_model() -> dict:
++    model = ec2_model()
++    model["services"]["relay"] = service(
++        profiles=["tunnel-end"],
++        image=RELAY_IMAGE,
++        networks={"internal": None, "edge": None},
++        ports=["10.42.1.10:8080:8080", "127.0.0.1:18505:8081"],
++    )
++    return model
++
++
++RELAY_DISCLOSED = EC2_DISCLOSED | {"relay"}
++
++
++def relay_rules(model: dict, tree: Path) -> set[tuple[str, str]]:
++    found = cp.check_model(model, CLOUD_LOCK, tree, RELAY_DISCLOSED)
++    return {(f.where.rsplit(" ", 1)[-1], f.rule) for f in found}
++
++
++def test_the_relay_passes(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    assert relay_rules(relay_model(), tmp_path) == set()
++
++
++def test_the_relay_publishes_exactly_its_two_listeners_in_the_tunnel_ends_class_alone(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    for ports in (
++        ["10.42.1.10:8080:8080"],
++        ["0.0.0.0:8080:8080", "127.0.0.1:18505:8081"],
++        ["10.42.0.10:8080:8080", "127.0.0.1:18505:8081"],
++        ["10.42.1.10:8080:8080", "0.0.0.0:18505:8081"],
++        ["10.42.1.10:8080:8080", "127.0.0.1:18505:8081", "10.42.1.10:8082:8082"],
++    ):
++        model = relay_model()
++        model["services"]["relay"]["ports"] = ports
++        assert ("relay", "ports") in relay_rules(model, tmp_path), ports
++    model = relay_model()
++    model["services"]["relay"]["profiles"] = ["tunnel-end", "dev-relay"]
++    assert ("relay", "ports") in relay_rules(model, tmp_path)
++
++
++def test_the_relay_runs_the_releases_image_and_joins_no_egress(tmp_path: Path) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    model = relay_model()
++    model["services"]["relay"]["image"] = "ghcr.io/someone/relay:1@sha256:" + "0" * 64
++    assert ("relay", "image") in relay_rules(model, tmp_path)
++    model = relay_model()
++    model["services"]["relay"]["networks"] = {
++        "internal": None,
++        "edge": None,
++        "egress": None,
++    }
++    assert ("relay", "networks") in relay_rules(model, tmp_path)
++
++
++def test_a_service_named_otherwise_may_not_publish_the_relays_ports(
++    tmp_path: Path,
++) -> None:
++    (tmp_path / "deploy" / "tunnel").mkdir(parents=True)
++    model = relay_model()
++    model["services"]["dev-relay"] = service(
++        profiles=["dev-relay"],
++        build={"context": "tunnel"},
++        ports=["127.0.0.1:18505:8081"],
++    )
++    found = cp.check_model(model, CLOUD_LOCK, tmp_path, RELAY_DISCLOSED | {"dev-relay"})
++    assert ("dev-relay", "ports") in {
++        (f.where.rsplit(" ", 1)[-1], f.rule) for f in found
++    }

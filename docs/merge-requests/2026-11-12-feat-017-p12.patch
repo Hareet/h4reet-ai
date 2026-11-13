@@ -17,10 +17,9 @@ make check and the gate's policy step FAIL on that one line, and R3 names it as 
 before feat/017-the-night-shift's gate.
 
 Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat-017-p12.patch
-
 --- a/tools/gates/compose_policy.py
 +++ b/tools/gates/compose_policy.py
-@@ -68,6 +68,13 @@
+@@ -74,6 +74,13 @@
  ROOT = Path(__file__).resolve().parents[2]
  COMPOSE_FILE = "deploy/compose.yaml"
  LOCK_FILE = "deploy/images.lock"
@@ -34,7 +33,7 @@ Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat
  DISCLOSURE_FILE = "docs/data-flow-disclosure.md"
  DEVCONTAINER_FILE = ".devcontainer/devcontainer.json"
  ENV_FILES = (
-@@ -985,6 +992,9 @@
+@@ -1187,6 +1194,9 @@
              stages.add(tokens[2].lower())
          if ref.lower() in stages or ref == "scratch":
              continue
@@ -46,10 +45,10 @@ Apply from the repository's top: patch -p1 < docs/merge-requests/2026-11-12-feat
                  Finding(
 --- a/tools/gates/test/test_compose_policy.py
 +++ b/tools/gates/test/test_compose_policy.py
-@@ -1343,3 +1343,29 @@
-     assert cp.check_service("web", web, model, lock, REPO) == []
-     assert "127.0.0.1:${H4_SITE_PORT}:8087" in model["services"]["edge"]["ports"]
-     assert cp.check_service("edge", model["services"]["edge"], model, lock, REPO) == []
+@@ -1877,3 +1877,29 @@
+     model = snapshot_model()
+     model["services"]["snapshot-publisher"]["ports"] = ["127.0.0.1:2301:8080"]
+     assert ("snapshot-publisher", "ports") in snapshot_rules(model, tmp_path)
 +
 +
 +def test_a_local_base_passes_only_at_its_own_file_and_argument(tmp_path: Path) -> None:

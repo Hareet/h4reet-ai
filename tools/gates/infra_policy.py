@@ -77,6 +77,7 @@ TAGGABLE = frozenset(
     [
         "aws_acm_certificate",
         "aws_budgets_budget",
+        "aws_budgets_budget_action",
         "aws_ce_anomaly_monitor",
         "aws_ce_anomaly_subscription",
         "aws_cloudfront_distribution",
@@ -108,7 +109,9 @@ TAGGABLE = frozenset(
         "aws_security_group",
         "aws_sns_topic",
         "aws_spot_instance_request",
+        "aws_sqs_queue",
         "aws_ssm_parameter",
+        "aws_ssoadmin_permission_set",
         "aws_subnet",
         "aws_vpc",
         "aws_vpc_endpoint",

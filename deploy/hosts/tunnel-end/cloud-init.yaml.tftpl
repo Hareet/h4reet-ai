@@ -1,0 +1,33 @@
+#cloud-config
+users:
+  - default
+  - name: h4-egress
+    system: true
+    no_create_home: true
+    shell: /sbin/nologin
+    lock_passwd: true
+
+write_files:
+%{ for path, file in files ~}
+  - path: ${path}
+    owner: root:root
+    permissions: "${file.mode}"
+    content: |
+      ${indent(6, file.content)}
+%{ endfor ~}
+
+runcmd:
+  - timeout 300 sh -c 'until ip link show ens6 >/dev/null 2>&1; do sleep 2; done'
+  - networkctl reload
+  - networkctl reconfigure ens6
+  - networkctl reconfigure ens5
+  - timeout 60 sh -c 'until ip -4 route get 10.42.0.20 | grep -q " dev ens5 "; do sleep 2; done' && timeout 300 sh -c 'until ip -4 route get 192.0.2.1 | grep -q " dev ens6 "; do sleep 2; done' && dnf install -y docker nftables && nft -f /etc/h4reet/nftables.nft || exit 1
+  - systemctl disable --now sshd.service
+  - systemctl daemon-reload
+  - systemctl enable h4-nftables.service
+  - systemctl enable --now h4-egress-proxy.service
+  - systemctl restart amazon-ssm-agent.service
+  - systemctl enable --now h4-write-env.service
+  - systemctl enable --now docker.service
+  - systemctl enable --now h4-stack.service
+  - systemctl enable --now h4-deployer.timer

@@ -1934,3 +1934,68 @@ def test_a_mailpit_check_reads_the_found_messages_form_and_prints_no_payload() -
         assert "DOCTYPE" not in json.dumps(result) and "WARNING" not in json.dumps(
             result
         )
+
+
+# --- spec 001 group 8: the relay's hello, through dev-relay (tasks.md T099) ----------------------------------------
+
+
+def test_relay_hello_asks_the_relay_as_the_edge_would_and_waits_for_its_answer() -> (
+    None
+):
+    rig = make()
+    answers = sequence(
+        (200, {"answer": "words", "trace_id": TRACE}),
+        (
+            503,
+            {"state": "degraded", "cause": "kill_switch_tripped", "stack": "dev-cpu"},
+        ),
+    )
+    seen: list[dict[str, str]] = []
+
+    def handler(*args: Any) -> Any:
+        seen.append({k.lower(): v for k, v in args[4].items()})
+        return answers()
+
+    rig.http.on("POST", f"{probe.RELAY}/api/hello", handler)
+    rig.run(
+        [
+            {"op": "sleep", "id": "trip", "s": 0},
+            {
+                "op": "relay_hello",
+                "assert": "7h",
+                "after": "trip",
+                "within_s": 10,
+                "expect": {"status": 503, "cause": "kill_switch_tripped"},
+            },
+        ],
+        "7",
+    )
+    result = rig.results()[-1]
+    assert (
+        result["ok"]
+        and result["status"] == 503
+        and result["cause"] == "kill_switch_tripped"
+    )
+    assert result["seen_after_s"] <= 10
+    assert all(h.get("cloudfront-viewer-address") == probe.RELAY_VIEWER for h in seen)
+    assert "words" not in json.dumps(result)
+
+
+def test_relay_hello_misses_when_the_relay_never_answers_so() -> None:
+    rig = make()
+    rig.http.on("POST", f"{probe.RELAY}/api/hello", fixed(200, {"answer": "words"}))
+    rig.run(
+        [
+            {"op": "sleep", "id": "trip", "s": 0},
+            {
+                "op": "relay_hello",
+                "assert": "7h",
+                "after": "trip",
+                "within_s": 10,
+                "expect": {"status": 503, "cause": "kill_switch_tripped"},
+            },
+        ],
+        "7",
+    )
+    result = rig.results()[-1]
+    assert not result["ok"] and result["status"] == 200
